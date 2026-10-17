@@ -1,9 +1,16 @@
 # Recognizer
 
-Scans a codebase into a language-neutral model of its modules and dependencies, and shows that model in a native viewer.
+Recognizer scans a codebase into a language-neutral model of its modules and dependencies, and shows that model in a native viewer. The picture is derived from the code and never drawn by hand, so it cannot disagree with the code.
 
-- **Scanners** are standalone command-line tools, one per language, that each emit the same JSON document.
-- **The viewer** is a native app that draws a scan, a project's declared policy and any health overlays.
-- **Consumers** such as lightcycle's codebase audit read the same scan without the viewer.
+## Parts
 
-Design in progress.
+- **Scanners.** One standalone command-line tool per language (Python, TypeScript, Kotlin) that reads a source tree and prints the same JSON scan document.
+- **Policy.** A repository's owners declare their architecture in `.recognizer/policy.yaml`: ordered levels, which paths belong to each, and rules the order cannot express. An edge that breaks it is a violation.
+- **Check.** Reads a scan and a policy, reports violations, and refuses growth beyond the committed baseline, so a codebase's known violations may only shrink.
+- **Viewer.** A native app (Tauri) that draws the modules and their dependencies, colours violations and health, and opens a module to show its classes and functions.
+
+Other tools use the scan without the viewer. lightcycle's codebase audit compares scans of two commits to see what changed and turns policy violations into ratchets.
+
+## Status
+
+Design in progress: [docs/design.md](docs/design.md) holds what is decided and what is still open. Nothing is built yet.
