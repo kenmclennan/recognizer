@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+__pycache__/
+*.pyc
+.venv/
+*.log
+.env
+.DS_Store
+.worktrees/
+.claude/worktrees/
+.recognizer/cache/
