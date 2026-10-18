@@ -141,6 +141,18 @@ The document is facts about the code only: no policy, layout, colours or violati
 }
 ```
 
+### Toolchains and CI
+
+Each part carries only its own toolchain; no part needs more than one language.
+
+- `scanners/python/`: its own `pyproject.toml`, hatchling build, `requires-python >= 3.11`, uv for the dev venv and lockfile, ruff and pytest. Installable with `uvx` or `pipx`, so an audit needs no checkout.
+- `scanners/typescript/` and `app/`: npm workspaces at the repository root, Node 22 in CI with `engines >= 22`, TypeScript 5.9, vitest, biome for lint and format. Prettier (`--prose-wrap=never`) and markdownlint-cli2 at the root for markdown only.
+- `app/`: `app/src-tauri` with Tauri 2, Rust stable, edition 2021, `@tauri-apps/cli` in the workspace. CI installs the webkit2gtk system libraries and caches the Rust build.
+- `schema/`: JSON Schema 2020-12. No separate validator job: each scanner's tests validate its fixture output against the schema (`jsonschema` in Python, `ajv` in TypeScript), so a schema edit is checked by every scanner.
+- Kotlin's toolchain is decided by the spike.
+
+CI is one workflow file per directory, filtered on that directory's path plus `schema/**` and `fixtures/**`: a schema or fixture change runs every scanner, a scanner change runs only itself.
+
 ### Prior art
 
 Robert C. Martin's uml-viewer is a reference for approach only. It states no licence, so none of its code is copied or ported; its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
@@ -149,15 +161,14 @@ Robert C. Martin's uml-viewer is a reference for approach only. It states no lic
 
 Decide these with Ken one at a time, in this order, recording each under Decided before building on it.
 
-1. **Toolchains and CI.** Python packaging and minimum version, Node version and package manager, the Tauri and Rust setup, and one CI job per directory triggered by its path.
-2. **Where policy checking lives.** A language-neutral `recognizer check` that reads a scan and a policy and reports violations and baseline growth. It needs one implementation language; it is also what lightcycle's audit and CI ratchets call.
-3. **The overlay format.** Health data (complexity, coverage, mutation) keyed by module id and commit; missing data shows as unknown, never as healthy.
-4. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
-5. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
+1. **Where policy checking lives.** A language-neutral `recognizer check` that reads a scan and a policy and reports violations and baseline growth. It needs one implementation language; it is also what lightcycle's audit and CI ratchets call.
+2. **The overlay format.** Health data (complexity, coverage, mutation) keyed by module id and commit; missing data shows as unknown, never as healthy.
+3. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
+4. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
 
 ## First build items
 
-Once 1 and 2 are decided, in this order, each with fixtures and tests:
+Once 1 is decided, in this order, each with fixtures and tests:
 
 1. The schema, example scans, and the Python scanner, run against lightcycle (`kenmclennan/lightcycle`, a hexagonal Python codebase).
 2. `recognizer check` against a policy for lightcycle, reporting its wrong-way edges.
