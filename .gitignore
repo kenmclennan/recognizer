@@ -10,3 +10,5 @@ __pycache__/
 .worktrees/
 .claude/worktrees/
 .recognizer/cache/
+.pytest_cache/
+.ruff_cache/

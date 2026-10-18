@@ -22,7 +22,7 @@ One repository, a directory per part:
 - `app/` - the Tauri viewer
 - `fixtures/` - small sample codebases per language, each with its expected scan
 
-None of these exist yet.
+`schema/`, `scanners/python/` and `fixtures/` exist; `check/`, `scanners/typescript/`, `scanners/kotlin/` and `app/` do not yet.
 
 ## Rules
 

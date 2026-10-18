@@ -1,0 +1,30 @@
+name: markdown
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - .markdownlint.json
+      - package.json
+      - package-lock.json
+      - .github/workflows/markdown.yml
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - .markdownlint.json
+      - package.json
+      - package-lock.json
+      - .github/workflows/markdown.yml
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx prettier --check --prose-wrap=never "**/*.md"
+      - run: npx markdownlint-cli2 "**/*.md" "#node_modules" "#scanners/python/.venv"

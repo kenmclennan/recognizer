@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
+  "commit": null,
+  "modules": [
+    { "id": "shop/__init__.py", "language": "python", "kind": "package", "members": [] },
+    {
+      "id": "shop/adapters/memory_store.py",
+      "language": "python",
+      "kind": "module",
+      "members": [{ "name": "MemoryStore", "kind": "class", "line": 6, "exported": true }]
+    },
+    {
+      "id": "shop/adapters/special_store.py",
+      "language": "python",
+      "kind": "module",
+      "members": [{ "name": "SpecialStore", "kind": "class", "line": 4, "exported": true }]
+    },
+    {
+      "id": "shop/application/place.py",
+      "language": "python",
+      "kind": "module",
+      "members": [{ "name": "place", "kind": "function", "line": 5, "exported": true }]
+    },
+    { "id": "shop/domain/__init__.py", "language": "python", "kind": "package", "members": [] },
+    {
+      "id": "shop/domain/order.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        { "name": "Order", "kind": "class", "line": 7, "exported": true },
+        { "name": "new_order", "kind": "function", "line": 11, "exported": false }
+      ]
+    },
+    { "id": "shop/ports/__init__.py", "language": "python", "kind": "package", "members": [] },
+    {
+      "id": "shop/ports/store.py",
+      "language": "python",
+      "kind": "interface",
+      "members": [
+        { "name": "Store", "kind": "interface", "line": 5, "exported": true },
+        { "name": "Clock", "kind": "interface", "line": 9, "exported": true }
+      ]
+    }
+  ],
+  "edges": [
+    { "from": "shop/__init__.py", "to": "shop/domain/order.py", "kind": "depends", "line": 1 },
+    { "from": "shop/adapters/memory_store.py", "to": "foreign:os", "kind": "depends", "line": 1 },
+    {
+      "from": "shop/adapters/memory_store.py",
+      "to": "shop/ports/store.py",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "shop/adapters/memory_store.py",
+      "to": "shop/ports/store.py",
+      "kind": "implements",
+      "line": 6,
+      "member": "MemoryStore",
+      "to_member": "Store"
+    },
+    {
+      "from": "shop/adapters/special_store.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/adapters/special_store.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "inherits",
+      "line": 4,
+      "member": "SpecialStore",
+      "to_member": "MemoryStore"
+    },
+    {
+      "from": "shop/application/place.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/application/place.py",
+      "to": "shop/ports/store.py",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "shop/application/place.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 6
+    },
+    { "from": "shop/domain/order.py", "to": "foreign:dataclasses", "kind": "depends", "line": 1 },
+    { "from": "shop/ports/store.py", "to": "foreign:abc", "kind": "depends", "line": 1 },
+    { "from": "shop/ports/store.py", "to": "foreign:typing", "kind": "depends", "line": 2 }
+  ],
+  "foreign": [
+    { "id": "foreign:abc", "name": "abc" },
+    { "id": "foreign:dataclasses", "name": "dataclasses" },
+    { "id": "foreign:os", "name": "os" },
+    { "id": "foreign:typing", "name": "typing" }
+  ]
+}

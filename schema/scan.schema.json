@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kenmclennan/recognizer/schema/scan.schema.json",
+  "title": "Recognizer scan document",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scanner",
+    "commit",
+    "modules",
+    "edges",
+    "foreign"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "scanner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "commit": { "type": ["string", "null"], "minLength": 1 },
+    "modules": { "type": "array", "items": { "$ref": "#/$defs/module" } },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+    "foreign": { "type": "array", "items": { "$ref": "#/$defs/foreignNode" } }
+  },
+  "$defs": {
+    "moduleId": {
+      "type": "string",
+      "pattern": "^(?!foreign:)(?!\\./)(?!/)[^\\\\]+$"
+    },
+    "foreignId": { "type": "string", "pattern": "^foreign:.+$" },
+    "line": { "type": "integer", "minimum": 1 },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "language", "kind", "members"],
+      "properties": {
+        "id": { "$ref": "#/$defs/moduleId" },
+        "language": { "enum": ["python", "typescript", "kotlin"] },
+        "kind": { "enum": ["module", "package", "interface"] },
+        "members": { "type": "array", "items": { "$ref": "#/$defs/member" } }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "line", "exported"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["class", "function", "interface", "type", "constant"]
+        },
+        "line": { "$ref": "#/$defs/line" },
+        "exported": { "type": "boolean" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["from", "to", "kind", "line"],
+      "properties": {
+        "from": { "$ref": "#/$defs/moduleId" },
+        "to": {
+          "oneOf": [
+            { "$ref": "#/$defs/moduleId" },
+            { "$ref": "#/$defs/foreignId" }
+          ]
+        },
+        "kind": { "enum": ["depends", "inherits", "implements"] },
+        "line": { "$ref": "#/$defs/line" },
+        "member": { "type": "string", "minLength": 1 },
+        "to_member": { "type": "string", "minLength": 1 }
+      },
+      "unevaluatedProperties": false,
+      "if": {
+        "properties": { "kind": { "enum": ["inherits", "implements"] } }
+      },
+      "then": { "required": ["member", "to_member"] },
+      "else": {
+        "not": {
+          "anyOf": [{ "required": ["member"] }, { "required": ["to_member"] }]
+        }
+      }
+    },
+    "foreignNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/foreignId" },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

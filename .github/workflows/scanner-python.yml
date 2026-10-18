@@ -1,0 +1,35 @@
+name: scanner-python
+
+on:
+  pull_request:
+    paths:
+      - scanners/python/**
+      - schema/**
+      - fixtures/**
+      - .github/workflows/scanner-python.yml
+  push:
+    branches: [main]
+    paths:
+      - scanners/python/**
+      - schema/**
+      - fixtures/**
+      - .github/workflows/scanner-python.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: scanners/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest

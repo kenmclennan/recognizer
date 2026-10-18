@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": "a1b2c3d",
+  "modules": [
+    {
+      "id": "lightcycle/domain/item.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Item",
+          "kind": "class",
+          "line": 12,
+          "exported": true
+        },
+        {
+          "name": "new_item",
+          "kind": "function",
+          "line": 40,
+          "exported": true
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "lightcycle/application/claim.py",
+      "to": "lightcycle/domain/item.py",
+      "kind": "depends",
+      "line": 3,
+      "member": "X",
+      "to_member": "Y"
+    },
+    {
+      "from": "lightcycle/adapters/sqlite_store.py",
+      "to": "lightcycle/ports/store.py",
+      "kind": "implements",
+      "member": "SqliteStore",
+      "to_member": "Store",
+      "line": 9
+    },
+    {
+      "from": "lightcycle/adapters/sqlite_store.py",
+      "to": "foreign:sqlite3",
+      "kind": "depends",
+      "line": 1
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:sqlite3",
+      "name": "sqlite3"
+    }
+  ]
+}

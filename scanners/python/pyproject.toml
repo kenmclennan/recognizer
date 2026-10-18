@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "recognizer-scan-python"
+version = "0.1.0"
+description = "Scans a Python source tree into a Recognizer scan document"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+recognizer-scan-python = "recognizer_scan_python.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "ruff", "jsonschema"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/recognizer_scan_python"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
