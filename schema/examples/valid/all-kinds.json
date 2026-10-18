@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "scanner": {
+    "name": "hand-written",
+    "version": "0.0.0"
+  },
+  "commit": null,
+  "modules": [
+    {
+      "id": "web/src/api.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Client",
+          "kind": "interface",
+          "line": 3,
+          "exported": true
+        },
+        {
+          "name": "Id",
+          "kind": "type",
+          "line": 9,
+          "exported": true
+        },
+        {
+          "name": "LIMIT",
+          "kind": "constant",
+          "line": 12,
+          "exported": false
+        }
+      ]
+    },
+    {
+      "id": "web/src/ports",
+      "language": "typescript",
+      "kind": "package",
+      "members": []
+    },
+    {
+      "id": "app/src/main/kotlin/shop/ports",
+      "language": "kotlin",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 4,
+          "exported": true
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/adapters",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "MemoryStore",
+          "kind": "class",
+          "line": 6,
+          "exported": true
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "app/src/main/kotlin/shop/adapters",
+      "to": "app/src/main/kotlin/shop/ports",
+      "kind": "inherits",
+      "line": 6,
+      "member": "MemoryStore",
+      "to_member": "Store"
+    },
+    {
+      "from": "web/src/api.ts",
+      "to": "web/src/ports",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "web/src/api.ts",
+      "to": "foreign:react",
+      "kind": "depends",
+      "line": 2
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:react",
+      "name": "react"
+    }
+  ]
+}

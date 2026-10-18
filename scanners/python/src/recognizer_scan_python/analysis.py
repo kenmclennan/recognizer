@@ -1,0 +1,190 @@
+import ast
+from dataclasses import dataclass, field
+
+from recognizer_scan_python.index import ModuleIndex
+
+ABSTRACT_BASES = {"typing.Protocol", "typing_extensions.Protocol", "abc.ABC"}
+ABSTRACT_METACLASS = "abc.ABCMeta"
+
+
+@dataclass
+class Imports:
+    edges: set[tuple[str, int]] = field(default_factory=set)
+    foreign: set[tuple[str, int]] = field(default_factory=set)
+    bindings: dict[str, str] = field(default_factory=dict)
+
+
+def import_statements(tree: ast.Module) -> list[ast.Import | ast.ImportFrom]:
+    statements = [n for n in ast.walk(tree) if isinstance(n, ast.Import | ast.ImportFrom)]
+
+    return sorted(statements, key=lambda n: (n.lineno, n.col_offset))
+
+
+def relative_base(node: ast.ImportFrom, package: tuple[str, ...] | None) -> list[str] | None:
+    if package is None or node.level - 1 > len(package):
+        return None
+
+    kept = list(package[: len(package) - (node.level - 1)])
+
+    return kept + (node.module.split(".") if node.module else [])
+
+
+def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Imports:
+    imports = Imports()
+    package = index.package_parts(module_id)
+
+    def add_edge(target: str | None, line: int) -> None:
+        if target is not None and target != module_id:
+            imports.edges.add((target, line))
+
+    for node in import_statements(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                hit = index.longest(parts)
+
+                if hit:
+                    add_edge(hit.module_id, node.lineno)
+                else:
+                    imports.foreign.add((parts[0], node.lineno))
+
+                if alias.asname:
+                    imports.bindings[alias.asname] = alias.name
+                else:
+                    imports.bindings[parts[0]] = parts[0]
+
+            continue
+
+        if node.level == 0 and node.module == "__future__":
+            continue
+
+        relative = node.level > 0
+        base = relative_base(node, package) if relative else node.module.split(".")
+
+        if base is None:
+            continue
+
+        owner = index.longest(base) if base else None
+
+        for alias in node.names:
+            if alias.name == "*":
+                if owner:
+                    add_edge(owner.module_id, node.lineno)
+                elif not relative:
+                    imports.foreign.add((base[0], node.lineno))
+
+                continue
+
+            submodule = index.exact([*base, alias.name])
+
+            if submodule:
+                add_edge(submodule, node.lineno)
+            elif owner:
+                add_edge(owner.module_id, node.lineno)
+            elif not relative:
+                imports.foreign.add((base[0], node.lineno))
+
+            imports.bindings[alias.asname or alias.name] = ".".join([*base, alias.name])
+
+    return imports
+
+
+def expand(expression: ast.expr, bindings: dict[str, str]) -> list[str] | None:
+    if isinstance(expression, ast.Subscript):
+        expression = expression.value
+
+    chain = []
+
+    while isinstance(expression, ast.Attribute):
+        chain.append(expression.attr)
+        expression = expression.value
+
+    if not isinstance(expression, ast.Name) or expression.id not in bindings:
+        return None
+
+    return [*bindings[expression.id].split("."), *reversed(chain)]
+
+
+def is_abstraction(node: ast.ClassDef, bindings: dict[str, str]) -> bool:
+    for base in node.bases:
+        path = expand(base, bindings)
+
+        if path and ".".join(path) in ABSTRACT_BASES:
+            return True
+
+    for keyword in node.keywords:
+        path = expand(keyword.value, bindings) if keyword.arg == "metaclass" else None
+
+        if path and ".".join(path) == ABSTRACT_METACLASS:
+            return True
+
+    return False
+
+
+def declared_exports(tree: ast.Module) -> set[str] | None:
+    assignments = []
+
+    for statement in tree.body:
+        if isinstance(statement, ast.Assign):
+            targets = statement.targets
+        elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+            targets = [statement.target]
+        elif isinstance(statement, ast.AugAssign):
+            targets = [statement.target]
+        else:
+            continue
+
+        if any(isinstance(t, ast.Name) and t.id == "__all__" for t in targets):
+            assignments.append(statement)
+
+    if len(assignments) != 1 or isinstance(assignments[0], ast.AugAssign):
+        return None
+
+    value = assignments[0].value
+
+    if not isinstance(value, ast.List | ast.Tuple):
+        return None
+
+    if not all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in value.elts):
+        return None
+
+    return {e.value for e in value.elts}
+
+
+def module_level_classes(tree: ast.Module) -> list[ast.ClassDef]:
+    return [s for s in tree.body if isinstance(s, ast.ClassDef)]
+
+
+def read_members(tree: ast.Module, bindings: dict[str, str]) -> list[dict]:
+    exports = declared_exports(tree)
+    members = []
+
+    for statement in tree.body:
+        if not isinstance(statement, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+
+        if statement.name.startswith("_"):
+            continue
+
+        if isinstance(statement, ast.ClassDef):
+            kind = "interface" if is_abstraction(statement, bindings) else "class"
+        else:
+            kind = "function"
+
+        members.append(
+            {
+                "name": statement.name,
+                "kind": kind,
+                "line": statement.lineno,
+                "exported": exports is None or statement.name in exports,
+            }
+        )
+
+    return members
+
+
+def module_kind(module_id: str, members: list[dict]) -> str:
+    if members and all(member["kind"] == "interface" for member in members):
+        return "interface"
+
+    return "package" if module_id.rsplit("/", 1)[-1] == "__init__.py" else "module"
