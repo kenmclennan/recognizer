@@ -33,6 +33,7 @@ One repository with a directory per part, so every scanner is tested against the
 
 ```text
 schema/               the scan document's JSON Schema and example scans
+check/                CLI and library: recognizer check
 scanners/python/      CLI: recognizer-scan-python
 scanners/typescript/  CLI: recognizer-scan-typescript
 scanners/kotlin/      after the tree-sitter spike
@@ -153,6 +154,10 @@ Each part carries only its own toolchain; no part needs more than one language.
 
 CI is one workflow file per directory, filtered on that directory's path plus `schema/**` and `fixtures/**`: a schema or fixture change runs every scanner, a scanner change runs only itself.
 
+### Where policy checking lives
+
+`recognizer check` is TypeScript in the npm workspace, at `check/`. It reads a scan (JSON) and a policy (YAML) and reports violations and baseline growth. It ships two ways: as a CLI (`npx recognizer check`) for any repository's CI and for audit workers, and as a library the viewer imports, so the picture is coloured by the exact code CI runs. It emits JSON (each violating edge, the baseline delta) and a human summary, and exits non-zero on growth. The baseline file format under `.recognizer/baselines/` is defined with it.
+
 ### Prior art
 
 Robert C. Martin's uml-viewer is a reference for approach only. It states no licence, so none of its code is copied or ported; its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
@@ -161,14 +166,13 @@ Robert C. Martin's uml-viewer is a reference for approach only. It states no lic
 
 Decide these with Ken one at a time, in this order, recording each under Decided before building on it.
 
-1. **Where policy checking lives.** A language-neutral `recognizer check` that reads a scan and a policy and reports violations and baseline growth. It needs one implementation language; it is also what lightcycle's audit and CI ratchets call.
-2. **The overlay format.** Health data (complexity, coverage, mutation) keyed by module id and commit; missing data shows as unknown, never as healthy.
-3. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
-4. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
+1. **The overlay format.** Health data (complexity, coverage, mutation) keyed by module id and commit; missing data shows as unknown, never as healthy.
+2. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
+3. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
 
 ## First build items
 
-Once 1 is decided, in this order, each with fixtures and tests:
+In this order, each with fixtures and tests:
 
 1. The schema, example scans, and the Python scanner, run against lightcycle (`kenmclennan/lightcycle`, a hexagonal Python codebase).
 2. `recognizer check` against a policy for lightcycle, reporting its wrong-way edges.
