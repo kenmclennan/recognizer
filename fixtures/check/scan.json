@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "scanner": {
+    "name": "hand-written",
+    "version": "0.0.0"
+  },
+  "commit": null,
+  "modules": [
+    {
+      "id": "shop/domain/order.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/domain/money.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/ports/store.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/application/place.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/adapters/memory_store.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/adapters/sql_store.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/main.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/legacy/helpers.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "tests/test_order.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "shop/domain/order.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "depends",
+      "line": 4
+    },
+    {
+      "from": "shop/domain/order.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "depends",
+      "line": 12
+    },
+    {
+      "from": "shop/domain/order.py",
+      "to": "shop/application/place.py",
+      "kind": "depends",
+      "line": 7
+    },
+    {
+      "from": "shop/domain/money.py",
+      "to": "shop/ports/store.py",
+      "kind": "implements",
+      "line": 5,
+      "member": "M",
+      "to_member": "T"
+    },
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "foreign:requests",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "foreign:sqlite3",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "shop/ports/store.py",
+      "kind": "implements",
+      "line": 9,
+      "member": "M",
+      "to_member": "T"
+    },
+    {
+      "from": "shop/application/place.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "shop/legacy/helpers.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/domain/money.py",
+      "to": "shop/legacy/helpers.py",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "tests/test_order.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 1
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:requests",
+      "name": "requests"
+    },
+    {
+      "id": "foreign:sqlite3",
+      "name": "sqlite3"
+    }
+  ]
+}
