@@ -33,6 +33,7 @@ One repository with a directory per part, so every scanner is tested against the
 
 ```text
 schema/               the scan document's JSON Schema and example scans
+check/                CLI and library: recognizer check
 scanners/python/      CLI: recognizer-scan-python
 scanners/typescript/  CLI: recognizer-scan-typescript
 scanners/kotlin/      after the tree-sitter spike
@@ -89,6 +90,74 @@ ignore: [tests/**, "**/fixtures/**"]
 - **`forbid` covers what level order cannot**, such as adapters calling each other.
 - **There is no allow list.** A way to mark an edge as acceptable becomes a place for violations to hide. An existing violation goes in the ratchet baseline (`.recognizer/baselines/`), where it is counted and may only shrink, never into the policy.
 
+### Scan document
+
+Each scanner emits one JSON document per language, with `schema_version` (an integer, bumped only on a breaking change; a consumer refuses a version it does not know), the scanner's name and version, the commit scanned, and three lists:
+
+- **`modules`**: one per box. `id` is the repository-relative path with forward slashes and no leading `./`; for Kotlin, the package's directory path. `language` sits on the module, not the document. `kind` is `module`, `package` or `interface` (a module whose exports are only abstractions). `members` lists the classes and functions it contains: `name`, `kind` (`class`, `function`, `interface`, `type`, `constant`), `line`, `exported`.
+- **`edges`**: module to module, `from` and `to` by module id, `kind` is `depends`, `inherits` or `implements`, and `line` is where in `from` it comes from, so a violation is clickable. `inherits` and `implements` also carry the two member names (`member`, `to_member`) for the viewer's drill-down. No member-to-member edges; adding them later is an additive change.
+- **`foreign`**: external libraries, each a node with id `foreign:<name>`, which edges point at; `name` is what the policy's `foreign` groups match on.
+
+The document is facts about the code only: no policy, layout, colours or violation flags. `check` computes violations from the scan and the policy. A repository with more than one language gets one scan per language; merging them is the consumer's job.
+
+```json
+{
+  "schema_version": 1,
+  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
+  "commit": "a1b2c3d",
+  "modules": [
+    {
+      "id": "lightcycle/domain/item.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        { "name": "Item", "kind": "class", "line": 12, "exported": true },
+        { "name": "new_item", "kind": "function", "line": 40, "exported": true }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "lightcycle/application/claim.py",
+      "to": "lightcycle/domain/item.py",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "lightcycle/adapters/sqlite_store.py",
+      "to": "lightcycle/ports/store.py",
+      "kind": "implements",
+      "member": "SqliteStore",
+      "to_member": "Store",
+      "line": 9
+    },
+    {
+      "from": "lightcycle/adapters/sqlite_store.py",
+      "to": "foreign:sqlite3",
+      "kind": "depends",
+      "line": 1
+    }
+  ],
+  "foreign": [{ "id": "foreign:sqlite3", "name": "sqlite3" }]
+}
+```
+
+### Toolchains and CI
+
+Each part carries only its own toolchain; no part needs more than one language.
+
+- `scanners/python/`: its own `pyproject.toml`, hatchling build, `requires-python >= 3.11`, uv for the dev venv and lockfile, ruff and pytest. Installable with `uvx` or `pipx`, so an audit needs no checkout.
+- `scanners/typescript/` and `app/`: npm workspaces at the repository root, Node 22 in CI with `engines >= 22`, TypeScript 5.9, vitest, biome for lint and format. Prettier (`--prose-wrap=never`) and markdownlint-cli2 at the root for markdown only.
+- `app/`: `app/src-tauri` with Tauri 2, Rust stable, edition 2021, `@tauri-apps/cli` in the workspace. CI installs the webkit2gtk system libraries and caches the Rust build.
+- `schema/`: JSON Schema 2020-12. No separate validator job: each scanner's tests validate its fixture output against the schema (`jsonschema` in Python, `ajv` in TypeScript), so a schema edit is checked by every scanner.
+- Kotlin's toolchain is decided by the spike.
+
+CI is one workflow file per directory, filtered on that directory's path plus `schema/**` and `fixtures/**`: a schema or fixture change runs every scanner, a scanner change runs only itself.
+
+### Where policy checking lives
+
+`recognizer check` is TypeScript in the npm workspace, at `check/`. It reads a scan (JSON) and a policy (YAML) and reports violations and baseline growth. It ships two ways: as a CLI (`npx recognizer check`) for any repository's CI and for audit workers, and as a library the viewer imports, so the picture is coloured by the exact code CI runs. It emits JSON (each violating edge, the baseline delta) and a human summary, and exits non-zero on growth. The baseline file format under `.recognizer/baselines/` is defined with it.
+
 ### Prior art
 
 Robert C. Martin's uml-viewer is a reference for approach only. It states no licence, so none of its code is copied or ported; its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
@@ -97,16 +166,13 @@ Robert C. Martin's uml-viewer is a reference for approach only. It states no lic
 
 Decide these with Ken one at a time, in this order, recording each under Decided before building on it.
 
-1. **The scan document schema.** How module ids are formed (path-based and stable across languages), what a module carries (file, language, kind, exported members with their kind and line), edge kinds (depends, implements, inherits), foreign libraries, and a `schema_version` so consumers can refuse a document they do not understand.
-2. **Toolchains and CI.** Python packaging and minimum version, Node version and package manager, the Tauri and Rust setup, and one CI job per directory triggered by its path.
-3. **Where policy checking lives.** A language-neutral `recognizer check` that reads a scan and a policy and reports violations and baseline growth. It needs one implementation language; it is also what lightcycle's audit and CI ratchets call.
-4. **The overlay format.** Health data (complexity, coverage, mutation) keyed by module id and commit; missing data shows as unknown, never as healthy.
-5. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
-6. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
+1. **The overlay format.** Health data (complexity, coverage, mutation) keyed by module id and commit; missing data shows as unknown, never as healthy.
+2. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
+3. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
 
 ## First build items
 
-Once 1 to 3 are decided, in this order, each with fixtures and tests:
+In this order, each with fixtures and tests:
 
 1. The schema, example scans, and the Python scanner, run against lightcycle (`kenmclennan/lightcycle`, a hexagonal Python codebase).
 2. `recognizer check` against a policy for lightcycle, reporting its wrong-way edges.
