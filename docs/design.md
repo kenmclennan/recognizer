@@ -77,7 +77,7 @@ modules: # which paths belong to which level
   entry: [lightcycle/container.py, lightcycle/cli.py]
 
 forbid: # rules the level order cannot express
-  - adapters/* -> adapters/*
+  - lightcycle/adapters/* -> lightcycle/adapters/*
   - "* -> lightcycle/adapters/tui/**"
 
 foreign: # group external libraries
