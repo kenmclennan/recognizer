@@ -12,3 +12,4 @@ __pycache__/
 .recognizer/cache/
 .pytest_cache/
 .ruff_cache/
+check/src/generated/

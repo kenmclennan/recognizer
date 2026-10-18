@@ -1,0 +1,19 @@
+levels:
+  - domain
+  - ports
+  - application
+  - adapters
+  - entry
+
+modules:
+  domain: shop/domain/**
+  ports: shop/ports/**
+  application: shop/application/**
+  adapters: shop/adapters/**
+  entry: [shop/main.py]
+
+forbid:
+  - shop/adapters/* -> shop/adapters/*
+  - "* -> foreign:requests"
+
+ignore: [tests/**]

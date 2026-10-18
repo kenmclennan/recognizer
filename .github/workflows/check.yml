@@ -1,0 +1,36 @@
+name: check
+
+on:
+  pull_request:
+    paths:
+      - check/**
+      - schema/**
+      - fixtures/**
+      - package.json
+      - package-lock.json
+      - biome.json
+      - .github/workflows/check.yml
+  push:
+    branches: [main]
+    paths:
+      - check/**
+      - schema/**
+      - fixtures/**
+      - package.json
+      - package-lock.json
+      - biome.json
+      - .github/workflows/check.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint -w check
+      - run: npm run build -w check
+      - run: npm test -w check

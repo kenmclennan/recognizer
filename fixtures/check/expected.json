@@ -1,0 +1,150 @@
+{
+  "violations": [
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "foreign:requests",
+      "kind": "depends",
+      "lines": [
+        1
+      ],
+      "rules": [
+        {
+          "type": "forbid",
+          "pattern": "* -> foreign:requests"
+        }
+      ]
+    },
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "depends",
+      "lines": [
+        3
+      ],
+      "rules": [
+        {
+          "type": "forbid",
+          "pattern": "shop/adapters/* -> shop/adapters/*"
+        }
+      ]
+    },
+    {
+      "from": "shop/domain/money.py",
+      "to": "shop/ports/store.py",
+      "kind": "implements",
+      "lines": [
+        5
+      ],
+      "rules": [
+        {
+          "type": "level",
+          "from_level": "domain",
+          "to_level": "ports"
+        }
+      ]
+    },
+    {
+      "from": "shop/domain/order.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "depends",
+      "lines": [
+        4,
+        12
+      ],
+      "rules": [
+        {
+          "type": "level",
+          "from_level": "domain",
+          "to_level": "adapters"
+        }
+      ]
+    },
+    {
+      "from": "shop/domain/order.py",
+      "to": "shop/application/place.py",
+      "kind": "depends",
+      "lines": [
+        7
+      ],
+      "rules": [
+        {
+          "type": "level",
+          "from_level": "domain",
+          "to_level": "application"
+        }
+      ]
+    }
+  ],
+  "new": [
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "foreign:requests",
+      "kind": "depends",
+      "lines": [
+        1
+      ],
+      "rules": [
+        {
+          "type": "forbid",
+          "pattern": "* -> foreign:requests"
+        }
+      ]
+    },
+    {
+      "from": "shop/adapters/sql_store.py",
+      "to": "shop/adapters/memory_store.py",
+      "kind": "depends",
+      "lines": [
+        3
+      ],
+      "rules": [
+        {
+          "type": "forbid",
+          "pattern": "shop/adapters/* -> shop/adapters/*"
+        }
+      ]
+    },
+    {
+      "from": "shop/domain/money.py",
+      "to": "shop/ports/store.py",
+      "kind": "implements",
+      "lines": [
+        5
+      ],
+      "rules": [
+        {
+          "type": "level",
+          "from_level": "domain",
+          "to_level": "ports"
+        }
+      ]
+    },
+    {
+      "from": "shop/domain/order.py",
+      "to": "shop/application/place.py",
+      "kind": "depends",
+      "lines": [
+        7
+      ],
+      "rules": [
+        {
+          "type": "level",
+          "from_level": "domain",
+          "to_level": "application"
+        }
+      ]
+    }
+  ],
+  "fixed": [
+    {
+      "from": "shop/application/place.py",
+      "to": "shop/adapters/sql_store.py",
+      "kind": "depends"
+    }
+  ],
+  "unranked": 1,
+  "baseline": {
+    "present": true,
+    "action": "none"
+  }
+}

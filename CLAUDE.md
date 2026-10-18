@@ -17,12 +17,12 @@ Goal **G-12** in lightcycle (`lc goal show G-12`) tracks this work and logs each
 One repository, a directory per part:
 
 - `schema/` - the scan document's JSON Schema and example scans
-- `check/` - `recognizer check`: reads a scan and a policy, reports violations and baseline growth
+- `check/` - `recognizer check`: reads a scan and a policy, reports violations and baseline growth ([check/README.md](check/README.md))
 - `scanners/python/`, `scanners/typescript/`, `scanners/kotlin/` - one standalone CLI per language
 - `app/` - the Tauri viewer
 - `fixtures/` - small sample codebases per language, each with its expected scan
 
-`schema/`, `scanners/python/` and `fixtures/` exist; `check/`, `scanners/typescript/`, `scanners/kotlin/` and `app/` do not yet.
+`schema/`, `check/`, `scanners/python/` and `fixtures/` exist; `scanners/typescript/`, `scanners/kotlin/` and `app/` do not yet.
 
 ## Rules
 
