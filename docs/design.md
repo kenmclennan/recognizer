@@ -89,6 +89,7 @@ ignore: [tests/**, "**/fixtures/**"]
 - **The dependency rule comes from `levels`.** An edge from an inner level to an outer one is a violation: drawn red, and counted by the ratchet.
 - **`forbid` covers what level order cannot**, such as adapters calling each other.
 - **There is no allow list.** A way to mark an edge as acceptable becomes a place for violations to hide. An existing violation goes in the ratchet baseline (`.recognizer/baselines/`), where it is counted and may only shrink, never into the policy.
+- **The level order is one rule form, not the only one.** The general form is named components with the dependencies each may have (Principles: every dependence is justified by purpose); a level order is the special case where each component may use itself and any inner one. `levels` becomes optional and the components form is added by the policy-shape follow-up, which updates this section.
 
 ### Scan document
 
@@ -158,6 +159,29 @@ CI is one workflow file per directory, filtered on that directory's path plus `s
 
 `recognizer check` is TypeScript in the npm workspace, at `check/`. It reads a scan (JSON) and a policy (YAML) and reports violations and baseline growth. It ships two ways: as a CLI (`npx recognizer check`) for any repository's CI and for audit workers, and as a library the viewer imports, so the picture is coloured by the exact code CI runs. It emits JSON (each violating edge, the baseline delta) and a human summary, and exits non-zero on growth. The baseline file format under `.recognizer/baselines/` is defined with it.
 
+### Principles
+
+Hexagonal, clean and onion architecture are each one arrangement of the same few principles, drawn from Martin, Fowler, Evans, Parnas and Jackson. Recognizer works from the principles, never from a named architecture: a structural smell is a principle violation, reported as a candidate with its evidence attached, never as a verdict. The scan supplies the facts; the policy declares the intent the facts cannot carry.
+
+| Principle | Smell | Needs from the policy |
+| --- | --- | --- |
+| Dependencies point toward stability | an edge from a more stable component to a less stable one; a component whose measured instability disagrees with its declared place | which components are meant to be stable |
+| Depend on abstractions across a boundary | a concrete cross-boundary edge; a stable component that is mostly concrete | component boundaries |
+| Policy code is isolated from mechanism | IO, environment, time or framework reached from policy code | which components hold policy, which foreign groups are mechanism |
+| No cycles | a dependency cycle | nothing |
+| Things that change together live together | co-change across a component boundary (from the git overlay) | component boundaries |
+| Every dependence is justified by purpose | an edge no declared relationship requires | permitted dependencies between components |
+| Each rule has one home | structural duplication (from the duplication overlay) | nothing |
+| Interfaces are narrow and explicit | a hub with high fan-in and fan-out; a wide exported surface | nothing; candidates only |
+
+Metrics derived from the scan graph alone (fan-in, fan-out, cycles, instability, abstractness, distance from the main sequence) are structural facts and are computed by recognizer. Anything measured by running something (tests, mutation, duplication, git history) arrives as an overlay.
+
+A named architecture is a policy template: a starter `.recognizer/policy.yaml` under `policies/` in this repository, copied into a scanned repository and edited there. Recognizer has no setting that names an architecture and never reads anything but the policy in front of it.
+
+### Overlays
+
+Recognizer never measures. It owns the overlay format only; converters from a tool's native report (coverage, complexity, mutation, duplication, git churn and co-change) are plugins or separate tools with no dependency on recognizer beyond the format. The format is metric-agnostic: a metric declares its name, value type, granularity (module or member) and which direction is bad, and recognizer stores and paints it without knowing what it means. Well-known metric names have documented shapes but are not the only ones allowed. An overlay names the commit it measured; one whose commit differs from the scan's is drawn as missing. Missing data is unknown, never healthy.
+
 ### Prior art
 
 Robert C. Martin's uml-viewer is a reference for approach only. It states no licence, so none of its code is copied or ported; its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
@@ -166,7 +190,7 @@ Robert C. Martin's uml-viewer is a reference for approach only. It states no lic
 
 Decide these with Ken one at a time, in this order, recording each under Decided before building on it.
 
-1. **The overlay format.** Health data (complexity, coverage, mutation) keyed by module id and commit; missing data shows as unknown, never as healthy.
+1. **The overlay document.** The exact JSON shape for the metric-agnostic overlay decided under Overlays: how a metric declares itself, how values are keyed by module and member, and how a converter is discovered.
 2. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
 3. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
 
