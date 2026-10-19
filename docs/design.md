@@ -178,6 +178,14 @@ Metrics derived from the scan graph alone (fan-in, fan-out, cycles, instability,
 
 A named architecture is a policy template: a starter `.recognizer/policy.yaml` under `policies/` in this repository, copied into a scanned repository and edited there. Recognizer has no setting that names an architecture and never reads anything but the policy in front of it.
 
+### Smells
+
+Recognizer's outputs are sensors, in three layers. Rules are the policy's verdicts: `recognizer check` reports them, the baseline ratchets them, CI fails on growth. Graph metrics are structural facts computed from the scan alone: fan-in, fan-out, strongly connected components, instability, abstractness, distance from the main sequence. Smells are heuristics over the graph and the policy: a threshold or pattern tied to one principle in the table above, reported as a candidate with its evidence, never failing CI. A smell confirmed often enough is promoted to a rule in the policy; a rule baselined and never shrinking is a question about the policy.
+
+Every smell carries what a coach needs and never the number alone: the principle it suspects, the evidence (the modules, edges and members that triggered it) and a stable fix-pattern identifier. A bare metric invites gaming the number rather than fixing the design; habit-hooks' pre-registered evaluation measured a genuine fix in under six percent of trials from a bare complexity message and over eighty percent from a coaching message naming the cue and the action. The coaching text itself lives outside recognizer: a habit-hooks plugin wrapping `recognizer check` and the smell output, or a guidance entry keyed on the fix-pattern id, is a consumer of the format in the same loose relationship as an overlay converter. The plugin is a spike once smells exist.
+
+The baseline is keyed by violation identity across the whole repository. A later item adds a change scope to `check` and to smells, reporting only what the modules touched on a branch introduce, which is what an agent loop acts on.
+
 ### Overlays
 
 Recognizer never measures. It owns the overlay format only; converters from a tool's native report (coverage, complexity, mutation, duplication, git churn and co-change) are plugins or separate tools with no dependency on recognizer beyond the format. The format is metric-agnostic: a metric declares its name, value type, granularity (module or member) and which direction is bad, and recognizer stores and paints it without knowing what it means. Well-known metric names have documented shapes but are not the only ones allowed. An overlay names the commit it measured; one whose commit differs from the scan's is drawn as missing. Missing data is unknown, never healthy.
