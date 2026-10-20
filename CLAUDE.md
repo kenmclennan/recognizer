@@ -18,11 +18,12 @@ One repository, a directory per part:
 
 - `schema/` - the scan document's JSON Schema and example scans
 - `check/` - `recognizer check`: reads a scan and a policy, reports violations and baseline growth ([check/README.md](check/README.md))
+- `policies/` - starter policies a scanned repository copies into `.recognizer/policy.yaml`
 - `scanners/python/`, `scanners/typescript/`, `scanners/kotlin/` - one standalone CLI per language
 - `app/` - the Tauri viewer
 - `fixtures/` - small sample codebases per language, each with its expected scan
 
-`schema/`, `check/`, `scanners/python/` and `fixtures/` exist; `scanners/typescript/`, `scanners/kotlin/` and `app/` do not yet.
+`schema/`, `check/`, `policies/`, `scanners/python/` and `fixtures/` exist; `scanners/typescript/`, `scanners/kotlin/` and `app/` do not yet.
 
 ## Rules
 

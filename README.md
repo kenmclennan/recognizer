@@ -5,7 +5,7 @@ Recognizer scans a codebase into a language-neutral model of its modules and dep
 ## Parts
 
 - **Scanners.** One standalone command-line tool per language (Python, TypeScript, Kotlin) that reads a source tree and prints the same JSON scan document.
-- **Policy.** A repository's owners declare their architecture in `.recognizer/policy.yaml`: ordered levels, which paths belong to each, and rules the order cannot express. An edge that breaks it is a violation.
+- **Policy.** A repository's owners declare their architecture in `.recognizer/policy.yaml`: named components by path, a level order and/or the dependencies each component may have, and rules those cannot express. An edge that breaks it is a violation.
 - **Check.** Reads a scan and a policy, reports violations, and refuses growth beyond the committed baseline, so a codebase's known violations may only shrink.
 - **Viewer.** A native app (Tauri) that draws the modules and their dependencies, colours violations and health, and opens a module to show its classes and functions.
 

@@ -1,0 +1,100 @@
+{
+  "violations": [
+    {
+      "from": "app/orders/place.py",
+      "to": "app/billing/invoice.py",
+      "kind": "depends",
+      "lines": [
+        5
+      ],
+      "rules": [
+        {
+          "type": "uses",
+          "from_component": "orders",
+          "to_component": "billing"
+        }
+      ]
+    },
+    {
+      "from": "app/orders/place.py",
+      "to": "foreign:requests",
+      "kind": "depends",
+      "lines": [
+        7
+      ],
+      "rules": [
+        {
+          "type": "forbid",
+          "pattern": "* -> foreign:requests"
+        }
+      ]
+    },
+    {
+      "from": "app/shared/money.py",
+      "to": "app/orders/place.py",
+      "kind": "implements",
+      "lines": [
+        6
+      ],
+      "rules": [
+        {
+          "type": "uses",
+          "from_component": "shared",
+          "to_component": "orders"
+        }
+      ]
+    }
+  ],
+  "new": [
+    {
+      "from": "app/orders/place.py",
+      "to": "app/billing/invoice.py",
+      "kind": "depends",
+      "lines": [
+        5
+      ],
+      "rules": [
+        {
+          "type": "uses",
+          "from_component": "orders",
+          "to_component": "billing"
+        }
+      ]
+    },
+    {
+      "from": "app/orders/place.py",
+      "to": "foreign:requests",
+      "kind": "depends",
+      "lines": [
+        7
+      ],
+      "rules": [
+        {
+          "type": "forbid",
+          "pattern": "* -> foreign:requests"
+        }
+      ]
+    },
+    {
+      "from": "app/shared/money.py",
+      "to": "app/orders/place.py",
+      "kind": "implements",
+      "lines": [
+        6
+      ],
+      "rules": [
+        {
+          "type": "uses",
+          "from_component": "shared",
+          "to_component": "orders"
+        }
+      ]
+    }
+  ],
+  "fixed": [],
+  "unranked": 1,
+  "baseline": {
+    "present": false,
+    "action": "none"
+  }
+}

@@ -9,15 +9,17 @@ export interface ForbidRule {
 }
 
 export interface Policy {
+  components: Map<string, Matcher[]>;
   levels: string[];
-  modules: Map<string, Matcher[]>;
+  uses: Map<string, string[]> | null;
   forbid: ForbidRule[];
   ignore: Matcher[];
 }
 
 const ALLOWED_KEYS = new Set([
+  "components",
   "levels",
-  "modules",
+  "uses",
   "forbid",
   "foreign",
   "ignore",
@@ -73,37 +75,75 @@ export function parsePolicy(yamlText: string): Policy {
     }
   }
 
-  const levels: string[] = [];
-  const rawLevels = document.levels;
+  const components = new Map<string, Matcher[]>();
 
-  if (!Array.isArray(rawLevels) || rawLevels.length === 0) {
-    errors.push("levels: required, a non-empty list of level names");
-  } else {
-    for (const level of rawLevels) {
-      if (!isNonEmptyString(level)) {
-        errors.push("levels: every level must be a non-empty string");
-      } else if (levels.includes(level)) {
-        errors.push(`levels: duplicate level "${level}"`);
-      } else {
-        levels.push(level);
+  if (document.components !== undefined) {
+    if (!isPlainObject(document.components)) {
+      errors.push("components: must map component names to globs");
+    } else {
+      for (const [name, value] of Object.entries(document.components)) {
+        if (name.trim() === "") {
+          errors.push("components: every name must be non-empty");
+          continue;
+        }
+
+        const globs = readGlobList(value, `components.${name}`, errors);
+        components.set(name, globs.map(compileGlob));
       }
     }
   }
 
-  const modules = new Map<string, Matcher[]>();
+  const levels: string[] = [];
 
-  if (document.modules !== undefined) {
-    if (!isPlainObject(document.modules)) {
-      errors.push("modules: must map level names to globs");
+  if (document.levels !== undefined) {
+    if (!Array.isArray(document.levels) || document.levels.length === 0) {
+      errors.push("levels: must be a non-empty list of component names");
     } else {
-      for (const [level, value] of Object.entries(document.modules)) {
-        if (!levels.includes(level)) {
-          errors.push(`modules: "${level}" is not in levels`);
+      for (const level of document.levels) {
+        if (!isNonEmptyString(level)) {
+          errors.push("levels: every level must be a non-empty string");
+        } else if (levels.includes(level)) {
+          errors.push(`levels: duplicate level "${level}"`);
+        } else if (!components.has(level)) {
+          errors.push(`levels: "${level}" is not in components`);
+        } else {
+          levels.push(level);
+        }
+      }
+    }
+  }
+
+  let uses: Map<string, string[]> | null = null;
+
+  if (document.uses !== undefined) {
+    if (
+      !isPlainObject(document.uses) ||
+      Object.keys(document.uses).length === 0
+    ) {
+      errors.push("uses: must be a non-empty map of component names to lists");
+    } else {
+      uses = new Map<string, string[]>();
+
+      for (const [name, allowed] of Object.entries(document.uses)) {
+        if (!components.has(name)) {
+          errors.push(`uses: "${name}" is not in components`);
+        }
+
+        if (
+          !Array.isArray(allowed) ||
+          !allowed.every((entry) => typeof entry === "string")
+        ) {
+          errors.push(`uses.${name}: must be a list of component names`);
           continue;
         }
 
-        const globs = readGlobList(value, `modules.${level}`, errors);
-        modules.set(level, globs.map(compileGlob));
+        for (const target of allowed) {
+          if (!components.has(target)) {
+            errors.push(`uses.${name}: "${target}" is not in components`);
+          }
+        }
+
+        uses.set(name, allowed);
       }
     }
   }
@@ -155,7 +195,7 @@ export function parsePolicy(yamlText: string): Policy {
     throw new InputError(errors);
   }
 
-  return { levels, modules, forbid, ignore };
+  return { components, levels, uses, forbid, ignore };
 }
 
 function parseForbid(entry: unknown, errors: string[]): ForbidRule | null {

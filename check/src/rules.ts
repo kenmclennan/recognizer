@@ -6,6 +6,7 @@ import type { Scan } from "./scan.js";
 
 export type Rule =
   | { type: "level"; from_level: string; to_level: string }
+  | { type: "uses"; from_component: string; to_component: string }
   | { type: "forbid"; pattern: string };
 
 export interface Violation {
@@ -22,27 +23,62 @@ function isForeign(id: string): boolean {
   return id.startsWith(FOREIGN_PREFIX);
 }
 
-function assignLevels(policy: Policy, ids: Iterable<string>, errors: string[]) {
-  const levelOf = new Map<string, string>();
+function assignComponents(
+  policy: Policy,
+  ids: Iterable<string>,
+  errors: string[],
+) {
+  const componentOf = new Map<string, string>();
   const unranked = new Set<string>();
 
   for (const id of ids) {
-    const matching = policy.levels.filter((level) =>
-      matchesAny(policy.modules.get(level) ?? [], id),
+    const matching = [...policy.components.keys()].filter((name) =>
+      matchesAny(policy.components.get(name) ?? [], id),
     );
 
     if (matching.length > 1) {
       errors.push(
-        `module ${id} matches more than one level: ${matching.join(", ")}`,
+        `module ${id} matches more than one component: ${matching.join(", ")}`,
       );
     } else if (matching[0] !== undefined) {
-      levelOf.set(id, matching[0]);
+      componentOf.set(id, matching[0]);
     } else {
       unranked.add(id);
     }
   }
 
-  return { levelOf, unranked };
+  return { componentOf, unranked };
+}
+
+function checkComponents(
+  policy: Policy,
+  from: string | undefined,
+  to: string | undefined,
+): Rule | null {
+  if (
+    from === undefined ||
+    to === undefined ||
+    from === to ||
+    (policy.levels.length === 0 && policy.uses === null)
+  ) {
+    return null;
+  }
+
+  const fromIndex = policy.levels.indexOf(from);
+  const toIndex = policy.levels.indexOf(to);
+  const bothRanked = fromIndex >= 0 && toIndex >= 0;
+
+  if (bothRanked && fromIndex >= toIndex) {
+    return null;
+  }
+
+  if (policy.uses?.get(from)?.includes(to)) {
+    return null;
+  }
+
+  return bothRanked
+    ? { type: "level", from_level: from, to_level: to }
+    : { type: "uses", from_component: from, to_component: to };
 }
 
 export function collectViolations(scan: Scan, policy: Policy) {
@@ -70,7 +106,7 @@ export function collectViolations(scan: Scan, policy: Policy) {
   }
 
   const errors: string[] = [];
-  const { levelOf, unranked } = assignLevels(policy, ids, errors);
+  const { componentOf, unranked } = assignComponents(policy, ids, errors);
 
   if (errors.length > 0) {
     throw new InputError(errors);
@@ -84,13 +120,14 @@ export function collectViolations(scan: Scan, policy: Policy) {
     }
 
     const rules: Rule[] = [];
-    const fromLevel = levelOf.get(edge.from);
-    const toLevel = levelOf.get(edge.to);
+    const componentRule = checkComponents(
+      policy,
+      componentOf.get(edge.from),
+      componentOf.get(edge.to),
+    );
 
-    if (fromLevel !== undefined && toLevel !== undefined) {
-      if (policy.levels.indexOf(fromLevel) < policy.levels.indexOf(toLevel)) {
-        rules.push({ type: "level", from_level: fromLevel, to_level: toLevel });
-      }
+    if (componentRule) {
+      rules.push(componentRule);
     }
 
     for (const rule of policy.forbid) {

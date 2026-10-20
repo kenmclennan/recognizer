@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "scanner": {
+    "name": "hand-written",
+    "version": "0.0.0"
+  },
+  "commit": null,
+  "modules": [
+    {
+      "id": "app/shared/money.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/orders/place.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/orders/cart.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/billing/invoice.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/legacy/old.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "app/orders/place.py",
+      "to": "app/shared/money.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "app/billing/invoice.py",
+      "to": "app/shared/money.py",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "app/orders/place.py",
+      "to": "app/orders/cart.py",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/billing/invoice.py",
+      "to": "app/legacy/old.py",
+      "kind": "depends",
+      "line": 4
+    },
+    {
+      "from": "app/orders/place.py",
+      "to": "app/billing/invoice.py",
+      "kind": "depends",
+      "line": 5
+    },
+    {
+      "from": "app/shared/money.py",
+      "to": "app/orders/place.py",
+      "kind": "implements",
+      "line": 6,
+      "member": "Money",
+      "to_member": "Place"
+    },
+    {
+      "from": "app/orders/place.py",
+      "to": "foreign:requests",
+      "kind": "depends",
+      "line": 7
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:requests",
+      "name": "requests"
+    }
+  ]
+}

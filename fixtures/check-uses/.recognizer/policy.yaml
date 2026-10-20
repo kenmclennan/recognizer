@@ -1,0 +1,12 @@
+components:
+  shared: app/shared/**
+  orders: app/orders/**
+  billing: app/billing/**
+
+uses:
+  orders: [shared]
+  billing: [shared]
+  shared: []
+
+forbid:
+  - "* -> foreign:requests"
