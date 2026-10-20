@@ -1,0 +1,36 @@
+name: scanner-typescript
+
+on:
+  pull_request:
+    paths:
+      - scanners/typescript/**
+      - schema/**
+      - fixtures/**
+      - package.json
+      - package-lock.json
+      - biome.json
+      - .github/workflows/scanner-typescript.yml
+  push:
+    branches: [main]
+    paths:
+      - scanners/typescript/**
+      - schema/**
+      - fixtures/**
+      - package.json
+      - package-lock.json
+      - biome.json
+      - .github/workflows/scanner-typescript.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint -w scanners/typescript
+      - run: npm run build -w scanners/typescript
+      - run: npm test -w scanners/typescript
