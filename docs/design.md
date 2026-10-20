@@ -59,24 +59,24 @@ Scans are not stored for change detection: comparing two commits means scanning 
 
 ### Policy
 
-The one file a repository's owners write, at `.recognizer/policy.yaml`. YAML, because people write it and comments matter. Levels are assigned by path, so the same policy shape works in every language.
+The one file a repository's owners write, at `.recognizer/policy.yaml`. YAML, because people write it and comments matter. Components are assigned by path, so the same policy shape works in every language.
 
 ```yaml
-levels: # inner first; a module may depend on its own level or any inner one
+levels: # optional; inner first; a component may depend on itself or any inner one
   - domain
   - ports
   - application
   - adapters
   - entry
 
-modules: # which paths belong to which level
+components: # which paths belong to which component
   domain: lightcycle/domain/**
   ports: lightcycle/ports/**
   application: lightcycle/application/**
   adapters: lightcycle/adapters/**
   entry: [lightcycle/container.py, lightcycle/cli.py]
 
-forbid: # rules the level order cannot express
+forbid: # rules the other forms cannot express
   - lightcycle/adapters/* -> lightcycle/adapters/*
   - "* -> lightcycle/adapters/tui/**"
 
@@ -86,10 +86,10 @@ foreign: # group external libraries
 ignore: [tests/**, "**/fixtures/**"]
 ```
 
-- **The dependency rule comes from `levels`.** An edge from an inner level to an outer one is a violation: drawn red, and counted by the ratchet.
-- **`forbid` covers what level order cannot**, such as adapters calling each other.
+- **The dependency rule comes from `levels` and `uses`.** An edge between two components in `levels` from inner to outer is a violation: drawn red, and counted by the ratchet. `uses` maps a component to the components it may depend on, and permits an edge the order forbids; an edge between two different components that neither form permits is a violation.
+- **`forbid` covers what the other forms cannot express**, such as adapters calling each other.
 - **There is no allow list.** A way to mark an edge as acceptable becomes a place for violations to hide. An existing violation goes in the ratchet baseline (`.recognizer/baselines/`), where it is counted and may only shrink, never into the policy.
-- **The level order is one rule form, not the only one.** The general form is named components with the dependencies each may have (Principles: every dependence is justified by purpose); a level order is the special case where each component may use itself and any inner one. `levels` becomes optional and the components form is added by the policy-shape follow-up, which updates this section.
+- **The level order is one rule form, not the only one.** The general form is named components with the dependencies each may have (Principles: every dependence is justified by purpose). `levels` and `uses` are both optional and may be combined: a policy with `levels` only is the level order, with `uses` only is an explicit dependency table, and with neither checks only `forbid`. Starter policies for each form live in `policies/`.
 
 ### Scan document
 

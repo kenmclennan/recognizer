@@ -45,11 +45,17 @@ function readInput(io: Io, path: string, what: string): string {
 function summary(result: CheckResult): string {
   const lines = result.new.map((violation) => {
     const rules = violation.rules
-      .map((rule) =>
-        rule.type === "level"
-          ? `level ${rule.from_level} -> ${rule.to_level}`
-          : `forbid ${rule.pattern}`,
-      )
+      .map((rule) => {
+        if (rule.type === "level") {
+          return `level ${rule.from_level} -> ${rule.to_level}`;
+        }
+
+        if (rule.type === "uses") {
+          return `uses ${rule.from_component} -> ${rule.to_component}`;
+        }
+
+        return `forbid ${rule.pattern}`;
+      })
       .join("; ");
 
     return `${violation.from} -> ${violation.to} (${violation.kind}) line ${violation.lines.join(", ")}: ${rules}`;

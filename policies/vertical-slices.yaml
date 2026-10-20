@@ -1,0 +1,19 @@
+# Vertical slices, the uses form: each slice may depend on shared and on
+# nothing else, and shared depends on nothing. There is no level order. Copy
+# this file to .recognizer/policy.yaml in your repository and replace the src/
+# paths and slice names with your own.
+
+components: # which paths belong to which component
+  shared: src/shared/**
+  orders: src/orders/**
+  billing: src/billing/**
+
+uses: # the components each component may depend on
+  orders: [shared]
+  billing: [shared]
+  shared: []
+
+forbid: # forms combine: forbid still applies beside uses
+  - "* -> foreign:requests"
+
+ignore: [tests/**]

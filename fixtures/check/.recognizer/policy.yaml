@@ -5,7 +5,7 @@ levels:
   - adapters
   - entry
 
-modules:
+components:
   domain: shop/domain/**
   ports: shop/ports/**
   application: shop/application/**

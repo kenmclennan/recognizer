@@ -3,7 +3,12 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { check, parseBaseline, parsePolicy } from "../src/index.js";
+import {
+  check,
+  parseBaseline,
+  parsePolicy,
+  validateScan,
+} from "../src/index.js";
 import { capture, checkArgs, copyFixture, FIXTURE, REPO } from "./helpers.js";
 
 const expected = JSON.parse(
@@ -74,7 +79,10 @@ describe("check against the fixture", () => {
   it("exits 0 when everything is ignored", () => {
     const dir = copyFixture();
     const policyPath = join(dir, ".recognizer/policy.yaml");
-    writeFileSync(policyPath, 'levels: [a]\nignore: ["**"]\n');
+    writeFileSync(
+      policyPath,
+      'components:\n  a: x/**\nlevels: [a]\nignore: ["**"]\n',
+    );
 
     expect(execute(checkArgs(dir)).code).toBe(0);
   });
@@ -184,7 +192,10 @@ describe("--init-baseline", () => {
 
   it("creates an empty baseline for a clean scan", () => {
     const dir = copyFixture();
-    writeFileSync(join(dir, ".recognizer/policy.yaml"), "levels: [a]\n");
+    writeFileSync(
+      join(dir, ".recognizer/policy.yaml"),
+      "components:\n  a: x/**\nlevels: [a]\n",
+    );
     const baselinePath = join(dir, "clean/violations.json");
 
     expect(
@@ -259,5 +270,40 @@ describe("bad input", () => {
     ]);
 
     expect(existsSync(target)).toBe(false);
+  });
+});
+
+describe("check against the uses-form fixture", () => {
+  const USES = join(REPO, "fixtures/check-uses");
+  const usesExpected = JSON.parse(
+    readFileSync(join(USES, "expected.json"), "utf8"),
+  );
+
+  it("prints expected.json, exits 1 and summarises the uses rule", () => {
+    const { code, out, err } = execute(checkArgs(USES));
+    const actual = JSON.parse(out);
+
+    delete actual.baseline.path;
+
+    expect(code).toBe(1);
+    expect(actual).toEqual(usesExpected);
+    expect(err).toContain("uses orders -> billing");
+  });
+
+  it("agrees with the library", () => {
+    const result = check(
+      JSON.parse(readFileSync(join(USES, "scan.json"), "utf8")),
+      parsePolicy(readFileSync(join(USES, ".recognizer/policy.yaml"), "utf8")),
+      null,
+    );
+
+    expect(result.violations).toEqual(usesExpected.violations);
+    expect(result.unranked).toBe(usesExpected.unranked);
+  });
+
+  it("has a scan that validates against the schema", () => {
+    expect(() =>
+      validateScan(JSON.parse(readFileSync(join(USES, "scan.json"), "utf8"))),
+    ).not.toThrow();
   });
 });

@@ -8,15 +8,39 @@ recognizer check --scan <scan.json> --policy <policy.yaml>
 
 ## Policy
 
-YAML with the keys `levels` (required), `modules`, `forbid`, `foreign` and `ignore`; any other key is an error.
+YAML with the keys `components`, `levels`, `uses`, `forbid`, `foreign` and `ignore`; any other key is an error. `levels` and `uses` are optional, and a policy with neither checks only `forbid`.
 
-- `levels` lists level names, inner first. A module may depend on its own level or any inner one; an edge from an inner level to an outer one is a violation. `depends`, `inherits` and `implements` edges are all subject to the rule.
-- `modules` maps a level name to one glob or a list of globs. A module matching globs of two levels is an error. A module matching none is unranked: never compared, and reported as a count of distinct ids.
+- `components` maps a component name to one glob or a list of globs. A module matching globs of two components is an error. A module matching none is unranked: never compared, and reported as a count of distinct ids.
+- `levels` lists component names, inner first. A component may depend on itself or any inner one; an edge from an inner component to an outer one is a violation.
+- `uses` maps a component name to the list of component names it may depend on. It is a per-component table, not transitive: permission to use `b` does not extend to what `b` uses.
 - `forbid` is a list of `<from-glob> -> <to-glob>` strings over full module ids, such as `lightcycle/adapters/* -> lightcycle/adapters/*`. The target may be a `foreign:` id.
 - `foreign` groups external libraries. It is validated and otherwise left to the viewer.
 - `ignore` is a list of globs; matching modules, and every edge touching them, are dropped before checking.
 
+Every name in `levels` and every key and value in `uses` must be a key of `components`; each fault is reported. `depends`, `inherits` and `implements` edges are all subject to the component rule.
+
+### The component rule
+
+For an edge between two different components, after `ignore`: it is permitted when both components are in `levels` and the source is outer to the target, or when `uses` lists the target for the source. Any other edge is a violation. Its rule is `level` when both components are in `levels`, and `uses` otherwise. Two modules of one component are never compared, and a module in no component is unranked.
+
+Example: `components` domain, ports, application, extras; `levels: [domain, ports, application]`; `uses: {domain: [ports], extras: [domain]}`.
+
+| Edge                  | Result                                            |
+| --------------------- | ------------------------------------------------- |
+| application -> domain | permitted: outer to inner                         |
+| domain -> ports       | permitted: the order forbids it, `uses` allows it |
+| domain -> application | violation, rule `level`                           |
+| extras -> domain      | permitted by `uses`                               |
+| extras -> ports       | violation, rule `uses`                            |
+| domain -> extras      | violation, rule `uses`                            |
+
+There is no allow list: `uses` states which components may depend on which, and cannot exempt a single violating edge. Existing violations go in the baseline.
+
 Foreign nodes are never violations unless a `forbid` names them. A self-edge is never a violation. Edge endpoints missing from the scan's `modules` are still checked.
+
+### Starter policies
+
+[`policies/`](../policies) holds two complete, commented policies to copy into `.recognizer/policy.yaml`: `hexagonal.yaml` (the levels form) and `vertical-slices.yaml` (the uses form).
 
 ### Globs
 
@@ -86,7 +110,7 @@ Stdout holds one JSON document, the human summary goes to stderr.
 }
 ```
 
-`rules` entries are `{"type": "level", "from_level", "to_level"}` or `{"type": "forbid", "pattern"}`. `action` is `none`, `initialised` or `shrunk`.
+`rules` entries are `{"type": "level", "from_level", "to_level"}`, `{"type": "uses", "from_component", "to_component"}` or `{"type": "forbid", "pattern"}`; the sample shows the first, and a `uses` entry reads `{ "type": "uses", "from_component": "orders", "to_component": "billing" }`. `action` is `none`, `initialised` or `shrunk`.
 
 ## Exit codes
 

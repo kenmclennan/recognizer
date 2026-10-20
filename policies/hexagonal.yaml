@@ -1,0 +1,27 @@
+# Hexagonal (ports and adapters), the levels form: a module may depend on its
+# own level or any inner one, and an edge from an inner level to an outer one
+# is a violation. Copy this file to .recognizer/policy.yaml in your repository
+# and replace the lightcycle/ paths with your own package paths.
+
+components: # which paths belong to which component
+  domain: lightcycle/domain/**
+  ports: lightcycle/ports/**
+  application: lightcycle/application/**
+  adapters: lightcycle/adapters/**
+  entry: [lightcycle/container.py, lightcycle/cli.py]
+
+levels: # inner first
+  - domain
+  - ports
+  - application
+  - adapters
+  - entry
+
+forbid: # rules the level order cannot express
+  - lightcycle/adapters/* -> lightcycle/adapters/*
+  - "* -> lightcycle/adapters/tui/**"
+
+foreign: # group external libraries
+  stdlib: [os, subprocess, sqlite3]
+
+ignore: [tests/**, "**/fixtures/**"]

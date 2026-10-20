@@ -6,7 +6,7 @@ import { FIXTURE, REPO } from "./helpers.js";
 
 const POLICY = `
 levels: [domain, ports, application, adapters, entry]
-modules:
+components:
   domain: d/**
   ports: p/**
   application: a/**
@@ -121,7 +121,114 @@ describe("forbid rule", () => {
   });
 });
 
+const MIXED = `
+components:
+  domain: d/**
+  ports: p/**
+  application: a/**
+  extras: e/**
+  idle: i/**
+levels: [domain, ports, application]
+uses:
+  domain: [ports]
+  extras: [domain]
+`;
+
+const USES_ONLY = `
+components:
+  shared: s/**
+  orders: o/**
+  billing: b/**
+uses:
+  orders: [shared]
+  billing: [shared]
+  shared: []
+`;
+
+function ruleOf(edges: object[], policy: string) {
+  return run(edges, policy).violations.map((v) => v.rules);
+}
+
+describe("component rule", () => {
+  it("permits outer to inner", () => {
+    expect(ruleOf([edge("a/x.py", "d/y.py")], MIXED)).toEqual([]);
+  });
+
+  it("does not compare two modules of one component", () => {
+    expect(ruleOf([edge("d/x.py", "d/y.py")], MIXED)).toEqual([]);
+  });
+
+  it("permits through uses what the order forbids", () => {
+    expect(ruleOf([edge("d/x.py", "p/y.py")], MIXED)).toEqual([]);
+  });
+
+  it("flags inner to outer as a level rule", () => {
+    expect(ruleOf([edge("d/x.py", "a/y.py")], MIXED)).toEqual([
+      [{ type: "level", from_level: "domain", to_level: "application" }],
+    ]);
+  });
+
+  it("flags the adjacent inner to outer pair and permits the reverse", () => {
+    expect(ruleOf([edge("p/x.py", "a/y.py")], MIXED)).toHaveLength(1);
+    expect(ruleOf([edge("a/x.py", "p/y.py")], MIXED)).toEqual([]);
+  });
+
+  it("permits a component outside levels through uses", () => {
+    expect(ruleOf([edge("e/x.py", "d/y.py")], MIXED)).toEqual([]);
+  });
+
+  it("flags a component outside levels as a uses rule", () => {
+    expect(ruleOf([edge("e/x.py", "p/y.py")], MIXED)).toEqual([
+      [{ type: "uses", from_component: "extras", to_component: "ports" }],
+    ]);
+  });
+
+  it("flags a ranked source reaching a component outside levels", () => {
+    expect(ruleOf([edge("d/x.py", "e/y.py")], MIXED)).toEqual([
+      [{ type: "uses", from_component: "domain", to_component: "extras" }],
+    ]);
+  });
+
+  it("never compares a module in no component", () => {
+    expect(ruleOf([edge("zzz/x.py", "d/y.py")], MIXED)).toEqual([]);
+  });
+
+  it("works with uses alone", () => {
+    expect(ruleOf([edge("o/x.py", "s/y.py")], USES_ONLY)).toEqual([]);
+    expect(ruleOf([edge("o/x.py", "b/y.py", "inherits")], USES_ONLY)).toEqual([
+      [{ type: "uses", from_component: "orders", to_component: "billing" }],
+    ]);
+    expect(ruleOf([edge("s/x.py", "o/y.py")], USES_ONLY)).toHaveLength(1);
+  });
+
+  it("fires only forbid when the policy has neither levels nor uses", () => {
+    const policy =
+      "components:\n  a: a/**\n  b: b/**\nforbid: ['a/* -> b/*']\n";
+
+    expect(ruleOf([edge("b/x.py", "a/y.py")], policy)).toEqual([]);
+    expect(ruleOf([edge("a/x.py", "b/y.py")], policy)).toEqual([
+      [{ type: "forbid", pattern: "a/* -> b/*" }],
+    ]);
+  });
+
+  it("orders uses before forbid on one edge", () => {
+    const policy = `${USES_ONLY}forbid: ['o/* -> b/*']\n`;
+
+    expect(
+      ruleOf([edge("o/x.py", "b/y.py")], policy)[0]?.map((r) => r.type),
+    ).toEqual(["uses", "forbid"]);
+  });
+});
+
 describe("unranked", () => {
+  it("does not count a module in a component outside levels and uses", () => {
+    const policy = "components:\n  a: a/**\n  b: b/**\nlevels: [a]\n";
+
+    expect(run([edge("b/x.py", "a/y.py")], policy, ["b/x.py"]).unranked).toBe(
+      0,
+    );
+  });
+
   it("counts distinct unranked modules and still checks ranked ones", () => {
     const result = run(
       [edge("d/a.py", "x/b.py"), edge("other/a.py", "d/a.py")],
@@ -147,29 +254,52 @@ describe("unranked", () => {
     expect(result.violations).toEqual([]);
   });
 
-  it("rejects a module matching two levels", () => {
-    const policy = "levels: [one, two]\nmodules:\n  one: a/**\n  two: a/b/**\n";
+  it("rejects a module matching two components", () => {
+    const policy =
+      "levels: [one, two]\ncomponents:\n  one: a/**\n  two: a/b/**\n";
 
     expect(() => run([edge("a/b/c.py", "a/d.py")], policy)).toThrow(/one, two/);
   });
 });
 
 describe("policy validation", () => {
+  it("accepts a policy with only forbid", () => {
+    expect(() => parsePolicy("forbid: ['* -> foreign:x']\n")).not.toThrow();
+  });
+
+  it("accepts a component that lists itself in uses", () => {
+    expect(() =>
+      parsePolicy("components:\n  a: x/**\nuses:\n  a: [a]\n"),
+    ).not.toThrow();
+  });
+
   it.each([
-    ["unknown top-level key", "levels: [a]\nextra: 1\n"],
+    ["unknown top-level key", "extra: 1\n"],
     ["empty levels", "levels: []\n"],
     ["duplicate level", "levels: [a, a]\n"],
-    ["modules key not in levels", "levels: [a]\nmodules:\n  b: x/**\n"],
-    ["forbid without arrow", "levels: [a]\nforbid: [nope]\n"],
-    ["empty glob", 'levels: [a]\nmodules:\n  a: ""\n'],
-    ["non-list ignore", "levels: [a]\nignore: x\n"],
+    ["modules key", "modules:\n  a: x/**\n"],
+    [
+      "levels name not in components",
+      "components:\n  a: x/**\nlevels: [a, b]\n",
+    ],
+    ["uses key not in components", "components:\n  a: x/**\nuses:\n  b: [a]\n"],
+    [
+      "uses value not in components",
+      "components:\n  a: x/**\nuses:\n  a: [b]\n",
+    ],
+    ["uses not a map", "components:\n  a: x/**\nuses: [a]\n"],
+    ["uses value not a list", "components:\n  a: x/**\nuses:\n  a: a\n"],
+    ["empty uses", "components:\n  a: x/**\nuses: {}\n"],
+    ["forbid without arrow", "forbid: [nope]\n"],
+    ["empty glob", 'components:\n  a: ""\n'],
+    ["non-list ignore", "ignore: x\n"],
   ])("rejects %s", (_name, text) => {
     expect(() => parsePolicy(text)).toThrow(InputError);
   });
 
   it("collects one message per fault", () => {
     try {
-      parsePolicy("levels: [a]\nextra: 1\nforbid: [x]\nignore: y\n");
+      parsePolicy("extra: 1\nforbid: [x]\nignore: y\n");
       expect.unreachable();
     } catch (error) {
       expect((error as InputError).messages).toHaveLength(3);
@@ -206,7 +336,7 @@ describe("committed content", () => {
     );
     const policy = parsePolicy(`
 levels: [domain, ports, application, adapters, entry]
-modules:
+components:
   domain: lightcycle/domain/**
   ports: lightcycle/ports/**
   application: lightcycle/application/**
