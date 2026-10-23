@@ -21,11 +21,17 @@ Recognizer scans a codebase into a language-neutral model of its modules and dep
 ### Scanners
 
 - Each language has a standalone command-line scanner that emits the same JSON scan document, so audits and CI can scan without the viewer.
+- `recognizer scan <repository>` is the one front door: it detects the repository's languages, runs each language's scanner and writes one scan document per language to `.recognizer/cache/`. Scans are never merged; no edge crosses languages.
 - Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin, proved by a spike first.
 
 ### Viewer
 
 A native app: Tauri 2, with the domain, application and drawing code in TypeScript in the webview, and Rust as a narrow boundary for files, running scanners, watching for changes and dialogs.
+
+- **Built from the template.** The app starts from `kenmclennan/tauri-starter`: its `npm run init` is run in a scratch clone (name Recognizer, slug `recognizer`) and the renamed `app/` is copied into `app/` here and added to the root workspaces. Its CI becomes a job filtered on `app/**`, and its release workflow runs after that job, so only an app change cuts a release. The design of record for the app's internals (pure modules behind thin adapters, the Rust trust boundary, the terminal command, releases and the updater) is the engineering knowledgebase's `desktop-apps/` topic.
+- **It runs `recognizer scan`, never a bundled scanner.** The viewer scans exactly as CI and audits do. Rust runs the command on the folder the window opened through a Rust dialog and reads the result from that repository's `.recognizer/cache/`. An app launched from Finder has no shell `PATH`, so Rust resolves the command through the user's login shell, with an absolute path in the app's config as an override; a missing command is reported with what to install. A scan whose `schema_version` the app does not know is refused.
+- **Layout is ELK, drawn as SVG.** elkjs's layered algorithm places the nodes, off the main thread in a web worker; a pure module turns its coordinates into SVG, so the drawing is tested without a window.
+- **The base view needs no policy, and its layout imposes no order the graph lacks.** A ball of mud must look like one. Each strongly connected component is drawn as one node sized by the modules it holds; the condensed graph is layered by dependency depth; neither folders nor a policy give the picture its shape. A policy lens over that view is not built until example codebases have been drawn and show what it must express.
 
 ### Repository layout
 
@@ -157,13 +163,13 @@ CI is one workflow file per directory, filtered on that directory's path plus `s
 
 ### Where policy checking lives
 
-`recognizer check` is TypeScript in the npm workspace, at `check/`. It reads a scan (JSON) and a policy (YAML) and reports violations and baseline growth. It ships two ways: as a CLI (`npx recognizer check`) for any repository's CI and for audit workers, and as a library the viewer imports, so the picture is coloured by the exact code CI runs. It emits JSON (each violating edge, the baseline delta) and a human summary, and exits non-zero on growth. The baseline file format under `.recognizer/baselines/` is defined with it.
+`recognizer check` is TypeScript in the npm workspace, at `check/`. It reads a scan (JSON) and, optionally, a policy (YAML), and reports two categories of finding: violations and warnings (below). Without a policy only warnings are reported. It ships two ways: as a CLI (`npx recognizer check`) for any repository's CI and for audit workers, and as a library the viewer imports, so the picture is coloured by the exact code CI runs. It emits JSON (each violating edge, the baseline delta) and a human summary, and exits non-zero on growth. The baseline file format under `.recognizer/baselines/` is defined with it.
 
 ### Principles
 
-Hexagonal, clean and onion architecture are each one arrangement of the same few principles, drawn from Martin, Fowler, Evans, Parnas and Jackson. Recognizer works from the principles, never from a named architecture: a structural smell is a principle violation, reported as a candidate with its evidence attached, never as a verdict. The scan supplies the facts; the policy declares the intent the facts cannot carry.
+Hexagonal, clean and onion architecture are each one arrangement of the same few principles, drawn from Martin, Fowler, Evans, Parnas and Jackson. Recognizer works from the principles, never from a named architecture: a structural warning is a principle violation, reported as a candidate with its evidence attached, never as a verdict. The scan supplies the facts; the policy declares the intent the facts cannot carry.
 
-| Principle | Smell | Needs from the policy |
+| Principle | Warning | Needs from the policy |
 | --- | --- | --- |
 | Dependencies point toward stability | an edge from a more stable component to a less stable one; a component whose measured instability disagrees with its declared place | which components are meant to be stable |
 | Depend on abstractions across a boundary | a concrete cross-boundary edge; a stable component that is mostly concrete | component boundaries |
@@ -178,13 +184,17 @@ Metrics derived from the scan graph alone (fan-in, fan-out, cycles, instability,
 
 A named architecture is a policy template: a starter `.recognizer/policy.yaml` under `policies/` in this repository, copied into a scanned repository and edited there. Recognizer has no setting that names an architecture and never reads anything but the policy in front of it.
 
-### Smells
+### Violations and warnings
 
-Recognizer's outputs are sensors, in three layers. Rules are the policy's verdicts: `recognizer check` reports them, the baseline ratchets them, CI fails on growth. Graph metrics are structural facts computed from the scan alone: fan-in, fan-out, strongly connected components, instability, abstractness, distance from the main sequence. Smells are heuristics over the graph and the policy: a threshold or pattern tied to one principle in the table above, reported as a candidate with its evidence, never failing CI. A smell confirmed often enough is promoted to a rule in the policy; a rule baselined and never shrinking is a question about the policy.
+Recognizer's outputs are sensors, in three layers, and `recognizer check` reports all of them in one run:
 
-Every smell carries what a coach needs and never the number alone: the principle it suspects, the evidence (the modules, edges and members that triggered it) and a stable fix-pattern identifier. A bare metric invites gaming the number rather than fixing the design; habit-hooks' pre-registered evaluation measured a genuine fix in under six percent of trials from a bare complexity message and over eighty percent from a coaching message naming the cue and the action. The coaching text itself lives outside recognizer: a habit-hooks plugin wrapping `recognizer check` and the smell output, or a guidance entry keyed on the fix-pattern id, is a consumer of the format in the same loose relationship as an overlay converter. The plugin is a spike once smells exist.
+- **Violations** are the policy's verdicts: an edge that breaks a rule the policy declares. The baseline ratchets them and CI fails on growth. Only violations affect the exit code.
+- **Graph metrics** are structural facts computed from the scan alone: fan-in, fan-out, strongly connected components, instability, abstractness, distance from the main sequence.
+- **Warnings** are heuristics over the graph: a threshold or pattern tied to one principle in the table above, reported as a candidate with its evidence. A warning is never baselined and never fails a run. Its thresholds are command-line flags whose defaults are documented and printed in the output. A warning confirmed often enough is promoted to a rule in the policy; a violation baselined and never shrinking is a question about the policy.
 
-The baseline is keyed by violation identity across the whole repository. A later item adds a change scope to `check` and to smells, reporting only what the modules touched on a branch introduce, which is what an agent loop acts on.
+Every warning carries what a coach needs and never the number alone: the principle it suspects, the evidence (the modules, edges and members that triggered it) and a stable fix-pattern identifier. A bare metric invites gaming the number rather than fixing the design; habit-hooks' pre-registered evaluation measured a genuine fix in under six percent of trials from a bare complexity message and over eighty percent from a coaching message naming the cue and the action. The coaching text itself lives outside recognizer: a habit-hooks plugin wrapping `recognizer check`, or a guidance entry keyed on the fix-pattern id, is a consumer of the format in the same loose relationship as an overlay converter. The plugin is a spike once warnings exist.
+
+The baseline is keyed by violation identity across the whole repository. A later item adds a change scope to `check`, reporting only what the modules touched on a branch introduce, which is what an agent loop acts on.
 
 ### Overlays
 
@@ -200,7 +210,9 @@ Decide these with Ken one at a time, in this order, recording each under Decided
 
 1. **The overlay document.** The exact JSON shape for the metric-agnostic overlay decided under Overlays: how a metric declares itself, how values are keyed by module and member, and how a converter is discovered.
 2. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
-3. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
+3. **The viewer's opening view.** Which policy-free picture the app opens on: the condensed, depth-layered graph; use-case slices derived by reachability from entry points (modules nothing in the codebase imports), whose overlaps show coupling; or both. Decided by drawing example codebases, including a known mess, beside lightcycle.
+4. **Policy axes.** Whether the policy classifies each module on independent axes, strata (responsibility layers, ruled by direction) and slices (use cases and subdomains, ruled by isolation), instead of one namespace of components. Decided after the policy-free views have been drawn on examples.
+5. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
 
 ## First build items
 
@@ -209,5 +221,5 @@ In this order, each with fixtures and tests:
 1. The schema, example scans, and the Python scanner, run against lightcycle (`kenmclennan/lightcycle`, a hexagonal Python codebase).
 2. `recognizer check` against a policy for lightcycle, reporting its wrong-way edges.
 3. The TypeScript scanner, run against Saga and the knowledgebase explorer, both npm workspaces with path aliases.
-4. The viewer: open a repository, scan it, draw the module boxes and edges, colour violations.
+4. `recognizer scan`, then the viewer: open a repository, scan it, draw the policy-free module graph.
 5. The Kotlin spike, then the Kotlin scanner.
