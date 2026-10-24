@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "scanner": {
+    "name": "hand-written",
+    "version": "0.0.0"
+  },
+  "commit": null,
+  "modules": [
+    {
+      "id": "app/domain/order.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/domain/money.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/ports/store.py",
+      "language": "python",
+      "kind": "interface",
+      "members": []
+    },
+    {
+      "id": "app/application/place.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/application/report.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/adapters/memory.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/adapters/sql.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/adapters/audit.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "app/adapters/clock.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "app/domain/order.py",
+      "to": "app/domain/money.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "app/domain/money.py",
+      "to": "app/domain/order.py",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "app/application/place.py",
+      "to": "app/domain/order.py",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/application/place.py",
+      "to": "app/ports/store.py",
+      "kind": "depends",
+      "line": 4
+    },
+    {
+      "from": "app/application/place.py",
+      "to": "app/domain/money.py",
+      "kind": "depends",
+      "line": 5
+    },
+    {
+      "from": "app/application/report.py",
+      "to": "app/application/place.py",
+      "kind": "depends",
+      "line": 6
+    },
+    {
+      "from": "app/adapters/audit.py",
+      "to": "app/application/place.py",
+      "kind": "depends",
+      "line": 7
+    },
+    {
+      "from": "app/adapters/clock.py",
+      "to": "app/application/place.py",
+      "kind": "depends",
+      "line": 8
+    },
+    {
+      "from": "app/adapters/memory.py",
+      "to": "app/ports/store.py",
+      "kind": "depends",
+      "line": 9
+    },
+    {
+      "from": "app/adapters/sql.py",
+      "to": "app/ports/store.py",
+      "kind": "depends",
+      "line": 10
+    },
+    {
+      "from": "app/adapters/sql.py",
+      "to": "foreign:sqlalchemy",
+      "kind": "depends",
+      "line": 11
+    },
+    {
+      "from": "app/domain/order.py",
+      "to": "app/adapters/memory.py",
+      "kind": "depends",
+      "line": 12
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:sqlalchemy",
+      "name": "sqlalchemy"
+    }
+  ]
+}

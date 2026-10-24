@@ -19,7 +19,7 @@ This repo is lightcycle project `kenmclennan/recognizer`, shortcode `REC`; work 
 One repository, a directory per part:
 
 - `schema/` - the scan document's JSON Schema and example scans
-- `check/` - `recognizer check`: reads a scan and a policy, reports violations and baseline growth ([check/README.md](check/README.md))
+- `check/` - `recognizer check`: reads a scan and an optional policy, reports violations, baseline growth, graph metrics and warnings ([check/README.md](check/README.md))
 - `policies/` - starter policies a scanned repository copies into `.recognizer/policy.yaml`
 - `scanners/python/`, `scanners/typescript/`, `scanners/kotlin/` - one standalone CLI per language
 - `app/` - the Tauri viewer

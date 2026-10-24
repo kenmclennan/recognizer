@@ -1,0 +1,157 @@
+{
+  "violations": [
+    {
+      "from": "app/domain/order.py",
+      "to": "app/adapters/memory.py",
+      "kind": "depends",
+      "lines": [
+        12
+      ],
+      "rules": [
+        {
+          "type": "level",
+          "from_level": "domain",
+          "to_level": "adapters"
+        }
+      ]
+    }
+  ],
+  "new": [],
+  "fixed": [],
+  "unranked": 0,
+  "baseline": {
+    "present": true,
+    "action": "none"
+  },
+  "thresholds": {
+    "hub": 3
+  },
+  "warnings": [
+    {
+      "id": "cycle",
+      "principle": "no-cycles",
+      "fix_pattern": "break-cycle",
+      "summary": "cycle of 2 modules: app/domain/money.py, app/domain/order.py",
+      "evidence": {
+        "modules": [
+          "app/domain/money.py",
+          "app/domain/order.py"
+        ],
+        "edges": [
+          {
+            "from": "app/domain/money.py",
+            "to": "app/domain/order.py"
+          },
+          {
+            "from": "app/domain/order.py",
+            "to": "app/domain/money.py"
+          }
+        ]
+      }
+    },
+    {
+      "id": "hub",
+      "principle": "interfaces-are-narrow-and-explicit",
+      "fix_pattern": "split-hub",
+      "summary": "app/application/place.py has fan-in 3 and fan-out 3 (threshold 3)",
+      "evidence": {
+        "module": "app/application/place.py",
+        "fan_in": 3,
+        "fan_out": 3,
+        "threshold": 3
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "id": "app/adapters/audit.py",
+      "kind": "module",
+      "fan_in": 0,
+      "fan_out": 1,
+      "afferent": 0,
+      "efferent": 1,
+      "instability": 1,
+      "abstractness": 0
+    },
+    {
+      "id": "app/adapters/clock.py",
+      "kind": "module",
+      "fan_in": 0,
+      "fan_out": 1,
+      "afferent": 0,
+      "efferent": 1,
+      "instability": 1,
+      "abstractness": 0
+    },
+    {
+      "id": "app/adapters/memory.py",
+      "kind": "module",
+      "fan_in": 1,
+      "fan_out": 1,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "abstractness": 0
+    },
+    {
+      "id": "app/adapters/sql.py",
+      "kind": "module",
+      "fan_in": 0,
+      "fan_out": 1,
+      "afferent": 0,
+      "efferent": 2,
+      "instability": 1,
+      "abstractness": 0
+    },
+    {
+      "id": "app/application/place.py",
+      "kind": "module",
+      "fan_in": 3,
+      "fan_out": 3,
+      "afferent": 3,
+      "efferent": 3,
+      "instability": 0.5,
+      "abstractness": 0
+    },
+    {
+      "id": "app/application/report.py",
+      "kind": "module",
+      "fan_in": 0,
+      "fan_out": 1,
+      "afferent": 0,
+      "efferent": 1,
+      "instability": 1,
+      "abstractness": 0
+    },
+    {
+      "id": "app/domain/money.py",
+      "kind": "module",
+      "fan_in": 2,
+      "fan_out": 1,
+      "afferent": 2,
+      "efferent": 1,
+      "instability": 0.3333,
+      "abstractness": 0
+    },
+    {
+      "id": "app/domain/order.py",
+      "kind": "module",
+      "fan_in": 2,
+      "fan_out": 2,
+      "afferent": 2,
+      "efferent": 2,
+      "instability": 0.5,
+      "abstractness": 0
+    },
+    {
+      "id": "app/ports/store.py",
+      "kind": "interface",
+      "fan_in": 3,
+      "fan_out": 0,
+      "afferent": 3,
+      "efferent": 0,
+      "instability": 0,
+      "abstractness": 1
+    }
+  ]
+}

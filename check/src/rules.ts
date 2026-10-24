@@ -1,6 +1,7 @@
 import { compareIdentities, identityKey } from "./baseline.js";
 import { InputError } from "./errors.js";
 import { matchesAny } from "./glob.js";
+import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import type { Scan } from "./scan.js";
 
@@ -15,12 +16,6 @@ export interface Violation {
   kind: string;
   lines: number[];
   rules: Rule[];
-}
-
-const FOREIGN_PREFIX = "foreign:";
-
-function isForeign(id: string): boolean {
-  return id.startsWith(FOREIGN_PREFIX);
 }
 
 function assignComponents(
@@ -82,28 +77,7 @@ function checkComponents(
 }
 
 export function collectViolations(scan: Scan, policy: Policy) {
-  const dropped = (id: string) =>
-    !isForeign(id) && matchesAny(policy.ignore, id);
-
-  const ids = new Set<string>();
-
-  for (const module of scan.modules) {
-    if (!dropped(module.id)) {
-      ids.add(module.id);
-    }
-  }
-
-  const edges = scan.edges.filter(
-    (edge) => !dropped(edge.from) && !dropped(edge.to),
-  );
-
-  for (const edge of edges) {
-    ids.add(edge.from);
-
-    if (!isForeign(edge.to)) {
-      ids.add(edge.to);
-    }
-  }
+  const { edges, ids } = keptGraph(scan, policy.ignore);
 
   const errors: string[] = [];
   const { componentOf, unranked } = assignComponents(policy, ids, errors);
