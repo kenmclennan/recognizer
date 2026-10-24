@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
+import { type Analysis, analyse } from "./analyse.js";
 import {
   type Identity,
   identityKey,
@@ -9,7 +10,8 @@ import {
 } from "./baseline.js";
 import { type CheckResult, check } from "./check.js";
 import { InputError } from "./errors.js";
-import { parsePolicy } from "./policy.js";
+import { type Policy, parsePolicy } from "./policy.js";
+import { validateScan } from "./scan.js";
 
 export interface Io {
   exists(path: string): boolean;
@@ -32,6 +34,8 @@ export function nodeIo(): Io {
   };
 }
 
+const DEFAULT_HUB_THRESHOLD = 10;
+
 type BaselineAction = "none" | "initialised" | "shrunk";
 
 function readInput(io: Io, path: string, what: string): string {
@@ -42,8 +46,8 @@ function readInput(io: Io, path: string, what: string): string {
   }
 }
 
-function summary(result: CheckResult): string {
-  const lines = result.new.map((violation) => {
+function summary(result: CheckResult | null, analysis: Analysis): string {
+  const lines = (result?.new ?? []).map((violation) => {
     const rules = violation.rules
       .map((rule) => {
         if (rule.type === "level") {
@@ -61,15 +65,35 @@ function summary(result: CheckResult): string {
     return `${violation.from} -> ${violation.to} (${violation.kind}) line ${violation.lines.join(", ")}: ${rules}`;
   });
 
-  lines.push(
-    `violations: ${result.violations.length}, new: ${result.new.length}, fixed: ${result.fixed.length}, unranked: ${result.unranked}`,
-  );
+  if (result) {
+    lines.push(
+      `violations: ${result.violations.length}, new: ${result.new.length}, fixed: ${result.fixed.length}, unranked: ${result.unranked}`,
+    );
 
-  if (result.fixed.length > 0) {
-    lines.push("run with --update-baseline to shrink the baseline");
+    if (result.fixed.length > 0) {
+      lines.push("run with --update-baseline to shrink the baseline");
+    }
   }
 
+  lines.push(`warnings: ${analysis.warnings.length}`);
+
   return `${lines.join("\n")}\n`;
+}
+
+function parseThreshold(raw: string | undefined): number {
+  if (raw === undefined) {
+    return DEFAULT_HUB_THRESHOLD;
+  }
+
+  if (!/^\d+$/.test(raw) || Number(raw) < 1) {
+    throw new InputError([`--hub-threshold must be an integer >= 1: ${raw}`]);
+  }
+
+  return Number(raw);
+}
+
+function analysePolicy(scan: unknown, policy: Policy, hub: number): Analysis {
+  return analyse(validateScan(scan), { hub }, policy.ignore);
 }
 
 function execute(argv: string[], io: Io): number {
@@ -83,17 +107,31 @@ function execute(argv: string[], io: Io): number {
       baseline: { type: "string" },
       "update-baseline": { type: "boolean" },
       "init-baseline": { type: "boolean" },
+      "hub-threshold": { type: "string" },
     },
   });
 
   if (positionals.length !== 1 || positionals[0] !== "check") {
     throw new InputError([
-      "usage: recognizer check --scan <scan.json> --policy <policy.yaml>",
+      "usage: recognizer check --scan <scan.json> [--policy <policy.yaml>]",
     ]);
   }
 
-  if (!values.scan || !values.policy) {
-    throw new InputError(["--scan and --policy are required"]);
+  if (!values.scan) {
+    throw new InputError(["--scan is required"]);
+  }
+
+  const hubThreshold = parseThreshold(values["hub-threshold"]);
+
+  if (
+    !values.policy &&
+    (values.baseline !== undefined ||
+      values["update-baseline"] ||
+      values["init-baseline"])
+  ) {
+    throw new InputError([
+      "--baseline, --update-baseline and --init-baseline need --policy",
+    ]);
   }
 
   if (values["update-baseline"] && values["init-baseline"]) {
@@ -101,11 +139,6 @@ function execute(argv: string[], io: Io): number {
       "--update-baseline and --init-baseline cannot be used together",
     ]);
   }
-
-  const baselinePath =
-    values.baseline ??
-    join(dirname(values.policy), "baselines", "violations.json");
-  const present = io.exists(baselinePath);
 
   let scan: unknown;
 
@@ -121,7 +154,20 @@ function execute(argv: string[], io: Io): number {
     ]);
   }
 
+  if (!values.policy) {
+    const analysis = analyse(validateScan(scan), { hub: hubThreshold });
+
+    io.stdout(`${JSON.stringify(analysis, null, 2)}\n`);
+    io.stderr(summary(null, analysis));
+
+    return 0;
+  }
+
   const policy = parsePolicy(readInput(io, values.policy, "policy"));
+  const baselinePath =
+    values.baseline ??
+    join(dirname(values.policy), "baselines", "violations.json");
+  const present = io.exists(baselinePath);
   const baseline = present
     ? parseBaseline(readInput(io, baselinePath, "baseline"))
     : null;
@@ -155,10 +201,12 @@ function execute(argv: string[], io: Io): number {
     action = "shrunk";
   }
 
+  const analysis = analysePolicy(scan, policy, hubThreshold);
+
   io.stdout(
-    `${JSON.stringify({ ...result, baseline: { path: baselinePath, present, action } }, null, 2)}\n`,
+    `${JSON.stringify({ ...result, baseline: { path: baselinePath, present, action }, ...analysis }, null, 2)}\n`,
   );
-  io.stderr(summary(result));
+  io.stderr(summary(result, analysis));
 
   return result.new.length > 0 ? 1 : 0;
 }

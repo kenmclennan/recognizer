@@ -1,3 +1,10 @@
+export {
+  type Analysis,
+  analyse,
+  type ModuleMetrics,
+  type Thresholds,
+  type Warning,
+} from "./analyse.js";
 export { type Identity, parseBaseline, serialiseBaseline } from "./baseline.js";
 export { type CheckResult, check } from "./check.js";
 export { InputError } from "./errors.js";

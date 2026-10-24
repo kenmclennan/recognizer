@@ -96,5 +96,93 @@
   "baseline": {
     "present": false,
     "action": "none"
-  }
+  },
+  "thresholds": {
+    "hub": 10
+  },
+  "warnings": [
+    {
+      "id": "cycle",
+      "principle": "no-cycles",
+      "fix_pattern": "break-cycle",
+      "summary": "cycle of 3 modules: app/billing/invoice.py, app/orders/place.py, app/shared/money.py",
+      "evidence": {
+        "modules": [
+          "app/billing/invoice.py",
+          "app/orders/place.py",
+          "app/shared/money.py"
+        ],
+        "edges": [
+          {
+            "from": "app/billing/invoice.py",
+            "to": "app/shared/money.py"
+          },
+          {
+            "from": "app/orders/place.py",
+            "to": "app/billing/invoice.py"
+          },
+          {
+            "from": "app/orders/place.py",
+            "to": "app/shared/money.py"
+          },
+          {
+            "from": "app/shared/money.py",
+            "to": "app/orders/place.py"
+          }
+        ]
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "id": "app/billing/invoice.py",
+      "kind": "module",
+      "fan_in": 1,
+      "fan_out": 2,
+      "afferent": 1,
+      "efferent": 2,
+      "instability": 0.6667,
+      "abstractness": 0
+    },
+    {
+      "id": "app/legacy/old.py",
+      "kind": "module",
+      "fan_in": 1,
+      "fan_out": 0,
+      "afferent": 1,
+      "efferent": 0,
+      "instability": 0,
+      "abstractness": 0
+    },
+    {
+      "id": "app/orders/cart.py",
+      "kind": "module",
+      "fan_in": 1,
+      "fan_out": 0,
+      "afferent": 1,
+      "efferent": 0,
+      "instability": 0,
+      "abstractness": 0
+    },
+    {
+      "id": "app/orders/place.py",
+      "kind": "module",
+      "fan_in": 1,
+      "fan_out": 3,
+      "afferent": 1,
+      "efferent": 4,
+      "instability": 0.8,
+      "abstractness": 0
+    },
+    {
+      "id": "app/shared/money.py",
+      "kind": "module",
+      "fan_in": 2,
+      "fan_out": 1,
+      "afferent": 2,
+      "efferent": 1,
+      "instability": 0.3333,
+      "abstractness": 0
+    }
+  ]
 }

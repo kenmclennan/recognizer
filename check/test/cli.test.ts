@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
@@ -251,7 +259,7 @@ describe("bad input", () => {
     }));
   it("rejects an unknown flag", () =>
     bad(["check", "--scan", scan, "--policy", policy, "--nope"]));
-  it("rejects a missing --policy", () => bad(["check", "--scan", scan]));
+  it("rejects a missing --scan", () => bad(["check", "--policy", policy]));
   it("rejects a missing subcommand", () =>
     bad(["--scan", scan, "--policy", policy]));
 
@@ -306,4 +314,105 @@ describe("check against the uses-form fixture", () => {
       validateScan(JSON.parse(readFileSync(join(USES, "scan.json"), "utf8"))),
     ).not.toThrow();
   });
+});
+
+describe("warnings fixture", () => {
+  const WARN = join(REPO, "fixtures/check-warnings");
+  const read = (name: string) =>
+    JSON.parse(readFileSync(join(WARN, name), "utf8"));
+
+  it("matches expected-policy.json with a policy and exits 0", () => {
+    const { code, out, err } = execute(checkArgs(WARN, "--hub-threshold", "3"));
+    const actual = JSON.parse(out);
+
+    delete actual.baseline.path;
+
+    expect(code).toBe(0);
+    expect(actual).toEqual(read("expected-policy.json"));
+    expect(actual.violations).toHaveLength(1);
+    expect(err).toContain("warnings: 2");
+  });
+
+  it("matches expected-no-policy.json without a policy and exits 0", () => {
+    const { code, out, err } = execute([
+      "check",
+      "--scan",
+      join(WARN, "scan.json"),
+      "--hub-threshold",
+      "3",
+    ]);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(out)).toEqual(read("expected-no-policy.json"));
+    expect(err).toContain("warnings: 2");
+  });
+
+  it("has the hand-derived metrics and warning order", () => {
+    const { metrics, warnings } = read("expected-no-policy.json");
+
+    expect(warnings.map((w: { id: string }) => w.id)).toEqual(["cycle", "hub"]);
+    expect(
+      metrics.map((m: Record<string, unknown>) => [
+        m.id,
+        m.fan_in,
+        m.fan_out,
+        m.efferent,
+        m.instability,
+        m.abstractness,
+      ]),
+    ).toEqual([
+      ["app/adapters/audit.py", 0, 1, 1, 1, 0],
+      ["app/adapters/clock.py", 0, 1, 1, 1, 0],
+      ["app/adapters/memory.py", 1, 1, 1, 0.5, 0],
+      ["app/adapters/sql.py", 0, 1, 2, 1, 0],
+      ["app/application/place.py", 3, 3, 3, 0.5, 0],
+      ["app/application/report.py", 0, 1, 1, 1, 0],
+      ["app/domain/money.py", 2, 1, 1, 0.3333, 0],
+      ["app/domain/order.py", 2, 2, 2, 0.5, 0],
+      ["app/ports/store.py", 3, 0, 0, 0, 1],
+    ]);
+  });
+
+  it("runs the built binary without a policy", () => {
+    const child = spawnSync(
+      process.execPath,
+      [
+        join(REPO, "check/dist/bin.js"),
+        "check",
+        "--scan",
+        join(WARN, "scan.json"),
+        "--hub-threshold",
+        "3",
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(child.status).toBe(0);
+    expect(JSON.parse(child.stdout).warnings).toHaveLength(2);
+  });
+
+  it("exits 1 for a new violation even with warnings, and 0 when baselined", () => {
+    const dir = mkdtempSync(join(tmpdir(), "recognizer-warn-"));
+    cpSync(WARN, dir, { recursive: true });
+    rmSync(join(dir, BASELINE));
+
+    const fresh = execute(checkArgs(dir, "--hub-threshold", "3"));
+
+    expect(fresh.code).toBe(1);
+    expect(JSON.parse(fresh.out).warnings).toHaveLength(2);
+  });
+
+  it.each(["design-example.json", "all-kinds.json"])(
+    "analyses schema/examples/valid/%s without a policy",
+    (name) => {
+      const path = join(REPO, "schema/examples/valid", name);
+      const scan = JSON.parse(readFileSync(path, "utf8"));
+      const { code, out } = execute(["check", "--scan", path]);
+      const result = JSON.parse(out);
+
+      expect(code).toBe(0);
+      expect(result.metrics.length).toBeGreaterThanOrEqual(scan.modules.length);
+      expect(Array.isArray(result.warnings)).toBe(true);
+    },
+  );
 });

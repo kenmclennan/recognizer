@@ -1,0 +1,11 @@
+components:
+  domain: app/domain/**
+  ports: app/ports/**
+  application: app/application/**
+  adapters: app/adapters/**
+
+levels:
+  - domain
+  - ports
+  - application
+  - adapters

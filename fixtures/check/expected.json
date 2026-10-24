@@ -146,5 +146,114 @@
   "baseline": {
     "present": true,
     "action": "none"
-  }
+  },
+  "thresholds": {
+    "hub": 10
+  },
+  "warnings": [
+    {
+      "id": "cycle",
+      "principle": "no-cycles",
+      "fix_pattern": "break-cycle",
+      "summary": "cycle of 2 modules: shop/application/place.py, shop/domain/order.py",
+      "evidence": {
+        "modules": [
+          "shop/application/place.py",
+          "shop/domain/order.py"
+        ],
+        "edges": [
+          {
+            "from": "shop/application/place.py",
+            "to": "shop/domain/order.py"
+          },
+          {
+            "from": "shop/domain/order.py",
+            "to": "shop/application/place.py"
+          }
+        ]
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "id": "shop/adapters/memory_store.py",
+      "kind": "module",
+      "fan_in": 2,
+      "fan_out": 0,
+      "afferent": 2,
+      "efferent": 0,
+      "instability": 0,
+      "abstractness": 0
+    },
+    {
+      "id": "shop/adapters/sql_store.py",
+      "kind": "module",
+      "fan_in": 0,
+      "fan_out": 2,
+      "afferent": 0,
+      "efferent": 4,
+      "instability": 1,
+      "abstractness": 0
+    },
+    {
+      "id": "shop/application/place.py",
+      "kind": "module",
+      "fan_in": 1,
+      "fan_out": 1,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "abstractness": 0
+    },
+    {
+      "id": "shop/domain/money.py",
+      "kind": "module",
+      "fan_in": 0,
+      "fan_out": 2,
+      "afferent": 0,
+      "efferent": 2,
+      "instability": 1,
+      "abstractness": 0
+    },
+    {
+      "id": "shop/domain/order.py",
+      "kind": "module",
+      "fan_in": 2,
+      "fan_out": 2,
+      "afferent": 2,
+      "efferent": 2,
+      "instability": 0.5,
+      "abstractness": 0
+    },
+    {
+      "id": "shop/legacy/helpers.py",
+      "kind": "module",
+      "fan_in": 1,
+      "fan_out": 1,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "abstractness": 0
+    },
+    {
+      "id": "shop/main.py",
+      "kind": "module",
+      "fan_in": 0,
+      "fan_out": 0,
+      "afferent": 0,
+      "efferent": 0,
+      "instability": null,
+      "abstractness": 0
+    },
+    {
+      "id": "shop/ports/store.py",
+      "kind": "module",
+      "fan_in": 2,
+      "fan_out": 0,
+      "afferent": 2,
+      "efferent": 0,
+      "instability": 0,
+      "abstractness": 0
+    }
+  ]
 }

@@ -10,7 +10,7 @@ export interface ScanEdge {
 }
 
 export interface Scan {
-  modules: { id: string }[];
+  modules: { id: string; kind: "module" | "package" | "interface" }[];
   edges: ScanEdge[];
   foreign: { id: string; name: string }[];
 }
