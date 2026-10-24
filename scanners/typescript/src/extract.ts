@@ -1,4 +1,6 @@
 import ts from "typescript";
+import { extractNames } from "./names.js";
+import { extractTypes } from "./types-and-parameters.js";
 
 export type MemberKind =
   | "class"
@@ -19,6 +21,32 @@ export interface ImportRef {
   specifier: string;
   line: number;
   commonjs: boolean;
+  names: string[] | null;
+}
+
+export interface Reexport {
+  specifier: string;
+  imported: string;
+}
+
+export interface BaseRef {
+  local: string;
+  property: string | null;
+}
+
+export interface TypeDecl {
+  name: string;
+  kind: "class" | "interface";
+  abstract: boolean;
+  methods: Set<string>;
+  extendsList: BaseRef[];
+  implementsList: BaseRef[];
+}
+
+export interface ParameterUse {
+  parameter: string;
+  line: number;
+  methods: Set<string>;
 }
 
 export interface Binding {
@@ -41,6 +69,11 @@ export interface FileInfo {
   imports: ImportRef[];
   bindings: Map<string, Binding>;
   heritage: Heritage[];
+  defined: Set<string>;
+  reexports: Map<string, Reexport>;
+  stars: string[];
+  types: TypeDecl[];
+  parameters: ParameterUse[];
 }
 
 function lineOf(sf: ts.SourceFile, position: number): number {
@@ -69,6 +102,32 @@ function literalText(node: ts.Node | undefined): string | undefined {
   return undefined;
 }
 
+function importedNames(
+  node: ts.ImportDeclaration | ts.ExportDeclaration,
+): string[] | null {
+  const names: string[] = [];
+
+  if (ts.isImportDeclaration(node)) {
+    const clause = node.importClause;
+
+    if (clause?.name) {
+      names.push("default");
+    }
+
+    if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+      for (const element of clause.namedBindings.elements) {
+        names.push((element.propertyName ?? element.name).text);
+      }
+    }
+  } else if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+    for (const element of node.exportClause.elements) {
+      names.push((element.propertyName ?? element.name).text);
+    }
+  }
+
+  return names.length > 0 ? names : null;
+}
+
 function collectImports(sf: ts.SourceFile): ImportRef[] {
   const imports: ImportRef[] = [];
 
@@ -82,6 +141,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
         specifier: node.moduleSpecifier.text,
         line: startLine(sf, node),
         commonjs: false,
+        names: importedNames(node),
       });
     } else if (
       ts.isImportEqualsDeclaration(node) &&
@@ -92,6 +152,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
         specifier: node.moduleReference.expression.text,
         line: startLine(sf, node),
         commonjs: true,
+        names: null,
       });
     } else if (ts.isCallExpression(node)) {
       const argument = node.arguments[0];
@@ -103,6 +164,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
             specifier,
             line: startLine(sf, argument),
             commonjs: false,
+            names: null,
           });
         } else if (
           ts.isIdentifier(node.expression) &&
@@ -112,6 +174,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
             specifier,
             line: startLine(sf, argument),
             commonjs: true,
+            names: null,
           });
         }
       }
@@ -124,6 +187,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
         specifier: node.argument.literal.text,
         line: startLine(sf, node.argument.literal),
         commonjs: false,
+        names: null,
       });
     }
 
@@ -404,11 +468,15 @@ export function extract(sf: ts.SourceFile): FileInfo {
     }
   }
 
+  const bindings = collectBindings(sf);
+
   return {
     members,
     defaultName: defaultName ?? "default",
     imports: collectImports(sf),
-    bindings: collectBindings(sf),
+    bindings,
     heritage,
+    ...extractNames(sf, declared, bindings),
+    ...extractTypes(sf),
   };
 }

@@ -13,7 +13,7 @@
     "foreign"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "scanner": {
       "type": "object",
       "additionalProperties": false,
@@ -73,13 +73,53 @@
         "kind": { "enum": ["depends", "inherits", "implements"] },
         "line": { "$ref": "#/$defs/line" },
         "member": { "type": "string", "minLength": 1 },
-        "to_member": { "type": "string", "minLength": 1 }
+        "to_member": { "type": "string", "minLength": 1 },
+        "names": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "via": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/moduleId" },
+          "uniqueItems": true
+        },
+        "inferred": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["parameter", "methods", "class", "implementations"],
+          "properties": {
+            "parameter": { "type": "string", "minLength": 1 },
+            "methods": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "class": { "type": "string", "minLength": 1 },
+            "implementations": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          }
+        }
       },
       "unevaluatedProperties": false,
       "if": {
         "properties": { "kind": { "enum": ["inherits", "implements"] } }
       },
-      "then": { "required": ["member", "to_member"] },
+      "then": {
+        "required": ["member", "to_member"],
+        "not": {
+          "anyOf": [
+            { "required": ["names"] },
+            { "required": ["via"] },
+            { "required": ["inferred"] }
+          ]
+        }
+      },
       "else": {
         "not": {
           "anyOf": [{ "required": ["member"] }, { "required": ["to_member"] }]

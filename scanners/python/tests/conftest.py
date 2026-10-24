@@ -31,6 +31,10 @@ def validate(document: dict) -> None:
     for edge in document["edges"]:
         assert edge["from"] in ids
         assert edge["to"] in ids or edge["to"] in foreign_ids
+        assert all(step in ids for step in edge.get("via", []))
+
+        if "inferred" in edge:
+            assert edge["names"] == edge["inferred"]["methods"]
 
 
 def build_tree(base: Path, files: dict[str, str]) -> Path:

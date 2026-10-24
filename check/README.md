@@ -58,6 +58,10 @@ Globs match the whole id, case-sensitive.
 | `?` | one character except `/` |
 | anything else | itself, literally |
 
+## Edges that are read
+
+A scan must carry `schema_version` 2; a version-1 scan is refused with exit `2`. Edges that carry `inferred` are read from the scan and ignored by every output: violations, `unranked`, metrics and warnings are computed from the other edges only. A later item decides whether inferred edges count.
+
 ## Violations and the baseline
 
 A violation is identified by `from`, `to` and `kind`, never by line. Edges sharing that identity collapse into one violation carrying all its lines and every rule that fired.

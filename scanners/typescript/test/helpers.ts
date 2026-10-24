@@ -52,6 +52,14 @@ export function validate(doc: ScanDocument): void {
   for (const edge of doc.edges) {
     expect(ids).toContain(edge.from);
     expect([...ids, ...foreignIds]).toContain(edge.to);
+
+    for (const step of edge.via ?? []) {
+      expect(ids).toContain(step);
+    }
+
+    if (edge.inferred) {
+      expect(edge.names).toEqual(edge.inferred.methods);
+    }
   }
 }
 
@@ -94,6 +102,18 @@ function describe(edge: ScanEdge): string {
   const heritage = edge.member ? ` ${edge.member}->${edge.to_member}` : "";
 
   return `${edge.from} ${edge.kind} ${edge.to} @${edge.line}${heritage}`;
+}
+
+export function depends(doc: ScanDocument, from: string) {
+  return doc.edges
+    .filter((edge) => edge.from === from && edge.kind === "depends")
+    .map((edge) => ({
+      to: edge.to,
+      line: edge.line,
+      names: edge.names,
+      via: edge.via,
+      inferred: edge.inferred,
+    }));
 }
 
 export function runBin(root: string, ...extra: string[]) {
