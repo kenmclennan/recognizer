@@ -31,7 +31,24 @@ A native app: Tauri 2, with the domain, application and drawing code in TypeScri
 - **Built from the template.** The app starts from `kenmclennan/tauri-starter`: its `npm run init` is run in a scratch clone (name Recognizer, slug `recognizer`) and the renamed `app/` is copied into `app/` here and added to the root workspaces. Its CI becomes a job filtered on `app/**`, and its release workflow runs after that job, so only an app change cuts a release. The design of record for the app's internals (pure modules behind thin adapters, the Rust trust boundary, the terminal command, releases and the updater) is the engineering knowledgebase's `desktop-apps/` topic.
 - **It runs `recognizer scan`, never a bundled scanner.** The viewer scans exactly as CI and audits do. Rust runs the command on the folder the window opened through a Rust dialog and reads the result from that repository's `.recognizer/cache/`. An app launched from Finder has no shell `PATH`, so Rust resolves the command through the user's login shell, with an absolute path in the app's config as an override; a missing command is reported with what to install. A scan whose `schema_version` the app does not know is refused.
 - **Layout is ELK, drawn as SVG.** elkjs's layered algorithm places the nodes, off the main thread in a web worker; a pure module turns its coordinates into SVG, so the drawing is tested without a window.
-- **The base view needs no policy, and its layout imposes no order the graph lacks.** A ball of mud must look like one. Each strongly connected component is drawn as one node sized by the modules it holds; the condensed graph is layered by dependency depth; neither folders nor a policy give the picture its shape. A policy lens over that view is not built until example codebases have been drawn and show what it must express.
+- **The viewer needs no policy, and imposes no order the graph lacks.** A ball of mud must look like one. A policy lens is not built until example codebases have been drawn and show what it must express.
+
+### Explorer
+
+The viewer is an explorer, not a picture of the whole graph. Drawing every module at once is unreadable on a real codebase, and a dependency matrix ordered by depth shows little but cycles. The explorer starts from a few modules the user picks and grows by following edges, so the canvas only ever holds what the user asked to see. Clean and uncluttered is the bar: every addition to the screen earns its place, and nothing is shown by default that the user did not ask for.
+
+The window has three areas, and the [glossary](glossary.md) names them:
+
+- **The tree** (left) is the repository's folder structure, as an IDE shows it, and is the way in. Each file shows its dependency and dependent counts; each folder shows its file count and how many edges cross its boundary. Clicking a file puts it on the canvas and clicking it again removes it; a file already on the canvas also offers to find it there. Selecting something on the canvas highlights it in the tree, folders included. The tree collapses out of the way.
+- **The canvas** (centre) draws the modules on it inside frames that nest as the folders do. Each frame is exactly one folder, labelled with that folder's own name: a chain of folders is a chain of nested frames, never one frame labelled with a longer path. A frame shows how many of its folder's files are on the canvas out of how many it holds.
+- **The panel** (right) shows the selection: a module's actions (show its dependencies or dependents, hide it, focus on it and its neighbours), the names other modules use from it, and an edge's evidence.
+
+Every edge on the canvas can show its evidence: the quoted import line, the names imported, and the route the names took through re-exporting files. Edges are drawn by kind: an ordinary dependency; an import of a private name (dashed), which is usually a defect; an inferred dependency (dotted, and switchable off), from the scan's inferred edges; and `implements` and `inherits` with a hollow arrowhead, so an adapter fulfilling a port does not read as depending on it.
+
+- **View state is a record.** Everything that decides what the user sees (the modules on the canvas, what is collapsed, hidden, selected and focused) is one view state, addressed by an id. Each change makes a new view state, so going back and forward through them is the undo, and the user can name a view state as a bookmark. An id is what the user hands an agent so it sees what they see, and an agent can make a view state and hand back its id for the user to open. View states are local to the machine at first.
+- **Agents are first-class users.** An agent reads the current view state (what is on the canvas, selected and focused) and makes view states of its own, so it can answer how a feature works by showing it.
+
+The remaining design is found by prototyping on example codebases: lightcycle first, then Saga, Yori and a known mess. A prototype is a throwaway sketch, never the app's code.
 
 ### Repository layout
 
@@ -103,13 +120,15 @@ Each scanner emits one JSON document per language, with `schema_version` (an int
 
 - **`modules`**: one per box. `id` is the repository-relative path with forward slashes and no leading `./`; for Kotlin, the package's directory path. `language` sits on the module, not the document. `kind` is `module`, `package` or `interface` (a module whose exports are only abstractions). `members` lists the classes and functions it contains: `name`, `kind` (`class`, `function`, `interface`, `type`, `constant`), `line`, `exported`.
 - **`edges`**: module to module, `from` and `to` by module id, `kind` is `depends`, `inherits` or `implements`, and `line` is where in `from` it comes from, so a violation is clickable. `inherits` and `implements` also carry the two member names (`member`, `to_member`) for the viewer's drill-down. No member-to-member edges; adding them later is an additive change.
+  - **A `depends` edge points at the module that defines what is used.** It lists the imported `names`, and each name is followed through re-exporting files (a Python `__init__.py`, a TypeScript `index.ts`) to the module that defines it, which is `to`; the files it passed through are `via`, in order. An import of names from two defining modules is two edges. Without this, every user of a package's re-exports appears to depend on the whole package, and the real dependents of a module are hidden.
+  - **An `inferred` edge is a dependency the imports do not show.** Where a parameter has no type (a constructor's collaborator, a function's argument), the scanner collects the methods called on it and finds the classes that define all of them, inherited methods included. When few classes match, preferring abstract ones (a Protocol, an ABC, an interface), it emits a `depends` edge to the defining module with `inferred` holding the evidence: the parameter, the methods called, the matched class and its known implementations. Too many matches, or only generic method names, emit nothing. An inferred edge is always drawn and reported as inferred.
 - **`foreign`**: external libraries, each a node with id `foreign:<name>`, which edges point at; `name` is what the policy's `foreign` groups match on.
 
 The document is facts about the code only: no policy, layout, colours or violation flags. `check` computes violations from the scan and the policy. A repository with more than one language gets one scan per language; merging them is the consumer's job.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": "a1b2c3d",
   "modules": [
@@ -126,9 +145,24 @@ The document is facts about the code only: no policy, layout, colours or violati
   "edges": [
     {
       "from": "lightcycle/application/claim.py",
-      "to": "lightcycle/domain/item.py",
+      "to": "lightcycle/domain/work/item.py",
       "kind": "depends",
-      "line": 3
+      "line": 3,
+      "names": ["Item"],
+      "via": ["lightcycle/domain/work/__init__.py"]
+    },
+    {
+      "from": "lightcycle/application/create_item.py",
+      "to": "lightcycle/ports/store.py",
+      "kind": "depends",
+      "line": 14,
+      "names": ["add_artifact", "create_item"],
+      "inferred": {
+        "parameter": "store",
+        "methods": ["add_artifact", "create_item"],
+        "class": "StorePort",
+        "implementations": ["SqliteStore"]
+      }
     },
     {
       "from": "lightcycle/adapters/sqlite_store.py",
@@ -210,9 +244,14 @@ Decide these with Ken one at a time, in this order, recording each under Decided
 
 1. **The overlay document.** The exact JSON shape for the metric-agnostic overlay decided under Overlays: how a metric declares itself, how values are keyed by module and member, and how a converter is discovered.
 2. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
-3. **The viewer's opening view.** Which policy-free picture the app opens on: the condensed, depth-layered graph; use-case slices derived by reachability from entry points (modules nothing in the codebase imports), whose overlaps show coupling; or both. Decided by drawing example codebases, including a known mess, beside lightcycle.
-4. **Policy axes.** Whether the policy classifies each module on independent axes, strata (responsibility layers, ruled by direction) and slices (use cases and subdomains, ruled by isolation), instead of one namespace of components. Decided after the policy-free views have been drawn on examples.
-5. **Proposals in the viewer.** How a proposed structure is drawn beside the real one, always labelled as not in the code.
+3. **Following dependencies.** How the user traverses edges from a module: from actions in the panel, on the canvas itself, or both; and how a selection of several things is narrowed one at a time rather than only cleared.
+4. **A module's contents.** How the user learns what a file is for without reading it: its classes, functions and constants by name, drawn as a class diagram, and a generated statement of its responsibility (never a docstring); shown on the canvas, in the panel, or both.
+5. **The tree's information.** Which figures each file and folder carries, and how the tree is filtered and searched.
+6. **Where view states live.** How a view state is stored and addressed on the machine, and how an agent reads and makes one: a command, a link the app opens, or both.
+7. **Policy axes.** Whether the policy classifies each module on independent axes, strata (responsibility layers, ruled by direction) and slices (use cases and subdomains, ruled by isolation), instead of one namespace of components. Slices by reachability from entry points fail at module level, because the composition root reaches nearly everything. Decided after examples have been explored.
+8. **Structural change.** How the viewer shows a change above the level of code: files, classes, functions and constants added, modified and removed. One view serves a spec's proposed change, a pull request's actual change, the difference between what a spec proposed and what was delivered, and the difference between any two commits. A proposed change is always labelled as not in the code.
+9. **Overlays in the viewer.** How metrics, churn over a period, and findings are laid over the canvas and the tree, and how the viewer leads the user to a defect and draws attention to it without clutter.
+10. **Further warnings.** Candidates found by exploring lightcycle: a module importing another module's private names; an entity's module used far less than the port that stores its data, which suggests the port takes fields rather than the entity; a port whose methods take only primitives; a constructor whose collaborators have no type. Each needs a principle, evidence and a fix-pattern id before it joins `check`.
 
 ## First build items
 
@@ -221,5 +260,6 @@ In this order, each with fixtures and tests:
 1. The schema, example scans, and the Python scanner, run against lightcycle (`kenmclennan/lightcycle`, a hexagonal Python codebase).
 2. `recognizer check` against a policy for lightcycle, reporting its wrong-way edges.
 3. The TypeScript scanner, run against Saga and the knowledgebase explorer, both npm workspaces with path aliases.
-4. `recognizer scan`, then the viewer: open a repository, scan it, draw the policy-free module graph.
-5. The Kotlin spike, then the Kotlin scanner.
+4. The scan document's version 2 (names, routes through re-exports, inferred edges) in the Python and TypeScript scanners, then `recognizer scan`.
+5. The viewer: open a repository, scan it, and explore it from the tree, with view states and their history.
+6. The Kotlin spike, then the Kotlin scanner.

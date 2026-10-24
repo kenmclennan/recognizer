@@ -10,7 +10,9 @@ The design of record is [docs/design.md](docs/design.md). It is temporary: it ho
 - Its **Open** section is decided with Ken one question at a time, in the order listed, each recorded under Decided before anything is built on it.
 - Its **First build items** section is the build order once the open decisions it names are settled.
 
-Goal **G-12** in lightcycle (`lc goal show G-12`) tracks this work and logs each decision with its date. This repo is lightcycle project `kenmclennan/recognizer`, shortcode `REC`; work is filed and built through lightcycle.
+The words the code, docs and interface use are defined in [docs/glossary.md](docs/glossary.md); add a term there before using it.
+
+This repo is lightcycle project `kenmclennan/recognizer`, shortcode `REC`; work is filed and built through lightcycle.
 
 ## Layout
 
