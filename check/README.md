@@ -178,6 +178,18 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 - `1`: at least one detected language failed; the others still run and are written.
 - `2`: bad usage - an unknown flag, more than one `REPOSITORY`, or a `REPOSITORY` that is not a directory.
 
+## recognizer open
+
+`recognizer open [FOLDER]` opens a folder in the Recognizer viewer. `FOLDER` defaults to the current directory and is resolved to an absolute path. The viewer is the `Recognizer.app` bundle: the command uses `$RECOGNIZER_APP` when it is set and non-empty (an absolute path to a `.app` bundle), otherwise `~/Applications/Recognizer.app`, then `/Applications/Recognizer.app`. It starts the bundle's single executable in `Contents/MacOS` detached, with the folder as its one argument, and returns without waiting. Starting the executable directly lets a running viewer receive the folder, which `open -a` does not.
+
+- `0`: the viewer was started.
+- `1`: the environment is wrong - no bundle was found (the message says to run `npm run install-app` from a checkout), `Contents/MacOS` does not hold exactly one executable, or the launch failed.
+- `2`: bad input - more than one `FOLDER`, a `FOLDER` that is not a directory, or a `RECOGNIZER_APP` that is not an absolute path to a `.app` bundle.
+
+### Installing the command from a checkout
+
+`npm run build -w recognizer`, then `npm install --global ./check` puts a `recognizer` executable on the npm prefix's `bin`. `check` is not published, so there is no other install.
+
 ## Library
 
-`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
+`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.

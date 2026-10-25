@@ -2,7 +2,8 @@
   "private": true,
   "workspaces": [
     "check",
-    "scanners/typescript"
+    "scanners/typescript",
+    "app"
   ],
   "engines": {
     "node": ">=22"
@@ -14,5 +15,11 @@
     "prettier": "^3.6.2",
     "typescript": "~5.9",
     "vitest": "^5.0.5"
+  },
+  "scripts": {
+    "app": "npm run tauri -w @recognizer/app -- dev",
+    "install-app": "node app/scripts/install-app.mjs",
+    "check:rust": "node app/scripts/check-rust.mjs",
+    "check:app": "npm run typecheck -w @recognizer/app && npm run test -w @recognizer/app && npm run lint -w @recognizer/app && npm run format:check -w @recognizer/app && npm run check:rust && npm run build -w @recognizer/app"
   }
 }

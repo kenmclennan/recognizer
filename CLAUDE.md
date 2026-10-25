@@ -22,10 +22,18 @@ One repository, a directory per part:
 - `check/` - `recognizer check`: reads a scan and an optional policy, reports violations, baseline growth, graph metrics and warnings; also `recognizer scan`, which detects languages, runs each scanner and writes the cache ([check/README.md](check/README.md))
 - `policies/` - starter policies a scanned repository copies into `.recognizer/policy.yaml`
 - `scanners/python/`, `scanners/typescript/`, `scanners/kotlin/` - one standalone CLI per language
-- `app/` - the Tauri viewer
+- `app/` - the Tauri viewer, built from `kenmclennan/tauri-starter` ([app/README.md](app/README.md))
 - `fixtures/` - small sample codebases per language, each with its expected scan
 
-`schema/`, `check/`, `policies/`, `scanners/python/`, `scanners/typescript/` and `fixtures/` exist; `scanners/kotlin/` and `app/` do not yet.
+`schema/`, `check/`, `policies/`, `scanners/python/`, `scanners/typescript/`, `app/` and `fixtures/` exist; `scanners/kotlin/` does not yet.
+
+`app/` is the npm workspace `@recognizer/app`: Vite, TypeScript and plain DOM in `app/src/`, and the Rust crate `recognizer_app` in `app/src-tauri/`. It imports `check` as a library (`recognizer`, built to `check/dist` by the `pre*` scripts). Its rules:
+
+- Logic goes in pure modules with unit tests (`scan-loading`, `tree-model`, `tree-filter`, `health`, `open-modules`); views and sources (`*-view.ts`, `*-source.ts`) stay thin and `main.ts` is the composition root. Rust stays the narrow boundary for the dialog, running `recognizer scan`, reading the cache and launch arguments.
+- A command never takes a path from the frontend: Rust reads the folder from the window's assignment. Every window is built by `open_window` and labelled `w-<n>`, and `app/src-tauri/capabilities/default.json` grants the `app-access` permission set to `w-*`.
+- Filesystem access goes through `fs_safe`. The `fs_safe` tests are required: they guard the path-confinement boundary, so they are never removed or weakened.
+- `plugins.updater.pubkey` holds the real updater public key; the matching private key and the releases repo exist. Release assets are named by slug (`recognizer.app.tar.gz`), and the `RELEASES_TOKEN` secret name is fixed across apps.
+- `npm run check:app` is the app's gate (typecheck, tests, lint, format check, `cargo test`, `cargo fmt --check`, `cargo clippy -D warnings`, build); `npm run install-app` builds the bundle into `~/Applications`.
 
 ## Rules
 

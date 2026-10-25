@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -20,6 +20,7 @@ import {
 } from "./baseline.js";
 import { type CheckResult, check } from "./check.js";
 import { InputError } from "./errors.js";
+import { runOpen } from "./open-command.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import { validateScan } from "./scan.js";
 import { runScan } from "./scan-command.js";
@@ -36,6 +37,11 @@ export interface RunResult {
   stderr: string;
 }
 
+export interface LaunchResult {
+  started: boolean;
+  message: string;
+}
+
 export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
@@ -45,6 +51,7 @@ export interface Io {
   makeTempDir(): string;
   removeDir(path: string): void;
   run(command: string, args: string[]): RunResult;
+  launch(command: string, args: string[]): LaunchResult;
   env(name: string): string | undefined;
   stdout(text: string): void;
   stderr(text: string): void;
@@ -83,6 +90,18 @@ export function nodeIo(): Io {
         stdout: result.stdout ?? "",
         stderr: result.error ? result.error.message : (result.stderr ?? ""),
       };
+    },
+    launch: (command, args) => {
+      try {
+        const child = spawn(command, args, { detached: true, stdio: "ignore" });
+
+        child.on("error", () => {});
+        child.unref();
+
+        return { started: true, message: "" };
+      } catch (error) {
+        return { started: false, message: (error as Error).message };
+      }
     },
     env: (name) => process.env[name],
     stdout: (text) => process.stdout.write(text),
@@ -272,8 +291,12 @@ function execute(argv: string[], io: Io): number {
     return runScan(argv.slice(1), io);
   }
 
+  if (argv[0] === "open") {
+    return runOpen(argv.slice(1), io);
+  }
+
   if (argv[0] !== "check") {
-    throw new InputError(["usage: recognizer <check|scan> ..."]);
+    throw new InputError(["usage: recognizer <check|scan|open> ..."]);
   }
 
   return executeCheck(argv, io);
