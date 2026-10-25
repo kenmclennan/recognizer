@@ -1,4 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { type Analysis, analyse } from "./analyse.js";
@@ -12,11 +22,30 @@ import { type CheckResult, check } from "./check.js";
 import { InputError } from "./errors.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import { validateScan } from "./scan.js";
+import { runScan } from "./scan-command.js";
+
+export interface DirEntry {
+  name: string;
+  kind: "file" | "directory" | "other";
+}
+
+export interface RunResult {
+  started: boolean;
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
 
 export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
   writeFile(path: string, content: string): void;
+  readDir(path: string): DirEntry[];
+  remove(path: string): void;
+  makeTempDir(): string;
+  removeDir(path: string): void;
+  run(command: string, args: string[]): RunResult;
+  env(name: string): string | undefined;
   stdout(text: string): void;
   stderr(text: string): void;
 }
@@ -29,6 +58,33 @@ export function nodeIo(): Io {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, content);
     },
+    readDir: (path) =>
+      readdirSync(path, { withFileTypes: true }).map((entry) => ({
+        name: entry.name,
+        kind: entry.isDirectory()
+          ? "directory"
+          : entry.isFile()
+            ? "file"
+            : "other",
+      })),
+    remove: (path) => rmSync(path, { force: true }),
+    makeTempDir: () => mkdtempSync(join(tmpdir(), "recognizer-scan-")),
+    removeDir: (path) => rmSync(path, { recursive: true, force: true }),
+    run: (command, args) => {
+      const result = spawnSync(command, args, {
+        encoding: "utf8",
+        maxBuffer: 256 * 1024 * 1024,
+      });
+      const code = (result.error as NodeJS.ErrnoException | undefined)?.code;
+
+      return {
+        started: code !== "ENOENT",
+        status: result.status,
+        stdout: result.stdout ?? "",
+        stderr: result.error ? result.error.message : (result.stderr ?? ""),
+      };
+    },
+    env: (name) => process.env[name],
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
   };
@@ -96,7 +152,7 @@ function analysePolicy(scan: unknown, policy: Policy, hub: number): Analysis {
   return analyse(validateScan(scan), { hub }, policy.ignore);
 }
 
-function execute(argv: string[], io: Io): number {
+function executeCheck(argv: string[], io: Io): number {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -209,6 +265,18 @@ function execute(argv: string[], io: Io): number {
   io.stderr(summary(result, analysis));
 
   return result.new.length > 0 ? 1 : 0;
+}
+
+function execute(argv: string[], io: Io): number {
+  if (argv[0] === "scan") {
+    return runScan(argv.slice(1), io);
+  }
+
+  if (argv[0] !== "check") {
+    throw new InputError(["usage: recognizer <check|scan> ..."]);
+  }
+
+  return executeCheck(argv, io);
 }
 
 export function run(argv: string[], io: Io = nodeIo()): number {

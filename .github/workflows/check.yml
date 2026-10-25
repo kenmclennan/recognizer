@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - check/**
+      - scanners/**
       - policies/**
       - schema/**
       - fixtures/**
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - check/**
+      - scanners/**
       - policies/**
       - schema/**
       - fixtures/**
@@ -34,5 +36,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint -w check
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked --project scanners/python
+      - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w check
       - run: npm test -w check

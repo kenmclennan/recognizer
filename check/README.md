@@ -154,6 +154,30 @@ The in-effect thresholds are printed as `thresholds` in the output. They are com
 - `1`: at least one new violation.
 - `2`: bad input - an unreadable or invalid scan, policy or baseline, an unknown or conflicting flag, `--init-baseline` over an existing file, or `--update-baseline` without one.
 
+## recognizer scan
+
+`recognizer scan [REPOSITORY] [--json]` scans a repository: it detects its languages, runs each language's standalone scanner as a separate process, validates the result and writes one scan per language to `<repository>/.recognizer/cache/`. `REPOSITORY` defaults to the current directory. Scans are never merged. A scanned repository should gitignore `.recognizer/cache/`.
+
+### Detection
+
+The repository is walked depth-first, skipping directories named `.git`, `node_modules`, `.venv`, `venv`, `dist`, `build`, `.worktrees` and `.recognizer` at any depth; directory symlinks are not followed. Python is detected on any `.py` file. TypeScript is detected on a file named `tsconfig.json` or any `.ts` or `.tsx` file (`.d.ts` included); `.js`, `.jsx`, `.mjs` and `.cjs` alone do not count. A repository may be both. With no language detected nothing is run and `no languages detected` goes to stderr.
+
+### Scanners and overrides
+
+Each detected language runs `<scanner> <repository> --output <temporary file>`, plus `--commit <sha>` when `git -C <repository> rev-parse HEAD` succeeds. The scanner is `recognizer-scan-python` or `recognizer-scan-typescript`, found on `PATH`, unless an environment variable names one absolute executable path instead: `RECOGNIZER_SCAN_PYTHON` or `RECOGNIZER_SCAN_TYPESCRIPT`. An empty variable is treated as unset; a relative one fails the language with `invalid-override`. A checkout's scanners need a launcher (`uv run --project scanners/python recognizer-scan-python`, `node scanners/typescript/dist/bin.js`), so point the variable at a small executable script that runs it. Neither scanner is published yet, so install them from a checkout.
+
+### Scan output
+
+The scan is validated, then its bytes are copied unchanged to `.recognizer/cache/scan.python.json` or `.recognizer/cache/scan.typescript.json`. A language that is not detected leaves no file, and a stale file for it is removed; a language that fails removes its own old file. Other files in the cache, such as overlays, are untouched. Stdout has one line per written language, such as `python: 14 modules, 19 edges -> .recognizer/cache/scan.python.json`; failures and removals go to stderr, prefixed with the language.
+
+`--json` makes stdout one document with `repository`, `commit` (a string or `null`), `languages` and `removed`. Each language is `{ language, status: "written", modules, edges, file }` or `{ language, status: "failed", reason, message }`. The reasons are `not-installed`, `invalid-override`, `scanner-failed`, `invalid-scan` and `unknown-schema-version`. `removed` lists the absolute paths deleted.
+
+### Scan exit codes
+
+- `0`: every detected language was written, or none was detected.
+- `1`: at least one detected language failed; the others still run and are written.
+- `2`: bad usage - an unknown flag, more than one `REPOSITORY`, or a `REPOSITORY` that is not a directory.
+
 ## Library
 
-`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `cli.ts` touches the filesystem.
+`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
