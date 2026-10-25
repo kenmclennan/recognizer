@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": "a1b2c3d",
+  "modules": [
+    {
+      "id": "lightcycle/domain/work/item.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Item",
+          "kind": "class",
+          "line": 12,
+          "exported": true
+        },
+        {
+          "name": "new_item",
+          "kind": "function",
+          "line": 40,
+          "exported": true
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "lightcycle/application/claim.py",
+      "to": "lightcycle/domain/work/item.py",
+      "kind": "depends",
+      "line": 3,
+      "names": ["Item"],
+      "via": ["lightcycle/domain/work/__init__.py"]
+    },
+    {
+      "from": "lightcycle/application/create_item.py",
+      "to": "lightcycle/ports/store.py",
+      "kind": "depends",
+      "line": 14,
+      "names": ["add_artifact", "create_item"],
+      "inferred": {
+        "parameter": "store",
+        "methods": ["add_artifact", "create_item"],
+        "class": "StorePort",
+        "implementations": ["SqliteStore"],
+        "extra": 1
+      }
+    },
+    {
+      "from": "lightcycle/adapters/sqlite_store.py",
+      "to": "lightcycle/ports/store.py",
+      "kind": "implements",
+      "line": 9,
+      "member": "SqliteStore",
+      "to_member": "Store"
+    },
+    {
+      "from": "lightcycle/adapters/sqlite_store.py",
+      "to": "foreign:sqlite3",
+      "kind": "depends",
+      "line": 1
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:sqlite3",
+      "name": "sqlite3"
+    }
+  ]
+}

@@ -7,6 +7,14 @@ export interface ScanEdge {
   to: string;
   kind: "depends" | "inherits" | "implements";
   line: number;
+  names?: string[];
+  via?: string[];
+  inferred?: {
+    parameter: string;
+    methods: string[];
+    class: string;
+    implementations: string[];
+  };
 }
 
 export interface Scan {

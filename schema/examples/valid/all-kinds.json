@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "scanner": {
     "name": "hand-written",
     "version": "0.0.0"
@@ -84,6 +84,34 @@
       "to": "foreign:react",
       "kind": "depends",
       "line": 2
+    },
+    {
+      "from": "web/src/api.ts",
+      "to": "web/src/ports",
+      "kind": "depends",
+      "line": 3,
+      "names": ["Store"]
+    },
+    {
+      "from": "web/src/api.ts",
+      "to": "web/src/ports",
+      "kind": "depends",
+      "line": 4,
+      "names": ["Store", "Cart"],
+      "via": ["web/src/index.ts", "web/src/models/index.ts"]
+    },
+    {
+      "from": "web/src/api.ts",
+      "to": "web/src/ports",
+      "kind": "depends",
+      "line": 5,
+      "names": ["save"],
+      "inferred": {
+        "parameter": "store",
+        "methods": ["save"],
+        "class": "Store",
+        "implementations": []
+      }
     }
   ],
   "foreign": [

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "scanner": {
     "name": "recognizer-scan-typescript",
     "version": "0.1.0"
@@ -21,6 +21,19 @@
           "name": "BaseStore",
           "kind": "class",
           "line": 5,
+          "exported": true
+        }
+      ]
+    },
+    {
+      "id": "api/src/cache.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "cached",
+          "kind": "function",
+          "line": 1,
           "exported": true
         }
       ]
@@ -52,6 +65,51 @@
           "name": "Mode",
           "kind": "type",
           "line": 11,
+          "exported": true
+        }
+      ]
+    },
+    {
+      "id": "api/src/models/customer.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Customer",
+          "kind": "class",
+          "line": 1,
+          "exported": true
+        }
+      ]
+    },
+    {
+      "id": "api/src/models/index.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "api/src/models/order.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 1,
+          "exported": true
+        }
+      ]
+    },
+    {
+      "id": "api/src/place.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "place",
+          "kind": "function",
+          "line": 1,
           "exported": true
         }
       ]
@@ -128,6 +186,12 @@
       ]
     },
     {
+      "id": "web/src/orders.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": []
+    },
+    {
       "id": "web/src/util.cjs",
       "language": "typescript",
       "kind": "module",
@@ -139,7 +203,8 @@
       "from": "api/src/base-store.ts",
       "to": "api/src/types.ts",
       "kind": "depends",
-      "line": 1
+      "line": 1,
+      "names": ["Id"]
     },
     {
       "from": "api/src/index.ts",
@@ -151,7 +216,14 @@
       "from": "api/src/index.ts",
       "to": "api/src/base-store.ts",
       "kind": "depends",
-      "line": 2
+      "line": 2,
+      "names": ["BaseStore"]
+    },
+    {
+      "from": "api/src/index.ts",
+      "to": "api/src/models/index.ts",
+      "kind": "depends",
+      "line": 3
     },
     {
       "from": "api/src/memory-store.ts",
@@ -163,13 +235,15 @@
       "from": "api/src/memory-store.ts",
       "to": "api/src/base-store.ts",
       "kind": "depends",
-      "line": 2
+      "line": 2,
+      "names": ["BaseStore"]
     },
     {
       "from": "api/src/memory-store.ts",
       "to": "api/src/types.ts",
       "kind": "depends",
-      "line": 3
+      "line": 3,
+      "names": ["Store"]
     },
     {
       "from": "api/src/memory-store.ts",
@@ -188,6 +262,33 @@
       "to_member": "Store"
     },
     {
+      "from": "api/src/models/index.ts",
+      "to": "api/src/models/customer.ts",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Customer"]
+    },
+    {
+      "from": "api/src/models/index.ts",
+      "to": "api/src/models/order.ts",
+      "kind": "depends",
+      "line": 2,
+      "names": ["Order"]
+    },
+    {
+      "from": "api/src/place.ts",
+      "to": "api/src/types.ts",
+      "kind": "depends",
+      "line": 1,
+      "names": ["save"],
+      "inferred": {
+        "parameter": "store",
+        "methods": ["save"],
+        "class": "Store",
+        "implementations": ["MemoryStore"]
+      }
+    },
+    {
       "from": "web/src/App.tsx",
       "to": "foreign:react",
       "kind": "depends",
@@ -197,13 +298,15 @@
       "from": "web/src/App.tsx",
       "to": "api/src/memory-store.ts",
       "kind": "depends",
-      "line": 4
+      "line": 4,
+      "names": ["MemoryStore"]
     },
     {
       "from": "web/src/App.tsx",
       "to": "api/src/types.ts",
       "kind": "depends",
-      "line": 5
+      "line": 5,
+      "names": ["Store"]
     },
     {
       "from": "web/src/legacy.js",
@@ -213,21 +316,40 @@
     },
     {
       "from": "web/src/main.tsx",
-      "to": "api/src/index.ts",
+      "to": "api/src/base-store.ts",
       "kind": "depends",
-      "line": 1
+      "line": 1,
+      "names": ["BaseStore"],
+      "via": ["api/src/index.ts"]
     },
     {
       "from": "web/src/main.tsx",
       "to": "web/src/App.tsx",
       "kind": "depends",
-      "line": 2
+      "line": 2,
+      "names": ["App"]
     },
     {
       "from": "web/src/main.tsx",
       "to": "web/src/lazy.ts",
       "kind": "depends",
       "line": 4
+    },
+    {
+      "from": "web/src/orders.ts",
+      "to": "api/src/models/customer.ts",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Customer"],
+      "via": ["api/src/index.ts", "api/src/models/index.ts"]
+    },
+    {
+      "from": "web/src/orders.ts",
+      "to": "api/src/models/order.ts",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Order"],
+      "via": ["api/src/index.ts", "api/src/models/index.ts"]
     }
   ],
   "foreign": [

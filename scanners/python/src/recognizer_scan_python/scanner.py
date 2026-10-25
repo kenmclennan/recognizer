@@ -6,6 +6,7 @@ from pathlib import Path
 from recognizer_scan_python.analysis import (
     ABSTRACT_BASES,
     Imports,
+    defined_names,
     expand,
     is_abstraction,
     module_kind,
@@ -15,6 +16,8 @@ from recognizer_scan_python.analysis import (
 )
 from recognizer_scan_python.discovery import discover
 from recognizer_scan_python.index import ModuleIndex
+from recognizer_scan_python.infer import collect_classes, inferred_edges
+from recognizer_scan_python.routes import ModuleNames, Router, named_edges
 
 SCANNER_NAME = "recognizer-scan-python"
 
@@ -82,7 +85,34 @@ def base_edges(parsed: Parsed, index: ModuleIndex, others: dict[str, Parsed]) ->
 
 
 def edge_order(edge: dict) -> tuple:
-    return (edge["from"], edge["line"], edge["to"], edge["kind"], edge.get("member", ""))
+    inferred = edge.get("inferred", {})
+
+    return (
+        edge["from"],
+        edge["line"],
+        edge["to"],
+        edge["kind"],
+        edge.get("member", ""),
+        inferred.get("class", ""),
+        inferred.get("parameter", ""),
+        ",".join(edge.get("names", [])),
+    )
+
+
+def import_edges(module_id: str, imports: Imports, router: Router) -> list[dict]:
+    edges = [
+        {"from": module_id, "to": target, "kind": "depends", "line": line}
+        for target, line in imports.whole
+    ]
+
+    for statement in imports.named:
+        for edge in named_edges(module_id, statement, router):
+            edges.append(
+                {"from": module_id, "to": edge["to"], "kind": "depends", "line": edge["line"]}
+                | {key: edge[key] for key in ("names", "via") if key in edge}
+            )
+
+    return edges
 
 
 def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
@@ -102,6 +132,9 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
         }
         parsed[module_id] = Parsed(module_id, tree, imports, abstractions)
 
+    router = Router({m: ModuleNames(defined_names(p.tree), p.imports) for m, p in parsed.items()})
+    classes = collect_classes(parsed, index, router)
+
     modules = []
     edges = []
     foreign_names = set()
@@ -118,8 +151,14 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
             }
         )
 
-        for target, line in item.imports.edges:
-            edges.append({"from": module_id, "to": target, "kind": "depends", "line": line})
+        own = import_edges(module_id, item.imports, router)
+        imported = {edge["to"] for edge in own}
+        edges.extend(own)
+        edges.extend(
+            edge
+            for edge in inferred_edges(module_id, item.tree, classes)
+            if edge["to"] != module_id and edge["to"] not in imported
+        )
 
         for name, line in item.imports.foreign:
             foreign_names.add(name)
@@ -130,7 +169,7 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
         edges.extend(base_edges(item, index, parsed))
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modules": modules,

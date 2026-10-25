@@ -1,10 +1,12 @@
 import { readFileSync, realpathSync, statSync } from "node:fs";
-import { relative, sep } from "node:path";
+import { join, relative, sep } from "node:path";
 import ts from "typescript";
 import { ScanError } from "./errors.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
 import { listSourceFiles } from "./files.js";
+import { Inference } from "./inference.js";
 import { Resolver } from "./resolve.js";
+import { namedEdges, Router } from "./routes.js";
 import { TsconfigOptions } from "./tsconfig-options.js";
 import { discoverWorkspaces } from "./workspaces.js";
 
@@ -29,10 +31,18 @@ export interface ScanEdge {
   line: number;
   member?: string;
   to_member?: string;
+  names?: string[];
+  via?: string[];
+  inferred?: {
+    parameter: string;
+    methods: string[];
+    class: string;
+    implementations: string[];
+  };
 }
 
 export interface ScanDocument {
-  schema_version: 1;
+  schema_version: 2;
   scanner: { name: string; version: string };
   commit: string | null;
   modules: ScanModule[];
@@ -62,6 +72,10 @@ function edgeKey(edge: ScanEdge): string {
     edge.line,
     edge.member ?? "",
     edge.to_member ?? "",
+    (edge.names ?? []).join(","),
+    (edge.via ?? []).join(","),
+    edge.inferred?.class ?? "",
+    edge.inferred?.parameter ?? "",
   ].join("\0");
 }
 
@@ -73,7 +87,10 @@ function sortEdges(edges: ScanEdge[]): ScanEdge[] {
       compare(a.to, b.to) ||
       compare(a.kind, b.kind) ||
       compare(a.member ?? "", b.member ?? "") ||
-      compare(a.to_member ?? "", b.to_member ?? ""),
+      compare(a.to_member ?? "", b.to_member ?? "") ||
+      compare(a.inferred?.class ?? "", b.inferred?.class ?? "") ||
+      compare(a.inferred?.parameter ?? "", b.inferred?.parameter ?? "") ||
+      compare((a.names ?? []).join(","), (b.names ?? []).join(",")),
   );
 }
 
@@ -166,6 +183,26 @@ export function scan(root: string, commit: string | null): ScanDocument {
 
   const edges = new Map<string, ScanEdge>();
   const foreign = new Set<string>();
+  const located = new Map<string, string | null>();
+
+  const locate = (module: string, specifier: string): string | null => {
+    const key = `${module}\0${specifier}`;
+
+    if (!located.has(key)) {
+      const file = join(real, module);
+      const options = optionsByFile.get(file);
+      const target = options
+        ? resolver.resolve(specifier, file, options, false)
+        : null;
+
+      located.set(key, target?.kind === "project" ? target.id : null);
+    }
+
+    return located.get(key) ?? null;
+  };
+
+  const router = new Router(infos, locate);
+  const inference = new Inference(infos, router, locate);
 
   const push = (edge: ScanEdge) => {
     edges.set(edgeKey(edge), edge);
@@ -194,18 +231,51 @@ export function scan(root: string, commit: string | null): ScanDocument {
       return target;
     };
 
+    const imported = new Set<string>();
+
     for (const reference of info.imports) {
       const target = targetOf(reference.specifier, reference.commonjs);
 
       if (target.kind === "project" && target.id !== from) {
-        push({ from, to: target.id, kind: "depends", line: reference.line });
+        if (reference.names === null) {
+          imported.add(target.id);
+          push({ from, to: target.id, kind: "depends", line: reference.line });
+        }
+
+        for (const named of reference.names === null
+          ? []
+          : namedEdges(from, target.id, reference.names, router)) {
+          imported.add(named.to);
+          push({
+            from,
+            to: named.to,
+            kind: "depends",
+            line: reference.line,
+            names: named.names,
+            ...(named.via.length > 0 ? { via: named.via } : {}),
+          });
+        }
       } else if (target.kind === "foreign") {
+        imported.add(`foreign:${target.name}`);
         foreign.add(target.name);
         push({
           from,
           to: `foreign:${target.name}`,
           kind: "depends",
           line: reference.line,
+        });
+      }
+    }
+
+    for (const inferred of inference.edgesFor(info)) {
+      if (inferred.to !== from && !imported.has(inferred.to)) {
+        push({
+          from,
+          to: inferred.to,
+          kind: "depends",
+          line: inferred.line,
+          names: inferred.names,
+          inferred: inferred.inferred,
         });
       }
     }
@@ -248,7 +318,7 @@ export function scan(root: string, commit: string | null): ScanDocument {
   }
 
   return {
-    schema_version: 1,
+    schema_version: 2,
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
     commit,
     modules: [...modules].sort(compare).map((id) => {

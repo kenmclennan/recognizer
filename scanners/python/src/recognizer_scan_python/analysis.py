@@ -8,16 +8,72 @@ ABSTRACT_METACLASS = "abc.ABCMeta"
 
 
 @dataclass
+class NamedImport:
+    line: int
+    owner: str
+    exact: bool
+    names: list[str]
+
+
+@dataclass
 class Imports:
-    edges: set[tuple[str, int]] = field(default_factory=set)
+    whole: set[tuple[str, int]] = field(default_factory=set)
+    named: list[NamedImport] = field(default_factory=list)
     foreign: set[tuple[str, int]] = field(default_factory=set)
     bindings: dict[str, str] = field(default_factory=dict)
+    reexports: dict[str, tuple[str, str]] = field(default_factory=dict)
+    stars: list[str] = field(default_factory=list)
 
 
 def import_statements(tree: ast.Module) -> list[ast.Import | ast.ImportFrom]:
     statements = [n for n in ast.walk(tree) if isinstance(n, ast.Import | ast.ImportFrom)]
 
     return sorted(statements, key=lambda n: (n.lineno, n.col_offset))
+
+
+def module_level_statements(body: list[ast.stmt]):
+    for statement in body:
+        yield statement
+
+        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            continue
+
+        for attribute in ("body", "orelse", "finalbody"):
+            yield from module_level_statements(getattr(statement, attribute, []))
+
+        for handler in getattr(statement, "handlers", []):
+            yield from module_level_statements(handler.body)
+
+        for case in getattr(statement, "cases", []):
+            yield from module_level_statements(case.body)
+
+
+def target_names(target: ast.expr) -> list[str]:
+    if isinstance(target, ast.Name):
+        return [target.id]
+
+    if isinstance(target, ast.Tuple | ast.List):
+        return [name for element in target.elts for name in target_names(element)]
+
+    if isinstance(target, ast.Starred):
+        return target_names(target.value)
+
+    return []
+
+
+def defined_names(tree: ast.Module) -> set[str]:
+    names = set()
+
+    for statement in module_level_statements(tree.body):
+        if isinstance(statement, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            names.add(statement.name)
+        elif isinstance(statement, ast.Assign):
+            for target in statement.targets:
+                names.update(target_names(target))
+        elif isinstance(statement, ast.AnnAssign):
+            names.update(target_names(statement.target))
+
+    return names
 
 
 def relative_base(node: ast.ImportFrom, package: tuple[str, ...] | None) -> list[str] | None:
@@ -32,10 +88,11 @@ def relative_base(node: ast.ImportFrom, package: tuple[str, ...] | None) -> list
 def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Imports:
     imports = Imports()
     package = index.package_parts(module_id)
+    top_level = {id(n) for n in module_level_statements(tree.body)}
 
     def add_edge(target: str | None, line: int) -> None:
         if target is not None and target != module_id:
-            imports.edges.add((target, line))
+            imports.whole.add((target, line))
 
     for node in import_statements(tree):
         if isinstance(node, ast.Import):
@@ -65,11 +122,16 @@ def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Import
             continue
 
         owner = index.longest(base) if base else None
+        exact = owner is not None and owner.length == len(base)
+        named = NamedImport(node.lineno, owner.module_id, exact, []) if owner else None
 
         for alias in node.names:
             if alias.name == "*":
                 if owner:
                     add_edge(owner.module_id, node.lineno)
+
+                    if exact and id(node) in top_level:
+                        imports.stars.append(owner.module_id)
                 elif not relative:
                     imports.foreign.add((base[0], node.lineno))
 
@@ -79,12 +141,18 @@ def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Import
 
             if submodule:
                 add_edge(submodule, node.lineno)
-            elif owner:
-                add_edge(owner.module_id, node.lineno)
+            elif named:
+                named.names.append(alias.name)
+
+                if exact and id(node) in top_level:
+                    imports.reexports[alias.asname or alias.name] = (owner.module_id, alias.name)
             elif not relative:
                 imports.foreign.add((base[0], node.lineno))
 
             imports.bindings[alias.asname or alias.name] = ".".join([*base, alias.name])
+
+        if named and named.names:
+            imports.named.append(named)
 
     return imports
 

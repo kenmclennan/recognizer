@@ -19,7 +19,8 @@ export function keptGraph(scan: Scan, ignore: Matcher[]) {
   }
 
   const edges: ScanEdge[] = scan.edges.filter(
-    (edge) => !dropped(edge.from) && !dropped(edge.to),
+    (edge) =>
+      edge.inferred === undefined && !dropped(edge.from) && !dropped(edge.to),
   );
 
   for (const edge of edges) {

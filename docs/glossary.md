@@ -16,6 +16,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Dependency | An edge from a module to the module that defines a name it uses. |
 | Dependent | A module on the other end of a dependency: the one that uses. |
 | Route | The re-exports a name passed through on its way from its defining module to the module that imports it. Stored as `via`. |
+| Generic method | A method name too common to identify a class, such as `get`. The scanners ignore an untyped parameter whose called methods are all generic. |
 | Inferred dependency | A dependency found from the methods called on an untyped parameter, not from an import. Always shown as inferred. |
 | Composition root | The module that builds the object graph and wires adapters into what uses them; it reaches nearly everything. |
 

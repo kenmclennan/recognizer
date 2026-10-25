@@ -1,56 +1,184 @@
 {
-  "schema_version": 1,
-  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
+  "schema_version": 2,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
   "commit": null,
   "modules": [
-    { "id": "shop/__init__.py", "language": "python", "kind": "package", "members": [] },
+    {
+      "id": "shop/__init__.py",
+      "language": "python",
+      "kind": "package",
+      "members": []
+    },
     {
       "id": "shop/adapters/memory_store.py",
       "language": "python",
       "kind": "module",
-      "members": [{ "name": "MemoryStore", "kind": "class", "line": 6, "exported": true }]
+      "members": [
+        {
+          "name": "MemoryStore",
+          "kind": "class",
+          "line": 6,
+          "exported": true
+        }
+      ]
     },
     {
       "id": "shop/adapters/special_store.py",
       "language": "python",
       "kind": "module",
-      "members": [{ "name": "SpecialStore", "kind": "class", "line": 4, "exported": true }]
+      "members": [
+        {
+          "name": "SpecialStore",
+          "kind": "class",
+          "line": 4,
+          "exported": true
+        }
+      ]
+    },
+    {
+      "id": "shop/application/audit.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/application/lookup.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "lookup",
+          "kind": "function",
+          "line": 1,
+          "exported": true
+        }
+      ]
     },
     {
       "id": "shop/application/place.py",
       "language": "python",
       "kind": "module",
-      "members": [{ "name": "place", "kind": "function", "line": 5, "exported": true }]
+      "members": [
+        {
+          "name": "place",
+          "kind": "function",
+          "line": 5,
+          "exported": true
+        }
+      ]
     },
-    { "id": "shop/domain/__init__.py", "language": "python", "kind": "package", "members": [] },
+    {
+      "id": "shop/application/refund.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "refund",
+          "kind": "function",
+          "line": 1,
+          "exported": true
+        }
+      ]
+    },
+    {
+      "id": "shop/application/report.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/domain/__init__.py",
+      "language": "python",
+      "kind": "package",
+      "members": []
+    },
+    {
+      "id": "shop/domain/aliases.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/domain/customer.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Customer",
+          "kind": "class",
+          "line": 1,
+          "exported": true
+        }
+      ]
+    },
     {
       "id": "shop/domain/order.py",
       "language": "python",
       "kind": "module",
       "members": [
-        { "name": "Order", "kind": "class", "line": 7, "exported": true },
-        { "name": "new_order", "kind": "function", "line": 11, "exported": false }
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 7,
+          "exported": true
+        },
+        {
+          "name": "new_order",
+          "kind": "function",
+          "line": 11,
+          "exported": false
+        }
       ]
     },
-    { "id": "shop/ports/__init__.py", "language": "python", "kind": "package", "members": [] },
+    {
+      "id": "shop/ports/__init__.py",
+      "language": "python",
+      "kind": "package",
+      "members": []
+    },
     {
       "id": "shop/ports/store.py",
       "language": "python",
       "kind": "interface",
       "members": [
-        { "name": "Store", "kind": "interface", "line": 5, "exported": true },
-        { "name": "Clock", "kind": "interface", "line": 9, "exported": true }
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 5,
+          "exported": true
+        },
+        {
+          "name": "Clock",
+          "kind": "interface",
+          "line": 9,
+          "exported": true
+        }
       ]
     }
   ],
   "edges": [
-    { "from": "shop/__init__.py", "to": "shop/domain/order.py", "kind": "depends", "line": 1 },
-    { "from": "shop/adapters/memory_store.py", "to": "foreign:os", "kind": "depends", "line": 1 },
+    {
+      "from": "shop/__init__.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Order"]
+    },
+    {
+      "from": "shop/adapters/memory_store.py",
+      "to": "foreign:os",
+      "kind": "depends",
+      "line": 1
+    },
     {
       "from": "shop/adapters/memory_store.py",
       "to": "shop/ports/store.py",
       "kind": "depends",
-      "line": 3
+      "line": 3,
+      "names": ["Store"]
     },
     {
       "from": "shop/adapters/memory_store.py",
@@ -64,7 +192,8 @@
       "from": "shop/adapters/special_store.py",
       "to": "shop/adapters/memory_store.py",
       "kind": "depends",
-      "line": 1
+      "line": 1,
+      "names": ["MemoryStore"]
     },
     {
       "from": "shop/adapters/special_store.py",
@@ -75,10 +204,19 @@
       "to_member": "MemoryStore"
     },
     {
+      "from": "shop/application/audit.py",
+      "to": "shop/domain/customer.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Customer"],
+      "via": ["shop/domain/aliases.py", "shop/domain/__init__.py"]
+    },
+    {
       "from": "shop/application/place.py",
       "to": "shop/domain/order.py",
       "kind": "depends",
-      "line": 1
+      "line": 1,
+      "names": ["Order", "new_order"]
     },
     {
       "from": "shop/application/place.py",
@@ -92,14 +230,92 @@
       "kind": "depends",
       "line": 6
     },
-    { "from": "shop/domain/order.py", "to": "foreign:dataclasses", "kind": "depends", "line": 1 },
-    { "from": "shop/ports/store.py", "to": "foreign:abc", "kind": "depends", "line": 1 },
-    { "from": "shop/ports/store.py", "to": "foreign:typing", "kind": "depends", "line": 2 }
+    {
+      "from": "shop/application/refund.py",
+      "to": "shop/ports/store.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["save"],
+      "inferred": {
+        "parameter": "store",
+        "methods": ["save"],
+        "class": "Store",
+        "implementations": ["MemoryStore"]
+      }
+    },
+    {
+      "from": "shop/application/report.py",
+      "to": "shop/domain/customer.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Customer"],
+      "via": ["shop/domain/__init__.py"]
+    },
+    {
+      "from": "shop/application/report.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Order"],
+      "via": ["shop/domain/__init__.py"]
+    },
+    {
+      "from": "shop/domain/__init__.py",
+      "to": "shop/domain/customer.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Customer"]
+    },
+    {
+      "from": "shop/domain/__init__.py",
+      "to": "shop/domain/order.py",
+      "kind": "depends",
+      "line": 2,
+      "names": ["Order", "new_order"]
+    },
+    {
+      "from": "shop/domain/aliases.py",
+      "to": "shop/domain/customer.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Customer"],
+      "via": ["shop/domain/__init__.py"]
+    },
+    {
+      "from": "shop/domain/order.py",
+      "to": "foreign:dataclasses",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/ports/store.py",
+      "to": "foreign:abc",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/ports/store.py",
+      "to": "foreign:typing",
+      "kind": "depends",
+      "line": 2
+    }
   ],
   "foreign": [
-    { "id": "foreign:abc", "name": "abc" },
-    { "id": "foreign:dataclasses", "name": "dataclasses" },
-    { "id": "foreign:os", "name": "os" },
-    { "id": "foreign:typing", "name": "typing" }
+    {
+      "id": "foreign:abc",
+      "name": "abc"
+    },
+    {
+      "id": "foreign:dataclasses",
+      "name": "dataclasses"
+    },
+    {
+      "id": "foreign:os",
+      "name": "os"
+    },
+    {
+      "id": "foreign:typing",
+      "name": "typing"
+    }
   ]
 }
