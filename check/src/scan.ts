@@ -23,6 +23,9 @@ export interface Scan {
   foreign: { id: string; name: string }[];
 }
 
+export const SCAN_SCHEMA_VERSION: number =
+  schema.properties.schema_version.const;
+
 const validate = new Ajv2020({ allErrors: true }).compile(schema);
 
 export function validateScan(value: unknown): Scan {
