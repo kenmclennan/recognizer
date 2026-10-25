@@ -12,6 +12,7 @@ export interface FakeOptions {
   scanners?: Record<string, ScannerBehaviour>;
   env?: Record<string, string>;
   commit?: string;
+  launchFails?: string;
 }
 
 export interface Fake {
@@ -20,6 +21,7 @@ export interface Fake {
   err: () => string;
   files: Map<string, string>;
   calls: { command: string; args: string[] }[];
+  launches: { command: string; args: string[] }[];
   removed: string[];
   writes: string[];
   readDirCalls: () => number;
@@ -63,6 +65,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   const files = new Map(Object.entries(options.files ?? {}));
   const symlinks = new Set(options.symlinks ?? []);
   const calls: { command: string; args: string[] }[] = [];
+  const launches: { command: string; args: string[] }[] = [];
   const removed: string[] = [];
   const writes: string[] = [];
   const temps: string[] = [];
@@ -180,6 +183,13 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         stderr: behaviour.stderr ?? "",
       };
     },
+    launch: (command, args) => {
+      launches.push({ command, args });
+
+      return options.launchFails === undefined
+        ? { started: true, message: "" }
+        : { started: false, message: options.launchFails };
+    },
     env: (name) => options.env?.[name],
   };
 
@@ -189,6 +199,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     err: () => err,
     files,
     calls,
+    launches,
     removed,
     writes,
     readDirCalls: () => readDirs,

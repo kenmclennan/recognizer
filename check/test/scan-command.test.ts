@@ -367,6 +367,6 @@ describe("recognizer scan: usage", () => {
 
     run([], fake.io);
 
-    expect(fake.err()).toContain("usage: recognizer <check|scan> ...");
+    expect(fake.err()).toContain("usage: recognizer <check|scan|open> ...");
   });
 });

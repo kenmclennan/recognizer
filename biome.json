@@ -1,7 +1,15 @@
 {
   "$schema": "https://biomejs.dev/schemas/latest/schema.json",
   "files": {
-    "includes": ["check/**", "scanners/typescript/**", "!**/dist", "!**/src/generated", "!**/node_modules"]
+    "includes": [
+      "check/**",
+      "scanners/typescript/**",
+      "app/**",
+      "!**/dist",
+      "!**/src/generated",
+      "!**/node_modules",
+      "!**/src-tauri/target"
+    ]
   },
   "formatter": {
     "indentStyle": "space",

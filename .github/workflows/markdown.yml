@@ -27,4 +27,4 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npx prettier --check --prose-wrap=never "**/*.md"
-      - run: npx markdownlint-cli2 "**/*.md" "#node_modules" "#scanners/python/.venv"
+      - run: npx markdownlint-cli2 "**/*.md" "#node_modules" "#app/node_modules" "#app/src-tauri/target" "#scanners/python/.venv"

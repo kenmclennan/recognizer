@@ -1,3 +1,4 @@
+import type { ValidateFunction } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { InputError } from "./errors.js";
 import schema from "./generated/scan.schema.json" with { type: "json" };
@@ -26,9 +27,17 @@ export interface Scan {
 export const SCAN_SCHEMA_VERSION: number =
   schema.properties.schema_version.const;
 
-const validate = new Ajv2020({ allErrors: true }).compile(schema);
+let compiled: ValidateFunction | undefined;
+
+function validator(): ValidateFunction {
+  compiled ??= new Ajv2020({ allErrors: true }).compile(schema);
+
+  return compiled;
+}
 
 export function validateScan(value: unknown): Scan {
+  const validate = validator();
+
   if (validate(value)) {
     return value as unknown as Scan;
   }

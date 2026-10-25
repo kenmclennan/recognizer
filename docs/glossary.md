@@ -56,6 +56,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Fold | Drawing an open folder as one box, which keeps its health disc and takes the edges to anything inside it. |
 | Contents | A module's members, with their signatures and who builds, calls or uses each; or a folder's files. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
+| Finding | A violation or warning attached to a module, with the one-line reason a health disc shows. |
+| Needs attention | The tree filter that keeps only modules with an amber or red disc. |
 | Focus | Narrowing the canvas to one folder's files. |
 | Evidence | Why an edge exists: the quoted source line, the names, the route, or what an inferred edge was inferred from. |
 | View state | Everything that decides what the user sees, as one record with an id. Each change makes a new one. |

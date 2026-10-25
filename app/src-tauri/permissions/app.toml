@@ -1,0 +1,4 @@
+[[set]]
+identifier = "app-access"
+description = "Choose, scan and name the folder a window holds"
+permissions = ["allow-choose-folder", "allow-scan-folder", "allow-window-folder"]
