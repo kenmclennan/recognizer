@@ -1,4 +1,4 @@
 [[set]]
 identifier = "app-access"
-description = "Choose, scan and name the folder a window holds"
-permissions = ["allow-choose-folder", "allow-scan-folder", "allow-window-folder"]
+description = "Choose, scan, read a line of and name the folder a window holds"
+permissions = ["allow-choose-folder", "allow-read-source-line", "allow-scan-folder", "allow-window-folder"]

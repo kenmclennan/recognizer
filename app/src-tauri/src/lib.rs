@@ -7,6 +7,7 @@ use tauri::{
 pub mod fs_safe;
 mod launch;
 pub mod repository;
+pub mod source_line;
 pub mod windows;
 
 use std::path::{Path, PathBuf};
@@ -270,6 +271,21 @@ async fn choose_folder(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn read_source_line(
+    app: AppHandle,
+    window: WebviewWindow,
+    relative: String,
+    line: u32,
+) -> Result<Option<String>, String> {
+    let folder = app
+        .state::<WindowState>()
+        .folder_of(&window_label(&window))
+        .ok_or_else(|| "this window holds no folder".to_string())?;
+
+    source_line::read_line(&folder, &relative, line)
+}
+
+#[tauri::command]
 async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport, String> {
     let folder = app
         .state::<WindowState>()
@@ -321,6 +337,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             choose_folder,
+            read_source_line,
             scan_folder,
             window_folder
         ])
