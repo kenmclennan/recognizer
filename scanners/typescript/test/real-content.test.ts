@@ -31,7 +31,9 @@ describe("scanning check/", () => {
     ).toBe(true);
     expect(doc.foreign.map((f: { name: string }) => f.name)).toEqual([
       "ajv",
+      "node:child_process",
       "node:fs",
+      "node:os",
       "node:path",
       "node:util",
       "yaml",

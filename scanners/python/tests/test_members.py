@@ -24,8 +24,10 @@ def test_public_private_async_and_decorated(run):
 
     assert members(document, "m.py") == [
         ("A", "class", 1, True),
+        ("_B", "class", 2, False),
         ("c", "function", 3, True),
         ("d", "function", 5, True),
+        ("_e", "function", 6, False),
     ]
 
 
@@ -59,7 +61,10 @@ def test_all_forms(run):
     for name in ("computed", "absent", "twice"):
         assert [m[3] for m in members(document, f"{name}.py")] == [True, True]
 
-    assert members(document, "private.py") == [("b", "function", 3, False)]
+    assert members(document, "private.py") == [
+        ("_a", "function", 2, True),
+        ("b", "function", 3, False),
+    ]
 
 
 def test_module_kinds(run):
@@ -83,3 +88,57 @@ def test_module_kinds(run):
         "empty/__init__.py": "package",
         "regular.py": "module",
     }
+
+
+def test_protocol_and_private_function_is_still_an_interface_module(run):
+    document = run(
+        {
+            "m.py": (
+                "from typing import Protocol\nclass P(Protocol): ...\ndef _helper(): ...\n_Y = 2\n"
+            )
+        }
+    )
+
+    assert module(document, "m.py")["kind"] == "interface"
+
+
+def test_underscore_and_dunder_names(run):
+    document = run(
+        {
+            "m.py": (
+                "__all__ = ['a']\n__version__ = '1'\n"
+                "def a(): ...\ndef _b(): ...\ndef __c(): ...\ndef __d__(): ...\n"
+                "class _K: ...\n_X = 1\n__Y = 2\n"
+            )
+        }
+    )
+
+    assert [(m[0], m[1], m[3]) for m in members(document, "m.py")] == [
+        ("a", "function", True),
+        ("_b", "function", False),
+        ("__c", "function", False),
+        ("_K", "class", False),
+        ("_X", "constant", False),
+        ("__Y", "constant", False),
+    ]
+
+
+def test_private_names_listed_in_all_are_exported(run):
+    document = run({"m.py": "__all__ = ['_a', '_K']\ndef _a(): ...\nclass _K: ...\n"})
+
+    assert [m[3] for m in members(document, "m.py")] == [True, True]
+
+
+def test_constants_are_module_body_single_name_assignments(run):
+    document = run(
+        {
+            "m.py": (
+                "A = 1\nB: int = 2\nC: int\nD = E = 3\nF, G = 1, 2\nH.x = 3\nif True:\n    I = 1\n"
+            )
+        }
+    )
+
+    assert [(m[0], m[1]) for m in members(document, "m.py")] == [
+        ("A", "constant"),
+        ("B", "constant"),
+    ]

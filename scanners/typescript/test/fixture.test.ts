@@ -54,6 +54,21 @@ describe("fixture", () => {
     });
   });
 
+  it("has the expected module and edge counts and exactly the fixture calls", () => {
+    const doc = scan(SAMPLE, null);
+
+    expect(doc.modules).toHaveLength(15);
+    expect(doc.edges).toHaveLength(21);
+    expect(doc.calls.map((c) => `${c.from} -> ${c.to} ${c.how}`)).toEqual([
+      "api/src/base-store.ts::BaseStore.count -> api/src/base-store.ts::BaseStore.grow call",
+      "api/src/base-store.ts::makeBase -> api/src/base-store.ts::BaseStore construct",
+      "api/src/memory-store.ts::fresh -> api/src/base-store.ts::makeBase call",
+      "api/src/place.ts::place -> api/src/types.ts::Store.save inferred",
+      "api/src/types.ts::Store.save -> api/src/memory-store.ts::MemoryStore.save dispatch",
+      "web/src/App.tsx::App -> api/src/memory-store.ts::MemoryStore construct",
+    ]);
+  });
+
   it("emits no package module and no unknown member kind", () => {
     const doc = scan(SAMPLE, null);
     const kinds = new Set(

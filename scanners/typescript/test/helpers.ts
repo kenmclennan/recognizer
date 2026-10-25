@@ -61,6 +61,24 @@ export function validate(doc: ScanDocument): void {
       expect(edge.names).toEqual(edge.inferred.methods);
     }
   }
+
+  const endpoints = new Set<string>();
+
+  for (const module of doc.modules) {
+    for (const member of module.members) {
+      endpoints.add(`${module.id}::${member.name}`);
+
+      for (const method of member.methods ?? []) {
+        endpoints.add(`${module.id}::${member.name}.${method.name}`);
+      }
+    }
+  }
+
+  for (const call of doc.calls ?? []) {
+    expect(endpoints.has(call.from), call.from).toBe(true);
+    expect(endpoints.has(call.to), call.to).toBe(true);
+    expect(call.from).not.toBe(call.to);
+  }
 }
 
 export function makeTree(

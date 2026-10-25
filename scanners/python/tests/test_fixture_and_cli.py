@@ -32,6 +32,25 @@ def test_fixture_matches_expected_scan():
     validate(actual)
 
 
+def test_fixture_counts_and_calls():
+    actual = scan(FIXTURE_ROOT, ["."], None)
+
+    assert len(actual["modules"]) == 14
+    assert len(actual["edges"]) == 19
+    assert [(c["from"], c["to"], c["how"]) for c in actual["calls"]] == [
+        ("shop/application/place.py::place", "shop/domain/order.py::new_order", "call"),
+        ("shop/application/refund.py::refund", "shop/ports/store.py::Store.save", "inferred"),
+        ("shop/domain/order.py::Order.total", "shop/domain/order.py::Order._sum", "call"),
+        ("shop/domain/order.py::_build", "shop/domain/order.py::Order", "construct"),
+        ("shop/domain/order.py::new_order", "shop/domain/order.py::_build", "call"),
+        (
+            "shop/ports/store.py::Store.save",
+            "shop/adapters/memory_store.py::MemoryStore.save",
+            "dispatch",
+        ),
+    ]
+
+
 def test_cli_end_to_end(tmp_path):
     result = run_cli(str(FIXTURE_ROOT), "--commit", "abc1234")
     document = json.loads(result.stdout)

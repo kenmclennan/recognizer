@@ -1,9 +1,6 @@
 {
   "schema_version": 2,
-  "scanner": {
-    "name": "recognizer-scan-python",
-    "version": "0.1.0"
-  },
+  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": "a1b2c3d",
   "modules": [
     {
@@ -11,18 +8,8 @@
       "language": "python",
       "kind": "module",
       "members": [
-        {
-          "name": "Item",
-          "kind": "class",
-          "line": 12,
-          "exported": true
-        },
-        {
-          "name": "new_item",
-          "kind": "function",
-          "line": 40,
-          "exported": true
-        }
+        { "name": "Item", "kind": "class", "line": 12, "exported": true },
+        { "name": "new_item", "kind": "function", "line": 40, "exported": true }
       ]
     }
   ],
@@ -63,10 +50,13 @@
       "line": 1
     }
   ],
-  "foreign": [
+  "foreign": [{ "id": "foreign:sqlite3", "name": "sqlite3" }],
+  "calls": [
     {
-      "id": "foreign:sqlite3",
-      "name": "sqlite3"
+      "from": "lightcycle/commands/intake.py::cmd_new",
+      "to": "lightcycle/application/create_item.py::CreateItemUseCase.execute",
+      "line": 70,
+      "how": "call"
     }
   ]
 }

@@ -1,9 +1,6 @@
 {
   "schema_version": 2,
-  "scanner": {
-    "name": "recognizer-scan-python",
-    "version": "0.1.0"
-  },
+  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": null,
   "modules": [
     {
@@ -21,7 +18,12 @@
           "name": "MemoryStore",
           "kind": "class",
           "line": 6,
-          "exported": true
+          "exported": true,
+          "bases": ["Store"],
+          "fields": [],
+          "methods": [
+            { "name": "save", "line": 7, "params": ["order"], "private": false }
+          ]
         }
       ]
     },
@@ -34,7 +36,10 @@
           "name": "SpecialStore",
           "kind": "class",
           "line": 4,
-          "exported": true
+          "exported": true,
+          "bases": ["MemoryStore"],
+          "fields": [],
+          "methods": []
         }
       ]
     },
@@ -53,7 +58,8 @@
           "name": "lookup",
           "kind": "function",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "params": ["source"]
         }
       ]
     },
@@ -66,7 +72,8 @@
           "name": "place",
           "kind": "function",
           "line": 5,
-          "exported": true
+          "exported": true,
+          "params": ["order_id"]
         }
       ]
     },
@@ -79,7 +86,8 @@
           "name": "refund",
           "kind": "function",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "params": ["order", "store"]
         }
       ]
     },
@@ -110,7 +118,10 @@
           "name": "Customer",
           "kind": "class",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "bases": [],
+          "fields": [{ "name": "name", "type": "str" }],
+          "methods": []
         }
       ]
     },
@@ -120,16 +131,61 @@
       "kind": "module",
       "members": [
         {
+          "name": "MAX_ITEMS",
+          "kind": "constant",
+          "line": 5,
+          "exported": false,
+          "value": "100"
+        },
+        {
           "name": "Order",
           "kind": "class",
-          "line": 7,
-          "exported": true
+          "line": 9,
+          "exported": true,
+          "bases": [],
+          "fields": [
+            { "name": "id", "type": "str" },
+            { "name": "items", "type": "int" }
+          ],
+          "methods": [
+            {
+              "name": "total",
+              "line": 13,
+              "params": [],
+              "private": false,
+              "returns": "int"
+            },
+            {
+              "name": "_sum",
+              "line": 16,
+              "params": [],
+              "private": true,
+              "returns": "int"
+            }
+          ]
         },
         {
           "name": "new_order",
           "kind": "function",
-          "line": 11,
-          "exported": false
+          "line": 20,
+          "exported": false,
+          "params": ["order_id"],
+          "returns": "Order"
+        },
+        {
+          "name": "_build",
+          "kind": "function",
+          "line": 24,
+          "exported": false,
+          "params": ["order_id"],
+          "returns": "Order"
+        },
+        {
+          "name": "_private",
+          "kind": "function",
+          "line": 28,
+          "exported": false,
+          "params": []
         }
       ]
     },
@@ -148,13 +204,29 @@
           "name": "Store",
           "kind": "interface",
           "line": 5,
-          "exported": true
+          "exported": true,
+          "bases": ["Protocol"],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 6,
+              "params": ["order"],
+              "private": false,
+              "tags": ["abstract"]
+            }
+          ]
         },
         {
           "name": "Clock",
           "kind": "interface",
           "line": 9,
-          "exported": true
+          "exported": true,
+          "bases": ["ABC"],
+          "fields": [],
+          "methods": [
+            { "name": "now", "line": 10, "params": [], "private": false }
+          ]
         }
       ]
     }
@@ -301,21 +373,47 @@
     }
   ],
   "foreign": [
+    { "id": "foreign:abc", "name": "abc" },
+    { "id": "foreign:dataclasses", "name": "dataclasses" },
+    { "id": "foreign:os", "name": "os" },
+    { "id": "foreign:typing", "name": "typing" }
+  ],
+  "calls": [
     {
-      "id": "foreign:abc",
-      "name": "abc"
+      "from": "shop/application/place.py::place",
+      "to": "shop/domain/order.py::new_order",
+      "line": 8,
+      "how": "call"
     },
     {
-      "id": "foreign:dataclasses",
-      "name": "dataclasses"
+      "from": "shop/application/refund.py::refund",
+      "to": "shop/ports/store.py::Store.save",
+      "line": 2,
+      "how": "inferred"
     },
     {
-      "id": "foreign:os",
-      "name": "os"
+      "from": "shop/domain/order.py::Order.total",
+      "to": "shop/domain/order.py::Order._sum",
+      "line": 14,
+      "how": "call"
     },
     {
-      "id": "foreign:typing",
-      "name": "typing"
+      "from": "shop/domain/order.py::_build",
+      "to": "shop/domain/order.py::Order",
+      "line": 25,
+      "how": "construct"
+    },
+    {
+      "from": "shop/domain/order.py::new_order",
+      "to": "shop/domain/order.py::_build",
+      "line": 21,
+      "how": "call"
+    },
+    {
+      "from": "shop/ports/store.py::Store.save",
+      "to": "shop/adapters/memory_store.py::MemoryStore.save",
+      "line": 6,
+      "how": "dispatch"
     }
   ]
 }

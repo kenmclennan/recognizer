@@ -1,0 +1,123 @@
+{
+  "schema_version": 2,
+  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
+  "commit": "a1b2c3d",
+  "modules": [
+    {
+      "id": "shop/order.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "MAX_ITEMS",
+          "kind": "constant",
+          "line": 1,
+          "exported": true,
+          "value": "100"
+        },
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "bases": ["Base", "abc.ABC"],
+          "fields": [{ "name": "id", "type": "str" }, { "name": "items" }],
+          "methods": [
+            {
+              "name": "total",
+              "line": 6,
+              "params": [],
+              "returns": "int",
+              "private": false,
+              "tags": ["property"]
+            },
+            { "name": "_sum", "line": 9, "params": ["scale"], "private": true },
+            {
+              "name": "load",
+              "line": 12,
+              "params": ["path", "args", "kwargs"],
+              "private": false,
+              "tags": ["static", "async"]
+            },
+            {
+              "name": "build",
+              "line": 15,
+              "params": [],
+              "private": false,
+              "tags": ["classmethod"]
+            },
+            {
+              "name": "run",
+              "line": 18,
+              "params": [],
+              "private": false,
+              "tags": ["abstract"]
+            }
+          ]
+        },
+        {
+          "name": "new_order",
+          "kind": "function",
+          "line": 20,
+          "exported": true,
+          "params": ["order_id"],
+          "returns": "Order",
+          "tags": ["async"]
+        },
+        {
+          "name": "helper",
+          "kind": "function",
+          "line": 24,
+          "exported": false,
+          "params": []
+        },
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 30,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 31,
+              "params": ["order"],
+              "private": false,
+              "tags": ["abstract"]
+            }
+          ]
+        },
+        { "name": "Id", "kind": "type", "line": 40, "exported": true }
+      ]
+    }
+  ],
+  "edges": [],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "shop/order.py::new_order",
+      "to": "shop/order.py::Order",
+      "line": 21,
+      "how": "construct"
+    },
+    {
+      "from": "shop/order.py::Order.total",
+      "to": "shop/order.py::Order._sum",
+      "line": 7,
+      "how": "call"
+    },
+    {
+      "from": "shop/order.py::helper",
+      "to": "shop/order.py::Store.save",
+      "line": 25,
+      "how": "inferred"
+    },
+    {
+      "from": "shop/order.py::Store.save",
+      "to": "shop/order.py::Order.run",
+      "line": 31,
+      "how": "dispatch"
+    }
+  ]
+}

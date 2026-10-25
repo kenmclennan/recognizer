@@ -23,7 +23,7 @@ export interface InferredEdge {
   };
 }
 
-interface Candidate {
+export interface Candidate {
   module: string;
   decl: TypeDecl;
   bases: string[];
@@ -142,32 +142,66 @@ export class Inference {
     return methods;
   }
 
+  matchesFor(called: readonly string[]): [string, Candidate][] {
+    if (
+      called.length === 0 ||
+      called.every((method) => GENERIC_METHODS.has(method))
+    ) {
+      return [];
+    }
+
+    const matches = [...this.candidates.entries()].filter(([key]) => {
+      const methods = this.methodsOf(key);
+
+      return called.every((method) => methods.has(method));
+    });
+    const abstract = matches.filter(([, c]) => c.decl.abstract);
+    const kept = abstract.length > 0 ? abstract : matches;
+
+    return kept.length > MAX_CLASSES ? [] : kept;
+  }
+
+  definerOf(
+    key: string,
+    method: string,
+    seen = new Set<string>(),
+  ): Candidate | null {
+    const candidate = this.candidates.get(key);
+
+    if (!candidate || seen.has(key)) {
+      return null;
+    }
+
+    seen.add(key);
+
+    if (candidate.decl.methods.has(method)) {
+      return candidate;
+    }
+
+    for (const base of candidate.bases) {
+      const found = this.definerOf(base, method, seen);
+
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
   edgesFor(info: FileInfo): InferredEdge[] {
     const edges: InferredEdge[] = [];
 
     for (const use of info.parameters) {
-      const called = [...use.methods];
+      const kept = this.matchesFor([...use.methods]);
 
-      if (
-        called.length === 0 ||
-        called.every((method) => GENERIC_METHODS.has(method))
-      ) {
+      if (kept.length === 0) {
         continue;
       }
 
-      const matches = [...this.candidates.entries()].filter(([key]) => {
-        const methods = this.methodsOf(key);
-
-        return called.every((method) => methods.has(method));
-      });
-      const abstract = matches.filter(([, c]) => c.decl.abstract);
-      const kept = abstract.length > 0 ? abstract : matches;
-
-      if (kept.length > MAX_CLASSES) {
-        continue;
-      }
-
-      const methods = called.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      const methods = [...use.methods].sort((a, b) =>
+        a < b ? -1 : a > b ? 1 : 0,
+      );
 
       for (const [key, candidate] of kept) {
         const implementations = [

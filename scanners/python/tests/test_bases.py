@@ -1,4 +1,4 @@
-from conftest import edge_tuples
+from conftest import edge_tuples, module
 
 
 def bases(document, source):
@@ -45,9 +45,9 @@ def test_subscripted_bases_unwrap(run):
     )
 
     assert [e[2] for e in bases(document, "m.py")] == ["inherits"]
-    assert next(m for m in document["modules"] if m["id"] == "m.py")["members"][0]["kind"] == (
-        "interface"
-    )
+    members = {m["name"]: m for m in module(document, "m.py")["members"]}
+
+    assert members["P"]["kind"] == "interface"
 
 
 def test_metaclass_abcmeta_marks_abstraction(run):

@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 
 from recognizer_scan_python.index import ModuleIndex
 
-ABSTRACT_BASES = {"typing.Protocol", "typing_extensions.Protocol", "abc.ABC"}
+PROTOCOL_BASES = {"typing.Protocol", "typing_extensions.Protocol"}
+ABSTRACT_BASES = {*PROTOCOL_BASES, "abc.ABC"}
 ABSTRACT_METACLASS = "abc.ABCMeta"
 
 
@@ -173,6 +174,16 @@ def expand(expression: ast.expr, bindings: dict[str, str]) -> list[str] | None:
     return [*bindings[expression.id].split("."), *reversed(chain)]
 
 
+def is_protocol(node: ast.ClassDef, bindings: dict[str, str]) -> bool:
+    for base in node.bases:
+        path = expand(base, bindings)
+
+        if path and ".".join(path) in PROTOCOL_BASES:
+            return True
+
+    return False
+
+
 def is_abstraction(node: ast.ClassDef, bindings: dict[str, str]) -> bool:
     for base in node.bases:
         path = expand(base, bindings)
@@ -223,36 +234,10 @@ def module_level_classes(tree: ast.Module) -> list[ast.ClassDef]:
     return [s for s in tree.body if isinstance(s, ast.ClassDef)]
 
 
-def read_members(tree: ast.Module, bindings: dict[str, str]) -> list[dict]:
-    exports = declared_exports(tree)
-    members = []
-
-    for statement in tree.body:
-        if not isinstance(statement, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
-            continue
-
-        if statement.name.startswith("_"):
-            continue
-
-        if isinstance(statement, ast.ClassDef):
-            kind = "interface" if is_abstraction(statement, bindings) else "class"
-        else:
-            kind = "function"
-
-        members.append(
-            {
-                "name": statement.name,
-                "kind": kind,
-                "line": statement.lineno,
-                "exported": exports is None or statement.name in exports,
-            }
-        )
-
-    return members
-
-
 def module_kind(module_id: str, members: list[dict]) -> str:
-    if members and all(member["kind"] == "interface" for member in members):
+    public = [member for member in members if not member["name"].startswith("_")]
+
+    if public and all(member["kind"] == "interface" for member in public):
         return "interface"
 
     return "package" if module_id.rsplit("/", 1)[-1] == "__init__.py" else "module"
