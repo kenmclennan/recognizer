@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
+  "commit": "a1b2c3d",
+  "modules": [
+    {
+      "id": "shop/order.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "MAX_ITEMS",
+          "kind": "constant",
+          "line": 1,
+          "exported": true,
+          "value": "100"
+        },
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "bases": ["Base", "abc.ABC"],
+          "fields": [{ "name": "id", "type": "str" }, { "name": "items" }],
+          "methods": [
+            {
+              "name": "total",
+              "line": 6,
+              "params": [],
+              "returns": "int",
+              "private": false,
+              "tags": ["property"]
+            },
+            { "name": "_sum", "line": 9, "params": ["scale"], "private": true },
+            {
+              "name": "load",
+              "line": 12,
+              "params": ["path", "args", "kwargs"],
+              "private": false,
+              "tags": ["static", "async"]
+            },
+            {
+              "name": "build",
+              "line": 15,
+              "params": [],
+              "private": false,
+              "tags": ["classmethod"]
+            },
+            {
+              "name": "run",
+              "line": 18,
+              "params": [],
+              "private": false,
+              "tags": ["abstract"]
+            }
+          ]
+        },
+        {
+          "name": "new_order",
+          "kind": "function",
+          "line": 20,
+          "exported": true,
+          "params": ["order_id"],
+          "returns": "Order",
+          "tags": ["async"]
+        }
+      ]
+    }
+  ],
+  "edges": [],
+  "foreign": []
+}

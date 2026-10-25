@@ -26,6 +26,33 @@ toString toJSON format strip count index sort reverse encode decode load dump
 loads dumps send emit on off
 ```
 
+## Member outlines and calls
+
+Every member carries an outline, and the document carries a `calls` list. A scanner always writes `calls`, so an empty list means no call was found; a consumer that finds no `calls` key must read it as "this scanner did not record", never as "nothing calls anything".
+
+The outline is in source order. A class or interface has `bases` (as written), `fields` (`name`, and `type` when declared) and `methods` (`name`, `line`, `params`, `returns` when declared, `private` and `tags`). A function has `params`, `returns` when declared, and `tags`. A constant has `value`, its source text with whitespace collapsed and cut to 40 characters (39 and an ellipsis when longer). `tags` is omitted when empty; the tags are `property`, `static`, `classmethod` (Python only), `abstract` and `async`.
+
+A call names both ends as `module::Qualified.name` (`m.py::f`, `m.py::C`, `m.py::C.m`; a constructor call is a call to the class). `line` is where the call starts in `from`'s module. `how` is `call`, `construct`, `inferred` (the receiver's class found as for an inferred edge) or `dispatch` (from an abstract or interface method to each concrete method that implements it, on the line where the abstract method is defined). Calls are sorted and deduplicated. A call is recorded only when both ends are in the scan's outlines, so calls into the standard library, foreign packages, nested classes and definitions inside `if`/`try` are dropped silently. A call is attributed to the enclosing member; calls in a class body, in decorators or at module level have no caller and are dropped, and a module id containing `::` has no calls.
+
+### What the Python scanner resolves
+
+- A direct name defined in the same module, and an imported name, followed through re-exports to the defining module.
+- A module-alias attribute (`import m as x; x.f()`, `from pkg import mod; mod.f()`), including a function-local import.
+- A local variable assigned from a constructor call or annotated with a repository class, then `v.m()`.
+- `self.x.m()` where `self.x` is typed in `__init__` by an annotation or a constructor call (or by an annotated parameter), and `self.m()` and `cls.m()`, resolved to the nearest class defining `m` among the class and its repository bases, left to right, depth first.
+- A chained call on a constructed object (`C(...).m()`).
+- A parameter annotated with a repository class (`Optional[C]`, `C | None` and `"C"` unwrap to `C`).
+- An untyped parameter, by the inferred-edge method-set matching: one `inferred` call per matched class, to the class that defines the method.
+- Dispatch from a method declared abstract (`@abc.abstractmethod`, or any method of a class with a `Protocol` base) to the method of the same name on each repository subclass that defines it itself, following inheritance. A subclass that only inherits the method is skipped; a deeper subclass that defines it is reached.
+
+### What it does not resolve
+
+Standard-library and foreign callees, `super()` calls, a receiver typed only by a function's return annotation (`make().m()`), a class that satisfies a Protocol only structurally with no base naming it (it receives no dispatch), an ABC method without `@abstractmethod` (not abstract), untyped receivers that fail the inference gate (more than 4 matches, or only generic methods), nested classes, and definitions inside `if`/`try`.
+
+Underscore-named module-level definitions (a leading `_` that is not a dunder) are members with `exported: false`, unless a literal `__all__` lists them. Dunder names (`__all__`, `__version__`) are not members. A module's `kind` ignores underscore-named members.
+
+Module-level constants are `NAME = expr` and `NAME: T = expr` statements directly in the module body with one plain name target.
+
 ## Exit codes
 
 - `0` - the scan was written.

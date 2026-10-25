@@ -1,5 +1,11 @@
 import ts from "typescript";
 import { extractNames } from "./names.js";
+import {
+  callableOutline,
+  type MemberOutline,
+  shorten,
+  typeOutline,
+} from "./outline.js";
 import { extractTypes } from "./types-and-parameters.js";
 
 export type MemberKind =
@@ -15,6 +21,7 @@ export interface Member {
   line: number;
   exported: boolean;
   abstraction: boolean;
+  outline: MemberOutline;
 }
 
 export interface ImportRef {
@@ -266,6 +273,22 @@ function isFunctionValue(node: ts.Expression | undefined): boolean {
   );
 }
 
+function valueOutline(
+  sf: ts.SourceFile,
+  kind: MemberKind,
+  initializer: ts.Expression | undefined,
+): MemberOutline {
+  if (kind === "function" && initializer && isFunctionValue(initializer)) {
+    return callableOutline(initializer as ts.SignatureDeclaration, sf);
+  }
+
+  if (kind === "function") {
+    return { params: [] };
+  }
+
+  return { value: initializer ? shorten(initializer.getText(sf)) : "" };
+}
+
 function declaredNames(sf: ts.SourceFile): Set<string> {
   const names = new Set<string>();
 
@@ -376,6 +399,9 @@ export function extract(sf: ts.SourceFile): FileInfo {
         line,
         exported: isExported(statement),
         abstraction: false,
+        outline: ts.isClassDeclaration(statement)
+          ? typeOutline(statement, sf)
+          : callableOutline(statement, sf),
       });
 
       if (isDefault(statement)) {
@@ -395,6 +421,9 @@ export function extract(sf: ts.SourceFile): FileInfo {
         line: startLine(sf, statement.name),
         exported: isExported(statement),
         abstraction: true,
+        outline: ts.isInterfaceDeclaration(statement)
+          ? typeOutline(statement, sf)
+          : {},
       });
 
       if (isDefault(statement)) {
@@ -407,6 +436,7 @@ export function extract(sf: ts.SourceFile): FileInfo {
         line: startLine(sf, statement.name),
         exported: isExported(statement),
         abstraction: false,
+        outline: {},
       });
     } else if (ts.isVariableStatement(statement)) {
       const exported = isExported(statement);
@@ -425,6 +455,7 @@ export function extract(sf: ts.SourceFile): FileInfo {
             line: startLine(sf, identifier),
             exported,
             abstraction: false,
+            outline: valueOutline(sf, kind, declaration.initializer),
           });
         }
       }
@@ -441,6 +472,11 @@ export function extract(sf: ts.SourceFile): FileInfo {
           line: startLine(sf, statement),
           exported: true,
           abstraction: false,
+          outline: valueOutline(
+            sf,
+            isFunctionValue(expression) ? "function" : "constant",
+            expression,
+          ),
         });
         defaultName = "default";
       }

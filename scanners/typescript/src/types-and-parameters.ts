@@ -110,7 +110,7 @@ function isThisProperty(name: string) {
     node.name.text === name;
 }
 
-function storedOnThis(body: ts.Node, parameter: string): Set<string> {
+export function storedOnThis(body: ts.Node, parameter: string): Set<string> {
   const attributes = new Set<string>();
 
   const visit = (node: ts.Node) => {
@@ -133,7 +133,7 @@ function storedOnThis(body: ts.Node, parameter: string): Set<string> {
   return attributes;
 }
 
-function untypedParameters(
+export function untypedParameters(
   declaration: ts.SignatureDeclaration,
 ): ts.ParameterDeclaration[] {
   return declaration.parameters.filter(
@@ -144,7 +144,9 @@ function untypedParameters(
   );
 }
 
-function isParameterProperty(parameter: ts.ParameterDeclaration): boolean {
+export function isParameterProperty(
+  parameter: ts.ParameterDeclaration,
+): boolean {
   return (ts.getModifiers(parameter) ?? []).length > 0;
 }
 

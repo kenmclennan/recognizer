@@ -1,16 +1,20 @@
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import ts from "typescript";
+import { findCalls, type ScanCall } from "./calls.js";
 import { ScanError } from "./errors.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
 import { listSourceFiles } from "./files.js";
 import { Inference } from "./inference.js";
+import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
 import { namedEdges, Router } from "./routes.js";
 import { TsconfigOptions } from "./tsconfig-options.js";
 import { discoverWorkspaces } from "./workspaces.js";
 
-export interface ScanMember {
+export type { ScanCall };
+
+export interface ScanMember extends MemberOutline {
   name: string;
   kind: Member["kind"];
   line: number;
@@ -48,6 +52,7 @@ export interface ScanDocument {
   modules: ScanModule[];
   edges: ScanEdge[];
   foreign: { id: string; name: string }[];
+  calls: ScanCall[];
 }
 
 const SCANNER_NAME = "recognizer-scan-typescript";
@@ -92,6 +97,25 @@ function sortEdges(edges: ScanEdge[]): ScanEdge[] {
       compare(a.inferred?.parameter ?? "", b.inferred?.parameter ?? "") ||
       compare((a.names ?? []).join(","), (b.names ?? []).join(",")),
   );
+}
+
+function extensionOf(id: string): ts.Extension {
+  if (id.endsWith(".d.ts")) {
+    return ts.Extension.Dts;
+  }
+
+  const map: Record<string, ts.Extension> = {
+    ".tsx": ts.Extension.Tsx,
+    ".mts": ts.Extension.Mts,
+    ".cts": ts.Extension.Cts,
+    ".jsx": ts.Extension.Jsx,
+    ".mjs": ts.Extension.Mjs,
+    ".cjs": ts.Extension.Cjs,
+    ".js": ts.Extension.Js,
+  };
+  const dot = id.lastIndexOf(".");
+
+  return map[id.slice(dot)] ?? ts.Extension.Ts;
 }
 
 function moduleKind(members: Member[]): "module" | "interface" {
@@ -145,44 +169,14 @@ export function scan(root: string, commit: string | null): ScanDocument {
   const idOf = (file: string) => relative(real, file).split(sep).join("/");
   const modules = new Set(files.map(idOf));
 
-  const program = ts.createProgram(files, {
-    noResolve: true,
-    noLib: true,
-    allowJs: true,
-    jsx: ts.JsxEmit.Preserve,
-    types: [],
-    noEmit: true,
-  });
-
   const tsconfigs = new TsconfigOptions(real);
   const resolver = new Resolver(real, modules, discoverWorkspaces(real));
-  const infos = new Map<string, FileInfo>();
-
-  for (const file of files) {
-    const source = program.getSourceFile(file);
-
-    if (source) {
-      infos.set(idOf(file), extract(source));
-    }
-  }
-
   const optionsByFile = new Map<string, ts.CompilerOptions>();
 
   for (const file of files) {
     optionsByFile.set(file, tsconfigs.optionsFor(file));
   }
 
-  const problems = [
-    ...syntaxProblems(program, files, real),
-    ...tsconfigs.failures(),
-  ];
-
-  if (problems.length > 0) {
-    throw new ScanError(problems);
-  }
-
-  const edges = new Map<string, ScanEdge>();
-  const foreign = new Set<string>();
   const located = new Map<string, string | null>();
 
   const locate = (module: string, specifier: string): string | null => {
@@ -200,6 +194,57 @@ export function scan(root: string, commit: string | null): ScanDocument {
 
     return located.get(key) ?? null;
   };
+
+  const compilerOptions: ts.CompilerOptions = {
+    noResolve: true,
+    noLib: true,
+    allowJs: true,
+    jsx: ts.JsxEmit.Preserve,
+    types: [],
+    noEmit: true,
+  };
+  const host = ts.createCompilerHost(compilerOptions);
+
+  host.resolveModuleNameLiterals = (literals, containingFile) =>
+    literals.map((literal) => {
+      const container = idOf(containingFile);
+      const target = modules.has(container)
+        ? locate(container, literal.text)
+        : null;
+
+      return {
+        resolvedModule: target
+          ? {
+              resolvedFileName: join(real, target),
+              extension: extensionOf(target),
+              isExternalLibraryImport: false,
+            }
+          : undefined,
+      };
+    });
+
+  const program = ts.createProgram(files, compilerOptions, host);
+  const infos = new Map<string, FileInfo>();
+
+  for (const file of files) {
+    const source = program.getSourceFile(file);
+
+    if (source) {
+      infos.set(idOf(file), extract(source));
+    }
+  }
+
+  const problems = [
+    ...syntaxProblems(program, files, real),
+    ...tsconfigs.failures(),
+  ];
+
+  if (problems.length > 0) {
+    throw new ScanError(problems);
+  }
+
+  const edges = new Map<string, ScanEdge>();
+  const foreign = new Set<string>();
 
   const router = new Router(infos, locate);
   const inference = new Inference(infos, router, locate);
@@ -317,6 +362,21 @@ export function scan(root: string, commit: string | null): ScanDocument {
     }
   }
 
+  const outlined = new Map(
+    [...infos].map(([id, info]) => [
+      id,
+      info.members.map((m) => ({ ...m, ...m.outline })),
+    ]),
+  );
+  const calls = findCalls({
+    program,
+    files,
+    idOf,
+    infos,
+    inference,
+    members: outlined,
+  });
+
   return {
     schema_version: 2,
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
@@ -328,11 +388,12 @@ export function scan(root: string, commit: string | null): ScanDocument {
         id,
         language: "typescript",
         kind: moduleKind(members),
-        members: members.map(({ name, kind, line, exported }) => ({
+        members: members.map(({ name, kind, line, exported, outline }) => ({
           name,
           kind,
           line,
           exported,
+          ...outline,
         })),
       };
     }),
@@ -340,5 +401,6 @@ export function scan(root: string, commit: string | null): ScanDocument {
     foreign: [...foreign]
       .sort((a, b) => compare(`foreign:${a}`, `foreign:${b}`))
       .map((name) => ({ id: `foreign:${name}`, name })),
+    calls,
   };
 }

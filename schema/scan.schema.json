@@ -26,7 +26,8 @@
     "commit": { "type": ["string", "null"], "minLength": 1 },
     "modules": { "type": "array", "items": { "$ref": "#/$defs/module" } },
     "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
-    "foreign": { "type": "array", "items": { "$ref": "#/$defs/foreignNode" } }
+    "foreign": { "type": "array", "items": { "$ref": "#/$defs/foreignNode" } },
+    "calls": { "type": "array", "items": { "$ref": "#/$defs/call" } }
   },
   "$defs": {
     "moduleId": {
@@ -56,8 +57,56 @@
           "enum": ["class", "function", "interface", "type", "constant"]
         },
         "line": { "$ref": "#/$defs/line" },
-        "exported": { "type": "boolean" }
-      }
+        "exported": { "type": "boolean" },
+        "bases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } },
+        "methods": { "type": "array", "items": { "$ref": "#/$defs/method" } },
+        "params": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "returns": { "type": "string", "minLength": 1 },
+        "tags": { "$ref": "#/$defs/tags" },
+        "value": { "type": "string", "maxLength": 40 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "kind": { "enum": ["class", "interface"] } }
+          },
+          "then": {},
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["bases"] },
+                { "required": ["fields"] },
+                { "required": ["methods"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "function" } } },
+          "then": {},
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["params"] },
+                { "required": ["returns"] },
+                { "required": ["tags"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "constant" } } },
+          "then": {},
+          "else": { "not": { "anyOf": [{ "required": ["value"] }] } }
+        }
+      ]
     },
     "edge": {
       "type": "object",
@@ -134,6 +183,54 @@
         "id": { "$ref": "#/$defs/foreignId" },
         "name": { "type": "string", "minLength": 1 }
       }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "line", "params", "private"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "line": { "$ref": "#/$defs/line" },
+        "params": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "returns": { "type": "string", "minLength": 1 },
+        "private": { "type": "boolean" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["property", "static", "classmethod", "abstract", "async"]
+      }
+    },
+    "call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "line", "how"],
+      "properties": {
+        "from": { "$ref": "#/$defs/memberRef" },
+        "to": { "$ref": "#/$defs/memberRef" },
+        "line": { "$ref": "#/$defs/line" },
+        "how": { "enum": ["call", "construct", "inferred", "dispatch"] }
+      }
+    },
+    "memberRef": {
+      "type": "string",
+      "pattern": "^(?!foreign:)(?!\\./)(?!/)[^\\\\]+::[^:]+$"
     }
   }
 }

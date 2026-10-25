@@ -1,9 +1,6 @@
 {
   "schema_version": 2,
-  "scanner": {
-    "name": "recognizer-scan-typescript",
-    "version": "0.1.0"
-  },
+  "scanner": { "name": "recognizer-scan-typescript", "version": "0.1.0" },
   "commit": null,
   "modules": [
     {
@@ -15,13 +12,43 @@
           "name": "limit",
           "kind": "constant",
           "line": 3,
-          "exported": false
+          "exported": false,
+          "value": "10"
         },
         {
           "name": "BaseStore",
           "kind": "class",
           "line": 5,
-          "exported": true
+          "exported": true,
+          "bases": [],
+          "fields": [
+            { "name": "ids", "type": "Id[]" },
+            { "name": "size", "type": "number" }
+          ],
+          "methods": [
+            {
+              "name": "grow",
+              "line": 9,
+              "params": [],
+              "private": true,
+              "returns": "number"
+            },
+            {
+              "name": "count",
+              "line": 13,
+              "params": [],
+              "private": false,
+              "returns": "number"
+            }
+          ]
+        },
+        {
+          "name": "makeBase",
+          "kind": "function",
+          "line": 18,
+          "exported": true,
+          "params": [],
+          "returns": "BaseStore"
         }
       ]
     },
@@ -34,7 +61,8 @@
           "name": "cached",
           "kind": "function",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "params": ["source"]
         }
       ]
     },
@@ -53,20 +81,35 @@
           "name": "MemoryStore",
           "kind": "class",
           "line": 5,
-          "exported": true
+          "exported": true,
+          "bases": ["BaseStore", "Store"],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 6,
+              "params": [],
+              "private": false,
+              "returns": "void"
+            }
+          ]
         },
         {
           "name": "load",
           "kind": "function",
           "line": 9,
-          "exported": true
+          "exported": true,
+          "params": ["p"]
         },
         {
-          "name": "Mode",
-          "kind": "type",
+          "name": "fresh",
+          "kind": "function",
           "line": 11,
-          "exported": true
-        }
+          "exported": true,
+          "params": [],
+          "returns": "BaseStore"
+        },
+        { "name": "Mode", "kind": "type", "line": 13, "exported": true }
       ]
     },
     {
@@ -78,7 +121,10 @@
           "name": "Customer",
           "kind": "class",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": []
         }
       ]
     },
@@ -97,7 +143,10 @@
           "name": "Order",
           "kind": "class",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": []
         }
       ]
     },
@@ -110,7 +159,9 @@
           "name": "place",
           "kind": "function",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "params": ["store", "id"],
+          "returns": "void"
         }
       ]
     },
@@ -123,14 +174,21 @@
           "name": "Store",
           "kind": "interface",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 2,
+              "params": ["id"],
+              "private": false,
+              "returns": "void",
+              "tags": ["abstract"]
+            }
+          ]
         },
-        {
-          "name": "Id",
-          "kind": "type",
-          "line": 5,
-          "exported": true
-        }
+        { "name": "Id", "kind": "type", "line": 5, "exported": true }
       ]
     },
     {
@@ -142,7 +200,8 @@
           "name": "App",
           "kind": "function",
           "line": 7,
-          "exported": true
+          "exported": true,
+          "params": []
         }
       ]
     },
@@ -155,7 +214,8 @@
           "name": "lazyPanel",
           "kind": "function",
           "line": 1,
-          "exported": true
+          "exported": true,
+          "params": []
         }
       ]
     },
@@ -168,7 +228,8 @@
           "name": "util",
           "kind": "constant",
           "line": 1,
-          "exported": false
+          "exported": false,
+          "value": "require(\"./util.cjs\")"
         }
       ]
     },
@@ -181,7 +242,8 @@
           "name": "lazy",
           "kind": "function",
           "line": 4,
-          "exported": false
+          "exported": false,
+          "params": []
         }
       ]
     },
@@ -236,7 +298,7 @@
       "to": "api/src/base-store.ts",
       "kind": "depends",
       "line": 2,
-      "names": ["BaseStore"]
+      "names": ["BaseStore", "makeBase"]
     },
     {
       "from": "api/src/memory-store.ts",
@@ -353,13 +415,45 @@
     }
   ],
   "foreign": [
+    { "id": "foreign:node:fs", "name": "node:fs" },
+    { "id": "foreign:react", "name": "react" }
+  ],
+  "calls": [
     {
-      "id": "foreign:node:fs",
-      "name": "node:fs"
+      "from": "api/src/base-store.ts::BaseStore.count",
+      "to": "api/src/base-store.ts::BaseStore.grow",
+      "line": 14,
+      "how": "call"
     },
     {
-      "id": "foreign:react",
-      "name": "react"
+      "from": "api/src/base-store.ts::makeBase",
+      "to": "api/src/base-store.ts::BaseStore",
+      "line": 19,
+      "how": "construct"
+    },
+    {
+      "from": "api/src/memory-store.ts::fresh",
+      "to": "api/src/base-store.ts::makeBase",
+      "line": 11,
+      "how": "call"
+    },
+    {
+      "from": "api/src/place.ts::place",
+      "to": "api/src/types.ts::Store.save",
+      "line": 2,
+      "how": "inferred"
+    },
+    {
+      "from": "api/src/types.ts::Store.save",
+      "to": "api/src/memory-store.ts::MemoryStore.save",
+      "line": 2,
+      "how": "dispatch"
+    },
+    {
+      "from": "web/src/App.tsx::App",
+      "to": "api/src/memory-store.ts::MemoryStore",
+      "line": 8,
+      "how": "construct"
     }
   ]
 }

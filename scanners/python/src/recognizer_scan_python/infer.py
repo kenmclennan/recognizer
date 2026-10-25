@@ -196,18 +196,24 @@ def matching_classes(called: set[str], classes: dict[ClassKey, ClassInfo]) -> li
     return abstract or matches
 
 
+def gated_matches(called: set[str], classes: dict[ClassKey, ClassInfo]) -> list[ClassInfo]:
+    if not called or called <= GENERIC_METHODS:
+        return []
+
+    kept = matching_classes(called, classes)
+
+    return kept if len(kept) <= MAX_CLASSES else []
+
+
 def inferred_edges(
     module_id: str, tree: ast.Module, classes: dict[ClassKey, ClassInfo]
 ) -> list[dict]:
     edges = []
 
     for parameter, called in parameter_usages(tree):
-        if not called or called <= GENERIC_METHODS:
-            continue
+        kept = gated_matches(called, classes)
 
-        kept = matching_classes(called, classes)
-
-        if len(kept) > MAX_CLASSES:
+        if not kept:
             continue
 
         methods = sorted(called)

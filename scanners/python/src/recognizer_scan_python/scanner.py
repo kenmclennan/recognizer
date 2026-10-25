@@ -12,11 +12,12 @@ from recognizer_scan_python.analysis import (
     module_kind,
     module_level_classes,
     read_imports,
-    read_members,
 )
+from recognizer_scan_python.calls import CallResolver
 from recognizer_scan_python.discovery import discover
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
+from recognizer_scan_python.outline import read_members
 from recognizer_scan_python.routes import ModuleNames, Router, named_edges
 
 SCANNER_NAME = "recognizer-scan-python"
@@ -34,15 +35,20 @@ class Parsed:
     tree: ast.Module
     imports: Imports
     abstractions: set[str]
+    source: str
 
 
-def parse_all(root: Path, module_ids: list[str]) -> dict[str, ast.Module]:
+def parse_all(root: Path, module_ids: list[str]) -> dict[str, tuple[ast.Module, str]]:
     trees = {}
     problems = []
 
     for module_id in module_ids:
         try:
-            trees[module_id] = ast.parse((root / module_id).read_bytes(), filename=module_id)
+            data = (root / module_id).read_bytes()
+            trees[module_id] = (
+                ast.parse(data, filename=module_id),
+                data.decode("utf-8", errors="replace"),
+            )
         except SyntaxError as error:
             problems.append(f"{module_id}:{error.lineno or 0}: {error.msg}")
         except (ValueError, UnicodeDecodeError, RecursionError, MemoryError) as error:
@@ -123,25 +129,27 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
 
     parsed = {}
     for module_id in module_ids:
-        tree = trees[module_id]
+        tree, source = trees[module_id]
         imports = read_imports(module_id, tree, index)
         abstractions = {
             node.name
             for node in module_level_classes(tree)
             if is_abstraction(node, imports.bindings)
         }
-        parsed[module_id] = Parsed(module_id, tree, imports, abstractions)
+        parsed[module_id] = Parsed(module_id, tree, imports, abstractions, source)
 
     router = Router({m: ModuleNames(defined_names(p.tree), p.imports) for m, p in parsed.items()})
     classes = collect_classes(parsed, index, router)
 
     modules = []
+    outlines = {}
     edges = []
     foreign_names = set()
 
     for module_id in module_ids:
         item = parsed[module_id]
-        members = read_members(item.tree, item.imports.bindings)
+        members = read_members(item.tree, item.imports.bindings, item.source)
+        outlines[module_id] = members
         modules.append(
             {
                 "id": module_id,
@@ -168,6 +176,8 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
 
         edges.extend(base_edges(item, index, parsed))
 
+    calls = CallResolver(parsed, classes, outlines, index, router).scan_calls()
+
     return {
         "schema_version": 2,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
@@ -175,4 +185,5 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
         "modules": modules,
         "edges": sorted(edges, key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(foreign_names)],
+        "calls": calls,
     }

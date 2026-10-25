@@ -36,6 +36,20 @@ def validate(document: dict) -> None:
         if "inferred" in edge:
             assert edge["names"] == edge["inferred"]["methods"]
 
+    endpoints = {}
+
+    for item in document["modules"]:
+        for member in item["members"]:
+            endpoints[f"{item['id']}::{member['name']}"] = member
+
+            for method in member.get("methods", []):
+                endpoints[f"{item['id']}::{member['name']}.{method['name']}"] = method
+
+    for call in document.get("calls", []):
+        assert call["from"] in endpoints
+        assert call["to"] in endpoints
+        assert call["from"] != call["to"]
+
 
 def build_tree(base: Path, files: dict[str, str]) -> Path:
     for relative, content in files.items():
@@ -68,3 +82,7 @@ def edge_tuples(document: dict, source: str | None = None) -> list[tuple]:
 
 def module(document: dict, module_id: str) -> dict:
     return next(m for m in document["modules"] if m["id"] == module_id)
+
+
+def call_tuples(document: dict) -> list[tuple]:
+    return [(c["from"], c["to"], c["how"]) for c in document["calls"]]
