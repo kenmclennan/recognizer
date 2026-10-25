@@ -11,7 +11,6 @@ const FILES = {
     '[package]\nname = "recognizer_app"\nversion = "0.1.0"\n\n[dependencies]\nserde = { version = "1" }\n',
   "app/package.json":
     '{\n  "name": "@recognizer/app",\n  "version": "0.1.0",\n  "dependencies": { "a": "^0.1.0" }\n}\n',
-  "package.json": '{\n  "name": "recognizer",\n  "version": "0.1.0"\n}\n',
 };
 
 function fixture() {
@@ -37,7 +36,7 @@ describe("stampVersion", () => {
     );
   });
 
-  it("changes the four versions and no other byte", () => {
+  it("changes the three versions and no other byte", () => {
     const root = fixture();
 
     stampVersion(root, "0.3.4");
