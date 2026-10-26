@@ -46,6 +46,10 @@ One repository, a directory per part:
 - **Prior art is for approach only.** Robert C. Martin's [uml-viewer](https://github.com/unclebob/uml-viewer) states no licence: copy or port none of its code. Its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
 - **Scanned repositories own their `.recognizer/` folder.** Policy, proposals and baselines are committed there; scans and overlays go in `.recognizer/cache/`, which is gitignored.
 
+## CI
+
+Every workflow runs on a self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), registered to this repo only, because GitHub-hosted minutes for private repos ran out. It has the local toolchain, so no workflow installs system libraries.
+
 ## Code style
 
 - No code comments and no docstrings; behaviour is legible from names and tests.
