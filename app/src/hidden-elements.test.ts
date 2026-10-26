@@ -29,6 +29,7 @@ const HIDEABLE = [
   "canvas-legend",
   "popover",
   "update-button",
+  "tree-toggle",
 ];
 
 function computedDisplays(css: string): string {

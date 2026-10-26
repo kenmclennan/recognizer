@@ -49,7 +49,11 @@ async function start(): Promise<void> {
     return;
   }
 
-  explorer = showExplorer(content, loaded);
+  explorer = showExplorer(
+    content,
+    loaded,
+    folder.split(/[\\/]/).filter(Boolean).pop() ?? folder,
+  );
 }
 
 document.addEventListener("keydown", (event) => {
