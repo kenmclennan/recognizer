@@ -103,6 +103,7 @@ export function buildTreeView(actions: TreeActions): TreeView {
     const inside = props.selected?.startsWith(`${node.path}/`) ?? false;
 
     line.classList.toggle("ancestor", inside);
+    line.classList.toggle("selected", props.selected === node.path);
     line.addEventListener("click", () => actions.toggleFolder(node.path));
     line.append(
       el("span", "chevron", open ? "▾" : "▸"),

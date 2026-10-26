@@ -27,3 +27,12 @@ export function expectedModuleIds(language: string): string[] {
 
   return (JSON.parse(text) as Scan).modules.map((module) => module.id);
 }
+
+export function expectedScan(language: string): Scan {
+  const text = readFileSync(
+    join(REPO, "fixtures", language, "expected-scan.json"),
+    "utf8",
+  );
+
+  return JSON.parse(text) as Scan;
+}

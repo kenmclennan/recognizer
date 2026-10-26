@@ -1,0 +1,54 @@
+import type { Selection } from "./canvas-state";
+
+export type KeyInput = {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  targetEditable: boolean;
+};
+
+export type KeyAction = "focus" | "fold" | "take-off" | "escape";
+
+export function keyAction(
+  event: KeyInput,
+  selection: Selection,
+): KeyAction | null {
+  if (event.targetEditable || event.metaKey || event.ctrlKey || event.altKey) {
+    return null;
+  }
+
+  if (event.key === "Escape") {
+    return "escape";
+  }
+
+  if (selection === null) {
+    return null;
+  }
+
+  if (event.key === "Backspace") {
+    return selection.kind === "edge" ? null : "take-off";
+  }
+
+  if (selection.kind !== "folder") {
+    return null;
+  }
+
+  const key = event.key.toLowerCase();
+
+  return key === "f" ? "focus" : key === "z" ? "fold" : null;
+}
+
+export function isEditable(target: EventTarget | null): boolean {
+  const node = target as HTMLElement | null;
+
+  if (!node || typeof node.tagName !== "string") {
+    return false;
+  }
+
+  return (
+    node.tagName === "INPUT" ||
+    node.tagName === "TEXTAREA" ||
+    node.isContentEditable === true
+  );
+}

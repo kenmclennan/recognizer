@@ -10,6 +10,8 @@ export interface ScanEdge {
   line: number;
   names?: string[];
   via?: string[];
+  member?: string;
+  to_member?: string;
   inferred?: {
     parameter: string;
     methods: string[];
@@ -19,7 +21,11 @@ export interface ScanEdge {
 }
 
 export interface Scan {
-  modules: { id: string; kind: "module" | "package" | "interface" }[];
+  modules: {
+    id: string;
+    kind: "module" | "package" | "interface";
+    members?: { name: string; exported: boolean }[];
+  }[];
   edges: ScanEdge[];
   foreign: { id: string; name: string }[];
 }

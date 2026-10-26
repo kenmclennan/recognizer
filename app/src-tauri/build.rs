@@ -1,6 +1,7 @@
 fn main() {
     let commands = tauri_build::AppManifest::new().commands(&[
         "choose_folder",
+        "read_source_line",
         "scan_folder",
         "window_folder",
     ]);

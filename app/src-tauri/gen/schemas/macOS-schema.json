@@ -177,16 +177,22 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan and name the folder a window holds\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-scan-folder`\n- `allow-window-folder`",
+          "description": "Choose, scan, read a line of and name the folder a window holds\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-read-source-line`\n- `allow-scan-folder`\n- `allow-window-folder`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan and name the folder a window holds\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-scan-folder`\n- `allow-window-folder`"
+          "markdownDescription": "Choose, scan, read a line of and name the folder a window holds\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-read-source-line`\n- `allow-scan-folder`\n- `allow-window-folder`"
         },
         {
           "description": "Enables the choose_folder command without any pre-configured scope.",
           "type": "string",
           "const": "allow-choose-folder",
           "markdownDescription": "Enables the choose_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_source_line command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-source-line",
+          "markdownDescription": "Enables the read_source_line command without any pre-configured scope."
         },
         {
           "description": "Enables the scan_folder command without any pre-configured scope.",
@@ -205,6 +211,12 @@
           "type": "string",
           "const": "deny-choose-folder",
           "markdownDescription": "Denies the choose_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_source_line command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-source-line",
+          "markdownDescription": "Denies the read_source_line command without any pre-configured scope."
         },
         {
           "description": "Denies the scan_folder command without any pre-configured scope.",
