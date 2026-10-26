@@ -6,16 +6,27 @@ export type KeyInput = {
   ctrlKey: boolean;
   altKey: boolean;
   targetEditable: boolean;
+  pickerOpen: boolean;
 };
 
-export type KeyAction = "focus" | "fold" | "take-off" | "escape";
+export type KeyAction =
+  | "focus"
+  | "fold"
+  | "take-off"
+  | "escape"
+  | "uses"
+  | "used-by";
 
 export function keyAction(
   event: KeyInput,
   selection: Selection,
 ): KeyAction | null {
-  if (event.targetEditable || event.metaKey || event.ctrlKey || event.altKey) {
+  if (event.metaKey || event.ctrlKey || event.altKey) {
     return null;
+  }
+
+  if (event.targetEditable) {
+    return event.key === "Escape" && event.pickerOpen ? "escape" : null;
   }
 
   if (event.key === "Escape") {
@@ -30,11 +41,23 @@ export function keyAction(
     return selection.kind === "edge" ? null : "take-off";
   }
 
-  if (selection.kind !== "folder") {
+  const key = event.key.toLowerCase();
+
+  if (selection.kind === "edge") {
     return null;
   }
 
-  const key = event.key.toLowerCase();
+  if (key === "u") {
+    return "uses";
+  }
+
+  if (key === "d") {
+    return "used-by";
+  }
+
+  if (selection.kind !== "folder") {
+    return null;
+  }
 
   return key === "f" ? "focus" : key === "z" ? "fold" : null;
 }

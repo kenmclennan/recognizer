@@ -1,5 +1,7 @@
 import { button, el } from "./dom";
 
+export type PickerKind = "uses" | "usedBy" | "files";
+
 export type BarModel = {
   kind: "module" | "folder";
   uses: number;
@@ -7,9 +9,11 @@ export type BarModel = {
   files: { open: number; held: number } | null;
   focused: boolean;
   folded: boolean;
+  picker: PickerKind | null;
 };
 
 export type BarActions = {
+  togglePicker: (kind: PickerKind) => void;
   takeOff: () => void;
   toggleFocus: () => void;
   toggleFold: () => void;
@@ -20,7 +24,6 @@ export type SelectionBarView = {
   render: (model: BarModel | null) => void;
 };
 
-const PICKER = "opens the picker in a later version";
 const INSPECTOR = "opens the inspector in a later version";
 
 function disabled(label: string, title: string): HTMLButtonElement {
@@ -51,14 +54,32 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         return;
       }
 
+      const picker = (
+        kind: PickerKind,
+        label: string,
+        enabled: boolean,
+      ): HTMLButtonElement => {
+        const node = button(label, "bar-button", () =>
+          actions.togglePicker(kind),
+        );
+
+        node.disabled = !enabled;
+        node.classList.toggle("on", model.picker === kind);
+
+        return node;
+      };
       const buttons = [
-        disabled(`Uses ${model.uses}`, PICKER),
-        disabled(`Used by ${model.usedBy}`, PICKER),
+        picker("uses", `Uses ${model.uses}`, model.uses > 0),
+        picker("usedBy", `Used by ${model.usedBy}`, model.usedBy > 0),
       ];
 
       if (model.files) {
         buttons.push(
-          disabled(`Files ${model.files.open} of ${model.files.held}`, PICKER),
+          picker(
+            "files",
+            `Files ${model.files.open} of ${model.files.held}`,
+            true,
+          ),
         );
       }
 

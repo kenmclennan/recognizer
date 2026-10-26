@@ -43,6 +43,7 @@ async function layoutOf(
     folded: new Set(),
     focus: null,
     showInferred: true,
+    ghosts: new Set(),
     ...overrides,
   });
   const result = await elk.layout(toElk(graph, fixedMeasure));
@@ -140,5 +141,30 @@ describe("nesting and edges", () => {
     expect(
       a !== undefined && points[0] !== undefined && points[0].y >= a.y,
     ).toBe(true);
+  });
+});
+
+describe("ghosts", () => {
+  it("lays a ghost out inside its folder's frame", async () => {
+    const scan = scanOf(
+      ["l/real/a.py", "l/ghostly/b.py"],
+      [["l/real/a.py", "l/ghostly/b.py"]],
+    );
+    const { graph, layout } = await layoutOf(scan, {
+      opened: ["l/real/a.py"],
+      ghosts: new Set(["l/ghostly/b.py"]),
+    });
+    const box = layout.boxes.get("l/ghostly/b.py");
+    const frame = layout.frames.get("l/ghostly");
+    const parent = layout.frames.get("l");
+
+    expect(graph.boxes.find((b) => b.id === "l/ghostly/b.py")?.ghost).toBe(
+      true,
+    );
+    expect(box && frame && inside(box, frame)).toBe(true);
+    expect(frame && parent && inside(frame, parent)).toBe(true);
+    expect(
+      layout.lines.get(graph.lines[0]?.id as string)?.length,
+    ).toBeGreaterThan(1);
   });
 });

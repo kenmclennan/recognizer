@@ -11,6 +11,7 @@ import type { Disc } from "./health";
 export const ARROW_LENGTH = 9;
 export const ARROW_HALF_WIDTH = 4;
 export const BOUNDS_MARGIN = 0;
+export const GHOST_DASH = "3 3";
 export const DRAW_ORDER = ["frames", "lines", "boxes"] as const;
 
 export const DASH: Record<EdgeStyle, string | null> = {
@@ -36,6 +37,7 @@ export type SceneBox = {
   label: string;
   figures: string;
   disc: Disc;
+  ghost: boolean;
 };
 
 export type SceneLine = {
@@ -45,6 +47,7 @@ export type SceneLine = {
   dash: string | null;
   count: number;
   countAt: Point | null;
+  ghost: boolean;
 };
 
 export type SceneArrow = { lineId: string; points: Point[]; hollow: boolean };
@@ -143,6 +146,7 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
         label: box.label,
         figures: boxFigures(box),
         disc: box.disc,
+        ghost: box.ghost === true,
       });
     }
   }
@@ -161,9 +165,10 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
       id: line.id,
       points,
       style: line.style,
-      dash: DASH[line.style],
+      dash: line.ghost ? GHOST_DASH : DASH[line.style],
       count: line.count,
       countAt: line.count > 1 ? midpoint(points) : null,
+      ghost: line.ghost === true,
     });
     arrows.push({
       lineId: line.id,

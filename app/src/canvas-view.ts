@@ -4,9 +4,16 @@ import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import type { EvidenceSection } from "./edge-evidence";
+import type { Disc } from "./health";
 import { iconButton } from "./icons";
 import { buildLegendView } from "./legend-view";
-import { type BarModel, buildSelectionBar } from "./selection-bar-view";
+import type { PickerModel } from "./picker-model";
+import { buildPickerView, type PickerActions } from "./picker-view";
+import {
+  type BarModel,
+  buildSelectionBar,
+  type PickerKind,
+} from "./selection-bar-view";
 import {
   atMax,
   atMin,
@@ -31,6 +38,7 @@ export type CanvasProps = {
   treeHidden: boolean;
   showInferred: boolean;
   notice: string | null;
+  picker: { model: PickerModel; anchor: Point | null } | null;
 };
 
 export type CanvasActions = {
@@ -43,6 +51,11 @@ export type CanvasActions = {
   setShowInferred: (show: boolean) => void;
   toggleTree: () => void;
   measure: (text: string) => number;
+  togglePicker: (kind: PickerKind) => void;
+  closePicker: () => void;
+  untick: (id: string) => void;
+  picker: PickerActions;
+  disc: (id: string) => Disc;
 };
 
 export type CanvasView = {
@@ -117,7 +130,9 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   const empty = el("p", "empty-canvas", "Nothing on the canvas yet");
   const notice = el("p", "canvas-notice");
   const legend = buildLegendView((show) => actions.setShowInferred(show));
+  const pickerView = buildPickerView(actions.picker, actions.disc);
   const selectionBar = buildSelectionBar({
+    togglePicker: (kind) => actions.togglePicker(kind),
     takeOff: () => actions.takeOff(),
     toggleFocus: () => actions.toggleFocus(),
     toggleFold: () => actions.toggleFold(),
@@ -151,7 +166,14 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   zoomOut.title = "Zoom out";
   zoomIn.title = "Zoom in";
   surface.append(world);
-  stage.append(surface, empty, notice, selectionBar.element, popover);
+  stage.append(
+    surface,
+    empty,
+    notice,
+    selectionBar.element,
+    pickerView.element,
+    popover,
+  );
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
   bar.append(toggle, count);
   element.append(bar, stage, controls, legend.element);
@@ -246,6 +268,37 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
     selectionBar.element.style.left = `${x}px`;
     selectionBar.element.style.top = `${y}px`;
+  }
+
+  function positionPicker() {
+    const picker = props?.picker;
+
+    if (!picker) {
+      return;
+    }
+
+    const s = size();
+    const width = pickerView.element.offsetWidth;
+    const height = pickerView.element.offsetHeight;
+    const barElement = selectionBar.element;
+    let at: Point;
+
+    if (picker.anchor) {
+      at = picker.anchor;
+    } else if (props?.bar && !barElement.hidden) {
+      at = {
+        x: barElement.offsetLeft,
+        y: barElement.offsetTop + barElement.offsetHeight + 4,
+      };
+    } else {
+      at = { x: s.width - width - 8, y: 8 };
+    }
+
+    const x = Math.max(4, Math.min(at.x, Math.max(4, s.width - width - 4)));
+    const y = Math.max(4, Math.min(at.y, Math.max(4, s.height - height - 4)));
+
+    pickerView.element.style.left = `${x}px`;
+    pickerView.element.style.top = `${y}px`;
   }
 
   function refreshChrome() {
@@ -360,7 +413,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
             points: points(line.points),
           });
           const stroke = svg("polyline", {
-            class: `edge ${line.style}`,
+            class: `edge ${line.style}${line.ghost ? " ghost" : ""}`,
             points: points(line.points),
           });
           const arrow = scene.arrows.find((a) => a.lineId === line.id);
@@ -370,7 +423,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
             stroke.setAttribute("stroke-dasharray", line.dash);
           }
 
-          if (title) {
+          if (title && !line.ghost) {
             hit.append(svg("title", {}, title));
           }
 
@@ -399,15 +452,18 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
             );
           }
 
-          node.append(hit);
+          if (!line.ghost) {
+            node.append(hit);
+          }
+
           group.append(node);
         }
       } else {
         for (const box of scene.boxes) {
           const { rect } = box;
           const node = svg("g", {
-            class: `box ${box.kind}`,
-            "data-kind": "module",
+            class: `box ${box.kind}${box.ghost ? " ghost" : ""}`,
+            "data-kind": box.ghost ? "ghost" : "module",
             "data-id": box.id,
           });
 
@@ -511,6 +567,13 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   }
 
   function choose(event: MouseEvent, target: { kind: string; id: string }) {
+    if (target.kind === "ghost") {
+      event.stopPropagation();
+      actions.untick(target.id);
+
+      return;
+    }
+
     pointerAnchor = event.type === "contextmenu" ? localPoint(event) : null;
     popoverAt = localPoint(event);
 
@@ -583,6 +646,10 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
     const target = targetOf(event);
 
+    if (target?.kind === "ghost") {
+      return;
+    }
+
     if (target) {
       choose(event, target);
     }
@@ -635,6 +702,16 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   });
 
   document.addEventListener("click", (event) => {
+    const node = event.target as Node;
+
+    if (
+      props?.picker &&
+      !pickerView.element.contains(node) &&
+      !selectionBar.element.contains(node)
+    ) {
+      actions.closePicker();
+    }
+
     if (popoverAt !== null && !popover.contains(event.target as Node)) {
       popoverAt = null;
       popover.hidden = true;
@@ -643,7 +720,9 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
   function perform(action: KeyAction) {
     if (action === "escape") {
-      if (legendOpen) {
+      if (props?.picker) {
+        actions.closePicker();
+      } else if (legendOpen) {
         legendOpen = false;
         refreshChrome();
       } else if (!popover.hidden) {
@@ -652,6 +731,10 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       } else {
         actions.select(null);
       }
+    } else if (action === "uses") {
+      actions.togglePicker("uses");
+    } else if (action === "used-by") {
+      actions.togglePicker("usedBy");
     } else if (action === "focus") {
       actions.toggleFocus();
     } else if (action === "fold") {
@@ -669,6 +752,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
         ctrlKey: event.ctrlKey,
         altKey: event.altKey,
         targetEditable: isEditable(event.target),
+        pickerOpen: props?.picker != null,
       },
       props?.selection ?? null,
     );
@@ -740,9 +824,18 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
       applySelection();
       selectionBar.render(next.bar);
+
+      const opening = next.picker !== null && previous?.picker == null;
+
+      pickerView.render(next.picker?.model ?? null);
       renderPopover();
       refreshChrome();
       applyViewport();
+      positionPicker();
+
+      if (opening) {
+        pickerView.focus();
+      }
     },
   };
 }
