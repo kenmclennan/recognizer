@@ -15,7 +15,8 @@ export type KeyAction =
   | "take-off"
   | "escape"
   | "uses"
-  | "used-by";
+  | "used-by"
+  | "contents";
 
 export function keyAction(
   event: KeyInput,
@@ -53,6 +54,10 @@ export function keyAction(
 
   if (key === "d") {
     return "used-by";
+  }
+
+  if (key === "i") {
+    return "contents";
   }
 
   if (selection.kind !== "folder") {

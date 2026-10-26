@@ -20,13 +20,56 @@ export interface ScanEdge {
   };
 }
 
+export type ScanTag =
+  | "property"
+  | "static"
+  | "classmethod"
+  | "abstract"
+  | "async";
+
+export interface ScanField {
+  name: string;
+  type?: string;
+}
+
+export interface ScanMethod {
+  name: string;
+  line?: number;
+  params?: string[];
+  returns?: string;
+  private?: boolean;
+  tags?: ScanTag[];
+}
+
+export interface ScanMember {
+  name: string;
+  exported: boolean;
+  kind?: "class" | "function" | "interface" | "type" | "constant";
+  line?: number;
+  bases?: string[];
+  fields?: ScanField[];
+  methods?: ScanMethod[];
+  params?: string[];
+  returns?: string;
+  tags?: ScanTag[];
+  value?: string;
+}
+
+export interface ScanCall {
+  from: string;
+  to: string;
+  line: number;
+  how: "call" | "construct" | "inferred" | "dispatch";
+}
+
 export interface Scan {
   modules: {
     id: string;
     kind: "module" | "package" | "interface";
-    members?: { name: string; exported: boolean }[];
+    members?: ScanMember[];
   }[];
   edges: ScanEdge[];
+  calls?: ScanCall[];
   foreign: { id: string; name: string }[];
 }
 
