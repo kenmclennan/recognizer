@@ -11,9 +11,16 @@ import type { FolderNode, TreeNode } from "./tree-model";
 
 export type Disc = "red" | "amber" | "grey" | "green";
 
+export type Finding = {
+  severity: "violation" | "warning";
+  text: string;
+  why: string;
+};
+
 export type Health = {
   disc: (id: string) => Disc;
   lines: (id: string) => string[];
+  findings: (id: string) => Finding[];
   notices: string[];
 };
 
@@ -41,10 +48,14 @@ function ruleText(violation: Violation): string {
   return `forbid ${rule.pattern}`;
 }
 
-export function violationLine(violation: Violation): string {
+function violationText(violation: Violation): string {
   const verb = violation.kind === "depends" ? "depends on" : violation.kind;
 
-  return `violation: ${verb} ${violation.to} at line ${violation.lines.join(", ")} (${ruleText(violation)})`;
+  return `${verb} ${violation.to} at line ${violation.lines.join(", ")}`;
+}
+
+export function violationLine(violation: Violation): string {
+  return `violation: ${violationText(violation)} (${ruleText(violation)})`;
 }
 
 function readPolicy(text: string | null, notices: string[]): Policy | null {
@@ -93,17 +104,24 @@ export function computeHealth(
   const policy = violations ? parsed : null;
   const reds = new Map<string, string[]>();
   const ambers = new Map<string, string[]>();
+  const redFindings = new Map<string, Finding[]>();
+  const amberFindings = new Map<string, Finding[]>();
   const measured = new Set<string>();
 
-  function add(target: Map<string, string[]>, id: string, line: string) {
+  function add<T>(target: Map<string, T[]>, id: string, entry: T) {
     if (known.has(id)) {
-      target.set(id, [...(target.get(id) ?? []), line]);
+      target.set(id, [...(target.get(id) ?? []), entry]);
     }
   }
 
   scans.forEach(({ scan }, index) => {
     for (const violation of violations?.[index] ?? []) {
       add(reds, violation.from, violationLine(violation));
+      add(redFindings, violation.from, {
+        severity: "violation",
+        text: violationText(violation),
+        why: ruleText(violation),
+      });
     }
 
     const analysis = analyse(scan, { hub: HUB_THRESHOLD }, policy?.ignore);
@@ -120,6 +138,11 @@ export function computeHealth(
 
       for (const id of ids) {
         add(ambers, id, warning.summary);
+        add(amberFindings, id, {
+          severity: "warning",
+          text: warning.summary,
+          why: warning.principle,
+        });
       }
     }
   });
@@ -139,6 +162,10 @@ export function computeHealth(
             ? "green"
             : "grey",
     lines: linesOf,
+    findings: (id) => [
+      ...(redFindings.get(id) ?? []),
+      ...(amberFindings.get(id) ?? []),
+    ],
     notices,
   };
 }

@@ -7,6 +7,7 @@ export type IconName =
   | "eye"
   | "target"
   | "panel"
+  | "panel-right"
   | "arrow-down"
   | "arrow-up"
   | "focus"
@@ -35,6 +36,10 @@ const SHAPES: Record<IconName, Shape[]> = {
   panel: [
     ["rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" }],
     ["path", { d: "M9 4v16" }],
+  ],
+  "panel-right": [
+    ["rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" }],
+    ["path", { d: "M15 4v16" }],
   ],
   "arrow-down": [["path", { d: "M12 5v14M5 12l7 7 7-7" }]],
   "arrow-up": [["path", { d: "M12 19V5M5 12l7-7 7 7" }]],

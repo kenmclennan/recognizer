@@ -11,6 +11,7 @@ export type BarModel = {
   focused: boolean;
   folded: boolean;
   picker: PickerKind | null;
+  inspectorOpen: boolean;
 };
 
 export type BarActions = {
@@ -18,14 +19,13 @@ export type BarActions = {
   takeOff: () => void;
   toggleFocus: () => void;
   toggleFold: () => void;
+  openContents: () => void;
 };
 
 export type SelectionBarView = {
   element: HTMLElement;
   render: (model: BarModel | null) => void;
 };
-
-const INSPECTOR = "opens the inspector in a later version";
 
 function barButton(
   title: string,
@@ -153,8 +153,13 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         );
       }
 
+      const contents = iconButton("list", "Contents", "Contents (I)", () =>
+        actions.openContents(),
+      );
+
+      contents.classList.toggle("on", model.inspectorOpen);
       parts.push(
-        iconButton("list", "Contents", `Contents (I) - ${INSPECTOR}`, null),
+        contents,
         iconButton(
           "x",
           "Take off the canvas",

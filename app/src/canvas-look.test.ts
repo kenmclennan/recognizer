@@ -65,7 +65,7 @@ const calls = [];
 const actions = {
   find() {}, select() {}, clear: () => calls.push("clear"), setShowInferred() {},
   toggleTree: () => calls.push("tree"), measure: (t) => t.length * 7,
-  takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"),
+  takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"), openContents: () => calls.push("contents"),
   toggleFocus: () => calls.push("focus"), togglePicker: (k) => calls.push("picker:" + k),
   closePicker() {}, untick() {}, disc: () => "green",
   picker: { toggle() {}, toggleGroup() {}, toggleCollapse() {}, setTab() {}, setFilter() {}, tickAll() {}, add() {} },
@@ -95,7 +95,7 @@ const scene = {
 };
 const bar = (over) => ({ kind: "folder", uses: 2, usedBy: 0, files: { open: 1, held: 2 }, focused: false, folded: false, picker: null, ...over });
 const props = (over) => ({
-  scene, selection: null, highlight: null, bar: null, titles: new Map(), evidence: null,
+  scene, selection: null, highlight: null, bar: null, titles: new Map(),
   open: 3, total: 5, treeHidden: true, showInferred: true, notice: null, picker: null, ...over,
 });
 
@@ -301,7 +301,6 @@ result.layers = {
   picker: pick(pickerNode, ["z-index", "top", "position"]),
   zoom: pick(q(".controls"), ["z-index"]),
   selectionBar: pick(q(".selection-bar"), ["z-index"]),
-  popover: pick(q(".popover"), ["z-index"]),
   pickerTop: parseFloat(pickerNode.style.top),
   openerBottom: barNode.offsetTop + opener.offsetTop + opener.offsetHeight,
   pickerLeft: parseFloat(pickerNode.style.left),
@@ -346,7 +345,6 @@ type Report = {
     picker: Props;
     zoom: Props;
     selectionBar: Props;
-    popover: Props;
   };
   groupCount: Props;
   canvasCount: { id: boolean; bare: boolean };
@@ -671,8 +669,8 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(uses?.svgs[1]?.width).toBe("10px");
           expect(focus?.title).toBe("Only this folder (F)");
           expect(fold?.title).toBe("Fold into one box (Z)");
-          expect(contents?.title).toContain("Contents (I)");
-          expect(contents?.disabled).toBe(true);
+          expect(contents?.title).toBe("Contents (I)");
+          expect(contents?.disabled).toBe(false);
           expect(takeOff?.title).toBe("Take off the canvas (Backspace)");
 
           for (const icon of [focus, fold, contents, takeOff]) {
@@ -786,7 +784,6 @@ describe("the canvas against the prototype, in a real browser", () => {
           const z = (props: Record<string, string>) => Number(props["z-index"]);
 
           expect(z(layers.picker)).toBe(8);
-          expect(z(layers.popover)).toBe(8);
           expect(z(layers.picker)).toBeGreaterThan(z(layers.zoom));
           expect(z(layers.picker)).toBeGreaterThan(z(layers.selectionBar));
           expect(layers.pickerTop).toBeCloseTo(

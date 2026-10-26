@@ -120,13 +120,21 @@ button.primary {
 
 .explorer {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px 1fr 44px;
   flex: 1;
   min-height: 0;
 }
 
+.explorer.inspector-open {
+  grid-template-columns: 280px 1fr 340px;
+}
+
 .explorer.tree-hidden {
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 44px;
+}
+
+.explorer.tree-hidden.inspector-open {
+  grid-template-columns: 1fr 340px;
 }
 
 .tree {
@@ -702,6 +710,7 @@ svg.i.chevron {
   display: flex;
   flex-direction: column;
   width: 390px;
+  max-width: calc(100% - 22px);
   max-height: 72vh;
   padding: 6px;
   font-size: 12px;
@@ -915,33 +924,231 @@ svg.i.chevron {
   stroke-opacity: 0.8;
 }
 
-.popover {
-  position: absolute;
-  z-index: 8;
-  max-width: 420px;
-  padding: 8px 10px;
-  font-size: 12px;
-  border: 1px solid var(--boxline);
-  border-radius: 8px;
+.inspector {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.inspector-rail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  padding-top: 12px;
   background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+
+.inspector-rail .ib {
+  width: 32px;
+  height: 32px;
+}
+
+.inspector-panel {
+  flex: 1;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+
+.inspector-panel .ih {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.inspector-panel .ih b {
+  word-break: break-all;
+}
+
+.inspector-panel .grow {
+  flex: 1;
+}
+
+.inspector-panel .muted {
+  color: var(--muted);
+}
+
+.inspector-panel p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.itabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.itabs button {
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.itabs button.on {
+  box-shadow: inset 0 -2px var(--sel);
+  font-weight: 600;
   color: var(--fg);
-  box-shadow: 0 8px 24px rgba(31, 35, 40, 0.16);
 }
 
-.popover .evidence + .evidence {
+.oh {
+  margin: 12px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.oc {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   margin-top: 8px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.oc .t {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.ob {
+  padding: 0 4px 2px 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.om {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 4px 2px 18px;
+  border-radius: 4px;
+  font:
+    11.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.om.top {
+  padding-left: 4px;
+}
+
+.om.priv {
+  color: var(--muted);
+}
+
+.om .tag {
+  color: var(--muted);
+}
+
+.om:hover,
+.oc:hover {
+  background: var(--code);
+}
+
+.cb {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sel);
+  font:
+    11px -apple-system,
+    system-ui,
+    sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cb:hover {
+  text-decoration: underline;
+}
+
+.ofold {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 18px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ofold.top {
+  padding-left: 4px;
+}
+
+.ofold svg.i {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+
+.none {
+  color: var(--faint);
+}
+
+.lnk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.lnk[title] {
+  cursor: pointer;
+}
+
+.lnk:hover {
+  background: var(--code);
+}
+
+.inspector-panel .finding {
+  margin: 4px 0;
+}
+
+.inspector-panel .evidence + .evidence {
+  margin-top: 12px;
   padding-top: 8px;
-  border-top: 1px solid var(--boxline);
+  border-top: 1px solid var(--line);
 }
 
-.popover .where {
-  opacity: 0.7;
+.inspector-panel .where {
+  color: var(--muted);
 }
 
-.popover .quoted {
+.inspector-panel .quoted {
   display: block;
-  margin: 2px 0;
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: var(--code);
+  font:
+    11.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .canvas-legend {

@@ -37,9 +37,14 @@ describe("canvas keys", () => {
     expect(keyAction(press("Escape"), module)).toBe("escape");
   });
 
-  it("leaves I unbound", () => {
-    expect(keyAction(press("i"), folder)).toBeNull();
-    expect(keyAction(press("i"), module)).toBeNull();
+  it("maps I to the contents for a module or a folder only", () => {
+    expect(keyAction(press("i"), folder)).toBe("contents");
+    expect(keyAction(press("i"), module)).toBe("contents");
+    expect(keyAction(press("I"), module)).toBe("contents");
+    expect(keyAction(press("i"), { kind: "edge", id: "e" })).toBeNull();
+    expect(keyAction(press("i"), null)).toBeNull();
+    expect(keyAction(press("i", { targetEditable: true }), module)).toBeNull();
+    expect(keyAction(press("i", { metaKey: true }), module)).toBeNull();
   });
 
   it("maps U and D to the pickers for a module or a folder", () => {

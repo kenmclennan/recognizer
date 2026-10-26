@@ -14,6 +14,10 @@ export { collectViolations } from "./rules.js";
 export {
   SCAN_SCHEMA_VERSION,
   type Scan,
+  type ScanCall,
   type ScanEdge,
+  type ScanField,
+  type ScanMember,
+  type ScanMethod,
   validateScan,
 } from "./scan.js";

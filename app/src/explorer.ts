@@ -16,7 +16,14 @@ import {
   evidenceOf,
 } from "./edge-evidence";
 import { computeHealth, describeTree } from "./health";
+import {
+  emphasisedLines,
+  type InspectorTab,
+  inspectorContent,
+} from "./inspector-model";
+import { buildInspectorView } from "./inspector-view";
 import { createLayoutSource, startLayoutWorker } from "./layout-source";
+import { buildCallerIndex } from "./member-callers";
 import { createOpenModules } from "./open-modules";
 import { createPicker, type PickerModel } from "./picker-model";
 import { repositorySource } from "./repository-source";
@@ -66,6 +73,11 @@ export function showExplorer(
   let scene: Scene | null = null;
   let titles = new Map<string, string>();
   let evidence: { id: string; sections: EvidenceSection[] } | null = null;
+  let inspectorOpen = false;
+  let inspectorTab: InspectorTab = "contents";
+  let hovered: string | null = null;
+  const folds = new Set<string>();
+  const callers = buildCallerIndex(scans);
   let layoutNotice: string | null = null;
   let picker: OpenPicker | null = null;
 
@@ -143,6 +155,11 @@ export function showExplorer(
       changed();
     },
     toggleTree,
+    openContents() {
+      inspectorOpen = true;
+      inspectorTab = "contents";
+      render();
+    },
     measure,
     disc: (id) => described.get(id)?.disc ?? "grey",
     togglePicker,
@@ -192,6 +209,47 @@ export function showExplorer(
     },
   });
 
+  const inspector = buildInspectorView({
+    open() {
+      inspectorOpen = true;
+      render();
+    },
+    close() {
+      inspectorOpen = false;
+      hovered = null;
+      render();
+    },
+    setTab(tab) {
+      inspectorTab = tab;
+      render();
+    },
+    toggleFold(key) {
+      if (!folds.delete(key)) {
+        folds.add(key);
+      }
+
+      render();
+    },
+    openFile(id) {
+      if (!modules.isOpen(id)) {
+        modules.open(id);
+        changed();
+      }
+
+      find(id);
+    },
+    hover(name) {
+      hovered = name;
+      renderCanvas();
+    },
+    openCallers(button) {
+      openPickerOn(
+        button.callers.map((id) => ({ id, names: [button.name] })),
+        button.pickerTitle,
+      );
+    },
+  });
+
   const layout = createLayoutSource(
     startLayoutWorker(),
     (result) => {
@@ -211,7 +269,7 @@ export function showExplorer(
 
   const body = el("div", "explorer");
 
-  body.append(tree.element, canvas.element);
+  body.append(tree.element, canvas.element, inspector.element);
   container.replaceChildren(notices, body);
 
   function emptyGraph(): CanvasGraph {
@@ -391,6 +449,7 @@ export function showExplorer(
   function select(selection: Selection) {
     state.select(selection);
     evidence = null;
+    hovered = null;
     reveal(selection);
 
     if (staleBarPicker()) {
@@ -398,6 +457,7 @@ export function showExplorer(
     }
 
     if (selection?.kind === "edge") {
+      inspectorOpen = true;
       void loadEvidence(selection.id);
     }
 
@@ -441,6 +501,7 @@ export function showExplorer(
   function find(id: string) {
     state.select({ kind: "module", id });
     evidence = null;
+    hovered = null;
     reveal({ kind: "module", id });
 
     if (staleBarPicker()) {
@@ -473,7 +534,31 @@ export function showExplorer(
       focused: state.focus() === selection.id,
       folded: state.folded().has(selection.id),
       picker: picker?.kind === "list" ? null : (picker?.kind ?? null),
+      inspectorOpen,
     };
+  }
+
+  function renderCanvas() {
+    const selection = state.selection();
+    const module = selection?.kind === "module" ? selection.id : null;
+
+    canvas.render({
+      scene,
+      selection,
+      highlight:
+        hovered !== null && module !== null
+          ? emphasisedLines(module, hovered, graph.lines)
+          : edgesOf(graph, selection),
+      neighbourhood: neighbourhoodOf(graph, selection),
+      bar: barOf(selection),
+      titles,
+      open: modules.count(),
+      total: modules.total(),
+      treeHidden,
+      showInferred: state.showInferred(),
+      notice: layoutNotice,
+      picker: picker ? { model: picker.model, anchor: picker.anchor } : null,
+    });
   }
 
   function render() {
@@ -492,21 +577,28 @@ export function showExplorer(
       isOpen: modules.isOpen,
       filter,
     });
-    canvas.render({
-      scene,
-      selection,
-      highlight: edgesOf(graph, selection),
-      neighbourhood: neighbourhoodOf(graph, selection),
-      bar: barOf(selection),
-      titles,
-      evidence,
-      open: modules.count(),
-      total: modules.total(),
-      treeHidden,
-      showInferred: state.showInferred(),
-      notice: layoutNotice,
-      picker: picker ? { model: picker.model, anchor: picker.anchor } : null,
-    });
+    body.classList.toggle("inspector-open", inspectorOpen);
+    renderCanvas();
+    inspector.render(
+      inspectorContent(selection, {
+        scans,
+        modules: loaded.modules,
+        disc: context.disc,
+        findings: health.findings,
+        callers,
+        onCanvas: modules.isOpen,
+        expanded: folds,
+        tab: inspectorTab,
+        evidence:
+          selection?.kind === "edge" && evidence?.id === selection.id
+            ? evidence.sections
+            : null,
+        edgeOnCanvas:
+          selection?.kind === "edge" &&
+          graph.lines.some((line) => line.id === selection.id),
+      }),
+      inspectorOpen,
+    );
 
     if (scrollTarget !== null) {
       tree.scrollTo(scrollTarget);

@@ -167,10 +167,10 @@ const clicks = calls.map((call) => call.join(":"));
 tree.render(props({ filtered: filterTree(root, { ...filter, text: "zzz" }, context), filter: { ...filter, text: "zzz" } }));
 const empty = tree.element.querySelector(".empty").textContent;
 
-const canvasActions = { find() {}, select() {}, takeOff() {}, toggleFold() {}, toggleFocus() {}, clear() {}, setShowInferred() {}, toggleTree: () => calls.push(["canvasToggle"]), measure: (t) => t.length * 7 };
+const canvasActions = { find() {}, select() {}, takeOff() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, clear() {}, setShowInferred() {}, toggleTree: () => calls.push(["canvasToggle"]), measure: (t) => t.length * 7 };
 const canvas = buildCanvasView(canvasActions);
 document.body.append(canvas.element);
-const canvasProps = (treeHidden) => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), evidence: null, open: 0, total: 4, treeHidden, showInferred: true, notice: null });
+const canvasProps = (treeHidden) => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), open: 0, total: 4, treeHidden, showInferred: true, notice: null });
 canvas.render(canvasProps(true));
 const toggle = canvas.element.querySelector(".tree-toggle");
 const shown = {

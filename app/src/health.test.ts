@@ -87,6 +87,52 @@ describe("computeHealth on fixtures/check", () => {
   });
 });
 
+describe("findings", () => {
+  it("returns structured violations before warnings, leaving lines unchanged", () => {
+    const { health } = healthOf("check", fixturePolicy("check"));
+    const order = health.findings("shop/domain/order.py");
+
+    expect(order.length).toBe(health.lines("shop/domain/order.py").length);
+    expect(order[0]?.severity).toBe("violation");
+    expect(order[0]?.text).toMatch(
+      /^depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)*$/,
+    );
+    expect(order[0]?.why).toMatch(/^(level|uses|forbid) /);
+    expect(health.lines("shop/domain/order.py")[0]).toBe(
+      `violation: ${order[0]?.text} (${order[0]?.why})`,
+    );
+  });
+
+  it("returns a warning with its principle", () => {
+    const { health } = healthOf("check", fixturePolicy("check"));
+    const place = health.findings("shop/application/place.py");
+
+    expect(place).toHaveLength(1);
+    expect(place[0]?.severity).toBe("warning");
+    expect(place[0]?.text).toContain("cycle");
+    expect(place[0]?.why).toBe("no-cycles");
+  });
+
+  it("returns nothing for a green or a grey module", () => {
+    const { health } = healthOf("check", fixturePolicy("check"));
+
+    expect(health.findings("shop/main.py")).toEqual([]);
+    expect(health.findings("tests/test_order.py")).toEqual([]);
+  });
+
+  it("covers the check-warnings fixture", () => {
+    const { health } = healthOf(
+      "check-warnings",
+      fixturePolicy("check-warnings"),
+    );
+
+    expect(health.findings("app/domain/order.py")[0]?.severity).toBe(
+      "violation",
+    );
+    expect(health.findings("app/domain/money.py")[0]?.severity).toBe("warning");
+  });
+});
+
 describe("computeHealth on fixtures/check-warnings", () => {
   it("has one red, one amber and seven green", () => {
     const { health, ids } = healthOf(
@@ -152,6 +198,7 @@ describe("hover truncation", () => {
     const health: Health = {
       disc: () => "amber",
       lines: () => ["a finding"],
+      findings: () => [],
       notices: [],
     };
     const hover = describeTree(buildTree(ids), health).get("d")?.hover ?? "";

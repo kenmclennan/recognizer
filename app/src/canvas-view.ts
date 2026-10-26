@@ -3,7 +3,6 @@ import type { Point, Rect } from "./canvas-layout";
 import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
-import type { EvidenceSection } from "./edge-evidence";
 import type { Disc } from "./health";
 import { iconButton } from "./icons";
 import { buildLegendView } from "./legend-view";
@@ -33,7 +32,6 @@ export type CanvasProps = {
   neighbourhood?: Set<string> | null;
   bar: BarModel | null;
   titles: Map<string, string>;
-  evidence: { id: string; sections: EvidenceSection[] } | null;
   open: number;
   total: number;
   treeHidden: boolean;
@@ -56,6 +54,7 @@ export type CanvasActions = {
   closePicker: () => void;
   untick: (id: string) => void;
   picker: PickerActions;
+  openContents: () => void;
   disc: (id: string) => Disc;
 };
 
@@ -142,7 +141,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   const stage = el("div", "stage");
   const surface = svg("svg", { class: "surface" });
   const world = svg("g", { class: "world" });
-  const popover = el("div", "popover");
   const controls = el("div", "controls");
   const empty = el("p", "empty-canvas");
   const notice = el("p", "canvas-notice");
@@ -153,6 +151,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     takeOff: () => actions.takeOff(),
     toggleFocus: () => actions.toggleFocus(),
     toggleFold: () => actions.toggleFold(),
+    openContents: () => actions.openContents(),
   });
 
   let props: CanvasProps | null = null;
@@ -160,7 +159,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   let hadContent = false;
   let legendOpen = false;
   let pointerAnchor: Point | null = null;
-  let popoverAt: Point | null = null;
   let pendingCenter: string | null = null;
   let gesture = false;
   let lastScale = 1;
@@ -198,11 +196,9 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     notice,
     selectionBar.element,
     pickerView.element,
-    popover,
   );
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
   element.append(stage, toggle, count, controls, legend.element);
-  popover.hidden = true;
 
   function size() {
     const box = stage.getBoundingClientRect();
@@ -337,50 +333,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   function refreshChrome() {
     legend.render(legendOpen, props?.showInferred ?? true);
     legendButton.classList.toggle("on", legendOpen);
-  }
-
-  function renderPopover() {
-    const evidence = props?.evidence;
-    const selected = props?.selection;
-
-    if (
-      !evidence ||
-      selected?.kind !== "edge" ||
-      selected.id !== evidence.id ||
-      popoverAt === null
-    ) {
-      popover.hidden = true;
-
-      return;
-    }
-
-    popover.replaceChildren(
-      ...evidence.sections.map((section) => {
-        const block = el("div", "evidence");
-
-        block.append(
-          el("div", "where", section.where),
-          el("code", "quoted", section.quoted),
-        );
-
-        if (section.names) {
-          block.append(el("div", "", `names: ${section.names}`));
-        }
-
-        if (section.route) {
-          block.append(el("div", "", `via: ${section.route}`));
-        }
-
-        for (const part of section.inferred) {
-          block.append(el("div", "", part));
-        }
-
-        return block;
-      }),
-    );
-    popover.style.left = `${popoverAt.x}px`;
-    popover.style.top = `${popoverAt.y}px`;
-    popover.hidden = false;
   }
 
   function drawScene(scene: Scene) {
@@ -637,7 +589,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     }
 
     pointerAnchor = event.type === "contextmenu" ? localPoint(event) : null;
-    popoverAt = localPoint(event);
 
     if (target.kind === "edge") {
       actions.select({ kind: "edge", id: target.id });
@@ -773,11 +724,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     ) {
       actions.closePicker();
     }
-
-    if (popoverAt !== null && !popover.contains(event.target as Node)) {
-      popoverAt = null;
-      popover.hidden = true;
-    }
   });
 
   function perform(action: KeyAction) {
@@ -787,9 +733,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       } else if (legendOpen) {
         legendOpen = false;
         refreshChrome();
-      } else if (!popover.hidden) {
-        popoverAt = null;
-        popover.hidden = true;
       } else {
         actions.select(null);
       }
@@ -797,6 +740,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       actions.togglePicker("uses");
     } else if (action === "used-by") {
       actions.togglePicker("usedBy");
+    } else if (action === "contents") {
+      actions.openContents();
     } else if (action === "focus") {
       actions.toggleFocus();
     } else if (action === "fold") {
@@ -890,7 +835,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       const opening = next.picker !== null && previous?.picker == null;
 
       pickerView.render(next.picker?.model ?? null);
-      renderPopover();
       refreshChrome();
       applyViewport();
       positionPicker();
