@@ -2,6 +2,7 @@ import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   boxFigures,
+  boxSubline,
   buildCanvasGraph,
   edgesOf,
   type GraphInput,
@@ -114,12 +115,15 @@ describe("folding", () => {
 
     expect(folded).toMatchObject({
       id: "lightcycle/application",
-      label: "application",
+      label: "application/",
       open: 2,
       held: 2,
       parent: "lightcycle",
     });
-    expect(boxFigures(folded as NonNullable<typeof folded>)).toBe("2 of 2");
+    expect(boxFigures(folded as NonNullable<typeof folded>)).toBe("");
+    expect(boxSubline(folded as NonNullable<typeof folded>)).toBe(
+      "2 open, folded",
+    );
     expect(
       graph.frames.some((frame) =>
         frame.path.startsWith("lightcycle/application"),
@@ -168,7 +172,7 @@ describe("figures", () => {
     const a = graph.boxes.find((box) => box.id === "a.py");
 
     expect(a).toMatchObject({ missingUses: 1, missingUsedBy: 1 });
-    expect(boxFigures(a as NonNullable<typeof a>)).toBe("↑1 ↓1");
+    expect(boxFigures(a as NonNullable<typeof a>)).toBe("+1↓ +1↑");
   });
 
   it("gives the full counts for the bar and not the missing ones", () => {

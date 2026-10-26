@@ -2,6 +2,7 @@ import {
   buildCanvasGraph,
   type CanvasGraph,
   edgesOf,
+  neighbourhoodOf,
   presenceOf,
 } from "./canvas-graph";
 import { absoluteLayout, type Point, toElk } from "./canvas-layout";
@@ -495,6 +496,7 @@ export function showExplorer(
       scene,
       selection,
       highlight: edgesOf(graph, selection),
+      neighbourhood: neighbourhoodOf(graph, selection),
       bar: barOf(selection),
       titles,
       evidence,

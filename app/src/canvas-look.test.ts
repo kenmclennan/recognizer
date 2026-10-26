@@ -1,0 +1,817 @@
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildSync } from "esbuild";
+import { describe, expect, it } from "vitest";
+import { BOX_HEIGHT, FOLDER_BOX_HEIGHT, FRAME_TOP } from "./canvas-layout";
+
+const CHROME_CANDIDATES = [
+  process.env.CHROME_BIN,
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+].filter((path): path is string => typeof path === "string" && path !== "");
+
+const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
+const SRC = fileURLToPath(new URL(".", import.meta.url));
+const PROTOTYPE = fileURLToPath(
+  new URL("../../docs/prototype/explorer.html", import.meta.url),
+);
+
+const TOKENS = [
+  "bg",
+  "fg",
+  "muted",
+  "faint",
+  "panel",
+  "line",
+  "box",
+  "boxline",
+  "sel",
+  "selbg",
+  "frame",
+  "framefg",
+  "framebg",
+  "ok",
+  "warn",
+  "bad",
+  "priv",
+  "inf",
+  "impl",
+  "code",
+  "dark",
+  "darkfg",
+];
+
+const HARNESS = `
+import { buildCanvasView } from "./canvas-view";
+import { createPicker } from "./picker-model";
+
+window.addEventListener("error", (event) => {
+  document.getElementById("out").textContent = "ERR " + event.message + " " + (event.error && event.error.stack);
+});
+const TOKENS = ${JSON.stringify(TOKENS)};
+const calls = [];
+const actions = {
+  find() {}, select() {}, clear: () => calls.push("clear"), setShowInferred() {},
+  toggleTree: () => calls.push("tree"), measure: (t) => t.length * 7,
+  takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"),
+  toggleFocus: () => calls.push("focus"), togglePicker: (k) => calls.push("picker:" + k),
+  closePicker() {}, untick() {}, disc: () => "green",
+  picker: { toggle() {}, toggleGroup() {}, toggleCollapse() {}, setTab() {}, setFilter() {}, tickAll() {}, add() {} },
+};
+
+const rect = (x, y, width, height) => ({ x, y, width, height });
+const line = (id, style, dash, count, points) => ({
+  id, points, style, dash, count, ghost: false,
+  countAt: count > 1 ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } : null,
+});
+const arrow = (lineId, hollow) => ({ lineId, hollow, points: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }] });
+const scene = {
+  drawOrder: ["frames", "lines", "boxes"],
+  bounds: rect(0, 0, 420, 320),
+  frames: [{ path: "f", rect: rect(0, 0, 300, 200), label: "f", figure: "1 of 2", disc: "green", labelRect: rect(0, 0, 300, 28) }],
+  boxes: [
+    { id: "f/a.py", kind: "module", rect: rect(14, 40, 160, 40), label: "a", figures: "+1↓ +2↑", subline: "", disc: "green", ghost: false },
+    { id: "g", kind: "folder", rect: rect(14, 240, 160, 50), label: "g/", figures: "", subline: "3 open, folded", disc: "amber", ghost: false },
+  ],
+  lines: [
+    line("plain", "plain", null, 2, [{ x: 20, y: 90 }, { x: 20, y: 140 }]),
+    line("private", "private", "4 3", 1, [{ x: 60, y: 90 }, { x: 60, y: 140 }]),
+    line("inferred", "inferred", "1.5 3", 1, [{ x: 100, y: 90 }, { x: 100, y: 140 }]),
+    line("hollow", "hollow", null, 1, [{ x: 140, y: 90 }, { x: 140, y: 140 }]),
+  ],
+  arrows: [arrow("plain", false), arrow("private", false), arrow("inferred", false), arrow("hollow", true)],
+};
+const bar = (over) => ({ kind: "folder", uses: 2, usedBy: 0, files: { open: 1, held: 2 }, focused: false, folded: false, picker: null, ...over });
+const props = (over) => ({
+  scene, selection: null, highlight: null, bar: null, titles: new Map(), evidence: null,
+  open: 3, total: 5, treeHidden: true, showInferred: true, notice: null, picker: null, ...over,
+});
+
+const wrap = document.createElement("div");
+wrap.style.cssText = "position: relative; width: 900px; height: 600px; display: flex;";
+document.body.append(wrap);
+const canvas = buildCanvasView(actions);
+canvas.element.style.flex = "1";
+wrap.append(canvas.element);
+
+const host = document.createElement("div");
+document.body.append(host);
+const shadow = host.attachShadow({ mode: "open" });
+shadow.innerHTML = "<style>:host{display:block;color:var(--fg)}" + window.PROTO_CSS + "</style><div id='stage'></div>";
+const g = (cls, inner) => '<g class="' + cls + '">' + inner + '</g>';
+shadow.getElementById("stage").insertAdjacentHTML("beforeend",
+  '<svg id="pe">' +
+  g("fr", '<rect width="10" height="10" rx="8"/>') + g("fr s", '<rect width="10" height="10" rx="8"/>') +
+  '<path class="e"/><path class="e pv"/><path class="e inf"/><path class="e impl"/><path class="e hi"/><path class="e hi inf"/><g class="e dim"></g>' +
+  '<path class="ar"/><path class="arhi"/><path class="ah"/><text class="el">2</text>' +
+  '<g class="fr"><text>f/ <tspan class="cnt">1 of 2</tspan></text></g>' +
+  g("n s", '<rect class="halo"/><rect width="10" height="10" rx="7"/><text>a</text>') +
+  g("n f", '<rect width="10" height="10"/><text>g/</text>') + g("n", '<rect width="10" height="10"/><text class="more">+1</text>') +
+  '</svg>' +
+  '<div id="count" class="float">x</div>' +
+  '<div id="zbar" class="float"><button>-</button><span class="z" id="zl">100%</span><button>+</button></div>' +
+  '<div id="tbar" class="show"><span class="tsep"></span><button><svg class="i" viewBox="0 0 24 24"><path d="M1 1"/></svg>Uses</button></div>' +
+  '<div id="hint">a<br>b</div>');
+
+const pick = (node, names) => {
+  if (!node) return { missing: true };
+  const style = getComputedStyle(node);
+  const out = {};
+  for (const name of names) out[name] = style.getPropertyValue(name);
+  return out;
+};
+const q = (sel) => canvas.element.querySelector(sel);
+const p = (sel) => shadow.querySelector(sel);
+const probe = (root) => {
+  const node = document.createElement("i");
+  root.append(node);
+  const out = {};
+  for (const token of TOKENS) {
+    node.style.color = "var(--" + token + ")";
+    out[token] = getComputedStyle(node).color;
+  }
+  node.remove();
+  return out;
+};
+const STROKE = ["stroke", "stroke-width", "stroke-opacity", "stroke-dasharray", "fill", "opacity"];
+const PANEL = ["background-color", "border-top-width", "border-top-color", "border-top-left-radius", "padding-top", "padding-left", "font-size", "color"];
+const kids = (node) => [...node.children].map((child) => ({
+  tag: child.tagName.toLowerCase(),
+  cls: child.getAttribute("class"),
+  text: child.textContent,
+  aria: child.getAttribute("aria-label"),
+  title: child.title,
+  disabled: child.disabled === true,
+  svgs: [...child.querySelectorAll("svg")].map((svg) => ({
+    cls: svg.getAttribute("class"),
+    path: svg.querySelector("path")?.getAttribute("d"),
+    strokeWidth: getComputedStyle(svg).strokeWidth,
+    width: getComputedStyle(svg).width,
+  })),
+}));
+
+const pedge = (to, names) => ({ from: "f/a.py", to, kind: "depends", line: 1, names });
+const pscan = {
+  modules: [{ id: "f/a.py", kind: "module" }, { id: "g/x.py", kind: "module" }, { id: "g/y.py", kind: "module" }, { id: "g/w.py", kind: "module" }],
+  edges: [pedge("g/x.py", ["X"]), pedge("g/y.py", ["Y"]), pedge("g/w.py", ["W"])],
+  foreign: [],
+};
+const pmodel = createPicker({
+  scans: [pscan], modules: pscan.modules.map((m) => m.id), onCanvas: () => false,
+  source: { kind: "module", id: "f/a.py", direction: "uses" },
+});
+
+const result = { dark: matchMedia("(prefers-color-scheme: dark)").matches };
+result.tokens = { app: probe(document.body), proto: probe(shadow) };
+result.window = { body: pick(document.body, ["background-color", "color", "font-size"]), proto: getComputedStyle(document.body).backgroundColor };
+
+canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, highlight: new Set(["private"]), bar: bar({ kind: "module", files: null }) }));
+const lineGroup = (id) => q('[data-line="' + id + '"]');
+const edgeOf = (id) => pick(lineGroup(id).querySelector(".edge"), STROKE);
+const arrowOf = (id) => pick(lineGroup(id).querySelector(".arrow"), STROKE);
+result.edges = {
+  plain: edgeOf("plain"), inferred: edgeOf("inferred"), hollow: edgeOf("hollow"), private: edgeOf("private"),
+  dimmed: pick(lineGroup("plain"), ["opacity"]),
+  arrowPlain: arrowOf("plain"), arrowHollow: arrowOf("hollow"), arrowHi: arrowOf("private"),
+  count: pick(q(".count-label"), ["font-size", "fill"]),
+  countText: q(".count-label").textContent,
+  countLabels: canvas.element.querySelectorAll(".count-label").length,
+  proto: {
+    plain: pick(p(".e:not(.pv):not(.inf):not(.impl):not(.hi)"), STROKE), private: pick(p(".e.pv"), STROKE),
+    inferred: pick(p(".e.inf:not(.hi)"), STROKE), hollow: pick(p(".e.impl"), STROKE), hi: pick(p(".e.hi:not(.inf)"), STROKE),
+    dim: pick(p("g.e.dim"), ["opacity"]), arrow: pick(p(".ar"), STROKE), arrowHi: pick(p(".arhi"), STROKE),
+    hollowArrow: pick(p(".ah"), STROKE), count: pick(p(".el"), ["font-size", "fill"]),
+  },
+};
+result.boxes = {
+  rxs: [...canvas.element.querySelectorAll(".box-body")].map((r) => [r.getAttribute("rx"), r.getAttribute("height")]),
+  selected: pick(q('[data-id="f/a.py"] .box-body'), STROKE),
+  halo: { ...pick(q('[data-id="f/a.py"] .halo'), ["display", "stroke", "stroke-opacity", "stroke-width", "fill"]), box: [q('[data-id="f/a.py"] .halo').getAttribute("x"), q('[data-id="f/a.py"] .halo').getAttribute("width")] },
+  idleHalo: pick(q('[data-id="g"] .halo'), ["display"]),
+  nameSelected: pick(q('[data-id="f/a.py"] .name'), ["font-weight", "font-size", "fill"]),
+  nameIdle: pick(q('[data-id="g"] .name'), ["font-weight", "fill"]),
+  hidden: pick(q('[data-id="f/a.py"] .figure'), ["font-size", "fill"]),
+  hiddenText: q('[data-id="f/a.py"] .figure').textContent,
+  folder: { body: pick(q('[data-id="g"] .box-body'), STROKE), name: q('[data-id="g"] .name').textContent, texts: [...q('[data-id="g"]').querySelectorAll("text")].map((t) => [t.textContent, getComputedStyle(t).fontSize, getComputedStyle(t).fill]) },
+  proto: { selected: pick(p(".n.s rect:nth-child(2)"), STROKE), halo: pick(p(".n.s .halo"), ["stroke", "stroke-opacity", "stroke-width", "fill"]), folder: pick(p(".n.f rect"), STROKE), folderName: pick(p(".n.f text"), ["fill"]), more: pick(p(".n .more"), ["font-size", "fill"]) },
+};
+result.frameIdle = { ...pick(q(".frame-body"), STROKE), rx: q(".frame-body").getAttribute("rx") };
+result.barModule = { kids: kids(q(".selection-bar")), style: pick(q(".selection-bar"), [...PANEL, "box-shadow", "display"]) };
+
+canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar() }));
+result.frames = {
+  body: result.frameIdle,
+  label: pick(q(".frame-label"), ["fill", "stroke"]),
+  selected: pick(q(".frame-body"), STROKE),
+  parts: [...q(".frame").children].map((c) => c.tagName.toLowerCase() + "." + (c.getAttribute("class") || "")),
+  name: pick(q(".frame-text .name"), ["font-weight", "fill", "font-size"]),
+  nameText: q(".frame-text .name").textContent,
+  cnt: pick(q(".frame-text .cnt"), ["fill", "font-weight"]),
+  cntText: q(".frame-text .cnt").textContent,
+  proto: { body: pick(p(".fr:not(.s) rect"), STROKE), selected: pick(p(".fr.s rect"), STROKE), text: pick(p(".fr text"), ["font-size", "fill"]), cnt: pick(p(".fr .cnt"), ["fill"]) },
+};
+q(".frame-label").dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+result.frames.labelHover = pick(q(".frame-label"), ["fill", "stroke"]);
+result.barFolder = {
+  kids: kids(q(".selection-bar")),
+  style: pick(q(".selection-bar"), [...PANEL, "box-shadow", "display"]),
+  button: pick(q(".selection-bar .bar-button"), ["height", "border-top-left-radius", "padding-left", "font-size", "column-gap", "color", "background-color"]),
+  sep: pick(q(".bar-sep"), ["width", "height", "background-color"]),
+  proto: { bar: pick(p("#tbar"), [...PANEL, "box-shadow", "display"]), button: pick(p("#tbar button"), ["height", "border-top-left-radius", "padding-left", "font-size", "column-gap", "color", "background-color"]), sep: pick(p("#tbar .tsep"), ["width", "height"]) },
+};
+const clickBar = (aria) => q('.selection-bar [aria-label="' + aria + '"]').click();
+calls.length = 0;
+clickBar("Fold into one box");
+clickBar("Focus on this folder");
+clickBar("Take off the canvas");
+[...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Uses")).click();
+[...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Files")).click();
+result.barClicks = [...calls];
+canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ folded: true, focused: true }) }));
+result.barFolded = kids(q(".selection-bar")).slice(-4).map((k) => [k.aria, k.title]);
+
+result.chrome = {
+  topStrip: q(".canvas-bar") === null,
+  count: { text: q("#canvas-count").textContent, ...pick(q("#canvas-count"), [...PANEL, "position", "top", "right"]) },
+  protoCount: pick(p("#count"), [...PANEL, "position", "top", "right"]),
+  toggle: { ...pick(q(".tree-toggle"), ["position", "top", "left", "display"]), svg: q(".tree-toggle svg.i") !== null },
+};
+const hint = q(".empty-canvas");
+result.hint = {
+  text: hint.innerHTML,
+  textContent: hint.textContent,
+  shown: getComputedStyle(hint).display !== "none",
+  style: pick(hint, ["text-align", "color", "position", "top", "line-height"]),
+  proto: { style: pick(p("#hint"), ["text-align", "color", "position", "top", "line-height"]), html: p("#hint").innerHTML },
+};
+canvas.render(props({ open: 0, scene: null, treeHidden: false }));
+result.hint.shownWhenEmpty = getComputedStyle(hint).display !== "none";
+result.chrome.toggleWhenTreeShown = getComputedStyle(q(".tree-toggle")).display;
+
+canvas.render(props());
+const controls = q(".controls");
+const buttons = () => [...controls.querySelectorAll("button")];
+const byText = (t) => buttons().find((b) => b.textContent === t);
+const levelNode = () => controls.querySelector(".level");
+result.zoom = {
+  order: [...controls.children].map((c) => c.textContent),
+  tags: [...controls.children].map((c) => c.tagName.toLowerCase()),
+  aria: [byText("\\u2212").getAttribute("aria-label"), byText("+").getAttribute("aria-label")],
+  panel: pick(controls, [...PANEL, "position", "right", "bottom"]),
+  level: pick(levelNode(), ["width", "color", "font-size", "text-align"]),
+  button: pick(byText("Fit"), ["height", "min-width", "border-top-left-radius", "padding-left", "background-color"]),
+  proto: { panel: pick(p("#zbar"), [...PANEL, "position", "right", "bottom"]), level: pick(p("#zl"), ["width", "color", "font-size", "text-align"]), button: pick(p("#zbar button"), ["height", "min-width", "border-top-left-radius", "padding-left", "background-color"]) },
+};
+const stepsTo = (text, name) => { for (let i = 0; i < 60; i++) byText(name).click(); return [levelNode().textContent, byText(name).disabled, byText(text === "+" ? "\\u2212" : "+").disabled]; };
+result.zoom.atMax = stepsTo("+", "+");
+result.zoom.atMin = stepsTo("\\u2212", "\\u2212");
+byText("+").click();
+result.zoom.afterIn = [levelNode().textContent, byText("\\u2212").disabled, byText("+").disabled];
+calls.length = 0;
+byText("Clear").click();
+result.zoom.clear = [...calls];
+
+canvas.render(props({ selection: { kind: "module", id: "g" }, neighbourhood: new Set(["g"]), bar: null }));
+result.dimming = {
+  unrelatedBox: pick(q('[data-id="f/a.py"]'), ["opacity"]),
+  unrelatedFrame: pick(q(".frame"), ["opacity"]),
+  relatedBox: pick(q('[data-id="g"]'), ["opacity"]),
+};
+canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, neighbourhood: new Set(["f/a.py"]), bar: null }));
+result.dimming.relatedFrame = pick(q(".frame"), ["opacity"]);
+result.dimming.nothingSelected = (canvas.render(props()), pick(q(".frame"), ["opacity"]));
+
+canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, bar: bar({ kind: "module", files: null, picker: "uses" }), picker: { model: pmodel, anchor: null } }));
+const pickerNode = q(".picker");
+const opener = [...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Uses"));
+const barNode = q(".selection-bar");
+result.layers = {
+  picker: pick(pickerNode, ["z-index", "top", "position"]),
+  zoom: pick(q(".controls"), ["z-index"]),
+  selectionBar: pick(q(".selection-bar"), ["z-index"]),
+  popover: pick(q(".popover"), ["z-index"]),
+  pickerTop: parseFloat(pickerNode.style.top),
+  openerBottom: barNode.offsetTop + opener.offsetTop + opener.offsetHeight,
+  pickerLeft: parseFloat(pickerNode.style.left),
+ openerLeft: barNode.offsetLeft + opener.offsetLeft,
+  canvasHeight: canvas.element.offsetHeight,
+  pickerHeight: pickerNode.offsetHeight,
+};
+result.groupCount = pick(q(".picker-group .count"), ["position"]);
+result.canvasCount = { id: q("#canvas-count") !== null, bare: q("#canvas-count").classList.contains("count") };
+const focusRule = [...document.styleSheets[0].cssRules].find((rule) => rule.selectorText === ".picker-filter:focus");
+result.filterFocus = { borderColor: focusRule.style.getPropertyValue("border-color"), shadow: focusRule.style.getPropertyValue("box-shadow"), outline: focusRule.style.getPropertyValue("outline") };
+
+document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
+`;
+
+type Props = Record<string, string>;
+type Kid = {
+  tag: string;
+  cls: string | null;
+  text: string;
+  aria: string | null;
+  title: string;
+  disabled: boolean;
+  svgs: { cls: string; path: string; strokeWidth: string; width: string }[];
+};
+type Report = {
+  dark: boolean;
+  tokens: { app: Props; proto: Props };
+  window: { body: Props; proto: string };
+  edges: Record<string, Props> & {
+    countText: string;
+    countLabels: number;
+    proto: Record<string, Props>;
+  };
+  boxes: Record<string, unknown> & {
+    rxs: string[][];
+    proto: Record<string, Props>;
+  };
+  frames: Record<string, unknown> & { proto: Record<string, Props> };
+  dimming: Record<string, Props>;
+  layers: Record<string, unknown> & {
+    picker: Props;
+    zoom: Props;
+    selectionBar: Props;
+    popover: Props;
+  };
+  groupCount: Props;
+  canvasCount: { id: boolean; bare: boolean };
+  filterFocus: { borderColor: string; shadow: string; outline: string };
+  barModule: { kids: Kid[]; style: Props };
+  barFolder: {
+    kids: Kid[];
+    style: Props;
+    button: Props;
+    sep: Props;
+    proto: { bar: Props; button: Props; sep: Props };
+  };
+  barClicks: string[];
+  barFolded: string[][];
+  chrome: {
+    topStrip: boolean;
+    count: Props & { text: string };
+    protoCount: Props;
+    toggle: Props & { svg: boolean };
+    toggleWhenTreeShown: string;
+  };
+  hint: {
+    text: string;
+    textContent: string;
+    shown: boolean;
+    shownWhenEmpty: boolean;
+    style: Props;
+    proto: { style: Props; html: string };
+  };
+  zoom: {
+    order: string[];
+    tags: string[];
+    aria: string[];
+    panel: Props;
+    level: Props;
+    button: Props;
+    proto: { panel: Props; level: Props; button: Props };
+    atMax: [string, boolean, boolean];
+    atMin: [string, boolean, boolean];
+    afterIn: [string, boolean, boolean];
+    clear: string[];
+  };
+};
+
+function collect(scheme: "light" | "dark"): Report {
+  const dir = mkdtempSync(join(tmpdir(), "canvas-look-"));
+
+  try {
+    const bundle = buildSync({
+      stdin: { contents: HARNESS, resolveDir: SRC, loader: "ts" },
+      bundle: true,
+      write: false,
+      format: "iife",
+      platform: "browser",
+    }).outputFiles[0]?.text as string;
+    const css = readFileSync(join(SRC, "style.css"), "utf8");
+    const protoCss = (
+      /<style>([\s\S]*?)<\/style>/.exec(readFileSync(PROTOTYPE, "utf8"))?.[1] ??
+      ""
+    ).replaceAll(":root{", ":host{");
+    const page = join(dir, "page.html");
+
+    writeFileSync(
+      page,
+      `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><script>window.PROTO_CSS=${JSON.stringify(protoCss).replaceAll("</", "<\\/")};</script><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
+    );
+
+    const run = spawnSync(
+      chrome as string,
+      [
+        "--headless=new",
+        "--disable-gpu",
+        "--no-sandbox",
+        `--user-data-dir=${join(dir, "profile")}`,
+        `--blink-settings=preferredColorScheme=${scheme === "dark" ? 0 : 1}`,
+        "--dump-dom",
+        `file://${page}`,
+      ],
+      { encoding: "utf8", timeout: 60000 },
+    );
+    const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
+
+    if (match?.[1]?.startsWith("ERR ")) {
+      throw new Error(match[1]);
+    }
+
+    if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1] as string)) {
+      throw new Error(`no harness output: ${run.stderr.slice(0, 500)}`);
+    }
+
+    return JSON.parse(
+      Buffer.from(match[1] as string, "base64").toString("utf8"),
+    ) as Report;
+  } finally {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
+  }
+}
+
+const reports = new Map<string, Report>();
+
+function report(scheme: "light" | "dark"): Report {
+  let known = reports.get(scheme);
+
+  if (!known) {
+    known = collect(scheme);
+    reports.set(scheme, known);
+  }
+
+  return known;
+}
+
+const labelsOf = (kids: Kid[]) =>
+  kids.map((kid) => (kid.cls === "bar-sep" ? "|" : kid.aria || kid.text));
+
+describe("the canvas against the prototype, in a real browser", () => {
+  for (const scheme of ["light", "dark"] as const) {
+    describe(scheme, () => {
+      const r = () => report(scheme);
+
+      it.skipIf(chrome === undefined)(
+        "uses the prototype's palette for the window and every token",
+        () => {
+          expect(r().dark).toBe(scheme === "dark");
+          expect(r().tokens.app).toEqual(r().tokens.proto);
+          expect(r().window.body["background-color"]).toBe(r().tokens.proto.bg);
+          expect(r().window.body.color).toBe(r().tokens.proto.fg);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "draws edges as the prototype's .e styles, dimming the rest",
+        () => {
+          const { edges } = r();
+          const proto = edges.proto as Record<string, Props>;
+
+          expect(edges.plain).toEqual(proto.plain);
+          expect(edges.plain?.["stroke-width"]).toBe("1px");
+          expect(edges.plain?.["stroke-opacity"]).toBe("0.55");
+          expect(edges.private?.["stroke-dasharray"]).toBe("4px, 3px");
+          expect(edges.inferred?.["stroke-dasharray"]).toBe("1.5px, 3px");
+          expect(edges.inferred).toEqual(proto.inferred);
+          expect(edges.hollow).toEqual(proto.hollow);
+          expect(edges.arrowPlain?.fill).toBe(proto.arrow?.fill);
+          expect(edges.arrowHollow?.fill).toBe(proto.hollowArrow?.fill);
+          expect(edges.arrowHollow?.stroke).toBe(proto.hollowArrow?.stroke);
+          expect(edges.private?.stroke).toBe(proto.hi?.stroke);
+          expect(edges.private?.["stroke-width"]).toBe("1.6px");
+          expect(edges.private?.["stroke-opacity"]).toBe("1");
+          expect(edges.arrowHi?.fill).toBe(proto.arrowHi?.fill);
+          expect(edges.dimmed?.opacity).toBe(proto.dim?.opacity);
+          expect(edges.dimmed?.opacity).toBe("0.35");
+          expect(edges.count).toEqual(proto.count);
+          expect(edges.count?.["font-size"]).toBe("10px");
+          expect(edges.countText).toBe("2");
+          expect(edges.countLabels).toBe(1);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "floats the count and the tree button with no bar across the top",
+        () => {
+          const { chrome: c } = r();
+
+          expect(c.topStrip).toBe(true);
+          expect(c.count.text).toBe("3 of 5 modules on the canvas");
+          expect(c.count.position).toBe("absolute");
+          expect(c.count.top).toBe("14px");
+          expect(c.count.right).toBe("14px");
+          expect({ ...c.count, text: undefined, position: undefined }).toEqual({
+            ...c.protoCount,
+            text: undefined,
+            position: undefined,
+          });
+          expect(c.toggle.position).toBe("absolute");
+          expect(c.toggle.top).toBe("14px");
+          expect(c.toggle.left).toBe("14px");
+          expect(c.toggle.display).not.toBe("none");
+          expect(c.toggle.svg).toBe(true);
+          expect(c.toggleWhenTreeShown).toBe("none");
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "draws frames as dashed purple rounded rectangles with a bold label",
+        () => {
+          const { frames } = r();
+          const proto = frames.proto as Record<string, Props>;
+          const body = frames.body as Props;
+
+          expect(FRAME_TOP).toBe(28);
+          expect(body.rx).toBe("8");
+          expect({ ...body, rx: undefined }).toEqual({
+            ...proto.body,
+            rx: undefined,
+          });
+          expect(body["stroke-dasharray"]).toBe("4px, 3px");
+          expect(frames.parts).toEqual([
+            "rect.frame-body",
+            "rect.frame-label selected",
+            "circle.disc-fill green",
+            "text.frame-text",
+          ]);
+          expect(frames.nameText).toBe("f/");
+          expect((frames.name as Props)["font-weight"]).toBe("600");
+          expect((frames.name as Props).fill).toBe(proto.text?.fill);
+          expect((frames.name as Props)["font-size"]).toBe("11px");
+          expect(frames.cntText).toBe("1 of 2");
+          expect((frames.cnt as Props).fill).toBe(proto.cnt?.fill);
+          expect(frames.selected).toEqual(proto.selected);
+          expect((frames.selected as Props)["stroke-dasharray"]).toBe("none");
+          expect((frames.selected as Props)["stroke-opacity"]).toBe("1");
+          expect(frames.label).toEqual({
+            fill: "rgba(0, 0, 0, 0)",
+            stroke: "none",
+          });
+          expect(frames.labelHover).toEqual(frames.label);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "draws boxes 40px high with hidden counts, a halo when selected and a 50px folded box",
+        () => {
+          const { boxes } = r();
+          const proto = boxes.proto as Record<string, Props>;
+          const selected = boxes.selected as Props;
+
+          expect([BOX_HEIGHT, FOLDER_BOX_HEIGHT]).toEqual([40, 50]);
+          expect(boxes.rxs).toEqual([
+            ["7", "40"],
+            ["7", "50"],
+          ]);
+          expect(selected.stroke).toBe(proto.selected?.stroke);
+          expect(selected["stroke-width"]).toBe("2px");
+          expect(boxes.halo).toMatchObject({
+            display: "inline",
+            stroke: proto.halo?.stroke,
+            "stroke-opacity": "0.15",
+            "stroke-width": "6px",
+            fill: "none",
+            box: ["11", "166"],
+          });
+          expect(boxes.idleHalo).toEqual({ display: "none" });
+          expect((boxes.nameSelected as Props)["font-weight"]).toBe("600");
+          expect((boxes.nameIdle as Props)["font-weight"]).toBe("400");
+          expect(boxes.hiddenText).toBe("+1↓ +2↑");
+          expect(boxes.hidden).toEqual(proto.more);
+
+          const folder = boxes.folder as {
+            body: Props;
+            name: string;
+            texts: string[][];
+          };
+
+          expect(folder.name).toBe("g/");
+          expect(folder.texts.map((t) => t[0])).toEqual([
+            "g/",
+            "3 open, folded",
+          ]);
+          expect(folder.body.fill).toBe(proto.folder?.fill);
+          expect(folder.body.stroke).toBe(proto.folder?.stroke);
+          expect(folder.body["stroke-opacity"]).toBe("0.5");
+          expect(folder.texts[1]?.[1]).toBe("10px");
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "shows a dark selection bar of labelled svg icon buttons in the prototype's order",
+        () => {
+          const { barModule, barFolder, barClicks, barFolded } = r();
+
+          expect(labelsOf(barModule.kids)).toEqual([
+            "Uses 2",
+            "Used by 0",
+            "|",
+            "Contents",
+            "Take off the canvas",
+          ]);
+          expect(labelsOf(barFolder.kids)).toEqual([
+            "Files 1 of 2",
+            "|",
+            "Uses 2",
+            "Used by 0",
+            "|",
+            "Focus on this folder",
+            "Fold into one box",
+            "Contents",
+            "Take off the canvas",
+          ]);
+          expect(barFolder.style["background-color"]).toBe(
+            r().tokens.proto.dark,
+          );
+          expect(barFolder.style.color).toBe(r().tokens.proto.darkfg);
+          expect(barFolder.style["border-top-left-radius"]).toBe("8px");
+          expect(barFolder.style["box-shadow"]).not.toBe("none");
+          expect(barFolder.style["border-top-left-radius"]).toBe(
+            barFolder.proto.bar["border-top-left-radius"],
+          );
+          expect(barFolder.button).toEqual(barFolder.proto.button);
+          expect(barFolder.sep.width).toBe(barFolder.proto.sep.width);
+          expect(barFolder.sep.height).toBe(barFolder.proto.sep.height);
+
+          const [files, , uses, usedBy, , focus, fold, contents, takeOff] =
+            barFolder.kids as Kid[];
+
+          expect(files?.svgs.map((s) => s.path)).toEqual(["M6 9l6 6 6-6"]);
+          expect(uses?.svgs.map((s) => s.path)).toEqual([
+            "M12 5v14M5 12l7 7 7-7",
+            "M6 9l6 6 6-6",
+          ]);
+          expect(usedBy?.svgs.map((s) => s.path)).toEqual([
+            "M12 19V5M5 12l7-7 7 7",
+            "M6 9l6 6 6-6",
+          ]);
+          expect(usedBy?.disabled).toBe(true);
+          expect(uses?.disabled).toBe(false);
+          expect(uses?.svgs[0]?.strokeWidth).toBe("2px");
+          expect(uses?.svgs[1]?.width).toBe("10px");
+          expect(focus?.title).toBe("Only this folder (F)");
+          expect(fold?.title).toBe("Fold into one box (Z)");
+          expect(contents?.title).toContain("Contents (I)");
+          expect(contents?.disabled).toBe(true);
+          expect(takeOff?.title).toBe("Take off the canvas (Backspace)");
+
+          for (const icon of [focus, fold, contents, takeOff]) {
+            expect(icon?.text).toBe("");
+            expect(icon?.svgs).toHaveLength(1);
+            expect(icon?.svgs[0]?.strokeWidth).toBe("2px");
+          }
+
+          expect(barClicks).toEqual([
+            "fold",
+            "focus",
+            "takeOff",
+            "picker:uses",
+            "picker:files",
+          ]);
+          expect(barFolded.slice(0, 2)).toEqual([
+            ["Unfocus", "Unfocus (F)"],
+            ["Unfold", "Unfold (Z)"],
+          ]);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "words the empty hint as the prototype and shows it only on an empty canvas",
+        () => {
+          const { hint } = r();
+
+          expect(hint.text).toBe(
+            "Open a file from the tree to start.<br>Select a box, or a folder by its name, for its actions.",
+          );
+          expect(readFileSync(PROTOTYPE, "utf8")).toContain(
+            `<div id="hint">${hint.text}</div>`,
+          );
+          expect(hint.shown).toBe(false);
+          expect(hint.shownWhenEmpty).toBe(true);
+          expect(hint.style["text-align"]).toBe("center");
+          expect(hint.style.color).toBe(hint.proto.style.color);
+          expect(hint.style["line-height"]).toBe(
+            hint.proto.style["line-height"],
+          );
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "floats a zoom bar that greys out at 10% and 250%",
+        () => {
+          const { zoom } = r();
+
+          expect(zoom.order.slice(0, 1)).toEqual(["−"]);
+          expect(zoom.order[1]).toMatch(/^\d+%$/);
+          expect(zoom.order.slice(2)).toEqual(["+", "Fit", "Clear", "Legend"]);
+          expect(zoom.tags).toEqual([
+            "button",
+            "span",
+            "button",
+            "button",
+            "button",
+            "button",
+          ]);
+          expect(zoom.aria).toEqual(["Zoom out", "Zoom in"]);
+          expect({ ...zoom.panel, position: "" }).toEqual({
+            ...zoom.proto.panel,
+            position: "",
+          });
+          expect(zoom.panel.position).toBe("absolute");
+          expect(zoom.panel.right).toBe("14px");
+          expect(zoom.panel.bottom).toBe("16px");
+          expect(zoom.level).toEqual(zoom.proto.level);
+          expect(zoom.level.width).toBe("40px");
+          expect(zoom.button).toEqual(zoom.proto.button);
+          expect(zoom.atMax).toEqual(["250%", true, false]);
+          expect(zoom.atMin).toEqual(["10%", true, false]);
+          expect(zoom.afterIn[1]).toBe(false);
+          expect(zoom.afterIn[2]).toBe(false);
+          expect(zoom.clear).toEqual(["clear"]);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "dims unrelated boxes and frames to 35% and leaves related ones alone",
+        () => {
+          const { dimming } = r();
+
+          expect(dimming.unrelatedBox?.opacity).toBe("0.35");
+          expect(dimming.unrelatedFrame?.opacity).toBe("0.35");
+          expect(dimming.relatedBox?.opacity).toBe("1");
+          expect(dimming.relatedFrame?.opacity).toBe("1");
+          expect(dimming.nothingSelected?.opacity).toBe("1");
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "keeps the canvas count's panel off the picker's group counts",
+        () => {
+          const r1 = r();
+
+          expect(r1.canvasCount).toEqual({ id: true, bare: false });
+          expect(r1.groupCount.position).not.toBe("absolute");
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "puts the picker above the zoom and selection bars, 6px under its button, inside the canvas",
+        () => {
+          const { layers } = r();
+          const z = (props: Record<string, string>) => Number(props["z-index"]);
+
+          expect(z(layers.picker)).toBe(8);
+          expect(z(layers.popover)).toBe(8);
+          expect(z(layers.picker)).toBeGreaterThan(z(layers.zoom));
+          expect(z(layers.picker)).toBeGreaterThan(z(layers.selectionBar));
+          expect(layers.pickerTop).toBeCloseTo(
+            (layers.openerBottom as number) + 6,
+            0,
+          );
+          expect(layers.pickerLeft).toBeCloseTo(layers.openerLeft as number, 0);
+          expect(
+            (layers.pickerTop as number) + (layers.pickerHeight as number),
+          ).toBeLessThanOrEqual(layers.canvasHeight as number);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "rings the picker's filter field in the selection colour",
+        () => {
+          const { filterFocus } = r();
+
+          expect(filterFocus.borderColor).toBe("var(--sel)");
+          expect(filterFocus.shadow).toContain("var(--selbg)");
+          expect(filterFocus.outline).toBe("none");
+        },
+        120000,
+      );
+    });
+  }
+});

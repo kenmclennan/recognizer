@@ -1,7 +1,14 @@
 import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api";
-import { boxFigures, type CanvasGraph, frameFigure } from "./canvas-graph";
+import {
+  boxFigures,
+  boxSubline,
+  type CanvasGraph,
+  frameFigure,
+} from "./canvas-graph";
 
-export const BOX_HEIGHT = 36;
+export const BOX_HEIGHT = 40;
+export const FOLDER_BOX_HEIGHT = 50;
+export const SUBLINE_SCALE = 10 / 12;
 export const BOX_MIN_WIDTH = 96;
 export const BOX_PAD = 10;
 export const DISC_SIZE = 10;
@@ -29,9 +36,10 @@ export function boxWidth(
   measure: Measure,
   label: string,
   figures: string,
+  subline = "",
 ): number {
   const text =
-    measure(label) +
+    Math.max(measure(label), measure(subline) * SUBLINE_SCALE) +
     DISC_SIZE +
     LABEL_GAP +
     (figures === "" ? 0 : measure(figures) + LABEL_GAP);
@@ -45,7 +53,7 @@ export function frameLabelWidth(
   figure: string,
 ): number {
   return Math.ceil(
-    measure(label) +
+    measure(`${label}/`) +
       measure(figure) +
       DISC_SIZE +
       LABEL_GAP * 2 +
@@ -94,8 +102,8 @@ export function toElk(graph: CanvasGraph, measure: Measure): ElkNode {
   for (const box of graph.boxes) {
     holder(box.parent).push({
       id: box.id,
-      width: boxWidth(measure, box.label, boxFigures(box)),
-      height: BOX_HEIGHT,
+      width: boxWidth(measure, box.label, boxFigures(box), boxSubline(box)),
+      height: box.kind === "folder" ? FOLDER_BOX_HEIGHT : BOX_HEIGHT,
     });
   }
 

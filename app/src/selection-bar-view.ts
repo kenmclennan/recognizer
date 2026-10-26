@@ -1,4 +1,5 @@
-import { button, el } from "./dom";
+import { el } from "./dom";
+import { type IconName, icon } from "./icons";
 
 export type PickerKind = "uses" | "usedBy" | "files";
 
@@ -26,14 +27,44 @@ export type SelectionBarView = {
 
 const INSPECTOR = "opens the inspector in a later version";
 
-function disabled(label: string, title: string): HTMLButtonElement {
-  const node = button(label, "bar-button", () => {});
+function barButton(
+  title: string,
+  onClick: (() => void) | null,
+  ...children: (string | Node)[]
+): HTMLButtonElement {
+  const node = el("button", "bar-button");
 
-  node.disabled = true;
+  node.type = "button";
   node.title = title;
+  node.append(...children);
+
+  if (onClick) {
+    node.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onClick();
+    });
+  } else {
+    node.disabled = true;
+  }
 
   return node;
 }
+
+function iconButton(
+  name: IconName,
+  label: string,
+  title: string,
+  onClick: (() => void) | null,
+): HTMLButtonElement {
+  const node = barButton(title, onClick, icon(name));
+
+  node.setAttribute("aria-label", label);
+
+  return node;
+}
+
+const separator = () => el("span", "bar-sep");
+const chevron = () => icon("chevron-down", "small");
 
 export function buildSelectionBar(actions: BarActions): SelectionBarView {
   const element = el("div", "selection-bar");
@@ -56,48 +87,82 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
 
       const picker = (
         kind: PickerKind,
-        label: string,
+        title: string,
         enabled: boolean,
+        ...children: (string | Node)[]
       ): HTMLButtonElement => {
-        const node = button(label, "bar-button", () =>
-          actions.togglePicker(kind),
+        const node = barButton(
+          title,
+          enabled ? () => actions.togglePicker(kind) : null,
+          ...children,
         );
 
-        node.disabled = !enabled;
         node.classList.toggle("on", model.picker === kind);
 
         return node;
       };
-      const buttons = [
-        picker("uses", `Uses ${model.uses}`, model.uses > 0),
-        picker("usedBy", `Used by ${model.usedBy}`, model.usedBy > 0),
-      ];
+      const parts: HTMLElement[] = [];
 
       if (model.files) {
-        buttons.push(
+        parts.push(
           picker(
             "files",
-            `Files ${model.files.open} of ${model.files.held}`,
+            "Pick files in it",
             true,
+            `Files ${model.files.open} of ${model.files.held}`,
+            chevron(),
           ),
+          separator(),
         );
       }
 
-      buttons.push(disabled("Contents", INSPECTOR));
+      parts.push(
+        picker(
+          "uses",
+          "Pick what it uses (U)",
+          model.uses > 0,
+          icon("arrow-down"),
+          `Uses ${model.uses}`,
+          chevron(),
+        ),
+        picker(
+          "usedBy",
+          "Pick what uses it (D)",
+          model.usedBy > 0,
+          icon("arrow-up"),
+          `Used by ${model.usedBy}`,
+          chevron(),
+        ),
+        separator(),
+      );
 
       if (model.kind === "folder") {
-        buttons.push(
-          button(model.focused ? "Unfocus" : "Focus", "bar-button", () =>
-            actions.toggleFocus(),
+        parts.push(
+          iconButton(
+            "focus",
+            model.focused ? "Unfocus" : "Focus on this folder",
+            model.focused ? "Unfocus (F)" : "Only this folder (F)",
+            () => actions.toggleFocus(),
           ),
-          button(model.folded ? "Unfold" : "Fold", "bar-button", () =>
-            actions.toggleFold(),
+          iconButton(
+            model.folded ? "unfold" : "fold",
+            model.folded ? "Unfold" : "Fold into one box",
+            model.folded ? "Unfold (Z)" : "Fold into one box (Z)",
+            () => actions.toggleFold(),
           ),
         );
       }
 
-      buttons.push(button("Take off", "bar-button", () => actions.takeOff()));
-      element.replaceChildren(...buttons);
+      parts.push(
+        iconButton("list", "Contents", `Contents (I) - ${INSPECTOR}`, null),
+        iconButton(
+          "x",
+          "Take off the canvas",
+          "Take off the canvas (Backspace)",
+          () => actions.takeOff(),
+        ),
+      );
+      element.replaceChildren(...parts);
     },
   };
 }

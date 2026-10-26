@@ -172,10 +172,10 @@ const canvas = buildCanvasView(canvasActions);
 document.body.append(canvas.element);
 const canvasProps = (treeHidden) => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), evidence: null, open: 0, total: 4, treeHidden, showInferred: true, notice: null });
 canvas.render(canvasProps(true));
-const bar = canvas.element.querySelector(".canvas-bar");
-const toggle = bar.querySelector(".tree-toggle");
+const toggle = canvas.element.querySelector(".tree-toggle");
 const shown = {
-  first: bar.firstElementChild === toggle,
+  floats: [cs(toggle).position, cs(toggle).left, cs(toggle).top].join(" "),
+  topStrip: canvas.element.querySelector(".canvas-bar") === null,
   aria: toggle.getAttribute("aria-label"),
   title: toggle.title,
   hidden: cs(toggle).display,
@@ -241,7 +241,8 @@ type Facts = {
   empty: string;
   probes: { sel: { color: string; background: string } };
   shown: {
-    first: boolean;
+    floats: string;
+    topStrip: boolean;
     aria: string;
     title: string;
     hidden: string;
@@ -318,7 +319,8 @@ describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
   });
 
   it("puts the show-the-tree icon button at the left of the canvas bar only while the tree is hidden", () => {
-    expect(f.shown.first).toBe(true);
+    expect(f.shown.floats).toBe("absolute 14px 14px");
+    expect(f.shown.topStrip).toBe(true);
     expect(f.shown.aria).toBe("Show the tree");
     expect(f.shown.title).toBe("Show the tree");
     expect(f.shown.hasSvg).toBe(true);
