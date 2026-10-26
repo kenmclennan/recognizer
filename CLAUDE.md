@@ -48,7 +48,7 @@ One repository, a directory per part:
 
 ## CI
 
-Every workflow runs on a self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), registered to this repo only, because GitHub-hosted minutes for private repos ran out. It has the local toolchain, so no workflow installs system libraries.
+Every workflow runs on a self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), registered to this repo only, because GitHub-hosted minutes for private repos ran out. It has the local toolchain, so no workflow installs system libraries. No workflow uses `Swatinem/rust-cache`: on a self-hosted runner its cleanup prunes `~/.cargo/bin` and deletes `rustup`, which takes `cargo` and `rustc` with it.
 
 ## Code style
 

@@ -77,12 +77,6 @@ jobs:
         if: steps.released.outputs.skip != 'true'
         run: npm ci
 
-      - name: Cache Rust build
-        if: steps.released.outputs.skip != 'true'
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri
-
       - name: Build
         if: steps.released.outputs.skip != 'true'
         env:

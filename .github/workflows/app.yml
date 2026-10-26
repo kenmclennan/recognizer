@@ -47,11 +47,5 @@ jobs:
         run: npm ci
 
 
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri
-          cache-on-failure: true
-
       - name: Run quality gate
         run: npm run check:app
