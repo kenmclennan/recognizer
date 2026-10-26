@@ -7,6 +7,7 @@ const press = (key: string, extra: Partial<KeyInput> = {}): KeyInput => ({
   ctrlKey: false,
   altKey: false,
   targetEditable: false,
+  pickerOpen: false,
   ...extra,
 });
 
@@ -36,10 +37,42 @@ describe("canvas keys", () => {
     expect(keyAction(press("Escape"), module)).toBe("escape");
   });
 
-  it("leaves U, D and I unbound", () => {
-    for (const key of ["u", "d", "i"]) {
-      expect(keyAction(press(key), folder)).toBeNull();
+  it("leaves I unbound", () => {
+    expect(keyAction(press("i"), folder)).toBeNull();
+    expect(keyAction(press("i"), module)).toBeNull();
+  });
+
+  it("maps U and D to the pickers for a module or a folder", () => {
+    for (const selection of [module, folder]) {
+      expect(keyAction(press("u"), selection)).toBe("uses");
+      expect(keyAction(press("U"), selection)).toBe("uses");
+      expect(keyAction(press("d"), selection)).toBe("used-by");
     }
+  });
+
+  it("ignores U and D for an edge, no selection, a modifier or an editable target", () => {
+    expect(keyAction(press("u"), { kind: "edge", id: "e" })).toBeNull();
+    expect(keyAction(press("d"), null)).toBeNull();
+    expect(keyAction(press("u", { metaKey: true }), module)).toBeNull();
+    expect(keyAction(press("u", { targetEditable: true }), module)).toBeNull();
+  });
+
+  it("escapes from an editable target only while the picker is open", () => {
+    expect(
+      keyAction(
+        press("Escape", { targetEditable: true, pickerOpen: true }),
+        null,
+      ),
+    ).toBe("escape");
+    expect(
+      keyAction(
+        press("Backspace", { targetEditable: true, pickerOpen: true }),
+        module,
+      ),
+    ).toBeNull();
+    expect(
+      keyAction(press("Escape", { metaKey: true, pickerOpen: true }), null),
+    ).toBeNull();
   });
 
   it("ignores keys typed into an input and chords with a modifier", () => {

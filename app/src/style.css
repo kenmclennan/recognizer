@@ -27,6 +27,18 @@
   --selbg: #ddf4ff;
   --muted: #59636e;
   --hover: #f6f8fa;
+  --picker-bg: #f6f7f9;
+  --picker-fg: #1f2328;
+  --picker-faint: #8c959f;
+  --picker-panel: #fff;
+  --picker-line: #d8dee4;
+  --picker-border: #d0d7de;
+  --picker-group: #6639ba;
+  --picker-private: #bc4c00;
+  --picker-inferred: #0969da;
+  --picker-dark: #1f2328;
+  --picker-darkfg: #fff;
+  --picker-shadow: rgba(31, 35, 40, 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -52,6 +64,17 @@
     --selbg: #1f6feb2e;
     --muted: #9198a1;
     --hover: #161b22;
+    --picker-bg: #16181c;
+    --picker-fg: #e6edf3;
+    --picker-faint: #6e7681;
+    --picker-panel: #1f2328;
+    --picker-line: #30363d;
+    --picker-border: #3d444d;
+    --picker-group: #bc8cff;
+    --picker-private: #f0883e;
+    --picker-inferred: #58a6ff;
+    --picker-dark: #e6edf3;
+    --picker-darkfg: #16181c;
   }
 }
 
@@ -602,6 +625,224 @@ svg.i.chevron {
 .bar-button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.bar-button.on {
+  background: var(--frame-fill);
+  outline: 1px solid var(--surface-line);
+}
+
+.picker {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: 390px;
+  max-height: 72vh;
+  padding: 6px;
+  font-size: 12px;
+  border: 1px solid var(--picker-border);
+  border-radius: 8px;
+  background: var(--picker-panel);
+  color: var(--picker-fg);
+  box-shadow: 0 8px 24px var(--picker-shadow);
+}
+
+:where(.picker) button {
+  font: inherit;
+  color: inherit;
+}
+
+.picker-title {
+  padding: 2px 4px 6px;
+}
+
+.picker-filter {
+  height: 28px;
+  padding: 0 8px;
+  margin-bottom: 6px;
+  font: inherit;
+  border: 1px solid var(--picker-line);
+  border-radius: 5px;
+  background: var(--picker-bg);
+  color: var(--picker-fg);
+}
+
+.picker-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: var(--hover);
+}
+
+.picker-tabs button {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 12px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.picker-tabs button.on {
+  font-weight: 600;
+  background: var(--picker-panel);
+  color: var(--picker-fg);
+  box-shadow: 0 1px 2px rgba(31, 35, 40, 0.15);
+}
+
+.picker-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.picker-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 6px;
+  font-weight: 600;
+  border-radius: 5px;
+  color: var(--picker-group);
+  cursor: pointer;
+}
+
+.picker-group:hover {
+  background: var(--hover);
+}
+
+.picker-group .count {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.picker-group.names {
+  color: var(--picker-fg);
+}
+
+.picker-group.unused {
+  height: auto;
+  padding: 6px;
+  font-weight: 400;
+  color: var(--picker-faint);
+  cursor: default;
+}
+
+.picker-group.unused:hover {
+  background: none;
+}
+
+.picker-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  padding: 0 6px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.picker-row:hover {
+  background: var(--hover);
+}
+
+.picker-row.indent {
+  padding-left: 24px;
+}
+
+.picker-row .names {
+  flex: 1;
+  overflow: hidden;
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.picker-row.done {
+  color: var(--picker-faint);
+  cursor: default;
+}
+
+.picker-row .names.private {
+  color: var(--picker-private);
+}
+
+.picker-row .names.inferred {
+  color: var(--picker-inferred);
+}
+
+.picker-empty {
+  padding: 6px;
+  color: var(--muted);
+}
+
+.picker-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--picker-line);
+  color: var(--muted);
+}
+
+.picker-foot .spacer {
+  flex: 1;
+}
+
+.picker-tick-all {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--picker-line);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.picker-add {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--picker-dark);
+  color: var(--picker-darkfg);
+  cursor: pointer;
+}
+
+.picker-add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.box.ghost {
+  opacity: 0.55;
+}
+
+.box.ghost .box-body {
+  stroke-dasharray: 4 3;
+}
+
+.edge.ghost {
+  stroke-opacity: 0.8;
 }
 
 .popover {

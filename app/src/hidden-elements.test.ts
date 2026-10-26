@@ -28,6 +28,7 @@ const HIDEABLE = [
   "selection-bar",
   "canvas-legend",
   "popover",
+  "picker",
   "update-button",
   "tree-toggle",
 ];
