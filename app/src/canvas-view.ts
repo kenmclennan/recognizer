@@ -4,6 +4,7 @@ import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import type { EvidenceSection } from "./edge-evidence";
+import { iconButton } from "./icons";
 import { buildLegendView } from "./legend-view";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import {
@@ -101,7 +102,12 @@ const points = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
 export function buildCanvasView(actions: CanvasActions): CanvasView {
   const element = el("main", "canvas");
   const bar = el("div", "canvas-bar");
-  const toggle = button("", "tree-toggle", actions.toggleTree);
+  const toggle = iconButton(
+    "panel",
+    "Show the tree",
+    "tree-toggle",
+    actions.toggleTree,
+  );
   const count = el("span", "count");
   const stage = el("div", "stage");
   const surface = svg("svg", { class: "surface" });
@@ -697,7 +703,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       const previous = props;
 
       props = next;
-      toggle.textContent = next.treeHidden ? "Show tree" : "Hide tree";
+      toggle.hidden = !next.treeHidden;
       count.textContent = `${next.open} of ${next.total}`;
       empty.hidden = next.open > 0;
       notice.textContent = next.notice ?? "";

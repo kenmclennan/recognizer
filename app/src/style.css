@@ -23,6 +23,10 @@
   --surface-text: #1c1c1e;
   --surface-line: rgba(0, 0, 0, 0.18);
   --shadow: rgba(0, 0, 0, 0.2);
+  --sel: #0969da;
+  --selbg: #ddf4ff;
+  --muted: #59636e;
+  --hover: #f6f8fa;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,6 +48,10 @@
     --surface-text: #ececf0;
     --surface-line: rgba(255, 255, 255, 0.22);
     --shadow: rgba(0, 0, 0, 0.6);
+    --sel: #4493f8;
+    --selbg: #1f6feb2e;
+    --muted: #9198a1;
+    --hover: #161b22;
   }
 }
 
@@ -132,9 +140,66 @@ button.primary {
   display: none;
 }
 
+.tree-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 12px 8px;
+}
+
+.tree-title {
+  font-size: 14px;
+}
+
+.tree-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tree-header .spacer {
+  flex: 1;
+}
+
+svg.i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ib {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ib:hover {
+  background: var(--line);
+  color: inherit;
+}
+
+.ib svg.i {
+  width: 14px;
+  height: 14px;
+}
+
 .find {
-  margin: 8px;
-  padding: 5px 8px;
+  margin: 0 12px 8px;
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
   outline: none;
@@ -145,53 +210,60 @@ button.primary {
 
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  padding: 0 8px 8px;
+  padding: 0 12px 8px;
 }
 
 .toggle {
-  padding: 2px 10px;
+  height: 24px;
+  padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 12px;
   font-size: 12px;
   background: transparent;
   cursor: pointer;
 }
 
 .toggle.on {
-  background: rgba(128, 128, 128, 0.25);
+  border-color: var(--sel);
+  background: var(--selbg);
+  color: var(--sel);
 }
 
 .rows {
   flex: 1;
   overflow: auto;
-  padding-bottom: 8px;
+  padding: 4px 6px 8px;
 }
 
 .row {
   display: flex;
   gap: 6px;
   align-items: center;
-  padding: 3px 8px;
+  box-sizing: border-box;
+  height: 26px;
+  padding-right: 4px;
+  border-radius: 4px;
   font-size: 13px;
-}
-
-.row.folder {
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .row:hover {
-  background: rgba(128, 128, 128, 0.12);
+  background: var(--hover);
 }
 
 .row.selected {
-  background: rgba(70, 130, 220, 0.28);
+  background: var(--selbg);
+  box-shadow: inset 2px 0 var(--sel);
 }
 
-.chevron {
-  width: 10px;
-  font-size: 10px;
-  opacity: 0.6;
+svg.i.chevron {
+  width: 12px;
+  height: 12px;
+  color: var(--muted);
+  stroke-width: 2.5;
 }
 
 .name {
@@ -199,36 +271,35 @@ button.primary {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.row.on .name {
+  font-weight: 600;
 }
 
 .row.ancestor .name {
-  font-weight: 600;
+  color: var(--sel);
 }
 
 .actions {
   display: none;
-  gap: 4px;
+  gap: 2px;
 }
 
-.row:hover .actions {
+.row:hover .actions,
+.row.on .actions {
   display: flex;
 }
 
-.action {
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  font-size: 11px;
-  background: transparent;
-  cursor: pointer;
+.row.on .ib.vis {
+  color: var(--sel);
 }
 
 .disc {
   flex: none;
   box-sizing: border-box;
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 
@@ -283,14 +354,6 @@ button.primary {
   padding: 8px 12px;
   font-size: 12px;
   border-bottom: 1px solid var(--line);
-}
-
-.tree-toggle {
-  border: none;
-  font-size: 12px;
-  background: transparent;
-  cursor: pointer;
-  opacity: 0.7;
 }
 
 .footer {
@@ -467,6 +530,7 @@ button.primary {
 }
 
 .count {
+  margin-left: auto;
   opacity: 0.8;
 }
 

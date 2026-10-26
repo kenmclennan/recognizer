@@ -26,7 +26,11 @@ import { buildTreeView } from "./tree-view";
 
 export type Explorer = { toggleTree: () => void };
 
-export function showExplorer(container: HTMLElement, loaded: Loaded): Explorer {
+export function showExplorer(
+  container: HTMLElement,
+  loaded: Loaded,
+  title: string,
+): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const root = buildTree(loaded.modules);
   const described = describeTree(root, health);
@@ -82,6 +86,11 @@ export function showExplorer(container: HTMLElement, loaded: Loaded): Explorer {
       changed();
     },
     find,
+    findFolder(path) {
+      select({ kind: "folder", id: path });
+      canvas.centerOn(path);
+    },
+    hideTree: toggleTree,
   });
 
   const canvas = buildCanvasView({
@@ -284,6 +293,8 @@ export function showExplorer(container: HTMLElement, loaded: Loaded): Explorer {
 
     body.classList.toggle("tree-hidden", treeHidden);
     tree.render({
+      title,
+      moduleCount: loaded.modules.length,
       filtered,
       described,
       expanded,

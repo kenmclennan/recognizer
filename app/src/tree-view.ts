@@ -1,9 +1,12 @@
 import { button, el } from "./dom";
 import type { Disc, NodeHealth } from "./health";
+import { icon, iconButton } from "./icons";
 import type { Filtered, FilterState } from "./tree-filter";
-import type { FolderNode, TreeNode } from "./tree-model";
+import { type FolderNode, filesOf, type TreeNode } from "./tree-model";
 
 export type TreeProps = {
+  title: string;
+  moduleCount: number;
   filtered: Filtered;
   described: Map<string, NodeHealth>;
   expanded: Set<string>;
@@ -20,6 +23,8 @@ export type TreeActions = {
   putOnCanvas: (id: string) => void;
   takeOff: (id: string) => void;
   find: (id: string) => void;
+  findFolder: (path: string) => void;
+  hideTree: () => void;
 };
 
 export type TreeView = {
@@ -45,6 +50,15 @@ function disc(kind: Disc, hover: string): HTMLElement {
 
 export function buildTreeView(actions: TreeActions): TreeView {
   const element = el("aside", "tree");
+  const header = el("div", "tree-header");
+  const title = el("b", "tree-title");
+  const count = el("span", "tree-count");
+  const hide = iconButton(
+    "panel",
+    "Hide the tree",
+    "tree-hide",
+    actions.hideTree,
+  );
   const find = el("input", "find");
   const onCanvas = button("On canvas", "toggle", actions.toggleOnCanvas);
   const attention = button(
@@ -56,8 +70,11 @@ export function buildTreeView(actions: TreeActions): TreeView {
   const list = el("div", "rows");
   const legend = el("div", "legend");
 
-  find.type = "search";
-  find.placeholder = "Find by path";
+  header.append(title, count, el("span", "spacer"), hide);
+  find.type = "text";
+  find.placeholder = "Find a file";
+  find.autocomplete = "off";
+  find.setAttribute("aria-label", "Find a file");
   find.addEventListener("input", () => actions.setText(find.value));
   filters.append(onCanvas, attention);
 
@@ -68,14 +85,14 @@ export function buildTreeView(actions: TreeActions): TreeView {
     legend.append(item);
   }
 
-  element.append(find, filters, list, legend);
+  element.append(header, find, filters, list, legend);
 
   function row(node: TreeNode, depth: number, props: TreeProps): HTMLElement[] {
     const health = props.described.get(node.path);
     const line = el("div", `row ${node.kind}`);
 
     line.dataset.path = node.path;
-    line.style.paddingLeft = `${8 + depth * 14}px`;
+    line.style.paddingLeft = `${depth * 14 + 4 + (node.kind === "file" ? 18 : 0)}px`;
 
     if (node.kind === "file") {
       return [fileRow(line, node, health, props)];
@@ -102,13 +119,27 @@ export function buildTreeView(actions: TreeActions): TreeView {
   ): HTMLElement {
     const inside = props.selected?.startsWith(`${node.path}/`) ?? false;
 
+    const holding = filesOf(node).some((file) => props.isOpen(file.path));
+    const actionsBox = el("span", "actions");
+
     line.classList.toggle("ancestor", inside);
     line.classList.toggle("selected", props.selected === node.path);
+    line.classList.toggle("on", holding);
     line.addEventListener("click", () => actions.toggleFolder(node.path));
+
+    if (holding) {
+      actionsBox.append(
+        iconButton("target", "Find on canvas", "", () =>
+          actions.findFolder(node.path),
+        ),
+      );
+    }
+
     line.append(
-      el("span", "chevron", open ? "▾" : "▸"),
+      icon(open ? "chevron-down" : "chevron-right", "chevron"),
       disc(health?.disc ?? "grey", health?.hover ?? ""),
-      el("span", "name", node.name),
+      el("span", "name", `${node.name}/`),
+      actionsBox,
     );
 
     return line;
@@ -124,20 +155,27 @@ export function buildTreeView(actions: TreeActions): TreeView {
     const hover = el("span", "actions");
 
     line.classList.toggle("selected", props.selected === node.path);
+    line.classList.toggle("on", open);
+    line.addEventListener("click", () =>
+      open ? actions.find(node.path) : actions.putOnCanvas(node.path),
+    );
     hover.append(
       ...(open
         ? [
-            button("Find on canvas", "action", () => actions.find(node.path)),
-            button("Take off", "action", () => actions.takeOff(node.path)),
+            iconButton("target", "Find on canvas", "", () =>
+              actions.find(node.path),
+            ),
+            iconButton("eye", "Take off the canvas", "vis", () =>
+              actions.takeOff(node.path),
+            ),
           ]
         : [
-            button("Put on canvas", "action", () =>
+            iconButton("plus", "Put on the canvas", "", () =>
               actions.putOnCanvas(node.path),
             ),
           ]),
     );
     line.append(
-      el("span", "chevron"),
       disc(health?.disc ?? "grey", health?.hover ?? ""),
       el("span", "name", node.name),
       hover,
@@ -149,6 +187,8 @@ export function buildTreeView(actions: TreeActions): TreeView {
   return {
     element,
     render(props) {
+      title.textContent = props.title;
+      count.textContent = String(props.moduleCount);
       onCanvas.classList.toggle("on", props.filter.onCanvas);
       attention.classList.toggle("on", props.filter.needsAttention);
 
@@ -158,7 +198,7 @@ export function buildTreeView(actions: TreeActions): TreeView {
 
       list.replaceChildren(
         ...(props.filtered.fileCount === 0 && props.filtered.active
-          ? [el("p", "empty", "No matches")]
+          ? [el("p", "empty", "Nothing matches.")]
           : rows),
       );
     },
