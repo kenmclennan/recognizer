@@ -30,6 +30,7 @@ export type CanvasProps = {
   scene: Scene | null;
   selection: Selection;
   highlight: Set<string> | null;
+  neighbourhood?: Set<string> | null;
   bar: BarModel | null;
   titles: Map<string, string>;
   evidence: { id: string; sections: EvidenceSection[] } | null;
@@ -110,24 +111,40 @@ export function createMeasure(): (text: string) => number {
   };
 }
 
+function frameText(rect: Rect, label: string, figure: string): SVGElement {
+  const text = svg("text", {
+    class: "frame-text",
+    x: rect.x + 23,
+    y: rect.y + 18,
+  });
+
+  text.append(
+    svg("tspan", { class: "name" }, `${label}/`),
+    " ",
+    svg("tspan", { class: "cnt" }, figure),
+  );
+
+  return text;
+}
+
 const points = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
 
 export function buildCanvasView(actions: CanvasActions): CanvasView {
   const element = el("main", "canvas");
-  const bar = el("div", "canvas-bar");
   const toggle = iconButton(
     "panel",
     "Show the tree",
     "tree-toggle",
     actions.toggleTree,
   );
-  const count = el("span", "count");
+  const count = el("div", "canvas-count");
+  count.id = "canvas-count";
   const stage = el("div", "stage");
   const surface = svg("svg", { class: "surface" });
   const world = svg("g", { class: "world" });
   const popover = el("div", "popover");
   const controls = el("div", "controls");
-  const empty = el("p", "empty-canvas", "Nothing on the canvas yet");
+  const empty = el("p", "empty-canvas");
   const notice = el("p", "canvas-notice");
   const legend = buildLegendView((show) => actions.setShowInferred(show));
   const pickerView = buildPickerView(actions.picker, actions.disc);
@@ -149,7 +166,9 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   let lastScale = 1;
   let drag: { start: Point; origin: Point; moved: boolean } | null = null;
 
-  const zoomOut = button("-", "control", () => zoomBy(1 / BUTTON_ZOOM_STEP));
+  const zoomOut = button("\u2212", "control", () =>
+    zoomBy(1 / BUTTON_ZOOM_STEP),
+  );
   const level = el("span", "level");
   const zoomIn = button("+", "control", () => zoomBy(BUTTON_ZOOM_STEP));
   const fitButton = button("Fit", "control", () => fitNow());
@@ -163,8 +182,15 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     refreshChrome();
   });
 
+  empty.append(
+    "Open a file from the tree to start.",
+    document.createElement("br"),
+    "Select a box, or a folder by its name, for its actions.",
+  );
   zoomOut.title = "Zoom out";
+  zoomOut.setAttribute("aria-label", "Zoom out");
   zoomIn.title = "Zoom in";
+  zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
   stage.append(
     surface,
@@ -175,8 +201,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     popover,
   );
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
-  bar.append(toggle, count);
-  element.append(bar, stage, controls, legend.element);
+  element.append(stage, toggle, count, controls, legend.element);
   popover.hidden = true;
 
   function size() {
@@ -286,10 +311,18 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     if (picker.anchor) {
       at = picker.anchor;
     } else if (props?.bar && !barElement.hidden) {
-      at = {
-        x: barElement.offsetLeft,
-        y: barElement.offsetTop + barElement.offsetHeight + 4,
-      };
+      const opener = barElement.querySelector<HTMLElement>(".bar-button.on");
+
+      at = opener
+        ? {
+            x: barElement.offsetLeft + opener.offsetLeft,
+            y:
+              barElement.offsetTop + opener.offsetTop + opener.offsetHeight + 6,
+          }
+        : {
+            x: barElement.offsetLeft,
+            y: barElement.offsetTop + barElement.offsetHeight + 6,
+          };
     } else {
       at = { x: s.width - width - 8, y: 8 };
     }
@@ -359,7 +392,11 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       if (layer === "frames") {
         for (const frame of scene.frames) {
           const { rect, labelRect } = frame;
-          const node = svg("g", { class: "frame", "data-kind": "frame" });
+          const node = svg("g", {
+            class: "frame",
+            "data-kind": "frame",
+            "data-path": frame.path,
+          });
 
           node.append(
             svg("rect", {
@@ -368,7 +405,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
               y: rect.y,
               width: rect.width,
               height: rect.height,
-              rx: 6,
+              rx: 8,
             }),
             svg("rect", {
               class: "frame-label",
@@ -378,28 +415,14 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
               y: labelRect.y,
               width: labelRect.width,
               height: labelRect.height,
-              rx: 6,
             }),
             svg("circle", {
               class: `disc-fill ${frame.disc}`,
-              cx: rect.x + 12 + 5,
+              cx: rect.x + 13,
               cy: rect.y + 14,
-              r: 5,
+              r: 4,
             }),
-            svg(
-              "text",
-              { class: "name", x: rect.x + 30, y: rect.y + 18 },
-              frame.label,
-            ),
-            svg(
-              "text",
-              {
-                class: "figure",
-                x: rect.x + 30 + actions.measure(frame.label) + 8,
-                y: rect.y + 18,
-              },
-              frame.figure,
-            ),
+            frameText(rect, frame.label, frame.figure),
           );
           group.append(node);
         }
@@ -467,31 +490,51 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
             "data-id": box.id,
           });
 
+          const middle = rect.y + rect.height / 2;
+
           node.append(
+            svg("rect", {
+              class: "halo",
+              x: rect.x - 3,
+              y: rect.y - 3,
+              width: rect.width + 6,
+              height: rect.height + 6,
+              rx: 10,
+            }),
             svg("rect", {
               class: "box-body",
               x: rect.x,
               y: rect.y,
               width: rect.width,
               height: rect.height,
-              rx: 5,
+              rx: 7,
             }),
             svg("circle", {
               class: `disc-fill ${box.disc}`,
-              cx: rect.x + 10 + 5,
-              cy: rect.y + rect.height / 2,
-              r: 5,
+              cx: rect.x + 14,
+              cy: middle,
+              r: 4,
             }),
             svg(
               "text",
               {
                 class: "name",
-                x: rect.x + 28,
-                y: rect.y + rect.height / 2 + 4,
+                x: rect.x + 25,
+                y: box.subline ? middle - 2 : middle + 4,
               },
               box.label,
             ),
           );
+
+          if (box.subline) {
+            node.append(
+              svg(
+                "text",
+                { class: "figure", x: rect.x + 25, y: middle + 14 },
+                box.subline,
+              ),
+            );
+          }
 
           if (box.figures) {
             node.append(
@@ -499,7 +542,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
                 "text",
                 {
                   class: "figure",
-                  x: rect.x + rect.width - 10,
+                  x: rect.x + rect.width - 8,
                   y: rect.y + rect.height / 2 + 4,
                   "text-anchor": "end",
                 },
@@ -546,7 +589,26 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       node.classList.toggle("selected", chosen);
     }
 
+    const near = props?.neighbourhood ?? null;
+
+    for (const node of world.querySelectorAll<SVGElement>(".frame")) {
+      const path = node.dataset.path as string;
+      const related =
+        near === null ||
+        selection?.id === path ||
+        [...near].some((id) => id === path || id.startsWith(`${path}/`));
+
+      node.classList.toggle("dim", !related);
+    }
+
     for (const node of world.querySelectorAll<SVGElement>(".box")) {
+      node.classList.toggle(
+        "dim",
+        near !== null &&
+          !node.classList.contains("ghost") &&
+          !near.has(node.dataset.id as string),
+      );
+
       const chosen =
         selection !== null &&
         selection.kind !== "edge" &&
@@ -788,7 +850,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
       props = next;
       toggle.hidden = !next.treeHidden;
-      count.textContent = `${next.open} of ${next.total}`;
+      count.textContent = `${next.open} of ${next.total} modules on the canvas`;
       empty.hidden = next.open > 0;
       notice.textContent = next.notice ?? "";
       notice.hidden = next.notice === null;

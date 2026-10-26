@@ -1,5 +1,6 @@
 import {
   boxFigures,
+  boxSubline,
   type CanvasGraph,
   type EdgeStyle,
   frameFigure,
@@ -8,8 +9,10 @@ import type { Layout, Point, Rect } from "./canvas-layout";
 import { FRAME_TOP } from "./canvas-layout";
 import type { Disc } from "./health";
 
-export const ARROW_LENGTH = 9;
-export const ARROW_HALF_WIDTH = 4;
+export const ARROW_LENGTH = 6;
+export const ARROW_HALF_WIDTH = 2.4;
+export const HOLLOW_ARROW_LENGTH = 9;
+export const HOLLOW_ARROW_HALF_WIDTH = 4.6;
 export const BOUNDS_MARGIN = 0;
 export const GHOST_DASH = "3 3";
 export const DRAW_ORDER = ["frames", "lines", "boxes"] as const;
@@ -17,8 +20,8 @@ export const DRAW_ORDER = ["frames", "lines", "boxes"] as const;
 export const DASH: Record<EdgeStyle, string | null> = {
   plain: null,
   hollow: null,
-  private: "6 4",
-  inferred: "1.5 4",
+  private: "4 3",
+  inferred: "1.5 3",
 };
 
 export type SceneFrame = {
@@ -36,6 +39,7 @@ export type SceneBox = {
   rect: Rect;
   label: string;
   figures: string;
+  subline: string;
   disc: Disc;
   ghost: boolean;
 };
@@ -61,7 +65,7 @@ export type Scene = {
   bounds: Rect;
 };
 
-export function arrowhead(points: Point[]): Point[] {
+export function arrowhead(points: Point[], hollow = false): Point[] {
   const end = points[points.length - 1] as Point;
   const before = points[points.length - 2] ?? end;
   const dx = end.x - before.x;
@@ -69,12 +73,14 @@ export function arrowhead(points: Point[]): Point[] {
   const length = Math.hypot(dx, dy) || 1;
   const ux = dx / length;
   const uy = dy / length;
-  const base = { x: end.x - ux * ARROW_LENGTH, y: end.y - uy * ARROW_LENGTH };
+  const reach = hollow ? HOLLOW_ARROW_LENGTH : ARROW_LENGTH;
+  const half = hollow ? HOLLOW_ARROW_HALF_WIDTH : ARROW_HALF_WIDTH;
+  const base = { x: end.x - ux * reach, y: end.y - uy * reach };
 
   return [
     end,
-    { x: base.x - uy * ARROW_HALF_WIDTH, y: base.y + ux * ARROW_HALF_WIDTH },
-    { x: base.x + uy * ARROW_HALF_WIDTH, y: base.y - ux * ARROW_HALF_WIDTH },
+    { x: base.x - uy * half, y: base.y + ux * half },
+    { x: base.x + uy * half, y: base.y - ux * half },
   ];
 }
 
@@ -145,6 +151,7 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
         rect,
         label: box.label,
         figures: boxFigures(box),
+        subline: boxSubline(box),
         disc: box.disc,
         ghost: box.ghost === true,
       });
@@ -172,7 +179,7 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
     });
     arrows.push({
       lineId: line.id,
-      points: arrowhead(points),
+      points: arrowhead(points, line.style === "hollow"),
       hollow: line.style === "hollow",
     });
   }

@@ -190,7 +190,7 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     boxes.set(key, {
       id: key,
       kind: folded ? "folder" : "module",
-      label: folded ? lastSegment(key) : moduleLabel(key),
+      label: folded ? `${lastSegment(key)}/` : moduleLabel(key),
       parent: chain[chain.length - 1] ?? null,
       disc: input.disc(key),
       open: folded ? openIn(key) : 1,
@@ -357,6 +357,43 @@ export function edgesOf(
   );
 }
 
+export function neighbourhoodOf(
+  graph: CanvasGraph,
+  selection: Selection,
+): Set<string> | null {
+  if (selection === null || selection.kind === "edge") {
+    return null;
+  }
+
+  const touches = (box: string) =>
+    selection.kind === "module"
+      ? box === selection.id
+      : under(box, selection.id);
+  const near = new Set<string>();
+
+  for (const box of graph.boxes) {
+    if (touches(box.id)) {
+      near.add(box.id);
+    }
+  }
+
+  for (const line of graph.lines) {
+    if (line.ghost) {
+      continue;
+    }
+
+    if (touches(line.from)) {
+      near.add(line.to);
+    }
+
+    if (touches(line.to)) {
+      near.add(line.from);
+    }
+  }
+
+  return near;
+}
+
 export function presenceOf(graph: CanvasGraph) {
   return {
     module: (id: string) =>
@@ -374,14 +411,18 @@ export function frameFigure(frame: Pick<Frame, "open" | "held">): string {
   return `${frame.open} of ${frame.held}`;
 }
 
+export function boxSubline(box: Box): string {
+  return box.kind === "folder" ? `${box.open} open, folded` : "";
+}
+
 export function boxFigures(box: Box): string {
   if (box.kind === "folder") {
-    return `${box.open} of ${box.held}`;
+    return "";
   }
 
   return [
-    box.missingUses > 0 ? `↑${box.missingUses}` : "",
-    box.missingUsedBy > 0 ? `↓${box.missingUsedBy}` : "",
+    box.missingUses > 0 ? `+${box.missingUses}↓` : "",
+    box.missingUsedBy > 0 ? `+${box.missingUsedBy}↑` : "",
   ]
     .filter(Boolean)
     .join(" ");

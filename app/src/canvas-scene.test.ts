@@ -135,7 +135,7 @@ describe("scene", () => {
   });
 
   it("carries the figures on boxes and frames", () => {
-    expect(scene.boxes[0]?.figures).toBe("↑2");
+    expect(scene.boxes[0]?.figures).toBe("+2↓");
     expect(scene.frames[0]?.figure).toBe("2 of 3");
   });
 });
