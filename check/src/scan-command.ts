@@ -40,11 +40,11 @@ type Outcome =
 
 const CACHE = ".recognizer/cache";
 
-function cacheFile(root: string, language: Language): string {
+export function cacheFile(root: string, language: Language): string {
   return join(root, CACHE, `scan.${language}.json`);
 }
 
-function resolveCommit(io: Io, root: string): string | null {
+export function resolveCommit(io: Io, root: string): string | null {
   const result = io.run("git", ["-C", root, "rev-parse", "HEAD"]);
   const commit = result.stdout.trim();
 

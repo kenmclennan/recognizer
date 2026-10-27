@@ -1,5 +1,15 @@
-import type { Scan, ScanEdge } from "recognizer";
-import { lastSegment, moduleLabel, under } from "./canvas-graph";
+import {
+  edgeNames,
+  folderOf,
+  folderUsedBy,
+  folderUses,
+  lastSegment,
+  moduleLabel,
+  type NeighbourRow,
+  type Scan,
+  usedByOf,
+  usesOf,
+} from "recognizer";
 import { type CheckState, checkState } from "./row-model";
 
 export const LONG_LIST = 18;
@@ -48,25 +58,11 @@ export type PickerInput = {
   collapsed: ReadonlySet<string>;
 };
 
-type RawRow = {
-  id: string;
-  group: string;
-  edges: ScanEdge[];
-  names: string[];
-  private: boolean;
-  inferred: boolean;
-};
+type RawRow = NeighbourRow & { group: string };
 
-const folderOf = (id: string) => id.slice(0, Math.max(0, id.lastIndexOf("/")));
+export { edgeNames };
+
 const compare = (a: string, b: string) => a.localeCompare(b);
-
-export function edgeNames(edge: ScanEdge): string[] {
-  if (edge.names && edge.names.length > 0) {
-    return edge.names;
-  }
-
-  return edge.to_member === undefined ? [] : [edge.to_member];
-}
 
 function namesText(names: string[]): string {
   const shown = names.slice(0, NAMES_SHOWN).join(", ");
@@ -76,74 +72,15 @@ function namesText(names: string[]): string {
     : shown;
 }
 
-function membersOf(scans: Scan[]): Map<string, Map<string, boolean>> {
-  const members = new Map<string, Map<string, boolean>>();
-
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      if (module.members) {
-        members.set(
-          module.id,
-          new Map(module.members.map((m) => [m.name, m.exported])),
-        );
-      }
-    }
-  }
-
-  return members;
-}
-
 export function createPicker(input: PickerInput): PickerModel {
   const { source, onCanvas } = input;
   const known = new Set(input.modules);
-  const members = membersOf(input.scans);
   const allEdges = input.scans.flatMap((scan) => scan.edges);
   const filter = input.filter.trim().toLowerCase();
   let missing = 0;
 
-  const isPrivate = (edge: ScanEdge, name: string) =>
-    members.get(edge.to)?.get(name) === false;
-
-  function fromEdges(pick: (edge: ScanEdge) => string | null): RawRow[] {
-    const byId = new Map<string, ScanEdge[]>();
-
-    for (const edge of allEdges) {
-      if (
-        edge.from === edge.to ||
-        !known.has(edge.from) ||
-        !known.has(edge.to)
-      ) {
-        continue;
-      }
-
-      const id = pick(edge);
-
-      if (id !== null) {
-        byId.set(id, [...(byId.get(id) ?? []), edge]);
-      }
-    }
-
-    return [...byId.entries()].map(([id, edges]) => {
-      const names = new Set<string>();
-      let isPriv = false;
-
-      for (const edge of edges) {
-        for (const name of edgeNames(edge)) {
-          names.add(name);
-          isPriv = isPriv || isPrivate(edge, name);
-        }
-      }
-
-      return {
-        id,
-        group: folderOf(id),
-        edges,
-        names: [...names].sort(compare),
-        private: isPriv,
-        inferred: edges.every((edge) => edge.inferred !== undefined),
-      };
-    });
-  }
+  const withGroup = (rows: NeighbourRow[]): RawRow[] =>
+    rows.map((row) => ({ ...row, group: folderOf(row.id) }));
 
   function buildRows(): RawRow[] {
     if (source.kind === "list") {
@@ -159,7 +96,6 @@ export function createPicker(input: PickerInput): PickerModel {
         rows.push({
           id: item.id,
           group: folderOf(item.id),
-          edges: [],
           names: item.names ?? [],
           private: false,
           inferred: false,
@@ -172,27 +108,18 @@ export function createPicker(input: PickerInput): PickerModel {
     const uses = source.direction === "uses";
 
     if (source.kind === "module") {
-      return fromEdges((edge) =>
+      return withGroup(
         uses
-          ? edge.from === source.id
-            ? edge.to
-            : null
-          : edge.to === source.id
-            ? edge.from
-            : null,
+          ? usesOf(input.scans, input.modules, source.id)
+          : usedByOf(input.scans, input.modules, source.id),
       );
     }
 
-    return fromEdges((edge) => {
-      const fromIn = under(edge.from, source.id);
-      const toIn = under(edge.to, source.id);
-
-      if (fromIn === toIn) {
-        return null;
-      }
-
-      return uses ? (fromIn ? edge.to : null) : toIn ? edge.from : null;
-    });
+    return withGroup(
+      uses
+        ? folderUses(input.scans, input.modules, source.id)
+        : folderUsedBy(input.scans, input.modules, source.id),
+    );
   }
 
   const raw = buildRows().sort((a, b) => compare(a.id, b.id));

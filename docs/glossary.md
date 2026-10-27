@@ -39,6 +39,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/descriptions.json` and current while its source and describer are unchanged. |
 | Describer | The command a repository registers in its config to write responsibilities. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
+| Command table | `COMMANDS` in `check/src/commands.ts`: the one list `recognizer` dispatches from and generates its help from. |
+| Freshness | Whether the cached scans can be used: they were taken at the current commit with a clean working tree. Otherwise `recognizer scan` runs first. |
 | Scanner | A language's standalone command that emits a scan. |
 | Scan | The document a scanner emits: modules, edges and foreign nodes for one language. |
 | Cache | A repository's gitignored `.recognizer/cache/`, where scans and overlays are written. |

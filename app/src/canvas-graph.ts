@@ -1,4 +1,14 @@
-import type { Scan, ScanEdge } from "recognizer";
+import {
+  folderChain,
+  folderCounts,
+  lastSegment,
+  moduleCounts,
+  moduleLabel,
+  neighbourSets,
+  type Scan,
+  type ScanEdge,
+  under,
+} from "recognizer";
 import type { Selection } from "./canvas-state";
 import type { Disc } from "./health";
 
@@ -55,28 +65,7 @@ export type GraphInput = {
   showInferred: boolean;
 };
 
-export function lastSegment(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
-
-export function moduleLabel(id: string): string {
-  const name = lastSegment(id);
-  const dot = name.lastIndexOf(".");
-
-  return dot > 0 ? name.slice(0, dot) : name;
-}
-
-export function folderChain(id: string): string[] {
-  const parts = id.split("/");
-
-  return parts
-    .slice(0, -1)
-    .map((_, index) => parts.slice(0, index + 1).join("/"));
-}
-
-export function under(path: string, folder: string): boolean {
-  return path === folder || path.startsWith(`${folder}/`);
-}
+export { folderChain, lastSegment, moduleLabel, under };
 
 export function lineId(
   from: string,
@@ -106,22 +95,6 @@ function styleOf(
   }
 
   return "plain";
-}
-
-function neighbourSets(edges: ScanEdge[], known: Set<string>) {
-  const uses = new Map<string, Set<string>>();
-  const usedBy = new Map<string, Set<string>>();
-
-  for (const edge of edges) {
-    if (edge.from === edge.to || !known.has(edge.from) || !known.has(edge.to)) {
-      continue;
-    }
-
-    uses.set(edge.from, (uses.get(edge.from) ?? new Set()).add(edge.to));
-    usedBy.set(edge.to, (usedBy.get(edge.to) ?? new Set()).add(edge.from));
-  }
-
-  return { uses, usedBy };
 }
 
 export function buildCanvasGraph(input: GraphInput): CanvasGraph {
@@ -163,7 +136,8 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const held = (folder: string) =>
     input.modules.filter((id) => under(id, folder)).length;
 
-  const { uses, usedBy } = neighbourSets(allEdges, known);
+  const sets = neighbourSets(allEdges, known);
+  const { uses, usedBy } = sets;
   const hidden = (id: string) => !visible.has(id);
   const boxes = new Map<string, Box>();
   const frameChains = new Map<string, string[]>();
@@ -266,31 +240,10 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     }
 
     if (selection.kind === "module") {
-      return {
-        uses: uses.get(selection.id)?.size ?? 0,
-        usedBy: usedBy.get(selection.id)?.size ?? 0,
-      };
+      return moduleCounts(sets, selection.id);
     }
 
-    const inside = input.modules.filter((id) => under(id, selection.id));
-    const reached = new Set<string>();
-    const reaching = new Set<string>();
-
-    for (const id of inside) {
-      for (const other of uses.get(id) ?? []) {
-        if (!under(other, selection.id)) {
-          reached.add(other);
-        }
-      }
-
-      for (const other of usedBy.get(id) ?? []) {
-        if (!under(other, selection.id)) {
-          reaching.add(other);
-        }
-      }
-    }
-
-    return { uses: reached.size, usedBy: reaching.size };
+    return folderCounts(sets, input.modules, selection.id);
   }
 
   return { frames, boxes: [...boxes.values()], lines, counts, held, openIn };
