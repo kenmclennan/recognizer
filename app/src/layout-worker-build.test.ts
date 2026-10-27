@@ -11,8 +11,10 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ElkNode } from "elkjs/lib/elk-api";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
+import { lightcycleShapedGraph } from "./lightcycle-shaped-graph";
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_BIN,
@@ -35,23 +37,26 @@ worker.addEventListener("error", (event) => {
 worker.addEventListener("message", (event) => {
   if (event.data.id === 1) {
     const children = event.data.data && event.data.data.children;
-    report(children ? "ANSWERED " + children[1].x : "FAILED " + JSON.stringify(event.data));
+    report(children ? "ANSWERED " + children.length : "FAILED " + JSON.stringify(event.data.error));
   }
 });
 worker.postMessage({ id: -1, cmd: "register", algorithms: ["layered"] });
-worker.postMessage({
-  id: 1,
-  cmd: "layout",
-  graph: {
-    id: "root",
-    layoutOptions: { "elk.algorithm": "layered" },
-    children: [{ id: "a", width: 10, height: 10 }, { id: "b", width: 10, height: 10 }],
-    edges: [{ id: "e", sources: ["a"], targets: ["b"] }],
-  },
-  layoutOptions: {},
-  options: {},
-});
+fetch("/graph")
+  .then((response) => response.json())
+  .then((graph) =>
+    worker.postMessage({ id: 1, cmd: "layout", graph, layoutOptions: {}, options: {} }),
+  );
 </script></body></html>`;
+
+const SMALL_GRAPH = {
+  id: "root",
+  layoutOptions: { "elk.algorithm": "layered" },
+  children: [
+    { id: "a", width: 10, height: 10 },
+    { id: "b", width: 10, height: 10 },
+  ],
+  edges: [{ id: "e", sources: ["a"], targets: ["b"] }],
+};
 
 async function buildApp(outDir: string): Promise<string> {
   await build({
@@ -72,96 +77,109 @@ async function buildApp(outDir: string): Promise<string> {
   return `/assets/${file}`;
 }
 
+async function answerInChrome(graph: ElkNode): Promise<string> {
+  const outDir = mkdtempSync(join(tmpdir(), "layout-worker-"));
+  const profile = mkdtempSync(join(tmpdir(), "layout-chrome-"));
+
+  try {
+    const workerPath = await buildApp(outDir);
+    let report: (text: string) => void = () => {};
+    const reported = new Promise<string>((resolve) => {
+      report = resolve;
+    });
+    const server = createServer((request, response) => {
+      if (request.method === "POST" && request.url === "/result") {
+        const chunks: Buffer[] = [];
+
+        request.on("data", (chunk: Buffer) => chunks.push(chunk));
+        request.on("end", () => {
+          report(Buffer.concat(chunks).toString("utf8"));
+          response.end();
+        });
+
+        return;
+      }
+
+      if (request.url === "/graph") {
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify(graph));
+
+        return;
+      }
+
+      if (request.url === "/") {
+        response.setHeader("content-type", "text/html");
+        response.end(PAGE.replace("WORKER_URL", JSON.stringify(workerPath)));
+
+        return;
+      }
+
+      if (request.url === workerPath) {
+        response.setHeader("content-type", "text/javascript");
+        response.end(readFileSync(join(outDir, workerPath)));
+
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end();
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+
+    try {
+      const { port } = server.address() as AddressInfo;
+      const browser = spawn(
+        chrome as string,
+        [
+          "--headless=new",
+          "--disable-gpu",
+          "--no-sandbox",
+          `--user-data-dir=${profile}`,
+          `http://127.0.0.1:${port}/`,
+        ],
+        { stdio: "ignore" },
+      );
+      const silence = new Promise<string>((resolve) =>
+        setTimeout(() => resolve("TIMEOUT"), 150000),
+      );
+
+      try {
+        return await Promise.race([reported, silence]);
+      } finally {
+        const exited = new Promise((resolve) => browser.once("exit", resolve));
+
+        browser.kill("SIGKILL");
+        await exited;
+      }
+    } finally {
+      server.close();
+    }
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+    rmSync(profile, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+}
+
 describe("built layout worker in a real browser", () => {
   it.skipIf(chrome === undefined)(
     "answers a layout request when started as the app starts it",
     async () => {
-      const outDir = mkdtempSync(join(tmpdir(), "layout-worker-"));
-      const profile = mkdtempSync(join(tmpdir(), "layout-chrome-"));
-
-      try {
-        const workerPath = await buildApp(outDir);
-        let report: (text: string) => void = () => {};
-        const reported = new Promise<string>((resolve) => {
-          report = resolve;
-        });
-        const server = createServer((request, response) => {
-          if (request.method === "POST" && request.url === "/result") {
-            const chunks: Buffer[] = [];
-
-            request.on("data", (chunk: Buffer) => chunks.push(chunk));
-            request.on("end", () => {
-              report(Buffer.concat(chunks).toString("utf8"));
-              response.end();
-            });
-
-            return;
-          }
-
-          if (request.url === "/") {
-            response.setHeader("content-type", "text/html");
-            response.end(
-              PAGE.replace("WORKER_URL", JSON.stringify(workerPath)),
-            );
-
-            return;
-          }
-
-          if (request.url === workerPath) {
-            response.setHeader("content-type", "text/javascript");
-            response.end(readFileSync(join(outDir, workerPath)));
-
-            return;
-          }
-
-          response.statusCode = 404;
-          response.end();
-        });
-
-        await new Promise<void>((resolve) => server.listen(0, resolve));
-
-        try {
-          const { port } = server.address() as AddressInfo;
-          const browser = spawn(
-            chrome as string,
-            [
-              "--headless=new",
-              "--disable-gpu",
-              "--no-sandbox",
-              `--user-data-dir=${profile}`,
-              `http://127.0.0.1:${port}/`,
-            ],
-            { stdio: "ignore" },
-          );
-          const silence = new Promise<string>((resolve) =>
-            setTimeout(() => resolve("TIMEOUT"), 60000),
-          );
-
-          try {
-            expect(await Promise.race([reported, silence])).toMatch(
-              /^ANSWERED [0-9.]+$/,
-            );
-          } finally {
-            const exited = new Promise((resolve) =>
-              browser.once("exit", resolve),
-            );
-
-            browser.kill("SIGKILL");
-            await exited;
-          }
-        } finally {
-          server.close();
-        }
-      } finally {
-        rmSync(outDir, { recursive: true, force: true });
-        rmSync(profile, {
-          recursive: true,
-          force: true,
-          maxRetries: 10,
-          retryDelay: 200,
-        });
-      }
+      expect(await answerInChrome(SMALL_GRAPH as ElkNode)).toBe("ANSWERED 2");
     },
     120000,
+  );
+
+  it.skipIf(chrome === undefined)(
+    "lays out a graph of lightcycle's shape",
+    async () => {
+      expect(await answerInChrome(lightcycleShapedGraph())).toBe("ANSWERED 4");
+    },
+    180000,
   );
 });

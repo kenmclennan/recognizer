@@ -22,7 +22,11 @@ import {
   inspectorContent,
 } from "./inspector-model";
 import { buildInspectorView } from "./inspector-view";
-import { createLayoutSource, startLayoutWorker } from "./layout-source";
+import {
+  createLayoutSource,
+  layoutOnMainThread,
+  startLayoutWorker,
+} from "./layout-source";
 import { buildCallerIndex } from "./member-callers";
 import { createOpenModules } from "./open-modules";
 import { createPicker, type PickerModel } from "./picker-model";
@@ -252,6 +256,7 @@ export function showExplorer(
 
   const layout = createLayoutSource(
     startLayoutWorker(),
+    layoutOnMainThread,
     (result) => {
       layoutNotice = null;
       scene = toScene(graph, absoluteLayout(result));

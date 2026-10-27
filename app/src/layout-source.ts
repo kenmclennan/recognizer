@@ -37,8 +37,19 @@ const realTimers: Timers = {
   clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
+export type MainThreadLayout = (graph: ElkNode) => Promise<ElkNode>;
+
+export const STACK_OVERFLOW = "Maximum call stack size exceeded";
+
+export async function layoutOnMainThread(graph: ElkNode): Promise<ElkNode> {
+  const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
+
+  return new ELK().layout(graph);
+}
+
 export function createLayoutSource(
   worker: WorkerLike,
+  mainThreadLayout: MainThreadLayout,
   onLayout: (layout: ElkNode) => void,
   onError: (message: string) => void,
   timeoutMs = LAYOUT_TIMEOUT_MS,
@@ -46,12 +57,30 @@ export function createLayoutSource(
 ): LayoutSource {
   let latest = 0;
   let pending: unknown = null;
+  let latestGraph: ElkNode | null = null;
 
   function settle() {
     if (pending !== null) {
       timers.clear(pending);
       pending = null;
     }
+  }
+
+  function retryOnMainThread(graph: ElkNode, id: number) {
+    mainThreadLayout(graph).then(
+      (layout) => {
+        if (id === latest && pending !== null) {
+          settle();
+          onLayout(layout);
+        }
+      },
+      (error) => {
+        if (id === latest && pending !== null) {
+          settle();
+          onError(String(error));
+        }
+      },
+    );
   }
 
   worker.postMessage({ id: -1, cmd: "register", algorithms: ["layered"] });
@@ -63,13 +92,22 @@ export function createLayoutSource(
       return;
     }
 
-    settle();
-
     if ("error" in answer) {
-      onError(String(answer.error));
+      const message = String(answer.error);
+
+      if (message.includes(STACK_OVERFLOW) && latestGraph !== null) {
+        retryOnMainThread(latestGraph, answer.id);
+
+        return;
+      }
+
+      settle();
+      onError(message);
 
       return;
     }
+
+    settle();
 
     onLayout(answer.data);
   });
@@ -77,6 +115,7 @@ export function createLayoutSource(
   return {
     request(graph) {
       latest += 1;
+      latestGraph = graph;
       settle();
 
       const expected = latest;
