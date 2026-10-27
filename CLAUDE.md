@@ -48,7 +48,7 @@ One repository, a directory per part:
 
 ## Worktrees
 
-A fresh worktree has no `node_modules`. Run `npm ci` at the repository root before typecheck, tests or any `npm run` script; the root install covers every workspace.
+A fresh worktree has no `node_modules`. Run `npm ci` at the repository root before typecheck, tests or any `npm run` script; the root install covers every workspace. Run app tools through their npm scripts, whose `pre*` hooks rebuild `check/dist`; a direct `tsc` or `vitest` call needs `npm run build -w recognizer` first.
 
 ## CI
 
