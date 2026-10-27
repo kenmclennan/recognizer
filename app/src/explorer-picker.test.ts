@@ -153,16 +153,28 @@ facts.absent = {
   ghost: document.querySelectorAll('[class*="ghost"], [data-kind="ghost"]').length,
   platformCheckbox: document.querySelectorAll('.tree input[type="checkbox"], .inspector-panel input[type="checkbox"]').length,
   rowButtons: document.querySelectorAll(".tree .row button, .inspector-panel .row button").length,
-  labels: [...document.querySelectorAll("button, [aria-label]")].map((n) => (n.getAttribute("aria-label") || "") + "|" + n.textContent).filter((t) => /Find on canvas|Take off|Put on the canvas|Tick all|By name|By module|^\\|Add/.test(t)),
+  labels: [...document.querySelectorAll("button, [aria-label]")].map((n) => (n.getAttribute("aria-label") || "") + "|" + n.textContent).filter((t) => /Find on canvas|Put on the canvas|Tick all|By name|By module|^\\|Add/.test(t)),
   legend: document.querySelector(".tree .legend"),
-  takeOffButton: document.querySelector('.selection-bar [aria-label="Take off the canvas"]'),
 };
 facts.absent.legend = facts.absent.legend === null;
-facts.absent.takeOffButton = facts.absent.takeOffButton === null;
 
 const before = count();
 key("Backspace");
 facts.backspace = { before, after: count(), selected: selected() };
+
+const takeOffButton = () => document.querySelector('.selection-bar [aria-label="Take off the canvas (Backspace)"]');
+click(treeRow("app/a.py").querySelector(".rcheck"));
+click(document.querySelector('.box[data-id="app/a.py"] .box-body'));
+const moduleBefore = count();
+click(takeOffButton());
+facts.takeOffModule = { before: moduleBefore, after: count(), selected: selected() };
+click(treeRow("lib").querySelector(".rcheck"));
+click(document.querySelector('.frame-label[data-id="lib"]'));
+const folderBefore = count();
+const folderBar = [...document.querySelectorAll(".selection-bar > *")].map((n) => n.classList.contains("bar-sep") ? "|" : n.getAttribute("aria-label") || n.textContent);
+facts.takeOffFolder = { bar: folderBar.slice(-2), title: takeOffButton().title, cross: takeOffButton().querySelector("path[d*='M18 6L6 18']") !== null, before: folderBefore };
+click(takeOffButton());
+facts.takeOffFolder.after = count();
 
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
@@ -210,9 +222,16 @@ type Facts = {
     rowButtons: number;
     labels: string[];
     legend: boolean;
-    takeOffButton: boolean;
   };
   backspace: { before: string; after: string; selected: string[] };
+  takeOffModule: { before: string; after: string; selected: string[] };
+  takeOffFolder: {
+    bar: string[];
+    title: string;
+    cross: boolean;
+    before: string;
+    after: string;
+  };
 };
 
 async function collect(): Promise<Facts> {
@@ -347,7 +366,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
     expect(f.activeTabStyle).toContain("inset");
   });
 
-  it("has no picker, ghost, platform checkbox, row button, Tick all, Add, By name, take-off or tree key", () => {
+  it("has no picker, ghost, platform checkbox, row button, Tick all, Add, By name, or tree key", () => {
     expect(f.absent).toEqual({
       picker: 0,
       ghost: 0,
@@ -355,11 +374,25 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
       rowButtons: 0,
       labels: [],
       legend: true,
-      takeOffButton: true,
     });
   });
 
   it("still takes the selection off with Backspace", () => {
     expect(f.backspace.after).not.toBe(f.backspace.before);
+  });
+
+  it("takes a selected module off from the bar's last button", () => {
+    expect(f.takeOffModule.after).not.toBe(f.takeOffModule.before);
+    expect(f.takeOffModule.selected).toEqual([]);
+  });
+
+  it("ends a folder's bar with a separator and a take-off button that is not a cross, and takes everything in the folder off", () => {
+    expect(f.takeOffFolder.bar).toEqual([
+      "|",
+      "Take off the canvas (Backspace)",
+    ]);
+    expect(f.takeOffFolder.title).toBe("Take off the canvas (Backspace)");
+    expect(f.takeOffFolder.cross).toBe(false);
+    expect(f.takeOffFolder.after).not.toBe(f.takeOffFolder.before);
   });
 });

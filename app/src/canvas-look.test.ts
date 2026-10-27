@@ -220,11 +220,12 @@ const clickBar = (aria) => q('.selection-bar [aria-label="' + aria + '"]').click
 calls.length = 0;
 clickBar("Fold into one box");
 clickBar("Focus on this folder");
+clickBar("Take off the canvas (Backspace)");
 [...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Uses")).click();
 [...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Files")).click();
 result.barClicks = [...calls];
 canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ folded: true, focused: true }) }));
-result.barFolded = kids(q(".selection-bar")).slice(-3).map((k) => [k.aria, k.title]);
+result.barFolded = kids(q(".selection-bar")).slice(-5).map((k) => [k.aria, k.title]);
 
 result.chrome = {
   topStrip: q(".canvas-bar") === null,
@@ -296,7 +297,6 @@ const rightBefore = { x: barBox().left, y: barBox().top };
 panBy(-70, 45);
 const rightAfter = { x: barBox().left, y: barBox().top };
 result.pinned = { beforePan, afterPan, afterZoom, rightBefore, rightAfter };
-result.noTakeOff = q('.selection-bar [aria-label="Take off the canvas"]') === null;
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
 `;
 
@@ -337,7 +337,6 @@ type Report = {
     rightBefore: { x: number; y: number };
     rightAfter: { x: number; y: number };
   };
-  noTakeOff: boolean;
   barModule: { kids: Kid[]; style: Props };
   barFolder: {
     kids: Kid[];
@@ -601,6 +600,8 @@ describe("the canvas against the prototype, in a real browser", () => {
             "Used by 0",
             "|",
             "Contents",
+            "|",
+            "Take off the canvas (Backspace)",
           ]);
           expect(labelsOf(barFolder.kids)).toEqual([
             "Files 1 of 2",
@@ -611,6 +612,8 @@ describe("the canvas against the prototype, in a real browser", () => {
             "Focus on this folder",
             "Fold into one box",
             "Contents",
+            "|",
+            "Take off the canvas (Backspace)",
           ]);
           expect(barFolder.style["background-color"]).toBe(
             r().tokens.proto.dark,
@@ -625,7 +628,7 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(barFolder.sep.width).toBe(barFolder.proto.sep.width);
           expect(barFolder.sep.height).toBe(barFolder.proto.sep.height);
 
-          const [files, , uses, usedBy, , focus, fold, contents] =
+          const [files, , uses, usedBy, , focus, fold, contents, , takeOff] =
             barFolder.kids as Kid[];
 
           expect(files?.svgs.map((s) => s.path)).toEqual(["M6 9l6 6 6-6"]);
@@ -645,7 +648,9 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(fold?.title).toBe("Fold into one box (Z)");
           expect(contents?.title).toBe("Contents (I)");
           expect(contents?.disabled).toBe(false);
-          expect(r().noTakeOff).toBe(true);
+          expect(takeOff?.title).toBe("Take off the canvas (Backspace)");
+          expect(takeOff?.svgs[0]?.path).not.toBe("M18 6L6 18M6 6l12 12");
+          expect(takeOff?.svgs[0]?.strokeWidth).toBe("2px");
 
           for (const icon of [focus, fold, contents]) {
             expect(icon?.text).toBe("");
@@ -656,6 +661,7 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(barClicks).toEqual([
             "fold",
             "focus",
+            "takeOff",
             "tab:uses",
             "tab:contents",
           ]);
