@@ -51,7 +51,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Open | On the canvas. A module is opened from the tree or by following an edge, and closed the same way. |
 | Selection | The one module, folder or edge the user has picked, highlighted in the tree and shown in the inspector. |
 | Selection bar | The small bar of actions that appears above the selection; right-clicking opens the same bar. |
-| Picker | The inspector's Uses and Used by tabs: the list a selection's dependencies or dependents are put on the canvas from, grouped by module or by name. |
+| Picker | The inspector's Uses and Used by tabs: the list a selection's dependencies or dependents are put on the canvas from, grouped by folder. |
 | Fold | Drawing an open folder as one box, which keeps its health disc and takes the edges to anything inside it. |
 | Contents | A module's members, with their signatures and who builds, calls or uses each; or a folder's files. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
