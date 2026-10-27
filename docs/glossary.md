@@ -64,6 +64,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Evidence | Why an edge exists: the quoted source line, the names, the route, or what an inferred edge was inferred from. |
 | View state | Everything that decides what the user sees, as one record. Each change makes a new one; it lasts only as long as the window. |
 | History | The sequence of view states the user has moved through in a window; back and forward walk it. It is never saved. |
+| Rail | The thin strip of icons at the window's far left, one per left-hand panel; an icon opens its panel, or closes it when it is open. |
+| Files panel | The rail's panel holding the tree. |
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its purpose, the commit it was saved at, and its steps. |
 | Purpose | A saved view's required one- or two-sentence statement of what it is for. |
 | Step | One entry in a saved view, replayed on opening: a pick, a rule, a fold, a focus, or a module left out. |
