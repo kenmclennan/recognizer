@@ -5,7 +5,7 @@ import {
   neighbourhoodOf,
   presenceOf,
 } from "./canvas-graph";
-import { absoluteLayout, type Point, toElk } from "./canvas-layout";
+import { absoluteLayout, toElk } from "./canvas-layout";
 import { type Scene, toScene } from "./canvas-scene";
 import { createCanvasState, type Selection } from "./canvas-state";
 import { buildCanvasView, createMeasure } from "./canvas-view";
@@ -20,6 +20,7 @@ import {
   emphasisedLines,
   type InspectorTab,
   inspectorContent,
+  type Narrowed,
 } from "./inspector-model";
 import { buildInspectorView } from "./inspector-view";
 import {
@@ -29,28 +30,15 @@ import {
 } from "./layout-source";
 import { buildCallerIndex } from "./member-callers";
 import { createOpenModules } from "./open-modules";
-import { createPicker, type PickerModel } from "./picker-model";
 import { repositorySource } from "./repository-source";
 import type { Loaded } from "./scan-loading";
-import type { BarModel, PickerKind } from "./selection-bar-view";
+import type { BarModel } from "./selection-bar-view";
 import { type FilterState, filterTree, isVisible } from "./tree-filter";
 import { ancestorFolders, buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
 
 export type Explorer = {
   toggleTree: () => void;
-  openPickerOn: (
-    items: { id: string; names?: string[] }[],
-    title: string,
-    anchor?: Point,
-  ) => void;
-};
-
-type OpenPicker = {
-  model: PickerModel;
-  kind: PickerKind | "list";
-  selection: Selection;
-  anchor: Point | null;
 };
 
 export function showExplorer(
@@ -83,7 +71,9 @@ export function showExplorer(
   const folds = new Set<string>();
   const callers = buildCallerIndex(scans);
   let layoutNotice: string | null = null;
-  let picker: OpenPicker | null = null;
+  let pickerFilter = "";
+  let narrowed: Narrowed | null = null;
+  const groupFlips = new Set<string>();
 
   const context = {
     isOpen: modules.isOpen,
@@ -118,11 +108,9 @@ export function showExplorer(
       modules.close(id);
       changed();
     },
+    putFolderOnCanvas: putAllOn,
+    takeFolderOff: takeAllOff,
     find,
-    findFolder(path) {
-      select({ kind: "folder", id: path });
-      canvas.centerOn(path);
-    },
     hideTree: toggleTree,
   });
 
@@ -165,52 +153,7 @@ export function showExplorer(
       render();
     },
     measure,
-    disc: (id) => described.get(id)?.disc ?? "grey",
-    togglePicker,
-    closePicker() {
-      closePicker();
-    },
-    untick(id) {
-      picker?.model.toggle(id);
-      changed();
-    },
-    picker: {
-      toggle(id) {
-        picker?.model.toggle(id);
-        changed();
-      },
-      toggleGroup(key) {
-        picker?.model.toggleGroup(key);
-        changed();
-      },
-      toggleCollapse(key) {
-        picker?.model.toggleCollapse(key);
-        render();
-      },
-      setTab(tab) {
-        picker?.model.setTab(tab);
-        render();
-      },
-      setFilter(text) {
-        picker?.model.setFilter(text);
-        render();
-      },
-      tickAll() {
-        picker?.model.tickAll();
-        changed();
-      },
-      add() {
-        const ids = [...(picker?.model.ticked() ?? [])];
-
-        picker = null;
-
-        for (const id of ids) {
-          modules.open(id);
-        }
-
-        changed();
-      },
-    },
+    openTab,
   });
 
   const inspector = buildInspectorView({
@@ -221,10 +164,16 @@ export function showExplorer(
     close() {
       inspectorOpen = false;
       hovered = null;
+      resetList();
       render();
     },
     setTab(tab) {
+      if (tab !== inspectorTab) {
+        resetFilter();
+      }
+
       inspectorTab = tab;
+      narrowed = null;
       render();
     },
     toggleFold(key) {
@@ -247,10 +196,35 @@ export function showExplorer(
       renderCanvas();
     },
     openCallers(button) {
-      openPickerOn(
-        button.callers.map((id) => ({ id, names: [button.name] })),
-        button.pickerTitle,
-      );
+      resetFilter();
+      inspectorOpen = true;
+      inspectorTab = "usedBy";
+      narrowed = {
+        title: button.pickerTitle,
+        items: button.callers.map((id) => ({ id, names: [button.name] })),
+      };
+      render();
+    },
+    putOnCanvas: putAllOn,
+    takeOff: takeAllOff,
+    pickName(id) {
+      if (!modules.isOpen(id)) {
+        modules.open(id);
+        changed();
+      }
+
+      canvas.centerOn(boxFor(id));
+    },
+    toggleGroup(key) {
+      if (!groupFlips.delete(key)) {
+        groupFlips.add(key);
+      }
+
+      render();
+    },
+    setFilter(text) {
+      pickerFilter = text;
+      render();
     },
   });
 
@@ -286,7 +260,6 @@ export function showExplorer(
       folded: new Set(),
       focus: null,
       showInferred: true,
-      ghosts: new Set(),
     });
   }
 
@@ -299,8 +272,59 @@ export function showExplorer(
     notices.hidden = notices.childElementCount === 0;
   }
 
-  function graphWith(ghosts: ReadonlySet<string>): CanvasGraph {
-    return buildCanvasGraph({
+  function putAllOn(ids: string[]) {
+    for (const id of ids) {
+      modules.open(id);
+    }
+
+    changed();
+  }
+
+  function takeAllOff(ids: string[]) {
+    for (const id of ids) {
+      modules.close(id);
+    }
+
+    changed();
+  }
+
+  function resetFilter() {
+    pickerFilter = "";
+    groupFlips.clear();
+  }
+
+  function resetList() {
+    resetFilter();
+    narrowed = null;
+  }
+
+  function openTab(tab: InspectorTab) {
+    if (tab === "uses" || tab === "usedBy") {
+      const selection = state.selection();
+
+      if (selection === null || selection.kind === "edge") {
+        return;
+      }
+
+      const counts = graph.counts(selection);
+
+      if ((tab === "uses" ? counts.uses : counts.usedBy) === 0) {
+        return;
+      }
+    }
+
+    if (tab !== inspectorTab) {
+      resetFilter();
+    }
+
+    inspectorOpen = true;
+    inspectorTab = tab;
+    narrowed = null;
+    render();
+  }
+
+  function changed() {
+    graph = buildCanvasGraph({
       scans,
       modules: loaded.modules,
       opened: modules.opened(),
@@ -308,32 +332,8 @@ export function showExplorer(
       folded: state.folded(),
       focus: state.focus(),
       showInferred: state.showInferred(),
-      ghosts,
     });
-  }
-
-  function staleBarPicker(): boolean {
-    const selection = state.selection();
-
-    return (
-      picker !== null &&
-      picker.kind !== "list" &&
-      (selection === null ||
-        picker.selection === null ||
-        selection.kind !== picker.selection.kind ||
-        selection.id !== picker.selection.id)
-    );
-  }
-
-  function changed() {
-    graph = graphWith(picker?.model.ticked() ?? new Set());
     state.reconcile(presenceOf(graph));
-
-    if (staleBarPicker()) {
-      picker = null;
-      graph = graphWith(new Set());
-    }
-
     titles = new Map(
       graph.lines.map((line) => [line.id, describeLine(line.edges)]),
     );
@@ -359,107 +359,17 @@ export function showExplorer(
     }
   }
 
-  function dropPicker(): boolean {
-    const hadGhosts = (picker?.model.ticked().size ?? 0) > 0;
-
-    picker = null;
-
-    if (hadGhosts) {
-      changed();
-    }
-
-    return hadGhosts;
-  }
-
-  function closePicker() {
-    if (!dropPicker()) {
-      render();
-    }
-  }
-
-  function openPicker(next: OpenPicker) {
-    picker = next;
-
-    if (next.model.ticked().size > 0) {
-      changed();
-    } else {
-      render();
-    }
-  }
-
-  function togglePicker(kind: PickerKind) {
-    const selection = state.selection();
-
-    if (selection === null || selection.kind === "edge") {
-      return;
-    }
-
-    if (picker?.kind === kind) {
-      closePicker();
-
-      return;
-    }
-
-    const counts = graph.counts(selection);
-
-    if (
-      (kind === "uses" && counts.uses === 0) ||
-      (kind === "usedBy" && counts.usedBy === 0) ||
-      (kind === "files" && selection.kind !== "folder")
-    ) {
-      return;
-    }
-
-    const source =
-      kind === "files"
-        ? ({ kind: "files", id: selection.id } as const)
-        : ({
-            kind: selection.kind,
-            id: selection.id,
-            direction: kind,
-          } as const);
-
-    dropPicker();
-    openPicker({
-      model: createPicker({
-        scans,
-        modules: loaded.modules,
-        onCanvas: modules.isOpen,
-        source,
-      }),
-      kind,
-      selection,
-      anchor: null,
-    });
-  }
-
-  function openPickerOn(
-    items: { id: string; names?: string[] }[],
-    title: string,
-    anchor?: Point,
-  ) {
-    openPicker({
-      model: createPicker({
-        scans,
-        modules: loaded.modules,
-        onCanvas: modules.isOpen,
-        source: { kind: "list", items, title },
-      }),
-      kind: "list",
-      selection: null,
-      anchor: anchor ?? null,
-    });
-  }
-
   function select(selection: Selection) {
+    const previous = state.selection();
+
+    if (previous?.kind !== selection?.kind || previous?.id !== selection?.id) {
+      resetList();
+    }
+
     state.select(selection);
     evidence = null;
     hovered = null;
     reveal(selection);
-
-    if (staleBarPicker()) {
-      dropPicker();
-    }
 
     if (selection?.kind === "edge") {
       inspectorOpen = true;
@@ -504,14 +414,21 @@ export function showExplorer(
   }
 
   function find(id: string) {
+    if (!modules.isOpen(id)) {
+      modules.open(id);
+      changed();
+    }
+
+    const previous = state.selection();
+
+    if (previous?.kind !== "module" || previous.id !== id) {
+      resetList();
+    }
+
     state.select({ kind: "module", id });
     evidence = null;
     hovered = null;
     reveal({ kind: "module", id });
-
-    if (staleBarPicker()) {
-      dropPicker();
-    }
     render();
     canvas.centerOn(boxFor(id));
   }
@@ -538,8 +455,7 @@ export function showExplorer(
           : null,
       focused: state.focus() === selection.id,
       folded: state.folded().has(selection.id),
-      picker: picker?.kind === "list" ? null : (picker?.kind ?? null),
-      inspectorOpen,
+      inspectorTab: inspectorOpen ? inspectorTab : null,
     };
   }
 
@@ -562,7 +478,6 @@ export function showExplorer(
       treeHidden,
       showInferred: state.showInferred(),
       notice: layoutNotice,
-      picker: picker ? { model: picker.model, anchor: picker.anchor } : null,
     });
   }
 
@@ -601,6 +516,10 @@ export function showExplorer(
         edgeOnCanvas:
           selection?.kind === "edge" &&
           graph.lines.some((line) => line.id === selection.id),
+        counts: graph.counts,
+        filter: pickerFilter,
+        collapsed: groupFlips,
+        narrowed,
       }),
       inspectorOpen,
     );
@@ -614,5 +533,5 @@ export function showExplorer(
   renderNotices();
   changed();
 
-  return { toggleTree, openPickerOn };
+  return { toggleTree };
 }

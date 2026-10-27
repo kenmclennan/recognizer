@@ -23,7 +23,6 @@ export type Box = {
   held: number;
   missingUses: number;
   missingUsedBy: number;
-  ghost: boolean;
 };
 
 export type Line = {
@@ -33,7 +32,6 @@ export type Line = {
   style: EdgeStyle;
   count: number;
   edges: ScanEdge[];
-  ghost: boolean;
 };
 
 export type Counts = { uses: number; usedBy: number };
@@ -55,7 +53,6 @@ export type GraphInput = {
   folded: ReadonlySet<string>;
   focus: string | null;
   showInferred: boolean;
-  ghosts: ReadonlySet<string>;
 };
 
 export function lastSegment(path: string): string {
@@ -201,36 +198,6 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       missingUsedBy: folded
         ? 0
         : [...(usedBy.get(key) ?? [])].filter(hidden).length,
-      ghost: false,
-    });
-  }
-
-  const openSet = new Set(input.opened);
-  const drawnGhosts = new Set(
-    [...input.ghosts].filter(
-      (id) =>
-        known.has(id) && !openSet.has(id) && inFocus(id) && foldOf(id) === null,
-    ),
-  );
-
-  for (const id of drawnGhosts) {
-    const chain = chainOf(id);
-
-    chain.forEach((path, index) => {
-      frameChains.set(path, chain.slice(0, index));
-    });
-
-    boxes.set(id, {
-      id,
-      kind: "module",
-      label: moduleLabel(id),
-      parent: chain[chain.length - 1] ?? null,
-      disc: input.disc(id),
-      open: 1,
-      held: 1,
-      missingUses: 0,
-      missingUsedBy: 0,
-      ghost: true,
     });
   }
 
@@ -252,13 +219,11 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       to: string;
       style: EdgeStyle;
       edges: ScanEdge[];
-      ghost: boolean;
     }
   >();
-  const shown = (id: string) => visible.has(id) || drawnGhosts.has(id);
 
   for (const edge of allEdges) {
-    if (!shown(edge.from) || !shown(edge.to)) {
+    if (!visible.has(edge.from) || !visible.has(edge.to)) {
       continue;
     }
 
@@ -280,7 +245,6 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       to,
       style,
       edges: [],
-      ghost: drawnGhosts.has(edge.from) || drawnGhosts.has(edge.to),
     };
 
     group.edges.push(edge);
@@ -294,7 +258,6 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     style: group.style,
     count: group.edges.length,
     edges: group.edges,
-    ghost: group.ghost,
   }));
 
   function counts(selection: NonNullable<Selection>): Counts {
@@ -352,7 +315,7 @@ export function edgesOf(
 
   return new Set(
     graph.lines
-      .filter((line) => !line.ghost && (touches(line.from) || touches(line.to)))
+      .filter((line) => touches(line.from) || touches(line.to))
       .map((line) => line.id),
   );
 }
@@ -378,10 +341,6 @@ export function neighbourhoodOf(
   }
 
   for (const line of graph.lines) {
-    if (line.ghost) {
-      continue;
-    }
-
     if (touches(line.from)) {
       near.add(line.to);
     }
@@ -397,9 +356,7 @@ export function neighbourhoodOf(
 export function presenceOf(graph: CanvasGraph) {
   return {
     module: (id: string) =>
-      graph.boxes.some(
-        (box) => box.kind === "module" && box.id === id && !box.ghost,
-      ),
+      graph.boxes.some((box) => box.kind === "module" && box.id === id),
     folder: (path: string) =>
       graph.frames.some((frame) => frame.path === path && frame.open > 0) ||
       graph.boxes.some((box) => box.kind === "folder" && box.id === path),

@@ -7,7 +7,6 @@ const press = (key: string, extra: Partial<KeyInput> = {}): KeyInput => ({
   ctrlKey: false,
   altKey: false,
   targetEditable: false,
-  pickerOpen: false,
   ...extra,
 });
 
@@ -62,21 +61,9 @@ describe("canvas keys", () => {
     expect(keyAction(press("u", { targetEditable: true }), module)).toBeNull();
   });
 
-  it("escapes from an editable target only while the picker is open", () => {
+  it("never acts on Escape in an editable target", () => {
     expect(
-      keyAction(
-        press("Escape", { targetEditable: true, pickerOpen: true }),
-        null,
-      ),
-    ).toBe("escape");
-    expect(
-      keyAction(
-        press("Backspace", { targetEditable: true, pickerOpen: true }),
-        module,
-      ),
-    ).toBeNull();
-    expect(
-      keyAction(press("Escape", { metaKey: true, pickerOpen: true }), null),
+      keyAction(press("Escape", { targetEditable: true }), null),
     ).toBeNull();
   });
 

@@ -40,6 +40,10 @@ function inputsFor(
     tab: "contents",
     evidence: null,
     edgeOnCanvas: true,
+    counts: () => ({ uses: 0, usedBy: 0 }),
+    filter: "",
+    collapsed: new Set(),
+    narrowed: null,
     ...extra,
   };
 }
@@ -344,26 +348,62 @@ describe("folder contents", () => {
     ).rows;
 
     expect(rows).toEqual([
-      { kind: "folder", disc: "green", name: "b/", count: "2 files" },
       {
-        kind: "file",
-        id: "a/c.py",
+        kind: "module",
+        id: "a/b",
+        ids: ["a/b/y.py", "a/b/z.py"],
+        label: "b/",
+        state: "unchecked",
+        bold: false,
         disc: "green",
-        name: "c.py",
-        summary: "",
-        on: false,
-        title: "Click to put it on the canvas",
+        folder: true,
+        indent: false,
+        chevron: null,
+        detail: { text: "2 files" },
+        title: "a/b",
       },
       {
-        kind: "file",
-        id: "a/x.py",
+        kind: "module",
+        id: "a/c.py",
+        ids: ["a/c.py"],
+        label: "c.py",
+        state: "unchecked",
+        bold: false,
         disc: "green",
-        name: "x.py",
-        summary: "2 classes, 1 function",
-        on: true,
-        title: "On the canvas: click to select it",
+        folder: false,
+        indent: false,
+        chevron: null,
+        detail: null,
+        title: "a/c.py",
+      },
+      {
+        kind: "module",
+        id: "a/x.py",
+        ids: ["a/x.py"],
+        label: "x.py",
+        state: "checked",
+        bold: true,
+        disc: "green",
+        folder: false,
+        indent: false,
+        chevron: null,
+        detail: { text: "2 classes, 1 function" },
+        title: "a/x.py",
       },
     ]);
+  });
+
+  it("shows a subfolder partial while only some of its files are on the canvas", () => {
+    const rows = inspectorContent(
+      folder("a"),
+      inputsFor([scan], { onCanvas: (id) => id === "a/b/y.py" }),
+    ).rows;
+
+    expect(rows[0]).toMatchObject({
+      label: "b/",
+      state: "partial",
+      bold: true,
+    });
   });
 
   it("headers a folder with its name and file count at any depth", () => {
@@ -406,15 +446,45 @@ describe("header and tabs", () => {
       inputsFor([scan], { findings: () => [finding, finding] }),
     );
 
-    expect(none.tabs?.map((tab) => tab.label)).toEqual([
+    expect(none.tabs?.map((tab) => tab.label).slice(0, 2)).toEqual([
       "Contents",
       "Findings",
     ]);
-    expect(some.tabs?.map((tab) => tab.label)).toEqual([
+    expect(some.tabs?.map((tab) => tab.label).slice(0, 2)).toEqual([
       "Contents",
       "Findings 2",
     ]);
     expect(some.tabs?.[0]?.active).toBe(true);
+  });
+
+  it("offers Contents, Findings, Uses N and Used by N for a module and a folder, from the counts", () => {
+    const counts = () => ({ uses: 12, usedBy: 1 });
+    const labels = (selection: ReturnType<typeof module | typeof folder>) =>
+      inspectorContent(selection, inputsFor([scan], { counts })).tabs?.map(
+        (tab) => tab.label,
+      );
+
+    expect(labels(module("src/app/pkg/m.py"))).toEqual([
+      "Contents",
+      "Findings",
+      "Uses 12",
+      "Used by 1",
+    ]);
+    expect(labels(folder("src/app"))).toEqual([
+      "Contents",
+      "Findings",
+      "Uses 12",
+      "Used by 1",
+    ]);
+  });
+
+  it("has no tabs for an edge whatever tab was last chosen", () => {
+    const content = inspectorContent(
+      { kind: "edge", id: "e" },
+      inputsFor([scan], { tab: "usedBy" }),
+    );
+
+    expect(content.tabs).toBeNull();
   });
 
   it("explains an empty selection", () => {
@@ -560,13 +630,12 @@ describe("hover emphasis", () => {
     line: 1,
     ...extra,
   });
-  const line = (id: string, edge: ScanEdge, ghost = false) => ({
+  const line = (id: string, edge: ScanEdge) => ({
     id,
-    ghost,
     edges: [edge],
   });
 
-  it("emphasises names, to_member and inferred class but not other lines or ghosts", () => {
+  it("emphasises names, to_member and inferred class but not other lines", () => {
     const lines = [
       line("byNames", edgeOf({ names: ["Store"] })),
       line("byMember", edgeOf({ kind: "implements", to_member: "Store" })),
@@ -582,7 +651,6 @@ describe("hover emphasis", () => {
         }),
       ),
       line("other", edgeOf({ names: ["Other"] })),
-      line("ghost", edgeOf({ names: ["Store"] }), true),
       line("elsewhere", edgeOf({ to: "z.py", names: ["Store"] })),
     ];
 
@@ -688,14 +756,16 @@ describe("against fixtures/python", () => {
       inputsFor([scan]),
     ).rows;
 
-    expect(rows.filter((row) => row.kind === "file")).toHaveLength(4);
-    expect(rows.some((row) => row.kind === "folder")).toBe(false);
+    const modules = rows.filter((row) => row.kind === "module");
+
+    expect(modules).toHaveLength(4);
+    expect(modules.some((row) => row.folder)).toBe(false);
   });
 
   it("emphasises the implements and names lines into the store on hover", () => {
     const lines = scan.edges
       .filter((edge) => edge.to === "shop/ports/store.py")
-      .map((edge, index) => ({ id: `l${index}`, ghost: false, edges: [edge] }));
+      .map((edge, index) => ({ id: `l${index}`, edges: [edge] }));
     const lit = emphasisedLines("shop/ports/store.py", "Store", lines);
 
     expect(lit.size).toBeGreaterThan(0);
@@ -711,5 +781,142 @@ describe("against fixtures/python", () => {
           ),
         ),
     ).toBe(true);
+  });
+});
+
+describe("uses and used by tabs", () => {
+  const edge = (from: string, to: string, names: string[]): ScanEdge => ({
+    from,
+    to,
+    kind: "depends",
+    line: 1,
+    names,
+  });
+  const scan: Scan = {
+    modules: ["hub.py", "a/x.py", "a/y.py", "b/z.py", "caller.py"].map(
+      (id) => ({ id, kind: "module" }) as Scan["modules"][number],
+    ),
+    edges: [
+      edge("hub.py", "a/x.py", ["X"]),
+      edge("hub.py", "a/y.py", ["Y"]),
+      edge("hub.py", "b/z.py", ["Z"]),
+      edge("caller.py", "hub.py", ["Hub"]),
+    ],
+    foreign: [],
+  };
+  const open =
+    (...ids: string[]) =>
+    (id: string) =>
+      ids.includes(id);
+  const rows = (extra: Partial<InspectorInputs>) =>
+    inspectorContent(
+      module("hub.py"),
+      inputsFor([scan], {
+        tab: "uses",
+        counts: () => ({ uses: 3, usedBy: 1 }),
+        ...extra,
+      }),
+    ).rows;
+  const moduleRows = (list: Row[]) =>
+    list.filter((row) => row.kind === "module");
+
+  it("lists the modules a module uses under folder headings with their full path, then the module rows", () => {
+    const list = moduleRows(rows({}));
+
+    expect(list.map((row) => [row.folder, row.label])).toEqual([
+      [true, "a/"],
+      [false, "x"],
+      [false, "y"],
+      [true, "b/"],
+      [false, "z"],
+    ]);
+    expect(list[0]).toMatchObject({
+      chevron: { key: "a", open: true },
+      detail: { text: "2" },
+    });
+    expect(list[1]).toMatchObject({ indent: true, detail: { text: "X" } });
+  });
+
+  it("starts with a filter field and ticks rows that are on the canvas", () => {
+    const list = rows({ onCanvas: open("a/x.py") });
+
+    expect(list[0]).toMatchObject({
+      kind: "filter",
+      placeholder: "Filter 3 modules",
+    });
+    expect(moduleRows(list)[0]).toMatchObject({ state: "partial" });
+    expect(moduleRows(list)[1]).toMatchObject({ state: "checked", bold: true });
+  });
+
+  it("filters by module and by name", () => {
+    expect(moduleRows(rows({ filter: "z" })).map((row) => row.label)).toEqual([
+      "b/",
+      "z",
+    ]);
+    expect(
+      moduleRows(rows({ tab: "usedBy", filter: "hub" })).map(
+        (row) => row.label,
+      ),
+    ).toEqual(["./", "caller"]);
+    expect(moduleRows(rows({ tab: "usedBy", filter: "nothing" }))).toEqual([]);
+  });
+
+  it("lists the modules that use a module on the Used by tab", () => {
+    const list = moduleRows(rows({ tab: "usedBy" }));
+
+    expect(list.map((row) => row.label)).toEqual(["./", "caller"]);
+    expect(list[0]).toMatchObject({ id: "" });
+  });
+
+  it("shows None for an empty list", () => {
+    expect(
+      inspectorContent(
+        module("a/y.py"),
+        inputsFor([scan], {
+          tab: "uses",
+          counts: () => ({ uses: 0, usedBy: 1 }),
+        }),
+      ).rows,
+    ).toEqual([{ kind: "none" }]);
+  });
+
+  it("collapses a group whose override flips the default", () => {
+    const list = rows({ collapsed: new Set(["a"]) });
+
+    expect(moduleRows(list).map((row) => row.label)).toEqual(["a/", "b/", "z"]);
+    expect(moduleRows(list)[0]).toMatchObject({
+      chevron: { key: "a", open: false },
+    });
+  });
+
+  it("lists only the narrowed callers under their title and keeps the full figure", () => {
+    const content = inspectorContent(
+      module("hub.py"),
+      inputsFor([scan], {
+        tab: "usedBy",
+        counts: () => ({ uses: 3, usedBy: 7 }),
+        narrowed: {
+          title: "Callers of Hub",
+          items: [
+            { id: "caller.py", names: ["Hub"] },
+            { id: "gone.py", names: ["Hub"] },
+          ],
+        },
+      }),
+    );
+
+    expect(content.tabs?.[3]?.label).toBe("Used by 7");
+    expect(content.rows[0]).toEqual({
+      kind: "heading",
+      text: "Callers of Hub",
+    });
+    expect(moduleRows(content.rows).map((row) => row.label)).toEqual([
+      "./",
+      "caller",
+    ]);
+    expect(content.rows).toContainEqual({
+      kind: "note",
+      text: "1 not in the scan",
+    });
   });
 });

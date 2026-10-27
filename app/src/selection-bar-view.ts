@@ -1,7 +1,6 @@
 import { el } from "./dom";
 import { type IconName, icon } from "./icons";
-
-export type PickerKind = "uses" | "usedBy" | "files";
+import type { InspectorTab } from "./inspector-model";
 
 export type BarModel = {
   kind: "module" | "folder";
@@ -10,13 +9,11 @@ export type BarModel = {
   files: { open: number; held: number } | null;
   focused: boolean;
   folded: boolean;
-  picker: PickerKind | null;
-  inspectorOpen: boolean;
+  inspectorTab: InspectorTab | null;
 };
 
 export type BarActions = {
-  togglePicker: (kind: PickerKind) => void;
-  takeOff: () => void;
+  openTab: (tab: InspectorTab) => void;
   toggleFocus: () => void;
   toggleFold: () => void;
   openContents: () => void;
@@ -85,19 +82,22 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         return;
       }
 
-      const picker = (
-        kind: PickerKind,
+      const contentsShown =
+        model.inspectorTab === "contents" || model.inspectorTab === "findings";
+      const tab = (
+        target: InspectorTab,
         title: string,
         enabled: boolean,
+        lit: boolean,
         ...children: (string | Node)[]
       ): HTMLButtonElement => {
         const node = barButton(
           title,
-          enabled ? () => actions.togglePicker(kind) : null,
+          enabled ? () => actions.openTab(target) : null,
           ...children,
         );
 
-        node.classList.toggle("on", model.picker === kind);
+        node.classList.toggle("on", lit);
 
         return node;
       };
@@ -105,10 +105,11 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
 
       if (model.files) {
         parts.push(
-          picker(
-            "files",
+          tab(
+            "contents",
             "Pick files in it",
             true,
+            contentsShown,
             `Files ${model.files.open} of ${model.files.held}`,
             chevron(),
           ),
@@ -117,18 +118,20 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
       }
 
       parts.push(
-        picker(
+        tab(
           "uses",
           "Pick what it uses (U)",
           model.uses > 0,
+          model.inspectorTab === "uses",
           icon("arrow-down"),
           `Uses ${model.uses}`,
           chevron(),
         ),
-        picker(
+        tab(
           "usedBy",
           "Pick what uses it (D)",
           model.usedBy > 0,
+          model.inspectorTab === "usedBy",
           icon("arrow-up"),
           `Used by ${model.usedBy}`,
           chevron(),
@@ -157,16 +160,8 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         actions.openContents(),
       );
 
-      contents.classList.toggle("on", model.inspectorOpen);
-      parts.push(
-        contents,
-        iconButton(
-          "x",
-          "Take off the canvas",
-          "Take off the canvas (Backspace)",
-          () => actions.takeOff(),
-        ),
-      );
+      contents.classList.toggle("on", contentsShown);
+      parts.push(contents);
       element.replaceChildren(...parts);
     },
   };

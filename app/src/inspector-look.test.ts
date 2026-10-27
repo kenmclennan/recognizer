@@ -58,8 +58,12 @@ const inputs = {
   tab: "contents",
   evidence: null,
   edgeOnCanvas: true,
+  counts: () => ({ uses: 0, usedBy: 0 }),
+  filter: "",
+  collapsed: new Set(),
+  narrowed: null,
 };
-const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, openCallers() {} };
+const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, openCallers() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {} };
 const mount = (id, selection, open) => {
   const view = buildInspectorView(actions);
   view.render(inspectorContent(selection, inputs), open);
@@ -68,14 +72,12 @@ const mount = (id, selection, open) => {
 };
 mount("a-rail", { kind: "module", id: "p/m.py" }, false);
 mount("a-panel", { kind: "module", id: "p/m.py" }, true);
-mount("a-folder", { kind: "folder", id: "p" }, true);
 `;
 
 const PAGE = (css: string, protoCss: string) => `<!doctype html>
 <html><head><meta charset="utf-8"><style>${css}</style></head><body>
 <div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div>
 <div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div>
-<div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div>
 <div id="host"></div>
 <script src="look.js"></script>
 <script>
@@ -100,10 +102,7 @@ shadow.innerHTML = '<style>:host{display:block;color:var(--fg)}' + protoCss +
   '<div class="om top"><span>f()</span></div>' +
   '<div class="ofold top" data-k="foldtop">' + CH + '1 private function</div>' +
   '</div></div>' +
-  '<div style="width:340px;height:300px;display:flex;flex-direction:column"><div id="insp" data-k="folder" style="display:block;flex:1;width:auto">' +
-  '<div class="lnk" data-k="off"><i class="d"></i><span>q.py <span data-k="sum" style="color:var(--muted)">1 class</span></span></div>' +
-  '<div class="lnk on" data-k="on"><i class="d"></i><span>m.py <span style="color:var(--muted)">1 class, 1 function</span></span></div>' +
-  '</div></div>';
+'</div></div>';
 
 const BOX = ["padding-top", "padding-right", "padding-bottom", "padding-left"];
 const BORDER_L = ["border-left-width", "border-left-color"];
@@ -130,9 +129,6 @@ const specs = {
   fold: ["#a-panel .ofold:not(.top)", "[data-k=fold]", ["display", "align-items", "column-gap", "color", "font-size", "cursor", ...BOX]],
   foldTop: ["#a-panel .ofold.top", "[data-k=foldtop]", [...BOX]],
   foldIcon: ["#a-panel .ofold svg", "[data-k=fold] svg", ["width", "height", "stroke-width"]],
-  fileOff: ["#a-folder .lnk:not(.on)", "[data-k=off]", ROW],
-  fileOn: ["#a-folder .lnk.on", "[data-k=on]", ROW],
-  fileSummary: ["#a-folder .lnk:not(.on) .muted", "[data-k=sum]", ["color", "font-size"]],
 };
 const read = (node, props) => {
   if (!node) return { missing: true };
