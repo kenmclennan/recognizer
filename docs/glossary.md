@@ -62,6 +62,11 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Box | What the canvas draws for a module, or for a folded folder: its disc, its name and its figures. |
 | Private-name import | An import of a name the target module does not export. Drawn dashed. |
 | Evidence | Why an edge exists: the quoted source line, the names, the route, or what an inferred edge was inferred from. |
-| View state | Everything that decides what the user sees, as one record with an id. Each change makes a new one. |
-| History | The sequence of view states the user has moved through; back and forward walk it. |
-| Bookmark | A view state the user has named. |
+| View state | Everything that decides what the user sees, as one record. Each change makes a new one; it lasts only as long as the window. |
+| History | The sequence of view states the user has moved through in a window; back and forward walk it. It is never saved. |
+| Saved view | A named view committed at `.recognizer/views/<name>.json`: its purpose, the commit it was saved at, and its steps. |
+| Purpose | A saved view's required one- or two-sentence statement of what it is for. |
+| Step | One entry in a saved view, replayed on opening: a pick, a rule, a fold, a focus, or a module left out. |
+| Pick | A step naming one module by path. Everything the user adds in the app is recorded as picks. |
+| Rule | A step naming a relationship (a folder's files, what a module uses or is used by), re-evaluated on every opening. |
+| Stale view | A saved view the code has moved on from: a pick that is missing, changed relations, or newly relevant modules. |
