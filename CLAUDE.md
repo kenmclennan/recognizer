@@ -50,6 +50,11 @@ One repository, a directory per part:
 
 A fresh worktree has no `node_modules`. Run `npm ci` at the repository root before typecheck, tests or any `npm run` script; the root install covers every workspace. Run app tools through their npm scripts, whose `pre*` hooks rebuild `check/dist`; a direct `tsc` or `vitest` call needs `npm run build -w recognizer` first.
 
+## Gate risks
+
+- Biome formats and lints code (`npm run lint -w @recognizer/app`, `lint:fix` to apply). Prettier is for Markdown only; never run it over code or the whole repository.
+- The `*-look.test.ts` files drive a headless Chrome and take about a minute each. While iterating, run only the file you are changing (`npm run test -w @recognizer/app -- src/<name>.test.ts`); run the full suite before you finish.
+
 ## CI
 
 Every workflow runs on a self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), registered to this repo only, because GitHub-hosted minutes for private repos ran out. It has the local toolchain, so no workflow installs system libraries. No workflow uses `Swatinem/rust-cache`: on a self-hosted runner its cleanup prunes `~/.cargo/bin` and deletes `rustup`, which takes `cargo` and `rustc` with it.
