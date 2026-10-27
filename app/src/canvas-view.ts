@@ -125,8 +125,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     "tree-toggle",
     actions.toggleTree,
   );
-  const count = el("div", "canvas-count");
-  count.id = "canvas-count";
   const stage = el("div", "stage");
   const surface = svg("svg", { class: "surface" });
   const world = svg("g", { class: "world" });
@@ -179,7 +177,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   surface.append(world);
   stage.append(surface, empty, notice, selectionBar.element);
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
-  element.append(stage, toggle, count, controls, legend.element);
+  element.append(stage, toggle, controls, legend.element);
 
   function size() {
     const box = stage.getBoundingClientRect();
@@ -714,7 +712,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
       props = next;
       toggle.hidden = !next.treeHidden;
-      count.textContent = `${next.open} of ${next.total} modules on the canvas`;
       empty.hidden = next.open > 0;
       notice.textContent = next.notice ?? "";
       notice.hidden = next.notice === null;

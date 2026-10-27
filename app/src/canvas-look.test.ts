@@ -117,7 +117,6 @@ shadow.getElementById("stage").insertAdjacentHTML("beforeend",
   g("n s", '<rect class="halo"/><rect width="10" height="10" rx="7"/><text>a</text>') +
   g("n f", '<rect width="10" height="10"/><text>g/</text>') + g("n", '<rect width="10" height="10"/><text class="more">+1</text>') +
   '</svg>' +
-  '<div id="count" class="float">x</div>' +
   '<div id="zbar" class="float"><button>-</button><span class="z" id="zl">100%</span><button>+</button></div>' +
   '<div id="tbar" class="show"><span class="tsep"></span><button><svg class="i" viewBox="0 0 24 24"><path d="M1 1"/></svg>Uses</button></div>' +
   '<div id="hint">a<br>b</div>');
@@ -229,8 +228,7 @@ result.barFolded = kids(q(".selection-bar")).slice(-3).map((k) => [k.aria, k.tit
 
 result.chrome = {
   topStrip: q(".canvas-bar") === null,
-  count: { text: q("#canvas-count").textContent, ...pick(q("#canvas-count"), [...PANEL, "position", "top", "right"]) },
-  protoCount: pick(p("#count"), [...PANEL, "position", "top", "right"]),
+  countInCanvas: q("#canvas-count") !== null || q(".canvas-count") !== null,
   toggle: { ...pick(q(".tree-toggle"), ["position", "top", "left", "display"]), svg: q(".tree-toggle svg.i") !== null },
 };
 const hint = q(".empty-canvas");
@@ -299,7 +297,6 @@ panBy(-70, 45);
 const rightAfter = { x: barBox().left, y: barBox().top };
 result.pinned = { beforePan, afterPan, afterZoom, rightBefore, rightAfter };
 result.noTakeOff = q('.selection-bar [aria-label="Take off the canvas"]') === null;
-result.canvasCount = { id: q("#canvas-count") !== null, bare: q("#canvas-count").classList.contains("count") };
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
 `;
 
@@ -341,7 +338,6 @@ type Report = {
     rightAfter: { x: number; y: number };
   };
   noTakeOff: boolean;
-  canvasCount: { id: boolean; bare: boolean };
   barModule: { kids: Kid[]; style: Props };
   barFolder: {
     kids: Kid[];
@@ -354,8 +350,7 @@ type Report = {
   barFolded: string[][];
   chrome: {
     topStrip: boolean;
-    count: Props & { text: string };
-    protoCount: Props;
+    countInCanvas: boolean;
     toggle: Props & { svg: boolean };
     toggleWhenTreeShown: string;
   };
@@ -499,20 +494,12 @@ describe("the canvas against the prototype, in a real browser", () => {
       );
 
       it.skipIf(chrome === undefined)(
-        "floats the count and the tree button with no bar across the top",
+        "floats the tree button with no bar and no count across the top",
         () => {
           const { chrome: c } = r();
 
           expect(c.topStrip).toBe(true);
-          expect(c.count.text).toBe("3 of 5 modules on the canvas");
-          expect(c.count.position).toBe("absolute");
-          expect(c.count.top).toBe("14px");
-          expect(c.count.right).toBe("14px");
-          expect({ ...c.count, text: undefined, position: undefined }).toEqual({
-            ...c.protoCount,
-            text: undefined,
-            position: undefined,
-          });
+          expect(c.countInCanvas).toBe(false);
           expect(c.toggle.position).toBe("absolute");
           expect(c.toggle.top).toBe("14px");
           expect(c.toggle.left).toBe("14px");
@@ -752,14 +739,6 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(dimming.relatedBox?.opacity).toBe("1");
           expect(dimming.relatedFrame?.opacity).toBe("1");
           expect(dimming.nothingSelected?.opacity).toBe("1");
-        },
-        120000,
-      );
-
-      it.skipIf(chrome === undefined)(
-        "keeps the canvas count's panel off any other count",
-        () => {
-          expect(r().canvasCount).toEqual({ id: true, bare: false });
         },
         120000,
       );

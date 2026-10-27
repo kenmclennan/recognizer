@@ -26,6 +26,7 @@ let explorer: Explorer | null = null;
 
 async function start(): Promise<void> {
   explorer = null;
+  footerView.setCount("");
 
   const folder = await repositorySource.windowFolder();
 
@@ -53,6 +54,7 @@ async function start(): Promise<void> {
     content,
     loaded,
     folder.split(/[\\/]/).filter(Boolean).pop() ?? folder,
+    (text) => footerView.setCount(text),
   );
 }
 

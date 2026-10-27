@@ -45,6 +45,7 @@ export function showExplorer(
   container: HTMLElement,
   loaded: Loaded,
   title: string,
+  onCount: (text: string) => void = () => {},
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const root = buildTree(loaded.modules);
@@ -460,6 +461,8 @@ export function showExplorer(
   }
 
   function renderCanvas() {
+    onCount(`${modules.count()} of ${modules.total()} modules on the canvas`);
+
     const selection = state.selection();
     const module = selection?.kind === "module" ? selection.id : null;
 
