@@ -50,9 +50,6 @@ svg.s{width:11px;height:11px;stroke-width:3}
 
 .tools{display:flex;align-items:center;gap:10px}
 .filter{flex:1;height:28px;border:1px solid var(--line);border-radius:6px;padding:0 8px;background:var(--code);color:var(--fg);font:inherit}
-.group{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
-.group button{border:0;background:none;padding:0;color:var(--muted);cursor:pointer}
-.group button.on{color:var(--fg);font-weight:600}
 .list{display:flex;flex-direction:column;gap:1px;margin-top:2px}
 .row{display:flex;align-items:center;gap:6px;height:26px;padding:0 4px;border-radius:5px;cursor:pointer}
 .row:hover{background:var(--code)}
@@ -134,12 +131,10 @@ svg.s{width:11px;height:11px;stroke-width:3}
 
 <section class="pane on" data-pane="uses">
 <div class="tools"><input class="filter" placeholder="Filter 34 modules"></div>
-<div class="group">Group by <button class="on">module</button><button>name</button></div>
 <div class="list" id="uses-list"></div>
 </section>
 <section class="pane" data-pane="usedby">
 <div class="tools"><input class="filter" placeholder="Filter 1 module"></div>
-<div class="group">Group by <button class="on">module</button><button>name</button></div>
 <div class="list" id="usedby-list"></div>
 </section>
 
@@ -208,7 +203,6 @@ function show(t){
 }
 tabs.forEach(b=>b.addEventListener("click",()=>show(b.dataset.tab)));
 document.querySelectorAll(".bar button[data-open]").forEach(b=>b.addEventListener("click",()=>show(b.dataset.open)));
-document.querySelectorAll(".group").forEach(g=>g.addEventListener("click",e=>{if(e.target.tagName!=="BUTTON")return;g.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b===e.target))}));
 all_();
 </script>
 </body>
