@@ -36,6 +36,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
 | Overlay | Measurements from a tool a repository registers (coverage, churn, mutation), written as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
+| Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/descriptions.json` and current while its source and describer are unchanged. |
+| Describer | The command a repository registers in its config to write responsibilities. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
 | Scanner | A language's standalone command that emits a scan. |
 | Scan | The document a scanner emits: modules, edges and foreign nodes for one language. |
