@@ -75,14 +75,14 @@ const scan = {
 const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null };
 
 const app = document.getElementById("app");
-showExplorer(app, loaded, "demo");
+showExplorer(app, loaded, "demo", (text) => { document.getElementById("module-count").textContent = text; });
 
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
 const cs = (node) => getComputedStyle(node);
 const treeRow = (p) => document.querySelector('.tree .row[data-path="' + p + '"]');
 const pickRow = (id) => document.querySelector('.inspector-panel .row[data-id="' + id + '"]');
-const count = () => document.getElementById("canvas-count").textContent;
+const count = () => document.getElementById("module-count").textContent;
 const aria = (row) => row.querySelector(".rcheck").getAttribute("aria-checked");
 const centre = (node) => { const r = node.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 const off = (id) => { const c = centre(document.querySelector('.box[data-id="' + id + '"]')); const s = centre(document.querySelector(".stage")); return Math.hypot(c.x - s.x, c.y - s.y); };
@@ -234,7 +234,7 @@ async function collect(): Promise<Facts> {
 
     writeFileSync(
       page,
-      `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><div id="app" style="width:1400px;height:800px;display:flex;flex-direction:column"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
+      `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><span id="module-count"></span><div id="app" style="width:1400px;height:800px;display:flex;flex-direction:column"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
     const run = spawnSync(

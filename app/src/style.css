@@ -620,20 +620,6 @@ svg.i.chevron {
   pointer-events: none;
 }
 
-#canvas-count {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  padding: 6px 10px;
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.08);
-  pointer-events: none;
-}
-
 .canvas .tree-toggle {
   position: absolute;
   z-index: 5;
