@@ -45,8 +45,9 @@ const tree = buildTreeView({
   toggleFolder: (path) => calls.push(["toggleFolder", path]),
   putOnCanvas: (id) => calls.push(["putOnCanvas", id]),
   takeOff: (id) => calls.push(["takeOff", id]),
+  putFolderOnCanvas: (ids) => calls.push(["putFolderOnCanvas", ids.join(",")]),
+  takeFolderOff: (ids) => calls.push(["takeFolderOff", ids.join(",")]),
   find: (id) => calls.push(["find", id]),
-  findFolder: (id) => calls.push(["findFolder", id]),
   hideTree: () => calls.push(["hideTree"]),
 });
 
@@ -90,19 +91,27 @@ const action = (button) => ({
   iconWidth: cs(button.querySelector("svg")).width,
   color: cs(button).color,
 });
+const kindOf = (child) =>
+  child.classList.contains("rcheck") ? "check"
+  : child.classList.contains("name") ? "name"
+  : child.classList.contains("disc") ? "disc"
+  : child.classList.contains("chevron") ? "chevron"
+  : "other";
 const describeRow = (path) => {
   const row = rowFor(path);
-  const acts = row.querySelector(".actions");
   const name = row.querySelector(".name");
   const chevron = row.querySelector(".chevron");
+  const check = row.querySelector(".rcheck");
   return {
     text: name.textContent,
     classes: row.className,
+    order: [...row.children].map(kindOf),
     height: cs(row).height,
     paddingLeft: cs(row).paddingLeft,
     discWidth: cs(row.querySelector(".disc")).width,
     discHeight: cs(row.querySelector(".disc")).height,
     discLeft: row.querySelector(".disc").getBoundingClientRect().left,
+    checkLeft: check.getBoundingClientRect().left,
     nameWeight: cs(name).fontWeight,
     nameColor: cs(name).color,
     background: cs(row).backgroundColor,
@@ -114,8 +123,15 @@ const describeRow = (path) => {
           inline: chevron.tagName,
         }
       : null,
-    actionsDisplay: cs(acts).display,
-    buttons: [...acts.querySelectorAll("button")].map(action),
+    check: {
+      role: check.getAttribute("role"),
+      aria: check.getAttribute("aria-checked"),
+      tag: check.tagName,
+      look: [cs(check).width, cs(check).height, cs(check).borderTopLeftRadius, cs(check).borderTopWidth].join(" "),
+      background: cs(check).backgroundColor,
+    },
+    buttons: row.querySelectorAll("button").length,
+    inputs: row.querySelectorAll("input").length,
   };
 };
 
@@ -152,22 +168,34 @@ const hdr = {
 };
 
 const treeText = tree.element.textContent;
+const noLegend = tree.element.querySelector(".legend") === null;
 
 calls.length = 0;
-const click = (selector) => rowFor(selector).click();
+const pick = (path, selector) =>
+  rowFor(path).querySelector(selector).dispatchEvent(new MouseEvent("click", { bubbles: true }));
 tree.render(props({ expanded: new Set(["src", "lib"]), selected: null }));
-click("src/a.ts");
-click("src/b.ts");
-rowFor("src/a.ts").querySelector('[aria-label="Take off the canvas"]').click();
-rowFor("src/b.ts").querySelector('[aria-label="Put on the canvas"]').click();
-rowFor("src").querySelector('[aria-label="Find on canvas"]').click();
+pick("src/a.ts", ".name");
+pick("src/b.ts", ".name");
+pick("src/a.ts", ".rcheck");
+pick("src/b.ts", ".rcheck");
+pick("src", ".rcheck");
+pick("lib", ".rcheck");
+pick("src", ".name");
+pick("src", ".chevron");
+rowFor("src/a.ts").querySelector(".rcheck").dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
 tree.element.querySelector(".tree-header button").click();
+const allOpen = () => true;
+tree.render(props({ expanded: new Set(["src", "lib"]), selected: null, isOpen: allOpen }));
+const checkedFolder = describeRow("src");
+pick("src", ".rcheck");
 const clicks = calls.map((call) => call.join(":"));
+tree.render(props({ expanded: new Set(["src", "lib"]), selected: null }));
+const states = { src: describeRow("src").check.aria, lib: describeRow("lib").check.aria, a: describeRow("src/a.ts").check.aria, b: describeRow("src/b.ts").check.aria };
 
 tree.render(props({ filtered: filterTree(root, { ...filter, text: "zzz" }, context), filter: { ...filter, text: "zzz" } }));
 const empty = tree.element.querySelector(".empty").textContent;
 
-const canvasActions = { find() {}, select() {}, takeOff() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, clear() {}, setShowInferred() {}, toggleTree: () => calls.push(["canvasToggle"]), measure: (t) => t.length * 7 };
+const canvasActions = { find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, clear() {}, setShowInferred() {}, toggleTree: () => calls.push(["canvasToggle"]), measure: (t) => t.length * 7 };
 const canvas = buildCanvasView(canvasActions);
 document.body.append(canvas.element);
 const canvasProps = (treeHidden) => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), open: 0, total: 4, treeHidden, showInferred: true, notice: null });
@@ -189,7 +217,7 @@ canvas.render(canvasProps(false));
 shown.hiddenWhenTreeShown = cs(toggle).display;
 
 document.getElementById("out").textContent = btoa(
-  unescape(encodeURIComponent(JSON.stringify({ rows, hdr, treeText, clicks, empty, probes, shown }))),
+  unescape(encodeURIComponent(JSON.stringify({ rows, hdr, treeText, noLegend, clicks, empty, probes, shown, checkedFolder, states }))),
 );
 `;
 
@@ -210,13 +238,22 @@ type RowFacts = {
   discWidth: string;
   discHeight: string;
   discLeft: number;
+  checkLeft: number;
   nameWeight: string;
   nameColor: string;
   background: string;
   shadow: string;
   chevron: { width: string; path: string; inline: string } | null;
-  actionsDisplay: string;
-  buttons: Button[];
+  order: string[];
+  check: {
+    role: string;
+    aria: string;
+    tag: string;
+    look: string;
+    background: string;
+  };
+  buttons: number;
+  inputs: number;
 };
 
 type Facts = {
@@ -237,6 +274,9 @@ type Facts = {
     chipOffHeight: string;
   };
   treeText: string;
+  noLegend: boolean;
+  states: Record<string, string>;
+  checkedFolder: RowFacts;
   clicks: string[];
   empty: string;
   probes: { sel: { color: string; background: string } };
@@ -352,36 +392,45 @@ describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
     expect(f.rows["src/a.ts"].text).toBe("a.ts");
   });
 
-  it("shows a plus on hover for a file off the canvas", () => {
-    const row = f.rows["src/b.ts"];
-
-    expect(row.actionsDisplay).toBe("none");
-    expect(row.buttons.map((b) => [b.aria, b.title])).toEqual([
-      ["Put on the canvas", "Put on the canvas"],
+  it("builds every row as chevron, checkbox, name, disc with the chevron on folders only", () => {
+    expect(f.rows.src.order).toEqual(["chevron", "check", "name", "disc"]);
+    expect(f.rows["src/deep"].order).toEqual([
+      "chevron",
+      "check",
+      "name",
+      "disc",
     ]);
-    expect(row.buttons[0].width).toBe("22px");
-    expect(row.buttons[0].height).toBe("22px");
-    expect(row.buttons[0].iconWidth).toBe("14px");
+    expect(f.rows["src/a.ts"].order).toEqual(["check", "name", "disc"]);
+    expect(f.rows["src/b.ts"].order).toEqual(["check", "name", "disc"]);
   });
 
-  it("always shows a target and a selection-coloured eye for a file on the canvas", () => {
-    const row = f.rows["src/a.ts"];
+  it("has no eye, target, plus or any button on a row, no platform checkbox and no disc key", () => {
+    for (const row of [f.rows.src, f.rows["src/a.ts"], f.rows["src/b.ts"]]) {
+      expect(row.buttons).toBe(0);
+      expect(row.inputs).toBe(0);
+      expect(row.check.tag).toBe("SPAN");
+      expect(row.check.role).toBe("checkbox");
+    }
 
-    expect(row.actionsDisplay).toBe("flex");
-    expect(row.buttons.map((b) => [b.aria, b.title])).toEqual([
-      ["Find on canvas", "Find on canvas"],
-      ["Take off the canvas", "Take off the canvas"],
-    ]);
-    expect(row.buttons[1].color).toBe(f.probes.sel.color);
-    expect(row.buttons[0].color).not.toBe(f.probes.sel.color);
-    expect(row.buttons.every((b) => b.iconWidth === "14px")).toBe(true);
+    expect(f.noLegend).toBe(true);
   });
 
-  it("shows the target on a folder holding a file on the canvas and nothing on one that holds none", () => {
-    expect(f.rows.src.buttons.map((b) => b.aria)).toEqual(["Find on canvas"]);
-    expect(f.rows.src.actionsDisplay).toBe("flex");
-    expect(f.rows.plain.lib.buttons).toEqual([]);
-    expect(f.rows.plain.lib.actionsDisplay).toBe("none");
+  it("draws a 14px rounded app checkbox, checked, unchecked and partial", () => {
+    expect(f.rows["src/a.ts"].check.aria).toBe("true");
+    expect(f.rows["src/b.ts"].check.aria).toBe("false");
+    expect(f.rows.src.check.aria).toBe("mixed");
+    expect(f.checkedFolder.check.aria).toBe("true");
+
+    for (const row of [f.rows["src/a.ts"], f.rows["src/b.ts"], f.rows.src]) {
+      expect(row.check.look.startsWith("14px 14px 4px")).toBe(true);
+    }
+
+    expect(f.rows["src/a.ts"].check.background).toBe(
+      f.rows.src.check.background,
+    );
+    expect(f.rows["src/a.ts"].check.background).not.toBe(
+      f.rows["src/b.ts"].check.background,
+    );
   });
 
   it("bolds the name of a row on the canvas and of a folder holding one", () => {
@@ -409,19 +458,19 @@ describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
     expect(f.rows["src/deep/d.ts"].nameColor).not.toBe(f.probes.sel.color);
   });
 
-  it("selects a file row on the canvas when it is on the canvas and puts it there when it is not", () => {
-    expect(f.clicks.slice(0, 2)).toEqual([
+  it("wires a name click as find, a checkbox click as put on or take off, and a folder name as open and close", () => {
+    expect(f.clicks).toEqual([
       "find:src/a.ts",
-      "putOnCanvas:src/b.ts",
-    ]);
-  });
-
-  it("wires the row icons and the header button to their actions", () => {
-    expect(f.clicks.slice(2)).toEqual([
+      "find:src/b.ts",
       "takeOff:src/a.ts",
       "putOnCanvas:src/b.ts",
-      "findFolder:src",
+      "putFolderOnCanvas:src/deep/d.ts,src/a.ts,src/b.ts",
+      "putFolderOnCanvas:lib/c.ts",
+      "toggleFolder:src",
+      "toggleFolder:src",
+      "takeOff:src/a.ts",
       "hideTree",
+      "takeFolderOff:src/deep/d.ts,src/a.ts,src/b.ts",
     ]);
   });
 
@@ -436,10 +485,10 @@ describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
     expect(f.rows["src/a.ts"].discHeight).toBe("9px");
   });
 
-  it("lines a file's disc up under the disc of a folder at the same level", () => {
-    expect(f.rows["src/a.ts"].discLeft).toBe(f.rows["src/deep"].discLeft);
-    expect(f.rows["src/deep/d.ts"].discLeft).toBeGreaterThan(
-      f.rows["src/deep"].discLeft,
+  it("lines a file's checkbox up under the checkbox of a folder at the same level", () => {
+    expect(f.rows["src/a.ts"].checkLeft).toBe(f.rows["src/deep"].checkLeft);
+    expect(f.rows["src/deep/d.ts"].checkLeft).toBeGreaterThan(
+      f.rows["src/deep"].checkLeft,
     );
   });
 

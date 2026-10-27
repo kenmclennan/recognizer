@@ -2,12 +2,7 @@ import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCanvasGraph } from "./canvas-graph";
 import { expectedScan } from "./fixtures";
-import {
-  createPicker,
-  LONG_LIST,
-  NO_NAMES,
-  type PickerSource,
-} from "./picker-model";
+import { createPicker, LONG_LIST, type PickerSource } from "./picker-model";
 
 type EdgeSpec = {
   from: string;
@@ -55,12 +50,15 @@ function pickerOf(
   scan: Scan,
   source: PickerSource,
   onCanvas: (id: string) => boolean = () => false,
+  extra: { filter?: string; collapsed?: Set<string> } = {},
 ) {
   return createPicker({
     scans: [scan],
     modules: scan.modules.map((module) => module.id),
     onCanvas,
     source,
+    filter: extra.filter ?? "",
+    collapsed: extra.collapsed ?? new Set(),
   });
 }
 
@@ -71,7 +69,7 @@ const star = scanOf(
     { from: "hub.py", to: "a/y.py" },
     { from: "hub.py", to: "b/z.py", names: ["zed"] },
     { from: "hub.py", to: "hub.py", names: ["self"] },
-    { from: "hub.py", to: "gone.py", names: ["ghost"] },
+    { from: "hub.py", to: "gone.py", names: ["phantom"] },
     { from: "top.py", to: "hub.py", names: ["Hub"] },
     { from: "a/x.py", to: "hub.py", names: ["Hub", "Other"] },
   ],
@@ -114,17 +112,6 @@ describe("picker rows", () => {
     expect(usedBy.groups()[0]?.rows[0]?.id).toBe("hub.py");
   });
 
-  it("lists the known modules under a folder for Files, with headers per subfolder", () => {
-    const scan = scanOf(["f/a.py", "f/s/b.py", "f/s/c.py", "g/d.py"], []);
-    const files = pickerOf(scan, { kind: "files", id: "f" });
-    const groups = files.groups();
-
-    expect(files.rowCount()).toBe(3);
-    expect(groups.map((group) => group.label)).toEqual(["f/", "s/"]);
-    expect(groups.every((group) => group.header)).toBe(true);
-    expect(groups[0]?.rows[0]?.names).toEqual([]);
-  });
-
   it("agrees with the bar's counts", () => {
     const modules = star.modules.map((module) => module.id);
     const graph = buildCanvasGraph({
@@ -135,7 +122,6 @@ describe("picker rows", () => {
       folded: new Set(),
       focus: null,
       showInferred: true,
-      ghosts: new Set(),
     });
 
     expect(pickerOf(star, usesHub).rowCount()).toBe(
@@ -156,9 +142,6 @@ describe("picker rows", () => {
   it("titles each source", () => {
     expect(pickerOf(star, usesHub).title()).toBe("hub uses 3");
     expect(pickerOf(star, usedByHub).title()).toBe("hub is used by 2");
-    expect(pickerOf(star, { kind: "files", id: "a" }).title()).toBe(
-      "a holds 2 files",
-    );
     expect(
       pickerOf(star, {
         kind: "list",
@@ -170,13 +153,43 @@ describe("picker rows", () => {
 });
 
 describe("grouping and sorting", () => {
-  it("groups by folder sorted, shows a group of one as a plain row", () => {
+  it("groups by folder sorted, every group headed by its full path", () => {
     const groups = pickerOf(star, usesHub).groups();
 
     expect(groups.map((group) => group.key)).toEqual(["a", "b"]);
-    expect(groups.map((group) => group.header)).toEqual([true, false]);
+    expect(groups.map((group) => group.label)).toEqual(["a/", "b/"]);
     expect(groups[0]?.rows.map((row) => row.label)).toEqual(["x", "y"]);
-    expect(groups[1]?.rows[0]?.label).toBe("b/z");
+    expect(groups[1]?.rows[0]?.label).toBe("z");
+  });
+
+  it("names a nested folder by its whole path and a root module under ./", () => {
+    const scan = scanOf(
+      ["hub.py", "deep/er/m.py", "top.py"],
+      [
+        { from: "hub.py", to: "deep/er/m.py" },
+        { from: "hub.py", to: "top.py" },
+      ],
+    );
+
+    expect(
+      pickerOf(scan, usesHub)
+        .groups()
+        .map((group) => group.label),
+    ).toEqual(["./", "deep/er/"]);
+  });
+
+  it("gives a group the checkbox state of its rows on the canvas", () => {
+    const state = (on: string[]) =>
+      pickerOf(star, usesHub, (id) => on.includes(id))
+        .groups()
+        .map((group) => group.state);
+
+    expect(state([])).toEqual(["unchecked", "unchecked"]);
+    expect(state(["a/x.py"])).toEqual(["partial", "unchecked"]);
+    expect(state(["a/x.py", "a/y.py", "b/z.py"])).toEqual([
+      "checked",
+      "checked",
+    ]);
   });
 
   const wide = (count: number) =>
@@ -210,15 +223,17 @@ describe("grouping and sorting", () => {
     ]);
   });
 
-  it("toggles collapse, and a filter expands every group with a match", () => {
-    const model = pickerOf(wide(19), usesHub);
+  it("flips a group's default collapse when its key is in the overrides, and a filter expands every group", () => {
+    const flipped = pickerOf(wide(19), usesHub, () => false, {
+      collapsed: new Set(["big"]),
+    });
 
-    model.toggleCollapse("big");
-    expect(model.groups()[0]?.collapsed).toBe(false);
-    model.toggleCollapse("big");
-    expect(model.groups()[0]?.collapsed).toBe(true);
-    model.setFilter("m1");
-    expect(model.groups().every((group) => !group.collapsed)).toBe(true);
+    expect(flipped.groups()[0]?.collapsed).toBe(false);
+    expect(
+      pickerOf(wide(19), usesHub, () => false, { filter: "m1" })
+        .groups()
+        .every((group) => !group.collapsed),
+    ).toBe(true);
   });
 });
 
@@ -290,105 +305,27 @@ describe("names and marks", () => {
 });
 
 describe("filter", () => {
+  const ids = (filter: string) =>
+    pickerOf(star, usesHub, () => false, { filter })
+      .groups()
+      .flatMap((g) => g.rows.map((r) => r.id));
+
   it("matches module id and names, case-insensitively", () => {
-    const model = pickerOf(star, usesHub);
-
-    model.setFilter("ALPHA");
-    expect(model.groups().flatMap((g) => g.rows.map((r) => r.id))).toEqual([
-      "a/x.py",
-    ]);
-    model.setFilter("b/z");
-    expect(model.groups().flatMap((g) => g.rows.map((r) => r.id))).toEqual([
-      "b/z.py",
-    ]);
+    expect(ids("ALPHA")).toEqual(["a/x.py"]);
+    expect(ids("b/z")).toEqual(["b/z.py"]);
   });
 
-  it("keeps ticks across a filter change and ignores it for Tick all and a group tick", () => {
-    const model = pickerOf(star, usesHub);
-
-    model.toggle("b/z.py");
-    model.setFilter("alpha");
-    expect([...model.ticked()]).toEqual(["b/z.py"]);
-    model.toggleGroup("a");
-    expect([...model.ticked()].sort()).toEqual(["a/x.py", "a/y.py", "b/z.py"]);
-    model.toggleGroup("a");
-    model.tickAll();
-    expect(model.ticked().size).toBe(3);
-  });
-});
-
-describe("by name", () => {
-  const scan = scanOf(
-    ["hub.py", "a.py", "b.py", "c.py", "d.py"],
-    [
-      { from: "a.py", to: "hub.py", names: ["Zed", "Common"] },
-      { from: "b.py", to: "hub.py", names: ["Common", "Alpha"] },
-      { from: "c.py", to: "hub.py" },
-      { from: "d.py", to: "hub.py", names: ["Alpha"] },
-    ],
-  );
-
-  it("orders by most rows, ties by locale, a row under every name it carries, no names last", () => {
-    const model = pickerOf(scan, usedByHub);
-    const groups = model.nameGroups();
-
-    expect(groups.map((g) => [g.name, g.rows.map((r) => r.id)])).toEqual([
-      ["Alpha", ["b.py", "d.py"]],
-      ["Common", ["a.py", "b.py"]],
-      ["Zed", ["a.py"]],
-      [NO_NAMES, ["c.py"]],
-    ]);
-    expect(groups[3]?.none).toBe(true);
-    expect(groups[0]?.rows[0]?.names).toEqual([]);
-  });
-
-  it("qualifies names with the owning module for a folder's Used by only", () => {
-    const folderScan = scanOf(
-      ["f/p.py", "f/q.py", "out.py"],
-      [
-        { from: "out.py", to: "f/p.py", names: ["Thing"] },
-        { from: "out.py", to: "f/q.py", names: ["Thing"] },
-      ],
-    );
-    const usedBy = pickerOf(folderScan, {
-      kind: "folder",
-      id: "f",
-      direction: "usedBy",
-    });
-    const uses = pickerOf(
-      scanOf(
-        ["f/p.py", "out.py"],
-        [{ from: "f/p.py", to: "out.py", names: ["T"] }],
-      ),
-      { kind: "folder", id: "f", direction: "uses" },
+  it("hides the not-used-outside line while filtering", () => {
+    const scan = scanOf(
+      ["hub.py", "a.py"],
+      [{ from: "a.py", to: "hub.py", names: ["Used"] }],
+      { "hub.py": [{ name: "Idle", exported: true }] },
     );
 
-    expect(usedBy.nameGroups().map((g) => g.name)).toEqual([
-      "p.Thing",
-      "q.Thing",
-    ]);
-    expect(uses.nameGroups().map((g) => g.name)).toEqual(["T"]);
-  });
-
-  it("is not offered for Files or an explicit list", () => {
-    expect(pickerOf(scan, usedByHub).tabs()).toEqual(["module", "name"]);
-    expect(pickerOf(scan, { kind: "files", id: "x" }).tabs()).toEqual([]);
+    expect(pickerOf(scan, usedByHub).unused()).toEqual(["Idle"]);
     expect(
-      pickerOf(scan, { kind: "list", items: [], title: "t" }).tabs(),
-    ).toEqual([]);
-  });
-
-  it("ticking under any name ticks the module everywhere", () => {
-    const model = pickerOf(scan, usedByHub);
-
-    model.setTab("name");
-    model.toggle("b.py");
-
-    const ticked = model
-      .nameGroups()
-      .flatMap((g) => g.rows.filter((r) => r.ticked).map((r) => r.id));
-
-    expect(ticked).toEqual(["b.py", "b.py"]);
+      pickerOf(scan, usedByHub, () => false, { filter: "a" }).unused(),
+    ).toBeNull();
   });
 });
 
@@ -449,102 +386,48 @@ describe("not used outside", () => {
   });
 });
 
-describe("ticked set and footer", () => {
-  it("ignores toggling an on-canvas row or an unknown id", () => {
-    const model = pickerOf(star, usesHub, (id) => id === "a/x.py");
-
-    model.toggle("a/x.py");
-    model.toggle("nope.py");
-    expect(model.ticked().size).toBe(0);
-    expect(
-      model.groups()[0]?.rows.find((row) => row.id === "a/x.py"),
-    ).toMatchObject({ onCanvas: true, ticked: true });
-  });
-
-  it("stops counting a ticked row once it goes on the canvas", () => {
-    const open = new Set<string>();
-    const model = pickerOf(star, usesHub, (id) => open.has(id));
-
-    model.toggle("a/x.py");
-    expect([...model.ticked()]).toEqual(["a/x.py"]);
-    open.add("a/x.py");
-    expect(model.ticked().size).toBe(0);
-  });
-
-  it("reports picked, or the on-canvas count, with Tick all and Add", () => {
-    const model = pickerOf(star, usesHub, (id) => id === "a/x.py");
-
-    expect(model.footer()).toEqual({
-      status: "1 already on the canvas",
-      missing: null,
-      tickAll: 2,
-      add: 0,
-    });
-    model.toggle("a/y.py");
-    expect(model.footer()).toMatchObject({
-      status: "1 picked, shown as ghosts",
-      tickAll: 2,
-      add: 1,
-    });
-    model.tickAll();
-    expect(model.footer()).toMatchObject({
-      status: "2 picked, shown as ghosts",
-      tickAll: null,
-      add: 2,
-    });
-  });
-
-  it("a group tick unticks when every free row is already ticked", () => {
-    const model = pickerOf(star, usesHub);
-
-    model.toggleGroup("a");
-    expect(model.ticked().size).toBe(2);
-    expect(model.groups()[0]?.allTicked).toBe(true);
-    model.toggleGroup("a");
-    expect(model.ticked().size).toBe(0);
-  });
-});
-
 describe("explicit list", () => {
-  it("ticks the known ids except those on the canvas and reports the rest as missing", () => {
+  const list = (items: { id: string; names?: string[] }[]) =>
+    pickerOf(star, { kind: "list", items, title: "calls save" });
+
+  it("lists the known ids with their names and counts the rest as not in the scan", () => {
+    const model = list([
+      { id: "a/x.py", names: ["save"] },
+      { id: "b/z.py" },
+      { id: "unknown.py" },
+    ]);
+
+    expect(model.rowCount()).toBe(2);
+    expect(model.groups().flatMap((g) => g.rows)[0]?.names).toEqual(["save"]);
+    expect(model.missing()).toBe(1);
+  });
+
+  it("handles an all-known and a none-known list", () => {
+    const all = list([{ id: "a/x.py" }, { id: "a/y.py" }]);
+    const none = list([{ id: "q.py" }, { id: "r.py" }]);
+
+    expect(all.missing()).toBe(0);
+    expect(all.rowCount()).toBe(2);
+    expect(none.rowCount()).toBe(0);
+    expect(none.groups()).toEqual([]);
+    expect(none.missing()).toBe(2);
+  });
+
+  it("reports the on-canvas rows and never lists a not-narrowed unused line", () => {
     const model = pickerOf(
       star,
       {
         kind: "list",
-        items: [
-          { id: "a/x.py", names: ["save"] },
-          { id: "b/z.py" },
-          { id: "unknown.py" },
-        ],
-        title: "calls save",
+        items: [{ id: "a/x.py" }, { id: "b/z.py" }],
+        title: "t",
       },
       (id) => id === "b/z.py",
     );
 
-    expect([...model.ticked()]).toEqual(["a/x.py"]);
-    expect(model.rowCount()).toBe(2);
-    expect(model.groups().flatMap((g) => g.rows)[0]?.names).toEqual(["save"]);
-    expect(model.footer().missing).toBe("1 not in the scan");
-  });
-
-  it("handles an all-known and a none-known list", () => {
-    const all = pickerOf(star, {
-      kind: "list",
-      items: [{ id: "a/x.py" }, { id: "a/y.py" }],
-      title: "t",
-    });
-    const none = pickerOf(star, {
-      kind: "list",
-      items: [{ id: "q.py" }, { id: "r.py" }],
-      title: "t",
-    });
-
-    expect(all.footer().missing).toBeNull();
-    expect(all.ticked().size).toBe(2);
-    expect(none.rowCount()).toBe(0);
-    expect(none.groups()).toEqual([]);
-    expect(none.footer().missing).toBe("2 not in the scan");
-    expect(none.footer().add).toBe(0);
+    expect(
+      model.groups().flatMap((g) => g.rows.map((r) => r.onCanvas)),
+    ).toEqual([false, true]);
+    expect(model.unused()).toBeNull();
   });
 });
 
@@ -568,12 +451,13 @@ describe("the committed python fixture", () => {
       "shop/domain/__init__.py",
     ]);
 
-    const names = new Map(
-      model.nameGroups().map((g) => [g.name, g.rows.length]),
-    );
+    const namesOf = (id: string) =>
+      model
+        .groups()
+        .flatMap((g) => g.rows)
+        .find((row) => row.id === id)?.names;
 
-    expect(names.get("Order")).toBe(4);
-    expect(names.get("new_order")).toBe(2);
+    expect(namesOf("shop/application/report.py")).toContain("Order");
     expect(
       model
         .groups()
@@ -601,11 +485,9 @@ describe("the committed python fixture", () => {
     expect(
       rows.find((row) => row.id === "shop/application/refund.py")?.inferred,
     ).toBe(true);
-    expect(model.nameGroups().map((g) => [g.name, g.rows[0]?.id])).toEqual([
-      ["save", "shop/application/refund.py"],
-      ["Store", "shop/adapters/memory_store.py"],
-      [NO_NAMES, "shop/application/place.py"],
-    ]);
+    expect(
+      rows.find((row) => row.id === "shop/application/refund.py")?.names,
+    ).toContain("save");
     expect(model.unused()).toEqual(["Clock"]);
   });
 
@@ -620,7 +502,6 @@ describe("the committed python fixture", () => {
       id: "shop/domain",
       direction: "uses",
     });
-    const files = fixture({ kind: "files", id: "shop/domain" });
 
     expect(usedBy.rowCount()).toBe(4);
     expect(usedBy.groups().map((g) => [g.key, g.count])).toEqual([
@@ -628,7 +509,5 @@ describe("the committed python fixture", () => {
       ["shop/application", 3],
     ]);
     expect(uses.rowCount()).toBe(0);
-    expect(files.rowCount()).toBe(4);
-    expect(files.groups()).toHaveLength(1);
   });
 });

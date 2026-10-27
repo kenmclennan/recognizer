@@ -6,7 +6,6 @@ export type KeyInput = {
   ctrlKey: boolean;
   altKey: boolean;
   targetEditable: boolean;
-  pickerOpen: boolean;
 };
 
 export type KeyAction =
@@ -27,7 +26,7 @@ export function keyAction(
   }
 
   if (event.targetEditable) {
-    return event.key === "Escape" && event.pickerOpen ? "escape" : null;
+    return null;
   }
 
   if (event.key === "Escape") {

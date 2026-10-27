@@ -1,5 +1,5 @@
 import type { Scan, ScanEdge, ScanMember, ScanMethod } from "recognizer";
-import { type Line, lastSegment, under } from "./canvas-graph";
+import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
 import type { EvidenceSection } from "./edge-evidence";
 import type { Disc, Finding } from "./health";
@@ -9,8 +9,15 @@ import {
   type CallerKind,
   callerButton,
 } from "./member-callers";
+import { createPicker, type PickerSource } from "./picker-model";
+import { type CheckState, checkState } from "./row-model";
 
-export type InspectorTab = "contents" | "findings";
+export type InspectorTab = "contents" | "findings" | "uses" | "usedBy";
+
+export type Narrowed = {
+  title: string;
+  items: { id: string; names: string[] }[];
+};
 
 export type InspectorInputs = {
   scans: Scan[];
@@ -23,6 +30,10 @@ export type InspectorInputs = {
   tab: InspectorTab;
   evidence: EvidenceSection[] | null;
   edgeOnCanvas: boolean;
+  counts: (selection: NonNullable<Selection>) => Counts;
+  filter: string;
+  collapsed: ReadonlySet<string>;
+  narrowed: Narrowed | null;
 };
 
 export type Row =
@@ -41,14 +52,19 @@ export type Row =
       button: CallerButton | null;
     }
   | { kind: "fold"; key: string; text: string; open: boolean; top: boolean }
-  | { kind: "folder"; disc: Disc; name: string; count: string }
+  | { kind: "filter"; value: string; placeholder: string }
   | {
-      kind: "file";
+      kind: "module";
       id: string;
+      ids: string[];
+      label: string;
+      state: CheckState;
+      bold: boolean;
       disc: Disc;
-      name: string;
-      summary: string;
-      on: boolean;
+      folder: boolean;
+      indent: boolean;
+      chevron: { key: string; open: boolean } | null;
+      detail: { text: string; tone?: "private" | "inferred" } | null;
       title: string;
     }
   | { kind: "group"; id: string; disc: Disc; path: string }
@@ -115,6 +131,7 @@ const NEVER_SHOWN_BASES = new Set(["ABC", "Protocol", "object"]);
 const ABSTRACT_BASES = new Set(["ABC", "Protocol"]);
 const EXCEPTION = /(Exception|Error)$/;
 const PARENT_SEGMENTS = 2;
+export const UNUSED_SHOWN = 8;
 
 const noRows: Row[] = [];
 
@@ -488,35 +505,158 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
     return [{ kind: "none" }];
   }
 
+  const filesUnder = (path: string) => inside.filter((id) => under(id, path));
+
   return [
     ...[...folders]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(
-        ([path, count]): Row => ({
-          kind: "folder",
+      .map(([path, count]): Row => {
+        const ids = filesUnder(path);
+
+        return {
+          kind: "module",
+          id: path,
+          ids,
+          label: `${lastSegment(path)}/`,
+          state: checkState(ids, inputs.onCanvas),
+          bold: ids.some(inputs.onCanvas),
           disc: inputs.disc(path),
-          name: `${lastSegment(path)}/`,
-          count: `${count} ${count === 1 ? "file" : "files"}`,
-        }),
-      ),
+          folder: true,
+          indent: false,
+          chevron: null,
+          detail: { text: `${count} ${count === 1 ? "file" : "files"}` },
+          title: path,
+        };
+      }),
     ...files
       .sort((a, b) => a.localeCompare(b))
       .map((id): Row => {
         const on = inputs.onCanvas(id);
+        const summary = summaryOf(id, inputs);
 
         return {
-          kind: "file",
+          kind: "module",
           id,
+          ids: [id],
+          label: lastSegment(id),
+          state: on ? "checked" : "unchecked",
+          bold: on,
           disc: inputs.disc(id),
-          name: lastSegment(id),
-          summary: summaryOf(id, inputs),
-          on,
-          title: on
-            ? "On the canvas: click to select it"
-            : "Click to put it on the canvas",
+          folder: false,
+          indent: false,
+          chevron: null,
+          detail: summary === "" ? null : { text: summary },
+          title: id,
         };
       }),
   ];
+}
+
+function pickerRows(
+  selection: NonNullable<Selection>,
+  direction: "uses" | "usedBy",
+  inputs: InspectorInputs,
+): Row[] {
+  const narrowed = direction === "usedBy" ? inputs.narrowed : null;
+  const source: PickerSource = narrowed
+    ? { kind: "list", items: narrowed.items, title: narrowed.title }
+    : {
+        kind: selection.kind === "folder" ? "folder" : "module",
+        id: selection.id,
+        direction,
+      };
+  const picker = createPicker({
+    scans: inputs.scans,
+    modules: inputs.modules,
+    onCanvas: inputs.onCanvas,
+    source,
+    filter: inputs.filter,
+    collapsed: inputs.collapsed,
+  });
+  const rows: Row[] = narrowed
+    ? [{ kind: "heading", text: narrowed.title }]
+    : [];
+
+  if (picker.rowCount() === 0) {
+    return [...rows, { kind: "none" }];
+  }
+
+  rows.push({
+    kind: "filter",
+    value: inputs.filter,
+    placeholder: picker.placeholder(),
+  });
+
+  const groups = picker.groups();
+
+  if (groups.length === 0) {
+    rows.push({ kind: "note", text: "Nothing matches." });
+  }
+
+  for (const group of groups) {
+    rows.push({
+      kind: "module",
+      id: group.key,
+      ids: group.ids,
+      label: group.label,
+      state: group.state,
+      bold: false,
+      disc: inputs.disc(group.key),
+      folder: true,
+      indent: false,
+      chevron: { key: group.key, open: !group.collapsed },
+      detail: { text: String(group.count) },
+      title: group.label,
+    });
+
+    if (!group.collapsed) {
+      for (const row of group.rows) {
+        rows.push({
+          kind: "module",
+          id: row.id,
+          ids: [row.id],
+          label: row.label,
+          state: row.onCanvas ? "checked" : "unchecked",
+          bold: row.onCanvas,
+          disc: inputs.disc(row.id),
+          folder: false,
+          indent: true,
+          chevron: null,
+          detail:
+            row.namesText === ""
+              ? null
+              : {
+                  text: row.namesText,
+                  tone: row.private
+                    ? "private"
+                    : row.inferred
+                      ? "inferred"
+                      : undefined,
+                },
+          title: row.id,
+        });
+      }
+    }
+  }
+
+  const unused = picker.unused();
+
+  if (unused) {
+    const more = unused.length - UNUSED_SHOWN;
+
+    rows.push({
+      kind: "note",
+      text: `Not used outside: ${unused.slice(0, UNUSED_SHOWN).join(", ")}${
+        more > 0 ? ` and ${more} more` : ""
+      }`,
+    });
+  }
+
+  if (picker.missing() > 0) {
+    rows.push({ kind: "note", text: `${picker.missing()} not in the scan` });
+  }
+
+  return rows;
 }
 
 function findingRows(findings: Finding[]): Row[] {
@@ -625,6 +765,7 @@ export function inspectorContent(
   }
 
   const count = countFindings(selection, inputs);
+  const figures = inputs.counts(selection);
   const tabs = [
     {
       tab: "contents" as const,
@@ -636,8 +777,19 @@ export function inspectorContent(
       label: count > 0 ? `Findings ${count}` : "Findings",
       active: inputs.tab === "findings",
     },
+    {
+      tab: "uses" as const,
+      label: `Uses ${figures.uses}`,
+      active: inputs.tab === "uses",
+    },
+    {
+      tab: "usedBy" as const,
+      label: `Used by ${figures.usedBy}`,
+      active: inputs.tab === "usedBy",
+    },
   ];
   const contents = inputs.tab === "contents";
+  const listed = inputs.tab === "uses" || inputs.tab === "usedBy";
 
   if (selection.kind === "module") {
     return {
@@ -648,9 +800,11 @@ export function inspectorContent(
         muted: parentOf(selection.id),
       },
       tabs,
-      rows: contents
-        ? moduleContents(selection.id, inputs)
-        : moduleFindings(selection.id, inputs),
+      rows: listed
+        ? pickerRows(selection, inputs.tab as "uses" | "usedBy", inputs)
+        : contents
+          ? moduleContents(selection.id, inputs)
+          : moduleFindings(selection.id, inputs),
     };
   }
 
@@ -666,16 +820,18 @@ export function inspectorContent(
       muted: `${known} files`,
     },
     tabs,
-    rows: contents
-      ? folderContents(selection.id, inputs)
-      : foldersGroups(selection.id, inputs),
+    rows: listed
+      ? pickerRows(selection, inputs.tab as "uses" | "usedBy", inputs)
+      : contents
+        ? folderContents(selection.id, inputs)
+        : foldersGroups(selection.id, inputs),
   };
 }
 
 export function emphasisedLines(
   module: string,
   name: string,
-  lines: Pick<Line, "id" | "ghost" | "edges">[],
+  lines: Pick<Line, "id" | "edges">[],
 ): Set<string> {
   const carries = (edge: ScanEdge) =>
     edge.to === module &&
@@ -684,8 +840,6 @@ export function emphasisedLines(
       edge.inferred?.class === name);
 
   return new Set(
-    lines
-      .filter((line) => !line.ghost && line.edges.some(carries))
-      .map((line) => line.id),
+    lines.filter((line) => line.edges.some(carries)).map((line) => line.id),
   );
 }

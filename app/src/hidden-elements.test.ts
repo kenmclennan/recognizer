@@ -29,7 +29,6 @@ const HIDEABLE = [
   "canvas-legend",
   "inspector-rail",
   "inspector-panel",
-  "picker",
   "update-button",
   "tree-toggle",
 ];

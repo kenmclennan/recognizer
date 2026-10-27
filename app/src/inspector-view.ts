@@ -2,6 +2,8 @@ import { el } from "./dom";
 import { icon } from "./icons";
 import type { InspectorContent, InspectorTab, Row } from "./inspector-model";
 import type { CallerButton } from "./member-callers";
+import { nextCheck } from "./row-model";
+import { buildRow } from "./row-view";
 
 export type InspectorActions = {
   open: () => void;
@@ -11,6 +13,11 @@ export type InspectorActions = {
   openFile: (id: string) => void;
   hover: (name: string | null) => void;
   openCallers: (button: CallerButton) => void;
+  putOnCanvas: (ids: string[]) => void;
+  takeOff: (ids: string[]) => void;
+  pickName: (id: string) => void;
+  toggleGroup: (key: string) => void;
+  setFilter: (text: string) => void;
 };
 
 export type InspectorView = {
@@ -131,28 +138,42 @@ function rowNode(row: Row, actions: InspectorActions): HTMLElement {
     return node;
   }
 
-  if (row.kind === "folder") {
-    const node = el("div", "lnk");
-    const label = el("span");
+  if (row.kind === "filter") {
+    const node = el("input", "ifilter");
 
-    label.append(el("b", "", row.name), " ", el("span", "muted", row.count));
-    node.append(disc(row.disc), label);
+    node.type = "text";
+    node.value = row.value;
+    node.placeholder = row.placeholder;
+    node.autocomplete = "off";
+    node.setAttribute("aria-label", "Filter");
+    node.addEventListener("input", () => actions.setFilter(node.value));
 
     return node;
   }
 
-  if (row.kind === "file") {
-    const node = el("div", `lnk${row.on ? " on" : ""}`);
-    const label = el("span", "", row.name);
+  if (row.kind === "module") {
+    const chevron = row.chevron;
+    const toggle = chevron ? () => actions.toggleGroup(chevron.key) : null;
+    const node = buildRow({
+      label: row.label,
+      state: row.state,
+      bold: row.bold,
+      disc: row.disc,
+      chevron: chevron ? (chevron.open ? "open" : "closed") : undefined,
+      detail: row.detail ?? undefined,
+      onCheck: () =>
+        nextCheck(row.state) === "takeOff"
+          ? actions.takeOff(row.ids)
+          : actions.putOnCanvas(row.ids),
+      onName:
+        toggle ?? (row.folder ? () => {} : () => actions.pickName(row.id)),
+      onChevron: toggle ?? undefined,
+    });
 
+    node.classList.add(row.folder ? "folder" : "file");
+    node.classList.toggle("indent", row.indent);
     node.title = row.title;
-
-    if (row.summary !== "") {
-      label.append(" ", el("span", "muted", row.summary));
-    }
-
-    node.append(disc(row.disc), label);
-    node.addEventListener("click", () => actions.openFile(row.id));
+    node.dataset.id = row.id;
 
     return node;
   }
@@ -236,7 +257,14 @@ export function buildInspectorView(actions: InspectorActions): InspectorView {
         const tabs = el("div", "itabs");
 
         for (const tab of content.tabs) {
-          const node = el("button", tab.active ? "on" : "", tab.label);
+          const node = el("button", tab.active ? "on" : "");
+          const counted = /^(.*?) (\d+)$/.exec(tab.label);
+
+          if (counted) {
+            node.append(`${counted[1]} `, el("span", "n", counted[2]));
+          } else {
+            node.textContent = tab.label;
+          }
 
           node.type = "button";
           node.addEventListener("click", (event) => {
@@ -250,7 +278,20 @@ export function buildInspectorView(actions: InspectorActions): InspectorView {
       }
 
       parts.push(...content.rows.map((row) => rowNode(row, actions)));
+
+      const typing = panel.contains(document.activeElement)
+        ? document.activeElement
+        : null;
+      const refocus = typing?.classList.contains("ifilter") === true;
+
       panel.replaceChildren(...parts);
+
+      if (refocus) {
+        const field = panel.querySelector<HTMLInputElement>(".ifilter");
+
+        field?.focus();
+        field?.setSelectionRange(field.value.length, field.value.length);
+      }
 
       if (shown !== content.key) {
         panel.scrollTop = 0;

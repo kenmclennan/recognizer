@@ -275,11 +275,83 @@ svg.i.chevron {
   stroke-width: 2.5;
 }
 
-.name {
-  flex: 1;
+.row .name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.row .detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  margin-left: 4px;
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+.row .detail.private {
+  color: var(--priv);
+}
+
+.row .detail.inferred {
+  color: var(--inf);
+}
+
+.rcheck {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  place-content: center;
+  border: 1.5px solid var(--faint);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+
+.rcheck:hover {
+  border-color: var(--sel);
+}
+
+.rcheck:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
+}
+
+.rcheck::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--darkfg);
+  clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
+  transform: scale(0);
+  transition: transform 0.1s;
+}
+
+.rcheck.checked,
+.rcheck.partial {
+  border-color: var(--sel);
+  background: var(--sel);
+}
+
+.rcheck.checked::after {
+  transform: scale(1);
+}
+
+.rcheck.partial::after {
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  clip-path: none;
+  transform: scale(1);
 }
 
 .row.on .name {
@@ -287,20 +359,6 @@ svg.i.chevron {
 }
 
 .row.ancestor .name {
-  color: var(--sel);
-}
-
-.actions {
-  display: none;
-  gap: 2px;
-}
-
-.row:hover .actions,
-.row.on .actions {
-  display: flex;
-}
-
-.row.on .ib.vis {
   color: var(--sel);
 }
 
@@ -332,21 +390,6 @@ svg.i.chevron {
   margin: 12px;
   font-size: 13px;
   opacity: 0.6;
-}
-
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  padding: 8px;
-  font-size: 11px;
-  border-top: 1px solid var(--line);
-}
-
-.legend-item {
-  display: flex;
-  gap: 5px;
-  align-items: center;
 }
 
 .canvas {
@@ -704,226 +747,6 @@ svg.i.chevron {
   background: rgba(127, 127, 127, 0.45);
 }
 
-.picker {
-  position: absolute;
-  z-index: 8;
-  display: flex;
-  flex-direction: column;
-  width: 390px;
-  max-width: calc(100% - 22px);
-  max-height: 72vh;
-  padding: 6px;
-  font-size: 12px;
-  border: 1px solid var(--boxline);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--fg);
-  box-shadow: 0 8px 24px rgba(31, 35, 40, 0.16);
-}
-
-:where(.picker) button {
-  font: inherit;
-  color: inherit;
-}
-
-.picker-title {
-  padding: 2px 4px 6px;
-}
-
-.picker-filter {
-  height: 28px;
-  padding: 0 8px;
-  margin-bottom: 6px;
-  font: inherit;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--bg);
-  color: var(--fg);
-}
-
-.picker-filter:focus {
-  outline: none;
-  border-color: var(--sel);
-  box-shadow: 0 0 0 2px var(--selbg);
-}
-
-.picker-tabs {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  margin-bottom: 6px;
-  border-radius: 6px;
-  background: var(--code);
-}
-
-.picker-tabs button {
-  flex: 1;
-  padding: 4px 0;
-  font-size: 12px;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.picker-tabs button.on {
-  font-weight: 600;
-  background: var(--panel);
-  color: var(--fg);
-  box-shadow: 0 1px 2px rgba(31, 35, 40, 0.15);
-}
-
-.picker-list {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-.picker-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 6px;
-  font-weight: 600;
-  border-radius: 5px;
-  color: var(--framefg);
-  cursor: pointer;
-}
-
-.picker-group:hover {
-  background: var(--code);
-}
-
-.picker-group .count {
-  font-weight: 400;
-  color: var(--muted);
-}
-
-.picker-group.names {
-  color: var(--fg);
-}
-
-.picker-group.unused {
-  height: auto;
-  padding: 6px;
-  font-weight: 400;
-  color: var(--faint);
-  cursor: default;
-}
-
-.picker-group.unused:hover {
-  background: none;
-}
-
-.picker-chevron {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.picker-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 26px;
-  padding: 0 6px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.picker-row:hover {
-  background: var(--code);
-}
-
-.picker-row.indent {
-  padding-left: 24px;
-}
-
-.picker-row .names {
-  flex: 1;
-  overflow: hidden;
-  font-size: 11px;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-}
-
-.picker-row.done {
-  color: var(--faint);
-  cursor: default;
-}
-
-.picker-row .names.private {
-  color: var(--priv);
-}
-
-.picker-row .names.inferred {
-  color: var(--inf);
-}
-
-.picker-empty {
-  padding: 6px;
-  color: var(--muted);
-}
-
-.picker-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 4px 2px;
-  margin-top: 4px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-}
-
-.picker-foot .spacer {
-  flex: 1;
-}
-
-.picker-tick-all {
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: none;
-  cursor: pointer;
-}
-
-.picker-add {
-  height: 26px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--dark);
-  color: var(--darkfg);
-  cursor: pointer;
-}
-
-.picker-add:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.box.ghost {
-  opacity: 0.55;
-}
-
-.box.ghost .box-body {
-  stroke-dasharray: 4 3;
-}
-
-.edge.ghost {
-  stroke-opacity: 0.8;
-}
-
 .inspector {
   display: flex;
   flex-direction: column;
@@ -995,6 +818,10 @@ svg.i.chevron {
   color: var(--muted);
   font-size: 12px;
   cursor: pointer;
+}
+
+.itabs button .n {
+  color: var(--faint);
 }
 
 .itabs button.on {
@@ -1193,4 +1020,31 @@ svg.i.chevron {
 
 [hidden] {
   display: none;
+}
+
+.inspector-panel .row {
+  padding-left: 0;
+}
+
+.inspector-panel .row.indent {
+  padding-left: 18px;
+}
+
+.ifilter {
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.ifilter:focus {
+  outline: none;
+  border-color: var(--sel);
+  box-shadow: 0 0 0 2px var(--selbg);
 }

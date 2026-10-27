@@ -1,6 +1,8 @@
 import { button, el } from "./dom";
-import type { Disc, NodeHealth } from "./health";
-import { icon, iconButton } from "./icons";
+import type { NodeHealth } from "./health";
+import { iconButton } from "./icons";
+import { checkState, nextCheck } from "./row-model";
+import { buildRow } from "./row-view";
 import type { Filtered, FilterState } from "./tree-filter";
 import { type FolderNode, filesOf, type TreeNode } from "./tree-model";
 
@@ -22,8 +24,9 @@ export type TreeActions = {
   toggleFolder: (path: string) => void;
   putOnCanvas: (id: string) => void;
   takeOff: (id: string) => void;
+  putFolderOnCanvas: (ids: string[]) => void;
+  takeFolderOff: (ids: string[]) => void;
   find: (id: string) => void;
-  findFolder: (path: string) => void;
   hideTree: () => void;
 };
 
@@ -32,21 +35,6 @@ export type TreeView = {
   render: (props: TreeProps) => void;
   scrollTo: (id: string) => void;
 };
-
-const LEGEND: { disc: Disc; label: string }[] = [
-  { disc: "green", label: "fine" },
-  { disc: "amber", label: "warning" },
-  { disc: "red", label: "violation" },
-  { disc: "grey", label: "not measured" },
-];
-
-function disc(kind: Disc, hover: string): HTMLElement {
-  const node = el("span", `disc disc-${kind}`);
-
-  node.title = hover;
-
-  return node;
-}
 
 export function buildTreeView(actions: TreeActions): TreeView {
   const element = el("aside", "tree");
@@ -68,7 +56,6 @@ export function buildTreeView(actions: TreeActions): TreeView {
   );
   const filters = el("div", "filters");
   const list = el("div", "rows");
-  const legend = el("div", "legend");
 
   header.append(title, count, el("span", "spacer"), hide);
   find.type = "text";
@@ -78,28 +65,18 @@ export function buildTreeView(actions: TreeActions): TreeView {
   find.addEventListener("input", () => actions.setText(find.value));
   filters.append(onCanvas, attention);
 
-  for (const entry of LEGEND) {
-    const item = el("span", "legend-item");
-
-    item.append(disc(entry.disc, entry.label), el("span", "", entry.label));
-    legend.append(item);
-  }
-
-  element.append(header, find, filters, list, legend);
+  element.append(header, find, filters, list);
 
   function row(node: TreeNode, depth: number, props: TreeProps): HTMLElement[] {
     const health = props.described.get(node.path);
-    const line = el("div", `row ${node.kind}`);
-
-    line.dataset.path = node.path;
-    line.style.paddingLeft = `${depth * 14 + 4 + (node.kind === "file" ? 18 : 0)}px`;
+    const padding = `${depth * 14 + 4 + (node.kind === "file" ? 18 : 0)}px`;
 
     if (node.kind === "file") {
-      return [fileRow(line, node, health, props)];
+      return [fileRow(node, padding, health, props)];
     }
 
     const open = props.filtered.active || props.expanded.has(node.path);
-    const rows = [folderRow(line, node, open, health, props)];
+    const rows = [folderRow(node, padding, open, health, props)];
 
     if (open) {
       for (const child of node.children) {
@@ -111,75 +88,62 @@ export function buildTreeView(actions: TreeActions): TreeView {
   }
 
   function folderRow(
-    line: HTMLElement,
     node: FolderNode,
+    padding: string,
     open: boolean,
     health: NodeHealth | undefined,
     props: TreeProps,
   ): HTMLElement {
     const inside = props.selected?.startsWith(`${node.path}/`) ?? false;
+    const files = filesOf(node).map((file) => file.path);
+    const state = checkState(files, props.isOpen);
+    const toggle = () => actions.toggleFolder(node.path);
+    const line = buildRow({
+      label: `${node.name}/`,
+      state,
+      bold: state !== "unchecked",
+      disc: health?.disc ?? "grey",
+      discHover: health?.hover,
+      chevron: open ? "open" : "closed",
+      onCheck: () =>
+        nextCheck(state) === "takeOff"
+          ? actions.takeFolderOff(files)
+          : actions.putFolderOnCanvas(files),
+      onName: toggle,
+      onChevron: toggle,
+    });
 
-    const holding = filesOf(node).some((file) => props.isOpen(file.path));
-    const actionsBox = el("span", "actions");
-
+    line.classList.add("folder");
     line.classList.toggle("ancestor", inside);
     line.classList.toggle("selected", props.selected === node.path);
-    line.classList.toggle("on", holding);
-    line.addEventListener("click", () => actions.toggleFolder(node.path));
-
-    if (holding) {
-      actionsBox.append(
-        iconButton("target", "Find on canvas", "", () =>
-          actions.findFolder(node.path),
-        ),
-      );
-    }
-
-    line.append(
-      icon(open ? "chevron-down" : "chevron-right", "chevron"),
-      disc(health?.disc ?? "grey", health?.hover ?? ""),
-      el("span", "name", `${node.name}/`),
-      actionsBox,
-    );
+    line.dataset.path = node.path;
+    line.style.paddingLeft = padding;
 
     return line;
   }
 
   function fileRow(
-    line: HTMLElement,
     node: TreeNode,
+    padding: string,
     health: NodeHealth | undefined,
     props: TreeProps,
   ): HTMLElement {
     const open = props.isOpen(node.path);
-    const hover = el("span", "actions");
+    const line = buildRow({
+      label: node.name,
+      state: open ? "checked" : "unchecked",
+      bold: open,
+      disc: health?.disc ?? "grey",
+      discHover: health?.hover,
+      onCheck: () =>
+        open ? actions.takeOff(node.path) : actions.putOnCanvas(node.path),
+      onName: () => actions.find(node.path),
+    });
 
+    line.classList.add("file");
     line.classList.toggle("selected", props.selected === node.path);
-    line.classList.toggle("on", open);
-    line.addEventListener("click", () =>
-      open ? actions.find(node.path) : actions.putOnCanvas(node.path),
-    );
-    hover.append(
-      ...(open
-        ? [
-            iconButton("target", "Find on canvas", "", () =>
-              actions.find(node.path),
-            ),
-            iconButton("eye", "Take off the canvas", "vis", () =>
-              actions.takeOff(node.path),
-            ),
-          ]
-        : [
-            iconButton("plus", "Put on the canvas", "", () =>
-              actions.putOnCanvas(node.path),
-            ),
-          ]),
-    );
-    line.append(
-      disc(health?.disc ?? "grey", health?.hover ?? ""),
-      el("span", "name", node.name),
-      hover,
-    );
+    line.dataset.path = node.path;
+    line.style.paddingLeft = padding;
 
     return line;
   }

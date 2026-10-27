@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CanvasGraph } from "./canvas-graph";
 import type { Layout } from "./canvas-layout";
-import { arrowhead, DRAW_ORDER, GHOST_DASH, toScene } from "./canvas-scene";
+import { arrowhead, DRAW_ORDER, toScene } from "./canvas-scene";
 
 const graph = {
   frames: [
@@ -137,90 +137,5 @@ describe("scene", () => {
   it("carries the figures on boxes and frames", () => {
     expect(scene.boxes[0]?.figures).toBe("+2↓");
     expect(scene.frames[0]?.figure).toBe("2 of 3");
-  });
-});
-
-describe("ghost scene", () => {
-  const ghostGraph = {
-    frames: [
-      { path: "f", label: "f", parent: null, disc: "green", open: 1, held: 3 },
-    ],
-    boxes: [
-      {
-        id: "f/a.py",
-        kind: "module",
-        label: "a",
-        parent: "f",
-        disc: "green",
-        open: 1,
-        held: 1,
-        missingUses: 0,
-        missingUsedBy: 0,
-        ghost: false,
-      },
-      {
-        id: "f/g.py",
-        kind: "module",
-        label: "g",
-        parent: "f",
-        disc: "green",
-        open: 1,
-        held: 1,
-        missingUses: 0,
-        missingUsedBy: 0,
-        ghost: true,
-      },
-    ],
-    lines: [
-      {
-        id: "real",
-        from: "f/a.py",
-        to: "f/a.py",
-        style: "private",
-        count: 1,
-        edges: [],
-        ghost: false,
-      },
-      {
-        id: "ghost",
-        from: "f/a.py",
-        to: "f/g.py",
-        style: "hollow",
-        count: 1,
-        edges: [],
-        ghost: true,
-      },
-    ],
-  } as unknown as CanvasGraph;
-
-  const ghostLayout: Layout = {
-    frames: new Map([["f", { x: 0, y: 0, width: 200, height: 150 }]]),
-    boxes: new Map([
-      ["f/a.py", { x: 10, y: 30, width: 100, height: 36 }],
-      ["f/g.py", { x: 10, y: 300, width: 100, height: 36 }],
-    ]),
-    lines: new Map([
-      ["real", line],
-      ["ghost", line],
-    ]),
-  };
-
-  const scene = toScene(ghostGraph, ghostLayout);
-
-  it("carries ghost onto boxes and lines", () => {
-    expect(scene.boxes.map((box) => box.ghost)).toEqual([false, true]);
-    expect(scene.lines.map((l) => l.ghost)).toEqual([false, true]);
-  });
-
-  it("dashes a ghost line with the fixed ghost dash and keeps a hollow arrowhead", () => {
-    const ghost = scene.lines.find((l) => l.id === "ghost");
-
-    expect(ghost?.dash).toBe(GHOST_DASH);
-    expect(scene.lines.find((l) => l.id === "real")?.dash).not.toBe(GHOST_DASH);
-    expect(scene.arrows.find((a) => a.lineId === "ghost")?.hollow).toBe(true);
-  });
-
-  it("includes ghosts in the bounds", () => {
-    expect(scene.bounds.y + scene.bounds.height).toBeGreaterThanOrEqual(336);
   });
 });

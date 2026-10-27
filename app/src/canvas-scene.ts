@@ -14,7 +14,6 @@ export const ARROW_HALF_WIDTH = 2.4;
 export const HOLLOW_ARROW_LENGTH = 9;
 export const HOLLOW_ARROW_HALF_WIDTH = 4.6;
 export const BOUNDS_MARGIN = 0;
-export const GHOST_DASH = "3 3";
 export const DRAW_ORDER = ["frames", "lines", "boxes"] as const;
 
 export const DASH: Record<EdgeStyle, string | null> = {
@@ -41,7 +40,6 @@ export type SceneBox = {
   figures: string;
   subline: string;
   disc: Disc;
-  ghost: boolean;
 };
 
 export type SceneLine = {
@@ -51,7 +49,6 @@ export type SceneLine = {
   dash: string | null;
   count: number;
   countAt: Point | null;
-  ghost: boolean;
 };
 
 export type SceneArrow = { lineId: string; points: Point[]; hollow: boolean };
@@ -153,7 +150,6 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
         figures: boxFigures(box),
         subline: boxSubline(box),
         disc: box.disc,
-        ghost: box.ghost === true,
       });
     }
   }
@@ -172,10 +168,9 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
       id: line.id,
       points,
       style: line.style,
-      dash: line.ghost ? GHOST_DASH : DASH[line.style],
+      dash: DASH[line.style],
       count: line.count,
       countAt: line.count > 1 ? midpoint(points) : null,
-      ghost: line.ghost === true,
     });
     arrows.push({
       lineId: line.id,

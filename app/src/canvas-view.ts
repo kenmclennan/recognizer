@@ -3,16 +3,10 @@ import type { Point, Rect } from "./canvas-layout";
 import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
-import type { Disc } from "./health";
 import { iconButton } from "./icons";
+import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
-import type { PickerModel } from "./picker-model";
-import { buildPickerView, type PickerActions } from "./picker-view";
-import {
-  type BarModel,
-  buildSelectionBar,
-  type PickerKind,
-} from "./selection-bar-view";
+import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import {
   atMax,
   atMin,
@@ -37,7 +31,6 @@ export type CanvasProps = {
   treeHidden: boolean;
   showInferred: boolean;
   notice: string | null;
-  picker: { model: PickerModel; anchor: Point | null } | null;
 };
 
 export type CanvasActions = {
@@ -50,12 +43,8 @@ export type CanvasActions = {
   setShowInferred: (show: boolean) => void;
   toggleTree: () => void;
   measure: (text: string) => number;
-  togglePicker: (kind: PickerKind) => void;
-  closePicker: () => void;
-  untick: (id: string) => void;
-  picker: PickerActions;
+  openTab: (tab: InspectorTab) => void;
   openContents: () => void;
-  disc: (id: string) => Disc;
 };
 
 export type CanvasView = {
@@ -145,10 +134,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   const empty = el("p", "empty-canvas");
   const notice = el("p", "canvas-notice");
   const legend = buildLegendView((show) => actions.setShowInferred(show));
-  const pickerView = buildPickerView(actions.picker, actions.disc);
   const selectionBar = buildSelectionBar({
-    togglePicker: (kind) => actions.togglePicker(kind),
-    takeOff: () => actions.takeOff(),
+    openTab: (tab) => actions.openTab(tab),
     toggleFocus: () => actions.toggleFocus(),
     toggleFold: () => actions.toggleFold(),
     openContents: () => actions.openContents(),
@@ -190,13 +177,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   zoomIn.title = "Zoom in";
   zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
-  stage.append(
-    surface,
-    empty,
-    notice,
-    selectionBar.element,
-    pickerView.element,
-  );
+  stage.append(surface, empty, notice, selectionBar.element);
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
   element.append(stage, toggle, count, controls, legend.element);
 
@@ -297,45 +278,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     selectionBar.element.style.top = `${at.y}px`;
   }
 
-  function positionPicker() {
-    const picker = props?.picker;
-
-    if (!picker) {
-      return;
-    }
-
-    const s = size();
-    const width = pickerView.element.offsetWidth;
-    const height = pickerView.element.offsetHeight;
-    const barElement = selectionBar.element;
-    let at: Point;
-
-    if (picker.anchor) {
-      at = picker.anchor;
-    } else if (props?.bar && !barElement.hidden) {
-      const opener = barElement.querySelector<HTMLElement>(".bar-button.on");
-
-      at = opener
-        ? {
-            x: barElement.offsetLeft + opener.offsetLeft,
-            y:
-              barElement.offsetTop + opener.offsetTop + opener.offsetHeight + 6,
-          }
-        : {
-            x: barElement.offsetLeft,
-            y: barElement.offsetTop + barElement.offsetHeight + 6,
-          };
-    } else {
-      at = { x: s.width - width - 8, y: 8 };
-    }
-
-    const x = Math.max(4, Math.min(at.x, Math.max(4, s.width - width - 4)));
-    const y = Math.max(4, Math.min(at.y, Math.max(4, s.height - height - 4)));
-
-    pickerView.element.style.left = `${x}px`;
-    pickerView.element.style.top = `${y}px`;
-  }
-
   function refreshChrome() {
     legend.render(legendOpen, props?.showInferred ?? true);
     legendButton.classList.toggle("on", legendOpen);
@@ -394,7 +336,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
             points: points(line.points),
           });
           const stroke = svg("polyline", {
-            class: `edge ${line.style}${line.ghost ? " ghost" : ""}`,
+            class: `edge ${line.style}`,
             points: points(line.points),
           });
           const arrow = scene.arrows.find((a) => a.lineId === line.id);
@@ -404,7 +346,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
             stroke.setAttribute("stroke-dasharray", line.dash);
           }
 
-          if (title && !line.ghost) {
+          if (title) {
             hit.append(svg("title", {}, title));
           }
 
@@ -433,9 +375,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
             );
           }
 
-          if (!line.ghost) {
-            node.append(hit);
-          }
+          node.append(hit);
 
           group.append(node);
         }
@@ -443,8 +383,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
         for (const box of scene.boxes) {
           const { rect } = box;
           const node = svg("g", {
-            class: `box ${box.kind}${box.ghost ? " ghost" : ""}`,
-            "data-kind": box.ghost ? "ghost" : "module",
+            class: `box ${box.kind}`,
+            "data-kind": "module",
             "data-id": box.id,
           });
 
@@ -562,9 +502,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     for (const node of world.querySelectorAll<SVGElement>(".box")) {
       node.classList.toggle(
         "dim",
-        near !== null &&
-          !node.classList.contains("ghost") &&
-          !near.has(node.dataset.id as string),
+        near !== null && !near.has(node.dataset.id as string),
       );
 
       const chosen =
@@ -587,13 +525,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   }
 
   function choose(event: MouseEvent, target: { kind: string; id: string }) {
-    if (target.kind === "ghost") {
-      event.stopPropagation();
-      actions.untick(target.id);
-
-      return;
-    }
-
     pointerAnchor =
       event.type === "contextmenu" ? canvasPoint(localPoint(event)) : null;
 
@@ -666,10 +597,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
     const target = targetOf(event);
 
-    if (target?.kind === "ghost") {
-      return;
-    }
-
     if (target) {
       choose(event, target);
     }
@@ -721,32 +648,18 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     gesture = false;
   });
 
-  document.addEventListener("click", (event) => {
-    const node = event.target as Node;
-
-    if (
-      props?.picker &&
-      !pickerView.element.contains(node) &&
-      !selectionBar.element.contains(node)
-    ) {
-      actions.closePicker();
-    }
-  });
-
   function perform(action: KeyAction) {
     if (action === "escape") {
-      if (props?.picker) {
-        actions.closePicker();
-      } else if (legendOpen) {
+      if (legendOpen) {
         legendOpen = false;
         refreshChrome();
       } else {
         actions.select(null);
       }
     } else if (action === "uses") {
-      actions.togglePicker("uses");
+      actions.openTab("uses");
     } else if (action === "used-by") {
-      actions.togglePicker("usedBy");
+      actions.openTab("usedBy");
     } else if (action === "contents") {
       actions.openContents();
     } else if (action === "focus") {
@@ -766,7 +679,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
         ctrlKey: event.ctrlKey,
         altKey: event.altKey,
         targetEditable: isEditable(event.target),
-        pickerOpen: props?.picker != null,
       },
       props?.selection ?? null,
     );
@@ -838,17 +750,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
       applySelection();
       selectionBar.render(next.bar);
-
-      const opening = next.picker !== null && previous?.picker == null;
-
-      pickerView.render(next.picker?.model ?? null);
       refreshChrome();
       applyViewport();
-      positionPicker();
-
-      if (opening) {
-        pickerView.focus();
-      }
     },
   };
 }

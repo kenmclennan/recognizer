@@ -55,7 +55,6 @@ const TOKENS = [
 
 const HARNESS = `
 import { buildCanvasView } from "./canvas-view";
-import { createPicker } from "./picker-model";
 
 window.addEventListener("error", (event) => {
   document.getElementById("out").textContent = "ERR " + event.message + " " + (event.error && event.error.stack);
@@ -66,14 +65,12 @@ const actions = {
   find() {}, select() {}, clear: () => calls.push("clear"), setShowInferred() {},
   toggleTree: () => calls.push("tree"), measure: (t) => t.length * 7,
   takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"), openContents: () => calls.push("contents"),
-  toggleFocus: () => calls.push("focus"), togglePicker: (k) => calls.push("picker:" + k),
-  closePicker() {}, untick() {}, disc: () => "green",
-  picker: { toggle() {}, toggleGroup() {}, toggleCollapse() {}, setTab() {}, setFilter() {}, tickAll() {}, add() {} },
+  toggleFocus: () => calls.push("focus"), openTab: (t) => calls.push("tab:" + t),
 };
 
 const rect = (x, y, width, height) => ({ x, y, width, height });
 const line = (id, style, dash, count, points) => ({
-  id, points, style, dash, count, ghost: false,
+  id, points, style, dash, count,
   countAt: count > 1 ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } : null,
 });
 const arrow = (lineId, hollow) => ({ lineId, hollow, points: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }] });
@@ -82,8 +79,8 @@ const scene = {
   bounds: rect(0, 0, 420, 320),
   frames: [{ path: "f", rect: rect(0, 0, 300, 200), label: "f", figure: "1 of 2", disc: "green", labelRect: rect(0, 0, 300, 28) }],
   boxes: [
-    { id: "f/a.py", kind: "module", rect: rect(14, 40, 160, 40), label: "a", figures: "+1↓ +2↑", subline: "", disc: "green", ghost: false },
-    { id: "g", kind: "folder", rect: rect(14, 240, 160, 50), label: "g/", figures: "", subline: "3 open, folded", disc: "amber", ghost: false },
+    { id: "f/a.py", kind: "module", rect: rect(14, 40, 160, 40), label: "a", figures: "+1↓ +2↑", subline: "", disc: "green" },
+    { id: "g", kind: "folder", rect: rect(14, 240, 160, 50), label: "g/", figures: "", subline: "3 open, folded", disc: "amber" },
   ],
   lines: [
     line("plain", "plain", null, 2, [{ x: 20, y: 90 }, { x: 20, y: 140 }]),
@@ -93,10 +90,10 @@ const scene = {
   ],
   arrows: [arrow("plain", false), arrow("private", false), arrow("inferred", false), arrow("hollow", true)],
 };
-const bar = (over) => ({ kind: "folder", uses: 2, usedBy: 0, files: { open: 1, held: 2 }, focused: false, folded: false, picker: null, ...over });
+const bar = (over) => ({ kind: "folder", uses: 2, usedBy: 0, files: { open: 1, held: 2 }, focused: false, folded: false, inspectorTab: null, ...over });
 const props = (over) => ({
   scene, selection: null, highlight: null, bar: null, titles: new Map(),
-  open: 3, total: 5, treeHidden: true, showInferred: true, notice: null, picker: null, ...over,
+  open: 3, total: 5, treeHidden: true, showInferred: true, notice: null, ...over,
 });
 
 const wrap = document.createElement("div");
@@ -162,17 +159,6 @@ const kids = (node) => [...node.children].map((child) => ({
   })),
 }));
 
-const pedge = (to, names) => ({ from: "f/a.py", to, kind: "depends", line: 1, names });
-const pscan = {
-  modules: [{ id: "f/a.py", kind: "module" }, { id: "g/x.py", kind: "module" }, { id: "g/y.py", kind: "module" }, { id: "g/w.py", kind: "module" }],
-  edges: [pedge("g/x.py", ["X"]), pedge("g/y.py", ["Y"]), pedge("g/w.py", ["W"])],
-  foreign: [],
-};
-const pmodel = createPicker({
-  scans: [pscan], modules: pscan.modules.map((m) => m.id), onCanvas: () => false,
-  source: { kind: "module", id: "f/a.py", direction: "uses" },
-});
-
 const result = { dark: matchMedia("(prefers-color-scheme: dark)").matches };
 result.tokens = { app: probe(document.body), proto: probe(shadow) };
 result.window = { body: pick(document.body, ["background-color", "color", "font-size"]), proto: getComputedStyle(document.body).backgroundColor };
@@ -235,12 +221,11 @@ const clickBar = (aria) => q('.selection-bar [aria-label="' + aria + '"]').click
 calls.length = 0;
 clickBar("Fold into one box");
 clickBar("Focus on this folder");
-clickBar("Take off the canvas");
 [...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Uses")).click();
 [...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Files")).click();
 result.barClicks = [...calls];
 canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ folded: true, focused: true }) }));
-result.barFolded = kids(q(".selection-bar")).slice(-4).map((k) => [k.aria, k.title]);
+result.barFolded = kids(q(".selection-bar")).slice(-3).map((k) => [k.aria, k.title]);
 
 result.chrome = {
   topStrip: q(".canvas-bar") === null,
@@ -293,21 +278,6 @@ canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, neighbourhood
 result.dimming.relatedFrame = pick(q(".frame"), ["opacity"]);
 result.dimming.nothingSelected = (canvas.render(props()), pick(q(".frame"), ["opacity"]));
 
-canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, bar: bar({ kind: "module", files: null, picker: "uses" }), picker: { model: pmodel, anchor: null } }));
-const pickerNode = q(".picker");
-const opener = [...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Uses"));
-const barNode = q(".selection-bar");
-result.layers = {
-  picker: pick(pickerNode, ["z-index", "top", "position"]),
-  zoom: pick(q(".controls"), ["z-index"]),
-  selectionBar: pick(q(".selection-bar"), ["z-index"]),
-  pickerTop: parseFloat(pickerNode.style.top),
-  openerBottom: barNode.offsetTop + opener.offsetTop + opener.offsetHeight,
-  pickerLeft: parseFloat(pickerNode.style.left),
- openerLeft: barNode.offsetLeft + opener.offsetLeft,
-  canvasHeight: canvas.element.offsetHeight,
-  pickerHeight: pickerNode.offsetHeight,
-};
 const boxOf = () => q('[data-id="f/a.py"]').getBoundingClientRect();
 const barBox = () => q(".selection-bar").getBoundingClientRect();
 const offsetOf = () => ({ dx: barBox().left + barBox().width / 2 - (boxOf().left + boxOf().width / 2), dy: boxOf().top - barBox().top });
@@ -328,11 +298,8 @@ const rightBefore = { x: barBox().left, y: barBox().top };
 panBy(-70, 45);
 const rightAfter = { x: barBox().left, y: barBox().top };
 result.pinned = { beforePan, afterPan, afterZoom, rightBefore, rightAfter };
-result.groupCount = pick(q(".picker-group .count"), ["position"]);
+result.noTakeOff = q('.selection-bar [aria-label="Take off the canvas"]') === null;
 result.canvasCount = { id: q("#canvas-count") !== null, bare: q("#canvas-count").classList.contains("count") };
-const focusRule = [...document.styleSheets[0].cssRules].find((rule) => rule.selectorText === ".picker-filter:focus");
-result.filterFocus = { borderColor: focusRule.style.getPropertyValue("border-color"), shadow: focusRule.style.getPropertyValue("box-shadow"), outline: focusRule.style.getPropertyValue("outline") };
-
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
 `;
 
@@ -361,11 +328,6 @@ type Report = {
   };
   frames: Record<string, unknown> & { proto: Record<string, Props> };
   dimming: Record<string, Props>;
-  layers: Record<string, unknown> & {
-    picker: Props;
-    zoom: Props;
-    selectionBar: Props;
-  };
   pinned: {
     beforePan: { offset: { dx: number; dy: number }; box: number };
     afterPan: {
@@ -378,9 +340,8 @@ type Report = {
     rightBefore: { x: number; y: number };
     rightAfter: { x: number; y: number };
   };
-  groupCount: Props;
+  noTakeOff: boolean;
   canvasCount: { id: boolean; bare: boolean };
-  filterFocus: { borderColor: string; shadow: string; outline: string };
   barModule: { kids: Kid[]; style: Props };
   barFolder: {
     kids: Kid[];
@@ -657,7 +618,6 @@ describe("the canvas against the prototype, in a real browser", () => {
             "Used by 0",
             "|",
             "Contents",
-            "Take off the canvas",
           ]);
           expect(labelsOf(barFolder.kids)).toEqual([
             "Files 1 of 2",
@@ -668,7 +628,6 @@ describe("the canvas against the prototype, in a real browser", () => {
             "Focus on this folder",
             "Fold into one box",
             "Contents",
-            "Take off the canvas",
           ]);
           expect(barFolder.style["background-color"]).toBe(
             r().tokens.proto.dark,
@@ -683,7 +642,7 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(barFolder.sep.width).toBe(barFolder.proto.sep.width);
           expect(barFolder.sep.height).toBe(barFolder.proto.sep.height);
 
-          const [files, , uses, usedBy, , focus, fold, contents, takeOff] =
+          const [files, , uses, usedBy, , focus, fold, contents] =
             barFolder.kids as Kid[];
 
           expect(files?.svgs.map((s) => s.path)).toEqual(["M6 9l6 6 6-6"]);
@@ -703,9 +662,9 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(fold?.title).toBe("Fold into one box (Z)");
           expect(contents?.title).toBe("Contents (I)");
           expect(contents?.disabled).toBe(false);
-          expect(takeOff?.title).toBe("Take off the canvas (Backspace)");
+          expect(r().noTakeOff).toBe(true);
 
-          for (const icon of [focus, fold, contents, takeOff]) {
+          for (const icon of [focus, fold, contents]) {
             expect(icon?.text).toBe("");
             expect(icon?.svgs).toHaveLength(1);
             expect(icon?.svgs[0]?.strokeWidth).toBe("2px");
@@ -714,9 +673,8 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(barClicks).toEqual([
             "fold",
             "focus",
-            "takeOff",
-            "picker:uses",
-            "picker:files",
+            "tab:uses",
+            "tab:contents",
           ]);
           expect(barFolded.slice(0, 2)).toEqual([
             ["Unfocus", "Unfocus (F)"],
@@ -799,33 +757,9 @@ describe("the canvas against the prototype, in a real browser", () => {
       );
 
       it.skipIf(chrome === undefined)(
-        "keeps the canvas count's panel off the picker's group counts",
+        "keeps the canvas count's panel off any other count",
         () => {
-          const r1 = r();
-
-          expect(r1.canvasCount).toEqual({ id: true, bare: false });
-          expect(r1.groupCount.position).not.toBe("absolute");
-        },
-        120000,
-      );
-
-      it.skipIf(chrome === undefined)(
-        "puts the picker above the zoom and selection bars, 6px under its button, inside the canvas",
-        () => {
-          const { layers } = r();
-          const z = (props: Record<string, string>) => Number(props["z-index"]);
-
-          expect(z(layers.picker)).toBe(8);
-          expect(z(layers.picker)).toBeGreaterThan(z(layers.zoom));
-          expect(z(layers.picker)).toBeGreaterThan(z(layers.selectionBar));
-          expect(layers.pickerTop).toBeCloseTo(
-            (layers.openerBottom as number) + 6,
-            0,
-          );
-          expect(layers.pickerLeft).toBeCloseTo(layers.openerLeft as number, 0);
-          expect(
-            (layers.pickerTop as number) + (layers.pickerHeight as number),
-          ).toBeLessThanOrEqual(layers.canvasHeight as number);
+          expect(r().canvasCount).toEqual({ id: true, bare: false });
         },
         120000,
       );
@@ -864,18 +798,6 @@ describe("the canvas against the prototype, in a real browser", () => {
 
           expect(rightAfter.x - rightBefore.x).toBeCloseTo(-70, 1);
           expect(rightAfter.y - rightBefore.y).toBeCloseTo(45, 1);
-        },
-        120000,
-      );
-
-      it.skipIf(chrome === undefined)(
-        "rings the picker's filter field in the selection colour",
-        () => {
-          const { filterFocus } = r();
-
-          expect(filterFocus.borderColor).toBe("var(--sel)");
-          expect(filterFocus.shadow).toContain("var(--selbg)");
-          expect(filterFocus.outline).toBe("none");
         },
         120000,
       );
