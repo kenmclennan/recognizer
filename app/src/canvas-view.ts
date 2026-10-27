@@ -128,6 +128,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     toggleFocus: () => actions.toggleFocus(),
     toggleFold: () => actions.toggleFold(),
     openContents: () => actions.openContents(),
+    takeOff: () => actions.takeOff(),
   });
 
   let props: CanvasProps | null = null;

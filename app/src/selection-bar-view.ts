@@ -17,6 +17,7 @@ export type BarActions = {
   toggleFocus: () => void;
   toggleFold: () => void;
   openContents: () => void;
+  takeOff: () => void;
 };
 
 export type SelectionBarView = {
@@ -162,6 +163,15 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
 
       contents.classList.toggle("on", contentsShown);
       parts.push(contents);
+      parts.push(
+        separator(),
+        iconButton(
+          "take-off",
+          "Take off the canvas (Backspace)",
+          "Take off the canvas (Backspace)",
+          () => actions.takeOff(),
+        ),
+      );
       element.replaceChildren(...parts);
     },
   };
