@@ -11,6 +11,7 @@ export type IconName =
   | "fold"
   | "unfold"
   | "list"
+  | "folder"
   | "x";
 
 type Shape = [string, Record<string, string>];
@@ -42,6 +43,14 @@ const SHAPES: Record<IconName, Shape[]> = {
   fold: [["path", { d: "M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" }]],
   unfold: [["path", { d: "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" }]],
   list: [["path", { d: "M4 6h16M4 12h16M4 18h10" }]],
+  folder: [
+    [
+      "path",
+      {
+        d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+      },
+    ],
+  ],
   x: [["path", { d: "M18 6L6 18M6 6l12 12" }]],
 };
 

@@ -30,7 +30,6 @@ const HIDEABLE = [
   "inspector-rail",
   "inspector-panel",
   "update-button",
-  "tree-toggle",
 ];
 
 function computedDisplays(css: string): string {

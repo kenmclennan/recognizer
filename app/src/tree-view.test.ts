@@ -48,7 +48,6 @@ const tree = buildTreeView({
   putFolderOnCanvas: (ids) => calls.push(["putFolderOnCanvas", ids.join(",")]),
   takeFolderOff: (ids) => calls.push(["takeFolderOff", ids.join(",")]),
   find: (id) => calls.push(["find", id]),
-  hideTree: () => calls.push(["hideTree"]),
 });
 
 document.body.append(tree.element);
@@ -83,14 +82,6 @@ const probes = {
 const cs = (node) => getComputedStyle(node);
 const rowFor = (path) =>
   tree.element.querySelector('.row[data-path="' + path + '"]');
-const action = (button) => ({
-  aria: button.getAttribute("aria-label"),
-  title: button.title,
-  width: cs(button).width,
-  height: cs(button).height,
-  iconWidth: cs(button.querySelector("svg")).width,
-  color: cs(button).color,
-});
 const kindOf = (child) =>
   child.classList.contains("rcheck") ? "check"
   : child.classList.contains("name") ? "name"
@@ -154,8 +145,8 @@ const hdr = {
   titleWeight: cs(header.querySelector(".tree-title")).fontWeight,
   count: header.querySelector(".tree-count").textContent,
   countColor: cs(header.querySelector(".tree-count")).color,
-  button: action(header.querySelector("button")),
-  buttonIsLast: header.lastElementChild === header.querySelector("button"),
+  buttons: header.querySelectorAll("button").length,
+  children: [...header.children].map((child) => child.className),
   findPlaceholder: find.placeholder,
   findType: find.type,
   chip: {
@@ -183,7 +174,6 @@ pick("lib", ".rcheck");
 pick("src", ".name");
 pick("src", ".chevron");
 rowFor("src/a.ts").querySelector(".rcheck").dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
-tree.element.querySelector(".tree-header button").click();
 const allOpen = () => true;
 tree.render(props({ expanded: new Set(["src", "lib"]), selected: null, isOpen: allOpen }));
 const checkedFolder = describeRow("src");
@@ -195,40 +185,21 @@ const states = { src: describeRow("src").check.aria, lib: describeRow("lib").che
 tree.render(props({ filtered: filterTree(root, { ...filter, text: "zzz" }, context), filter: { ...filter, text: "zzz" } }));
 const empty = tree.element.querySelector(".empty").textContent;
 
-const canvasActions = { find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, clear() {}, setShowInferred() {}, toggleTree: () => calls.push(["canvasToggle"]), measure: (t) => t.length * 7 };
+const canvasActions = { find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7 };
 const canvas = buildCanvasView(canvasActions);
 document.body.append(canvas.element);
-const canvasProps = (treeHidden) => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), open: 0, total: 4, treeHidden, showInferred: true, notice: null });
-canvas.render(canvasProps(true));
-const toggle = canvas.element.querySelector(".tree-toggle");
+const canvasProps = () => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), open: 0, total: 4, showInferred: true, notice: null });
+canvas.render(canvasProps());
 const shown = {
-  floats: [cs(toggle).position, cs(toggle).left, cs(toggle).top].join(" "),
   topStrip: canvas.element.querySelector(".canvas-bar") === null,
-  aria: toggle.getAttribute("aria-label"),
-  title: toggle.title,
-  hidden: cs(toggle).display,
-  hasSvg: toggle.querySelector("svg.i") !== null,
-  text: toggle.textContent,
+  treeToggle: canvas.element.querySelector(".tree-toggle") !== null,
+  buttonsOutsideControls: [...canvas.element.querySelectorAll("button")].filter((b) => !b.closest(".controls, .canvas-legend, .selection-bar")).length,
 };
-calls.length = 0;
-toggle.click();
-shown.clicked = calls.map((call) => call.join(":"));
-canvas.render(canvasProps(false));
-shown.hiddenWhenTreeShown = cs(toggle).display;
 
 document.getElementById("out").textContent = btoa(
   unescape(encodeURIComponent(JSON.stringify({ rows, hdr, treeText, noLegend, clicks, empty, probes, shown, checkedFolder, states }))),
 );
 `;
-
-type Button = {
-  aria: string;
-  title: string;
-  width: string;
-  height: string;
-  iconWidth: string;
-  color: string;
-};
 
 type RowFacts = {
   text: string;
@@ -266,8 +237,8 @@ type Facts = {
     titleWeight: string;
     count: string;
     countColor: string;
-    button: Button;
-    buttonIsLast: boolean;
+    buttons: number;
+    children: string[];
     findPlaceholder: string;
     findType: string;
     chip: { height: string; radius: string; background: string; color: string };
@@ -281,15 +252,9 @@ type Facts = {
   empty: string;
   probes: { sel: { color: string; background: string } };
   shown: {
-    floats: string;
     topStrip: boolean;
-    aria: string;
-    title: string;
-    hidden: string;
-    hasSvg: boolean;
-    text: string;
-    clicked: string[];
-    hiddenWhenTreeShown: string;
+    treeToggle: boolean;
+    buttonsOutsideControls: number;
   };
 };
 
@@ -346,28 +311,19 @@ describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
   const facts = chrome === undefined ? null : collect();
   const f = facts as Facts;
 
-  it("starts with the repository name, its module count and a hide-the-tree icon button", () => {
+  it("starts with the repository name and its module count and no hide button", () => {
     expect(f.hdr.title).toBe("shop");
     expect(Number(f.hdr.titleWeight)).toBeGreaterThanOrEqual(600);
     expect(f.hdr.count).toBe("4");
     expect(f.hdr.countColor).not.toBe(f.probes.sel.color);
-    expect(f.hdr.button.aria).toBe("Hide the tree");
-    expect(f.hdr.button.title).toBe("Hide the tree");
-    expect(f.hdr.buttonIsLast).toBe(true);
-    expect(f.hdr.button.width).toBe("22px");
-    expect(f.hdr.button.iconWidth).toBe("14px");
+    expect(f.hdr.buttons).toBe(0);
+    expect(f.hdr.children).toEqual(["tree-title", "tree-count"]);
   });
 
-  it("puts the show-the-tree icon button at the left of the canvas bar only while the tree is hidden", () => {
-    expect(f.shown.floats).toBe("absolute 14px 14px");
+  it("leaves the canvas without a tree toggle, so the rail's Files icon alone reopens a hidden tree", () => {
     expect(f.shown.topStrip).toBe(true);
-    expect(f.shown.aria).toBe("Show the tree");
-    expect(f.shown.title).toBe("Show the tree");
-    expect(f.shown.hasSvg).toBe(true);
-    expect(f.shown.text).toBe("");
-    expect(f.shown.hidden).not.toBe("none");
-    expect(f.shown.hiddenWhenTreeShown).toBe("none");
-    expect(f.shown.clicked).toEqual(["canvasToggle"]);
+    expect(f.shown.treeToggle).toBe(false);
+    expect(f.shown.buttonsOutsideControls).toBe(0);
   });
 
   it("has a plain text find field reading Find a file", () => {
@@ -469,7 +425,6 @@ describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
       "toggleFolder:src",
       "toggleFolder:src",
       "takeOff:src/a.ts",
-      "hideTree",
       "takeFolderOff:src/deep/d.ts,src/a.ts,src/b.ts",
     ]);
   });
