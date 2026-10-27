@@ -30,6 +30,7 @@ import {
 } from "./layout-source";
 import { buildCallerIndex } from "./member-callers";
 import { createOpenModules } from "./open-modules";
+import { buildRailView } from "./rail-view";
 import { repositorySource } from "./repository-source";
 import type { Loaded } from "./scan-loading";
 import type { BarModel } from "./selection-bar-view";
@@ -112,7 +113,6 @@ export function showExplorer(
     putFolderOnCanvas: putAllOn,
     takeFolderOff: takeAllOff,
     find,
-    hideTree: toggleTree,
   });
 
   const canvas = buildCanvasView({
@@ -147,7 +147,6 @@ export function showExplorer(
       state.setShowInferred(show);
       changed();
     },
-    toggleTree,
     openContents() {
       inspectorOpen = true;
       inspectorTab = "contents";
@@ -243,13 +242,14 @@ export function showExplorer(
     },
   );
 
+  const rail = buildRailView({ toggleFiles: toggleTree });
   const notices = el("div", "notices");
 
   notices.setAttribute("role", "status");
 
   const body = el("div", "explorer");
 
-  body.append(tree.element, canvas.element, inspector.element);
+  body.append(rail.element, tree.element, canvas.element, inspector.element);
   container.replaceChildren(notices, body);
 
   function emptyGraph(): CanvasGraph {
@@ -478,7 +478,6 @@ export function showExplorer(
       titles,
       open: modules.count(),
       total: modules.total(),
-      treeHidden,
       showInferred: state.showInferred(),
       notice: layoutNotice,
     });
@@ -489,6 +488,7 @@ export function showExplorer(
     const selection = state.selection();
 
     body.classList.toggle("tree-hidden", treeHidden);
+    rail.render(!treeHidden);
     tree.render({
       title,
       moduleCount: loaded.modules.length,

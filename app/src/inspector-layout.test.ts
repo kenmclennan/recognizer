@@ -26,6 +26,7 @@ const PAGE = (css: string) => `<!doctype html>
 <html><head><style>${css}</style></head><body>
 <div style="display:flex;flex-direction:column;width:1000px;height:600px">
 <div class="explorer" id="grid">
+<nav class="rail"></nav>
 <aside class="tree" id="tree"></aside>
 <main class="canvas" id="canvas"></main>
 <aside class="inspector" id="inspector"><div class="inspector-rail" id="rail"></div><div class="inspector-panel" id="panel" hidden></div></aside>

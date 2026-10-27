@@ -63,7 +63,7 @@ const TOKENS = ${JSON.stringify(TOKENS)};
 const calls = [];
 const actions = {
   find() {}, select() {}, clear: () => calls.push("clear"), setShowInferred() {},
-  toggleTree: () => calls.push("tree"), measure: (t) => t.length * 7,
+  measure: (t) => t.length * 7,
   takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"), openContents: () => calls.push("contents"),
   toggleFocus: () => calls.push("focus"), openTab: (t) => calls.push("tab:" + t),
 };
@@ -93,7 +93,7 @@ const scene = {
 const bar = (over) => ({ kind: "folder", uses: 2, usedBy: 0, files: { open: 1, held: 2 }, focused: false, folded: false, inspectorTab: null, ...over });
 const props = (over) => ({
   scene, selection: null, highlight: null, bar: null, titles: new Map(),
-  open: 3, total: 5, treeHidden: true, showInferred: true, notice: null, ...over,
+  open: 3, total: 5, showInferred: true, notice: null, ...over,
 });
 
 const wrap = document.createElement("div");
@@ -229,7 +229,8 @@ result.barFolded = kids(q(".selection-bar")).slice(-3).map((k) => [k.aria, k.tit
 result.chrome = {
   topStrip: q(".canvas-bar") === null,
   countInCanvas: q("#canvas-count") !== null || q(".canvas-count") !== null,
-  toggle: { ...pick(q(".tree-toggle"), ["position", "top", "left", "display"]), svg: q(".tree-toggle svg.i") !== null },
+  treeToggle: q(".tree-toggle") !== null,
+  panelIcon: q(".canvas > button svg.i") !== null,
 };
 const hint = q(".empty-canvas");
 result.hint = {
@@ -239,9 +240,8 @@ result.hint = {
   style: pick(hint, ["text-align", "color", "position", "top", "line-height"]),
   proto: { style: pick(p("#hint"), ["text-align", "color", "position", "top", "line-height"]), html: p("#hint").innerHTML },
 };
-canvas.render(props({ open: 0, scene: null, treeHidden: false }));
+canvas.render(props({ open: 0, scene: null }));
 result.hint.shownWhenEmpty = getComputedStyle(hint).display !== "none";
-result.chrome.toggleWhenTreeShown = getComputedStyle(q(".tree-toggle")).display;
 
 canvas.render(props());
 const controls = q(".controls");
@@ -351,8 +351,8 @@ type Report = {
   chrome: {
     topStrip: boolean;
     countInCanvas: boolean;
-    toggle: Props & { svg: boolean };
-    toggleWhenTreeShown: string;
+    treeToggle: boolean;
+    panelIcon: boolean;
   };
   hint: {
     text: string;
@@ -494,18 +494,14 @@ describe("the canvas against the prototype, in a real browser", () => {
       );
 
       it.skipIf(chrome === undefined)(
-        "floats the tree button with no bar and no count across the top",
+        "holds no tree toggle, no bar and no count across the top",
         () => {
           const { chrome: c } = r();
 
           expect(c.topStrip).toBe(true);
           expect(c.countInCanvas).toBe(false);
-          expect(c.toggle.position).toBe("absolute");
-          expect(c.toggle.top).toBe("14px");
-          expect(c.toggle.left).toBe("14px");
-          expect(c.toggle.display).not.toBe("none");
-          expect(c.toggle.svg).toBe(true);
-          expect(c.toggleWhenTreeShown).toBe("none");
+          expect(c.treeToggle).toBe(false);
+          expect(c.panelIcon).toBe(false);
         },
         120000,
       );

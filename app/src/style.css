@@ -120,21 +120,21 @@ button.primary {
 
 .explorer {
   display: grid;
-  grid-template-columns: 280px 1fr 44px;
+  grid-template-columns: 40px 280px 1fr 44px;
   flex: 1;
   min-height: 0;
 }
 
 .explorer.inspector-open {
-  grid-template-columns: 280px 1fr 340px;
+  grid-template-columns: 40px 280px 1fr 340px;
 }
 
 .explorer.tree-hidden {
-  grid-template-columns: 1fr 44px;
+  grid-template-columns: 40px 1fr 44px;
 }
 
 .explorer.tree-hidden.inspector-open {
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 40px 1fr 340px;
 }
 
 .tree {
@@ -163,10 +163,6 @@ button.primary {
 .tree-count {
   font-size: 12px;
   color: var(--muted);
-}
-
-.tree-header .spacer {
-  flex: 1;
 }
 
 svg.i {
@@ -620,19 +616,6 @@ svg.i.chevron {
   pointer-events: none;
 }
 
-.canvas .tree-toggle {
-  position: absolute;
-  z-index: 5;
-  top: 14px;
-  left: 14px;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.08);
-}
-
 .controls {
   position: absolute;
   z-index: 5;
@@ -1033,4 +1016,40 @@ svg.i.chevron {
   outline: none;
   border-color: var(--sel);
   box-shadow: 0 0 0 2px var(--selbg);
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  padding-top: 8px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+
+.rail .ib {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+
+.rail .ib svg.i {
+  width: 16px;
+  height: 16px;
+}
+
+.rail .ib.open {
+  color: var(--fg);
+}
+
+.rail .ib.open::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--sel);
 }

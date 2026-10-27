@@ -1,6 +1,5 @@
 import { button, el } from "./dom";
 import type { NodeHealth } from "./health";
-import { iconButton } from "./icons";
 import { checkState, nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 import type { Filtered, FilterState } from "./tree-filter";
@@ -27,7 +26,6 @@ export type TreeActions = {
   putFolderOnCanvas: (ids: string[]) => void;
   takeFolderOff: (ids: string[]) => void;
   find: (id: string) => void;
-  hideTree: () => void;
 };
 
 export type TreeView = {
@@ -41,12 +39,6 @@ export function buildTreeView(actions: TreeActions): TreeView {
   const header = el("div", "tree-header");
   const title = el("b", "tree-title");
   const count = el("span", "tree-count");
-  const hide = iconButton(
-    "panel",
-    "Hide the tree",
-    "tree-hide",
-    actions.hideTree,
-  );
   const find = el("input", "find");
   const onCanvas = button("On canvas", "toggle", actions.toggleOnCanvas);
   const attention = button(
@@ -57,7 +49,7 @@ export function buildTreeView(actions: TreeActions): TreeView {
   const filters = el("div", "filters");
   const list = el("div", "rows");
 
-  header.append(title, count, el("span", "spacer"), hide);
+  header.append(title, count);
   find.type = "text";
   find.placeholder = "Find a file";
   find.autocomplete = "off";

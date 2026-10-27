@@ -3,7 +3,6 @@ import type { Point, Rect } from "./canvas-layout";
 import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
-import { iconButton } from "./icons";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
@@ -28,7 +27,6 @@ export type CanvasProps = {
   titles: Map<string, string>;
   open: number;
   total: number;
-  treeHidden: boolean;
   showInferred: boolean;
   notice: string | null;
 };
@@ -41,7 +39,6 @@ export type CanvasActions = {
   toggleFocus: () => void;
   clear: () => void;
   setShowInferred: (show: boolean) => void;
-  toggleTree: () => void;
   measure: (text: string) => number;
   openTab: (tab: InspectorTab) => void;
   openContents: () => void;
@@ -119,12 +116,6 @@ const points = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
 
 export function buildCanvasView(actions: CanvasActions): CanvasView {
   const element = el("main", "canvas");
-  const toggle = iconButton(
-    "panel",
-    "Show the tree",
-    "tree-toggle",
-    actions.toggleTree,
-  );
   const stage = el("div", "stage");
   const surface = svg("svg", { class: "surface" });
   const world = svg("g", { class: "world" });
@@ -177,7 +168,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   surface.append(world);
   stage.append(surface, empty, notice, selectionBar.element);
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
-  element.append(stage, toggle, controls, legend.element);
+  element.append(stage, controls, legend.element);
 
   function size() {
     const box = stage.getBoundingClientRect();
@@ -711,7 +702,6 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       const previous = props;
 
       props = next;
-      toggle.hidden = !next.treeHidden;
       empty.hidden = next.open > 0;
       notice.textContent = next.notice ?? "";
       notice.hidden = next.notice === null;
