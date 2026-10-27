@@ -1054,3 +1054,56 @@ svg.i.chevron {
   border-radius: 1px;
   background: var(--sel);
 }
+
+.update-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.update-dialog[hidden] {
+  display: none;
+}
+
+.update-panel {
+  position: absolute;
+  top: 18vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 90vw);
+  box-sizing: border-box;
+  padding: 14px 16px;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+.update-panel p {
+  margin: 0 0 10px;
+}
+
+.update-panel .update-error {
+  color: var(--muted);
+}
+
+.update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.update-actions button {
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.update-actions button.primary {
+  background: var(--dark);
+  color: var(--darkfg);
+}
