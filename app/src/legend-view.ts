@@ -2,6 +2,7 @@ import type { EdgeStyle } from "./canvas-graph";
 import { DASH } from "./canvas-scene";
 import { el } from "./dom";
 import type { Disc } from "./health";
+import { buildCheckbox, setCheckState } from "./row-view";
 
 export type LegendView = {
   element: HTMLElement;
@@ -54,14 +55,18 @@ export function buildLegendView(
   setShowInferred: (show: boolean) => void,
 ): LegendView {
   const element = el("div", "canvas-legend");
-  const checkbox = el("input");
-  const label = el("label", "switch");
+  const label = el("div", "switch");
+  let shown = false;
+  const checkbox = buildCheckbox(
+    "Show inferred dependencies",
+    "unchecked",
+    () => setShowInferred(!shown),
+  );
 
   element.hidden = true;
   element.addEventListener("pointerdown", (event) => event.stopPropagation());
   element.addEventListener("click", (event) => event.stopPropagation());
-  checkbox.type = "checkbox";
-  checkbox.addEventListener("change", () => setShowInferred(checkbox.checked));
+  label.addEventListener("click", () => setShowInferred(!shown));
   label.append(checkbox, el("span", "", "Show inferred dependencies"));
 
   const rows: HTMLElement[] = [el("h4", "", "Edges")];
@@ -106,7 +111,8 @@ export function buildLegendView(
     element,
     render(open, showInferred) {
       element.hidden = !open;
-      checkbox.checked = showInferred;
+      shown = showInferred;
+      setCheckState(checkbox, showInferred ? "checked" : "unchecked");
     },
   };
 }

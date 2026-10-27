@@ -22,22 +22,31 @@ const ARIA: Record<CheckState, string> = {
   unchecked: "false",
 };
 
-function checkbox(spec: RowSpec): HTMLElement {
-  const node = el("span", `rcheck ${spec.state}`);
+export function setCheckState(node: HTMLElement, state: CheckState): void {
+  node.className = `rcheck ${state}`;
+  node.setAttribute("aria-checked", ARIA[state]);
+}
 
+export function buildCheckbox(
+  label: string,
+  state: CheckState,
+  onCheck: () => void,
+): HTMLElement {
+  const node = el("span");
+
+  setCheckState(node, state);
   node.setAttribute("role", "checkbox");
-  node.setAttribute("aria-checked", ARIA[spec.state]);
-  node.setAttribute("aria-label", spec.label);
+  node.setAttribute("aria-label", label);
   node.tabIndex = 0;
   node.addEventListener("click", (event) => {
     event.stopPropagation();
-    spec.onCheck();
+    onCheck();
   });
   node.addEventListener("keydown", (event) => {
     if (event.key === " " || event.key === "Enter") {
       event.preventDefault();
       event.stopPropagation();
-      spec.onCheck();
+      onCheck();
     }
   });
 
@@ -63,7 +72,11 @@ export function buildRow(spec: RowSpec): HTMLElement {
     node.append(chevron);
   }
 
-  node.append(checkbox(spec), el("span", "name", spec.label), disc);
+  node.append(
+    buildCheckbox(spec.label, spec.state, spec.onCheck),
+    el("span", "name", spec.label),
+    disc,
+  );
 
   if (spec.detail) {
     node.append(
