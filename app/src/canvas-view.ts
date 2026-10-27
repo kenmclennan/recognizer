@@ -373,7 +373,7 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
           const { rect } = box;
           const node = svg("g", {
             class: `box ${box.kind}`,
-            "data-kind": "module",
+            "data-kind": box.kind,
             "data-id": box.id,
           });
 
