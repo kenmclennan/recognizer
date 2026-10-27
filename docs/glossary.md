@@ -35,7 +35,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Violation | An edge that breaks a rule the policy declares. Baselined; the only finding that fails a run. |
 | Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
-| Overlay | Measurements from outside recognizer (coverage, churn, mutation) painted onto modules and members. |
+| Overlay | Measurements from a tool a repository registers (coverage, churn, mutation), written as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
+| Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
 | Scanner | A language's standalone command that emits a scan. |
 | Scan | The document a scanner emits: modules, edges and foreign nodes for one language. |
 | Cache | A repository's gitignored `.recognizer/cache/`, where scans and overlays are written. |

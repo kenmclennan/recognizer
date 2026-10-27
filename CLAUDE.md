@@ -39,12 +39,12 @@ One repository, a directory per part:
 
 - **The scan document is the contract.** Every scanner emits exactly the schema; nothing language-specific leaks into the document, the policy or the viewer. Every scanner is tested against the shared fixtures.
 - **Recognizer knows no architecture.** Every architectural meaning - component names, which dependencies are permitted, any preset - lives in a repository's policy. A named architecture is a template under `policies/`, copied into a repository and edited there. Hexagonal vocabulary appears only in fixtures, examples and templates. Warnings are principle violations, reported by `recognizer check` as candidates with evidence, never verdicts; each names its principle, its evidence and a stable fix-pattern id, and the coaching text an agent reads lives outside recognizer.
-- **Recognizer never measures.** Metrics that need something run (tests, mutation, duplication, git history) arrive as overlays from converters outside recognizer; recognizer owns the overlay format only.
+- **Recognizer never measures.** Metrics that need something run (tests, mutation, duplication, git history) arrive as overlays, produced by tools a repository registers in `.recognizer/config.yaml`; recognizer runs them and owns the overlay format and the registration, never a metric's meaning.
 - **Derived, never authored.** Nothing on the real diagram is drawn by hand. A proposed structure is a separate artifact, always labelled as not in the code.
 - **No allow list.** The policy cannot mark a violating edge as acceptable. Existing violations live in a baseline that may only shrink.
 - **Missing data is unknown, never healthy.**
 - **Prior art is for approach only.** Robert C. Martin's [uml-viewer](https://github.com/unclebob/uml-viewer) states no licence: copy or port none of its code. Its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
-- **Scanned repositories own their `.recognizer/` folder.** Policy, proposals and baselines are committed there; scans and overlays go in `.recognizer/cache/`, which is gitignored.
+- **Scanned repositories own their `.recognizer/` folder.** Policy, tooling configuration (`config.yaml`), saved views, proposals and baselines are committed there; scans and overlays go in `.recognizer/cache/`, which is gitignored.
 
 ## Worktrees
 

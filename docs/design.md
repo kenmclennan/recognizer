@@ -120,7 +120,8 @@ Everything the repository's owners write is committed under `.recognizer/`; anyt
 | Ratchet baselines | `.recognizer/baselines/` | yes |
 | Saved views | `.recognizer/views/` | yes |
 | Scan results | `.recognizer/cache/` | no |
-| Health overlays (complexity, coverage, mutation) | `.recognizer/cache/` | no, unless a project opts in to committing a mutation snapshot keyed by commit |
+| Tooling configuration: registered overlays | `.recognizer/config.yaml` | yes |
+| Health overlays (complexity, coverage, mutation) | `.recognizer/cache/overlays/` | no, unless a project opts in to committing a mutation snapshot keyed by commit |
 
 Scans are not stored for change detection: comparing two commits means scanning both.
 
@@ -285,7 +286,14 @@ The baseline is keyed by violation identity across the whole repository. A later
 
 ### Overlays
 
-Recognizer never measures. It owns the overlay format only; converters from a tool's native report (coverage, complexity, mutation, duplication, git churn and co-change) are plugins or separate tools with no dependency on recognizer beyond the format. The format is metric-agnostic: a metric declares its name, value type, granularity (module or member) and which direction is bad, and recognizer stores and paints it without knowing what it means. Well-known metric names have documented shapes but are not the only ones allowed. An overlay names the commit it measured; one whose commit differs from the scan's is drawn as missing. Missing data is unknown, never healthy.
+Recognizer never measures: the measuring is done by tools a repository chooses, and recognizer runs them, as `recognizer scan` runs each language's scanner, and reads what they write. It owns the overlay format and the registration, never a metric's meaning. Converters from a tool's native report (coverage, complexity, mutation, duplication, git churn and co-change) are separate tools with no dependency on recognizer beyond the format.
+
+- **Registration.** A repository registers its overlays in `.recognizer/config.yaml`, the one committed file for a repository's recognizer tooling (the policy stays in `policy.yaml`, because it is about architecture, not tooling). Each overlay has a name, the command that produces it, and the metrics it declares. The command is run from the repository root with three values filled in: the repository's path, the commit, and the output path in the cache. It writes one overlay file to that path, and nothing else is read from it.
+- **Running.** `recognizer measure` runs every registered overlay; `recognizer measure <name>...` runs the named ones. Each command's exit status and the output file are checked: a failed command or a file that does not match the format is reported by name and leaves no overlay behind. A command run on a working tree with uncommitted changes records that, and its overlay is marked as from a modified tree.
+- **The file.** One JSON file per overlay at `.recognizer/cache/overlays/<name>.json`: `overlay_version`, `commit`, `modified` (true when the working tree had uncommitted changes), `producer` (name and version), `metrics`, and `values`. Each metric declares its `name`, its `type` (`ratio`, `count`, `number` or `boolean`), its `granularity` (`module` or `member`), and which direction is bad (`bad: high` or `bad: low`). `values` maps each metric name to an object keyed by the scan's own ids: a module's id, or for a member the module's id, `::`, and the member's name, with a method as `Class.method`. A converter matches the scan's ids; the viewer never guesses. Well-known metric names have documented shapes but are not the only ones allowed.
+- **Freshness.** An overlay names the commit it measured; one whose commit differs from the scan's is drawn as missing, and one from a modified tree says so. A module or member with no value is unknown. Missing data is unknown, never healthy.
+
+How overlays are painted, and whether the app runs them, is decided under Overlays in the viewer.
 
 ### Prior art
 
@@ -295,14 +303,13 @@ Robert C. Martin's uml-viewer is a reference for approach only. It states no lic
 
 Decide these with Ken one at a time, in this order, recording each under Decided before building on it.
 
-1. **The overlay document.** The exact JSON shape for the metric-agnostic overlay decided under Overlays: how a metric declares itself, how values are keyed by module and member, and how a converter is discovered.
-2. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
-3. **A module's responsibility.** A generated one-line statement of what a module is for, from its code and never from a docstring, shown at the top of the inspector's Contents and marked as generated: what generates it, when, and where it is kept.
-4. **Policy axes.** Whether the policy classifies each module on independent axes, strata (responsibility layers, ruled by direction) and slices (use cases and subdomains, ruled by isolation), instead of one namespace of components. Slices by reachability from entry points fail at module level, because the composition root reaches nearly everything. Decided after examples have been explored.
-5. **Structural change.** How the viewer shows a change above the level of code: files, classes, functions and constants added, modified and removed. One view serves a spec's proposed change, a pull request's actual change, the difference between what a spec proposed and what was delivered, and the difference between any two commits. A proposed change is always labelled as not in the code.
-6. **Overlays in the viewer.** How metrics and churn over a period are laid over the canvas and the tree beyond the health discs, and how the viewer leads the user to a defect and draws attention to it without clutter.
-7. **Further warnings.** Candidates found by exploring lightcycle: a module importing another module's private names; an entity's module used far less than the port that stores its data, which suggests the port takes fields rather than the entity; a port whose methods take only primitives; a constructor whose collaborators have no type. Each needs a principle, evidence and a fix-pattern id before it joins `check`.
-8. **The rail's further panels.** Saved views, the window's history, and scan history (when each scan ran, at which commit, for which languages, and what it skipped or could not read), each as a panel on the rail: what each shows and does, and what moves into it from the view bar.
+1. **The Kotlin spike.** Prove tree-sitter-kotlin gives package-level edges good enough to use, before building the scanner.
+2. **A module's responsibility.** A generated one-line statement of what a module is for, from its code and never from a docstring, shown at the top of the inspector's Contents and marked as generated: what generates it, when, and where it is kept.
+3. **Policy axes.** Whether the policy classifies each module on independent axes, strata (responsibility layers, ruled by direction) and slices (use cases and subdomains, ruled by isolation), instead of one namespace of components. Slices by reachability from entry points fail at module level, because the composition root reaches nearly everything. Decided after examples have been explored.
+4. **Structural change.** How the viewer shows a change above the level of code: files, classes, functions and constants added, modified and removed. One view serves a spec's proposed change, a pull request's actual change, the difference between what a spec proposed and what was delivered, and the difference between any two commits. A proposed change is always labelled as not in the code.
+5. **Overlays in the viewer.** How metrics and churn over a period are laid over the canvas and the tree beyond the health discs, and how the viewer leads the user to a defect and draws attention to it without clutter. Whether and how the app runs registered overlays, given that some (coverage, mutation) run a whole test suite.
+6. **Further warnings.** Candidates found by exploring lightcycle: a module importing another module's private names; an entity's module used far less than the port that stores its data, which suggests the port takes fields rather than the entity; a port whose methods take only primitives; a constructor whose collaborators have no type. Each needs a principle, evidence and a fix-pattern id before it joins `check`.
+7. **The rail's further panels.** Saved views, the window's history, and scan history (when each scan ran, at which commit, for which languages, and what it skipped or could not read), each as a panel on the rail: what each shows and does, and what moves into it from the view bar.
 
 ## First build items
 
