@@ -212,6 +212,13 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     return { x: event.clientX - box.left, y: event.clientY - box.top };
   }
 
+  function canvasPoint(local: Point): Point {
+    return {
+      x: (local.x - viewport.x) / viewport.k,
+      y: (local.y - viewport.y) / viewport.k,
+    };
+  }
+
   function applyViewport() {
     world.setAttribute(
       "transform",
@@ -270,11 +277,13 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
 
     const rect = anchorRect();
     const width = selectionBar.element.offsetWidth;
-    const s = size();
     let at: Point;
 
     if (pointerAnchor) {
-      at = pointerAnchor;
+      at = {
+        x: viewport.x + pointerAnchor.x * viewport.k,
+        y: viewport.y + pointerAnchor.y * viewport.k,
+      };
     } else if (rect) {
       at = {
         x: viewport.x + (rect.x + rect.width / 2) * viewport.k - width / 2,
@@ -284,11 +293,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       return;
     }
 
-    const x = Math.max(4, Math.min(at.x, Math.max(4, s.width - width - 4)));
-    const y = Math.max(4, at.y);
-
-    selectionBar.element.style.left = `${x}px`;
-    selectionBar.element.style.top = `${y}px`;
+    selectionBar.element.style.left = `${at.x}px`;
+    selectionBar.element.style.top = `${at.y}px`;
   }
 
   function positionPicker() {
@@ -588,7 +594,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       return;
     }
 
-    pointerAnchor = event.type === "contextmenu" ? localPoint(event) : null;
+    pointerAnchor =
+      event.type === "contextmenu" ? canvasPoint(localPoint(event)) : null;
 
     if (target.kind === "edge") {
       actions.select({ kind: "edge", id: target.id });

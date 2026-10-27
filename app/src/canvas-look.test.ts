@@ -308,6 +308,26 @@ result.layers = {
   canvasHeight: canvas.element.offsetHeight,
   pickerHeight: pickerNode.offsetHeight,
 };
+const boxOf = () => q('[data-id="f/a.py"]').getBoundingClientRect();
+const barBox = () => q(".selection-bar").getBoundingClientRect();
+const offsetOf = () => ({ dx: barBox().left + barBox().width / 2 - (boxOf().left + boxOf().width / 2), dy: boxOf().top - barBox().top });
+const panBy = (dx, dy) => q(".stage").dispatchEvent(new WheelEvent("wheel", { deltaX: -dx, deltaY: -dy, bubbles: true, cancelable: true }));
+canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, bar: bar({ kind: "module", files: null }) }));
+const beforePan = { offset: offsetOf(), box: boxOf().left };
+panBy(-1200, 0);
+const afterPan = { offset: offsetOf(), box: boxOf().left, bar: barBox().right, canvasLeft: canvas.element.getBoundingClientRect().left };
+panBy(1200, 0);
+byText("+").click();
+byText("+").click();
+const afterZoom = { offset: offsetOf(), box: boxOf().width };
+const stageBox = q(".stage").getBoundingClientRect();
+canvas.render(props());
+canvas.element.querySelector('[data-id="f/a.py"]').dispatchEvent(new MouseEvent("contextmenu", { clientX: stageBox.left + 333, clientY: stageBox.top + 222, bubbles: true, cancelable: true }));
+canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, bar: bar({ kind: "module", files: null }) }));
+const rightBefore = { x: barBox().left, y: barBox().top };
+panBy(-70, 45);
+const rightAfter = { x: barBox().left, y: barBox().top };
+result.pinned = { beforePan, afterPan, afterZoom, rightBefore, rightAfter };
 result.groupCount = pick(q(".picker-group .count"), ["position"]);
 result.canvasCount = { id: q("#canvas-count") !== null, bare: q("#canvas-count").classList.contains("count") };
 const focusRule = [...document.styleSheets[0].cssRules].find((rule) => rule.selectorText === ".picker-filter:focus");
@@ -345,6 +365,18 @@ type Report = {
     picker: Props;
     zoom: Props;
     selectionBar: Props;
+  };
+  pinned: {
+    beforePan: { offset: { dx: number; dy: number }; box: number };
+    afterPan: {
+      offset: { dx: number; dy: number };
+      box: number;
+      bar: number;
+      canvasLeft: number;
+    };
+    afterZoom: { offset: { dx: number; dy: number }; box: number };
+    rightBefore: { x: number; y: number };
+    rightAfter: { x: number; y: number };
   };
   groupCount: Props;
   canvasCount: { id: boolean; bare: boolean };
@@ -794,6 +826,44 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(
             (layers.pickerTop as number) + (layers.pickerHeight as number),
           ).toBeLessThanOrEqual(layers.canvasHeight as number);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "leaves the bar off-canvas with its box, at the same offset, when panned away",
+        () => {
+          const { beforePan, afterPan } = r().pinned;
+
+          expect(afterPan.box).toBeLessThan(afterPan.canvasLeft - 100);
+          expect(afterPan.bar).toBeLessThan(afterPan.canvasLeft);
+          expect(afterPan.offset.dx).toBeCloseTo(beforePan.offset.dx, 1);
+          expect(afterPan.offset.dy).toBeCloseTo(beforePan.offset.dy, 1);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "keeps the bar centred above its box while zooming",
+        () => {
+          const { beforePan, afterZoom } = r().pinned;
+
+          expect(afterZoom.box).toBeGreaterThan(0);
+          expect(afterZoom.offset.dx).toBeCloseTo(0, 0);
+          expect(
+            Math.abs(afterZoom.offset.dy - beforePan.offset.dy),
+          ).toBeLessThan(3);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "moves a right-click bar by exactly the pan",
+        () => {
+          const { rightBefore, rightAfter } = r().pinned;
+
+          expect(rightAfter.x - rightBefore.x).toBeCloseTo(-70, 1);
+          expect(rightAfter.y - rightBefore.y).toBeCloseTo(45, 1);
         },
         120000,
       );
