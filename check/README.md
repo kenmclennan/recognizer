@@ -190,6 +190,23 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 `npm run build -w recognizer`, then `npm install --global ./check` puts a `recognizer` executable on the npm prefix's `bin`. `check` is not published, so there is no other install.
 
+## The command table
+
+`check/src/commands.ts` exports `COMMANDS`, the one list `recognizer` dispatches from and `check/src/help.ts` renders help from. Each entry holds a command's name, one-line summary, usage, arguments, options, what it prints as text and with `--json`, exit codes and examples. `recognizer --help` prints every command with its one line; `recognizer help <command>` and `<command> --help` print the full entry. The table holds `check`, `scan`, `open`, `uses`, `used-by`, `callers`, `path` and `help`.
+
+## Question commands
+
+`recognizer uses <module>`, `recognizer used-by <module>`, `recognizer callers <module> <name>` and `recognizer path <from> <to>` answer what the canvas and the Uses and Used by tabs show. Modules are named by repository-relative path, `--repository <dir>` (default `.`) picks the repository, text is the default and `--json` prints JSON. A question's stdout holds only its answer.
+
+- `uses` and `used-by` list the modules grouped by folder, each with the names used, marked `(private)` or `(inferred)`. Exit 0, including for no modules.
+- `callers` lists the modules that call a member, with `(through <Abstraction>)` for a call that reaches it by dispatch, and whether the member is built. A module with no call data in the scan is exit 2, never "no callers".
+- `path` finds the shortest chain of `uses` edges, visiting neighbours in id order. Exit 0 when a path exists (including from a module to itself), 1 when none does.
+- An unknown module, a wrong argument count or a scan that could not be made is exit 2.
+
+### Freshness
+
+A question uses the cached scans when every detected language has a cache taken at the current commit and the working tree is clean, ignoring everything under `.recognizer/`. Otherwise it runs `recognizer scan` first, with the scan summary on stderr. The rule is the library function `freshScans` in `check/src/freshness.ts`, which is not exported from the index because it spawns `git`. A cache written from a dirty tree and followed by a revert to clean at the same commit is reused, because the scan does not record that it was dirty.
+
 ## Library
 
-`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
+`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. The neighbour, grouping, caller and path functions the viewer and the question commands share (`usesOf`, `usedByOf`, `groupByFolder`, `buildCallerIndex`, `shortestPath` and the rest of `neighbours.ts`, `callers.ts` and `paths.ts`) are pure and import nothing from `node:`. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.

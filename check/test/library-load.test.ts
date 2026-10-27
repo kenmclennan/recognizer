@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
 
@@ -28,6 +29,44 @@ describe("library load without code generation", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("collectViolations");
     expect(result.stdout).toContain("SCAN_SCHEMA_VERSION");
+    expect(result.stdout).toContain("usesOf");
+    expect(result.stdout).toContain("shortestPath");
+    expect(result.stdout).toContain("buildCallerIndex");
+    expect(result.stdout).not.toContain("freshScans");
+  });
+
+  it("reaches no node: module from the index", () => {
+    const seen = new Set<string>();
+    const specifiers: string[] = [];
+
+    function walk(file: string): void {
+      if (seen.has(file)) {
+        return;
+      }
+
+      seen.add(file);
+
+      const source = readFileSync(file, "utf8");
+
+      for (const match of source.matchAll(
+        /(?:from|import)\s*["']([^"']+)["']/g,
+      )) {
+        const specifier = match[1] as string;
+
+        specifiers.push(specifier);
+
+        if (specifier.startsWith(".") && specifier.endsWith(".js")) {
+          walk(join(dirname(file), specifier));
+        }
+      }
+    }
+
+    walk(join(DIST, "index.js"));
+
+    expect(seen.size).toBeGreaterThan(5);
+    expect(
+      specifiers.filter((specifier) => specifier.startsWith("node:")),
+    ).toEqual([]);
   });
 
   it("runs policy, analysis and rules directly on the check fixture", () => {

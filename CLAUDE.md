@@ -19,7 +19,7 @@ This repo is lightcycle project `kenmclennan/recognizer`, shortcode `REC`; work 
 One repository, a directory per part:
 
 - `schema/` - the scan document's JSON Schema and example scans
-- `check/` - `recognizer check`: reads a scan and an optional policy, reports violations, baseline growth, graph metrics and warnings; also `recognizer scan`, which detects languages, runs each scanner and writes the cache ([check/README.md](check/README.md))
+- `check/` - the `recognizer` CLI, dispatched and documented from one command table (`commands.ts`, `help.ts`): `check` reads a scan and an optional policy and reports violations, baseline growth, graph metrics and warnings; `scan` detects languages, runs each scanner and writes the cache; `uses`, `used-by`, `callers` and `path` answer questions from a fresh scan (`freshness.ts`). The neighbour, caller and path logic the app also uses lives in `neighbours.ts`, `callers.ts` and `paths.ts` and is exported from the library ([check/README.md](check/README.md))
 - `policies/` - starter policies a scanned repository copies into `.recognizer/policy.yaml`
 - `scanners/python/`, `scanners/typescript/`, `scanners/kotlin/` - one standalone CLI per language
 - `app/` - the Tauri viewer, built from `kenmclennan/tauri-starter` ([app/README.md](app/README.md))

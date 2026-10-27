@@ -362,11 +362,13 @@ describe("recognizer scan: usage", () => {
     expect(fake.calls).toEqual([]);
   });
 
-  it("names both subcommands in the usage line", () => {
+  it("names every command in the usage line", () => {
     const fake = fakeIo();
 
     run([], fake.io);
 
-    expect(fake.err()).toContain("usage: recognizer <check|scan|open> ...");
+    expect(fake.err()).toContain(
+      "usage: recognizer <check|scan|open|uses|used-by|callers|path|help> ...",
+    );
   });
 });

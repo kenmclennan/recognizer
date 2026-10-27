@@ -12,6 +12,7 @@ export interface FakeOptions {
   scanners?: Record<string, ScannerBehaviour>;
   env?: Record<string, string>;
   commit?: string;
+  status?: string;
   launchFails?: string;
 }
 
@@ -154,6 +155,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       calls.push({ command, args });
 
       if (command === "git") {
+        if (options.commit && args.includes("status")) {
+          return {
+            started: true,
+            status: 0,
+            stdout: options.status ?? "",
+            stderr: "",
+          };
+        }
+
         return options.commit
           ? {
               started: true,

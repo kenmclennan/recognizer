@@ -6,8 +6,37 @@ export {
   type Warning,
 } from "./analyse.js";
 export { type Identity, parseBaseline, serialiseBaseline } from "./baseline.js";
+export {
+  buildCallerIndex,
+  type Caller,
+  type CallerIndex,
+  type CallerSummary,
+} from "./callers.js";
 export { type CheckResult, check } from "./check.js";
 export { InputError } from "./errors.js";
+export {
+  edgeNames,
+  type FolderGroup,
+  folderChain,
+  folderCounts,
+  folderOf,
+  folderUsedBy,
+  folderUses,
+  groupByFolder,
+  lastSegment,
+  membersOf,
+  moduleCounts,
+  moduleLabel,
+  moduleNames,
+  type NeighbourCounts,
+  type NeighbourRow,
+  type NeighbourSets,
+  neighbourSets,
+  under,
+  usedByOf,
+  usesOf,
+} from "./neighbours.js";
+export { type PathStep, shortestPath } from "./paths.js";
 export { type Policy, parsePolicy } from "./policy.js";
 export type { Rule, Violation } from "./rules.js";
 export { collectViolations } from "./rules.js";
