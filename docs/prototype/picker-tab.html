@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Picker as a tab</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1f2328;--muted:#59636e;--faint:#8c959f;--panel:#fff;--line:#d8dee4;--box:#fff;--boxline:#d0d7de;--sel:#0969da;--frame:#8250df;--framefg:#6639ba;--framebg:rgba(130,80,223,.035);--ok:#1a7f37;--warn:#bf8700;--priv:#bc4c00;--inf:#0969da;--code:#f6f8fa;--dark:#1f2328;--darkfg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#16181c;--fg:#e6edf3;--muted:#9198a1;--faint:#6e7681;--panel:#1f2328;--line:#30363d;--box:#262c33;--boxline:#3d444d;--sel:#4493f8;--frame:#a371f7;--framefg:#bc8cff;--framebg:rgba(163,113,247,.05);--ok:#3fb950;--warn:#d29922;--priv:#f0883e;--inf:#58a6ff;--code:#161b22;--dark:#e6edf3;--darkfg:#16181c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px -apple-system,"Segoe UI",system-ui,sans-serif;height:100vh;display:grid;grid-template-columns:264px 1fr 380px;overflow:hidden}
+button{font:inherit;color:inherit}
+svg.i{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.s{width:11px;height:11px;stroke-width:3}
+.d{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ok)}
+.d.w{background:var(--warn)}
+
+#tree{background:var(--panel);border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:2px}
+#tree .h{font-weight:600;margin-bottom:8px}#tree .h span{color:var(--muted);font-weight:400;margin-left:6px}
+.tr{display:flex;align-items:center;gap:7px;height:26px;padding:0 6px;border-radius:5px;color:var(--fg)}
+.tr.on{background:var(--code)}
+
+#canvas{position:relative;overflow:hidden}
+.count{position:absolute;right:16px;top:12px;border:1px solid var(--line);border-radius:8px;padding:5px 10px;color:var(--muted);background:var(--panel)}
+.frame{position:absolute;border:1px dashed var(--frame);border-radius:10px;background:var(--framebg)}
+.frame .lab{position:absolute;left:10px;top:6px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--framefg)}
+.frame .lab b{font-weight:600}.frame .lab span{color:var(--muted)}
+.box{position:absolute;height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--box);border:1px solid var(--boxline);border-radius:8px;font-size:12px;white-space:nowrap}
+.box.sel{border:2px solid var(--sel);box-shadow:0 0 0 4px color-mix(in srgb,var(--sel) 15%,transparent)}
+.box .c{font-size:11px;color:var(--muted);margin-left:4px}
+.ghost{background:transparent;border:1px dashed var(--faint);color:var(--muted)}
+.bar{position:absolute;display:flex;gap:1px;padding:3px;border-radius:8px;background:var(--dark);color:var(--darkfg);box-shadow:0 4px 12px rgba(0,0,0,.25)}
+.bar button{height:28px;display:flex;align-items:center;gap:5px;padding:0 8px;border:0;border-radius:5px;background:none;color:var(--darkfg);font-size:12px;cursor:pointer}
+.bar button.on{background:rgba(127,127,127,.3)}
+.bar .sep{width:1px;height:18px;margin:5px 3px;background:rgba(127,127,127,.45)}
+#edges{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+.ctl{position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:14px;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--panel)}
+
+#insp{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.ihead{display:flex;align-items:center;gap:8px;padding:12px 14px 0;font-size:14px}
+.ihead .p{color:var(--muted)}.ihead .x{margin-left:auto;color:var(--muted)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 14px;margin-top:8px}
+.tabs button{border:0;background:none;padding:8px 8px;font-size:13px;color:var(--muted);cursor:pointer;display:flex;gap:5px;align-items:center}
+.tabs button .n{color:var(--faint)}
+.tabs button.on{color:var(--fg);font-weight:600;box-shadow:inset 0 -2px var(--sel)}
+.pane{flex:1;min-height:0;overflow:auto;padding:12px 14px;display:none;flex-direction:column;gap:6px}
+.pane.on{display:flex}
+.sh{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+.m{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding-left:6px}
+.fold{color:var(--muted);display:flex;gap:4px;align-items:center;padding-left:6px}
+
+.tools{display:flex;align-items:center;gap:10px}
+.filter{flex:1;height:28px;border:1px solid var(--line);border-radius:6px;padding:0 8px;background:var(--code);color:var(--fg);font:inherit}
+.group{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.group button{border:0;background:none;padding:0;color:var(--muted);cursor:pointer}
+.group button.on{color:var(--fg);font-weight:600}
+.list{display:flex;flex-direction:column;gap:1px;margin-top:2px}
+.row{display:flex;align-items:center;gap:6px;height:26px;padding:0 4px;border-radius:5px;cursor:pointer}
+.row:hover{background:var(--code)}
+.row.file{padding-left:24px}
+.row.top{padding-left:22px}
+.row .name{white-space:nowrap}
+.row.g .name{color:var(--framefg);font-weight:600}
+.row .n{color:var(--muted)}
+.row .u{margin-left:auto;color:var(--muted);font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.row.on .name{font-weight:600}
+.actions{display:none;gap:2px;flex:none}
+.row:hover .actions,.row.on .actions{display:flex}
+.ib{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:none;color:var(--muted);cursor:pointer;padding:0}
+.ib:hover{background:rgba(127,127,127,.2);color:var(--fg)}
+.row.on .ib.vis{color:var(--sel)}
+.row.g:not(.all) .ib.vis{color:var(--muted)}
+.chev{width:12px;height:12px;flex:none;color:var(--muted);fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.box.added{border-color:var(--boxline)}
+
+.notes{position:absolute;left:16px;top:12px;width:380px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;line-height:1.5;font-size:12px;display:flex;flex-direction:column;gap:6px}
+.notes b{font-weight:600}
+</style>
+</head>
+<body>
+
+<aside id="tree">
+<div class="h">lightcycle<span>433</span></div>
+<div class="tr"><svg class="i s" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><span class="d w"></span>lightcycle/</div>
+<div class="tr" style="padding-left:26px"><span class="d w"></span>adapters/</div>
+<div class="tr" style="padding-left:26px"><span class="d w"></span>application/</div>
+<div class="tr" style="padding-left:26px"><span class="d"></span>commands/</div>
+<div class="tr" style="padding-left:26px"><span class="d"></span>domain/</div>
+<div class="tr" style="padding-left:26px"><span class="d"></span>ports/</div>
+<div class="tr on" style="padding-left:26px"><span class="d"></span>cli.py</div>
+<div class="tr" style="padding-left:26px"><span class="d"></span>config.py</div>
+<div class="tr" style="padding-left:26px"><span class="d"></span>container.py</div>
+</aside>
+
+<main id="canvas">
+<svg id="edges"></svg>
+<div class="count">1 of 433 modules on the canvas</div>
+<div class="frame" style="left:120px;top:250px;width:560px;height:140px"><div class="lab"><span class="d"></span><b>lightcycle/</b><span>1 of 21</span></div></div>
+<div class="bar" style="left:282px;top:288px">
+<button class="on" data-open="uses"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></svg>Uses 34</button>
+<button data-open="usedby"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Used by 1</button>
+<span class="sep"></span>
+<button aria-label="Contents" data-open="contents"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+<button aria-label="Take off the canvas"><svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+</div>
+<div class="box sel" id="cli" style="left:330px;top:332px;width:130px"><span class="d"></span><b>cli</b><span class="c">+34↓ +1↑</span></div>
+<div id="ghosts"></div>
+<div class="ctl"><span>–</span><span style="color:var(--muted)">100%</span><span>+</span><span>Fit</span><span>Clear</span><span>Legend</span></div>
+<div class="notes">
+<b>Mock: the picker rows work like the tree's</b>
+<div>One control: the eye. Hover a row and a grey eye appears; click it (or the row) and the module is on the canvas.</div>
+<div>On the canvas, the row is bold and always shows the eye, lit, then find. The lit eye takes it off.</div>
+<div>A folder heading's eye puts the whole group on, and is lit when all of it is; find appears once any of it is on.</div>
+<div style="color:var(--muted)">The tree changes the same way: its + becomes the grey eye, and the eye comes before find.</div>
+</div>
+</main>
+
+<aside id="insp">
+<div class="ihead"><span class="d"></span><b>cli.py</b><span class="p">lightcycle/</span><span class="x"><svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></span></div>
+<div class="tabs">
+<button data-tab="contents">Contents</button>
+<button data-tab="findings">Findings</button>
+<button data-tab="uses" class="on">Uses <span class="n">34</span></button>
+<button data-tab="usedby">Used by <span class="n">1</span></button>
+</div>
+
+<section class="pane" data-pane="contents">
+<div class="sh">Classes</div><div style="color:var(--faint)">None</div>
+<div class="sh">Functions</div>
+<div class="m">set_container(impl)</div><div class="m">container()</div><div class="m">require_store()</div><div class="m">main(argv)</div><div class="m">cmd_start(argv)</div><div class="m">cmd_stop(argv)</div>
+<div class="fold"><svg class="i s" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>23 private functions</div>
+<div class="sh">Constants</div><div class="m">COMMAND_GROUPS = [...]</div><div class="m">VERBS = tuple(...)</div>
+</section>
+<section class="pane" data-pane="findings"><div style="color:var(--faint)">No findings.</div></section>
+
+<section class="pane on" data-pane="uses">
+<div class="tools"><input class="filter" placeholder="Filter 34 modules"></div>
+<div class="group">Group by <button class="on">module</button><button>name</button></div>
+<div class="list" id="uses-list"></div>
+</section>
+<section class="pane" data-pane="usedby">
+<div class="tools"><input class="filter" placeholder="Filter 1 module"></div>
+<div class="group">Group by <button class="on">module</button><button>name</button></div>
+<div class="list" id="usedby-list"></div>
+</section>
+
+</aside>
+
+<script>
+const I={plus:'<path d="M12 5v14M5 12h14"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',target:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',right:'<path d="M9 6l6 6-6 6"/>',down:'<path d="M6 9l6 6 6-6"/>'};
+const svgI=(n,c="i")=>`<svg class="${c}" viewBox="0 0 24 24">${I[n]}</svg>`;
+const btn=(n,label,cls="")=>`<button class="ib ${cls}" data-act="${n}" aria-label="${label}" title="${label}">${svgI(n)}</button>`;
+const uses=[
+ ["lightcycle/",[["banner","render_banner"],["config","Config, load_config"],["container","build_container"],["frontmatter","parse"],["render","table"]]],
+ ["lightcycle/adapters/",[["sqlite_store","LiveStoreRefused"],["fsio","DB_FILENAME"],["spawner","spawn_worker"],["github","GitHub"],["clock","now"],["tty","is_tty"]]],
+ ["lightcycle/application/setup/",[["upgrade_notice","UpgradeNoticeUseCase"],["upgrade","BundleRangeError, scan_venv_holders"]]],
+ ["lightcycle/application/pool/",[["run_pool","run"],["stop_pool","stop"],["drain","drain"],["claim","claim"],["dispatch","dispatch"],["lifecycle_cadence","cadence"]]],
+ ["lightcycle/commands/",[["new","cmd_new"],["set","cmd_set"],["show","cmd_show"],["done","cmd_done"],["dep","cmd_dep"],["attach","cmd_attach"],["claim","cmd_claim"],["inbox","cmd_inbox"]]],
+ ["lightcycle/ports/",[["store","StorePort"],["clock","ClockPort"],["spawner","SpawnerPort"],["vcs","VcsPort"]]],
+ ["lightcycle/tui/",[["app","run"]]],
+];
+const usedby=[["lightcycle/",[["__main__","main"]]]];
+const onCanvas=new Set(["config"]);
+let hover=[];
+const openGroups=new Set(["lightcycle/","lightcycle/application/setup/"]);
+
+function render(el,groups){
+ el.innerHTML="";
+ groups.forEach(([g,rows])=>{
+  const all=rows.every(([n])=>onCanvas.has(n));
+  const some=rows.some(([n])=>onCanvas.has(n));
+  const open=openGroups.has(g);
+  const h=document.createElement("div");h.className="row g"+(some?" on":"");
+  h.className+=all?" all":"";h.innerHTML=`${svgI(open?"down":"right","chev")}<span class="name">${g}</span><span class="n">${rows.length}</span><span class="actions" style="margin-left:auto">${all?btn("eye","Take the group off the canvas","vis"):btn("eye",`Put all ${rows.length} on the canvas`)}${some?btn("target","Find on canvas"):""}</span>`;
+  h.addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(a&&a.dataset.act==="eye"){rows.forEach(([n])=>all?onCanvas.delete(n):onCanvas.add(n));all_();return}if(a)return;open?openGroups.delete(g):openGroups.add(g);all_()});
+  el.append(h);
+  if(!open)return;
+  rows.forEach(([n,u])=>{
+   const on=onCanvas.has(n);
+   const r=document.createElement("div");r.className="row file"+(on?" on":"");
+   r.innerHTML=`<span class="d"></span><span class="name">${n}</span><span class="u">${u}</span><span class="actions">${on?btn("eye","Take off the canvas","vis")+btn("target","Find on canvas"):btn("eye","Put on the canvas")}</span>`;
+   r.addEventListener("click",e=>{const a=e.target.closest("[data-act]");const act=a?a.dataset.act:(on?"target":"eye");if(act==="eye")on?onCanvas.delete(n):onCanvas.add(n);hover=[];all_()});
+   el.append(r);
+  });
+ });
+}
+
+function draw(){
+ const gh=document.getElementById("ghosts");gh.innerHTML="";
+ const svg=document.getElementById("edges");svg.innerHTML="";
+ const cx=395,cy=366;
+ const added=[...onCanvas];
+ const place=(n,i,ghost)=>{
+  const col=i%5,row=Math.floor(i/5),x=120+col*150,y=430+row*70;
+  const b=document.createElement("div");b.className="box "+(ghost?"ghost":"added");b.style.left=x+"px";b.style.top=y+"px";b.style.width="130px";
+  b.innerHTML=ghost?n:`<span class="d"></span>${n}`;gh.append(b);
+  svg.insertAdjacentHTML("beforeend",`<path d="M${cx} ${cy} L${x+65} ${y}" stroke="var(--faint)" ${ghost?'stroke-dasharray="3 3"':""} fill="none"/>`);
+ };
+ added.forEach((n,i)=>place(n,i,false));
+ document.querySelector(".count").textContent=`${1+onCanvas.size} of 433 modules on the canvas`;
+}
+function all_(){render(document.getElementById("uses-list"),uses);render(document.getElementById("usedby-list"),usedby);draw()}
+
+const tabs=document.querySelectorAll(".tabs button");
+function show(t){
+ tabs.forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+ document.querySelectorAll(".pane").forEach(p=>p.classList.toggle("on",p.dataset.pane===t));
+ document.querySelectorAll(".bar button[data-open]").forEach(b=>b.classList.toggle("on",b.dataset.open===t));
+}
+tabs.forEach(b=>b.addEventListener("click",()=>show(b.dataset.tab)));
+document.querySelectorAll(".bar button[data-open]").forEach(b=>b.addEventListener("click",()=>show(b.dataset.open)));
+document.querySelectorAll(".group").forEach(g=>g.addEventListener("click",e=>{if(e.target.tagName!=="BUTTON")return;g.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b===e.target))}));
+all_();
+</script>
+</body>
+</html>
