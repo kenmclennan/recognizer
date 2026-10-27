@@ -191,6 +191,11 @@ fn handle_menu(app: &AppHandle, event: MenuEvent) {
                 });
             }
         }
+        "check-updates" => {
+            if let Some(label) = focused_label(app) {
+                let _ = app.emit_to(label, "check-updates", ());
+            }
+        }
         "quit" => app.exit(0),
         _ => {}
     }
@@ -216,8 +221,16 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     )?;
     let new_window = MenuItem::with_id(app, "new-window", "New Window", true, Some("CmdOrCtrl+N"))?;
     let open = MenuItem::with_id(app, "open-folder", "Open...", true, Some("CmdOrCtrl+O"))?;
+    let check_updates = MenuItem::with_id(
+        app,
+        "check-updates",
+        "Check for Updates...",
+        true,
+        None::<&str>,
+    )?;
     let application = SubmenuBuilder::new(app, APP_TITLE)
         .about(None)
+        .item(&check_updates)
         .separator()
         .hide()
         .hide_others()

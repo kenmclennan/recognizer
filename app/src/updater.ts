@@ -5,6 +5,16 @@ export type UpdateState =
 
 export type FoundUpdate = { version: string; install: () => Promise<void> };
 
+export type CheckOutcome =
+  | { kind: "found"; version: string }
+  | { kind: "up-to-date" }
+  | { kind: "failed"; reason: string }
+  | { kind: "installing"; version: string };
+
+export type InstallResult = { ok: true } | { ok: false; reason: string };
+
+export const DISABLED_REASON = "updates are not available in this build";
+
 export type UpdaterPorts = {
   enabled: boolean;
   check: () => Promise<FoundUpdate | null>;
@@ -20,13 +30,23 @@ export const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
 export function buildUpdater(ports: UpdaterPorts): {
   start: () => void;
-  install: () => Promise<void>;
+  install: () => Promise<InstallResult>;
+  checkNow: () => Promise<CheckOutcome>;
+  state: () => UpdateState;
 } {
   let state: UpdateState = { kind: "none" };
   let found: FoundUpdate | null = null;
 
   function isInstalling(): boolean {
     return state.kind === "installing";
+  }
+
+  function installingVersion(): string | null {
+    return state.kind === "installing" ? state.version : null;
+  }
+
+  function reasonOf(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   function setState(next: UpdateState): void {
@@ -51,7 +71,41 @@ export function buildUpdater(ports: UpdaterPorts): {
     }
   }
 
+  async function checkNow(): Promise<CheckOutcome> {
+    const before = installingVersion();
+
+    if (before !== null) {
+      return { kind: "installing", version: before };
+    }
+
+    if (!ports.enabled) {
+      return { kind: "failed", reason: DISABLED_REASON };
+    }
+
+    try {
+      const update = await ports.check();
+      const during = installingVersion();
+
+      if (during !== null) {
+        return { kind: "installing", version: during };
+      }
+
+      if (update === null) {
+        return { kind: "up-to-date" };
+      }
+
+      found = update;
+      setState({ kind: "available", version: update.version });
+
+      return { kind: "found", version: update.version };
+    } catch (error) {
+      return { kind: "failed", reason: reasonOf(error) };
+    }
+  }
+
   return {
+    checkNow,
+    state: () => state,
     start() {
       if (!ports.enabled) {
         return;
@@ -60,9 +114,9 @@ export function buildUpdater(ports: UpdaterPorts): {
       ports.schedule(() => void runCheck(), FIRST_CHECK_MS);
       ports.scheduleEvery(() => void runCheck(), CHECK_EVERY_MS);
     },
-    async install() {
+    async install(): Promise<InstallResult> {
       if (state.kind !== "available" || found === null) {
-        return;
+        return { ok: false, reason: "no update is available" };
       }
 
       const update = found;
@@ -72,11 +126,13 @@ export function buildUpdater(ports: UpdaterPorts): {
       try {
         await update.install();
         await ports.relaunch();
+
+        return { ok: true };
       } catch (error) {
         setState({ kind: "available", version: update.version });
-        ports.notify(
-          `Update failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        ports.notify(`Update failed: ${reasonOf(error)}`);
+
+        return { ok: false, reason: reasonOf(error) };
       }
     },
   };

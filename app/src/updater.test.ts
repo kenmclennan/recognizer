@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildUpdater,
   CHECK_EVERY_MS,
+  DISABLED_REASON,
   FIRST_CHECK_MS,
   type FoundUpdate,
   type UpdateState,
@@ -147,6 +148,89 @@ describe("updater", () => {
 
     expect(t.states).toEqual([]);
     expect(t.calls.relaunches).toBe(0);
+  });
+
+  it("reports a found update from a manual check and moves the shared state", async () => {
+    const t = setup();
+
+    t.ports.next = { version: "0.2.0", install: async () => {} };
+
+    expect(await t.updater.checkNow()).toEqual({
+      kind: "found",
+      version: "0.2.0",
+    });
+    expect(t.states).toEqual([{ kind: "available", version: "0.2.0" }]);
+    expect(t.updater.state()).toEqual({ kind: "available", version: "0.2.0" });
+  });
+
+  it("reports up to date from a manual check without changing state", async () => {
+    const t = setup();
+
+    t.ports.next = null;
+
+    expect(await t.updater.checkNow()).toEqual({ kind: "up-to-date" });
+    expect(t.states).toEqual([]);
+  });
+
+  it("reports the error text when a manual check fails", async () => {
+    const t = setup();
+
+    t.ports.next = new Error("offline");
+
+    expect(await t.updater.checkNow()).toEqual({
+      kind: "failed",
+      reason: "offline",
+    });
+    expect(t.notices).toEqual([]);
+  });
+
+  it("fails a manual check with a reason when the updater is disabled", async () => {
+    const t = setup(false);
+
+    expect(await t.updater.checkNow()).toEqual({
+      kind: "failed",
+      reason: DISABLED_REASON,
+    });
+    expect(t.calls.checks).toBe(0);
+  });
+
+  it("runs no check while an install is running", async () => {
+    const t = setup();
+    let finish: () => void = () => {};
+
+    t.ports.next = {
+      version: "0.2.0",
+      install: () => new Promise<void>((resolve) => (finish = resolve)),
+    };
+    await t.updater.checkNow();
+
+    const running = t.updater.install();
+
+    expect(await t.updater.checkNow()).toEqual({
+      kind: "installing",
+      version: "0.2.0",
+    });
+    expect(t.calls.checks).toBe(1);
+
+    finish();
+    await running;
+  });
+
+  it("returns the failure reason from a failed install", async () => {
+    const t = setup();
+
+    t.ports.next = {
+      version: "0.2.0",
+      install: async () => {
+        throw new Error("disk full");
+      },
+    };
+    await t.updater.checkNow();
+
+    expect(await t.updater.install()).toEqual({
+      ok: false,
+      reason: "disk full",
+    });
   });
 });
 

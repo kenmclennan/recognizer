@@ -1,3 +1,5 @@
+import { getVersion } from "@tauri-apps/api/app";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./style.css";
 import { showEmpty } from "./empty-view";
 import { type Explorer, showExplorer } from "./explorer";
@@ -5,6 +7,8 @@ import { buildFooter } from "./footer-view";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
 import { loadScans } from "./scan-loading";
+import { dialogFromOutcome } from "./update-dialog";
+import { buildUpdateDialog } from "./update-dialog-view";
 import { buildUpdater } from "./updater";
 import { tauriUpdaterPorts } from "./updater-source";
 
@@ -21,6 +25,52 @@ const updater = buildUpdater({
 });
 
 updater.start();
+
+const updateDialog = buildUpdateDialog(
+  document.getElementById("update-dialog") as HTMLElement,
+  {
+    currentVersion: () => getVersion(),
+    upgrade: () => void upgradeFromDialog(),
+  },
+);
+
+async function upgradeFromDialog(): Promise<void> {
+  const state = updater.state();
+
+  if (state.kind !== "available") {
+    return;
+  }
+
+  updateDialog.show({ kind: "upgrading", version: state.version });
+
+  const result = await updater.install();
+
+  if (!result.ok) {
+    updateDialog.show({
+      kind: "found",
+      version: state.version,
+      error: result.reason,
+    });
+  }
+}
+
+async function checkForUpdates(): Promise<void> {
+  const state = updater.state();
+
+  if (state.kind === "installing") {
+    updateDialog.show({ kind: "upgrading", version: state.version });
+
+    return;
+  }
+
+  updateDialog.show({ kind: "checking" });
+
+  const outcome = await updater.checkNow();
+
+  if (updateDialog.isOpen()) {
+    updateDialog.show(dialogFromOutcome(outcome));
+  }
+}
 
 let explorer: Explorer | null = null;
 
@@ -59,11 +109,22 @@ async function start(): Promise<void> {
 }
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && updateDialog.dismiss()) {
+    event.preventDefault();
+
+    return;
+  }
+
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
     event.preventDefault();
     explorer?.toggleTree();
   }
 });
+
+void getCurrentWebviewWindow().listen(
+  "check-updates",
+  () => void checkForUpdates(),
+);
 
 void repositorySource.onFolderAssigned(() => void start());
 
