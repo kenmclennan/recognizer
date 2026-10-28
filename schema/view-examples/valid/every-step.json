@@ -1,0 +1,9 @@
+{ "schema_version": 1, "purpose": "How an order is placed.", "commit": "abc123", "steps": [
+  { "kind": "pick", "module": "shop/application/place.py" },
+  { "kind": "rule", "relation": "folder", "of": "shop/domain" },
+  { "kind": "rule", "relation": "uses", "of": "shop/application/place.py" },
+  { "kind": "rule", "relation": "used-by", "of": "shop/ports/store.py", "within": "shop/adapters" },
+  { "kind": "fold", "folder": "shop/adapters" },
+  { "kind": "focus", "folder": "shop/application" },
+  { "kind": "left-out", "module": "shop/domain/aliases.py" }
+] }

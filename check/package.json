@@ -15,7 +15,7 @@
     }
   },
   "scripts": {
-    "build": "mkdir -p src/generated && cp ../schema/scan.schema.json src/generated/scan.schema.json && tsc -p tsconfig.json",
+    "build": "mkdir -p src/generated && cp ../schema/scan.schema.json src/generated/scan.schema.json && cp ../schema/view.schema.json src/generated/view.schema.json && tsc -p tsconfig.json",
     "pretest": "npm run build && npm run build -w recognizer-scan-typescript",
     "test": "vitest run",
     "lint": "biome check ."

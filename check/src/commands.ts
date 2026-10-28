@@ -9,6 +9,7 @@ import {
   runUses,
 } from "./question-commands.js";
 import { runScan } from "./scan-command.js";
+import { runViews } from "./views-command.js";
 
 export interface Command {
   name: string;
@@ -258,6 +259,161 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runPath,
+  },
+  {
+    name: "views",
+    summary:
+      "build, show and check saved views: new, add, rule, fold, focus, remove, show, list, check, rm",
+    usage: [
+      "recognizer views new <name> --purpose <text>",
+      "recognizer views add <name> <module>...",
+      "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>]",
+      "recognizer views fold <name> <folder>",
+      "recognizer views focus <name> <folder>",
+      "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
+      "recognizer views show (<name> | --current)",
+      "recognizer views list",
+      "recognizer views check [<name>] [--fix]",
+      "recognizer views rm <name>",
+      "every subcommand also takes [--repository <dir>] [--json]",
+    ].join("\n"),
+    arguments: [
+      {
+        name: "<name>",
+        description:
+          "a view's name: letters, digits, - and _, at most 64; the file is .recognizer/views/<name>.json",
+      },
+      {
+        name: "<module>",
+        description: "a module's repository-relative path, as in the scan",
+      },
+      {
+        name: "<folder>",
+        description:
+          "a folder's repository-relative path; a trailing / is dropped",
+      },
+      {
+        name: "new",
+        description:
+          "create an empty view saved at the current commit; --purpose is required",
+      },
+      {
+        name: "add",
+        description: "pick one or more modules; each must be in the scan",
+      },
+      {
+        name: "rule",
+        description:
+          "put a folder's modules (--folder), or what a module uses (--uses) or is used by (--used-by), on the view, re-evaluated against every scan; --uses and --used-by are direct, one step (the rows the Uses and Used by tabs list), not transitive; --within limits uses and used-by to a folder",
+      },
+      {
+        name: "fold",
+        description: "fold a folder into one box on the canvas",
+      },
+      {
+        name: "focus",
+        description: "focus a folder; a view has at most one focus",
+      },
+      {
+        name: "remove",
+        description:
+          "take a module off the view (its pick is deleted and, if a rule still puts it there, it is recorded as left out); with --fold, --focus or --rule delete that step instead",
+      },
+      {
+        name: "show",
+        description:
+          "print a view's steps and the modules they resolve to now; --current prints the view open in the app",
+      },
+      { name: "list", description: "list every saved view" },
+      {
+        name: "check",
+        description:
+          "list the steps that name a path that no longer exists; --fix rewrites picks whose files git records as renamed",
+      },
+      { name: "rm", description: "delete a view" },
+    ],
+    options: [
+      ...REPOSITORY_OPTIONS,
+      { flag: "--purpose <text>", description: "what the view is for (new)" },
+      { flag: "--folder <folder>", description: "a folder rule (rule)" },
+      { flag: "--uses <module>", description: "a uses rule (rule)" },
+      { flag: "--used-by <module>", description: "a used-by rule (rule)" },
+      {
+        flag: "--within <folder>",
+        description: "limit a uses or used-by rule to a folder (rule, remove)",
+      },
+      { flag: "--fold", description: "delete the fold step (remove)" },
+      { flag: "--focus", description: "delete the focus step (remove)" },
+      {
+        flag: "--rule <relation>",
+        description:
+          "delete the rule with relation folder, uses or used-by (remove)",
+      },
+      {
+        flag: "--current",
+        description: "show the view open in the app (show)",
+      },
+      {
+        flag: "--fix",
+        description: "rewrite renamed picks (check)",
+      },
+    ],
+    output: {
+      text: [
+        "new, add, rule, fold, focus, remove: `<name>: <what changed>; N steps, resolves to M modules`",
+        "show: `<name>: <purpose>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then unresolved, folded and focus lines when there are any",
+        "list: one `<name>  N steps  <commit>  <purpose>` line per view",
+        "check: `<name>: ok` or `<name>: N unresolved` with one `step N <kind> <path> - no such <module|folder>` line each, plus `(renamed to <path>)` when git records one",
+        "rm: `<name>: removed`",
+      ].join("\n"),
+      json: [
+        "new, add, rule, fold, focus, remove: { view, changed, steps, modules }",
+        "show: { name, purpose, commit, steps, resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }] }; with --current { current }",
+        "list: { views: [{ name, purpose, commit, steps } | { name, error }] }",
+        "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }] }] }",
+        "rm: { view, removed }",
+      ].join("\n"),
+    },
+    exitCodes: [
+      { code: 0, meaning: "done, including a step that was already present" },
+      {
+        code: 1,
+        meaning:
+          "check found a step naming a path that no longer exists or an invalid file; show --current with no view open",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad input - an unknown view, module or folder, a view that already exists, an invalid name, a wrong argument count, an unknown flag or an invalid view file",
+      },
+    ],
+    examples: [
+      {
+        command:
+          'recognizer views new order-placement --purpose "How an order is placed: the use case, what it uses, and the store implementation"',
+        note: "start a view at the current commit",
+      },
+      {
+        command:
+          "recognizer views add order-placement shop/application/place.py",
+        note: "pick the use case",
+      },
+      {
+        command:
+          "recognizer views rule order-placement --uses shop/application/place.py",
+        note: "add everything the use case uses",
+      },
+      {
+        command:
+          "recognizer views rule order-placement --used-by shop/ports/store.py --within shop/adapters",
+        note: "add the adapters that use the store port",
+      },
+      {
+        command: "recognizer views show order-placement --json",
+        note: "the modules the view resolves to now",
+      },
+    ],
+    run: runViews,
   },
   {
     name: "help",

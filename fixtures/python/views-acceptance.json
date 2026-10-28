@@ -1,0 +1,9 @@
+{
+  "question": "How does an order get placed? Show the use case, what it uses, and the module that implements the store port.",
+  "expected": [
+    "shop/adapters/memory_store.py",
+    "shop/application/place.py",
+    "shop/domain/order.py",
+    "shop/ports/store.py"
+  ]
+}

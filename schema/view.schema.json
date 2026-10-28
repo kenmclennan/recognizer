@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/view.schema.json",
+  "title": "Recognizer saved view",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "purpose", "commit", "steps"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "purpose": { "type": "string", "pattern": "\\S" },
+    "commit": { "type": ["string", "null"], "minLength": 1 },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "contains": {
+        "type": "object",
+        "properties": { "kind": { "const": "focus" } }, "required": ["kind"] },
+      "minContains": 0,
+      "maxContains": 1
+    }
+  },
+  "$defs": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\./)(?!/)[^\\\\]*[^\\\\/]$"
+    },
+    "step": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "module"],
+          "properties": {
+            "kind": { "const": "pick" },
+            "module": { "$ref": "#/$defs/path" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "relation", "of"],
+          "properties": {
+            "kind": { "const": "rule" },
+            "relation": { "const": "folder" },
+            "of": { "$ref": "#/$defs/path" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "relation", "of"],
+          "properties": {
+            "kind": { "const": "rule" },
+            "relation": { "enum": ["uses", "used-by"] },
+            "of": { "$ref": "#/$defs/path" },
+            "within": { "$ref": "#/$defs/path" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "folder"],
+          "properties": {
+            "kind": { "const": "fold" },
+            "folder": { "$ref": "#/$defs/path" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "folder"],
+          "properties": {
+            "kind": { "const": "focus" },
+            "folder": { "$ref": "#/$defs/path" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "module"],
+          "properties": {
+            "kind": { "const": "left-out" },
+            "module": { "$ref": "#/$defs/path" }
+          }
+        }
+      ]
+    }
+  }
+}

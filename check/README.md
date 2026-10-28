@@ -210,3 +210,24 @@ A question uses the cached scans when every detected language has a cache taken 
 ## Library
 
 `import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. The neighbour, grouping, caller and path functions the viewer and the question commands share (`usesOf`, `usedByOf`, `groupByFolder`, `buildCallerIndex`, `shortestPath` and the rest of `neighbours.ts`, `callers.ts` and `paths.ts`) are pure and import nothing from `node:`. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
+
+## recognizer views
+
+`recognizer views <subcommand>` builds, shows and checks saved views: files at `.recognizer/views/<name>.json` that record a purpose, the commit they were saved at and steps. A name is letters, digits, `-` and `_`, at most 64. Every subcommand takes `--repository <dir>` and `--json`; the scan is read from cache when fresh and made first otherwise, and a triggered scan's summary goes to stderr.
+
+The file is `{ schema_version: 1, purpose, commit, steps }`, described by [`schema/view.schema.json`](../schema/view.schema.json) with examples in `schema/view-examples/`. A step is one of `pick` (a module), `rule` (`folder`, or `uses` / `used-by` of a module, optionally `within` a folder), `fold`, `focus` (at most one) or `left-out` (a module a rule put there). No layout or selection is stored.
+
+`resolveView(view, scans)` and `validateView(value)` are exported from the library. Resolution gives the modules the steps put on the canvas now, the folded folders, the focus, and `unresolved`: the steps naming a path that no longer exists. A left-out removes a module a rule contributed, never a picked one.
+
+| Subcommand | What it does |
+| --- | --- |
+| `new <name> --purpose <text>` | create an empty view saved at HEAD (`commit` is `null` outside git); reads no scan |
+| `add <name> <module>...` | pick modules; all must exist or none are added; drops a left-out for each |
+| `rule <name> (--folder <f> \| --uses <m> \| --used-by <m>) [--within <f>]` | append a rule |
+| `fold <name> <folder>`, `focus <name> <folder>` | append a fold; set the one focus |
+| `remove <name> <path> [--fold \| --focus \| --rule <relation> [--within <f>]]` | take a module off (its pick is deleted, and a left-out recorded if a rule still puts it there), or delete that step |
+| `show <name>` / `show --current` | steps and what they resolve to now; the view the app has open, read uninterpreted from `.recognizer/cache/current-view.json` (exit 1 when there is none) |
+| `list`, `rm <name>` | list views; delete one; neither reads a scan |
+| `check [<name>] [--fix]` | list steps naming a path that no longer exists; `--fix` rewrites picks whose files git records as renamed since the view's commit |
+
+A step already present is a no-op (`changed: false`). `commit` is written only by `new`. `check` exits 1 when any step is unresolved or a file is invalid after `--fix`; bad input is exit 2 and writes nothing. `--fix` sees only renames git has staged or committed (`git diff -M --relative --name-status --diff-filter=R <commit>`), never a plain `mv`.
