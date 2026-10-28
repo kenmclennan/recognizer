@@ -33,7 +33,7 @@ One repository, a directory per part:
 - A command never takes a path from the frontend: Rust reads the folder from the window's assignment. Every window is built by `open_window` and labelled `w-<n>`, and `app/src-tauri/capabilities/default.json` grants the `app-access` permission set to `w-*`.
 - Filesystem access goes through `fs_safe`. The `fs_safe` tests are required: they guard the path-confinement boundary, so they are never removed or weakened.
 - `plugins.updater.pubkey` holds the real updater public key; the matching private key and the releases repo exist. Release assets are named by slug (`recognizer.app.tar.gz`), and the `RELEASES_TOKEN` secret name is fixed across apps.
-- `npm run check:app` is the app's gate (typecheck, tests, lint, format check, `cargo test`, `cargo fmt --check`, `cargo clippy -D warnings`, build); `npm run install-app` builds the bundle into `~/Applications`.
+- `npm run check` is the `check/` gate (lint, build, tests), the same steps CI runs; `npm run check:app` is the app's gate (typecheck, tests, lint, format check, `cargo test`, `cargo fmt --check`, `cargo clippy -D warnings`, build); `npm run install-app` builds the bundle into `~/Applications`.
 
 ## Rules
 
