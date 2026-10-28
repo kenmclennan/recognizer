@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-scans-at"
+description = "Enables the scans_at command without any pre-configured scope."
+commands.allow = ["scans_at"]
+
+[[permission]]
+identifier = "deny-scans-at"
+description = "Denies the scans_at command without any pre-configured scope."
+commands.deny = ["scans_at"]

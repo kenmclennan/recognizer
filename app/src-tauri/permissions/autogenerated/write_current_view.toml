@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-write-current-view"
+description = "Enables the write_current_view command without any pre-configured scope."
+commands.allow = ["write_current_view"]
+
+[[permission]]
+identifier = "deny-write-current-view"
+description = "Denies the write_current_view command without any pre-configured scope."
+commands.deny = ["write_current_view"]

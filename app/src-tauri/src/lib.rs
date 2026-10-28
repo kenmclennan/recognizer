@@ -8,9 +8,13 @@ pub mod fs_safe;
 mod launch;
 pub mod repository;
 pub mod source_line;
+pub mod views;
 pub mod windows;
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::Duration;
 
 use launch::{launch_for, Launch};
 use repository::ScanReport;
@@ -317,6 +321,133 @@ async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport
     .map_err(|error| error.to_string())
 }
 
+fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf, String> {
+    app.state::<WindowState>()
+        .folder_of(&window_label(window))
+        .ok_or_else(|| "this window holds no folder".to_string())
+}
+
+static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+#[tauri::command]
+fn list_views(app: AppHandle, window: WebviewWindow) -> Result<views::ViewList, String> {
+    Ok(views::list_views(&window_folder_path(&app, &window)?))
+}
+
+#[tauri::command]
+fn write_view(
+    app: AppHandle,
+    window: WebviewWindow,
+    name: String,
+    text: String,
+) -> Result<(), String> {
+    views::write_view(&window_folder_path(&app, &window)?, &name, &text)
+}
+
+#[tauri::command]
+fn rename_view(
+    app: AppHandle,
+    window: WebviewWindow,
+    from: String,
+    to: String,
+) -> Result<(), String> {
+    views::rename_view(&window_folder_path(&app, &window)?, &from, &to)
+}
+
+#[tauri::command]
+fn write_current_view(app: AppHandle, window: WebviewWindow, text: String) -> Result<(), String> {
+    views::write_current_view(&window_folder_path(&app, &window)?, &text)
+}
+
+#[tauri::command]
+fn view_path(app: AppHandle, window: WebviewWindow, name: String) -> Result<String, String> {
+    views::view_path(&window_folder_path(&app, &window)?, &name)
+}
+
+#[tauri::command]
+async fn renames_since(
+    app: AppHandle,
+    window: WebviewWindow,
+    commit: String,
+) -> Result<Vec<views::Rename>, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || views::renames_since(&folder, &commit))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn scans_at(
+    app: AppHandle,
+    window: WebviewWindow,
+    commit: String,
+) -> Result<Option<Vec<repository::ScanFile>>, String> {
+    let folder = window_folder_path(&app, &window)?;
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+
+    tauri::async_runtime::spawn_blocking(move || {
+        views::scans_at(
+            &folder,
+            &commit,
+            &shell,
+            &repository::config_file_in(&config_dir),
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn watch_views(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+
+    let first = WATCHING
+        .lock()
+        .map_err(|error| error.to_string())?
+        .get_or_insert_with(HashSet::new)
+        .insert(label.clone());
+
+    if !first {
+        return Ok(());
+    }
+
+    std::thread::spawn(move || {
+        let mut last = views::snapshot(&folder);
+
+        loop {
+            std::thread::sleep(Duration::from_millis(500));
+
+            if app.get_webview_window(&label).is_none() {
+                break;
+            }
+
+            let next = views::snapshot(&folder);
+
+            if views::snapshot_changed(&last, &next) {
+                last = next;
+
+                if app.emit_to(&label, "views-changed", ()).is_err() {
+                    break;
+                }
+            }
+        }
+
+        if let Ok(mut watching) = WATCHING.lock() {
+            if let Some(set) = watching.as_mut() {
+                set.remove(&label);
+            }
+        }
+    });
+
+    Ok(())
+}
+
 pub fn run() {
     let context = tauri::generate_context!();
     let cwd = std::env::current_dir().unwrap_or_default();
@@ -350,9 +481,17 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             choose_folder,
+            list_views,
             read_source_line,
+            rename_view,
+            renames_since,
             scan_folder,
-            window_folder
+            scans_at,
+            view_path,
+            watch_views,
+            window_folder,
+            write_current_view,
+            write_view
         ])
         .build(context)
         .expect("error while building the application")

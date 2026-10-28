@@ -1107,3 +1107,264 @@ svg.i.chevron {
   background: var(--dark);
   color: var(--darkfg);
 }
+
+.view-bar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 12px;
+}
+
+.view-bar button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-bar button:hover:not(:disabled) {
+  background: var(--code);
+}
+
+.view-bar button:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.view-bar .view-name {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  max-width: 220px;
+  font-weight: 600;
+}
+
+.view-bar .view-list {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.view-bar .view-list svg:first-child {
+  width: 16px;
+  height: 16px;
+}
+
+.view-name-field-inline {
+  width: 180px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--sel);
+  border-radius: 4px;
+  outline: none;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+}
+
+.view-name-field-inline[hidden],
+.view-name-problem[hidden],
+.view-bar .view-name[hidden] {
+  display: none;
+}
+
+.view-name-problem {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--bad);
+  font-size: 11px;
+}
+
+.view-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-bar .view-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  padding: 0;
+}
+
+.view-bar svg.view-chevron {
+  width: 12px;
+  height: 12px;
+}
+
+.view-menu,
+.view-dialog {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  min-width: 260px;
+  max-width: 360px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.view-menu[hidden],
+.view-dialog[hidden],
+.stale-panel[hidden] {
+  display: none;
+}
+
+.view-bar .view-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  height: auto;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.view-item.current .view-item-name::before {
+  content: "\2713 ";
+  color: var(--sel);
+}
+
+.view-item-description,
+.view-empty {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.view-empty {
+  margin: 6px 8px;
+}
+
+.view-dialog {
+  padding: 10px;
+}
+
+.view-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.view-field-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.view-field input,
+.view-field textarea {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.view-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  padding: 4px 6px;
+  resize: none;
+  overflow-wrap: anywhere;
+}
+
+.view-problem {
+  min-height: 14px;
+  margin: 0 0 6px;
+  color: var(--warn);
+  font-size: 11px;
+}
+
+.view-dialog-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.stale-panel {
+  position: absolute;
+  top: 44px;
+  left: 8px;
+  z-index: 5;
+  box-sizing: border-box;
+  width: 340px;
+  max-height: calc(100% - 60px);
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 12px;
+}
+
+.stale-title {
+  margin: 0 0 6px;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.stale-section h4 {
+  margin: 8px 0 2px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.stale-line {
+  margin: 2px 0;
+}
+
+.stale-line.removed {
+  color: var(--bad);
+}
+
+.stale-line.added {
+  color: var(--ok);
+}
+
+.stale-rename {
+  color: var(--muted);
+}
+
+.stale-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.stale-actions button {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--code);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
