@@ -73,6 +73,18 @@ describe("views new", () => {
     expect(scans(fake)).toBe(0);
   });
 
+  it("writes to a temp file then renames it over the target", () => {
+    const fake = repository();
+
+    go(fake, "new", "a", "--purpose", "Why");
+
+    expect(fake.writes).toEqual([`${VIEWS}/a.json.tmp`]);
+    expect(fake.renames).toEqual([
+      { from: `${VIEWS}/a.json.tmp`, to: `${VIEWS}/a.json` },
+    ]);
+    expect(fake.files.has(`${VIEWS}/a.json.tmp`)).toBe(false);
+  });
+
   it("writes a null commit outside git", () => {
     const fake = repository({}, undefined, null);
 
