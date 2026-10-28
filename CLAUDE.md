@@ -54,6 +54,7 @@ A fresh worktree has no `node_modules`. Run `npm ci` at the repository root befo
 
 - Biome formats and lints code (`npm run lint -w @recognizer/app`, `lint:fix` to apply). Prettier is for Markdown only; never run it over code or the whole repository.
 - The `*-look.test.ts` files drive a headless Chrome and take about a minute each. While iterating, run only the file you are changing (`npm run test -w @recognizer/app -- src/<name>.test.ts`); run the full suite before you finish.
+- The full `npm run check:app` takes about 5-6 minutes. Run it once, at the end, from the repo root, with the longest timeout; a timeout is not a failure, so do not re-run it.
 
 ## CI
 
