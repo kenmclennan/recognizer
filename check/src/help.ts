@@ -19,7 +19,9 @@ export function shortHelp(commands: Command[] = COMMANDS): string {
 }
 
 function section(label: string, lines: string[]): string[] {
-  return lines.length === 0 ? [] : [label, ...lines.map((l) => `  ${l}`), ""];
+  return lines.length === 0
+    ? []
+    : [label, ...lines.flatMap((l) => l.split("\n")).map((l) => `  ${l}`), ""];
 }
 
 export function fullHelp(command: Command): string {

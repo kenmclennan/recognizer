@@ -25,9 +25,14 @@ describe("command table", () => {
       const help = fullHelp(command);
 
       expect(help).toContain(command.summary);
-      expect(help).toContain(command.usage);
-      expect(help).toContain(command.output.text);
-      expect(help).toContain(command.output.json);
+
+      for (const line of [
+        ...command.usage.split("\n"),
+        ...command.output.text.split("\n"),
+        ...command.output.json.split("\n"),
+      ]) {
+        expect(help).toContain(line);
+      }
 
       for (const entry of [
         ...command.arguments.map((a) => a.description),
@@ -58,6 +63,7 @@ describe("command table", () => {
       "used-by",
       "callers",
       "path",
+      "views",
       "help",
     ]);
   });

@@ -13,6 +13,7 @@ export interface FakeOptions {
   env?: Record<string, string>;
   commit?: string;
   status?: string;
+  diff?: string;
   launchFails?: string;
 }
 
@@ -160,6 +161,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
             started: true,
             status: 0,
             stdout: options.status ?? "",
+            stderr: "",
+          };
+        }
+
+        if (options.commit && args.includes("diff")) {
+          return {
+            started: true,
+            status: 0,
+            stdout: options.diff ?? "",
             stderr: "",
           };
         }

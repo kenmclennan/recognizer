@@ -77,3 +77,5 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Pick | A step naming one module by path. Everything the user adds in the app is recorded as picks. |
 | Rule | A step naming a relationship (a folder's files, what a module uses or is used by), re-evaluated on every opening. |
 | Stale view | A saved view the code has moved on from: a pick that is missing, changed relations, or newly relevant modules. |
+| Left out | A step recording that a rule put a module on a view and the user took it off. A pick is never removed by a left-out; only modules a rule contributed are. |
+| Resolution | A view's steps evaluated against a scan: the modules, folds and focus they give, and the steps that name a path that is gone. |

@@ -50,3 +50,10 @@ export {
   type ScanMethod,
   validateScan,
 } from "./scan.js";
+export {
+  type ResolvedView,
+  resolveView,
+  type View,
+  type ViewStep,
+  validateView,
+} from "./views.js";

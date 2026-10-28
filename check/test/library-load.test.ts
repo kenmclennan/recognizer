@@ -32,6 +32,8 @@ describe("library load without code generation", () => {
     expect(result.stdout).toContain("usesOf");
     expect(result.stdout).toContain("shortestPath");
     expect(result.stdout).toContain("buildCallerIndex");
+    expect(result.stdout).toContain("validateView");
+    expect(result.stdout).toContain("resolveView");
     expect(result.stdout).not.toContain("freshScans");
   });
 
