@@ -265,7 +265,7 @@ export const COMMANDS: Command[] = [
     summary:
       "build, show and check saved views: new, add, rule, fold, focus, remove, show, list, check, rm",
     usage: [
-      "recognizer views new <name> --purpose <text>",
+      "recognizer views new <name> --description <text>",
       "recognizer views add <name> <module>...",
       "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>]",
       "recognizer views fold <name> <folder>",
@@ -295,7 +295,7 @@ export const COMMANDS: Command[] = [
       {
         name: "new",
         description:
-          "create an empty view saved at the current commit; --purpose is required",
+          "create an empty view saved at the current commit; --description is required",
       },
       {
         name: "add",
@@ -334,7 +334,10 @@ export const COMMANDS: Command[] = [
     ],
     options: [
       ...REPOSITORY_OPTIONS,
-      { flag: "--purpose <text>", description: "what the view is for (new)" },
+      {
+        flag: "--description <text>",
+        description: "what the view shows (new)",
+      },
       { flag: "--folder <folder>", description: "a folder rule (rule)" },
       { flag: "--uses <module>", description: "a uses rule (rule)" },
       { flag: "--used-by <module>", description: "a used-by rule (rule)" },
@@ -361,15 +364,15 @@ export const COMMANDS: Command[] = [
     output: {
       text: [
         "new, add, rule, fold, focus, remove: `<name>: <what changed>; N steps, resolves to M modules`",
-        "show: `<name>: <purpose>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then unresolved, folded and focus lines when there are any",
-        "list: one `<name>  N steps  <commit>  <purpose>` line per view",
+        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then unresolved, folded and focus lines when there are any",
+        "list: one `<name>  N steps  <commit>  <description>` line per view",
         "check: `<name>: ok` or `<name>: N unresolved` with one `step N <kind> <path> - no such <module|folder>` line each, plus `(renamed to <path>)` when git records one",
         "rm: `<name>: removed`",
       ].join("\n"),
       json: [
         "new, add, rule, fold, focus, remove: { view, changed, steps, modules }",
-        "show: { name, purpose, commit, steps, resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }] }; with --current { current }",
-        "list: { views: [{ name, purpose, commit, steps } | { name, error }] }",
+        "show: { name, description, commit, steps, resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }] }; with --current { current }",
+        "list: { views: [{ name, description, commit, steps } | { name, error }] }",
         "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }] }] }",
         "rm: { view, removed }",
       ].join("\n"),
@@ -390,7 +393,7 @@ export const COMMANDS: Command[] = [
     examples: [
       {
         command:
-          'recognizer views new order-placement --purpose "How an order is placed: the use case, what it uses, and the store implementation"',
+          'recognizer views new order-placement --description "How an order is placed: the use case, what it uses, and the store implementation"',
         note: "start a view at the current commit",
       },
       {

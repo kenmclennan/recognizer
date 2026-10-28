@@ -1,4 +1,4 @@
-{ "schema_version": 1, "purpose": "How an order is placed.", "commit": "abc123", "steps": [
+{ "schema_version": 1, "description": "How an order is placed.", "commit": "abc123", "steps": [
   { "kind": "pick", "module": "shop/application/place.py" },
   { "kind": "rule", "relation": "folder", "of": "shop/domain" },
   { "kind": "rule", "relation": "uses", "of": "shop/application/place.py" },

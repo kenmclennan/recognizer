@@ -17,7 +17,7 @@ const scan = JSON.parse(
 ) as Scan;
 
 function view(...steps: ViewStep[]): View {
-  return { schema_version: 1, purpose: "p", commit: null, steps };
+  return { schema_version: 1, description: "p", commit: null, steps };
 }
 
 function resolve(...steps: ViewStep[]) {
