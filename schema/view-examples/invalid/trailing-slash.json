@@ -1,1 +1,1 @@
-{ "schema_version": 1, "purpose": "x", "commit": null, "steps": [{ "kind": "fold", "folder": "shop/" }] }
+{ "schema_version": 1, "description": "x", "commit": null, "steps": [{ "kind": "fold", "folder": "shop/" }] }

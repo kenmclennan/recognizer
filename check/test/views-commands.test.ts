@@ -36,7 +36,7 @@ function view(
   commit: string | null = COMMIT,
 ) {
   return {
-    [`${VIEWS}/${name}.json`]: `${JSON.stringify({ schema_version: 1, purpose: "p", commit, steps }, null, 2)}\n`,
+    [`${VIEWS}/${name}.json`]: `${JSON.stringify({ schema_version: 1, description: "p", commit, steps }, null, 2)}\n`,
   };
 }
 
@@ -59,13 +59,13 @@ function scans(fake: Fake): number {
 describe("views new", () => {
   it("writes the file with the head commit and no steps", () => {
     const fake = repository();
-    const { code, out } = go(fake, "new", "a", "--purpose", "Why");
+    const { code, out } = go(fake, "new", "a", "--description", "Why");
 
     expect(code).toBe(0);
     expect(out).toBe("a: created; 0 steps, resolves to 0 modules\n");
     expect(saved(fake, "a")).toEqual({
       schema_version: 1,
-      purpose: "Why",
+      description: "Why",
       commit: COMMIT,
       steps: [],
     });
@@ -76,7 +76,7 @@ describe("views new", () => {
   it("writes to a temp file then renames it over the target", () => {
     const fake = repository();
 
-    go(fake, "new", "a", "--purpose", "Why");
+    go(fake, "new", "a", "--description", "Why");
 
     expect(fake.writes).toEqual([`${VIEWS}/a.json.tmp`]);
     expect(fake.renames).toEqual([
@@ -88,13 +88,20 @@ describe("views new", () => {
   it("writes a null commit outside git", () => {
     const fake = repository({}, undefined, null);
 
-    go(fake, "new", "a", "--purpose", "Why");
+    go(fake, "new", "a", "--description", "Why");
 
     expect(saved(fake, "a").commit).toBeNull();
   });
 
   it("prints json", () => {
-    const { out } = go(repository(), "new", "a", "--purpose", "Why", "--json");
+    const { out } = go(
+      repository(),
+      "new",
+      "a",
+      "--description",
+      "Why",
+      "--json",
+    );
 
     expect(JSON.parse(out)).toEqual({
       view: "a",
@@ -104,13 +111,13 @@ describe("views new", () => {
     });
   });
 
-  it("refuses an existing name, a blank purpose, a missing purpose and a bad name", () => {
+  it("refuses an existing name, a blank description, a missing description and a bad name", () => {
     const fake = repository(view("a"));
 
-    expect(go(fake, "new", "a", "--purpose", "x").code).toBe(2);
-    expect(go(fake, "new", "b", "--purpose", "  ").code).toBe(2);
+    expect(go(fake, "new", "a", "--description", "x").code).toBe(2);
+    expect(go(fake, "new", "b", "--description", "  ").code).toBe(2);
     expect(go(fake, "new", "b").code).toBe(2);
-    expect(go(fake, "new", "../x", "--purpose", "x").code).toBe(2);
+    expect(go(fake, "new", "../x", "--description", "x").code).toBe(2);
     expect(fake.writes).toEqual([]);
   });
 });
@@ -450,7 +457,7 @@ describe("views list", () => {
 
     expect(document.views[0]).toEqual({
       name: "a",
-      purpose: "p",
+      description: "p",
       commit: COMMIT,
       steps: 0,
     });

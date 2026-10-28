@@ -213,15 +213,15 @@ A question uses the cached scans when every detected language has a cache taken 
 
 ## recognizer views
 
-`recognizer views <subcommand>` builds, shows and checks saved views: files at `.recognizer/views/<name>.json` that record a purpose, the commit they were saved at and steps. A name is letters, digits, `-` and `_`, at most 64. Every subcommand takes `--repository <dir>` and `--json`; the scan is read from cache when fresh and made first otherwise, and a triggered scan's summary goes to stderr.
+`recognizer views <subcommand>` builds, shows and checks saved views: files at `.recognizer/views/<name>.json` that record a description, the commit they were saved at and steps. A name is letters, digits, `-` and `_`, at most 64. Every subcommand takes `--repository <dir>` and `--json`; the scan is read from cache when fresh and made first otherwise, and a triggered scan's summary goes to stderr.
 
-The file is `{ schema_version: 1, purpose, commit, steps }`, described by [`schema/view.schema.json`](../schema/view.schema.json) with examples in `schema/view-examples/`. A step is one of `pick` (a module), `rule` (`folder`, or `uses` / `used-by` of a module, optionally `within` a folder), `fold`, `focus` (at most one) or `left-out` (a module a rule put there). No layout or selection is stored.
+The file is `{ schema_version: 1, description, commit, steps }`, described by [`schema/view.schema.json`](../schema/view.schema.json) with examples in `schema/view-examples/`. A step is one of `pick` (a module), `rule` (`folder`, or `uses` / `used-by` of a module, optionally `within` a folder), `fold`, `focus` (at most one) or `left-out` (a module a rule put there). No layout or selection is stored.
 
 `resolveView(view, scans)` and `validateView(value)` are exported from the library. Resolution gives the modules the steps put on the canvas now, the folded folders, the focus, and `unresolved`: the steps naming a path that no longer exists. A left-out removes a module a rule contributed, never a picked one.
 
 | Subcommand | What it does |
 | --- | --- |
-| `new <name> --purpose <text>` | create an empty view saved at HEAD (`commit` is `null` outside git); reads no scan |
+| `new <name> --description <text>` | create an empty view saved at HEAD (`commit` is `null` outside git); reads no scan |
 | `add <name> <module>...` | pick modules; all must exist or none are added; drops a left-out for each |
 | `rule <name> (--folder <f> \| --uses <m> \| --used-by <m>) [--within <f>]` | append a rule |
 | `fold <name> <folder>`, `focus <name> <folder>` | append a fold; set the one focus |

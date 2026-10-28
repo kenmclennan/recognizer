@@ -15,7 +15,7 @@ export type ViewStep =
 
 export interface View {
   schema_version: 1;
-  purpose: string;
+  description: string;
   commit: string | null;
   steps: ViewStep[];
 }

@@ -32,7 +32,7 @@ type Subcommand = (typeof VIEW_SUBCOMMANDS)[number];
 const OPTIONS = {
   repository: { type: "string" },
   json: { type: "boolean" },
-  purpose: { type: "string" },
+  description: { type: "string" },
   folder: { type: "string" },
   uses: { type: "string" },
   "used-by": { type: "string" },
@@ -47,7 +47,7 @@ const OPTIONS = {
 export const VIEW_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
 
 const ALLOWED: Record<Subcommand, string[]> = {
-  new: ["purpose"],
+  new: ["description"],
   add: [],
   rule: ["folder", "uses", "used-by", "within"],
   fold: [],
@@ -60,7 +60,7 @@ const ALLOWED: Record<Subcommand, string[]> = {
 };
 
 const USAGE: Record<Subcommand, string> = {
-  new: "recognizer views new <name> --purpose <text> [--repository <dir>] [--json]",
+  new: "recognizer views new <name> --description <text> [--repository <dir>] [--json]",
   add: "recognizer views add <name> <module>... [--repository <dir>] [--json]",
   rule: "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>] [--repository <dir>] [--json]",
   fold: "recognizer views fold <name> <folder> [--repository <dir>] [--json]",
@@ -137,7 +137,7 @@ function serialise(view: View): string {
   return `${JSON.stringify(
     {
       schema_version: 1,
-      purpose: view.purpose,
+      description: view.description,
       commit: view.commit,
       steps: view.steps.map(orderedStep),
     },
@@ -326,10 +326,10 @@ function runNew(argv: string[], io: Io): number {
   }
 
   const name = checkName(c.positionals[0]);
-  const purpose = c.values.purpose;
+  const description = c.values.description;
 
-  if (typeof purpose !== "string" || purpose.trim() === "") {
-    throw new InputError(["--purpose is required and must not be blank"]);
+  if (typeof description !== "string" || description.trim() === "") {
+    throw new InputError(["--description is required and must not be blank"]);
   }
 
   if (io.exists(viewFile(c.root, name))) {
@@ -338,7 +338,7 @@ function runNew(argv: string[], io: Io): number {
 
   const view: View = {
     schema_version: 1,
-    purpose,
+    description,
     commit: resolveCommit(io, c.root),
     steps: [],
   };
@@ -640,7 +640,7 @@ function runShow(argv: string[], io: Io): number {
       c,
       {
         name,
-        purpose: view.purpose,
+        description: view.description,
         commit: view.commit,
         steps: view.steps,
         resolved: resolvedJson(resolved),
@@ -653,7 +653,7 @@ function runShow(argv: string[], io: Io): number {
   }
 
   const lines = [
-    `${name}: ${view.purpose}`,
+    `${name}: ${view.description}`,
     `saved at ${view.commit ?? "none"}`,
     view.steps.length === 0 ? "no steps" : "steps:",
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
@@ -696,7 +696,7 @@ function runList(argv: string[], io: Io): number {
 
       return {
         name,
-        purpose: view.purpose,
+        description: view.description,
         commit: view.commit,
         steps: view.steps.length,
       };
@@ -712,7 +712,7 @@ function runList(argv: string[], io: Io): number {
       .map((row) =>
         "error" in row
           ? `${row.name}  invalid: ${row.error}`
-          : `${row.name}  ${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.purpose}`,
+          : `${row.name}  ${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
       )
       .join("\n"),
   );

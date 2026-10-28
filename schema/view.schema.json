@@ -4,10 +4,10 @@
   "title": "Recognizer saved view",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "purpose", "commit", "steps"],
+  "required": ["schema_version", "description", "commit", "steps"],
   "properties": {
     "schema_version": { "const": 1 },
-    "purpose": { "type": "string", "pattern": "\\S" },
+    "description": { "type": "string", "pattern": "\\S" },
     "commit": { "type": ["string", "null"], "minLength": 1 },
     "steps": {
       "type": "array",
