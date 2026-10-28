@@ -26,6 +26,7 @@ export interface Fake {
   launches: { command: string; args: string[] }[];
   removed: string[];
   writes: string[];
+  renames: { from: string; to: string }[];
   readDirCalls: () => number;
   tempDirs: () => string[];
 }
@@ -70,6 +71,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   const launches: { command: string; args: string[] }[] = [];
   const removed: string[] = [];
   const writes: string[] = [];
+  const renames: { from: string; to: string }[] = [];
   const temps: string[] = [];
   let readDirs = 0;
   let out = "";
@@ -117,6 +119,17 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     writeFile: (path, content) => {
       files.set(path, content);
       writes.push(path);
+    },
+    rename: (from, to) => {
+      const content = files.get(from);
+
+      if (content === undefined) {
+        throw new Error(`ENOENT: ${from}`);
+      }
+
+      files.delete(from);
+      files.set(to, content);
+      renames.push({ from, to });
     },
     stdout: (text) => {
       out += text;
@@ -222,6 +235,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     launches,
     removed,
     writes,
+    renames,
     readDirCalls: () => readDirs,
     tempDirs: () => temps,
   };

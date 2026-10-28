@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -35,6 +36,7 @@ export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
   writeFile(path: string, content: string): void;
+  rename(from: string, to: string): void;
   readDir(path: string): DirEntry[];
   remove(path: string): void;
   makeTempDir(): string;
@@ -54,6 +56,7 @@ export function nodeIo(): Io {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, content);
     },
+    rename: (from, to) => renameSync(from, to),
     readDir: (path) =>
       readdirSync(path, { withFileTypes: true }).map((entry) => ({
         name: entry.name,

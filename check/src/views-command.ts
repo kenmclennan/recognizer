@@ -98,6 +98,13 @@ function viewFile(root: string, name: string): string {
   return join(viewsDirectory(root), `${name}.json`);
 }
 
+function writeViewFile(io: Io, file: string, view: View): void {
+  const temp = `${file}.tmp`;
+
+  io.writeFile(temp, serialise(view));
+  io.rename(temp, file);
+}
+
 function currentFile(root: string): string {
   return join(root, ".recognizer", "cache", "current-view.json");
 }
@@ -278,7 +285,7 @@ function finishMutation(
   const modules = resolveView(view, scans).modules.length;
 
   if (changed) {
-    c.io.writeFile(viewFile(c.root, name), serialise(view));
+    writeViewFile(c.io, viewFile(c.root, name), view);
   }
 
   emit(
@@ -336,7 +343,7 @@ function runNew(argv: string[], io: Io): number {
     steps: [],
   };
 
-  io.writeFile(viewFile(c.root, name), serialise(view));
+  writeViewFile(io, viewFile(c.root, name), view);
   emit(
     c,
     { view: name, changed: true, steps: 0, modules: 0 },
@@ -855,7 +862,7 @@ function runCheck(argv: string[], io: Io): number {
         });
 
         view = { ...view, steps };
-        io.writeFile(viewFile(c.root, name), serialise(view));
+        writeViewFile(io, viewFile(c.root, name), view);
         unresolved = annotate(view);
       }
 
