@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, read a line of and name the folder a window holds\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-read-source-line`\n- `allow-scan-folder`\n- `allow-window-folder`",
+          "description": "Choose, scan, read a line of and name the folder a window holds, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, read a line of and name the folder a window holds\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-read-source-line`\n- `allow-scan-folder`\n- `allow-window-folder`"
+          "markdownDescription": "Choose, scan, read a line of and name the folder a window holds, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
         },
         {
           "description": "Enables the choose_folder command without any pre-configured scope.",
@@ -189,10 +189,28 @@
           "markdownDescription": "Enables the choose_folder command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_views command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-views",
+          "markdownDescription": "Enables the list_views command without any pre-configured scope."
+        },
+        {
           "description": "Enables the read_source_line command without any pre-configured scope.",
           "type": "string",
           "const": "allow-read-source-line",
           "markdownDescription": "Enables the read_source_line command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the rename_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-rename-view",
+          "markdownDescription": "Enables the rename_view command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the renames_since command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-renames-since",
+          "markdownDescription": "Enables the renames_since command without any pre-configured scope."
         },
         {
           "description": "Enables the scan_folder command without any pre-configured scope.",
@@ -201,10 +219,40 @@
           "markdownDescription": "Enables the scan_folder command without any pre-configured scope."
         },
         {
+          "description": "Enables the scans_at command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-scans-at",
+          "markdownDescription": "Enables the scans_at command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the view_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-view-path",
+          "markdownDescription": "Enables the view_path command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the watch_views command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-watch-views",
+          "markdownDescription": "Enables the watch_views command without any pre-configured scope."
+        },
+        {
           "description": "Enables the window_folder command without any pre-configured scope.",
           "type": "string",
           "const": "allow-window-folder",
           "markdownDescription": "Enables the window_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_current_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-current-view",
+          "markdownDescription": "Enables the write_current_view command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-view",
+          "markdownDescription": "Enables the write_view command without any pre-configured scope."
         },
         {
           "description": "Denies the choose_folder command without any pre-configured scope.",
@@ -213,10 +261,28 @@
           "markdownDescription": "Denies the choose_folder command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_views command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-views",
+          "markdownDescription": "Denies the list_views command without any pre-configured scope."
+        },
+        {
           "description": "Denies the read_source_line command without any pre-configured scope.",
           "type": "string",
           "const": "deny-read-source-line",
           "markdownDescription": "Denies the read_source_line command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the rename_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-rename-view",
+          "markdownDescription": "Denies the rename_view command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the renames_since command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-renames-since",
+          "markdownDescription": "Denies the renames_since command without any pre-configured scope."
         },
         {
           "description": "Denies the scan_folder command without any pre-configured scope.",
@@ -225,10 +291,40 @@
           "markdownDescription": "Denies the scan_folder command without any pre-configured scope."
         },
         {
+          "description": "Denies the scans_at command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-scans-at",
+          "markdownDescription": "Denies the scans_at command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the view_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-view-path",
+          "markdownDescription": "Denies the view_path command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the watch_views command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-watch-views",
+          "markdownDescription": "Denies the watch_views command without any pre-configured scope."
+        },
+        {
           "description": "Denies the window_folder command without any pre-configured scope.",
           "type": "string",
           "const": "deny-window-folder",
           "markdownDescription": "Denies the window_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_current_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-current-view",
+          "markdownDescription": "Denies the write_current_view command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-view",
+          "markdownDescription": "Denies the write_view command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

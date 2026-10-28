@@ -88,4 +88,26 @@ describe("library load without code generation", () => {
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({ violations: 5, warnings: 1 });
   });
+
+  it("validates a saved view with code generation from strings disabled", () => {
+    const script = `
+      const { validateView } = await import(${JSON.stringify(join(DIST, "index.js"))});
+      const valid = validateView({ schema_version: 1, description: "d", commit: null, steps: [{ kind: "pick", module: "a" }] });
+      let reason = null;
+      try {
+        validateView({ schema_version: 1, description: "", commit: null, steps: [] });
+      } catch (error) {
+        reason = error.messages.join("; ");
+      }
+      console.log(JSON.stringify({ description: valid.description, reason }));
+    `;
+    const result = noEval(script);
+
+    expect(result.status).toBe(0);
+
+    const answer = JSON.parse(result.stdout);
+
+    expect(answer.description).toBe("d");
+    expect(answer.reason).toContain("description");
+  });
 });

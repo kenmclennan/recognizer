@@ -1,7 +1,5 @@
-import type { ValidateFunction } from "ajv";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import { InputError } from "./errors.js";
-import schema from "./generated/view.schema.json" with { type: "json" };
+import validate from "./generated/view-validator.js";
 import { moduleNames, under, usedByOf, usesOf } from "./neighbours.js";
 import type { Scan } from "./scan.js";
 
@@ -32,17 +30,7 @@ export interface ResolvedView {
   }[];
 }
 
-let compiled: ValidateFunction | undefined;
-
-function validator(): ValidateFunction {
-  compiled ??= new Ajv2020({ allErrors: true }).compile(schema);
-
-  return compiled;
-}
-
 export function validateView(value: unknown): View {
-  const validate = validator();
-
   if (validate(value)) {
     return value as unknown as View;
   }

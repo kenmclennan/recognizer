@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-write-view"
+description = "Enables the write_view command without any pre-configured scope."
+commands.allow = ["write_view"]
+
+[[permission]]
+identifier = "deny-write-view"
+description = "Denies the write_view command without any pre-configured scope."
+commands.deny = ["write_view"]

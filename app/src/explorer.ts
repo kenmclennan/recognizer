@@ -1,3 +1,4 @@
+import { resolveView } from "recognizer";
 import {
   buildCanvasGraph,
   type CanvasGraph,
@@ -9,6 +10,12 @@ import { absoluteLayout, toElk } from "./canvas-layout";
 import { type Scene, toScene } from "./canvas-scene";
 import { createCanvasState, type Selection } from "./canvas-state";
 import { buildCanvasView, createMeasure } from "./canvas-view";
+import {
+  type CurrentView,
+  currentViewOf,
+  latestWins,
+  type Snapshot,
+} from "./current-view";
 import { el } from "./dom";
 import {
   describeLine,
@@ -32,14 +39,28 @@ import { buildCallerIndex } from "./member-callers";
 import { createOpenModules } from "./open-modules";
 import { buildRailView } from "./rail-view";
 import { repositorySource } from "./repository-source";
+import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
 import type { BarModel } from "./selection-bar-view";
+import { buildStalePanel, type StalePanelModel } from "./stale-panel-view";
+import {
+  currentCommit,
+  hasEntries,
+  type StaleReport,
+  staleReport,
+} from "./stale-report";
 import { type FilterState, filterTree, isVisible } from "./tree-filter";
 import { ancestorFolders, buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
+import { buildViewBar } from "./view-bar-view";
+import { parseViewFile, serialiseView } from "./view-file";
+import { createHistory } from "./view-history";
+import { stepsFor } from "./view-steps";
+import { inertViews, type ViewsPort } from "./views-port";
 
 export type Explorer = {
   toggleTree: () => void;
+  dispose: () => void;
 };
 
 export function showExplorer(
@@ -47,6 +68,8 @@ export function showExplorer(
   loaded: Loaded,
   title: string,
   onCount: (text: string) => void = () => {},
+  views: ViewsPort = inertViews,
+  notify: (text: string) => void = () => {},
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const root = buildTree(loaded.modules);
@@ -76,6 +99,27 @@ export function showExplorer(
   let pickerFilter = "";
   let narrowed: Narrowed | null = null;
   const groupFlips = new Set<string>();
+  let openView: string | null = null;
+  let viewList: { name: string; text: string }[] = [];
+  let viewNotice: string | null = null;
+  let listNotice: string | null = null;
+  let listKnown = false;
+  let listProblem: string | null = null;
+  let openToken = 0;
+  const viewTexts = new Map<string, string>();
+  const reports = new Map<
+    string,
+    { report: StaleReport; comparing: boolean }
+  >();
+  const dismissed = new Set<string>();
+  const history = createHistory<Snapshot>({
+    view: null,
+    modules: [],
+    folded: [],
+    focus: null,
+    selection: null,
+  });
+  const writeCurrent = latestWins(views.writeCurrent);
 
   const context = {
     isOpen: modules.isOpen,
@@ -242,6 +286,25 @@ export function showExplorer(
     },
   );
 
+  const bar = buildViewBar({
+    back: () => step(history.back()),
+    forward: () => step(history.forward()),
+    openView: (name) => void openSaved(name),
+    save: () => void saveOpen(),
+    saveNew: (name, description) => saveNew(name, description),
+    rename: (from, to) => renameOpen(from, to),
+    copyLink: () => void copyLink(),
+    hasOpenView: () => openView !== null,
+  });
+  const stale = buildStalePanel({
+    update: () => void update(),
+    leave() {
+      if (openView !== null) {
+        dismissed.add(openView);
+        render();
+      }
+    },
+  });
   const rail = buildRailView({ toggleFiles: toggleTree });
   const notices = el("div", "notices");
 
@@ -249,6 +312,7 @@ export function showExplorer(
 
   const body = el("div", "explorer");
 
+  canvas.element.append(bar.element, stale.element);
   body.append(rail.element, tree.element, canvas.element, inspector.element);
   container.replaceChildren(notices, body);
 
@@ -266,9 +330,12 @@ export function showExplorer(
 
   function renderNotices() {
     notices.replaceChildren(
-      ...[...loaded.notices, ...health.notices].map((text) =>
-        el("p", "notice-line", text),
-      ),
+      ...[
+        ...loaded.notices,
+        ...health.notices,
+        ...(listNotice === null ? [] : [listNotice]),
+        ...(viewNotice === null ? [] : [viewNotice]),
+      ].map((text) => el("p", "notice-line", text)),
     );
     notices.hidden = notices.childElementCount === 0;
   }
@@ -325,6 +392,11 @@ export function showExplorer(
   }
 
   function changed() {
+    rebuild();
+    record();
+  }
+
+  function rebuild() {
     graph = buildCanvasGraph({
       scans,
       modules: loaded.modules,
@@ -378,6 +450,7 @@ export function showExplorer(
     }
 
     render();
+    record();
   }
 
   async function loadEvidence(id: string) {
@@ -417,7 +490,7 @@ export function showExplorer(
   function find(id: string) {
     if (!modules.isOpen(id)) {
       modules.open(id);
-      changed();
+      rebuild();
     }
 
     const previous = state.selection();
@@ -432,6 +505,7 @@ export function showExplorer(
     reveal({ kind: "module", id });
     render();
     canvas.centerOn(boxFor(id));
+    record();
   }
 
   function toggleTree() {
@@ -458,6 +532,491 @@ export function showExplorer(
       folded: state.folded().has(selection.id),
       inspectorTab: inspectorOpen ? inspectorTab : null,
     };
+  }
+
+  function snapshot(): Snapshot {
+    const selection = state.selection();
+
+    return {
+      view: openView,
+      modules: modules.opened().sort((a, b) => a.localeCompare(b)),
+      folded: [...state.folded()].sort((a, b) => a.localeCompare(b)),
+      focus: state.focus(),
+      selection: selection === null ? null : { ...selection },
+    };
+  }
+
+  function persist(snap: Snapshot) {
+    const current: CurrentView = currentViewOf(snap);
+
+    writeCurrent(`${JSON.stringify(current, null, 2)}\n`);
+  }
+
+  function record() {
+    const snap = snapshot();
+
+    history.record(snap);
+    persist(snap);
+    renderBar();
+  }
+
+  function canvasContent() {
+    return {
+      modules: modules.opened(),
+      folded: [...state.folded()],
+      focus: state.focus(),
+    };
+  }
+
+  function setCanvas(ids: string[], folded: string[], focus: string | null) {
+    for (const id of modules.opened()) {
+      modules.close(id);
+    }
+
+    for (const id of ids) {
+      modules.open(id);
+    }
+
+    state.restore(folded, focus);
+    state.clearSelection();
+    evidence = null;
+    hovered = null;
+    resetList();
+    rebuild();
+    record();
+  }
+
+  function step(snap: Snapshot | null) {
+    if (snap === null) {
+      return;
+    }
+
+    for (const id of modules.opened()) {
+      modules.close(id);
+    }
+
+    for (const id of snap.modules) {
+      modules.open(id);
+    }
+
+    state.restore(snap.folded, snap.focus);
+    openView = snap.view;
+    evidence = null;
+    hovered = null;
+    resetList();
+    rebuild();
+    state.select(snap.selection);
+    state.reconcile(presenceOf(graph));
+    reveal(state.selection());
+    render();
+    persist(snap);
+  }
+
+  function setViewList(list: { name: string; text: string }[]) {
+    viewList = list;
+    renderBar();
+  }
+
+  async function loadViewList() {
+    try {
+      const listing = await views.list();
+
+      listNotice =
+        listing.refused.length === 0
+          ? null
+          : `Could not read saved views: ${listing.refused.join("; ")}`;
+      listKnown = true;
+      listProblem = null;
+      setViewList(listing.views);
+    } catch (error) {
+      listNotice = `Could not list saved views: ${String(error)}`;
+      listProblem = String(error);
+      listKnown = false;
+      renderBar();
+    }
+
+    renderNotices();
+  }
+
+  function renderBar() {
+    bar.render({
+      open: openView,
+      views: viewList.map(({ name, text }) => {
+        const parsed = parseViewFile(text);
+
+        return {
+          name,
+          description: parsed.ok ? parsed.view.description : null,
+        };
+      }),
+      canBack: history.canBack(),
+      listed: listKnown,
+      listProblem,
+      canForward: history.canForward(),
+      canCopy: openView !== null,
+    });
+  }
+
+  function rowFor(id: string): RowSpec {
+    const on = modules.isOpen(id);
+
+    return {
+      label: id,
+      state: on ? "checked" : "unchecked",
+      bold: on,
+      disc: context.disc(id),
+      discHover: described.get(id)?.hover,
+      onCheck: () => (on ? takeAllOff([id]) : putAllOn([id])),
+      onName: () => find(id),
+    };
+  }
+
+  function stalePanelModel(): StalePanelModel | null {
+    const entry = openView === null ? undefined : reports.get(openView);
+
+    if (
+      openView === null ||
+      entry === undefined ||
+      dismissed.has(openView) ||
+      (!entry.comparing && !hasEntries(entry.report))
+    ) {
+      return null;
+    }
+
+    const { report } = entry;
+
+    return {
+      missing: report.missing.map((missing) => ({
+        path: missing.path,
+        rename: missing.renamedTo === null ? null : rowFor(missing.renamedTo),
+      })),
+      removed: (report.changed?.removed ?? []).map(describeEdge),
+      added: (report.changed?.added ?? []).map(describeEdge),
+      newlyRelevant: (report.newlyRelevant ?? []).map(rowFor),
+      comparing: entry.comparing,
+      unavailable: report.unavailable,
+    };
+  }
+
+  function describeEdge(edge: { from: string; to: string }): string {
+    return `${edge.from} -> ${edge.to}`;
+  }
+
+  async function applyView(name: string, text: string, withRenames: boolean) {
+    const parsed = parseViewFile(text);
+
+    if (!parsed.ok) {
+      viewNotice = `${name} is not a valid view: ${parsed.reason}`;
+      renderNotices();
+
+      return;
+    }
+
+    const { view } = parsed;
+    const token = ++openToken;
+    const resolved = resolveView(view, scans);
+    const missingPicks = resolved.unresolved.filter(
+      (entry) => entry.kind === "pick",
+    );
+    const renames =
+      withRenames && view.commit !== null && missingPicks.length > 0
+        ? await views.renamesSince(view.commit).catch(() => [])
+        : [];
+
+    if (token !== openToken) {
+      return;
+    }
+
+    const known = new Set(loaded.modules);
+    const renamed = missingPicks.flatMap((entry) => {
+      const target = renames.find(
+        (rename) => rename.from === entry.path && known.has(rename.to),
+      );
+
+      return target === undefined ? [] : [target.to];
+    });
+
+    viewNotice = null;
+    renderNotices();
+    viewTexts.set(name, text);
+    dismissed.delete(name);
+    openView = name;
+    setCanvas(
+      [...resolved.modules, ...renamed],
+      resolved.folded,
+      resolved.focus,
+    );
+    await compare(name, view, renames, token);
+  }
+
+  async function compare(
+    name: string,
+    view: Parameters<typeof staleReport>[0]["view"],
+    renames: { from: string; to: string }[],
+    token: number,
+  ) {
+    const needsScan =
+      view.commit !== null && view.commit !== currentCommit(scans);
+
+    if (!needsScan) {
+      reports.set(name, {
+        report: staleReport({ view, now: scans, before: null, renames }),
+        comparing: false,
+      });
+      render();
+
+      return;
+    }
+
+    reports.set(name, {
+      report: staleReport({ view, now: scans, before: null, renames }),
+      comparing: true,
+    });
+    render();
+
+    const before = await views.scansAt(view.commit as string).catch(() => null);
+
+    if (token !== openToken) {
+      return;
+    }
+
+    reports.set(name, {
+      report: staleReport({ view, now: scans, before, renames }),
+      comparing: false,
+    });
+    render();
+  }
+
+  async function openSaved(name: string) {
+    const text = viewList.find((view) => view.name === name)?.text;
+
+    if (text !== undefined) {
+      await applyView(name, text, true);
+    }
+  }
+
+  async function writeView(
+    name: string,
+    view: Parameters<typeof serialiseView>[0],
+  ): Promise<string | null> {
+    const fail = (problem: string) => {
+      viewNotice = problem;
+      renderNotices();
+
+      return problem;
+    };
+
+    try {
+      const text = serialiseView(view);
+      const checked = parseViewFile(text);
+
+      if (!checked.ok) {
+        return fail(`${name} is not a valid view: ${checked.reason}`);
+      }
+
+      viewTexts.set(name, text);
+      await views.write(name, text);
+      setViewList(
+        [
+          ...viewList.filter((entry) => entry.name !== name),
+          { name, text },
+        ].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+
+      return null;
+    } catch (error) {
+      return fail(`Could not save ${name}: ${String(error)}`);
+    }
+  }
+
+  async function saveOpen() {
+    const name = openView;
+    const text = name === null ? undefined : viewTexts.get(name);
+    const parsed = text === undefined ? null : parseViewFile(text);
+
+    if (name === null || parsed === null || !parsed.ok) {
+      return;
+    }
+
+    const entry = reports.get(name);
+    const clean =
+      entry === undefined || (!entry.comparing && !hasEntries(entry.report));
+
+    if (
+      (await writeView(name, {
+        ...parsed.view,
+        commit: clean ? currentCommit(scans) : parsed.view.commit,
+        steps: stepsFor(parsed.view.steps, canvasContent(), scans),
+      })) === null
+    ) {
+      notify(`Saved ${name}`);
+    }
+  }
+
+  async function saveNew(name: string, description: string) {
+    const problem = await writeView(name, {
+      schema_version: 1,
+      description,
+      commit: currentCommit(scans),
+      steps: stepsFor([], canvasContent(), scans),
+    });
+
+    if (problem === null) {
+      reports.delete(name);
+      openView = name;
+      record();
+      notify(`Saved ${name}`);
+    }
+
+    return problem;
+  }
+
+  async function renameOpen(from: string, to: string) {
+    try {
+      await views.rename(from, to);
+    } catch (error) {
+      return String(error);
+    }
+
+    const text = viewTexts.get(from);
+    const report = reports.get(from);
+
+    viewTexts.delete(from);
+    reports.delete(from);
+
+    if (text !== undefined) {
+      viewTexts.set(to, text);
+    }
+
+    if (report !== undefined) {
+      reports.set(to, report);
+    }
+
+    if (dismissed.delete(from)) {
+      dismissed.add(to);
+    }
+
+    if (openView === from) {
+      openView = to;
+    }
+
+    history.remap((snap) =>
+      snap.view === from ? { ...snap, view: to } : snap,
+    );
+    setViewList(
+      viewList
+        .map((view) => (view.name === from ? { ...view, name: to } : view))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+    persist(snapshot());
+    render();
+    notify(`Renamed ${from} to ${to}`);
+
+    return null;
+  }
+
+  async function copyLink() {
+    if (openView === null) {
+      return;
+    }
+
+    const path = await views.path(openView);
+
+    await views.copy(path);
+    notify(`Copied ${path}`);
+  }
+
+  async function update() {
+    const name = openView;
+    const text = name === null ? undefined : viewTexts.get(name);
+    const parsed = text === undefined ? null : parseViewFile(text);
+    const entry = name === null ? undefined : reports.get(name);
+
+    if (name === null || parsed === null || !parsed.ok || entry === undefined) {
+      return;
+    }
+
+    const { view } = parsed;
+    const { report } = entry;
+    const dropped = new Set(report.missing.map((missing) => missing.step));
+    const replaced = new Map(
+      report.missing.flatMap((missing) =>
+        missing.kind === "pick" &&
+        missing.renamedTo !== null &&
+        modules.isOpen(missing.renamedTo)
+          ? [[missing.step, missing.renamedTo] as const]
+          : [],
+      ),
+    );
+    const picked = new Set(
+      view.steps.flatMap((item) => (item.kind === "pick" ? [item.module] : [])),
+    );
+    const steps: typeof view.steps = [];
+
+    view.steps.forEach((item, index) => {
+      const target = replaced.get(index + 1);
+
+      if (target !== undefined) {
+        if (!picked.has(target)) {
+          picked.add(target);
+          steps.push({ kind: "pick", module: target });
+        }
+      } else if (!dropped.has(index + 1)) {
+        steps.push(item);
+      }
+    });
+
+    for (const id of report.newlyRelevant ?? []) {
+      if (modules.isOpen(id) && !picked.has(id)) {
+        picked.add(id);
+        steps.push({ kind: "pick", module: id });
+      }
+    }
+
+    const next = { ...view, commit: currentCommit(scans), steps };
+
+    if ((await writeView(name, next)) !== null) {
+      return;
+    }
+
+    reports.delete(name);
+    dismissed.delete(name);
+    openToken += 1;
+
+    const resolved = resolveView(next, scans);
+
+    setCanvas(resolved.modules, resolved.folded, resolved.focus);
+  }
+
+  async function onViewsChanged() {
+    await loadViewList();
+
+    if (openView === null) {
+      return;
+    }
+
+    const name = openView;
+    const entry = viewList.find((view) => view.name === name);
+
+    if (entry === undefined) {
+      openView = null;
+      viewTexts.delete(name);
+      reports.delete(name);
+      openToken += 1;
+      viewNotice = `${name} was deleted from .recognizer/views`;
+      renderNotices();
+      record();
+      render();
+
+      return;
+    }
+
+    if (entry.text === viewTexts.get(name)) {
+      return;
+    }
+
+    reports.delete(name);
+    await applyView(name, entry.text, true);
   }
 
   function renderCanvas() {
@@ -501,6 +1060,7 @@ export function showExplorer(
       filter,
     });
     body.classList.toggle("inspector-open", inspectorOpen);
+    stale.render(stalePanelModel());
     renderCanvas();
     inspector.render(
       inspectorContent(selection, {
@@ -536,5 +1096,15 @@ export function showExplorer(
   renderNotices();
   changed();
 
-  return { toggleTree };
+  const stopWatching = views.onChanged(() => void onViewsChanged());
+
+  void loadViewList();
+
+  return {
+    toggleTree,
+    dispose() {
+      stopWatching();
+      bar.dispose();
+    },
+  };
 }

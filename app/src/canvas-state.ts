@@ -23,6 +23,7 @@ export type CanvasState = {
   setShowInferred: (show: boolean) => void;
   takeOff: (selection: Selection) => void;
   clear: () => void;
+  restore: (folded: Iterable<string>, focus: string | null) => void;
   reconcile: (present: Presence) => void;
 };
 
@@ -79,6 +80,15 @@ export function createCanvasState(modules: OpenModules): CanvasState {
       folded.clear();
       focus = null;
       selection = null;
+    },
+    restore(nextFolded, nextFocus) {
+      folded.clear();
+
+      for (const folder of nextFolded) {
+        folded.add(folder);
+      }
+
+      focus = nextFocus;
     },
     reconcile(present) {
       if (selection === null) {

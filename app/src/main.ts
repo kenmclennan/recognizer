@@ -11,6 +11,7 @@ import { dialogFromOutcome } from "./update-dialog";
 import { buildUpdateDialog } from "./update-dialog-view";
 import { buildUpdater } from "./updater";
 import { tauriUpdaterPorts } from "./updater-source";
+import { viewsSource } from "./views-source";
 
 const content = document.getElementById("content") as HTMLElement;
 const footer = document.getElementById("footer") as HTMLElement;
@@ -75,6 +76,7 @@ async function checkForUpdates(): Promise<void> {
 let explorer: Explorer | null = null;
 
 async function start(): Promise<void> {
+  explorer?.dispose();
   explorer = null;
   footerView.setCount("");
 
@@ -105,6 +107,8 @@ async function start(): Promise<void> {
     loaded,
     folder.split(/[\\/]/).filter(Boolean).pop() ?? folder,
     (text) => footerView.setCount(text),
+    viewsSource,
+    (text) => footerView.notify(text),
   );
 }
 

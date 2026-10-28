@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-renames-since"
+description = "Enables the renames_since command without any pre-configured scope."
+commands.allow = ["renames_since"]
+
+[[permission]]
+identifier = "deny-renames-since"
+description = "Denies the renames_since command without any pre-configured scope."
+commands.deny = ["renames_since"]

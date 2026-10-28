@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-rename-view"
+description = "Enables the rename_view command without any pre-configured scope."
+commands.allow = ["rename_view"]
+
+[[permission]]
+identifier = "deny-rename-view"
+description = "Denies the rename_view command without any pre-configured scope."
+commands.deny = ["rename_view"]

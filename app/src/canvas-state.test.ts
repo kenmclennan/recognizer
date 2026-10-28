@@ -107,3 +107,22 @@ describe("canvas state", () => {
     expect(state.focus()).toBeNull();
   });
 });
+
+describe("restore", () => {
+  it("replaces the folds and the focus without touching the selection", () => {
+    const { state } = setup();
+
+    state.toggleFold("a");
+    state.select({ kind: "module", id: "c/w.py" });
+    state.restore(["a/b", "c"], "c");
+
+    expect([...state.folded()].sort()).toEqual(["a/b", "c"]);
+    expect(state.focus()).toBe("c");
+    expect(state.selection()).toEqual({ kind: "module", id: "c/w.py" });
+
+    state.restore([], null);
+
+    expect(state.folded().size).toBe(0);
+    expect(state.focus()).toBeNull();
+  });
+});
