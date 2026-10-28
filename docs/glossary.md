@@ -36,7 +36,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
 | Overlay | Measurements from a tool a repository registers (coverage, churn, mutation), written as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
-| Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/descriptions.json` and current while its source and describer are unchanged. |
+| Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/responsibilities.json` and current while its source and describer are unchanged. |
 | Describer | The command a repository registers in its config to write responsibilities. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
 | Command table | `COMMANDS` in `check/src/commands.ts`: the one list `recognizer` dispatches from and generates its help from. |
@@ -71,8 +71,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | History | The sequence of view states the user has moved through in a window; back and forward walk it. It is never saved. |
 | Rail | The thin strip of icons at the window's far left, one per left-hand panel; an icon opens its panel, or closes it when it is open. |
 | Files panel | The rail's panel holding the tree. |
-| Saved view | A named view committed at `.recognizer/views/<name>.json`: its purpose, the commit it was saved at, and its steps. |
-| Purpose | A saved view's required one- or two-sentence statement of what it is for. |
+| Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, and its steps. |
+| Description | A saved view's required one- or two-sentence statement of what it shows. |
 | Step | One entry in a saved view, replayed on opening: a pick, a rule, a fold, a focus, or a module left out. |
 | Pick | A step naming one module by path. Everything the user adds in the app is recorded as picks. |
 | Rule | A step naming a relationship (a folder's files, what a module uses or is used by), re-evaluated on every opening. |

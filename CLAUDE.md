@@ -44,7 +44,7 @@ One repository, a directory per part:
 - **No allow list.** The policy cannot mark a violating edge as acceptable. Existing violations live in a baseline that may only shrink.
 - **Missing data is unknown, never healthy.**
 - **Prior art is for approach only.** Robert C. Martin's [uml-viewer](https://github.com/unclebob/uml-viewer) states no licence: copy or port none of its code. Its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
-- **Scanned repositories own their `.recognizer/` folder.** Policy, tooling configuration (`config.yaml`), saved views, module responsibilities (`descriptions.json`), proposals and baselines are committed there; scans and overlays go in `.recognizer/cache/`, which is gitignored.
+- **Scanned repositories own their `.recognizer/` folder.** Policy, tooling configuration (`config.yaml`), saved views, module responsibilities (`responsibilities.json`), proposals and baselines are committed there; scans and overlays go in `.recognizer/cache/`, which is gitignored.
 
 ## Worktrees
 
