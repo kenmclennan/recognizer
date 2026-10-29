@@ -1,5 +1,6 @@
 fn main() {
     let commands = tauri_build::AppManifest::new().commands(&[
+        "adopt_scan",
         "choose_folder",
         "list_views",
         "read_source_line",
@@ -8,6 +9,7 @@ fn main() {
         "scan_folder",
         "scans_at",
         "view_path",
+        "watch_changes",
         "watch_views",
         "window_folder",
         "write_current_view",

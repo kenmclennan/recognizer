@@ -2,11 +2,13 @@ import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./style.css";
 import { showEmpty } from "./empty-view";
-import { type Explorer, showExplorer } from "./explorer";
+import { type Carried, type Explorer, showExplorer } from "./explorer";
+import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
-import { loadScans } from "./scan-loading";
+import { createRescanner } from "./rescanner";
+import { type Loaded, loadScans } from "./scan-loading";
 import { dialogFromOutcome } from "./update-dialog";
 import { buildUpdateDialog } from "./update-dialog-view";
 import { buildUpdater } from "./updater";
@@ -16,7 +18,7 @@ import { viewsSource } from "./views-source";
 const content = document.getElementById("content") as HTMLElement;
 const footer = document.getElementById("footer") as HTMLElement;
 
-const footerView = buildFooter(footer);
+const footerView = buildFooter(footer, () => void rescanner.run());
 
 const updater = buildUpdater({
   ...tauriUpdaterPorts,
@@ -74,10 +76,59 @@ async function checkForUpdates(): Promise<void> {
 }
 
 let explorer: Explorer | null = null;
+let folderName = "";
+let scanState: ScanState | null = null;
+
+function setScanState(next: ScanState | null) {
+  scanState = next;
+  footerView.setScan(next);
+}
+
+function adoptedOrigin(origin: ScanOrigin) {
+  setScanState({
+    origin,
+    scannedAt: Date.now(),
+    changes: NO_CHANGES,
+    rescanning: false,
+  });
+}
+
+function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
+  return showExplorer(
+    content,
+    loaded,
+    folderName,
+    (text) => footerView.setCount(text),
+    viewsSource,
+    (text) => footerView.notify(text),
+    carried,
+  );
+}
+
+const rescanner = createRescanner<Carried>({
+  scan: () => repositorySource.scanFolder(),
+  load: loadScans,
+  adopt: () => repositorySource.adoptScan(),
+  carry: () => explorer?.carry() ?? null,
+  replace: (loaded, carried) => {
+    explorer?.dispose();
+    explorer = buildExplorer(loaded, carried);
+  },
+  running: (on) => {
+    content.classList.toggle("rescanning", on);
+
+    if (scanState !== null) {
+      setScanState({ ...scanState, rescanning: on });
+    }
+  },
+  adopted: adoptedOrigin,
+  notify: (text) => footerView.notify(text),
+});
 
 async function start(): Promise<void> {
   explorer?.dispose();
   explorer = null;
+  setScanState(null);
   footerView.setCount("");
 
   const folder = await repositorySource.windowFolder();
@@ -102,14 +153,10 @@ async function start(): Promise<void> {
     return;
   }
 
-  explorer = showExplorer(
-    content,
-    loaded,
-    folder.split(/[\\/]/).filter(Boolean).pop() ?? folder,
-    (text) => footerView.setCount(text),
-    viewsSource,
-    (text) => footerView.notify(text),
-  );
+  adoptedOrigin(await repositorySource.adoptScan());
+  folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
+  explorer = buildExplorer(loaded, null);
+  await repositorySource.watchChanges();
 }
 
 document.addEventListener("keydown", (event) => {
@@ -129,6 +176,14 @@ void getCurrentWebviewWindow().listen(
   "check-updates",
   () => void checkForUpdates(),
 );
+
+void repositorySource.onRescan(() => void rescanner.run());
+
+void repositorySource.onChanges((changes) => {
+  if (scanState !== null) {
+    setScanState({ ...scanState, changes });
+  }
+});
 
 void repositorySource.onFolderAssigned(() => void start());
 

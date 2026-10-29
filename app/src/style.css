@@ -1368,3 +1368,74 @@ svg.i.chevron {
   font: inherit;
   cursor: pointer;
 }
+
+.footer .scan-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.footer .scan-line.amber {
+  color: var(--warn);
+}
+
+.footer .scan-count,
+.footer .rescan-button {
+  color: inherit;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.footer .scan-count {
+  border-color: transparent;
+  padding: 1px 0;
+  text-decoration: underline;
+}
+
+.footer .rescan-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.footer {
+  position: relative;
+}
+
+.changes-list {
+  position: absolute;
+  left: 12px;
+  bottom: 100%;
+  max-width: calc(100% - 24px);
+  max-height: 240px;
+  overflow: auto;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.changes-list[hidden] {
+  display: none;
+}
+
+.changes-row {
+  display: flex;
+  gap: 10px;
+  padding: 1px 0;
+}
+
+.change-kind {
+  min-width: 64px;
+  color: var(--muted);
+}
+
+.content.rescanning {
+  opacity: 0.5;
+  pointer-events: none;
+}
