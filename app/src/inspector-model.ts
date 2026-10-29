@@ -3,28 +3,16 @@ import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
 import type { EvidenceSection } from "./edge-evidence";
 import type { Disc, Finding } from "./health";
-import {
-  type CallerButton,
-  type CallerIndex,
-  type CallerKind,
-  callerButton,
-} from "./member-callers";
 import { createPicker, type PickerSource } from "./picker-model";
 import { type CheckState, checkState } from "./row-model";
 
 export type InspectorTab = "contents" | "findings" | "dependencies";
-
-export type Narrowed = {
-  title: string;
-  items: { id: string; names: string[] }[];
-};
 
 export type InspectorInputs = {
   scans: Scan[];
   modules: string[];
   disc: (id: string) => Disc;
   findings: (id: string) => Finding[];
-  callers: CallerIndex;
   onCanvas: (id: string) => boolean;
   expanded: ReadonlySet<string>;
   tab: InspectorTab;
@@ -33,14 +21,13 @@ export type InspectorInputs = {
   counts: (selection: NonNullable<Selection>) => Counts;
   filter: string;
   collapsed: ReadonlySet<string>;
-  narrowed: Narrowed | null;
 };
 
 export type Row =
   | { kind: "heading"; text: string }
   | { kind: "note"; text: string }
   | { kind: "none" }
-  | { kind: "class"; name: string; tags: string; button: CallerButton | null }
+  | { kind: "class"; name: string; tags: string }
   | { kind: "base"; text: string; hover: string }
   | {
       kind: "member";
@@ -49,7 +36,6 @@ export type Row =
       top: boolean;
       muted: boolean;
       hover: string;
-      button: CallerButton | null;
     }
   | { kind: "fold"; key: string; text: string; open: boolean; top: boolean }
   | { kind: "filter"; value: string; placeholder: string }
@@ -228,23 +214,16 @@ function classRows(
   inputs: InspectorInputs,
   edges: ScanEdge[],
 ): Row[] {
-  const button = (qualified: string, kind: CallerKind) =>
-    inputs.callers.known(module)
-      ? callerButton(kind, qualified, inputs.callers.of(module, qualified))
-      : null;
   const outline =
     member.bases !== undefined ||
     member.fields !== undefined ||
     member.methods !== undefined;
-  const kind = member.kind === "interface" ? "interface" : "class";
-
   if (!outline) {
     return [
       {
         kind: "class",
         name: member.name,
         tags: "outline not known",
-        button: button(member.name, kind),
       },
     ];
   }
@@ -255,7 +234,6 @@ function classRows(
       kind: "class",
       name: member.name,
       tags,
-      button: button(member.name, kind),
     },
   ];
 
@@ -283,7 +261,6 @@ function classRows(
       top: false,
       muted: false,
       hover: member.name,
-      button: null,
     });
   }
 
@@ -295,7 +272,6 @@ function classRows(
     top: false,
     muted,
     hover: member.name,
-    button: button(`${member.name}.${method.name}`, "method"),
   });
   const publicMethods = methods.filter((method) => method.private !== true);
   const privateMethods = methods.filter((method) => method.private === true);
@@ -320,10 +296,7 @@ function classRows(
 }
 
 function topRow(
-  module: string,
   member: ScanMember,
-  kind: CallerKind,
-  inputs: InspectorInputs,
   text: string,
   tags: string,
   muted: boolean,
@@ -335,9 +308,6 @@ function topRow(
     top: true,
     muted,
     hover: member.name,
-    button: inputs.callers.known(module)
-      ? callerButton(kind, member.name, inputs.callers.of(module, member.name))
-      : null,
   };
 }
 
@@ -389,13 +359,6 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
     members.filter((member) => kinds.includes(member.kind ?? ""));
   const rows: Row[] = [];
 
-  if (!inputs.callers.known(module)) {
-    rows.push({
-      kind: "note",
-      text: "Callers not known: this scan has no calls.",
-    });
-  }
-
   rows.push(
     ...sectionRows(
       module,
@@ -410,15 +373,7 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
       ofKind("function"),
       inputs,
       (member, muted) => [
-        topRow(
-          module,
-          member,
-          "function",
-          inputs,
-          signature(member),
-          tagText(member.tags),
-          muted,
-        ),
+        topRow(member, signature(member), tagText(member.tags), muted),
       ],
     ),
     ...sectionRows(
@@ -428,10 +383,7 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
       inputs,
       (member, muted) => [
         topRow(
-          module,
           member,
-          "constant",
-          inputs,
           member.value === undefined
             ? member.name
             : `${member.name} = ${member.value}`,
@@ -447,7 +399,7 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   if (types.length > 0) {
     rows.push(
       ...sectionRows(module, SECTIONS.types, types, inputs, (member, muted) => [
-        topRow(module, member, "type", inputs, member.name, "", muted),
+        topRow(member, member.name, "", muted),
       ]),
     );
   }
@@ -559,17 +511,13 @@ function pickerFor(
   direction: Direction,
   inputs: InspectorInputs,
 ) {
-  const narrowed = direction === "usedBy" ? inputs.narrowed : null;
-  const source: PickerSource = narrowed
-    ? { kind: "list", items: narrowed.items, title: narrowed.title }
-    : {
-        kind: selection.kind === "folder" ? "folder" : "module",
-        id: selection.id,
-        direction,
-      };
+  const source: PickerSource = {
+    kind: selection.kind === "folder" ? "folder" : "module",
+    id: selection.id,
+    direction,
+  };
 
   return {
-    narrowed,
     picker: createPicker({
       scans: inputs.scans,
       modules: inputs.modules,
@@ -583,12 +531,9 @@ function pickerFor(
 
 function pickerRows(
   picker: ReturnType<typeof createPicker>,
-  narrowed: Narrowed | null,
   inputs: InspectorInputs,
 ): Row[] {
-  const rows: Row[] = narrowed
-    ? [{ kind: "heading", text: narrowed.title }]
-    : [];
+  const rows: Row[] = [];
 
   if (picker.rowCount() === 0) {
     return [...rows, { kind: "none" }];
@@ -701,7 +646,7 @@ function dependencyRows(
     });
 
     if (open) {
-      rows.push(...pickerRows(item.picker, item.narrowed, inputs));
+      rows.push(...pickerRows(item.picker, inputs));
     }
   }
 

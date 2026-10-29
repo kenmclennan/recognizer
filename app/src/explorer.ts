@@ -28,7 +28,6 @@ import {
   emphasisedLines,
   type InspectorTab,
   inspectorContent,
-  type Narrowed,
 } from "./inspector-model";
 import { buildInspectorView } from "./inspector-view";
 import {
@@ -36,8 +35,8 @@ import {
   layoutOnMainThread,
   startLayoutWorker,
 } from "./layout-source";
-import { buildCallerIndex } from "./member-callers";
 import { createOpenModules } from "./open-modules";
+import { mountPanelResizers } from "./panel-resizer-view";
 import { buildRailView } from "./rail-view";
 import { repositorySource } from "./repository-source";
 import type { RowSpec } from "./row-view";
@@ -79,6 +78,10 @@ export function showExplorer(
   notify: (text: string) => void = () => {},
   carried: Carried | null = null,
   scheduler: Scheduler = timerScheduler,
+  storage: Pick<Storage, "getItem" | "setItem"> = {
+    getItem: () => null,
+    setItem: () => {},
+  },
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const root = buildTree(loaded.modules);
@@ -103,10 +106,8 @@ export function showExplorer(
   let inspectorTab: InspectorTab = "contents";
   let hovered: string | null = null;
   const folds = new Set<string>();
-  const callers = buildCallerIndex(scans);
   let layoutNotice: string | null = null;
   let pickerFilter = "";
-  let narrowed: Narrowed | null = null;
   const groupFlips = new Set<string>();
   let openView: string | null = null;
   let viewList: { name: string; text: string }[] = [];
@@ -231,7 +232,6 @@ export function showExplorer(
       }
 
       inspectorTab = tab;
-      narrowed = null;
       render();
     },
     toggleFold(key) {
@@ -252,16 +252,6 @@ export function showExplorer(
     hover(name) {
       hovered = name;
       renderCanvas();
-    },
-    openCallers(button) {
-      resetFilter();
-      inspectorOpen = true;
-      inspectorTab = "dependencies";
-      narrowed = {
-        title: button.pickerTitle,
-        items: button.callers.map((id) => ({ id, names: [button.name] })),
-      };
-      render();
     },
     putOnCanvas: putAllOn,
     takeOff: takeAllOff,
@@ -326,6 +316,12 @@ export function showExplorer(
 
   const body = el("div", "explorer");
 
+  mountPanelResizers(
+    body,
+    { tree: tree.element, inspector: inspector.element },
+    storage,
+  );
+
   canvas.element.append(bar.element, stale.element);
   body.append(rail.element, tree.element, canvas.element, inspector.element);
   container.replaceChildren(notices, body);
@@ -377,7 +373,6 @@ export function showExplorer(
 
   function resetList() {
     resetFilter();
-    narrowed = null;
   }
 
   function openTab(tab: InspectorTab) {
@@ -401,7 +396,6 @@ export function showExplorer(
 
     inspectorOpen = true;
     inspectorTab = tab;
-    narrowed = null;
     render();
   }
 
@@ -1111,7 +1105,6 @@ export function showExplorer(
         modules: loaded.modules,
         disc: context.disc,
         findings: health.findings,
-        callers,
         onCanvas: modules.isOpen,
         expanded: folds,
         tab: inspectorTab,
@@ -1125,7 +1118,6 @@ export function showExplorer(
         counts: graph.counts,
         filter: pickerFilter,
         collapsed: groupFlips,
-        narrowed,
       }),
       inspectorOpen,
     );

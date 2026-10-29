@@ -7,7 +7,6 @@ import {
   inspectorContent,
   type Row,
 } from "./inspector-model";
-import { buildCallerIndex } from "./member-callers";
 
 const scanOf = (
   members: ScanMember[] | undefined,
@@ -34,7 +33,6 @@ function inputsFor(
     modules: scans.flatMap((scan) => scan.modules.map((module) => module.id)),
     disc: () => "green",
     findings: () => [],
-    callers: buildCallerIndex(scans),
     onCanvas: () => false,
     expanded: new Set(),
     tab: "contents",
@@ -43,7 +41,6 @@ function inputsFor(
     counts: () => ({ uses: 0, usedBy: 0 }),
     filter: "",
     collapsed: new Set(),
-    narrowed: null,
     ...extra,
   };
 }
@@ -298,16 +295,16 @@ describe("missing data", () => {
     );
   });
 
-  it("notes that callers are not known when the scan has no calls", () => {
+  it("shows no callers note when the scan has no calls", () => {
     const rows = rowsOf(scanOf([fn("f", true)]));
 
-    expect(rows[0]).toEqual({
-      kind: "note",
-      text: "Callers not known: this scan has no calls.",
-    });
+    expect(rows[0]?.kind).toBe("heading");
+    expect(
+      rows.some((row) => "text" in row && /^Callers not known/.test(row.text)),
+    ).toBe(false);
   });
 
-  it("shows no note and a button when the scan has calls", () => {
+  it("gives members no button when the scan has calls", () => {
     const scan = scanOf([fn("f", true)], {
       modules: [
         { id: "pkg/m.py", kind: "module", members: [fn("f", true)] },
@@ -318,12 +315,7 @@ describe("missing data", () => {
     const rows = rowsOf(scan);
 
     expect(rows[0]?.kind).toBe("heading");
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        kind: "member",
-        button: expect.objectContaining({ text: "called by o" }),
-      }),
-    );
+    expect(rows.some((row) => "button" in row)).toBe(false);
   });
 });
 
@@ -688,7 +680,7 @@ describe("against fixtures/python", () => {
     const rows = rowsFor("shop/domain/order.py");
 
     expect(rows).toContainEqual(
-      expect.objectContaining({ kind: "class", name: "Order", button: null }),
+      expect.objectContaining({ kind: "class", name: "Order" }),
     );
     expect(hasText(rows, "id: str")).toBe(true);
     expect(hasText(rows, "items: int")).toBe(true);
@@ -698,7 +690,7 @@ describe("against fixtures/python", () => {
     expect(hasText(rows, "1 private constant")).toBe(true);
   });
 
-  it("shows new_order called by place once the fold is open", () => {
+  it("shows new_order once the fold is open", () => {
     const rows = rowsFor("shop/domain/order.py", [
       "shop/domain/order.py|functions",
     ]);
@@ -707,12 +699,11 @@ describe("against fixtures/python", () => {
       expect.objectContaining({
         kind: "member",
         text: "new_order(order_id) → Order",
-        button: expect.objectContaining({ text: "called by place" }),
       }),
     );
   });
 
-  it("shows Store as abstract with save called by refund, and Clock abstract", () => {
+  it("shows Store as abstract with and Clock abstract", () => {
     const rows = rowsFor("shop/ports/store.py");
 
     expect(rows).toContainEqual(
@@ -734,24 +725,15 @@ describe("against fixtures/python", () => {
         kind: "member",
         text: "save(order)",
         tags: "abstract",
-        button: expect.objectContaining({ text: "called by refund" }),
       }),
     );
   });
 
-  it("shows MemoryStore implements Store and save through Store", () => {
+  it("shows MemoryStore implements Store", () => {
     const rows = rowsFor("shop/adapters/memory_store.py");
 
     expect(rows).toContainEqual(
       expect.objectContaining({ kind: "base", text: "implements Store" }),
-    );
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        kind: "member",
-        button: expect.objectContaining({
-          text: "called by refund, through Store",
-        }),
-      }),
     );
   });
 
@@ -944,33 +926,17 @@ describe("dependencies tab", () => {
     expect(list[0]).toMatchObject({ chevron: { key: "a", open: false } });
   });
 
-  it("replaces only the Used by rows with the narrowed callers and keeps the full figure", () => {
+  it("always lists the full Used by set", () => {
     const content = inspectorContent(
       module("hub.py"),
       inputsFor([scan], {
         tab: "dependencies",
         counts: () => ({ uses: 3, usedBy: 7 }),
-        narrowed: {
-          title: "Callers of Hub",
-          items: [
-            { id: "caller.py", names: ["Hub"] },
-            { id: "gone.py", names: ["Hub"] },
-          ],
-        },
       }),
     );
     const usedBy = section(content.rows, "Used by 7");
 
     expect(content.tabs?.[2]?.label).toBe("Dependencies 10");
-    expect(usedBy[0]).toEqual({ kind: "heading", text: "Callers of Hub" });
-    expect(moduleRows(usedBy).map((row) => row.label)).toEqual([
-      "./",
-      "caller",
-    ]);
-    expect(usedBy).toContainEqual({
-      kind: "note",
-      text: "1 not in the scan",
-    });
-    expect(moduleRows(section(content.rows, "Uses 3")).length).toBe(5);
+    expect(usedBy.some((row) => row.kind === "heading")).toBe(false);
   });
 });

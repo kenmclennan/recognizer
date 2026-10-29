@@ -1,7 +1,6 @@
 import { el } from "./dom";
 import { icon } from "./icons";
 import type { InspectorContent, InspectorTab, Row } from "./inspector-model";
-import type { CallerButton } from "./member-callers";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 
@@ -12,7 +11,6 @@ export type InspectorActions = {
   toggleFold: (key: string) => void;
   openFile: (id: string) => void;
   hover: (name: string | null) => void;
-  openCallers: (button: CallerButton) => void;
   putOnCanvas: (ids: string[]) => void;
   takeOff: (ids: string[]) => void;
   pickName: (id: string) => void;
@@ -32,23 +30,6 @@ function disc(kind: string): HTMLElement {
 function hoverable(node: HTMLElement, name: string, actions: InspectorActions) {
   node.addEventListener("mouseenter", () => actions.hover(name));
   node.addEventListener("mouseleave", () => actions.hover(null));
-}
-
-function callerNode(button: CallerButton | null, actions: InspectorActions) {
-  if (button === null) {
-    return [];
-  }
-
-  const node = el("button", "cb", button.text);
-
-  node.type = "button";
-  node.title = button.title;
-  node.addEventListener("click", (event) => {
-    event.stopPropagation();
-    actions.openCallers(button);
-  });
-
-  return [node];
 }
 
 function evidenceNode(row: Extract<Row, { kind: "evidence" }>) {
@@ -91,11 +72,7 @@ function rowNode(row: Row, actions: InspectorActions): HTMLElement {
   if (row.kind === "class") {
     const node = el("div", "oc");
 
-    node.append(
-      row.name,
-      el("span", "t", row.tags),
-      ...callerNode(row.button, actions),
-    );
+    node.append(row.name, el("span", "t", row.tags));
     hoverable(node, row.name, actions);
 
     return node;
@@ -120,7 +97,7 @@ function rowNode(row: Row, actions: InspectorActions): HTMLElement {
       text.append(" ", el("span", "tag", row.tags));
     }
 
-    node.append(text, ...callerNode(row.button, actions));
+    node.append(text);
     hoverable(node, row.hover, actions);
 
     return node;
@@ -235,11 +212,20 @@ export function buildInspectorView(actions: InspectorActions): InspectorView {
         head.append(disc(content.header.disc));
       }
 
-      head.append(el("b", "", content.header.title));
+      const text = el("div", "ih-text");
+      const name = el("b", "ih-name", content.header.title);
+
+      name.title = content.header.title;
+      text.append(name);
 
       if (content.header.muted !== "") {
-        head.append(el("span", "muted", content.header.muted));
+        const folder = el("span", "muted ih-folder", content.header.muted);
+
+        folder.title = content.header.muted;
+        text.append(folder);
       }
+
+      head.append(text);
 
       close.type = "button";
       close.title = "Close the inspector";
@@ -249,7 +235,7 @@ export function buildInspectorView(actions: InspectorActions): InspectorView {
         event.stopPropagation();
         actions.close();
       });
-      head.append(el("span", "grow"), close);
+      head.append(close);
 
       const parts: HTMLElement[] = [head];
 

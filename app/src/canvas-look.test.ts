@@ -864,12 +864,12 @@ describe("the canvas against the prototype, in a real browser", () => {
       );
 
       it.skipIf(chrome === undefined)(
-        "dims unrelated boxes and frames to 35% and leaves related ones alone",
+        "dims unrelated boxes and frames to 60% and leaves related ones alone",
         () => {
           const { dimming } = r();
 
-          expect(dimming.unrelatedBox?.opacity).toBe("0.35");
-          expect(dimming.unrelatedFrame?.opacity).toBe("0.35");
+          expect(dimming.unrelatedBox?.opacity).toBe("0.6");
+          expect(dimming.unrelatedFrame?.opacity).toBe("0.6");
           expect(dimming.relatedBox?.opacity).toBe("1");
           expect(dimming.relatedFrame?.opacity).toBe("1");
           expect(dimming.nothingSelected?.opacity).toBe("1");
