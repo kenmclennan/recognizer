@@ -80,28 +80,37 @@ def tags_of(function: Function, protocol: bool) -> list[str]:
     return [tag for tag in TAG_ORDER if tag in found]
 
 
-def parameter_names(function: Function, drop_first: bool) -> list[str]:
+def parameter(argument: ast.arg) -> dict:
+    found = {"name": argument.arg}
+
+    if argument.annotation is not None:
+        found["type"] = ast.unparse(argument.annotation)
+
+    return found
+
+
+def parameters(function: Function, drop_first: bool) -> list[dict]:
     arguments = function.args
-    positional = [a.arg for a in [*arguments.posonlyargs, *arguments.args]]
+    positional = [*arguments.posonlyargs, *arguments.args]
 
     if drop_first and positional:
         positional = positional[1:]
 
-    names = list(positional)
+    found = list(positional)
 
     if arguments.vararg:
-        names.append(arguments.vararg.arg)
+        found.append(arguments.vararg)
 
-    names.extend(a.arg for a in arguments.kwonlyargs)
+    found.extend(arguments.kwonlyargs)
 
     if arguments.kwarg:
-        names.append(arguments.kwarg.arg)
+        found.append(arguments.kwarg)
 
-    return names
+    return [parameter(argument) for argument in found]
 
 
 def callable_outline(function: Function, drop_first: bool, protocol: bool) -> dict:
-    outline = {"params": parameter_names(function, drop_first)}
+    outline = {"params": parameters(function, drop_first)}
 
     if function.returns is not None:
         outline["returns"] = ast.unparse(function.returns)
@@ -172,12 +181,12 @@ def class_fields(node: ast.ClassDef) -> list[dict]:
     fields = []
     seen = set()
 
-    for _, _, name, annotation in sorted(found, key=lambda f: f[:2]):
+    for line, _, name, annotation in sorted(found, key=lambda f: f[:2]):
         if name in seen:
             continue
 
         seen.add(name)
-        field = {"name": name}
+        field = {"name": name, "line": line, "private": is_private(name)}
 
         if annotation is not None:
             field["type"] = ast.unparse(annotation)

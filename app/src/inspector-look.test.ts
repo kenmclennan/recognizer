@@ -35,8 +35,8 @@ import { buildCallerIndex } from ${JSON.stringify(join(SRC, "member-callers.ts")
 const scan = {
   modules: [
     { id: "p/m.py", kind: "module", members: [
-      { name: "C", kind: "class", exported: true, bases: ["Exception", "Base"], fields: [{ name: "a", type: "int" }],
-        methods: [{ name: "go", params: ["x"], returns: "int" }, { name: "_h", params: [], private: true }] },
+      { name: "C", kind: "class", exported: true, bases: ["Exception", "Base"], fields: [{ name: "a", type: "int", line: 2, private: false }],
+        methods: [{ name: "go", params: [{ name: "x" }], returns: "int" }, { name: "_h", params: [], private: true }] },
       { name: "f", kind: "function", exported: true, params: [] },
       { name: "_g", kind: "function", exported: false, params: [] },
     ] },

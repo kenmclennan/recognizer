@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "scanner": { "name": "recognizer-scan-typescript", "version": "0.1.0" },
   "commit": null,
   "modules": [
@@ -22,20 +22,21 @@
           "exported": true,
           "bases": [],
           "fields": [
-            { "name": "ids", "type": "Id[]" },
-            { "name": "size", "type": "number" }
+            { "name": "ids", "type": "Id[]", "line": 6, "private": false },
+            { "name": "size", "type": "number", "line": 7, "private": false },
+            { "name": "cursor", "line": 8, "private": true }
           ],
           "methods": [
             {
               "name": "grow",
-              "line": 9,
+              "line": 10,
               "params": [],
               "private": true,
               "returns": "number"
             },
             {
               "name": "count",
-              "line": 13,
+              "line": 14,
               "params": [],
               "private": false,
               "returns": "number"
@@ -45,7 +46,7 @@
         {
           "name": "makeBase",
           "kind": "function",
-          "line": 18,
+          "line": 19,
           "exported": true,
           "params": [],
           "returns": "BaseStore"
@@ -62,7 +63,7 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": ["source"]
+          "params": [{ "name": "source" }]
         }
       ]
     },
@@ -99,7 +100,7 @@
           "kind": "function",
           "line": 9,
           "exported": true,
-          "params": ["p"]
+          "params": [{ "name": "p", "type": "string" }]
         },
         {
           "name": "fresh",
@@ -160,7 +161,7 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": ["store", "id"],
+          "params": [{ "name": "store" }, { "name": "id" }],
           "returns": "void"
         }
       ]
@@ -181,7 +182,7 @@
             {
               "name": "save",
               "line": 2,
-              "params": ["id"],
+              "params": [{ "name": "id", "type": "Id" }],
               "private": false,
               "returns": "void",
               "tags": ["abstract"]
@@ -422,13 +423,13 @@
     {
       "from": "api/src/base-store.ts::BaseStore.count",
       "to": "api/src/base-store.ts::BaseStore.grow",
-      "line": 14,
+      "line": 15,
       "how": "call"
     },
     {
       "from": "api/src/base-store.ts::makeBase",
       "to": "api/src/base-store.ts::BaseStore",
-      "line": 19,
+      "line": 20,
       "how": "construct"
     },
     {

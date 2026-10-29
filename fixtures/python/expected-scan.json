@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": null,
   "modules": [
@@ -22,7 +22,12 @@
           "bases": ["Store"],
           "fields": [],
           "methods": [
-            { "name": "save", "line": 7, "params": ["order"], "private": false }
+            {
+              "name": "save",
+              "line": 7,
+              "params": [{ "name": "order" }],
+              "private": false
+            }
           ]
         }
       ]
@@ -59,7 +64,7 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": ["source"]
+          "params": [{ "name": "source" }]
         }
       ]
     },
@@ -73,7 +78,7 @@
           "kind": "function",
           "line": 5,
           "exported": true,
-          "params": ["order_id"]
+          "params": [{ "name": "order_id" }]
         }
       ]
     },
@@ -87,7 +92,7 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": ["order", "store"]
+          "params": [{ "name": "order" }, { "name": "store" }]
         }
       ]
     },
@@ -120,7 +125,9 @@
           "line": 1,
           "exported": true,
           "bases": [],
-          "fields": [{ "name": "name", "type": "str" }],
+          "fields": [
+            { "name": "name", "line": 2, "private": false, "type": "str" }
+          ],
           "methods": []
         }
       ]
@@ -144,20 +151,21 @@
           "exported": true,
           "bases": [],
           "fields": [
-            { "name": "id", "type": "str" },
-            { "name": "items", "type": "int" }
+            { "name": "id", "line": 10, "private": false, "type": "str" },
+            { "name": "items", "line": 11, "private": false, "type": "int" },
+            { "name": "_note", "line": 12, "private": true, "type": "str" }
           ],
           "methods": [
             {
               "name": "total",
-              "line": 13,
+              "line": 14,
               "params": [],
               "private": false,
               "returns": "int"
             },
             {
               "name": "_sum",
-              "line": 16,
+              "line": 17,
               "params": [],
               "private": true,
               "returns": "int"
@@ -167,23 +175,23 @@
         {
           "name": "new_order",
           "kind": "function",
-          "line": 20,
+          "line": 21,
           "exported": false,
-          "params": ["order_id"],
+          "params": [{ "name": "order_id" }],
           "returns": "Order"
         },
         {
           "name": "_build",
           "kind": "function",
-          "line": 24,
+          "line": 25,
           "exported": false,
-          "params": ["order_id"],
+          "params": [{ "name": "order_id", "type": "str" }],
           "returns": "Order"
         },
         {
           "name": "_private",
           "kind": "function",
-          "line": 28,
+          "line": 29,
           "exported": false,
           "params": []
         }
@@ -211,7 +219,7 @@
             {
               "name": "save",
               "line": 6,
-              "params": ["order"],
+              "params": [{ "name": "order" }],
               "private": false,
               "tags": ["abstract"]
             }
@@ -394,19 +402,19 @@
     {
       "from": "shop/domain/order.py::Order.total",
       "to": "shop/domain/order.py::Order._sum",
-      "line": 14,
+      "line": 15,
       "how": "call"
     },
     {
       "from": "shop/domain/order.py::_build",
       "to": "shop/domain/order.py::Order",
-      "line": 25,
+      "line": 26,
       "how": "construct"
     },
     {
       "from": "shop/domain/order.py::new_order",
       "to": "shop/domain/order.py::_build",
-      "line": 21,
+      "line": 22,
       "how": "call"
     },
     {

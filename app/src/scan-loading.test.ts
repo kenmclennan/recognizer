@@ -4,7 +4,7 @@ import type { ScanReport } from "./scan-report";
 
 function scanText(ids: string[], overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
-    schema_version: 2,
+    schema_version: 3,
     modules: ids.map((id) => ({ id, language: "python", kind: "module" })),
     edges: [],
     foreign: [],
@@ -45,7 +45,23 @@ describe("loadScans", () => {
 
     expect(loaded.modules).toEqual(["a.py"]);
     expect(loaded.notices).toEqual([
-      "scan.typescript.json has schema_version 9; this viewer reads 2",
+      "scan.typescript.json has schema_version 9; this viewer reads 3",
+    ]);
+  });
+
+  it("refuses a version 2 scan, which the previous scanners wrote", () => {
+    const loaded = loadScans(
+      scanned([
+        {
+          file: "scan.python.json",
+          text: scanText(["a.py"], { schema_version: 2 }),
+        },
+      ]),
+    );
+
+    expect(loaded.modules).toEqual([]);
+    expect(loaded.notices).toEqual([
+      "scan.python.json has schema_version 2; this viewer reads 3",
     ]);
   });
 

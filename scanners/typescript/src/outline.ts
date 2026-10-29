@@ -4,15 +4,22 @@ export const VALUE_LIMIT = 40;
 
 export type Tag = "property" | "static" | "abstract" | "async";
 
+export interface ParamOutline {
+  name: string;
+  type?: string;
+}
+
 export interface FieldOutline {
   name: string;
   type?: string;
+  line: number;
+  private: boolean;
 }
 
 export interface MethodOutline {
   name: string;
   line: number;
-  params: string[];
+  params: ParamOutline[];
   returns?: string;
   private: boolean;
   tags?: Tag[];
@@ -22,7 +29,7 @@ export interface MemberOutline {
   bases?: string[];
   fields?: FieldOutline[];
   methods?: MethodOutline[];
-  params?: string[];
+  params?: ParamOutline[];
   returns?: string;
   tags?: Tag[];
   value?: string;
@@ -67,20 +74,31 @@ function lineOf(sf: ts.SourceFile, node: ts.Node): number {
   return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 }
 
-function parameterNames(
-  parameters: readonly ts.ParameterDeclaration[],
+function parameterName(
+  parameter: ts.ParameterDeclaration,
   sf: ts.SourceFile,
-): string[] {
-  return parameters
+): string {
+  return ts.isIdentifier(parameter.name)
+    ? parameter.name.text
+    : collapse(parameter.name.getText(sf));
+}
+
+function parameters(
+  list: readonly ts.ParameterDeclaration[],
+  sf: ts.SourceFile,
+): ParamOutline[] {
+  return list
     .filter(
       (parameter) =>
         !(ts.isIdentifier(parameter.name) && parameter.name.text === "this"),
     )
-    .map((parameter) =>
-      ts.isIdentifier(parameter.name)
-        ? parameter.name.text
-        : collapse(parameter.name.getText(sf)),
-    );
+    .map((parameter) => {
+      const name = parameterName(parameter, sf);
+
+      return parameter.type
+        ? { name, type: collapse(parameter.type.getText(sf)) }
+        : { name };
+    });
 }
 
 function tagsOf(node: ts.Node, extra: Tag[] = []): Tag[] {
@@ -106,7 +124,7 @@ export function callableOutline(
   sf: ts.SourceFile,
 ): MemberOutline {
   const outline: MemberOutline = {
-    params: parameterNames(node.parameters, sf),
+    params: parameters(node.parameters, sf),
   };
 
   if (node.type) {
@@ -148,7 +166,7 @@ function methodOutline(
   const method: MethodOutline = {
     name: propertyLabel(node.name, sf),
     line: lineOf(sf, node.name),
-    params: parameterNames(node.parameters, sf),
+    params: parameters(node.parameters, sf),
     private: isPrivate(node, node.name),
   };
 
@@ -170,7 +188,7 @@ function constructorOutline(
   return {
     name: "constructor",
     line: lineOf(sf, node),
-    params: parameterNames(node.parameters, sf),
+    params: parameters(node.parameters, sf),
     private: isPrivate(node, undefined),
   };
 }
@@ -216,13 +234,32 @@ export function typeOutline(
   const fields: FieldOutline[] = [];
   const methods: MethodOutline[] = [];
 
-  const field = (name: string, type: ts.TypeNode | undefined) => {
-    fields.push(type ? { name, type: collapse(type.getText(sf)) } : { name });
+  const field = (
+    name: string,
+    type: ts.TypeNode | undefined,
+    line: number,
+    isPrivateField: boolean,
+  ) => {
+    fields.push(
+      type
+        ? {
+            name,
+            type: collapse(type.getText(sf)),
+            line,
+            private: isPrivateField,
+          }
+        : { name, line, private: isPrivateField },
+    );
   };
 
   for (const member of node.members) {
     if (ts.isPropertyDeclaration(member) || ts.isPropertySignature(member)) {
-      field(propertyLabel(member.name, sf), member.type);
+      field(
+        propertyLabel(member.name, sf),
+        member.type,
+        lineOf(sf, member.name),
+        ts.isPropertyDeclaration(member) && isPrivate(member, member.name),
+      );
     } else if (
       ts.isMethodDeclaration(member) ||
       ts.isMethodSignature(member) ||
@@ -235,10 +272,10 @@ export function typeOutline(
       for (const parameter of member.parameters) {
         if ((ts.getModifiers(parameter) ?? []).length > 0) {
           field(
-            ts.isIdentifier(parameter.name)
-              ? parameter.name.text
-              : collapse(parameter.name.getText(sf)),
+            parameterName(parameter, sf),
             parameter.type,
+            lineOf(sf, parameter.name),
+            isPrivate(parameter, undefined),
           );
         }
       }

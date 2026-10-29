@@ -1,0 +1,33 @@
+{
+  "schema_version": 3,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": "a1b2c3d",
+  "modules": [
+    {
+      "id": "shop/order.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "C",
+          "kind": "class",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "fields": [
+            {
+              "name": "x",
+              "line": 2
+            }
+          ],
+          "methods": []
+        }
+      ]
+    }
+  ],
+  "edges": [],
+  "foreign": []
+}

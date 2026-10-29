@@ -71,7 +71,7 @@ describe("module contents ordering and folds", () => {
   const members: ScanMember[] = [
     { name: "_hidden", kind: "constant", exported: false, value: "1" },
     fn("_a", false),
-    fn("b", true, { params: ["x"], returns: "int" }),
+    fn("b", true, { params: [{ name: "x" }], returns: "int" }),
     { name: "K", kind: "constant", exported: true, value: "30000" },
     { name: "Alias", kind: "type", exported: true },
   ];
@@ -146,10 +146,17 @@ describe("signatures", () => {
     kind: "class",
     exported: true,
     bases: [],
-    fields: [{ name: "a", type: "int" }, { name: "b" }],
+    fields: [
+      { name: "a", type: "int", line: 2, private: false },
+      { name: "b", line: 3, private: false },
+    ],
     methods: [
-      { name: "plain", params: ["x", "y"], returns: "int" },
-      { name: "noReturn", params: ["x"] },
+      {
+        name: "plain",
+        params: [{ name: "x" }, { name: "y", type: "int" }],
+        returns: "int",
+      },
+      { name: "noReturn", params: [{ name: "x" }] },
       { name: "prop", params: [], returns: "str", tags: ["property"] },
       { name: "s", params: [], tags: ["static", "async"] },
       { name: "bare" },
