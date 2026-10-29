@@ -4,6 +4,7 @@ use tauri::{
     WindowEvent,
 };
 
+pub mod changes;
 pub mod fs_safe;
 mod launch;
 pub mod repository;
@@ -11,17 +12,41 @@ pub mod source_line;
 pub mod views;
 pub mod windows;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use changes::{Baseline, Changes, ScanOrigin};
 use launch::{launch_for, Launch};
 use repository::ScanReport;
 use tauri_plugin_dialog::DialogExt;
 use windows::{canonical_folder, cascade_from, label_number, pick_window, Claim, WindowState};
 
 const APP_TITLE: &str = "Recognizer";
+const CHANGES_POLL: Duration = Duration::from_secs(2);
+
+#[derive(Default)]
+struct WindowBaseline {
+    pending: Option<Baseline>,
+    current: Option<Baseline>,
+    last: Changes,
+}
+
+#[derive(Default)]
+struct ScanBaselines(Mutex<HashMap<String, WindowBaseline>>);
+
+impl ScanBaselines {
+    fn with<T>(
+        &self,
+        label: &str,
+        run: impl FnOnce(&mut WindowBaseline) -> T,
+    ) -> Result<T, String> {
+        let mut windows = self.0.lock().map_err(|error| error.to_string())?;
+
+        Ok(run(windows.entry(label.to_string()).or_default()))
+    }
+}
 
 fn open_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<WebviewWindow> {
     let anchor = cascade_anchor(app);
@@ -200,6 +225,11 @@ fn handle_menu(app: &AppHandle, event: MenuEvent) {
                 let _ = app.emit_to(label, "check-updates", ());
             }
         }
+        "rescan" => {
+            if let Some(label) = focused_label(app) {
+                let _ = app.emit_to(label, "rescan", ());
+            }
+        }
         "quit" => app.exit(0),
         _ => {}
     }
@@ -225,6 +255,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     )?;
     let new_window = MenuItem::with_id(app, "new-window", "New Window", true, Some("CmdOrCtrl+N"))?;
     let open = MenuItem::with_id(app, "open-folder", "Open...", true, Some("CmdOrCtrl+O"))?;
+    let rescan = MenuItem::with_id(app, "rescan", "Rescan", true, Some("CmdOrCtrl+R"))?;
     let check_updates = MenuItem::with_id(
         app,
         "check-updates",
@@ -245,6 +276,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let file = SubmenuBuilder::new(app, "File")
         .item(&new_window)
         .item(&open)
+        .item(&rescan)
         .separator()
         .close_window()
         .build()?;
@@ -314,11 +346,106 @@ async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport
         .map_err(|error| error.to_string())?;
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
+    let label = window_label(&window);
+
     tauri::async_runtime::spawn_blocking(move || {
-        repository::scan(&folder, &shell, &repository::config_file_in(&config_dir))
+        let baseline = changes::take_baseline(&folder);
+
+        app.state::<ScanBaselines>()
+            .with(&label, |window| window.pending = Some(baseline))?;
+
+        Ok(repository::scan(
+            &folder,
+            &shell,
+            &repository::config_file_in(&config_dir),
+        ))
     })
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+fn adopt_scan(app: AppHandle, window: WebviewWindow) -> Result<ScanOrigin, String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+
+    app.state::<ScanBaselines>().with(&label, |state| {
+        let pending = state
+            .pending
+            .take()
+            .ok_or_else(|| "no scan is waiting to be adopted".to_string())?;
+        let adopted = changes::adopt(&pending, &folder);
+        let origin = changes::origin_of(&adopted);
+
+        state.current = Some(adopted);
+        state.last = Changes::default();
+
+        Ok(origin)
+    })?
+}
+
+#[tauri::command]
+fn watch_changes(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+
+    let first = WATCHING_CHANGES
+        .lock()
+        .map_err(|error| error.to_string())?
+        .get_or_insert_with(HashSet::new)
+        .insert(label.clone());
+
+    if !first {
+        return Ok(());
+    }
+
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(CHANGES_POLL);
+
+            if app.get_webview_window(&label).is_none() {
+                break;
+            }
+
+            let baseline = app
+                .state::<ScanBaselines>()
+                .with(&label, |state| state.current.clone())
+                .ok()
+                .flatten();
+            let Some(baseline) = baseline else {
+                continue;
+            };
+            let found = changes::compare(&folder, &baseline);
+            let publish = app
+                .state::<ScanBaselines>()
+                .with(&label, |state| {
+                    let unchanged = state.current.is_none() || state.last == found;
+
+                    if !unchanged {
+                        state.last = found.clone();
+                    }
+
+                    !unchanged
+                })
+                .unwrap_or(false);
+
+            if publish && app.emit_to(&label, "changes-changed", &found).is_err() {
+                break;
+            }
+        }
+
+        if let Ok(mut watching) = WATCHING_CHANGES.lock() {
+            if let Some(set) = watching.as_mut() {
+                set.remove(&label);
+            }
+        }
+
+        if let Ok(mut windows) = app.state::<ScanBaselines>().0.lock() {
+            windows.remove(&label);
+        }
+    });
+
+    Ok(())
 }
 
 fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf, String> {
@@ -328,6 +455,7 @@ fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf
 }
 
 static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 #[tauri::command]
 fn list_views(app: AppHandle, window: WebviewWindow) -> Result<views::ViewList, String> {
@@ -474,12 +602,14 @@ pub fn run() {
             let handle = app.handle().clone();
 
             app.manage(WindowState::default());
+            app.manage(ScanBaselines::default());
             app.set_menu(build_menu(&handle)?)?;
             open_folder(&handle, initial.as_deref())?;
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            adopt_scan,
             choose_folder,
             list_views,
             read_source_line,
@@ -488,6 +618,7 @@ pub fn run() {
             scan_folder,
             scans_at,
             view_path,
+            watch_changes,
             watch_views,
             window_folder,
             write_current_view,

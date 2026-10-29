@@ -54,12 +54,18 @@ import { ancestorFolders, buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
-import { createHistory } from "./view-history";
+import { createHistory, type History } from "./view-history";
 import { stepsFor } from "./view-steps";
 import { inertViews, type ViewsPort } from "./views-port";
 
+export type Carried = {
+  history: History<Snapshot>;
+  snapshot: Snapshot;
+};
+
 export type Explorer = {
   toggleTree: () => void;
+  carry: () => Carried;
   dispose: () => void;
 };
 
@@ -70,6 +76,7 @@ export function showExplorer(
   onCount: (text: string) => void = () => {},
   views: ViewsPort = inertViews,
   notify: (text: string) => void = () => {},
+  carried: Carried | null = null,
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const root = buildTree(loaded.modules);
@@ -112,13 +119,15 @@ export function showExplorer(
     { report: StaleReport; comparing: boolean }
   >();
   const dismissed = new Set<string>();
-  const history = createHistory<Snapshot>({
-    view: null,
-    modules: [],
-    folded: [],
-    focus: null,
-    selection: null,
-  });
+  const history =
+    carried?.history ??
+    createHistory<Snapshot>({
+      view: null,
+      modules: [],
+      folded: [],
+      focus: null,
+      selection: null,
+    });
   const writeCurrent = latestWins(views.writeCurrent);
 
   const context = {
@@ -749,6 +758,36 @@ export function showExplorer(
     await compare(name, view, renames, token);
   }
 
+  async function recompare(name: string) {
+    const text = viewList.find((view) => view.name === name)?.text;
+    const parsed = text === undefined ? null : parseViewFile(text);
+
+    if (
+      text === undefined ||
+      parsed === null ||
+      !parsed.ok ||
+      openView !== name
+    ) {
+      return;
+    }
+
+    const token = ++openToken;
+    const missingPicks = resolveView(parsed.view, scans).unresolved.filter(
+      (entry) => entry.kind === "pick",
+    );
+    const renames =
+      parsed.view.commit !== null && missingPicks.length > 0
+        ? await views.renamesSince(parsed.view.commit).catch(() => [])
+        : [];
+
+    if (token !== openToken) {
+      return;
+    }
+
+    viewTexts.set(name, text);
+    await compare(name, parsed.view, renames, token);
+  }
+
   async function compare(
     name: string,
     view: Parameters<typeof staleReport>[0]["view"],
@@ -1093,15 +1132,65 @@ export function showExplorer(
     }
   }
 
+  function resume(snap: Snapshot) {
+    const known = new Set(loaded.modules);
+    const isFolder = (id: string) =>
+      loaded.modules.some((module) => module.startsWith(`${id}/`));
+    const selection = snap.selection;
+    const gone = snap.modules.filter((id) => !known.has(id)).length;
+
+    for (const id of snap.modules) {
+      modules.open(id);
+    }
+
+    state.restore(
+      snap.folded.filter(isFolder),
+      snap.focus !== null && isFolder(snap.focus) ? snap.focus : null,
+    );
+    openView = snap.view;
+    rebuild();
+
+    if (
+      selection !== null &&
+      (selection.kind === "edge" ||
+        (selection.kind === "module"
+          ? known.has(selection.id)
+          : isFolder(selection.id)))
+    ) {
+      state.select(selection);
+    }
+
+    state.reconcile(presenceOf(graph));
+    reveal(state.selection());
+    render();
+    record();
+
+    if (gone > 0) {
+      notify(
+        `Rescanned: ${gone} ${gone === 1 ? "module" : "modules"} on the canvas ${gone === 1 ? "is" : "are"} gone`,
+      );
+    }
+  }
+
   renderNotices();
-  changed();
+
+  if (carried === null) {
+    changed();
+  } else {
+    resume(carried.snapshot);
+  }
 
   const stopWatching = views.onChanged(() => void onViewsChanged());
 
-  void loadViewList();
+  void loadViewList().then(() => {
+    if (carried?.snapshot.view != null) {
+      void recompare(carried.snapshot.view);
+    }
+  });
 
   return {
     toggleTree,
+    carry: () => ({ history, snapshot: snapshot() }),
     dispose() {
       stopWatching();
       bar.dispose();

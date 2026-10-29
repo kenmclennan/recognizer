@@ -177,10 +177,16 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, read a line of and name the folder a window holds, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
+          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, read a line of and name the folder a window holds, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
+          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
+        },
+        {
+          "description": "Enables the adopt_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-adopt-scan",
+          "markdownDescription": "Enables the adopt_scan command without any pre-configured scope."
         },
         {
           "description": "Enables the choose_folder command without any pre-configured scope.",
@@ -231,6 +237,12 @@
           "markdownDescription": "Enables the view_path command without any pre-configured scope."
         },
         {
+          "description": "Enables the watch_changes command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-watch-changes",
+          "markdownDescription": "Enables the watch_changes command without any pre-configured scope."
+        },
+        {
           "description": "Enables the watch_views command without any pre-configured scope.",
           "type": "string",
           "const": "allow-watch-views",
@@ -253,6 +265,12 @@
           "type": "string",
           "const": "allow-write-view",
           "markdownDescription": "Enables the write_view command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the adopt_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-adopt-scan",
+          "markdownDescription": "Denies the adopt_scan command without any pre-configured scope."
         },
         {
           "description": "Denies the choose_folder command without any pre-configured scope.",
@@ -301,6 +319,12 @@
           "type": "string",
           "const": "deny-view-path",
           "markdownDescription": "Denies the view_path command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the watch_changes command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-watch-changes",
+          "markdownDescription": "Denies the watch_changes command without any pre-configured scope."
         },
         {
           "description": "Denies the watch_views command without any pre-configured scope.",

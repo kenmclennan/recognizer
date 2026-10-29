@@ -43,6 +43,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Freshness | Whether the cached scans can be used: they were taken at the current commit with a clean working tree. Otherwise `recognizer scan` runs first. |
 | Scanner | A language's standalone command that emits a scan. |
 | Scan | The document a scanner emits: modules, edges and foreign nodes for one language. |
+| Baseline | What the viewer records of a folder just before a scan runs: each scanned file's time, size and content hash, plus the commit and branch. Changed since compares the folder against it. |
+| Changed since | The viewer's report of what differs from the scan on screen: an edited, added or deleted file the scanners read, or a moved commit or branch. An edit undone again does not count. |
+| Rescan | Running the scan again on request, from the footer, File > Rescan or Cmd-R. It keeps the view state; nothing rescans on its own. |
 | Cache | A repository's gitignored `.recognizer/cache/`, where scans and overlays are written. |
 
 ## The viewer
