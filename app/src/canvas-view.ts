@@ -1,3 +1,4 @@
+import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
 import { isEditable, type KeyAction, keyAction } from "./canvas-keys";
 import type { Point, Rect } from "./canvas-layout";
 import type { Scene } from "./canvas-scene";
@@ -114,7 +115,10 @@ function frameText(rect: Rect, label: string, figure: string): SVGElement {
 
 const points = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
 
-export function buildCanvasView(actions: CanvasActions): CanvasView {
+export function buildCanvasView(
+  actions: CanvasActions,
+  scheduler: Scheduler = timerScheduler,
+): CanvasView {
   const element = el("main", "canvas");
   const stage = el("div", "stage");
   const surface = svg("svg", { class: "surface" });
@@ -131,7 +135,17 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     takeOff: () => actions.takeOff(),
   });
 
+  const hover = createBarHover(scheduler, (visible) =>
+    selectionBar.element.classList.toggle("away", !visible),
+  );
+
+  selectionBar.element.classList.add("away");
+  selectionBar.element.addEventListener("pointerenter", () => hover.enter());
+  selectionBar.element.addEventListener("pointerleave", () => hover.leave());
+
   let props: CanvasProps | null = null;
+  let choosing = false;
+  let shownSelection: string | null = null;
   let viewport: Viewport = { x: 0, y: 0, k: 1 };
   let hadContent = false;
   let legendOpen = false;
@@ -517,6 +531,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
   function choose(event: MouseEvent, target: { kind: string; id: string }) {
     pointerAnchor =
       event.type === "contextmenu" ? canvasPoint(localPoint(event)) : null;
+    choosing = true;
+    hover.enter();
 
     if (target.kind === "edge") {
       actions.select({ kind: "edge", id: target.id });
@@ -525,6 +541,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     } else {
       actions.select({ kind: "module", id: target.id });
     }
+
+    choosing = false;
   }
 
   surface.addEventListener("pointerdown", (event) => {
@@ -540,7 +558,24 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
     surface.setPointerCapture(event.pointerId);
   });
 
+  surface.addEventListener("pointerleave", () => hover.leave());
+
   surface.addEventListener("pointermove", (event) => {
+    const selection = props?.selection;
+    const over = targetOf(event);
+
+    if (
+      selection &&
+      selection.kind !== "edge" &&
+      over &&
+      over.kind !== "edge" &&
+      over.id === selection.id
+    ) {
+      hover.enter();
+    } else {
+      hover.leave();
+    }
+
     if (!drag) {
       return;
     }
@@ -646,10 +681,8 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
       } else {
         actions.select(null);
       }
-    } else if (action === "uses") {
-      actions.openTab("uses");
-    } else if (action === "used-by") {
-      actions.openTab("usedBy");
+    } else if (action === "dependencies") {
+      actions.openTab("dependencies");
     } else if (action === "contents") {
       actions.openContents();
     } else if (action === "focus") {
@@ -736,6 +769,15 @@ export function buildCanvasView(actions: CanvasActions): CanvasView {
         pointerAnchor = null;
       }
 
+      const selected = next.bar
+        ? `${next.selection?.kind}:${next.selection?.id}`
+        : null;
+
+      if (selected === null || (selected !== shownSelection && !choosing)) {
+        hover.reset();
+      }
+
+      shownSelection = selected;
       applySelection();
       selectionBar.render(next.bar);
       refreshChrome();

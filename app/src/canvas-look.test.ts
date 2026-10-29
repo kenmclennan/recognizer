@@ -61,8 +61,9 @@ window.addEventListener("error", (event) => {
 });
 const TOKENS = ${JSON.stringify(TOKENS)};
 const calls = [];
+let selectHook = null;
 const actions = {
-  find() {}, select() {}, clear: () => calls.push("clear"), setShowInferred() {},
+  find() {}, select: (selection) => selectHook && selectHook(selection), clear: () => calls.push("clear"), setShowInferred() {},
   measure: (t) => t.length * 7,
   takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"), openContents: () => calls.push("contents"),
   toggleFocus: () => calls.push("focus"), openTab: (t) => calls.push("tab:" + t),
@@ -90,7 +91,7 @@ const scene = {
   ],
   arrows: [arrow("plain", false), arrow("private", false), arrow("inferred", false), arrow("hollow", true)],
 };
-const bar = (over) => ({ kind: "folder", uses: 2, usedBy: 0, files: { open: 1, held: 2 }, focused: false, folded: false, inspectorTab: null, ...over });
+const bar = (over) => ({ kind: "folder", dependencies: 2, files: { open: 1, held: 2 }, focused: false, folded: false, inspectorTab: null, ...over });
 const props = (over) => ({
   scene, selection: null, highlight: null, bar: null, titles: new Map(),
   open: 3, total: 5, showInferred: true, notice: null, ...over,
@@ -99,7 +100,16 @@ const props = (over) => ({
 const wrap = document.createElement("div");
 wrap.style.cssText = "position: relative; width: 900px; height: 600px; display: flex;";
 document.body.append(wrap);
-const canvas = buildCanvasView(actions);
+const clock = { now: 0, next: 0, tasks: new Map() };
+const scheduler = {
+  after(fn, ms) { clock.next += 1; clock.tasks.set(clock.next, { at: clock.now + ms, fn }); return clock.next; },
+  cancel(handle) { clock.tasks.delete(handle); },
+};
+const advance = (ms) => {
+  clock.now += ms;
+  for (const [id, task] of [...clock.tasks]) if (task.at <= clock.now) { clock.tasks.delete(id); task.fn(); }
+};
+const canvas = buildCanvasView(actions, scheduler);
 canvas.element.style.flex = "1";
 wrap.append(canvas.element);
 
@@ -218,14 +228,19 @@ result.barFolder = {
 };
 const clickBar = (aria) => q('.selection-bar [aria-label="' + aria + '"]').click();
 calls.length = 0;
-clickBar("Fold into one box");
-clickBar("Focus on this folder");
+clickBar("Fold into one box (Z)");
+clickBar("Only this folder (F)");
 clickBar("Take off the canvas (Backspace)");
-[...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Uses")).click();
-[...canvas.element.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith("Files")).click();
+clickBar("Dependencies (D)");
+clickBar("Pick files in it (I)");
 result.barClicks = [...calls];
 canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ folded: true, focused: true }) }));
 result.barFolded = kids(q(".selection-bar")).slice(-5).map((k) => [k.aria, k.title]);
+canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ dependencies: 0 }) }));
+calls.length = 0;
+const zeroDependencies = q('.selection-bar [aria-label="Dependencies (D)"]');
+zeroDependencies.click();
+result.barZero = { disabled: zeroDependencies.disabled, text: zeroDependencies.textContent, calls: [...calls] };
 
 result.chrome = {
   topStrip: q(".canvas-bar") === null,
@@ -297,6 +312,55 @@ const rightBefore = { x: barBox().left, y: barBox().top };
 panBy(-70, 45);
 const rightAfter = { x: barBox().left, y: barBox().top };
 result.pinned = { beforePan, afterPan, afterZoom, rightBefore, rightAfter };
+
+const moduleBar = () => bar({ kind: "module", files: null });
+const barEl = () => q(".selection-bar");
+const away = () => barEl().classList.contains("away");
+const seen = () => getComputedStyle(barEl()).visibility;
+const surfaceEl = q(".surface");
+const move = (node) => node.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }));
+const leaveSurface = () => surfaceEl.dispatchEvent(new PointerEvent("pointerleave"));
+const nodeA = () => q('[data-id="f/a.py"]');
+const hov = {};
+selectHook = (selection) => canvas.render(props({ selection, bar: moduleBar() }));
+canvas.render(props());
+canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, bar: moduleBar() }));
+hov.initial = [away(), seen(), barEl().offsetWidth > 0];
+move(q('[data-id="g"]'));
+hov.otherBox = away();
+move(nodeA());
+hov.onBox = [away(), seen()];
+hov.centre = offsetOf();
+leaveSurface();
+advance(100);
+barEl().dispatchEvent(new PointerEvent("pointerenter"));
+advance(1000);
+hov.keptOverBar = away();
+barEl().dispatchEvent(new PointerEvent("pointerleave"));
+advance(299);
+hov.justBefore = away();
+advance(1);
+hov.afterDelay = [away(), seen()];
+canvas.render(props());
+canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, bar: moduleBar() }));
+hov.fromTree = away();
+move(nodeA());
+canvas.render(props({ selection: { kind: "module", id: "g" }, bar: moduleBar() }));
+hov.newSelection = away();
+canvas.render(props());
+nodeA().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+hov.clicked = [away(), seen()];
+leaveSurface();
+advance(300);
+hov.clickedThenLeft = away();
+nodeA().dispatchEvent(new MouseEvent("contextmenu", { clientX: stageBox.left + 333, clientY: stageBox.top + 222, bubbles: true, cancelable: true }));
+hov.rightClicked = [away(), seen(), barBox().left, stageBox.left + 333];
+leaveSurface();
+advance(300);
+hov.rightClickedThenLeft = away();
+hov.iconTitles = [...canvas.element.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title);
+hov.barButtonText = [...canvas.element.querySelectorAll(".selection-bar button")].map((b) => b.textContent);
+result.hover = hov;
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
 `;
 
@@ -337,6 +401,23 @@ type Report = {
     rightBefore: { x: number; y: number };
     rightAfter: { x: number; y: number };
   };
+  hover: {
+    initial: [boolean, string, boolean];
+    otherBox: boolean;
+    onBox: [boolean, string];
+    centre: { dx: number; dy: number };
+    keptOverBar: boolean;
+    justBefore: boolean;
+    afterDelay: [boolean, string];
+    fromTree: boolean;
+    newSelection: boolean;
+    clicked: [boolean, string];
+    clickedThenLeft: boolean;
+    rightClicked: [boolean, string, number, number];
+    rightClickedThenLeft: boolean;
+    iconTitles: string[];
+    barButtonText: string[];
+  };
   barModule: { kids: Kid[]; style: Props };
   barFolder: {
     kids: Kid[];
@@ -347,6 +428,7 @@ type Report = {
   };
   barClicks: string[];
   barFolded: string[][];
+  barZero: { disabled: boolean; text: string; calls: string[] };
   chrome: {
     topStrip: boolean;
     countInCanvas: boolean;
@@ -596,22 +678,20 @@ describe("the canvas against the prototype, in a real browser", () => {
           const { barModule, barFolder, barClicks, barFolded } = r();
 
           expect(labelsOf(barModule.kids)).toEqual([
-            "Uses 2",
-            "Used by 0",
+            "Dependencies (D)",
             "|",
-            "Contents",
+            "Contents (I)",
             "|",
             "Take off the canvas (Backspace)",
           ]);
           expect(labelsOf(barFolder.kids)).toEqual([
-            "Files 1 of 2",
+            "Pick files in it (I)",
             "|",
-            "Uses 2",
-            "Used by 0",
+            "Dependencies (D)",
             "|",
-            "Focus on this folder",
-            "Fold into one box",
-            "Contents",
+            "Only this folder (F)",
+            "Fold into one box (Z)",
+            "Contents (I)",
             "|",
             "Take off the canvas (Backspace)",
           ]);
@@ -628,31 +708,30 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(barFolder.sep.width).toBe(barFolder.proto.sep.width);
           expect(barFolder.sep.height).toBe(barFolder.proto.sep.height);
 
-          const [files, , uses, usedBy, , focus, fold, contents, , takeOff] =
+          const [files, , dependencies, , focus, fold, contents, , takeOff] =
             barFolder.kids as Kid[];
 
-          expect(files?.svgs.map((s) => s.path)).toEqual(["M6 9l6 6 6-6"]);
-          expect(uses?.svgs.map((s) => s.path)).toEqual([
-            "M12 5v14M5 12l7 7 7-7",
-            "M6 9l6 6 6-6",
-          ]);
-          expect(usedBy?.svgs.map((s) => s.path)).toEqual([
-            "M12 19V5M5 12l7-7 7 7",
-            "M6 9l6 6 6-6",
-          ]);
-          expect(usedBy?.disabled).toBe(true);
-          expect(uses?.disabled).toBe(false);
-          expect(uses?.svgs[0]?.strokeWidth).toBe("2px");
-          expect(uses?.svgs[1]?.width).toBe("10px");
-          expect(focus?.title).toBe("Only this folder (F)");
-          expect(fold?.title).toBe("Fold into one box (Z)");
-          expect(contents?.title).toBe("Contents (I)");
-          expect(contents?.disabled).toBe(false);
-          expect(takeOff?.title).toBe("Take off the canvas (Backspace)");
+          expect(files?.text).toBe("1/2");
+          expect(files?.svgs).toHaveLength(1);
+          expect(dependencies?.text).toBe("2");
+          expect(dependencies?.svgs).toHaveLength(1);
+          expect(dependencies?.disabled).toBe(false);
+          expect(dependencies?.svgs[0]?.strokeWidth).toBe("2px");
           expect(takeOff?.svgs[0]?.path).not.toBe("M18 6L6 18M6 6l12 12");
-          expect(takeOff?.svgs[0]?.strokeWidth).toBe("2px");
 
-          for (const icon of [focus, fold, contents]) {
+          for (const button of [
+            files,
+            dependencies,
+            focus,
+            fold,
+            contents,
+            takeOff,
+          ]) {
+            expect(button?.title).not.toBe("");
+            expect(button?.aria).toBe(button?.title);
+          }
+
+          for (const icon of [focus, fold, contents, takeOff]) {
             expect(icon?.text).toBe("");
             expect(icon?.svgs).toHaveLength(1);
             expect(icon?.svgs[0]?.strokeWidth).toBe("2px");
@@ -662,13 +741,64 @@ describe("the canvas against the prototype, in a real browser", () => {
             "fold",
             "focus",
             "takeOff",
-            "tab:uses",
+            "tab:dependencies",
             "tab:contents",
           ]);
           expect(barFolded.slice(0, 2)).toEqual([
-            ["Unfocus", "Unfocus (F)"],
-            ["Unfold", "Unfold (Z)"],
+            ["Unfocus (F)", "Unfocus (F)"],
+            ["Unfold (Z)", "Unfold (Z)"],
           ]);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "disables the Dependencies button and opens no tab when the total is zero",
+        () => {
+          const { barZero } = r();
+
+          expect(barZero.disabled).toBe(true);
+          expect(barZero.text).toBe("0");
+          expect(barZero.calls).toEqual([]);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "shows the bar only while the pointer is over the selected box or the bar",
+        () => {
+          const { hover } = r();
+
+          expect(hover.initial).toEqual([true, "hidden", true]);
+          expect(hover.otherBox).toBe(true);
+          expect(hover.onBox).toEqual([false, "visible"]);
+          expect(Math.abs(hover.centre.dx)).toBeLessThan(1);
+          expect(hover.keptOverBar).toBe(false);
+          expect(hover.justBefore).toBe(false);
+          expect(hover.afterDelay).toEqual([true, "hidden"]);
+          expect(hover.fromTree).toBe(true);
+          expect(hover.newSelection).toBe(true);
+          expect(hover.clicked).toEqual([false, "visible"]);
+          expect(hover.clickedThenLeft).toBe(true);
+          expect(hover.rightClicked[0]).toBe(false);
+          expect(hover.rightClicked[1]).toBe("visible");
+          expect(hover.rightClicked[2]).toBeCloseTo(hover.rightClicked[3], 0);
+          expect(hover.rightClickedThenLeft).toBe(true);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "gives every icon button a tooltip and shows no word on a bar button",
+        () => {
+          const { hover } = r();
+
+          expect(hover.iconTitles.length).toBeGreaterThan(0);
+          expect(hover.iconTitles.every((title) => title !== "")).toBe(true);
+
+          for (const text of hover.barButtonText) {
+            expect(text).toMatch(/^(\d+(\/\d+)?)?$/);
+          }
         },
         120000,
       );

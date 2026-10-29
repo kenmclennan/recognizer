@@ -12,7 +12,7 @@ import {
 import { createPicker, type PickerSource } from "./picker-model";
 import { type CheckState, checkState } from "./row-model";
 
-export type InspectorTab = "contents" | "findings" | "uses" | "usedBy";
+export type InspectorTab = "contents" | "findings" | "dependencies";
 
 export type Narrowed = {
   title: string;
@@ -552,11 +552,13 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
   ];
 }
 
-function pickerRows(
+type Direction = "uses" | "usedBy";
+
+function pickerFor(
   selection: NonNullable<Selection>,
-  direction: "uses" | "usedBy",
+  direction: Direction,
   inputs: InspectorInputs,
-): Row[] {
+) {
   const narrowed = direction === "usedBy" ? inputs.narrowed : null;
   const source: PickerSource = narrowed
     ? { kind: "list", items: narrowed.items, title: narrowed.title }
@@ -565,14 +567,25 @@ function pickerRows(
         id: selection.id,
         direction,
       };
-  const picker = createPicker({
-    scans: inputs.scans,
-    modules: inputs.modules,
-    onCanvas: inputs.onCanvas,
-    source,
-    filter: inputs.filter,
-    collapsed: inputs.collapsed,
-  });
+
+  return {
+    narrowed,
+    picker: createPicker({
+      scans: inputs.scans,
+      modules: inputs.modules,
+      onCanvas: inputs.onCanvas,
+      source,
+      filter: inputs.filter,
+      collapsed: inputs.collapsed,
+    }),
+  };
+}
+
+function pickerRows(
+  picker: ReturnType<typeof createPicker>,
+  narrowed: Narrowed | null,
+  inputs: InspectorInputs,
+): Row[] {
   const rows: Row[] = narrowed
     ? [{ kind: "heading", text: narrowed.title }]
     : [];
@@ -580,12 +593,6 @@ function pickerRows(
   if (picker.rowCount() === 0) {
     return [...rows, { kind: "none" }];
   }
-
-  rows.push({
-    kind: "filter",
-    value: inputs.filter,
-    placeholder: picker.placeholder(),
-  });
 
   const groups = picker.groups();
 
@@ -654,6 +661,48 @@ function pickerRows(
 
   if (picker.missing() > 0) {
     rows.push({ kind: "note", text: `${picker.missing()} not in the scan` });
+  }
+
+  return rows;
+}
+
+function dependencyRows(
+  selection: NonNullable<Selection>,
+  figures: Counts,
+  inputs: InspectorInputs,
+): Row[] {
+  const sections: { direction: Direction; label: string; count: number }[] = [
+    { direction: "uses", label: "Uses", count: figures.uses },
+    { direction: "usedBy", label: "Used by", count: figures.usedBy },
+  ];
+  const built = sections.map((section) => ({
+    ...section,
+    ...pickerFor(selection, section.direction, inputs),
+  }));
+  const total = built.reduce((sum, item) => sum + item.picker.rowCount(), 0);
+  const rows: Row[] = [
+    {
+      kind: "filter",
+      value: inputs.filter,
+      placeholder: `Filter ${total} modules`,
+    },
+  ];
+
+  for (const item of built) {
+    const key = `dependencies:${item.direction}`;
+    const open = !inputs.expanded.has(key);
+
+    rows.push({
+      kind: "fold",
+      key,
+      text: `${item.label} ${item.count}`,
+      open,
+      top: true,
+    });
+
+    if (open) {
+      rows.push(...pickerRows(item.picker, item.narrowed, inputs));
+    }
   }
 
   return rows;
@@ -778,18 +827,13 @@ export function inspectorContent(
       active: inputs.tab === "findings",
     },
     {
-      tab: "uses" as const,
-      label: `Uses ${figures.uses}`,
-      active: inputs.tab === "uses",
-    },
-    {
-      tab: "usedBy" as const,
-      label: `Used by ${figures.usedBy}`,
-      active: inputs.tab === "usedBy",
+      tab: "dependencies" as const,
+      label: `Dependencies ${figures.uses + figures.usedBy}`,
+      active: inputs.tab === "dependencies",
     },
   ];
   const contents = inputs.tab === "contents";
-  const listed = inputs.tab === "uses" || inputs.tab === "usedBy";
+  const listed = inputs.tab === "dependencies";
 
   if (selection.kind === "module") {
     return {
@@ -801,7 +845,7 @@ export function inspectorContent(
       },
       tabs,
       rows: listed
-        ? pickerRows(selection, inputs.tab as "uses" | "usedBy", inputs)
+        ? dependencyRows(selection, figures, inputs)
         : contents
           ? moduleContents(selection.id, inputs)
           : moduleFindings(selection.id, inputs),
@@ -821,7 +865,7 @@ export function inspectorContent(
     },
     tabs,
     rows: listed
-      ? pickerRows(selection, inputs.tab as "uses" | "usedBy", inputs)
+      ? dependencyRows(selection, figures, inputs)
       : contents
         ? folderContents(selection.id, inputs)
         : foldersGroups(selection.id, inputs),

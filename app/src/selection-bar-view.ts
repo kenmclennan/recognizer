@@ -4,8 +4,7 @@ import type { InspectorTab } from "./inspector-model";
 
 export type BarModel = {
   kind: "module" | "folder";
-  uses: number;
-  usedBy: number;
+  dependencies: number;
   files: { open: number; held: number } | null;
   focused: boolean;
   folded: boolean;
@@ -25,16 +24,22 @@ export type SelectionBarView = {
   render: (model: BarModel | null) => void;
 };
 
-function barButton(
+function iconButton(
+  name: IconName,
   title: string,
   onClick: (() => void) | null,
-  ...children: (string | Node)[]
+  figure: string | null = null,
 ): HTMLButtonElement {
   const node = el("button", "bar-button");
 
   node.type = "button";
   node.title = title;
-  node.append(...children);
+  node.setAttribute("aria-label", title);
+  node.append(icon(name));
+
+  if (figure !== null) {
+    node.append(el("span", "bar-figure", figure));
+  }
 
   if (onClick) {
     node.addEventListener("click", (event) => {
@@ -48,21 +53,7 @@ function barButton(
   return node;
 }
 
-function iconButton(
-  name: IconName,
-  label: string,
-  title: string,
-  onClick: (() => void) | null,
-): HTMLButtonElement {
-  const node = barButton(title, onClick, icon(name));
-
-  node.setAttribute("aria-label", label);
-
-  return node;
-}
-
 const separator = () => el("span", "bar-sep");
-const chevron = () => icon("chevron-down", "small");
 
 export function buildSelectionBar(actions: BarActions): SelectionBarView {
   const element = el("div", "selection-bar");
@@ -85,91 +76,58 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
 
       const contentsShown =
         model.inspectorTab === "contents" || model.inspectorTab === "findings";
-      const tab = (
-        target: InspectorTab,
-        title: string,
-        enabled: boolean,
-        lit: boolean,
-        ...children: (string | Node)[]
-      ): HTMLButtonElement => {
-        const node = barButton(
-          title,
-          enabled ? () => actions.openTab(target) : null,
-          ...children,
-        );
-
-        node.classList.toggle("on", lit);
-
-        return node;
-      };
       const parts: HTMLElement[] = [];
 
       if (model.files) {
-        parts.push(
-          tab(
-            "contents",
-            "Pick files in it",
-            true,
-            contentsShown,
-            `Files ${model.files.open} of ${model.files.held}`,
-            chevron(),
-          ),
-          separator(),
+        const files = iconButton(
+          "folder",
+          "Pick files in it (I)",
+          () => actions.openTab("contents"),
+          `${model.files.open}/${model.files.held}`,
         );
+
+        files.classList.toggle("on", contentsShown);
+        parts.push(files, separator());
       }
 
-      parts.push(
-        tab(
-          "uses",
-          "Pick what it uses (U)",
-          model.uses > 0,
-          model.inspectorTab === "uses",
-          icon("arrow-down"),
-          `Uses ${model.uses}`,
-          chevron(),
-        ),
-        tab(
-          "usedBy",
-          "Pick what uses it (D)",
-          model.usedBy > 0,
-          model.inspectorTab === "usedBy",
-          icon("arrow-up"),
-          `Used by ${model.usedBy}`,
-          chevron(),
-        ),
-        separator(),
+      const dependencies = iconButton(
+        "dependencies",
+        "Dependencies (D)",
+        model.dependencies > 0 ? () => actions.openTab("dependencies") : null,
+        String(model.dependencies),
       );
+
+      dependencies.classList.toggle(
+        "on",
+        model.inspectorTab === "dependencies",
+      );
+      parts.push(dependencies, separator());
 
       if (model.kind === "folder") {
         parts.push(
           iconButton(
             "focus",
-            model.focused ? "Unfocus" : "Focus on this folder",
             model.focused ? "Unfocus (F)" : "Only this folder (F)",
             () => actions.toggleFocus(),
           ),
           iconButton(
             model.folded ? "unfold" : "fold",
-            model.folded ? "Unfold" : "Fold into one box",
             model.folded ? "Unfold (Z)" : "Fold into one box (Z)",
             () => actions.toggleFold(),
           ),
         );
       }
 
-      const contents = iconButton("list", "Contents", "Contents (I)", () =>
+      const contents = iconButton("list", "Contents (I)", () =>
         actions.openContents(),
       );
 
       contents.classList.toggle("on", contentsShown);
-      parts.push(contents);
       parts.push(
+        contents,
         separator(),
-        iconButton(
-          "take-off",
-          "Take off the canvas (Backspace)",
-          "Take off the canvas (Backspace)",
-          () => actions.takeOff(),
+        iconButton("take-off", "Take off the canvas (Backspace)", () =>
+          actions.takeOff(),
         ),
       );
       element.replaceChildren(...parts);

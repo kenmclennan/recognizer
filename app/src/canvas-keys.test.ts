@@ -46,12 +46,15 @@ describe("canvas keys", () => {
     expect(keyAction(press("i", { metaKey: true }), module)).toBeNull();
   });
 
-  it("maps U and D to the pickers for a module or a folder", () => {
+  it("maps D to the dependencies and U to nothing for a module or a folder", () => {
     for (const selection of [module, folder]) {
-      expect(keyAction(press("u"), selection)).toBe("uses");
-      expect(keyAction(press("U"), selection)).toBe("uses");
-      expect(keyAction(press("d"), selection)).toBe("used-by");
+      expect(keyAction(press("d"), selection)).toBe("dependencies");
+      expect(keyAction(press("D"), selection)).toBe("dependencies");
+      expect(keyAction(press("u"), selection)).toBeNull();
+      expect(keyAction(press("U"), selection)).toBeNull();
     }
+
+    expect(keyAction(press("u"), null)).toBeNull();
   });
 
   it("ignores U and D for an edge, no selection, a modifier or an editable target", () => {

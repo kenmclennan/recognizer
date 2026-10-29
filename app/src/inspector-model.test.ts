@@ -457,7 +457,7 @@ describe("header and tabs", () => {
     expect(some.tabs?.[0]?.active).toBe(true);
   });
 
-  it("offers Contents, Findings, Uses N and Used by N for a module and a folder, from the counts", () => {
+  it("offers Contents, Findings and Dependencies N for a module and a folder, from the counts", () => {
     const counts = () => ({ uses: 12, usedBy: 1 });
     const labels = (selection: ReturnType<typeof module | typeof folder>) =>
       inspectorContent(selection, inputsFor([scan], { counts })).tabs?.map(
@@ -467,21 +467,19 @@ describe("header and tabs", () => {
     expect(labels(module("src/app/pkg/m.py"))).toEqual([
       "Contents",
       "Findings",
-      "Uses 12",
-      "Used by 1",
+      "Dependencies 13",
     ]);
     expect(labels(folder("src/app"))).toEqual([
       "Contents",
       "Findings",
-      "Uses 12",
-      "Used by 1",
+      "Dependencies 13",
     ]);
   });
 
   it("has no tabs for an edge whatever tab was last chosen", () => {
     const content = inspectorContent(
       { kind: "edge", id: "e" },
-      inputsFor([scan], { tab: "usedBy" }),
+      inputsFor([scan], { tab: "dependencies" }),
     );
 
     expect(content.tabs).toBeNull();
@@ -784,7 +782,7 @@ describe("against fixtures/python", () => {
   });
 });
 
-describe("uses and used by tabs", () => {
+describe("dependencies tab", () => {
   const edge = (from: string, to: string, names: string[]): ScanEdge => ({
     from,
     to,
@@ -812,16 +810,52 @@ describe("uses and used by tabs", () => {
     inspectorContent(
       module("hub.py"),
       inputsFor([scan], {
-        tab: "uses",
+        tab: "dependencies",
         counts: () => ({ uses: 3, usedBy: 1 }),
         ...extra,
       }),
     ).rows;
   const moduleRows = (list: Row[]) =>
     list.filter((row) => row.kind === "module");
+  const section = (list: Row[], text: string) => {
+    const start = list.findIndex(
+      (row) => row.kind === "fold" && row.text === text,
+    );
+    const after = list.slice(start + 1).findIndex((row) => row.kind === "fold");
+
+    return list.slice(start + 1, after < 0 ? undefined : start + 1 + after);
+  };
+
+  it("has the tab Dependencies N with N the sum of the two counts", () => {
+    const content = inspectorContent(
+      module("hub.py"),
+      inputsFor([scan], { counts: () => ({ uses: 3, usedBy: 1 }) }),
+    );
+
+    expect(content.tabs?.map((tab) => tab.label)).toEqual([
+      "Contents",
+      "Findings",
+      "Dependencies 4",
+    ]);
+  });
+
+  it("lists the filter, the Uses header and rows, then the Used by header and rows", () => {
+    const list = rows({});
+
+    expect(list[0]).toMatchObject({ kind: "filter" });
+    expect(
+      list
+        .filter((row) => row.kind === "fold")
+        .map((row) => [row.text, row.open, row.key]),
+    ).toEqual([
+      ["Uses 3", true, "dependencies:uses"],
+      ["Used by 1", true, "dependencies:usedBy"],
+    ]);
+    expect(list[1]).toMatchObject({ kind: "fold", text: "Uses 3" });
+  });
 
   it("lists the modules a module uses under folder headings with their full path, then the module rows", () => {
-    const list = moduleRows(rows({}));
+    const list = moduleRows(section(rows({}), "Uses 3"));
 
     expect(list.map((row) => [row.folder, row.label])).toEqual([
       [true, "a/"],
@@ -837,63 +871,77 @@ describe("uses and used by tabs", () => {
     expect(list[1]).toMatchObject({ indent: true, detail: { text: "X" } });
   });
 
-  it("starts with a filter field and ticks rows that are on the canvas", () => {
-    const list = rows({ onCanvas: open("a/x.py") });
-
-    expect(list[0]).toMatchObject({
-      kind: "filter",
-      placeholder: "Filter 3 modules",
-    });
-    expect(moduleRows(list)[0]).toMatchObject({ state: "partial" });
-    expect(moduleRows(list)[1]).toMatchObject({ state: "checked", bold: true });
-  });
-
-  it("filters by module and by name", () => {
-    expect(moduleRows(rows({ filter: "z" })).map((row) => row.label)).toEqual([
-      "b/",
-      "z",
-    ]);
-    expect(
-      moduleRows(rows({ tab: "usedBy", filter: "hub" })).map(
-        (row) => row.label,
-      ),
-    ).toEqual(["./", "caller"]);
-    expect(moduleRows(rows({ tab: "usedBy", filter: "nothing" }))).toEqual([]);
-  });
-
-  it("lists the modules that use a module on the Used by tab", () => {
-    const list = moduleRows(rows({ tab: "usedBy" }));
+  it("lists the modules that use a module in the Used by section", () => {
+    const list = moduleRows(section(rows({}), "Used by 1"));
 
     expect(list.map((row) => row.label)).toEqual(["./", "caller"]);
     expect(list[0]).toMatchObject({ id: "" });
   });
 
-  it("shows None for an empty list", () => {
+  it("starts with a filter field summing both sections and ticks rows that are on the canvas", () => {
+    const list = rows({ onCanvas: open("a/x.py") });
+
+    expect(list[0]).toMatchObject({
+      kind: "filter",
+      placeholder: "Filter 4 modules",
+    });
+    expect(moduleRows(list)[0]).toMatchObject({ state: "partial" });
+    expect(moduleRows(list)[1]).toMatchObject({ state: "checked", bold: true });
+  });
+
+  it("collapses a section whose key is in expanded", () => {
+    const list = rows({ expanded: new Set(["dependencies:uses"]) });
+
+    expect(list.filter((row) => row.kind === "fold")[0]).toMatchObject({
+      text: "Uses 3",
+      open: false,
+    });
+    expect(section(list, "Uses 3")).toEqual([]);
+    expect(moduleRows(section(list, "Used by 1")).length).toBe(2);
+  });
+
+  it("filters both sections by module and by name", () => {
+    const list = rows({ filter: "z" });
+
+    expect(moduleRows(section(list, "Uses 3")).map((row) => row.label)).toEqual(
+      ["b/", "z"],
+    );
+    expect(section(list, "Used by 1")).toEqual([
+      { kind: "note", text: "Nothing matches." },
+    ]);
     expect(
-      inspectorContent(
-        module("a/y.py"),
-        inputsFor([scan], {
-          tab: "uses",
-          counts: () => ({ uses: 0, usedBy: 1 }),
-        }),
-      ).rows,
-    ).toEqual([{ kind: "none" }]);
+      moduleRows(section(rows({ filter: "hub" }), "Used by 1")).map(
+        (row) => row.label,
+      ),
+    ).toEqual(["./", "caller"]);
+  });
+
+  it("shows None for an empty section", () => {
+    const list = inspectorContent(
+      module("a/y.py"),
+      inputsFor([scan], {
+        tab: "dependencies",
+        counts: () => ({ uses: 0, usedBy: 1 }),
+      }),
+    ).rows;
+
+    expect(section(list, "Uses 0")).toEqual([{ kind: "none" }]);
   });
 
   it("collapses a group whose override flips the default", () => {
-    const list = rows({ collapsed: new Set(["a"]) });
+    const list = moduleRows(
+      section(rows({ collapsed: new Set(["a"]) }), "Uses 3"),
+    );
 
-    expect(moduleRows(list).map((row) => row.label)).toEqual(["a/", "b/", "z"]);
-    expect(moduleRows(list)[0]).toMatchObject({
-      chevron: { key: "a", open: false },
-    });
+    expect(list.map((row) => row.label)).toEqual(["a/", "b/", "z"]);
+    expect(list[0]).toMatchObject({ chevron: { key: "a", open: false } });
   });
 
-  it("lists only the narrowed callers under their title and keeps the full figure", () => {
+  it("replaces only the Used by rows with the narrowed callers and keeps the full figure", () => {
     const content = inspectorContent(
       module("hub.py"),
       inputsFor([scan], {
-        tab: "usedBy",
+        tab: "dependencies",
         counts: () => ({ uses: 3, usedBy: 7 }),
         narrowed: {
           title: "Callers of Hub",
@@ -904,19 +952,18 @@ describe("uses and used by tabs", () => {
         },
       }),
     );
+    const usedBy = section(content.rows, "Used by 7");
 
-    expect(content.tabs?.[3]?.label).toBe("Used by 7");
-    expect(content.rows[0]).toEqual({
-      kind: "heading",
-      text: "Callers of Hub",
-    });
-    expect(moduleRows(content.rows).map((row) => row.label)).toEqual([
+    expect(content.tabs?.[2]?.label).toBe("Dependencies 10");
+    expect(usedBy[0]).toEqual({ kind: "heading", text: "Callers of Hub" });
+    expect(moduleRows(usedBy).map((row) => row.label)).toEqual([
       "./",
       "caller",
     ]);
-    expect(content.rows).toContainEqual({
+    expect(usedBy).toContainEqual({
       kind: "note",
       text: "1 not in the scan",
     });
+    expect(moduleRows(section(content.rows, "Uses 3")).length).toBe(5);
   });
 });

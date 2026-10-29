@@ -81,8 +81,8 @@ const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: tr
 const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
 const treeRow = (p) => document.querySelector('.tree .row[data-path="' + p + '"]');
 const box = (id) => document.querySelector('.box[data-id="' + id + '"]');
-const bar = (text) => [...document.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith(text));
-const figure = (text) => { const b = bar(text); return b ? Number(b.textContent.replace(/\\D+/g, "")) : null; };
+const bar = (label) => document.querySelector('.selection-bar [aria-label^="' + label + '"]');
+const sectionFigure = (name) => { const h = [...document.querySelectorAll(".inspector-panel .ofold")].find((n) => n.textContent.startsWith(name)); return h ? Number(h.textContent.replace(/\\D+/g, "")) : null; };
 const selected = () => [...document.querySelectorAll(".box.selected")].map((n) => n.dataset.id);
 const facts = {};
 
@@ -93,15 +93,17 @@ key("z");
 facts.foldedKind = box("lib") && box("lib").dataset.kind;
 click(box("lib").querySelector(".box-body"));
 facts.selected = selected();
-const unfold = document.querySelector('.selection-bar [aria-label="Unfold"]');
+const unfold = document.querySelector('.selection-bar [aria-label="Unfold (Z)"]');
 facts.unfoldLabel = unfold ? unfold.getAttribute("aria-label") : null;
-facts.uses = figure("Uses");
-facts.usedBy = figure("Used by");
+facts.total = Number(bar("Dependencies").textContent);
+click(bar("Dependencies"));
+facts.uses = sectionFigure("Uses");
+facts.usedBy = sectionFigure("Used by");
 key("z");
 facts.boxAfterZ = box("lib") === null;
 key("z");
 click(box("lib").querySelector(".box-body"));
-click(document.querySelector('.selection-bar [aria-label="Unfold"]'));
+click(document.querySelector('.selection-bar [aria-label="Unfold (Z)"]'));
 facts.boxAfterUnfold = box("lib") === null;
 
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
@@ -111,6 +113,7 @@ type Facts = {
   foldedKind: string | null;
   selected: string[];
   unfoldLabel: string | null;
+  total: number;
   uses: number | null;
   usedBy: number | null;
   boxAfterZ: boolean;
@@ -183,7 +186,8 @@ describe.skipIf(chrome === undefined)("a folded folder's box", () => {
   });
 
   it("shows the folder's bar with Unfold and the edges crossing its boundary", () => {
-    expect(f.unfoldLabel).toBe("Unfold");
+    expect(f.unfoldLabel).toBe("Unfold (Z)");
+    expect(f.total).toBe((f.uses ?? 0) + (f.usedBy ?? 0));
     expect(f.uses).toBeGreaterThan(0);
     expect(f.usedBy).toBeGreaterThan(0);
   });
