@@ -48,6 +48,7 @@ const tree = buildTreeView({
   putFolderOnCanvas: (ids) => calls.push(["putFolderOnCanvas", ids.join(",")]),
   takeFolderOff: (ids) => calls.push(["takeFolderOff", ids.join(",")]),
   find: (id) => calls.push(["find", id]),
+  openFolderInEditor: () => calls.push(["openFolderInEditor"]),
 });
 
 document.body.append(tree.element);
@@ -185,7 +186,7 @@ const states = { src: describeRow("src").check.aria, lib: describeRow("lib").che
 tree.render(props({ filtered: filterTree(root, { ...filter, text: "zzz" }, context), filter: { ...filter, text: "zzz" } }));
 const empty = tree.element.querySelector(".empty").textContent;
 
-const canvasActions = { find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7 };
+const canvasActions = { find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, openInEditor() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7 };
 const canvas = buildCanvasView(canvasActions);
 document.body.append(canvas.element);
 const canvasProps = () => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), open: 0, total: 4, showInferred: true, notice: null });
@@ -318,8 +319,12 @@ describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
     expect(Number(f.hdr.titleWeight)).toBeGreaterThanOrEqual(600);
     expect(f.hdr.count).toBe("4");
     expect(f.hdr.countColor).not.toBe(f.probes.sel.color);
-    expect(f.hdr.buttons).toBe(0);
-    expect(f.hdr.children).toEqual(["tree-title", "tree-count"]);
+    expect(f.hdr.buttons).toBe(1);
+    expect(f.hdr.children).toEqual([
+      "tree-title",
+      "tree-count",
+      "ib tree-open-editor",
+    ]);
   });
 
   it("leaves the canvas without a tree toggle, so the rail's Files icon alone reopens a hidden tree", () => {

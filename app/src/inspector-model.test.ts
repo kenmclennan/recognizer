@@ -408,7 +408,12 @@ describe("folder contents", () => {
   it("headers a folder with its name and file count at any depth", () => {
     const { header } = inspectorContent(folder("a"), inputsFor([scan]));
 
-    expect(header).toEqual({ disc: "green", title: "a/", muted: "4 files" });
+    expect(header).toEqual({
+      disc: "green",
+      title: "a/",
+      muted: "4 files",
+      target: { kind: "folder", id: "a" },
+    });
   });
 
   it("shows None for a folder with no known modules", () => {
@@ -431,7 +436,12 @@ describe("header and tabs", () => {
       inputsFor([scan]),
     );
 
-    expect(header).toEqual({ disc: "green", title: "m.py", muted: "app/pkg/" });
+    expect(header).toEqual({
+      disc: "green",
+      title: "m.py",
+      muted: "app/pkg/",
+      target: { kind: "module", id: "src/app/pkg/m.py" },
+    });
   });
 
   it("shows the findings count on the tab only above zero", () => {

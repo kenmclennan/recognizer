@@ -43,6 +43,7 @@ export type CanvasActions = {
   measure: (text: string) => number;
   openTab: (tab: InspectorTab) => void;
   openContents: () => void;
+  openInEditor: () => void;
 };
 
 export type CanvasView = {
@@ -132,6 +133,7 @@ export function buildCanvasView(
     toggleFocus: () => actions.toggleFocus(),
     toggleFold: () => actions.toggleFold(),
     openContents: () => actions.openContents(),
+    openInEditor: () => actions.openInEditor(),
     takeOff: () => actions.takeOff(),
   });
 

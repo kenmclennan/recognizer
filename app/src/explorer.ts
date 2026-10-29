@@ -23,6 +23,8 @@ import {
   type EvidenceSection,
   evidenceOf,
 } from "./edge-evidence";
+import { openFolderInEditor, openInEditor } from "./editor-open";
+import { type EditorPort, inertEditor } from "./editor-port";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
@@ -66,6 +68,7 @@ export type Carried = {
 export type Explorer = {
   toggleTree: () => void;
   carry: () => Carried;
+  openSelectedInEditor: () => void;
   dispose: () => void;
 };
 
@@ -82,6 +85,7 @@ export function showExplorer(
     getItem: () => null,
     setItem: () => {},
   },
+  editor: EditorPort = inertEditor,
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const root = buildTree(loaded.modules);
@@ -169,6 +173,7 @@ export function showExplorer(
     putFolderOnCanvas: putAllOn,
     takeFolderOff: takeAllOff,
     find,
+    openFolderInEditor: () => void openFolderInEditor(editor, notify),
   });
 
   const canvas = buildCanvasView(
@@ -209,6 +214,7 @@ export function showExplorer(
         inspectorTab = "contents";
         render();
       },
+      openInEditor: openSelectedInEditor,
       measure,
       openTab,
     },
@@ -274,6 +280,7 @@ export function showExplorer(
       pickerFilter = text;
       render();
     },
+    openInEditor: () => openSelectedInEditor(),
   });
 
   const layout = createLayoutSource(
@@ -1184,8 +1191,13 @@ export function showExplorer(
     }
   });
 
+  function openSelectedInEditor() {
+    void openInEditor(state.selection(), editor, notify);
+  }
+
   return {
     toggleTree,
+    openSelectedInEditor,
     carry: () => ({ history, snapshot: snapshot() }),
     dispose() {
       stopWatching();

@@ -18,6 +18,7 @@ export type IconName =
   | "folder"
   | "folder-open"
   | "take-off"
+  | "external-link"
   | "x";
 
 type Shape = [string, Record<string, string>];
@@ -95,6 +96,10 @@ const SHAPES: Record<IconName, Shape[]> = {
   "take-off": [
     ["rect", { x: "3", y: "3", width: "18", height: "18", rx: "2" }],
     ["path", { d: "M8 12h8" }],
+  ],
+  "external-link": [
+    ["path", { d: "M15 3h6v6M10 14L21 3" }],
+    ["path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" }],
   ],
   x: [["path", { d: "M18 6L6 18M6 6l12 12" }]],
 };

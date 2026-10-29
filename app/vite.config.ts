@@ -13,7 +13,10 @@ export default defineConfig({
   server: { port: 1420, strictPort: true },
   build: {
     rollupOptions: {
-      input: { main: fileURLToPath(new URL("index.html", import.meta.url)) },
+      input: {
+        main: fileURLToPath(new URL("index.html", import.meta.url)),
+        settings: fileURLToPath(new URL("settings.html", import.meta.url)),
+      },
     },
   },
   test: {

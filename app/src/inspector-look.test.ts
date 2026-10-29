@@ -61,7 +61,7 @@ const inputs = {
   filter: "",
   collapsed: new Set(),
 };
-const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {} };
+const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor() {} };
 const mount = (id, selection, open) => {
   const view = buildInspectorView(actions);
   view.render(inspectorContent(selection, inputs), open);

@@ -66,6 +66,7 @@ export type Header = {
   disc: Disc | null;
   title: string;
   muted: string;
+  target: { kind: "module" | "folder"; id: string } | null;
 };
 
 export type InspectorContent = {
@@ -730,7 +731,7 @@ export function inspectorContent(
   if (selection === null) {
     return {
       key: "none",
-      header: { disc: null, title: "Inspector", muted: "" },
+      header: { disc: null, title: "Inspector", muted: "", target: null },
       tabs: null,
       rows: [
         {
@@ -752,7 +753,7 @@ export function inspectorContent(
 
     return {
       key,
-      header: { disc: null, title: "Edge", muted: "" },
+      header: { disc: null, title: "Edge", muted: "", target: null },
       tabs: null,
       rows,
     };
@@ -787,6 +788,7 @@ export function inspectorContent(
         disc: inputs.disc(selection.id),
         title: lastSegment(selection.id),
         muted: parentOf(selection.id),
+        target: { kind: "module", id: selection.id },
       },
       tabs,
       rows: listed
@@ -807,6 +809,7 @@ export function inspectorContent(
       disc: inputs.disc(selection.id),
       title: `${lastSegment(selection.id)}/`,
       muted: `${known} files`,
+      target: { kind: "folder", id: selection.id },
     },
     tabs,
     rows: listed

@@ -1,6 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./style.css";
+import { editorSource } from "./editor-source";
 import { showEmpty } from "./empty-view";
 import { type Carried, type Explorer, showExplorer } from "./explorer";
 import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
@@ -104,6 +105,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     carried,
     undefined,
     localStorage,
+    editorSource,
   );
 }
 
@@ -177,6 +179,10 @@ document.addEventListener("keydown", (event) => {
 void getCurrentWebviewWindow().listen(
   "check-updates",
   () => void checkForUpdates(),
+);
+
+void getCurrentWebviewWindow().listen("open-in-editor", () =>
+  explorer?.openSelectedInEditor(),
 );
 
 void repositorySource.onRescan(() => void rescanner.run());

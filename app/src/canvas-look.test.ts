@@ -65,7 +65,7 @@ let selectHook = null;
 const actions = {
   find() {}, select: (selection) => selectHook && selectHook(selection), clear: () => calls.push("clear"), setShowInferred() {},
   measure: (t) => t.length * 7,
-  takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"), openContents: () => calls.push("contents"),
+  takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"), openContents: () => calls.push("contents"), openInEditor: () => calls.push("openInEditor"),
   toggleFocus: () => calls.push("focus"), openTab: (t) => calls.push("tab:" + t),
 };
 
@@ -233,9 +233,10 @@ clickBar("Only this folder (F)");
 clickBar("Take off the canvas (Backspace)");
 clickBar("Dependencies (D)");
 clickBar("Pick files in it (I)");
+clickBar("Open in Editor (⌘⇧E)");
 result.barClicks = [...calls];
 canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ folded: true, focused: true }) }));
-result.barFolded = kids(q(".selection-bar")).slice(-5).map((k) => [k.aria, k.title]);
+result.barFolded = kids(q(".selection-bar")).slice(-6).map((k) => [k.aria, k.title]);
 canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ dependencies: 0 }) }));
 calls.length = 0;
 const zeroDependencies = q('.selection-bar [aria-label="Dependencies (D)"]');
@@ -683,6 +684,7 @@ describe("the canvas against the prototype, in a real browser", () => {
             "Dependencies (D)",
             "|",
             "Contents (I)",
+            "Open in Editor (⌘⇧E)",
             "|",
             "Take off the canvas (Backspace)",
           ]);
@@ -694,6 +696,7 @@ describe("the canvas against the prototype, in a real browser", () => {
             "Only this folder (F)",
             "Fold into one box (Z)",
             "Contents (I)",
+            "Open in Editor (⌘⇧E)",
             "|",
             "Take off the canvas (Backspace)",
           ]);
@@ -710,8 +713,18 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect(barFolder.sep.width).toBe(barFolder.proto.sep.width);
           expect(barFolder.sep.height).toBe(barFolder.proto.sep.height);
 
-          const [files, , dependencies, , focus, fold, contents, , takeOff] =
-            barFolder.kids as Kid[];
+          const [
+            files,
+            ,
+            dependencies,
+            ,
+            focus,
+            fold,
+            contents,
+            editor,
+            ,
+            takeOff,
+          ] = barFolder.kids as Kid[];
 
           expect(files?.text).toBe("1/2");
           expect(files?.svgs).toHaveLength(1);
@@ -727,13 +740,14 @@ describe("the canvas against the prototype, in a real browser", () => {
             focus,
             fold,
             contents,
+            editor,
             takeOff,
           ]) {
             expect(button?.title).not.toBe("");
             expect(button?.aria).toBe(button?.title);
           }
 
-          for (const icon of [focus, fold, contents, takeOff]) {
+          for (const icon of [focus, fold, contents, editor, takeOff]) {
             expect(icon?.text).toBe("");
             expect(icon?.svgs).toHaveLength(1);
             expect(icon?.svgs[0]?.strokeWidth).toBe("2px");
@@ -745,6 +759,7 @@ describe("the canvas against the prototype, in a real browser", () => {
             "takeOff",
             "tab:dependencies",
             "tab:contents",
+            "openInEditor",
           ]);
           expect(barFolded.slice(0, 2)).toEqual([
             ["Unfocus (F)", "Unfocus (F)"],

@@ -1,5 +1,5 @@
 import { el } from "./dom";
-import { icon } from "./icons";
+import { icon, iconButton } from "./icons";
 import type { InspectorContent, InspectorTab, Row } from "./inspector-model";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
@@ -16,6 +16,7 @@ export type InspectorActions = {
   pickName: (id: string) => void;
   toggleGroup: (key: string) => void;
   setFilter: (text: string) => void;
+  openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
 };
 
 export type InspectorView = {
@@ -226,6 +227,16 @@ export function buildInspectorView(actions: InspectorActions): InspectorView {
       }
 
       head.append(text);
+
+      const target = content.header.target;
+
+      if (target !== null) {
+        head.append(
+          iconButton("external-link", "Open in Editor (⌘⇧E)", "", () =>
+            actions.openInEditor(target),
+          ),
+        );
+      }
 
       close.type = "button";
       close.title = "Close the inspector";

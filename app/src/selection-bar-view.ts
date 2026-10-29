@@ -16,6 +16,7 @@ export type BarActions = {
   toggleFocus: () => void;
   toggleFold: () => void;
   openContents: () => void;
+  openInEditor: () => void;
   takeOff: () => void;
 };
 
@@ -125,6 +126,9 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
       contents.classList.toggle("on", contentsShown);
       parts.push(
         contents,
+        iconButton("external-link", "Open in Editor (⌘⇧E)", () =>
+          actions.openInEditor(),
+        ),
         separator(),
         iconButton("take-off", "Take off the canvas (Backspace)", () =>
           actions.takeOff(),

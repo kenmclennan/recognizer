@@ -1,4 +1,9 @@
 [[set]]
 identifier = "app-access"
-description = "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, and read, write and watch its saved views"
-permissions = ["allow-adopt-scan", "allow-choose-folder", "allow-list-views", "allow-read-source-line", "allow-rename-view", "allow-renames-since", "allow-scan-folder", "allow-scans-at", "allow-view-path", "allow-watch-changes", "allow-watch-views", "allow-window-folder", "allow-write-current-view", "allow-write-view"]
+description = "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views"
+permissions = ["allow-adopt-scan", "allow-choose-folder", "allow-list-views", "allow-open-folder-in-editor", "allow-open-in-editor", "allow-read-source-line", "allow-rename-view", "allow-renames-since", "allow-scan-folder", "allow-scans-at", "allow-view-path", "allow-watch-changes", "allow-watch-views", "allow-window-folder", "allow-write-current-view", "allow-write-view"]
+
+[[set]]
+identifier = "settings-access"
+description = "Read and write the app's settings"
+permissions = ["allow-read-settings", "allow-write-settings"]

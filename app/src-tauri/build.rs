@@ -3,6 +3,9 @@ fn main() {
         "adopt_scan",
         "choose_folder",
         "list_views",
+        "open_folder_in_editor",
+        "open_in_editor",
+        "read_settings",
         "read_source_line",
         "rename_view",
         "renames_since",
@@ -13,6 +16,7 @@ fn main() {
         "watch_views",
         "window_folder",
         "write_current_view",
+        "write_settings",
         "write_view",
     ]);
     let attributes = tauri_build::Attributes::new().app_manifest(commands);

@@ -1,5 +1,6 @@
 import { button, el } from "./dom";
 import type { NodeHealth } from "./health";
+import { iconButton } from "./icons";
 import { checkState, nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 import type { Filtered, FilterState } from "./tree-filter";
@@ -26,6 +27,7 @@ export type TreeActions = {
   putFolderOnCanvas: (ids: string[]) => void;
   takeFolderOff: (ids: string[]) => void;
   find: (id: string) => void;
+  openFolderInEditor: () => void;
 };
 
 export type TreeView = {
@@ -49,7 +51,16 @@ export function buildTreeView(actions: TreeActions): TreeView {
   const filters = el("div", "filters");
   const list = el("div", "rows");
 
-  header.append(title, count);
+  header.append(
+    title,
+    count,
+    iconButton(
+      "external-link",
+      "Open Folder in Editor (⌘⇧O)",
+      "tree-open-editor",
+      actions.openFolderInEditor,
+    ),
+  );
   find.type = "text";
   find.placeholder = "Find a file";
   find.autocomplete = "off";
