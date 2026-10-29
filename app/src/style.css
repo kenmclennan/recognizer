@@ -120,13 +120,13 @@ button.primary {
 
 .explorer {
   display: grid;
-  grid-template-columns: 40px 280px 1fr 44px;
+  grid-template-columns: 40px var(--tree-w, 280px) 1fr 44px;
   flex: 1;
   min-height: 0;
 }
 
 .explorer.inspector-open {
-  grid-template-columns: 40px 280px 1fr 340px;
+  grid-template-columns: 40px var(--tree-w, 280px) 1fr var(--inspector-w, 340px);
 }
 
 .explorer.tree-hidden {
@@ -134,11 +134,12 @@ button.primary {
 }
 
 .explorer.tree-hidden.inspector-open {
-  grid-template-columns: 40px 1fr 340px;
+  grid-template-columns: 40px 1fr var(--inspector-w, 340px);
 }
 
 .tree {
   display: flex;
+  position: relative;
   flex-direction: column;
   min-height: 0;
   background: var(--panel);
@@ -566,9 +567,12 @@ svg.i.chevron {
   cursor: pointer;
 }
 
-.line-group.dim,
 .box.dim,
 .frame.dim {
+  opacity: 0.6;
+}
+
+.line-group.dim {
   opacity: 0.35;
 }
 
@@ -727,6 +731,7 @@ svg.i.chevron {
 
 .inspector {
   display: flex;
+  position: relative;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
@@ -765,12 +770,21 @@ svg.i.chevron {
   margin-bottom: 8px;
 }
 
-.inspector-panel .ih b {
-  word-break: break-all;
+.inspector-panel .ih-text {
+  flex: 1;
+  min-width: 0;
 }
 
-.inspector-panel .grow {
-  flex: 1;
+.ih-name,
+.ih-folder {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ih .ib {
+  flex: none;
 }
 
 .inspector-panel .muted {
@@ -1447,4 +1461,25 @@ svg.i.chevron {
 .content.rescanning {
   opacity: 0.5;
   pointer-events: none;
+}
+
+.panel-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 6px;
+  cursor: col-resize;
+}
+
+.panel-resizer-tree {
+  right: -3px;
+}
+
+.panel-resizer-inspector {
+  left: -3px;
+}
+
+.inspector:not(.open) .panel-resizer {
+  display: none;
 }

@@ -30,7 +30,6 @@ const PROTOTYPE = fileURLToPath(
 const ENTRY = `
 import { buildInspectorView } from ${JSON.stringify(join(SRC, "inspector-view.ts"))};
 import { inspectorContent } from ${JSON.stringify(join(SRC, "inspector-model.ts"))};
-import { buildCallerIndex } from ${JSON.stringify(join(SRC, "member-callers.ts"))};
 
 const scan = {
   modules: [
@@ -42,6 +41,7 @@ const scan = {
     ] },
     { id: "p/o.py", kind: "module" },
     { id: "p/q.py", kind: "module", members: [{ name: "Z", kind: "class", exported: true }] },
+    { id: "deep/folder/" + "n".repeat(120) + ".py", kind: "module" },
   ],
   edges: [],
   foreign: [],
@@ -52,7 +52,6 @@ const inputs = {
   modules: scan.modules.map((m) => m.id),
   disc: () => "green",
   findings: () => [],
-  callers: buildCallerIndex([scan]),
   onCanvas: (id) => id === "p/m.py",
   expanded: new Set(["p/m.py|C|methods"]),
   tab: "contents",
@@ -61,9 +60,8 @@ const inputs = {
   counts: () => ({ uses: 0, usedBy: 0 }),
   filter: "",
   collapsed: new Set(),
-  narrowed: null,
 };
-const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, openCallers() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {} };
+const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {} };
 const mount = (id, selection, open) => {
   const view = buildInspectorView(actions);
   view.render(inspectorContent(selection, inputs), open);
@@ -72,12 +70,18 @@ const mount = (id, selection, open) => {
 };
 mount("a-rail", { kind: "module", id: "p/m.py" }, false);
 mount("a-panel", { kind: "module", id: "p/m.py" }, true);
+mount("a-long", { kind: "module", id: "deep/folder/" + "n".repeat(120) + ".py" }, true);
+mount("a-short", { kind: "module", id: "p/q.py" }, true);
+mount("a-edge", { kind: "edge", id: "p/m.py>p/q.py" }, true);
 `;
 
 const PAGE = (css: string, protoCss: string) => `<!doctype html>
 <html><head><meta charset="utf-8"><style>${css}</style></head><body>
 <div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div>
 <div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div>
+<div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
+<div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
+<div id="a-edge" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
 <div id="host"></div>
 <script src="look.js"></script>
 <script>
@@ -92,10 +96,10 @@ shadow.innerHTML = '<style>:host{display:block;color:var(--fg)}' + protoCss +
   '<div class="ih"><i class="d"></i><b>m.py</b><span data-k="muted" style="color:var(--muted)">p/</span><span style="flex:1"></span><button class="ib" id="ic">' + X + '</button></div>' +
   '<div class="itabs"><button class="on">Contents</button><button>Findings</button></div>' +
   '<div class="oh">Classes</div>' +
-  '<div class="oc">C<span class="t">Exception</span><button class="cb">called by o</button></div>' +
+  '<div class="oc">C<span class="t">Exception</span></div>' +
   '<div class="ob">extends Base</div>' +
   '<div class="om"><span>a: int</span></div>' +
-  '<div class="om"><span>go(x) → int</span><button class="cb" data-k="member-cb">called by o</button></div>' +
+  '<div class="om"><span>go(x) → int</span></div>' +
   '<div class="ofold" data-k="fold">' + CH + '1 private method</div>' +
   '<div class="om" data-k="priv" style="color:var(--muted)"><span>_h()</span></div>' +
   '<div class="oh">Functions</div>' +
@@ -111,9 +115,6 @@ const specs = {
   rail: ["#a-rail .inspector-rail", "#irail", ["width", "display", "flex-direction", "align-items", "background-color", "box-sizing", "padding-top", ...BORDER_L]],
   railButton: ["#a-rail .inspector-rail .ib", "#irail .ib", ["width", "height", "color", "background-color", "border-top-left-radius"]],
   panel: ["#a-panel .inspector-panel", '#insp:not([data-k])', ["width", "box-sizing", "background-color", "overflow-x", "overflow-y", ...BOX, ...BORDER_L]],
-  head: ["#a-panel .ih", ".ih", ["display", "column-gap", "align-items", "margin-bottom"]],
-  headName: ["#a-panel .ih b", ".ih b", ["font-weight", "word-break", "font-size"]],
-  headMuted: ["#a-panel .ih .muted", "[data-k=muted]", ["color", "font-size"]],
   close: ["#a-panel .ih .ib", "#ic", ["width", "height", "color", "border-top-left-radius", "background-color"]],
   tabs: ["#a-panel .itabs", ".itabs", ["display", "column-gap", "margin-bottom", "border-bottom-width", "border-bottom-color"]],
   tabOn: ["#a-panel .itabs button.on", ".itabs button.on", ["padding-top", "padding-left", "color", "font-weight", "font-size", "box-shadow", "background-color"]],
@@ -125,7 +126,6 @@ const specs = {
   member: ["#a-panel .om:not(.top):not(.priv)", ".om", ["display", "column-gap", "align-items", "font-size", "font-family", "border-top-left-radius", ...BOX]],
   memberTop: ["#a-panel .om.top", ".om.top", [...BOX, "font-size", "font-family"]],
   memberMuted: ["#a-panel .om.priv", "[data-k=priv]", ["color", "font-size", ...BOX]],
-  caller: ["#a-panel .om .cb", "[data-k=member-cb]", ["margin-left", "color", "font-size", "font-family", "white-space", "cursor", "background-color", "border-top-width", ...BOX]],
   fold: ["#a-panel .ofold:not(.top)", "[data-k=fold]", ["display", "align-items", "column-gap", "color", "font-size", "cursor", ...BOX]],
   foldTop: ["#a-panel .ofold.top", "[data-k=foldtop]", [...BOX]],
   foldIcon: ["#a-panel .ofold svg", "[data-k=fold] svg", ["width", "height", "stroke-width"]],
@@ -142,6 +142,27 @@ for (const [name, [a, p, props]] of Object.entries(specs)) {
   proto[name] = read(shadow.querySelector(p), props);
 }
 const panel = document.querySelector("#a-panel");
+const measureHead = (id) => {
+  const text = document.querySelector("#" + id + " .ih-text");
+  const [name, folder] = [text.querySelector("b"), text.querySelector(".muted")];
+  const line = parseFloat(getComputedStyle(name).lineHeight) || name.getBoundingClientRect().height;
+  return {
+    nameHeight: name.getBoundingClientRect().height,
+    nameScroll: name.scrollWidth,
+    nameClient: name.clientWidth,
+    overflow: getComputedStyle(name).textOverflow,
+    nameTitle: name.title,
+    nameText: name.textContent,
+    nameBottom: name.getBoundingClientRect().bottom,
+    folderTop: folder ? folder.getBoundingClientRect().top : null,
+    folderTitle: folder ? folder.title : null,
+    folderText: folder ? folder.textContent : null,
+    lines: text.querySelectorAll(":scope > *").length,
+    closeRight: document.querySelector("#" + id + " .ih .ib").getBoundingClientRect().right,
+    panelRight: document.querySelector("#" + id + " .inspector-panel").getBoundingClientRect().right,
+    line,
+  };
+};
 const result = {
   dark: matchMedia("(prefers-color-scheme: dark)").matches,
   app,
@@ -153,6 +174,10 @@ const result = {
     railSvgs: document.querySelectorAll("#a-rail .inspector-rail svg").length,
     railPath: [...document.querySelectorAll("#a-rail svg path")].map((n) => n.getAttribute("d")),
   },
+  heads: { long: measureHead("a-long"), short: measureHead("a-short") },
+  edgeLines: document.querySelectorAll("#a-edge .ih-text > *").length,
+  links: document.querySelectorAll("#a-panel .cb").length,
+  linkText: [...panel.querySelectorAll(".oc, .om")].map((n) => n.textContent).filter((t) => /(called|built|used) by/.test(t)).length,
 };
 document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
 document.getElementById("out").textContent = JSON.stringify(result);
@@ -170,6 +195,10 @@ type Report = {
     railSvgs: number;
     railPath: string[];
   };
+  heads: Record<string, Record<string, number | string | null>>;
+  edgeLines: number;
+  links: number;
+  linkText: number;
 };
 
 async function prepare(scheme: "light" | "dark"): Promise<Report> {
@@ -259,6 +288,53 @@ describe("the inspector against the prototype, in a real browser", () => {
       120000,
     );
   }
+
+  it.skipIf(chrome === undefined)(
+    "cuts a long name to one line with an ellipsis and puts the folder below",
+    async () => {
+      const { heads } = await prepare("light");
+      const long = heads.long as Record<string, number | string>;
+      const short = heads.short as Record<string, number | string>;
+
+      expect(long.nameHeight).toBe(long.line);
+      expect(long.nameScroll as number).toBeGreaterThan(
+        long.nameClient as number,
+      );
+      expect(long.overflow).toBe("ellipsis");
+      expect(long.nameTitle).toBe(long.nameText);
+      expect((long.nameTitle as string).length).toBe(123);
+      expect(long.folderTop as number).toBeGreaterThanOrEqual(
+        long.nameBottom as number,
+      );
+      expect(long.folderTitle).toBe(long.folderText);
+      expect(long.closeRight as number).toBeLessThanOrEqual(
+        long.panelRight as number,
+      );
+      expect(short.nameScroll).toBe(short.nameClient);
+    },
+    120000,
+  );
+
+  it.skipIf(chrome === undefined)(
+    "renders one line when the folder line is empty",
+    async () => {
+      const report = await prepare("light");
+
+      expect(report.edgeLines).toBe(1);
+    },
+    120000,
+  );
+
+  it.skipIf(chrome === undefined)(
+    "shows no links to other modules in Contents",
+    async () => {
+      const report = await prepare("light");
+
+      expect(report.links).toBe(0);
+      expect(report.linkText).toBe(0);
+    },
+    120000,
+  );
 
   it.skipIf(chrome === undefined)(
     "draws every icon as one inline svg and uses no images or icon fonts",

@@ -102,6 +102,8 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     viewsSource,
     (text) => footerView.notify(text),
     carried,
+    undefined,
+    localStorage,
   );
 }
 
