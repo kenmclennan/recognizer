@@ -216,12 +216,14 @@ async function prepare(scheme: "light" | "dark"): Promise<Report> {
         "--dump-dom",
         `file://${join(dir, "page.html")}`,
       ],
-      { encoding: "utf8", timeout: 60000 },
+      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(run.stdout);
 
     if (!match) {
-      throw new Error(`no report from the page: ${run.stderr.slice(0, 400)}`);
+      throw new Error(
+        `no report from the page: ${run.stderr.slice(0, 400)} ${run.error}`,
+      );
     }
 
     return JSON.parse(

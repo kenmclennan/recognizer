@@ -85,7 +85,7 @@ describe("the inspector's layout in a real browser", () => {
             "--dump-dom",
             `file://${page}`,
           ],
-          { encoding: "utf8", timeout: 60000 },
+          { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
         );
         const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(run.stdout);
 

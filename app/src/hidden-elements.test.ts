@@ -74,7 +74,7 @@ describe("hidden elements in a real browser", () => {
             "--dump-dom",
             `file://${page}`,
           ],
-          { encoding: "utf8", timeout: 60000 },
+          { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
         );
         const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
