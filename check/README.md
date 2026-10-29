@@ -196,7 +196,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ## Question commands
 
-`recognizer uses <module>`, `recognizer used-by <module>`, `recognizer callers <module> <name>` and `recognizer path <from> <to>` answer what the canvas and the Uses and Used by tabs show. Modules are named by repository-relative path, `--repository <dir>` (default `.`) picks the repository, text is the default and `--json` prints JSON. A question's stdout holds only its answer.
+`recognizer uses <module>`, `recognizer used-by <module>`, `recognizer callers <module> <name>` and `recognizer path <from> <to>` answer what the canvas and the Dependencies tab show. Modules are named by repository-relative path, `--repository <dir>` (default `.`) picks the repository, text is the default and `--json` prints JSON. A question's stdout holds only its answer.
 
 - `uses` and `used-by` list the modules grouped by folder, each with the names used, marked `(private)` or `(inferred)`. Exit 0, including for no modules.
 - `callers` lists the modules that call a member, with `(through <Abstraction>)` for a call that reaches it by dispatch, and whether the member is built. A module with no call data in the scan is exit 2, never "no callers".

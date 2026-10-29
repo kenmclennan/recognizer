@@ -13,8 +13,7 @@ export type KeyAction =
   | "fold"
   | "take-off"
   | "escape"
-  | "uses"
-  | "used-by"
+  | "dependencies"
   | "contents";
 
 export function keyAction(
@@ -47,12 +46,8 @@ export function keyAction(
     return null;
   }
 
-  if (key === "u") {
-    return "uses";
-  }
-
   if (key === "d") {
-    return "used-by";
+    return "dependencies";
   }
 
   if (key === "i") {

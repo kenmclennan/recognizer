@@ -304,7 +304,7 @@ export const COMMANDS: Command[] = [
       {
         name: "rule",
         description:
-          "put a folder's modules (--folder), or what a module uses (--uses) or is used by (--used-by), on the view, re-evaluated against every scan; --uses and --used-by are direct, one step (the rows the Uses and Used by tabs list), not transitive; --within limits uses and used-by to a folder",
+          "put a folder's modules (--folder), or what a module uses (--uses) or is used by (--used-by), on the view, re-evaluated against every scan; --uses and --used-by are direct, one step (the rows the Dependencies tab lists), not transitive; --within limits uses and used-by to a folder",
       },
       {
         name: "fold",

@@ -87,7 +87,9 @@ const aria = (row) => row.querySelector(".rcheck").getAttribute("aria-checked");
 const centre = (node) => { const r = node.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 const off = (id) => { const c = centre(document.querySelector('.box[data-id="' + id + '"]')); const s = centre(document.querySelector(".stage")); return Math.hypot(c.x - s.x, c.y - s.y); };
 const selected = () => [...document.querySelectorAll(".box.selected")].map((n) => n.dataset.id);
-const bar = (text) => [...document.querySelectorAll(".selection-bar .bar-button")].find((b) => b.textContent.startsWith(text));
+const bar = (label) => document.querySelector('.selection-bar [aria-label^="' + label + '"]');
+const heads = () => [...document.querySelectorAll(".inspector-panel .ofold")];
+const sectionRows = () => document.querySelectorAll(".inspector-panel .row.file").length;
 const look = (node) => { const c = cs(node.querySelector(".rcheck")); return [c.width, c.height, c.borderTopLeftRadius, c.borderTopWidth, c.borderTopColor, c.backgroundColor].join("|"); };
 const tabs = () => [...document.querySelectorAll(".inspector-panel .itabs button")];
 const facts = {};
@@ -98,16 +100,25 @@ click(treeRow("app/hub.py").querySelector(".rcheck"));
 facts.afterHub = count();
 click(document.querySelector('.box[data-id="app/hub.py"] .box-body'));
 facts.selectedHub = selected();
-click(bar("Uses"));
+click(bar("Dependencies"));
 facts.tabs = tabs().map((t) => t.textContent);
 facts.activeTab = tabs().filter((t) => t.classList.contains("on")).map((t) => t.textContent);
-facts.barLit = bar("Uses").classList.contains("on");
-click(bar("Uses"));
+facts.barLit = bar("Dependencies").classList.contains("on");
+facts.barFigure = bar("Dependencies").textContent;
+click(bar("Dependencies"));
 facts.stillShown = document.querySelector(".inspector-panel .itabs button.on").textContent;
 key("d");
-facts.afterD = [document.querySelector(".inspector-panel .itabs button.on").textContent, bar("Used by").disabled, bar("Uses").classList.contains("on")];
+facts.afterD = [document.querySelector(".inspector-panel .itabs button.on").textContent, bar("Dependencies").disabled, bar("Dependencies").classList.contains("on")];
 key("u");
 facts.afterU = document.querySelector(".inspector-panel .itabs button.on").textContent;
+facts.sections = heads().map((h) => h.textContent);
+facts.openRows = sectionRows();
+click(heads()[0]);
+facts.afterCollapse = { heads: heads().map((h) => h.textContent), rows: sectionRows(), chevron: heads()[0].querySelector("svg path").getAttribute("d") };
+click(heads()[0]);
+facts.afterExpand = sectionRows();
+facts.iconTitles = [...document.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title);
+facts.barText = [...document.querySelectorAll(".selection-bar button")].map((b) => b.textContent);
 
 facts.groupHeads = [...document.querySelectorAll(".inspector-panel .row.folder")].map((r) => r.querySelector(".name").textContent);
 facts.pickOrder = [...pickRow("lib/c.py").children].map((c) => c.classList.contains("rcheck") ? "check" : c.classList.contains("name") ? "name" : c.classList.contains("disc") ? "disc" : c.classList.contains("detail") ? "detail" : "other");
@@ -187,6 +198,13 @@ type Facts = {
   barLit: boolean;
   stillShown: string;
   afterD: [string, boolean, boolean];
+  barFigure: string;
+  sections: string[];
+  openRows: number;
+  afterCollapse: { heads: string[]; rows: number; chevron: string };
+  afterExpand: number;
+  iconTitles: string[];
+  barText: string[];
   afterU: string;
   groupHeads: string[];
   pickOrder: string[];
@@ -294,16 +312,35 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
     f = await collect();
   }, 120000);
 
-  it("opens Uses and Used by as the third and fourth inspector tab, lit on the bar, and stays on a second press", () => {
-    expect(f.tabs).toEqual(["Contents", "Findings", "Uses 4", "Used by 0"]);
-    expect(f.activeTab).toEqual(["Uses 4"]);
+  it("opens Dependencies as the third inspector tab, lit on the bar with the total, and stays on a second press", () => {
+    expect(f.tabs).toEqual(["Contents", "Findings", "Dependencies 4"]);
+    expect(f.activeTab).toEqual(["Dependencies 4"]);
     expect(f.barLit).toBe(true);
-    expect(f.stillShown).toBe("Uses 4");
+    expect(f.barFigure).toBe("4");
+    expect(f.stillShown).toBe("Dependencies 4");
   });
 
-  it("maps U to the Uses tab and does nothing for D when nothing uses the module", () => {
-    expect(f.afterD).toEqual(["Uses 4", true, true]);
-    expect(f.afterU).toBe("Uses 4");
+  it("maps D to the Dependencies tab and does nothing for U", () => {
+    expect(f.afterD).toEqual(["Dependencies 4", false, true]);
+    expect(f.afterU).toBe("Dependencies 4");
+  });
+
+  it("lists a Uses and a Used by section with their counts, and collapses one without touching the other", () => {
+    expect(f.sections).toEqual(["Uses 4", "Used by 0"]);
+    expect(f.openRows).toBe(4);
+    expect(f.afterCollapse.heads).toEqual(["Uses 4", "Used by 0"]);
+    expect(f.afterCollapse.rows).toBe(0);
+    expect(f.afterCollapse.chevron).toBe("M9 6l6 6-6 6");
+    expect(f.afterExpand).toBe(4);
+  });
+
+  it("gives every icon button a tooltip and no bar button a word", () => {
+    expect(f.iconTitles.length).toBeGreaterThan(0);
+    expect(f.iconTitles.every((title) => title !== "")).toBe(true);
+
+    for (const text of f.barText) {
+      expect(text).toMatch(/^(\d+(\/\d+)?)?$/);
+    }
   });
 
   it("groups by folder with the full path, one row each: checkbox, name, disc", () => {
@@ -311,7 +348,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
     expect(f.pickOrder).toEqual(["check", "name", "disc", "detail"]);
   });
 
-  it("clicking an unchecked name puts it on, ticks it in the tree and Uses, centres on its box and keeps the selection", () => {
+  it("clicking an unchecked name puts it on, ticks it in the tree and Dependencies, centres on its box and keeps the selection", () => {
     expect(f.beforeC).toEqual({ tree: "false", pick: "false" });
     expect(f.nameOnUnchecked.count).toBe("2 of 5 modules on the canvas");
     expect(f.nameOnUnchecked.tree).toBe("true");
@@ -360,9 +397,9 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
     expect(f.folderNameToggled).toBe(true);
   });
 
-  it("gives all four tabs the one underline style", () => {
+  it("gives all three tabs the one underline style", () => {
     expect(new Set(f.tabStyle).size).toBe(1);
-    expect(f.tabStyle).toHaveLength(3);
+    expect(f.tabStyle).toHaveLength(2);
     expect(f.activeTabStyle).toContain("inset");
   });
 

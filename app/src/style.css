@@ -673,6 +673,15 @@ svg.i.chevron {
   box-shadow: 0 4px 12px rgba(31, 35, 40, 0.25);
 }
 
+.selection-bar.away {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.bar-figure {
+  font-size: 12px;
+}
+
 .bar-button {
   display: flex;
   align-items: center;

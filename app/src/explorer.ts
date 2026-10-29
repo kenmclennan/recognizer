@@ -1,4 +1,5 @@
 import { resolveView } from "recognizer";
+import { type Scheduler, timerScheduler } from "./bar-hover";
 import {
   buildCanvasGraph,
   type CanvasGraph,
@@ -77,6 +78,7 @@ export function showExplorer(
   views: ViewsPort = inertViews,
   notify: (text: string) => void = () => {},
   carried: Carried | null = null,
+  scheduler: Scheduler = timerScheduler,
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const root = buildTree(loaded.modules);
@@ -168,46 +170,49 @@ export function showExplorer(
     find,
   });
 
-  const canvas = buildCanvasView({
-    find,
-    select,
-    takeOff() {
-      state.takeOff(state.selection());
-      changed();
-    },
-    toggleFold() {
-      const selection = state.selection();
-
-      if (selection?.kind === "folder") {
-        state.toggleFold(selection.id);
+  const canvas = buildCanvasView(
+    {
+      find,
+      select,
+      takeOff() {
+        state.takeOff(state.selection());
         changed();
-      }
-    },
-    toggleFocus() {
-      const selection = state.selection();
+      },
+      toggleFold() {
+        const selection = state.selection();
 
-      if (selection?.kind === "folder") {
-        state.toggleFocus(selection.id);
+        if (selection?.kind === "folder") {
+          state.toggleFold(selection.id);
+          changed();
+        }
+      },
+      toggleFocus() {
+        const selection = state.selection();
+
+        if (selection?.kind === "folder") {
+          state.toggleFocus(selection.id);
+          changed();
+          canvas.centerOn(state.focus() ?? selection.id);
+        }
+      },
+      clear() {
+        state.clear();
         changed();
-        canvas.centerOn(state.focus() ?? selection.id);
-      }
+      },
+      setShowInferred(show) {
+        state.setShowInferred(show);
+        changed();
+      },
+      openContents() {
+        inspectorOpen = true;
+        inspectorTab = "contents";
+        render();
+      },
+      measure,
+      openTab,
     },
-    clear() {
-      state.clear();
-      changed();
-    },
-    setShowInferred(show) {
-      state.setShowInferred(show);
-      changed();
-    },
-    openContents() {
-      inspectorOpen = true;
-      inspectorTab = "contents";
-      render();
-    },
-    measure,
-    openTab,
-  });
+    scheduler,
+  );
 
   const inspector = buildInspectorView({
     open() {
@@ -251,7 +256,7 @@ export function showExplorer(
     openCallers(button) {
       resetFilter();
       inspectorOpen = true;
-      inspectorTab = "usedBy";
+      inspectorTab = "dependencies";
       narrowed = {
         title: button.pickerTitle,
         items: button.callers.map((id) => ({ id, names: [button.name] })),
@@ -376,7 +381,7 @@ export function showExplorer(
   }
 
   function openTab(tab: InspectorTab) {
-    if (tab === "uses" || tab === "usedBy") {
+    if (tab === "dependencies") {
       const selection = state.selection();
 
       if (selection === null || selection.kind === "edge") {
@@ -385,7 +390,7 @@ export function showExplorer(
 
       const counts = graph.counts(selection);
 
-      if ((tab === "uses" ? counts.uses : counts.usedBy) === 0) {
+      if (counts.uses + counts.usedBy === 0) {
         return;
       }
     }
@@ -531,8 +536,7 @@ export function showExplorer(
 
     return {
       kind: selection.kind,
-      uses: counts.uses,
-      usedBy: counts.usedBy,
+      dependencies: counts.uses + counts.usedBy,
       files:
         selection.kind === "folder"
           ? { open: graph.openIn(selection.id), held: graph.held(selection.id) }

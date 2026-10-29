@@ -10,6 +10,7 @@ export type IconName =
   | "panel-right"
   | "arrow-down"
   | "arrow-up"
+  | "dependencies"
   | "focus"
   | "fold"
   | "unfold"
@@ -56,6 +57,13 @@ const SHAPES: Record<IconName, Shape[]> = {
   ],
   "arrow-down": [["path", { d: "M12 5v14M5 12l7 7 7-7" }]],
   "arrow-up": [["path", { d: "M12 19V5M5 12l7-7 7 7" }]],
+  dependencies: [
+    ["circle", { cx: "12", cy: "18", r: "3" }],
+    ["circle", { cx: "6", cy: "6", r: "3" }],
+    ["circle", { cx: "18", cy: "6", r: "3" }],
+    ["path", { d: "M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" }],
+    ["path", { d: "M12 12v3" }],
+  ],
   focus: [
     ["circle", { cx: "12", cy: "12", r: "3" }],
     [
