@@ -20,11 +20,12 @@ on:
 jobs:
   lint:
     runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci
+      - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npx prettier --check --prose-wrap=never "**/*.md"
       - run: npx markdownlint-cli2 "**/*.md" "#node_modules" "#app/node_modules" "#app/src-tauri/target" "#scanners/python/.venv"
