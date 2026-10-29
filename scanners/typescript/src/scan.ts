@@ -46,7 +46,7 @@ export interface ScanEdge {
 }
 
 export interface ScanDocument {
-  schema_version: 2;
+  schema_version: 3;
   scanner: { name: string; version: string };
   commit: string | null;
   modules: ScanModule[];
@@ -378,7 +378,7 @@ export function scan(root: string, commit: string | null): ScanDocument {
   });
 
   return {
-    schema_version: 2,
+    schema_version: 3,
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
     commit,
     modules: [...modules].sort(compare).map((id) => {

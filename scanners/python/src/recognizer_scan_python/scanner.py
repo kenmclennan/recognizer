@@ -179,7 +179,7 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
     calls = CallResolver(parsed, classes, outlines, index, router).scan_calls()
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modules": modules,

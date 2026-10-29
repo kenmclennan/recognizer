@@ -162,7 +162,17 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 1");
-    expect(err).toContain("accepts 2");
+    expect(err).toContain("accepts 3");
+  });
+
+  it("refuses a version-2 scan naming both versions", () => {
+    const { err } = scan({
+      files: { [`${ROOT}/a.py`]: "" },
+      scanners: { [PYTHON]: { output: scanJson(1, 0, { schema_version: 2 }) } },
+    });
+
+    expect(err).toContain("schema_version 2");
+    expect(err).toContain("accepts 3");
   });
 
   it("carries the scanner's stderr", () => {

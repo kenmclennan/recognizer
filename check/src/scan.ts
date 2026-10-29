@@ -27,15 +27,22 @@ export type ScanTag =
   | "abstract"
   | "async";
 
+export interface ScanParam {
+  name: string;
+  type?: string;
+}
+
 export interface ScanField {
   name: string;
   type?: string;
+  line: number;
+  private: boolean;
 }
 
 export interface ScanMethod {
   name: string;
   line?: number;
-  params?: string[];
+  params?: ScanParam[];
   returns?: string;
   private?: boolean;
   tags?: ScanTag[];
@@ -49,7 +56,7 @@ export interface ScanMember {
   bases?: string[];
   fields?: ScanField[];
   methods?: ScanMethod[];
-  params?: string[];
+  params?: ScanParam[];
   returns?: string;
   tags?: ScanTag[];
   value?: string;

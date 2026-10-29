@@ -5,6 +5,7 @@ const limit = 10;
 export class BaseStore {
   ids: Id[] = [];
   size: number = 0;
+  private cursor = 0;
 
   private grow(): number {
     return limit;

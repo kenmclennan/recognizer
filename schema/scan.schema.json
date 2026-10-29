@@ -13,7 +13,7 @@
     "foreign"
   ],
   "properties": {
-    "schema_version": { "const": 2 },
+    "schema_version": { "const": 3 },
     "scanner": {
       "type": "object",
       "additionalProperties": false,
@@ -64,10 +64,7 @@
         },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } },
         "methods": { "type": "array", "items": { "$ref": "#/$defs/method" } },
-        "params": {
-          "type": "array",
-          "items": { "type": "string", "minLength": 1 }
-        },
+        "params": { "type": "array", "items": { "$ref": "#/$defs/param" } },
         "returns": { "type": "string", "minLength": 1 },
         "tags": { "$ref": "#/$defs/tags" },
         "value": { "type": "string", "maxLength": 40 }
@@ -184,13 +181,24 @@
         "name": { "type": "string", "minLength": 1 }
       }
     },
-    "field": {
+    "param": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "type": { "type": "string", "minLength": 1 }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "line", "private"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "line": { "$ref": "#/$defs/line" },
+        "private": { "type": "boolean" }
       }
     },
     "method": {
@@ -200,10 +208,7 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "line": { "$ref": "#/$defs/line" },
-        "params": {
-          "type": "array",
-          "items": { "type": "string", "minLength": 1 }
-        },
+        "params": { "type": "array", "items": { "$ref": "#/$defs/param" } },
         "returns": { "type": "string", "minLength": 1 },
         "private": { "type": "boolean" },
         "tags": { "$ref": "#/$defs/tags" }

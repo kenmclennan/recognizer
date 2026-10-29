@@ -59,18 +59,37 @@ describe("outline: fields", () => {
         "A",
       ).fields,
     ).toEqual([
-      { name: "x", type: "number" },
-      { name: "y" },
-      { name: "#z", type: "string" },
-      { name: "p", type: "boolean" },
-      { name: "a", type: "string" },
-      { name: "b" },
+      { name: "x", type: "number", line: 2, private: false },
+      { name: "y", line: 3, private: false },
+      { name: "#z", type: "string", line: 4, private: true },
+      { name: "p", type: "boolean", line: 5, private: true },
+      { name: "a", type: "string", line: 6, private: false },
+      { name: "b", line: 6, private: true },
     ]);
     expect(
       member("interface I { a: string; b?: number }\n", "I").fields,
     ).toEqual([
-      { name: "a", type: "string" },
-      { name: "b", type: "number" },
+      { name: "a", type: "string", line: 1, private: false },
+      { name: "b", type: "number", line: 1, private: false },
+    ]);
+  });
+
+  it("counts protected and a private parameter property as private", () => {
+    expect(
+      member(
+        [
+          "class A {",
+          "  protected q = 1;",
+          "  constructor(",
+          "    private readonly store: Store,",
+          "  ) {}",
+          "}",
+        ].join("\n"),
+        "A",
+      ).fields,
+    ).toEqual([
+      { name: "q", line: 2, private: true },
+      { name: "store", type: "Store", line: 4, private: true },
     ]);
   });
 });
@@ -82,10 +101,17 @@ describe("outline: parameters and returns", () => {
         "function f(this: Window, a, ...rest: number[]) {}\nfunction g({ a,\n b }, [c]: number[]) {}\n",
         "f",
       ).params,
-    ).toEqual(["a", "rest"]);
+    ).toEqual([{ name: "a" }, { name: "rest", type: "number[]" }]);
     expect(
       member("function g({ a,\n b }, [c]: number[]) {}\n", "g").params,
-    ).toEqual(["{ a, b }", "[c]"]);
+    ).toEqual([{ name: "{ a, b }" }, { name: "[c]", type: "number[]" }]);
+  });
+
+  it("types a parameter only by its declaration, not by inference", () => {
+    expect(
+      method("class A { m(a: Map<string,\n number>, b = 1) {} }\n", "A", "m")
+        .params,
+    ).toEqual([{ name: "a", type: "Map<string, number>" }, { name: "b" }]);
   });
 
   it("emits returns only when declared", () => {
@@ -110,7 +136,7 @@ describe("outline: parameters and returns", () => {
     );
 
     expect(found.kind).toBe("function");
-    expect(found.params).toEqual(["a"]);
+    expect(found.params).toEqual([{ name: "a", type: "number" }]);
     expect(found.returns).toBe("string");
     expect(found.tags).toEqual(["async"]);
   });

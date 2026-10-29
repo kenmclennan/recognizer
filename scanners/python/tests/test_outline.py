@@ -5,6 +5,10 @@ def member(document, module_id, name):
     return next(m for m in module(document, module_id)["members"] if m["name"] == name)
 
 
+def names(*found):
+    return [{"name": name} for name in found]
+
+
 def method(document, module_id, cls, name):
     return next(m for m in member(document, module_id, cls)["methods"] if m["name"] == name)
 
@@ -41,12 +45,12 @@ def test_fields_come_from_the_class_body_and_init(run):
     )
 
     assert member(document, "m.py", "A")["fields"] == [
-        {"name": "x", "type": "int"},
-        {"name": "y"},
-        {"name": "z", "type": "str"},
-        {"name": "a"},
-        {"name": "b", "type": "list[int]"},
-        {"name": "_c"},
+        {"name": "x", "type": "int", "line": 2, "private": False},
+        {"name": "y", "line": 3, "private": False},
+        {"name": "z", "type": "str", "line": 4, "private": False},
+        {"name": "a", "line": 6, "private": False},
+        {"name": "b", "type": "list[int]", "line": 7, "private": False},
+        {"name": "_c", "line": 9, "private": True},
     ]
 
 
@@ -65,10 +69,35 @@ def test_parameters_drop_self_and_cls_and_keep_every_other_form(run):
         }
     )
 
-    assert method(document, "m.py", "A", "a")["params"] == ["p", "q", "args", "k", "kwargs"]
-    assert method(document, "m.py", "A", "b")["params"] == ["x"]
-    assert method(document, "m.py", "A", "c")["params"] == ["self", "y"]
-    assert member(document, "m.py", "f")["params"] == ["p", "a", "k", "kw"]
+    assert method(document, "m.py", "A", "a")["params"] == names("p", "q", "args", "k", "kwargs")
+    assert method(document, "m.py", "A", "b")["params"] == names("x")
+    assert method(document, "m.py", "A", "c")["params"] == names("self", "y")
+    assert member(document, "m.py", "f")["params"] == names("p", "a", "k", "kw")
+
+
+def test_parameters_carry_their_annotation_and_nothing_inferred(run):
+    document = run(
+        {
+            "m.py": (
+                "class A:\n"
+                "    def m(self, a: int, b, c=1, *args: str, d: 'A | None' = None, **kw): ...\n"
+                "def f(x: list[int], y=2): ...\n"
+            )
+        }
+    )
+
+    assert method(document, "m.py", "A", "m")["params"] == [
+        {"name": "a", "type": "int"},
+        {"name": "b"},
+        {"name": "c"},
+        {"name": "args", "type": "str"},
+        {"name": "d", "type": "'A | None'"},
+        {"name": "kw"},
+    ]
+    assert member(document, "m.py", "f")["params"] == [
+        {"name": "x", "type": "list[int]"},
+        {"name": "y"},
+    ]
 
 
 def test_returns_only_when_declared(run):

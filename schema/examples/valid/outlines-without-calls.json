@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": "a1b2c3d",
   "modules": [
@@ -21,7 +21,10 @@
           "line": 3,
           "exported": true,
           "bases": ["Base", "abc.ABC"],
-          "fields": [{ "name": "id", "type": "str" }, { "name": "items" }],
+          "fields": [
+            { "name": "id", "type": "str", "line": 4, "private": false },
+            { "name": "_items", "line": 5, "private": true }
+          ],
           "methods": [
             {
               "name": "total",
@@ -31,11 +34,11 @@
               "private": false,
               "tags": ["property"]
             },
-            { "name": "_sum", "line": 9, "params": ["scale"], "private": true },
+            { "name": "_sum", "line": 9, "params": [{ "name": "scale", "type": "float" }], "private": true },
             {
               "name": "load",
               "line": 12,
-              "params": ["path", "args", "kwargs"],
+              "params": [{ "name": "path" }, { "name": "args" }, { "name": "kwargs" }],
               "private": false,
               "tags": ["static", "async"]
             },
@@ -60,7 +63,7 @@
           "kind": "function",
           "line": 20,
           "exported": true,
-          "params": ["order_id"],
+          "params": [{ "name": "order_id", "type": "str" }],
           "returns": "Order",
           "tags": ["async"]
         }

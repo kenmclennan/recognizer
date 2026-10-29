@@ -10,7 +10,7 @@ function template(name: string) {
 
 function scanOf(edges: Array<[string, string]>, modules: string[] = []) {
   return {
-    schema_version: 2,
+    schema_version: 3,
     scanner: { name: "t", version: "0" },
     commit: null,
     modules: modules.map((id) => ({

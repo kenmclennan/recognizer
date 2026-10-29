@@ -162,7 +162,7 @@ function signature(
     return item.returns ? `${item.name} → ${item.returns}` : item.name;
   }
 
-  const head = `${item.name}(${item.params.join(", ")})`;
+  const head = `${item.name}(${item.params.map((param) => param.name).join(", ")})`;
 
   return item.returns ? `${head} → ${item.returns}` : head;
 }

@@ -42,7 +42,7 @@ export function scanJson(
   spacing = "\t",
 ): string {
   const scan = {
-    schema_version: 2,
+    schema_version: 3,
     scanner: { name: "fake", version: "0.0.0" },
     commit: null,
     modules: Array.from({ length: modules }, (_, index) => ({

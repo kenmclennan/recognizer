@@ -21,7 +21,7 @@ const INFERRED = {
   implementations: [],
 };
 
-function scanOf(edges: object[], version = 2) {
+function scanOf(edges: object[], version = 3) {
   return {
     schema_version: version,
     scanner: { name: "t", version: "0" },
@@ -54,7 +54,7 @@ const plainEdge = (from: string, to: string) => ({
 });
 
 describe("scan versions", () => {
-  it("accepts version 2", () => {
+  it("accepts version 3", () => {
     expect(() => validateScan(scanOf([]))).not.toThrow();
   });
 
