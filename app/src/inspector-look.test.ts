@@ -53,7 +53,8 @@ const inputs = {
   disc: () => "green",
   findings: () => [],
   onCanvas: (id) => id === "p/m.py",
-  expanded: new Set(["p/m.py|C|methods"]),
+  expanded: new Set(),
+  showPrivate: true,
   tab: "contents",
   evidence: null,
   edgeOnCanvas: true,
@@ -61,7 +62,7 @@ const inputs = {
   filter: "",
   collapsed: new Set(),
 };
-const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor() {} };
+const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {} };
 const mount = (id, selection, open) => {
   const view = buildInspectorView(actions);
   view.render(inspectorContent(selection, inputs), open);
@@ -95,16 +96,6 @@ shadow.innerHTML = '<style>:host{display:block;color:var(--fg)}' + protoCss +
   '<div style="width:340px;height:600px;display:flex;flex-direction:column"><div id="insp" style="display:block;flex:1;width:auto">' +
   '<div class="ih"><i class="d"></i><b>m.py</b><span data-k="muted" style="color:var(--muted)">p/</span><span style="flex:1"></span><button class="ib" id="ic">' + X + '</button></div>' +
   '<div class="itabs"><button class="on">Contents</button><button>Findings</button></div>' +
-  '<div class="oh">Classes</div>' +
-  '<div class="oc">C<span class="t">Exception</span></div>' +
-  '<div class="ob">extends Base</div>' +
-  '<div class="om"><span>a: int</span></div>' +
-  '<div class="om"><span>go(x) → int</span></div>' +
-  '<div class="ofold" data-k="fold">' + CH + '1 private method</div>' +
-  '<div class="om" data-k="priv" style="color:var(--muted)"><span>_h()</span></div>' +
-  '<div class="oh">Functions</div>' +
-  '<div class="om top"><span>f()</span></div>' +
-  '<div class="ofold top" data-k="foldtop">' + CH + '1 private function</div>' +
   '</div></div>' +
 '</div></div>';
 
@@ -119,16 +110,6 @@ const specs = {
   tabs: ["#a-panel .itabs", ".itabs", ["display", "column-gap", "margin-bottom", "border-bottom-width", "border-bottom-color"]],
   tabOn: ["#a-panel .itabs button.on", ".itabs button.on", ["padding-top", "padding-left", "color", "font-weight", "font-size", "box-shadow", "background-color"]],
   tabOff: ["#a-panel .itabs button:not(.on)", ".itabs button:not(.on)", ["padding-top", "padding-left", "color", "font-weight", "font-size", "box-shadow", "background-color"]],
-  heading: ["#a-panel .oh", ".oh", ["color", "font-size", "text-transform", "letter-spacing", "margin-top", "margin-bottom"]],
-  classRow: ["#a-panel .oc", ".oc", ["display", "align-items", "column-gap", "font-weight", "margin-top", "border-top-left-radius", ...BOX]],
-  classTag: ["#a-panel .oc .t", ".oc .t", ["color", "font-size", "font-weight"]],
-  extendsLine: ["#a-panel .ob", ".ob", ["color", "font-size", ...BOX]],
-  member: ["#a-panel .om:not(.top):not(.priv)", ".om", ["display", "column-gap", "align-items", "font-size", "font-family", "border-top-left-radius", ...BOX]],
-  memberTop: ["#a-panel .om.top", ".om.top", [...BOX, "font-size", "font-family"]],
-  memberMuted: ["#a-panel .om.priv", "[data-k=priv]", ["color", "font-size", ...BOX]],
-  fold: ["#a-panel .ofold:not(.top)", "[data-k=fold]", ["display", "align-items", "column-gap", "color", "font-size", "cursor", ...BOX]],
-  foldTop: ["#a-panel .ofold.top", "[data-k=foldtop]", [...BOX]],
-  foldIcon: ["#a-panel .ofold svg", "[data-k=fold] svg", ["width", "height", "stroke-width"]],
 };
 const read = (node, props) => {
   if (!node) return { missing: true };
@@ -170,14 +151,13 @@ const result = {
   structure: {
     images: document.querySelectorAll(".inspector img").length,
     iconFonts: document.querySelectorAll(".inspector i").length,
-    foldSvgs: [...panel.querySelectorAll(".ofold")].map((n) => n.querySelectorAll("svg").length),
     railSvgs: document.querySelectorAll("#a-rail .inspector-rail svg").length,
     railPath: [...document.querySelectorAll("#a-rail svg path")].map((n) => n.getAttribute("d")),
   },
   heads: { long: measureHead("a-long"), short: measureHead("a-short") },
   edgeLines: document.querySelectorAll("#a-edge .ih-text > *").length,
   links: document.querySelectorAll("#a-panel .cb").length,
-  linkText: [...panel.querySelectorAll(".oc, .om")].map((n) => n.textContent).filter((t) => /(called|built|used) by/.test(t)).length,
+  linkText: [...panel.querySelectorAll(".card")].map((n) => n.textContent).filter((t) => /(called|built|used) by/.test(t)).length,
 };
 document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
 document.getElementById("out").textContent = JSON.stringify(result);
@@ -191,7 +171,6 @@ type Report = {
   structure: {
     images: number;
     iconFonts: number;
-    foldSvgs: number[];
     railSvgs: number;
     railPath: string[];
   };
@@ -343,7 +322,6 @@ describe("the inspector against the prototype, in a real browser", () => {
 
       expect(structure.images).toBe(0);
       expect(structure.iconFonts).toBe(0);
-      expect(structure.foldSvgs.every((count) => count === 1)).toBe(true);
       expect(structure.railSvgs).toBe(1);
       expect(structure.railPath).toContain("M15 4v16");
     },

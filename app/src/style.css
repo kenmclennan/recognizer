@@ -23,6 +23,19 @@
   --code: #f6f8fa;
   --dark: #1f2328;
   --darkfg: #fff;
+  --card-class: #8250df;
+  --card-function: #0969da;
+  --card-type: #1a7f37;
+  --card-interface: #bf3989;
+  --card-constant: #9a6700;
+  --tk-keyword: #cf222e;
+  --tk-name: #8250df;
+  --tk-type: #0550ae;
+  --tk-param: #953800;
+  --tk-value: #0a3069;
+  --tk-punct: #57606a;
+  --card-bg: #f6f8fa;
+  --card-border: #d8dee4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -49,6 +62,19 @@
     --code: #161b22;
     --dark: #e6edf3;
     --darkfg: #16181c;
+    --card-class: #bc8cff;
+    --card-function: #58a6ff;
+    --card-type: #3fb950;
+    --card-interface: #f778ba;
+    --card-constant: #d29922;
+    --tk-keyword: #ff7b72;
+    --tk-name: #d2a8ff;
+    --tk-type: #79c0ff;
+    --tk-param: #ffa657;
+    --tk-value: #a5d6ff;
+    --tk-punct: #8b949e;
+    --card-bg: #262c33;
+    --card-border: #3d444d;
   }
 }
 
@@ -830,74 +856,182 @@ svg.i.chevron {
   letter-spacing: 0.04em;
 }
 
-.oc {
+.pswitch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pswitch .track {
+  position: relative;
+  width: 26px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--faint);
+}
+
+.pswitch .track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--panel);
+}
+
+.pswitch[aria-checked="true"] .track {
+  background: var(--sel);
+}
+
+.pswitch[aria-checked="true"] .track::after {
+  left: 14px;
+}
+
+.card {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--card-border);
+  border-left: 3px solid var(--card-class);
+  border-radius: 4px;
+  background: var(--card-bg);
+}
+
+.card-class {
+  border-left-color: var(--card-class);
+}
+
+.card-function {
+  border-left-color: var(--card-function);
+}
+
+.card-type {
+  border-left-color: var(--card-type);
+}
+
+.card-interface {
+  border-left-color: var(--card-interface);
+}
+
+.card-constant {
+  border-left-color: var(--card-constant);
+}
+
+.card-label {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-top: 8px;
-  padding: 2px 4px;
-  border-radius: 4px;
+  margin-bottom: 2px;
+  font-size: 10px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.oc .t {
-  color: var(--muted);
-  font-size: 11px;
+.card-class .card-kind {
+  color: var(--card-class);
+}
+
+.card-function .card-kind {
+  color: var(--card-function);
+}
+
+.card-type .card-kind {
+  color: var(--card-type);
+}
+
+.card-interface .card-kind {
+  color: var(--card-interface);
+}
+
+.card-constant .card-kind {
+  color: var(--card-constant);
+}
+
+.card-line {
+  margin-left: auto;
+  color: var(--faint);
   font-weight: 400;
+  text-align: right;
 }
 
-.ob {
-  padding: 0 4px 2px 18px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.om {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 2px 4px 2px 18px;
-  border-radius: 4px;
+.card-code {
   font:
     11.5px ui-monospace,
     SFMono-Regular,
     Menlo,
     monospace;
+  overflow-wrap: anywhere;
 }
 
-.om.top {
-  padding-left: 4px;
+.card-member {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+  padding-left: 8px;
 }
 
-.om.priv {
+.card-member .card-line {
+  order: -1;
+  min-width: 24px;
+  margin-left: 0;
+  font-size: 10px;
+}
+
+.card .priv,
+.card.priv {
+  opacity: 0.55;
+}
+
+.pmark {
+  margin-left: 6px;
   color: var(--muted);
-}
-
-.om .tag {
-  color: var(--muted);
-}
-
-.om:hover,
-.oc:hover {
-  background: var(--code);
-}
-
-.cb {
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--sel);
   font:
-    11px -apple-system,
+    10px -apple-system,
     system-ui,
     sans-serif;
-  white-space: nowrap;
-  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-.cb:hover {
-  text-decoration: underline;
+.card-hidden {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tk-keyword {
+  color: var(--tk-keyword);
+}
+
+.tk-name {
+  color: var(--tk-name);
+  font-weight: 700;
+}
+
+.tk-type {
+  color: var(--tk-type);
+}
+
+.tk-param {
+  color: var(--tk-param);
+}
+
+.tk-value {
+  color: var(--tk-value);
+}
+
+.tk-plain {
+  color: var(--tk-punct);
 }
 
 .ofold {

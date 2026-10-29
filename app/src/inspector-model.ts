@@ -1,6 +1,16 @@
-import type { Scan, ScanEdge, ScanMember, ScanMethod } from "recognizer";
+import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
+import {
+  classHeadTokens,
+  constantTokens,
+  fieldTokens,
+  functionTokens,
+  interfaceHeadTokens,
+  methodTokens,
+  type Token,
+  typeAliasTokens,
+} from "./card-code";
 import type { EvidenceSection } from "./edge-evidence";
 import type { Disc, Finding } from "./health";
 import { createPicker, type PickerSource } from "./picker-model";
@@ -15,6 +25,7 @@ export type InspectorInputs = {
   findings: (id: string) => Finding[];
   onCanvas: (id: string) => boolean;
   expanded: ReadonlySet<string>;
+  showPrivate: boolean;
   tab: InspectorTab;
   evidence: EvidenceSection[] | null;
   edgeOnCanvas: boolean;
@@ -23,20 +34,37 @@ export type InspectorInputs = {
   collapsed: ReadonlySet<string>;
 };
 
+export type CardLabel =
+  | "Class"
+  | "Interface"
+  | "Type"
+  | "Function"
+  | "Constant";
+
+export type CardLine = {
+  line: number | null;
+  tokens: Token[];
+  private: boolean;
+};
+
+export type CardRow = {
+  kind: "card";
+  label: CardLabel;
+  line: number | null;
+  head: Token[];
+  lines: CardLine[];
+  hidden: string;
+  private: boolean;
+  hover: string;
+};
+
+export type SwitchRow = { kind: "switch"; label: "Show private"; on: boolean };
+
 export type Row =
-  | { kind: "heading"; text: string }
   | { kind: "note"; text: string }
   | { kind: "none" }
-  | { kind: "class"; name: string; tags: string }
-  | { kind: "base"; text: string; hover: string }
-  | {
-      kind: "member";
-      text: string;
-      tags: string;
-      top: boolean;
-      muted: boolean;
-      hover: string;
-    }
+  | CardRow
+  | SwitchRow
   | { kind: "fold"; key: string; text: string; open: boolean; top: boolean }
   | { kind: "filter"; value: string; placeholder: string }
   | {
@@ -76,51 +104,11 @@ export type InspectorContent = {
   rows: Row[];
 };
 
-type Section = {
-  fold: string;
-  heading: string;
-  singular: string;
-  plural: string;
-};
-
-const SECTIONS: Record<
-  "classes" | "functions" | "constants" | "types",
-  Section
-> = {
-  classes: {
-    fold: "classes",
-    heading: "Classes",
-    singular: "class",
-    plural: "classes",
-  },
-  functions: {
-    fold: "functions",
-    heading: "Functions",
-    singular: "function",
-    plural: "functions",
-  },
-  constants: {
-    fold: "constants",
-    heading: "Constants",
-    singular: "constant",
-    plural: "constants",
-  },
-  types: {
-    fold: "types",
-    heading: "Types",
-    singular: "type",
-    plural: "types",
-  },
-};
-
-const SHOWN_TAGS = ["static", "classmethod", "abstract", "async"];
 const NEVER_SHOWN_BASES = new Set(["ABC", "Protocol", "object"]);
 const ABSTRACT_BASES = new Set(["ABC", "Protocol"]);
 const EXCEPTION = /(Exception|Error)$/;
 const PARENT_SEGMENTS = 2;
 export const UNUSED_SHOWN = 8;
-
-const noRows: Row[] = [];
 
 function findModule(scans: Scan[], id: string) {
   for (const scan of scans) {
@@ -134,50 +122,8 @@ function findModule(scans: Scan[], id: string) {
   return undefined;
 }
 
-function plural(count: number, section: Pick<Section, "singular" | "plural">) {
-  return count === 1 ? section.singular : section.plural;
-}
-
-function signature(
-  item: Pick<ScanMethod, "name" | "params" | "returns" | "tags">,
-): string {
-  if (item.tags?.includes("property")) {
-    return item.returns ? `${item.name}: ${item.returns}` : item.name;
-  }
-
-  if (item.params === undefined) {
-    return item.returns ? `${item.name} → ${item.returns}` : item.name;
-  }
-
-  const head = `${item.name}(${item.params.map((param) => param.name).join(", ")})`;
-
-  return item.returns ? `${head} → ${item.returns}` : head;
-}
-
-function tagText(tags: string[] | undefined): string {
-  return SHOWN_TAGS.filter((tag) => tags?.includes(tag)).join(", ");
-}
-
-function foldRow(
-  expanded: ReadonlySet<string>,
-  key: string,
-  count: number,
-  what: { singular: string; plural: string },
-  top: boolean,
-): Row[] {
-  if (count === 0) {
-    return noRows;
-  }
-
-  return [
-    {
-      kind: "fold",
-      key,
-      text: `${count} private ${plural(count, what)}`,
-      open: expanded.has(key),
-      top,
-    },
-  ];
+function plural(count: number, what: { singular: string; plural: string }) {
+  return count === 1 ? what.singular : what.plural;
 }
 
 function classTags(member: ScanMember, edges: ScanEdge[]) {
@@ -206,138 +152,130 @@ function classTags(member: ScanMember, edges: ScanEdge[]) {
   );
   const tags = [...exceptions, ...(abstract ? ["abstract"] : [])];
 
-  return { tags: tags.join(", "), implemented, inherited };
+  return { tags, implemented, inherited };
 }
 
-function classRows(
-  module: string,
+type Placed<T> = { line: number | null; item: T };
+
+function inFileOrder<T>(placed: Placed<T>[]): Placed<T>[] {
+  return placed
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const left = a.entry.line ?? Number.POSITIVE_INFINITY;
+      const right = b.entry.line ?? Number.POSITIVE_INFINITY;
+
+      return left === right ? a.index - b.index : left - right;
+    })
+    .map(({ entry }) => entry);
+}
+
+function hiddenText(fields: number, methods: number): string {
+  const parts = [
+    fields > 0 ? `${fields} private ${fields === 1 ? "field" : "fields"}` : "",
+    methods > 0
+      ? `${methods} private ${methods === 1 ? "method" : "methods"}`
+      : "",
+  ].filter((part) => part !== "");
+
+  return parts.length === 0 ? "" : `${parts.join(", ")} hidden`;
+}
+
+function classCard(
   member: ScanMember,
-  inputs: InspectorInputs,
   edges: ScanEdge[],
-): Row[] {
+  showPrivate: boolean,
+): CardRow {
+  const label = member.kind === "interface" ? "Interface" : "Class";
   const outline =
     member.bases !== undefined ||
     member.fields !== undefined ||
     member.methods !== undefined;
+  const heritage = classTags(member, edges);
+  const headOf =
+    member.kind === "interface" ? interfaceHeadTokens : classHeadTokens;
+  const base: CardRow = {
+    kind: "card",
+    label,
+    line: member.line ?? null,
+    head: headOf(member.name, heritage),
+    lines: [],
+    hidden: "",
+    private: !member.exported,
+    hover: member.name,
+  };
+
   if (!outline) {
-    return [
-      {
-        kind: "class",
-        name: member.name,
-        tags: "outline not known",
+    return {
+      ...base,
+      lines: [
+        {
+          line: null,
+          tokens: [{ text: "outline not known", role: "plain" }],
+          private: false,
+        },
+      ],
+    };
+  }
+
+  const fields = (member.fields ?? []).map(
+    (field): Placed<CardLine> => ({
+      line: field.line,
+      item: {
+        line: field.line,
+        tokens: fieldTokens(field),
+        private: field.private === true,
       },
-    ];
-  }
-
-  const { tags, implemented, inherited } = classTags(member, edges);
-  const rows: Row[] = [
-    {
-      kind: "class",
-      name: member.name,
-      tags,
-    },
-  ];
-
-  if (implemented.length > 0) {
-    rows.push({
-      kind: "base",
-      text: `implements ${implemented.join(", ")}`,
-      hover: member.name,
-    });
-  }
-
-  if (inherited.length > 0) {
-    rows.push({
-      kind: "base",
-      text: `extends ${inherited.join(", ")}`,
-      hover: member.name,
-    });
-  }
-
-  for (const field of member.fields ?? []) {
-    rows.push({
-      kind: "member",
-      text: field.type ? `${field.name}: ${field.type}` : field.name,
-      tags: "",
-      top: false,
-      muted: false,
-      hover: member.name,
-    });
-  }
-
-  const methods = member.methods ?? [];
-  const methodRow = (method: ScanMethod, muted: boolean): Row => ({
-    kind: "member",
-    text: signature(method),
-    tags: tagText(method.tags),
-    top: false,
-    muted,
-    hover: member.name,
-  });
-  const publicMethods = methods.filter((method) => method.private !== true);
-  const privateMethods = methods.filter((method) => method.private === true);
-  const key = `${module}|${member.name}|methods`;
-
-  rows.push(
-    ...publicMethods.map((method) => methodRow(method, false)),
-    ...foldRow(
-      inputs.expanded,
-      key,
-      privateMethods.length,
-      { singular: "method", plural: "methods" },
-      false,
-    ),
+    }),
   );
+  const methods = (member.methods ?? []).map(
+    (method): Placed<CardLine> => ({
+      line: method.line ?? null,
+      item: {
+        line: method.line ?? null,
+        tokens: methodTokens(method),
+        private: method.private === true,
+      },
+    }),
+  );
+  const all = inFileOrder([...fields, ...methods]).map(({ item }) => item);
+  const shown = showPrivate ? all : all.filter((line) => !line.private);
+  const hiddenFields = fields.filter(({ item }) => item.private).length;
+  const hiddenMethods = methods.filter(({ item }) => item.private).length;
 
-  if (inputs.expanded.has(key)) {
-    rows.push(...privateMethods.map((method) => methodRow(method, true)));
-  }
-
-  return rows;
-}
-
-function topRow(
-  member: ScanMember,
-  text: string,
-  tags: string,
-  muted: boolean,
-): Row {
   return {
-    kind: "member",
-    text,
-    tags,
-    top: true,
-    muted,
-    hover: member.name,
+    ...base,
+    lines: shown,
+    hidden: showPrivate ? "" : hiddenText(hiddenFields, hiddenMethods),
   };
 }
 
-function sectionRows(
-  module: string,
-  section: Section,
-  members: ScanMember[],
-  inputs: InspectorInputs,
-  render: (member: ScanMember, muted: boolean) => Row[],
-): Row[] {
-  const rows: Row[] = [{ kind: "heading", text: section.heading }];
-  const open = members.filter((member) => member.exported);
-  const closed = members.filter((member) => !member.exported);
-  const key = `${module}|${section.fold}`;
+function plainCard(member: ScanMember): CardRow | null {
+  const base = {
+    kind: "card" as const,
+    line: member.line ?? null,
+    lines: [],
+    hidden: "",
+    private: !member.exported,
+    hover: member.name,
+  };
 
-  if (members.length === 0) {
-    return [...rows, { kind: "none" }];
+  if (member.kind === "function") {
+    return { ...base, label: "Function", head: functionTokens(member) };
   }
 
-  rows.push(
-    ...open.flatMap((member) => render(member, false)),
-    ...foldRow(inputs.expanded, key, closed.length, section, true),
-  );
-
-  if (inputs.expanded.has(key)) {
-    rows.push(...closed.flatMap((member) => render(member, true)));
+  if (member.kind === "constant") {
+    return {
+      ...base,
+      label: "Constant",
+      head: constantTokens(member.name, member.value),
+    };
   }
 
-  return rows;
+  if (member.kind === "type") {
+    return { ...base, label: "Type", head: typeAliasTokens(member.name) };
+  }
+
+  return null;
 }
 
 function moduleContents(module: string, inputs: InspectorInputs): Row[] {
@@ -352,60 +290,27 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
     ];
   }
 
-  const members = found.members;
   const edges = inputs.scans.flatMap((scan) =>
     scan.edges.filter((edge) => edge.from === module),
   );
-  const ofKind = (...kinds: string[]) =>
-    members.filter((member) => kinds.includes(member.kind ?? ""));
-  const rows: Row[] = [];
-
-  rows.push(
-    ...sectionRows(
-      module,
-      SECTIONS.classes,
-      ofKind("class", "interface"),
-      inputs,
-      (member) => classRows(module, member, inputs, edges),
-    ),
-    ...sectionRows(
-      module,
-      SECTIONS.functions,
-      ofKind("function"),
-      inputs,
-      (member, muted) => [
-        topRow(member, signature(member), tagText(member.tags), muted),
-      ],
-    ),
-    ...sectionRows(
-      module,
-      SECTIONS.constants,
-      ofKind("constant"),
-      inputs,
-      (member, muted) => [
-        topRow(
-          member,
-          member.value === undefined
-            ? member.name
-            : `${member.name} = ${member.value}`,
-          "",
-          muted,
-        ),
-      ],
-    ),
+  const shown = found.members.filter(
+    (member) => inputs.showPrivate || member.exported,
   );
+  const cards = inFileOrder(
+    shown.flatMap((member): Placed<CardRow>[] => {
+      const card =
+        member.kind === "class" || member.kind === "interface"
+          ? classCard(member, edges, inputs.showPrivate)
+          : plainCard(member);
 
-  const types = ofKind("type");
+      return card === null ? [] : [{ line: member.line ?? null, item: card }];
+    }),
+  ).map(({ item }) => item);
 
-  if (types.length > 0) {
-    rows.push(
-      ...sectionRows(module, SECTIONS.types, types, inputs, (member, muted) => [
-        topRow(member, member.name, "", muted),
-      ]),
-    );
-  }
-
-  return rows;
+  return [
+    { kind: "switch", label: "Show private", on: inputs.showPrivate },
+    ...(cards.length === 0 ? [{ kind: "none" } as Row] : cards),
+  ];
 }
 
 function summaryOf(module: string, inputs: InspectorInputs): string {

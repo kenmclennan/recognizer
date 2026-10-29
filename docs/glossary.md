@@ -64,7 +64,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
 | Trail | The inspector panels opened by following modules through their Dependencies, one to the right of the next, with breadcrumbs naming each step. |
 | Fold | Drawing an open folder as one box, which keeps its health disc and takes the edges to anything inside it. |
-| Contents | A module's members, with their signatures and who builds, calls or uses each; or a folder's files. |
+| Contents | A module's members as cards in file order, or a folder's files. |
+| Card | A member shown in Contents with its label, line and code. |
+| Show private | The remembered switch that adds non-exported members and private fields and methods to Contents. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
 | Finding | A violation or warning attached to a module, with the one-line reason a health disc shows. |
 | Needs attention | The tree filter that keeps only modules with an amber or red disc. |

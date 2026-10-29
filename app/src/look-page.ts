@@ -65,6 +65,7 @@ window.__fakeWorker = () => {
 export async function collectFacts<T>(
   harness: string,
   prefix: string,
+  scheme: "light" | "dark" = "light",
 ): Promise<T> {
   const dir = mkdtempSync(join(tmpdir(), `${prefix}-`));
 
@@ -96,6 +97,7 @@ export async function collectFacts<T>(
         "--no-sandbox",
         "--window-size=1500,900",
         "--virtual-time-budget=30000",
+        `--blink-settings=preferredColorScheme=${scheme === "dark" ? 0 : 1}`,
         `--user-data-dir=${join(dir, "profile")}`,
         "--dump-dom",
         `file://${page}`,
