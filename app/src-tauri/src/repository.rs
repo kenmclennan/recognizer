@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use serde::Serialize;
 
 use crate::fs_safe::checked_relative;
+use crate::settings;
 
 const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
 const CACHE: &str = ".recognizer/cache";
@@ -48,26 +49,6 @@ pub struct CacheRead {
     pub refused: Vec<String>,
 }
 
-pub fn parse_config(text: Option<&str>) -> Result<Option<String>, String> {
-    let Some(text) = text else {
-        return Ok(None);
-    };
-
-    let value: serde_json::Value = serde_json::from_str(text)
-        .map_err(|error| format!("config.json is not valid JSON: {error}"))?;
-    let object = value
-        .as_object()
-        .ok_or_else(|| "config.json must be a JSON object".to_string())?;
-
-    match object.get("recognizer_path") {
-        None | Some(serde_json::Value::Null) => Ok(None),
-        Some(serde_json::Value::String(path)) if Path::new(path).is_absolute() => {
-            Ok(Some(path.clone()))
-        }
-        Some(_) => Err("recognizer_path in config.json must be an absolute path".to_string()),
-    }
-}
-
 pub fn shell_invocation(shell: &str, command: &str, folder: &Path) -> (String, Vec<String>) {
     (
         shell.to_string(),
@@ -82,7 +63,7 @@ pub fn shell_invocation(shell: &str, command: &str, folder: &Path) -> (String, V
 
 pub fn missing_hint(config_file: &Path) -> String {
     format!(
-        "recognizer was not found on your login shell's PATH. Install it from a checkout of kenmclennan/recognizer (npm run build -w recognizer, then npm install --global ./check), or set recognizer_path in {}.",
+        "recognizer was not found on your login shell's PATH. Install it from a checkout of kenmclennan/recognizer (npm run build -w recognizer, then npm install --global ./check), or set the recognizer command in Settings (or recognizer_path in {}).",
         config_file.display()
     )
 }
@@ -162,11 +143,15 @@ pub fn report_for(
 }
 
 pub fn scan(folder: &Path, shell: &str, config_file: &Path) -> ScanReport {
-    let configured = match parse_config(fs::read_to_string(config_file).ok().as_deref()) {
-        Ok(path) => path,
+    let configured = match settings::read(config_file) {
+        Ok(settings) => settings.recognizer_path,
         Err(message) => return ScanReport::ConfigInvalid { message },
     };
-    let command = configured.unwrap_or_else(|| "recognizer".to_string());
+    let command = if configured.is_empty() {
+        "recognizer".to_string()
+    } else {
+        configured
+    };
     let (program, args) = shell_invocation(shell, &command, folder);
     let output = Command::new(program)
         .args(args)
@@ -197,28 +182,30 @@ mod tests {
 
     #[test]
     fn an_absent_config_means_the_default_command() {
-        assert_eq!(parse_config(None), Ok(None));
-        assert_eq!(parse_config(Some("{}")), Ok(None));
+        assert_eq!(settings::parse(None).unwrap().recognizer_path, "");
+        assert_eq!(settings::parse(Some("{}")).unwrap().recognizer_path, "");
     }
 
     #[test]
     fn an_absolute_recognizer_path_is_accepted() {
         assert_eq!(
-            parse_config(Some(r#"{"recognizer_path": "/opt/bin/recognizer"}"#)),
-            Ok(Some("/opt/bin/recognizer".to_string()))
+            settings::parse(Some(r#"{"recognizer_path": "/opt/bin/recognizer"}"#))
+                .unwrap()
+                .recognizer_path,
+            "/opt/bin/recognizer"
         );
     }
 
     #[test]
     fn a_relative_recognizer_path_is_rejected() {
-        assert!(parse_config(Some(r#"{"recognizer_path": "bin/recognizer"}"#)).is_err());
-        assert!(parse_config(Some(r#"{"recognizer_path": 4}"#)).is_err());
+        assert!(settings::parse(Some(r#"{"recognizer_path": "bin/recognizer"}"#)).is_err());
+        assert!(settings::parse(Some(r#"{"recognizer_path": 4}"#)).is_err());
     }
 
     #[test]
     fn a_malformed_config_is_rejected() {
-        assert!(parse_config(Some("not json")).is_err());
-        assert!(parse_config(Some("[1]")).is_err());
+        assert!(settings::parse(Some("not json")).is_err());
+        assert!(settings::parse(Some("[1]")).is_err());
     }
 
     #[test]
@@ -239,7 +226,27 @@ mod tests {
         let hint = missing_hint(Path::new("/cfg/config.json"));
 
         assert!(hint.contains("npm install --global ./check"));
-        assert!(hint.ends_with("set recognizer_path in /cfg/config.json."));
+        assert!(hint.ends_with("(or recognizer_path in /cfg/config.json)."));
+    }
+
+    #[test]
+    fn scan_uses_the_command_a_saved_settings_file_names() {
+        let dir = TempDir::new().unwrap();
+        let config = dir.path().join("config.json");
+
+        settings::save(
+            &config,
+            &settings::Settings {
+                editor: String::new(),
+                recognizer_path: "/nonexistent/recognizer".to_string(),
+            },
+        )
+        .unwrap();
+
+        match scan(dir.path(), "/bin/sh", &config) {
+            ScanReport::CommandMissing { .. } => {}
+            other => panic!("{other:?}"),
+        }
     }
 
     fn cache_folder() -> TempDir {

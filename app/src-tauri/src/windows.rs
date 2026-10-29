@@ -23,6 +23,23 @@ pub fn pick_window(focus_order: &[String], open: &[String]) -> Option<String> {
         .cloned()
 }
 
+pub fn menu_target(
+    focused: Option<&str>,
+    focus_order: &[String],
+    open: &[String],
+) -> Option<String> {
+    let documents: Vec<String> = open
+        .iter()
+        .filter(|label| label_number(label) > 0)
+        .cloned()
+        .collect();
+
+    focused
+        .filter(|label| documents.iter().any(|candidate| candidate == label))
+        .map(str::to_string)
+        .or_else(|| pick_window(focus_order, &documents))
+}
+
 const CASCADE_OFFSET: f64 = 28.0;
 
 pub fn cascade_from((x, y): (f64, f64)) -> (f64, f64) {
@@ -273,5 +290,38 @@ mod tests {
         assert!(canonical_folder(&dir.path().join("missing")).is_err());
         assert!(canonical_folder(&file).is_err());
         assert!(canonical_folder(dir.path()).is_ok());
+    }
+
+    #[test]
+    fn menu_target_falls_back_from_the_settings_window_to_the_latest_document() {
+        let open = labels(&["w-1", "w-2", "settings"]);
+
+        assert_eq!(
+            menu_target(
+                Some("settings"),
+                &labels(&["w-1", "w-2", "settings"]),
+                &open
+            ),
+            Some("w-2".to_string())
+        );
+    }
+
+    #[test]
+    fn menu_target_keeps_a_focused_document_window() {
+        let open = labels(&["w-1", "w-2"]);
+
+        assert_eq!(
+            menu_target(Some("w-1"), &labels(&["w-1", "w-2"]), &open),
+            Some("w-1".to_string())
+        );
+    }
+
+    #[test]
+    fn menu_target_is_none_when_nothing_is_open() {
+        assert_eq!(
+            menu_target(Some("settings"), &[], &labels(&["settings"])),
+            None
+        );
+        assert_eq!(menu_target(None, &[], &[]), None);
     }
 }

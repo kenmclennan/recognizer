@@ -5,9 +5,11 @@ use tauri::{
 };
 
 pub mod changes;
+pub mod editor;
 pub mod fs_safe;
 mod launch;
 pub mod repository;
+pub mod settings;
 pub mod source_line;
 pub mod views;
 pub mod windows;
@@ -21,9 +23,12 @@ use changes::{Baseline, Changes, ScanOrigin};
 use launch::{launch_for, Launch};
 use repository::ScanReport;
 use tauri_plugin_dialog::DialogExt;
-use windows::{canonical_folder, cascade_from, label_number, pick_window, Claim, WindowState};
+use windows::{
+    canonical_folder, cascade_from, label_number, menu_target, pick_window, Claim, WindowState,
+};
 
 const APP_TITLE: &str = "Recognizer";
+const SETTINGS_LABEL: &str = "settings";
 const CHANGES_POLL: Duration = Duration::from_secs(2);
 
 #[derive(Default)]
@@ -168,19 +173,49 @@ fn choose_for(app: &AppHandle, label: &str) -> Result<(), String> {
 
 fn focused_label(app: &AppHandle) -> Option<String> {
     let windows = app.webview_windows();
-
-    windows
+    let focused = windows
         .values()
         .find(|window| window.is_focused().unwrap_or(false))
-        .map(|window| window.label().to_string())
-        .or_else(|| {
-            let open: Vec<String> = windows
-                .into_keys()
-                .filter(|label| label_number(label) > 0)
-                .collect();
+        .map(|window| window.label().to_string());
+    let open: Vec<String> = windows.into_keys().collect();
 
-            pick_window(&app.state::<WindowState>().order(), &open)
-        })
+    menu_target(
+        focused.as_deref(),
+        &app.state::<WindowState>().order(),
+        &open,
+    )
+}
+
+fn open_settings(app: &AppHandle) {
+    if app.get_webview_window(SETTINGS_LABEL).is_some() {
+        focus_label(app, SETTINGS_LABEL);
+
+        return;
+    }
+
+    let built =
+        WebviewWindowBuilder::new(app, SETTINGS_LABEL, WebviewUrl::App("settings.html".into()))
+            .title("Settings")
+            .inner_size(480.0, 300.0)
+            .resizable(false)
+            .build();
+
+    if let Err(error) = built {
+        eprintln!("recognizer: could not open settings: {error}");
+    }
+}
+
+fn config_file(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|dir| repository::config_file_in(&dir))
+        .map_err(|error| error.to_string())
+}
+
+fn launch_in_editor(app: &AppHandle, target: &Path) -> Result<(), String> {
+    let editor = settings::read(&config_file(app)?)?.editor;
+
+    editor::launch(&editor, target)
 }
 
 fn focus_latest(app: &AppHandle) {
@@ -230,6 +265,22 @@ fn handle_menu(app: &AppHandle, event: MenuEvent) {
                 let _ = app.emit_to(label, "rescan", ());
             }
         }
+        "settings" => open_settings(app),
+        "open-in-editor" => {
+            if let Some(label) = focused_label(app) {
+                let _ = app.emit_to(label, "open-in-editor", ());
+            }
+        }
+        "open-folder-in-editor" => {
+            let folder =
+                focused_label(app).and_then(|label| app.state::<WindowState>().folder_of(&label));
+
+            if let Some(folder) = folder {
+                if let Err(error) = launch_in_editor(app, &folder) {
+                    eprintln!("recognizer: could not open the editor: {error}");
+                }
+            }
+        }
         "quit" => app.exit(0),
         _ => {}
     }
@@ -256,6 +307,22 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let new_window = MenuItem::with_id(app, "new-window", "New Window", true, Some("CmdOrCtrl+N"))?;
     let open = MenuItem::with_id(app, "open-folder", "Open...", true, Some("CmdOrCtrl+O"))?;
     let rescan = MenuItem::with_id(app, "rescan", "Rescan", true, Some("CmdOrCtrl+R"))?;
+    let open_in_editor = MenuItem::with_id(
+        app,
+        "open-in-editor",
+        "Open in Editor",
+        true,
+        Some("CmdOrCtrl+Shift+E"),
+    )?;
+    let open_folder_in_editor = MenuItem::with_id(
+        app,
+        "open-folder-in-editor",
+        "Open Folder in Editor",
+        true,
+        Some("CmdOrCtrl+Shift+O"),
+    )?;
+    let settings_item =
+        MenuItem::with_id(app, "settings", "Settings...", true, Some("CmdOrCtrl+,"))?;
     let check_updates = MenuItem::with_id(
         app,
         "check-updates",
@@ -267,6 +334,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .about(None)
         .item(&check_updates)
         .separator()
+        .item(&settings_item)
+        .separator()
         .hide()
         .hide_others()
         .show_all()
@@ -277,6 +346,9 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .item(&new_window)
         .item(&open)
         .item(&rescan)
+        .separator()
+        .item(&open_in_editor)
+        .item(&open_folder_in_editor)
         .separator()
         .close_window()
         .build()?;
@@ -340,10 +412,7 @@ async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport
         .state::<WindowState>()
         .folder_of(&window_label(&window))
         .ok_or_else(|| "this window holds no folder".to_string())?;
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|error| error.to_string())?;
+    let config_file = config_file(&app)?;
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
     let label = window_label(&window);
@@ -354,14 +423,35 @@ async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport
         app.state::<ScanBaselines>()
             .with(&label, |window| window.pending = Some(baseline))?;
 
-        Ok(repository::scan(
-            &folder,
-            &shell,
-            &repository::config_file_in(&config_dir),
-        ))
+        Ok(repository::scan(&folder, &shell, &config_file))
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+fn read_settings(app: AppHandle) -> Result<settings::Settings, String> {
+    settings::read(&config_file(&app)?)
+}
+
+#[tauri::command]
+fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), String> {
+    settings::save(&config_file(&app)?, &settings)
+}
+
+#[tauri::command]
+fn open_in_editor(app: AppHandle, window: WebviewWindow, relative: String) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+    let target = fs_safe::checked_relative_entry(&folder, &relative)?;
+
+    launch_in_editor(&app, &target)
+}
+
+#[tauri::command]
+fn open_folder_in_editor(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    launch_in_editor(&app, &folder)
 }
 
 #[tauri::command]
@@ -612,6 +702,9 @@ pub fn run() {
             adopt_scan,
             choose_folder,
             list_views,
+            open_folder_in_editor,
+            open_in_editor,
+            read_settings,
             read_source_line,
             rename_view,
             renames_since,
@@ -622,6 +715,7 @@ pub fn run() {
             watch_views,
             window_folder,
             write_current_view,
+            write_settings,
             write_view
         ])
         .build(context)

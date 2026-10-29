@@ -1483,3 +1483,74 @@ svg.i.chevron {
 .inspector:not(.open) .panel-resizer {
   display: none;
 }
+
+.tree-open-editor {
+  margin-left: auto;
+}
+
+.ih .ib + .ib {
+  margin-left: 0;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px 16px;
+}
+
+.settings form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings input {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+}
+
+.settings .hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.settings .error {
+  min-height: 16px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--bad);
+}
+
+.settings .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings .buttons button {
+  padding: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings .buttons button[type="submit"] {
+  border-color: var(--sel);
+  background: var(--sel);
+  color: #fff;
+}

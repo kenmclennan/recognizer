@@ -1,7 +1,12 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-pub fn checked_relative(root: &Path, relative: &str) -> Result<PathBuf, String> {
+fn checked_inside(
+    root: &Path,
+    relative: &str,
+    accept: impl Fn(&fs::Metadata) -> bool,
+    expected: &str,
+) -> Result<PathBuf, String> {
     if relative.is_empty() {
         return Err("path is empty".to_string());
     }
@@ -28,9 +33,27 @@ pub fn checked_relative(root: &Path, relative: &str) -> Result<PathBuf, String> 
     }
 
     match fs::metadata(&canonical) {
-        Ok(metadata) if metadata.is_file() => Ok(canonical),
-        _ => Err(format!("{relative} is not a regular file")),
+        Ok(metadata) if accept(&metadata) => Ok(canonical),
+        _ => Err(format!("{relative} is not {expected}")),
     }
+}
+
+pub fn checked_relative(root: &Path, relative: &str) -> Result<PathBuf, String> {
+    checked_inside(
+        root,
+        relative,
+        |metadata| metadata.is_file(),
+        "a regular file",
+    )
+}
+
+pub fn checked_relative_entry(root: &Path, relative: &str) -> Result<PathBuf, String> {
+    checked_inside(
+        root,
+        relative,
+        |metadata| metadata.is_file() || metadata.is_dir(),
+        "a regular file or folder",
+    )
 }
 
 pub fn write_atomic(target: &Path, text: &str) -> std::io::Result<()> {
@@ -129,5 +152,47 @@ mod tests {
 
         assert_eq!(fs::read_to_string(&target).unwrap(), "second");
         assert!(!root.join("nested/out.md.tmp").exists());
+    }
+
+    #[test]
+    fn entry_accepts_a_file_and_a_folder() {
+        let (_dir, root) = folder();
+
+        fs::create_dir_all(root.join("sub")).unwrap();
+        fs::write(root.join("sub/a.md"), "x").unwrap();
+
+        assert_eq!(
+            checked_relative_entry(&root, "sub/a.md").unwrap(),
+            fs::canonicalize(root.join("sub/a.md")).unwrap()
+        );
+        assert_eq!(
+            checked_relative_entry(&root, "sub").unwrap(),
+            fs::canonicalize(root.join("sub")).unwrap()
+        );
+    }
+
+    #[test]
+    fn entry_refuses_a_parent_component_and_an_absolute_path() {
+        let (_dir, root) = folder();
+
+        fs::write(root.parent().unwrap().join("outside.md"), "x").unwrap();
+
+        assert!(checked_relative_entry(&root, "../outside.md").is_err());
+        assert!(checked_relative_entry(&root, "").is_err());
+        assert!(checked_relative_entry(&root, "/etc/hosts").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn entry_refuses_a_symlink_out_of_the_folder() {
+        let (dir, root) = folder();
+        let outside = dir.path().join("outside");
+
+        fs::create_dir_all(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("dirlink")).unwrap();
+        std::os::unix::fs::symlink(dir.path().join("outside"), root.join("filelink")).unwrap();
+
+        assert!(checked_relative_entry(&root, "dirlink").is_err());
+        assert!(checked_relative_entry(&root, "filelink").is_err());
     }
 }
