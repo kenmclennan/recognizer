@@ -492,7 +492,7 @@ function collect(scheme: "light" | "dark"): Report {
         "--dump-dom",
         `file://${page}`,
       ],
-      { encoding: "utf8", timeout: 60000 },
+      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
@@ -501,7 +501,9 @@ function collect(scheme: "light" | "dark"): Report {
     }
 
     if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1] as string)) {
-      throw new Error(`no harness output: ${run.stderr.slice(0, 500)}`);
+      throw new Error(
+        `no harness output: ${run.stderr.slice(0, 500)} ${run.error}`,
+      );
     }
 
     return JSON.parse(

@@ -258,7 +258,7 @@ async function collect(): Promise<Facts> {
   try {
     const bundle = (
       await build({
-        stdin: { contents: HARNESS, resolveDir: dir, loader: "ts" },
+        stdin: { contents: HARNESS, resolveDir: here("."), loader: "ts" },
         bundle: true,
         write: false,
         format: "iife",
@@ -285,12 +285,14 @@ async function collect(): Promise<Facts> {
         "--dump-dom",
         `file://${page}`,
       ],
-      { encoding: "utf8", timeout: 60000 },
+      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
     if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1])) {
-      throw new Error(`no harness output: ${run.stderr.slice(0, 500)}`);
+      throw new Error(
+        `no harness output: ${run.stderr.slice(0, 500)} ${run.error}`,
+      );
     }
 
     const text = Buffer.from(match[1], "base64").toString("utf8");
