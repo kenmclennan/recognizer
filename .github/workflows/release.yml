@@ -61,7 +61,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "22"
-          cache: npm
 
       - name: Compute and stamp the version
         if: steps.released.outputs.skip != 'true'
@@ -75,7 +74,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.released.outputs.skip != 'true'
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build
         if: steps.released.outputs.skip != 'true'
