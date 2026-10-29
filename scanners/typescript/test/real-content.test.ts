@@ -1,7 +1,33 @@
 import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO, runBin, validate } from "./helpers.js";
+
+const SOURCE_EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
+const SKIPPED_DIRECTORIES = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "test",
+  "tests",
+  "__tests__",
+]);
+
+function scannedFiles(root: string): string[] {
+  return (readdirSync(root, { recursive: true }) as string[]).filter((path) => {
+    const parts = path.split(sep);
+    const name = parts[parts.length - 1];
+
+    return (
+      SOURCE_EXTENSION.test(name) &&
+      !name.endsWith(".d.ts") &&
+      !/\.(test|spec)\./.test(name) &&
+      !parts
+        .slice(0, -1)
+        .some((part) => SKIPPED_DIRECTORIES.has(part) || part.startsWith("."))
+    );
+  });
+}
 
 describe("scanning check/", () => {
   const check = join(REPO, "check");
@@ -13,13 +39,11 @@ describe("scanning check/", () => {
     const doc = JSON.parse(result.stdout);
     validate(doc);
 
-    const sources = (
-      readdirSync(join(check, "src"), { recursive: true }) as string[]
-    ).filter((name) => name.endsWith(".ts"));
+    const sources = scannedFiles(check);
 
     expect(doc.modules.length).toBe(sources.length);
     expect(
-      doc.modules.every((m: { id: string }) => m.id.startsWith("src/")),
+      doc.modules.every((m: { id: string }) => /^(src|scripts)\//.test(m.id)),
     ).toBe(true);
     expect(
       doc.edges.some(
@@ -35,6 +59,7 @@ describe("scanning check/", () => {
       "node:fs",
       "node:os",
       "node:path",
+      "node:url",
       "node:util",
       "yaml",
     ]);
