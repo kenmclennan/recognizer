@@ -72,6 +72,8 @@ function skipsDirectoryName(rules: SkipRules, name: string): boolean {
   );
 }
 
+const TYPESCRIPT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
 function languageOf(fileName: string): Language | null {
   if (fileName.endsWith(".py")) {
     return "python";
@@ -79,8 +81,7 @@ function languageOf(fileName: string): Language | null {
 
   if (
     fileName === "tsconfig.json" ||
-    fileName.endsWith(".ts") ||
-    fileName.endsWith(".tsx")
+    TYPESCRIPT_EXTENSIONS.some((extension) => fileName.endsWith(extension))
   ) {
     return "typescript";
   }

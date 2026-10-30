@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { detectLanguages } from "../src/detect.js";
+import { REPO } from "./helpers.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 
 function detect(files: string[], symlinks: string[] = []) {
@@ -10,6 +13,42 @@ function detect(files: string[], symlinks: string[] = []) {
 
   return { languages: detectLanguages(fake.io, ROOT), fake };
 }
+
+describe("selection parity", () => {
+  const parity = JSON.parse(
+    readFileSync(join(REPO, "fixtures/selection-parity.json"), "utf8"),
+  ) as Record<"python" | "typescript", { tree: string[]; accepted: string[] }>;
+
+  it.each(["python", "typescript"] as const)(
+    "detects %s exactly when its scanner accepts a file of the shared tree",
+    (language) => {
+      const { tree, accepted } = parity[language];
+
+      expect(detect(tree).languages.includes(language)).toBe(
+        accepted.length > 0,
+      );
+    },
+  );
+
+  it.each(["python", "typescript"] as const)(
+    "detects %s from no rejected file of the shared tree",
+    (language) => {
+      const { tree, accepted } = parity[language];
+      const rejected = tree.filter((path) => !accepted.includes(path));
+
+      expect(detect(rejected).languages.includes(language)).toBe(false);
+    },
+  );
+
+  it.each(["python", "typescript"] as const)(
+    "detects %s from each accepted file alone",
+    (language) => {
+      for (const path of parity[language].accepted) {
+        expect(detect([path]).languages).toEqual([language]);
+      }
+    },
+  );
+});
 
 describe("detectLanguages", () => {
   it.each([
@@ -23,7 +62,12 @@ describe("detectLanguages", () => {
     ],
     [["readme.md"], []],
     [["types/index.d.ts"], []],
-    [["a.js", "b.jsx", "c.mjs", "d.cjs"], []],
+    [["a.js"], ["typescript"]],
+    [["b.jsx"], ["typescript"]],
+    [["c.mjs"], ["typescript"]],
+    [["d.cjs"], ["typescript"]],
+    [["src/a.test.js"], []],
+    [["types/index.d.ts"], []],
   ])("detects %j as %j", (files, expected) => {
     expect(detect(files).languages).toEqual(expected);
   });
