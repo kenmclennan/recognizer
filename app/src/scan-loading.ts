@@ -7,6 +7,7 @@ export type Loaded = {
   modules: string[];
   scans: LoadedScan[];
   policy: string | null;
+  baseline: string | null;
   notices: string[];
   blocking: string | null;
 };
@@ -15,6 +16,7 @@ const EMPTY: Loaded = {
   modules: [],
   scans: [],
   policy: null,
+  baseline: null,
   notices: [],
   blocking: null,
 };
@@ -99,5 +101,12 @@ export function loadScans(report: ScanReport): Loaded {
     }
   }
 
-  return { modules, scans, policy: report.policy, notices, blocking: null };
+  return {
+    modules,
+    scans,
+    policy: report.policy,
+    baseline: report.baseline ?? null,
+    notices,
+    blocking: null,
+  };
 }

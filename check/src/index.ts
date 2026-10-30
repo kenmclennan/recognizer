@@ -5,7 +5,12 @@ export {
   type Thresholds,
   type Warning,
 } from "./analyse.js";
-export { type Identity, parseBaseline, serialiseBaseline } from "./baseline.js";
+export {
+  type Identity,
+  identityKey,
+  parseBaseline,
+  serialiseBaseline,
+} from "./baseline.js";
 export {
   buildCallerIndex,
   type Caller,

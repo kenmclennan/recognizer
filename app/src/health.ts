@@ -2,7 +2,9 @@ import {
   analyse,
   collectViolations,
   InputError,
+  identityKey,
   type Policy,
+  parseBaseline,
   parsePolicy,
   type Violation,
 } from "recognizer";
@@ -78,13 +80,32 @@ function messagesOf(error: unknown): string {
     : (error as Error).message;
 }
 
+function readBaseline(text: string | null, notices: string[]): Set<string> {
+  if (text === null) {
+    return new Set();
+  }
+
+  try {
+    return new Set(parseBaseline(text).map(identityKey));
+  } catch (error) {
+    notices.push(`baseline: ${messagesOf(error)}`);
+
+    return new Set();
+  }
+}
+
 function violationsOf(
   scans: LoadedScan[],
   policy: Policy,
+  accepted: Set<string>,
   notices: string[],
 ): Violation[][] | null {
   try {
-    return scans.map(({ scan }) => collectViolations(scan, policy).violations);
+    return scans.map(({ scan }) =>
+      collectViolations(scan, policy).violations.filter(
+        (violation) => !accepted.has(identityKey(violation)),
+      ),
+    );
   } catch (error) {
     notices.push(`policy.yaml: ${messagesOf(error)}`);
 
@@ -96,11 +117,15 @@ export function computeHealth(
   scans: LoadedScan[],
   policyText: string | null,
   moduleIds: Iterable<string>,
+  baselineText: string | null = null,
 ): Health {
   const notices: string[] = [];
   const known = new Set(moduleIds);
   const parsed = readPolicy(policyText, notices);
-  const violations = parsed ? violationsOf(scans, parsed, notices) : null;
+  const accepted = readBaseline(parsed ? baselineText : null, notices);
+  const violations = parsed
+    ? violationsOf(scans, parsed, accepted, notices)
+    : null;
   const policy = violations ? parsed : null;
   const reds = new Map<string, string[]>();
   const ambers = new Map<string, string[]>();

@@ -123,7 +123,12 @@ export function showExplorer(
   editor: EditorPort = inertEditor,
   responsibilities: ResponsibilitiesPort = inertResponsibilities,
 ): Explorer {
-  const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
+  const health = computeHealth(
+    loaded.scans,
+    loaded.policy,
+    loaded.modules,
+    loaded.baseline,
+  );
   const knownModules = new Set(loaded.modules);
   const root = buildTree(loaded.modules);
   const described = describeTree(root, health);

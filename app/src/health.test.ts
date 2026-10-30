@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fixturePolicy, fixtureScan } from "./fixtures";
+import { fixtureBaseline, fixturePolicy, fixtureScan } from "./fixtures";
 import {
   computeHealth,
   describeTree,
@@ -149,6 +149,43 @@ describe("computeHealth on fixtures/check-warnings", () => {
 
     expect(others).toHaveLength(7);
     expect(others.every((id) => health.disc(id) === "green")).toBe(true);
+  });
+});
+
+describe("computeHealth with a baseline", () => {
+  const baseline = fixtureBaseline("check");
+
+  function withBaseline(text: string | null) {
+    const loaded = fixtureScan("check");
+    const ids = loaded.scan.modules.map((module) => module.id);
+
+    return computeHealth([loaded], fixturePolicy("check"), ids, text);
+  }
+
+  it("does not mark a baselined violation red or list it as a finding", () => {
+    const plain = withBaseline(null);
+    const health = withBaseline(baseline);
+
+    expect(plain.disc("shop/domain/order.py")).toBe("red");
+    expect(health.findings("shop/domain/order.py").length).toBeLessThan(
+      plain.findings("shop/domain/order.py").length,
+    );
+  });
+
+  it("keeps a violation the baseline does not list", () => {
+    const health = withBaseline(
+      JSON.stringify({ schema_version: 1, violations: [] }),
+    );
+
+    expect(health.disc("shop/domain/order.py")).toBe("red");
+  });
+
+  it("notes an unreadable baseline and applies none", () => {
+    const health = withBaseline("{");
+
+    expect(health.notices).toHaveLength(1);
+    expect(health.notices[0]).toMatch(/^baseline: /);
+    expect(health.disc("shop/domain/order.py")).toBe("red");
   });
 });
 

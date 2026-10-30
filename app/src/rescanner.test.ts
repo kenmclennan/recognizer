@@ -9,6 +9,7 @@ const OK: Loaded = {
   modules: ["a.py"],
   scans: [],
   policy: null,
+  baseline: null,
   notices: [],
   blocking: null,
 };
