@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { expectedScan } from "./fixtures";
 import {
   emphasisedLines,
+  followableRows,
   type InspectorInputs,
   inspectorContent,
   type Row,
@@ -42,6 +43,7 @@ function inputsFor(
     counts: () => ({ uses: 0, usedBy: 0 }),
     filter: "",
     collapsed: new Set(),
+    followed: null,
     ...extra,
   };
 }
@@ -525,6 +527,8 @@ describe("folder contents", () => {
         chevron: null,
         detail: { text: "2 files" },
         title: "a/b",
+        follow: null,
+        followed: false,
       },
       {
         kind: "module",
@@ -539,6 +543,8 @@ describe("folder contents", () => {
         chevron: null,
         detail: null,
         title: "a/c.py",
+        follow: null,
+        followed: false,
       },
       {
         kind: "module",
@@ -553,6 +559,8 @@ describe("folder contents", () => {
         chevron: null,
         detail: { text: "2 classes, 1 function" },
         title: "a/x.py",
+        follow: null,
+        followed: false,
       },
     ]);
   });
@@ -1089,5 +1097,90 @@ describe("dependencies tab", () => {
 
     expect(content.tabs?.[2]?.label).toBe("Dependencies 10");
     expect(usedBy.some((row) => row.kind === "card")).toBe(false);
+  });
+});
+
+describe("following dependency rows", () => {
+  const mutual = (from: string, to: string): ScanEdge => ({
+    from,
+    to,
+    kind: "depends",
+    line: 1,
+    names: ["X"],
+  });
+  const scan: Scan = {
+    modules: ["hub.py", "a/x.py", "partner.py"].map(
+      (id) => ({ id, kind: "module" }) as Scan["modules"][number],
+    ),
+    edges: [
+      mutual("hub.py", "a/x.py"),
+      mutual("hub.py", "partner.py"),
+      mutual("partner.py", "hub.py"),
+    ],
+    foreign: [],
+  };
+  const dependencies = (extra: Partial<InspectorInputs> = {}) =>
+    inspectorContent(
+      module("hub.py"),
+      inputsFor([scan], {
+        tab: "dependencies",
+        counts: () => ({ uses: 2, usedBy: 1 }),
+        ...extra,
+      }),
+    ).rows;
+  const moduleRows = (rows: Row[]) =>
+    rows.filter(
+      (row): row is Extract<Row, { kind: "module" }> => row.kind === "module",
+    );
+
+  it("makes module rows followable in the section they are listed under", () => {
+    const rows = moduleRows(dependencies()).filter((row) => !row.folder);
+
+    expect(rows.map((row) => [row.id, row.follow])).toEqual([
+      ["partner.py", "uses"],
+      ["a/x.py", "uses"],
+      ["partner.py", "usedBy"],
+    ]);
+  });
+
+  it("leaves folder headings and Contents rows unfollowable", () => {
+    const headings = moduleRows(dependencies()).filter((row) => row.folder);
+    const contents = inspectorContent(
+      folder("a"),
+      inputsFor([scan], { tab: "contents" }),
+    ).rows;
+
+    expect(headings.length).toBeGreaterThan(0);
+    expect(headings.every((row) => row.follow === null)).toBe(true);
+    expect(moduleRows(contents).every((row) => row.follow === null)).toBe(true);
+  });
+
+  it("highlights only the followed section when a module is in both", () => {
+    const rows = moduleRows(
+      dependencies({ followed: { id: "partner.py", relation: "usedBy" } }),
+    ).filter((row) => row.id === "partner.py");
+
+    expect(rows.map((row) => [row.follow, row.followed])).toEqual([
+      ["uses", false],
+      ["usedBy", true],
+    ]);
+  });
+
+  it("highlights nothing when nothing is followed", () => {
+    expect(moduleRows(dependencies()).some((row) => row.followed)).toBe(false);
+  });
+
+  it("lists followable rows in displayed order and skips collapsed groups", () => {
+    expect(followableRows(dependencies())).toEqual([
+      { id: "partner.py", relation: "uses" },
+      { id: "a/x.py", relation: "uses" },
+      { id: "partner.py", relation: "usedBy" },
+    ]);
+    expect(followableRows(dependencies({ collapsed: new Set(["a"]) }))).toEqual(
+      [
+        { id: "partner.py", relation: "uses" },
+        { id: "partner.py", relation: "usedBy" },
+      ],
+    );
   });
 });

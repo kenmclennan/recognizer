@@ -1,14 +1,24 @@
+import { isEditable } from "./canvas-keys";
 import type { Token } from "./card-code";
 import { el } from "./dom";
 import { icon, iconButton } from "./icons";
 import type {
   CardRow,
+  Direction,
   InspectorContent,
   InspectorTab,
   Row,
 } from "./inspector-model";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
+import {
+  type Crumb,
+  rowKey,
+  STRIP_WIDTH,
+  type TrailKeyAction,
+  type TrailLayout,
+  trailKeyAction,
+} from "./trail-model";
 
 export type InspectorActions = {
   open: () => void;
@@ -24,12 +34,31 @@ export type InspectorActions = {
   setFilter: (text: string) => void;
   openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
   setShowPrivate: (on: boolean) => void;
+  follow: (relation: Direction, id: string) => void;
+  bringBack: (index: number) => void;
+  putTrailOnCanvas: () => void;
+  trailKey: (action: TrailKeyAction) => boolean;
+};
+
+export type TrailRender = {
+  contents: InspectorContent[];
+  layout: TrailLayout;
+  active: number;
+  crumbs: Crumb[];
+  focused: (string | null)[];
+  canPut: boolean;
 };
 
 export type InspectorView = {
   element: HTMLElement;
-  render: (content: InspectorContent, open: boolean) => void;
+  render: (
+    content: InspectorContent,
+    open: boolean,
+    trail?: TrailRender,
+  ) => void;
 };
+
+export type PanelActions = (index: number) => InspectorActions;
 
 function disc(kind: string): HTMLElement {
   return el("span", `disc disc-${kind}`);
@@ -116,7 +145,11 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   return node;
 }
 
-function rowNode(row: Row, actions: InspectorActions): HTMLElement {
+function rowNode(
+  row: Row,
+  actions: InspectorActions,
+  focused: string | null,
+): HTMLElement {
   if (row.kind === "note") {
     return el("p", "", row.text);
   }
@@ -193,6 +226,26 @@ function rowNode(row: Row, actions: InspectorActions): HTMLElement {
     node.title = row.title;
     node.dataset.id = row.id;
 
+    const direction = row.follow;
+
+    if (direction !== null) {
+      const key = rowKey({ id: row.id, relation: direction });
+      const wrap = el("div", "follow-wrap");
+      const arrow = iconButton(
+        "arrow-right",
+        `Follow ${row.label} into its own panel`,
+        "follow",
+        () => actions.follow(direction, row.id),
+      );
+
+      node.dataset.follow = direction;
+      node.classList.toggle("followed", row.followed);
+      node.classList.toggle("kbd", focused === key);
+      wrap.append(node, arrow);
+
+      return wrap;
+    }
+
     return node;
   }
 
@@ -217,35 +270,24 @@ function rowNode(row: Row, actions: InspectorActions): HTMLElement {
   return evidenceNode(row);
 }
 
-export function buildInspectorView(actions: InspectorActions): InspectorView {
-  const element = el("aside", "inspector");
-  const rail = el("div", "inspector-rail");
-  const panel = el("div", "inspector-panel");
-  const opener = el("button", "ib");
+type PanelView = {
+  element: HTMLElement;
+  render: (
+    content: InspectorContent,
+    actions: InspectorActions,
+    focused: string | null,
+    index: number,
+  ) => void;
+};
+
+function buildPanelView(element: HTMLElement): PanelView {
   let shown: string | null = null;
 
-  opener.type = "button";
-  opener.title = "Open the inspector";
-  opener.setAttribute("aria-label", "Open the inspector");
-  opener.append(icon("panel-right"));
-  opener.addEventListener("click", (event) => {
-    event.stopPropagation();
-    actions.open();
-  });
-  rail.append(opener);
-  element.append(rail, panel);
+  element.tabIndex = -1;
 
   return {
     element,
-    render(content, open) {
-      element.classList.toggle("open", open);
-      rail.hidden = open;
-      panel.hidden = !open;
-
-      if (!open) {
-        return;
-      }
-
+    render(content, actions, focused, index) {
       const head = el("div", "ih");
       const close = el("button", "ib");
 
@@ -278,9 +320,11 @@ export function buildInspectorView(actions: InspectorActions): InspectorView {
         );
       }
 
+      const label = index === 0 ? "Close the inspector" : "Close this panel";
+
       close.type = "button";
-      close.title = "Close the inspector";
-      close.setAttribute("aria-label", "Close the inspector");
+      close.title = label;
+      close.setAttribute("aria-label", label);
       close.append(icon("x"));
       close.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -314,25 +358,220 @@ export function buildInspectorView(actions: InspectorActions): InspectorView {
         parts.push(tabs);
       }
 
-      parts.push(...content.rows.map((row) => rowNode(row, actions)));
+      parts.push(...content.rows.map((row) => rowNode(row, actions, focused)));
 
-      const typing = panel.contains(document.activeElement)
+      const typing = element.contains(document.activeElement)
         ? document.activeElement
         : null;
       const refocus = typing?.classList.contains("ifilter") === true;
 
-      panel.replaceChildren(...parts);
+      element.replaceChildren(...parts);
 
       if (refocus) {
-        const field = panel.querySelector<HTMLInputElement>(".ifilter");
+        const field = element.querySelector<HTMLInputElement>(".ifilter");
 
         field?.focus();
         field?.setSelectionRange(field.value.length, field.value.length);
       }
 
       if (shown !== content.key) {
-        panel.scrollTop = 0;
+        element.scrollTop = 0;
         shown = content.key;
+      }
+
+      element
+        .querySelector<HTMLElement>(".row.kbd")
+        ?.scrollIntoView?.({ block: "nearest" });
+    },
+  };
+}
+
+function stripNode(
+  index: number,
+  label: string,
+  actions: InspectorActions,
+): HTMLElement {
+  const node = el("button", "inspector-strip");
+
+  node.type = "button";
+  node.title = label;
+  node.setAttribute("aria-label", `Bring back ${label}`);
+  node.style.width = `${STRIP_WIDTH}px`;
+  node.append(el("span", "strip-name", label));
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    actions.bringBack(index);
+  });
+
+  return node;
+}
+
+function crumbsNode(trail: TrailRender, actions: InspectorActions) {
+  const node = el("div", "inspector-crumbs");
+
+  for (const crumb of trail.crumbs) {
+    const button = el(
+      "button",
+      `crumb${crumb.index === trail.active ? " on" : ""}`,
+    );
+
+    button.type = "button";
+
+    if (crumb.relation !== null) {
+      button.append(el("span", "crumb-rel", crumb.relation), " ");
+    }
+
+    button.append(crumb.label);
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      actions.bringBack(crumb.index);
+    });
+    node.append(button);
+  }
+
+  const route = iconButton(
+    "route",
+    "Put the trail on the canvas (P)",
+    "crumb-route",
+    () => actions.putTrailOnCanvas(),
+  );
+
+  route.disabled = !trail.canPut;
+  node.append(route);
+
+  return node;
+}
+
+export function buildInspectorView(
+  actions: InspectorActions,
+  forPanel: PanelActions = () => actions,
+): InspectorView {
+  const element = el("aside", "inspector");
+  const rail = el("div", "inspector-rail");
+  const first = el("div", "inspector-panel");
+  const crumbsHost = el("div", "inspector-crumbs-host");
+  const row = el("div", "inspector-trail");
+  const opener = el("button", "ib");
+  const panels: PanelView[] = [buildPanelView(first)];
+  let wantFocus = false;
+
+  const panelAt = (index: number) => {
+    while (panels.length <= index) {
+      panels.push(buildPanelView(el("div", "inspector-panel")));
+    }
+
+    return panels[index];
+  };
+
+  opener.type = "button";
+  opener.title = "Open the inspector";
+  opener.setAttribute("aria-label", "Open the inspector");
+  opener.append(icon("panel-right"));
+  opener.addEventListener("click", (event) => {
+    event.stopPropagation();
+    actions.open();
+  });
+  rail.append(opener);
+  crumbsHost.hidden = true;
+  row.hidden = true;
+  element.append(rail, first, crumbsHost, row);
+
+  element.addEventListener("keydown", (event) => {
+    const action = trailKeyAction(event, isEditable(event.target));
+
+    if (action === null) {
+      return;
+    }
+
+    wantFocus = true;
+
+    if (actions.trailKey(action)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+
+  const follows = (index: number): InspectorActions => {
+    const own = forPanel(index);
+
+    return {
+      ...own,
+      follow(relation, id) {
+        wantFocus = true;
+        own.follow(relation, id);
+      },
+    };
+  };
+
+  return {
+    element,
+    render(content, open, trail) {
+      const multi = open && trail !== undefined && trail.contents.length > 1;
+
+      element.classList.toggle("open", open);
+      element.classList.toggle("trail", multi);
+      rail.hidden = open;
+      first.hidden = !open;
+      crumbsHost.hidden = !multi;
+      row.hidden = !multi;
+
+      if (!open) {
+        return;
+      }
+
+      const hadFocus = element.contains(document.activeElement) || wantFocus;
+
+      wantFocus = false;
+
+      if (!multi || trail === undefined) {
+        if (first.parentElement !== element) {
+          element.insertBefore(first, crumbsHost);
+        }
+
+        row.replaceChildren();
+        crumbsHost.replaceChildren();
+
+        panels[0].render(content, follows(0), trail?.focused[0] ?? null, 0);
+
+        if (hadFocus && !first.contains(document.activeElement)) {
+          first.focus({ preventScroll: true });
+        }
+
+        return;
+      }
+
+      const { layout } = trail;
+      const nodes: HTMLElement[] = [];
+      const strip = (index: number) =>
+        stripNode(index, trail.crumbs[index].label, forPanel(index));
+
+      nodes.push(...layout.strips.map(strip));
+
+      for (const index of layout.shown) {
+        const panel = panelAt(index);
+
+        panel.render(
+          trail.contents[index],
+          follows(index),
+          trail.focused[index],
+          index,
+        );
+        panel.element.hidden = false;
+        panel.element.classList.toggle("active", index === trail.active);
+        nodes.push(panel.element);
+      }
+
+      nodes.push(...layout.later.map(strip));
+
+      if (!layout.shown.includes(0)) {
+        first.remove();
+      }
+
+      crumbsHost.replaceChildren(crumbsNode(trail, forPanel(0)));
+      row.replaceChildren(...nodes);
+
+      if (hadFocus) {
+        panelAt(trail.active).element.focus({ preventScroll: true });
       }
     },
   };

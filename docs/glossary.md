@@ -65,6 +65,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
 | Trail | The inspector panels opened by following modules through their Dependencies, one to the right of the next, with breadcrumbs naming each step. |
+| Strip | A narrow vertical column naming a trail panel that is folded out of view, to the left of the shown panels or, once an earlier one is brought back, to their right. Clicking it brings the panel back. |
+| Breadcrumbs | The row above a trail's panels naming each module in the trail and each step's relationship (uses or used by), with the route icon that puts the whole trail on the canvas at its end. |
 | Fold | Drawing an open folder as one box, which keeps its health disc and takes the edges to anything inside it. |
 | Contents | A module's members as cards in file order, or a folder's files. |
 | Card | A member shown in Contents with its label, line and code. |

@@ -11,6 +11,7 @@ export type PanelResizerHandlers = {
   read: () => number;
   write: (px: number) => void;
   commit: () => void;
+  count?: () => number;
 };
 
 export function buildPanelResizer(
@@ -18,19 +19,29 @@ export function buildPanelResizer(
   handlers: PanelResizerHandlers,
 ): HTMLElement {
   const node = el("div", `panel-resizer panel-resizer-${panel}`);
-  let drag: { startWidth: number; startX: number } | null = null;
+  let drag: { startWidth: number; startX: number; count: number } | null = null;
 
   node.setAttribute("role", "separator");
   node.setAttribute("aria-orientation", "vertical");
   node.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     node.setPointerCapture(event.pointerId);
-    drag = { startWidth: handlers.read(), startX: event.clientX };
+    drag = {
+      startWidth: handlers.read(),
+      startX: event.clientX,
+      count: handlers.count?.() ?? 1,
+    };
   });
   node.addEventListener("pointermove", (event) => {
     if (drag !== null) {
       handlers.write(
-        dragWidth(panel, drag.startWidth, drag.startX, event.clientX),
+        dragWidth(
+          panel,
+          drag.startWidth,
+          drag.startX,
+          event.clientX,
+          drag.count,
+        ),
       );
     }
   });
@@ -51,10 +62,16 @@ export function buildPanelResizer(
   return node;
 }
 
+export type PanelResizerHooks = {
+  shownPanels: () => number;
+  committed: () => void;
+};
+
 export function mountPanelResizers(
   body: HTMLElement,
   panels: Record<PanelName, HTMLElement>,
   storage: Pick<Storage, "getItem" | "setItem">,
+  hooks: PanelResizerHooks = { shownPanels: () => 1, committed: () => {} },
 ): PanelWidths {
   const widths = loadWidths(storage);
   const apply = (panel: PanelName) =>
@@ -72,7 +89,11 @@ export function mountPanelResizers(
           widths[panel] = px;
           apply(panel);
         },
-        commit: () => saveWidths(storage, widths),
+        commit() {
+          saveWidths(storage, widths);
+          hooks.committed();
+        },
+        count: panel === "inspector" ? hooks.shownPanels : undefined,
       }),
     );
   }

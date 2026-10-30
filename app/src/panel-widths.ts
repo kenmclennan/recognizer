@@ -61,8 +61,9 @@ export function dragWidth(
   startWidth: number,
   startX: number,
   currentX: number,
+  count = 1,
 ): number {
-  const delta = currentX - startX;
+  const delta = (currentX - startX) / Math.max(1, count);
 
   return clampWidth(
     panel,
