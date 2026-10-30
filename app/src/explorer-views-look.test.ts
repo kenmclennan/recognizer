@@ -163,6 +163,14 @@ const facts = {};
   click(one.q(".view-forward"));
   await tick();
   facts.afterForward = { count: one.count(), modules: one.lastCurrent().modules };
+  click(one.q('.frame-label[data-kind="folder"][data-id="app"]'));
+  await tick();
+  key("z");
+  await tick();
+  facts.afterFold = one.lastCurrent().folded;
+  key("z");
+  await tick();
+  facts.afterUnfold = one.lastCurrent().folded;
   facts.copyDisabled = one.q(".view-copy").disabled;
   click(one.q(".view-copy"));
   await tick();
@@ -495,6 +503,11 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.afterTwoBack.count).toBe(0);
     expect(f.afterTwoBack.modules).toEqual([]);
     expect(f.afterForward.count).toBe(2);
+  });
+
+  it("writes a folded folder into current-view.json and drops it on unfolding", () => {
+    expect(f.afterFold).toEqual(["app"]);
+    expect(f.afterUnfold).toEqual([]);
   });
 
   it("copies the absolute path of the open view and names it", () => {
