@@ -1,4 +1,18 @@
-import { resolveView, type View } from "recognizer";
+import {
+  folderUsedBy,
+  folderUses,
+  resolveView,
+  usedByOf,
+  usesOf,
+  type View,
+} from "recognizer";
+import {
+  type AgentLineView,
+  backLabel,
+  createAgentLine,
+  forwardLabel,
+  realTimer,
+} from "./agent-line";
 import { type Scheduler, timerScheduler } from "./bar-hover";
 import { createBusyGate } from "./busy-gate";
 import {
@@ -87,7 +101,7 @@ import { buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
-import { createHistory, type History } from "./view-history";
+import { createHistory, type History, type Mark } from "./view-history";
 import { resolveLinkedView } from "./view-link";
 import {
   notedModules,
@@ -98,7 +112,13 @@ import {
 } from "./view-notes";
 import { stepsFor } from "./view-steps";
 import { inertViews, type ViewsPort } from "./views-port";
-import { inertWindow, type WindowPort } from "./window-port";
+import {
+  type DriveAction,
+  type DriveFacts,
+  type DriveRequest,
+  planDrive,
+} from "./window-drive";
+import { type DriveAnswer, inertWindow, type WindowPort } from "./window-port";
 import { latestWins, type Snapshot, windowStateOf } from "./window-state";
 
 export type Carried = {
@@ -130,6 +150,7 @@ export function showExplorer(
   editor: EditorPort = inertEditor,
   responsibilities: ResponsibilitiesPort = inertResponsibilities,
   windowPort: WindowPort = inertWindow,
+  showAgentLine: (line: AgentLineView) => void = () => {},
 ): Explorer {
   const health = computeHealth(
     loaded.scans,
@@ -190,6 +211,8 @@ export function showExplorer(
       focus: null,
       selection: null,
     });
+  const agentLine = createAgentLine(showAgentLine, realTimer);
+  let batch: { touched: boolean } | null = null;
   const publishWindow = latestWins(windowPort.publish);
   let lastPublished: string | null = null;
   const authorName = views.author().catch(() => "Me");
@@ -935,12 +958,25 @@ export function showExplorer(
     publishWindow(text);
   }
 
-  function record() {
-    const snap = snapshot();
+  function record(mark?: Mark): boolean {
+    if (batch !== null && mark === undefined) {
+      batch.touched = true;
+      publish();
+      renderBar();
 
-    history.record(snap);
+      return false;
+    }
+
+    const recorded = history.record(snapshot(), mark);
+
+    if (mark === undefined) {
+      agentLine.clear();
+    }
+
     publish();
     renderBar();
+
+    return recorded;
   }
 
   function canvasContent() {
@@ -987,6 +1023,8 @@ export function showExplorer(
       return;
     }
 
+    agentLine.clear();
+
     for (const id of modules.opened()) {
       modules.close(id);
     }
@@ -1005,6 +1043,154 @@ export function showExplorer(
     state.reconcile(presenceOf(graph));
     reveal(state.selection());
     render();
+    renderBar();
+  }
+
+  function trailNeighbours(): DriveFacts["trail"] {
+    const selection = trail.panels[trail.active]?.selection ?? null;
+
+    if (selection === null || selection.kind === "edge") {
+      return null;
+    }
+
+    const rows = (uses: boolean) =>
+      (selection.kind === "module"
+        ? uses
+          ? usesOf(scans, loaded.modules, selection.id)
+          : usedByOf(scans, loaded.modules, selection.id)
+        : uses
+          ? folderUses(scans, loaded.modules, selection.id)
+          : folderUsedBy(scans, loaded.modules, selection.id)
+      ).map((row) => row.id);
+
+    return { selection, uses: rows(true), usedBy: rows(false) };
+  }
+
+  function driveFacts(): DriveFacts {
+    return {
+      modules: knownModules,
+      onCanvas: new Set(modules.opened()),
+      folded: state.folded(),
+      focus: state.focus(),
+      selection: state.selection(),
+      canonical: compaction.canonical,
+      views: viewList.map((view) => view.name),
+      trail: trailNeighbours(),
+    };
+  }
+
+  async function perform(action: DriveAction): Promise<string | null> {
+    switch (action.kind) {
+      case "open":
+        for (const id of action.ids) {
+          modules.open(id);
+        }
+
+        changed();
+
+        return null;
+      case "close":
+        for (const id of action.ids) {
+          modules.close(id);
+        }
+
+        changed();
+
+        return null;
+      case "fold":
+        for (const folder of action.folders) {
+          if (state.folded().has(folder) === action.off) {
+            state.toggleFold(folder);
+          }
+        }
+
+        changed();
+
+        return null;
+      case "focus":
+        state.toggleFocus(action.folder);
+        changed();
+
+        return null;
+      case "select":
+        select(action.selection);
+
+        return null;
+      case "follow":
+        followFrom(trail.active, action.relation, action.id);
+        inspectorOpen = true;
+        inspectorTab = "dependencies";
+        render();
+
+        return null;
+      case "open-view": {
+        viewNotice = null;
+        await openSaved(action.name);
+
+        return viewNotice === null && openView === action.name
+          ? null
+          : (viewNotice ?? `could not open view ${action.name}`);
+      }
+      case "clear":
+        if (action.target === "all") {
+          state.clear();
+        } else if (action.target === "modules") {
+          for (const id of modules.opened()) {
+            modules.close(id);
+          }
+        } else if (action.target === "folds") {
+          state.restore([], state.focus());
+        } else if (action.target === "focus") {
+          state.restore([...state.folded()], null);
+        } else {
+          state.clearSelection();
+        }
+
+        evidence = null;
+        hovered = null;
+        changed();
+
+        return null;
+    }
+  }
+
+  async function drive(request: DriveRequest): Promise<DriveAnswer> {
+    const plan = planDrive(request, driveFacts());
+
+    if ("refuse" in plan) {
+      return { status: "refused", reason: plan.refuse };
+    }
+
+    const mark: Mark = { by: request.by, summary: plan.summary };
+    const followed = plan.apply.some((action) => action.kind === "follow");
+
+    batch = { touched: false };
+
+    try {
+      for (const action of plan.apply) {
+        const problem = await perform(action);
+
+        if (problem !== null) {
+          return { status: "refused", reason: problem };
+        }
+      }
+    } finally {
+      batch = null;
+    }
+
+    const recorded = record(mark);
+
+    if (recorded) {
+      agentLine.show(mark, () => step(history.back()));
+    }
+
+    const changedNow = recorded || followed;
+
+    return {
+      status: "done",
+      summary: changedNow ? plan.summary : "nothing changed",
+      changed: changedNow,
+    };
   }
 
   function setViewList(list: { name: string; text: string }[]) {
@@ -1075,6 +1261,8 @@ export function showExplorer(
       listed: listKnown,
       listProblem,
       canForward: history.canForward(),
+      backLabel: backLabel(history.markNow()),
+      forwardLabel: forwardLabel(history.markNext()),
       canCopy: openView !== null,
     });
   }
@@ -1697,6 +1885,7 @@ export function showExplorer(
 
   resizeObserver?.observe(body);
 
+  const stopDriving = windowPort.onDrive(drive);
   const stopWatching = views.onChanged(() => void onViewsChanged());
   const stopWatchingResponsibilities = responsibilities.onChanged(
     () => void readResponsibilities(),
@@ -1722,6 +1911,8 @@ export function showExplorer(
     dispose() {
       resizeObserver?.disconnect();
       stopWatching();
+      stopDriving();
+      agentLine.clear();
       stopWatchingResponsibilities();
       bar.dispose();
     },

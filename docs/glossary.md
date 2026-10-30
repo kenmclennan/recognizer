@@ -108,4 +108,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Link | A `recognizer://open?repo=<absolute path>[&view=<name>]` address of a repository and, optionally, one of its saved views. Opening one opens the folder and the view, or focuses the window already showing the folder; it never runs a command, scans, describes or writes. |
 | Window id | The `w-<n>` label the app gives a window, which `recognizer windows` lists and `recognizer window <id>` takes. |
 | App socket | The per-user local socket, `app.sock` in the app's config folder, through which the `recognizer` command reads the running app. |
+| Agent change | A view-state change made through `recognizer window <id> <verb>`, carrying `--by`. It is one ordinary history step, so one Back undoes it. |
+| Agent line | The one fading footer line naming the latest agent change (`Claude added 4 modules`) with an Undo that steps back. |
+| Mark | Who made a history entry and what the change was, kept beside it so Back and Forward can name the agent's entries as the agent's. |
 | View bar | The control group at the canvas's top left: back and forward over the history, the open view's name with the saved views to open, Save and Copy link. |

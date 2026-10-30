@@ -69,4 +69,66 @@ describe("history", () => {
     expect(history.back()).toBe(20);
     expect(history.back()).toBe(10);
   });
+
+  it("stores a mark beside each entry and reads it after back and forward", () => {
+    const history = createHistory("a");
+    const mark = { by: "Claude", summary: "added 4 modules" };
+
+    expect(history.markNow()).toBeNull();
+
+    history.record("b", mark);
+    history.record("c");
+
+    expect(history.markNow()).toBeNull();
+
+    history.back();
+
+    expect(history.markNow()).toEqual(mark);
+    expect(history.markNext()).toBeNull();
+
+    history.back();
+
+    expect(history.markNow()).toBeNull();
+    expect(history.markNext()).toEqual(mark);
+  });
+
+  it("adds nothing for a no-op record, marked or not", () => {
+    const history = createHistory({ x: 1 });
+
+    expect(history.record({ x: 1 }, { by: "Claude", summary: "s" })).toBe(
+      false,
+    );
+    expect(history.canBack()).toBe(false);
+    expect(history.record({ x: 2 })).toBe(true);
+  });
+
+  it("keeps marks through a remap", () => {
+    const history = createHistory(1);
+    const mark = { by: "Claude", summary: "s" };
+
+    history.record(2, mark);
+    history.remap((n) => n * 10);
+
+    expect(history.markNow()).toEqual(mark);
+    expect(history.back()).toBe(10);
+    expect(history.forward()).toBe(20);
+  });
+
+  it("keeps marks aligned when the limit drops the oldest entry", () => {
+    const history = createHistory(0);
+    const mark = { by: "Claude", summary: "s" };
+
+    for (let n = 1; n <= HISTORY_LIMIT; n += 1) {
+      history.record(n);
+    }
+
+    history.record(HISTORY_LIMIT + 1, mark);
+
+    expect(history.markNow()).toEqual(mark);
+
+    history.back();
+
+    expect(history.markNow()).toBeNull();
+    expect(history.markNext()).toEqual(mark);
+  });
 });

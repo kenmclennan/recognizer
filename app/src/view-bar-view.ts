@@ -12,6 +12,8 @@ export type ViewBarProps = {
   listProblem: string | null;
   canBack: boolean;
   canForward: boolean;
+  backLabel: string;
+  forwardLabel: string;
   canCopy: boolean;
   note: Note | null;
 };
@@ -88,6 +90,8 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     listProblem: null,
     canBack: false,
     canForward: false,
+    backLabel: "Back",
+    forwardLabel: "Forward",
     canCopy: false,
     note: null,
   };
@@ -485,6 +489,8 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       props = next;
       back.disabled = !next.canBack;
       forward.disabled = !next.canForward;
+      relabel(back, next.backLabel);
+      relabel(forward, next.forwardLabel);
       nameText.textContent = next.open ?? "Untitled";
       renderName();
       copy.disabled = !next.canCopy;
@@ -511,6 +517,11 @@ function iconButton(
   node.title = label;
 
   return node;
+}
+
+function relabel(node: HTMLElement, label: string) {
+  node.setAttribute("aria-label", label);
+  node.title = label;
 }
 
 function labelled(text: string, input: HTMLInputElement | HTMLTextAreaElement) {

@@ -669,5 +669,1326 @@
       "status": "refused",
       "reason": "id must be a string"
     }
+  },
+  {
+    "name": "drive add",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "added 1 module",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"add\",\"args\":[\"app/c.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "added 1 module",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive add with nothing new",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "nothing changed",
+        "changed": false
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"add\",\"args\":[\"app/a.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "nothing changed",
+        "changed": false
+      }
+    }
+  },
+  {
+    "name": "drive remove",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "removed 2 modules",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"remove\",\"args\":[\"app/a.py\",\"app/b.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "removed 2 modules",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive fold",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "folded 1 folder",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"fold\",\"args\":[\"app/util\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "folded 1 folder",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive fold --off",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "unfolded 1 folder",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"fold\",\"args\":[\"app/util\"],\"options\":{\"off\":true},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "unfolded 1 folder",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive focus",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "focused app",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"focus\",\"args\":[\"app\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "focused app",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive select",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "selected app/a.py",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"select\",\"args\":[\"app/a.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "selected app/a.py",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive trail",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "followed uses app/b.py",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"trail\",\"args\":[\"uses\",\"app/b.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "followed uses app/b.py",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive open-view",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "opened view overview",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"open-view\",\"args\":[\"overview\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "opened view overview",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive clear",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "result": {
+        "summary": "cleared the canvas",
+        "changed": true
+      }
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"clear\",\"args\":[\"all\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "summary": "cleared the canvas",
+        "changed": true
+      }
+    }
+  },
+  {
+    "name": "drive add refused for an unknown module",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "no module app/zzz.py in the scan"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"add\",\"args\":[\"app/a.py\",\"app/zzz.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no module app/zzz.py in the scan"
+    }
+  },
+  {
+    "name": "drive remove refused for an unknown module",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "no module app/zzz.py in the scan"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"remove\",\"args\":[\"app/zzz.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no module app/zzz.py in the scan"
+    }
+  },
+  {
+    "name": "drive fold refused for an unknown folder",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "no folder nowhere holds a module in the scan"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"fold\",\"args\":[\"nowhere\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no folder nowhere holds a module in the scan"
+    }
+  },
+  {
+    "name": "drive focus refused for an unknown folder",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "no folder nowhere holds a module in the scan"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"focus\",\"args\":[\"nowhere\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no folder nowhere holds a module in the scan"
+    }
+  },
+  {
+    "name": "drive select refused for an unknown id",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "no module or folder zzz in the scan"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"select\",\"args\":[\"zzz\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no module or folder zzz in the scan"
+    }
+  },
+  {
+    "name": "drive trail refused when the trail is empty",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "the trail is empty"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"trail\",\"args\":[\"uses\",\"app/b.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "the trail is empty"
+    }
+  },
+  {
+    "name": "drive trail refused for a module that is not a dependency",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "app/c.py is not a direct dependent of app/a.py"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"trail\",\"args\":[\"used-by\",\"app/c.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "app/c.py is not a direct dependent of app/a.py"
+    }
+  },
+  {
+    "name": "drive open-view refused for an unknown view",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "no saved view named nope"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"open-view\",\"args\":[\"nope\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no saved view named nope"
+    }
+  },
+  {
+    "name": "drive clear refused for another word",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "driven": {
+      "refused": "cannot clear everything: use modules, folds, focus, selection, all"
+    },
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"clear\",\"args\":[\"everything\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "cannot clear everything: use modules, folds, focus, selection, all"
+    }
+  },
+  {
+    "name": "drive for an unknown window",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-9\",\"action\":\"add\",\"args\":[\"app/a.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no window w-9; open windows: w-1"
+    }
+  },
+  {
+    "name": "drive for a window that has published nothing yet",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": null
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"add\",\"args\":[\"app/a.py\"],\"options\":{},\"by\":\"Claude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "w-1 has not finished opening"
+    }
+  },
+  {
+    "name": "drive with a by that is not valid",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"add\",\"args\":[\"app/a.py\"],\"options\":{},\"by\":\"Cl/aude\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "by must be 1-32 characters of letters, digits, space, - and _"
+    }
+  },
+  {
+    "name": "drive with an id that is not a string",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"drive\",\"id\":7}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "id must be a string"
+    }
   }
 ]

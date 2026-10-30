@@ -3,7 +3,8 @@ use std::io::{ErrorKind, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -16,6 +17,8 @@ const VERSION: u64 = 1;
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
 const READ_DEADLINE: Duration = Duration::from_secs(2);
 const MAX_PATH_BYTES: usize = 100;
+const MAX_BY_CHARS: usize = 32;
+pub const DRIVE_WAIT: Duration = Duration::from_secs(3);
 const SOCKET_NAME: &str = "app.sock";
 pub const SOCKET_ENV: &str = "RECOGNIZER_APP_SOCKET";
 
@@ -28,6 +31,86 @@ pub struct Entry {
 
 pub trait Source: Send + Sync {
     fn entries(&self) -> Vec<Entry>;
+    fn drive(&self, label: &str, request: Value) -> Result<Value, String>;
+}
+
+type DriveAnswer = Result<Value, String>;
+
+#[derive(Default)]
+pub struct Drives {
+    next: AtomicU64,
+    pending: Mutex<HashMap<u64, (String, Sender<DriveAnswer>)>>,
+}
+
+impl Drives {
+    pub fn register(&self, label: &str) -> (u64, Receiver<DriveAnswer>) {
+        let request = self.next.fetch_add(1, Ordering::SeqCst) + 1;
+        let (sender, receiver) = channel();
+
+        self.pending
+            .lock()
+            .unwrap()
+            .insert(request, (label.to_string(), sender));
+
+        (request, receiver)
+    }
+
+    pub fn answer(&self, request: u64, answer: &Value) -> Result<(), String> {
+        let (_, sender) = self
+            .pending
+            .lock()
+            .unwrap()
+            .remove(&request)
+            .ok_or_else(|| format!("no drive request {request} is waiting"))?;
+        let outcome = match answer.get("status").and_then(Value::as_str) {
+            Some("done") => Ok(answer.get("result").cloned().unwrap_or(Value::Null)),
+            Some("refused") => Err(answer
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("the window refused")
+                .to_string()),
+            _ => Err("the window sent an answer that is neither done nor refused".to_string()),
+        };
+
+        let _ = sender.send(outcome);
+
+        Ok(())
+    }
+
+    pub fn closed(&self, label: &str) {
+        let mut pending = self.pending.lock().unwrap();
+        let gone: Vec<u64> = pending
+            .iter()
+            .filter(|(_, (owner, _))| owner == label)
+            .map(|(request, _)| *request)
+            .collect();
+
+        for request in gone {
+            if let Some((_, sender)) = pending.remove(&request) {
+                let _ = sender.send(Err(format!("{label} closed")));
+            }
+        }
+    }
+
+    pub fn wait(
+        &self,
+        label: &str,
+        request: u64,
+        receiver: &Receiver<DriveAnswer>,
+        timeout: Duration,
+    ) -> DriveAnswer {
+        match receiver.recv_timeout(timeout) {
+            Ok(outcome) => outcome,
+            Err(_) => {
+                self.pending.lock().unwrap().remove(&request);
+
+                Err(format!(
+                    "{label} did not answer within {} seconds",
+                    timeout.as_secs()
+                ))
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -116,14 +199,19 @@ fn labels(listed: &[&Entry]) -> String {
         .join(", ")
 }
 
+fn by_id<'a>(listed: &[&'a Entry], id: &str) -> Result<&'a Entry, String> {
+    match listed.iter().find(|entry| entry.label == id) {
+        Some(entry) => Ok(*entry),
+        None if listed.is_empty() => Err(format!("no window {id}; no window is open")),
+        None => Err(format!("no window {id}; open windows: {}", labels(listed))),
+    }
+}
+
 fn window_answer(listed: &[&Entry], id: Option<&Value>) -> String {
     let entry = match id {
-        Some(Value::String(id)) => match listed.iter().find(|entry| &entry.label == id) {
-            Some(entry) => *entry,
-            None if listed.is_empty() => {
-                return refused(&format!("no window {id}; no window is open"))
-            }
-            None => return refused(&format!("no window {id}; open windows: {}", labels(listed))),
+        Some(Value::String(id)) => match by_id(listed, id) {
+            Ok(entry) => entry,
+            Err(reason) => return refused(&reason),
         },
         Some(_) => return refused("id must be a string"),
         None => match listed {
@@ -157,7 +245,71 @@ fn window_answer(listed: &[&Entry], id: Option<&Value>) -> String {
     done(Value::Object(result))
 }
 
-pub fn respond(line: &str, entries: &[Entry]) -> String {
+fn valid_by(by: &str) -> bool {
+    let length = by.chars().count();
+
+    (1..=MAX_BY_CHARS).contains(&length)
+        && by
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '_')
+}
+
+fn drive_request(
+    request: &Map<String, Value>,
+    listed: &[&Entry],
+) -> Result<(String, Value), String> {
+    let id = match request.get("id") {
+        Some(Value::String(id)) => id,
+        Some(_) => return Err("id must be a string".to_string()),
+        None => return Err("drive needs an \"id\" string".to_string()),
+    };
+    let entry = by_id(listed, id)?;
+
+    if !matches!(entry.state, Some(Value::Object(_))) {
+        return Err(format!("{} has not finished opening", entry.label));
+    }
+
+    let action = request
+        .get("action")
+        .and_then(Value::as_str)
+        .ok_or("drive needs an \"action\" string")?;
+    let args = request
+        .get("args")
+        .and_then(Value::as_array)
+        .filter(|args| args.iter().all(Value::is_string))
+        .ok_or("args must be an array of strings")?;
+    let options = match request.get("options") {
+        None => Map::new(),
+        Some(Value::Object(options)) => options.clone(),
+        Some(_) => return Err("options must be an object".to_string()),
+    };
+
+    if let Some(unknown) = options.keys().find(|key| key.as_str() != "off") {
+        return Err(format!("unknown option {unknown:?}"));
+    }
+
+    if options.get("off").is_some_and(|off| !off.is_boolean()) {
+        return Err("option off must be a boolean".to_string());
+    }
+
+    let by = request
+        .get("by")
+        .and_then(Value::as_str)
+        .ok_or("drive needs a \"by\" string")?;
+
+    if !valid_by(by) {
+        return Err(format!(
+            "by must be 1-{MAX_BY_CHARS} characters of letters, digits, space, - and _"
+        ));
+    }
+
+    Ok((
+        entry.label.clone(),
+        json!({ "action": action, "args": args, "options": options, "by": by }),
+    ))
+}
+
+pub fn respond(line: &str, source: &dyn Source) -> String {
     let request: Value = match serde_json::from_str(line) {
         Ok(value) => value,
         Err(_) => return refused("the request is not valid JSON"),
@@ -171,13 +323,21 @@ pub fn respond(line: &str, entries: &[Entry]) -> String {
         return refused(&format!("the request needs \"v\": {VERSION}"));
     }
 
-    let listed = sorted(entries);
+    let entries = source.entries();
+    let listed = sorted(&entries);
 
     match request.get("command").and_then(Value::as_str) {
         Some("windows") => done(Value::Array(
             listed.iter().map(|entry| listing(entry)).collect(),
         )),
         Some("window") => window_answer(&listed, request.get("id")),
+        Some("drive") => match drive_request(&request, &listed) {
+            Ok((label, body)) => match source.drive(&label, body) {
+                Ok(result) => done(result),
+                Err(reason) => refused(&reason),
+            },
+            Err(reason) => refused(&reason),
+        },
         Some(other) => refused(&format!("unknown command {other:?}; use windows or window")),
         None => refused("the request needs a \"command\" string"),
     }
@@ -232,7 +392,7 @@ fn read_line(stream: &mut UnixStream) -> Line {
 
 fn serve_connection(mut stream: UnixStream, source: &dyn Source) {
     let reply = match read_line(&mut stream) {
-        Line::Text(text) => respond(&text, &source.entries()),
+        Line::Text(text) => respond(&text, source),
         Line::Refusal(reason) => refused(&reason),
     };
 
@@ -347,12 +507,56 @@ mod tests {
 
     const FIXTURE: &str = include_str!("../../../fixtures/window-socket/cases.json");
 
-    struct Fixed(Vec<Entry>);
+    struct Fixed {
+        entries: Vec<Entry>,
+        driven: Mutex<Option<Result<Value, String>>>,
+        calls: Mutex<Vec<(String, Value)>>,
+    }
+
+    impl Fixed {
+        fn new(entries: Vec<Entry>) -> Fixed {
+            Fixed {
+                entries,
+                driven: Mutex::new(None),
+                calls: Mutex::new(vec![]),
+            }
+        }
+
+        fn answering(entries: Vec<Entry>, driven: Result<Value, String>) -> Fixed {
+            let fixed = Fixed::new(entries);
+
+            *fixed.driven.lock().unwrap() = Some(driven);
+
+            fixed
+        }
+    }
 
     impl Source for Fixed {
         fn entries(&self) -> Vec<Entry> {
-            self.0.clone()
+            self.entries.clone()
         }
+
+        fn drive(&self, label: &str, request: Value) -> Result<Value, String> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push((label.to_string(), request));
+
+            self.driven
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_else(|| Err("no drive configured".to_string()))
+        }
+    }
+
+    fn driven_of(case: &Value) -> Option<Result<Value, String>> {
+        let driven = case.get("driven")?;
+
+        Some(match driven.get("refused").and_then(Value::as_str) {
+            Some(reason) => Err(reason.to_string()),
+            None => Ok(driven["result"].clone()),
+        })
     }
 
     fn entries_of(open: &Value) -> Vec<Entry> {
@@ -380,7 +584,8 @@ mod tests {
 
     fn started(entries: Vec<Entry>) -> (tempfile::TempDir, Server) {
         let dir = tempdir().unwrap();
-        let server = Server::start(&dir.path().join("app.sock"), Arc::new(Fixed(entries))).unwrap();
+        let server =
+            Server::start(&dir.path().join("app.sock"), Arc::new(Fixed::new(entries))).unwrap();
 
         (dir, server)
     }
@@ -413,7 +618,13 @@ mod tests {
         let cases: Value = serde_json::from_str(FIXTURE).unwrap();
 
         for case in cases.as_array().unwrap() {
-            let (_dir, server) = started(entries_of(&case["open"]));
+            let dir = tempdir().unwrap();
+            let entries = entries_of(&case["open"]);
+            let source = match driven_of(case) {
+                Some(driven) => Fixed::answering(entries, driven),
+                None => Fixed::new(entries),
+            };
+            let server = Server::start(&dir.path().join("app.sock"), Arc::new(source)).unwrap();
             let request = format!("{}\n", case["request"].as_str().unwrap());
             let reply = exchange(server.path(), request.as_bytes());
 
@@ -421,11 +632,182 @@ mod tests {
         }
     }
 
+    fn drive_line(extra: &str) -> String {
+        format!(
+            "{{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"add\",\"args\":[\"app/a.py\"],\"options\":{{}},\"by\":\"Claude\"{extra}}}"
+        )
+    }
+
+    #[test]
+    fn a_drive_request_reaches_the_source_with_the_label_and_its_fields() {
+        let source = Fixed::answering(
+            vec![entry("w-1", Some(json!({})))],
+            Ok(json!({ "summary": "added 1 module", "changed": true })),
+        );
+        let reply: Value = serde_json::from_str(&respond(&drive_line(""), &source)).unwrap();
+
+        assert_eq!(reply["status"], "done");
+        assert_eq!(reply["result"]["summary"], "added 1 module");
+        assert_eq!(
+            *source.calls.lock().unwrap(),
+            vec![(
+                "w-1".to_string(),
+                json!({ "action": "add", "args": ["app/a.py"], "options": {}, "by": "Claude" })
+            )]
+        );
+    }
+
+    #[test]
+    fn a_drive_the_window_refuses_is_refused_with_its_reason() {
+        let source = Fixed::answering(
+            vec![entry("w-1", Some(json!({})))],
+            Err("no module app/zzz.py in the scan".to_string()),
+        );
+        let reply: Value = serde_json::from_str(&respond(&drive_line(""), &source)).unwrap();
+
+        assert_eq!(reason(&reply), "no module app/zzz.py in the scan");
+    }
+
+    #[test]
+    fn a_bad_drive_request_is_refused_without_calling_the_source() {
+        let ready = || vec![entry("w-1", Some(json!({})))];
+        let cases = [
+            (
+                "{\"v\":1,\"command\":\"drive\",\"action\":\"add\",\"args\":[],\"by\":\"A\"}"
+                    .to_string(),
+                "needs an \"id\"",
+                ready(),
+            ),
+            (
+                "{\"v\":1,\"command\":\"drive\",\"id\":7}".to_string(),
+                "id must be a string",
+                ready(),
+            ),
+            (
+                drive_line("").replace("w-1", "w-9"),
+                "no window w-9; open windows: w-1",
+                ready(),
+            ),
+            (
+                drive_line(""),
+                "w-1 has not finished opening",
+                vec![entry("w-1", None)],
+            ),
+            (
+                drive_line("").replace("Claude", "Cl/aude"),
+                "by must be 1-32 characters",
+                ready(),
+            ),
+            (
+                drive_line("").replace("Claude", &"x".repeat(33)),
+                "by must be 1-32 characters",
+                ready(),
+            ),
+            (
+                drive_line("").replace("\"by\":\"Claude\"", "\"by\":3"),
+                "needs a \"by\"",
+                ready(),
+            ),
+            (
+                drive_line("").replace("\"args\":[\"app/a.py\"]", "\"args\":[1]"),
+                "args must be an array of strings",
+                ready(),
+            ),
+            (
+                drive_line("").replace("\"options\":{}", "\"options\":{\"on\":true}"),
+                "unknown option",
+                ready(),
+            ),
+            (
+                drive_line("").replace("\"options\":{}", "\"options\":{\"off\":1}"),
+                "must be a boolean",
+                ready(),
+            ),
+        ];
+
+        for (line, expected, entries) in cases {
+            let source = Fixed::answering(entries, Ok(json!({})));
+            let reply: Value = serde_json::from_str(&respond(&line, &source)).unwrap();
+
+            assert!(reason(&reply).contains(expected), "{expected}: {reply}");
+            assert!(source.calls.lock().unwrap().is_empty(), "{expected}");
+        }
+    }
+
+    #[test]
+    fn an_answer_sent_to_drives_ends_the_wait_with_that_value() {
+        let drives = Drives::default();
+        let (request, receiver) = drives.register("w-1");
+
+        drives
+            .answer(
+                request,
+                &json!({ "status": "done", "result": { "summary": "x", "changed": true } }),
+            )
+            .unwrap();
+
+        assert_eq!(
+            drives.wait("w-1", request, &receiver, Duration::from_secs(1)),
+            Ok(json!({ "summary": "x", "changed": true }))
+        );
+        assert!(drives.answer(request, &json!({})).is_err());
+    }
+
+    #[test]
+    fn a_refused_answer_becomes_an_error_with_its_reason() {
+        let drives = Drives::default();
+        let (request, receiver) = drives.register("w-1");
+
+        drives
+            .answer(request, &json!({ "status": "refused", "reason": "no" }))
+            .unwrap();
+
+        assert_eq!(
+            drives.wait("w-1", request, &receiver, Duration::from_secs(1)),
+            Err("no".to_string())
+        );
+    }
+
+    #[test]
+    fn no_answer_in_time_refuses_with_did_not_answer() {
+        let drives = Drives::default();
+        let (request, receiver) = drives.register("w-2");
+
+        assert_eq!(
+            drives.wait("w-2", request, &receiver, Duration::from_millis(20)),
+            Err("w-2 did not answer within 0 seconds".to_string())
+        );
+        assert!(drives.answer(request, &json!({})).is_err());
+    }
+
+    #[test]
+    fn a_window_closed_while_waiting_refuses_with_closed() {
+        let drives = Drives::default();
+        let (request, receiver) = drives.register("w-2");
+        let (other, other_receiver) = drives.register("w-3");
+
+        drives.closed("w-2");
+
+        assert_eq!(
+            drives.wait("w-2", request, &receiver, Duration::from_secs(1)),
+            Err("w-2 closed".to_string())
+        );
+
+        drives
+            .answer(other, &json!({ "status": "done", "result": 1 }))
+            .unwrap();
+
+        assert_eq!(
+            drives.wait("w-3", other, &other_receiver, Duration::from_secs(1)),
+            Ok(json!(1))
+        );
+    }
+
     #[test]
     fn the_socket_is_readable_only_by_the_user() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("fresh").join("app.sock");
-        let server = Server::start(&path, Arc::new(Fixed(vec![]))).unwrap();
+        let server = Server::start(&path, Arc::new(Fixed::new(vec![]))).unwrap();
         let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
 
         assert_eq!(mode(&path), 0o600);
@@ -530,7 +912,7 @@ mod tests {
         let state = json!({ "id": "w-99", "folder": "/elsewhere", "view": "v" });
         let reply = respond(
             "{\"v\":1,\"command\":\"window\"}",
-            &[entry("w-1", Some(state))],
+            &Fixed::new(vec![entry("w-1", Some(state))]),
         );
         let reply: Value = serde_json::from_str(&reply).unwrap();
 
@@ -569,13 +951,13 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
 
-        let first = Server::start(&path, Arc::new(Fixed(vec![]))).unwrap();
+        let first = Server::start(&path, Arc::new(Fixed::new(vec![]))).unwrap();
 
         assert_eq!(
             exchange(&path, b"{\"v\":1,\"command\":\"windows\"}\n")["status"],
             "done"
         );
-        assert!(Server::start(&path, Arc::new(Fixed(vec![]))).is_err());
+        assert!(Server::start(&path, Arc::new(Fixed::new(vec![]))).is_err());
         assert_eq!(
             exchange(&path, b"{\"v\":1,\"command\":\"windows\"}\n")["status"],
             "done"
@@ -590,7 +972,7 @@ mod tests {
         let error = socket_path(Path::new("/x"), Some(&long)).unwrap_err();
 
         assert!(error.contains(&long));
-        assert!(Server::start(Path::new(&long), Arc::new(Fixed(vec![]))).is_err());
+        assert!(Server::start(Path::new(&long), Arc::new(Fixed::new(vec![]))).is_err());
     }
 
     #[test]

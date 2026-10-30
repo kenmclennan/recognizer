@@ -1,4 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
+import type { AgentLineView } from "./agent-line";
 import { APP_NAME } from "./app-info";
 import { el } from "./dom";
 import { type ScanState, scanLine } from "./footer-scan";
@@ -8,6 +9,7 @@ export type FooterView = {
   notify: (text: string) => void;
   setCount: (text: string) => void;
   setScan: (state: ScanState | null) => void;
+  setAgentLine: (line: AgentLineView) => void;
 };
 
 const AGE_REFRESH_MS = 30000;
@@ -20,6 +22,7 @@ export function buildFooter(
   const count = document.createElement("span");
   const scan = el("span", "scan-line");
   const notice = document.createElement("span");
+  const agentLine = el("span", "agent-line");
   const toolsNotice = el("span", "tools-notice");
   const list = el("div", "changes-list");
   let scanState: ScanState | null = null;
@@ -31,10 +34,20 @@ export function buildFooter(
   count.id = "module-count";
   notice.className = "notice";
   notice.setAttribute("role", "status");
+  agentLine.setAttribute("role", "status");
+  agentLine.hidden = true;
   toolsNotice.setAttribute("role", "status");
   toolsNotice.hidden = true;
   list.hidden = true;
-  container.replaceChildren(identity, count, scan, notice, toolsNotice, list);
+  container.replaceChildren(
+    identity,
+    count,
+    scan,
+    notice,
+    agentLine,
+    toolsNotice,
+    list,
+  );
 
   void getVersion().then((version) => {
     identity.textContent = `${APP_NAME} ${version}`;
@@ -127,6 +140,25 @@ export function buildFooter(
     },
     notify(text) {
       notice.textContent = text;
+    },
+    setAgentLine(line) {
+      agentLine.hidden = line === null;
+
+      if (line === null) {
+        agentLine.replaceChildren();
+
+        return;
+      }
+
+      const undo = el("button", "agent-undo", "Undo");
+
+      undo.type = "button";
+      undo.addEventListener("click", () => line.onUndo());
+      agentLine.replaceChildren(
+        el("span", "agent-text", line.text),
+        el("span", "agent-dot", "\u00b7"),
+        undo,
+      );
     },
     setScan(state) {
       scanState = state;

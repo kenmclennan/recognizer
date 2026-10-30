@@ -204,7 +204,107 @@ function windowBlock(state: WindowState): string {
   ].join("\n");
 }
 
+const DRIVE_VERBS: Record<string, { min: number; max: number; need: string }> =
+  {
+    add: { min: 1, max: Infinity, need: "one or more module paths" },
+    remove: { min: 1, max: Infinity, need: "one or more module paths" },
+    fold: { min: 1, max: Infinity, need: "one or more folder ids" },
+    focus: { min: 1, max: 1, need: "one folder id" },
+    select: { min: 1, max: 1, need: "one module path or folder id" },
+    trail: { min: 2, max: 2, need: "uses or used-by, then a module path" },
+    "open-view": { min: 1, max: 1, need: "one saved view name" },
+    clear: {
+      min: 1,
+      max: 1,
+      need: "one of modules, folds, focus, selection, all",
+    },
+  };
+
+const DEFAULT_BY = "Agent";
+const VALID_BY = /^[A-Za-z0-9 _-]{1,32}$/;
+
+const DRIVE_USAGE =
+  "recognizer window <id> add|remove|fold|focus|select|trail|open-view|clear <argument>... [--by <name>] [--json]";
+
+const DRIVE_OPTIONS = {
+  json: { type: "boolean" },
+  off: { type: "boolean" },
+  by: { type: "string" },
+} as const;
+
+function runDrive(parsed: ReturnType<typeof parseDrive>, io: Io): number {
+  const [id, verb, ...args] = parsed.positionals as [
+    string,
+    string,
+    ...string[],
+  ];
+  const rule = DRIVE_VERBS[verb];
+  const by = parsed.values.by ?? DEFAULT_BY;
+
+  if (rule === undefined) {
+    throw new InputError([
+      `${verb} is not a window verb`,
+      `usage: ${DRIVE_USAGE}`,
+    ]);
+  }
+
+  if (args.length < rule.min || args.length > rule.max) {
+    throw new InputError([
+      `${verb} needs ${rule.need}`,
+      `usage: ${DRIVE_USAGE}`,
+    ]);
+  }
+
+  if (parsed.values.off === true && verb !== "fold") {
+    throw new InputError(["--off applies only to fold"]);
+  }
+
+  if (!VALID_BY.test(by)) {
+    throw new InputError([
+      "--by takes 1-32 characters of letters, digits, space, - and _",
+    ]);
+  }
+
+  const answer = askApp(io, {
+    command: "drive",
+    id,
+    action: verb,
+    args,
+    options: parsed.values.off === true ? { off: true } : {},
+    by,
+  });
+
+  if (answer.kind !== "done") {
+    return failure(io, answer);
+  }
+
+  const result = answer.result as { summary: string };
+
+  io.stdout(
+    parsed.values.json === true
+      ? `${JSON.stringify(result, null, 2)}\n`
+      : `${result.summary}\n`,
+  );
+
+  return 0;
+}
+
+function parseDrive(argv: string[]) {
+  return parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: DRIVE_OPTIONS,
+  });
+}
+
 export function runWindow(argv: string[], io: Io): number {
+  const drive = parseDrive(argv);
+
+  if (drive.positionals.length >= 2) {
+    return runDrive(drive, io);
+  }
+
   const { values, positionals } = parse(
     argv,
     "recognizer window [<id>] [--json]",

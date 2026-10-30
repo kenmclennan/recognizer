@@ -55,6 +55,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     editorSource,
     responsibilitiesSource,
     windowSource,
+    (line) => footerView.setAgentLine(line),
   );
 }
 
