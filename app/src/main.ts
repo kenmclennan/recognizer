@@ -1,6 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./style.css";
+import { createBusyGate } from "./busy-gate";
 import { editorSource } from "./editor-source";
 import { showEmpty } from "./empty-view";
 import { type Carried, type Explorer, showExplorer } from "./explorer";
@@ -11,6 +12,7 @@ import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
+import { spinner } from "./spinner-view";
 import { toolsNotice } from "./tools-notice";
 import { toolsSource } from "./tools-source";
 import { viewsSource } from "./views-source";
@@ -106,9 +108,18 @@ async function start(): Promise<void> {
     return;
   }
 
-  showMessage(content, "Scanning...");
+  content.replaceChildren();
 
-  const loaded = loadScans(await repositorySource.scanFolder());
+  const scanning = spinner("Scanning");
+
+  scanning.classList.add("scan-busy");
+
+  const loaded = loadScans(
+    await createBusyGate(
+      () => content.replaceChildren(scanning),
+      () => scanning.remove(),
+    ).run(repositorySource.scanFolder()),
+  );
 
   if (loaded.blocking !== null) {
     showMessage(content, loaded.blocking, true);

@@ -7,6 +7,7 @@ import { button, el } from "./dom";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
+import { spinner } from "./spinner-view";
 import {
   atMax,
   atMin,
@@ -31,6 +32,7 @@ export type CanvasProps = {
   total: number;
   showInferred: boolean;
   notice: string | null;
+  busy?: boolean;
 };
 
 export type CanvasActions = {
@@ -128,6 +130,10 @@ export function buildCanvasView(
   const controls = el("div", "controls");
   const empty = el("p", "empty-canvas");
   const notice = el("p", "canvas-notice");
+  const busy = spinner("Laying out");
+
+  busy.classList.add("canvas-busy");
+  busy.hidden = true;
   const legend = buildLegendView((show) => actions.setShowInferred(show));
   const selectionBar = buildSelectionBar({
     openTab: (tab) => actions.openTab(tab),
@@ -184,7 +190,7 @@ export function buildCanvasView(
   zoomIn.title = "Zoom in";
   zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
-  stage.append(surface, empty, notice, selectionBar.element);
+  stage.append(surface, empty, notice, busy, selectionBar.element);
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
   element.append(stage, controls, legend.element);
 
@@ -746,6 +752,7 @@ export function buildCanvasView(
       empty.hidden = next.open > 0;
       notice.textContent = next.notice ?? "";
       notice.hidden = next.notice === null;
+      busy.hidden = next.busy !== true;
 
       const scene = next.scene;
       const has = (scene?.boxes.length ?? 0) > 0;
