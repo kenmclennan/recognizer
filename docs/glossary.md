@@ -69,7 +69,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Tree | The left area: the repository's folders and files, each with its health disc. The way in. |
 | Canvas | The centre area: the modules the user has opened, inside their frames, and the edges between them. |
 | Inspector | The right area, closed by default: what is in the selection, its findings, or an edge's evidence. |
-| Frame | The box on the canvas for exactly one folder, labelled with its name, holding that folder's open modules and the frames of its open subfolders. |
+| Frame | The box on the canvas for exactly one folder, which may be a compacted folder, labelled with its joined path, holding that folder's open modules and the frames of its open subfolders. |
+| Compacted folder | A chain of folders that hold no scanned file and exactly one subfolder, merged with the folder that ends the chain and identified by that deepest path; it is one frame on the canvas and one row in the tree, labelled with the joined path. |
 | Open | On the canvas. A module is opened from the tree or by following an edge, and closed the same way. |
 | Selection | The one module, folder or edge the user has picked, highlighted in the tree and shown in the inspector. |
 | Selection bar | The small bar of icon actions shown above the selection while the pointer is over it; right-clicking opens the same bar. |

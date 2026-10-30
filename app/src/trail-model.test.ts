@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compactFolders } from "./folder-compaction";
 import {
   bringBack,
   close,
@@ -221,10 +222,12 @@ describe("withCapacity", () => {
 });
 
 describe("crumbs", () => {
+  const none = compactFolders([]);
+
   it("names each module and the relationship of each step", () => {
     const trail = chain(["lib/a.py", "lib/b.py"]);
 
-    expect(crumbs(trail)).toEqual([
+    expect(crumbs(trail, none)).toEqual([
       { index: 0, label: "root.py", relation: null },
       { index: 1, label: "a.py", relation: "uses" },
       { index: 2, label: "b.py", relation: "used by" },
@@ -234,7 +237,10 @@ describe("crumbs", () => {
   it("labels a folder with a trailing slash", () => {
     const trail = startTrail({ kind: "folder", id: "app/core" }, "contents");
 
-    expect(crumbs(trail)[0].label).toBe("core/");
+    expect(
+      crumbs(trail, compactFolders(["app/core/x.py", "app/other/y.py"]))[0]
+        .label,
+    ).toBe("core/");
   });
 });
 

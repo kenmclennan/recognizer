@@ -1,5 +1,4 @@
 import {
-  folderChain,
   folderCounts,
   lastSegment,
   moduleCounts,
@@ -10,6 +9,7 @@ import {
   under,
 } from "recognizer";
 import type { Selection } from "./canvas-state";
+import { compactFolders } from "./folder-compaction";
 import type { Disc } from "./health";
 
 export type EdgeStyle = "plain" | "private" | "inferred" | "hollow";
@@ -65,7 +65,7 @@ export type GraphInput = {
   showInferred: boolean;
 };
 
-export { folderChain, lastSegment, moduleLabel, under };
+export { lastSegment, moduleLabel, under };
 
 export function lineId(
   from: string,
@@ -129,7 +129,8 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const boxOf = (id: string) => foldOf(id) ?? id;
 
   const inFocus = (path: string) => focus === null || under(path, focus);
-  const chainOf = (box: string) => folderChain(box).filter(inFocus);
+  const compaction = compactFolders(input.modules);
+  const chainOf = (box: string) => compaction.ancestors(box).filter(inFocus);
 
   const openIn = (folder: string) =>
     input.opened.filter((id) => known.has(id) && under(id, folder)).length;
@@ -161,7 +162,7 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     boxes.set(key, {
       id: key,
       kind: folded ? "folder" : "module",
-      label: folded ? `${lastSegment(key)}/` : moduleLabel(key),
+      label: folded ? `${compaction.label(key)}/` : moduleLabel(key),
       parent: chain[chain.length - 1] ?? null,
       disc: input.disc(key),
       open: folded ? openIn(key) : 1,
@@ -179,7 +180,7 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     .sort((a, b) => a[1].length - b[1].length || (a[0] < b[0] ? -1 : 1))
     .map(([path, chain]) => ({
       path,
-      label: lastSegment(path),
+      label: compaction.label(path),
       parent: chain[chain.length - 1] ?? null,
       disc: input.disc(path),
       open: openIn(path),

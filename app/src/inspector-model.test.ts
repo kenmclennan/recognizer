@@ -1,6 +1,7 @@
 import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { expectedScan } from "./fixtures";
+import { compactFolders } from "./folder-compaction";
 import {
   emphasisedLines,
   followableRows,
@@ -29,9 +30,14 @@ function inputsFor(
   scans: Scan[],
   extra: Partial<InspectorInputs> = {},
 ): InspectorInputs {
+  const modules = scans.flatMap((scan) =>
+    scan.modules.map((module) => module.id),
+  );
+
   return {
     scans,
-    modules: scans.flatMap((scan) => scan.modules.map((module) => module.id)),
+    modules,
+    compaction: compactFolders(modules),
     disc: () => "green",
     findings: () => [],
     onCanvas: () => false,
@@ -1257,5 +1263,37 @@ describe("class tags from the scan", () => {
 
     expect(headOf(members, 0)).toBe("class A dataclass");
     expect(headOf(members, 1)).toBe("class B");
+  });
+});
+
+describe("compacted folders", () => {
+  const compacted: Scan = {
+    modules: [
+      { id: "core/data/src/main/A.kt", kind: "module" },
+      { id: "core/data/src/main/B.kt", kind: "module" },
+      { id: "core/Top.kt", kind: "module" },
+    ],
+    edges: [],
+    foreign: [],
+  };
+
+  it("lists a child chain as one compacted folder row", () => {
+    const rows = inspectorContent(
+      folder("core"),
+      inputsFor([compacted]),
+    ).rows.filter((row) => row.kind === "module" && row.folder);
+
+    expect(rows).toMatchObject([
+      { id: "core/data/src/main", label: "data/src/main/" },
+    ]);
+  });
+
+  it("headers a compacted folder with its joined label", () => {
+    const { header } = inspectorContent(
+      folder("core/data/src/main"),
+      inputsFor([compacted]),
+    );
+
+    expect(header.title).toBe("data/src/main/");
   });
 });

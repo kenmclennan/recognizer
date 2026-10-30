@@ -26,6 +26,7 @@ const SRC = fileURLToPath(new URL(".", import.meta.url));
 
 const ENTRY = `
 import { buildInspectorView } from ${JSON.stringify(join(SRC, "inspector-view.ts"))};
+import { compactFolders } from ${JSON.stringify(join(SRC, "folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(join(SRC, "inspector-model.ts"))};
 
 const scan = {
@@ -47,6 +48,7 @@ const scan = {
 const inputs = {
   scans: [scan],
   modules: scan.modules.map((m) => m.id),
+  compaction: compactFolders(scan.modules.map((m) => m.id)),
   disc: () => "green",
   findings: () => [],
   onCanvas: (id) => id === "p/m.py",

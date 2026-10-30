@@ -2,6 +2,7 @@ import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCanvasGraph } from "./canvas-graph";
 import { expectedScan } from "./fixtures";
+import { compactFolders } from "./folder-compaction";
 import { createPicker, LONG_LIST, type PickerSource } from "./picker-model";
 
 type EdgeSpec = {
@@ -52,9 +53,12 @@ function pickerOf(
   onCanvas: (id: string) => boolean = () => false,
   extra: { filter?: string; collapsed?: Set<string> } = {},
 ) {
+  const modules = scan.modules.map((module) => module.id);
+
   return createPicker({
     scans: [scan],
-    modules: scan.modules.map((module) => module.id),
+    modules,
+    compaction: compactFolders(modules),
     onCanvas,
     source,
     filter: extra.filter ?? "",
