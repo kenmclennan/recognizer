@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
+          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-author`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
+          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-author`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
         },
         {
           "description": "Read and write the app's settings\n#### This permission set includes:\n\n- `allow-read-settings`\n- `allow-write-settings`",
@@ -271,6 +271,12 @@
           "type": "string",
           "const": "allow-scans-at",
           "markdownDescription": "Enables the scans_at command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the view_author command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-view-author",
+          "markdownDescription": "Enables the view_author command without any pre-configured scope."
         },
         {
           "description": "Enables the view_path command without any pre-configured scope.",
@@ -403,6 +409,12 @@
           "type": "string",
           "const": "deny-scans-at",
           "markdownDescription": "Denies the scans_at command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the view_author command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-view-author",
+          "markdownDescription": "Denies the view_author command without any pre-configured scope."
         },
         {
           "description": "Denies the view_path command without any pre-configured scope.",

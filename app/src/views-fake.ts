@@ -8,6 +8,7 @@ export type FakeViews = ViewsPort & {
   renames: { from: string; to: string }[];
   renamed: { from: string; to: string }[];
   scansByCommit: Map<string, Scan[] | null>;
+  authorName: string;
   edit(name: string, text: string | null): void;
   settle(): Promise<void>;
 };
@@ -34,6 +35,10 @@ export function fakeViews(
     renames: [],
     renamed: [],
     scansByCommit,
+    authorName: "Me",
+    async author() {
+      return fake.authorName;
+    },
     async list() {
       if (options.listError !== undefined) {
         throw new Error(options.listError);

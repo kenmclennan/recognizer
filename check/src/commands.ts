@@ -265,7 +265,7 @@ export const COMMANDS: Command[] = [
   {
     name: "views",
     summary:
-      "build, show and check saved views: new, add, rule, fold, focus, remove, show, list, check, rm",
+      "build, show and check saved views: new, add, rule, fold, focus, remove, note, show, list, check, rm",
     usage: [
       "recognizer views new <name> --description <text>",
       "recognizer views add <name> <module>...",
@@ -273,6 +273,7 @@ export const COMMANDS: Command[] = [
       "recognizer views fold <name> <folder>",
       "recognizer views focus <name> <folder>",
       "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
+      "recognizer views note <name> [<module>] (<text> [--by <name>] | --remove)",
       "recognizer views show (<name> | --current)",
       "recognizer views list",
       "recognizer views check [<name>] [--fix]",
@@ -293,6 +294,11 @@ export const COMMANDS: Command[] = [
         name: "<folder>",
         description:
           "a folder's repository-relative path; a trailing / is dropped",
+      },
+      {
+        name: "<text>",
+        description:
+          "a note's text; a view or a module on it has at most one note, and setting one replaces it",
       },
       {
         name: "new",
@@ -362,18 +368,27 @@ export const COMMANDS: Command[] = [
         flag: "--fix",
         description: "rewrite renamed picks (check)",
       },
+      {
+        flag: "--by <name>",
+        description:
+          "who wrote the note, at most 64 characters; defaults to agent (note)",
+      },
+      {
+        flag: "--remove",
+        description: "delete the note instead of setting it (note)",
+      },
     ],
     output: {
       text: [
-        "new, add, rule, fold, focus, remove: `<name>: <what changed>; N steps, resolves to M modules`",
-        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then unresolved, folded and focus lines when there are any",
+        "new, add, rule, fold, focus, remove, note: `<name>: <what changed>; N steps, resolves to M modules`",
+        "show: `<name>: <description>`, `saved at <commit>`, `note: <text> (<by>)` when the view has one, the numbered steps, `resolves to N modules` with one per line, then `notes:` with one `<module>: <text> (<by>)` line per module note (marked `(not on the view)` when it is not), then unresolved, folded and focus lines when there are any",
         "list: one `<name>  N steps  <commit>  <description>` line per view",
         "check: `<name>: ok` or `<name>: N unresolved` with one `step N <kind> <path> - no such <module|folder>` line each, plus `(renamed to <path>)` when git records one",
         "rm: `<name>: removed`",
       ].join("\n"),
       json: [
-        "new, add, rule, fold, focus, remove: { view, changed, steps, modules }",
-        "show: { name, description, commit, steps, resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }] }; with --current { current }",
+        "new, add, rule, fold, focus, remove, note: { view, changed, steps, modules }",
+        "show: { name, description, commit, steps, note: { text, by } | null, module_notes: { <module>: { text, by } }, resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }] }; with --current { current }",
         "list: { views: [{ name, description, commit, steps } | { name, error }] }",
         "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }] }] }",
         "rm: { view, removed }",
@@ -412,6 +427,11 @@ export const COMMANDS: Command[] = [
         command:
           "recognizer views rule order-placement --used-by shop/ports/store.py --within shop/adapters",
         note: "add the adapters that use the store port",
+      },
+      {
+        command:
+          'recognizer views note order-placement shop/application/place.py "The one use case" --by Claude',
+        note: "explain a module on the view; omit the module to note the view",
       },
       {
         command: "recognizer views show order-placement --json",

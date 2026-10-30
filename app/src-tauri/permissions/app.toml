@@ -1,7 +1,7 @@
 [[set]]
 identifier = "app-access"
-description = "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command"
-permissions = ["allow-adopt-scan", "allow-choose-folder", "allow-describe-module", "allow-list-views", "allow-open-folder-in-editor", "allow-open-in-editor", "allow-read-responsibilities", "allow-read-source-line", "allow-recognizer-version", "allow-rename-view", "allow-renames-since", "allow-scan-folder", "allow-scans-at", "allow-view-path", "allow-watch-changes", "allow-watch-responsibilities", "allow-watch-views", "allow-window-folder", "allow-write-current-view", "allow-write-view"]
+description = "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command"
+permissions = ["allow-adopt-scan", "allow-choose-folder", "allow-describe-module", "allow-list-views", "allow-open-folder-in-editor", "allow-open-in-editor", "allow-read-responsibilities", "allow-read-source-line", "allow-recognizer-version", "allow-rename-view", "allow-renames-since", "allow-scan-folder", "allow-scans-at", "allow-view-author", "allow-view-path", "allow-watch-changes", "allow-watch-responsibilities", "allow-watch-views", "allow-window-folder", "allow-write-current-view", "allow-write-view"]
 
 [[set]]
 identifier = "settings-access"

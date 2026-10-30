@@ -33,6 +33,7 @@ export type CanvasProps = {
   showInferred: boolean;
   notice: string | null;
   busy?: boolean;
+  noted?: ReadonlySet<string>;
 };
 
 export type CanvasActions = {
@@ -447,6 +448,20 @@ export function buildCanvasView(
             );
           }
 
+          if (box.kind === "module" && props?.noted?.has(box.id)) {
+            node.append(
+              svg("rect", {
+                class: "note-mark",
+                "data-id": box.id,
+                x: rect.x + rect.width - 13,
+                y: rect.y + 5,
+                width: 8,
+                height: 8,
+                rx: 2,
+              }),
+            );
+          }
+
           if (box.figures) {
             node.append(
               svg(
@@ -757,7 +772,11 @@ export function buildCanvasView(
       const scene = next.scene;
       const has = (scene?.boxes.length ?? 0) > 0;
 
-      if (scene !== previous?.scene || next.titles !== previous?.titles) {
+      if (
+        scene !== previous?.scene ||
+        next.titles !== previous?.titles ||
+        next.noted !== previous?.noted
+      ) {
         if (scene) {
           drawScene(scene);
         } else {

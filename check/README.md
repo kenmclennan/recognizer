@@ -215,7 +215,9 @@ A question uses the cached scans when every detected language has a cache taken 
 
 `recognizer views <subcommand>` builds, shows and checks saved views: files at `.recognizer/views/<name>.json` that record a description, the commit they were saved at and steps. A name is letters, digits, `-` and `_`, at most 64. Every subcommand takes `--repository <dir>` and `--json`; the scan is read from cache when fresh and made first otherwise, and a triggered scan's summary goes to stderr.
 
-The file is `{ schema_version: 1, description, commit, steps }`, described by [`schema/view.schema.json`](../schema/view.schema.json) with examples in `schema/view-examples/`. A step is one of `pick` (a module), `rule` (`folder`, or `uses` / `used-by` of a module, optionally `within` a folder), `fold`, `focus` (at most one) or `left-out` (a module a rule put there). No layout or selection is stored.
+The file is `{ schema_version, description, commit, note?, module_notes?, steps }`, described by [`schema/view.schema.json`](../schema/view.schema.json) with examples in `schema/view-examples/`. A step is one of `pick` (a module), `rule` (`folder`, or `uses` / `used-by` of a module, optionally `within` a folder), `fold`, `focus` (at most one) or `left-out` (a module a rule put there). No layout or selection is stored.
+
+Version 2 adds notes: `note` is a note on the whole view and `module_notes` maps a module's path to a note on that module, each a `{ text, by }` with a non-blank `text` and a `by` of at most 64 characters naming who wrote it. A target has at most one note, so setting one replaces it, and no timestamp is stored; git holds when. Version 1 files stay valid and may not carry notes; every write by the CLI or the app writes version 2, so a version 1 file is migrated the first time it is rewritten. Notes belong to the view: taking a module off keeps its note, and `check --fix` moves a note along with a renamed pick.
 
 `resolveView(view, scans)` and `validateView(value)` are exported from the library. Resolution gives the modules the steps put on the canvas now, the folded folders, the focus, and `unresolved`: the steps naming a path that no longer exists. A left-out removes a module a rule contributed, never a picked one.
 
@@ -226,7 +228,8 @@ The file is `{ schema_version: 1, description, commit, steps }`, described by [`
 | `rule <name> (--folder <f> \| --uses <m> \| --used-by <m>) [--within <f>]` | append a rule |
 | `fold <name> <folder>`, `focus <name> <folder>` | append a fold; set the one focus |
 | `remove <name> <path> [--fold \| --focus \| --rule <relation> [--within <f>]]` | take a module off (its pick is deleted, and a left-out recorded if a rule still puts it there), or delete that step |
-| `show <name>` / `show --current` | steps and what they resolve to now; the view the app has open, read uninterpreted from `.recognizer/cache/current-view.json` (exit 1 when there is none) |
+| `note <name> [<module>] <text> [--by <name>]` / `note <name> [<module>] --remove` | set, replace or delete the note on the view or on a module on it; `--by` defaults to `agent`; the same note again is `no change` |
+| `show <name>` / `show --current` | steps, notes and what they resolve to now (a module note whose module is not on the view is marked); the view the app has open, read uninterpreted from `.recognizer/cache/current-view.json` (exit 1 when there is none) |
 | `list`, `rm <name>` | list views; delete one; neither reads a scan |
 | `check [<name>] [--fix]` | list steps naming a path that no longer exists; `--fix` rewrites picks whose files git records as renamed since the view's commit |
 

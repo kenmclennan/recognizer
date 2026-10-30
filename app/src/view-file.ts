@@ -5,10 +5,26 @@ export type ParsedView =
   | { ok: false; reason: string };
 
 export function serialiseView(view: View): string {
+  const moduleNotes = Object.entries(view.module_notes ?? {}).sort(
+    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+  );
   const ordered = {
-    schema_version: view.schema_version,
+    schema_version: 2,
     description: view.description,
     commit: view.commit,
+    ...(view.note === undefined
+      ? {}
+      : { note: { text: view.note.text, by: view.note.by } }),
+    ...(moduleNotes.length === 0
+      ? {}
+      : {
+          module_notes: Object.fromEntries(
+            moduleNotes.map(([module, note]) => [
+              module,
+              { text: note.text, by: note.by },
+            ]),
+          ),
+        }),
     steps: view.steps,
   };
 

@@ -58,7 +58,7 @@ const inputs = {
   counts: () => ({ uses: 0, usedBy: 0 }),
   filter: "",
   collapsed: new Set(),
-  responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),
+  responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }), moduleNote: () => null,
 };
 const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {} };
 const mount = (id, selection, open) => {

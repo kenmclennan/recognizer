@@ -16,7 +16,7 @@ describe("view files", () => {
     const text = serialiseView(view);
 
     expect(text).toBe(
-      `${JSON.stringify({ schema_version: 1, description: "d", commit: null, steps: view.steps }, null, 2)}\n`,
+      `${JSON.stringify({ schema_version: 2, description: "d", commit: null, steps: view.steps }, null, 2)}\n`,
     );
     expect(Object.keys(JSON.parse(text))).toEqual([
       "schema_version",
@@ -28,6 +28,53 @@ describe("view files", () => {
     const parsed = parseViewFile(text);
 
     expect(parsed.ok).toBe(true);
+  });
+
+  it("round-trips notes in key order with module notes sorted", () => {
+    const view = {
+      schema_version: 2 as const,
+      description: "d",
+      commit: null,
+      steps: [],
+      module_notes: {
+        "b.py": { text: "B", by: "Ken" },
+        "a.py": { text: "A", by: "Claude" },
+      },
+      note: { text: "V", by: "Ken" },
+    };
+    const text = serialiseView(view);
+
+    expect(Object.keys(JSON.parse(text))).toEqual([
+      "schema_version",
+      "description",
+      "commit",
+      "note",
+      "module_notes",
+      "steps",
+    ]);
+    expect(Object.keys(JSON.parse(text).module_notes)).toEqual([
+      "a.py",
+      "b.py",
+    ]);
+
+    const parsed = parseViewFile(text);
+
+    expect(parsed.ok && parsed.view.note).toEqual({ text: "V", by: "Ken" });
+    expect(parsed.ok && parsed.view.module_notes?.["a.py"]).toEqual({
+      text: "A",
+      by: "Claude",
+    });
+  });
+
+  it("writes a version 1 view at version 2", () => {
+    const text = serialiseView({
+      schema_version: 1,
+      description: "d",
+      commit: null,
+      steps: [],
+    });
+
+    expect(JSON.parse(text).schema_version).toBe(2);
   });
 
   it("rejects a blank description with the reason", () => {

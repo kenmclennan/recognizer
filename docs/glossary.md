@@ -94,7 +94,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | History | The sequence of view states the user has moved through in a window; back and forward walk it. It is never saved. |
 | Rail | The thin strip of icons at the window's far left, one per left-hand panel; an icon opens its panel, or closes it when it is open. |
 | Files panel | The rail's panel holding the tree. |
-| Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, and its steps. |
+| Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
+| Note | A text a person or an agent attaches to a saved view or to one module in it, with the name of who wrote it. |
 | Description | A saved view's required one- or two-sentence statement of what it shows. |
 | Step | One entry in a saved view, replayed on opening: a pick, a rule, a fold, a focus, or a module left out. |
 | Pick | A step naming one module by path. Everything the user adds in the app is recorded as picks. |

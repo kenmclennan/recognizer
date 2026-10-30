@@ -184,6 +184,31 @@ pub fn renames_since(folder: &Path, commit: &str) -> Vec<Rename> {
         .unwrap_or_default()
 }
 
+const DEFAULT_AUTHOR: &str = "Me";
+
+fn author_from(stdout: &str) -> String {
+    let name = stdout.trim();
+
+    if name.is_empty() {
+        DEFAULT_AUTHOR.to_string()
+    } else {
+        name.chars().take(64).collect()
+    }
+}
+
+pub fn view_author(folder: &Path) -> String {
+    Command::new("git")
+        .arg("-C")
+        .arg(folder)
+        .args(["config", "user.name"])
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| author_from(&String::from_utf8_lossy(&output.stdout)))
+        .unwrap_or_else(|| DEFAULT_AUTHOR.to_string())
+}
+
 fn extract_commit(folder: &Path, commit: &str, target: &Path) -> bool {
     let Ok(mut archive) = Command::new("git")
         .arg("-C")
@@ -467,6 +492,14 @@ mod tests {
         fs::remove_file(views.join("a.json")).unwrap();
 
         assert!(snapshot_changed(&longer, &snapshot(dir.path())));
+    }
+
+    #[test]
+    fn author_is_git_stdout_trimmed_or_me_when_empty() {
+        assert_eq!(author_from("Ken McLennan\n"), "Ken McLennan");
+        assert_eq!(author_from(""), "Me");
+        assert_eq!(author_from("  \n"), "Me");
+        assert_eq!(author_from(&"x".repeat(80)).len(), 64);
     }
 
     #[test]

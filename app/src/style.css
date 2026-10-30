@@ -520,6 +520,11 @@ svg.i.chevron {
   cursor: pointer;
 }
 
+.box .note-mark {
+  fill: var(--sel);
+  pointer-events: none;
+}
+
 .box .halo {
   display: none;
   fill: none;
@@ -904,6 +909,43 @@ svg.i.chevron {
   flex-basis: 100%;
 }
 
+.module-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.module-note .note-by {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.module-note .note-field {
+  flex-basis: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--sel);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
+}
+
+.module-note button,
+.view-note button {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .pswitch {
   display: flex;
   align-items: center;
@@ -1266,6 +1308,7 @@ svg.i.chevron {
   left: 8px;
   z-index: 6;
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   align-items: center;
   padding: 3px;
@@ -1332,6 +1375,39 @@ svg.i.chevron {
 .view-name-problem[hidden],
 .view-bar .view-name[hidden] {
   display: none;
+}
+
+.view-bar .view-note {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: 360px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.view-bar .view-note[hidden] {
+  display: none;
+}
+
+.view-note .note-by {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.view-note .note-field {
+  flex-basis: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--sel);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
 }
 
 .view-name-problem {

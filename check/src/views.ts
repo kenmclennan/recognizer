@@ -11,10 +11,17 @@ export type ViewStep =
   | { kind: "focus"; folder: string }
   | { kind: "left-out"; module: string };
 
+export interface Note {
+  text: string;
+  by: string;
+}
+
 export interface View {
-  schema_version: 1;
+  schema_version: 1 | 2;
   description: string;
   commit: string | null;
+  note?: Note;
+  module_notes?: Record<string, Note>;
   steps: ViewStep[];
 }
 

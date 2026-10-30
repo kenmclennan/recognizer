@@ -12,6 +12,7 @@ fn main() {
         "renames_since",
         "scan_folder",
         "scans_at",
+        "view_author",
         "view_path",
         "watch_changes",
         "watch_views",

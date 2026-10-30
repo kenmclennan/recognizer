@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-view-author"
+description = "Enables the view_author command without any pre-configured scope."
+commands.allow = ["view_author"]
+
+[[permission]]
+identifier = "deny-view-author"
+description = "Denies the view_author command without any pre-configured scope."
+commands.deny = ["view_author"]

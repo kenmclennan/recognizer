@@ -1,3 +1,4 @@
+import type { Note } from "recognizer";
 import { button, el } from "./dom";
 import { type IconName, icon } from "./icons";
 import { VIEW_NAME } from "./views-port";
@@ -12,6 +13,7 @@ export type ViewBarProps = {
   canBack: boolean;
   canForward: boolean;
   canCopy: boolean;
+  note: Note | null;
 };
 
 export type ViewBarActions = {
@@ -23,6 +25,8 @@ export type ViewBarActions = {
   rename: (from: string, to: string) => Promise<string | null>;
   copyLink: () => void;
   hasOpenView: () => boolean;
+  setNote: (text: string) => void;
+  deleteNote: () => void;
 };
 
 export type ViewBar = {
@@ -70,9 +74,11 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   const copy = iconButton("Copy the view's path", "copy", "link", () =>
     actions.copyLink(),
   );
+  const note = el("div", "view-note");
   const menu = el("div", "view-menu");
   const dialog = el("div", "view-dialog");
 
+  note.hidden = true;
   menu.hidden = true;
   dialog.hidden = true;
   let props: ViewBarProps = {
@@ -83,7 +89,10 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     canBack: false,
     canForward: false,
     canCopy: false,
+    note: null,
   };
+  let noteDraft: string | null = null;
+  let noteOwner: string | null = null;
   let menuOpen = false;
   let dialogOpen = false;
   let dialogName = "";
@@ -112,6 +121,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     save,
     copy,
     nameProblemLine,
+    note,
     menu,
     dialog,
   );
@@ -375,6 +385,95 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     }
   }
 
+  function noteAction(label: string, className: string, run: () => void) {
+    const node = button(label, className, run);
+
+    node.title = label;
+
+    return node;
+  }
+
+  function renderNote() {
+    note.hidden = props.open === null;
+
+    if (props.open === null) {
+      noteDraft = null;
+      note.replaceChildren();
+
+      return;
+    }
+
+    if (noteOwner !== props.open) {
+      noteOwner = props.open;
+      noteDraft = null;
+    }
+
+    if (noteDraft !== null && note.querySelector("textarea") !== null) {
+      return;
+    }
+
+    if (noteDraft !== null) {
+      const field = el("textarea", "note-field");
+      const save = noteAction("Save", "note-save", () => {
+        actions.setNote(field.value);
+        noteDraft = null;
+        renderNote();
+      });
+
+      field.rows = 3;
+      field.value = noteDraft;
+      field.setAttribute("aria-label", "View note");
+      save.disabled = noteDraft.trim() === "";
+      field.addEventListener("keydown", (event) => {
+        event.stopPropagation();
+
+        if (event.key === "Escape") {
+          noteDraft = null;
+          renderNote();
+        }
+      });
+      field.addEventListener("input", () => {
+        noteDraft = field.value;
+        save.disabled = field.value.trim() === "";
+      });
+      note.replaceChildren(
+        field,
+        noteAction("Cancel", "note-cancel", () => {
+          noteDraft = null;
+          renderNote();
+        }),
+        save,
+      );
+      field.focus();
+      field.setSelectionRange(field.value.length, field.value.length);
+
+      return;
+    }
+
+    if (props.note === null) {
+      note.replaceChildren(
+        noteAction("Add note", "note-add", () => {
+          noteDraft = "";
+          renderNote();
+        }),
+      );
+
+      return;
+    }
+
+    const current = props.note;
+
+    note.replaceChildren(
+      el("span", "note-text", current.text),
+      el("span", "note-by", `by ${current.by}`),
+      noteAction("Edit", "note-edit", () => {
+        noteDraft = current.text;
+        renderNote();
+      }),
+      noteAction("Delete", "note-delete", () => actions.deleteNote()),
+    );
+  }
+
   function renderOverlay() {
     renderMenu();
     renderDialog();
@@ -390,6 +489,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       renderName();
       copy.disabled = !next.canCopy;
       renderMenu();
+      renderNote();
     },
     dispose() {
       document.removeEventListener("keydown", closeOnEscape);

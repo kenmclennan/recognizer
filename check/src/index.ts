@@ -68,6 +68,7 @@ export {
   validateScan,
 } from "./scan.js";
 export {
+  type Note,
   type ResolvedView,
   resolveView,
   type View,
