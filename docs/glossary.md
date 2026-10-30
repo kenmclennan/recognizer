@@ -45,6 +45,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}` and `{request}` filled in, and a version naming its prompt. |
 | Current line | A Responsibility whose source hash, describer and version all match the module and the registration today. |
 | Out of date | A Responsibility that is not a Current line: its module's source, the describer command or the version has changed since it was written. |
+| Unchecked | The status of a Responsibility that exists but whose Current line test cannot run, because no Describer registration exists or the module's source cannot be read. |
 | Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, and its Metric declarations. |
 | Producer | The tool that wrote an Overlay file, named with its version in the file's `producer`. |
 | Metric declaration | A metric's `name`, `type`, `granularity` and `bad` direction, registered in the Config and repeated in the Overlay file. |

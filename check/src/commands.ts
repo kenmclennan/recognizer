@@ -10,6 +10,7 @@ import {
   runUsedBy,
   runUses,
 } from "./question-commands.js";
+import { runFind, runModules, runShow } from "./read-commands.js";
 import { runScan } from "./scan-command.js";
 import { runViews } from "./views-command.js";
 
@@ -49,15 +50,33 @@ export const COMMANDS: Command[] = [
   {
     name: "check",
     summary:
-      "report violations, baseline growth, metrics and warnings for a scan",
-    usage:
+      "report violations, baseline growth, metrics and warnings for the repository's scan, or for a scan file",
+    usage: [
+      "recognizer check [<module>...] [--repository <dir>] [--policy <policy.yaml>] [--baseline <file>] [--update-baseline|--init-baseline] [--hub-threshold <n>] [--json]",
       "recognizer check --scan <scan.json> [--policy <policy.yaml>] [--baseline <file>] [--update-baseline|--init-baseline] [--hub-threshold <n>]",
-    arguments: [],
+    ].join("\n"),
+    arguments: [
+      {
+        name: "<module>",
+        description:
+          "a module's repository-relative path; narrows the report to violations that touch it, warnings that name it and its metrics; not with --scan, --update-baseline or --init-baseline",
+      },
+    ],
     options: [
-      { flag: "--scan <file>", description: "the scan to read (required)" },
+      {
+        flag: "--scan <file>",
+        description:
+          "replay this scan document instead of the repository's scan; takes no module, --repository or --json",
+      },
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository to check; defaults to the current directory. Its scan is read from the cache, scanning first when the cache is stale",
+      },
       {
         flag: "--policy <file>",
-        description: "the policy to check the scan against",
+        description:
+          "the policy to check against; defaults to .recognizer/policy.yaml in the repository when it exists, else only warnings and metrics are reported",
       },
       {
         flag: "--baseline <file>",
@@ -76,21 +95,33 @@ export const COMMANDS: Command[] = [
         flag: "--hub-threshold <n>",
         description: "the dependent count above which a module is a hub",
       },
+      {
+        flag: "--json",
+        description: "print the report document instead of text",
+      },
     ],
     output: {
-      text: "a summary on stderr; the report document on stdout",
-      json: "the report document is always JSON on stdout: violations, new, fixed, baseline, metrics and warnings",
+      text: "repository mode: the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout",
+      json: "the report document: violations, new, fixed, unranked, baseline, thresholds, warnings and metrics; always JSON on stdout with --scan, and with --json in repository mode",
     },
     exitCodes: [
       { code: 0, meaning: "no new violation, or no policy" },
       { code: 1, meaning: "at least one new violation" },
-      { code: 2, meaning: "bad input" },
+      {
+        code: 2,
+        meaning:
+          "bad input - an unknown module, a baseline flag with a module, --scan with a module or --json, an unknown flag or a scan that could not be made",
+      },
     ],
     examples: [
       {
+        command: `recognizer check ${SAMPLE}`,
+        note: "check the sample repository's current scan",
+      },
+      {
         command:
           "recognizer check --scan fixtures/check/scan.json --policy fixtures/check/.recognizer/policy.yaml",
-        note: "check the check fixture against its policy",
+        note: "replay the check fixture's scan against its policy",
       },
     ],
     run: executeCheck,
@@ -261,6 +292,123 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runPath,
+  },
+  {
+    name: "find",
+    summary: "find modules by path and members by name",
+    usage: "recognizer find <text> [--repository <dir>] [--json]",
+    arguments: [
+      {
+        name: "<text>",
+        description:
+          "a case-insensitive substring of a module's path or of a top-level member's name",
+      },
+    ],
+    options: REPOSITORY_OPTIONS,
+    output: {
+      text: "`N modules, M members matched`, then a `modules` list of ids and a `members` list of `module::name  kind  line N`",
+      json: "{ text, modules: [{ id, kind }], members: [{ module, name, kind, line, exported }] }",
+    },
+    exitCodes: QUESTION_EXIT_CODES,
+    examples: [
+      {
+        command: `recognizer find order ${SAMPLE}`,
+        note: "every module path and member name containing order",
+      },
+    ],
+    run: runFind,
+  },
+  {
+    name: "show",
+    summary:
+      "show what the explorer's Contents tab shows for a module: members, signatures, responsibility and findings",
+    usage:
+      "recognizer show <module> [--private] [--hub-threshold <n>] [--repository <dir>] [--json]",
+    arguments: [
+      {
+        name: "<module>",
+        description: "a module's repository-relative path",
+      },
+    ],
+    options: [
+      {
+        flag: "--private",
+        description:
+          "list private members, fields and methods too; without it they are counted as hidden",
+      },
+      {
+        flag: "--hub-threshold <n>",
+        description:
+          "the dependent count above which a module is a hub finding; defaults to 10",
+      },
+      ...REPOSITORY_OPTIONS,
+    ],
+    output: {
+      text: "a header `module  kind  uses N  used by N`, a `responsibility:` line with its status in brackets unless current, one `line  visibility  kind  signature` row per member with a class's fields and methods indented under it, `N private hidden`, then `findings:` rows or `no findings`",
+      json: '{ module, kind, uses, usedBy, responsibility: { status: "current"|"out-of-date"|"missing"|"unchecked", line }, members: [{ name, kind, line, visibility, signature, fields?, methods? }], hiddenPrivate, findings: [{ severity, text, why }] }',
+    },
+    exitCodes: QUESTION_EXIT_CODES,
+    examples: [
+      {
+        command: `recognizer show shop/domain/order.py ${SAMPLE}`,
+        note: "the contents of order.py",
+      },
+    ],
+    run: runShow,
+  },
+  {
+    name: "modules",
+    summary:
+      "list the modules with their uses, used-by and finding counts, filtered and sorted",
+    usage:
+      "recognizer modules [--folder <path>] [--findings] [--min-uses <n>] [--min-used-by <n>] [--sort <id|uses|used-by|findings>] [--reverse] [--limit <n>] [--hub-threshold <n>] [--repository <dir>] [--json]",
+    arguments: [],
+    options: [
+      {
+        flag: "--folder <path>",
+        description: "keep modules at or under this folder",
+      },
+      {
+        flag: "--findings",
+        description: "keep modules with at least one finding",
+      },
+      {
+        flag: "--min-uses <n>",
+        description: "keep modules that use at least n modules (integer >= 0)",
+      },
+      {
+        flag: "--min-used-by <n>",
+        description: "keep modules used by at least n modules (integer >= 0)",
+      },
+      {
+        flag: "--sort <key>",
+        description:
+          "id (ascending, the default), or uses, used-by or findings (descending, ties by id)",
+      },
+      { flag: "--reverse", description: "flip the sort order" },
+      {
+        flag: "--limit <n>",
+        description: "keep the first n rows after sorting (integer >= 1)",
+      },
+      {
+        flag: "--hub-threshold <n>",
+        description:
+          "the dependent count above which a module is a hub finding; defaults to 10",
+      },
+      ...REPOSITORY_OPTIONS,
+    ],
+    output: {
+      text: "`N of M modules`, then `id  kind  uses N  used by N  findings N` per row",
+      json: "{ total, count, modules: [{ id, kind, uses, usedBy, findings }] }, where total is before the filters",
+    },
+    exitCodes: QUESTION_EXIT_CODES,
+    examples: [
+      {
+        command: `recognizer modules --sort used-by --limit 5 ${SAMPLE}`,
+        note: "the five most depended-on modules",
+      },
+    ],
+    run: runModules,
   },
   {
     name: "views",

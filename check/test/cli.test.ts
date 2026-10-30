@@ -259,7 +259,10 @@ describe("bad input", () => {
     }));
   it("rejects an unknown flag", () =>
     bad(["check", "--scan", scan, "--policy", policy, "--nope"]));
-  it("rejects a missing --scan", () => bad(["check", "--policy", policy]));
+  it("rejects a module argument together with --scan", () =>
+    bad(["check", "shop/main.py", "--scan", scan, "--policy", policy]));
+  it("rejects --json together with --scan", () =>
+    bad(["check", "--scan", scan, "--policy", policy, "--json"]));
   it("rejects a missing subcommand", () =>
     bad(["--scan", scan, "--policy", policy]));
 

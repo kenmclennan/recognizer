@@ -10,16 +10,11 @@ export interface CheckResult {
   unranked: number;
 }
 
-export function check(
-  scan: unknown,
-  policy: Policy,
+export function rankAgainstBaseline(
+  violations: Violation[],
+  unranked: number,
   baseline: Identity[] | null,
 ): CheckResult {
-  const { violations, unranked } = collectViolations(
-    validateScan(scan),
-    policy,
-  );
-
   const accepted = new Set((baseline ?? []).map(identityKey));
   const current = new Set(violations.map(identityKey));
 
@@ -36,4 +31,17 @@ export function check(
     fixed,
     unranked,
   };
+}
+
+export function check(
+  scan: unknown,
+  policy: Policy,
+  baseline: Identity[] | null,
+): CheckResult {
+  const { violations, unranked } = collectViolations(
+    validateScan(scan),
+    policy,
+  );
+
+  return rankAgainstBaseline(violations, unranked, baseline);
 }
