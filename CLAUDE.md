@@ -59,6 +59,7 @@ A fresh worktree has no `node_modules`. Run `npm ci` at the repository root befo
 - A test that needs a temp folder makes it with `makeTempDir` from `scripts/temp-dirs.mjs` (look tests use `look-page.ts`), so it is removed after the file; every suite runs under `scripts/assert-clean-tmpdir.mjs`, which fails on anything left in `TMPDIR`.
 - Biome formats and lints code (`npm run lint -w @recognizer/app`, `lint:fix` to apply). Prettier is for Markdown only; never run it over code or the whole repository.
 - The `*-look.test.ts` files drive a headless Chrome and take about a minute each. While iterating, run only the file you are changing (`npm run test -w @recognizer/app -- src/<name>.test.ts`); run the full suite before you finish.
+- The Rust scanner's real-content test (`scanners/rust/tests/real_content.rs`) pins the app crate's own shape from `fixtures/rust/recognizer-baseline.json`: adding, removing or re-wiring a Rust module under `app/src-tauri` changes its module, file or edge counts and fails the scanner-rust workflow, which `check:app` does not run. After any such change run `cargo test --locked` in `scanners/rust` and update the baseline and the test's counts in the same commit.
 - The full `npm run check:app` takes about 5-6 minutes. Run it once, at the end, from the repo root, with the longest timeout; a timeout is not a failure, so do not re-run it.
 
 ## CI
