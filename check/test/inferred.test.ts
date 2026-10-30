@@ -21,11 +21,21 @@ const INFERRED = {
   implementations: [],
 };
 
-function scanOf(edges: object[], version = 3) {
+function scanOf(edges: object[], version = 4) {
   return {
     schema_version: version,
     scanner: { name: "t", version: "0" },
     commit: null,
+    modified: false,
+    files: [],
+    selection: {
+      extensions: [],
+      skip_directory_names: [],
+      skip_directory_prefixes: [],
+      skip_directory_suffixes: [],
+      skip_directories_containing: [],
+      skip_file_globs: [],
+    },
     modules: ["i/a.py", "o/b.py"].map((id) => ({
       id,
       language: "python",
@@ -54,7 +64,7 @@ const plainEdge = (from: string, to: string) => ({
 });
 
 describe("scan versions", () => {
-  it("accepts version 3", () => {
+  it("accepts version 4", () => {
     expect(() => validateScan(scanOf([]))).not.toThrow();
   });
 

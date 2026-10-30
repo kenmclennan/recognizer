@@ -1,0 +1,47 @@
+{
+  "python": {
+    "tree": [
+      ".hidden/j.py",
+      "__pycache__/c.py",
+      "b.py",
+      "build/f.py",
+      "dist/e.py",
+      "keep/a.py",
+      "keep/a_test.py",
+      "keep/a_tests.py",
+      "keep/conftest.py",
+      "keep/notes.txt",
+      "keep/test_a.py",
+      "node_modules/g.py",
+      "pkg/__init__.py",
+      "site-packages/h.py",
+      "tests/d.py",
+      "venv/lib.py",
+      "venv/pyvenv.cfg",
+      "x.egg-info/i.py"
+    ],
+    "accepted": ["b.py", "keep/a.py", "pkg/__init__.py"]
+  },
+  "typescript": {
+    "tree": [
+      ".hidden/a.ts",
+      "__tests__/a.ts",
+      "a.ts",
+      "build/a.ts",
+      "c.js",
+      "d.jsx",
+      "dist/a.ts",
+      "keep.cjs",
+      "keep.mjs",
+      "node_modules/pkg/a.ts",
+      "src/a.d.ts",
+      "src/a.spec.tsx",
+      "src/a.test.ts",
+      "src/b.tsx",
+      "src/readme.md",
+      "test/a.ts",
+      "tests/a.ts"
+    ],
+    "accepted": ["a.ts", "c.js", "d.jsx", "keep.cjs", "keep.mjs", "src/b.tsx"]
+  }
+}

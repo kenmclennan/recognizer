@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -35,6 +36,7 @@ export interface LaunchResult {
 export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
+  hashFile(path: string): string | null;
   writeFile(path: string, content: string): void;
   rename(from: string, to: string): void;
   readDir(path: string): DirEntry[];
@@ -52,6 +54,13 @@ export function nodeIo(): Io {
   return {
     exists: (path) => existsSync(path),
     readFile: (path) => readFileSync(path, "utf8"),
+    hashFile: (path) => {
+      try {
+        return createHash("sha256").update(readFileSync(path)).digest("hex");
+      } catch {
+        return null;
+      }
+    },
     writeFile: (path, content) => {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, content);

@@ -35,9 +35,19 @@ function scanOf(
   }
 
   return {
-    schema_version: 3,
+    schema_version: 4,
     scanner: { name: "t", version: "0" },
     commit: null,
+    modified: false,
+    files: [],
+    selection: {
+      extensions: [],
+      skip_directory_names: [],
+      skip_directory_prefixes: [],
+      skip_directory_suffixes: [],
+      skip_directories_containing: [],
+      skip_file_globs: [],
+    },
     modules: rows,
     edges: rowEdges,
     foreign: [],

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,6 +70,35 @@ describe("fixture", () => {
     ]);
   });
 
+  it("lists the fixture's source files with their sha256 and its selection", () => {
+    const doc = scan(SAMPLE, null);
+
+    expect(doc.files).toHaveLength(15);
+    expect(doc.files.map((f) => f.path)).toEqual(doc.modules.map((m) => m.id));
+
+    for (const entry of doc.files) {
+      const bytes = readFileSync(join(SAMPLE, entry.path));
+
+      expect(entry.hash).toBe(createHash("sha256").update(bytes).digest("hex"));
+    }
+
+    expect(doc.selection).toEqual({
+      extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      skip_directory_names: [
+        "node_modules",
+        "dist",
+        "build",
+        "test",
+        "tests",
+        "__tests__",
+      ],
+      skip_directory_prefixes: ["."],
+      skip_directory_suffixes: [],
+      skip_directories_containing: [],
+      skip_file_globs: ["*.d.ts", "*.test.*", "*.spec.*"],
+    });
+  });
+
   it("emits no package module and no unknown member kind", () => {
     const doc = scan(SAMPLE, null);
     const kinds = new Set(
@@ -88,8 +118,8 @@ describe("fixture", () => {
 
 describe("cli", () => {
   it("prints the expected scan with --commit and writes identical bytes with --output", () => {
-    const first = runBin(SAMPLE, "--commit", "abc1234");
-    const second = runBin(SAMPLE, "--commit", "abc1234");
+    const first = runBin(SAMPLE, "--commit", "abc1234", "--modified", "false");
+    const second = runBin(SAMPLE, "--commit", "abc1234", "--modified", "false");
 
     expect(first.status).toBe(0);
     expect(first.stdout).toBe(second.stdout);
@@ -99,6 +129,7 @@ describe("cli", () => {
     expect(doc).toEqual({
       ...EXPECTED,
       commit: "abc1234",
+      modified: false,
       scanner: doc.scanner,
     });
 
@@ -106,7 +137,15 @@ describe("cli", () => {
       mkdtempSync(join(tmpdir(), "recognizer-ts-out-")),
       "scan.json",
     );
-    const written = runBin(SAMPLE, "--commit", "abc1234", "--output", output);
+    const written = runBin(
+      SAMPLE,
+      "--commit",
+      "abc1234",
+      "--modified",
+      "false",
+      "--output",
+      output,
+    );
 
     expect(written.status).toBe(0);
     expect(written.stdout).toBe("");

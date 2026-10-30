@@ -56,6 +56,7 @@ describe("scanning check/", () => {
     expect(doc.foreign.map((f: { name: string }) => f.name)).toEqual([
       "ajv",
       "node:child_process",
+      "node:crypto",
       "node:fs",
       "node:os",
       "node:path",

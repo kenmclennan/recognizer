@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -52,10 +53,11 @@ def test_fixture_counts_and_calls():
 
 
 def test_cli_end_to_end(tmp_path):
-    result = run_cli(str(FIXTURE_ROOT), "--commit", "abc1234")
+    result = run_cli(str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false")
     document = json.loads(result.stdout)
     wanted = expected()
     wanted["commit"] = "abc1234"
+    wanted["modified"] = False
     wanted["scanner"]["version"] = document["scanner"]["version"]
 
     assert result.returncode == 0
@@ -63,13 +65,78 @@ def test_cli_end_to_end(tmp_path):
     validate(document)
 
     output = tmp_path / "scan.json"
-    second = run_cli(str(FIXTURE_ROOT), "--commit", "abc1234", "--output", str(output))
+    second = run_cli(
+        str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false", "--output", str(output)
+    )
 
     assert second.returncode == 0
     assert second.stdout == ""
     assert output.read_text() == result.stdout
-    assert run_cli(str(FIXTURE_ROOT), "--commit", "abc1234").stdout == result.stdout
+    assert (
+        run_cli(str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false").stdout
+        == result.stdout
+    )
     assert result.stdout.endswith("}\n")
+
+
+def test_files_are_the_fixture_modules_with_their_sha256():
+    actual = scan(FIXTURE_ROOT, ["."], None)
+    paths = [f["path"] for f in actual["files"]]
+
+    assert len(paths) == 14
+    assert paths == sorted(paths)
+    assert paths == [m["id"] for m in actual["modules"]]
+
+    for entry in actual["files"]:
+        expected_hash = hashlib.sha256((FIXTURE_ROOT / entry["path"]).read_bytes()).hexdigest()
+
+        assert entry["hash"] == expected_hash
+
+
+def test_selection_is_the_discovery_constants():
+    assert scan(FIXTURE_ROOT, ["."], None)["selection"] == {
+        "extensions": [".py"],
+        "skip_directory_names": [
+            "__pycache__",
+            "tests",
+            "dist",
+            "build",
+            "node_modules",
+            "site-packages",
+        ],
+        "skip_directory_prefixes": ["."],
+        "skip_directory_suffixes": [".egg-info"],
+        "skip_directories_containing": ["pyvenv.cfg"],
+        "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"],
+    }
+
+
+def git_in(path, *args):
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-C", str(path), *args],
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_modified_is_false_when_clean_true_when_edited_null_outside_git(tmp_path):
+    outside = tmp_path / "outside"
+    build_tree(outside, {"a.py": ""})
+
+    assert json.loads(run_cli(str(outside)).stdout)["modified"] is None
+
+    repo = tmp_path / "repo"
+    build_tree(repo, {"a.py": ""})
+    git_in(repo, "init", "-q")
+    git_in(repo, "add", "a.py")
+    git_in(repo, "commit", "-q", "-m", "x")
+
+    assert json.loads(run_cli(str(repo)).stdout)["modified"] is False
+
+    (repo / "a.py").write_text("x = 1\n")
+
+    assert json.loads(run_cli(str(repo)).stdout)["modified"] is True
+    assert json.loads(run_cli(str(repo), "--modified", "false").stdout)["modified"] is False
 
 
 def test_commit_is_null_outside_a_work_tree(tmp_path):

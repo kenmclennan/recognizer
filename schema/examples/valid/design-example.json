@@ -1,7 +1,29 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": "a1b2c3d",
+  "modified": false,
+  "files": [
+    {
+      "path": "lightcycle/domain/work/item.py",
+      "hash": "a8fb3d92596cd27932edc3befd44474ed96e9ca394c49805a6da775c45bc3c40"
+    }
+  ],
+  "selection": {
+    "extensions": [".py"],
+    "skip_directory_names": [
+      "__pycache__",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [".egg-info"],
+    "skip_directories_containing": ["pyvenv.cfg"],
+    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+  },
   "modules": [
     {
       "id": "lightcycle/domain/work/item.py",

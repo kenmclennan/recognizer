@@ -1,4 +1,5 @@
 import ast
+import hashlib
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -14,7 +15,7 @@ from recognizer_scan_python.analysis import (
     read_imports,
 )
 from recognizer_scan_python.calls import CallResolver
-from recognizer_scan_python.discovery import discover
+from recognizer_scan_python.discovery import discover, selection
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
 from recognizer_scan_python.outline import read_members
@@ -121,7 +122,9 @@ def import_edges(module_id: str, imports: Imports, router: Router) -> list[dict]
     return edges
 
 
-def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
+def scan(
+    root: Path, source_roots: list[str], commit: str | None, modified: bool | None = None
+) -> dict:
     root = Path(root)
     module_ids = discover(root)
     trees = parse_all(root, module_ids)
@@ -179,9 +182,15 @@ def scan(root: Path, source_roots: list[str], commit: str | None) -> dict:
     calls = CallResolver(parsed, classes, outlines, index, router).scan_calls()
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
+        "modified": modified,
+        "files": [
+            {"path": path, "hash": hashlib.sha256((root / path).read_bytes()).hexdigest()}
+            for path in module_ids
+        ],
+        "selection": selection(),
         "modules": modules,
         "edges": sorted(edges, key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(foreign_names)],

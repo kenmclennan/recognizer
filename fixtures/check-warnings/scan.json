@@ -1,10 +1,64 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "scanner": {
     "name": "hand-written",
     "version": "0.0.0"
   },
   "commit": null,
+  "modified": false,
+  "files": [
+    {
+      "path": "app/adapters/audit.py",
+      "hash": "90b9c28fdb97f96d7775f78fe3aebfac3fa3278ce8a68545c83ad6bb3ed51a36"
+    },
+    {
+      "path": "app/adapters/clock.py",
+      "hash": "02bd2ef7abbd9ff70e2d9f168dfcb71b413eeea5975c72e75f3a82d6d6731927"
+    },
+    {
+      "path": "app/adapters/memory.py",
+      "hash": "938ac96edd4a22160e6a5c3e3b3bec2c6ce7ce820b243cafab96ba8481b8a98c"
+    },
+    {
+      "path": "app/adapters/sql.py",
+      "hash": "4c94f1f5158157390dc1106814c8773a67a900f56589eef6a8ac71d21b9b50d4"
+    },
+    {
+      "path": "app/application/place.py",
+      "hash": "652d85dcb40923b77390de7a02e4dccf71a2e42f52ef9c932e405d8b67d1939c"
+    },
+    {
+      "path": "app/application/report.py",
+      "hash": "5e371ad07118cb986a49f3c51c16d50937ece6fa34285aec228a627ee34bce11"
+    },
+    {
+      "path": "app/domain/money.py",
+      "hash": "c75e600350a0071050fc533b0d9af56cad14bced9e208ed50128f167eb075abe"
+    },
+    {
+      "path": "app/domain/order.py",
+      "hash": "d92347ca99fb7c169f0b6b9016a53873a3c722ae2f42caeddeeaf7fb2aae1805"
+    },
+    {
+      "path": "app/ports/store.py",
+      "hash": "424653aa2c6ae44d09c8c22c4f4e45937bdcfa9103b3b89a7f73f8535fd9ba39"
+    }
+  ],
+  "selection": {
+    "extensions": [".py"],
+    "skip_directory_names": [
+      "__pycache__",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [".egg-info"],
+    "skip_directories_containing": ["pyvenv.cfg"],
+    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+  },
   "modules": [
     {
       "id": "app/domain/order.py",

@@ -1,10 +1,11 @@
+import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import ts from "typescript";
 import { findCalls, type ScanCall } from "./calls.js";
 import { ScanError } from "./errors.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
-import { listSourceFiles } from "./files.js";
+import { listSourceFiles, type Selection, selection } from "./files.js";
 import { Inference } from "./inference.js";
 import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
@@ -46,9 +47,12 @@ export interface ScanEdge {
 }
 
 export interface ScanDocument {
-  schema_version: 3;
+  schema_version: 4;
   scanner: { name: string; version: string };
   commit: string | null;
+  modified: boolean | null;
+  files: { path: string; hash: string }[];
+  selection: Selection;
   modules: ScanModule[];
   edges: ScanEdge[];
   foreign: { id: string; name: string }[];
@@ -159,7 +163,11 @@ function syntaxProblems(
   return problems;
 }
 
-export function scan(root: string, commit: string | null): ScanDocument {
+export function scan(
+  root: string,
+  commit: string | null,
+  modified: boolean | null = null,
+): ScanDocument {
   if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) {
     throw new ScanError([`ROOT is not a directory: ${root}`]);
   }
@@ -378,9 +386,15 @@ export function scan(root: string, commit: string | null): ScanDocument {
   });
 
   return {
-    schema_version: 3,
+    schema_version: 4,
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
     commit,
+    modified,
+    files: files.map((file) => ({
+      path: idOf(file),
+      hash: createHash("sha256").update(readFileSync(file)).digest("hex"),
+    })),
+    selection: selection(),
     modules: [...modules].sort(compare).map((id) => {
       const members = infos.get(id)?.members ?? [];
 

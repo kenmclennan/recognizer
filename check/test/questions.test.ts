@@ -11,7 +11,9 @@ const fixture = JSON.parse(
   readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
 );
 
-function repository(scan: unknown = { ...fixture, commit: COMMIT }) {
+function repository(
+  scan: unknown = { ...fixture, commit: COMMIT, modified: false, files: [] },
+) {
   return fakeIo({
     commit: COMMIT,
     files: {
@@ -175,7 +177,7 @@ describe("callers", () => {
     const { calls: _, ...withoutCalls } = fixture;
     const { code, err } = ask(
       ["callers", "shop/ports/store.py", "Store.save"],
-      { ...withoutCalls, commit: COMMIT },
+      { ...withoutCalls, commit: COMMIT, modified: false, files: [] },
     );
 
     expect(code).toBe(2);

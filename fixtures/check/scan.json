@@ -1,10 +1,64 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "scanner": {
     "name": "hand-written",
     "version": "0.0.0"
   },
   "commit": null,
+  "modified": false,
+  "files": [
+    {
+      "path": "shop/adapters/memory_store.py",
+      "hash": "fe429cf83114faa89dc84455d8ef94661eb6d5dda44b5d0dceb6ac55a00d8686"
+    },
+    {
+      "path": "shop/adapters/sql_store.py",
+      "hash": "76fef7bbf09cde5239dbebd4e6339c28f664c6491f7e06c418580f87574be817"
+    },
+    {
+      "path": "shop/application/place.py",
+      "hash": "9d2169173f15b64bdcc836db333a3a48daaf0a63a47a23334d65df7bd72938aa"
+    },
+    {
+      "path": "shop/domain/money.py",
+      "hash": "70e8a585ea0c4fc464d45784b2f5166531187658997a1f353478109da1d0042f"
+    },
+    {
+      "path": "shop/domain/order.py",
+      "hash": "eec095e12f6dff71c1dc77ffd2bb18e12d15cdc7c910355048117cd76d9f9703"
+    },
+    {
+      "path": "shop/legacy/helpers.py",
+      "hash": "ee33b2c54b6013f9f4027a3f933ac6b145a32855f6b0d7d2d12e53ec2b043975"
+    },
+    {
+      "path": "shop/main.py",
+      "hash": "779812635e39ba1789d5a3244d7889f87c69802f78b09408345a607c0115e8a6"
+    },
+    {
+      "path": "shop/ports/store.py",
+      "hash": "a9e5a8264b8eba39357052fe3e4d041c5a0c57b1dfa100e8acb90939aae6f16c"
+    },
+    {
+      "path": "tests/test_order.py",
+      "hash": "ff8d0d23ab333d73ea68f2a984ad337805ac192480198b7d2caf1aa0c6836d94"
+    }
+  ],
+  "selection": {
+    "extensions": [".py"],
+    "skip_directory_names": [
+      "__pycache__",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [".egg-info"],
+    "skip_directories_containing": ["pyvenv.cfg"],
+    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+  },
   "modules": [
     {
       "id": "shop/domain/order.py",

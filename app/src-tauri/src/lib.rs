@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use changes::{Baseline, Changes, ScanOrigin};
+use changes::{Baseline, Changes, Origin, ScanOrigin};
 use launch::{launch_for, Launch};
 use repository::ScanReport;
 use tauri_plugin_dialog::DialogExt;
@@ -33,7 +33,7 @@ const CHANGES_POLL: Duration = Duration::from_secs(2);
 
 #[derive(Default)]
 struct WindowBaseline {
-    pending: Option<Baseline>,
+    pending: Option<Origin>,
     current: Option<Baseline>,
     last: Changes,
 }
@@ -418,10 +418,10 @@ async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport
     let label = window_label(&window);
 
     tauri::async_runtime::spawn_blocking(move || {
-        let baseline = changes::take_baseline(&folder);
+        let origin = changes::take_origin(&folder);
 
         app.state::<ScanBaselines>()
-            .with(&label, |window| window.pending = Some(baseline))?;
+            .with(&label, |window| window.pending = Some(origin))?;
 
         Ok(repository::scan(&folder, &shell, &config_file))
     })

@@ -1,10 +1,44 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "scanner": {
     "name": "hand-written",
     "version": "0.0.0"
   },
   "commit": null,
+  "modified": false,
+  "files": [
+    {
+      "path": "app/src/main/kotlin/shop/adapters",
+      "hash": "820fb07e5936f2858a8e80a8fb738d6d56dfa45619db3e021a322fdc996714db"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/ports",
+      "hash": "5b9869ed4be92c04a7e8f922de114c33a91b5272db49aaa544f295c1e705e042"
+    },
+    {
+      "path": "web/src/api.ts",
+      "hash": "804a5f4b3955fab48f9a0e1fe5815420db1a088720627ca0fa7dd0c6544717ef"
+    },
+    {
+      "path": "web/src/ports",
+      "hash": "af7c20181c668a0ba0f4490e073e3bfdf06520bdccb2be38555b4b4e23f4f175"
+    }
+  ],
+  "selection": {
+    "extensions": [".py"],
+    "skip_directory_names": [
+      "__pycache__",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [".egg-info"],
+    "skip_directories_containing": ["pyvenv.cfg"],
+    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+  },
   "modules": [
     {
       "id": "web/src/api.ts",

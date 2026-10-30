@@ -37,6 +37,10 @@ describe("recognizer scan: command building", () => {
     expect(fake.calls).toEqual([
       { command: "git", args: ["-C", ROOT, "rev-parse", "HEAD"] },
       {
+        command: "git",
+        args: ["-C", ROOT, "status", "--porcelain", "--", ".", ":!.recognizer"],
+      },
+      {
         command: PYTHON,
         args: [
           ROOT,
@@ -44,6 +48,8 @@ describe("recognizer scan: command building", () => {
           "/tmp/fake-0/scan.python.json",
           "--commit",
           "abc123",
+          "--modified",
+          "false",
         ],
       },
       {
@@ -54,12 +60,27 @@ describe("recognizer scan: command building", () => {
           "/tmp/fake-1/scan.typescript.json",
           "--commit",
           "abc123",
+          "--modified",
+          "false",
         ],
       },
     ]);
   });
 
-  it("omits --commit outside git", () => {
+  it("passes --modified true when the tree has uncommitted changes", () => {
+    const { fake } = scan({
+      files: { [`${ROOT}/a.py`]: "" },
+      commit: "abc123",
+      status: " M a.py\n",
+      scanners: { [PYTHON]: okPython },
+    });
+
+    const args = fake.calls.find((call) => call.command === PYTHON)?.args;
+
+    expect(args?.slice(-2)).toEqual(["--modified", "true"]);
+  });
+
+  it("omits --commit and --modified outside git", () => {
     const { fake } = scan({
       files: both(),
       scanners: { [PYTHON]: okPython, [TYPESCRIPT]: okTypescript },
@@ -162,7 +183,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 1");
-    expect(err).toContain("accepts 3");
+    expect(err).toContain("accepts 4");
   });
 
   it("refuses a version-2 scan naming both versions", () => {
@@ -172,7 +193,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 2");
-    expect(err).toContain("accepts 3");
+    expect(err).toContain("accepts 4");
   });
 
   it("carries the scanner's stderr", () => {

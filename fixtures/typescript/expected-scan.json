@@ -1,7 +1,88 @@
 {
-  "schema_version": 3,
-  "scanner": { "name": "recognizer-scan-typescript", "version": "0.1.0" },
+  "schema_version": 4,
+  "scanner": {
+    "name": "recognizer-scan-typescript",
+    "version": "0.1.0"
+  },
   "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "api/src/base-store.ts",
+      "hash": "5610d09fc153a6b468809608cbb7433621b0ea60ac7a63cfac5aa3d63e3f544d"
+    },
+    {
+      "path": "api/src/cache.ts",
+      "hash": "755ae1d5b8270d26e091ccc76d1983e1a826b27af4060db3c24219552b9883c8"
+    },
+    {
+      "path": "api/src/index.ts",
+      "hash": "65ccac83970e67da4ae2bc7916c37b788080b94d31bd5e84a42faee4c8910b6f"
+    },
+    {
+      "path": "api/src/memory-store.ts",
+      "hash": "a9728645b73f2a8779c7e80e774099c69c231fc1506949e5b2e6b86201ae09f3"
+    },
+    {
+      "path": "api/src/models/customer.ts",
+      "hash": "be86c841b714cd0151b8d8a9cb6ae19e0acecfbc2b66eec0cdfa9e6a4133fccb"
+    },
+    {
+      "path": "api/src/models/index.ts",
+      "hash": "501993b9283cf1d7b256d195e66edccf1ad5633112f029fd4181c3a9bd1c28a2"
+    },
+    {
+      "path": "api/src/models/order.ts",
+      "hash": "6582187485a114e9e3714af8043c73d8cace409acc840ad1731a2e66df94007a"
+    },
+    {
+      "path": "api/src/place.ts",
+      "hash": "46e9500c854f7b250277eda3af2094fa352f6a4c19bd2275bf3aa7dd8f77047c"
+    },
+    {
+      "path": "api/src/types.ts",
+      "hash": "63f4b017442e314a7a61630dfcecf1427c7f9a20df34d79962a1d9141252f0f8"
+    },
+    {
+      "path": "web/src/App.tsx",
+      "hash": "636c8ee7adc21765c92b1d5e1e20371957e4699c650d1e4196db50736218fa7e"
+    },
+    {
+      "path": "web/src/lazy.ts",
+      "hash": "abd79d490cdb76fa71e79b55d4629434c7c1a9803552668f37caa42e99e8445f"
+    },
+    {
+      "path": "web/src/legacy.js",
+      "hash": "86c449d53bf623fc98a96baa0bee939b7fee24b86ac6edd2df23d137d28933ea"
+    },
+    {
+      "path": "web/src/main.tsx",
+      "hash": "1334acab49495c65470d22b45ad49773172bf3206ee81b87601ff2d83db61f70"
+    },
+    {
+      "path": "web/src/orders.ts",
+      "hash": "e290e0efacc23912b00755c0eed79d8b07f3eb98084cf99b830d4b9eaace326b"
+    },
+    {
+      "path": "web/src/util.cjs",
+      "hash": "8222b8169ee86f25cdccd84d340340060ae3f0cff55e2ea9d344d7c332733b71"
+    }
+  ],
+  "selection": {
+    "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+    "skip_directory_names": [
+      "node_modules",
+      "dist",
+      "build",
+      "test",
+      "tests",
+      "__tests__"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": ["*.d.ts", "*.test.*", "*.spec.*"]
+  },
   "modules": [
     {
       "id": "api/src/base-store.ts",
@@ -22,9 +103,23 @@
           "exported": true,
           "bases": [],
           "fields": [
-            { "name": "ids", "type": "Id[]", "line": 6, "private": false },
-            { "name": "size", "type": "number", "line": 7, "private": false },
-            { "name": "cursor", "line": 8, "private": true }
+            {
+              "name": "ids",
+              "type": "Id[]",
+              "line": 6,
+              "private": false
+            },
+            {
+              "name": "size",
+              "type": "number",
+              "line": 7,
+              "private": false
+            },
+            {
+              "name": "cursor",
+              "line": 8,
+              "private": true
+            }
           ],
           "methods": [
             {
@@ -63,7 +158,11 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": [{ "name": "source" }]
+          "params": [
+            {
+              "name": "source"
+            }
+          ]
         }
       ]
     },
@@ -100,7 +199,12 @@
           "kind": "function",
           "line": 9,
           "exported": true,
-          "params": [{ "name": "p", "type": "string" }]
+          "params": [
+            {
+              "name": "p",
+              "type": "string"
+            }
+          ]
         },
         {
           "name": "fresh",
@@ -110,7 +214,12 @@
           "params": [],
           "returns": "BaseStore"
         },
-        { "name": "Mode", "kind": "type", "line": 13, "exported": true }
+        {
+          "name": "Mode",
+          "kind": "type",
+          "line": 13,
+          "exported": true
+        }
       ]
     },
     {
@@ -161,7 +270,14 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": [{ "name": "store" }, { "name": "id" }],
+          "params": [
+            {
+              "name": "store"
+            },
+            {
+              "name": "id"
+            }
+          ],
           "returns": "void"
         }
       ]
@@ -182,14 +298,24 @@
             {
               "name": "save",
               "line": 2,
-              "params": [{ "name": "id", "type": "Id" }],
+              "params": [
+                {
+                  "name": "id",
+                  "type": "Id"
+                }
+              ],
               "private": false,
               "returns": "void",
               "tags": ["abstract"]
             }
           ]
         },
-        { "name": "Id", "kind": "type", "line": 5, "exported": true }
+        {
+          "name": "Id",
+          "kind": "type",
+          "line": 5,
+          "exported": true
+        }
       ]
     },
     {
@@ -416,8 +542,14 @@
     }
   ],
   "foreign": [
-    { "id": "foreign:node:fs", "name": "node:fs" },
-    { "id": "foreign:react", "name": "react" }
+    {
+      "id": "foreign:node:fs",
+      "name": "node:fs"
+    },
+    {
+      "id": "foreign:react",
+      "name": "react"
+    }
   ],
   "calls": [
     {
