@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { buildNotices, generateNotices } from "./third-party-notices.mjs";
+import { buildNotices, generateAllNotices } from "./third-party-notices.mjs";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -54,8 +54,8 @@ describe("buildNotices", () => {
 describe("the committed THIRD-PARTY-NOTICES.md", () => {
   const committed = readFileSync(join(ROOT, "THIRD-PARTY-NOTICES.md"), "utf8");
 
-  it("equals the text generated from the real lock and node_modules", () => {
-    expect(committed).toBe(generateNotices(ROOT));
+  it("equals the text generated from the real lock, node_modules and Cargo.lock", () => {
+    expect(committed).toBe(generateAllNotices(ROOT));
   });
 
   it("names all nine packages and carries the elkjs EPL-2.0 text", () => {
@@ -64,5 +64,11 @@ describe("the committed THIRD-PARTY-NOTICES.md", () => {
     }
 
     expect(committed).toContain("Eclipse Public License - v 2.0");
+  });
+
+  it("lists the Rust crates with their licences", () => {
+    expect(committed).toContain("\n# Rust crates\n");
+    expect(committed).toContain("- tauri ");
+    expect(committed).toContain("- serde ");
   });
 });
