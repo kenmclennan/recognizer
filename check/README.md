@@ -160,7 +160,7 @@ The in-effect thresholds are printed as `thresholds` in the output. They are com
 
 ### Detection
 
-The repository is walked depth-first, skipping directories named `.git`, `node_modules`, `.venv`, `venv`, `dist`, `build`, `.worktrees` and `.recognizer` at any depth; directory symlinks are not followed. Python is detected on any `.py` file. TypeScript is detected on a file named `tsconfig.json` or any `.ts` or `.tsx` file (`.d.ts` included); `.js`, `.jsx`, `.mjs` and `.cjs` alone do not count. A repository may be both. With no language detected nothing is run and `no languages detected` goes to stderr.
+The repository is walked depth-first, skipping directories named `.git`, `node_modules`, `.venv`, `venv`, `dist`, `build`, `.worktrees` and `.recognizer` at any depth; directory symlinks are not followed. A language is detected only where its scanner would look: Python on a `.py` file outside directories its scanner skips (`__pycache__`, `tests`, `site-packages`, dot directories, `*.egg-info`, virtual environments) and not a test file (`test_*.py`, `*_test.py`, `*_tests.py`, `conftest.py`); TypeScript on a file named `tsconfig.json` or a `.ts` or `.tsx` file outside `test`, `tests`, `__tests__` and dot directories, and not a `.d.ts`, `*.test.*` or `*.spec.*` file. `.js`, `.jsx`, `.mjs` and `.cjs` alone do not count. A repository may be both. With no language detected nothing is run and `no languages detected` goes to stderr.
 
 ### Scanners and overrides
 
