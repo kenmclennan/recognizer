@@ -62,7 +62,7 @@ A fresh worktree has no `node_modules`. Run `npm ci` at the repository root befo
 
 ## CI
 
-Every workflow runs on a self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), registered to this repo only, because GitHub-hosted minutes for private repos ran out. It has the local toolchain, so no workflow installs system libraries. No workflow uses `Swatinem/rust-cache`: on a self-hosted runner its cleanup prunes `~/.cargo/bin` and deletes `rustup`, which takes `cargo` and `rustc` with it.
+Every pull-request and push workflow (`app`, `check`, `markdown`, `describer-claude` and the four `scanner-*` workflows) runs on GitHub-hosted `macos-15`; the repository is public, so those minutes are free. A hosted runner has only what the image and the workflow's own setup steps provide (Node from `actions/setup-node`, `uv` from `astral-sh/setup-uv`): no `recognizer-scan-*` binary is on the PATH, so a test that runs a real scan must build or install the scanner it needs inside the workflow, or it fails only on CI. Only `release.yml` runs on the self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), which has the local toolchain. No workflow uses `Swatinem/rust-cache`: on the self-hosted runner its cleanup prunes `~/.cargo/bin` and deletes `rustup`, which takes `cargo` and `rustc` with it.
 
 ## Code style
 
