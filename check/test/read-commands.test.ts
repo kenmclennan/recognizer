@@ -230,8 +230,9 @@ describe("show", () => {
 
     expect(lines[0]).toBe(`${order}  module  uses 0  used by 4`);
     expect(lines[1]).toBe("responsibility: [missing]");
-    expect(lines[2]).toBe("9  public  class  Order");
-    expect(lines[3]).toBe("    10  public  field  id: str");
+    expect(lines[2]).toBe(`run recognizer describe ${order} to write it`);
+    expect(lines[3]).toBe("9  public  class  Order");
+    expect(lines[4]).toBe("    10  public  field  id: str");
     expect(out).toContain("    14  public  method  total() → int");
     expect(out).toContain("6 private hidden");
     expect(out).toContain("no findings");

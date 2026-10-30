@@ -356,7 +356,7 @@ export const COMMANDS: Command[] = [
       ...REPOSITORY_OPTIONS,
     ],
     output: {
-      text: "a header `module  kind  uses N  used by N`, a `responsibility:` line with its status in brackets unless current, one `line  visibility  kind  signature` row per member with a class's fields and methods indented under it, `N private hidden`, then `findings:` rows or `no findings`",
+      text: "a header `module  kind  uses N  used by N`, a `responsibility:` line with its status in brackets unless current (and a `run recognizer describe <module> to write it` line when it is missing), one `line  visibility  kind  signature` row per member with a class's fields and methods indented under it, `N private hidden`, then `findings:` rows or `no findings`",
       json: '{ module, kind, uses, usedBy, responsibility: { status: "current"|"out-of-date"|"missing"|"unchecked", line }, members: [{ name, kind, line, visibility, signature, fields?, methods? }], hiddenPrivate, findings: [{ severity, text, why }] }',
     },
     exitCodes: QUESTION_EXIT_CODES,
