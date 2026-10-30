@@ -1,4 +1,4 @@
 describer:
   command: [node]
   version: "a"
-overlays: {}
+unexpected: {}

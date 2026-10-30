@@ -236,7 +236,7 @@ A step already present is a no-op (`changed: false`). `commit` is written only b
 
 `recognizer describe` writes each module's one-line responsibility with the describer a repository registers in `.recognizer/config.yaml`, and commits the lines to `.recognizer/responsibilities.json`. The scan never describes: no command except `describe` runs the describer. The scan is read from cache when fresh and made first otherwise; a triggered scan's summary goes to stderr.
 
-`config.yaml` holds, so far, one key, described by [`schema/config.schema.json`](../schema/config.schema.json) with examples in `schema/config-examples/`:
+`config.yaml` holds two keys, `describer` and `overlays` (see [recognizer measure](#recognizer-measure)), described by [`schema/config.schema.json`](../schema/config.schema.json) with examples in `schema/config-examples/`:
 
 ```yaml
 describer:
@@ -256,3 +256,33 @@ describer:
 | `describe --check [<module>...]` | run no describer and write nothing: print each module's status and line; exit 1 unless every module is current |
 
 Each success is written at once, so a later failure keeps the lines already paid for. A describer that does not start, exits non-zero, prints nothing or prints more than one line leaves that module's entry as it was and is reported; the run exits 1 and the other modules are still processed. Entries for modules no longer in the scan are pruned by `describe` and listed under `gone` by `--check`. Bad input (no describer registered, an invalid config or file, an unknown module, `--all` with a module or with `--check`) is exit 2 and runs nothing. One run at a time is assumed: there is no lock.
+
+## recognizer measure
+
+`recognizer measure` runs the overlays a repository registers under `overlays` in `.recognizer/config.yaml` and writes one file per overlay to `.recognizer/cache/overlays/<name>.json`. It reads no scan and never runs a scan or a describer.
+
+```yaml
+overlays:
+  coverage:
+    command:
+      [
+        node,
+        "{repository}/scripts/coverage.mjs",
+        "{repository}",
+        "{commit}",
+        "{output}",
+      ]
+    metrics:
+      - { name: line_coverage, type: ratio, granularity: module, bad: low }
+```
+
+An overlay name matches `^[a-z0-9][a-z0-9_-]*$`, at most 64 characters, because it becomes a file name. `command` is run directly with no shell, from the repository root. In each item `{repository}` (the absolute repository path), `{commit}` (the full HEAD hash) and `{output}` (the absolute path of the overlay file) are replaced. `metrics` declares each metric's `name` (unique within the overlay), `type` (`ratio`, `count`, `number` or `boolean`), `granularity` (`module` or `member`) and `bad` (`high` or `low`).
+
+The overlay file is `{ overlay_version: 1, commit, modified, producer: { name, version }, metrics, values }`, described by [`schema/overlay.schema.json`](../schema/overlay.schema.json) with examples in `schema/overlay-examples/`. `values` maps each metric name to an object keyed by the scan's ids (`<module id>::<member>`, methods as `Class.method`). `validateOverlay` is exported from the library.
+
+| Form | What it does |
+| --- | --- |
+| `measure` | run every registered overlay, one at a time, in config order |
+| `measure <name>...` | run the named overlays, in the order named |
+
+Before a command runs its old file is removed. A run fails when the command does not start, exits non-zero, writes no file, writes invalid JSON, or writes a file that fails validation: it must match the schema, carry the repository's `commit` and the `modified` state computed before any command ran, repeat the registered `metrics` exactly (in any order), hold values only for declared metrics, and give each value a suitable type (`ratio` a finite number from 0 to 1, `count` a non-negative integer, `number` a finite number, `boolean` a boolean). Value keys are not checked against any scan. A failed overlay is reported on stderr as `failed <name>: <reason>` and leaves no file; the other selected overlays still run. Exit 0 when every selected overlay was measured, 1 when any failed, 2 on bad input (no overlays registered, an invalid config, an unknown name, no commit).

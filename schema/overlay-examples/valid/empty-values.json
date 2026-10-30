@@ -1,0 +1,8 @@
+{
+  "overlay_version": 1,
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": true,
+  "producer": { "name": "flags", "version": "2" },
+  "metrics": [{ "name": "flaky", "type": "boolean", "granularity": "module", "bad": "high" }],
+  "values": {}
+}
