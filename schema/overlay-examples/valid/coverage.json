@@ -1,0 +1,14 @@
+{
+  "overlay_version": 1,
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "producer": { "name": "coverage-script", "version": "1.0.0" },
+  "metrics": [
+    { "name": "line_coverage", "type": "ratio", "granularity": "module", "bad": "low" },
+    { "name": "mutation_survived", "type": "count", "granularity": "member", "bad": "high" }
+  ],
+  "values": {
+    "line_coverage": { "shop/domain/order.py": 0.82 },
+    "mutation_survived": { "shop/domain/order.py::Order.total": 3 }
+  }
+}

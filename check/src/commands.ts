@@ -2,6 +2,7 @@ import { executeCheck } from "./check-command.js";
 import type { Io } from "./cli.js";
 import { runDescribeCommand } from "./describe-command.js";
 import { runHelp } from "./help.js";
+import { runMeasure } from "./measure-command.js";
 import { runOpen } from "./open-command.js";
 import {
   runCallers,
@@ -493,6 +494,55 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runDescribeCommand,
+  },
+  {
+    name: "measure",
+    summary:
+      "run the overlays a repository registers and write each one's measurements to the cache",
+    usage: "recognizer measure [<name>...] [--repository <dir>] [--json]",
+    arguments: [
+      {
+        name: "<name>",
+        description:
+          "a registered overlay's name; without a name, measure runs every registered overlay in config order",
+      },
+    ],
+    options: [
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository to measure; defaults to the current directory",
+      },
+      { flag: "--json", description: "print JSON instead of text" },
+    ],
+    output: {
+      text: "`measured <name>` per success on stdout and `failed <name>: <reason>` per failure on stderr, then `measured N, failed M`",
+      json: "{ commit, modified, measured: string[], failed: [{ overlay, reason }] }",
+    },
+    exitCodes: [
+      { code: 0, meaning: "every selected overlay was measured" },
+      {
+        code: 1,
+        meaning:
+          "at least one selected overlay failed (the rest are still measured); a failed overlay leaves no file",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad input - no overlays registered in .recognizer/config.yaml, an invalid config, an unknown overlay name, an unknown flag, or no git commit",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer measure",
+        note: "run every registered overlay",
+      },
+      {
+        command: "recognizer measure coverage --json",
+        note: "run one overlay and print the outcome as JSON",
+      },
+    ],
+    run: runMeasure,
   },
   {
     name: "help",

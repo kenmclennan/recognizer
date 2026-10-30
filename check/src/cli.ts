@@ -28,6 +28,10 @@ export interface RunResult {
   stderr: string;
 }
 
+export interface RunOptions {
+  cwd?: string;
+}
+
 export interface LaunchResult {
   started: boolean;
   message: string;
@@ -43,7 +47,7 @@ export interface Io {
   remove(path: string): void;
   makeTempDir(): string;
   removeDir(path: string): void;
-  run(command: string, args: string[]): RunResult;
+  run(command: string, args: string[], options?: RunOptions): RunResult;
   launch(command: string, args: string[]): LaunchResult;
   env(name: string): string | undefined;
   stdout(text: string): void;
@@ -78,8 +82,9 @@ export function nodeIo(): Io {
     remove: (path) => rmSync(path, { force: true }),
     makeTempDir: () => mkdtempSync(join(tmpdir(), "recognizer-scan-")),
     removeDir: (path) => rmSync(path, { recursive: true, force: true }),
-    run: (command, args) => {
+    run: (command, args, options) => {
       const result = spawnSync(command, args, {
+        cwd: options?.cwd,
         encoding: "utf8",
         maxBuffer: 256 * 1024 * 1024,
       });

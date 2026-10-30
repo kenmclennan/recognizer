@@ -65,6 +65,7 @@ describe("command table", () => {
       "path",
       "views",
       "describe",
+      "measure",
       "help",
     ]);
   });

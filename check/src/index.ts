@@ -36,6 +36,10 @@ export {
   usedByOf,
   usesOf,
 } from "./neighbours.js";
+export {
+  type Overlay,
+  validateOverlay,
+} from "./overlays.js";
 export { type PathStep, shortestPath } from "./paths.js";
 export { type Policy, parsePolicy } from "./policy.js";
 export {

@@ -1,0 +1,1 @@
+{"overlay_version": 1, "commit": "abc", "modified": false, "producer": {"name":"p","version":"1"}, "metrics": [{"name":"m","type":"ratio","granularity":"module","bad":"middle"}], "values": {}}

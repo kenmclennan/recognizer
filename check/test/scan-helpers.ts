@@ -7,7 +7,19 @@ export interface ScannerBehaviour {
   output?: string;
 }
 
+export interface ProgramEffect {
+  started?: boolean;
+  status?: number;
+  stderr?: string;
+}
+
+export type Program = (
+  args: string[],
+  files: Map<string, string>,
+) => ProgramEffect | undefined;
+
 export interface FakeOptions {
+  programs?: Record<string, Program>;
   files?: Record<string, string>;
   symlinks?: string[];
   scanners?: Record<string, ScannerBehaviour>;
@@ -23,7 +35,7 @@ export interface Fake {
   out: () => string;
   err: () => string;
   files: Map<string, string>;
-  calls: { command: string; args: string[] }[];
+  calls: { command: string; args: string[]; cwd?: string }[];
   launches: { command: string; args: string[] }[];
   removed: string[];
   writes: string[];
@@ -78,7 +90,7 @@ export function scanJson(
 export function fakeIo(options: FakeOptions = {}): Fake {
   const files = new Map(Object.entries(options.files ?? {}));
   const symlinks = new Set(options.symlinks ?? []);
-  const calls: { command: string; args: string[] }[] = [];
+  const calls: { command: string; args: string[]; cwd?: string }[] = [];
   const launches: { command: string; args: string[] }[] = [];
   const removed: string[] = [];
   const writes: string[] = [];
@@ -183,8 +195,25 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         }
       }
     },
-    run: (command, args): RunResult => {
-      calls.push({ command, args });
+    run: (command, args, runOptions): RunResult => {
+      calls.push(
+        runOptions?.cwd === undefined
+          ? { command, args }
+          : { command, args, cwd: runOptions.cwd },
+      );
+
+      const program = options.programs?.[command];
+
+      if (program) {
+        const effect = program(args, files) ?? {};
+
+        return {
+          started: effect.started ?? true,
+          status: effect.started === false ? null : (effect.status ?? 0),
+          stdout: "",
+          stderr: effect.stderr ?? "",
+        };
+      }
 
       if (command === "git") {
         if (options.commit && args.includes("status")) {

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/overlay.schema.json",
+  "title": "Recognizer overlay",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["overlay_version", "commit", "modified", "producer", "metrics", "values"],
+  "properties": {
+    "overlay_version": { "const": 1 },
+    "commit": { "type": "string", "minLength": 1 },
+    "modified": { "type": "boolean" },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type", "granularity", "bad"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["ratio", "count", "number", "boolean"] },
+          "granularity": { "enum": ["module", "member"] },
+          "bad": { "enum": ["high", "low"] }
+        }
+      }
+    },
+    "values": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": ["number", "boolean"] }
+      }
+    }
+  }
+}
