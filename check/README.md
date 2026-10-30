@@ -183,11 +183,11 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ## recognizer open
 
-`recognizer open [FOLDER]` opens a folder in the Recognizer viewer. `FOLDER` defaults to the current directory and is resolved to an absolute path. The viewer is the `Recognizer.app` bundle: the command uses `$RECOGNIZER_APP` when it is set and non-empty (an absolute path to a `.app` bundle), otherwise `~/Applications/Recognizer.app`, then `/Applications/Recognizer.app`. It starts the bundle's single executable in `Contents/MacOS` detached, with the folder as its one argument, and returns without waiting. Starting the executable directly lets a running viewer receive the folder, which `open -a` does not.
+`recognizer open [FOLDER|LINK]` opens a folder, or a `recognizer://` link, in the Recognizer viewer. `FOLDER` defaults to the current directory and is resolved to an absolute path. A link is `recognizer://open?repo=<percent-encoded absolute path>[&view=<name>]`: `repo` must be an existing folder and `view`, when given, a view saved in its `.recognizer/views/`; any other parameter, a duplicate or a malformed value is refused. The link is checked before the bundle is looked for and passed to the viewer unchanged, which opens the folder and the view, or focuses the window already showing the folder. A link only opens: it never scans, describes or writes. The viewer is the `Recognizer.app` bundle: the command uses `$RECOGNIZER_APP` when it is set and non-empty (an absolute path to a `.app` bundle), otherwise `~/Applications/Recognizer.app`, then `/Applications/Recognizer.app`. It starts the bundle's single executable in `Contents/MacOS` detached, with the folder (or the link) as its one argument, and returns without waiting. Starting the executable directly lets a running viewer receive the folder, which `open -a` does not.
 
 - `0`: the viewer was started.
 - `1`: the environment is wrong - no bundle was found (the message says to run `npm run install-app` from a checkout), `Contents/MacOS` does not hold exactly one executable, or the launch failed.
-- `2`: bad input - more than one `FOLDER`, a `FOLDER` that is not a directory, or a `RECOGNIZER_APP` that is not an absolute path to a `.app` bundle.
+- `2`: bad input - more than one `FOLDER`, a `FOLDER` that is not a directory, a link that is malformed, names a missing folder or names a view not saved there, or a `RECOGNIZER_APP` that is not an absolute path to a `.app` bundle.
 
 ### Installing the command
 

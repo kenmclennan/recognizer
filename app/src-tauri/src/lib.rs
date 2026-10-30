@@ -8,6 +8,7 @@ pub mod changes;
 pub mod editor;
 pub mod fs_safe;
 mod launch;
+pub mod link;
 pub mod repository;
 pub mod responsibilities;
 pub mod settings;
@@ -23,9 +24,11 @@ use std::time::Duration;
 use changes::{Baseline, Changes, Origin, ScanOrigin};
 use launch::{launch_for, Launch};
 use repository::ScanReport;
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use windows::{
-    canonical_folder, cascade_from, label_number, menu_target, pick_window, Claim, WindowState,
+    canonical_folder, cascade_from, keeps_running, label_number, menu_target, pick_window, Claim,
+    Route, WindowState,
 };
 
 const APP_TITLE: &str = "Recognizer";
@@ -97,7 +100,15 @@ fn focus_label(app: &AppHandle, label: &str) {
     }
 }
 
-fn open_folder(app: &AppHandle, folder: Option<&Path>) -> Result<(), String> {
+fn deliver_view(app: &AppHandle, label: &str, view: Option<&str>) {
+    if let Some(view) = view {
+        app.state::<WindowState>().set_pending_view(label, view);
+
+        let _ = app.emit_to(label, "view-link", ());
+    }
+}
+
+fn open_folder(app: &AppHandle, folder: Option<&Path>, view: Option<&str>) -> Result<(), String> {
     let state = app.state::<WindowState>();
     let label = state.next_label();
 
@@ -112,8 +123,13 @@ fn open_folder(app: &AppHandle, folder: Option<&Path>) -> Result<(), String> {
     if let Claim::HeldBy(other) = state.claim(&label, &canonical) {
         state.closed(&label);
         focus_label(app, &other);
+        deliver_view(app, &other, view);
 
         return Ok(());
+    }
+
+    if let Some(view) = view {
+        state.set_pending_view(&label, view);
     }
 
     open_window(app, &label, &folder_title(&canonical))
@@ -129,7 +145,7 @@ fn spawn_open_folder(app: &AppHandle, folder: Option<PathBuf>) {
     let app = app.clone();
 
     std::thread::spawn(move || {
-        if let Err(error) = open_folder(&app, folder.as_deref()) {
+        if let Err(error) = open_folder(&app, folder.as_deref(), None) {
             eprintln!("recognizer: could not open a window: {error}");
         }
     });
@@ -144,7 +160,7 @@ fn take_folder(app: &AppHandle, label: &str, folder: &Path) -> Result<(), String
     let canonical = canonical_folder(folder)?;
 
     if state.folder_of(label).is_some() {
-        return open_folder(app, Some(&canonical));
+        return open_folder(app, Some(&canonical), None);
     }
 
     match state.claim(label, &canonical) {
@@ -238,8 +254,72 @@ fn handle_second_launch(app: &AppHandle, args: Vec<String>, cwd: String) {
         Launch::Window {
             folder: Some(folder),
         } => spawn_open_folder(app, Some(folder)),
+        Launch::Link { .. } => {}
         _ => focus_latest(app),
     }
+}
+
+fn refuse_link(app: &AppHandle, message: &str) {
+    eprintln!("recognizer: link refused: {message}");
+
+    let message = format!("The link was refused: {message}");
+    let shown = app.clone();
+
+    app.state::<WindowState>().dialog_opened();
+
+    let scheduled = app.run_on_main_thread(move || {
+        let closed = shown.clone();
+
+        shown
+            .dialog()
+            .message(message)
+            .title(APP_TITLE)
+            .kind(MessageDialogKind::Error)
+            .show(move |_| link_dialog_closed(&closed));
+    });
+
+    if scheduled.is_err() {
+        link_dialog_closed(app);
+    }
+}
+
+fn link_dialog_closed(app: &AppHandle) {
+    app.state::<WindowState>().dialog_closed();
+
+    let documents = app
+        .webview_windows()
+        .into_keys()
+        .any(|label| label_number(&label) > 0);
+
+    if !documents && !cfg!(target_os = "macos") {
+        app.exit(0);
+    }
+}
+
+fn route_link(app: &AppHandle, url: &str) -> Result<(), String> {
+    let link = link::parse(url)?;
+    let folder = link::validate(&link)?;
+
+    match app.state::<WindowState>().route(&folder) {
+        Route::Existing(label) => {
+            focus_label(app, &label);
+            deliver_view(app, &label, link.view.as_deref());
+
+            Ok(())
+        }
+        Route::New => open_folder(app, Some(&folder), link.view.as_deref()),
+    }
+}
+
+fn handle_link(app: &AppHandle, url: &str) {
+    let app = app.clone();
+    let url = url.to_string();
+
+    std::thread::spawn(move || {
+        if let Err(message) = route_link(&app, &url) {
+            refuse_link(&app, &message);
+        }
+    });
 }
 
 fn handle_menu(app: &AppHandle, event: MenuEvent) {
@@ -652,8 +732,14 @@ fn write_current_view(app: AppHandle, window: WebviewWindow, text: String) -> Re
 }
 
 #[tauri::command]
-fn view_path(app: AppHandle, window: WebviewWindow, name: String) -> Result<String, String> {
-    views::view_path(&window_folder_path(&app, &window)?, &name)
+fn view_link(app: AppHandle, window: WebviewWindow, name: String) -> Result<String, String> {
+    views::view_link(&window_folder_path(&app, &window)?, &name)
+}
+
+#[tauri::command]
+fn take_pending_view(app: AppHandle, window: WebviewWindow) -> Option<String> {
+    app.state::<WindowState>()
+        .take_pending_view(&window_label(&window))
 }
 
 #[tauri::command]
@@ -753,8 +839,9 @@ pub fn run() {
     let context = tauri::generate_context!();
     let cwd = std::env::current_dir().unwrap_or_default();
 
-    let initial = match launch_for(std::env::args().skip(1), &cwd) {
-        Launch::Window { folder } => folder,
+    let (initial, initial_link) = match launch_for(std::env::args().skip(1), &cwd) {
+        Launch::Window { folder } => (folder, None),
+        Launch::Link { url } => (None, Some(url)),
         Launch::Refuse { text } => {
             eprintln!("{text}");
 
@@ -763,6 +850,7 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             handle_second_launch(app, args, cwd)
         }))
@@ -775,7 +863,27 @@ pub fn run() {
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
             app.set_menu(build_menu(&handle)?)?;
-            open_folder(&handle, initial.as_deref())?;
+
+            let opened_with = app
+                .deep_link()
+                .get_current()
+                .ok()
+                .flatten()
+                .and_then(|urls| urls.first().map(|url| url.to_string()))
+                .or(initial_link);
+
+            match opened_with {
+                Some(url) => handle_link(&handle, &url),
+                None => open_folder(&handle, initial.as_deref(), None)?,
+            }
+
+            let for_links = handle.clone();
+
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    handle_link(&for_links, url.as_str());
+                }
+            });
 
             Ok(())
         })
@@ -794,8 +902,9 @@ pub fn run() {
             renames_since,
             scan_folder,
             scans_at,
+            take_pending_view,
             view_author,
-            view_path,
+            view_link,
             watch_changes,
             watch_responsibilities,
             watch_views,
@@ -816,15 +925,15 @@ pub fn run() {
                     focus_latest(app);
                 }
             }
-            RunEvent::ExitRequested { code, api, .. } => match code {
-                Some(_) => {}
-                #[cfg(target_os = "macos")]
-                None => api.prevent_exit(),
-                #[cfg(not(target_os = "macos"))]
-                None => {
-                    let _ = api;
+            RunEvent::ExitRequested { code, api, .. } => {
+                if keeps_running(
+                    code,
+                    app.state::<WindowState>().dialogs_open(),
+                    cfg!(target_os = "macos"),
+                ) {
+                    api.prevent_exit();
                 }
-            },
+            }
             _ => {
                 let _ = app;
             }

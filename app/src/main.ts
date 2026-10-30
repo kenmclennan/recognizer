@@ -130,6 +130,7 @@ async function start(): Promise<void> {
   adoptedOrigin(await repositorySource.adoptScan());
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   explorer = buildExplorer(loaded, null);
+  explorer.openLinkedView();
   void checkTools();
   await repositorySource.watchChanges();
 }
@@ -143,6 +144,10 @@ document.addEventListener("keydown", (event) => {
 
 void getCurrentWebviewWindow().listen("open-in-editor", () =>
   explorer?.openSelectedInEditor(),
+);
+
+void getCurrentWebviewWindow().listen("view-link", () =>
+  explorer?.openLinkedView(),
 );
 
 void repositorySource.onRescan(() => void rescanner.run());

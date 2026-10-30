@@ -1,6 +1,7 @@
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { run } from "../src/cli.js";
+import { nodeIo, run } from "../src/cli.js";
 import { type FakeOptions, fakeIo, ROOT } from "./scan-helpers.js";
 
 const HOME = "/home/ken";
@@ -161,5 +162,98 @@ describe("recognizer open", () => {
 
     expect(code).toBe(1);
     expect(err).toContain("spawn denied");
+  });
+
+  describe("with a link", () => {
+    const repo = "/work/app";
+    const files = {
+      ...bundle(USER_BUNDLE, "recognizer_app"),
+      [`${repo}/.recognizer/views/overview.json`]: "{}",
+    };
+    const good = "recognizer://open?repo=%2Fwork%2Fapp&view=overview";
+
+    it("launches the bundle with exactly the link", () => {
+      const { code, fake } = open({ files }, good);
+
+      expect(code).toBe(0);
+      expect(fake.launches).toEqual([
+        {
+          command: `${USER_BUNDLE}/Contents/MacOS/recognizer_app`,
+          args: [good],
+        },
+      ]);
+    });
+
+    it("launches a link with no view", () => {
+      const link = "recognizer://open?repo=%2Fwork%2Fapp";
+      const { code, fake } = open({ files }, link);
+
+      expect(code).toBe(0);
+      expect(fake.launches[0]?.args).toEqual([link]);
+    });
+
+    it.each([
+      ["a missing folder", "recognizer://open?repo=%2Fnowhere", "/nowhere"],
+      [
+        "a view that is not saved there",
+        "recognizer://open?repo=%2Fwork%2Fapp&view=other",
+        "other is not a saved view",
+      ],
+      [
+        "a relative path",
+        "recognizer://open?repo=work%2Fapp",
+        "must be an absolute path",
+      ],
+      [
+        "an unknown parameter",
+        "recognizer://open?repo=%2Fwork%2Fapp&run=1",
+        "unknown parameter run",
+      ],
+    ])("exits 2 without launching for %s", (_name, link, message) => {
+      const { code, fake, err } = open({ files }, link);
+
+      expect(code).toBe(2);
+      expect(err).toContain("link refused");
+      expect(err).toContain(message);
+      expect(fake.launches).toEqual([]);
+    });
+
+    it("refuses a bad link before looking for the bundle", () => {
+      const { code, err } = open({ files: {} }, "recognizer://open?repo=x");
+
+      expect(code).toBe(2);
+      expect(err).not.toContain("npm run install-app");
+    });
+
+    it("keeps the install hint for a valid link with no bundle", () => {
+      const { code, err } = open(
+        { files: { [`${repo}/.recognizer/views/overview.json`]: "{}" } },
+        good,
+      );
+
+      expect(code).toBe(1);
+      expect(err).toContain("npm run install-app");
+    });
+
+    it("refuses a view missing from the repository's own fixtures/check", () => {
+      const fixture = resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "..",
+        "fixtures",
+        "check",
+      );
+      const errors: string[] = [];
+      const code = run(
+        [
+          "open",
+          `recognizer://open?repo=${encodeURIComponent(fixture)}&view=overview`,
+        ],
+        { ...nodeIo(), stderr: (text) => errors.push(text) },
+      );
+
+      expect(code).toBe(2);
+      expect(errors.join("")).toContain("overview is not a saved view");
+    });
   });
 });

@@ -20392,6 +20392,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+- tauri-plugin-deep-link 2.6.3 (Apache-2.0 OR MIT)
 - tauri-plugin-dialog 2.8.3 (Apache-2.0 OR MIT)
 - tauri-plugin-fs 2.7.1 (Apache-2.0 OR MIT)
 

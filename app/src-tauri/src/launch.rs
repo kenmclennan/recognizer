@@ -1,8 +1,11 @@
 use std::path::{Path, PathBuf};
 
+use crate::link;
+
 #[derive(Debug, PartialEq)]
 pub enum Launch {
     Window { folder: Option<PathBuf> },
+    Link { url: String },
     Refuse { text: String },
 }
 
@@ -17,6 +20,10 @@ pub fn launch_for<I: IntoIterator<Item = String>>(args: I, cwd: &Path) -> Launch
         return Launch::Refuse {
             text: format!("recognizer: unknown argument '{unknown}'"),
         };
+    }
+
+    if let Some(url) = args.first().filter(|argument| link::is_link(argument)) {
+        return Launch::Link { url: url.clone() };
     }
 
     Launch::Window {
@@ -68,6 +75,40 @@ mod tests {
                 text: "recognizer: unknown argument '/b'".to_string()
             }
         );
+    }
+
+    #[test]
+    fn a_link_argument_is_a_link_and_never_a_folder() {
+        assert_eq!(
+            launch_for(args(&["recognizer://open?repo=%2Ftmp"]), Path::new("/work")),
+            Launch::Link {
+                url: "recognizer://open?repo=%2Ftmp".to_string()
+            }
+        );
+        assert_eq!(
+            launch_for(args(&["RECOGNIZER://open"]), Path::new("/work")),
+            Launch::Link {
+                url: "RECOGNIZER://open".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn a_folder_that_only_looks_like_the_scheme_is_a_folder() {
+        assert_eq!(
+            launch_for(args(&["recognizer-x"]), Path::new("/work")),
+            Launch::Window {
+                folder: Some(PathBuf::from("/work/recognizer-x"))
+            }
+        );
+    }
+
+    #[test]
+    fn a_link_with_a_second_argument_is_refused() {
+        assert!(matches!(
+            launch_for(args(&["recognizer://open", "/b"]), Path::new("/work")),
+            Launch::Refuse { .. }
+        ));
     }
 
     #[test]

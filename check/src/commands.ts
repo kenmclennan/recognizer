@@ -160,12 +160,17 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "open",
-    summary: "open a folder in the Recognizer viewer",
-    usage: "recognizer open [FOLDER]",
+    summary: "open a folder, or a recognizer:// link, in the Recognizer viewer",
+    usage: "recognizer open [FOLDER|LINK]",
     arguments: [
       {
         name: "FOLDER",
         description: "the folder to open; defaults to the current directory",
+      },
+      {
+        name: "LINK",
+        description:
+          "a recognizer://open?repo=<absolute path>[&view=<name>] link, checked against the folder and its saved views before the viewer starts",
       },
     ],
     options: [],
@@ -180,6 +185,11 @@ export const COMMANDS: Command[] = [
     ],
     examples: [
       { command: "recognizer open .", note: "open the current directory" },
+      {
+        command:
+          "recognizer open 'recognizer://open?repo=%2Fwork%2Fapp&view=overview'",
+        note: "open a folder and one of its saved views",
+      },
     ],
     run: runOpen,
   },

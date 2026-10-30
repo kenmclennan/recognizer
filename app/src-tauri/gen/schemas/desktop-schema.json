@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-author`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
+          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-author`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
+          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
         },
         {
           "description": "Read and write the app's settings\n#### This permission set includes:\n\n- `allow-read-settings`\n- `allow-write-settings`",
@@ -273,16 +273,22 @@
           "markdownDescription": "Enables the scans_at command without any pre-configured scope."
         },
         {
+          "description": "Enables the take_pending_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-take-pending-view",
+          "markdownDescription": "Enables the take_pending_view command without any pre-configured scope."
+        },
+        {
           "description": "Enables the view_author command without any pre-configured scope.",
           "type": "string",
           "const": "allow-view-author",
           "markdownDescription": "Enables the view_author command without any pre-configured scope."
         },
         {
-          "description": "Enables the view_path command without any pre-configured scope.",
+          "description": "Enables the view_link command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-view-path",
-          "markdownDescription": "Enables the view_path command without any pre-configured scope."
+          "const": "allow-view-link",
+          "markdownDescription": "Enables the view_link command without any pre-configured scope."
         },
         {
           "description": "Enables the watch_changes command without any pre-configured scope.",
@@ -411,16 +417,22 @@
           "markdownDescription": "Denies the scans_at command without any pre-configured scope."
         },
         {
+          "description": "Denies the take_pending_view command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-take-pending-view",
+          "markdownDescription": "Denies the take_pending_view command without any pre-configured scope."
+        },
+        {
           "description": "Denies the view_author command without any pre-configured scope.",
           "type": "string",
           "const": "deny-view-author",
           "markdownDescription": "Denies the view_author command without any pre-configured scope."
         },
         {
-          "description": "Denies the view_path command without any pre-configured scope.",
+          "description": "Denies the view_link command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-view-path",
-          "markdownDescription": "Denies the view_path command without any pre-configured scope."
+          "const": "deny-view-link",
+          "markdownDescription": "Denies the view_link command without any pre-configured scope."
         },
         {
           "description": "Denies the watch_changes command without any pre-configured scope.",
@@ -2503,6 +2515,60 @@
           "type": "string",
           "const": "core:window:deny-unminimize",
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
+        },
+        {
+          "description": "Allows reading the opened deep link via the get_current command\n#### This default permission set includes:\n\n- `allow-get-current`",
+          "type": "string",
+          "const": "deep-link:default",
+          "markdownDescription": "Allows reading the opened deep link via the get_current command\n#### This default permission set includes:\n\n- `allow-get-current`"
+        },
+        {
+          "description": "Enables the get_current command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-get-current",
+          "markdownDescription": "Enables the get_current command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_registered command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-is-registered",
+          "markdownDescription": "Enables the is_registered command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-register",
+          "markdownDescription": "Enables the register command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-unregister",
+          "markdownDescription": "Enables the unregister command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_current command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-get-current",
+          "markdownDescription": "Denies the get_current command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_registered command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-is-registered",
+          "markdownDescription": "Denies the is_registered command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-register",
+          "markdownDescription": "Denies the register command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-unregister",
+          "markdownDescription": "Denies the unregister command without any pre-configured scope."
         },
         {
           "description": "This permission set configures the types of dialogs\navailable from the dialog plugin.\n\n#### Granted Permissions\n\nAll dialog types are enabled.\n\n\n\n#### This default permission set includes:\n\n- `allow-message`\n- `allow-save`\n- `allow-open`",

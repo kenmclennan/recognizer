@@ -269,7 +269,7 @@ const facts = {};
   const fiveName = five.q(".view-list");
   const menuOf = () => five.q(".view-menu");
   const labels = {};
-  for (const [selector, label] of [[".view-list", "Saved views"], [".view-back", "Back"], [".view-forward", "Forward"], [".view-save", "Save the view"], [".view-copy", "Copy the view's path"]]) {
+  for (const [selector, label] of [[".view-list", "Saved views"], [".view-back", "Back"], [".view-forward", "Forward"], [".view-save", "Save the view"], [".view-copy", "Copy the view's link"]]) {
     const node = five.q(selector);
     const svg = node.querySelector("svg");
     labels[selector] = { aria: node.getAttribute("aria-label") === label, title: node.title === label, text: node.textContent.trim(), width: svg && svg.getBoundingClientRect().width, stroke: svg && getComputedStyle(svg).strokeWidth };
@@ -511,10 +511,12 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.afterUnfold).toEqual([]);
   });
 
-  it("copies the absolute path of the open view and names it", () => {
+  it("copies the link of the open view and names it", () => {
     expect(f.copyDisabled).toBe(false);
-    expect(f.copied).toEqual(["/repo/.recognizer/views/overview.json"]);
-    expect(f.copyNote).toBe("Copied /repo/.recognizer/views/overview.json");
+    expect(f.copied).toEqual(["recognizer://open?repo=%2Frepo&view=overview"]);
+    expect(f.copyNote).toBe(
+      "Copied recognizer://open?repo=%2Frepo&view=overview",
+    );
   });
 
   it("applies an agent's edit without a click and keeps the canvas on an invalid one", () => {
