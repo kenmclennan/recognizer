@@ -3,10 +3,13 @@
 Reads a scan and an optional policy, reports the dependency violations against a committed baseline that may only shrink, and reports graph metrics and warnings computed from the scan alone.
 
 ```sh
+recognizer check [<module>...] [--repository <dir>] [--policy <policy.yaml>] [--hub-threshold <n>] [--json]
 recognizer check --scan <scan.json> [--policy <policy.yaml>] [--hub-threshold <n>]
 ```
 
 Without `--policy` no violations are computed and no baseline is read or written; only warnings and metrics are reported.
+
+`check` has two modes, chosen by `--scan`. With `--scan` it replays one scan document exactly as it always has: the report document on stdout, the summary on stderr, no module arguments, no `--json`, no `--repository`. Without `--scan` it checks the repository's current scan (the same freshness rule as the question commands, so a stale cache is rescanned first and the scan summary goes to stderr). The policy is `--policy`, else `.recognizer/policy.yaml` when it exists, else none. Each language's scan is checked on its own and the results are merged: `new` and `fixed` are computed once against the baseline over the union, so one language's baseline entries are not fixed because another scan lacks them. Output is text on stdout by default (the summary lines plus one `warning:` line per warning) and the report document with `--json`; the summary is not repeated on stderr. Module arguments narrow the report to violations touching them, warnings naming them and their metrics, and the exit code follows the narrowed set; they cannot be combined with `--update-baseline` or `--init-baseline`.
 
 ## Policy
 
@@ -192,7 +195,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ## The command table
 
-`check/src/commands.ts` exports `COMMANDS`, the one list `recognizer` dispatches from and `check/src/help.ts` renders help from. Each entry holds a command's name, one-line summary, usage, arguments, options, what it prints as text and with `--json`, exit codes and examples. `recognizer --help` prints every command with its one line; `recognizer help <command>` and `<command> --help` print the full entry. The table holds `check`, `scan`, `open`, `uses`, `used-by`, `callers`, `path` and `help`.
+`check/src/commands.ts` exports `COMMANDS`, the one list `recognizer` dispatches from and `check/src/help.ts` renders help from. Each entry holds a command's name, one-line summary, usage, arguments, options, what it prints as text and with `--json`, exit codes and examples. `recognizer --help` prints every command with its one line; `recognizer help <command>` and `<command> --help` print the full entry. The table holds `check`, `scan`, `open`, `uses`, `used-by`, `callers`, `path`, `find`, `show`, `modules`, `views`, `describe`, `measure` and `help`.
 
 ## Question commands
 
@@ -203,13 +206,22 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 - `path` finds the shortest chain of `uses` edges, visiting neighbours in id order. Exit 0 when a path exists (including from a module to itself), 1 when none does.
 - An unknown module, a wrong argument count or a scan that could not be made is exit 2.
 
+## Read commands
+
+`recognizer find <text>`, `recognizer show <module>` and `recognizer modules` read the scan like the question commands do (`--repository`, `--json`, exit 0 for an answer and 2 for bad input).
+
+- `find` matches a case-insensitive substring against module paths and top-level member names, and lists both. No match is exit 0 with empty lists.
+- `show` prints what the explorer's Contents tab shows: the members in file order with their visibility, line and plain-text signature, a class's fields and methods, the responsibility line with its status (`current`, `out-of-date`, `missing`, or `unchecked` when a line exists but no describer is registered or the source cannot be read), and the module's findings. Only exported members are listed unless `--private`; the rest are counted as `hiddenPrivate`.
+- `modules` lists every module with its `uses`, `usedBy` and finding counts. `--folder`, `--findings`, `--min-uses` and `--min-used-by` filter; `--sort id|uses|used-by|findings` (id ascends, the others descend with ties by id), `--reverse` and `--limit` order the rows; `total` is the count before filters.
+- Findings are the policy's violations plus the warnings (`findingsByModule` in `check/src/findings.ts`), with the policy read from `.recognizer/policy.yaml` when it exists and `--hub-threshold` defaulting to 10.
+
 ### Freshness
 
 A question uses the cached scans when every detected language has a cache taken at the current commit and the working tree is clean, ignoring everything under `.recognizer/`. Otherwise it runs `recognizer scan` first, with the scan summary on stderr. The rule is the library function `freshScans` in `check/src/freshness.ts`, which is not exported from the index because it spawns `git`. A cache is reused only when it records `modified: false` and every file in its `files` still has the recorded SHA-256, so a cache written from a dirty tree is not reused after the edits are reverted. A version-3 cache fails validation and is rescanned.
 
 ## Library
 
-`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. The neighbour, grouping, caller and path functions the viewer and the question commands share (`usesOf`, `usedByOf`, `groupByFolder`, `buildCallerIndex`, `shortestPath` and the rest of `neighbours.ts`, `callers.ts` and `paths.ts`) are pure and import nothing from `node:`. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
+`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `findingsByModule(scans, policy, hub)` returns each module's violations then warnings as `Finding`s, with `violationText` and `ruleText`. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. The neighbour, grouping, caller and path functions the viewer and the question commands share (`usesOf`, `usedByOf`, `groupByFolder`, `buildCallerIndex`, `shortestPath` and the rest of `neighbours.ts`, `callers.ts` and `paths.ts`) are pure and import nothing from `node:`. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
 
 ## recognizer views
 

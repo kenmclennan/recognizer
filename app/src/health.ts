@@ -1,23 +1,22 @@
 import {
   analyse,
   collectViolations,
+  type Finding,
   InputError,
   identityKey,
   type Policy,
   parseBaseline,
   parsePolicy,
+  ruleText,
   type Violation,
+  violationText,
 } from "recognizer";
 import type { LoadedScan } from "./scan-loading";
 import type { FolderNode, TreeNode } from "./tree-model";
 
-export type Disc = "red" | "amber" | "grey" | "green";
+export type { Finding };
 
-export type Finding = {
-  severity: "violation" | "warning";
-  text: string;
-  why: string;
-};
+export type Disc = "red" | "amber" | "grey" | "green";
 
 export type Health = {
   disc: (id: string) => Disc;
@@ -31,30 +30,6 @@ export type NodeHealth = { disc: Disc; hover: string };
 const HUB_THRESHOLD = 10;
 const MAX_HOVER_LINES = 10;
 const RANK: Record<Disc, number> = { green: 0, grey: 1, amber: 2, red: 3 };
-
-function ruleText(violation: Violation): string {
-  const rule = violation.rules[0];
-
-  if (rule === undefined) {
-    return "";
-  }
-
-  if (rule.type === "level") {
-    return `level ${rule.from_level} -> ${rule.to_level}`;
-  }
-
-  if (rule.type === "uses") {
-    return `uses ${rule.from_component} -> ${rule.to_component}`;
-  }
-
-  return `forbid ${rule.pattern}`;
-}
-
-function violationText(violation: Violation): string {
-  const verb = violation.kind === "depends" ? "depends on" : violation.kind;
-
-  return `${verb} ${violation.to} at line ${violation.lines.join(", ")}`;
-}
 
 export function violationLine(violation: Violation): string {
   return `violation: ${violationText(violation)} (${ruleText(violation)})`;

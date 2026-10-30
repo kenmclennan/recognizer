@@ -21,6 +21,12 @@ export { type CheckResult, check } from "./check.js";
 export { type Config, parseConfig } from "./config-parse.js";
 export { InputError } from "./errors.js";
 export {
+  type Finding,
+  findingsByModule,
+  ruleText,
+  violationText,
+} from "./findings.js";
+export {
   edgeNames,
   type FolderGroup,
   folderChain,
