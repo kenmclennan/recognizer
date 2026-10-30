@@ -22,5 +22,6 @@
     "check:rust": "node app/scripts/check-rust.mjs",
     "check": "npm run lint -w check && npm run build -w check && npm test -w check",
     "check:app": "npm run typecheck -w @recognizer/app && npm run test -w @recognizer/app && npm run lint -w @recognizer/app && npm run format:check -w @recognizer/app && npm run check:rust && npm run build -w @recognizer/app"
-  }
+  },
+  "license": "MIT"
 }

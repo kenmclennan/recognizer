@@ -5,6 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "recognizer-scan-python"
 version = "0.1.0"
+license = "MIT"
 description = "Scans a Python source tree into a Recognizer scan document"
 requires-python = ">=3.11"
 dependencies = []
