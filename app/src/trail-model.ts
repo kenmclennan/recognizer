@@ -1,5 +1,6 @@
 import { lastSegment } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
+import type { Compaction } from "./folder-compaction";
 import type { Direction, Followed, InspectorTab } from "./inspector-model";
 
 export const STRIP_WIDTH = 28;
@@ -219,7 +220,7 @@ export function updatePanel(
   return { ...trail, panels };
 }
 
-export function labelOf(selection: Selection): string {
+export function labelOf(selection: Selection, compaction: Compaction): string {
   if (selection === null) {
     return "Inspector";
   }
@@ -229,14 +230,14 @@ export function labelOf(selection: Selection): string {
   }
 
   return selection.kind === "folder"
-    ? `${lastSegment(selection.id)}/`
+    ? `${compaction.label(selection.id)}/`
     : lastSegment(selection.id);
 }
 
-export function crumbs(trail: Trail): Crumb[] {
+export function crumbs(trail: Trail, compaction: Compaction): Crumb[] {
   return trail.panels.map((panel, index) => ({
     index,
-    label: labelOf(panel.selection),
+    label: labelOf(panel.selection, compaction),
     relation:
       panel.relation === null
         ? null

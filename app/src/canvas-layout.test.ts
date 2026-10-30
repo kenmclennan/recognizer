@@ -92,7 +92,7 @@ describe("frame sizing", () => {
 
 describe("nesting and edges", () => {
   const scan = scanOf(
-    ["l/application/work/c.py", "l/ports/s.py"],
+    ["l/application/work/c.py", "l/application/o.py", "l/ports/s.py"],
     [["l/application/work/c.py", "l/ports/s.py"]],
   );
 

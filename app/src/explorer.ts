@@ -26,6 +26,7 @@ import {
 } from "./edge-evidence";
 import { openFolderInEditor, openInEditor } from "./editor-open";
 import { type EditorPort, inertEditor } from "./editor-port";
+import { compactFolders } from "./folder-compaction";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
@@ -88,7 +89,7 @@ import {
   withCapacity,
 } from "./trail-model";
 import { type FilterState, filterTree, isVisible } from "./tree-filter";
-import { ancestorFolders, buildTree } from "./tree-model";
+import { buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
@@ -138,7 +139,8 @@ export function showExplorer(
     loaded.baseline,
   );
   const knownModules = new Set(loaded.modules);
-  const root = buildTree(loaded.modules);
+  const compaction = compactFolders(loaded.modules);
+  const root = buildTree(loaded.modules, compaction);
   const described = describeTree(root, health);
   const modules = createOpenModules(loaded.modules);
   const state = createCanvasState(modules);
@@ -793,7 +795,7 @@ export function showExplorer(
       isVisible(filterTree(root, filter, context), selection.id);
 
     if (visible) {
-      for (const folder of ancestorFolders(selection.id)) {
+      for (const folder of compaction.ancestors(selection.id)) {
         expanded.add(folder);
       }
 
@@ -937,6 +939,19 @@ export function showExplorer(
     };
   }
 
+  function restoreCanvas(folded: string[], focus: string | null) {
+    state.restore(
+      [...new Set(folded.map(compaction.canonical))],
+      focus === null ? null : compaction.canonical(focus),
+    );
+  }
+
+  function canonicalSelection(selection: Selection): Selection {
+    return selection?.kind === "folder"
+      ? { kind: "folder", id: compaction.canonical(selection.id) }
+      : selection;
+  }
+
   function setCanvas(ids: string[], folded: string[], focus: string | null) {
     for (const id of modules.opened()) {
       modules.close(id);
@@ -946,7 +961,7 @@ export function showExplorer(
       modules.open(id);
     }
 
-    state.restore(folded, focus);
+    restoreCanvas(folded, focus);
     state.clearSelection();
     evidence = null;
     hovered = null;
@@ -968,13 +983,13 @@ export function showExplorer(
       modules.open(id);
     }
 
-    state.restore(snap.folded, snap.focus);
+    restoreCanvas(snap.folded, snap.focus);
     openView = snap.view;
     evidence = null;
     hovered = null;
     resetList();
     rebuild();
-    state.select(snap.selection);
+    state.select(canonicalSelection(snap.selection));
     state.reconcile(presenceOf(graph));
     reveal(state.selection());
     render();
@@ -1523,6 +1538,7 @@ export function showExplorer(
       return inspectorContent(panel.selection, {
         scans,
         modules: loaded.modules,
+        compaction,
         disc: context.disc,
         findings: health.findings,
         onCanvas: modules.isOpen,
@@ -1578,7 +1594,7 @@ export function showExplorer(
       contents: lastContents,
       layout: placed,
       active: trail.active,
-      crumbs: crumbs(trail),
+      crumbs: crumbs(trail, compaction),
       focused: trail.panels.map((panel) => panel.focusedRow),
       canPut: missingFromCanvas(trail, modules.isOpen).length > 0,
     });
@@ -1600,7 +1616,7 @@ export function showExplorer(
       modules.open(id);
     }
 
-    state.restore(
+    restoreCanvas(
       snap.folded.filter(isFolder),
       snap.focus !== null && isFolder(snap.focus) ? snap.focus : null,
     );
@@ -1614,7 +1630,7 @@ export function showExplorer(
           ? known.has(selection.id)
           : isFolder(selection.id)))
     ) {
-      state.select(selection);
+      state.select(canonicalSelection(selection));
     }
 
     state.reconcile(presenceOf(graph));

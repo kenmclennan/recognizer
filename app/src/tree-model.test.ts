@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { expectedModuleIds } from "./fixtures";
-import { ancestorFolders, buildTree, filesOf } from "./tree-model";
+import { buildTree, filesOf } from "./tree-model";
 
 describe("buildTree", () => {
   it("holds every python fixture module as a file", () => {
@@ -31,11 +31,13 @@ describe("buildTree", () => {
     ).toEqual(["b", "y.py"]);
   });
 
-  it("does not compact chains of single-child folders", () => {
+  it("compacts a chain of single-child folders into one row", () => {
     const root = buildTree(["a/b/c/d.py"]);
-    const a = root.children[0];
+    const folder = root.children[0];
 
-    expect(a?.kind === "folder" && a.children[0]?.name).toBe("b");
+    expect(root.children).toHaveLength(1);
+    expect(folder?.kind === "folder" && folder.name).toBe("a/b/c");
+    expect(folder?.kind === "folder" && folder.path).toBe("a/b/c");
   });
 
   it("treats a module directly at the root as a root-level file", () => {
@@ -45,10 +47,5 @@ describe("buildTree", () => {
       "pkg",
       "setup.py",
     ]);
-  });
-
-  it("lists the ancestor folders of an id from the outermost", () => {
-    expect(ancestorFolders("a/b/c.py")).toEqual(["a", "a/b"]);
-    expect(ancestorFolders("c.py")).toEqual([]);
   });
 });

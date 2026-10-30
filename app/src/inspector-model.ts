@@ -12,6 +12,7 @@ import {
   typeAliasTokens,
 } from "./card-code";
 import type { EvidenceSection } from "./edge-evidence";
+import type { Compaction } from "./folder-compaction";
 import type { Disc, Finding } from "./health";
 import { createPicker, type PickerSource } from "./picker-model";
 import type { ResponsibilityRow } from "./responsibility-model";
@@ -22,6 +23,7 @@ export type InspectorTab = "contents" | "findings" | "dependencies";
 export type InspectorInputs = {
   scans: Scan[];
   modules: string[];
+  compaction: Compaction;
   disc: (id: string) => Disc;
   findings: (id: string) => Finding[];
   onCanvas: (id: string) => boolean;
@@ -397,7 +399,9 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
     if (slash < 0) {
       files.push(id);
     } else {
-      const path = `${folder}/${rest.slice(0, slash)}`;
+      const path = inputs.compaction.canonical(
+        `${folder}/${rest.slice(0, slash)}`,
+      );
 
       folders.set(path, (folders.get(path) ?? 0) + 1);
     }
@@ -419,7 +423,7 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
           kind: "module",
           id: path,
           ids,
-          label: `${lastSegment(path)}/`,
+          label: `${inputs.compaction.label(path)}/`,
           state: checkState(ids, inputs.onCanvas),
           bold: ids.some(inputs.onCanvas),
           disc: inputs.disc(path),
@@ -473,6 +477,7 @@ function pickerFor(
     picker: createPicker({
       scans: inputs.scans,
       modules: inputs.modules,
+      compaction: inputs.compaction,
       onCanvas: inputs.onCanvas,
       source,
       filter: inputs.filter,
@@ -761,7 +766,7 @@ export function inspectorContent(
     key,
     header: {
       disc: inputs.disc(selection.id),
-      title: `${lastSegment(selection.id)}/`,
+      title: `${inputs.compaction.label(selection.id)}/`,
       muted: `${known} files`,
       target: { kind: "folder", id: selection.id },
     },

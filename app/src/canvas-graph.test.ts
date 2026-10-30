@@ -59,24 +59,19 @@ const chain: Scan = {
 };
 
 describe("frames", () => {
-  it("nests one frame per folder, each labelled with its own segment", () => {
+  it("nests one frame per compacted folder, each labelled with its joined path", () => {
     const graph = graphOf(chain, {
       opened: ["lightcycle/application/work/create.py", "top.py"],
     });
 
     expect(graph.frames.map((frame) => [frame.path, frame.label])).toEqual([
       ["lightcycle", "lightcycle"],
-      ["lightcycle/application", "application"],
-      ["lightcycle/application/work", "work"],
+      ["lightcycle/application/work", "application/work"],
     ]);
     expect(graph.frames.map((frame) => frame.parent)).toEqual([
       null,
       "lightcycle",
-      "lightcycle/application",
     ]);
-    expect(graph.frames.every((frame) => !frame.label.includes("/"))).toBe(
-      true,
-    );
     expect(graph.boxes.find((box) => box.id === "top.py")?.parent).toBeNull();
   });
 
@@ -88,16 +83,19 @@ describe("frames", () => {
       graph.frames.find((candidate) => candidate.path === path);
 
     expect(frame("lightcycle")).toMatchObject({ open: 1, held: 4 });
-    expect(frame("lightcycle/application")).toMatchObject({ open: 1, held: 2 });
+    expect(frame("lightcycle/application/work")).toMatchObject({
+      open: 1,
+      held: 2,
+    });
+    expect(frame("lightcycle/application")).toBeUndefined();
   });
 
   it("makes the focused folder the outermost frame and drops outsiders", () => {
     const graph = graphOf(chain, {
-      focus: "lightcycle/application",
+      focus: "lightcycle/application/work",
     });
 
     expect(graph.frames.map((frame) => frame.path)).toEqual([
-      "lightcycle/application",
       "lightcycle/application/work",
     ]);
     expect(graph.frames[0]?.parent).toBeNull();
@@ -128,6 +126,20 @@ describe("folding", () => {
         frame.path.startsWith("lightcycle/application"),
       ),
     ).toBe(false);
+  });
+
+  it("labels a folded compacted folder with its joined path", () => {
+    const graph = graphOf(chain, {
+      folded: new Set(["lightcycle/application/work"]),
+    });
+
+    expect(graph.boxes.find((box) => box.kind === "folder")).toMatchObject({
+      id: "lightcycle/application/work",
+      label: "application/work/",
+      open: 2,
+      held: 2,
+      parent: "lightcycle",
+    });
   });
 
   it("joins edges between the same two boxes into one counted line", () => {
@@ -319,13 +331,11 @@ describe("the python fixture", () => {
 });
 
 describe("the typescript fixture", () => {
-  it("draws 15 boxes, 5 frames and 19 lines with no private import", () => {
+  it("draws 15 boxes, 3 frames and 19 lines with no private import", () => {
     const graph = graphOf(expectedScan("typescript"));
 
     expect(graph.boxes).toHaveLength(15);
     expect(graph.frames.map((frame) => frame.path)).toEqual([
-      "api",
-      "web",
       "api/src",
       "web/src",
       "api/src/models",

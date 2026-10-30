@@ -3,13 +3,13 @@ import {
   folderOf,
   folderUsedBy,
   folderUses,
-  lastSegment,
   moduleLabel,
   type NeighbourRow,
   type Scan,
   usedByOf,
   usesOf,
 } from "recognizer";
+import type { Compaction } from "./folder-compaction";
 import { type CheckState, checkState } from "./row-model";
 
 export const LONG_LIST = 18;
@@ -50,6 +50,7 @@ export type PickerModel = {
 export type PickerInput = {
   scans: Scan[];
   modules: string[];
+  compaction: Compaction;
   onCanvas: (id: string) => boolean;
   source: PickerSource;
   filter: string;
@@ -199,7 +200,7 @@ export function createPicker(input: PickerInput): PickerModel {
     const label =
       source.kind === "module"
         ? moduleLabel(source.id)
-        : lastSegment(source.id);
+        : input.compaction.label(source.id);
 
     return source.direction === "uses"
       ? `${label} uses ${raw.length}`

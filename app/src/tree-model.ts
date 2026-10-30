@@ -1,3 +1,5 @@
+import { type Compaction, compactFolders } from "./folder-compaction";
+
 export type FileNode = { kind: "file"; name: string; path: string };
 
 export type FolderNode = {
@@ -27,22 +29,23 @@ function sorted(folder: FolderNode): void {
   }
 }
 
-export function buildTree(ids: Iterable<string>): FolderNode {
+export function buildTree(
+  ids: readonly string[],
+  compaction: Compaction = compactFolders(ids),
+): FolderNode {
   const root: FolderNode = { kind: "folder", name: "", path: "", children: [] };
   const folders = new Map<string, FolderNode>([["", root]]);
 
   for (const id of ids) {
-    const parts = id.split("/");
     let parent = root;
 
-    for (let depth = 1; depth < parts.length; depth += 1) {
-      const path = parts.slice(0, depth).join("/");
+    for (const path of compaction.ancestors(id)) {
       let folder = folders.get(path);
 
       if (!folder) {
         folder = {
           kind: "folder",
-          name: parts[depth - 1] as string,
+          name: compaction.label(path),
           path,
           children: [],
         };
@@ -55,7 +58,7 @@ export function buildTree(ids: Iterable<string>): FolderNode {
 
     parent.children.push({
       kind: "file",
-      name: parts[parts.length - 1] as string,
+      name: id.slice(id.lastIndexOf("/") + 1),
       path: id,
     });
   }
@@ -67,12 +70,4 @@ export function buildTree(ids: Iterable<string>): FolderNode {
 
 export function filesOf(node: TreeNode): FileNode[] {
   return node.kind === "file" ? [node] : node.children.flatMap(filesOf);
-}
-
-export function ancestorFolders(id: string): string[] {
-  const parts = id.split("/");
-
-  return parts
-    .slice(0, -1)
-    .map((_, index) => parts.slice(0, index + 1).join("/"));
 }
