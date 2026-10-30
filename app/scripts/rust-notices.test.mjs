@@ -59,9 +59,24 @@ describe("buildRustNotices", () => {
     expect(text).toContain("- c 1.0.0 (ISC)");
   });
 
-  it("says so when a crate ships no licence file", () => {
-    expect(buildRustNotices([crate("bare", "MIT")], () => [])).toContain(
-      "- bare 1.0.0 (MIT)\n\nno licence file shipped",
+  it("includes the standard text and copyright line for a crate with no licence file", () => {
+    const text = buildRustNotices(
+      [
+        { ...crate("bare", "Zlib OR MIT"), authors: ["Ada <ada@example.com>"] },
+        crate("other", "MIT"),
+      ],
+      () => [],
+    );
+
+    expect(text).toContain("- bare 1.0.0 (Zlib OR MIT) - Copyright Ada\n");
+    expect(text).toContain("### MIT\n\n```text\nPermission is hereby granted");
+    expect(text).toContain("### Zlib\n\n```text\nThis software is provided");
+    expect(text).not.toContain("no licence file shipped");
+  });
+
+  it("says so when no standard text is known for the licence", () => {
+    expect(buildRustNotices([crate("bare", "ISC")], () => [])).toContain(
+      "- bare 1.0.0 (ISC)\n\nno licence file shipped",
     );
   });
 });
