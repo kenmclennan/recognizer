@@ -142,6 +142,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
 
       return content;
     },
+    readBytes: (path) => Buffer.from(io.readFile(path), "utf8"),
     hashFile: (path) => {
       const content = files.get(path);
 
