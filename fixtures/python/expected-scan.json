@@ -286,7 +286,8 @@
               "private": true,
               "returns": "int"
             }
-          ]
+          ],
+          "tags": ["dataclass"]
         },
         {
           "name": "new_order",

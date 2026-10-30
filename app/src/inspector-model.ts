@@ -157,7 +157,10 @@ function classTags(member: ScanMember, edges: ScanEdge[]) {
       (resolved(base, "inherits") ||
         (!exceptions.includes(base) && !NEVER_SHOWN_BASES.has(base))),
   );
-  const tags = [...exceptions, ...(abstract ? ["abstract"] : [])];
+  const scanned: string[] = member.tags ?? [];
+  const tags = [
+    ...new Set([...scanned, ...exceptions, ...(abstract ? ["abstract"] : [])]),
+  ];
 
   return { tags, implemented, inherited };
 }

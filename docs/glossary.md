@@ -11,7 +11,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Folder | A directory of the repository, as the tree shows it. Not a component: a folder is where files are, not what they are for. |
 | Member | A class, function, interface, type or constant defined in a module. |
 | Call | A member using another member: calling it, constructing it, or reaching it through an abstraction by dispatch. |
-| Outline | What a member contains, read from its declaration: a class's bases, fields and methods, a function's parameters and return type, a constant's value. |
+| Outline | What a member contains, read from its declaration: a class's bases, fields, methods and tags, a function's parameters and return type, a constant's value. |
+| Class tag | One of `dataclass`, `frozen`, `final`, `runtime_checkable` or `abstract` on a class or interface, read from its decorators or modifiers and shown in Contents beside the class name. |
 | Dispatch | A call from an abstract or interface method to each concrete method that implements it, so a caller that reaches a port also reaches its adapter. |
 | Trace | The calls followed from one member, which is how an agent finds what a feature touches. Never drawn on the canvas. |
 | Name | A member's name as another module imports it. |

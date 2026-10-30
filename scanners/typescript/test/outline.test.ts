@@ -216,3 +216,23 @@ describe("outline: constant values", () => {
     );
   });
 });
+
+describe("outline: class tags", () => {
+  it("tags an abstract class", () => {
+    expect(member("abstract class A {}\n", "A").tags).toEqual(["abstract"]);
+  });
+
+  it("leaves a plain class, an interface and a type alias untagged", () => {
+    const source = "class A {}\ninterface I {}\ntype T = { a: number };\n";
+
+    for (const name of ["A", "I", "T"]) {
+      expect(member(source, name)).not.toHaveProperty("tags");
+    }
+  });
+
+  it("does not record decorators", () => {
+    expect(
+      member("function d(c: unknown) {}\n@d\nclass A {}\n", "A"),
+    ).not.toHaveProperty("tags");
+  });
+});

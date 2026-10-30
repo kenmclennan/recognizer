@@ -282,9 +282,18 @@ export function typeOutline(
     }
   }
 
-  return {
+  const outline: MemberOutline = {
     bases: baseTexts(node, sf),
     fields: uniqueByName(fields),
     methods: uniqueByName(methods),
   };
+
+  if (
+    ts.isClassDeclaration(node) &&
+    hasModifier(node, ts.SyntaxKind.AbstractKeyword)
+  ) {
+    outline.tags = ["abstract"];
+  }
+
+  return outline;
 }
