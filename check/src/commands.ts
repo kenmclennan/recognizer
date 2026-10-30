@@ -1,5 +1,6 @@
 import { executeCheck } from "./check-command.js";
 import type { Io } from "./cli.js";
+import { runDescribeCommand } from "./describe-command.js";
 import { runHelp } from "./help.js";
 import { runOpen } from "./open-command.js";
 import {
@@ -417,6 +418,81 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runViews,
+  },
+  {
+    name: "describe",
+    summary:
+      "write each module's one-line responsibility with the repository's registered describer",
+    usage: [
+      "recognizer describe [<module>... | --all] [--repository <dir>] [--json]",
+      "recognizer describe --check [<module>...] [--repository <dir>] [--json]",
+    ].join("\n"),
+    arguments: [
+      {
+        name: "<module>",
+        description:
+          "a module's repository-relative path; without a module, describe redoes every missing or out-of-date line, and with one it redoes exactly the named modules whatever their status",
+      },
+    ],
+    options: [
+      {
+        flag: "--all",
+        description: "describe every module in the scan, current or not",
+      },
+      {
+        flag: "--check",
+        description:
+          "run no describer and write nothing: print each module's status and line",
+      },
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository to describe; defaults to the current directory",
+      },
+      { flag: "--json", description: "print JSON instead of text" },
+    ],
+    output: {
+      text: [
+        "describe: `described <id>` per success on stdout and `failed <id>: <reason>` per failure on stderr, then `described N, failed M, already current K`, with `, pruned P` when entries were removed",
+        "describe --check: one `<id>  <status>  <line>` row per module, where status is current, out-of-date (followed by `(source changed)`, `(describer changed)` and/or `(version changed)`), missing or unreadable, then `N current, M out of date, K missing`, then a `gone <id>` line for each entry whose module is no longer in the scan",
+      ].join("\n"),
+      json: [
+        "describe: { described: string[], failed: [{ module, reason }], current, pruned: string[] }",
+        "describe --check: { ok, counts: { current, outOfDate, missing, unreadable }, modules: [{ module, status, line, reasons }], gone: string[] }, with line null when missing and reasons empty unless out of date",
+      ].join("\n"),
+    },
+    exitCodes: [
+      {
+        code: 0,
+        meaning:
+          "every selected module was described or none was selected; with --check, every module is current",
+      },
+      {
+        code: 1,
+        meaning:
+          "at least one selected module failed (the rest are still written); with --check, at least one module is not current",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad input - no describer registered in .recognizer/config.yaml, an invalid config or responsibilities file, an unknown module, --all with a module or with --check, an unknown flag or a scan that could not be made",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer describe",
+        note: "describe every module whose line is missing or out of date",
+      },
+      {
+        command: "recognizer describe shop/domain/order.py",
+        note: "redo one module's line",
+      },
+      {
+        command: "recognizer describe --check --json",
+        note: "report which lines are current, without describing anything",
+      },
+    ],
+    run: runDescribeCommand,
   },
   {
     name: "help",

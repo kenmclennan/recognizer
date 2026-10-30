@@ -231,3 +231,28 @@ The file is `{ schema_version: 1, description, commit, steps }`, described by [`
 | `check [<name>] [--fix]` | list steps naming a path that no longer exists; `--fix` rewrites picks whose files git records as renamed since the view's commit |
 
 A step already present is a no-op (`changed: false`). `commit` is written only by `new`. `check` exits 1 when any step is unresolved or a file is invalid after `--fix`; bad input is exit 2 and writes nothing. `--fix` sees only renames git has staged or committed (`git diff -M --relative --name-status --diff-filter=R <commit>`), never a plain `mv`.
+
+## recognizer describe
+
+`recognizer describe` writes each module's one-line responsibility with the describer a repository registers in `.recognizer/config.yaml`, and commits the lines to `.recognizer/responsibilities.json`. The scan never describes: no command except `describe` runs the describer. The scan is read from cache when fresh and made first otherwise; a triggered scan's summary goes to stderr.
+
+`config.yaml` holds, so far, one key, described by [`schema/config.schema.json`](../schema/config.schema.json) with examples in `schema/config-examples/`:
+
+```yaml
+describer:
+  command: [node, "{repository}/scripts/describe.mjs", "{request}"]
+  version: "2026-10-a"
+```
+
+`command` is run directly with no shell. In each item `{repository}` (the absolute repository path), `{module}` (the module id) and `{request}` (the path of a JSON request file) are replaced. `version` names the prompt; bump it to redo every line. The request is `{ module, kind, source, members, uses, used_by }`: the module's members from the scan, what it uses and what uses it (inferred rows flagged), and its source. The describer prints one line on stdout.
+
+`responsibilities.json` is `{ schema_version: 1, modules }`, described by [`schema/responsibilities.schema.json`](../schema/responsibilities.schema.json) with examples in `schema/responsibilities-examples/`. Each module id maps to its `line`, the SHA-256 `source_hash` of the source it was written from, and the `describer` command (placeholders unfilled) and `version`. A line is current while all three match; another module's change does not outdate it. `validateResponsibilities` and `lineStatus` are exported from the library.
+
+| Form | What it does |
+| --- | --- |
+| `describe` | describe every module whose line is missing or out of date, one at a time in id order |
+| `describe <module>...` | describe exactly the named modules, whatever their status |
+| `describe --all` | describe every module |
+| `describe --check [<module>...]` | run no describer and write nothing: print each module's status and line; exit 1 unless every module is current |
+
+Each success is written at once, so a later failure keeps the lines already paid for. A describer that does not start, exits non-zero, prints nothing or prints more than one line leaves that module's entry as it was and is reported; the run exits 1 and the other modules are still processed. Entries for modules no longer in the scan are pruned by `describe` and listed under `gone` by `--check`. Bad input (no describer registered, an invalid config or file, an unknown module, `--all` with a module or with `--check`) is exit 2 and runs nothing. One run at a time is assumed: there is no lock.

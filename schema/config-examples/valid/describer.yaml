@@ -1,0 +1,3 @@
+describer:
+  command: [node, "{repository}/scripts/describe.mjs", "{request}"]
+  version: "2026-10-a"
