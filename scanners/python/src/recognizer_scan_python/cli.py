@@ -1,6 +1,7 @@
 import argparse
 import subprocess
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 from recognizer_scan_python.scanner import ScanError, scan
@@ -49,6 +50,7 @@ def parse_modified(value: str) -> bool:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="recognizer-scan-python")
+    parser.add_argument("--version", action="version", version=version("recognizer-scan-python"))
     parser.add_argument("root", type=Path)
     parser.add_argument("--source-root", action="append", default=None, metavar="DIR")
     parser.add_argument("--commit")

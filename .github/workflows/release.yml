@@ -34,7 +34,7 @@ jobs:
           fi
 
   release:
-    name: release (build, sign, publish)
+    name: release (build, publish)
     needs: gate
     if: needs.gate.outputs.present == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: [self-hosted, macOS, ARM64]
@@ -42,6 +42,7 @@ jobs:
     env:
       HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
       RELEASES_REPO: kenmclennan/recognizer-releases
+      TAP_REPO: kenmclennan/homebrew-tap
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -67,7 +68,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
-          committed=$(node -p "require('./app/src-tauri/tauri.conf.json').version")
+          committed=$(node -p "require('./package.json').version")
           version=$(gh api --paginate "repos/$RELEASES_REPO/releases" --jq '.[].tag_name' | node app/scripts/next-version.mjs "$committed")
           echo "VERSION=$version" >> "$GITHUB_ENV"
           node app/scripts/stamp-version.mjs "$version"
@@ -76,29 +77,48 @@ jobs:
         if: steps.released.outputs.skip != 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
 
-      - name: Build
+      - name: Build the toolchain archive
         if: steps.released.outputs.skip != 'true'
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          npm run build -w recognizer
+          npm run build -w recognizer-scan-typescript
+          node scripts/build-toolchain.mjs dist-release
+
+      - name: Build the app
+        if: steps.released.outputs.skip != 'true'
         run: |
           rustup target add aarch64-apple-darwin
-          npm run build -w recognizer
           npm run build -w @recognizer/app
           npm run tauri -w @recognizer/app -- build --bundles app --target aarch64-apple-darwin
           dir=app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos
-          for pattern in '*.app.tar.gz' '*.app.tar.gz.sig'; do
-            count=$(find "$dir" -maxdepth 1 -name "$pattern" | wc -l | tr -d ' ')
-            if [ "$count" != "1" ]; then
-              echo "expected exactly one $pattern in $dir, found $count" >&2
+          count=$(find "$dir" -maxdepth 1 -name 'Recognizer.app' | wc -l | tr -d ' ')
+          if [ "$count" != "1" ]; then
+            echo "expected exactly one Recognizer.app in $dir, found $count" >&2
+            exit 1
+          fi
+          tar -czf dist-release/recognizer.app.tar.gz -C "$dir" Recognizer.app
+
+      - name: Smoke-test the toolchain archive
+        if: steps.released.outputs.skip != 'true'
+        run: |
+          smoke=$(mktemp -d)
+          repo=$PWD
+          tar -xzf dist-release/recognizer-toolchain.tar.gz -C "$smoke"
+          npm install --prefix "$smoke/node" --no-audit --no-fund "$smoke/recognizer-$VERSION.tgz" "$smoke/recognizer-scan-typescript-$VERSION.tgz"
+          python3 -m venv "$smoke/venv"
+          "$smoke/venv/bin/pip" install "$smoke/recognizer_scan_python-$VERSION-py3-none-any.whl"
+          export PATH="$smoke/node/node_modules/.bin:$smoke/venv/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
+          for tool in recognizer recognizer-scan-typescript recognizer-scan-python; do
+            got=$("$tool" --version)
+            if [ "$got" != "$VERSION" ]; then
+              echo "$tool --version printed $got, expected $VERSION" >&2
               exit 1
             fi
           done
-          mkdir -p dist-release
-          cp "$dir"/*.app.tar.gz dist-release/recognizer.app.tar.gz
-          cp "$dir"/*.app.tar.gz.sig dist-release/recognizer.app.tar.gz.sig
+          recognizer scan "$repo/fixtures/python/sample"
+          recognizer scan "$repo/fixtures/typescript/sample"
 
-      - name: Release notes and manifest
+      - name: Release notes
         if: steps.released.outputs.skip != 'true'
         run: |
           previous=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
@@ -107,22 +127,6 @@ jobs:
           else
             git log -n 1 --format=%s "$HEAD_SHA" > dist-release/notes.txt
           fi
-          VERSION="$VERSION" node -e '
-            const fs = require("node:fs");
-            const version = process.env.VERSION;
-            const manifest = {
-              version,
-              notes: fs.readFileSync("dist-release/notes.txt", "utf8").trim(),
-              pub_date: new Date().toISOString(),
-              platforms: {
-                "darwin-aarch64": {
-                  signature: fs.readFileSync("dist-release/recognizer.app.tar.gz.sig", "utf8").trim(),
-                  url: `https://github.com/kenmclennan/recognizer-releases/releases/download/v${version}/recognizer.app.tar.gz`,
-                },
-              },
-            };
-            fs.writeFileSync("dist-release/latest.json", JSON.stringify(manifest, null, 2) + "\n");
-          '
 
       - name: Publish the release
         if: steps.released.outputs.skip != 'true'
@@ -130,13 +134,31 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           gh release create "v$VERSION" --repo "$RELEASES_REPO" --title "Recognizer $VERSION" --notes-file dist-release/notes.txt \
-            dist-release/recognizer.app.tar.gz dist-release/recognizer.app.tar.gz.sig dist-release/latest.json
+            dist-release/recognizer-toolchain.tar.gz dist-release/recognizer.app.tar.gz
 
       - name: Tag the source
         if: steps.released.outputs.skip != 'true'
         run: |
           git tag "v$VERSION" "$HEAD_SHA"
           git push origin "v$VERSION"
+
+      - name: Update the Homebrew tap
+        if: steps.released.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          toolchain_sha=$(shasum -a 256 dist-release/recognizer-toolchain.tar.gz | cut -d' ' -f1)
+          app_sha=$(shasum -a 256 dist-release/recognizer.app.tar.gz | cut -d' ' -f1)
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
+          node scripts/render-homebrew.mjs "$VERSION" "$toolchain_sha" "$app_sha" tap-repo
+          cd tap-repo
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Formula/recognizer.rb Casks/recognizer.rb
+            git commit -m "recognizer $VERSION"
+            git push
+          fi
 
       - name: Update the releases README
         if: steps.released.outputs.skip != 'true'
@@ -146,7 +168,7 @@ jobs:
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${RELEASES_REPO}.git" releases-repo
           cp .github/release-readme.md releases-repo/README.md
           cd releases-repo
-          if ! git diff --quiet || [ -n "$(git status --porcelain)" ]; then
+          if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add README.md

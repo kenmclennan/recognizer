@@ -5,6 +5,7 @@
       "check/**",
       "scanners/typescript/**",
       "app/**",
+      "scripts/**",
       "!**/dist",
       "!**/src/generated",
       "!**/node_modules",

@@ -2,11 +2,9 @@ import { getVersion } from "@tauri-apps/api/app";
 import { APP_NAME } from "./app-info";
 import { el } from "./dom";
 import { type ScanState, scanLine } from "./footer-scan";
-import { updateLabel } from "./update-label";
-import type { UpdateState } from "./updater";
 
 export type FooterView = {
-  setUpdate: (state: UpdateState, run: () => void) => void;
+  setToolsNotice: (text: string | null) => void;
   notify: (text: string) => void;
   setCount: (text: string) => void;
   setScan: (state: ScanState | null) => void;
@@ -22,9 +20,8 @@ export function buildFooter(
   const count = document.createElement("span");
   const scan = el("span", "scan-line");
   const notice = document.createElement("span");
-  const update = document.createElement("button");
+  const toolsNotice = el("span", "tools-notice");
   const list = el("div", "changes-list");
-  let updateRun: () => void = () => {};
   let scanState: ScanState | null = null;
   let listOpen = false;
 
@@ -34,12 +31,10 @@ export function buildFooter(
   count.id = "module-count";
   notice.className = "notice";
   notice.setAttribute("role", "status");
-  update.type = "button";
-  update.className = "update-button";
-  update.hidden = true;
-  update.addEventListener("click", () => updateRun());
+  toolsNotice.setAttribute("role", "status");
+  toolsNotice.hidden = true;
   list.hidden = true;
-  container.replaceChildren(identity, count, scan, notice, update, list);
+  container.replaceChildren(identity, count, scan, notice, toolsNotice, list);
 
   void getVersion().then((version) => {
     identity.textContent = `${APP_NAME} ${version}`;
@@ -123,11 +118,9 @@ export function buildFooter(
   setInterval(renderScan, AGE_REFRESH_MS);
 
   return {
-    setUpdate(state, run) {
-      updateRun = run;
-      update.hidden = state.kind === "none";
-      update.disabled = state.kind === "installing";
-      update.textContent = updateLabel(APP_NAME, state);
+    setToolsNotice(text) {
+      toolsNotice.hidden = text === null;
+      toolsNotice.textContent = text ?? "";
     },
     setCount(text) {
       count.textContent = text;

@@ -115,6 +115,14 @@ export function nodeIo(): Io {
   };
 }
 
+export function packageVersion(): string {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
+
+  return manifest.version;
+}
+
 function execute(argv: string[], io: Io): number {
   const [first, ...rest] = argv;
 
@@ -126,6 +134,12 @@ function execute(argv: string[], io: Io): number {
 
   if (argv.length === 1 && (first === "--help" || first === "-h")) {
     io.stdout(shortHelp());
+
+    return 0;
+  }
+
+  if (argv.length === 1 && (first === "--version" || first === "-V")) {
+    io.stdout(`${packageVersion()}\n`);
 
     return 0;
   }

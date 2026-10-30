@@ -256,11 +256,6 @@ fn handle_menu(app: &AppHandle, event: MenuEvent) {
                 });
             }
         }
-        "check-updates" => {
-            if let Some(label) = focused_label(app) {
-                let _ = app.emit_to(label, "check-updates", ());
-            }
-        }
         "rescan" => {
             if let Some(label) = focused_label(app) {
                 let _ = app.emit_to(label, "rescan", ());
@@ -324,16 +319,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     )?;
     let settings_item =
         MenuItem::with_id(app, "settings", "Settings...", true, Some("CmdOrCtrl+,"))?;
-    let check_updates = MenuItem::with_id(
-        app,
-        "check-updates",
-        "Check for Updates...",
-        true,
-        None::<&str>,
-    )?;
     let application = SubmenuBuilder::new(app, APP_TITLE)
         .about(None)
-        .item(&check_updates)
         .separator()
         .item(&settings_item)
         .separator()
@@ -405,6 +392,18 @@ fn read_source_line(
         .ok_or_else(|| "this window holds no folder".to_string())?;
 
     source_line::read_line(&folder, &relative, line)
+}
+
+#[tauri::command]
+async fn recognizer_version(app: AppHandle) -> Result<repository::ToolsReport, String> {
+    let config_file = config_file(&app)?;
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+
+    tauri::async_runtime::spawn_blocking(move || {
+        repository::recognizer_version(&shell, &config_file)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -759,8 +758,6 @@ pub fn run() {
             handle_second_launch(app, args, cwd)
         }))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
         .on_menu_event(handle_menu)
         .on_window_event(handle_window_event)
         .setup(move |app| {
@@ -783,6 +780,7 @@ pub fn run() {
             read_responsibilities,
             read_settings,
             read_source_line,
+            recognizer_version,
             rename_view,
             renames_since,
             scan_folder,

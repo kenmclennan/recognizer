@@ -416,3 +416,24 @@ describe("warnings fixture", () => {
     },
   );
 });
+
+describe("--version", () => {
+  const manifest = JSON.parse(
+    readFileSync(join(REPO, "check/package.json"), "utf8"),
+  ) as { version: string };
+
+  it.each(["--version", "-V"])("%s prints the package version", (flag) => {
+    expect(execute([flag])).toEqual({
+      code: 0,
+      out: `${manifest.version}\n`,
+      err: "",
+    });
+  });
+
+  it("is not special-cased beside other arguments", () => {
+    const result = execute(["--version", "check"]);
+
+    expect(result.code).toBe(2);
+    expect(result.out).toBe("");
+  });
+});

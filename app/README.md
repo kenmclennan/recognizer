@@ -10,13 +10,10 @@ The Recognizer viewer: a Tauri 2 desktop app for macOS (Apple silicon), built fr
 
 ## Releases
 
-Every merge to `main` that passes the `app` workflow builds, signs and publishes a release to `kenmclennan/recognizer-releases`. The version is computed in the release runner from the version committed in `tauri.conf.json` and the releases already published; it is never committed by hand. The app checks for updates in production builds and offers them in its footer. The release job is skipped with a notice if the repository lacks the `RELEASES_TOKEN` secret.
+Every merge to `main` that passes the `app` workflow builds the toolchain archive (`recognizer-toolchain.tar.gz`: the CLI and every scanner) and the app (`recognizer.app.tar.gz`, ad-hoc signed), smoke-tests the archive, publishes both to `kenmclennan/recognizer-releases` and renders the formula and cask into `kenmclennan/homebrew-tap`. The version is computed in the release runner from the version committed in the root `package.json` and the releases already published, and stamped into every manifest; it is never committed by hand. The app updates only through Homebrew: install and upgrade with `brew install kenmclennan/tap/recognizer`, `brew install --cask kenmclennan/tap/recognizer` and `brew upgrade`, and the footer says when the app and the `recognizer` command are out of step. The release job is skipped with a notice if the repository lacks the `RELEASES_TOKEN` secret.
 
 ## Setup for the owner
 
-All done:
-
 - [x] Create the public repo `kenmclennan/recognizer-releases`.
-- [x] Generate the signing key with `npm run tauri -w @recognizer/app -- signer generate -w ~/.tauri/recognizer.key`.
-- [x] Paste the public key into `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json`.
-- [x] Set the repository secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and `RELEASES_TOKEN` (a fine-grained token with contents read and write on the releases repo only).
+- [ ] Create the public repo `kenmclennan/homebrew-tap` with a README and a default branch `main`; the release job renders `Formula/recognizer.rb` and `Casks/recognizer.rb` into it.
+- [ ] Set the repository secret `RELEASES_TOKEN` to a fine-grained token with contents read and write on both the releases repo and the tap.

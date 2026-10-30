@@ -25,6 +25,14 @@ export function stampVersion(root, version) {
     version,
   );
   rewrite(join(root, "app/package.json"), json, version);
+  rewrite(join(root, "package.json"), json, version);
+  rewrite(join(root, "check/package.json"), json, version);
+  rewrite(join(root, "scanners/typescript/package.json"), json, version);
+  rewrite(
+    join(root, "scanners/python/pyproject.toml"),
+    /^(version = ")[^"]*(")/m,
+    version,
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

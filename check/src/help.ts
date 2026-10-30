@@ -14,6 +14,7 @@ export function shortHelp(commands: Command[] = COMMANDS): string {
     ...lines,
     "",
     "run `recognizer help <command>` or `recognizer <command> --help` for a command in full",
+    "run `recognizer --version` for the version",
     "",
   ].join("\n");
 }

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { scan } from "../src/index.js";
 import {
   ajvValidate,
+  BIN,
   FIXTURE,
   listFiles,
   PACKAGE,
@@ -157,5 +159,17 @@ describe("cli", () => {
 
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
+  });
+});
+
+describe("--version", () => {
+  it("prints the manifest version", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(PACKAGE, "package.json"), "utf8"),
+    ) as { version: string };
+    const result = spawnSync("node", [BIN, "--version"], { encoding: "utf8" });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(`${manifest.version}\n`);
   });
 });

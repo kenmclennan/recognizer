@@ -14,14 +14,13 @@ export const SCANNERS: ScannerSpec[] = [
     language: "python",
     name: "recognizer-scan-python",
     variable: "RECOGNIZER_SCAN_PYTHON",
-    install:
-      "pipx install recognizer-scan-python or uvx --from recognizer-scan-python recognizer-scan-python",
+    install: "brew install kenmclennan/tap/recognizer",
   },
   {
     language: "typescript",
     name: "recognizer-scan-typescript",
     variable: "RECOGNIZER_SCAN_TYPESCRIPT",
-    install: "npm install --global recognizer-scan-typescript",
+    install: "brew install kenmclennan/tap/recognizer",
   },
   {
     language: "kotlin",
