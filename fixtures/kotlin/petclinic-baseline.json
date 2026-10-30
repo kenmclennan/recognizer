@@ -1,0 +1,9 @@
+{
+  "repository": "ArnauAregall/micronaut-kotlin-petclinic-clean-architecture",
+  "commit": "e6e3b49140a55daa148de19111a060e2f62e32be",
+  "files": 195,
+  "modules": 72,
+  "edges": 517,
+  "damaged": 5,
+  "precision_floor": 0.98
+}

@@ -16,7 +16,7 @@
     "foreign"
   ],
   "properties": {
-    "schema_version": { "const": 4 },
+    "schema_version": { "const": 5 },
     "scanner": {
       "type": "object",
       "additionalProperties": false,
@@ -33,7 +33,11 @@
     "modules": { "type": "array", "items": { "$ref": "#/$defs/module" } },
     "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
     "foreign": { "type": "array", "items": { "$ref": "#/$defs/foreignNode" } },
-    "calls": { "type": "array", "items": { "$ref": "#/$defs/call" } }
+    "calls": { "type": "array", "items": { "$ref": "#/$defs/call" } },
+    "unresolved_imports": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/unresolvedImport" }
+    }
   },
   "$defs": {
     "scannedFile": {
@@ -43,6 +47,16 @@
       "properties": {
         "path": { "$ref": "#/$defs/moduleId" },
         "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "unresolvedImport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "import", "line"],
+      "properties": {
+        "from": { "$ref": "#/$defs/moduleId" },
+        "import": { "type": "string", "minLength": 1 },
+        "line": { "$ref": "#/$defs/line" }
       }
     },
     "stringList": {
@@ -97,6 +111,9 @@
         },
         "line": { "$ref": "#/$defs/line" },
         "exported": { "type": "boolean" },
+        "visibility": {
+          "enum": ["public", "protected", "internal", "private"]
+        },
         "bases": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
@@ -109,6 +126,25 @@
         "value": { "type": "string", "maxLength": 40 }
       },
       "allOf": [
+        {
+          "if": { "required": ["visibility"] },
+          "then": {
+            "oneOf": [
+              {
+                "properties": {
+                  "exported": { "const": true },
+                  "visibility": { "enum": ["public", "protected", "internal"] }
+                }
+              },
+              {
+                "properties": {
+                  "exported": { "const": false },
+                  "visibility": { "const": "private" }
+                }
+              }
+            ]
+          }
+        },
         {
           "if": {
             "properties": { "kind": { "enum": ["class", "interface"] } }

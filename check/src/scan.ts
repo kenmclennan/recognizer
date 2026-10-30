@@ -58,6 +58,7 @@ export interface ScanMethod {
 export interface ScanMember {
   name: string;
   exported: boolean;
+  visibility?: "public" | "protected" | "internal" | "private";
   kind?: "class" | "function" | "interface" | "type" | "constant";
   line?: number;
   bases?: string[];
@@ -85,6 +86,12 @@ export interface ScanSelection {
   skip_file_globs: string[];
 }
 
+export interface UnresolvedImport {
+  from: string;
+  import: string;
+  line: number;
+}
+
 export interface Scan {
   modules: {
     id: string;
@@ -93,6 +100,7 @@ export interface Scan {
   }[];
   edges: ScanEdge[];
   calls?: ScanCall[];
+  unresolved_imports?: UnresolvedImport[];
   foreign: { id: string; name: string }[];
 }
 

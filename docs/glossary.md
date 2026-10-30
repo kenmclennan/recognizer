@@ -13,6 +13,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Call | A member using another member: calling it, constructing it, or reaching it through an abstraction by dispatch. |
 | Outline | What a member contains, read from its declaration: a class's bases, fields, methods and tags, a function's parameters and return type, a constant's value. |
 | Class tag | One of `dataclass`, `frozen`, `final`, `runtime_checkable` or `abstract` on a class or interface, read from its decorators or modifiers and shown in Contents beside the class name. |
+| Visibility | A Kotlin member's declared access modifier: `public`, `protected`, `internal` or `private`. A member is exported unless it is private. |
+| Unresolved import | A Kotlin import whose name is declared in no scanned file but whose package is under an in-repo package prefix, such as generated code. Recorded in the scan so it is never dropped silently. |
 | Dispatch | A call from an abstract or interface method to each concrete method that implements it, so a caller that reaches a port also reaches its adapter. |
 | Trace | The calls followed from one member, which is how an agent finds what a feature touches. Never drawn on the canvas. |
 | Name | A member's name as another module imports it. |

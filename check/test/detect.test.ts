@@ -17,9 +17,12 @@ function detect(files: string[], symlinks: string[] = []) {
 describe("selection parity", () => {
   const parity = JSON.parse(
     readFileSync(join(REPO, "fixtures/selection-parity.json"), "utf8"),
-  ) as Record<"python" | "typescript", { tree: string[]; accepted: string[] }>;
+  ) as Record<
+    "python" | "typescript" | "kotlin",
+    { tree: string[]; accepted: string[] }
+  >;
 
-  it.each(["python", "typescript"] as const)(
+  it.each(["python", "typescript", "kotlin"] as const)(
     "detects %s exactly when its scanner accepts a file of the shared tree",
     (language) => {
       const { tree, accepted } = parity[language];
@@ -30,7 +33,7 @@ describe("selection parity", () => {
     },
   );
 
-  it.each(["python", "typescript"] as const)(
+  it.each(["python", "typescript", "kotlin"] as const)(
     "detects %s from no rejected file of the shared tree",
     (language) => {
       const { tree, accepted } = parity[language];
@@ -40,7 +43,7 @@ describe("selection parity", () => {
     },
   );
 
-  it.each(["python", "typescript"] as const)(
+  it.each(["python", "typescript", "kotlin"] as const)(
     "detects %s from each accepted file alone",
     (language) => {
       for (const path of parity[language].accepted) {
@@ -60,6 +63,11 @@ describe("detectLanguages", () => {
       ["a.py", "src/a.ts"],
       ["python", "typescript"],
     ],
+    [["src/A.kt"], ["kotlin"]],
+    [["build.gradle.kts"], []],
+    [["build/A.kt"], []],
+    [[".gradle/A.kt"], []],
+    [["src/test/kotlin/ATest.kt"], ["kotlin"]],
     [["readme.md"], []],
     [["types/index.d.ts"], []],
     [["a.js"], ["typescript"]],
@@ -128,15 +136,16 @@ describe("detectLanguages", () => {
     expect(detect(["readme.md"], ["loop"]).languages).toEqual([]);
   });
 
-  it("stops walking once both languages are found", () => {
+  it("stops walking once every language is found", () => {
     const { languages, fake } = detect([
       "a.py",
       "b.ts",
+      "c.kt",
       "z/deep/one.txt",
       "z/other/two.txt",
     ]);
 
-    expect(languages).toEqual(["python", "typescript"]);
+    expect(languages).toEqual(["python", "typescript", "kotlin"]);
     expect(fake.readDirCalls()).toBe(1);
   });
 });

@@ -23,6 +23,13 @@ export const SCANNERS: ScannerSpec[] = [
     variable: "RECOGNIZER_SCAN_TYPESCRIPT",
     install: "npm install --global recognizer-scan-typescript",
   },
+  {
+    language: "kotlin",
+    name: "recognizer-scan-kotlin",
+    variable: "RECOGNIZER_SCAN_KOTLIN",
+    install:
+      "pipx install recognizer-scan-kotlin or uvx --from recognizer-scan-kotlin recognizer-scan-kotlin",
+  },
 ];
 
 export function scannerFor(language: Language): ScannerSpec {
