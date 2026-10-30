@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { generateRustNotices } from "./rust-notices.mjs";
 
 const NOTICE_FILE = /^(LICENSE|LICENCE|NOTICE)/;
 
@@ -47,7 +48,7 @@ export function buildNotices(lock, readLicenseFiles) {
       .trimEnd();
   });
 
-  return `# Third-party notices\n\nRecognizer ships the npm packages below.\n\n${sections.join("\n\n")}\n`;
+  return `# Third-party notices\n\nRecognizer ships the npm packages below, then the Rust crates the app is built from.\n\n${sections.join("\n\n")}\n`;
 }
 
 export function readLicenseFilesFrom(root) {
@@ -68,8 +69,12 @@ export function generateNotices(root) {
   return buildNotices(lock, readLicenseFilesFrom(root));
 }
 
+export function generateAllNotices(root) {
+  return `${generateNotices(root)}\n${generateRustNotices(root)}`;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL("../..", import.meta.url));
 
-  writeFileSync(join(root, "THIRD-PARTY-NOTICES.md"), generateNotices(root));
+  writeFileSync(join(root, "THIRD-PARTY-NOTICES.md"), generateAllNotices(root));
 }
