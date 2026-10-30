@@ -15,14 +15,15 @@ Recognizer scans a codebase into a language-neutral model of its modules and dep
 
 ### Languages
 
-- Python, TypeScript and Kotlin.
+- Python, TypeScript, Kotlin and Rust. More languages come later; this set covers the codebases recognizer is built for, including Kotlin Micronaut services and the Rust side of Tauri apps.
+- A repository holding several languages is scanned in each of them: one scan document per language, never merged, so nothing connects the languages where one calls into another (a webview's `invoke` into a Tauri command, a service calling another over HTTP).
 - One TypeScript scanner covers Node back ends and React front ends. Framework meaning (component, hook, route) belongs in the policy and overlays, not the scanner.
 
 ### Scanners
 
 - Each language has a standalone command-line scanner that emits the same JSON scan document, so audits and CI can scan without the viewer.
 - `recognizer scan <repository>` is the one front door: it detects the repository's languages, runs each language's scanner and writes one scan document per language to `.recognizer/cache/`. Scans are never merged; no edge crosses languages.
-- Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin, proved by a spike first.
+- Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin, proved by a spike first. Rust uses the `syn` parser, in a scanner written in Rust; a Rust module is a source file, and edges come from `use` paths and `mod` declarations resolved through the crate's module tree.
 
 ### Viewer
 
@@ -179,7 +180,7 @@ ignore: [tests/**, "**/fixtures/**"]
 
 Each scanner emits one JSON document per language, with `schema_version` (an integer, bumped only on a breaking change; a consumer refuses a version it does not know), the scanner's name and version, the commit scanned, and four lists:
 
-- **`modules`**: one per box. `id` is the repository-relative path with forward slashes and no leading `./`; for Kotlin, the package's directory path. `language` sits on the module, not the document. `kind` is `module`, `package` or `interface` (a module whose exports are only abstractions). `members` lists the classes and functions it contains: `name`, `kind` (`class`, `function`, `interface`, `type`, `constant`), `line`, `exported`, and the outline the inspector shows: a class's bases, its fields with their types, lines and privacy, and its methods; a function's or method's parameters with their types and its return type; a constant's value, shortened.
+- **`modules`**: one per box. `id` is the repository-relative path with forward slashes and no leading `./`; for Kotlin, the package's directory path. `language` sits on the module, not the document. `kind` is `module`, `package` or `interface` (a module whose exports are only abstractions). `members` lists the classes and functions it contains: `name`, `kind` (`class`, `function`, `interface`, `type`, `constant`), `line`, `exported` (the language's own declaration of its public surface: in Python, membership of `__all__` when the module defines one and otherwise a name without a leading underscore, which also marks a class's private fields and methods; in TypeScript, `export`; in Kotlin and Rust, their visibility modifiers), and the outline the inspector shows: a class's bases, its fields with their types, lines and privacy, and its methods; a function's or method's parameters with their types and its return type; a constant's value, shortened.
 - **`edges`**: module to module, `from` and `to` by module id, `kind` is `depends`, `inherits` or `implements`, and `line` is where in `from` it comes from, so a violation is clickable. `inherits` and `implements` also carry the two member names (`member`, `to_member`) for the viewer's drill-down.
   - **A `depends` edge points at the module that defines what is used.** It lists the imported `names`, and each name is followed through re-exporting files (a Python `__init__.py`, a TypeScript `index.ts`) to the module that defines it, which is `to`; the files it passed through are `via`, in order. An import of names from two defining modules is two edges. Without this, every user of a package's re-exports appears to depend on the whole package, and the real dependents of a module are hidden.
   - **An `inferred` edge is a dependency the imports do not show.** Where a parameter has no type (a constructor's collaborator, a function's argument), the scanner collects the methods called on it and finds the classes that define all of them, inherited methods included. When few classes match, preferring abstract ones (a Protocol, an ABC, an interface), it emits a `depends` edge to the defining module with `inferred` holding the evidence: the parameter, the methods called, the matched class and its known implementations. Too many matches, or only generic method names, emit nothing. An inferred edge is always drawn and reported as inferred.
