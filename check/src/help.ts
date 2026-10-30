@@ -1,3 +1,4 @@
+import { agentGuide } from "./agent-guide.js";
 import type { Io } from "./cli.js";
 import { COMMANDS, type Command } from "./commands.js";
 import { InputError } from "./errors.js";
@@ -15,6 +16,7 @@ export function shortHelp(commands: Command[] = COMMANDS): string {
     "",
     "run `recognizer help <command>` or `recognizer <command> --help` for a command in full",
     "run `recognizer --version` for the version",
+    "run `recognizer help agents` for the guide an agent follows",
     "",
   ].join("\n");
 }
@@ -58,6 +60,12 @@ export function runHelp(argv: string[], io: Io): number {
 
   if (name === undefined) {
     io.stdout(shortHelp());
+
+    return 0;
+  }
+
+  if (name === "agents" && rest.length === 0) {
+    io.stdout(agentGuide());
 
     return 0;
   }

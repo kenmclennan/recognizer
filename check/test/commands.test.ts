@@ -71,25 +71,36 @@ describe("command table", () => {
       "window",
       "describe",
       "measure",
+      "agents",
       "help",
     ]);
   });
 
-  it.each(COMMANDS.map((command) => command.name))(
-    "%s: help <name> and <name> --help print the table's entry",
-    (name) => {
-      const command = COMMANDS.find((entry) => entry.name === name);
-      const expected = fullHelp(command as (typeof COMMANDS)[number]);
+  it.each(
+    COMMANDS.map((command) => command.name).filter((name) => name !== "agents"),
+  )("%s: help <name> and <name> --help print the table's entry", (name) => {
+    const command = COMMANDS.find((entry) => entry.name === name);
+    const expected = fullHelp(command as (typeof COMMANDS)[number]);
 
-      expect(call(["help", name])).toEqual({ code: 0, out: expected, err: "" });
-      expect(call([name, "--help"])).toEqual({
-        code: 0,
-        out: expected,
-        err: "",
-      });
-      expect(call([name, "-h"]).out).toBe(expected);
-    },
-  );
+    expect(call(["help", name])).toEqual({ code: 0, out: expected, err: "" });
+    expect(call([name, "--help"])).toEqual({
+      code: 0,
+      out: expected,
+      err: "",
+    });
+    expect(call([name, "-h"]).out).toBe(expected);
+  });
+
+  it("agents --help prints the table's entry", () => {
+    const command = COMMANDS.find((entry) => entry.name === "agents");
+    const expected = fullHelp(command as (typeof COMMANDS)[number]);
+
+    expect(call(["agents", "--help"])).toEqual({
+      code: 0,
+      out: expected,
+      err: "",
+    });
+  });
 
   it.each(COMMANDS.map((command) => command.name))(
     "%s: dispatch reaches the table's run",

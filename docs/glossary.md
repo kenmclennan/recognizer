@@ -113,3 +113,5 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Agent line | The one fading footer line naming the latest agent change (`Claude added 4 modules`) with an Undo that steps back. |
 | Mark | Who made a history entry and what the change was, kept beside it so Back and Forward can name the agent's entries as the agent's. |
 | View bar | The control group at the canvas's top left: back and forward over the history, the open view's name with the saved views to open, Save and Copy link. |
+| Agent guide | The text `recognizer help agents` prints: how an agent answers show-me, extend, explain and drive requests, which commands to use and that `.recognizer/` is off limits. Its command section is generated from the command table. |
+| Agent install | What `recognizer agents install` writes into the user's Claude folder: a skill that only points at the agent guide, and a permission rule denying Read and Edit of `**/.recognizer/**`. `uninstall` reverses it. |
