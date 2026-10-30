@@ -257,6 +257,11 @@ function mount(files, author) {
     cards: m.cards().length,
     count: m.q(".rail-count").textContent,
     activeIsNew: m.all(".note-row.active .note-text").map((n) => n.textContent),
+    off: (() => {
+      const box = m.q('.box[data-id="' + A + '"]').getBoundingClientRect();
+      const stage = m.q(".stage").getBoundingClientRect();
+      return Math.hypot(box.left + box.width / 2 - (stage.left + stage.width / 2), box.top + box.height / 2 - (stage.top + stage.height / 2));
+    })(),
   };
 
   const frame = m.q(".frame-label");
@@ -530,6 +535,7 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
     expect(f.added.cards).toBe(1);
     expect(f.added.count).toBe("5");
     expect(f.added.activeIsNew).toEqual(["fresh note"]);
+    expect(f.added.off).toBeLessThan(2);
   });
 
   it("says to select a module when a folder is selected", () => {
