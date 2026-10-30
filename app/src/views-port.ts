@@ -15,6 +15,7 @@ export type ViewsPort = {
   scansAt(commit: string): Promise<Scan[] | null>;
   copy(text: string): Promise<void>;
   onChanged(run: () => void): () => void;
+  author(): Promise<string>;
 };
 
 export const inertViews: ViewsPort = {
@@ -27,6 +28,7 @@ export const inertViews: ViewsPort = {
   scansAt: async () => null,
   copy: async () => {},
   onChanged: () => () => {},
+  author: async () => "Me",
 };
 
 export const VIEW_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;

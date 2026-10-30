@@ -6,9 +6,15 @@
   "additionalProperties": false,
   "required": ["schema_version", "description", "commit", "steps"],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "enum": [1, 2] },
     "description": { "type": "string", "pattern": "\\S" },
     "commit": { "type": ["string", "null"], "minLength": 1 },
+    "note": { "$ref": "#/$defs/note" },
+    "module_notes": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/path" },
+      "additionalProperties": { "$ref": "#/$defs/note" }
+    },
     "steps": {
       "type": "array",
       "items": { "$ref": "#/$defs/step" },
@@ -19,7 +25,29 @@
       "maxContains": 1
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "schema_version": { "const": 1 } },
+        "required": ["schema_version"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [{ "required": ["note"] }, { "required": ["module_notes"] }]
+        }
+      }
+    }
+  ],
   "$defs": {
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "by"],
+      "properties": {
+        "text": { "type": "string", "pattern": "\\S" },
+        "by": { "type": "string", "pattern": "\\S", "maxLength": 64 }
+      }
+    },
     "path": {
       "type": "string",
       "minLength": 1,

@@ -82,7 +82,7 @@ const thenScan = {
 };
 const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], policy: null, notices: [], blocking: null };
 
-const viewText = (steps, commit, description = "d") => JSON.stringify({ schema_version: 1, description, commit, steps }, null, 2) + "\\n";
+const viewText = (steps, commit, description = "d", extra) => JSON.stringify({ schema_version: extra ? 2 : 1, description, commit, ...(extra || {}), steps }, null, 2) + "\\n";
 const pick = (module) => ({ kind: "pick", module });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 40));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

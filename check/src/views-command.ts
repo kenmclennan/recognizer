@@ -7,6 +7,7 @@ import { moduleNames, under } from "./neighbours.js";
 import type { Scan } from "./scan.js";
 import { resolveCommit } from "./scan-command.js";
 import {
+  type Note,
   type ResolvedView,
   resolveView,
   type View,
@@ -21,6 +22,7 @@ export const VIEW_SUBCOMMANDS = [
   "fold",
   "focus",
   "remove",
+  "note",
   "show",
   "list",
   "check",
@@ -42,6 +44,8 @@ const OPTIONS = {
   rule: { type: "string" },
   fix: { type: "boolean" },
   current: { type: "boolean" },
+  by: { type: "string" },
+  remove: { type: "boolean" },
 } as const;
 
 export const VIEW_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
@@ -53,6 +57,7 @@ const ALLOWED: Record<Subcommand, string[]> = {
   fold: [],
   focus: [],
   remove: ["fold", "focus", "rule", "within"],
+  note: ["by", "remove"],
   show: ["current"],
   list: [],
   check: ["fix"],
@@ -67,6 +72,7 @@ const USAGE: Record<Subcommand, string> = {
   focus: "recognizer views focus <name> <folder> [--repository <dir>] [--json]",
   remove:
     "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
+  note: "recognizer views note <name> [<module>] (<text> [--by <name>] | --remove) [--repository <dir>] [--json]",
   show: "recognizer views show (<name> | --current) [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
   check:
@@ -134,16 +140,32 @@ function checkName(name: string | undefined): string {
 }
 
 function serialise(view: View): string {
+  const moduleNotes = Object.entries(view.module_notes ?? {}).sort(
+    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+  );
+
   return `${JSON.stringify(
     {
-      schema_version: 1,
+      schema_version: 2,
       description: view.description,
       commit: view.commit,
+      ...(view.note === undefined ? {} : { note: orderedNote(view.note) }),
+      ...(moduleNotes.length === 0
+        ? {}
+        : {
+            module_notes: Object.fromEntries(
+              moduleNotes.map(([module, note]) => [module, orderedNote(note)]),
+            ),
+          }),
       steps: view.steps.map(orderedStep),
     },
     null,
     2,
   )}\n`;
+}
+
+function orderedNote(note: Note): Note {
+  return { text: note.text, by: note.by };
 }
 
 function orderedStep(step: ViewStep): ViewStep {
@@ -337,7 +359,7 @@ function runNew(argv: string[], io: Io): number {
   }
 
   const view: View = {
-    schema_version: 1,
+    schema_version: 2,
     description,
     commit: resolveCommit(io, c.root),
     steps: [],
@@ -579,6 +601,87 @@ function runRemove(argv: string[], io: Io): number {
   );
 }
 
+function runNote(argv: string[], io: Io): number {
+  const probe = context("note", argv, io);
+  const removing = probe.values.remove === true;
+
+  return mutate(
+    "note",
+    argv,
+    io,
+    (c, view, scans) => {
+      const target = removing
+        ? c.positionals.slice(1)
+        : c.positionals.slice(1, -1);
+      const module = target[0];
+
+      if (c.values.by !== undefined && removing) {
+        throw new InputError(["--by does not apply to --remove"]);
+      }
+
+      if (
+        module !== undefined &&
+        !resolveView(view, scans).modules.includes(module)
+      ) {
+        throw new InputError([`${module} is not on the view`]);
+      }
+
+      const where = module === undefined ? "" : ` on ${module}`;
+
+      if (removing) {
+        const present =
+          module === undefined
+            ? view.note !== undefined
+            : view.module_notes?.[module] !== undefined;
+
+        if (!present) {
+          throw new InputError([`no note on ${module ?? "the view"}`]);
+        }
+
+        if (module === undefined) {
+          delete view.note;
+        } else {
+          delete (view.module_notes as Record<string, Note>)[module];
+        }
+
+        return { view, what: `removed the note${where}` };
+      }
+
+      const text = (c.positionals[c.positionals.length - 1] as string).trim();
+      const by = ((c.values.by as string | undefined) ?? "agent").trim();
+
+      if (text === "") {
+        throw new InputError(["the note text must not be blank"]);
+      }
+
+      if (by === "" || by.length > 64) {
+        throw new InputError([
+          "--by must not be blank and is at most 64 characters",
+        ]);
+      }
+
+      const note: Note = { text, by };
+      const replaced =
+        module === undefined
+          ? view.note !== undefined
+          : view.module_notes?.[module] !== undefined;
+
+      if (module === undefined) {
+        view.note = note;
+      } else {
+        view.module_notes = { ...view.module_notes, [module]: note };
+      }
+
+      return {
+        view,
+        what: `${replaced ? "replaced" : "set"} the note${where}`,
+      };
+    },
+    (count) =>
+      removing ? count === 1 || count === 2 : count === 2 || count === 3,
+  );
+}
+
 function resolvedJson(resolved: ResolvedView) {
   return {
     modules: resolved.modules,
@@ -643,6 +746,8 @@ function runShow(argv: string[], io: Io): number {
         description: view.description,
         commit: view.commit,
         steps: view.steps,
+        note: view.note ?? null,
+        module_notes: view.module_notes ?? {},
         resolved: resolvedJson(resolved),
         unresolved: resolved.unresolved,
       },
@@ -655,11 +760,29 @@ function runShow(argv: string[], io: Io): number {
   const lines = [
     `${name}: ${view.description}`,
     `saved at ${view.commit ?? "none"}`,
+    ...(view.note === undefined
+      ? []
+      : [`note: ${view.note.text} (${view.note.by})`]),
     view.steps.length === 0 ? "no steps" : "steps:",
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
     `resolves to ${plural(resolved.modules.length, "module")}`,
     ...resolved.modules.map((module) => `  ${module}`),
   ];
+
+  const onView = new Set(resolved.modules);
+  const moduleNotes = Object.entries(view.module_notes ?? {}).sort(
+    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+  );
+
+  if (moduleNotes.length > 0) {
+    lines.push(
+      "notes:",
+      ...moduleNotes.map(
+        ([module, note]) =>
+          `  ${module}: ${note.text} (${note.by})${onView.has(module) ? "" : " (not on the view)"}`,
+      ),
+    );
+  }
 
   if (resolved.unresolved.length > 0) {
     lines.push(
@@ -861,7 +984,25 @@ function runCheck(argv: string[], io: Io): number {
           }
         });
 
-        view = { ...view, steps };
+        const moduleNotes = { ...view.module_notes };
+
+        for (const { from, to } of fixed) {
+          if (
+            moduleNotes[from] !== undefined &&
+            moduleNotes[to] === undefined
+          ) {
+            moduleNotes[to] = moduleNotes[from] as Note;
+            delete moduleNotes[from];
+          }
+        }
+
+        view = {
+          ...view,
+          steps,
+          ...(Object.keys(moduleNotes).length === 0
+            ? {}
+            : { module_notes: moduleNotes }),
+        };
         writeViewFile(io, viewFile(c.root, name), view);
         unresolved = annotate(view);
       }
@@ -946,6 +1087,7 @@ const HANDLERS: Record<Subcommand, (argv: string[], io: Io) => number> = {
   fold: runFold,
   focus: runFocus,
   remove: runRemove,
+  note: runNote,
   show: runShow,
   list: runList,
   check: runCheck,

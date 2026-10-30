@@ -49,6 +49,7 @@ function inputsFor(
       busy: false,
       failure: null,
     }),
+    moduleNote: () => null,
     ...extra,
   };
 }
@@ -95,6 +96,33 @@ const klass = (extra: Partial<ScanMember> = {}): ScanMember => ({
     { name: "_h", line: 8, params: [], private: true },
   ],
   ...extra,
+});
+
+describe("module note row", () => {
+  const scan = {
+    modules: [{ id: "pkg/m.py", members: [] }],
+    edges: [],
+  } as unknown as Scan;
+
+  it("is the first row, above the responsibility row, when a view is open", () => {
+    const note = { text: "T", by: "Ken" };
+    const rows = rowsOf(scan, {
+      moduleNote: () => ({ view: "v", note, editing: null }),
+    });
+
+    expect(rows[0]).toEqual({
+      kind: "module-note",
+      id: "pkg/m.py",
+      view: "v",
+      note,
+      editing: null,
+    });
+    expect(rows[1]?.kind).toBe("responsibility");
+  });
+
+  it("is absent when no view is open", () => {
+    expect(rowsOf(scan).some((row) => row.kind === "module-note")).toBe(false);
+  });
 });
 
 describe("module contents as cards", () => {

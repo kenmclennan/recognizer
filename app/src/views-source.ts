@@ -22,6 +22,7 @@ export const viewsSource: ViewsPort = {
       : files.map(({ text }) => JSON.parse(text) as Scan);
   },
   copy: (text) => navigator.clipboard.writeText(text),
+  author: () => invoke<string>("view_author"),
   onChanged(run) {
     void invoke<void>("watch_views");
 

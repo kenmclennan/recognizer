@@ -1,4 +1,4 @@
-import { resolveView } from "recognizer";
+import { resolveView, type View } from "recognizer";
 import { type Scheduler, timerScheduler } from "./bar-hover";
 import { createBusyGate } from "./busy-gate";
 import {
@@ -93,6 +93,13 @@ import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
 import { createHistory, type History } from "./view-history";
+import {
+  notedModules,
+  removeModuleNote,
+  removeViewNote,
+  setModuleNote,
+  setViewNote,
+} from "./view-notes";
 import { stepsFor } from "./view-steps";
 import { inertViews, type ViewsPort } from "./views-port";
 
@@ -183,6 +190,9 @@ export function showExplorer(
       selection: null,
     });
   const writeCurrent = latestWins(views.writeCurrent);
+  const authorName = views.author().catch(() => "Me");
+  let moduleNoteEdit: { id: string; draft: string } | null = null;
+  let noted: ReadonlySet<string> = new Set();
 
   const context = {
     isOpen: modules.isOpen,
@@ -303,6 +313,31 @@ export function showExplorer(
 
   const rootActions: InspectorActions = {
     describe: (id) => void describeModule(id),
+    noteEdit(id) {
+      moduleNoteEdit = {
+        id,
+        draft: openViewValue()?.module_notes?.[id]?.text ?? "",
+      };
+      render();
+    },
+    noteDraft(text) {
+      if (moduleNoteEdit !== null) {
+        moduleNoteEdit.draft = text;
+      }
+    },
+    noteCancel() {
+      moduleNoteEdit = null;
+      render();
+    },
+    noteSave: (id, text) =>
+      void writeNote(async (view) =>
+        setModuleNote(view, id, text, await authorName),
+      ).then(() => {
+        moduleNoteEdit = null;
+        render();
+      }),
+    noteDelete: (id) =>
+      void writeNote(async (view) => removeModuleNote(view, id)),
     open() {
       inspectorOpen = true;
       render();
@@ -474,6 +509,9 @@ export function showExplorer(
     rename: (from, to) => renameOpen(from, to),
     copyLink: () => void copyLink(),
     hasOpenView: () => openView !== null,
+    setNote: (text) =>
+      void writeNote(async (view) => setViewNote(view, text, await authorName)),
+    deleteNote: () => void writeNote(async (view) => removeViewNote(view)),
   });
   const stale = buildStalePanel({
     update: () => void update(),
@@ -969,9 +1007,36 @@ export function showExplorer(
     renderNotices();
   }
 
+  function openViewValue(): View | null {
+    if (openView === null) {
+      return null;
+    }
+
+    const text =
+      viewTexts.get(openView) ??
+      viewList.find((entry) => entry.name === openView)?.text;
+    const parsed = text === undefined ? null : parseViewFile(text);
+
+    return parsed?.ok ? parsed.view : null;
+  }
+
+  async function writeNote(change: (view: View) => Promise<View>) {
+    const name = openView;
+    const view = openViewValue();
+
+    if (name === null || view === null) {
+      return;
+    }
+
+    await writeView(name, await change(view));
+    renderBar();
+    render();
+  }
+
   function renderBar() {
     bar.render({
       open: openView,
+      note: openViewValue()?.note ?? null,
       views: viewList.map(({ name, text }) => {
         const parsed = parseViewFile(text);
 
@@ -1216,7 +1281,7 @@ export function showExplorer(
 
   async function saveNew(name: string, description: string) {
     const problem = await writeView(name, {
-      schema_version: 1,
+      schema_version: 2,
       description,
       commit: currentCommit(scans),
       steps: stepsFor([], canvasContent(), scans),
@@ -1380,7 +1445,17 @@ export function showExplorer(
     await applyView(name, entry.text, true);
   }
 
+  function syncNoted() {
+    const view = openViewValue();
+    const next = view === null ? new Set<string>() : notedModules(view);
+
+    if (next.size !== noted.size || [...next].some((id) => !noted.has(id))) {
+      noted = next;
+    }
+  }
+
   function renderCanvas() {
+    syncNoted();
     onCount(`${modules.count()} of ${modules.total()} modules on the canvas`);
 
     const selection = state.selection();
@@ -1412,10 +1487,15 @@ export function showExplorer(
       showInferred: state.showInferred(),
       notice: layoutNotice,
       busy: layoutBusy,
+      noted,
     });
   }
 
   function render() {
+    if (openView === null) {
+      moduleNoteEdit = null;
+    }
+
     const filtered = filterTree(root, filter, context);
     const selection = state.selection();
 
@@ -1466,6 +1546,18 @@ export function showExplorer(
           busy: describing.busy(id),
           failure: describing.failure(id),
         }),
+        moduleNote: (id) => {
+          const view = openViewValue();
+
+          return openView === null || view === null
+            ? null
+            : {
+                view: openView,
+                note: view.module_notes?.[id] ?? null,
+                editing:
+                  moduleNoteEdit?.id === id ? moduleNoteEdit.draft : null,
+              };
+        },
       });
     };
 

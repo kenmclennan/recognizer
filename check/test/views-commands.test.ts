@@ -45,6 +45,17 @@ function view(
   };
 }
 
+function noted(
+  name: string,
+  extra: Record<string, unknown>,
+  steps: unknown[] = [],
+  version = 2,
+) {
+  return {
+    [`${VIEWS}/${name}.json`]: `${JSON.stringify({ schema_version: version, description: "p", commit: COMMIT, ...extra, steps }, null, 2)}\n`,
+  };
+}
+
 function go(fake: Fake, ...argv: string[]) {
   const before = fake.out().length;
   const code = run(["views", ...argv, "--repository", ROOT], fake.io);
@@ -69,7 +80,7 @@ describe("views new", () => {
     expect(code).toBe(0);
     expect(out).toBe("a: created; 0 steps, resolves to 0 modules\n");
     expect(saved(fake, "a")).toEqual({
-      schema_version: 1,
+      schema_version: 2,
       description: "Why",
       commit: COMMIT,
       steps: [],
@@ -636,6 +647,231 @@ describe("the commit in the file", () => {
       go(fake, ...argv);
       expect(saved(fake, "a").commit).toBe("keep");
     }
+  });
+});
+
+const PLACE = "shop/domain/order.py";
+const STORE = "shop/ports/store.py";
+const ON_VIEW = [
+  { kind: "pick", module: PLACE },
+  { kind: "pick", module: STORE },
+];
+
+describe("views note", () => {
+  it("sets a note on the view with the default author", () => {
+    const fake = repository(view("a", ON_VIEW));
+    const { code, out } = go(fake, "note", "a", "Start here");
+
+    expect(code).toBe(0);
+    expect(out).toBe("a: set the note; 2 steps, resolves to 2 modules\n");
+    expect(saved(fake, "a").note).toEqual({ text: "Start here", by: "agent" });
+    expect(saved(fake, "a").schema_version).toBe(2);
+  });
+
+  it("sets a note on a module with an explicit author and replaces it", () => {
+    const fake = repository(view("a", ON_VIEW));
+
+    expect(go(fake, "note", "a", PLACE, "One", "--by", "Ken").out).toContain(
+      `set the note on ${PLACE}`,
+    );
+    expect(saved(fake, "a").module_notes).toEqual({
+      [PLACE]: { text: "One", by: "Ken" },
+    });
+
+    const replaced = go(fake, "note", "a", PLACE, "Two", "--by", "Claude");
+
+    expect(replaced.out).toContain(`replaced the note on ${PLACE}`);
+    expect(saved(fake, "a").module_notes[PLACE]).toEqual({
+      text: "Two",
+      by: "Claude",
+    });
+  });
+
+  it("replaces the view note", () => {
+    const fake = repository(
+      noted("a", { note: { text: "Old", by: "Ken" } }, ON_VIEW),
+    );
+
+    expect(go(fake, "note", "a", "New").out).toContain("replaced the note;");
+    expect(saved(fake, "a").note).toEqual({ text: "New", by: "agent" });
+  });
+
+  it("reports no change and writes nothing for the same note", () => {
+    const fake = repository(
+      noted("a", { note: { text: "Same", by: "Ken" } }, ON_VIEW),
+    );
+    const { code, out } = go(
+      fake,
+      "note",
+      "a",
+      "Same",
+      "--by",
+      "Ken",
+      "--json",
+    );
+
+    expect(code).toBe(0);
+    expect(JSON.parse(out).changed).toBe(false);
+    expect(fake.writes).toEqual([]);
+  });
+
+  it("removes each kind of note", () => {
+    const fake = repository(
+      noted(
+        "a",
+        {
+          note: { text: "V", by: "Ken" },
+          module_notes: { [PLACE]: { text: "M", by: "Ken" } },
+        },
+        ON_VIEW,
+      ),
+    );
+
+    expect(go(fake, "note", "a", PLACE, "--remove").out).toContain(
+      `removed the note on ${PLACE}`,
+    );
+    expect(saved(fake, "a").module_notes).toBeUndefined();
+    expect(go(fake, "note", "a", "--remove").out).toContain(
+      "removed the note;",
+    );
+    expect(saved(fake, "a").note).toBeUndefined();
+  });
+
+  it("is exit 2 for an absent note, a module not on the view, blank input and --remove with --by", () => {
+    const fake = repository(view("a", ON_VIEW));
+
+    expect(go(fake, "note", "a", "--remove").code).toBe(2);
+    expect(go(fake, "note", "a", PLACE, "--remove").code).toBe(2);
+    expect(go(fake, "note", "a", "shop/domain/other.py", "x").code).toBe(2);
+    expect(go(fake, "note", "a", "   ").code).toBe(2);
+    expect(go(fake, "note", "a", "x", "--by", " ").code).toBe(2);
+    expect(go(fake, "note", "a", "--remove", "--by", "Ken").code).toBe(2);
+    expect(go(fake, "show", "a", "--by", "Ken").code).toBe(2);
+    expect(fake.writes).toEqual([]);
+  });
+
+  it("names the module that is not on the view", () => {
+    const fake = repository(view("a", ON_VIEW));
+    const { code } = go(fake, "note", "a", "shop/domain/other.py", "x");
+
+    expect(code).toBe(2);
+    expect(fake.err()).toContain("shop/domain/other.py is not on the view");
+  });
+
+  it("is shown by show in text and json, marking a module that left the scan", () => {
+    const fake = repository(
+      noted(
+        "a",
+        {
+          note: { text: "V", by: "Ken" },
+          module_notes: {
+            [PLACE]: { text: "Here", by: "Ken" },
+            "shop/gone.py": { text: "Lost", by: "Claude" },
+          },
+        },
+        ON_VIEW,
+      ),
+    );
+    const text = go(fake, "show", "a").out;
+
+    expect(text).toContain("note: V (Ken)");
+    expect(text).toContain(`  ${PLACE}: Here (Ken)\n`);
+    expect(text).toContain("  shop/gone.py: Lost (Claude) (not on the view)");
+
+    const document = JSON.parse(go(fake, "show", "a", "--json").out);
+
+    expect(document.note).toEqual({ text: "V", by: "Ken" });
+    expect(Object.keys(document.module_notes)).toHaveLength(2);
+    expect(
+      JSON.parse(go(repository(view("b")), "show", "b", "--json").out),
+    ).toMatchObject({ note: null, module_notes: {} });
+  });
+
+  it("is kept by every other mutation, and by taking a module off the view", () => {
+    const extra = {
+      note: { text: "V", by: "Ken" },
+      module_notes: { [PLACE]: { text: "M", by: "Ken" } },
+    };
+    const fake = repository(noted("a", extra, ON_VIEW));
+
+    for (const argv of [
+      ["add", "a", "shop/domain/aliases.py"],
+      ["rule", "a", "--folder", "shop/domain"],
+      ["fold", "a", "shop/domain"],
+      ["focus", "a", "shop/domain"],
+      ["remove", "a", PLACE],
+    ]) {
+      expect(go(fake, ...argv).code).toBe(0);
+      expect(saved(fake, "a")).toMatchObject(extra);
+    }
+  });
+
+  it("writes a version 1 view back at version 2 and leaves it alone on a no-op", () => {
+    const fake = repository(noted("a", {}, ON_VIEW, 1));
+
+    expect(go(fake, "note", "a", "--remove").code).toBe(2);
+    expect(fake.writes).toEqual([]);
+    expect(saved(fake, "a").schema_version).toBe(1);
+
+    go(fake, "note", "a", "Hi");
+
+    expect(saved(fake, "a").schema_version).toBe(2);
+  });
+
+  it("writes keys in order with module notes sorted", () => {
+    const fake = repository(view("a", ON_VIEW));
+
+    go(fake, "note", "a", STORE, "S");
+    go(fake, "note", "a", PLACE, "P");
+    go(fake, "note", "a", "V");
+
+    expect(Object.keys(saved(fake, "a"))).toEqual([
+      "schema_version",
+      "description",
+      "commit",
+      "note",
+      "module_notes",
+      "steps",
+    ]);
+    expect(Object.keys(saved(fake, "a").module_notes)).toEqual([PLACE, STORE]);
+  });
+
+  it("moves a module note with a renamed pick and leaves an existing target note", () => {
+    const OLD = "shop/old.py";
+    const renamed = `R100\0${OLD}\0${PLACE}\0`;
+    const moving = repository(
+      noted("a", { module_notes: { [OLD]: { text: "M", by: "Ken" } } }, [
+        { kind: "pick", module: OLD },
+      ]),
+      renamed,
+    );
+
+    go(moving, "check", "--fix");
+
+    expect(saved(moving, "a").module_notes).toEqual({
+      [PLACE]: { text: "M", by: "Ken" },
+    });
+
+    const kept = repository(
+      noted(
+        "a",
+        {
+          module_notes: {
+            [OLD]: { text: "Old", by: "Ken" },
+            [PLACE]: { text: "Own", by: "Claude" },
+          },
+        },
+        [{ kind: "pick", module: OLD }],
+      ),
+      renamed,
+    );
+
+    go(kept, "check", "--fix");
+
+    expect(saved(kept, "a").module_notes).toEqual({
+      [OLD]: { text: "Old", by: "Ken" },
+      [PLACE]: { text: "Own", by: "Claude" },
+    });
   });
 });
 

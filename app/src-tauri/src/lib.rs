@@ -657,6 +657,15 @@ fn view_path(app: AppHandle, window: WebviewWindow, name: String) -> Result<Stri
 }
 
 #[tauri::command]
+async fn view_author(app: AppHandle, window: WebviewWindow) -> Result<String, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || views::view_author(&folder))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn renames_since(
     app: AppHandle,
     window: WebviewWindow,
@@ -785,6 +794,7 @@ pub fn run() {
             renames_since,
             scan_folder,
             scans_at,
+            view_author,
             view_path,
             watch_changes,
             watch_responsibilities,

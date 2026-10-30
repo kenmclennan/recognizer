@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "description": "How an order is placed.",
+  "commit": "abc123",
+  "note": {
+    "text": "Start at place.py; the adapters are shown only for the store.",
+    "by": "Claude"
+  },
+  "module_notes": {
+    "shop/application/place.py": {
+      "text": "The one use case; it must not touch the store directly.",
+      "by": "Ken"
+    }
+  },
+  "steps": [{ "kind": "pick", "module": "shop/application/place.py" }]
+}
