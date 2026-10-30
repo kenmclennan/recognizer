@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
+          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, read and watch its module responsibility lines, and describe one module\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
+          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, read and watch its module responsibility lines, and describe one module\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-view-path`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
         },
         {
           "description": "Read and write the app's settings\n#### This permission set includes:\n\n- `allow-read-settings`\n- `allow-write-settings`",
@@ -201,6 +201,12 @@
           "markdownDescription": "Enables the choose_folder command without any pre-configured scope."
         },
         {
+          "description": "Enables the describe_module command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-describe-module",
+          "markdownDescription": "Enables the describe_module command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_views command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-views",
@@ -217,6 +223,12 @@
           "type": "string",
           "const": "allow-open-in-editor",
           "markdownDescription": "Enables the open_in_editor command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_responsibilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-responsibilities",
+          "markdownDescription": "Enables the read_responsibilities command without any pre-configured scope."
         },
         {
           "description": "Enables the read_settings command without any pre-configured scope.",
@@ -267,6 +279,12 @@
           "markdownDescription": "Enables the watch_changes command without any pre-configured scope."
         },
         {
+          "description": "Enables the watch_responsibilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-watch-responsibilities",
+          "markdownDescription": "Enables the watch_responsibilities command without any pre-configured scope."
+        },
+        {
           "description": "Enables the watch_views command without any pre-configured scope.",
           "type": "string",
           "const": "allow-watch-views",
@@ -309,6 +327,12 @@
           "markdownDescription": "Denies the choose_folder command without any pre-configured scope."
         },
         {
+          "description": "Denies the describe_module command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-describe-module",
+          "markdownDescription": "Denies the describe_module command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_views command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-views",
@@ -325,6 +349,12 @@
           "type": "string",
           "const": "deny-open-in-editor",
           "markdownDescription": "Denies the open_in_editor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_responsibilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-responsibilities",
+          "markdownDescription": "Denies the read_responsibilities command without any pre-configured scope."
         },
         {
           "description": "Denies the read_settings command without any pre-configured scope.",
@@ -373,6 +403,12 @@
           "type": "string",
           "const": "deny-watch-changes",
           "markdownDescription": "Denies the watch_changes command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the watch_responsibilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-watch-responsibilities",
+          "markdownDescription": "Denies the watch_responsibilities command without any pre-configured scope."
         },
         {
           "description": "Denies the watch_views command without any pre-configured scope.",

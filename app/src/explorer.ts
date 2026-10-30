@@ -43,6 +43,16 @@ import { createOpenModules } from "./open-modules";
 import { mountPanelResizers } from "./panel-resizer-view";
 import { buildRailView } from "./rail-view";
 import { repositorySource } from "./repository-source";
+import {
+  inertResponsibilities,
+  type ResponsibilitiesPort,
+} from "./responsibilities-port";
+import {
+  createDescribing,
+  NO_FILES,
+  type ResponsibilityState,
+  responsibilityStates,
+} from "./responsibility-model";
 import { nextCheck } from "./row-model";
 import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
@@ -111,6 +121,7 @@ export function showExplorer(
     setItem: () => {},
   },
   editor: EditorPort = inertEditor,
+  responsibilities: ResponsibilitiesPort = inertResponsibilities,
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
   const knownModules = new Set(loaded.modules);
@@ -250,7 +261,41 @@ export function showExplorer(
     scheduler,
   );
 
+  const describing = createDescribing();
+  let responsibilityOf: (id: string) => ResponsibilityState =
+    responsibilityStates(NO_FILES);
+
+  async function readResponsibilities() {
+    try {
+      responsibilityOf = responsibilityStates(await responsibilities.read());
+    } catch (error) {
+      const reason = String(error);
+
+      responsibilityOf = () => ({ kind: "unknown", reason });
+    }
+
+    describing.read(responsibilityOf);
+    render();
+  }
+
+  async function describeModule(id: string) {
+    if (!describing.start(id)) {
+      return;
+    }
+
+    render();
+
+    try {
+      describing.finish(id, await responsibilities.describe(id));
+    } catch (error) {
+      describing.finish(id, { status: "failed", reason: String(error) });
+    }
+
+    await readResponsibilities();
+  }
+
   const rootActions: InspectorActions = {
+    describe: (id) => void describeModule(id),
     open() {
       inspectorOpen = true;
       render();
@@ -1388,6 +1433,11 @@ export function showExplorer(
         filter: root ? pickerFilter : panel.filter,
         collapsed: root ? groupFlips : panel.groupFlips,
         followed: panel.followed,
+        responsibility: (id) => ({
+          state: responsibilityOf(id),
+          busy: describing.busy(id),
+          failure: describing.failure(id),
+        }),
       });
     };
 
@@ -1479,6 +1529,11 @@ export function showExplorer(
   resizeObserver?.observe(body);
 
   const stopWatching = views.onChanged(() => void onViewsChanged());
+  const stopWatchingResponsibilities = responsibilities.onChanged(
+    () => void readResponsibilities(),
+  );
+
+  void readResponsibilities();
 
   void loadViewList().then(() => {
     if (carried?.snapshot.view != null) {
@@ -1497,6 +1552,7 @@ export function showExplorer(
     dispose() {
       resizeObserver?.disconnect();
       stopWatching();
+      stopWatchingResponsibilities();
       bar.dispose();
     },
   };

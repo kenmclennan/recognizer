@@ -14,6 +14,7 @@ import {
 import type { EvidenceSection } from "./edge-evidence";
 import type { Disc, Finding } from "./health";
 import { createPicker, type PickerSource } from "./picker-model";
+import type { ResponsibilityRow } from "./responsibility-model";
 import { type CheckState, checkState } from "./row-model";
 
 export type InspectorTab = "contents" | "findings" | "dependencies";
@@ -33,6 +34,7 @@ export type InspectorInputs = {
   filter: string;
   collapsed: ReadonlySet<string>;
   followed: Followed | null;
+  responsibility: (id: string) => ResponsibilityRow;
 };
 
 export type Direction = "uses" | "usedBy";
@@ -65,8 +67,14 @@ export type CardRow = {
 
 export type SwitchRow = { kind: "switch"; label: "Show private"; on: boolean };
 
+export type ResponsibilityLineRow = {
+  kind: "responsibility";
+  id: string;
+} & ResponsibilityRow;
+
 export type Row =
   | { kind: "note"; text: string }
+  | ResponsibilityLineRow
   | { kind: "none" }
   | CardRow
   | SwitchRow
@@ -291,8 +299,15 @@ function plainCard(member: ScanMember): CardRow | null {
 function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   const found = findModule(inputs.scans, module);
 
+  const responsibility: Row = {
+    kind: "responsibility",
+    id: module,
+    ...inputs.responsibility(module),
+  };
+
   if (found?.members === undefined) {
     return [
+      responsibility,
       {
         kind: "note",
         text: "Not known: this scan has no member outlines for this file.",
@@ -318,6 +333,7 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   ).map(({ item }) => item);
 
   return [
+    responsibility,
     { kind: "switch", label: "Show private", on: inputs.showPrivate },
     ...(cards.length === 0 ? [{ kind: "none" } as Row] : cards),
   ];

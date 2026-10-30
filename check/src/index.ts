@@ -13,6 +13,7 @@ export {
   type CallerSummary,
 } from "./callers.js";
 export { type CheckResult, check } from "./check.js";
+export { type Config, parseConfig } from "./config-parse.js";
 export { InputError } from "./errors.js";
 export {
   edgeNames,

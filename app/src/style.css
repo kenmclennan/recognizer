@@ -865,6 +865,37 @@ svg.i.chevron {
   letter-spacing: 0.04em;
 }
 
+.responsibility {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.responsibility.out-of-date .line {
+  opacity: 0.55;
+}
+
+.responsibility .tag {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--code);
+  color: var(--muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.responsibility .describe {
+  font-size: 11px;
+}
+
+.responsibility .finding {
+  flex-basis: 100%;
+}
+
 .pswitch {
   display: flex;
   align-items: center;

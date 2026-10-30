@@ -246,7 +246,7 @@ describer:
 
 `command` is run directly with no shell. In each item `{repository}` (the absolute repository path), `{module}` (the module id) and `{request}` (the path of a JSON request file) are replaced. `version` names the prompt; bump it to redo every line. The request is `{ module, kind, source, members, uses, used_by }`: the module's members from the scan, what it uses and what uses it (inferred rows flagged), and its source. The describer prints one line on stdout.
 
-`responsibilities.json` is `{ schema_version: 1, modules }`, described by [`schema/responsibilities.schema.json`](../schema/responsibilities.schema.json) with examples in `schema/responsibilities-examples/`. Each module id maps to its `line`, the SHA-256 `source_hash` of the source it was written from, and the `describer` command (placeholders unfilled) and `version`. A line is current while all three match; another module's change does not outdate it. `validateResponsibilities` and `lineStatus` are exported from the library.
+`responsibilities.json` is `{ schema_version: 1, modules }`, described by [`schema/responsibilities.schema.json`](../schema/responsibilities.schema.json) with examples in `schema/responsibilities-examples/`. Each module id maps to its `line`, the SHA-256 `source_hash` of the source it was written from, and the `describer` command (placeholders unfilled) and `version`. A line is current while all three match; another module's change does not outdate it. `validateResponsibilities`, `lineStatus` and `parseConfig` (which reads the describer from `config.yaml` text) are exported from the library.
 
 | Form | What it does |
 | --- | --- |

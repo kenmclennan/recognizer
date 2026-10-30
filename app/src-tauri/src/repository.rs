@@ -8,6 +8,7 @@ use crate::fs_safe::checked_relative;
 use crate::settings;
 
 const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
+const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
 
@@ -59,6 +60,34 @@ pub fn shell_invocation(shell: &str, command: &str, folder: &Path) -> (String, V
             folder.display().to_string(),
         ],
     )
+}
+
+pub fn describe_invocation(
+    shell: &str,
+    command: &str,
+    folder: &Path,
+    module: &str,
+) -> (String, Vec<String>) {
+    (
+        shell.to_string(),
+        vec![
+            "-ilc".to_string(),
+            DESCRIBE_SCRIPT.to_string(),
+            command.to_string(),
+            folder.display().to_string(),
+            module.to_string(),
+        ],
+    )
+}
+
+pub fn recognizer_command(config_file: &Path) -> Result<String, String> {
+    let configured = settings::read(config_file)?.recognizer_path;
+
+    Ok(if configured.is_empty() {
+        "recognizer".to_string()
+    } else {
+        configured
+    })
 }
 
 pub fn missing_hint(config_file: &Path) -> String {
@@ -219,6 +248,18 @@ mod tests {
         assert!(!args[1].contains("folder"));
         assert_eq!(args[2], "recognizer");
         assert_eq!(args[3], folder.display().to_string());
+    }
+
+    #[test]
+    fn the_module_is_a_positional_argument_never_part_of_the_describe_script() {
+        let folder = Path::new("/tmp/repo");
+        let (shell, args) = describe_invocation("/bin/zsh", "recognizer", folder, "a/$(x).py");
+
+        assert_eq!(shell, "/bin/zsh");
+        assert_eq!(args[0], "-ilc");
+        assert_eq!(args[1], DESCRIBE_SCRIPT);
+        assert!(!args[1].contains("a/"));
+        assert_eq!(args[2..], ["recognizer", "/tmp/repo", "a/$(x).py"]);
     }
 
     #[test]

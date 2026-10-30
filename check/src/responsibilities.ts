@@ -1,9 +1,5 @@
-import type { ValidateFunction } from "ajv";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import { InputError } from "./errors.js";
-import schema from "./generated/responsibilities.schema.json" with {
-  type: "json",
-};
+import validate from "./generated/responsibilities-validator.js";
 
 export interface ResponsibilityEntry {
   line: string;
@@ -22,17 +18,7 @@ export type LineStatus =
   | { status: "current" }
   | { status: "out-of-date"; reasons: ("source" | "describer" | "version")[] };
 
-let compiled: ValidateFunction | undefined;
-
-function validator(): ValidateFunction {
-  compiled ??= new Ajv2020({ allErrors: true }).compile(schema);
-
-  return compiled;
-}
-
 export function validateResponsibilities(value: unknown): Responsibilities {
-  const validate = validator();
-
   if (validate(value)) {
     return value as unknown as Responsibilities;
   }

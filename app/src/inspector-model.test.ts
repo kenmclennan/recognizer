@@ -44,6 +44,11 @@ function inputsFor(
     filter: "",
     collapsed: new Set(),
     followed: null,
+    responsibility: () => ({
+      state: { kind: "missing" },
+      busy: false,
+      failure: null,
+    }),
     ...extra,
   };
 }
@@ -93,7 +98,7 @@ const klass = (extra: Partial<ScanMember> = {}): ScanMember => ({
 });
 
 describe("module contents as cards", () => {
-  it("opens with the switch and lists cards in file order across kinds", () => {
+  it("opens with the responsibility row, then the switch, then the cards in file order across kinds", () => {
     const rows = rowsOf(
       scanOf([
         fn("f", true, { line: 11 }),
@@ -105,6 +110,13 @@ describe("module contents as cards", () => {
     );
 
     expect(rows[0]).toEqual({
+      kind: "responsibility",
+      id: "pkg/m.py",
+      state: { kind: "missing" },
+      busy: false,
+      failure: null,
+    });
+    expect(rows[1]).toEqual({
       kind: "switch",
       label: "Show private",
       on: false,
@@ -240,7 +252,7 @@ describe("module contents as cards", () => {
       [8, true],
     ]);
     expect(cards[0]?.hidden).toBe("");
-    expect(rowsOf(scanOf([klass()]), { showPrivate: true })[0]).toEqual(
+    expect(rowsOf(scanOf([klass()]), { showPrivate: true })[1]).toEqual(
       expect.objectContaining({ kind: "switch", on: true }),
     );
   });
@@ -268,6 +280,7 @@ describe("module contents as cards", () => {
 
   it("shows None when no member is shown", () => {
     expect(rowsOf(scanOf([fn("_g", false)])).map((row) => row.kind)).toEqual([
+      "responsibility",
       "switch",
       "none",
     ]);
@@ -285,6 +298,8 @@ describe("module contents as cards", () => {
 
     expect(folderRows.some((row) => row.kind === "switch")).toBe(false);
     expect(edgeRows.some((row) => row.kind === "switch")).toBe(false);
+    expect(folderRows.some((row) => row.kind === "responsibility")).toBe(false);
+    expect(edgeRows.some((row) => row.kind === "responsibility")).toBe(false);
   });
 });
 
@@ -469,12 +484,11 @@ describe("missing data", () => {
   it("says so for a module with no members", () => {
     const rows = rowsOf(scanOf(undefined));
 
-    expect(rows).toEqual([
-      {
-        kind: "note",
-        text: "Not known: this scan has no member outlines for this file.",
-      },
-    ]);
+    expect(rows.map((row) => row.kind)).toEqual(["responsibility", "note"]);
+    expect(rows[1]).toEqual({
+      kind: "note",
+      text: "Not known: this scan has no member outlines for this file.",
+    });
   });
 
   it("says so for a class with no outline keys", () => {
