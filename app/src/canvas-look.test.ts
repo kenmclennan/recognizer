@@ -24,9 +24,6 @@ const CHROME_CANDIDATES = [
 
 const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
 const SRC = fileURLToPath(new URL(".", import.meta.url));
-const PROTOTYPE = fileURLToPath(
-  new URL("../../docs/prototype/explorer.html", import.meta.url),
-);
 
 const TOKENS = [
   "bg",
@@ -52,6 +49,57 @@ const TOKENS = [
   "dark",
   "darkfg",
 ];
+
+const PALETTE: Record<"light" | "dark", Record<string, string>> = {
+  light: {
+    bg: "rgb(246, 247, 249)",
+    fg: "rgb(31, 35, 40)",
+    muted: "rgb(89, 99, 110)",
+    faint: "rgb(140, 149, 159)",
+    panel: "rgb(255, 255, 255)",
+    line: "rgb(216, 222, 228)",
+    box: "rgb(255, 255, 255)",
+    boxline: "rgb(208, 215, 222)",
+    sel: "rgb(9, 105, 218)",
+    selbg: "rgb(221, 244, 255)",
+    frame: "rgb(130, 80, 223)",
+    framefg: "rgb(102, 57, 186)",
+    framebg: "rgba(130, 80, 223, 0.035)",
+    ok: "rgb(26, 127, 55)",
+    warn: "rgb(191, 135, 0)",
+    bad: "rgb(207, 34, 46)",
+    priv: "rgb(188, 76, 0)",
+    inf: "rgb(9, 105, 218)",
+    impl: "rgb(26, 127, 55)",
+    code: "rgb(246, 248, 250)",
+    dark: "rgb(31, 35, 40)",
+    darkfg: "rgb(255, 255, 255)",
+  },
+  dark: {
+    bg: "rgb(22, 24, 28)",
+    fg: "rgb(230, 237, 243)",
+    muted: "rgb(145, 152, 161)",
+    faint: "rgb(110, 118, 129)",
+    panel: "rgb(31, 35, 40)",
+    line: "rgb(48, 54, 61)",
+    box: "rgb(38, 44, 51)",
+    boxline: "rgb(61, 68, 77)",
+    sel: "rgb(68, 147, 248)",
+    selbg: "rgba(31, 111, 235, 0.18)",
+    frame: "rgb(163, 113, 247)",
+    framefg: "rgb(188, 140, 255)",
+    framebg: "rgba(163, 113, 247, 0.05)",
+    ok: "rgb(63, 185, 80)",
+    warn: "rgb(210, 153, 34)",
+    bad: "rgb(248, 81, 73)",
+    priv: "rgb(240, 136, 62)",
+    inf: "rgb(88, 166, 255)",
+    impl: "rgb(63, 185, 80)",
+    code: "rgb(22, 27, 34)",
+    dark: "rgb(230, 237, 243)",
+    darkfg: "rgb(22, 24, 28)",
+  },
+};
 
 const HARNESS = `
 import { buildCanvasView } from "./canvas-view";
@@ -113,24 +161,6 @@ const canvas = buildCanvasView(actions, scheduler);
 canvas.element.style.flex = "1";
 wrap.append(canvas.element);
 
-const host = document.createElement("div");
-document.body.append(host);
-const shadow = host.attachShadow({ mode: "open" });
-shadow.innerHTML = "<style>:host{display:block;color:var(--fg)}" + window.PROTO_CSS + "</style><div id='stage'></div>";
-const g = (cls, inner) => '<g class="' + cls + '">' + inner + '</g>';
-shadow.getElementById("stage").insertAdjacentHTML("beforeend",
-  '<svg id="pe">' +
-  g("fr", '<rect width="10" height="10" rx="8"/>') + g("fr s", '<rect width="10" height="10" rx="8"/>') +
-  '<path class="e"/><path class="e pv"/><path class="e inf"/><path class="e impl"/><path class="e hi"/><path class="e hi inf"/><g class="e dim"></g>' +
-  '<path class="ar"/><path class="arhi"/><path class="ah"/><text class="el">2</text>' +
-  '<g class="fr"><text>f/ <tspan class="cnt">1 of 2</tspan></text></g>' +
-  g("n s", '<rect class="halo"/><rect width="10" height="10" rx="7"/><text>a</text>') +
-  g("n f", '<rect width="10" height="10"/><text>g/</text>') + g("n", '<rect width="10" height="10"/><text class="more">+1</text>') +
-  '</svg>' +
-  '<div id="zbar" class="float"><button>-</button><span class="z" id="zl">100%</span><button>+</button></div>' +
-  '<div id="tbar" class="show"><span class="tsep"></span><button><svg class="i" viewBox="0 0 24 24"><path d="M1 1"/></svg>Uses</button></div>' +
-  '<div id="hint">a<br>b</div>');
-
 const pick = (node, names) => {
   if (!node) return { missing: true };
   const style = getComputedStyle(node);
@@ -139,7 +169,6 @@ const pick = (node, names) => {
   return out;
 };
 const q = (sel) => canvas.element.querySelector(sel);
-const p = (sel) => shadow.querySelector(sel);
 const probe = (root) => {
   const node = document.createElement("i");
   root.append(node);
@@ -169,8 +198,8 @@ const kids = (node) => [...node.children].map((child) => ({
 }));
 
 const result = { dark: matchMedia("(prefers-color-scheme: dark)").matches };
-result.tokens = { app: probe(document.body), proto: probe(shadow) };
-result.window = { body: pick(document.body, ["background-color", "color", "font-size"]), proto: getComputedStyle(document.body).backgroundColor };
+result.tokens = probe(document.body);
+result.window = { body: pick(document.body, ["background-color", "color", "font-size"]) };
 
 canvas.render(props({ selection: { kind: "module", id: "f/a.py" }, highlight: new Set(["private"]), bar: bar({ kind: "module", files: null }) }));
 const lineGroup = (id) => q('[data-line="' + id + '"]');
@@ -183,12 +212,6 @@ result.edges = {
   count: pick(q(".count-label"), ["font-size", "fill"]),
   countText: q(".count-label").textContent,
   countLabels: canvas.element.querySelectorAll(".count-label").length,
-  proto: {
-    plain: pick(p(".e:not(.pv):not(.inf):not(.impl):not(.hi)"), STROKE), private: pick(p(".e.pv"), STROKE),
-    inferred: pick(p(".e.inf:not(.hi)"), STROKE), hollow: pick(p(".e.impl"), STROKE), hi: pick(p(".e.hi:not(.inf)"), STROKE),
-    dim: pick(p("g.e.dim"), ["opacity"]), arrow: pick(p(".ar"), STROKE), arrowHi: pick(p(".arhi"), STROKE),
-    hollowArrow: pick(p(".ah"), STROKE), count: pick(p(".el"), ["font-size", "fill"]),
-  },
 };
 result.boxes = {
   rxs: [...canvas.element.querySelectorAll(".box-body")].map((r) => [r.getAttribute("rx"), r.getAttribute("height")]),
@@ -200,7 +223,6 @@ result.boxes = {
   hidden: pick(q('[data-id="f/a.py"] .figure'), ["font-size", "fill"]),
   hiddenText: q('[data-id="f/a.py"] .figure').textContent,
   folder: { body: pick(q('[data-id="g"] .box-body'), STROKE), name: q('[data-id="g"] .name').textContent, texts: [...q('[data-id="g"]').querySelectorAll("text")].map((t) => [t.textContent, getComputedStyle(t).fontSize, getComputedStyle(t).fill]) },
-  proto: { selected: pick(p(".n.s rect:nth-child(2)"), STROKE), halo: pick(p(".n.s .halo"), ["stroke", "stroke-opacity", "stroke-width", "fill"]), folder: pick(p(".n.f rect"), STROKE), folderName: pick(p(".n.f text"), ["fill"]), more: pick(p(".n .more"), ["font-size", "fill"]) },
 };
 result.frameIdle = { ...pick(q(".frame-body"), STROKE), rx: q(".frame-body").getAttribute("rx") };
 result.barModule = { kids: kids(q(".selection-bar")), style: pick(q(".selection-bar"), [...PANEL, "box-shadow", "display"]) };
@@ -215,7 +237,6 @@ result.frames = {
   nameText: q(".frame-text .name").textContent,
   cnt: pick(q(".frame-text .cnt"), ["fill", "font-weight"]),
   cntText: q(".frame-text .cnt").textContent,
-  proto: { body: pick(p(".fr:not(.s) rect"), STROKE), selected: pick(p(".fr.s rect"), STROKE), text: pick(p(".fr text"), ["font-size", "fill"]), cnt: pick(p(".fr .cnt"), ["fill"]) },
 };
 q(".frame-label").dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
 result.frames.labelHover = pick(q(".frame-label"), ["fill", "stroke"]);
@@ -224,7 +245,6 @@ result.barFolder = {
   style: pick(q(".selection-bar"), [...PANEL, "box-shadow", "display"]),
   button: pick(q(".selection-bar .bar-button"), ["height", "border-top-left-radius", "padding-left", "font-size", "column-gap", "color", "background-color"]),
   sep: pick(q(".bar-sep"), ["width", "height", "background-color"]),
-  proto: { bar: pick(p("#tbar"), [...PANEL, "box-shadow", "display"]), button: pick(p("#tbar button"), ["height", "border-top-left-radius", "padding-left", "font-size", "column-gap", "color", "background-color"]), sep: pick(p("#tbar .tsep"), ["width", "height"]) },
 };
 const clickBar = (aria) => q('.selection-bar [aria-label="' + aria + '"]').click();
 calls.length = 0;
@@ -255,7 +275,6 @@ result.hint = {
   textContent: hint.textContent,
   shown: getComputedStyle(hint).display !== "none",
   style: pick(hint, ["text-align", "color", "position", "top", "line-height"]),
-  proto: { style: pick(p("#hint"), ["text-align", "color", "position", "top", "line-height"]), html: p("#hint").innerHTML },
 };
 canvas.render(props({ open: 0, scene: null }));
 result.hint.shownWhenEmpty = getComputedStyle(hint).display !== "none";
@@ -272,7 +291,6 @@ result.zoom = {
   panel: pick(controls, [...PANEL, "position", "right", "bottom"]),
   level: pick(levelNode(), ["width", "color", "font-size", "text-align"]),
   button: pick(byText("Fit"), ["height", "min-width", "border-top-left-radius", "padding-left", "background-color"]),
-  proto: { panel: pick(p("#zbar"), [...PANEL, "position", "right", "bottom"]), level: pick(p("#zl"), ["width", "color", "font-size", "text-align"]), button: pick(p("#zbar button"), ["height", "min-width", "border-top-left-radius", "padding-left", "background-color"]) },
 };
 const stepsTo = (text, name) => { for (let i = 0; i < 60; i++) byText(name).click(); return [levelNode().textContent, byText(name).disabled, byText(text === "+" ? "\\u2212" : "+").disabled]; };
 result.zoom.atMax = stepsTo("+", "+");
@@ -377,18 +395,16 @@ type Kid = {
 };
 type Report = {
   dark: boolean;
-  tokens: { app: Props; proto: Props };
-  window: { body: Props; proto: string };
+  tokens: Props;
+  window: { body: Props };
   edges: Record<string, Props> & {
     countText: string;
     countLabels: number;
-    proto: Record<string, Props>;
   };
   boxes: Record<string, unknown> & {
     rxs: string[][];
-    proto: Record<string, Props>;
   };
-  frames: Record<string, unknown> & { proto: Record<string, Props> };
+  frames: Record<string, unknown>;
   dimming: Record<string, Props>;
   pinned: {
     beforePan: { offset: { dx: number; dy: number }; box: number };
@@ -425,7 +441,6 @@ type Report = {
     style: Props;
     button: Props;
     sep: Props;
-    proto: { bar: Props; button: Props; sep: Props };
   };
   barClicks: string[];
   barFolded: string[][];
@@ -442,7 +457,6 @@ type Report = {
     shown: boolean;
     shownWhenEmpty: boolean;
     style: Props;
-    proto: { style: Props; html: string };
   };
   zoom: {
     order: string[];
@@ -451,7 +465,6 @@ type Report = {
     panel: Props;
     level: Props;
     button: Props;
-    proto: { panel: Props; level: Props; button: Props };
     atMax: [string, boolean, boolean];
     atMin: [string, boolean, boolean];
     afterIn: [string, boolean, boolean];
@@ -471,15 +484,11 @@ function collect(scheme: "light" | "dark"): Report {
       platform: "browser",
     }).outputFiles[0]?.text as string;
     const css = readFileSync(join(SRC, "style.css"), "utf8");
-    const protoCss = (
-      /<style>([\s\S]*?)<\/style>/.exec(readFileSync(PROTOTYPE, "utf8"))?.[1] ??
-      ""
-    ).replaceAll(":root{", ":host{");
     const page = join(dir, "page.html");
 
     writeFileSync(
       page,
-      `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><script>window.PROTO_CSS=${JSON.stringify(protoCss).replaceAll("</", "<\\/")};</script><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
+      `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
     const run = spawnSync(
@@ -531,45 +540,46 @@ function report(scheme: "light" | "dark"): Report {
 const labelsOf = (kids: Kid[]) =>
   kids.map((kid) => (kid.cls === "bar-sep" ? "|" : kid.aria || kid.text));
 
-describe("the canvas against the prototype, in a real browser", () => {
+describe("the canvas, in a real browser", () => {
   for (const scheme of ["light", "dark"] as const) {
     describe(scheme, () => {
       const r = () => report(scheme);
 
       it.skipIf(chrome === undefined)(
-        "uses the prototype's palette for the window and every token",
+        "uses the designed palette for the window and every token",
         () => {
           expect(r().dark).toBe(scheme === "dark");
-          expect(r().tokens.app).toEqual(r().tokens.proto);
-          expect(r().window.body["background-color"]).toBe(r().tokens.proto.bg);
-          expect(r().window.body.color).toBe(r().tokens.proto.fg);
+          expect(r().tokens).toEqual(PALETTE[scheme]);
+          expect(r().window.body["background-color"]).toBe(r().tokens.bg);
+          expect(r().window.body.color).toBe(r().tokens.fg);
         },
         120000,
       );
 
       it.skipIf(chrome === undefined)(
-        "draws edges as the prototype's .e styles, dimming the rest",
+        "draws edges in the designed strokes, dimming the rest",
         () => {
           const { edges } = r();
-          const proto = edges.proto as Record<string, Props>;
+          const colour = r().tokens as Props;
 
-          expect(edges.plain).toEqual(proto.plain);
+          expect(edges.plain?.stroke).toBe(colour.faint);
           expect(edges.plain?.["stroke-width"]).toBe("1px");
           expect(edges.plain?.["stroke-opacity"]).toBe("0.55");
           expect(edges.private?.["stroke-dasharray"]).toBe("4px, 3px");
           expect(edges.inferred?.["stroke-dasharray"]).toBe("1.5px, 3px");
-          expect(edges.inferred).toEqual(proto.inferred);
-          expect(edges.hollow).toEqual(proto.hollow);
-          expect(edges.arrowPlain?.fill).toBe(proto.arrow?.fill);
-          expect(edges.arrowHollow?.fill).toBe(proto.hollowArrow?.fill);
-          expect(edges.arrowHollow?.stroke).toBe(proto.hollowArrow?.stroke);
-          expect(edges.private?.stroke).toBe(proto.hi?.stroke);
+          expect(edges.inferred?.stroke).toBe(colour.inf);
+          expect(edges.inferred?.["stroke-opacity"]).toBe("0.7");
+          expect(edges.hollow?.stroke).toBe(colour.impl);
+          expect(edges.hollow?.["stroke-opacity"]).toBe("0.75");
+          expect(edges.arrowPlain?.fill).toBe(colour.faint);
+          expect(edges.arrowHollow?.fill).toBe(colour.panel);
+          expect(edges.arrowHollow?.stroke).toBe(colour.impl);
+          expect(edges.private?.stroke).toBe(colour.sel);
           expect(edges.private?.["stroke-width"]).toBe("1.6px");
           expect(edges.private?.["stroke-opacity"]).toBe("1");
-          expect(edges.arrowHi?.fill).toBe(proto.arrowHi?.fill);
-          expect(edges.dimmed?.opacity).toBe(proto.dim?.opacity);
+          expect(edges.arrowHi?.fill).toBe(colour.sel);
           expect(edges.dimmed?.opacity).toBe("0.35");
-          expect(edges.count).toEqual(proto.count);
+          expect(edges.count?.fill).toBe(colour.muted);
           expect(edges.count?.["font-size"]).toBe("10px");
           expect(edges.countText).toBe("2");
           expect(edges.countLabels).toBe(1);
@@ -594,15 +604,14 @@ describe("the canvas against the prototype, in a real browser", () => {
         "draws frames as dashed purple rounded rectangles with a bold label",
         () => {
           const { frames } = r();
-          const proto = frames.proto as Record<string, Props>;
+          const colour = r().tokens as Props;
           const body = frames.body as Props;
 
           expect(FRAME_TOP).toBe(28);
           expect(body.rx).toBe("8");
-          expect({ ...body, rx: undefined }).toEqual({
-            ...proto.body,
-            rx: undefined,
-          });
+          expect(body.stroke).toBe(colour.frame);
+          expect(body["stroke-opacity"]).toBe("0.45");
+          expect(body.fill).toBe(colour.framebg);
           expect(body["stroke-dasharray"]).toBe("4px, 3px");
           expect(frames.parts).toEqual([
             "rect.frame-body",
@@ -612,11 +621,12 @@ describe("the canvas against the prototype, in a real browser", () => {
           ]);
           expect(frames.nameText).toBe("f/");
           expect((frames.name as Props)["font-weight"]).toBe("600");
-          expect((frames.name as Props).fill).toBe(proto.text?.fill);
+          expect((frames.name as Props).fill).toBe(colour.framefg);
           expect((frames.name as Props)["font-size"]).toBe("11px");
           expect(frames.cntText).toBe("1 of 2");
-          expect((frames.cnt as Props).fill).toBe(proto.cnt?.fill);
-          expect(frames.selected).toEqual(proto.selected);
+          expect((frames.cnt as Props).fill).toBe(colour.muted);
+          expect((frames.selected as Props).stroke).toBe(colour.sel);
+          expect((frames.selected as Props).fill).toBe(colour.framebg);
           expect((frames.selected as Props)["stroke-dasharray"]).toBe("none");
           expect((frames.selected as Props)["stroke-opacity"]).toBe("1");
           expect(frames.label).toEqual({
@@ -632,7 +642,7 @@ describe("the canvas against the prototype, in a real browser", () => {
         "draws boxes 40px high with hidden counts, a halo when selected and a 50px folded box",
         () => {
           const { boxes } = r();
-          const proto = boxes.proto as Record<string, Props>;
+          const colour = r().tokens as Props;
           const selected = boxes.selected as Props;
 
           expect([BOX_HEIGHT, FOLDER_BOX_HEIGHT]).toEqual([40, 50]);
@@ -640,11 +650,12 @@ describe("the canvas against the prototype, in a real browser", () => {
             ["7", "40"],
             ["7", "50"],
           ]);
-          expect(selected.stroke).toBe(proto.selected?.stroke);
+          expect(selected.stroke).toBe(colour.sel);
+          expect(selected.fill).toBe(colour.box);
           expect(selected["stroke-width"]).toBe("2px");
           expect(boxes.halo).toMatchObject({
             display: "inline",
-            stroke: proto.halo?.stroke,
+            stroke: colour.sel,
             "stroke-opacity": "0.15",
             "stroke-width": "6px",
             fill: "none",
@@ -654,7 +665,10 @@ describe("the canvas against the prototype, in a real browser", () => {
           expect((boxes.nameSelected as Props)["font-weight"]).toBe("600");
           expect((boxes.nameIdle as Props)["font-weight"]).toBe("400");
           expect(boxes.hiddenText).toBe("+1↓ +2↑");
-          expect(boxes.hidden).toEqual(proto.more);
+          expect(boxes.hidden).toEqual({
+            "font-size": "10px",
+            fill: colour.muted,
+          });
 
           const folder = boxes.folder as {
             body: Props;
@@ -667,8 +681,8 @@ describe("the canvas against the prototype, in a real browser", () => {
             "g/",
             "3 open, folded",
           ]);
-          expect(folder.body.fill).toBe(proto.folder?.fill);
-          expect(folder.body.stroke).toBe(proto.folder?.stroke);
+          expect(folder.body.fill).toBe(colour.framebg);
+          expect(folder.body.stroke).toBe(colour.frame);
           expect(folder.body["stroke-opacity"]).toBe("0.5");
           expect(folder.texts[1]?.[1]).toBe("10px");
         },
@@ -676,7 +690,7 @@ describe("the canvas against the prototype, in a real browser", () => {
       );
 
       it.skipIf(chrome === undefined)(
-        "shows a dark selection bar of labelled svg icon buttons in the prototype's order",
+        "shows a dark selection bar of labelled svg icon buttons in the designed order",
         () => {
           const { barModule, barFolder, barClicks, barFolded } = r();
 
@@ -700,18 +714,22 @@ describe("the canvas against the prototype, in a real browser", () => {
             "|",
             "Take off the canvas (Backspace)",
           ]);
-          expect(barFolder.style["background-color"]).toBe(
-            r().tokens.proto.dark,
-          );
-          expect(barFolder.style.color).toBe(r().tokens.proto.darkfg);
+          expect(barFolder.style["background-color"]).toBe(r().tokens.dark);
+          expect(barFolder.style.color).toBe(r().tokens.darkfg);
           expect(barFolder.style["border-top-left-radius"]).toBe("8px");
           expect(barFolder.style["box-shadow"]).not.toBe("none");
-          expect(barFolder.style["border-top-left-radius"]).toBe(
-            barFolder.proto.bar["border-top-left-radius"],
-          );
-          expect(barFolder.button).toEqual(barFolder.proto.button);
-          expect(barFolder.sep.width).toBe(barFolder.proto.sep.width);
-          expect(barFolder.sep.height).toBe(barFolder.proto.sep.height);
+          expect(barFolder.style["padding-top"]).toBe("3px");
+          expect(barFolder.button).toEqual({
+            height: "28px",
+            "border-top-left-radius": "5px",
+            "padding-left": "8px",
+            "font-size": "12px",
+            "column-gap": "5px",
+            color: r().tokens.darkfg,
+            "background-color": "rgba(0, 0, 0, 0)",
+          });
+          expect(barFolder.sep.width).toBe("1px");
+          expect(barFolder.sep.height).toBe("18px");
 
           const [
             files,
@@ -821,23 +839,18 @@ describe("the canvas against the prototype, in a real browser", () => {
       );
 
       it.skipIf(chrome === undefined)(
-        "words the empty hint as the prototype and shows it only on an empty canvas",
+        "words the empty hint and shows it only on an empty canvas",
         () => {
           const { hint } = r();
 
           expect(hint.text).toBe(
             "Open a file from the tree to start.<br>Select a box, or a folder by its name, for its actions.",
           );
-          expect(readFileSync(PROTOTYPE, "utf8")).toContain(
-            `<div id="hint">${hint.text}</div>`,
-          );
           expect(hint.shown).toBe(false);
           expect(hint.shownWhenEmpty).toBe(true);
           expect(hint.style["text-align"]).toBe("center");
-          expect(hint.style.color).toBe(hint.proto.style.color);
-          expect(hint.style["line-height"]).toBe(
-            hint.proto.style["line-height"],
-          );
+          expect(hint.style.color).toBe(r().tokens.muted);
+          expect(hint.style["line-height"]).toBe("20.8px");
         },
         120000,
       );
@@ -859,16 +872,30 @@ describe("the canvas against the prototype, in a real browser", () => {
             "button",
           ]);
           expect(zoom.aria).toEqual(["Zoom out", "Zoom in"]);
-          expect({ ...zoom.panel, position: "" }).toEqual({
-            ...zoom.proto.panel,
-            position: "",
-          });
+          expect(zoom.panel["background-color"]).toBe(r().tokens.panel);
+          expect(zoom.panel["border-top-width"]).toBe("1px");
+          expect(zoom.panel["border-top-color"]).toBe(r().tokens.line);
+          expect(zoom.panel["border-top-left-radius"]).toBe("8px");
+          expect(zoom.panel["padding-top"]).toBe("3px");
+          expect(zoom.panel["font-size"]).toBe("13px");
+          expect(zoom.panel.color).toBe(r().tokens.fg);
           expect(zoom.panel.position).toBe("absolute");
           expect(zoom.panel.right).toBe("14px");
           expect(zoom.panel.bottom).toBe("16px");
-          expect(zoom.level).toEqual(zoom.proto.level);
+          expect(zoom.level).toEqual({
+            width: "40px",
+            color: r().tokens.muted,
+            "font-size": "12px",
+            "text-align": "center",
+          });
           expect(zoom.level.width).toBe("40px");
-          expect(zoom.button).toEqual(zoom.proto.button);
+          expect(zoom.button).toEqual({
+            height: "30px",
+            "min-width": "30px",
+            "border-top-left-radius": "6px",
+            "padding-left": "6px",
+            "background-color": "rgba(0, 0, 0, 0)",
+          });
           expect(zoom.atMax).toEqual(["250%", true, false]);
           expect(zoom.atMin).toEqual(["10%", true, false]);
           expect(zoom.afterIn[1]).toBe(false);
