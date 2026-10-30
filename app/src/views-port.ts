@@ -10,9 +10,10 @@ export type ViewsPort = {
   write(name: string, text: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   writeCurrent(text: string): Promise<void>;
-  path(name: string): Promise<string>;
+  link(name: string): Promise<string>;
   renamesSince(commit: string): Promise<{ from: string; to: string }[]>;
   scansAt(commit: string): Promise<Scan[] | null>;
+  takePendingView(): Promise<string | null>;
   copy(text: string): Promise<void>;
   onChanged(run: () => void): () => void;
   author(): Promise<string>;
@@ -23,9 +24,10 @@ export const inertViews: ViewsPort = {
   write: async () => {},
   rename: async () => {},
   writeCurrent: async () => {},
-  path: async (name) => name,
+  link: async (name) => name,
   renamesSince: async () => [],
   scansAt: async () => null,
+  takePendingView: async () => null,
   copy: async () => {},
   onChanged: () => () => {},
   author: async () => "Me",

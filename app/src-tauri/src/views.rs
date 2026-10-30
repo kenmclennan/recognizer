@@ -127,16 +127,16 @@ pub fn write_current_view(folder: &Path, text: &str) -> Result<(), String> {
     write_atomic(&folder.join(CURRENT), text).map_err(|error| error.to_string())
 }
 
-pub fn view_path(folder: &Path, name: &str) -> Result<String, String> {
+pub fn view_file(folder: &Path, name: &str) -> PathBuf {
+    folder.join(VIEWS).join(format!("{name}.json"))
+}
+
+pub fn view_link(folder: &Path, name: &str) -> Result<String, String> {
     if !valid_name(name) {
         return Err(format!("{name:?} is not a valid view name"));
     }
 
-    Ok(folder
-        .join(VIEWS)
-        .join(format!("{name}.json"))
-        .display()
-        .to_string())
+    Ok(crate::link::build(folder, name))
 }
 
 pub fn parse_renames(output: &str) -> Vec<Rename> {
@@ -462,12 +462,13 @@ mod tests {
     }
 
     #[test]
-    fn view_path_is_absolute_and_validated() {
+    fn view_link_names_the_folder_and_validates_the_view() {
         let dir = repo();
-        let path = view_path(dir.path(), "overview").unwrap();
+        let link = view_link(dir.path(), "overview").unwrap();
 
-        assert!(path.ends_with("/.recognizer/views/overview.json"));
-        assert!(view_path(dir.path(), "../x").is_err());
+        assert!(link.starts_with("recognizer://open?repo=%2F"));
+        assert!(link.ends_with("&view=overview"));
+        assert!(view_link(dir.path(), "../x").is_err());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 pub fn label_for(number: u64) -> String {
@@ -63,11 +63,28 @@ pub fn canonical_folder(folder: &Path) -> Result<PathBuf, String> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum Route {
+    Existing(String),
+    New,
+}
+
+pub fn route_for(folders: &HashMap<String, PathBuf>, canonical: &Path) -> Route {
+    folders
+        .iter()
+        .filter(|(_, held)| held.as_path() == canonical)
+        .map(|(label, _)| label.clone())
+        .min_by_key(|label| label_number(label))
+        .map_or(Route::New, Route::Existing)
+}
+
 #[derive(Default)]
 pub struct WindowState {
     counter: AtomicU64,
+    open_dialogs: AtomicUsize,
     focus_order: Mutex<Vec<String>>,
     folders: Mutex<HashMap<String, PathBuf>>,
+    pending_views: Mutex<HashMap<String, String>>,
 }
 
 impl WindowState {
@@ -92,6 +109,7 @@ impl WindowState {
             .unwrap()
             .retain(|existing| existing != label);
         self.folders.lock().unwrap().remove(label);
+        self.pending_views.lock().unwrap().remove(label);
     }
 
     pub fn claim(&self, label: &str, folder: &Path) -> Claim {
@@ -114,15 +132,71 @@ impl WindowState {
         self.folders.lock().unwrap().get(label).cloned()
     }
 
+    pub fn dialog_opened(&self) {
+        self.open_dialogs.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn dialog_closed(&self) {
+        self.open_dialogs.fetch_sub(1, Ordering::SeqCst);
+    }
+
+    pub fn dialogs_open(&self) -> bool {
+        self.open_dialogs.load(Ordering::SeqCst) > 0
+    }
+
+    pub fn route(&self, canonical: &Path) -> Route {
+        route_for(&self.folders.lock().unwrap(), canonical)
+    }
+
+    pub fn set_pending_view(&self, label: &str, view: &str) {
+        self.pending_views
+            .lock()
+            .unwrap()
+            .insert(label.to_string(), view.to_string());
+    }
+
+    pub fn take_pending_view(&self, label: &str) -> Option<String> {
+        self.pending_views.lock().unwrap().remove(label)
+    }
+
     pub fn order(&self) -> Vec<String> {
         self.focus_order.lock().unwrap().clone()
     }
+}
+
+pub fn keeps_running(exit_code: Option<i32>, dialogs_open: bool, on_macos: bool) -> bool {
+    exit_code.is_none() && (dialogs_open || on_macos)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn a_refusal_dialog_keeps_the_app_running_until_it_is_dismissed() {
+        let state = WindowState::default();
+
+        assert!(!keeps_running(None, state.dialogs_open(), false));
+
+        state.dialog_opened();
+
+        assert!(keeps_running(None, state.dialogs_open(), false));
+
+        state.dialog_closed();
+
+        assert!(!keeps_running(None, state.dialogs_open(), false));
+    }
+
+    #[test]
+    fn an_explicit_quit_is_never_prevented() {
+        assert!(!keeps_running(Some(0), true, true));
+    }
+
+    #[test]
+    fn macos_keeps_running_with_no_window() {
+        assert!(keeps_running(None, false, true));
+    }
 
     fn labels(list: &[&str]) -> Vec<String> {
         list.iter().map(|label| label.to_string()).collect()
@@ -290,6 +364,94 @@ mod tests {
         assert!(canonical_folder(&dir.path().join("missing")).is_err());
         assert!(canonical_folder(&file).is_err());
         assert!(canonical_folder(dir.path()).is_ok());
+    }
+
+    fn held(entries: &[(&str, &str)]) -> HashMap<String, PathBuf> {
+        entries
+            .iter()
+            .map(|(label, folder)| (label.to_string(), PathBuf::from(folder)))
+            .collect()
+    }
+
+    #[test]
+    fn route_for_is_new_when_no_window_is_open() {
+        assert_eq!(route_for(&HashMap::new(), Path::new("/a")), Route::New);
+    }
+
+    #[test]
+    fn route_for_finds_the_window_holding_the_folder() {
+        assert_eq!(
+            route_for(&held(&[("w-1", "/b"), ("w-2", "/a")]), Path::new("/a")),
+            Route::Existing("w-2".to_string())
+        );
+    }
+
+    #[test]
+    fn route_for_is_new_for_a_different_folder() {
+        assert_eq!(
+            route_for(&held(&[("w-1", "/b")]), Path::new("/a")),
+            Route::New
+        );
+    }
+
+    #[test]
+    fn a_trailing_slash_or_symlink_routes_to_the_holder_through_canonical_folder() {
+        let dir = TempDir::new().unwrap();
+        let real = dir.path().join("real");
+        let link = dir.path().join("link");
+
+        std::fs::create_dir_all(&real).unwrap();
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        #[cfg(not(unix))]
+        std::fs::create_dir_all(&link).unwrap();
+
+        let state = WindowState::default();
+
+        state.claim("w-1", &real);
+
+        let slash = PathBuf::from(format!("{}/", real.display()));
+
+        assert_eq!(
+            state.route(&canonical_folder(&slash).unwrap()),
+            Route::Existing("w-1".to_string())
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            state.route(&canonical_folder(&link).unwrap()),
+            Route::Existing("w-1".to_string())
+        );
+    }
+
+    #[test]
+    fn routing_to_a_held_folder_allocates_no_label() {
+        let dir = TempDir::new().unwrap();
+        let state = WindowState::default();
+        let label = state.next_label();
+
+        state.claim(&label, dir.path());
+
+        let canonical = canonical_folder(dir.path()).unwrap();
+
+        assert_eq!(state.route(&canonical), Route::Existing(label));
+        assert_eq!(state.next_label(), "w-2");
+    }
+
+    #[test]
+    fn a_pending_view_is_stored_replaced_taken_once_and_dropped_on_close() {
+        let state = WindowState::default();
+
+        state.set_pending_view("w-1", "a");
+        state.set_pending_view("w-1", "b");
+
+        assert_eq!(state.take_pending_view("w-1"), Some("b".to_string()));
+        assert_eq!(state.take_pending_view("w-1"), None);
+
+        state.set_pending_view("w-2", "c");
+        state.closed("w-2");
+
+        assert_eq!(state.take_pending_view("w-2"), None);
     }
 
     #[test]

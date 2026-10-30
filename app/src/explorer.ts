@@ -94,6 +94,7 @@ import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
 import { createHistory, type History } from "./view-history";
+import { resolveLinkedView } from "./view-link";
 import {
   notedModules,
   removeModuleNote,
@@ -113,6 +114,7 @@ export type Explorer = {
   toggleTree: () => void;
   carry: () => Carried;
   openSelectedInEditor: () => void;
+  openLinkedView: () => void;
   dispose: () => void;
 };
 
@@ -1361,10 +1363,31 @@ export function showExplorer(
       return;
     }
 
-    const path = await views.path(openView);
+    const link = await views.link(openView);
 
-    await views.copy(path);
-    notify(`Copied ${path}`);
+    await views.copy(link);
+    notify(`Copied ${link}`);
+  }
+
+  async function openLinkedView() {
+    const pending = await views.takePendingView();
+
+    if (pending === null) {
+      return;
+    }
+
+    await loadViewList();
+
+    const resolved = resolveLinkedView(
+      viewList.map((view) => view.name),
+      pending,
+    );
+
+    if ("open" in resolved) {
+      await openSaved(resolved.open);
+    } else {
+      notify(resolved.refuse);
+    }
   }
 
   async function update() {
@@ -1684,6 +1707,7 @@ export function showExplorer(
   return {
     toggleTree,
     openSelectedInEditor,
+    openLinkedView: () => void openLinkedView(),
     carry: () => ({ history, snapshot: snapshot() }),
     dispose() {
       resizeObserver?.disconnect();

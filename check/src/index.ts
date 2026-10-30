@@ -27,6 +27,13 @@ export {
   violationText,
 } from "./findings.js";
 export {
+  checkLink,
+  isLink,
+  type Link,
+  type LinkParse,
+  parseLink,
+} from "./link.js";
+export {
   edgeNames,
   type FolderGroup,
   folderChain,

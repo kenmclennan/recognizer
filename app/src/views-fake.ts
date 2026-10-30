@@ -5,6 +5,7 @@ export type FakeViews = ViewsPort & {
   files: Map<string, string>;
   current: string[];
   copied: string[];
+  pending: string[];
   renames: { from: string; to: string }[];
   renamed: { from: string; to: string }[];
   scansByCommit: Map<string, Scan[] | null>;
@@ -26,12 +27,14 @@ export function fakeViews(
   const listeners = new Set<() => void>();
   const current: string[] = [];
   const copied: string[] = [];
+  const pending: string[] = [];
   const scansByCommit = new Map<string, Scan[] | null>();
   const waiting: (() => void)[] = [];
   const fake: FakeViews = {
     files,
     current,
     copied,
+    pending,
     renames: [],
     renamed: [],
     scansByCommit,
@@ -82,12 +85,15 @@ export function fakeViews(
     async writeCurrent(text) {
       current.push(text);
     },
-    async path(name) {
+    async link(name) {
       if (!VIEW_NAME.test(name)) {
         throw new Error(`${name} is not a valid view name`);
       }
 
-      return `/repo/.recognizer/views/${name}.json`;
+      return `recognizer://open?repo=%2Frepo&view=${name}`;
+    },
+    async takePendingView() {
+      return pending.splice(0, 1)[0] ?? null;
     },
     async renamesSince() {
       return fake.renames;

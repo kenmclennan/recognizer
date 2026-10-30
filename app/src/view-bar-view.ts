@@ -71,7 +71,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       renderOverlay();
     }
   });
-  const copy = iconButton("Copy the view's path", "copy", "link", () =>
+  const copy = iconButton("Copy the view's link", "copy", "link", () =>
     actions.copyLink(),
   );
   const note = el("div", "view-note");
