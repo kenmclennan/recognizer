@@ -11,6 +11,7 @@ const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec 
 const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
+const BASELINE: &str = ".recognizer/baselines/violations.json";
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct ScanFile {
@@ -40,6 +41,7 @@ pub enum ScanReport {
         stderr: String,
         scans: Vec<ScanFile>,
         policy: Option<String>,
+        baseline: Option<String>,
     },
 }
 
@@ -47,6 +49,7 @@ pub enum ScanReport {
 pub struct CacheRead {
     pub scans: Vec<ScanFile>,
     pub policy: Option<String>,
+    pub baseline: Option<String>,
     pub refused: Vec<String>,
 }
 
@@ -136,6 +139,15 @@ pub fn read_cache(folder: &Path) -> CacheRead {
         }
     }
 
+    if fs::symlink_metadata(folder.join(BASELINE)).is_ok() {
+        match checked_relative(folder, BASELINE).and_then(|path| {
+            fs::read_to_string(path).map_err(|error| format!("{BASELINE}: {error}"))
+        }) {
+            Ok(text) => read.baseline = Some(text),
+            Err(reason) => read.refused.push(reason),
+        }
+    }
+
     read
 }
 
@@ -162,6 +174,7 @@ pub fn report_for(
                 stderr,
                 scans: cache.scans,
                 policy: cache.policy,
+                baseline: cache.baseline,
             }
         }
         other => ScanReport::ScanFailed {
@@ -303,12 +316,19 @@ mod tests {
             "levels: []",
         )
         .unwrap();
+        fs::create_dir_all(dir.path().join("repo/.recognizer/baselines")).unwrap();
+        fs::write(
+            dir.path()
+                .join("repo/.recognizer/baselines/violations.json"),
+            "{}",
+        )
+        .unwrap();
 
         dir
     }
 
     #[test]
-    fn the_cache_reader_returns_scans_in_name_order_and_the_policy() {
+    fn the_cache_reader_returns_scans_in_name_order_the_policy_and_the_baseline() {
         let dir = cache_folder();
         let read = read_cache(&dir.path().join("repo"));
 
@@ -326,6 +346,7 @@ mod tests {
             ]
         );
         assert_eq!(read.policy.as_deref(), Some("levels: []"));
+        assert_eq!(read.baseline.as_deref(), Some("{}"));
         assert!(read.refused.is_empty());
     }
 
@@ -378,6 +399,7 @@ mod tests {
                     text: "ts".to_string(),
                 }],
                 policy: None,
+                baseline: None,
                 refused: vec!["x: leaves the folder".to_string()],
             },
         );
@@ -436,6 +458,7 @@ mod tests {
                 text: "{}".to_string(),
             }],
             policy: None,
+            baseline: None,
         })
         .unwrap();
 
@@ -446,7 +469,8 @@ mod tests {
                 "exitCode": 0,
                 "stderr": "",
                 "scans": [{ "file": "scan.python.json", "text": "{}" }],
-                "policy": null
+                "policy": null,
+                "baseline": null
             })
         );
         assert_eq!(

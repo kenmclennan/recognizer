@@ -8,4 +8,5 @@ export type ScanReport =
       stderr: string;
       scans: { file: string; text: string }[];
       policy: string | null;
+      baseline?: string | null;
     };

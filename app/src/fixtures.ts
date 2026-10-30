@@ -19,6 +19,13 @@ export function fixturePolicy(name: string): string {
   );
 }
 
+export function fixtureBaseline(name: string): string {
+  return readFileSync(
+    join(REPO, "fixtures", name, ".recognizer/baselines/violations.json"),
+    "utf8",
+  );
+}
+
 export function expectedModuleIds(language: string): string[] {
   const text = readFileSync(
     join(REPO, "fixtures", language, "expected-scan.json"),
