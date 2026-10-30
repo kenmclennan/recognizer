@@ -460,19 +460,11 @@ svg.i.chevron {
   color: var(--warn);
 }
 
-.footer .tools-notice[hidden] {
-  display: none;
-}
-
 .footer .agent-line {
   display: inline-flex;
   gap: 6px;
   align-items: baseline;
   animation: agent-line-fade 6s linear forwards;
-}
-
-.footer .agent-line[hidden] {
-  display: none;
 }
 
 .footer .agent-undo {
@@ -865,11 +857,6 @@ svg.i.chevron {
   padding-top: 12px;
   background: var(--panel);
   border-left: 1px solid var(--line);
-}
-
-.inspector-rail[hidden],
-.inspector-trail[hidden] {
-  display: none;
 }
 
 .inspector-rail .ib {
@@ -1275,7 +1262,7 @@ svg.i.chevron {
 }
 
 [hidden] {
-  display: none;
+  display: none !important;
 }
 
 .inspector-panel .row {
@@ -1410,12 +1397,6 @@ svg.i.chevron {
   font-weight: 600;
 }
 
-.view-name-field-inline[hidden],
-.view-name-problem[hidden],
-.view-bar .view-name[hidden] {
-  display: none;
-}
-
 .view-name-problem {
   position: absolute;
   top: 34px;
@@ -1459,12 +1440,6 @@ svg.i.chevron {
   border-radius: 6px;
   background: var(--panel);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-}
-
-.view-menu[hidden],
-.view-dialog[hidden],
-.stale-panel[hidden] {
-  display: none;
 }
 
 .view-bar .view-item {
@@ -1652,10 +1627,6 @@ svg.i.chevron {
   border-radius: 6px;
   padding: 6px 8px;
   font-size: 12px;
-}
-
-.changes-list[hidden] {
-  display: none;
 }
 
 .changes-row {
@@ -1911,10 +1882,6 @@ svg.i.chevron {
   pointer-events: none;
 }
 
-.spinner[hidden] {
-  display: none;
-}
-
 .spinner-icon {
   width: 28px;
   height: 28px;
@@ -1971,10 +1938,6 @@ svg.i.chevron {
   font-size: 10px;
   line-height: 14px;
   text-align: center;
-}
-
-.rail .rail-count[hidden] {
-  display: none;
 }
 
 .notes-panel {
@@ -2055,10 +2018,6 @@ svg.i.chevron {
   background: transparent;
   color: var(--faint);
   cursor: default;
-}
-
-.note-composer [hidden] {
-  display: none;
 }
 
 .note-group,
