@@ -1,7 +1,7 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
 import { run } from "../src/cli.js";
 import { check, InputError, parsePolicy, validateScan } from "../src/index.js";
@@ -69,10 +69,7 @@ describe("scan versions", () => {
   });
 
   it("exits 2 on a version-1 scan file", () => {
-    const path = join(
-      mkdtempSync(join(tmpdir(), "recognizer-v1-")),
-      "scan.json",
-    );
+    const path = join(makeTempDir("recognizer-v1-"), "scan.json");
     writeFileSync(path, JSON.stringify(scanOf([], 1)));
     const captured = capture();
 

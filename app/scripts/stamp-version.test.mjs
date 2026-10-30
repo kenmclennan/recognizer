@@ -1,14 +1,8 @@
-import {
-  cpSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { stampVersion } from "./stamp-version.mjs";
 
 const FILES = {
@@ -36,7 +30,7 @@ const FILES = {
 };
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "stamp-"));
+  const root = makeTempDir("stamp-");
 
   mkdirSync(join(root, "app/src-tauri"), { recursive: true });
   mkdirSync(join(root, "check"), { recursive: true });
@@ -88,7 +82,7 @@ describe("stampVersion", () => {
 describe("stampVersion on the real manifests", () => {
   it("leaves every manifest reading the stamped version", () => {
     const repo = fileURLToPath(new URL("../..", import.meta.url));
-    const root = mkdtempSync(join(tmpdir(), "stamp-real-"));
+    const root = makeTempDir("stamp-real-");
     const files = [
       "package.json",
       "check/package.json",

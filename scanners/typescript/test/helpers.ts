@@ -1,17 +1,16 @@
 import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { expect } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { type ScanDocument, type ScanEdge, scan } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -85,7 +84,7 @@ export function makeTree(
   files: Record<string, string>,
   symlinks: Record<string, string> = {},
 ): string {
-  const root = mkdtempSync(join(tmpdir(), "recognizer-ts-"));
+  const root = makeTempDir("recognizer-ts-");
 
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });

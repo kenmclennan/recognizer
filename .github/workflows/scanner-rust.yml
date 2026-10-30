@@ -7,6 +7,7 @@ on:
       - schema/**
       - fixtures/**
       - app/src-tauri/**
+      - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-rust.yml
   push:
     branches: [main]
@@ -15,6 +16,7 @@ on:
       - schema/**
       - fixtures/**
       - app/src-tauri/**
+      - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-rust.yml
 
 jobs:
@@ -28,4 +30,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test --locked
+      - run: node "$GITHUB_WORKSPACE/scripts/assert-clean-tmpdir.mjs" cargo test --locked

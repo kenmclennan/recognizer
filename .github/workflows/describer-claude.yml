@@ -34,4 +34,4 @@ jobs:
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run lint -w describers/claude
       - run: npm run build -w describers/claude
-      - run: npm test -w describers/claude
+      - run: node scripts/assert-clean-tmpdir.mjs npm test -w describers/claude

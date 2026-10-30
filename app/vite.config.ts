@@ -26,6 +26,7 @@ export default defineConfig({
       "scripts/**/*.test.mjs",
       "../scripts/**/*.test.mjs",
     ],
+    setupFiles: ["../scripts/vitest-remove-temp-dirs.mjs"],
     ...(maxWorkers ? { maxWorkers } : {}),
   },
 });

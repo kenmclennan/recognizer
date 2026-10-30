@@ -2,14 +2,13 @@ import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +24,7 @@ export interface Sandbox {
 }
 
 export function sandbox(): Sandbox {
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), "describe-test-")));
+  const directory = realpathSync(makeTempDir("describe-test-"));
   const bin = join(directory, "bin");
   const fake = join(directory, "bin", "claude");
 

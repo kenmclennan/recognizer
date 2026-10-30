@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { scan } from "../src/index.js";
 import { makeTree, REPO, readJson, runBin, scanTree } from "./helpers.js";
 
@@ -36,7 +37,7 @@ describe("skip rules", () => {
   });
 
   it("scans a root whose own name would match a skipped directory", () => {
-    const parent = mkdtempSync(join(tmpdir(), "recognizer-ts-"));
+    const parent = makeTempDir("recognizer-ts-");
     const root = join(parent, "dist");
     execFileSync("mkdir", [root]);
     execFileSync("sh", [

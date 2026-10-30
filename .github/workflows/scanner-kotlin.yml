@@ -6,6 +6,7 @@ on:
       - scanners/kotlin/**
       - schema/**
       - fixtures/**
+      - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-kotlin.yml
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - scanners/kotlin/**
       - schema/**
       - fixtures/**
+      - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-kotlin.yml
 
 env:
@@ -42,4 +44,4 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run pytest
+      - run: node "$GITHUB_WORKSPACE/scripts/assert-clean-tmpdir.mjs" uv run pytest

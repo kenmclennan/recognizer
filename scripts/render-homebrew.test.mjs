@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { render, renderAll } from "./render-homebrew.mjs";
+import { makeTempDir } from "./temp-dirs.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const TOOLCHAIN = "a".repeat(64);
@@ -20,7 +20,7 @@ describe("render", () => {
 });
 
 describe("renderAll on the committed templates", () => {
-  const out = mkdtempSync(join(tmpdir(), "brew-"));
+  const out = makeTempDir("brew-");
 
   renderAll(ROOT, "1.2.3", TOOLCHAIN, APP, out);
 

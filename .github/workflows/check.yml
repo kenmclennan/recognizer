@@ -46,7 +46,7 @@ jobs:
       - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w recognizer-describe-claude
       - run: npm run build -w check
-      - run: npm test -w check
+      - run: node scripts/assert-clean-tmpdir.mjs npm test -w check
       - run: node scripts/build-toolchain.mjs "$RUNNER_TEMP/toolchain"
       - run: |
           extracted=$(mktemp -d)

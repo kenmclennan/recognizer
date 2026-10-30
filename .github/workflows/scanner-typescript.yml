@@ -34,4 +34,4 @@ jobs:
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run lint -w scanners/typescript
       - run: npm run build -w scanners/typescript
-      - run: npm test -w scanners/typescript
+      - run: node scripts/assert-clean-tmpdir.mjs npm test -w scanners/typescript
