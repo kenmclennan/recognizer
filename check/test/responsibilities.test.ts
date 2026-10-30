@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
 import {
   lineStatus,
@@ -78,5 +79,19 @@ describe("lineStatus", () => {
       status: "out-of-date",
       reasons: ["source", "describer", "version"],
     });
+  });
+});
+
+describe("parseConfig", () => {
+  it.each(readdirSync(join(CONFIGS, "valid")))("parses %s", (file) => {
+    const text = readFileSync(join(CONFIGS, "valid", file), "utf8");
+
+    expect(parseConfig(text)).toEqual(parse(text) ?? {});
+  });
+
+  it.each(readdirSync(join(CONFIGS, "invalid")))("rejects %s", (file) => {
+    const text = readFileSync(join(CONFIGS, "invalid", file), "utf8");
+
+    expect(() => parseConfig(text)).toThrow(InputError);
   });
 });

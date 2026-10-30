@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-describe-module"
+description = "Enables the describe_module command without any pre-configured scope."
+commands.allow = ["describe_module"]
+
+[[permission]]
+identifier = "deny-describe-module"
+description = "Denies the describe_module command without any pre-configured scope."
+commands.deny = ["describe_module"]

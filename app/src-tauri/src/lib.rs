@@ -9,6 +9,7 @@ pub mod editor;
 pub mod fs_safe;
 mod launch;
 pub mod repository;
+pub mod responsibilities;
 pub mod settings;
 pub mod source_line;
 pub mod views;
@@ -546,6 +547,80 @@ fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf
 
 static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+static WATCHING_RESPONSIBILITIES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+#[tauri::command]
+fn read_responsibilities(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<responsibilities::ResponsibilityFiles, String> {
+    Ok(responsibilities::read_responsibilities(
+        &window_folder_path(&app, &window)?,
+    ))
+}
+
+#[tauri::command]
+async fn describe_module(
+    app: AppHandle,
+    window: WebviewWindow,
+    module: String,
+) -> Result<responsibilities::DescribeResult, String> {
+    let folder = window_folder_path(&app, &window)?;
+    let config_file = config_file(&app)?;
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+
+    tauri::async_runtime::spawn_blocking(move || {
+        responsibilities::describe(&folder, &module, &shell, &config_file)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+
+    let first = WATCHING_RESPONSIBILITIES
+        .lock()
+        .map_err(|error| error.to_string())?
+        .get_or_insert_with(HashSet::new)
+        .insert(label.clone());
+
+    if !first {
+        return Ok(());
+    }
+
+    std::thread::spawn(move || {
+        let mut last = responsibilities::snapshot(&folder);
+
+        loop {
+            std::thread::sleep(Duration::from_millis(500));
+
+            if app.get_webview_window(&label).is_none() {
+                break;
+            }
+
+            let next = responsibilities::snapshot(&folder);
+
+            if responsibilities::snapshot_changed(&last, &next) {
+                last = next;
+
+                if app.emit_to(&label, "responsibilities-changed", ()).is_err() {
+                    break;
+                }
+            }
+        }
+
+        if let Ok(mut watching) = WATCHING_RESPONSIBILITIES.lock() {
+            if let Some(set) = watching.as_mut() {
+                set.remove(&label);
+            }
+        }
+    });
+
+    Ok(())
+}
 
 #[tauri::command]
 fn list_views(app: AppHandle, window: WebviewWindow) -> Result<views::ViewList, String> {
@@ -701,9 +776,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             adopt_scan,
             choose_folder,
+            describe_module,
             list_views,
             open_folder_in_editor,
             open_in_editor,
+            read_responsibilities,
             read_settings,
             read_source_line,
             rename_view,
@@ -712,6 +789,7 @@ pub fn run() {
             scans_at,
             view_path,
             watch_changes,
+            watch_responsibilities,
             watch_views,
             window_folder,
             write_current_view,

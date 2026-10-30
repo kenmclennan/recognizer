@@ -7,6 +7,7 @@ import type {
   Direction,
   InspectorContent,
   InspectorTab,
+  ResponsibilityLineRow,
   Row,
 } from "./inspector-model";
 import { nextCheck } from "./row-model";
@@ -34,6 +35,7 @@ export type InspectorActions = {
   setFilter: (text: string) => void;
   openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
   setShowPrivate: (on: boolean) => void;
+  describe: (id: string) => void;
   follow: (relation: Direction, id: string) => void;
   bringBack: (index: number) => void;
   putTrailOnCanvas: () => void;
@@ -145,6 +147,56 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   return node;
 }
 
+const REASON_TEXT = {
+  source: "source changed",
+  describer: "describer changed",
+  version: "version changed",
+};
+
+function responsibilityNode(
+  row: ResponsibilityLineRow,
+  actions: InspectorActions,
+): HTMLElement {
+  const node = el("div", `responsibility ${row.state.kind}`);
+
+  if (row.state.kind === "missing") {
+    node.append(el("span", "muted", "No responsibility line yet"));
+  } else if (row.state.kind === "unknown") {
+    node.append(
+      el("span", "muted", `Responsibility unknown: ${row.state.reason}`),
+    );
+  } else {
+    node.append(el("span", "line", row.state.line));
+    node.append(el("span", "tag", "Generated"));
+
+    if (row.state.kind === "out-of-date") {
+      const button = el(
+        "button",
+        "describe",
+        row.busy ? "Describing" : "Describe",
+      );
+
+      node.append(el("span", "tag stale", "Out of date"));
+      button.type = "button";
+      button.disabled = row.busy;
+      button.title = row.state.reasons
+        .map((reason) => REASON_TEXT[reason])
+        .join(", ");
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        actions.describe(row.id);
+      });
+      node.append(button);
+    }
+  }
+
+  if (row.failure !== null) {
+    node.append(el("div", "finding warning", row.failure));
+  }
+
+  return node;
+}
+
 function rowNode(
   row: Row,
   actions: InspectorActions,
@@ -156,6 +208,10 @@ function rowNode(
 
   if (row.kind === "none") {
     return el("div", "none", "None");
+  }
+
+  if (row.kind === "responsibility") {
+    return responsibilityNode(row, actions);
   }
 
   if (row.kind === "switch") {

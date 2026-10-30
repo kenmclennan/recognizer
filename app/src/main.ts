@@ -9,6 +9,7 @@ import { buildFooter } from "./footer-view";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
+import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
 import { dialogFromOutcome } from "./update-dialog";
 import { buildUpdateDialog } from "./update-dialog-view";
@@ -106,6 +107,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     undefined,
     localStorage,
     editorSource,
+    responsibilitiesSource,
   );
 }
 

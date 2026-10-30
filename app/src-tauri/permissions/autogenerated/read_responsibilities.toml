@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-responsibilities"
+description = "Enables the read_responsibilities command without any pre-configured scope."
+commands.allow = ["read_responsibilities"]
+
+[[permission]]
+identifier = "deny-read-responsibilities"
+description = "Denies the read_responsibilities command without any pre-configured scope."
+commands.deny = ["read_responsibilities"]

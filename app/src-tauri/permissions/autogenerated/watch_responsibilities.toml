@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-watch-responsibilities"
+description = "Enables the watch_responsibilities command without any pre-configured scope."
+commands.allow = ["watch_responsibilities"]
+
+[[permission]]
+identifier = "deny-watch-responsibilities"
+description = "Denies the watch_responsibilities command without any pre-configured scope."
+commands.deny = ["watch_responsibilities"]
