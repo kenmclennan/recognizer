@@ -33,6 +33,22 @@ export function stampVersion(root, version) {
     /^(version = ")[^"]*(")/m,
     version,
   );
+  rewrite(
+    join(root, "scanners/kotlin/pyproject.toml"),
+    /^(version = ")[^"]*(")/m,
+    version,
+  );
+  rewrite(join(root, "describers/claude/package.json"), json, version);
+  rewrite(
+    join(root, "scanners/rust/Cargo.toml"),
+    /^(version = ")[^"]*(")/m,
+    version,
+  );
+  rewrite(
+    join(root, "scanners/rust/Cargo.lock"),
+    /(name = "recognizer-scan-rust"\nversion = ")[^"]*(")/,
+    version,
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

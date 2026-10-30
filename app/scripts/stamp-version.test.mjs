@@ -25,6 +25,14 @@ const FILES = {
     '{\n  "name": "recognizer-scan-typescript",\n  "version": "0.1.0"\n}\n',
   "scanners/python/pyproject.toml":
     '[project]\nname = "recognizer-scan-python"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
+  "scanners/kotlin/pyproject.toml":
+    '[project]\nname = "recognizer-scan-kotlin"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
+  "describers/claude/package.json":
+    '{\n  "name": "recognizer-describe-claude",\n  "version": "0.1.0"\n}\n',
+  "scanners/rust/Cargo.toml":
+    '[package]\nname = "recognizer-scan-rust"\nversion = "0.1.0"\n\n[dependencies]\nserde = { version = "1" }\n',
+  "scanners/rust/Cargo.lock":
+    '[[package]]\nname = "serde"\nversion = "0.1.0"\n\n[[package]]\nname = "recognizer-scan-rust"\nversion = "0.1.0"\ndependencies = [\n "serde",\n]\n',
 };
 
 function fixture() {
@@ -34,6 +42,9 @@ function fixture() {
   mkdirSync(join(root, "check"), { recursive: true });
   mkdirSync(join(root, "scanners/typescript"), { recursive: true });
   mkdirSync(join(root, "scanners/python"), { recursive: true });
+  mkdirSync(join(root, "scanners/kotlin"), { recursive: true });
+  mkdirSync(join(root, "scanners/rust"), { recursive: true });
+  mkdirSync(join(root, "describers/claude"), { recursive: true });
 
   for (const [path, text] of Object.entries(FILES)) {
     writeFileSync(join(root, path), text);
@@ -53,17 +64,23 @@ describe("stampVersion", () => {
     );
   });
 
-  it("changes the seven versions and no other byte", () => {
+  it("changes the eleven versions and no other byte", () => {
     const root = fixture();
 
     stampVersion(root, "0.3.4");
 
     for (const [path, text] of Object.entries(FILES)) {
-      expect(readFileSync(join(root, path), "utf8")).toBe(
-        text
-          .replace('version = "0.1.0"', 'version = "0.3.4"')
-          .replace('"version": "0.1.0"', '"version": "0.3.4"'),
-      );
+      const stamped =
+        path === "scanners/rust/Cargo.lock"
+          ? text.replace(
+              'name = "recognizer-scan-rust"\nversion = "0.1.0"',
+              'name = "recognizer-scan-rust"\nversion = "0.3.4"',
+            )
+          : text
+              .replace('version = "0.1.0"', 'version = "0.3.4"')
+              .replace('"version": "0.1.0"', '"version": "0.3.4"');
+
+      expect(readFileSync(join(root, path), "utf8")).toBe(stamped);
     }
   });
 });
@@ -80,6 +97,10 @@ describe("stampVersion on the real manifests", () => {
       "app/src-tauri/tauri.conf.json",
       "app/src-tauri/Cargo.toml",
       "scanners/python/pyproject.toml",
+      "scanners/kotlin/pyproject.toml",
+      "describers/claude/package.json",
+      "scanners/rust/Cargo.toml",
+      "scanners/rust/Cargo.lock",
     ];
 
     for (const file of files) {
@@ -88,6 +109,11 @@ describe("stampVersion on the real manifests", () => {
     }
 
     stampVersion(root, "7.8.9");
+
+    const lockBefore = readFileSync(
+      join(repo, "scanners/rust/Cargo.lock"),
+      "utf8",
+    );
 
     for (const file of files.filter((name) => name.endsWith(".json"))) {
       expect(JSON.parse(readFileSync(join(root, file), "utf8")).version).toBe(
@@ -101,5 +127,26 @@ describe("stampVersion on the real manifests", () => {
     expect(
       readFileSync(join(root, "app/src-tauri/Cargo.toml"), "utf8"),
     ).toMatch(/^version = "7\.8\.9"$/m);
+    expect(
+      readFileSync(join(root, "scanners/kotlin/pyproject.toml"), "utf8"),
+    ).toMatch(/^version = "7\.8\.9"$/m);
+    expect(
+      readFileSync(join(root, "scanners/rust/Cargo.toml"), "utf8"),
+    ).toMatch(/^version = "7\.8\.9"$/m);
+
+    const lockAfter = readFileSync(
+      join(root, "scanners/rust/Cargo.lock"),
+      "utf8",
+    );
+
+    expect(lockAfter).toContain(
+      'name = "recognizer-scan-rust"\nversion = "7.8.9"',
+    );
+    expect(
+      lockAfter.replace(
+        'name = "recognizer-scan-rust"\nversion = "7.8.9"',
+        'name = "recognizer-scan-rust"\nversion = "0.1.0"',
+      ),
+    ).toBe(lockBefore);
   });
 });

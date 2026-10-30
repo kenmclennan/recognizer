@@ -82,6 +82,8 @@ jobs:
         run: |
           npm run build -w recognizer
           npm run build -w recognizer-scan-typescript
+          npm run build -w recognizer-describe-claude
+          rustup target add aarch64-apple-darwin
           node scripts/build-toolchain.mjs dist-release
 
       - name: Build the app
@@ -108,10 +110,14 @@ jobs:
           mkdir "$smoke/bin"
           ln -s "$smoke/node_modules/recognizer/dist/bin.js" "$smoke/bin/recognizer"
           ln -s "$smoke/node_modules/recognizer-scan-typescript/dist/bin.js" "$smoke/bin/recognizer-scan-typescript"
-          python3 -m venv "$smoke/venv"
-          "$smoke/venv/bin/pip" install "$smoke/recognizer_scan_python-$VERSION-py3-none-any.whl"
+          ln -s "$smoke/node_modules/recognizer-describe-claude/dist/bin.js" "$smoke/bin/recognizer-describe-claude"
+          ln -s "$smoke/recognizer-scan-rust" "$smoke/bin/recognizer-scan-rust"
+          uv venv --python 3.13 "$smoke/venv"
+          uv pip install --python "$smoke/venv/bin/python" --no-index --find-links "$smoke/wheelhouse" \
+            "$smoke/recognizer_scan_python-$VERSION-py3-none-any.whl" \
+            "$smoke/recognizer_scan_kotlin-$VERSION-py3-none-any.whl"
           export PATH="$smoke/bin:$smoke/venv/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
-          for tool in recognizer recognizer-scan-typescript recognizer-scan-python; do
+          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-rust; do
             got=$("$tool" --version)
             if [ "$got" != "$VERSION" ]; then
               echo "$tool --version printed $got, expected $VERSION" >&2
@@ -120,6 +126,27 @@ jobs:
           done
           recognizer scan "$repo/fixtures/python/sample"
           recognizer scan "$repo/fixtures/typescript/sample"
+          prompt=$(recognizer-describe-claude --prompt-version)
+          case "$prompt" in
+            prompt-*) ;;
+            *) echo "recognizer-describe-claude --prompt-version printed $prompt" >&2; exit 1 ;;
+          esac
+          mixed=$(mktemp -d)
+          cp -R "$repo/fixtures/kotlin/sample/." "$mixed/"
+          cp -R "$repo/fixtures/rust/sample/." "$mixed/"
+          recognizer scan "$mixed"
+          for language in kotlin rust; do
+            file="$mixed/.recognizer/cache/scan.$language.json"
+            if [ ! -f "$file" ]; then
+              echo "recognizer scan wrote no $file" >&2
+              exit 1
+            fi
+            got=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).scanner.version)' "$file")
+            if [ "$got" != "$VERSION" ]; then
+              echo "$file records scanner.version $got, expected $VERSION" >&2
+              exit 1
+            fi
+          done
 
       - name: Release notes
         if: steps.released.outputs.skip != 'true'

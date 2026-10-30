@@ -6,6 +6,8 @@ class Recognizer < Formula
   sha256 "@@toolchain_sha256@@"
   license "MIT"
 
+  depends_on arch: :arm64
+  depends_on :macos
   depends_on "node"
   depends_on "python@3.13"
 
@@ -13,10 +15,16 @@ class Recognizer < Formula
     libexec.install "node_modules"
     bin.install_symlink libexec/"node_modules/recognizer/dist/bin.js" => "recognizer"
     bin.install_symlink libexec/"node_modules/recognizer-scan-typescript/dist/bin.js" => "recognizer-scan-typescript"
+    bin.install_symlink libexec/"node_modules/recognizer-describe-claude/dist/bin.js" => "recognizer-describe-claude"
 
     system formula_opt_bin("python@3.13")/"python3.13", "-m", "venv", libexec/"venv"
-    system libexec/"venv/bin/pip", "install", "recognizer_scan_python-@@version@@-py3-none-any.whl"
+    system libexec/"venv/bin/pip", "install", "--no-index", "--find-links", "wheelhouse",
+           "recognizer_scan_python-@@version@@-py3-none-any.whl",
+           "recognizer_scan_kotlin-@@version@@-py3-none-any.whl"
     bin.install_symlink libexec/"venv/bin/recognizer-scan-python"
+    bin.install_symlink libexec/"venv/bin/recognizer-scan-kotlin"
+
+    bin.install "recognizer-scan-rust"
 
     doc.install "THIRD-PARTY-NOTICES.md", "LICENSE"
   end
@@ -25,5 +33,8 @@ class Recognizer < Formula
     assert_match "@@version@@", shell_output("#{bin}/recognizer --version")
     assert_match "@@version@@", shell_output("#{bin}/recognizer-scan-typescript --version")
     assert_match "@@version@@", shell_output("#{bin}/recognizer-scan-python --version")
+    assert_match "@@version@@", shell_output("#{bin}/recognizer-scan-kotlin --version")
+    assert_match "@@version@@", shell_output("#{bin}/recognizer-scan-rust --version")
+    assert_match(/prompt-[0-9a-f]{12}/, shell_output("#{bin}/recognizer-describe-claude --prompt-version"))
   end
 end

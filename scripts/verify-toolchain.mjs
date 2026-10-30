@@ -6,6 +6,7 @@ import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
 const OWN = new Set([
   "recognizer",
   "recognizer-scan-typescript",
+  "recognizer-describe-claude",
   ".bin",
   ".package-lock.json",
 ]);
