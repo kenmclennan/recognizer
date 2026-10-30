@@ -286,9 +286,24 @@ describe("show", () => {
           },
         },
       });
-    const status = (extra: Record<string, string>) =>
-      JSON.parse(ask(python, ["show", order, "--json"], extra).out)
-        .responsibility;
+    const status = (extra: Record<string, string>) => {
+      const text = extra[`${ROOT}/${order}`];
+      const cache =
+        text === undefined
+          ? {}
+          : {
+              [CACHE]: JSON.stringify({
+                ...python,
+                commit: COMMIT,
+                modified: false,
+                files: [{ path: order, hash: hash(text) }],
+              }),
+            };
+
+      return JSON.parse(
+        ask(python, ["show", order, "--json"], { ...cache, ...extra }).out,
+      ).responsibility;
+    };
 
     it("is current when the line matches the source and the describer", () => {
       expect(
