@@ -18,11 +18,11 @@ describe("selection parity", () => {
   const parity = JSON.parse(
     readFileSync(join(REPO, "fixtures/selection-parity.json"), "utf8"),
   ) as Record<
-    "python" | "typescript" | "kotlin",
+    "python" | "typescript" | "kotlin" | "rust",
     { tree: string[]; accepted: string[] }
   >;
 
-  it.each(["python", "typescript", "kotlin"] as const)(
+  it.each(["python", "typescript", "kotlin", "rust"] as const)(
     "detects %s exactly when its scanner accepts a file of the shared tree",
     (language) => {
       const { tree, accepted } = parity[language];
@@ -33,7 +33,7 @@ describe("selection parity", () => {
     },
   );
 
-  it.each(["python", "typescript", "kotlin"] as const)(
+  it.each(["python", "typescript", "kotlin", "rust"] as const)(
     "detects %s from no rejected file of the shared tree",
     (language) => {
       const { tree, accepted } = parity[language];
@@ -43,7 +43,7 @@ describe("selection parity", () => {
     },
   );
 
-  it.each(["python", "typescript", "kotlin"] as const)(
+  it.each(["python", "typescript", "kotlin", "rust"] as const)(
     "detects %s from each accepted file alone",
     (language) => {
       for (const path of parity[language].accepted) {
@@ -68,6 +68,12 @@ describe("detectLanguages", () => {
     [["build/A.kt"], []],
     [[".gradle/A.kt"], []],
     [["src/test/kotlin/ATest.kt"], ["kotlin"]],
+    [["src/lib.rs"], ["rust"]],
+    [["tests/it.rs"], ["rust"]],
+    [["Cargo.toml"], []],
+    [["target/debug/gen.rs"], []],
+    [["node_modules/pkg/lib.rs"], []],
+    [[".cargo/hidden.rs"], []],
     [["readme.md"], []],
     [["types/index.d.ts"], []],
     [["a.js"], ["typescript"]],
@@ -141,11 +147,12 @@ describe("detectLanguages", () => {
       "a.py",
       "b.ts",
       "c.kt",
+      "d.rs",
       "z/deep/one.txt",
       "z/other/two.txt",
     ]);
 
-    expect(languages).toEqual(["python", "typescript", "kotlin"]);
+    expect(languages).toEqual(["python", "typescript", "kotlin", "rust"]);
     expect(fake.readDirCalls()).toBe(1);
   });
 });

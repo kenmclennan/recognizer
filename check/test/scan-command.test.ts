@@ -157,6 +157,34 @@ describe("recognizer scan: kotlin", () => {
   });
 });
 
+describe("recognizer scan: rust", () => {
+  it("fails a detected rust language whose scanner is missing", () => {
+    const { code, err } = scan({ files: { [`${ROOT}/src/lib.rs`]: "" } });
+
+    expect(code).toBe(1);
+    expect(err).toContain("recognizer-scan-rust is not installed");
+    expect(err).toContain("RECOGNIZER_SCAN_RUST");
+  });
+
+  it("runs recognizer-scan-rust for rust", () => {
+    expect(scannerFor("rust").name).toBe("recognizer-scan-rust");
+  });
+
+  it("uses an absolute override in place of the scanner name", () => {
+    const { fake, code } = scan({
+      files: { [`${ROOT}/src/lib.rs`]: "" },
+      env: { RECOGNIZER_SCAN_RUST: "/opt/rust-launcher" },
+      scanners: { "/opt/rust-launcher": { output: scanJson(1, 0) } },
+    });
+
+    expect(code).toBe(0);
+    expect(fake.calls.map((call) => call.command)).toEqual([
+      "git",
+      "/opt/rust-launcher",
+    ]);
+  });
+});
+
 describe("recognizer scan: outcomes", () => {
   const cases: [string, Record<string, unknown>, string][] = [
     ["not-installed", {}, "not-installed"],

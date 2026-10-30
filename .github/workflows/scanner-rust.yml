@@ -1,0 +1,31 @@
+name: scanner-rust
+
+on:
+  pull_request:
+    paths:
+      - scanners/rust/**
+      - schema/**
+      - fixtures/**
+      - app/src-tauri/**
+      - .github/workflows/scanner-rust.yml
+  push:
+    branches: [main]
+    paths:
+      - scanners/rust/**
+      - schema/**
+      - fixtures/**
+      - app/src-tauri/**
+      - .github/workflows/scanner-rust.yml
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: scanners/rust
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --locked
