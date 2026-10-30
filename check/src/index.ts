@@ -81,10 +81,13 @@ export {
   validateScan,
 } from "./scan.js";
 export {
+  migrateView,
   type Note,
   type ResolvedView,
   resolveView,
   type View,
+  type ViewNote,
   type ViewStep,
   validateView,
+  viewNotes,
 } from "./views.js";

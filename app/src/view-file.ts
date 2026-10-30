@@ -1,31 +1,25 @@
-import { InputError, type View, validateView } from "recognizer";
+import { InputError, migrateView, type View, validateView } from "recognizer";
 
 export type ParsedView =
   | { ok: true; view: View }
   | { ok: false; reason: string };
 
 export function serialiseView(view: View): string {
-  const moduleNotes = Object.entries(view.module_notes ?? {}).sort(
-    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
-  );
+  const migrated = migrateView(view);
   const ordered = {
-    schema_version: 2,
-    description: view.description,
-    commit: view.commit,
-    ...(view.note === undefined
-      ? {}
-      : { note: { text: view.note.text, by: view.note.by } }),
-    ...(moduleNotes.length === 0
+    schema_version: 3,
+    description: migrated.description,
+    commit: migrated.commit,
+    ...(migrated.notes === undefined
       ? {}
       : {
-          module_notes: Object.fromEntries(
-            moduleNotes.map(([module, note]) => [
-              module,
-              { text: note.text, by: note.by },
-            ]),
-          ),
+          notes: migrated.notes.map((note) => ({
+            module: note.module,
+            text: note.text,
+            by: note.by,
+          })),
         }),
-    steps: view.steps,
+    steps: migrated.steps,
   };
 
   return `${JSON.stringify(ordered, null, 2)}\n`;

@@ -16,7 +16,7 @@ describe("view files", () => {
     const text = serialiseView(view);
 
     expect(text).toBe(
-      `${JSON.stringify({ schema_version: 2, description: "d", commit: null, steps: view.steps }, null, 2)}\n`,
+      `${JSON.stringify({ schema_version: 3, description: "d", commit: null, steps: view.steps }, null, 2)}\n`,
     );
     expect(Object.keys(JSON.parse(text))).toEqual([
       "schema_version",
@@ -30,17 +30,16 @@ describe("view files", () => {
     expect(parsed.ok).toBe(true);
   });
 
-  it("round-trips notes in key order with module notes sorted", () => {
+  it("round-trips notes in key order, in the order they were added", () => {
     const view = {
-      schema_version: 2 as const,
+      schema_version: 3 as const,
       description: "d",
       commit: null,
       steps: [],
-      module_notes: {
-        "b.py": { text: "B", by: "Ken" },
-        "a.py": { text: "A", by: "Claude" },
-      },
-      note: { text: "V", by: "Ken" },
+      notes: [
+        { module: "b.py", text: "B", by: "Ken" },
+        { module: "a.py", text: "A", by: "Claude" },
+      ],
     };
     const text = serialiseView(view);
 
@@ -48,25 +47,45 @@ describe("view files", () => {
       "schema_version",
       "description",
       "commit",
-      "note",
-      "module_notes",
+      "notes",
       "steps",
-    ]);
-    expect(Object.keys(JSON.parse(text).module_notes)).toEqual([
-      "a.py",
-      "b.py",
     ]);
 
     const parsed = parseViewFile(text);
 
-    expect(parsed.ok && parsed.view.note).toEqual({ text: "V", by: "Ken" });
-    expect(parsed.ok && parsed.view.module_notes?.["a.py"]).toEqual({
-      text: "A",
-      by: "Claude",
-    });
+    expect(parsed.ok && parsed.view.notes).toEqual(view.notes);
   });
 
-  it("writes a version 1 view at version 2", () => {
+  it("writes a version 2 view with both note kinds at version 3 without the view note", () => {
+    const text = serialiseView({
+      schema_version: 2,
+      description: "d",
+      commit: null,
+      note: { text: "V", by: "Ken" },
+      module_notes: { "a.py": { text: "A", by: "Claude" } },
+      steps: [],
+    });
+    const written = JSON.parse(text);
+
+    expect(written.schema_version).toBe(3);
+    expect(written.note).toBeUndefined();
+    expect(written.module_notes).toBeUndefined();
+    expect(written.notes).toEqual([
+      { module: "a.py", text: "A", by: "Claude" },
+    ]);
+  });
+
+  it("writes the committed version 3 example back to the same bytes", () => {
+    const text = readFileSync(
+      join(EXAMPLES, "version-3-with-notes.json"),
+      "utf8",
+    );
+    const parsed = parseViewFile(text);
+
+    expect(parsed.ok && serialiseView(parsed.view)).toBe(text);
+  });
+
+  it("writes a version 1 view at version 3", () => {
     const text = serialiseView({
       schema_version: 1,
       description: "d",
@@ -74,7 +93,7 @@ describe("view files", () => {
       steps: [],
     });
 
-    expect(JSON.parse(text).schema_version).toBe(2);
+    expect(JSON.parse(text).schema_version).toBe(3);
   });
 
   it("rejects a blank description with the reason", () => {

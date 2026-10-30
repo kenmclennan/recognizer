@@ -45,7 +45,7 @@ const inputs = {
   filter: "",
   collapsed: new Set(),
   responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),
-  moduleNote: () => null,
+ 
 };
 const noop = () => {};
 const actions = new Proxy({}, { get: () => noop });

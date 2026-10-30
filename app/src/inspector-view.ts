@@ -7,7 +7,6 @@ import type {
   Direction,
   InspectorContent,
   InspectorTab,
-  ModuleNoteLineRow,
   ResponsibilityLineRow,
   Row,
 } from "./inspector-model";
@@ -37,11 +36,6 @@ export type InspectorActions = {
   openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
   setShowPrivate: (on: boolean) => void;
   describe: (id: string) => void;
-  noteEdit: (id: string) => void;
-  noteDraft: (text: string) => void;
-  noteSave: (id: string, text: string) => void;
-  noteDelete: (id: string) => void;
-  noteCancel: () => void;
   follow: (relation: Direction, id: string) => void;
   bringBack: (index: number) => void;
   putTrailOnCanvas: () => void;
@@ -203,79 +197,6 @@ function responsibilityNode(
   return node;
 }
 
-function noteButton(
-  label: string,
-  className: string,
-  run: () => void,
-): HTMLButtonElement {
-  const node = el("button", className, label);
-
-  node.type = "button";
-  node.addEventListener("click", (event) => {
-    event.stopPropagation();
-    run();
-  });
-
-  return node;
-}
-
-function moduleNoteNode(
-  row: ModuleNoteLineRow,
-  actions: InspectorActions,
-): HTMLElement {
-  const node = el("div", "module-note");
-
-  node.dataset.id = row.id;
-
-  if (row.editing !== null) {
-    const field = el("textarea", "note-field");
-    const save = noteButton("Save", "note-save", () =>
-      actions.noteSave(row.id, field.value),
-    );
-
-    field.rows = 3;
-    field.value = row.editing;
-    field.setAttribute("aria-label", "Note");
-    save.disabled = row.editing.trim() === "";
-    field.addEventListener("keydown", (event) => {
-      event.stopPropagation();
-
-      if (event.key === "Escape") {
-        actions.noteCancel();
-      }
-    });
-    field.addEventListener("click", (event) => event.stopPropagation());
-    field.addEventListener("input", () => {
-      actions.noteDraft(field.value);
-      save.disabled = field.value.trim() === "";
-    });
-    node.append(
-      field,
-      noteButton("Cancel", "note-cancel", () => actions.noteCancel()),
-      save,
-    );
-
-    return node;
-  }
-
-  if (row.note === null) {
-    node.append(
-      noteButton("Add note", "note-add", () => actions.noteEdit(row.id)),
-    );
-
-    return node;
-  }
-
-  node.append(
-    el("span", "note-text", row.note.text),
-    el("span", "note-by", `by ${row.note.by}`),
-    noteButton("Edit", "note-edit", () => actions.noteEdit(row.id)),
-    noteButton("Delete", "note-delete", () => actions.noteDelete(row.id)),
-  );
-
-  return node;
-}
-
 function rowNode(
   row: Row,
   actions: InspectorActions,
@@ -287,10 +208,6 @@ function rowNode(
 
   if (row.kind === "none") {
     return el("div", "none", "None");
-  }
-
-  if (row.kind === "module-note") {
-    return moduleNoteNode(row, actions);
   }
 
   if (row.kind === "responsibility") {
@@ -506,16 +423,7 @@ function buildPanelView(element: HTMLElement): PanelView {
 
       element.replaceChildren(...parts);
 
-      const noteField =
-        element.querySelector<HTMLTextAreaElement>(".note-field");
-
-      if (noteField !== null) {
-        noteField.focus();
-        noteField.setSelectionRange(
-          noteField.value.length,
-          noteField.value.length,
-        );
-      } else if (refocus) {
+      if (refocus) {
         const field = element.querySelector<HTMLInputElement>(".ifilter");
 
         field?.focus();

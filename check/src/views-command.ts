@@ -7,12 +7,14 @@ import { moduleNames, under } from "./neighbours.js";
 import type { Scan } from "./scan.js";
 import { resolveCommit } from "./scan-command.js";
 import {
-  type Note,
+  migrateView,
   type ResolvedView,
   resolveView,
   type View,
+  type ViewNote,
   type ViewStep,
   validateView,
+  viewNotes,
 } from "./views.js";
 import { windowOrFail } from "./window-commands.js";
 
@@ -73,7 +75,7 @@ const USAGE: Record<Subcommand, string> = {
   focus: "recognizer views focus <name> <folder> [--repository <dir>] [--json]",
   remove:
     "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
-  note: "recognizer views note <name> [<module>] (<text> [--by <name>] | --remove) [--repository <dir>] [--json]",
+  note: "recognizer views note <name> <module> (<text> [--by <name>] | --remove [--by <name>]) [--repository <dir>] [--json]",
   show: "recognizer views show <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
   check:
@@ -137,32 +139,25 @@ function checkName(name: string | undefined): string {
 }
 
 function serialise(view: View): string {
-  const moduleNotes = Object.entries(view.module_notes ?? {}).sort(
-    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
-  );
+  const migrated = migrateView(view);
 
   return `${JSON.stringify(
     {
-      schema_version: 2,
-      description: view.description,
-      commit: view.commit,
-      ...(view.note === undefined ? {} : { note: orderedNote(view.note) }),
-      ...(moduleNotes.length === 0
+      schema_version: 3,
+      description: migrated.description,
+      commit: migrated.commit,
+      ...(migrated.notes === undefined
         ? {}
-        : {
-            module_notes: Object.fromEntries(
-              moduleNotes.map(([module, note]) => [module, orderedNote(note)]),
-            ),
-          }),
-      steps: view.steps.map(orderedStep),
+        : { notes: migrated.notes.map(orderedNote) }),
+      steps: migrated.steps.map(orderedStep),
     },
     null,
     2,
   )}\n`;
 }
 
-function orderedNote(note: Note): Note {
-  return { text: note.text, by: note.by };
+function orderedNote(note: ViewNote): ViewNote {
+  return { module: note.module, text: note.text, by: note.by };
 }
 
 function orderedStep(step: ViewStep): ViewStep {
@@ -394,7 +389,7 @@ function runNew(argv: string[], io: Io): number {
     typeof windowId === "string" ? windowSteps(c, windowId) : null;
 
   const view: View = {
-    schema_version: 2,
+    schema_version: 3,
     description,
     commit: resolveCommit(io, c.root),
     steps: fromWindow?.steps ?? [],
@@ -650,45 +645,41 @@ function runNote(argv: string[], io: Io): number {
     argv,
     io,
     (c, view, scans) => {
-      const target = removing
-        ? c.positionals.slice(1)
-        : c.positionals.slice(1, -1);
-      const module = target[0];
+      const module = c.positionals[1] as string;
+      const notes = viewNotes(view);
+      const rawBy = c.values.by as string | undefined;
 
-      if (c.values.by !== undefined && removing) {
-        throw new InputError(["--by does not apply to --remove"]);
+      if (removing) {
+        const author = rawBy?.trim();
+        const kept = notes.filter(
+          (note) =>
+            note.module !== module ||
+            (author !== undefined && note.by !== author),
+        );
+        const taken = notes.length - kept.length;
+
+        if (taken === 0) {
+          throw new InputError([
+            author === undefined
+              ? `no note on ${module}`
+              : `no note by ${author} on ${module}`,
+          ]);
+        }
+
+        const by = author === undefined ? "" : ` by ${author}`;
+
+        return {
+          view: withNotes(view, kept),
+          what: `removed ${plural(taken, "note")}${by} on ${module}`,
+        };
       }
 
-      if (
-        module !== undefined &&
-        !resolveView(view, scans).modules.includes(module)
-      ) {
+      if (!resolveView(view, scans).modules.includes(module)) {
         throw new InputError([`${module} is not on the view`]);
       }
 
-      const where = module === undefined ? "" : ` on ${module}`;
-
-      if (removing) {
-        const present =
-          module === undefined
-            ? view.note !== undefined
-            : view.module_notes?.[module] !== undefined;
-
-        if (!present) {
-          throw new InputError([`no note on ${module ?? "the view"}`]);
-        }
-
-        if (module === undefined) {
-          delete view.note;
-        } else {
-          delete (view.module_notes as Record<string, Note>)[module];
-        }
-
-        return { view, what: `removed the note${where}` };
-      }
-
-      const text = (c.positionals[c.positionals.length - 1] as string).trim();
-      const by = ((c.values.by as string | undefined) ?? "agent").trim();
+      const text = (c.positionals[2] as string).trim();
+      const by = (rawBy ?? "agent").trim();
 
       if (text === "") {
         throw new InputError(["the note text must not be blank"]);
@@ -700,26 +691,33 @@ function runNote(argv: string[], io: Io): number {
         ]);
       }
 
-      const note: Note = { text, by };
-      const replaced =
-        module === undefined
-          ? view.note !== undefined
-          : view.module_notes?.[module] !== undefined;
-
-      if (module === undefined) {
-        view.note = note;
-      } else {
-        view.module_notes = { ...view.module_notes, [module]: note };
-      }
+      const duplicate = notes.some(
+        (note) =>
+          note.module === module && note.text === text && note.by === by,
+      );
 
       return {
-        view,
-        what: `${replaced ? "replaced" : "set"} the note${where}`,
+        view: withNotes(
+          view,
+          duplicate ? notes : [...notes, { module, text, by }],
+        ),
+        what: `added a note on ${module}`,
       };
     },
-    (count) =>
-      removing ? count === 1 || count === 2 : count === 2 || count === 3,
+    (count) => (removing ? count === 2 : count === 3),
   );
+}
+
+function withNotes(view: View, notes: ViewNote[]): View {
+  const migrated = migrateView(view);
+
+  if (notes.length === 0) {
+    delete migrated.notes;
+  } else {
+    migrated.notes = notes;
+  }
+
+  return migrated;
 }
 
 function resolvedJson(resolved: ResolvedView) {
@@ -750,8 +748,7 @@ function runShow(argv: string[], io: Io): number {
         description: view.description,
         commit: view.commit,
         steps: view.steps,
-        note: view.note ?? null,
-        module_notes: view.module_notes ?? {},
+        notes: viewNotes(view),
         resolved: resolvedJson(resolved),
         unresolved: resolved.unresolved,
       },
@@ -764,9 +761,6 @@ function runShow(argv: string[], io: Io): number {
   const lines = [
     `${name}: ${view.description}`,
     `saved at ${view.commit ?? "none"}`,
-    ...(view.note === undefined
-      ? []
-      : [`note: ${view.note.text} (${view.note.by})`]),
     view.steps.length === 0 ? "no steps" : "steps:",
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
     `resolves to ${plural(resolved.modules.length, "module")}`,
@@ -774,16 +768,14 @@ function runShow(argv: string[], io: Io): number {
   ];
 
   const onView = new Set(resolved.modules);
-  const moduleNotes = Object.entries(view.module_notes ?? {}).sort(
-    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
-  );
+  const notes = viewNotes(view);
 
-  if (moduleNotes.length > 0) {
+  if (notes.length > 0) {
     lines.push(
       "notes:",
-      ...moduleNotes.map(
-        ([module, note]) =>
-          `  ${module}: ${note.text} (${note.by})${onView.has(module) ? "" : " (not on the view)"}`,
+      ...notes.map(
+        (note) =>
+          `  ${note.module}: ${note.text} (${note.by})${onView.has(note.module) ? "" : " (not on the view)"}`,
       ),
     );
   }
@@ -988,25 +980,20 @@ function runCheck(argv: string[], io: Io): number {
           }
         });
 
-        const moduleNotes = { ...view.module_notes };
-
-        for (const { from, to } of fixed) {
-          if (
-            moduleNotes[from] !== undefined &&
-            moduleNotes[to] === undefined
-          ) {
-            moduleNotes[to] = moduleNotes[from] as Note;
-            delete moduleNotes[from];
-          }
-        }
+        const renamed = new Map(fixed.map(({ from, to }) => [from, to]));
 
         view = {
-          ...view,
+          ...migrateView(view),
           steps,
-          ...(Object.keys(moduleNotes).length === 0
-            ? {}
-            : { module_notes: moduleNotes }),
         };
+
+        if (view.notes !== undefined) {
+          view.notes = view.notes.map((note) => ({
+            ...note,
+            module: renamed.get(note.module) ?? note.module,
+          }));
+        }
+
         writeViewFile(io, viewFile(c.root, name), view);
         unresolved = annotate(view);
       }

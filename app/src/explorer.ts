@@ -5,6 +5,7 @@ import {
   usedByOf,
   usesOf,
   type View,
+  viewNotes,
 } from "recognizer";
 import {
   type AgentLineView,
@@ -22,10 +23,14 @@ import {
   neighbourhoodOf,
   presenceOf,
 } from "./canvas-graph";
-import { absoluteLayout, toElk } from "./canvas-layout";
+import { absoluteLayout, type Rect, toElk } from "./canvas-layout";
 import { type Scene, toScene } from "./canvas-scene";
 import { createCanvasState, type Selection } from "./canvas-state";
-import { buildCanvasView, createMeasure } from "./canvas-view";
+import {
+  buildCanvasView,
+  type CanvasNotes,
+  createMeasure,
+} from "./canvas-view";
 import { el } from "./dom";
 import {
   describeLine,
@@ -49,9 +54,11 @@ import {
   layoutOnMainThread,
   startLayoutWorker,
 } from "./layout-source";
+import { orderNotes, tint, walk } from "./notes-order";
+import { buildNotesPanelView } from "./notes-panel-view";
 import { createOpenModules } from "./open-modules";
 import { mountPanelResizers } from "./panel-resizer-view";
-import { buildRailView } from "./rail-view";
+import { buildRailView, type LeftPanel } from "./rail-view";
 import { repositorySource } from "./repository-source";
 import {
   inertResponsibilities,
@@ -103,13 +110,7 @@ import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
 import { createHistory, type History, type Mark } from "./view-history";
 import { resolveLinkedView } from "./view-link";
-import {
-  notedModules,
-  removeModuleNote,
-  removeViewNote,
-  setModuleNote,
-  setViewNote,
-} from "./view-notes";
+import { addNote, notedModules, removeNoteAt } from "./view-notes";
 import { stepsFor } from "./view-steps";
 import { inertViews, type ViewsPort } from "./views-port";
 import {
@@ -172,7 +173,7 @@ export function showExplorer(
     onCanvas: false,
     needsAttention: false,
   };
-  let treeHidden = false;
+  let leftPanel: LeftPanel = "files";
   let scrollTarget: string | null = null;
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
@@ -216,8 +217,15 @@ export function showExplorer(
   const publishWindow = latestWins(windowPort.publish);
   let lastPublished: string | null = null;
   const authorName = views.author().catch(() => "Me");
-  let moduleNoteEdit: { id: string; draft: string } | null = null;
-  let noted: ReadonlySet<string> = new Set();
+  let author = "Me";
+  let activeNote: number | null = null;
+  let canvasNotes: CanvasNotes | undefined;
+  let canvasNotesKey = "";
+
+  void authorName.then((name) => {
+    author = name;
+    render();
+  });
 
   const context = {
     isOpen: modules.isOpen,
@@ -297,6 +305,23 @@ export function showExplorer(
         render();
       },
       openInEditor: openSelectedInEditor,
+      addNote() {
+        if (state.selection()?.kind === "module") {
+          openNotes(true);
+        }
+      },
+      removeNote() {
+        if (activeNote !== null) {
+          removeNote(activeNote);
+        }
+      },
+      walkNotes(delta) {
+        const next = walk(noteOrder(), activeNote, delta);
+
+        if (next !== null) {
+          orientNote(next);
+        }
+      },
       measure,
       openTab,
     },
@@ -338,31 +363,6 @@ export function showExplorer(
 
   const rootActions: InspectorActions = {
     describe: (id) => void describeModule(id),
-    noteEdit(id) {
-      moduleNoteEdit = {
-        id,
-        draft: openViewValue()?.module_notes?.[id]?.text ?? "",
-      };
-      render();
-    },
-    noteDraft(text) {
-      if (moduleNoteEdit !== null) {
-        moduleNoteEdit.draft = text;
-      }
-    },
-    noteCancel() {
-      moduleNoteEdit = null;
-      render();
-    },
-    noteSave: (id, text) =>
-      void writeNote(async (view) =>
-        setModuleNote(view, id, text, await authorName),
-      ).then(() => {
-        moduleNoteEdit = null;
-        render();
-      }),
-    noteDelete: (id) =>
-      void writeNote(async (view) => removeModuleNote(view, id)),
     open() {
       inspectorOpen = true;
       render();
@@ -534,9 +534,6 @@ export function showExplorer(
     rename: (from, to) => renameOpen(from, to),
     copyLink: () => void copyLink(),
     hasOpenView: () => openView !== null,
-    setNote: (text) =>
-      void writeNote(async (view) => setViewNote(view, text, await authorName)),
-    deleteNote: () => void writeNote(async (view) => removeViewNote(view)),
   });
   const stale = buildStalePanel({
     update: () => void update(),
@@ -547,7 +544,24 @@ export function showExplorer(
       }
     },
   });
-  const rail = buildRailView({ toggleFiles: toggleTree });
+  const notesPanel = buildNotesPanelView({
+    select: (index) => orientNote(index),
+    remove: (index) => removeNote(index),
+    add(module, text) {
+      void writeNote(async (view) => addNote(view, module, text, author)).then(
+        () => {
+          const view = openViewValue();
+
+          activeNote = view === null ? null : viewNotes(view).length - 1;
+          render();
+        },
+      );
+    },
+  });
+  const rail = buildRailView({
+    toggleFiles: toggleTree,
+    toggleNotes: () => openNotes(false),
+  });
   const notices = el("div", "notices");
 
   notices.setAttribute("role", "status");
@@ -566,6 +580,7 @@ export function showExplorer(
   );
 
   canvas.element.append(bar.element, stale.element);
+  tree.element.append(notesPanel.element);
   body.append(rail.element, tree.element, canvas.element, inspector.element);
   container.replaceChildren(notices, body);
 
@@ -718,7 +733,7 @@ export function showExplorer(
       return MAX_PANELS;
     }
 
-    const tree = treeHidden ? 0 : widths.tree;
+    const tree = leftPanel === null ? 0 : widths.tree;
     const available = width - RAIL_WIDTH - tree - CANVAS_FLOOR;
 
     return panelCapacity(available, widths.inspector, trail.panels.length);
@@ -829,6 +844,8 @@ export function showExplorer(
   function select(selection: Selection) {
     const previous = state.selection();
 
+    activeNote = null;
+
     if (previous?.kind !== selection?.kind || previous?.id !== selection?.id) {
       resetList();
     }
@@ -883,6 +900,8 @@ export function showExplorer(
   }
 
   function find(id: string) {
+    activeNote = null;
+
     if (!modules.isOpen(id)) {
       modules.open(id);
       rebuild();
@@ -904,8 +923,57 @@ export function showExplorer(
   }
 
   function toggleTree() {
-    treeHidden = !treeHidden;
+    leftPanel = leftPanel === "files" ? null : "files";
     render();
+  }
+
+  function openNotes(focus: boolean) {
+    const wasOpen = leftPanel === "notes";
+
+    leftPanel = wasOpen && !focus ? null : "notes";
+    render();
+
+    if (leftPanel === "notes" && (focus || !wasOpen)) {
+      notesPanel.focusComposer();
+    }
+  }
+
+  function noteBoxes(): Map<string, Rect> {
+    return new Map(
+      (scene?.boxes ?? [])
+        .filter((box) => box.kind === "module")
+        .map((box) => [box.id, box.rect]),
+    );
+  }
+
+  function noteOrder() {
+    const view = openViewValue();
+
+    return orderNotes(view === null ? [] : viewNotes(view), noteBoxes());
+  }
+
+  function orientNote(index: number) {
+    const view = openViewValue();
+    const note = view === null ? undefined : viewNotes(view)[index];
+
+    if (note === undefined || !noteBoxes().has(note.module)) {
+      return;
+    }
+
+    select({ kind: "module", id: note.module });
+    activeNote = index;
+    canvas.centerOn(boxFor(note.module));
+    render();
+  }
+
+  function removeNote(index: number) {
+    if (activeNote === index) {
+      activeNote = null;
+    } else if (activeNote !== null && activeNote > index) {
+      activeNote -= 1;
+    }
+
+    void writeNote(async (view) => removeNoteAt(view, index));
   }
 
   function barOf(selection: Selection): BarModel | null {
@@ -1248,7 +1316,6 @@ export function showExplorer(
   function renderBar() {
     bar.render({
       open: openView,
-      note: openViewValue()?.note ?? null,
       views: viewList.map(({ name, text }) => {
         const parsed = parseViewFile(text);
 
@@ -1495,7 +1562,7 @@ export function showExplorer(
 
   async function saveNew(name: string, description: string) {
     const problem = await writeView(name, {
-      schema_version: 2,
+      schema_version: 3,
       description,
       commit: currentCommit(scans),
       steps: stepsFor([], canvasContent(), scans),
@@ -1679,17 +1746,56 @@ export function showExplorer(
     await applyView(name, entry.text, true);
   }
 
-  function syncNoted() {
+  function syncNotes(): CanvasNotes {
     const view = openViewValue();
-    const next = view === null ? new Set<string>() : notedModules(view);
+    const notes = view === null ? [] : viewNotes(view);
+    const boxes = noteBoxes();
+    const active = activeNote === null ? undefined : notes[activeNote];
 
-    if (next.size !== noted.size || [...next].some((id) => !noted.has(id))) {
-      noted = next;
+    if (
+      activeNote !== null &&
+      (active === undefined || !boxes.has(active.module))
+    ) {
+      activeNote = null;
     }
+
+    const shown = activeNote === null ? undefined : notes[activeNote];
+    const marks = view === null ? new Set<string>() : notedModules(view);
+    const keys = {
+      notesOpen: leftPanel === "notes",
+      noteActive: activeNote !== null,
+    };
+    const key = JSON.stringify([
+      [...marks].sort(),
+      shown?.module ?? null,
+      shown?.text ?? null,
+      shown === undefined ? null : tint(shown.by, author),
+      keys,
+    ]);
+
+    if (key !== canvasNotesKey || canvasNotes === undefined) {
+      canvasNotesKey = key;
+      canvasNotes = {
+        marks,
+        active: shown?.module ?? null,
+        card:
+          shown === undefined
+            ? null
+            : {
+                module: shown.module,
+                text: shown.text,
+                tint: tint(shown.by, author),
+              },
+        keys,
+      };
+    }
+
+    return canvasNotes;
   }
 
   function renderCanvas() {
-    syncNoted();
+    const notes = syncNotes();
+
     onCount(`${modules.count()} of ${modules.total()} modules on the canvas`);
 
     const selection = state.selection();
@@ -1721,21 +1827,22 @@ export function showExplorer(
       showInferred: state.showInferred(),
       notice: layoutNotice,
       busy: layoutBusy,
-      noted,
+      notes,
     });
   }
 
   function render() {
-    if (openView === null) {
-      moduleNoteEdit = null;
-    }
-
     const filtered = filterTree(root, filter, context);
     const selection = state.selection();
 
     syncTrail(selection);
-    body.classList.toggle("tree-hidden", treeHidden);
-    rail.render(!treeHidden);
+    body.classList.toggle("tree-hidden", leftPanel === null);
+    tree.element.classList.toggle("notes-open", leftPanel === "notes");
+
+    const noteView = openViewValue();
+    const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
+
+    rail.render({ panel: leftPanel, notes: noteTotal });
     tree.render({
       title,
       moduleCount: loaded.modules.length,
@@ -1750,6 +1857,14 @@ export function showExplorer(
     body.classList.toggle("inspector-open", inspectorOpen);
     stale.render(stalePanelModel());
     renderCanvas();
+    notesPanel.render({
+      hasView: noteView !== null,
+      order: noteOrder(),
+      active: activeNote,
+      author,
+      target: selection?.kind === "module" ? selection.id : null,
+      targetIsModule: selection?.kind === "module",
+    });
     const contentOf = (index: number) => {
       const panel = trail.panels[index];
       const root = index === 0;
@@ -1781,18 +1896,6 @@ export function showExplorer(
           busy: describing.busy(id),
           failure: describing.failure(id),
         }),
-        moduleNote: (id) => {
-          const view = openViewValue();
-
-          return openView === null || view === null
-            ? null
-            : {
-                view: openView,
-                note: view.module_notes?.[id] ?? null,
-                editing:
-                  moduleNoteEdit?.id === id ? moduleNoteEdit.draft : null,
-              };
-        },
       });
     };
 

@@ -14,11 +14,20 @@ export type KeyAction =
   | "take-off"
   | "escape"
   | "dependencies"
-  | "contents";
+  | "contents"
+  | "add-note"
+  | "remove-note"
+  | "next-note"
+  | "previous-note";
+
+export type NoteKeyContext = { notesOpen: boolean; noteActive: boolean };
+
+const NO_NOTES: NoteKeyContext = { notesOpen: false, noteActive: false };
 
 export function keyAction(
   event: KeyInput,
   selection: Selection,
+  notes: NoteKeyContext = NO_NOTES,
 ): KeyAction | null {
   if (event.metaKey || event.ctrlKey || event.altKey) {
     return null;
@@ -32,6 +41,20 @@ export function keyAction(
     return "escape";
   }
 
+  const key = event.key.toLowerCase();
+
+  if (notes.notesOpen && key === "j") {
+    return "next-note";
+  }
+
+  if (notes.notesOpen && key === "k") {
+    return "previous-note";
+  }
+
+  if (notes.notesOpen && notes.noteActive && event.key === "Backspace") {
+    return "remove-note";
+  }
+
   if (selection === null) {
     return null;
   }
@@ -40,7 +63,9 @@ export function keyAction(
     return selection.kind === "edge" ? null : "take-off";
   }
 
-  const key = event.key.toLowerCase();
+  if (key === "n") {
+    return selection.kind === "module" ? "add-note" : null;
+  }
 
   if (selection.kind === "edge") {
     return null;

@@ -164,7 +164,7 @@ facts.absent = {
   ghost: document.querySelectorAll('[class*="ghost"], [data-kind="ghost"]').length,
   platformCheckbox: document.querySelectorAll('.tree input[type="checkbox"], .inspector-panel input[type="checkbox"]').length,
   rowButtons: document.querySelectorAll(".tree .row button, .inspector-panel .row button").length,
-  labels: [...document.querySelectorAll("button, [aria-label]")].map((n) => (n.getAttribute("aria-label") || "") + "|" + n.textContent).filter((t) => /Find on canvas|Put on the canvas|Tick all|By name|By module|^\\|Add/.test(t)),
+  labels: [...document.querySelectorAll("button, [aria-label]")].filter((n) => !n.closest(".notes-panel")).map((n) => (n.getAttribute("aria-label") || "") + "|" + n.textContent).filter((t) => /Find on canvas|Put on the canvas|Tick all|By name|By module|^\\|Add/.test(t)),
   legend: document.querySelector(".tree .legend"),
 };
 facts.absent.legend = facts.absent.legend === null;

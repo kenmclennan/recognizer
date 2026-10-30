@@ -16,12 +16,19 @@ export interface Note {
   by: string;
 }
 
+export interface ViewNote {
+  module: string;
+  text: string;
+  by: string;
+}
+
 export interface View {
-  schema_version: 1 | 2;
+  schema_version: 1 | 2 | 3;
   description: string;
   commit: string | null;
   note?: Note;
   module_notes?: Record<string, Note>;
+  notes?: ViewNote[];
   steps: ViewStep[];
 }
 
@@ -47,6 +54,32 @@ export function validateView(value: unknown): View {
   );
 
   throw new InputError(messages.length > 0 ? messages : ["view is invalid"]);
+}
+
+export function viewNotes(view: View): ViewNote[] {
+  if (view.schema_version === 3) {
+    return (view.notes ?? []).map((note) => ({ ...note }));
+  }
+
+  if (view.schema_version === 2) {
+    return Object.entries(view.module_notes ?? {})
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([module, note]) => ({ module, text: note.text, by: note.by }));
+  }
+
+  return [];
+}
+
+export function migrateView(view: View): View {
+  const notes = viewNotes(view);
+
+  return {
+    schema_version: 3,
+    description: view.description,
+    commit: view.commit,
+    ...(notes.length === 0 ? {} : { notes }),
+    steps: view.steps,
+  };
 }
 
 export function resolveView(view: View, scans: Scan[]): ResolvedView {

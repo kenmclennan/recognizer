@@ -81,4 +81,47 @@ describe("canvas keys", () => {
     expect(keyAction(press("f", { metaKey: true }), folder)).toBeNull();
     expect(keyAction(press("z", { ctrlKey: true }), folder)).toBeNull();
   });
+
+  it("maps N to add-note for a module only", () => {
+    expect(keyAction(press("n"), module)).toBe("add-note");
+    expect(keyAction(press("N"), module)).toBe("add-note");
+    expect(keyAction(press("n"), folder)).toBeNull();
+    expect(keyAction(press("n"), { kind: "edge", id: "e" })).toBeNull();
+    expect(keyAction(press("n"), null)).toBeNull();
+    expect(keyAction(press("n", { metaKey: true }), module)).toBeNull();
+    expect(keyAction(press("n", { targetEditable: true }), module)).toBeNull();
+  });
+
+  it("maps J and K to walking the notes only with the panel open", () => {
+    const open = { notesOpen: true, noteActive: false };
+
+    expect(keyAction(press("j"), module, open)).toBe("next-note");
+    expect(keyAction(press("K"), null, open)).toBe("previous-note");
+    expect(keyAction(press("j"), module)).toBeNull();
+    expect(keyAction(press("k", { altKey: true }), module, open)).toBeNull();
+    expect(
+      keyAction(press("j", { targetEditable: true }), module, open),
+    ).toBeNull();
+  });
+
+  it("removes the active note on Backspace instead of taking the box off", () => {
+    const active = { notesOpen: true, noteActive: true };
+
+    expect(keyAction(press("Backspace"), module, active)).toBe("remove-note");
+    expect(
+      keyAction(press("Backspace"), module, {
+        notesOpen: true,
+        noteActive: false,
+      }),
+    ).toBe("take-off");
+    expect(
+      keyAction(press("Backspace"), module, {
+        notesOpen: false,
+        noteActive: true,
+      }),
+    ).toBe("take-off");
+    expect(
+      keyAction(press("Backspace", { targetEditable: true }), module, active),
+    ).toBeNull();
+  });
 });

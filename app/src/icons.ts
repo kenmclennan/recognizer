@@ -21,6 +21,7 @@ export type IconName =
   | "external-link"
   | "arrow-right"
   | "route"
+  | "notes"
   | "x";
 
 type Shape = [string, Record<string, string>];
@@ -108,6 +109,13 @@ const SHAPES: Record<IconName, Shape[]> = {
     ["circle", { cx: "6", cy: "19", r: "3" }],
     ["path", { d: "M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" }],
     ["circle", { cx: "18", cy: "5", r: "3" }],
+  ],
+  notes: [
+    [
+      "path",
+      { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
+    ],
+    ["path", { d: "M8 8h8M8 12h5" }],
   ],
   x: [["path", { d: "M18 6L6 18M6 6l12 12" }]],
 };

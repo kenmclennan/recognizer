@@ -83,12 +83,20 @@ const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], po
 
 const HUB = "app/hub.py";
 const A = "app/a.py";
-const make = (steps, extra) => JSON.stringify({ schema_version: extra ? 2 : 1, description: "d", commit: "cur1234", ...(extra || {}), steps }, null, 2) + "\\n";
+const GONE = "lib/gone.py";
+const make = (steps, notes) => JSON.stringify({ schema_version: notes ? 3 : 1, description: "d", commit: "cur1234", ...(notes ? { notes } : {}), steps }, null, 2) + "\\n";
 const pick = (module) => ({ kind: "pick", module });
 const PICKS = [pick(HUB), pick(A), pick("lib/c.py")];
+const NOTES = [
+  { module: HUB, text: "Hub one", by: "Ken" },
+  { module: A, text: "A agent note", by: "Claude" },
+  { module: HUB, text: "Hub two", by: "Claude" },
+  { module: GONE, text: "Lost one", by: "Ken" },
+];
 const tick = () => new Promise((resolve) => setTimeout(resolve, 40));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 const typeInto = (input, value) => { input.value = value; input.dispatchEvent(new Event("input", { bubbles: true })); };
+const press = (key, extra = {}, target = document.body) => target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...extra }));
 
 function mount(files, author) {
   const host = document.createElement("div");
@@ -102,16 +110,13 @@ function mount(files, author) {
   const saved = (name) => JSON.parse(port.files.get(name));
   const shown = (selector) => { const node = q(selector); return node !== null && getComputedStyle(node).display !== "none"; };
   const openView = async (index = 0) => { click(q(".view-list")); click(all(".view-item")[index]); await tick(); };
-  const select = async (id) => {
-    click(q('.box[data-id="' + id + '"] .box-body'));
-    await tick();
-    if (!q(".inspector-panel .pswitch")) { click(q('.selection-bar [aria-label^="Contents"]')); await tick(); }
-  };
-  const firstRows = () => [...q(".inspector-panel").querySelectorAll(".module-note, .responsibility, .pswitch")].map((n) => n.className.split(" ")[0]);
-  return { host, port, q, all, saved, shown, openView, select, firstRows };
+  const clickBox = async (id) => { click(q('.box[data-id="' + id + '"] .box-body')); await tick(); };
+  const rect = (selector) => q(selector).getBoundingClientRect();
+  const marks = () => all(".note-mark").map((n) => n.dataset.id).sort();
+  const cards = () => all(".note-card");
+  const rows = () => all(".note-panel .note-row, .notes-panel .note-row");
+  return { host, port, q, all, saved, shown, openView, clickBox, rect, marks, cards, rows };
 }
-
-const marks = (m) => m.all(".note-mark").map((n) => n.dataset.id).sort();
 
 (async () => {
   await tick();
@@ -119,90 +124,225 @@ const marks = (m) => m.all(".note-mark").map((n) => n.dataset.id).sort();
 
   const none = mount({});
   await tick();
-  click(none.q('.tree .row[data-path="app"] .rcheck'));
+  click(none.q(".rail-notes"));
   await tick();
-  await none.select(HUB);
-  facts.noView = { viewNote: none.shown(".view-note"), viewNoteChildren: none.all(".view-note > *").length, moduleNote: none.all(".module-note").length, marks: marks(none) };
+  facts.noView = {
+    panel: none.shown(".notes-panel"),
+    prompt: none.q(".note-prompt").textContent,
+    field: none.shown(".notes-panel .note-field"),
+    add: none.shown(".notes-panel .note-add"),
+    countHidden: none.q(".rail-count").hidden,
+    viewNote: none.all(".view-note").length,
+  };
 
-  const noted = mount({
-    order: make(PICKS, { note: { text: "Start at the hub", by: "Claude" }, module_notes: { [HUB]: { text: "The hub of everything", by: "Ken" } } }),
-  });
+  const m = mount({ order: make(PICKS, NOTES) }, "Ken");
   await tick();
-  await noted.openView();
-  const nameBox = noted.q(".view-name").getBoundingClientRect();
-  const noteBox = noted.q(".view-note").getBoundingClientRect();
-  facts.viewNote = { text: noted.q(".view-note .note-text").textContent, by: noted.q(".view-note .note-by").textContent, below: noteBox.top >= nameBox.bottom, left: Math.abs(noteBox.left - noted.q(".view-bar").getBoundingClientRect().left) < 12, inBar: noteBox.bottom <= noted.q(".view-bar").getBoundingClientRect().bottom + 0.5, flow: getComputedStyle(noted.q(".view-note")).position === "static", actions: noted.all(".view-note button").map((n) => n.textContent) };
-  facts.marks = { ids: marks(noted), folders: noted.all(".box.folder .note-mark").length, inside: (() => { const mark = noted.q(".note-mark").getBoundingClientRect(); const body = noted.q('.box[data-id="' + HUB + '"] .box-body').getBoundingClientRect(); return mark.left >= body.left && mark.right <= body.right && mark.top >= body.top && mark.bottom <= body.bottom; })() };
-  await noted.select(HUB);
-  facts.moduleNote = { order: noted.firstRows(), text: noted.q(".module-note .note-text").textContent, by: noted.q(".module-note .note-by").textContent };
-  await noted.select(A);
-  facts.moduleWithout = { order: noted.firstRows(), actions: noted.all(".module-note button").map((n) => n.textContent), text: noted.all(".module-note .note-text").length };
-  click(noted.q(".view-save"));
-  await tick();
-  const kept = noted.saved("order");
-  facts.keptOnSave = { version: kept.schema_version, note: kept.note, moduleNotes: kept.module_notes };
+  await m.openView();
+  facts.rail = {
+    order: m.all(".rail button").map((b) => b.className.split(" ")[1]),
+    count: m.q(".rail-count").textContent,
+    countHidden: m.q(".rail-count").hidden,
+  };
+  facts.marks = {
+    ids: m.marks(),
+    folders: m.all(".box.folder .note-mark").length,
+    inside: (() => { const mark = m.q('.box[data-id="' + HUB + '"] .note-mark').getBoundingClientRect(); const body = m.rect('.box[data-id="' + HUB + '"] .box-body'); return mark.left >= body.left && mark.right <= body.right && mark.top >= body.top && mark.bottom <= body.bottom; })(),
+    cardsBefore: m.cards().length,
+  };
+  facts.old = { viewNote: m.all(".view-note").length, moduleNote: m.all(".module-note").length };
 
-  const writer = mount({ plain: make(PICKS) }, "Tester");
+  facts.files = { treeHeader: m.shown(".tree-header"), notesPanel: m.shown(".notes-panel") };
+  click(m.q(".rail-notes"));
   await tick();
-  await writer.openView();
-  facts.plainShows = { actions: writer.all(".view-note button").map((n) => n.textContent), marks: marks(writer) };
-  click(writer.q(".view-note .note-add"));
-  facts.viewAddFocus = writer.q(".view-note .note-field") === document.activeElement;
-  facts.addingDisabled = writer.q(".view-note .note-save").disabled;
-  typeInto(writer.q(".view-note .note-field"), "  How it hangs together ");
-  facts.addingEnabled = !writer.q(".view-note .note-save").disabled;
-  click(writer.q(".view-note .note-save"));
+  facts.swap = {
+    treeHeader: m.shown(".tree-header"),
+    notesPanel: m.shown(".notes-panel"),
+    hidden: m.q(".explorer").classList.contains("tree-hidden"),
+    notesPressed: m.q(".rail-notes").getAttribute("aria-pressed"),
+    filesPressed: m.q(".rail-files").getAttribute("aria-pressed"),
+  };
+  click(m.q(".rail-files"));
   await tick();
-  const wrote = writer.saved("plain");
-  facts.viewWritten = { version: wrote.schema_version, note: wrote.note, steps: wrote.steps, keys: Object.keys(wrote), shown: writer.q(".view-note .note-text").textContent, by: writer.q(".view-note .note-by").textContent };
-  click(writer.q(".view-note .note-edit"));
-  facts.editField = writer.q(".view-note .note-field").value;
-  const viewField = writer.q(".view-note .note-field");
-  facts.viewEditFocus = { focused: viewField === document.activeElement, caret: [viewField.selectionStart, viewField.selectionEnd], length: viewField.value.length };
-  viewField.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-  facts.viewEscape = { fields: writer.all(".view-note .note-field").length, note: writer.saved("plain").note.text };
-  click(writer.q(".view-note .note-edit"));
-  typeInto(writer.q(".view-note .note-field"), "Reworded");
-  click(writer.q(".view-note .note-save"));
+  facts.swapBack = { treeHeader: m.shown(".tree-header"), notesPanel: m.shown(".notes-panel") };
+  click(m.q(".rail-notes"));
   await tick();
-  facts.viewEdited = writer.saved("plain").note;
-  click(writer.q(".view-note .note-delete"));
+  click(m.q(".rail-notes"));
   await tick();
-  facts.viewDeleted = { keys: Object.keys(writer.saved("plain")), actions: writer.all(".view-note button").map((n) => n.textContent) };
+  facts.hideActive = { hidden: m.q(".explorer").classList.contains("tree-hidden") };
+  click(m.q(".rail-notes"));
+  await tick();
 
-  await writer.select(A);
-  click(writer.q(".module-note .note-add"));
-  facts.moduleAddFocus = writer.q(".module-note .note-field") === document.activeElement;
-  facts.moduleAddDisabled = writer.q(".module-note .note-save").disabled;
-  typeInto(writer.q(".module-note .note-field"), "Why a exists");
-  click(writer.q(".module-note .note-save"));
-  await tick();
-  facts.moduleWritten = { notes: writer.saved("plain").module_notes, version: writer.saved("plain").schema_version, shown: writer.q(".module-note .note-text").textContent, by: writer.q(".module-note .note-by").textContent, marks: marks(writer) };
-  click(writer.q(".module-note .note-edit"));
-  facts.moduleEditField = writer.q(".module-note .note-field").value;
-  const moduleField = writer.q(".module-note .note-field");
-  facts.moduleEditFocus = { focused: moduleField === document.activeElement, caret: [moduleField.selectionStart, moduleField.selectionEnd], length: moduleField.value.length };
-  moduleField.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-  facts.moduleEscape = { fields: writer.all(".module-note .note-field").length, note: writer.saved("plain").module_notes["app/a.py"].text };
-  click(writer.q(".module-note .note-edit"));
-  typeInto(writer.q(".module-note .note-field"), "Changed");
-  click(writer.q(".module-note .note-cancel"));
-  facts.cancelled = { notes: writer.saved("plain").module_notes, editing: writer.all(".module-note .note-field").length };
-  click(writer.q(".module-note .note-edit"));
-  typeInto(writer.q(".module-note .note-field"), "Changed");
-  click(writer.q(".module-note .note-save"));
-  await tick();
-  facts.moduleEdited = writer.saved("plain").module_notes;
-  click(writer.q(".module-note .note-delete"));
-  await tick();
-  facts.moduleDeleted = { keys: Object.keys(writer.saved("plain")), marks: marks(writer), actions: writer.all(".module-note button").map((n) => n.textContent) };
+  const boxY = (id) => m.rect('.box[data-id="' + id + '"] .box-body').top;
+  facts.order = {
+    groups: m.all(".note-group").map((g) => g.dataset.module),
+    byTop: [HUB, A].sort((a, b) => boxY(a) - boxY(b)),
+    titles: m.all(".note-group-title strong").map((n) => n.textContent),
+    hubRows: m.all('.note-group[data-module="' + HUB + '"] .note-row').map((r) => r.querySelector(".note-text").textContent),
+    offHeading: m.q(".note-off .note-group-title").textContent,
+    offRows: m.all(".note-off .note-row").map((r) => [r.querySelector(".note-text").textContent, r.classList.contains("off")]),
+    offOpacity: getComputedStyle(m.q(".note-off .note-row")).color !== getComputedStyle(m.q(".note-group .note-row")).color,
+    tints: m.rows().map((r) => [r.querySelector(".note-text").textContent, r.classList.contains("person") ? "person" : r.classList.contains("agent") ? "agent" : "none"]),
+  };
 
-  const live = mount({ plain: make(PICKS) });
+  click(m.q(".note-off .note-row"));
+  await tick();
+  facts.offClick = { cards: m.cards().length };
+
+  const world = () => m.q(".world").getAttribute("transform");
+  click(m.q('.note-group[data-module="' + HUB + '"] .note-row'));
+  await tick();
+  const surface = m.rect(".surface");
+  const hubBody = m.rect('.box[data-id="' + HUB + '"] .box-body');
+  const cardBody = () => m.q(".note-card .note-card-body");
+  const nums = (d) => d.match(/-?\\d+(\\.\\d+)?/g).map(Number);
+  const leaderEnd = nums(m.q(".note-card .note-leader").getAttribute("d")).slice(-2);
+  facts.orient = {
+    selected: m.q('.box[data-id="' + HUB + '"]').classList.contains("selected"),
+    centreDx: Math.abs(hubBody.left + hubBody.width / 2 - (surface.left + surface.width / 2)),
+    centreDy: Math.abs(hubBody.top + hubBody.height / 2 - (surface.top + surface.height / 2)),
+    cards: m.cards().length,
+    cardText: m.q(".note-card .note-card-text").textContent,
+    activeRows: m.all(".note-row.active").length,
+    activeMark: m.all(".note-mark.active").map((n) => n.dataset.id),
+    leaderEndsOnCard: Math.abs(leaderEnd[0] - Number(cardBody().getAttribute("x"))) < 0.01 && Math.abs(leaderEnd[1] - (Number(cardBody().getAttribute("y")) + Number(cardBody().getAttribute("height")) / 2)) < 0.01,
+    leaderIsCurve: /C/.test(m.q(".note-card .note-leader").getAttribute("d")),
+    tint: m.q(".note-card").classList.contains("person") ? "person" : "agent",
+    gap: Number(cardBody().getAttribute("x")) - (Number(m.q('.box[data-id="' + HUB + '"] .box-body').getAttribute("x")) + Number(m.q('.box[data-id="' + HUB + '"] .box-body').getAttribute("width"))),
+    top: Number(cardBody().getAttribute("y")) - Number(m.q('.box[data-id="' + HUB + '"] .box-body').getAttribute("y")),
+  };
+
+  click(m.q('.note-group[data-module="' + HUB + '"] .note-row:nth-of-type(2)'));
+  await tick();
+  facts.second = { cards: m.cards().length, text: m.q(".note-card .note-card-text").textContent, tint: m.q(".note-card").classList.contains("agent") ? "agent" : "person" };
+
+  const offsetBefore = Number(cardBody().getAttribute("y")) - Number(m.q('.box[data-id="' + HUB + '"] .box-body').getAttribute("y"));
+  click(m.q('.tree .row[data-path="lib"] .rcheck'));
+  await tick();
+  const hubNow = m.q('.box[data-id="' + HUB + '"] .box-body');
+  facts.follows = {
+    offsetBefore,
+    offsetAfter: Number(cardBody().getAttribute("y")) - Number(hubNow.getAttribute("y")),
+    xAfter: Number(cardBody().getAttribute("x")) - Number(hubNow.getAttribute("x")) - Number(hubNow.getAttribute("width")),
+    cards: m.cards().length,
+  };
+  click(m.q('.tree .row[data-path="lib"] .rcheck'));
+  await tick();
+
+  await m.clickBox(A);
+  facts.retarget = {
+    target: m.q(".note-target").textContent,
+    focused: document.activeElement === m.q(".notes-panel .note-field"),
+    cardsAfterClick: m.cards().length,
+  };
+  typeInto(m.q(".notes-panel .note-field"), "");
+  facts.addDisabledBlank = m.q(".notes-panel .note-add").disabled;
+  typeInto(m.q(".notes-panel .note-field"), "  second thought ");
+  facts.addEnabled = !m.q(".notes-panel .note-add").disabled;
+  m.q(".notes-panel .note-field").focus();
+  press("Escape", {}, m.q(".notes-panel .note-field"));
+  facts.escape = { value: m.q(".notes-panel .note-field").value, focused: document.activeElement === m.q(".notes-panel .note-field"), added: m.saved("order").notes.length };
+
+  typeInto(m.q(".notes-panel .note-field"), "  fresh note ");
+  m.q(".notes-panel .note-field").focus();
+  press("Enter", { metaKey: true }, m.q(".notes-panel .note-field"));
+  await tick();
+  const written = m.saved("order");
+  facts.added = {
+    notes: written.notes.slice(-1),
+    total: written.notes.length,
+    version: written.schema_version,
+    keys: Object.keys(written),
+    value: m.q(".notes-panel .note-field").value,
+    cardText: m.q(".note-card .note-card-text") && m.q(".note-card .note-card-text").textContent,
+    cards: m.cards().length,
+    count: m.q(".rail-count").textContent,
+    activeIsNew: m.all(".note-row.active .note-text").map((n) => n.textContent),
+  };
+
+  const frame = m.q(".frame-label");
+  click(frame);
+  await tick();
+  facts.folder = { prompt: m.shown(".note-prompt"), promptText: m.q(".note-prompt").textContent, field: m.shown(".notes-panel .note-field") };
+
+  await m.clickBox(HUB);
+  document.activeElement && document.activeElement.blur && document.activeElement.blur();
+  press("n");
+  await tick();
+  facts.nKey = { focused: document.activeElement === m.q(".notes-panel .note-field"), target: m.q(".note-target").textContent };
+  m.q(".notes-panel .note-field").blur();
+
+  const hubFirst = m.q('.note-group[data-module="' + HUB + '"] .note-row');
+  click(hubFirst);
+  await tick();
+  const before = m.saved("order").notes.length;
+  press("Backspace");
+  await tick();
+  facts.backspaceNote = {
+    after: m.saved("order").notes.length,
+    before,
+    removed: m.saved("order").notes.filter((n) => n.text === "Hub one").length,
+    boxStillOn: m.all('.box[data-id="' + HUB + '"]').length,
+    cards: m.cards().length,
+  };
+
+  await m.clickBox(HUB);
+  press("Backspace");
+  await tick();
+  facts.backspaceBox = { boxes: m.all('.box[data-id="' + HUB + '"]').length, notes: m.saved("order").notes.length };
+
+  const walker = mount({ order: make(PICKS, NOTES) }, "Ken");
+  await tick();
+  await walker.openView();
+  click(walker.q(".rail-notes"));
+  await tick();
+  const activeText = () => walker.all(".note-row.active .note-text").map((n) => n.textContent);
+  const domOrder = walker.all(".note-group .note-row").map((r) => r.querySelector(".note-text").textContent);
+  press("j");
+  await tick();
+  const j1 = activeText();
+  press("j");
+  await tick();
+  const j2 = activeText();
+  press("k");
+  await tick();
+  const k1 = activeText();
+  for (let i = 0; i < 6; i++) { press("j"); await tick(); }
+  const end = activeText();
+  facts.walk = { domOrder, j1, j2, k1, end, cards: walker.cards().length };
+
+  const remover = mount({ order: make(PICKS, NOTES) }, "Ken");
+  await tick();
+  await remover.openView();
+  click(remover.q(".rail-notes"));
+  await tick();
+  const countBefore = remover.saved("order").notes.length;
+  click(remover.q('.note-group[data-module="' + A + '"] .note-remove'));
+  await tick();
+  facts.remove = {
+    label: remover.q(".note-remove").getAttribute("aria-label"),
+    before: countBefore,
+    after: remover.saved("order").notes.map((n) => n.text),
+    marks: remover.marks(),
+    count: remover.q(".rail-count").textContent,
+  };
+  click(remover.q(".note-off .note-remove"));
+  await tick();
+  facts.removeOff = { after: remover.saved("order").notes.length, off: remover.all(".note-off").length };
+
+  const live = mount({ plain: make(PICKS) }, "Ken");
   await tick();
   await live.openView();
-  live.port.edit("plain", make(PICKS, { note: { text: "From the agent", by: "agent" }, module_notes: { [A]: { text: "Agent says", by: "agent" } } }));
+  click(live.q(".rail-notes"));
   await tick();
-  facts.live = { text: live.q(".view-note .note-text").textContent, by: live.q(".view-note .note-by").textContent, marks: marks(live) };
+  const transform = live.q(".world").getAttribute("transform");
+  live.port.edit("plain", make(PICKS, [{ module: A, text: "Agent says", by: "agent" }]));
+  await tick();
+  facts.live = {
+    rows: live.rows().map((r) => r.querySelector(".note-text").textContent),
+    marks: live.marks(),
+    count: live.q(".rail-count").textContent,
+    sameViewport: live.q(".world").getAttribute("transform") === transform,
+  };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -274,119 +414,165 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
     f = await collect();
   }, 180000);
 
-  it("has no note control, row or mark when no view is open", () => {
+  it("prompts to open a view and offers no composer or count when none is open", () => {
     expect(f.noView).toEqual({
-      viewNote: false,
-      viewNoteChildren: 0,
-      moduleNote: 0,
-      marks: [],
+      panel: true,
+      prompt: "Open or save a view to add notes",
+      field: false,
+      add: false,
+      countHidden: true,
+      viewNote: 0,
     });
   });
 
-  it("shows the view's note under its name with its author", () => {
-    expect(f.viewNote.text).toBe("Start at the hub");
-    expect(f.viewNote.by).toBe("by Claude");
-    expect(f.viewNote.below).toBe(true);
-    expect(f.viewNote.left).toBe(true);
-    expect(f.viewNote.inBar).toBe(true);
-    expect(f.viewNote.flow).toBe(true);
-    expect(f.viewNote.actions).toEqual(["Edit", "Delete"]);
+  it("puts a Notes icon beside Files with the number of notes", () => {
+    expect(f.rail).toEqual({
+      order: ["rail-files", "rail-notes"],
+      count: "4",
+      countHidden: false,
+    });
   });
 
-  it("marks the box of a noted module and no other box or folder", () => {
-    expect(f.marks.ids).toEqual(["app/hub.py"]);
+  it("marks the box of every noted module and no folder, and draws no card until one is chosen", () => {
+    expect(f.marks.ids).toEqual(["app/a.py", "app/hub.py"]);
     expect(f.marks.folders).toBe(0);
     expect(f.marks.inside).toBe(true);
+    expect(f.marks.cardsBefore).toBe(0);
   });
 
-  it("makes the module note the first row of Contents, above the responsibility, with its author", () => {
-    expect(f.moduleNote.order).toEqual(["module-note", "responsibility"]);
-    expect(f.moduleNote.text).toBe("The hub of everything");
-    expect(f.moduleNote.by).toBe("by Ken");
+  it("shows none of REC-80's note surfaces", () => {
+    expect(f.old).toEqual({ viewNote: 0, moduleNote: 0 });
   });
 
-  it("offers only Add note on a module without one", () => {
-    expect(f.moduleWithout.order[0]).toBe("module-note");
-    expect(f.moduleWithout.actions).toEqual(["Add note"]);
-    expect(f.moduleWithout.text).toBe(0);
+  it("swaps Files and Notes in one column and hides it from the active icon", () => {
+    expect(f.files).toEqual({ treeHeader: true, notesPanel: false });
+    expect(f.swap).toEqual({
+      treeHeader: false,
+      notesPanel: true,
+      hidden: false,
+      notesPressed: "true",
+      filesPressed: "false",
+    });
+    expect(f.swapBack).toEqual({ treeHeader: true, notesPanel: false });
+    expect(f.hideActive.hidden).toBe(true);
   });
 
-  it("keeps both kinds of note through a save of the open view", () => {
-    expect(f.keptOnSave).toEqual({
-      version: 2,
-      note: { text: "Start at the hub", by: "Claude" },
-      moduleNotes: {
-        "app/hub.py": { text: "The hub of everything", by: "Ken" },
-      },
+  it("lists notes grouped by box in canvas order, with the unplaced ones greyed under Not on the canvas", () => {
+    expect(f.order.groups).toEqual(f.order.byTop);
+    expect(f.order.titles.sort()).toEqual(["a.py", "hub.py"]);
+    expect(f.order.hubRows).toEqual(["Hub one", "Hub two"]);
+    expect(f.order.offHeading).toBe("Not on the canvas");
+    expect(f.order.offRows).toEqual([["Lost one", true]]);
+    expect(f.order.offOpacity).toBe(true);
+    expect(f.offClick.cards).toBe(0);
+  });
+
+  it("tints a person's notes and an agent's differently", () => {
+    expect(Object.fromEntries(f.order.tints)).toEqual({
+      "Hub one": "person",
+      "A agent note": "agent",
+      "Hub two": "agent",
+      "Lost one": "person",
     });
   });
 
-  it("writes, edits and deletes the view note with the fake's author at version 2", () => {
-    expect(f.plainShows).toEqual({ actions: ["Add note"], marks: [] });
-    expect(f.viewAddFocus).toBe(true);
-    expect(f.addingDisabled).toBe(true);
-    expect(f.addingEnabled).toBe(true);
-    expect(f.viewWritten.version).toBe(2);
-    expect(f.viewWritten.note).toEqual({
-      text: "How it hangs together",
-      by: "Tester",
-    });
-    expect(f.viewWritten.steps).toHaveLength(3);
-    expect(f.viewWritten.keys).toEqual([
+  it("selects a note's box, pans it to the centre and draws one card with a leader to it", () => {
+    expect(f.orient.selected).toBe(true);
+    expect(f.orient.centreDx).toBeLessThan(6);
+    expect(f.orient.centreDy).toBeLessThan(6);
+    expect(f.orient.cards).toBe(1);
+    expect(f.orient.cardText).toBe("Hub one");
+    expect(f.orient.activeRows).toBe(1);
+    expect(f.orient.activeMark).toEqual(["app/hub.py"]);
+    expect(f.orient.leaderEndsOnCard).toBe(true);
+    expect(f.orient.leaderIsCurve).toBe(true);
+    expect(f.orient.tint).toBe("person");
+    expect(f.orient.gap).toBe(36);
+    expect(f.orient.top).toBe(0);
+  });
+
+  it("draws only the active note as a card", () => {
+    expect(f.second).toEqual({ cards: 1, text: "Hub two", tint: "agent" });
+  });
+
+  it("keeps the card beside its box when the layout moves it", () => {
+    expect(f.follows.offsetAfter).toBe(f.follows.offsetBefore);
+    expect(f.follows.xAfter).toBe(36);
+    expect(f.follows.cards).toBe(1);
+  });
+
+  it("retargets the composer to another box without taking focus, and keeps Add off while blank", () => {
+    expect(f.retarget.target).toBe("app/a.py");
+    expect(f.retarget.focused).toBe(false);
+    expect(f.addDisabledBlank).toBe(true);
+    expect(f.addEnabled).toBe(true);
+  });
+
+  it("clears and blurs the field on Escape without adding", () => {
+    expect(f.escape).toEqual({ value: "", focused: false, added: 4 });
+  });
+
+  it("adds on Cmd+Enter at version 3 with the fake's author and makes the new note active", () => {
+    expect(f.added.notes).toEqual([
+      { module: "app/a.py", text: "fresh note", by: "Ken" },
+    ]);
+    expect(f.added.total).toBe(5);
+    expect(f.added.version).toBe(3);
+    expect(f.added.keys).toEqual([
       "schema_version",
       "description",
       "commit",
-      "note",
+      "notes",
       "steps",
     ]);
-    expect(f.viewWritten.shown).toBe("How it hangs together");
-    expect(f.viewWritten.by).toBe("by Tester");
-    expect(f.editField).toBe("How it hangs together");
-    expect(f.viewEditFocus).toEqual({
-      focused: true,
-      caret: [21, 21],
-      length: 21,
-    });
-    expect(f.viewEscape).toEqual({ fields: 0, note: "How it hangs together" });
-    expect(f.viewEdited).toEqual({ text: "Reworded", by: "Tester" });
-    expect(f.viewDeleted.keys).not.toContain("note");
-    expect(f.viewDeleted.actions).toEqual(["Add note"]);
+    expect(f.added.value).toBe("");
+    expect(f.added.cardText).toBe("fresh note");
+    expect(f.added.cards).toBe(1);
+    expect(f.added.count).toBe("5");
+    expect(f.added.activeIsNew).toEqual(["fresh note"]);
   });
 
-  it("writes, edits, cancels and deletes a module note and its mark", () => {
-    expect(f.moduleAddFocus).toBe(true);
-    expect(f.moduleAddDisabled).toBe(true);
-    expect(f.moduleWritten.notes).toEqual({
-      "app/a.py": { text: "Why a exists", by: "Tester" },
+  it("says to select a module when a folder is selected", () => {
+    expect(f.folder).toEqual({
+      prompt: true,
+      promptText: "Select a module to add a note",
+      field: false,
     });
-    expect(f.moduleWritten.version).toBe(2);
-    expect(f.moduleWritten.shown).toBe("Why a exists");
-    expect(f.moduleWritten.by).toBe("by Tester");
-    expect(f.moduleWritten.marks).toEqual(["app/a.py"]);
-    expect(f.moduleEditField).toBe("Why a exists");
-    expect(f.moduleEditFocus).toEqual({
-      focused: true,
-      caret: [12, 12],
-      length: 12,
-    });
-    expect(f.moduleEscape).toEqual({ fields: 0, note: "Why a exists" });
-    expect(f.cancelled).toEqual({
-      notes: { "app/a.py": { text: "Why a exists", by: "Tester" } },
-      editing: 0,
-    });
-    expect(f.moduleEdited).toEqual({
-      "app/a.py": { text: "Changed", by: "Tester" },
-    });
-    expect(f.moduleDeleted.keys).not.toContain("module_notes");
-    expect(f.moduleDeleted.marks).toEqual([]);
-    expect(f.moduleDeleted.actions).toEqual(["Add note"]);
   });
 
-  it("shows a note written by the CLI while the view is open", () => {
-    expect(f.live).toEqual({
-      text: "From the agent",
-      by: "by agent",
-      marks: ["app/a.py"],
-    });
+  it("focuses the composer on N for the selected module", () => {
+    expect(f.nKey).toEqual({ focused: true, target: "app/hub.py" });
+  });
+
+  it("removes the active note on Backspace, but takes a freshly clicked box off the canvas", () => {
+    expect(f.backspaceNote.after).toBe(f.backspaceNote.before - 1);
+    expect(f.backspaceNote.removed).toBe(0);
+    expect(f.backspaceNote.boxStillOn).toBe(1);
+    expect(f.backspaceNote.cards).toBe(0);
+    expect(f.backspaceBox.boxes).toBe(0);
+    expect(f.backspaceBox.notes).toBe(f.backspaceNote.after);
+  });
+
+  it("walks the list with J and K and clamps at the ends", () => {
+    expect(f.walk.j1).toEqual([f.walk.domOrder[0]]);
+    expect(f.walk.j2).toEqual([f.walk.domOrder[1]]);
+    expect(f.walk.k1).toEqual([f.walk.domOrder[0]]);
+    expect(f.walk.end).toEqual([f.walk.domOrder[f.walk.domOrder.length - 1]]);
+    expect(f.walk.cards).toBe(1);
+  });
+
+  it("removes a note from its row, on the canvas or not", () => {
+    expect(f.remove.label).toBe("Remove note");
+    expect(f.remove.after).toEqual(["Hub one", "Hub two", "Lost one"]);
+    expect(f.remove.marks).toEqual(["app/hub.py"]);
+    expect(f.remove.count).toBe("3");
+    expect(f.removeOff).toEqual({ after: 2, off: 0 });
+  });
+
+  it("shows a note written by the CLI while the view is open without moving the viewport", () => {
+    expect(f.live.rows).toEqual(["Agent says"]);
+    expect(f.live.marks).toEqual(["app/a.py"]);
+    expect(f.live.count).toBe("1");
+    expect(f.live.sameViewport).toBe(true);
   });
 });
