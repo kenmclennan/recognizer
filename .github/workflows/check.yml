@@ -6,6 +6,7 @@ on:
       - check/**
       - scanners/**
       - describers/**
+      - scripts/**
       - policies/**
       - schema/**
       - fixtures/**
@@ -19,6 +20,7 @@ on:
       - check/**
       - scanners/**
       - describers/**
+      - scripts/**
       - policies/**
       - schema/**
       - fixtures/**
@@ -44,3 +46,8 @@ jobs:
       - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w check
       - run: npm test -w check
+      - run: node scripts/build-toolchain.mjs "$RUNNER_TEMP/toolchain"
+      - run: |
+          extracted=$(mktemp -d)
+          tar -xzf "$RUNNER_TEMP/toolchain/recognizer-toolchain.tar.gz" -C "$extracted"
+          node scripts/verify-toolchain.mjs "$extracted"

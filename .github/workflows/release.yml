@@ -104,10 +104,13 @@ jobs:
           smoke=$(mktemp -d)
           repo=$PWD
           tar -xzf dist-release/recognizer-toolchain.tar.gz -C "$smoke"
-          npm install --prefix "$smoke/node" --no-audit --no-fund "$smoke/recognizer-$VERSION.tgz" "$smoke/recognizer-scan-typescript-$VERSION.tgz"
+          node scripts/verify-toolchain.mjs "$smoke"
+          mkdir "$smoke/bin"
+          ln -s "$smoke/node_modules/recognizer/dist/bin.js" "$smoke/bin/recognizer"
+          ln -s "$smoke/node_modules/recognizer-scan-typescript/dist/bin.js" "$smoke/bin/recognizer-scan-typescript"
           python3 -m venv "$smoke/venv"
           "$smoke/venv/bin/pip" install "$smoke/recognizer_scan_python-$VERSION-py3-none-any.whl"
-          export PATH="$smoke/node/node_modules/.bin:$smoke/venv/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
+          export PATH="$smoke/bin:$smoke/venv/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
           for tool in recognizer recognizer-scan-typescript recognizer-scan-python; do
             got=$("$tool" --version)
             if [ "$got" != "$VERSION" ]; then

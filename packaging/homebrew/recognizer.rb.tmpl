@@ -10,10 +10,9 @@ class Recognizer < Formula
   depends_on "python@3.13"
 
   def install
-    system "npm", "install", *std_npm_args,
-           "recognizer-@@version@@.tgz", "recognizer-scan-typescript-@@version@@.tgz"
-    bin.install_symlink libexec/"bin/recognizer"
-    bin.install_symlink libexec/"bin/recognizer-scan-typescript"
+    libexec.install "node_modules"
+    bin.install_symlink libexec/"node_modules/recognizer/dist/bin.js" => "recognizer"
+    bin.install_symlink libexec/"node_modules/recognizer-scan-typescript/dist/bin.js" => "recognizer-scan-typescript"
 
     system formula_opt_bin("python@3.13")/"python3.13", "-m", "venv", libexec/"venv"
     system libexec/"venv/bin/pip", "install", "recognizer_scan_python-@@version@@-py3-none-any.whl"

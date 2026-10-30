@@ -41,8 +41,14 @@ describe("renderAll on the committed templates", () => {
   });
 
   it("installs each scanner onto the PATH", () => {
-    expect(formula).toContain('bin.install_symlink libexec/"bin/recognizer"');
-    expect(formula).toContain("recognizer-scan-typescript");
+    expect(formula).toContain('libexec.install "node_modules"');
+    expect(formula).toContain(
+      'bin.install_symlink libexec/"node_modules/recognizer/dist/bin.js" => "recognizer"',
+    );
+    expect(formula).toContain(
+      'bin.install_symlink libexec/"node_modules/recognizer-scan-typescript/dist/bin.js" => "recognizer-scan-typescript"',
+    );
+    expect(formula).not.toMatch(/npm|std_npm_args|\.tgz/);
     expect(formula).toContain("recognizer-scan-python");
   });
 });
