@@ -24,6 +24,7 @@ export type CanvasProps = {
   selection: Selection;
   highlight: Set<string> | null;
   neighbourhood?: Set<string> | null;
+  trail?: ReadonlySet<string> | null;
   bar: BarModel | null;
   titles: Map<string, string>;
   open: number;
@@ -517,6 +518,10 @@ export function buildCanvasView(
         selection.id === node.dataset.id;
 
       node.classList.toggle("selected", chosen);
+      node.classList.toggle(
+        "trail",
+        props?.trail?.has(node.dataset.id as string) ?? false,
+      );
     }
   }
 

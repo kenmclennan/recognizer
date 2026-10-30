@@ -28,10 +28,12 @@ import { type EditorPort, inertEditor } from "./editor-port";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
+  followableRows,
+  type InspectorContent,
   type InspectorTab,
   inspectorContent,
 } from "./inspector-model";
-import { buildInspectorView } from "./inspector-view";
+import { buildInspectorView, type InspectorActions } from "./inspector-view";
 import {
   createLayoutSource,
   layoutOnMainThread,
@@ -41,6 +43,7 @@ import { createOpenModules } from "./open-modules";
 import { mountPanelResizers } from "./panel-resizer-view";
 import { buildRailView } from "./rail-view";
 import { repositorySource } from "./repository-source";
+import { nextCheck } from "./row-model";
 import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
 import type { BarModel } from "./selection-bar-view";
@@ -52,6 +55,27 @@ import {
   type StaleReport,
   staleReport,
 } from "./stale-report";
+import {
+  bringBack,
+  CANVAS_FLOOR,
+  close as closeTrail,
+  crumbs,
+  follow as followInTrail,
+  isFollowed,
+  MAX_PANELS,
+  missingFromCanvas,
+  moveFocus,
+  panelCapacity,
+  RAIL_WIDTH,
+  reconcile,
+  rowKey,
+  startTrail,
+  type TrailKeyAction,
+  layout as trailLayout,
+  trailModules,
+  updatePanel,
+  withCapacity,
+} from "./trail-model";
 import { type FilterState, filterTree, isVisible } from "./tree-filter";
 import { ancestorFolders, buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
@@ -89,6 +113,7 @@ export function showExplorer(
   editor: EditorPort = inertEditor,
 ): Explorer {
   const health = computeHealth(loaded.scans, loaded.policy, loaded.modules);
+  const knownModules = new Set(loaded.modules);
   const root = buildTree(loaded.modules);
   const described = describeTree(root, health);
   const modules = createOpenModules(loaded.modules);
@@ -109,7 +134,9 @@ export function showExplorer(
   let evidence: { id: string; sections: EvidenceSection[] } | null = null;
   let inspectorOpen = false;
   let inspectorTab: InspectorTab = "contents";
-  let hovered: string | null = null;
+  let hovered: { module: string; name: string } | null = null;
+  let trail = startTrail(null, "contents");
+  let lastContents: InspectorContent[] = [];
   const folds = new Set<string>();
   let showPrivate = loadShowPrivate(storage);
   let layoutNotice: string | null = null;
@@ -223,7 +250,7 @@ export function showExplorer(
     scheduler,
   );
 
-  const inspector = buildInspectorView({
+  const rootActions: InspectorActions = {
     open() {
       inspectorOpen = true;
       render();
@@ -232,6 +259,7 @@ export function showExplorer(
       inspectorOpen = false;
       hovered = null;
       resetList();
+      trail = startTrail(state.selection(), inspectorTab);
       render();
     },
     setTab(tab) {
@@ -263,8 +291,7 @@ export function showExplorer(
       find(id);
     },
     hover(name) {
-      hovered = name;
-      renderCanvas();
+      hoverIn(0, name);
     },
     putOnCanvas: putAllOn,
     takeOff: takeAllOff,
@@ -287,8 +314,71 @@ export function showExplorer(
       pickerFilter = text;
       render();
     },
-    openInEditor: () => openSelectedInEditor(),
-  });
+    openInEditor: (target) => void openInEditor(target, editor, notify),
+    follow: (relation, id) => followFrom(0, relation, id),
+    bringBack(index) {
+      trail = bringBack(trail, index);
+      render();
+    },
+    putTrailOnCanvas,
+    trailKey,
+  };
+
+  function toggled(set: ReadonlySet<string>, key: string): Set<string> {
+    const next = new Set(set);
+
+    if (!next.delete(key)) {
+      next.add(key);
+    }
+
+    return next;
+  }
+
+  function actionsFor(index: number): InspectorActions {
+    if (index === 0) {
+      return rootActions;
+    }
+
+    const panel = () => trail.panels[index];
+
+    return {
+      ...rootActions,
+      close() {
+        trail = closeTrail(trail, index);
+        hovered = null;
+        render();
+      },
+      setTab(tab) {
+        const reset =
+          tab !== panel().tab
+            ? { filter: "", groupFlips: new Set<string>() }
+            : {};
+
+        trail = updatePanel(trail, index, { tab, ...reset });
+        render();
+      },
+      toggleFold(key) {
+        trail = updatePanel(trail, index, {
+          folds: toggled(panel().folds, key),
+        });
+        render();
+      },
+      toggleGroup(key) {
+        trail = updatePanel(trail, index, {
+          groupFlips: toggled(panel().groupFlips, key),
+        });
+        render();
+      },
+      setFilter(text) {
+        trail = updatePanel(trail, index, { filter: text });
+        render();
+      },
+      hover: (name) => hoverIn(index, name),
+      follow: (relation, id) => followFrom(index, relation, id),
+    };
+  }
+
+  const inspector = buildInspectorView(rootActions, actionsFor);
 
   const layout = createLayoutSource(
     startLayoutWorker(),
@@ -330,10 +420,15 @@ export function showExplorer(
 
   const body = el("div", "explorer");
 
-  mountPanelResizers(
+  const widths = mountPanelResizers(
     body,
     { tree: tree.element, inspector: inspector.element },
     storage,
+    {
+      shownPanels: () =>
+        inspectorOpen ? Math.max(1, trailLayout(trail).shown.length) : 1,
+      committed: () => render(),
+    },
   );
 
   canvas.element.append(bar.element, stale.element);
@@ -362,6 +457,148 @@ export function showExplorer(
       ].map((text) => el("p", "notice-line", text)),
     );
     notices.hidden = notices.childElementCount === 0;
+  }
+
+  function hoverIn(index: number, name: string | null) {
+    const selection = trail.panels[index]?.selection ?? null;
+
+    hovered =
+      name !== null && selection?.kind === "module"
+        ? { module: selection.id, name }
+        : null;
+    renderCanvas();
+  }
+
+  function followFrom(index: number, relation: "uses" | "usedBy", id: string) {
+    trail = updatePanel(trail, index, {
+      focusedRow: rowKey({ id, relation }),
+    });
+    trail = followInTrail(trail, index, relation, id);
+    hovered = null;
+    render();
+  }
+
+  function putTrailOnCanvas() {
+    const missing = missingFromCanvas(trail, modules.isOpen);
+
+    if (missing.length > 0) {
+      putAllOn(missing);
+    }
+  }
+
+  function trailKey(action: TrailKeyAction): boolean {
+    const index = trail.active;
+    const panel = trail.panels[index];
+    const rows = lastContents[index]?.rows ?? [];
+    const listed = followableRows(rows);
+    const keys = listed.map(rowKey);
+    const focused = listed.find((row) => rowKey(row) === panel.focusedRow);
+
+    if (action === "up" || action === "down") {
+      if (keys.length === 0) {
+        return false;
+      }
+
+      trail = updatePanel(trail, index, {
+        focusedRow: moveFocus(keys, panel.focusedRow, action),
+      });
+      render();
+
+      return true;
+    }
+
+    if (action === "follow") {
+      if (focused === undefined) {
+        return false;
+      }
+
+      if (isFollowed(trail, index, focused.relation, focused.id)) {
+        trail = bringBack(trail, index + 1);
+        render();
+      } else {
+        followFrom(index, focused.relation, focused.id);
+      }
+
+      return true;
+    }
+
+    if (action === "back") {
+      if (index === 0) {
+        return false;
+      }
+
+      const previous = trail.panels[index - 1];
+
+      trail = updatePanel(bringBack(trail, index - 1), index - 1, {
+        focusedRow: previous.followed ? rowKey(previous.followed) : null,
+      });
+      render();
+
+      return true;
+    }
+
+    if (action === "tick") {
+      const row = rows.find(
+        (candidate) =>
+          candidate.kind === "module" &&
+          candidate.follow !== null &&
+          focused !== undefined &&
+          candidate.id === focused.id &&
+          candidate.follow === focused.relation,
+      );
+
+      if (row === undefined || row.kind !== "module") {
+        return false;
+      }
+
+      if (nextCheck(row.state) === "takeOff") {
+        takeAllOff(row.ids);
+      } else {
+        putAllOn(row.ids);
+      }
+
+      return true;
+    }
+
+    if (action === "close-last") {
+      if (trail.panels.length < 2) {
+        return false;
+      }
+
+      trail = closeTrail(trail, trail.panels.length - 1);
+      hovered = null;
+      render();
+
+      return true;
+    }
+
+    putTrailOnCanvas();
+
+    return true;
+  }
+
+  function trailCapacity(): number {
+    const width = body.clientWidth;
+
+    if (width === 0) {
+      return MAX_PANELS;
+    }
+
+    const tree = treeHidden ? 0 : widths.tree;
+    const available = width - RAIL_WIDTH - tree - CANVAS_FLOOR;
+
+    return panelCapacity(available, widths.inspector, trail.panels.length);
+  }
+
+  function syncTrail(selection: Selection) {
+    const first = trail.panels[0].selection;
+
+    if (first?.kind !== selection?.kind || first?.id !== selection?.id) {
+      trail = startTrail(selection, inspectorTab);
+    }
+
+    trail = reconcile(trail, knownModules);
+    trail = withCapacity(trail, trailCapacity());
   }
 
   function putAllOn(ids: string[]) {
@@ -462,6 +699,7 @@ export function showExplorer(
     }
 
     state.select(selection);
+    trail = startTrail(selection, inspectorTab);
     evidence = null;
     hovered = null;
     reveal(selection);
@@ -1074,16 +1312,27 @@ export function showExplorer(
     onCount(`${modules.count()} of ${modules.total()} modules on the canvas`);
 
     const selection = state.selection();
-    const module = selection?.kind === "module" ? selection.id : null;
+    const outlined =
+      inspectorOpen && trail.panels.length > 1
+        ? new Set(trailModules(trail))
+        : null;
+    const near = neighbourhoodOf(graph, selection);
+
+    if (near !== null && outlined !== null) {
+      for (const id of outlined) {
+        near.add(id);
+      }
+    }
 
     canvas.render({
       scene,
       selection,
       highlight:
-        hovered !== null && module !== null
-          ? emphasisedLines(module, hovered, graph.lines)
+        hovered !== null
+          ? emphasisedLines(hovered.module, hovered.name, graph.lines)
           : edgesOf(graph, selection),
-      neighbourhood: neighbourhoodOf(graph, selection),
+      neighbourhood: near,
+      trail: outlined,
       bar: barOf(selection),
       titles,
       open: modules.count(),
@@ -1097,6 +1346,7 @@ export function showExplorer(
     const filtered = filterTree(root, filter, context);
     const selection = state.selection();
 
+    syncTrail(selection);
     body.classList.toggle("tree-hidden", treeHidden);
     rail.render(!treeHidden);
     tree.render({
@@ -1113,29 +1363,55 @@ export function showExplorer(
     body.classList.toggle("inspector-open", inspectorOpen);
     stale.render(stalePanelModel());
     renderCanvas();
-    inspector.render(
-      inspectorContent(selection, {
+    const contentOf = (index: number) => {
+      const panel = trail.panels[index];
+      const root = index === 0;
+
+      return inspectorContent(panel.selection, {
         scans,
         modules: loaded.modules,
         disc: context.disc,
         findings: health.findings,
         onCanvas: modules.isOpen,
-        expanded: folds,
+        expanded: root ? folds : panel.folds,
         showPrivate,
-        tab: inspectorTab,
+        tab: root ? inspectorTab : panel.tab,
         evidence:
-          selection?.kind === "edge" && evidence?.id === selection.id
+          root && selection?.kind === "edge" && evidence?.id === selection.id
             ? evidence.sections
             : null,
         edgeOnCanvas:
+          root &&
           selection?.kind === "edge" &&
           graph.lines.some((line) => line.id === selection.id),
         counts: graph.counts,
-        filter: pickerFilter,
-        collapsed: groupFlips,
-      }),
-      inspectorOpen,
+        filter: root ? pickerFilter : panel.filter,
+        collapsed: root ? groupFlips : panel.groupFlips,
+        followed: panel.followed,
+      });
+    };
+
+    lastContents = trail.panels.map((_, index) => contentOf(index));
+
+    const placed = trailLayout(trail);
+    const multi = inspectorOpen && trail.panels.length > 1;
+
+    body.style.setProperty(
+      "--inspector-shown",
+      String(multi ? placed.shown.length : 1),
     );
+    body.style.setProperty(
+      "--inspector-strips",
+      String(multi ? placed.strips.length + placed.later.length : 0),
+    );
+    inspector.render(lastContents[0], inspectorOpen, {
+      contents: lastContents,
+      layout: placed,
+      active: trail.active,
+      crumbs: crumbs(trail),
+      focused: trail.panels.map((panel) => panel.focusedRow),
+      canPut: missingFromCanvas(trail, modules.isOpen).length > 0,
+    });
 
     if (scrollTarget !== null) {
       tree.scrollTo(scrollTarget);
@@ -1191,6 +1467,17 @@ export function showExplorer(
     resume(carried.snapshot);
   }
 
+  const resizeObserver =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          if (inspectorOpen && trailCapacity() !== trail.cap) {
+            render();
+          }
+        });
+
+  resizeObserver?.observe(body);
+
   const stopWatching = views.onChanged(() => void onViewsChanged());
 
   void loadViewList().then(() => {
@@ -1208,6 +1495,7 @@ export function showExplorer(
     openSelectedInEditor,
     carry: () => ({ history, snapshot: snapshot() }),
     dispose() {
+      resizeObserver?.disconnect();
       stopWatching();
       bar.dispose();
     },

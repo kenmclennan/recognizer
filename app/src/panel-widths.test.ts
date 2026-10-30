@@ -124,3 +124,14 @@ describe("dragWidth", () => {
     expect(dragWidth("inspector", 340, 0, 5000)).toBe(280);
   });
 });
+
+describe("dragWidth across several panels", () => {
+  it("moves the shared width by the drag distance divided by the shown panels", () => {
+    expect(dragWidth("inspector", 340, 500, 440, 3)).toBe(360);
+  });
+
+  it("treats a missing or zero count as one panel", () => {
+    expect(dragWidth("inspector", 340, 500, 440)).toBe(400);
+    expect(dragWidth("inspector", 340, 500, 440, 0)).toBe(400);
+  });
+});

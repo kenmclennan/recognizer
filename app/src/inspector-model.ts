@@ -32,7 +32,12 @@ export type InspectorInputs = {
   counts: (selection: NonNullable<Selection>) => Counts;
   filter: string;
   collapsed: ReadonlySet<string>;
+  followed: Followed | null;
 };
+
+export type Direction = "uses" | "usedBy";
+
+export type Followed = { id: string; relation: Direction };
 
 export type CardLabel =
   | "Class"
@@ -80,6 +85,8 @@ export type Row =
       chevron: { key: string; open: boolean } | null;
       detail: { text: string; tone?: "private" | "inferred" } | null;
       title: string;
+      follow: Direction | null;
+      followed: boolean;
     }
   | { kind: "group"; id: string; disc: Disc; path: string }
   | {
@@ -384,6 +391,8 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
           chevron: null,
           detail: { text: `${count} ${count === 1 ? "file" : "files"}` },
           title: path,
+          follow: null,
+          followed: false,
         };
       }),
     ...files
@@ -405,12 +414,12 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
           chevron: null,
           detail: summary === "" ? null : { text: summary },
           title: id,
+          follow: null,
+          followed: false,
         };
       }),
   ];
 }
-
-type Direction = "uses" | "usedBy";
 
 function pickerFor(
   selection: NonNullable<Selection>,
@@ -437,6 +446,7 @@ function pickerFor(
 
 function pickerRows(
   picker: ReturnType<typeof createPicker>,
+  direction: Direction,
   inputs: InspectorInputs,
 ): Row[] {
   const rows: Row[] = [];
@@ -465,6 +475,8 @@ function pickerRows(
       chevron: { key: group.key, open: !group.collapsed },
       detail: { text: String(group.count) },
       title: group.label,
+      follow: null,
+      followed: false,
     });
 
     if (!group.collapsed) {
@@ -492,6 +504,10 @@ function pickerRows(
                       : undefined,
                 },
           title: row.id,
+          follow: direction,
+          followed:
+            inputs.followed?.id === row.id &&
+            inputs.followed.relation === direction,
         });
       }
     }
@@ -552,7 +568,7 @@ function dependencyRows(
     });
 
     if (open) {
-      rows.push(...pickerRows(item.picker, inputs));
+      rows.push(...pickerRows(item.picker, item.direction, inputs));
     }
   }
 
@@ -738,5 +754,13 @@ export function emphasisedLines(
 
   return new Set(
     lines.filter((line) => line.edges.some(carries)).map((line) => line.id),
+  );
+}
+
+export function followableRows(rows: Row[]): Followed[] {
+  return rows.flatMap((row) =>
+    row.kind === "module" && row.follow !== null
+      ? [{ id: row.id, relation: row.follow }]
+      : [],
   );
 }
