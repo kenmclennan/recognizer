@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const NOTICE_FILE = /^(LICEN[SC]E|COPYING|NOTICE|UNLICENSE)/i;
+const SPDX_DIR = fileURLToPath(new URL("./spdx-licences/", import.meta.url));
 const PLATFORMS = ["aarch64-apple-darwin", "x86_64-apple-darwin"];
 
 export const ACCEPTED_LICENCES = [
@@ -116,6 +118,29 @@ export function unacceptedCrates(crates, accepted = ACCEPTED_LICENCES) {
     );
 }
 
+export function standardLicenceFiles(expression, dir = SPDX_DIR) {
+  const ids = new Set(
+    tokenize(expression ?? "").filter(
+      (token) => !["AND", "OR", "WITH", "(", ")"].includes(token),
+    ),
+  );
+
+  return [...ids]
+    .filter((id) => readdirSync(dir).includes(`${id}.txt`))
+    .map((id) => ({
+      name: id,
+      text: readFileSync(join(dir, `${id}.txt`), "utf8"),
+    }));
+}
+
+function copyrightLine(crate) {
+  const authors = (crate.authors ?? [])
+    .map((author) => author.replace(/\s*<[^>]*>/, "").trim())
+    .filter(Boolean);
+
+  return authors.length === 0 ? "" : ` - Copyright ${authors.join(", ")}`;
+}
+
 export function buildRustNotices(crates, readLicenseFiles) {
   const unaccepted = unacceptedCrates(crates);
 
@@ -126,11 +151,18 @@ export function buildRustNotices(crates, readLicenseFiles) {
   }
 
   const groups = new Map();
+  const standard = new Set();
 
   for (const crate of crates) {
-    const files = readLicenseFiles(crate).sort((a, b) =>
-      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
-    );
+    const shipped = readLicenseFiles(crate);
+
+    if (shipped.length === 0) {
+      standard.add(crate);
+    }
+
+    const files = (
+      shipped.length > 0 ? shipped : standardLicenceFiles(crate.license)
+    ).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     const key = JSON.stringify(files.map((file) => [file.name, file.text]));
     const group = groups.get(key) ?? { files, crates: [] };
 
@@ -154,7 +186,10 @@ export function buildRustNotices(crates, readLicenseFiles) {
     )
     .map((group) => {
       const heading = group.crates
-        .map((crate) => `- ${crate.name} ${crate.version} (${crate.license})`)
+        .map(
+          (crate) =>
+            `- ${crate.name} ${crate.version} (${crate.license})${standard.has(crate) ? copyrightLine(crate) : ""}`,
+        )
         .join("\n");
       const body =
         group.files.length === 0
