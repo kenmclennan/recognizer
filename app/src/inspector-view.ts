@@ -1,5 +1,5 @@
+import type { Token } from "recognizer";
 import { isEditable } from "./canvas-keys";
-import type { Token } from "./card-code";
 import { el } from "./dom";
 import { icon, iconButton } from "./icons";
 import type {

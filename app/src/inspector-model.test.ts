@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { expectedScan } from "./fixtures";
@@ -1284,4 +1287,59 @@ describe("compacted folders", () => {
 
     expect(header.title).toBe("data/src/main/");
   });
+});
+
+describe("signatures shared with recognizer show", () => {
+  type Expected = {
+    name: string;
+    signature: string;
+    fields: string[];
+    methods: string[];
+  };
+
+  const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  const read = (path: string) => readFileSync(join(REPO, path), "utf8");
+  const expected = JSON.parse(read("fixtures/signatures.json")) as Record<
+    string,
+    Record<string, Expected[]>
+  >;
+
+  for (const [file, modules] of Object.entries(expected)) {
+    it(`gives every card in ${file} the text show prints`, () => {
+      const scan = JSON.parse(read(file)) as Scan;
+
+      for (const [id, members] of Object.entries(modules)) {
+        const cards = cardsOf(
+          inspectorContent(module(id), {
+            ...inputsFor([scan]),
+            showPrivate: true,
+          }).rows,
+        );
+        const actual = cards
+          .map((card) => ({
+            head: plainText(card.head),
+            lines: card.lines.map((line) => plainText(line.tokens)).sort(),
+          }))
+          .sort((a, b) => a.head.localeCompare(b.head));
+        const wanted = members
+          .map((member) => ({
+            head: member.signature,
+            lines: [...member.fields, ...member.methods].sort(),
+          }))
+          .sort((a, b) => a.head.localeCompare(b.head));
+
+        expect(actual.map((card) => card.head)).toEqual(
+          wanted.map((card) => card.head),
+        );
+
+        for (const [index, card] of actual.entries()) {
+          const lines = wanted[index]?.lines ?? [];
+
+          expect(
+            card.lines.filter((line) => line !== "outline not known"),
+          ).toEqual(lines);
+        }
+      }
+    });
+  }
 });
