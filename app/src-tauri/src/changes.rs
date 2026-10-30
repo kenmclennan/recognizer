@@ -835,6 +835,11 @@ mod tests {
         assert_fixture_scan_is_a_clean_baseline("kotlin", 11);
     }
 
+    #[test]
+    fn the_rust_fixture_scan_compares_clean_against_its_own_files() {
+        assert_fixture_scan_is_a_clean_baseline("rust", 7);
+    }
+
     fn assert_selection_matches_the_scanner_parity_tree(language: &str) {
         let text = fs::read_to_string(
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/selection-parity.json"),
@@ -875,6 +880,11 @@ mod tests {
     #[test]
     fn the_kotlin_selection_accepts_exactly_the_files_the_kotlin_scanner_reads() {
         assert_selection_matches_the_scanner_parity_tree("kotlin");
+    }
+
+    #[test]
+    fn the_rust_selection_accepts_exactly_the_files_the_rust_scanner_reads() {
+        assert_selection_matches_the_scanner_parity_tree("rust");
     }
 
     #[test]

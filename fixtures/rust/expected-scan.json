@@ -1,0 +1,393 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-rust",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "pricing/src/lib.rs",
+      "hash": "5c06698dd15ffd8cdb6042ce8aaf4ccf4d21b2f688ed8714c81f564b4071c5a1"
+    },
+    {
+      "path": "shop/src/adapters.rs",
+      "hash": "1142bee7796f3fd78545739058005da6fb563c54d6753dcb769b7f45df5e66e6"
+    },
+    {
+      "path": "shop/src/adapters/sql.rs",
+      "hash": "5b64f9d8867d04afec3559dce8603d4501f333698d340ab20e44ef45ff92a6c3"
+    },
+    {
+      "path": "shop/src/lib.rs",
+      "hash": "711d7369a7bc9fb1e5e5aee4937b7e12983472715b608fa6defa3a8d987b29ed"
+    },
+    {
+      "path": "shop/src/orders.rs",
+      "hash": "948e5287ce0e327d56ba511dbdf9ca3d4f8992f24e9c892b1cc5cddd365b15ba"
+    },
+    {
+      "path": "shop/src/ports/memory.rs",
+      "hash": "604219725572302abe0c3a9a46eda9790f7c8b7bae1bcf349c82f623f6f64f11"
+    },
+    {
+      "path": "shop/src/ports/mod.rs",
+      "hash": "333af89d7ab1c3d82ea1570e2c531c47127d42957b85b1fc2a793e397475fa08"
+    }
+  ],
+  "selection": {
+    "extensions": [".rs"],
+    "skip_directory_names": ["target", "node_modules"],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": []
+  },
+  "modules": [
+    {
+      "id": "pricing/src/lib.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": [
+        {
+          "name": "RATE",
+          "kind": "constant",
+          "line": 1,
+          "exported": true,
+          "value": "15"
+        },
+        {
+          "name": "discount",
+          "kind": "function",
+          "line": 3,
+          "exported": true,
+          "params": [
+            {
+              "name": "total",
+              "type": "u64"
+            }
+          ],
+          "returns": "u64"
+        },
+        {
+          "name": "round",
+          "kind": "function",
+          "line": 7,
+          "exported": false,
+          "params": [
+            {
+              "name": "value",
+              "type": "u64"
+            }
+          ],
+          "returns": "u64"
+        }
+      ]
+    },
+    {
+      "id": "shop/src/adapters.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "shop/src/adapters/sql.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": [
+        {
+          "name": "SqlStore",
+          "kind": "class",
+          "line": 5,
+          "exported": true,
+          "fields": [
+            {
+              "name": "rows",
+              "line": 6,
+              "private": true,
+              "type": "HashMap<u32, u64>"
+            }
+          ],
+          "methods": [
+            {
+              "name": "save",
+              "line": 10,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "&Order"
+                }
+              ],
+              "private": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shop/src/lib.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": [
+        {
+          "name": "MAX_LINES",
+          "kind": "constant",
+          "line": 7,
+          "exported": true,
+          "value": "100"
+        },
+        {
+          "name": "REGISTRY",
+          "kind": "constant",
+          "line": 9,
+          "exported": false,
+          "value": "\"orders\""
+        },
+        {
+          "name": "open",
+          "kind": "function",
+          "line": 11,
+          "exported": true,
+          "params": [],
+          "returns": "Order"
+        }
+      ]
+    },
+    {
+      "id": "shop/src/orders.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 6,
+          "exported": true,
+          "fields": [
+            {
+              "name": "id",
+              "line": 7,
+              "private": false,
+              "type": "u32"
+            },
+            {
+              "name": "total",
+              "line": 8,
+              "private": true,
+              "type": "u64"
+            }
+          ],
+          "methods": [
+            {
+              "name": "new",
+              "line": 12,
+              "params": [
+                {
+                  "name": "id",
+                  "type": "u32"
+                },
+                {
+                  "name": "total",
+                  "type": "u64"
+                }
+              ],
+              "private": false,
+              "returns": "Order",
+              "tags": ["static"]
+            },
+            {
+              "name": "subtotal",
+              "line": 16,
+              "params": [],
+              "private": true,
+              "returns": "u64"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "kind": "class",
+          "line": 21,
+          "exported": true,
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "shop/src/ports/memory.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": [
+        {
+          "name": "MemoryStore",
+          "kind": "class",
+          "line": 4,
+          "exported": true,
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 7,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "&Order"
+                }
+              ],
+              "private": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shop/src/ports/mod.rs",
+      "language": "rust",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 3,
+          "exported": true,
+          "bases": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 4,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "&Order"
+                }
+              ],
+              "private": false,
+              "tags": ["abstract"]
+            },
+            {
+              "name": "name",
+              "line": 6,
+              "params": [],
+              "private": false,
+              "returns": "String"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "shop/src/adapters.rs",
+      "to": "shop/src/adapters/sql.rs",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/src/adapters/sql.rs",
+      "to": "foreign:std",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/src/adapters/sql.rs",
+      "to": "shop/src/ports/mod.rs",
+      "kind": "depends",
+      "line": 3,
+      "names": ["Store"]
+    },
+    {
+      "from": "shop/src/adapters/sql.rs",
+      "to": "shop/src/ports/mod.rs",
+      "kind": "implements",
+      "line": 9,
+      "member": "SqlStore",
+      "to_member": "Store"
+    },
+    {
+      "from": "shop/src/lib.rs",
+      "to": "shop/src/orders.rs",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "shop/src/lib.rs",
+      "to": "shop/src/ports/mod.rs",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "shop/src/lib.rs",
+      "to": "shop/src/adapters.rs",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "shop/src/lib.rs",
+      "to": "shop/src/orders.rs",
+      "kind": "depends",
+      "line": 5,
+      "names": ["Order"]
+    },
+    {
+      "from": "shop/src/orders.rs",
+      "to": "pricing/src/lib.rs",
+      "kind": "depends",
+      "line": 1,
+      "names": ["discount"]
+    },
+    {
+      "from": "shop/src/orders.rs",
+      "to": "foreign:serde",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "shop/src/orders.rs",
+      "to": "shop/src/ports/mod.rs",
+      "kind": "depends",
+      "line": 4,
+      "names": ["Store"]
+    },
+    {
+      "from": "shop/src/ports/memory.rs",
+      "to": "shop/src/ports/mod.rs",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Store"]
+    },
+    {
+      "from": "shop/src/ports/memory.rs",
+      "to": "shop/src/orders.rs",
+      "kind": "depends",
+      "line": 2,
+      "names": ["Order"],
+      "via": ["shop/src/lib.rs"]
+    },
+    {
+      "from": "shop/src/ports/memory.rs",
+      "to": "shop/src/ports/mod.rs",
+      "kind": "implements",
+      "line": 6,
+      "member": "MemoryStore",
+      "to_member": "Store"
+    },
+    {
+      "from": "shop/src/ports/mod.rs",
+      "to": "shop/src/ports/memory.rs",
+      "kind": "depends",
+      "line": 1
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:serde",
+      "name": "serde"
+    },
+    {
+      "id": "foreign:std",
+      "name": "std"
+    }
+  ]
+}

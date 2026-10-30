@@ -1,0 +1,26 @@
+[package]
+name = "recognizer-scan-rust"
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+description = "Recognizer scanner for Rust source"
+publish = false
+
+[lib]
+name = "recognizer_scan_rust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "recognizer-scan-rust"
+path = "src/main.rs"
+
+[dependencies]
+syn = { version = "2", features = ["full", "parsing"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+toml = "0.8"
+
+[dev-dependencies]
+jsonschema = { version = "0.30", default-features = false }
+tempfile = "3"

@@ -61,5 +61,19 @@
       "src/main/kotlin/Keep.kt",
       "src/test/kotlin/KeepTest.kt"
     ]
+  },
+  "rust": {
+    "tree": [
+      ".cargo/hidden.rs",
+      "Cargo.toml",
+      "a.rs",
+      "build.rs",
+      "node_modules/pkg/lib.rs",
+      "src/lib.rs",
+      "src/notes.md",
+      "target/debug/gen.rs",
+      "tests/it.rs"
+    ],
+    "accepted": ["a.rs", "build.rs", "src/lib.rs", "tests/it.rs"]
   }
 }

@@ -30,6 +30,12 @@ export const SCANNERS: ScannerSpec[] = [
     install:
       "pipx install recognizer-scan-kotlin or uvx --from recognizer-scan-kotlin recognizer-scan-kotlin",
   },
+  {
+    language: "rust",
+    name: "recognizer-scan-rust",
+    variable: "RECOGNIZER_SCAN_RUST",
+    install: "cargo install recognizer-scan-rust",
+  },
 ];
 
 export function scannerFor(language: Language): ScannerSpec {

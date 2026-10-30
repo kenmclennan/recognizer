@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import type { Io } from "./cli.js";
 
-export type Language = "python" | "typescript" | "kotlin";
+export type Language = "python" | "typescript" | "kotlin" | "rust";
 
-const LANGUAGES: Language[] = ["python", "typescript", "kotlin"];
+const LANGUAGES: Language[] = ["python", "typescript", "kotlin", "rust"];
 
 interface SkipRules {
   directoryNames: string[];
@@ -60,6 +60,13 @@ const SKIP_RULES: Record<Language, SkipRules> = {
     directoryMarkers: [],
     fileGlobs: [],
   },
+  rust: {
+    directoryNames: ["target", "node_modules"],
+    directoryPrefixes: ["."],
+    directorySuffixes: [],
+    directoryMarkers: [],
+    fileGlobs: [],
+  },
 };
 
 function matchesGlob(name: string, glob: string): boolean {
@@ -95,6 +102,10 @@ function languageOf(fileName: string): Language | null {
 
   if (fileName.endsWith(".kt")) {
     return "kotlin";
+  }
+
+  if (fileName.endsWith(".rs")) {
+    return "rust";
   }
 
   return null;

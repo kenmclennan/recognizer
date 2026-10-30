@@ -1,0 +1,42 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-rust",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "src/lib.rs",
+      "hash": "cb423ea559ddc5c92a8df7f34285fed03c3497bece8bd2d7893afb59792dc5d3"
+    }
+  ],
+  "selection": {
+    "extensions": [".rs"],
+    "skip_directory_names": ["target", "node_modules"],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": []
+  },
+  "modules": [
+    {
+      "id": "src/lib.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 1,
+          "exported": true,
+          "fields": [],
+          "methods": []
+        }
+      ]
+    }
+  ],
+  "edges": [],
+  "foreign": []
+}

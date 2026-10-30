@@ -23,7 +23,7 @@ Recognizer scans a codebase into a language-neutral model of its modules and dep
 
 - Each language has a standalone command-line scanner that emits the same JSON scan document, so audits and CI can scan without the viewer.
 - `recognizer scan <repository>` is the one front door: it detects the repository's languages, runs each language's scanner and writes one scan document per language to `.recognizer/cache/`. Scans are never merged; no edge crosses languages.
-- Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin, proved by a spike (below). Rust uses the `syn` parser, in a scanner written in Rust; a Rust module is a source file, and edges come from `use` paths and `mod` declarations resolved through the crate's module tree.
+- Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin, proved by a spike (below). Rust uses the `syn` parser, in a scanner written in Rust; a Rust module is a source file, and edges come from `use` paths and `mod` declarations resolved through the crate's module tree. Crates reached by a Cargo path dependency inside the repository are resolved in-repo and every other crate is foreign; `pub use` re-exports are followed and recorded in `via`; a trait implementation is an `implements` edge; `exported` is any `pub` form. Detection is by `.rs` file alone.
 
 - **Open source, MIT.** Recognizer, its scanners and its app are MIT-licensed, in one public repository.
 - **Released and installed as one toolchain.** The `recognizer` CLI, every scanner and the app are versioned together and released together, so the app, the CLI and the scanners never disagree about the scan's `schema_version`. They install with Homebrew from a tap (`kenmclennan/homebrew-tap`): a formula for the CLI and the scanners, which puts `recognizer` and each `recognizer-scan-<language>` on `PATH`, and a cask for the app. One `brew upgrade` moves them all. CI elsewhere installs the same formula, or the release archive it is built from. The app has no updater of its own, since one would move the app without its scanners. Instead, when the app's version differs from the installed `recognizer` command's, it shows a one-line notice saying the tools are out of step and to run `brew upgrade recognizer`.
@@ -140,6 +140,7 @@ check/                CLI and library: recognizer check
 scanners/python/      CLI: recognizer-scan-python
 scanners/typescript/  CLI: recognizer-scan-typescript
 scanners/kotlin/      CLI: recognizer-scan-kotlin
+scanners/rust/        CLI: recognizer-scan-rust
 app/                  the Tauri viewer
 fixtures/             small sample codebases per language, each with its expected scan
 ```
@@ -309,6 +310,7 @@ Each part carries only its own toolchain; no part needs more than one language.
 - `app/`: `app/src-tauri` with Tauri 2, Rust stable, edition 2021, `@tauri-apps/cli` in the workspace. CI installs the webkit2gtk system libraries and caches the Rust build.
 - `schema/`: JSON Schema 2020-12. No separate validator job: each scanner's tests validate its fixture output against the schema (`jsonschema` in Python, `ajv` in TypeScript), so a schema edit is checked by every scanner.
 - `scanners/kotlin/`: Python, uv, py-tree-sitter with the tree-sitter-kotlin grammar, laid out as the Python scanner is.
+- `scanners/rust/`: a standalone Cargo package (not in a workspace), Rust stable, edition 2021, `syn` with proc-macro2's `span-locations`; `cargo fmt`, `clippy` and `cargo test --locked` in its own workflow.
 
 CI is one workflow file per directory, filtered on that directory's path plus `schema/**` and `fixtures/**`: a schema or fixture change runs every scanner, a scanner change runs only itself.
 
