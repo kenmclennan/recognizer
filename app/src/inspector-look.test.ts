@@ -23,9 +23,6 @@ const CHROME_CANDIDATES = [
 
 const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
 const SRC = fileURLToPath(new URL(".", import.meta.url));
-const PROTOTYPE = fileURLToPath(
-  new URL("../../docs/prototype/explorer.html", import.meta.url),
-);
 
 const ENTRY = `
 import { buildInspectorView } from ${JSON.stringify(join(SRC, "inspector-view.ts"))};
@@ -76,40 +73,26 @@ mount("a-short", { kind: "module", id: "p/q.py" }, true);
 mount("a-edge", { kind: "edge", id: "p/m.py>p/q.py" }, true);
 `;
 
-const PAGE = (css: string, protoCss: string) => `<!doctype html>
+const PAGE = (css: string) => `<!doctype html>
 <html><head><meta charset="utf-8"><style>${css}</style></head><body>
 <div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div>
 <div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div>
 <div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
 <div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
 <div id="a-edge" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
-<div id="host"></div>
 <script src="look.js"></script>
 <script>
-const protoCss = ${JSON.stringify(protoCss)};
-const shadow = document.getElementById("host").attachShadow({ mode: "open" });
-const X = '<svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>';
-const CH = '<svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
-shadow.innerHTML = '<style>:host{display:block;color:var(--fg)}' + protoCss +
-  '#irail,#insp{position:relative;right:auto;top:auto;bottom:auto}</style>' +
-  '<div style="width:44px;height:300px;display:flex;flex-direction:column"><div id="irail" style="flex:1"><button class="ib" style="width:32px;height:32px"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button></div></div>' +
-  '<div style="width:340px;height:600px;display:flex;flex-direction:column"><div id="insp" style="display:block;flex:1;width:auto">' +
-  '<div class="ih"><i class="d"></i><b>m.py</b><span data-k="muted" style="color:var(--muted)">p/</span><span style="flex:1"></span><button class="ib" id="ic">' + X + '</button></div>' +
-  '<div class="itabs"><button class="on">Contents</button><button>Findings</button></div>' +
-  '</div></div>' +
-'</div></div>';
-
 const BOX = ["padding-top", "padding-right", "padding-bottom", "padding-left"];
 const BORDER_L = ["border-left-width", "border-left-color"];
 const ROW = ["display", "column-gap", "align-items", "color", "font-size", "font-weight", "border-top-left-radius", ...BOX];
 const specs = {
-  rail: ["#a-rail .inspector-rail", "#irail", ["width", "display", "flex-direction", "align-items", "background-color", "box-sizing", "padding-top", ...BORDER_L]],
-  railButton: ["#a-rail .inspector-rail .ib", "#irail .ib", ["width", "height", "color", "background-color", "border-top-left-radius"]],
-  panel: ["#a-panel .inspector-panel", '#insp:not([data-k])', ["width", "box-sizing", "background-color", "overflow-x", "overflow-y", ...BOX, ...BORDER_L]],
-  close: ["#a-panel .ih .ib", "#ic", ["width", "height", "color", "border-top-left-radius", "background-color"]],
-  tabs: ["#a-panel .itabs", ".itabs", ["display", "column-gap", "margin-bottom", "border-bottom-width", "border-bottom-color"]],
-  tabOn: ["#a-panel .itabs button.on", ".itabs button.on", ["padding-top", "padding-left", "color", "font-weight", "font-size", "box-shadow", "background-color"]],
-  tabOff: ["#a-panel .itabs button:not(.on)", ".itabs button:not(.on)", ["padding-top", "padding-left", "color", "font-weight", "font-size", "box-shadow", "background-color"]],
+  rail: ["#a-rail .inspector-rail", ["width", "display", "flex-direction", "align-items", "background-color", "box-sizing", "padding-top", ...BORDER_L]],
+  railButton: ["#a-rail .inspector-rail .ib", ["width", "height", "color", "background-color", "border-top-left-radius"]],
+  panel: ["#a-panel .inspector-panel", ["width", "box-sizing", "background-color", "overflow-x", "overflow-y", ...BOX, ...BORDER_L]],
+  close: ["#a-panel .ih .ib", ["width", "height", "color", "border-top-left-radius", "background-color"]],
+  tabs: ["#a-panel .itabs", ["display", "column-gap", "margin-bottom", "border-bottom-width", "border-bottom-color"]],
+  tabOn: ["#a-panel .itabs button.on", ["padding-top", "padding-left", "color", "font-weight", "font-size", "box-shadow", "background-color"]],
+  tabOff: ["#a-panel .itabs button:not(.on)", ["padding-top", "padding-left", "color", "font-weight", "font-size", "box-shadow", "background-color"]],
 };
 const read = (node, props) => {
   if (!node) return { missing: true };
@@ -117,10 +100,8 @@ const read = (node, props) => {
   return Object.fromEntries(props.map((p) => [p, style.getPropertyValue(p)]));
 };
 const app = {};
-const proto = {};
-for (const [name, [a, p, props]] of Object.entries(specs)) {
+for (const [name, [a, props]] of Object.entries(specs)) {
   app[name] = read(document.querySelector(a), props);
-  proto[name] = read(shadow.querySelector(p), props);
 }
 const panel = document.querySelector("#a-panel");
 const measureHead = (id) => {
@@ -147,7 +128,6 @@ const measureHead = (id) => {
 const result = {
   dark: matchMedia("(prefers-color-scheme: dark)").matches,
   app,
-  proto,
   structure: {
     images: document.querySelectorAll(".inspector img").length,
     iconFonts: document.querySelectorAll(".inspector i").length,
@@ -167,7 +147,6 @@ type Styles = Record<string, Record<string, string | boolean>>;
 type Report = {
   dark: boolean;
   app: Styles;
-  proto: Styles;
   structure: {
     images: number;
     iconFonts: number;
@@ -178,6 +157,139 @@ type Report = {
   edgeLines: number;
   links: number;
   linkText: number;
+};
+
+const EXPECTED: Record<"light" | "dark", Styles> = {
+  light: {
+    rail: {
+      width: "44px",
+      display: "flex",
+      "flex-direction": "column",
+      "align-items": "center",
+      "background-color": "rgb(255, 255, 255)",
+      "box-sizing": "border-box",
+      "padding-top": "12px",
+      "border-left-width": "1px",
+      "border-left-color": "rgb(216, 222, 228)",
+    },
+    railButton: {
+      width: "32px",
+      height: "32px",
+      color: "rgb(89, 99, 110)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-top-left-radius": "4px",
+    },
+    panel: {
+      width: "340px",
+      "box-sizing": "border-box",
+      "background-color": "rgb(255, 255, 255)",
+      "overflow-x": "auto",
+      "overflow-y": "auto",
+      "padding-top": "12px",
+      "padding-right": "12px",
+      "padding-bottom": "12px",
+      "padding-left": "12px",
+      "border-left-width": "1px",
+      "border-left-color": "rgb(216, 222, 228)",
+    },
+    close: {
+      width: "22px",
+      height: "22px",
+      color: "rgb(89, 99, 110)",
+      "border-top-left-radius": "4px",
+      "background-color": "rgba(0, 0, 0, 0)",
+    },
+    tabs: {
+      display: "flex",
+      "column-gap": "4px",
+      "margin-bottom": "8px",
+      "border-bottom-width": "1px",
+      "border-bottom-color": "rgb(216, 222, 228)",
+    },
+    tabOn: {
+      "padding-top": "6px",
+      "padding-left": "8px",
+      color: "rgb(31, 35, 40)",
+      "font-weight": "600",
+      "font-size": "12px",
+      "box-shadow": "rgb(9, 105, 218) 0px -2px 0px 0px inset",
+      "background-color": "rgba(0, 0, 0, 0)",
+    },
+    tabOff: {
+      "padding-top": "6px",
+      "padding-left": "8px",
+      color: "rgb(89, 99, 110)",
+      "font-weight": "400",
+      "font-size": "12px",
+      "box-shadow": "none",
+      "background-color": "rgba(0, 0, 0, 0)",
+    },
+  },
+  dark: {
+    rail: {
+      width: "44px",
+      display: "flex",
+      "flex-direction": "column",
+      "align-items": "center",
+      "background-color": "rgb(31, 35, 40)",
+      "box-sizing": "border-box",
+      "padding-top": "12px",
+      "border-left-width": "1px",
+      "border-left-color": "rgb(48, 54, 61)",
+    },
+    railButton: {
+      width: "32px",
+      height: "32px",
+      color: "rgb(145, 152, 161)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-top-left-radius": "4px",
+    },
+    panel: {
+      width: "340px",
+      "box-sizing": "border-box",
+      "background-color": "rgb(31, 35, 40)",
+      "overflow-x": "auto",
+      "overflow-y": "auto",
+      "padding-top": "12px",
+      "padding-right": "12px",
+      "padding-bottom": "12px",
+      "padding-left": "12px",
+      "border-left-width": "1px",
+      "border-left-color": "rgb(48, 54, 61)",
+    },
+    close: {
+      width: "22px",
+      height: "22px",
+      color: "rgb(145, 152, 161)",
+      "border-top-left-radius": "4px",
+      "background-color": "rgba(0, 0, 0, 0)",
+    },
+    tabs: {
+      display: "flex",
+      "column-gap": "4px",
+      "margin-bottom": "8px",
+      "border-bottom-width": "1px",
+      "border-bottom-color": "rgb(48, 54, 61)",
+    },
+    tabOn: {
+      "padding-top": "6px",
+      "padding-left": "8px",
+      color: "rgb(230, 237, 243)",
+      "font-weight": "600",
+      "font-size": "12px",
+      "box-shadow": "rgb(68, 147, 248) 0px -2px 0px 0px inset",
+      "background-color": "rgba(0, 0, 0, 0)",
+    },
+    tabOff: {
+      "padding-top": "6px",
+      "padding-left": "8px",
+      color: "rgb(145, 152, 161)",
+      "font-weight": "400",
+      "font-size": "12px",
+      "box-shadow": "none",
+      "background-color": "rgba(0, 0, 0, 0)",
+    },
+  },
 };
 
 async function prepare(scheme: "light" | "dark"): Promise<Report> {
@@ -205,12 +317,7 @@ async function prepare(scheme: "light" | "dark"): Promise<Report> {
     });
 
     const css = readFileSync(join(SRC, "style.css"), "utf8");
-    const proto = readFileSync(PROTOTYPE, "utf8");
-    const protoCss = /<style>([\s\S]*?)<\/style>/
-      .exec(proto)?.[1]
-      ?.replaceAll(":root{", ":host{") as string;
-
-    writeFileSync(join(dir, "page.html"), PAGE(css, protoCss));
+    writeFileSync(join(dir, "page.html"), PAGE(css));
 
     const run = spawnSync(
       chrome as string,
@@ -247,20 +354,19 @@ async function prepare(scheme: "light" | "dark"): Promise<Report> {
   }
 }
 
-describe("the inspector against the prototype, in a real browser", () => {
+describe("the inspector, in a real browser", () => {
   for (const scheme of ["light", "dark"] as const) {
     it.skipIf(chrome === undefined)(
-      `computes the prototype's styles in ${scheme}`,
+      `computes the designed styles in ${scheme}`,
       async () => {
         const report = await prepare(scheme);
 
         expect(report.dark).toBe(scheme === "dark");
 
-        for (const name of Object.keys(report.proto)) {
+        for (const name of Object.keys(EXPECTED[scheme])) {
           expect(report.app[name]).not.toHaveProperty("missing");
-          expect(report.proto[name]).not.toHaveProperty("missing");
           expect({ [name]: report.app[name] }).toEqual({
-            [name]: report.proto[name],
+            [name]: EXPECTED[scheme][name],
           });
         }
       },
