@@ -20,7 +20,7 @@
   "scripts": {
     "build": "mkdir -p src/generated && cp ../schema/scan.schema.json src/generated/scan.schema.json && cp ../schema/view.schema.json src/generated/view.schema.json && cp ../schema/overlay.schema.json src/generated/overlay.schema.json && node scripts/build-validators.mjs && tsc -p tsconfig.json && cp src/generated/*-validator.js dist/generated/",
     "pretest": "npm run build && npm run build -w recognizer-scan-typescript",
-    "test": "vitest run",
+    "test": "vitest run --config test/vitest.config.ts",
     "lint": "biome check ."
   },
   "dependencies": {

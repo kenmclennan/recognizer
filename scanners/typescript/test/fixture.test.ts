@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { scan } from "../src/index.js";
 import {
   ajvValidate,
@@ -135,10 +135,7 @@ describe("cli", () => {
       scanner: doc.scanner,
     });
 
-    const output = join(
-      mkdtempSync(join(tmpdir(), "recognizer-ts-out-")),
-      "scan.json",
-    );
+    const output = join(makeTempDir("recognizer-ts-out-"), "scan.json");
     const written = runBin(
       SAMPLE,
       "--commit",

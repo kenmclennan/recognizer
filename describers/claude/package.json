@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "pretest": "npm run build",
-    "test": "vitest run",
+    "test": "vitest run --config test/vitest.config.ts",
     "lint": "biome check ."
   },
   "devDependencies": {

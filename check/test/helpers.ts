@@ -1,7 +1,7 @@
-import { cpSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,7 +35,7 @@ export function capture(): Captured {
 }
 
 export function copyFixture(): string {
-  const dir = mkdtempSync(join(tmpdir(), "recognizer-check-"));
+  const dir = makeTempDir("recognizer-check-");
   cpSync(FIXTURE, dir, { recursive: true });
 
   return dir;

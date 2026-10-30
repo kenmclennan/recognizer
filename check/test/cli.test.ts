@@ -2,14 +2,13 @@ import { spawnSync } from "node:child_process";
 import {
   cpSync,
   existsSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import {
   check,
@@ -395,7 +394,7 @@ describe("warnings fixture", () => {
   });
 
   it("exits 1 for a new violation even with warnings, and 0 when baselined", () => {
-    const dir = mkdtempSync(join(tmpdir(), "recognizer-warn-"));
+    const dir = makeTempDir("recognizer-warn-");
     cpSync(WARN, dir, { recursive: true });
     rmSync(join(dir, BASELINE));
 

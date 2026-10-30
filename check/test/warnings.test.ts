@@ -1,7 +1,7 @@
-import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
 import { run } from "../src/cli.js";
 import { compileGlob } from "../src/glob.js";
@@ -299,7 +299,7 @@ function writeScan(dir: string, edges: Edge[], modules: string[] = []) {
 
 describe("policy-free mode", () => {
   it("emits exactly thresholds, warnings and metrics and exits 0", () => {
-    const dir = mkdtempSync(join(tmpdir(), "recognizer-warn-"));
+    const dir = makeTempDir("recognizer-warn-");
     const scan = writeScan(dir, [
       ["a", "b"],
       ["b", "a"],
@@ -318,7 +318,7 @@ describe("policy-free mode", () => {
   it.each(["--baseline", "--update-baseline", "--init-baseline"])(
     "refuses %s without a policy and writes nothing",
     (flag) => {
-      const dir = mkdtempSync(join(tmpdir(), "recognizer-warn-"));
+      const dir = makeTempDir("recognizer-warn-");
       const scan = writeScan(dir, [["a", "b"]]);
       const before = readdirSync(dir);
       const extra =
@@ -332,7 +332,7 @@ describe("policy-free mode", () => {
 });
 
 describe("--hub-threshold", () => {
-  const dir = mkdtempSync(join(tmpdir(), "recognizer-warn-"));
+  const dir = makeTempDir("recognizer-warn-");
   const scan = writeScan(dir, [["a", "b"]]);
 
   it.each(["0", "-1", "2.5", "abc"])("rejects %s", (value) => {
@@ -348,7 +348,7 @@ describe("--hub-threshold", () => {
   });
 
   it("prints a given value and moves the boundary", () => {
-    const hubScan = writeScan(mkdtempSync(join(tmpdir(), "recognizer-warn-")), [
+    const hubScan = writeScan(makeTempDir("recognizer-warn-"), [
       ["a", "h"],
       ["h", "x"],
     ]);
