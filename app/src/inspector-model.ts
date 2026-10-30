@@ -526,10 +526,6 @@ function pickerRows(
     });
   }
 
-  if (picker.missing() > 0) {
-    rows.push({ kind: "note", text: `${picker.missing()} not in the scan` });
-  }
-
   return rows;
 }
 
