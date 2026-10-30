@@ -164,25 +164,46 @@ describe("bringBack", () => {
 });
 
 describe("panelCapacity", () => {
-  it("is three when everything fits", () => {
-    expect(panelCapacity(2000, 340, 3)).toBe(3);
+  it("is three at the dragged width when everything fits", () => {
+    expect(panelCapacity(2000, 340, 3)).toEqual({ cap: 3, width: 340 });
   });
 
-  it("is two when two panels and one strip fit", () => {
-    expect(panelCapacity(340 * 2 + 28, 340, 3)).toBe(2);
+  it("is two at the dragged width when two panels and one strip fit", () => {
+    expect(panelCapacity(340 * 2 + 28, 340, 3)).toEqual({ cap: 2, width: 340 });
   });
 
-  it("is one when only one fits", () => {
-    expect(panelCapacity(340 + 28 * 3, 340, 4)).toBe(1);
+  it("keeps the dragged width for three panels where 3x340 fits", () => {
+    expect(panelCapacity(3 * 340, 340, 3)).toEqual({ cap: 3, width: 340 });
   });
 
-  it("is one when nothing fits", () => {
-    expect(panelCapacity(10, 340, 4)).toBe(1);
+  it("narrows two panels dragged to 640 to 280 rather than folding one", () => {
+    expect(panelCapacity(2 * 280, 640, 2)).toEqual({ cap: 2, width: 280 });
+  });
+
+  it("narrows to the largest width that fits two panels, not straight to 280", () => {
+    expect(panelCapacity(2 * 480, 640, 2)).toEqual({ cap: 2, width: 480 });
+    expect(panelCapacity(2 * 480 + 28, 640, 3)).toEqual({ cap: 2, width: 480 });
+    expect(panelCapacity(2 * 480 + 1, 640, 2)).toEqual({ cap: 2, width: 480 });
+  });
+
+  it("counts the strips of earlier panels when narrowing", () => {
+    expect(panelCapacity(2 * 280 + 28, 640, 3)).toEqual({ cap: 2, width: 280 });
+    expect(panelCapacity(2 * 280 + 27, 640, 3).cap).toBe(1);
+  });
+
+  it("never narrows a single panel", () => {
+    expect(panelCapacity(300, 640, 1)).toEqual({ cap: 1, width: 640 });
+    expect(panelCapacity(2000, 640, 1).width).toBe(640);
+  });
+
+  it("is one when a space below 2x280 plus a strip is all there is", () => {
+    expect(panelCapacity(2 * 280 + 28 - 1, 640, 3).cap).toBe(1);
+    expect(panelCapacity(10, 340, 4).cap).toBe(1);
   });
 
   it("gives the larger count exactly on the bound", () => {
-    expect(panelCapacity(3 * 340 + 28, 340, 4)).toBe(3);
-    expect(panelCapacity(3 * 340 + 27, 340, 4)).toBe(2);
+    expect(panelCapacity(3 * 340 + 28, 340, 4).cap).toBe(3);
+    expect(panelCapacity(3 * 340 + 27, 340, 4).cap).toBe(2);
   });
 });
 
