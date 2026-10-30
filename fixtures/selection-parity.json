@@ -43,5 +43,23 @@
       "tests/a.ts"
     ],
     "accepted": ["a.ts", "c.js", "d.jsx", "keep.cjs", "keep.mjs", "src/b.tsx"]
+  },
+  "kotlin": {
+    "tree": [
+      ".gradle/c.kt",
+      "a.kt",
+      "build/b.kt",
+      "build.gradle.kts",
+      "src/Main.java",
+      "src/main/kotlin/Keep.kt",
+      "src/main/kotlin/keep.kts",
+      "src/test/kotlin/KeepTest.kt",
+      "src/main/kotlin/build/Gen.kt"
+    ],
+    "accepted": [
+      "a.kt",
+      "src/main/kotlin/Keep.kt",
+      "src/test/kotlin/KeepTest.kt"
+    ]
   }
 }

@@ -1,0 +1,45 @@
+name: scanner-kotlin
+
+on:
+  pull_request:
+    paths:
+      - scanners/kotlin/**
+      - schema/**
+      - fixtures/**
+      - .github/workflows/scanner-kotlin.yml
+  push:
+    branches: [main]
+    paths:
+      - scanners/kotlin/**
+      - schema/**
+      - fixtures/**
+      - .github/workflows/scanner-kotlin.yml
+
+env:
+  RECOGNIZER_REQUIRE_REAL_CONTENT: "1"
+  RECOGNIZER_KOTLIN_PETCLINIC: ${{ github.workspace }}/petclinic
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: scanners/kotlin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ArnauAregall/micronaut-kotlin-petclinic-clean-architecture
+          ref: e6e3b49140a55daa148de19111a060e2f62e32be
+          path: petclinic
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest

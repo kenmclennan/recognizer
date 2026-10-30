@@ -1,0 +1,595 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-kotlin",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "app/src/main/kotlin/shop/application/PlaceOrder.kt",
+      "hash": "0883174955c6ed98b9072b02dc9d5f7a924b3b00d14059ccef65892be5861370"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/application/UseCase.kt",
+      "hash": "e79b0a35f93d0fbe543c38032b770160a8604e913da149d450b81dc5dabc2616"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/clients/PaymentClient.kt",
+      "hash": "66f4f5ea2f37a3766212755293d0c8140452601c209ab38c1a9ec937af47e830"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/config/Paths.kt",
+      "hash": "aac628d2c7777fdfe60b51417b7b9e50693ee1ba79b48b8f7150fa44afa6d02c"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/domain/Currency.kt",
+      "hash": "db284c6c379fe1ef9b5e10a5f02d0702c32792e3cdc27fce6a2fe999df69e09f"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/domain/Order.kt",
+      "hash": "422114e7aa59e87675eb5d7cd94f00aff896f70dbea74962c1a2a2c6da0ec470"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
+      "hash": "928039c66179f7cb9e36f981784e3c0a7412e2d17a5526a96ae58261a19e9818"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/persistence/OrderRepository.kt",
+      "hash": "77c222bb8acea1b9eddcdcbdbb0991905b4061102335b3aeedadc310a1407ec7"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/ports/OrderStore.kt",
+      "hash": "bad882178ad5f6b0193d6593a532ed009d23cd6656dddf1b62ddea03f337cefc"
+    },
+    {
+      "path": "app/src/main/kotlin/shop/web/OrderController.kt",
+      "hash": "44c61a440ef9a49e0637a013767a76e41d94d2084798707dd0c65ff5da868816"
+    },
+    {
+      "path": "app/src/test/kotlin/shop/web/OrderControllerTest.kt",
+      "hash": "8508c7bbb7e604534d89ba4d51112399daaab05db18daff98850bb3de70be542"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".kt"
+    ],
+    "skip_directory_names": [
+      "build"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": []
+  },
+  "modules": [
+    {
+      "id": "app/src/main/kotlin/shop/application",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "PlaceOrder",
+          "kind": "class",
+          "line": 7,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "store",
+              "line": 7,
+              "private": true,
+              "type": "Store"
+            }
+          ],
+          "methods": [
+            {
+              "name": "execute",
+              "line": 9,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false
+            }
+          ]
+        },
+        {
+          "name": "UseCase",
+          "kind": "class",
+          "line": 8,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/clients",
+      "language": "kotlin",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "PaymentClient",
+          "kind": "interface",
+          "line": 8,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "charge",
+              "line": 11,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false,
+              "returns": "Boolean",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/config",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "BASE",
+          "kind": "constant",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "value": "\"/api\""
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/domain",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "Currency",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public"
+        },
+        {
+          "name": "Currency.Companion",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public"
+        },
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "id",
+              "line": 3,
+              "private": false,
+              "type": "Long"
+            },
+            {
+              "name": "amount",
+              "line": 3,
+              "private": false,
+              "type": "Int"
+            }
+          ],
+          "methods": []
+        },
+        {
+          "name": "total",
+          "kind": "function",
+          "line": 5,
+          "exported": true,
+          "visibility": "public",
+          "params": [],
+          "returns": "Int"
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/persistence",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "JdbcOrderStore",
+          "kind": "class",
+          "line": 7,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "OrderStore"
+          ],
+          "fields": [
+            {
+              "name": "repository",
+              "line": 7,
+              "private": true,
+              "type": "OrderRepository"
+            }
+          ],
+          "methods": [
+            {
+              "name": "save",
+              "line": 9,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false
+            },
+            {
+              "name": "record",
+              "line": 13,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": true,
+              "returns": "OrderRecord"
+            }
+          ]
+        },
+        {
+          "name": "OrderRepository",
+          "kind": "interface",
+          "line": 8,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "CrudRepository<Order, Long>"
+          ],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/ports",
+      "language": "kotlin",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "OrderStore",
+          "kind": "interface",
+          "line": 5,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 6,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false,
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/web",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "OrderController",
+          "kind": "class",
+          "line": 10,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "placeOrder",
+              "line": 10,
+              "private": true,
+              "type": "PlaceOrder"
+            }
+          ],
+          "methods": [
+            {
+              "name": "list",
+              "line": 13,
+              "params": [],
+              "private": false,
+              "returns": "String"
+            },
+            {
+              "name": "place",
+              "line": 15,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false,
+              "returns": "Int"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app/src/test/kotlin/shop/web",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "OrderControllerTest",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "controller",
+              "line": 4,
+              "private": true,
+              "type": "OrderController?"
+            }
+          ],
+          "methods": [
+            {
+              "name": "lists",
+              "line": 6,
+              "params": [],
+              "private": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "app/src/main/kotlin/shop/application",
+      "to": "app/src/main/kotlin/shop/domain",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/application",
+      "to": "foreign:jakarta.inject",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/src/main/kotlin/shop/application",
+      "to": "app/src/main/kotlin/shop/ports",
+      "kind": "depends",
+      "line": 4,
+      "names": [
+        "OrderStore"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/clients",
+      "to": "foreign:io.micronaut.http.annotation",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/src/main/kotlin/shop/clients",
+      "to": "foreign:io.micronaut.http.client.annotation",
+      "kind": "depends",
+      "line": 4
+    },
+    {
+      "from": "app/src/main/kotlin/shop/clients",
+      "to": "app/src/main/kotlin/shop/domain",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence",
+      "to": "app/src/main/kotlin/shop/domain",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence",
+      "to": "foreign:io.micronaut.data.jdbc.annotation",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence",
+      "to": "foreign:io.micronaut.data.repository",
+      "kind": "depends",
+      "line": 4
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence",
+      "to": "foreign:shop.generated",
+      "kind": "depends",
+      "line": 4
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence",
+      "to": "app/src/main/kotlin/shop/ports",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "OrderStore"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence",
+      "to": "app/src/main/kotlin/shop/ports",
+      "kind": "implements",
+      "line": 7,
+      "member": "JdbcOrderStore",
+      "to_member": "OrderStore"
+    },
+    {
+      "from": "app/src/main/kotlin/shop/ports",
+      "to": "app/src/main/kotlin/shop/domain",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/web",
+      "to": "foreign:io.micronaut.http.annotation",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/src/main/kotlin/shop/web",
+      "to": "app/src/main/kotlin/shop/application",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "PlaceOrder"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/web",
+      "to": "app/src/main/kotlin/shop/config",
+      "kind": "depends",
+      "line": 6,
+      "names": [
+        "BASE"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/web",
+      "to": "app/src/main/kotlin/shop/domain",
+      "kind": "depends",
+      "line": 7,
+      "names": [
+        "Order",
+        "total"
+      ]
+    },
+    {
+      "from": "app/src/test/kotlin/shop/web",
+      "to": "app/src/main/kotlin/shop/web",
+      "kind": "depends",
+      "line": 4,
+      "names": [
+        "OrderController"
+      ]
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:io.micronaut.data.jdbc.annotation",
+      "name": "io.micronaut.data.jdbc.annotation"
+    },
+    {
+      "id": "foreign:io.micronaut.data.repository",
+      "name": "io.micronaut.data.repository"
+    },
+    {
+      "id": "foreign:io.micronaut.http.annotation",
+      "name": "io.micronaut.http.annotation"
+    },
+    {
+      "id": "foreign:io.micronaut.http.client.annotation",
+      "name": "io.micronaut.http.client.annotation"
+    },
+    {
+      "id": "foreign:jakarta.inject",
+      "name": "jakarta.inject"
+    },
+    {
+      "id": "foreign:shop.generated",
+      "name": "shop.generated"
+    }
+  ],
+  "calls": [
+    {
+      "from": "app/src/main/kotlin/shop/application::PlaceOrder.execute",
+      "to": "app/src/main/kotlin/shop/ports::OrderStore.save",
+      "line": 10,
+      "how": "call"
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence::JdbcOrderStore.save",
+      "to": "app/src/main/kotlin/shop/persistence::OrderRepository",
+      "line": 10,
+      "how": "call"
+    },
+    {
+      "from": "app/src/main/kotlin/shop/ports::OrderStore.save",
+      "to": "app/src/main/kotlin/shop/persistence::JdbcOrderStore.save",
+      "line": 6,
+      "how": "dispatch"
+    },
+    {
+      "from": "app/src/main/kotlin/shop/web::OrderController.place",
+      "to": "app/src/main/kotlin/shop/application::PlaceOrder.execute",
+      "line": 16,
+      "how": "call"
+    },
+    {
+      "from": "app/src/test/kotlin/shop/web::OrderControllerTest.lists",
+      "to": "app/src/main/kotlin/shop/web::OrderController.list",
+      "line": 6,
+      "how": "call"
+    }
+  ],
+  "unresolved_imports": [
+    {
+      "from": "app/src/main/kotlin/shop/persistence",
+      "import": "shop.generated.OrderRecord",
+      "line": 4
+    }
+  ]
+}

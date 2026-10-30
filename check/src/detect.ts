@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import type { Io } from "./cli.js";
 
-export type Language = "python" | "typescript";
+export type Language = "python" | "typescript" | "kotlin";
 
-const LANGUAGES: Language[] = ["python", "typescript"];
+const LANGUAGES: Language[] = ["python", "typescript", "kotlin"];
 
 interface SkipRules {
   directoryNames: string[];
@@ -53,6 +53,13 @@ const SKIP_RULES: Record<Language, SkipRules> = {
     directoryMarkers: [],
     fileGlobs: ["*.d.ts", "*.test.*", "*.spec.*"],
   },
+  kotlin: {
+    directoryNames: ["build"],
+    directoryPrefixes: ["."],
+    directorySuffixes: [],
+    directoryMarkers: [],
+    fileGlobs: [],
+  },
 };
 
 function matchesGlob(name: string, glob: string): boolean {
@@ -84,6 +91,10 @@ function languageOf(fileName: string): Language | null {
     TYPESCRIPT_EXTENSIONS.some((extension) => fileName.endsWith(extension))
   ) {
     return "typescript";
+  }
+
+  if (fileName.endsWith(".kt")) {
+    return "kotlin";
   }
 
   return null;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { scannerFor } from "../src/scanners.js";
 import {
   type FakeOptions,
   fakeIo,
@@ -142,6 +143,20 @@ describe("recognizer scan: command building", () => {
   });
 });
 
+describe("recognizer scan: kotlin", () => {
+  it("fails a detected kotlin language whose scanner is missing", () => {
+    const { code, err } = scan({ files: { [`${ROOT}/A.kt`]: "" } });
+
+    expect(code).toBe(1);
+    expect(err).toContain("recognizer-scan-kotlin is not installed");
+    expect(err).toContain("RECOGNIZER_SCAN_KOTLIN");
+  });
+
+  it("runs recognizer-scan-kotlin for kotlin", () => {
+    expect(scannerFor("kotlin").name).toBe("recognizer-scan-kotlin");
+  });
+});
+
 describe("recognizer scan: outcomes", () => {
   const cases: [string, Record<string, unknown>, string][] = [
     ["not-installed", {}, "not-installed"],
@@ -194,7 +209,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 1");
-    expect(err).toContain("accepts 4");
+    expect(err).toContain("accepts 5");
   });
 
   it("refuses a version-2 scan naming both versions", () => {
@@ -204,7 +219,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 2");
-    expect(err).toContain("accepts 4");
+    expect(err).toContain("accepts 5");
   });
 
   it("carries the scanner's stderr", () => {

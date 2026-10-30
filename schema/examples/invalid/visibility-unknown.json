@@ -1,0 +1,68 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-kotlin",
+    "version": "0.1.0"
+  },
+  "commit": "a1b2c3d",
+  "modified": false,
+  "files": [
+    {
+      "path": "shop/Order.kt",
+      "hash": "cb423ea559ddc5c92a8df7f34285fed03c3497bece8bd2d7893afb59792dc5d3"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".kt"
+    ],
+    "skip_directory_names": [
+      "build"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": []
+  },
+  "modules": [
+    {
+      "id": "shop",
+      "language": "kotlin",
+      "kind": "package",
+      "members": [
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "package"
+        },
+        {
+          "name": "Audit",
+          "kind": "class",
+          "line": 9,
+          "exported": true,
+          "visibility": "internal"
+        },
+        {
+          "name": "Secret",
+          "kind": "function",
+          "line": 12,
+          "exported": false,
+          "visibility": "private"
+        }
+      ]
+    }
+  ],
+  "edges": [],
+  "foreign": [],
+  "unresolved_imports": [
+    {
+      "from": "shop",
+      "import": "shop.generated.OrderRecord",
+      "line": 2
+    }
+  ]
+}

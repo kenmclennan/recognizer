@@ -31,7 +31,7 @@ def test_invalid_example_fails(path):
 def test_invalid_example_fails_for_its_own_defect(path):
     version = json.loads(path.read_text())["schema_version"]
 
-    assert (version != 4) == path.name.startswith("schema-version-")
+    assert (version != 5) == path.name.startswith("schema-version-")
 
 
 def test_version_3_example_is_refused_on_the_version():

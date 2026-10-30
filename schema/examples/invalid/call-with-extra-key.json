@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": "a1b2c3d",
   "modified": false,
