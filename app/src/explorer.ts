@@ -92,6 +92,7 @@ import {
   MAX_PANELS,
   missingFromCanvas,
   moveFocus,
+  type PanelFit,
   panelCapacity,
   RAIL_WIDTH,
   reconcile,
@@ -731,17 +732,21 @@ export function showExplorer(
     return true;
   }
 
-  function trailCapacity(): number {
+  function trailFit(): PanelFit {
     const width = body.clientWidth;
 
     if (width === 0) {
-      return MAX_PANELS;
+      return { cap: MAX_PANELS, width: widths.inspector };
     }
 
     const tree = leftPanel === null ? 0 : widths.tree;
     const available = width - RAIL_WIDTH - tree - CANVAS_FLOOR;
 
     return panelCapacity(available, widths.inspector, trail.panels.length);
+  }
+
+  function trailCapacity(): number {
+    return trailFit().cap;
   }
 
   function syncTrail(selection: Selection) {
@@ -1909,6 +1914,7 @@ export function showExplorer(
     const placed = trailLayout(trail);
     const multi = inspectorOpen && trail.panels.length > 1;
 
+    body.style.setProperty("--inspector-w", `${trailFit().width}px`);
     body.style.setProperty(
       "--inspector-shown",
       String(multi ? placed.shown.length : 1),

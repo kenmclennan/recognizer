@@ -2,6 +2,7 @@ import { lastSegment } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
 import type { Compaction } from "./folder-compaction";
 import type { Direction, Followed, InspectorTab } from "./inspector-model";
+import { PANEL_LIMITS } from "./panel-widths";
 
 export const STRIP_WIDTH = 28;
 export const CANVAS_FLOOR = 400;
@@ -173,20 +174,35 @@ export function bringBack(trail: Trail, index: number): Trail {
   return { ...trail, active: index };
 }
 
+export type PanelFit = { cap: number; width: number };
+
 export function panelCapacity(
   available: number,
   panelWidth: number,
   count: number,
-): number {
-  for (let n = MAX_PANELS; n >= 2; n -= 1) {
+): PanelFit {
+  const fits = (n: number, width: number) => {
     const shown = Math.min(n, count);
 
-    if (shown * panelWidth + STRIP_WIDTH * (count - shown) <= available) {
-      return n;
+    return shown * width + STRIP_WIDTH * (count - shown) <= available;
+  };
+
+  for (let n = MAX_PANELS; n >= 2; n -= 1) {
+    if (fits(n, panelWidth)) {
+      return { cap: n, width: panelWidth };
     }
   }
 
-  return 1;
+  if (count >= 2) {
+    const roomy = Math.floor((available - STRIP_WIDTH * (count - 2)) / 2);
+    const narrowed = Math.min(panelWidth, roomy);
+
+    if (narrowed >= PANEL_LIMITS.inspector.min) {
+      return { cap: 2, width: narrowed };
+    }
+  }
+
+  return { cap: 1, width: panelWidth };
 }
 
 export function withCapacity(trail: Trail, cap: number): Trail {

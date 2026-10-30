@@ -215,6 +215,10 @@ const facts = {};
   await follow(0, "lib/a.py");
   facts.wide640 = snap();
 
+  await mount(1400, { tree: 280, inspector: 640 });
+  await follow(0, "lib/a.py");
+  facts.roomy640 = snap();
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -280,6 +284,7 @@ type Facts = {
   widened: Snap;
   dragged480: Snap;
   wide640: Snap;
+  roomy640: Snap;
 };
 
 describe.skipIf(chrome === undefined)("the trail", () => {
@@ -435,16 +440,24 @@ describe.skipIf(chrome === undefined)("the trail", () => {
     expect(f.widened.canvas).toBeGreaterThanOrEqual(400);
   });
 
-  it("folds a two-panel trail to one panel and a strip beside a 480px inspector", () => {
-    expect(f.dragged480.shown).toBe(1);
-    expect(f.dragged480.strips).toEqual(["hub.py"]);
-    expect(f.dragged480.widths).toEqual([480]);
+  it("narrows two panels to the inspector minimum beside a 480px inspector instead of folding one", () => {
+    expect(f.dragged480.shown).toBe(2);
+    expect(f.dragged480.strips).toEqual([]);
+    expect(f.dragged480.widths).toEqual([280, 280]);
     expect(f.dragged480.canvas).toBeGreaterThanOrEqual(400);
   });
 
-  it("never narrows or folds a single panel at a 640px inspector", () => {
-    expect(f.wide640.shown).toBe(1);
-    expect(f.wide640.strips).toEqual(["hub.py"]);
-    expect(f.wide640.widths).toEqual([640]);
+  it("shows both panels with no strip at a 640px inspector with two panels on the trail", () => {
+    expect(f.wide640.shown).toBe(2);
+    expect(f.wide640.strips).toEqual([]);
+    expect(f.wide640.widths).toEqual([280, 280]);
+    expect(f.wide640.canvas).toBeGreaterThanOrEqual(400);
+  });
+
+  it("narrows to the largest width that fits, not to the minimum, when there is room", () => {
+    expect(f.roomy640.shown).toBe(2);
+    expect(f.roomy640.strips).toEqual([]);
+    expect(f.roomy640.widths).toEqual([340, 340]);
+    expect(f.roomy640.canvas).toBeGreaterThanOrEqual(400);
   });
 });
