@@ -195,7 +195,11 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ## The command table
 
-`check/src/commands.ts` exports `COMMANDS`, the one list `recognizer` dispatches from and `check/src/help.ts` renders help from. Each entry holds a command's name, one-line summary, usage, arguments, options, what it prints as text and with `--json`, exit codes and examples. `recognizer --help` prints every command with its one line; `recognizer help <command>` and `<command> --help` print the full entry. The table holds `check`, `scan`, `open`, `uses`, `used-by`, `callers`, `path`, `find`, `show`, `modules`, `views`, `describe`, `measure` and `help`.
+`check/src/commands.ts` exports `COMMANDS`, the one list `recognizer` dispatches from and `check/src/help.ts` renders help from. Each entry holds a command's name, one-line summary, usage, arguments, options, what it prints as text and with `--json`, exit codes and examples. `recognizer --help` prints every command with its one line; `recognizer help <command>` and `<command> --help` print the full entry. The table holds `check`, `scan`, `open`, `uses`, `used-by`, `callers`, `path`, `find`, `show`, `modules`, `views`, `windows`, `window`, `describe`, `measure`, `agents` and `help`.
+
+## The agent guide
+
+`recognizer help agents` prints the guide an agent follows (`check/src/agent-guide.ts`): a command section generated from the command table, so a new command appears without editing the guide, then the rules (`.recognizer/` is never read, written or listed; `check --scan` is for CI and fixtures only) and the show-me, extend, explain and drive recipes. `recognizer agents install` writes `~/.claude/skills/recognizer/SKILL.md`, which only points at the guide, and adds `Read(**/.recognizer/**)` and `Edit(**/.recognizer/**)` to `permissions.deny` in `~/.claude/settings.json`, keeping every other key and entry (`check/src/agents-command.ts`). It reports each change, prints `no change` on a repeat run, exits 2 and writes nothing when the settings file cannot be merged safely, and `recognizer agents uninstall` reverses it. `--json` prints `{ changes }`.
 
 ## Question commands
 

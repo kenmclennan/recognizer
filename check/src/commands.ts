@@ -1,3 +1,4 @@
+import { runAgents } from "./agents-command.js";
 import { executeCheck } from "./check-command.js";
 import type { Io } from "./cli.js";
 import { runDescribeCommand } from "./describe-command.js";
@@ -831,6 +832,44 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runMeasure,
+  },
+  {
+    name: "agents",
+    summary:
+      "install or remove the Claude Code skill and permission rule for agents",
+    usage: "recognizer agents install|uninstall [--json]",
+    arguments: [
+      {
+        name: "install|uninstall",
+        description:
+          "install writes ~/.claude/skills/recognizer/SKILL.md, which points at `recognizer help agents`, and denies Read and Edit of **/.recognizer/** in ~/.claude/settings.json; uninstall reverses both",
+      },
+    ],
+    options: [
+      {
+        flag: "--json",
+        description: "print { changes: string[] } instead of text",
+      },
+    ],
+    output: {
+      text: "one line per change, or `no change`",
+      json: "{ changes: string[] } with the same strings",
+    },
+    exitCodes: [
+      { code: 0, meaning: "done, including when there was nothing to change" },
+      {
+        code: 2,
+        meaning:
+          "bad arguments, HOME unset or empty, or a settings file that cannot be merged safely",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer agents install",
+        note: "write the skill and the deny rule; a repeat run prints no change",
+      },
+    ],
+    run: runAgents,
   },
   {
     name: "help",
