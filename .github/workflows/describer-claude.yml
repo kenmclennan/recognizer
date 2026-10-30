@@ -1,0 +1,37 @@
+name: describer-claude
+
+on:
+  pull_request:
+    paths:
+      - describers/claude/**
+      - schema/**
+      - fixtures/**
+      - package.json
+      - package-lock.json
+      - biome.json
+      - .github/workflows/describer-claude.yml
+  push:
+    branches: [main]
+    paths:
+      - describers/claude/**
+      - schema/**
+      - fixtures/**
+      - package.json
+      - package-lock.json
+      - biome.json
+      - .github/workflows/describer-claude.yml
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run lint -w describers/claude
+      - run: npm run build -w describers/claude
+      - run: npm test -w describers/claude
