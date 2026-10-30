@@ -23,7 +23,7 @@
     "install-app": "node app/scripts/install-app.mjs",
     "check:rust": "node app/scripts/check-rust.mjs",
     "check": "npm run lint -w check && npm run build -w check && node scripts/assert-clean-tmpdir.mjs npm test -w check && node scripts/assert-clean-tmpdir.mjs npm test -w recognizer-describe-claude && npm run lint -w recognizer-describe-claude",
-    "check:app": "npm run typecheck -w @recognizer/app && node scripts/assert-clean-tmpdir.mjs npm run test -w @recognizer/app && npm run lint -w @recognizer/app && npm run format:check -w @recognizer/app && npm run check:rust && npm run build -w @recognizer/app"
+    "check:app": "npm run typecheck -w @recognizer/app && npm run lint -w @recognizer/app && npm run format:check -w @recognizer/app && node scripts/assert-clean-tmpdir.mjs npm run test -w @recognizer/app && npm run check:rust && npm run build -w @recognizer/app"
   },
   "license": "MIT"
 }
