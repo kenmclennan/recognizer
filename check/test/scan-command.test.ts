@@ -67,6 +67,17 @@ describe("recognizer scan: command building", () => {
     ]);
   });
 
+  it("scans a repository holding only .js files with the typescript scanner", () => {
+    const { fake, code } = scan({
+      files: { [`${ROOT}/index.js`]: "" },
+      scanners: { [TYPESCRIPT]: okTypescript },
+    });
+
+    expect(code).toBe(0);
+    expect(fake.calls.map((call) => call.command)).toContain(TYPESCRIPT);
+    expect(fake.calls.map((call) => call.command)).not.toContain(PYTHON);
+  });
+
   it("passes --modified true when the tree has uncommitted changes", () => {
     const { fake } = scan({
       files: { [`${ROOT}/a.py`]: "" },
