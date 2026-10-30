@@ -51,6 +51,20 @@ export function resolveCommit(io: Io, root: string): string | null {
   return result.started && result.status === 0 && commit !== "" ? commit : null;
 }
 
+export function isDirty(io: Io, root: string): boolean {
+  const result = io.run("git", [
+    "-C",
+    root,
+    "status",
+    "--porcelain",
+    "--",
+    ".",
+    ":!.recognizer",
+  ]);
+
+  return !result.started || result.status !== 0 || result.stdout.trim() !== "";
+}
+
 function failure(reason: FailureReason, message: string): Outcome {
   return { ok: false, reason, message };
 }
@@ -99,6 +113,7 @@ function runScanner(
   language: Language,
   root: string,
   commit: string | null,
+  modified: boolean | null,
 ): Outcome {
   const spec = scannerFor(language);
   const resolution = resolveCommand(io, spec);
@@ -111,7 +126,10 @@ function runScanner(
 
   try {
     const output = join(directory, `scan.${language}.json`);
-    const result = io.run(resolution.command, buildArgs(root, output, commit));
+    const result = io.run(
+      resolution.command,
+      buildArgs(root, output, commit, modified),
+    );
 
     if (!result.started) {
       return failure("not-installed", notInstalledMessage(spec));
@@ -171,6 +189,7 @@ export function runScan(argv: string[], io: Io): number {
   const stderr: string[] = [];
   const stdout: string[] = [];
   const commit = resolveCommit(io, root);
+  const modified = commit === null ? null : isDirty(io, root);
 
   if (detected.length === 0) {
     stderr.push("no languages detected");
@@ -192,7 +211,7 @@ export function runScan(argv: string[], io: Io): number {
       continue;
     }
 
-    const outcome = runScanner(io, spec.language, root, commit);
+    const outcome = runScanner(io, spec.language, root, commit, modified);
 
     if (outcome.ok) {
       io.writeFile(file, outcome.bytes);

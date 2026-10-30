@@ -1,7 +1,84 @@
 {
-  "schema_version": 3,
-  "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
+  "schema_version": 4,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
   "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "shop/__init__.py",
+      "hash": "fb70c71e6de5fbba6a9a2fc8cd2f15597ed87715717d1c0d68dafc1629dc438e"
+    },
+    {
+      "path": "shop/adapters/memory_store.py",
+      "hash": "0c4c311f045a12332fca05227b367273d6cc54483bf07af555e59e5f6bb915e8"
+    },
+    {
+      "path": "shop/adapters/special_store.py",
+      "hash": "aba3d40c6984270731b0227e3e1fa841ba33e9bdfdb3f1f394774422fd059045"
+    },
+    {
+      "path": "shop/application/audit.py",
+      "hash": "ed1e686e631bf50a9f0485d04ccfc9c5085e9477ddb071c57dd1d0e860cc354b"
+    },
+    {
+      "path": "shop/application/lookup.py",
+      "hash": "a3091f9af6e9e8eb70af964900fc2cf342b4763af6a45d332a8225a4c8bd58b4"
+    },
+    {
+      "path": "shop/application/place.py",
+      "hash": "81d186be333c0cbd705766172f66c3622385e104eb4282d102773039ff62a404"
+    },
+    {
+      "path": "shop/application/refund.py",
+      "hash": "db573de6442d0ec6ec016f0e93a091626a7635b04abbc7ad00c0aa52180e17d6"
+    },
+    {
+      "path": "shop/application/report.py",
+      "hash": "e4f4745e8b5864944a57fd781807558b1663afc0b5743df37052281203c92b20"
+    },
+    {
+      "path": "shop/domain/__init__.py",
+      "hash": "401b32a725dbee8dbcec0625eda85869b16a0a6fa992f5cc8fde2c9ede88dcf3"
+    },
+    {
+      "path": "shop/domain/aliases.py",
+      "hash": "a4f2fa1f1df987d8144c337535147e0520f007ee5002508120e85bce97f96455"
+    },
+    {
+      "path": "shop/domain/customer.py",
+      "hash": "4ac929a38a627de0147b3b919317514d9c726989bab276c8abc6c26119166138"
+    },
+    {
+      "path": "shop/domain/order.py",
+      "hash": "7c3ab2896fffba70aac4d66c86a88b1fc6613ef10167aae3939489e61b90531b"
+    },
+    {
+      "path": "shop/ports/__init__.py",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "shop/ports/store.py",
+      "hash": "1415441f35273ebb6dbfe7e861edb25f5461a9d9aff9de87bbd28866190d84b0"
+    }
+  ],
+  "selection": {
+    "extensions": [".py"],
+    "skip_directory_names": [
+      "__pycache__",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [".egg-info"],
+    "skip_directories_containing": ["pyvenv.cfg"],
+    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+  },
   "modules": [
     {
       "id": "shop/__init__.py",
@@ -25,7 +102,11 @@
             {
               "name": "save",
               "line": 7,
-              "params": [{ "name": "order" }],
+              "params": [
+                {
+                  "name": "order"
+                }
+              ],
               "private": false
             }
           ]
@@ -64,7 +145,11 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": [{ "name": "source" }]
+          "params": [
+            {
+              "name": "source"
+            }
+          ]
         }
       ]
     },
@@ -78,7 +163,11 @@
           "kind": "function",
           "line": 5,
           "exported": true,
-          "params": [{ "name": "order_id" }]
+          "params": [
+            {
+              "name": "order_id"
+            }
+          ]
         }
       ]
     },
@@ -92,7 +181,14 @@
           "kind": "function",
           "line": 1,
           "exported": true,
-          "params": [{ "name": "order" }, { "name": "store" }]
+          "params": [
+            {
+              "name": "order"
+            },
+            {
+              "name": "store"
+            }
+          ]
         }
       ]
     },
@@ -126,7 +222,12 @@
           "exported": true,
           "bases": [],
           "fields": [
-            { "name": "name", "line": 2, "private": false, "type": "str" }
+            {
+              "name": "name",
+              "line": 2,
+              "private": false,
+              "type": "str"
+            }
           ],
           "methods": []
         }
@@ -151,9 +252,24 @@
           "exported": true,
           "bases": [],
           "fields": [
-            { "name": "id", "line": 10, "private": false, "type": "str" },
-            { "name": "items", "line": 11, "private": false, "type": "int" },
-            { "name": "_note", "line": 12, "private": true, "type": "str" }
+            {
+              "name": "id",
+              "line": 10,
+              "private": false,
+              "type": "str"
+            },
+            {
+              "name": "items",
+              "line": 11,
+              "private": false,
+              "type": "int"
+            },
+            {
+              "name": "_note",
+              "line": 12,
+              "private": true,
+              "type": "str"
+            }
           ],
           "methods": [
             {
@@ -177,7 +293,11 @@
           "kind": "function",
           "line": 21,
           "exported": false,
-          "params": [{ "name": "order_id" }],
+          "params": [
+            {
+              "name": "order_id"
+            }
+          ],
           "returns": "Order"
         },
         {
@@ -185,7 +305,12 @@
           "kind": "function",
           "line": 25,
           "exported": false,
-          "params": [{ "name": "order_id", "type": "str" }],
+          "params": [
+            {
+              "name": "order_id",
+              "type": "str"
+            }
+          ],
           "returns": "Order"
         },
         {
@@ -219,7 +344,11 @@
             {
               "name": "save",
               "line": 6,
-              "params": [{ "name": "order" }],
+              "params": [
+                {
+                  "name": "order"
+                }
+              ],
               "private": false,
               "tags": ["abstract"]
             }
@@ -233,7 +362,12 @@
           "bases": ["ABC"],
           "fields": [],
           "methods": [
-            { "name": "now", "line": 10, "params": [], "private": false }
+            {
+              "name": "now",
+              "line": 10,
+              "params": [],
+              "private": false
+            }
           ]
         }
       ]
@@ -381,10 +515,22 @@
     }
   ],
   "foreign": [
-    { "id": "foreign:abc", "name": "abc" },
-    { "id": "foreign:dataclasses", "name": "dataclasses" },
-    { "id": "foreign:os", "name": "os" },
-    { "id": "foreign:typing", "name": "typing" }
+    {
+      "id": "foreign:abc",
+      "name": "abc"
+    },
+    {
+      "id": "foreign:dataclasses",
+      "name": "dataclasses"
+    },
+    {
+      "id": "foreign:os",
+      "name": "os"
+    },
+    {
+      "id": "foreign:typing",
+      "name": "typing"
+    }
   ],
   "calls": [
     {

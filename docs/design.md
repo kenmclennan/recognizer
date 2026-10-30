@@ -181,7 +181,12 @@ ignore: [tests/**, "**/fixtures/**"]
 
 ### Scan document
 
-Each scanner emits one JSON document per language, with `schema_version` (an integer, bumped only on a breaking change; a consumer refuses a version it does not know), the scanner's name and version, the commit scanned, and four lists:
+Each scanner emits one JSON document per language, with `schema_version` (an integer, bumped only on a breaking change; a consumer refuses a version it does not know), the scanner's name and version, the commit scanned, whether the working tree had uncommitted changes outside `.recognizer/` (`modified`: `true`, `false`, or `null` when the folder is not under git, because nothing is known), the files the scanner read, the rule it used to choose them, and four lists. Version 4 added the last three of those.
+
+- **`files`**: every file the scanner read, sorted by `path` (repository-relative, forward slashes, the same form as a module `id`), each with a `hash`, the SHA-256 of its bytes in lowercase hex. A file with no members is still listed. The CLI's freshness rule and the viewer's changed-since rule both read it, so neither keeps its own copy of what a scanner skips.
+- **`selection`**: the scanner's own rule as data, so a consumer can decide whether a path it has not seen would have been read: `extensions`, `skip_directory_names`, `skip_directory_prefixes`, `skip_directory_suffixes`, `skip_directories_containing` (a directory holding a file of that name is skipped) and `skip_file_globs` (`*` is any run of characters and nothing else). Each scanner builds it from the constants its discovery uses.
+
+The four lists are:
 
 - **`modules`**: one per box. `id` is the repository-relative path with forward slashes and no leading `./`; for Kotlin, the package's directory path. `language` sits on the module, not the document. `kind` is `module`, `package` or `interface` (a module whose exports are only abstractions). `members` lists the classes and functions it contains: `name`, `kind` (`class`, `function`, `interface`, `type`, `constant`), `line`, `exported` (the language's own declaration of its public surface: in Python, membership of `__all__` when the module defines one and otherwise a name without a leading underscore, which also marks a class's private fields and methods; in TypeScript, `export`; in Kotlin and Rust, their visibility modifiers), and the outline the inspector shows: a class's bases, its fields with their types, lines and privacy, and its methods; a function's or method's parameters with their types and its return type; a constant's value, shortened.
 - **`edges`**: module to module, `from` and `to` by module id, `kind` is `depends`, `inherits` or `implements`, and `line` is where in `from` it comes from, so a violation is clickable. `inherits` and `implements` also carry the two member names (`member`, `to_member`) for the viewer's drill-down.
@@ -194,9 +199,28 @@ The document is facts about the code only: no policy, layout, colours or violati
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": "a1b2c3d",
+  "modified": false,
+  "files": [
+    { "path": "shop/order.py", "hash": "<64 lowercase hex characters>" }
+  ],
+  "selection": {
+    "extensions": [".py"],
+    "skip_directory_names": [
+      "__pycache__",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [".egg-info"],
+    "skip_directories_containing": ["pyvenv.cfg"],
+    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+  },
   "modules": [
     {
       "id": "lightcycle/domain/item.py",

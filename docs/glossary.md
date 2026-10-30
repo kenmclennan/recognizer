@@ -40,10 +40,12 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Describer | The command a repository registers in its config to write responsibilities. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
 | Command table | `COMMANDS` in `check/src/commands.ts`: the one list `recognizer` dispatches from and generates its help from. |
-| Freshness | Whether the cached scans can be used: they were taken at the current commit with a clean working tree. Otherwise `recognizer scan` runs first. |
+| Freshness | Whether the cached scans can be used: they were taken at the current commit from a clean working tree, and the scanned files still hash the same. Otherwise `recognizer scan` runs first. |
 | Scanner | A language's standalone command that emits a scan. |
-| Scan | The document a scanner emits: modules, edges and foreign nodes for one language. |
-| Baseline | What the viewer records of a folder just before a scan runs: each scanned file's time, size and content hash, plus the commit and branch. Changed since compares the folder against it. |
+| Scan | The document a scanner emits: modules, edges and foreign nodes for one language, the files it read and the selection it used. |
+| Scanned file | A file a scanner read, recorded in the scan's `files` with the SHA-256 of its bytes. |
+| Selection | A scanner's rule for choosing files, recorded in the scan as data: extensions, skipped directories and skipped file globs. A consumer applies it to a path the scan has not seen. |
+| Baseline | What the viewer holds of a scan's files: each file's recorded hash and the scan's selection, with the commit and branch taken just before the scan. Changed since compares the folder against it. |
 | Changed since | The viewer's report of what differs from the scan on screen: an edited, added or deleted file the scanners read, or a moved commit or branch. An edit undone again does not count. |
 | Rescan | Running the scan again on request, from the footer, File > Rescan or Cmd-R. It keeps the view state; nothing rescans on its own. |
 | Cache | A repository's gitignored `.recognizer/cache/`, where scans and overlays are written. |

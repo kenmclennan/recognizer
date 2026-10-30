@@ -8,12 +8,15 @@
     "schema_version",
     "scanner",
     "commit",
+    "modified",
+    "files",
+    "selection",
     "modules",
     "edges",
     "foreign"
   ],
   "properties": {
-    "schema_version": { "const": 3 },
+    "schema_version": { "const": 4 },
     "scanner": {
       "type": "object",
       "additionalProperties": false,
@@ -24,12 +27,48 @@
       }
     },
     "commit": { "type": ["string", "null"], "minLength": 1 },
+    "modified": { "type": ["boolean", "null"] },
+    "files": { "type": "array", "items": { "$ref": "#/$defs/scannedFile" } },
+    "selection": { "$ref": "#/$defs/selection" },
     "modules": { "type": "array", "items": { "$ref": "#/$defs/module" } },
     "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
     "foreign": { "type": "array", "items": { "$ref": "#/$defs/foreignNode" } },
     "calls": { "type": "array", "items": { "$ref": "#/$defs/call" } }
   },
   "$defs": {
+    "scannedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "hash"],
+      "properties": {
+        "path": { "$ref": "#/$defs/moduleId" },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "extensions",
+        "skip_directory_names",
+        "skip_directory_prefixes",
+        "skip_directory_suffixes",
+        "skip_directories_containing",
+        "skip_file_globs"
+      ],
+      "properties": {
+        "extensions": { "$ref": "#/$defs/stringList" },
+        "skip_directory_names": { "$ref": "#/$defs/stringList" },
+        "skip_directory_prefixes": { "$ref": "#/$defs/stringList" },
+        "skip_directory_suffixes": { "$ref": "#/$defs/stringList" },
+        "skip_directories_containing": { "$ref": "#/$defs/stringList" },
+        "skip_file_globs": { "$ref": "#/$defs/stringList" }
+      }
+    },
     "moduleId": {
       "type": "string",
       "pattern": "^(?!foreign:)(?!\\./)(?!/)[^\\\\]+$"

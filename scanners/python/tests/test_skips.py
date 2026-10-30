@@ -1,4 +1,6 @@
-from conftest import build_tree, validate
+import json
+
+from conftest import REPOSITORY, build_tree, validate
 
 from recognizer_scan_python import scan
 
@@ -36,3 +38,10 @@ def test_skipped_project_module_import_is_foreign(tmp_path):
     document = scan(tmp_path, ["."], None)
 
     assert [f["id"] for f in document["foreign"]] == ["foreign:tests"]
+
+
+def test_files_equal_the_shared_selection_parity_tree(tmp_path):
+    parity = json.loads((REPOSITORY / "fixtures" / "selection-parity.json").read_text())["python"]
+    build_tree(tmp_path, dict.fromkeys(parity["tree"], ""))
+
+    assert [f["path"] for f in scan(tmp_path, ["."], None)["files"]] == parity["accepted"]

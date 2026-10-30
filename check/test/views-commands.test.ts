@@ -24,7 +24,12 @@ function repository(
     diff,
     files: {
       [`${ROOT}/shop/a.py`]: "",
-      [CACHE]: JSON.stringify({ ...fixture, commit: COMMIT }),
+      [CACHE]: JSON.stringify({
+        ...fixture,
+        commit: COMMIT,
+        modified: false,
+        files: [],
+      }),
       ...files,
     },
   });

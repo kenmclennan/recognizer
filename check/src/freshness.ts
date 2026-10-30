@@ -1,36 +1,24 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { Io } from "./cli.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
-import { type Scan, validateScan } from "./scan.js";
-import { cacheFile, resolveCommit, runScan } from "./scan-command.js";
+import { type RecordedScan, type Scan, validateScan } from "./scan.js";
+import { cacheFile, isDirty, resolveCommit, runScan } from "./scan-command.js";
 
 export interface FreshScans {
   scans: Scan[];
   scanned: boolean;
 }
 
-function isDirty(io: Io, root: string): boolean {
-  const result = io.run("git", [
-    "-C",
-    root,
-    "status",
-    "--porcelain",
-    "--",
-    ".",
-    ":!.recognizer",
-  ]);
-
-  return !result.started || result.status !== 0 || result.stdout.trim() !== "";
-}
-
 function readCache(
   io: Io,
   root: string,
   language: Language,
-): (Scan & { commit?: string | null }) | null {
+): RecordedScan | null {
   try {
-    return validateScan(JSON.parse(io.readFile(cacheFile(root, language))));
+    return validateScan(
+      JSON.parse(io.readFile(cacheFile(root, language))),
+    ) as RecordedScan;
   } catch {
     return null;
   }
@@ -40,12 +28,28 @@ function readAll(
   io: Io,
   root: string,
   languages: Language[],
-): (Scan & { commit?: string | null })[] | null {
+): RecordedScan[] | null {
   const scans = languages.map((language) => readCache(io, root, language));
 
   return scans.every((scan) => scan !== null)
-    ? (scans as (Scan & { commit?: string | null })[])
+    ? (scans as RecordedScan[])
     : null;
+}
+
+function isReusable(
+  io: Io,
+  root: string,
+  commit: string,
+  scans: RecordedScan[],
+): boolean {
+  return scans.every(
+    (scan) =>
+      scan.commit === commit &&
+      scan.modified === false &&
+      scan.files.every(
+        (file) => io.hashFile(join(root, file.path)) === file.hash,
+      ),
+  );
 }
 
 export function freshScans(io: Io, root: string): FreshScans {
@@ -63,7 +67,7 @@ export function freshScans(io: Io, root: string): FreshScans {
   if (commit !== null && detected.length > 0 && !isDirty(io, directory)) {
     const cached = readAll(io, directory, detected);
 
-    if (cached?.every((scan) => scan.commit === commit)) {
+    if (cached !== null && isReusable(io, directory, commit, cached)) {
       return { scans: cached, scanned: false };
     }
   }

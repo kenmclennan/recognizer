@@ -60,7 +60,7 @@ Globs match the whole id, case-sensitive.
 
 ## Edges that are read
 
-A scan must carry `schema_version` 3; a version-1 scan is refused with exit `2`. Edges that carry `inferred` are read from the scan and ignored by every output: violations, `unranked`, metrics and warnings are computed from the other edges only. A later item decides whether inferred edges count.
+A scan must carry `schema_version` 4; a version-1 scan is refused with exit `2`. Edges that carry `inferred` are read from the scan and ignored by every output: violations, `unranked`, metrics and warnings are computed from the other edges only. A later item decides whether inferred edges count.
 
 ## Violations and the baseline
 
@@ -205,7 +205,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ### Freshness
 
-A question uses the cached scans when every detected language has a cache taken at the current commit and the working tree is clean, ignoring everything under `.recognizer/`. Otherwise it runs `recognizer scan` first, with the scan summary on stderr. The rule is the library function `freshScans` in `check/src/freshness.ts`, which is not exported from the index because it spawns `git`. A cache written from a dirty tree and followed by a revert to clean at the same commit is reused, because the scan does not record that it was dirty.
+A question uses the cached scans when every detected language has a cache taken at the current commit and the working tree is clean, ignoring everything under `.recognizer/`. Otherwise it runs `recognizer scan` first, with the scan summary on stderr. The rule is the library function `freshScans` in `check/src/freshness.ts`, which is not exported from the index because it spawns `git`. A cache is reused only when it records `modified: false` and every file in its `files` still has the recorded SHA-256, so a cache written from a dirty tree is not reused after the edits are reverted. A version-3 cache fails validation and is rescanned.
 
 ## Library
 

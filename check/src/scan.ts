@@ -69,6 +69,15 @@ export interface ScanCall {
   how: "call" | "construct" | "inferred" | "dispatch";
 }
 
+export interface ScanSelection {
+  extensions: string[];
+  skip_directory_names: string[];
+  skip_directory_prefixes: string[];
+  skip_directory_suffixes: string[];
+  skip_directories_containing: string[];
+  skip_file_globs: string[];
+}
+
 export interface Scan {
   modules: {
     id: string;
@@ -78,6 +87,13 @@ export interface Scan {
   edges: ScanEdge[];
   calls?: ScanCall[];
   foreign: { id: string; name: string }[];
+}
+
+export interface RecordedScan extends Scan {
+  commit: string | null;
+  modified: boolean | null;
+  files: { path: string; hash: string }[];
+  selection: ScanSelection;
 }
 
 export const SCAN_SCHEMA_VERSION: number =

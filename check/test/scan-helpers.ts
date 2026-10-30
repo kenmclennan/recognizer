@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { DirEntry, Io, RunResult } from "../src/cli.js";
 
 export interface ScannerBehaviour {
@@ -42,9 +43,19 @@ export function scanJson(
   spacing = "\t",
 ): string {
   const scan = {
-    schema_version: 3,
+    schema_version: 4,
     scanner: { name: "fake", version: "0.0.0" },
     commit: null,
+    modified: false,
+    files: [],
+    selection: {
+      extensions: [".py"],
+      skip_directory_names: [],
+      skip_directory_prefixes: [],
+      skip_directory_suffixes: [],
+      skip_directories_containing: [],
+      skip_file_globs: [],
+    },
     modules: Array.from({ length: modules }, (_, index) => ({
       id: `m${index}.py`,
       language: "python",
@@ -115,6 +126,13 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       }
 
       return content;
+    },
+    hashFile: (path) => {
+      const content = files.get(path);
+
+      return content === undefined
+        ? null
+        : createHash("sha256").update(content).digest("hex");
     },
     writeFile: (path, content) => {
       files.set(path, content);

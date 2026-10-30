@@ -1,15 +1,16 @@
-use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
-const CACHE: &str = ".recognizer/cache";
-const LANGUAGES: [&str; 2] = ["python", "typescript"];
+use crate::repository;
+
+const RECOGNIZER_FOLDER: &str = ".recognizer";
 const COMMIT_LENGTH: usize = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -44,110 +45,128 @@ pub struct ScanOrigin {
     pub commit: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Stamp {
-    modified: Option<SystemTime>,
-    size: u64,
-    hash: u64,
+#[derive(Debug, Clone, Default)]
+pub struct Origin {
+    branch: Option<String>,
+    commit: Option<String>,
 }
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct Selection {
+    extensions: Vec<String>,
+    skip_directory_names: Vec<String>,
+    skip_directory_prefixes: Vec<String>,
+    skip_directory_suffixes: Vec<String>,
+    skip_directories_containing: Vec<String>,
+    skip_file_globs: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ScannedFile {
+    path: String,
+    hash: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RecordedScan {
+    files: Vec<ScannedFile>,
+    selection: Selection,
+}
+
+type Verified = Arc<Mutex<HashMap<String, (Option<SystemTime>, u64)>>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Baseline {
-    stamps: HashMap<String, Stamp>,
+    hashes: HashMap<String, String>,
+    selections: Vec<Selection>,
+    verified: Verified,
     branch: Option<String>,
     commit: Option<String>,
-    languages: Vec<String>,
 }
 
-fn skipped_directory(language: &str, relative_directory: &str, folder: &Path) -> bool {
-    let name = relative_directory.rsplit('/').next().unwrap_or("");
+fn glob_matches(pattern: &str, name: &str) -> bool {
+    let parts: Vec<&str> = pattern.split('*').collect();
+    let (first, rest) = parts.split_first().unwrap_or((&"", &[]));
 
-    if name == ".recognizer" || name.starts_with('.') {
-        return true;
-    }
-
-    match language {
-        "python" => {
-            matches!(
-                name,
-                "__pycache__" | "tests" | "dist" | "build" | "node_modules" | "site-packages"
-            ) || name.ends_with(".egg-info")
-                || folder.join(relative_directory).join("pyvenv.cfg").exists()
-        }
-        "typescript" => matches!(
-            name,
-            "node_modules" | "dist" | "build" | "test" | "tests" | "__tests__"
-        ),
-        _ => true,
-    }
-}
-
-fn accepted_file(language: &str, name: &str) -> bool {
-    match language {
-        "python" => {
-            name.ends_with(".py")
-                && !(name.starts_with("test_")
-                    || name.ends_with("_test.py")
-                    || name.ends_with("_tests.py")
-                    || name == "conftest.py")
-        }
-        "typescript" => {
-            let extension = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
-                .iter()
-                .any(|extension| name.ends_with(extension));
-            let tested = name.contains(".test.") || name.contains(".spec.");
-
-            extension && !name.ends_with(".d.ts") && !tested
-        }
-        _ => false,
-    }
-}
-
-pub fn scanned_file(language: &str, relative: &str, folder: &Path) -> bool {
-    let mut parts: Vec<&str> = relative.split('/').collect();
-    let Some(name) = parts.pop() else {
+    let Some(mut remaining) = name.strip_prefix(first) else {
         return false;
     };
-    let mut directory = String::new();
 
-    for part in parts {
-        if !directory.is_empty() {
-            directory.push('/');
-        }
+    let Some((last, middle)) = rest.split_last() else {
+        return remaining.is_empty();
+    };
 
-        directory.push_str(part);
-
-        if skipped_directory(language, &directory, folder) {
+    for part in middle {
+        let Some(at) = remaining.find(part) else {
             return false;
-        }
+        };
+
+        remaining = &remaining[at + part.len()..];
     }
 
-    accepted_file(language, name)
+    remaining.len() >= last.len() && remaining.ends_with(last)
 }
 
-fn covered(languages: &[String], relative: &str, folder: &Path) -> bool {
-    languages
+impl Selection {
+    fn skips_directory(&self, relative_directory: &str, folder: &Path) -> bool {
+        let name = relative_directory.rsplit('/').next().unwrap_or("");
+
+        name == RECOGNIZER_FOLDER
+            || self
+                .skip_directory_names
+                .iter()
+                .any(|skipped| skipped == name)
+            || self
+                .skip_directory_prefixes
+                .iter()
+                .any(|prefix| name.starts_with(prefix.as_str()))
+            || self
+                .skip_directory_suffixes
+                .iter()
+                .any(|suffix| name.ends_with(suffix.as_str()))
+            || self
+                .skip_directories_containing
+                .iter()
+                .any(|marker| folder.join(relative_directory).join(marker).exists())
+    }
+
+    fn accepts_file(&self, name: &str) -> bool {
+        self.extensions
+            .iter()
+            .any(|extension| name.ends_with(extension.as_str()))
+            && !self
+                .skip_file_globs
+                .iter()
+                .any(|glob| glob_matches(glob, name))
+    }
+
+    fn accepts(&self, relative: &str, folder: &Path) -> bool {
+        let mut parts: Vec<&str> = relative.split('/').collect();
+        let Some(name) = parts.pop() else {
+            return false;
+        };
+        let mut directory = String::new();
+
+        for part in parts {
+            if !directory.is_empty() {
+                directory.push('/');
+            }
+
+            directory.push_str(part);
+
+            if self.skips_directory(&directory, folder) {
+                return false;
+            }
+        }
+
+        self.accepts_file(name)
+    }
+}
+
+fn covered(selections: &[Selection], relative: &str, folder: &Path) -> bool {
+    selections
         .iter()
-        .any(|language| scanned_file(language, relative, folder))
-}
-
-pub fn languages_cached(folder: &Path) -> Vec<String> {
-    let mut languages: Vec<String> = fs::read_dir(folder.join(CACHE))
-        .map(|entries| {
-            entries
-                .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
-                .filter_map(|name| {
-                    let language = name.strip_prefix("scan.")?.strip_suffix(".json")?;
-
-                    (!language.is_empty()).then(|| language.to_string())
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    languages.sort();
-
-    languages
+        .any(|selection| selection.accepts(relative, folder))
 }
 
 fn git_output(folder: &Path, args: &[&str]) -> Option<Vec<u8>> {
@@ -181,7 +200,7 @@ fn head_of(folder: &Path) -> (Option<String>, Option<String>) {
     )
 }
 
-fn walk(folder: &Path, relative: &str, found: &mut Vec<String>) {
+fn walk(folder: &Path, relative: &str, selections: &[Selection], found: &mut Vec<String>) {
     let Ok(entries) = fs::read_dir(folder.join(relative)) else {
         return;
     };
@@ -200,11 +219,11 @@ fn walk(folder: &Path, relative: &str, found: &mut Vec<String>) {
         };
 
         if kind.is_dir() {
-            if LANGUAGES
+            if selections
                 .iter()
-                .any(|language| !skipped_directory(language, &path, folder))
+                .any(|selection| !selection.skips_directory(&path, folder))
             {
-                walk(folder, &path, found);
+                walk(folder, &path, selections, found);
             }
         } else if kind.is_file() {
             found.push(path);
@@ -212,7 +231,7 @@ fn walk(folder: &Path, relative: &str, found: &mut Vec<String>) {
     }
 }
 
-fn candidates(folder: &Path, languages: &[String]) -> Vec<String> {
+fn candidates(folder: &Path, selections: &[Selection]) -> Vec<String> {
     let mut paths = if inside_git(folder) {
         git_output(
             folder,
@@ -235,76 +254,56 @@ fn candidates(folder: &Path, languages: &[String]) -> Vec<String> {
     } else {
         let mut found = Vec::new();
 
-        walk(folder, "", &mut found);
+        walk(folder, "", selections, &mut found);
 
         found
     };
 
-    paths.retain(|path| covered(languages, path, folder));
+    paths.retain(|path| covered(selections, path, folder));
     paths.sort();
     paths.dedup();
 
     paths
 }
 
-fn hash_of(path: &Path) -> Option<u64> {
+fn hash_of(path: &Path) -> Option<String> {
     let bytes = fs::read(path).ok()?;
-    let mut hasher = DefaultHasher::new();
 
-    bytes.hash(&mut hasher);
-
-    Some(hasher.finish())
+    Some(format!("{:x}", Sha256::digest(bytes)))
 }
 
-fn stamp_of(path: &Path) -> Option<Stamp> {
-    let metadata = fs::metadata(path)
-        .ok()
-        .filter(|metadata| metadata.is_file())?;
-
-    Some(Stamp {
-        modified: metadata.modified().ok(),
-        size: metadata.len(),
-        hash: hash_of(path)?,
-    })
-}
-
-pub fn take_baseline(folder: &Path) -> Baseline {
-    let all: Vec<String> = LANGUAGES
-        .iter()
-        .map(|language| language.to_string())
-        .collect();
-    let stamps = candidates(folder, &all)
-        .into_iter()
-        .filter_map(|path| Some((path.clone(), stamp_of(&folder.join(&path))?)))
-        .collect();
+pub fn take_origin(folder: &Path) -> Origin {
     let (branch, commit) = if inside_git(folder) {
         head_of(folder)
     } else {
         (None, None)
     };
 
-    Baseline {
-        stamps,
-        branch,
-        commit,
-        languages: all,
-    }
+    Origin { branch, commit }
 }
 
-pub fn adopt(baseline: &Baseline, folder: &Path) -> Baseline {
-    let languages = languages_cached(folder);
-    let stamps = baseline
-        .stamps
-        .iter()
-        .filter(|(path, _)| covered(&languages, path, folder))
-        .map(|(path, stamp)| (path.clone(), stamp.clone()))
-        .collect();
+pub fn adopt(origin: &Origin, folder: &Path) -> Baseline {
+    let mut hashes = HashMap::new();
+    let mut selections = Vec::new();
+
+    for scan in repository::read_cache(folder).scans {
+        let Ok(recorded) = serde_json::from_str::<RecordedScan>(&scan.text) else {
+            continue;
+        };
+
+        for file in recorded.files {
+            hashes.insert(file.path, file.hash);
+        }
+
+        selections.push(recorded.selection);
+    }
 
     Baseline {
-        stamps,
-        branch: baseline.branch.clone(),
-        commit: baseline.commit.clone(),
-        languages,
+        hashes,
+        selections,
+        verified: Verified::default(),
+        branch: origin.branch.clone(),
+        commit: origin.commit.clone(),
     }
 }
 
@@ -330,28 +329,46 @@ fn moved_since(baseline: &Baseline, folder: &Path) -> Option<Moved> {
     })
 }
 
+fn differs(folder: &Path, path: &str, recorded: &str, verified: &Verified) -> bool {
+    let full = folder.join(path);
+    let Some(metadata) = fs::metadata(&full).ok().filter(|m| m.is_file()) else {
+        return false;
+    };
+    let stamp = (metadata.modified().ok(), metadata.len());
+
+    if verified
+        .lock()
+        .is_ok_and(|seen| seen.get(path) == Some(&stamp))
+    {
+        return false;
+    }
+
+    match hash_of(&full) {
+        Some(hash) if hash == recorded => {
+            if let Ok(mut seen) = verified.lock() {
+                seen.insert(path.to_string(), stamp);
+            }
+
+            false
+        }
+        Some(_) => true,
+        None => false,
+    }
+}
+
 pub fn compare(folder: &Path, baseline: &Baseline) -> Changes {
     let mut files: BTreeMap<String, ChangeKind> = BTreeMap::new();
 
-    for (path, before) in &baseline.stamps {
-        match fs::metadata(folder.join(path)).ok().filter(|m| m.is_file()) {
-            None => {
-                files.insert(path.clone(), ChangeKind::Deleted);
-            }
-            Some(metadata) => {
-                if metadata.modified().ok() == before.modified && metadata.len() == before.size {
-                    continue;
-                }
-
-                if hash_of(&folder.join(path)).is_some_and(|hash| hash != before.hash) {
-                    files.insert(path.clone(), ChangeKind::Modified);
-                }
-            }
+    for (path, recorded) in &baseline.hashes {
+        if !fs::metadata(folder.join(path)).is_ok_and(|m| m.is_file()) {
+            files.insert(path.clone(), ChangeKind::Deleted);
+        } else if differs(folder, path, recorded, &baseline.verified) {
+            files.insert(path.clone(), ChangeKind::Modified);
         }
     }
 
-    for path in candidates(folder, &baseline.languages) {
-        if !baseline.stamps.contains_key(&path) {
+    for path in candidates(folder, &baseline.selections) {
+        if !baseline.hashes.contains_key(&path) {
             files.insert(path, ChangeKind::Added);
         }
     }
@@ -406,16 +423,52 @@ mod tests {
         dir
     }
 
+    fn expected_scan(language: &str) -> serde_json::Value {
+        let text = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures")
+                .join(language)
+                .join("expected-scan.json"),
+        )
+        .unwrap();
+
+        serde_json::from_str(&text).unwrap()
+    }
+
+    fn selection_of(language: &str) -> Selection {
+        serde_json::from_value(expected_scan(language)["selection"].clone()).unwrap()
+    }
+
+    fn record_scan(dir: &Path, language: &str) {
+        let selection = selection_of(language);
+        let files: Vec<serde_json::Value> = candidates(dir, std::slice::from_ref(&selection))
+            .into_iter()
+            .map(|path| {
+                serde_json::json!({
+                    "path": path,
+                    "hash": hash_of(&dir.join(&path)).unwrap(),
+                })
+            })
+            .collect();
+        let mut scan = expected_scan(language);
+
+        scan["files"] = serde_json::Value::Array(files);
+
+        write(
+            dir,
+            &format!(".recognizer/cache/scan.{language}.json"),
+            &scan.to_string(),
+        );
+    }
+
     fn baseline_of(dir: &Path, languages: &[&str]) -> Baseline {
-        let mut baseline = take_baseline(dir);
-        let wanted: Vec<String> = languages.iter().map(|l| l.to_string()).collect();
+        let origin = take_origin(dir);
 
-        baseline
-            .stamps
-            .retain(|path, _| covered(&wanted, path, dir));
-        baseline.languages = wanted;
+        for language in languages {
+            record_scan(dir, language);
+        }
 
-        baseline
+        adopt(&origin, dir)
     }
 
     fn paths(changes: &Changes) -> Vec<(String, ChangeKind)> {
@@ -546,7 +599,7 @@ mod tests {
         write(dir.path(), ".recognizer/views/x.py", "x = 1\n");
 
         assert!(compare(dir.path(), &baseline).files.is_empty());
-        assert!(!scanned_file("python", ".recognizer/x.py", dir.path()));
+        assert!(!selection_of("python").accepts(".recognizer/x.py", dir.path()));
     }
 
     #[test]
@@ -661,16 +714,69 @@ mod tests {
     }
 
     #[test]
-    fn adopting_keeps_only_the_cached_languages() {
+    fn an_edit_made_between_the_scan_and_adoption_is_reported() {
+        let dir = repo();
+        let origin = take_origin(dir.path());
+
+        record_scan(dir.path(), "python");
+        write(dir.path(), "app/a.py", "a = 2\n");
+
+        let baseline = adopt(&origin, dir.path());
+
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("app/a.py".to_string(), ChangeKind::Modified)]
+        );
+    }
+
+    #[test]
+    fn a_test_file_new_in_a_directory_the_recorded_selection_skips_does_not_count() {
+        let dir = repo();
+        let baseline = baseline_of(dir.path(), &["python", "typescript"]);
+
+        write(dir.path(), "app/tests/new.py", "n = 1\n");
+        write(dir.path(), "web/__tests__/new.ts", "n\n");
+        write(dir.path(), "web/.hidden/new.ts", "n\n");
+
+        assert!(compare(dir.path(), &baseline).files.is_empty());
+    }
+
+    #[test]
+    fn the_baseline_holds_the_hashes_the_scan_recorded_and_the_origin_taken_before() {
+        let dir = repo();
+        let origin = take_origin(dir.path());
+
+        record_scan(dir.path(), "python");
+
+        let adopted = adopt(&origin, dir.path());
+        let mut recorded: Vec<&String> = adopted.hashes.keys().collect();
+
+        recorded.sort();
+
+        assert_eq!(recorded, vec!["app/a.py", "app/b.py"]);
+        assert_eq!(adopted.selections.len(), 1);
+        assert_eq!(origin_of(&adopted).commit.unwrap().len(), COMMIT_LENGTH);
+    }
+
+    #[test]
+    fn a_scan_that_cannot_be_read_contributes_nothing() {
         let dir = repo();
 
         write(dir.path(), ".recognizer/cache/scan.python.json", "{}");
 
-        let adopted = adopt(&take_baseline(dir.path()), dir.path());
+        let adopted = adopt(&take_origin(dir.path()), dir.path());
 
-        assert_eq!(adopted.languages, vec!["python".to_string()]);
-        assert!(adopted.stamps.keys().all(|path| path.ends_with(".py")));
-        assert_eq!(origin_of(&adopted).commit.unwrap().len(), COMMIT_LENGTH);
+        assert!(adopted.hashes.is_empty());
+        assert!(adopted.selections.is_empty());
+    }
+
+    #[test]
+    fn a_verified_file_is_not_read_again_while_its_stamp_holds() {
+        let dir = repo();
+        let baseline = baseline_of(dir.path(), &["python"]);
+
+        assert!(compare(dir.path(), &baseline).files.is_empty());
+        assert_eq!(baseline.verified.lock().unwrap().len(), 2);
     }
 
     fn fixture(language: &str) -> PathBuf {
@@ -678,27 +784,6 @@ mod tests {
             .join("../../fixtures")
             .join(language)
             .join("sample")
-    }
-
-    fn expected_modules(language: &str) -> Vec<String> {
-        let text = fs::read_to_string(
-            fixture(language)
-                .parent()
-                .unwrap()
-                .join("expected-scan.json"),
-        )
-        .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
-        let mut ids: Vec<String> = value["modules"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|module| module["id"].as_str().unwrap().to_string())
-            .collect();
-
-        ids.sort();
-
-        ids
     }
 
     fn copy_tree(from: &Path, to: &Path) {
@@ -715,38 +800,83 @@ mod tests {
         }
     }
 
-    fn scanned_set(folder: &Path, language: &str) -> Vec<String> {
-        let mut found: Vec<String> = take_baseline(folder)
-            .stamps
-            .into_keys()
-            .filter(|path| scanned_file(language, path, folder))
-            .collect();
+    fn assert_fixture_scan_is_a_clean_baseline(language: &str, count: usize) {
+        let scan = expected_scan(language);
 
-        found.sort();
-
-        found
-    }
-
-    fn assert_matches_fixture(language: &str, count: usize) {
-        let expected = expected_modules(language);
-
-        assert_eq!(expected.len(), count);
-        assert_eq!(scanned_set(&fixture(language), language), expected);
+        assert_eq!(scan["files"].as_array().unwrap().len(), count);
 
         let copy = TempDir::new().unwrap();
 
         copy_tree(&fixture(language), copy.path());
+        write(
+            copy.path(),
+            &format!(".recognizer/cache/scan.{language}.json"),
+            &scan.to_string(),
+        );
 
-        assert_eq!(scanned_set(copy.path(), language), expected);
+        let baseline = adopt(&take_origin(copy.path()), copy.path());
+
+        assert_eq!(baseline.hashes.len(), count);
+        assert_eq!(compare(copy.path(), &baseline), Changes::default());
     }
 
     #[test]
-    fn the_python_fixture_scans_the_files_its_expected_scan_names() {
-        assert_matches_fixture("python", 14);
+    fn the_python_fixture_scan_compares_clean_against_its_own_files() {
+        assert_fixture_scan_is_a_clean_baseline("python", 14);
     }
 
     #[test]
-    fn the_typescript_fixture_scans_the_files_its_expected_scan_names() {
-        assert_matches_fixture("typescript", 15);
+    fn the_typescript_fixture_scan_compares_clean_against_its_own_files() {
+        assert_fixture_scan_is_a_clean_baseline("typescript", 15);
+    }
+
+    fn assert_selection_matches_the_scanner_parity_tree(language: &str) {
+        let text = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/selection-parity.json"),
+        )
+        .unwrap();
+        let parity: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let dir = TempDir::new().unwrap();
+
+        for path in parity[language]["tree"].as_array().unwrap() {
+            write(dir.path(), path.as_str().unwrap(), "");
+        }
+
+        let selection = selection_of(language);
+        let mut accepted = candidates(dir.path(), std::slice::from_ref(&selection));
+
+        accepted.sort();
+
+        let wanted: Vec<&str> = parity[language]["accepted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|path| path.as_str().unwrap())
+            .collect();
+
+        assert_eq!(accepted, wanted);
+    }
+
+    #[test]
+    fn the_python_selection_accepts_exactly_the_files_the_python_scanner_reads() {
+        assert_selection_matches_the_scanner_parity_tree("python");
+    }
+
+    #[test]
+    fn the_typescript_selection_accepts_exactly_the_files_the_typescript_scanner_reads() {
+        assert_selection_matches_the_scanner_parity_tree("typescript");
+    }
+
+    #[test]
+    fn a_glob_treats_star_as_any_run_of_characters_and_nothing_else() {
+        assert!(glob_matches("test_*.py", "test_a.py"));
+        assert!(glob_matches("test_*.py", "test_.py"));
+        assert!(!glob_matches("test_*.py", "atest_a.py"));
+        assert!(glob_matches("*.test.*", ".test.ts"));
+        assert!(glob_matches("*.d.ts", "a.d.ts"));
+        assert!(!glob_matches("*.d.ts", "a.ts"));
+        assert!(glob_matches("conftest.py", "conftest.py"));
+        assert!(!glob_matches("conftest.py", "conftest.pyc"));
+        assert!(!glob_matches("a?c", "abc"));
     }
 }

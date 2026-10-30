@@ -21,21 +21,27 @@ export function nodeIo(): Io {
 interface Args {
   root: string;
   commit: string | null;
+  modified: boolean | null;
   output: string | null;
 }
 
 const USAGE =
-  "usage: recognizer-scan-typescript ROOT [--commit SHA] [--output FILE]";
+  "usage: recognizer-scan-typescript ROOT [--commit SHA] [--modified true|false] [--output FILE]";
 
 function parseArgs(argv: string[]): Args | string {
   let root: string | null = null;
   let commit: string | null = null;
+  let modified: boolean | null = null;
   let output: string | null = null;
 
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index] as string;
 
-    if (argument === "--commit" || argument === "--output") {
+    if (
+      argument === "--commit" ||
+      argument === "--modified" ||
+      argument === "--output"
+    ) {
       const value = argv[++index];
 
       if (value === undefined) {
@@ -44,6 +50,12 @@ function parseArgs(argv: string[]): Args | string {
 
       if (argument === "--commit") {
         commit = value;
+      } else if (argument === "--modified") {
+        if (value !== "true" && value !== "false") {
+          return "--modified must be true or false";
+        }
+
+        modified = value === "true";
       } else {
         output = value;
       }
@@ -56,7 +68,9 @@ function parseArgs(argv: string[]): Args | string {
     }
   }
 
-  return root === null ? "ROOT is required" : { root, commit, output };
+  return root === null
+    ? "ROOT is required"
+    : { root, commit, modified, output };
 }
 
 export function resolveCommit(root: string): string | null {
@@ -67,6 +81,20 @@ export function resolveCommit(root: string): string | null {
     }).trim();
 
     return sha === "" ? null : sha;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveModified(root: string): boolean | null {
+  try {
+    const status = execFileSync(
+      "git",
+      ["-C", root, "status", "--porcelain", "--", ".", ":!.recognizer"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+
+    return status.trim() !== "";
   } catch {
     return null;
   }
@@ -91,6 +119,7 @@ export function run(argv: string[], io: Io = nodeIo()): number {
     const document = scan(
       args.root,
       args.commit ? args.commit : resolveCommit(args.root),
+      args.modified ?? resolveModified(args.root),
     );
     const text = render(document);
 

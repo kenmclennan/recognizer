@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scan } from "../src/index.js";
-import { makeTree, runBin, scanTree } from "./helpers.js";
+import { makeTree, REPO, readJson, runBin, scanTree } from "./helpers.js";
 
 describe("skip rules", () => {
   it("keeps only unskipped files", () => {
@@ -45,6 +45,60 @@ describe("skip rules", () => {
     ]);
 
     expect(scan(root, null).modules.map((m) => m.id)).toEqual(["a.ts"]);
+  });
+});
+
+describe("selection parity", () => {
+  const parity = readJson(join(REPO, "fixtures/selection-parity.json")) as {
+    typescript: { tree: string[]; accepted: string[] };
+  };
+
+  it("reads exactly the files the shared parity tree accepts", () => {
+    const tree = Object.fromEntries(
+      parity.typescript.tree.map((path) => [path, "export const x = 1;\n"]),
+    );
+
+    expect(scanTree(tree).files.map((f) => f.path)).toEqual(
+      parity.typescript.accepted,
+    );
+  });
+});
+
+describe("modified", () => {
+  const body = "export const a = 1;\n";
+
+  it("is null outside git, false when clean and true when edited", () => {
+    const outside = makeTree({ "a.ts": body });
+
+    expect(JSON.parse(runBin(outside).stdout).modified).toBeNull();
+
+    const root = makeTree({ "a.ts": body });
+    const git = (...args: string[]) =>
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=t",
+          "-c",
+          "user.email=t@example.com",
+          "-C",
+          root,
+          ...args,
+        ],
+        { stdio: "ignore" },
+      );
+    git("init", "-q");
+    git("add", "a.ts");
+    git("commit", "-q", "-m", "x");
+
+    expect(JSON.parse(runBin(root).stdout).modified).toBe(false);
+
+    writeFileSync(join(root, "a.ts"), "export const a = 2;\n");
+
+    expect(JSON.parse(runBin(root).stdout).modified).toBe(true);
+    expect(
+      JSON.parse(runBin(root, "--modified", "false").stdout).modified,
+    ).toBe(false);
   });
 });
 

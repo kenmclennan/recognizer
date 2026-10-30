@@ -31,4 +31,11 @@ def test_invalid_example_fails(path):
 def test_invalid_example_fails_for_its_own_defect(path):
     version = json.loads(path.read_text())["schema_version"]
 
-    assert (version != 3) == path.name.startswith("schema-version-")
+    assert (version != 4) == path.name.startswith("schema-version-")
+
+
+def test_version_3_example_is_refused_on_the_version():
+    document = json.loads((EXAMPLES / "invalid" / "schema-version-3.json").read_text())
+    errors = list(Draft202012Validator(load_schema()).iter_errors(document))
+
+    assert [list(error.path) for error in errors] == [["schema_version"]]
