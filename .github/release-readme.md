@@ -1,13 +1,12 @@
 # Recognizer releases
 
-This repository holds the built Recognizer apps and the update manifest.
+This repository holds the released Recognizer toolchain (the `recognizer` command and its scanners) and the Recognizer app.
 
 ## Install
 
-1. Open the [latest release](https://github.com/kenmclennan/recognizer-releases/releases/latest) and download `recognizer.app.tar.gz` (Apple silicon only).
-2. Unpack it and move `Recognizer.app` to `~/Applications`.
-3. The app is ad-hoc signed, not Apple-signed, so macOS blocks the first open. Open it once, then go to System Settings > Privacy & Security and choose Open Anyway. Alternatively run `xattr -dr com.apple.quarantine ~/Applications/Recognizer.app` before the first open.
+1. `brew install kenmclennan/tap/recognizer` installs the `recognizer` command and the Python and TypeScript scanners.
+2. `brew install --cask kenmclennan/tap/recognizer` installs the app (Apple silicon only). The app is ad-hoc signed, not Apple-signed; the cask clears the quarantine attribute so it opens.
 
-## Updates
+## Upgrades
 
-Later updates install from inside the app. When a newer release exists, the footer shows "Recognizer X.Y.Z available - Install"; choosing it downloads the release, installs it and relaunches.
+`brew upgrade recognizer` upgrades the command and scanners, and `brew upgrade --cask recognizer` upgrades the app. When the two are on different versions the app's footer says so.

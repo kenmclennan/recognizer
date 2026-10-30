@@ -11,71 +11,14 @@ import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
-import { dialogFromOutcome } from "./update-dialog";
-import { buildUpdateDialog } from "./update-dialog-view";
-import { buildUpdater } from "./updater";
-import { tauriUpdaterPorts } from "./updater-source";
+import { toolsNotice } from "./tools-notice";
+import { toolsSource } from "./tools-source";
 import { viewsSource } from "./views-source";
 
 const content = document.getElementById("content") as HTMLElement;
 const footer = document.getElementById("footer") as HTMLElement;
 
 const footerView = buildFooter(footer, () => void rescanner.run());
-
-const updater = buildUpdater({
-  ...tauriUpdaterPorts,
-  enabled: import.meta.env.PROD,
-  onState: (state) => footerView.setUpdate(state, () => void updater.install()),
-  notify: (text) => footerView.notify(text),
-});
-
-updater.start();
-
-const updateDialog = buildUpdateDialog(
-  document.getElementById("update-dialog") as HTMLElement,
-  {
-    currentVersion: () => getVersion(),
-    upgrade: () => void upgradeFromDialog(),
-  },
-);
-
-async function upgradeFromDialog(): Promise<void> {
-  const state = updater.state();
-
-  if (state.kind !== "available") {
-    return;
-  }
-
-  updateDialog.show({ kind: "upgrading", version: state.version });
-
-  const result = await updater.install();
-
-  if (!result.ok) {
-    updateDialog.show({
-      kind: "found",
-      version: state.version,
-      error: result.reason,
-    });
-  }
-}
-
-async function checkForUpdates(): Promise<void> {
-  const state = updater.state();
-
-  if (state.kind === "installing") {
-    updateDialog.show({ kind: "upgrading", version: state.version });
-
-    return;
-  }
-
-  updateDialog.show({ kind: "checking" });
-
-  const outcome = await updater.checkNow();
-
-  if (updateDialog.isOpen()) {
-    updateDialog.show(dialogFromOutcome(outcome));
-  }
-}
 
 let explorer: Explorer | null = null;
 let folderName = "";
@@ -111,6 +54,19 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
   );
 }
 
+async function checkTools(): Promise<void> {
+  try {
+    const [appVersion, report] = await Promise.all([
+      getVersion(),
+      toolsSource.recognizerVersion(),
+    ]);
+
+    footerView.setToolsNotice(toolsNotice(appVersion, report));
+  } catch {
+    footerView.setToolsNotice(null);
+  }
+}
+
 const rescanner = createRescanner<Carried>({
   scan: () => repositorySource.scanFolder(),
   load: loadScans,
@@ -119,6 +75,7 @@ const rescanner = createRescanner<Carried>({
   replace: (loaded, carried) => {
     explorer?.dispose();
     explorer = buildExplorer(loaded, carried);
+    void checkTools();
   },
   running: (on) => {
     content.classList.toggle("rescanning", on);
@@ -162,26 +119,16 @@ async function start(): Promise<void> {
   adoptedOrigin(await repositorySource.adoptScan());
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   explorer = buildExplorer(loaded, null);
+  void checkTools();
   await repositorySource.watchChanges();
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && updateDialog.dismiss()) {
-    event.preventDefault();
-
-    return;
-  }
-
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
     event.preventDefault();
     explorer?.toggleTree();
   }
 });
-
-void getCurrentWebviewWindow().listen(
-  "check-updates",
-  () => void checkForUpdates(),
-);
 
 void getCurrentWebviewWindow().listen("open-in-editor", () =>
   explorer?.openSelectedInEditor(),

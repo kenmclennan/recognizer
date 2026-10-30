@@ -12,15 +12,13 @@
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build -w recognizer",
     "test": "vitest run",
-    "lint": "biome check --error-on-warnings src/ scripts/ vite.config.ts",
-    "lint:fix": "biome check --write src/ scripts/ vite.config.ts",
-    "format:check": "biome format src/ scripts/ vite.config.ts",
+    "lint": "biome check --error-on-warnings src/ scripts/ ../scripts/ vite.config.ts",
+    "lint:fix": "biome check --write src/ scripts/ ../scripts/ vite.config.ts",
+    "format:check": "biome format src/ scripts/ ../scripts/ vite.config.ts",
     "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
-    "@tauri-apps/plugin-process": "^2.4.0",
-    "@tauri-apps/plugin-updater": "^2.14.0",
     "elkjs": "^0.12.0",
     "recognizer": "*"
   },

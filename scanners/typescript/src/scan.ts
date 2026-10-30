@@ -11,6 +11,7 @@ import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
 import { namedEdges, Router } from "./routes.js";
 import { TsconfigOptions } from "./tsconfig-options.js";
+import { scannerVersion } from "./version.js";
 import { discoverWorkspaces } from "./workspaces.js";
 
 export type { ScanCall };
@@ -63,14 +64,6 @@ const SCANNER_NAME = "recognizer-scan-typescript";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
-}
-
-function scannerVersion(): string {
-  const manifest = JSON.parse(
-    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-  ) as { version: string };
-
-  return manifest.version;
 }
 
 function edgeKey(edge: ScanEdge): string {

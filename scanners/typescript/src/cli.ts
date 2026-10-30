@@ -3,6 +3,7 @@ import { statSync, writeFileSync } from "node:fs";
 import { ScanError } from "./errors.js";
 import { scan } from "./scan.js";
 import { render } from "./serialise.js";
+import { scannerVersion } from "./version.js";
 
 export interface Io {
   stdout: (text: string) => void;
@@ -101,6 +102,12 @@ export function resolveModified(root: string): boolean | null {
 }
 
 export function run(argv: string[], io: Io = nodeIo()): number {
+  if (argv.length === 1 && argv[0] === "--version") {
+    io.stdout(`${scannerVersion()}\n`);
+
+    return 0;
+  }
+
   const args = parseArgs(argv);
 
   if (typeof args === "string") {

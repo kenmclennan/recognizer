@@ -7,6 +7,7 @@ fn main() {
         "open_in_editor",
         "read_settings",
         "read_source_line",
+        "recognizer_version",
         "rename_view",
         "renames_since",
         "scan_folder",

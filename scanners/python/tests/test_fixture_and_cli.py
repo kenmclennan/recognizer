@@ -191,3 +191,10 @@ def test_real_content_own_source():
     validate(document)
     assert len(document["modules"]) == len(files)
     assert all(m["id"].startswith("recognizer_scan_python/") for m in document["modules"])
+
+
+def test_version_flag_prints_the_installed_version():
+    result = run_cli("--version")
+
+    assert result.returncode == 0
+    assert result.stdout == f"{version('recognizer-scan-python')}\n"

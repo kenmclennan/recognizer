@@ -6,6 +6,10 @@ on:
       - app/**
       - check/**
       - schema/**
+      - scripts/**
+      - packaging/**
+      - scanners/**
+      - THIRD-PARTY-NOTICES.md
       - package.json
       - package-lock.json
       - biome.json
@@ -16,6 +20,10 @@ on:
       - app/**
       - check/**
       - schema/**
+      - scripts/**
+      - packaging/**
+      - scanners/**
+      - THIRD-PARTY-NOTICES.md
       - package.json
       - package-lock.json
       - biome.json

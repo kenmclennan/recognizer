@@ -9,6 +9,7 @@ use crate::settings;
 
 const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
 const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
+const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" --version"#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
 
@@ -41,6 +42,19 @@ pub enum ScanReport {
         scans: Vec<ScanFile>,
         policy: Option<String>,
     },
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum ToolsReport {
+    Version { version: String },
+    CommandMissing,
+    ConfigInvalid { message: String },
+    Failed { exit_code: i32, stderr: String },
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -80,6 +94,17 @@ pub fn describe_invocation(
     )
 }
 
+pub fn version_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
+    (
+        shell.to_string(),
+        vec![
+            "-ilc".to_string(),
+            VERSION_SCRIPT.to_string(),
+            command.to_string(),
+        ],
+    )
+}
+
 pub fn recognizer_command(config_file: &Path) -> Result<String, String> {
     let configured = settings::read(config_file)?.recognizer_path;
 
@@ -92,7 +117,7 @@ pub fn recognizer_command(config_file: &Path) -> Result<String, String> {
 
 pub fn missing_hint(config_file: &Path) -> String {
     format!(
-        "recognizer was not found on your login shell's PATH. Install it from a checkout of kenmclennan/recognizer (npm run build -w recognizer, then npm install --global ./check), or set the recognizer command in Settings (or recognizer_path in {}).",
+        "recognizer was not found on your login shell's PATH. Install it with brew install kenmclennan/tap/recognizer, or set the recognizer command in Settings (or recognizer_path in {}).",
         config_file.display()
     )
 }
@@ -200,6 +225,45 @@ pub fn scan(folder: &Path, shell: &str, config_file: &Path) -> ScanReport {
     }
 }
 
+pub fn tools_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> ToolsReport {
+    match exit {
+        Some(127) => ToolsReport::CommandMissing,
+        Some(0) if !stdout.trim().is_empty() => ToolsReport::Version {
+            version: stdout.trim().to_string(),
+        },
+        other => ToolsReport::Failed {
+            exit_code: other.unwrap_or(-1),
+            stderr,
+        },
+    }
+}
+
+pub fn recognizer_version(shell: &str, config_file: &Path) -> ToolsReport {
+    let configured = match settings::read(config_file) {
+        Ok(settings) => settings.recognizer_path,
+        Err(message) => return ToolsReport::ConfigInvalid { message },
+    };
+    let command = if configured.is_empty() {
+        "recognizer".to_string()
+    } else {
+        configured
+    };
+    let (program, args) = version_invocation(shell, &command);
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .output();
+
+    match output {
+        Err(_) => ToolsReport::CommandMissing,
+        Ok(output) => tools_report_for(
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ),
+    }
+}
+
 pub fn config_file_in(config_dir: &Path) -> PathBuf {
     config_dir.join("config.json")
 }
@@ -266,7 +330,7 @@ mod tests {
     fn the_hint_names_the_config_file() {
         let hint = missing_hint(Path::new("/cfg/config.json"));
 
-        assert!(hint.contains("npm install --global ./check"));
+        assert!(hint.contains("brew install kenmclennan/tap/recognizer"));
         assert!(hint.ends_with("(or recognizer_path in /cfg/config.json)."));
     }
 
@@ -455,6 +519,147 @@ mod tests {
             })
             .unwrap(),
             serde_json::json!({ "status": "command-missing", "hint": "h" })
+        );
+    }
+
+    #[test]
+    fn the_version_invocation_is_the_script_and_the_command_only() {
+        let (shell, args) = version_invocation("/bin/zsh", "recognizer");
+
+        assert_eq!(shell, "/bin/zsh");
+        assert_eq!(
+            args,
+            vec!["-ilc", VERSION_SCRIPT, "recognizer"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    fn fake_command(dir: &Path, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = dir.join("fake-recognizer");
+
+        fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        path
+    }
+
+    #[cfg(unix)]
+    fn config_naming(dir: &Path, command: &Path) -> PathBuf {
+        let config = dir.join("config.json");
+
+        settings::save(
+            &config,
+            &settings::Settings {
+                editor: String::new(),
+                recognizer_path: command.display().to_string(),
+            },
+        )
+        .unwrap();
+
+        config
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_configured_command_printing_a_version_gives_that_version() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(dir.path(), r#"[ "$1" = "--version" ] && echo 0.3.1"#);
+        let config = config_naming(dir.path(), &command);
+
+        assert_eq!(
+            recognizer_version("/bin/sh", &config),
+            ToolsReport::Version {
+                version: "0.3.1".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn a_missing_command_is_reported_missing() {
+        let dir = TempDir::new().unwrap();
+        let config = dir.path().join("config.json");
+
+        settings::save(
+            &config,
+            &settings::Settings {
+                editor: String::new(),
+                recognizer_path: "/nonexistent/recognizer".to_string(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            recognizer_version("/bin/sh", &config),
+            ToolsReport::CommandMissing
+        );
+    }
+
+    #[test]
+    fn a_settings_error_is_a_config_invalid_report() {
+        let dir = TempDir::new().unwrap();
+        let config = dir.path().join("config.json");
+
+        fs::write(&config, "not json").unwrap();
+
+        assert!(matches!(
+            recognizer_version("/bin/sh", &config),
+            ToolsReport::ConfigInvalid { .. }
+        ));
+    }
+
+    #[test]
+    fn the_tools_exit_codes_map_to_reports() {
+        assert_eq!(
+            tools_report_for(Some(0), "0.3.1\n", String::new()),
+            ToolsReport::Version {
+                version: "0.3.1".to_string()
+            }
+        );
+        assert_eq!(
+            tools_report_for(Some(127), "", String::new()),
+            ToolsReport::CommandMissing
+        );
+        assert_eq!(
+            tools_report_for(Some(0), " \n", "e".to_string()),
+            ToolsReport::Failed {
+                exit_code: 0,
+                stderr: "e".to_string()
+            }
+        );
+        assert_eq!(
+            tools_report_for(None, "", String::new()),
+            ToolsReport::Failed {
+                exit_code: -1,
+                stderr: String::new()
+            }
+        );
+    }
+
+    #[test]
+    fn the_tools_report_serialises_to_the_webview_contract() {
+        assert_eq!(
+            serde_json::to_value(ToolsReport::Version {
+                version: "1.2.3".to_string()
+            })
+            .unwrap(),
+            serde_json::json!({ "status": "version", "version": "1.2.3" })
+        );
+        assert_eq!(
+            serde_json::to_value(ToolsReport::CommandMissing).unwrap(),
+            serde_json::json!({ "status": "command-missing" })
+        );
+        assert_eq!(
+            serde_json::to_value(ToolsReport::Failed {
+                exit_code: 2,
+                stderr: "x".to_string()
+            })
+            .unwrap(),
+            serde_json::json!({ "status": "failed", "exitCode": 2, "stderr": "x" })
         );
     }
 

@@ -29,7 +29,7 @@ const HIDEABLE = [
   "canvas-legend",
   "inspector-rail",
   "inspector-panel",
-  "update-button",
+  "tools-notice",
 ];
 
 function computedDisplays(css: string): string {

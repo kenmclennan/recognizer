@@ -186,9 +186,9 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 - `1`: the environment is wrong - no bundle was found (the message says to run `npm run install-app` from a checkout), `Contents/MacOS` does not hold exactly one executable, or the launch failed.
 - `2`: bad input - more than one `FOLDER`, a `FOLDER` that is not a directory, or a `RECOGNIZER_APP` that is not an absolute path to a `.app` bundle.
 
-### Installing the command from a checkout
+### Installing the command
 
-`npm run build -w recognizer`, then `npm install --global ./check` puts a `recognizer` executable on the npm prefix's `bin`. `check` is not published, so there is no other install.
+`brew install kenmclennan/tap/recognizer` installs `recognizer` and the Python and TypeScript scanners; `recognizer --version` and each scanner's `--version` print the toolchain version. From a checkout, `npm run build -w recognizer`, then `npm install --global ./check` puts a `recognizer` executable on the npm prefix's `bin`.
 
 ## The command table
 

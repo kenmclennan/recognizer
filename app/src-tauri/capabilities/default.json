@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Permissions for the app windows",
   "windows": ["w-*"],
-  "permissions": ["app-access", "updater:default", "process:allow-restart", "core:event:default", "core:app:allow-version"]
+  "permissions": ["app-access", "core:event:default", "core:app:allow-version"]
 }

@@ -2,6 +2,9 @@
   "name": "recognizer-scan-typescript",
   "version": "0.1.0",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "bin": {
     "recognizer-scan-typescript": "dist/bin.js"
