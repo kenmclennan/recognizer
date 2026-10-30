@@ -196,3 +196,86 @@ def test_constant_value_collapses_whitespace(run):
     document = run({"m.py": "A = [\n    1,\n    2,\n]\n"})
 
     assert member(document, "m.py", "A")["value"] == "[ 1, 2, ]"
+
+
+def class_tags(document, source_name="C"):
+    return member(document, "m.py", source_name).get("tags")
+
+
+def test_dataclass_is_tagged_bare_attribute_and_called(run):
+    document = run(
+        {
+            "m.py": (
+                "import dataclasses\nfrom dataclasses import dataclass\n"
+                "@dataclass\nclass A: ...\n"
+                "@dataclasses.dataclass\nclass B: ...\n"
+                "@dataclass(order=True)\nclass C: ...\n"
+            )
+        }
+    )
+
+    assert class_tags(document, "A") == ["dataclass"]
+    assert class_tags(document, "B") == ["dataclass"]
+    assert class_tags(document, "C") == ["dataclass"]
+
+
+def test_frozen_needs_a_literal_true_on_a_dataclass(run):
+    document = run(
+        {
+            "m.py": (
+                "import dataclasses\nflag = True\n"
+                "@dataclasses.dataclass(frozen=True)\nclass A: ...\n"
+                "@dataclasses.dataclass(frozen=False)\nclass B: ...\n"
+                "@dataclasses.dataclass(frozen=flag)\nclass C: ...\n"
+                "@other(frozen=True)\nclass D: ...\n"
+            )
+        }
+    )
+
+    assert class_tags(document, "A") == ["dataclass", "frozen"]
+    assert class_tags(document, "B") == ["dataclass"]
+    assert class_tags(document, "C") == ["dataclass"]
+    assert class_tags(document, "D") is None
+
+
+def test_final_and_runtime_checkable_are_tagged(run):
+    document = run(
+        {
+            "m.py": (
+                "from typing import Protocol, final, runtime_checkable\n"
+                "@final\nclass A: ...\n"
+                "@runtime_checkable\nclass Store(Protocol): ...\n"
+            )
+        }
+    )
+
+    assert class_tags(document, "A") == ["final"]
+    assert class_tags(document, "Store") == ["runtime_checkable"]
+    assert member(document, "m.py", "Store")["kind"] == "interface"
+
+
+def test_class_tags_follow_the_fixed_order_without_duplicates(run):
+    document = run(
+        {
+            "m.py": (
+                "from dataclasses import dataclass\nfrom typing import final\n"
+                "@final\n@dataclass(frozen=True)\n@final\nclass A: ...\n"
+            )
+        }
+    )
+
+    assert class_tags(document, "A") == ["dataclass", "frozen", "final"]
+
+
+def test_unrecorded_and_absent_decorators_leave_no_tags_key(run):
+    document = run(
+        {
+            "m.py": (
+                "from functools import total_ordering\n"
+                "@total_ordering\nclass A: ...\nclass B: ...\n"
+            )
+        }
+    )
+
+    assert "tags" not in member(document, "m.py", "A")
+    assert "tags" not in member(document, "m.py", "B")

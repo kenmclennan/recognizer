@@ -1,0 +1,64 @@
+{
+  "schema_version": 4,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": "a1b2c3d",
+  "modified": false,
+  "files": [
+    {
+      "path": "shop/order.py",
+      "hash": "cb423ea559ddc5c92a8df7f34285fed03c3497bece8bd2d7893afb59792dc5d3"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".py"
+    ],
+    "skip_directory_names": [
+      "__pycache__",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      ".egg-info"
+    ],
+    "skip_directories_containing": [
+      "pyvenv.cfg"
+    ],
+    "skip_file_globs": [
+      "test_*.py",
+      "*_test.py",
+      "*_tests.py",
+      "conftest.py"
+    ]
+  },
+  "modules": [
+    {
+      "id": "shop/order.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "C",
+          "kind": "class",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [],
+          "tags": []
+        }
+      ]
+    }
+  ],
+  "edges": [],
+  "foreign": []
+}

@@ -105,7 +105,7 @@
         "methods": { "type": "array", "items": { "$ref": "#/$defs/method" } },
         "params": { "type": "array", "items": { "$ref": "#/$defs/param" } },
         "returns": { "type": "string", "minLength": 1 },
-        "tags": { "$ref": "#/$defs/tags" },
+        "tags": true,
         "value": { "type": "string", "maxLength": 40 }
       },
       "allOf": [
@@ -126,15 +126,25 @@
         },
         {
           "if": { "properties": { "kind": { "const": "function" } } },
-          "then": {},
+          "then": { "properties": { "tags": { "$ref": "#/$defs/tags" } } },
           "else": {
             "not": {
               "anyOf": [
                 { "required": ["params"] },
-                { "required": ["returns"] },
-                { "required": ["tags"] }
+                { "required": ["returns"] }
               ]
             }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "enum": ["class", "interface"] } }
+          },
+          "then": { "properties": { "tags": { "$ref": "#/$defs/classTags" } } },
+          "else": {
+            "if": { "properties": { "kind": { "const": "function" } } },
+            "then": {},
+            "else": { "not": { "required": ["tags"] } }
           }
         },
         {
@@ -259,6 +269,14 @@
       "uniqueItems": true,
       "items": {
         "enum": ["property", "static", "classmethod", "abstract", "async"]
+      }
+    },
+    "classTags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["dataclass", "frozen", "final", "runtime_checkable", "abstract"]
       }
     },
     "call": {

@@ -5,6 +5,7 @@ from recognizer_scan_python.analysis import declared_exports, is_abstraction, is
 
 VALUE_LIMIT = 40
 TAG_ORDER = ("property", "static", "classmethod", "abstract", "async")
+CLASS_TAG_ORDER = ("dataclass", "frozen", "final", "runtime_checkable")
 
 Function = ast.FunctionDef | ast.AsyncFunctionDef
 
@@ -78,6 +79,36 @@ def tags_of(function: Function, protocol: bool) -> list[str]:
         found.add("async")
 
     return [tag for tag in TAG_ORDER if tag in found]
+
+
+def is_frozen(decorator: ast.expr) -> bool:
+    return isinstance(decorator, ast.Call) and any(
+        keyword.arg == "frozen"
+        and isinstance(keyword.value, ast.Constant)
+        and keyword.value.value is True
+        for keyword in decorator.keywords
+    )
+
+
+def class_tags_of(node: ast.ClassDef) -> list[str]:
+    found = set()
+
+    for decorator in node.decorator_list:
+        name = decorator_name(decorator)
+
+        if name == "dataclass":
+            found.add("dataclass")
+
+            if is_frozen(decorator):
+                found.add("frozen")
+
+        if name == "final":
+            found.add("final")
+
+        if name == "runtime_checkable":
+            found.add("runtime_checkable")
+
+    return [tag for tag in CLASS_TAG_ORDER if tag in found]
 
 
 def parameter(argument: ast.arg) -> dict:
@@ -204,12 +235,18 @@ def class_member(node: ast.ClassDef, bindings: dict[str, str]) -> dict:
         if isinstance(f, ast.FunctionDef | ast.AsyncFunctionDef) and not is_accessor_pair(f)
     ]
 
-    return {
+    member = {
         "kind": "interface" if is_abstraction(node, bindings) else "class",
         "bases": [ast.unparse(base) for base in node.bases],
         "fields": class_fields(node),
         "methods": methods,
     }
+    tags = class_tags_of(node)
+
+    if tags:
+        member["tags"] = tags
+
+    return member
 
 
 def constant_names(statement: ast.stmt) -> list[str]:

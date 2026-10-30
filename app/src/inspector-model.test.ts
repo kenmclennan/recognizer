@@ -1184,3 +1184,36 @@ describe("following dependency rows", () => {
     );
   });
 });
+
+describe("class tags from the scan", () => {
+  const headOf = (members: ScanMember[], index = 0) =>
+    plainText(cardsOf(rowsOf(scanOf(members)))[index]?.head ?? []);
+
+  it("shows scan tags after the name in the scan's order", () => {
+    expect(headOf([klass({ tags: ["dataclass", "frozen"] })])).toBe(
+      "class C dataclass frozen",
+    );
+  });
+
+  it("shows abstract once when the scan and an ABC base both give it", () => {
+    expect(headOf([klass({ bases: ["ABC"], tags: ["abstract"] })])).toBe(
+      "class C abstract",
+    );
+  });
+
+  it("lists scan tags before exception tags", () => {
+    expect(
+      headOf([klass({ bases: ["Exception"], tags: ["final"] })]),
+    ).toContain("class C final Exception");
+  });
+
+  it("leaves an untagged class unchanged beside a tagged one", () => {
+    const members = [
+      klass({ name: "A", line: 1, tags: ["dataclass"] }),
+      klass({ name: "B", line: 9 }),
+    ];
+
+    expect(headOf(members, 0)).toBe("class A dataclass");
+    expect(headOf(members, 1)).toBe("class B");
+  });
+});

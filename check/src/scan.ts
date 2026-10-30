@@ -27,6 +27,13 @@ export type ScanTag =
   | "abstract"
   | "async";
 
+export type ScanClassTag =
+  | "dataclass"
+  | "frozen"
+  | "final"
+  | "runtime_checkable"
+  | "abstract";
+
 export interface ScanParam {
   name: string;
   type?: string;
@@ -58,7 +65,7 @@ export interface ScanMember {
   methods?: ScanMethod[];
   params?: ScanParam[];
   returns?: string;
-  tags?: ScanTag[];
+  tags?: ScanTag[] | ScanClassTag[];
   value?: string;
 }
 
