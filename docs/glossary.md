@@ -38,6 +38,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Overlay | Measurements from a tool a repository registers (coverage, churn, mutation), written as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
 | Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/responsibilities.json` and current while its source and describer are unchanged. |
 | Describer | The command a repository registers in its config to write responsibilities. |
+| Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}` and `{request}` filled in, and a version naming its prompt. |
+| Current line | A Responsibility whose source hash, describer and version all match the module and the registration today. |
+| Out of date | A Responsibility that is not a Current line: its module's source, the describer command or the version has changed since it was written. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
 | Command table | `COMMANDS` in `check/src/commands.ts`: the one list `recognizer` dispatches from and generates its help from. |
 | Freshness | Whether the cached scans can be used: they were taken at the current commit from a clean working tree, and the scanned files still hash the same. Otherwise `recognizer scan` runs first. |

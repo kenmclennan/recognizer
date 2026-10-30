@@ -410,7 +410,7 @@ describe("recognizer scan: usage", () => {
     run([], fake.io);
 
     expect(fake.err()).toContain(
-      "usage: recognizer <check|scan|open|uses|used-by|callers|path|views|help> ...",
+      "usage: recognizer <check|scan|open|uses|used-by|callers|path|views|describe|help> ...",
     );
   });
 });

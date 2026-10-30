@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "modules": {
+    "a.py": {
+      "line": "Places orders.",
+      "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "describer": ["node", "x.mjs"],
+      "version": "v1"
+    }
+  }
+}
