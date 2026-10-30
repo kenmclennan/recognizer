@@ -24,5 +24,17 @@
   },
   "linter": {
     "enabled": true
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["app/src/style.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    }
+  ]
 }
