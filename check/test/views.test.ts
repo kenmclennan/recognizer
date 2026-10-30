@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { InputError } from "../src/errors.js";
 import type { Scan } from "../src/scan.js";
 import {
+  migrateView,
   resolveView,
   type View,
   type ViewStep,
   validateView,
+  viewNotes,
 } from "../src/views.js";
 import { REPO } from "./helpers.js";
 
@@ -56,6 +58,64 @@ describe("validateView", () => {
       expect(sink).not.toHaveBeenCalled();
       sink.mockRestore();
     }
+  });
+});
+
+describe("migrateView and viewNotes", () => {
+  const example = (name: string) =>
+    validateView(
+      JSON.parse(readFileSync(join(EXAMPLES, "valid", name), "utf8")),
+    );
+
+  it("turns a version 2 view note and module note into one notes entry", () => {
+    const migrated = migrateView(example("with-notes.json"));
+
+    expect(migrated.schema_version).toBe(3);
+    expect(migrated.notes).toEqual([
+      {
+        module: "shop/application/place.py",
+        text: "The one use case; it must not touch the store directly.",
+        by: "Ken",
+      },
+    ]);
+    expect(migrated).not.toHaveProperty("note");
+    expect(migrated).not.toHaveProperty("module_notes");
+  });
+
+  it("orders migrated module notes by path", () => {
+    const migrated = migrateView({
+      schema_version: 2,
+      description: "p",
+      commit: null,
+      module_notes: {
+        "b.py": { text: "B", by: "Ken" },
+        "a.py": { text: "A", by: "Claude" },
+      },
+      steps: [],
+    });
+
+    expect(migrated.notes?.map((note) => note.module)).toEqual([
+      "a.py",
+      "b.py",
+    ]);
+  });
+
+  it("returns the same entries without rewriting", () => {
+    const old = example("with-notes.json");
+
+    expect(viewNotes(old)).toEqual(migrateView(old).notes);
+    expect(old.schema_version).toBe(2);
+    expect(viewNotes(example("version-3-with-notes.json"))).toHaveLength(2);
+    expect(viewNotes(view())).toEqual([]);
+  });
+
+  it("migrates a version 1 view without adding notes", () => {
+    expect(migrateView(view())).toEqual({
+      schema_version: 3,
+      description: "p",
+      commit: null,
+      steps: [],
+    });
   });
 });
 

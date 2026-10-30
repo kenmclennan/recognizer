@@ -55,7 +55,6 @@ function inputsFor(
       busy: false,
       failure: null,
     }),
-    moduleNote: () => null,
     ...extra,
   };
 }
@@ -104,30 +103,19 @@ const klass = (extra: Partial<ScanMember> = {}): ScanMember => ({
   ...extra,
 });
 
-describe("module note row", () => {
+describe("module contents", () => {
   const scan = {
     modules: [{ id: "pkg/m.py", members: [] }],
     edges: [],
   } as unknown as Scan;
 
-  it("is the first row, above the responsibility row, when a view is open", () => {
-    const note = { text: "T", by: "Ken" };
-    const rows = rowsOf(scan, {
-      moduleNote: () => ({ view: "v", note, editing: null }),
-    });
-
-    expect(rows[0]).toEqual({
-      kind: "module-note",
-      id: "pkg/m.py",
-      view: "v",
-      note,
-      editing: null,
-    });
-    expect(rows[1]?.kind).toBe("responsibility");
-  });
-
-  it("is absent when no view is open", () => {
-    expect(rowsOf(scan).some((row) => row.kind === "module-note")).toBe(false);
+  it("has no note row, whether or not a view is open", () => {
+    expect(rowsOf(scan)[0]?.kind).toBe("responsibility");
+    expect(
+      (rowsOf(scan) as { kind: string }[]).some(
+        (row) => row.kind === "module-note",
+      ),
+    ).toBe(false);
   });
 });
 

@@ -1,0 +1,23 @@
+{
+  "schema_version": 3,
+  "description": "How an order is placed.",
+  "commit": "abc123",
+  "notes": [
+    {
+      "module": "shop/application/place.py",
+      "text": "The one use case; it must not touch the store directly.",
+      "by": "Ken"
+    },
+    {
+      "module": "shop/application/place.py",
+      "text": "Still true after the retry change.",
+      "by": "Claude"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "pick",
+      "module": "shop/application/place.py"
+    }
+  ]
+}

@@ -1,11 +1,17 @@
 import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
-import { isEditable, type KeyAction, keyAction } from "./canvas-keys";
+import {
+  isEditable,
+  type KeyAction,
+  keyAction,
+  type NoteKeyContext,
+} from "./canvas-keys";
 import type { Point, Rect } from "./canvas-layout";
 import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
+import { cardLayout } from "./notes-order";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
@@ -33,7 +39,14 @@ export type CanvasProps = {
   showInferred: boolean;
   notice: string | null;
   busy?: boolean;
-  noted?: ReadonlySet<string>;
+  notes?: CanvasNotes;
+};
+
+export type CanvasNotes = {
+  marks: ReadonlySet<string>;
+  active: string | null;
+  card: { module: string; text: string; tint: "person" | "agent" } | null;
+  keys: NoteKeyContext;
 };
 
 export type CanvasActions = {
@@ -48,6 +61,9 @@ export type CanvasActions = {
   openTab: (tab: InspectorTab) => void;
   openContents: () => void;
   openInEditor: () => void;
+  addNote: () => void;
+  removeNote: () => void;
+  walkNotes: (delta: 1 | -1) => void;
 };
 
 export type CanvasView = {
@@ -448,10 +464,13 @@ export function buildCanvasView(
             );
           }
 
-          if (box.kind === "module" && props?.noted?.has(box.id)) {
+          if (box.kind === "module" && props?.notes?.marks.has(box.id)) {
             node.append(
               svg("rect", {
-                class: "note-mark",
+                class:
+                  props.notes.active === box.id
+                    ? "note-mark active"
+                    : "note-mark",
                 "data-id": box.id,
                 x: rect.x + rect.width - 13,
                 y: rect.y + 5,
@@ -482,6 +501,44 @@ export function buildCanvasView(
       }
 
       parts.push(group);
+    }
+
+    const card = props?.notes?.card ?? null;
+    const anchor =
+      card === null
+        ? undefined
+        : scene.boxes.find((box) => box.id === card.module);
+
+    if (card !== null && anchor !== undefined) {
+      const layout = cardLayout(anchor.rect, card.text);
+      const node = svg("g", { class: `note-card ${card.tint}` });
+      const text = svg("text", { class: "note-card-text" });
+
+      layout.lines.forEach((line, index) => {
+        text.append(
+          svg(
+            "tspan",
+            {
+              x: layout.card.x + 10,
+              y: layout.card.y + 8 + (index + 1) * 18 - 5,
+            },
+            line,
+          ),
+        );
+      });
+      node.append(
+        svg("path", { class: "note-leader", d: layout.leader }),
+        svg("rect", {
+          class: "note-card-body",
+          x: layout.card.x,
+          y: layout.card.y,
+          width: layout.card.width,
+          height: layout.card.height,
+          rx: 6,
+        }),
+        text,
+      );
+      parts.push(node);
     }
 
     world.replaceChildren(...parts);
@@ -717,6 +774,14 @@ export function buildCanvasView(
       actions.toggleFocus();
     } else if (action === "fold") {
       actions.toggleFold();
+    } else if (action === "add-note") {
+      actions.addNote();
+    } else if (action === "remove-note") {
+      actions.removeNote();
+    } else if (action === "next-note") {
+      actions.walkNotes(1);
+    } else if (action === "previous-note") {
+      actions.walkNotes(-1);
     } else {
       actions.takeOff();
     }
@@ -732,6 +797,7 @@ export function buildCanvasView(
         targetEditable: isEditable(event.target),
       },
       props?.selection ?? null,
+      props?.notes?.keys,
     );
 
     if (action) {
@@ -775,7 +841,7 @@ export function buildCanvasView(
       if (
         scene !== previous?.scene ||
         next.titles !== previous?.titles ||
-        next.noted !== previous?.noted
+        next.notes !== previous?.notes
       ) {
         if (scene) {
           drawScene(scene);

@@ -33,12 +33,14 @@ grid.className = "explorer";
 grid.style.cssText = "width:1000px;height:600px";
 
 let hidden = false;
+let notesTotal = 3;
 const rail = buildRailView({
   toggleFiles() {
     hidden = !hidden;
     grid.classList.toggle("tree-hidden", hidden);
-    rail.render(!hidden);
+    rail.render({ panel: hidden ? null : "files", notes: notesTotal });
   },
+  toggleNotes() {},
 });
 const tree = document.createElement("aside");
 tree.className = "tree";
@@ -49,7 +51,7 @@ inspector.className = "inspector";
 
 grid.append(rail.element, tree, canvas, inspector);
 document.body.append(grid);
-rail.render(true);
+rail.render({ panel: "files", notes: notesTotal });
 
 const cs = (node) => getComputedStyle(node);
 const probe = document.createElement("i");
@@ -71,6 +73,21 @@ const state = () => {
   };
 };
 
+const notesButton = rail.element.querySelector(".rail-notes");
+const countOf = () => rail.element.querySelector(".rail-count");
+const notesFacts = {
+  aria: notesButton.getAttribute("aria-label"),
+  count: countOf().textContent,
+  countHidden: countOf().hidden,
+  order: [...rail.element.querySelectorAll("button")].map((b) => b.className.split(" ")[1]),
+};
+notesTotal = 0;
+rail.render({ panel: "files", notes: 0 });
+notesFacts.zeroHidden = countOf().hidden;
+notesFacts.zeroText = countOf().textContent;
+notesTotal = 3;
+rail.render({ panel: "files", notes: 3 });
+
 const rect = rail.element.getBoundingClientRect();
 const facts = {
   colours,
@@ -85,6 +102,7 @@ const facts = {
   treeLeft: tree.getBoundingClientRect().left,
   gridHeight: grid.getBoundingClientRect().height,
   shown: state(),
+  notesFacts,
 };
 button.click();
 facts.afterHide = state();
@@ -116,6 +134,14 @@ type Facts = {
   rail: { left: number; top: number; width: number; height: number };
   treeLeft: number;
   gridHeight: number;
+  notesFacts: {
+    aria: string;
+    count: string;
+    countHidden: boolean;
+    order: string[];
+    zeroHidden: boolean;
+    zeroText: string;
+  };
   shown: State;
   afterHide: State;
   afterShow: State;
@@ -169,10 +195,11 @@ function collect(): Facts {
 describe.skipIf(chrome === undefined)("the rail in a real browser", () => {
   const f = (chrome === undefined ? null : collect()) as Facts;
 
-  it("sits full height at the window's left holding exactly one 16px stroke-2 Files button", () => {
+  it("sits full height at the window's left holding a 16px stroke-2 Files button then a Notes button", () => {
     expect(f.tag).toBe("NAV");
-    expect(f.children).toBe(1);
-    expect(f.buttons).toBe(1);
+    expect(f.children).toBe(2);
+    expect(f.buttons).toBe(2);
+    expect(f.notesFacts.order).toEqual(["rail-files", "rail-notes"]);
     expect(f.aria).toBe("Files");
     expect(f.title).toBe("Files");
     expect(f.iconSize).toBe("16px");
@@ -199,5 +226,13 @@ describe.skipIf(chrome === undefined)("the rail in a real browser", () => {
     expect(f.afterHide.barBackground).not.toBe(f.colours.sel);
     expect(f.afterHide.canvasWidth - f.shown.canvasWidth).toBe(280);
     expect(f.afterShow).toEqual(f.shown);
+  });
+
+  it("shows the note count on the Notes icon and nothing at zero", () => {
+    expect(f.notesFacts.aria).toBe("Notes");
+    expect(f.notesFacts.count).toBe("3");
+    expect(f.notesFacts.countHidden).toBe(false);
+    expect(f.notesFacts.zeroHidden).toBe(true);
+    expect(f.notesFacts.zeroText).toBe("");
   });
 });

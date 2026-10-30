@@ -36,10 +36,18 @@
   --tk-punct: #57606a;
   --card-bg: #f6f8fa;
   --card-border: #d8dee4;
+  --note-person: #bf8700;
+  --note-person-bg: #fff8c5;
+  --note-agent: #8250df;
+  --note-agent-bg: #fbefff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --note-person: #d29922;
+    --note-person-bg: #3a2f10;
+    --note-agent: #a371f7;
+    --note-agent-bg: #2d2342;
     --bg: #16181c;
     --fg: #e6edf3;
     --muted: #9198a1;
@@ -557,6 +565,37 @@ svg.i.chevron {
   pointer-events: none;
 }
 
+.box .note-mark.active {
+  stroke: var(--fg);
+  stroke-width: 1.5;
+}
+
+.note-card .note-leader {
+  fill: none;
+  stroke: var(--note-person);
+  stroke-width: 1.5;
+}
+
+.note-card .note-card-body {
+  fill: var(--note-person-bg);
+  stroke: var(--note-person);
+}
+
+.note-card.agent .note-leader {
+  stroke: var(--note-agent);
+}
+
+.note-card.agent .note-card-body {
+  fill: var(--note-agent-bg);
+  stroke: var(--note-agent);
+}
+
+.note-card .note-card-text {
+  fill: var(--fg);
+  font-size: 12px;
+  pointer-events: none;
+}
+
 .box .halo {
   display: none;
   fill: none;
@@ -944,43 +983,6 @@ svg.i.chevron {
 
 .responsibility .finding {
   flex-basis: 100%;
-}
-
-.module-note {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  margin: 8px 0;
-  font-size: 12px;
-}
-
-.module-note .note-by {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.module-note .note-field {
-  flex-basis: 100%;
-  box-sizing: border-box;
-  padding: 4px 6px;
-  border: 1px solid var(--sel);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
-  resize: vertical;
-}
-
-.module-note button,
-.view-note button {
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
 }
 
 .pswitch {
@@ -1412,39 +1414,6 @@ svg.i.chevron {
 .view-name-problem[hidden],
 .view-bar .view-name[hidden] {
   display: none;
-}
-
-.view-bar .view-note {
-  display: flex;
-  flex: 1 1 100%;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  box-sizing: border-box;
-  max-width: 360px;
-  padding: 4px 8px;
-  font-size: 12px;
-}
-
-.view-bar .view-note[hidden] {
-  display: none;
-}
-
-.view-note .note-by {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.view-note .note-field {
-  flex-basis: 100%;
-  box-sizing: border-box;
-  padding: 4px 6px;
-  border: 1px solid var(--sel);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
-  resize: vertical;
 }
 
 .view-name-problem {
@@ -1987,4 +1956,176 @@ svg.i.chevron {
 
 .scan-busy {
   flex: 1;
+}
+
+.rail .rail-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  background: var(--sel);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.rail .rail-count[hidden] {
+  display: none;
+}
+
+.notes-panel {
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.tree > .notes-panel {
+  display: none;
+}
+
+.tree.notes-open > :not(.notes-panel) {
+  display: none;
+}
+
+.tree.notes-open > .notes-panel {
+  display: flex;
+}
+
+.notes-header {
+  padding: 12px 12px 8px;
+  font-size: 14px;
+}
+
+.note-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.note-composer .note-prompt {
+  margin: 0;
+  color: var(--muted);
+}
+
+.note-composer .note-target {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-composer .note-field {
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
+}
+
+.note-composer .note-field:focus {
+  outline: none;
+  border-color: var(--sel);
+  box-shadow: 0 0 0 2px var(--selbg);
+}
+
+.note-composer .note-add {
+  align-self: flex-end;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--sel);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.note-composer .note-add:disabled {
+  background: transparent;
+  color: var(--faint);
+  cursor: default;
+}
+
+.note-composer [hidden] {
+  display: none;
+}
+
+.note-group,
+.note-off {
+  padding: 8px 12px 0;
+}
+
+.note-group-title {
+  margin: 0 0 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-group-title strong {
+  color: var(--fg);
+}
+
+.note-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.note-row.person {
+  border-left-color: var(--note-person);
+}
+
+.note-row.agent {
+  border-left-color: var(--note-agent);
+}
+
+.note-row.active {
+  background: var(--selbg);
+}
+
+.note-row.off {
+  color: var(--faint);
+  cursor: default;
+}
+
+.note-row .note-text {
+  flex: 1 1 100%;
+  overflow-wrap: anywhere;
+}
+
+.note-row .note-by {
+  flex: 1;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.note-row .note-remove {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
 }

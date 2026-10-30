@@ -1,13 +1,18 @@
 import { el } from "./dom";
 import { iconButton } from "./icons";
 
+export type LeftPanel = "files" | "notes" | null;
+
 export type RailActions = {
   toggleFiles: () => void;
+  toggleNotes: () => void;
 };
+
+export type RailState = { panel: LeftPanel; notes: number };
 
 export type RailView = {
   element: HTMLElement;
-  render: (filesOpen: boolean) => void;
+  render: (state: RailState) => void;
 };
 
 export function buildRailView(actions: RailActions): RailView {
@@ -18,15 +23,22 @@ export function buildRailView(actions: RailActions): RailView {
     "rail-files",
     actions.toggleFiles,
   );
+  const notes = iconButton("notes", "Notes", "rail-notes", actions.toggleNotes);
+  const count = el("span", "rail-count");
 
   element.setAttribute("aria-label", "Panels");
-  element.append(files);
+  notes.append(count);
+  element.append(files, notes);
 
   return {
     element,
-    render(filesOpen) {
-      files.classList.toggle("open", filesOpen);
-      files.setAttribute("aria-pressed", String(filesOpen));
+    render({ panel, notes: total }) {
+      files.classList.toggle("open", panel === "files");
+      files.setAttribute("aria-pressed", String(panel === "files"));
+      notes.classList.toggle("open", panel === "notes");
+      notes.setAttribute("aria-pressed", String(panel === "notes"));
+      count.textContent = total > 0 ? String(total) : "";
+      count.hidden = total === 0;
     },
   };
 }

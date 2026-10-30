@@ -1,4 +1,4 @@
-import type { Note, Scan, ScanEdge, ScanMember } from "recognizer";
+import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
 import {
@@ -37,13 +37,6 @@ export type InspectorInputs = {
   collapsed: ReadonlySet<string>;
   followed: Followed | null;
   responsibility: (id: string) => ResponsibilityRow;
-  moduleNote: (id: string) => ModuleNoteRow | null;
-};
-
-export type ModuleNoteRow = {
-  view: string;
-  note: Note | null;
-  editing: string | null;
 };
 
 export type Direction = "uses" | "usedBy";
@@ -81,14 +74,8 @@ export type ResponsibilityLineRow = {
   id: string;
 } & ResponsibilityRow;
 
-export type ModuleNoteLineRow = {
-  kind: "module-note";
-  id: string;
-} & ModuleNoteRow;
-
 export type Row =
   | { kind: "note"; text: string }
-  | ModuleNoteLineRow
   | ResponsibilityLineRow
   | { kind: "none" }
   | CardRow
@@ -319,13 +306,8 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
     id: module,
     ...inputs.responsibility(module),
   };
-  const noted = inputs.moduleNote(module);
-  const note: Row[] =
-    noted === null ? [] : [{ kind: "module-note", id: module, ...noted }];
-
   if (found?.members === undefined) {
     return [
-      ...note,
       responsibility,
       {
         kind: "note",
@@ -352,7 +334,6 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   ).map(({ item }) => item);
 
   return [
-    ...note,
     responsibility,
     { kind: "switch", label: "Show private", on: inputs.showPrivate },
     ...(cards.length === 0 ? [{ kind: "none" } as Row] : cards),

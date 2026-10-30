@@ -413,7 +413,7 @@ describe("views new --from-window", () => {
       { socket: SOCKET, text: '{"v":1,"command":"window","id":"w-1"}' },
     ]);
     expect(saved).toEqual({
-      schema_version: 2,
+      schema_version: 3,
       description: "From a window",
       commit: "abc123",
       steps: [
