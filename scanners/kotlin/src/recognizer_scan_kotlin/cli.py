@@ -1,6 +1,7 @@
 import argparse
 import subprocess
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 from recognizer_scan_kotlin.scanner import scan_with_stats
@@ -53,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--commit")
     parser.add_argument("--modified", type=parse_modified)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--version", action="version", version=version("recognizer-scan-kotlin"))
 
     return parser
 

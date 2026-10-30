@@ -209,7 +209,7 @@ export function buildRustNotices(crates, readLicenseFiles) {
       return `${heading}\n\n${body}`;
     });
 
-  return `# Rust crates\n\nThe app links the Rust crates below. Crates that ship the same licence files share one entry.\n\n${sections.join("\n\n")}\n`;
+  return `# Rust crates\n\nThe app and the Rust scanner link the Rust crates below. Crates that ship the same licence files share one entry.\n\n${sections.join("\n\n")}\n`;
 }
 
 export function readCrateLicenseFiles(crate) {
@@ -220,11 +220,17 @@ export function readCrateLicenseFiles(crate) {
     .map((name) => ({ name, text: readFileSync(join(dir, name), "utf8") }));
 }
 
-export function cargoMetadata(root) {
-  const manifest = join(root, "app/src-tauri/Cargo.toml");
+export const MANIFESTS = [
+  "app/src-tauri/Cargo.toml",
+  "scanners/rust/Cargo.toml",
+];
+
+export function cargoMetadata(root, manifests = MANIFESTS) {
   const byId = new Map();
 
-  for (const platform of PLATFORMS) {
+  for (const [manifest, platform] of manifests.flatMap((name) =>
+    PLATFORMS.map((target) => [join(root, name), target]),
+  )) {
     const result = spawnSync(
       "cargo",
       [

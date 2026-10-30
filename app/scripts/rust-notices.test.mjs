@@ -48,6 +48,18 @@ describe("buildRustNotices", () => {
     ).toThrow(/copyleft 1\.0\.0 \(GPL-3\.0-only\)/);
   });
 
+  it("fails on a crate from a second manifest outside the accepted list", () => {
+    const fromApp = crate("tauri", "MIT");
+    const fromScanner = crate("syn-like", "GPL-3.0-only");
+
+    expect(() => buildRustNotices([fromApp, fromScanner], () => [])).toThrow(
+      /syn-like 1\.0\.0 \(GPL-3\.0-only\)/,
+    );
+    expect(() =>
+      buildRustNotices([fromApp, fromScanner], () => []),
+    ).not.toThrow(/tauri/);
+  });
+
   it("shares one entry between crates with identical licence files", () => {
     const text = buildRustNotices(
       [crate("a", "MIT"), crate("b", "MIT"), crate("c", "ISC")],
@@ -86,6 +98,10 @@ describe("the app's real dependency closure", () => {
 
   it("is inside the accepted licences", () => {
     expect(unacceptedCrates(crates)).toEqual([]);
+  });
+
+  it("includes the Rust scanner's crates", () => {
+    expect(crates.find((c) => c.name === "syn")).toBeDefined();
   });
 
   it("includes tauri and ships its licence text", () => {

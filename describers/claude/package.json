@@ -6,6 +6,10 @@
   "bin": {
     "recognizer-describe-claude": "dist/bin.js"
   },
+  "files": [
+    "dist",
+    "prompt.md"
+  ],
   "engines": {
     "node": ">=22"
   },

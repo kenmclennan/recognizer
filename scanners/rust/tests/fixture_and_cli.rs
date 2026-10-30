@@ -132,3 +132,19 @@ fn the_fixture_members_cover_each_kind_and_both_visibilities() {
     assert_eq!(methods[1]["name"], "subtotal");
     assert_eq!(methods[1]["private"], true);
 }
+
+#[test]
+fn version_flags_print_the_package_version() {
+    for flag in ["--version", "-V"] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_recognizer-scan-rust"))
+            .arg(flag)
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("{}\n", env!("CARGO_PKG_VERSION"))
+        );
+    }
+}

@@ -26,14 +26,13 @@ export const SCANNERS: ScannerSpec[] = [
     language: "kotlin",
     name: "recognizer-scan-kotlin",
     variable: "RECOGNIZER_SCAN_KOTLIN",
-    install:
-      "pipx install recognizer-scan-kotlin or uvx --from recognizer-scan-kotlin recognizer-scan-kotlin",
+    install: "brew install kenmclennan/tap/recognizer",
   },
   {
     language: "rust",
     name: "recognizer-scan-rust",
     variable: "RECOGNIZER_SCAN_RUST",
-    install: "cargo install recognizer-scan-rust",
+    install: "brew install kenmclennan/tap/recognizer",
   },
 ];
 

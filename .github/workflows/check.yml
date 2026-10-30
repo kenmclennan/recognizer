@@ -44,6 +44,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked --project scanners/python
       - run: npm run build -w recognizer-scan-typescript
+      - run: npm run build -w recognizer-describe-claude
       - run: npm run build -w check
       - run: npm test -w check
       - run: node scripts/build-toolchain.mjs "$RUNNER_TEMP/toolchain"

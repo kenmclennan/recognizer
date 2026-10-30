@@ -162,6 +162,13 @@ def test_cli_end_to_end(tmp_path):
     assert result.stdout.endswith("}\n")
 
 
+def test_cli_prints_the_package_version():
+    result = run_cli("--version")
+
+    assert result.returncode == 0
+    assert result.stdout == f"{version('recognizer-scan-kotlin')}\n"
+
+
 def test_cli_refuses_a_root_that_is_not_a_directory(tmp_path):
     result = run_cli(str(tmp_path / "missing"))
 

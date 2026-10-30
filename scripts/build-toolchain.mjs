@@ -8,6 +8,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,26 +17,40 @@ import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
 
 export const ARCHIVE = "recognizer-toolchain.tar.gz";
 
-const OWN_PACKAGES = ["recognizer", "recognizer-scan-typescript"];
+const OWN_PACKAGES = [
+  "recognizer",
+  "recognizer-scan-typescript",
+  "recognizer-describe-claude",
+];
+const RUST_BINARY = "recognizer-scan-rust";
+const WHEELHOUSE = "wheelhouse";
 
-export function archiveEntries(version, closurePaths) {
+export function archiveEntries(version, closurePaths, wheelhouseFiles = []) {
   return [
     ...OWN_PACKAGES.map((name) => `node_modules/${name}/package.json`),
     ...closurePaths.map((path) => `${path}/package.json`),
     `recognizer_scan_python-${version}-py3-none-any.whl`,
+    `recognizer_scan_kotlin-${version}-py3-none-any.whl`,
+    ...wheelhouseFiles.map((name) => `${WHEELHOUSE}/${name}`),
+    RUST_BINARY,
     "THIRD-PARTY-NOTICES.md",
     "LICENSE",
   ];
 }
 
-export function verifyArchive(listing, version, closurePaths) {
+export function verifyArchive(
+  listing,
+  version,
+  closurePaths,
+  wheelhouseFiles = [],
+) {
   const present = new Set(
     listing
       .split("\n")
       .map((line) => line.trim().replace(/^\.\//, ""))
       .filter((line) => line !== ""),
   );
-  const missing = archiveEntries(version, closurePaths).filter(
+  const missing = archiveEntries(version, closurePaths, wheelhouseFiles).filter(
     (name) => !present.has(name),
   );
 
@@ -77,6 +92,8 @@ export function buildToolchain(root, outDir) {
         "recognizer",
         "-w",
         "recognizer-scan-typescript",
+        "-w",
+        "recognizer-describe-claude",
         "--pack-destination",
         packed,
       ],
@@ -116,6 +133,72 @@ export function buildToolchain(root, outDir) {
     run("uv", ["build", "--wheel", "--out-dir", staging, "scanners/python"], {
       cwd: root,
     });
+    run("uv", ["build", "--wheel", "--out-dir", staging, "scanners/kotlin"], {
+      cwd: root,
+    });
+
+    const wheelhouse = join(staging, WHEELHOUSE);
+    const requirements = join(packed, "kotlin-requirements.txt");
+    const exported = run(
+      "uv",
+      [
+        "export",
+        "--frozen",
+        "--no-dev",
+        "--no-emit-project",
+        "--format",
+        "requirements-txt",
+      ],
+      { cwd: join(root, "scanners/kotlin") },
+    );
+
+    writeFileSync(requirements, exported);
+    mkdirSync(wheelhouse, { recursive: true });
+    run("python3", [
+      "-m",
+      "pip",
+      "download",
+      "--require-hashes",
+      "--only-binary=:all:",
+      "--platform",
+      "macosx_11_0_arm64",
+      "--python-version",
+      "3.13",
+      "--implementation",
+      "cp",
+      "--abi",
+      "cp313",
+      "-r",
+      requirements,
+      "-d",
+      wheelhouse,
+    ]);
+
+    const wheelhouseFiles = readdirSync(wheelhouse).sort();
+
+    run(
+      "cargo",
+      [
+        "build",
+        "--release",
+        "--locked",
+        "--target",
+        "aarch64-apple-darwin",
+        "--manifest-path",
+        "scanners/rust/Cargo.toml",
+      ],
+      { cwd: root },
+    );
+    copyFileSync(
+      join(
+        root,
+        "scanners/rust/target/aarch64-apple-darwin/release",
+        RUST_BINARY,
+      ),
+      join(staging, RUST_BINARY),
+    );
+    chmodSync(join(staging, RUST_BINARY), 0o755);
+
     copyFileSync(
       join(root, "THIRD-PARTY-NOTICES.md"),
       join(staging, "THIRD-PARTY-NOTICES.md"),
@@ -131,7 +214,7 @@ export function buildToolchain(root, outDir) {
 
     const listing = run("tar", ["-tzf", archive]);
 
-    verifyArchive(listing, version, closurePaths);
+    verifyArchive(listing, version, closurePaths, wheelhouseFiles);
 
     return archive;
   } finally {

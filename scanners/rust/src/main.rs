@@ -10,12 +10,24 @@ struct Arguments {
     output: Option<PathBuf>,
 }
 
-fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
+enum Parsed {
+    Version,
+    Run(Arguments),
+}
+
+fn parse_arguments(args: &[String]) -> Result<Parsed, String> {
     let mut root = None;
     let mut commit = None;
     let mut modified = None;
     let mut output = None;
     let mut iterator = args.iter();
+
+    if args
+        .iter()
+        .any(|argument| argument == "--version" || argument == "-V")
+    {
+        return Ok(Parsed::Version);
+    }
 
     while let Some(argument) = iterator.next() {
         let (flag, inline) = match argument.split_once('=') {
@@ -50,12 +62,12 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
         }
     }
 
-    Ok(Arguments {
+    Ok(Parsed::Run(Arguments {
         root: root.ok_or_else(|| "ROOT is required".to_string())?,
         commit,
         modified,
         output,
-    })
+    }))
 }
 
 fn git(root: &PathBuf, arguments: &[&str]) -> Option<String> {
@@ -83,7 +95,11 @@ fn resolve_modified(root: &PathBuf) -> Option<bool> {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let arguments = match parse_arguments(&args) {
-        Ok(arguments) => arguments,
+        Ok(Parsed::Run(arguments)) => arguments,
+        Ok(Parsed::Version) => {
+            println!("{}", env!("CARGO_PKG_VERSION"));
+            return ExitCode::SUCCESS;
+        }
         Err(message) => {
             eprintln!("{message}");
             return ExitCode::from(2);

@@ -48,7 +48,7 @@ export function buildNotices(lock, readLicenseFiles) {
       .trimEnd();
   });
 
-  return `# Third-party notices\n\nRecognizer ships the npm packages below, then the Rust crates the app is built from.\n\n${sections.join("\n\n")}\n`;
+  return `# Third-party notices\n\nRecognizer ships the npm packages below, then the Rust crates the app and the Rust scanner are built from.\n\n${sections.join("\n\n")}\n`;
 }
 
 export function readLicenseFilesFrom(root) {
