@@ -77,6 +77,32 @@ async function buildApp(outDir: string): Promise<string> {
   return `/assets/${file}`;
 }
 
+function groupAlive(pid: number): boolean {
+  try {
+    process.kill(-pid, 0);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function killGroup(pid: number | undefined): Promise<void> {
+  if (pid === undefined) {
+    return;
+  }
+
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    return;
+  }
+
+  for (let waited = 0; groupAlive(pid) && waited < 10000; waited += 50) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 async function answerInChrome(graph: ElkNode): Promise<string> {
   const outDir = mkdtempSync(join(tmpdir(), "layout-worker-"));
   const profile = mkdtempSync(join(tmpdir(), "layout-chrome-"));
@@ -138,7 +164,7 @@ async function answerInChrome(graph: ElkNode): Promise<string> {
           `--user-data-dir=${profile}`,
           `http://127.0.0.1:${port}/`,
         ],
-        { stdio: "ignore" },
+        { stdio: "ignore", detached: true },
       );
       const silence = new Promise<string>((resolve) =>
         setTimeout(() => resolve("TIMEOUT"), 150000),
@@ -147,10 +173,7 @@ async function answerInChrome(graph: ElkNode): Promise<string> {
       try {
         return await Promise.race([reported, silence]);
       } finally {
-        const exited = new Promise((resolve) => browser.once("exit", resolve));
-
-        browser.kill("SIGKILL");
-        await exited;
+        await killGroup(browser.pid);
       }
     } finally {
       server.close();
