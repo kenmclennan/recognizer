@@ -7,7 +7,6 @@ export const viewsSource: ViewsPort = {
   list: () => invoke<ViewListing>("list_views"),
   write: (name, text) => invoke<void>("write_view", { name, text }),
   rename: (from, to) => invoke<void>("rename_view", { from, to }),
-  writeCurrent: (text) => invoke<void>("write_current_view", { text }),
   link: (name) => invoke<string>("view_link", { name }),
   takePendingView: () => invoke<string | null>("take_pending_view"),
   renamesSince: (commit) =>

@@ -1,3 +1,6 @@
+import type { InspectorTab } from "./inspector-model";
+import type { Trail } from "./trail-model";
+
 export type Snapshot = {
   view: string | null;
   modules: string[];
@@ -6,23 +9,46 @@ export type Snapshot = {
   selection: { kind: "module" | "folder" | "edge"; id: string } | null;
 };
 
-export type CurrentView = {
-  schema_version: 1;
+export type WindowTrailPanel = {
+  selection: { kind: "module" | "folder" | "edge"; id: string } | null;
+  relation: "uses" | "used-by" | null;
+  tab: InspectorTab;
+  active: boolean;
+};
+
+export type WindowState = {
   view: string | null;
   modules: string[];
   folded: string[];
   focus: string | null;
   selection: { kind: "module" | "folder" | "edge"; id: string } | null;
+  trail: WindowTrailPanel[];
+  inspector: { open: boolean; tab: InspectorTab };
 };
 
-export function currentViewOf(snapshot: Snapshot): CurrentView {
+export function windowStateOf(
+  snapshot: Snapshot,
+  trail: Trail,
+  inspector: { open: boolean; tab: InspectorTab },
+): WindowState {
   return {
-    schema_version: 1,
     view: snapshot.view,
     modules: [...snapshot.modules].sort((a, b) => a.localeCompare(b)),
     folded: [...snapshot.folded].sort((a, b) => a.localeCompare(b)),
     focus: snapshot.focus,
     selection: snapshot.selection,
+    trail: trail.panels.map((panel, index) => ({
+      selection: panel.selection === null ? null : { ...panel.selection },
+      relation:
+        panel.relation === null
+          ? null
+          : panel.relation === "usedBy"
+            ? "used-by"
+            : "uses",
+      tab: panel.tab,
+      active: index === trail.active,
+    })),
+    inspector: { open: inspector.open, tab: inspector.tab },
   };
 }
 

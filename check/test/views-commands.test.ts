@@ -423,27 +423,11 @@ describe("views show", () => {
     expect(document.unresolved).toHaveLength(1);
   });
 
-  it("exits 1 for --current with no file", () => {
-    const { code, out } = go(repository(), "show", "--current");
+  it("rejects --current as an unknown flag", () => {
+    const { code } = go(repository(), "show", "--current");
 
-    expect(code).toBe(1);
-    expect(out).toBe(
-      "no view is open: .recognizer/cache/current-view.json does not exist\n",
-    );
-    expect(
-      JSON.parse(go(repository(), "show", "--current", "--json").out),
-    ).toEqual({ current: null });
-  });
-
-  it("prints the current file uninterpreted, and rejects a non-JSON one", () => {
-    const file = `${ROOT}/.recognizer/cache/current-view.json`;
-    const ok = go(repository({ [file]: '{"x":1}' }), "show", "--current");
-
-    expect(ok.code).toBe(0);
-    expect(JSON.parse(ok.out)).toEqual({ x: 1 });
-    expect(go(repository({ [file]: "nope" }), "show", "--current").code).toBe(
-      2,
-    );
+    expect(code).toBe(2);
+    expect(go(repository(), "show", "--current", "--json").code).toBe(2);
   });
 });
 

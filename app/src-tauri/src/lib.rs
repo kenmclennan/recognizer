@@ -12,18 +12,20 @@ pub mod link;
 pub mod repository;
 pub mod responsibilities;
 pub mod settings;
+pub mod socket;
 pub mod source_line;
 pub mod views;
 pub mod windows;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use changes::{Baseline, Changes, Origin, ScanOrigin};
 use launch::{launch_for, Launch};
 use repository::ScanReport;
+use socket::{Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use windows::{
@@ -222,6 +224,47 @@ fn open_settings(app: &AppHandle) {
     }
 }
 
+struct AppSource {
+    app: AppHandle,
+}
+
+impl socket::Source for AppSource {
+    fn entries(&self) -> Vec<Entry> {
+        let windows = self.app.state::<WindowState>();
+        let snapshots = self.app.state::<Snapshots>();
+
+        windows
+            .folders()
+            .into_iter()
+            .map(|(label, folder)| Entry {
+                state: snapshots.get(&label),
+                label,
+                folder,
+            })
+            .collect()
+    }
+}
+
+fn start_socket(app: &AppHandle) -> Option<socket::Server> {
+    let started = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())
+        .and_then(|dir| {
+            socket::socket_path(&dir, std::env::var(socket::SOCKET_ENV).ok().as_deref())
+        })
+        .and_then(|path| socket::Server::start(&path, Arc::new(AppSource { app: app.clone() })));
+
+    match started {
+        Ok(server) => Some(server),
+        Err(error) => {
+            eprintln!("recognizer: the app socket is not available: {error}");
+
+            None
+        }
+    }
+}
+
 fn config_file(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_config_dir()
@@ -367,7 +410,13 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
 
     match event {
         WindowEvent::Focused(true) => state.focused(window.label()),
-        WindowEvent::Destroyed => state.closed(window.label()),
+        WindowEvent::Destroyed => {
+            state.closed(window.label());
+            window
+                .app_handle()
+                .state::<Snapshots>()
+                .closed(window.label());
+        }
         _ => {}
     }
 }
@@ -727,8 +776,13 @@ fn rename_view(
 }
 
 #[tauri::command]
-fn write_current_view(app: AppHandle, window: WebviewWindow, text: String) -> Result<(), String> {
-    views::write_current_view(&window_folder_path(&app, &window)?, &text)
+fn publish_window_state(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: serde_json::Value,
+) -> Result<(), String> {
+    app.state::<Snapshots>()
+        .publish(&window_label(&window), state)
 }
 
 #[tauri::command]
@@ -862,6 +916,8 @@ pub fn run() {
 
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
+            app.manage(Snapshots::default());
+            app.manage(Mutex::new(start_socket(&handle)));
             app.set_menu(build_menu(&handle)?)?;
 
             let opened_with = app
@@ -894,6 +950,7 @@ pub fn run() {
             list_views,
             open_folder_in_editor,
             open_in_editor,
+            publish_window_state,
             read_responsibilities,
             read_settings,
             read_source_line,
@@ -909,7 +966,6 @@ pub fn run() {
             watch_responsibilities,
             watch_views,
             window_folder,
-            write_current_view,
             write_settings,
             write_view
         ])
@@ -932,6 +988,16 @@ pub fn run() {
                     cfg!(target_os = "macos"),
                 ) {
                     api.prevent_exit();
+                }
+            }
+            RunEvent::Exit => {
+                if let Some(server) = app
+                    .state::<Mutex<Option<socket::Server>>>()
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                {
+                    server.shutdown();
                 }
             }
             _ => {

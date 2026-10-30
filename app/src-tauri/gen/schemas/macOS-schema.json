@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`",
+          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, read the version of the recognizer command, and publish what the window shows to the app socket\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, and read the version of the recognizer command\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-current-view`\n- `allow-write-view`"
+          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, read the version of the recognizer command, and publish what the window shows to the app socket\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-view`"
         },
         {
           "description": "Read and write the app's settings\n#### This permission set includes:\n\n- `allow-read-settings`\n- `allow-write-settings`",
@@ -223,6 +223,12 @@
           "type": "string",
           "const": "allow-open-in-editor",
           "markdownDescription": "Enables the open_in_editor command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the publish_window_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-publish-window-state",
+          "markdownDescription": "Enables the publish_window_state command without any pre-configured scope."
         },
         {
           "description": "Enables the read_responsibilities command without any pre-configured scope.",
@@ -315,12 +321,6 @@
           "markdownDescription": "Enables the window_folder command without any pre-configured scope."
         },
         {
-          "description": "Enables the write_current_view command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-write-current-view",
-          "markdownDescription": "Enables the write_current_view command without any pre-configured scope."
-        },
-        {
           "description": "Enables the write_settings command without any pre-configured scope.",
           "type": "string",
           "const": "allow-write-settings",
@@ -367,6 +367,12 @@
           "type": "string",
           "const": "deny-open-in-editor",
           "markdownDescription": "Denies the open_in_editor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the publish_window_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-publish-window-state",
+          "markdownDescription": "Denies the publish_window_state command without any pre-configured scope."
         },
         {
           "description": "Denies the read_responsibilities command without any pre-configured scope.",
@@ -457,12 +463,6 @@
           "type": "string",
           "const": "deny-window-folder",
           "markdownDescription": "Denies the window_folder command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the write_current_view command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-write-current-view",
-          "markdownDescription": "Denies the write_current_view command without any pre-configured scope."
         },
         {
           "description": "Denies the write_settings command without any pre-configured scope.",

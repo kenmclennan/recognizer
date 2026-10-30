@@ -1,0 +1,673 @@
+[
+  {
+    "name": "windows lists open windows in number order",
+    "open": [
+      {
+        "id": "w-2",
+        "folder": "/r/two",
+        "state": {
+          "view": null,
+          "modules": [],
+          "folded": [],
+          "focus": null,
+          "selection": null,
+          "trail": [],
+          "inspector": {
+            "open": false,
+            "tab": "contents"
+          }
+        }
+      },
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"windows\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": [
+        {
+          "id": "w-1",
+          "folder": "/r/one",
+          "view": "overview",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          }
+        },
+        {
+          "id": "w-2",
+          "folder": "/r/two",
+          "view": null,
+          "selection": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "windows with a window that has published nothing lists it with nulls",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      },
+      {
+        "id": "w-2",
+        "folder": "/r/two",
+        "state": null
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"windows\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": [
+        {
+          "id": "w-1",
+          "folder": "/r/one",
+          "view": "overview",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          }
+        },
+        {
+          "id": "w-2",
+          "folder": "/r/two",
+          "view": null,
+          "selection": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "windows with none open is an empty list",
+    "open": [],
+    "request": "{\"v\":1,\"command\":\"windows\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": []
+    }
+  },
+  {
+    "name": "window with one open window needs no id",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"window\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "id": "w-1",
+        "folder": "/r/one",
+        "view": "overview",
+        "modules": [
+          "app/a.py",
+          "app/b.py"
+        ],
+        "folded": [
+          "app/util"
+        ],
+        "focus": "app",
+        "selection": {
+          "kind": "module",
+          "id": "app/a.py"
+        },
+        "trail": [
+          {
+            "selection": {
+              "kind": "module",
+              "id": "app/a.py"
+            },
+            "relation": null,
+            "tab": "dependencies",
+            "active": false
+          },
+          {
+            "selection": {
+              "kind": "module",
+              "id": "app/b.py"
+            },
+            "relation": "uses",
+            "tab": "dependencies",
+            "active": true
+          }
+        ],
+        "inspector": {
+          "open": true,
+          "tab": "dependencies"
+        }
+      }
+    }
+  },
+  {
+    "name": "window by id",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      },
+      {
+        "id": "w-2",
+        "folder": "/r/two",
+        "state": {
+          "view": null,
+          "modules": [],
+          "folded": [],
+          "focus": null,
+          "selection": null,
+          "trail": [],
+          "inspector": {
+            "open": false,
+            "tab": "contents"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"window\",\"id\":\"w-2\"}",
+    "response": {
+      "v": 1,
+      "status": "done",
+      "result": {
+        "id": "w-2",
+        "folder": "/r/two",
+        "view": null,
+        "modules": [],
+        "folded": [],
+        "focus": null,
+        "selection": null,
+        "trail": [],
+        "inspector": {
+          "open": false,
+          "tab": "contents"
+        }
+      }
+    }
+  },
+  {
+    "name": "window with two open and no id asks for one",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      },
+      {
+        "id": "w-2",
+        "folder": "/r/two",
+        "state": {
+          "view": null,
+          "modules": [],
+          "folded": [],
+          "focus": null,
+          "selection": null,
+          "trail": [],
+          "inspector": {
+            "open": false,
+            "tab": "contents"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"window\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "2 windows are open (w-1, w-2); pass an id"
+    }
+  },
+  {
+    "name": "window with none open",
+    "open": [],
+    "request": "{\"v\":1,\"command\":\"window\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no window is open"
+    }
+  },
+  {
+    "name": "window with an unknown id",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      },
+      {
+        "id": "w-2",
+        "folder": "/r/two",
+        "state": {
+          "view": null,
+          "modules": [],
+          "folded": [],
+          "focus": null,
+          "selection": null,
+          "trail": [],
+          "inspector": {
+            "open": false,
+            "tab": "contents"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"window\",\"id\":\"w-9\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "no window w-9; open windows: w-1, w-2"
+    }
+  },
+  {
+    "name": "window that has published nothing yet",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      },
+      {
+        "id": "w-2",
+        "folder": "/r/two",
+        "state": null
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"window\",\"id\":\"w-2\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "w-2 has not finished opening"
+    }
+  },
+  {
+    "name": "invalid JSON",
+    "open": [],
+    "request": "not json",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "the request is not valid JSON"
+    }
+  },
+  {
+    "name": "a JSON value that is not an object",
+    "open": [],
+    "request": "[1]",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "the request must be a JSON object"
+    }
+  },
+  {
+    "name": "a missing v",
+    "open": [],
+    "request": "{\"command\":\"windows\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "the request needs \"v\": 1"
+    }
+  },
+  {
+    "name": "an unequal v",
+    "open": [],
+    "request": "{\"v\":2,\"command\":\"windows\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "the request needs \"v\": 1"
+    }
+  },
+  {
+    "name": "an unknown command",
+    "open": [],
+    "request": "{\"v\":1,\"command\":\"nope\"}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "unknown command \"nope\"; use windows or window"
+    }
+  },
+  {
+    "name": "a missing command",
+    "open": [],
+    "request": "{\"v\":1}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "the request needs a \"command\" string"
+    }
+  },
+  {
+    "name": "an id that is not a string",
+    "open": [
+      {
+        "id": "w-1",
+        "folder": "/r/one",
+        "state": {
+          "view": "overview",
+          "modules": [
+            "app/a.py",
+            "app/b.py"
+          ],
+          "folded": [
+            "app/util"
+          ],
+          "focus": "app",
+          "selection": {
+            "kind": "module",
+            "id": "app/a.py"
+          },
+          "trail": [
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/a.py"
+              },
+              "relation": null,
+              "tab": "dependencies",
+              "active": false
+            },
+            {
+              "selection": {
+                "kind": "module",
+                "id": "app/b.py"
+              },
+              "relation": "uses",
+              "tab": "dependencies",
+              "active": true
+            }
+          ],
+          "inspector": {
+            "open": true,
+            "tab": "dependencies"
+          }
+        }
+      }
+    ],
+    "request": "{\"v\":1,\"command\":\"window\",\"id\":7}",
+    "response": {
+      "v": 1,
+      "status": "refused",
+      "reason": "id must be a string"
+    }
+  }
+]

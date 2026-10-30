@@ -37,6 +37,12 @@ export interface LaunchResult {
   message: string;
 }
 
+export interface RequestResult {
+  connected: boolean;
+  response: string;
+  message: string;
+}
+
 export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
@@ -49,10 +55,31 @@ export interface Io {
   removeDir(path: string): void;
   run(command: string, args: string[], options?: RunOptions): RunResult;
   launch(command: string, args: string[]): LaunchResult;
+  request(socket: string, text: string): RequestResult;
   env(name: string): string | undefined;
   stdout(text: string): void;
   stderr(text: string): void;
 }
+
+const REQUEST_SCRIPT = [
+  'const net = require("net");',
+  "const [socket, text] = process.argv.slice(1);",
+  "const connection = net.connect(socket);",
+  'let received = "";',
+  'connection.on("connect", () => connection.write(text + "\\n"));',
+  'connection.on("data", (chunk) => {',
+  "  received += chunk;",
+  '  if (received.includes("\\n")) {',
+  '    process.stdout.write(received.split("\\n")[0]);',
+  "    process.exit(0);",
+  "  }",
+  "});",
+  'connection.on("error", (error) => {',
+  "  process.stderr.write(error.message);",
+  "  process.exit(1);",
+  "});",
+  'connection.on("end", () => process.exit(1));',
+].join("\n");
 
 export function nodeIo(): Io {
   return {
@@ -108,6 +135,26 @@ export function nodeIo(): Io {
       } catch (error) {
         return { started: false, message: (error as Error).message };
       }
+    },
+    request: (socket, text) => {
+      const result = spawnSync(
+        process.execPath,
+        ["-e", REQUEST_SCRIPT, socket, text],
+        { encoding: "utf8", timeout: 5000 },
+      );
+      const response = result.stdout ?? "";
+
+      if (result.status === 0 && response !== "") {
+        return { connected: true, response, message: "" };
+      }
+
+      return {
+        connected: false,
+        response: "",
+        message:
+          result.error?.message ??
+          (result.stderr !== "" ? result.stderr : "no reply"),
+      };
     },
     env: (name) => process.env[name],
     stdout: (text) => process.stdout.write(text),

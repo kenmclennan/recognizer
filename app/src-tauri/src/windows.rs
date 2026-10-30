@@ -159,6 +159,15 @@ impl WindowState {
         self.pending_views.lock().unwrap().remove(label)
     }
 
+    pub fn folders(&self) -> Vec<(String, PathBuf)> {
+        self.folders
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(label, folder)| (label.clone(), folder.clone()))
+            .collect()
+    }
+
     pub fn order(&self) -> Vec<String> {
         self.focus_order.lock().unwrap().clone()
     }

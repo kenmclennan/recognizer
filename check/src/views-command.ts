@@ -14,6 +14,7 @@ import {
   type ViewStep,
   validateView,
 } from "./views.js";
+import { windowOrFail } from "./window-commands.js";
 
 export const VIEW_SUBCOMMANDS = [
   "new",
@@ -43,7 +44,7 @@ const OPTIONS = {
   focus: { type: "boolean" },
   rule: { type: "string" },
   fix: { type: "boolean" },
-  current: { type: "boolean" },
+  "from-window": { type: "string" },
   by: { type: "string" },
   remove: { type: "boolean" },
 } as const;
@@ -51,21 +52,21 @@ const OPTIONS = {
 export const VIEW_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
 
 const ALLOWED: Record<Subcommand, string[]> = {
-  new: ["description"],
+  new: ["description", "from-window"],
   add: [],
   rule: ["folder", "uses", "used-by", "within"],
   fold: [],
   focus: [],
   remove: ["fold", "focus", "rule", "within"],
   note: ["by", "remove"],
-  show: ["current"],
+  show: [],
   list: [],
   check: ["fix"],
   rm: [],
 };
 
 const USAGE: Record<Subcommand, string> = {
-  new: "recognizer views new <name> --description <text> [--repository <dir>] [--json]",
+  new: "recognizer views new <name> --description <text> [--from-window <id>] [--repository <dir>] [--json]",
   add: "recognizer views add <name> <module>... [--repository <dir>] [--json]",
   rule: "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>] [--repository <dir>] [--json]",
   fold: "recognizer views fold <name> <folder> [--repository <dir>] [--json]",
@@ -73,7 +74,7 @@ const USAGE: Record<Subcommand, string> = {
   remove:
     "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
   note: "recognizer views note <name> [<module>] (<text> [--by <name>] | --remove) [--repository <dir>] [--json]",
-  show: "recognizer views show (<name> | --current) [--repository <dir>] [--json]",
+  show: "recognizer views show <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
   check:
     "recognizer views check [<name>] [--fix] [--repository <dir>] [--json]",
@@ -109,10 +110,6 @@ function writeViewFile(io: Io, file: string, view: View): void {
 
   io.writeFile(temp, serialise(view));
   io.rename(temp, file);
-}
-
-function currentFile(root: string): string {
-  return join(root, ".recognizer", "cache", "current-view.json");
 }
 
 function folderPath(path: string): string {
@@ -340,6 +337,40 @@ function mutate(
   return finishMutation(c, name, view, before, scans, what);
 }
 
+function byText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function windowSteps(
+  c: Context,
+  id: string,
+): { steps: ViewStep[]; scans: Scan[] } {
+  const state = windowOrFail(c.io, id);
+
+  if (folderPath(state.folder) !== folderPath(c.root)) {
+    throw new InputError([`${state.id} shows ${state.folder}, not ${c.root}`]);
+  }
+
+  const { scans } = freshScans(c.io, c.root);
+
+  requireModules(scans, state.modules);
+
+  return {
+    steps: [
+      ...[...state.modules]
+        .sort(byText)
+        .map((module) => ({ kind: "pick" as const, module })),
+      ...[...state.folded]
+        .sort(byText)
+        .map((folder) => ({ kind: "fold" as const, folder })),
+      ...(state.focus === null
+        ? []
+        : [{ kind: "focus" as const, folder: state.focus }]),
+    ],
+    scans,
+  };
+}
+
 function runNew(argv: string[], io: Io): number {
   const c = context("new", argv, io);
 
@@ -358,18 +389,27 @@ function runNew(argv: string[], io: Io): number {
     throw new InputError([`view already exists: ${name}`]);
   }
 
+  const windowId = c.values["from-window"];
+  const fromWindow =
+    typeof windowId === "string" ? windowSteps(c, windowId) : null;
+
   const view: View = {
     schema_version: 2,
     description,
     commit: resolveCommit(io, c.root),
-    steps: [],
+    steps: fromWindow?.steps ?? [],
   };
 
   writeViewFile(io, viewFile(c.root, name), view);
+
+  const modules = fromWindow
+    ? resolveView(view, fromWindow.scans).modules.length
+    : 0;
+
   emit(
     c,
-    { view: name, changed: true, steps: 0, modules: 0 },
-    `${name}: created; 0 steps, resolves to 0 modules`,
+    { view: name, changed: true, steps: view.steps.length, modules },
+    `${name}: created; ${plural(view.steps.length, "step")}, resolves to ${plural(modules, "module")}`,
   );
 
   return 0;
@@ -690,44 +730,8 @@ function resolvedJson(resolved: ResolvedView) {
   };
 }
 
-function showCurrent(c: Context): number {
-  const file = currentFile(c.root);
-
-  if (!c.io.exists(file)) {
-    emit(
-      c,
-      { current: null },
-      "no view is open: .recognizer/cache/current-view.json does not exist",
-    );
-
-    return 1;
-  }
-
-  let content: unknown;
-
-  try {
-    content = JSON.parse(c.io.readFile(file));
-  } catch {
-    throw new InputError([
-      ".recognizer/cache/current-view.json is not valid JSON",
-    ]);
-  }
-
-  emit(c, { current: content }, JSON.stringify(content, null, 2));
-
-  return 0;
-}
-
 function runShow(argv: string[], io: Io): number {
   const c = context("show", argv, io);
-
-  if (c.values.current === true) {
-    if (c.positionals.length !== 0) {
-      throw usageError("show");
-    }
-
-    return showCurrent(c);
-  }
 
   if (c.positionals.length !== 1) {
     throw usageError("show");
