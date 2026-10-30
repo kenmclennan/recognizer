@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
@@ -6,6 +5,7 @@ import { readConfig } from "./config.js";
 import { InputError } from "./errors.js";
 import { type Finding, findingsByModule } from "./findings.js";
 import { freshScans } from "./freshness.js";
+import { moduleSource } from "./module-source.js";
 import {
   moduleCounts,
   moduleNames,
@@ -205,6 +205,7 @@ type Status = "current" | "out-of-date" | "missing" | "unchecked";
 function responsibilityOf(
   io: Io,
   root: string,
+  scans: Scan[],
   id: string,
 ): { status: Status; line: string | null } {
   const file = join(root, ".recognizer", "responsibilities.json");
@@ -236,21 +237,20 @@ function responsibilityOf(
     return { status: "unchecked", line: entry.line };
   }
 
-  try {
-    const hash = createHash("sha256")
-      .update(io.readFile(join(root, id)), "utf8")
-      .digest("hex");
-    const status = lineStatus(
-      entry,
-      hash,
-      describer.command,
-      describer.version,
-    ).status;
+  const found = moduleSource(io, root, scans, id);
 
-    return { status: status as Status, line: entry.line };
-  } catch {
+  if (found === null) {
     return { status: "unchecked", line: entry.line };
   }
+
+  const status = lineStatus(
+    entry,
+    found.hash,
+    describer.command,
+    describer.version,
+  ).status;
+
+  return { status: status as Status, line: entry.line };
 }
 
 interface ShownMember {
@@ -345,7 +345,7 @@ export function runShow(argv: string[], io: Io): number {
     scanned?.members ?? [],
     loaded.values.private === true,
   );
-  const responsibility = responsibilityOf(io, loaded.root, id);
+  const responsibility = responsibilityOf(io, loaded.root, loaded.scans, id);
   const findings = findingsOf(loaded, io).get(id) ?? [];
   const kind = kindOf(loaded.scans, id);
   const document = {

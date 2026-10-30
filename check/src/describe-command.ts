@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { InputError } from "./errors.js";
 import { freshScans } from "./freshness.js";
+import { moduleSource } from "./module-source.js";
 import {
   moduleNames,
   type NeighbourRow,
@@ -23,6 +23,7 @@ import type { Scan, ScanMember } from "./scan.js";
 export interface DescribeRequest {
   module: string;
   kind: "module" | "package" | "interface";
+  files: string[];
   source: string;
   members: ScanMember[];
   uses: NeighbourRow[];
@@ -46,6 +47,7 @@ type Describer = { command: string[]; version: string };
 interface Subject {
   id: string;
   hash: string | null;
+  files: string[];
   source: string;
   status: LineStatus | { status: "unreadable" };
 }
@@ -103,35 +105,38 @@ function writeResponsibilities(
   io.rename(temp, file);
 }
 
-function sha256(text: string): string {
-  return createHash("sha256").update(text, "utf8").digest("hex");
-}
-
 function subjectFor(
   io: Io,
   root: string,
+  scans: Scan[],
   id: string,
   entries: Record<string, ResponsibilityEntry>,
   describer: Describer,
 ): Subject {
-  try {
-    const source = io.readFile(join(root, id));
-    const hash = sha256(source);
+  const found = moduleSource(io, root, scans, id);
 
+  if (found === null) {
     return {
       id,
-      hash,
-      source,
-      status: lineStatus(
-        entries[id],
-        hash,
-        describer.command,
-        describer.version,
-      ),
+      hash: null,
+      files: [],
+      source: "",
+      status: { status: "unreadable" },
     };
-  } catch {
-    return { id, hash: null, source: "", status: { status: "unreadable" } };
   }
+
+  return {
+    id,
+    hash: found.hash,
+    files: found.files,
+    source: found.source,
+    status: lineStatus(
+      entries[id],
+      found.hash,
+      describer.command,
+      describer.version,
+    ),
+  };
 }
 
 function find(scans: Scan[], id: string) {
@@ -253,7 +258,7 @@ function runCheck(loaded: Loaded, io: Io): number {
   const { root, describer, entries, names } = loaded;
   const ids = (names.length > 0 ? names : loaded.modules).slice().sort();
   const subjects = ids.map((id) =>
-    subjectFor(io, root, id, entries, describer),
+    subjectFor(io, root, loaded.scans, id, entries, describer),
   );
   const gone =
     names.length > 0
@@ -324,6 +329,7 @@ function buildRequest(loaded: Loaded, subject: Subject): DescribeRequest {
   return {
     module: subject.id,
     kind: module?.kind ?? "module",
+    files: subject.files,
     source: subject.source,
     members: module?.members ?? [],
     uses: usesOf(loaded.scans, loaded.modules, subject.id),
@@ -337,7 +343,7 @@ function runDescribe(loaded: Loaded, io: Io): number {
   const subjects = loaded.modules
     .slice()
     .sort()
-    .map((id) => subjectFor(io, root, id, entries, describer));
+    .map((id) => subjectFor(io, root, loaded.scans, id, entries, describer));
   const selected = subjects.filter((subject) => {
     if (loaded.all) {
       return true;

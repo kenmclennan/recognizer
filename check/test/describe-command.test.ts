@@ -30,11 +30,11 @@ function git(root: string, ...args: string[]): string {
   return execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
 }
 
-function repository(): string {
+function repository(language = "python"): string {
   const root = mkdtempSync(join(tmpdir(), "recognizer-describe-"));
 
   roots.push(root);
-  cpSync(join(REPO, "fixtures/python/sample"), root, { recursive: true });
+  cpSync(join(REPO, `fixtures/${language}/sample`), root, { recursive: true });
   git(root, "init", "-q");
   git(root, "config", "user.email", "t@example.com");
   git(root, "config", "user.name", "t");
@@ -42,14 +42,14 @@ function repository(): string {
   git(root, "commit", "-q", "-m", "sample");
 
   const scan = JSON.parse(
-    readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
+    readFileSync(join(REPO, `fixtures/${language}/expected-scan.json`), "utf8"),
   );
 
   scan.commit = git(root, "rev-parse", "HEAD").trim();
   scan.modified = false;
   mkdirSync(join(root, ".recognizer/cache"), { recursive: true });
   writeFileSync(
-    join(root, ".recognizer/cache/scan.python.json"),
+    join(root, `.recognizer/cache/scan.${language}.json`),
     JSON.stringify(scan),
   );
 
@@ -121,7 +121,7 @@ function commitAll(root: string): void {
   git(root, "add", "-A");
   git(root, "commit", "-q", "-m", "change");
 
-  const file = join(root, ".recognizer/cache/scan.python.json");
+  const file = join(root, `.recognizer/cache/scan.python.json`);
   const scan = JSON.parse(readFileSync(file, "utf8"));
 
   scan.commit = git(root, "rev-parse", "HEAD").trim();
@@ -420,6 +420,49 @@ describe("describe failures", () => {
   });
 });
 
+describe("describe a Kotlin package module", () => {
+  it("reports only the package with a deleted file unreadable", () => {
+    const root = repository("kotlin");
+    const gone = "app/src/main/kotlin/shop/domain";
+
+    configure(root);
+    exec(root, "describe");
+    rmSync(join(root, gone, "Order.kt"));
+    git(root, "add", "-A", "--", ".", ":!.recognizer");
+    git(root, "commit", "-q", "-m", "delete");
+
+    const cache = join(root, ".recognizer/cache/scan.kotlin.json");
+    const scan = JSON.parse(readFileSync(cache, "utf8"));
+
+    scan.commit = git(root, "rev-parse", "HEAD").trim();
+    writeFileSync(cache, JSON.stringify(scan));
+
+    const recorded = scan.files.find(
+      (entry: { path: string }) => entry.path === `${gone}/Order.kt`,
+    );
+    const out = capture();
+    const io: Io = {
+      ...out.io,
+      hashFile: (path) =>
+        path.endsWith(recorded.path) ? recorded.hash : out.io.hashFile(path),
+    };
+    const code = run(
+      ["describe", "--check", "--json", "--repository", root],
+      io,
+    );
+    const parsed = JSON.parse(out.out());
+
+    expect(code).toBe(1);
+    expect(parsed.counts.unreadable).toBe(1);
+    expect(parsed.counts.current).toBe(7);
+    expect(
+      parsed.modules
+        .filter((m: { status: string }) => m.status === "unreadable")
+        .map((m: { module: string }) => m.module),
+    ).toEqual([gone]);
+  });
+});
+
 describe("describe write path", () => {
   it("writes each success before the next module and leaves no temp file", () => {
     const root = ready("v1", "--fail", STORE);
@@ -498,13 +541,22 @@ describe("describe request", () => {
 
     const request = JSON.parse(readFileSync(copy, "utf8"));
     const scan = JSON.parse(
-      readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
+      readFileSync(join(REPO, `fixtures/python/expected-scan.json`), "utf8"),
     );
     const module = scan.modules.find((m: { id: string }) => m.id === PLACE);
 
     expect(Object.keys(request).sort()).toEqual(
-      ["kind", "members", "module", "source", "used_by", "uses"].sort(),
+      [
+        "files",
+        "kind",
+        "members",
+        "module",
+        "source",
+        "used_by",
+        "uses",
+      ].sort(),
     );
+    expect(request.files).toEqual([PLACE]);
     expect(request.module).toBe(PLACE);
     expect(request.kind).toBe(module.kind);
     expect(request.source).toBe(readFileSync(join(root, PLACE), "utf8"));
