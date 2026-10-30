@@ -126,16 +126,18 @@ describe("moduleSource", () => {
     ],
   } as unknown as Scan;
 
-  function io(files: Record<string, string>): Io {
+  function io(files: Record<string, string | Buffer>): Io {
     return {
-      readFile: (path: string) => {
-        const text = files[path];
+      readBytes: (path: string) => {
+        const content = files[path];
 
-        if (text === undefined) {
+        if (content === undefined) {
           throw new Error("missing");
         }
 
-        return text;
+        return typeof content === "string"
+          ? Buffer.from(content, "utf8")
+          : content;
       },
     } as unknown as Io;
   }
@@ -163,6 +165,19 @@ describe("moduleSource", () => {
     expect(found?.files).toEqual(["solo.py"]);
     expect(found?.source).toBe("print(1)");
     expect(found?.hash).toBe(sha("print(1)"));
+  });
+
+  it("hashes the raw bytes of a file that is not valid UTF-8", () => {
+    const bytes = Buffer.from([0x70, 0x72, 0xff, 0x0a]);
+    const found = moduleSource(
+      io({ "/r/solo.py": bytes }),
+      "/r",
+      [scan],
+      "solo.py",
+    );
+
+    expect(found?.hash).toBe(createHash("sha256").update(bytes).digest("hex"));
+    expect(found?.hash).not.toBe(sha(bytes.toString("utf8")));
   });
 
   it("leaves subdirectory files to their own module", () => {

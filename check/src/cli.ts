@@ -46,6 +46,7 @@ export interface RequestResult {
 export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
+  readBytes(path: string): Buffer;
   hashFile(path: string): string | null;
   writeFile(path: string, content: string): void;
   rename(from: string, to: string): void;
@@ -85,6 +86,7 @@ export function nodeIo(): Io {
   return {
     exists: (path) => existsSync(path),
     readFile: (path) => readFileSync(path, "utf8"),
+    readBytes: (path) => readFileSync(path),
     hashFile: (path) => {
       try {
         return createHash("sha256").update(readFileSync(path)).digest("hex");

@@ -41,18 +41,23 @@ export function moduleSource(
   }
 
   try {
-    const texts = files.map((file) => io.readFile(join(root, file)));
-    const source =
+    const contents = files.map((file) => io.readBytes(join(root, file)));
+    const raw =
       files.length === 1
-        ? (texts[0] as string)
-        : files
-            .map((file, index) => {
-              const text = texts[index] as string;
+        ? (contents[0] as Buffer)
+        : Buffer.concat(
+            files.flatMap((file, index) => {
+              const bytes = contents[index] as Buffer;
 
-              return `==> ${file} <==\n${text}${text.endsWith("\n") ? "" : "\n"}`;
-            })
-            .join("");
-    const hash = createHash("sha256").update(source, "utf8").digest("hex");
+              return [
+                Buffer.from(`==> ${file} <==\n`, "utf8"),
+                bytes,
+                Buffer.from(bytes.at(-1) === 0x0a ? "" : "\n", "utf8"),
+              ];
+            }),
+          );
+    const source = raw.toString("utf8");
+    const hash = createHash("sha256").update(raw).digest("hex");
 
     return { files, source, hash };
   } catch {

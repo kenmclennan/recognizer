@@ -440,6 +440,26 @@ mod tests {
     }
 
     #[test]
+    fn a_file_that_is_not_valid_utf8_hashes_its_raw_bytes() {
+        let dir = repo();
+        let bytes: &[u8] = &[0x70, 0x72, 0xff, 0x0a];
+
+        fs::write(dir.path().join("a.py"), bytes).unwrap();
+        fs::write(
+            dir.path().join(RESPONSIBILITIES),
+            r#"{"schema_version":1,"modules":{"a.py":{}}}"#,
+        )
+        .unwrap();
+
+        let read = read_responsibilities(dir.path());
+
+        assert_eq!(
+            read.hashes.get("a.py"),
+            Some(&format!("{:x}", Sha256::digest(bytes)))
+        );
+    }
+
+    #[test]
     fn editing_a_package_file_changes_its_hash() {
         let dir = package_repo();
 
