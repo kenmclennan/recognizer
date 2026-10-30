@@ -5,6 +5,7 @@ fn main() {
         "list_views",
         "open_folder_in_editor",
         "open_in_editor",
+        "publish_window_state",
         "read_settings",
         "read_source_line",
         "recognizer_version",
@@ -18,7 +19,6 @@ fn main() {
         "watch_changes",
         "watch_views",
         "window_folder",
-        "write_current_view",
         "write_settings",
         "write_view",
     ]);

@@ -595,7 +595,6 @@ mod tests {
         let dir = repo();
         let baseline = baseline_of(dir.path(), &["python", "typescript"]);
 
-        write(dir.path(), ".recognizer/cache/current-view.json", "{}");
         write(dir.path(), ".recognizer/views/x.py", "x = 1\n");
 
         assert!(compare(dir.path(), &baseline).files.is_empty());

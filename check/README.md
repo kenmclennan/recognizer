@@ -235,17 +235,21 @@ Version 2 adds notes: `note` is a note on the whole view and `module_notes` maps
 
 | Subcommand | What it does |
 | --- | --- |
-| `new <name> --description <text>` | create an empty view saved at HEAD (`commit` is `null` outside git); reads no scan |
+| `new <name> --description <text> [--from-window <id>]` | create a view saved at HEAD (`commit` is `null` outside git), empty and reading no scan or, with `--from-window`, holding one pick per module, one fold per folded folder and the focus of that app window (which must hold the repository, and show only modules the scan has) |
 | `add <name> <module>...` | pick modules; all must exist or none are added; drops a left-out for each |
 | `rule <name> (--folder <f> \| --uses <m> \| --used-by <m>) [--within <f>]` | append a rule |
 | `fold <name> <folder>`, `focus <name> <folder>` | append a fold; set the one focus |
 | `remove <name> <path> [--fold \| --focus \| --rule <relation> [--within <f>]]` | take a module off (its pick is deleted, and a left-out recorded if a rule still puts it there), or delete that step |
 | `note <name> [<module>] <text> [--by <name>]` / `note <name> [<module>] --remove` | set, replace or delete the note on the view or on a module on it; `--by` defaults to `agent`; the same note again is `no change` |
-| `show <name>` / `show --current` | steps, notes and what they resolve to now (a module note whose module is not on the view is marked); the view the app has open, read uninterpreted from `.recognizer/cache/current-view.json` (exit 1 when there is none) |
+| `show <name>` | steps, notes and what they resolve to now (a module note whose module is not on the view is marked) |
 | `list`, `rm <name>` | list views; delete one; neither reads a scan |
 | `check [<name>] [--fix]` | list steps naming a path that no longer exists; `--fix` rewrites picks whose files git records as renamed since the view's commit |
 
 A step already present is a no-op (`changed: false`). `commit` is written only by `new`. `check` exits 1 when any step is unresolved or a file is invalid after `--fix`; bad input is exit 2 and writes nothing. `--fix` sees only renames git has staged or committed (`git diff -M --relative --name-status --diff-filter=R <commit>`), never a plain `mv`.
+
+## recognizer windows and recognizer window
+
+`windows` lists the windows the running Recognizer app has open (id, folder, open view, selection); `window [<id>]` prints what one shows: modules, folds, focus, selection, trail and inspector tab, the id optional when exactly one window is open. Both talk to the app over `app.sock` in its config folder (`~/Library/Application Support/com.kenmclennan.recognizer/app.sock`, overridable with `RECOGNIZER_APP_SOCKET`), which only the owning user can open. They take `--json` and no `--repository`. Exit 0 when the app answered, 1 when it is not running or refused (the reason is on stderr, and with two windows open and no id it says to pass one), 2 for bad arguments.
 
 ## recognizer describe
 

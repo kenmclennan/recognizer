@@ -42,6 +42,7 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
 
 window.__fakeWorker = () => {
@@ -90,10 +91,11 @@ function mount(files) {
   host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
   document.body.append(host);
   const port = fakeViews(files, {});
-  showExplorer(host, loaded, "demo", () => {}, port, () => {});
+  const win = fakeWindow();
+  showExplorer(host, loaded, "demo", () => {}, port, () => {}, null, undefined, undefined, undefined, undefined, win);
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
-  const lastCurrent = () => JSON.parse(port.current[port.current.length - 1]);
+  const lastCurrent = () => win.last();
   const frames = () => all(".frame").map((n) => [n.dataset.path, n.querySelector("text").textContent.replace(/ \\d+ of \\d+$/, "")]);
   const rows = () => all(".tree .row.folder").map((n) => [n.dataset.path, n.querySelector(".name").textContent]);
   const boxes = () => all(".box").map((n) => [n.dataset.id, n.dataset.kind, n.querySelector(".name").textContent]);

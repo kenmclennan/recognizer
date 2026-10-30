@@ -9,7 +9,6 @@ use crate::fs_safe::{checked_relative, write_atomic};
 use crate::repository::{self, ScanFile, ScanReport};
 
 const VIEWS: &str = ".recognizer/views";
-const CURRENT: &str = ".recognizer/cache/current-view.json";
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct ViewFile {
@@ -114,17 +113,6 @@ pub fn rename_view(folder: &Path, from: &str, to: &str) -> Result<(), String> {
     }
 
     fs::rename(source, target).map_err(|error| error.to_string())
-}
-
-pub fn write_current_view(folder: &Path, text: &str) -> Result<(), String> {
-    let value: serde_json::Value = serde_json::from_str(text)
-        .map_err(|error| format!("the current view is not valid JSON: {error}"))?;
-
-    if !value.is_object() {
-        return Err("the current view must be a JSON object".to_string());
-    }
-
-    write_atomic(&folder.join(CURRENT), text).map_err(|error| error.to_string())
 }
 
 pub fn view_file(folder: &Path, name: &str) -> PathBuf {
@@ -394,16 +382,6 @@ mod tests {
         assert!(rename_view(dir.path(), "missing", "three").is_err());
         assert!(dir.path().join(VIEWS).join("one.json").exists());
         assert!(dir.path().join(VIEWS).join("two.json").exists());
-    }
-
-    #[test]
-    fn write_current_view_requires_a_json_object() {
-        let dir = repo();
-
-        assert!(write_current_view(dir.path(), "[1]").is_err());
-        assert!(write_current_view(dir.path(), "nope").is_err());
-        assert!(write_current_view(dir.path(), "{\"view\": null}").is_ok());
-        assert!(dir.path().join(CURRENT).exists());
     }
 
     #[test]

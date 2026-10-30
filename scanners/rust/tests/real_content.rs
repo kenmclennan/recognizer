@@ -112,7 +112,7 @@ fn lib_declares_each_module_file_and_imports_the_changes_names() {
 
     expected.sort();
 
-    assert_eq!(mods.len(), 11);
+    assert_eq!(mods.len(), 12);
     assert_eq!(edge_targets, expected);
 
     let changes = document["edges"]

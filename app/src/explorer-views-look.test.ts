@@ -42,6 +42,7 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
 
 window.__fakeWorker = () => {
@@ -95,17 +96,18 @@ function mount(files, options) {
   document.body.append(host);
   const port = fakeViews(files, options);
   port.scansByCommit.set("old1234", [thenScan]);
+  const win = fakeWindow();
   const state = { count: "" };
   const notes = [];
-  showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, (text) => notes.push(text));
+  showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, (text) => notes.push(text), null, undefined, undefined, undefined, undefined, win);
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const count = () => Number(/^(\\d+) of/.exec(state.count)[1]);
-  const lastCurrent = () => JSON.parse(port.current[port.current.length - 1]);
+  const lastCurrent = () => win.last();
   const panelRows = () => all(".stale-panel .row").map((row) => ({ name: row.querySelector(".name").textContent, checked: row.querySelector(".rcheck").getAttribute("aria-checked") === "true", disc: row.querySelectorAll(".disc").length }));
   const panelRow = (name) => all(".stale-panel .row").find((row) => row.querySelector(".name").textContent === name);
   const selected = () => all(".box.selected").map((n) => n.dataset.id);
-  return { host, port, state, notes, q, all, count, lastCurrent, panelRows, panelRow, selected };
+  return { host, port, win, state, notes, q, all, count, lastCurrent, panelRows, panelRow, selected };
 }
 
 const facts = {};
@@ -117,7 +119,7 @@ const facts = {};
   await tick();
   const shown = (selector) => { const node = one.q(selector); return node !== null && getComputedStyle(node).display !== "none"; };
   facts.freshOverlays = { menu: shown(".view-menu"), dialog: shown(".view-dialog"), stale: shown(".stale-panel") };
-  facts.emptyStart = { count: one.count(), view: one.q(".view-name").textContent, bar: one.all(".view-bar button").length, writes: one.port.current.length, spinnerDisplay: getComputedStyle(one.q(".canvas-busy")).display, menuEmpty: (click(one.q(".view-list")), one.q(".view-menu").textContent) };
+  facts.emptyStart = { count: one.count(), view: one.q(".view-name").textContent, bar: one.all(".view-bar button").length, writes: one.win.published.length, spinnerDisplay: getComputedStyle(one.q(".canvas-busy")).display, menuEmpty: (click(one.q(".view-list")), one.q(".view-menu").textContent) };
   click(one.q(".view-list"));
   click(one.q('.tree .row[data-path="app"] .rcheck'));
   await tick();
@@ -180,10 +182,10 @@ const facts = {};
   one.port.edit("overview", viewText([pick("app/hub.py"), pick("app/a.py"), pick("lib/d.py")], "cur1234"));
   await tick();
   facts.agentEdit = one.count();
-  const before = one.port.current.length;
+  const before = one.win.published.length;
   one.port.edit("overview", "{nope");
   await tick();
-  facts.invalidEdit = { count: one.count(), notice: one.q(".notices").textContent, writes: one.port.current.length - before };
+  facts.invalidEdit = { count: one.count(), notice: one.q(".notices").textContent, writes: one.win.published.length - before };
   one.port.edit("overview", viewText([pick("app/hub.py")], "cur1234"));
   await tick();
   facts.retried = { count: one.count(), notice: one.q(".notices").hidden };
@@ -206,10 +208,10 @@ const facts = {};
     rows: two.panelRows(),
     sections: [...panel.querySelectorAll("h4")].map((n) => n.textContent),
   };
-  const historyBefore = two.port.current.length;
+  const historyBefore = two.win.published.length;
   click(two.panelRow("lib/d.py").querySelector(".rcheck"));
   await tick();
-  facts.ticked = { count: two.count(), rows: two.panelRows(), writes: two.port.current.length - historyBefore };
+  facts.ticked = { count: two.count(), rows: two.panelRows(), writes: two.win.published.length - historyBefore };
   click(two.q(".view-back"));
   await tick();
   facts.backUntick = { count: two.count(), rows: two.panelRows() };
@@ -344,11 +346,11 @@ const facts = {};
   rename.q(".view-name-field-inline").dispatchEvent(new Event("blur"));
   facts.blurred = { field: !rename.q(".view-name-field-inline").hidden, renamed: rename.port.renamed.length };
   click(rename.q(".view-name"));
-  const before2 = rename.port.current.length;
+  const before2 = rename.win.published.length;
   edit("gamma", "Enter");
   await tick();
   click(rename.q(".view-list"));
-  facts.renamed = { field: !rename.q(".view-name-field-inline").hidden, name: rename.q(".view-name").textContent, port: rename.port.renamed, files: [...rename.port.files.keys()], menu: rename.all(".view-item").map((n) => n.querySelector(".view-item-name").textContent), current: rename.all(".view-item.current").map((n) => n.querySelector(".view-item-name").textContent), currentView: rename.lastCurrent().view, wrote: rename.port.current.length > before2, notice: rename.q(".notices").textContent };
+  facts.renamed = { field: !rename.q(".view-name-field-inline").hidden, name: rename.q(".view-name").textContent, port: rename.port.renamed, files: [...rename.port.files.keys()], menu: rename.all(".view-item").map((n) => n.querySelector(".view-item-name").textContent), current: rename.all(".view-item.current").map((n) => n.querySelector(".view-item-name").textContent), currentView: rename.lastCurrent().view, wrote: rename.win.published.length > before2, notice: rename.q(".notices").textContent };
   click(rename.q(".view-back"));
   click(rename.q(".view-forward"));
   await tick();
@@ -489,9 +491,8 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.reopened.panel).toBe(false);
   });
 
-  it("writes current-view.json after each change", () => {
+  it("publishes the window state after each change", () => {
     expect(f.afterPutOn.modules).toEqual(["app/a.py", "app/hub.py"]);
-    expect(f.afterPutOn.schema_version).toBe(1);
     expect(f.afterPutOn.view).toBeNull();
     expect(f.selection).toEqual({ kind: "module", id: expect.any(String) });
   });
@@ -506,7 +507,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.afterForward.count).toBe(2);
   });
 
-  it("writes a folded folder into current-view.json and drops it on unfolding", () => {
+  it("publishes a folded folder and drops it on unfolding", () => {
     expect(f.afterFold).toEqual(["app"]);
     expect(f.afterUnfold).toEqual([]);
   });

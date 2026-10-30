@@ -16,6 +16,7 @@ import { spinner } from "./spinner-view";
 import { toolsNotice } from "./tools-notice";
 import { toolsSource } from "./tools-source";
 import { viewsSource } from "./views-source";
+import { windowSource } from "./window-source";
 
 const content = document.getElementById("content") as HTMLElement;
 const footer = document.getElementById("footer") as HTMLElement;
@@ -53,6 +54,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     localStorage,
     editorSource,
     responsibilitiesSource,
+    windowSource,
   );
 }
 

@@ -3,7 +3,6 @@ import { VIEW_NAME, type ViewsPort } from "./views-port";
 
 export type FakeViews = ViewsPort & {
   files: Map<string, string>;
-  current: string[];
   copied: string[];
   pending: string[];
   renames: { from: string; to: string }[];
@@ -25,14 +24,12 @@ export function fakeViews(
 ): FakeViews {
   const files = new Map(Object.entries(initial));
   const listeners = new Set<() => void>();
-  const current: string[] = [];
   const copied: string[] = [];
   const pending: string[] = [];
   const scansByCommit = new Map<string, Scan[] | null>();
   const waiting: (() => void)[] = [];
   const fake: FakeViews = {
     files,
-    current,
     copied,
     pending,
     renames: [],
@@ -81,9 +78,6 @@ export function fakeViews(
       files.delete(from);
       files.set(to, text);
       fake.renamed.push({ from, to });
-    },
-    async writeCurrent(text) {
-      current.push(text);
     },
     async link(name) {
       if (!VIEW_NAME.test(name)) {

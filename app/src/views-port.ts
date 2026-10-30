@@ -9,7 +9,6 @@ export type ViewsPort = {
   list(): Promise<ViewListing>;
   write(name: string, text: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
-  writeCurrent(text: string): Promise<void>;
   link(name: string): Promise<string>;
   renamesSince(commit: string): Promise<{ from: string; to: string }[]>;
   scansAt(commit: string): Promise<Scan[] | null>;
@@ -23,7 +22,6 @@ export const inertViews: ViewsPort = {
   list: async () => ({ views: [], refused: [] }),
   write: async () => {},
   rename: async () => {},
-  writeCurrent: async () => {},
   link: async (name) => name,
   renamesSince: async () => [],
   scansAt: async () => null,

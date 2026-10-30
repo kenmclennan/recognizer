@@ -13,6 +13,7 @@ import {
 import { runFind, runModules, runShow } from "./read-commands.js";
 import { runScan } from "./scan-command.js";
 import { runViews } from "./views-command.js";
+import { runWindow, runWindows } from "./window-commands.js";
 
 export interface Command {
   name: string;
@@ -425,14 +426,14 @@ export const COMMANDS: Command[] = [
     summary:
       "build, show and check saved views: new, add, rule, fold, focus, remove, note, show, list, check, rm",
     usage: [
-      "recognizer views new <name> --description <text>",
+      "recognizer views new <name> --description <text> [--from-window <id>]",
       "recognizer views add <name> <module>...",
       "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>]",
       "recognizer views fold <name> <folder>",
       "recognizer views focus <name> <folder>",
       "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
       "recognizer views note <name> [<module>] (<text> [--by <name>] | --remove)",
-      "recognizer views show (<name> | --current)",
+      "recognizer views show <name>",
       "recognizer views list",
       "recognizer views check [<name>] [--fix]",
       "recognizer views rm <name>",
@@ -461,7 +462,7 @@ export const COMMANDS: Command[] = [
       {
         name: "new",
         description:
-          "create an empty view saved at the current commit; --description is required",
+          "create a view saved at the current commit, empty or, with --from-window, holding what that window shows; --description is required",
       },
       {
         name: "add",
@@ -487,8 +488,7 @@ export const COMMANDS: Command[] = [
       },
       {
         name: "show",
-        description:
-          "print a view's steps and the modules they resolve to now; --current prints the view open in the app",
+        description: "print a view's steps and the modules they resolve to now",
       },
       { name: "list", description: "list every saved view" },
       {
@@ -519,8 +519,9 @@ export const COMMANDS: Command[] = [
           "delete the rule with relation folder, uses or used-by (remove)",
       },
       {
-        flag: "--current",
-        description: "show the view open in the app (show)",
+        flag: "--from-window <id>",
+        description:
+          "save what the app window with this id shows as the view: one pick per module on the canvas, one fold per folded folder and the focus; the window must hold --repository (new)",
       },
       {
         flag: "--fix",
@@ -546,7 +547,7 @@ export const COMMANDS: Command[] = [
       ].join("\n"),
       json: [
         "new, add, rule, fold, focus, remove, note: { view, changed, steps, modules }",
-        "show: { name, description, commit, steps, note: { text, by } | null, module_notes: { <module>: { text, by } }, resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }] }; with --current { current }",
+        "show: { name, description, commit, steps, note: { text, by } | null, module_notes: { <module>: { text, by } }, resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }] }",
         "list: { views: [{ name, description, commit, steps } | { name, error }] }",
         "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }] }] }",
         "rm: { view, removed }",
@@ -557,12 +558,12 @@ export const COMMANDS: Command[] = [
       {
         code: 1,
         meaning:
-          "check found a step naming a path that no longer exists or an invalid file; show --current with no view open",
+          "check found a step naming a path that no longer exists or an invalid file",
       },
       {
         code: 2,
         meaning:
-          "bad input - an unknown view, module or folder, a view that already exists, an invalid name, a wrong argument count, an unknown flag or an invalid view file",
+          "bad input - an unknown view, module or folder, a view that already exists, an invalid name, a wrong argument count, an unknown flag, an invalid view file, or --from-window naming a window that is not open, is not running the app, holds another repository or shows a module the scan lacks",
       },
     ],
     examples: [
@@ -597,6 +598,63 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runViews,
+  },
+  {
+    name: "windows",
+    summary: "list the windows the running Recognizer app has open",
+    usage: "recognizer windows [--json]",
+    arguments: [],
+    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    output: {
+      text: "one `<id>  <folder>  view: <name>  selection: <kind> <id>` line per window, with `-` when there is no open view or selection",
+      json: "[{ id, folder, view, selection: { kind, id } | null }], ordered by window number",
+    },
+    exitCodes: [
+      { code: 0, meaning: "the app answered" },
+      {
+        code: 1,
+        meaning:
+          "the app is not running, or it refused; the reason is on stderr",
+      },
+      { code: 2, meaning: "bad arguments" },
+    ],
+    examples: [
+      { command: "recognizer windows", note: "the open windows and their ids" },
+    ],
+    run: runWindows,
+  },
+  {
+    name: "window",
+    summary: "print what one window of the running Recognizer app shows",
+    usage: "recognizer window [<id>] [--json]",
+    arguments: [
+      {
+        name: "<id>",
+        description:
+          "a window's id, as `recognizer windows` lists it; optional when exactly one window is open",
+      },
+    ],
+    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    output: {
+      text: "the window's id and folder, then its view, modules, folds, focus, selection, trail and inspector tab",
+      json: "{ id, folder, view, modules, folded, focus, selection, trail: [{ selection, relation, tab, active }], inspector: { open, tab } }",
+    },
+    exitCodes: [
+      { code: 0, meaning: "the app answered" },
+      {
+        code: 1,
+        meaning:
+          "the app is not running, or it refused - no such window, no id given with several windows open, or a window still opening; the reason is on stderr",
+      },
+      { code: 2, meaning: "bad arguments" },
+    ],
+    examples: [
+      {
+        command: "recognizer window w-2 --json",
+        note: "what the second window shows, as JSON",
+      },
+    ],
+    run: runWindow,
   },
   {
     name: "describe",

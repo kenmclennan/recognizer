@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { DirEntry, Io, RunResult } from "../src/cli.js";
+import type { DirEntry, Io, RequestResult, RunResult } from "../src/cli.js";
 
 export interface ScannerBehaviour {
   status?: number;
@@ -28,6 +28,7 @@ export interface FakeOptions {
   status?: string;
   diff?: string;
   launchFails?: string;
+  request?: (socket: string, text: string) => string | null;
 }
 
 export interface Fake {
@@ -42,6 +43,7 @@ export interface Fake {
   renames: { from: string; to: string }[];
   readDirCalls: () => number;
   tempDirs: () => string[];
+  requests: { socket: string; text: string }[];
 }
 
 export const ROOT = "/repo";
@@ -96,6 +98,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   const writes: string[] = [];
   const renames: { from: string; to: string }[] = [];
   const temps: string[] = [];
+  const requests: { socket: string; text: string }[] = [];
   let readDirs = 0;
   let out = "";
   let err = "";
@@ -270,6 +273,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         ? { started: true, message: "" }
         : { started: false, message: options.launchFails };
     },
+    request: (socket, text): RequestResult => {
+      requests.push({ socket, text });
+
+      const response = options.request?.(socket, text) ?? null;
+
+      return response === null
+        ? { connected: false, response: "", message: "connection refused" }
+        : { connected: true, response, message: "" };
+    },
     env: (name) => options.env?.[name],
   };
 
@@ -285,5 +297,6 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     renames,
     readDirCalls: () => readDirs,
     tempDirs: () => temps,
+    requests,
   };
 }

@@ -105,6 +105,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Stale view | A saved view the code has moved on from: a pick that is missing, changed relations, or newly relevant modules. |
 | Left out | A step recording that a rule put a module on a view and the user took it off. A pick is never removed by a left-out; only modules a rule contributed are. |
 | Resolution | A view's steps evaluated against a scan: the modules, folds and focus they give, and the steps that name a path that is gone. |
-| Current view | The file `.recognizer/cache/current-view.json` the app writes on every change to say what the window shows: the open view's name, the modules on the canvas, folds, focus and selection. |
 | Link | A `recognizer://open?repo=<absolute path>[&view=<name>]` address of a repository and, optionally, one of its saved views. Opening one opens the folder and the view, or focuses the window already showing the folder; it never runs a command, scans, describes or writes. |
+| Window id | The `w-<n>` label the app gives a window, which `recognizer windows` lists and `recognizer window <id>` takes. |
+| App socket | The per-user local socket, `app.sock` in the app's config folder, through which the `recognizer` command reads the running app. |
 | View bar | The control group at the canvas's top left: back and forward over the history, the open view's name with the saved views to open, Save and Copy link. |

@@ -12,12 +12,6 @@ import { absoluteLayout, toElk } from "./canvas-layout";
 import { type Scene, toScene } from "./canvas-scene";
 import { createCanvasState, type Selection } from "./canvas-state";
 import { buildCanvasView, createMeasure } from "./canvas-view";
-import {
-  type CurrentView,
-  currentViewOf,
-  latestWins,
-  type Snapshot,
-} from "./current-view";
 import { el } from "./dom";
 import {
   describeLine,
@@ -104,6 +98,8 @@ import {
 } from "./view-notes";
 import { stepsFor } from "./view-steps";
 import { inertViews, type ViewsPort } from "./views-port";
+import { inertWindow, type WindowPort } from "./window-port";
+import { latestWins, type Snapshot, windowStateOf } from "./window-state";
 
 export type Carried = {
   history: History<Snapshot>;
@@ -133,6 +129,7 @@ export function showExplorer(
   },
   editor: EditorPort = inertEditor,
   responsibilities: ResponsibilitiesPort = inertResponsibilities,
+  windowPort: WindowPort = inertWindow,
 ): Explorer {
   const health = computeHealth(
     loaded.scans,
@@ -193,7 +190,8 @@ export function showExplorer(
       focus: null,
       selection: null,
     });
-  const writeCurrent = latestWins(views.writeCurrent);
+  const publishWindow = latestWins(windowPort.publish);
+  let lastPublished: string | null = null;
   const authorName = views.author().catch(() => "Me");
   let moduleNoteEdit: { id: string; draft: string } | null = null;
   let noted: ReadonlySet<string> = new Set();
@@ -919,17 +917,29 @@ export function showExplorer(
     };
   }
 
-  function persist(snap: Snapshot) {
-    const current: CurrentView = currentViewOf(snap);
+  function publish() {
+    const text = `${JSON.stringify(
+      windowStateOf(snapshot(), trail, {
+        open: inspectorOpen,
+        tab: inspectorTab,
+      }),
+      null,
+      2,
+    )}\n`;
 
-    writeCurrent(`${JSON.stringify(current, null, 2)}\n`);
+    if (text === lastPublished) {
+      return;
+    }
+
+    lastPublished = text;
+    publishWindow(text);
   }
 
   function record() {
     const snap = snapshot();
 
     history.record(snap);
-    persist(snap);
+    publish();
     renderBar();
   }
 
@@ -995,7 +1005,6 @@ export function showExplorer(
     state.reconcile(presenceOf(graph));
     reveal(state.selection());
     render();
-    persist(snap);
   }
 
   function setViewList(list: { name: string; text: string }[]) {
@@ -1351,7 +1360,6 @@ export function showExplorer(
         .map((view) => (view.name === from ? { ...view, name: to } : view))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
-    persist(snapshot());
     render();
     notify(`Renamed ${from} to ${to}`);
 
@@ -1626,6 +1634,8 @@ export function showExplorer(
       tree.scrollTo(scrollTarget);
       scrollTarget = null;
     }
+
+    publish();
   }
 
   function resume(snap: Snapshot) {
