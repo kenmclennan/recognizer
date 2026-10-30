@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   copyFileSync,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -10,27 +12,32 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
 
 export const ARCHIVE = "recognizer-toolchain.tar.gz";
 
-export function archiveEntries(version) {
+const OWN_PACKAGES = ["recognizer", "recognizer-scan-typescript"];
+
+export function archiveEntries(version, closurePaths) {
   return [
-    `recognizer-${version}.tgz`,
-    `recognizer-scan-typescript-${version}.tgz`,
+    ...OWN_PACKAGES.map((name) => `node_modules/${name}/package.json`),
+    ...closurePaths.map((path) => `${path}/package.json`),
     `recognizer_scan_python-${version}-py3-none-any.whl`,
     "THIRD-PARTY-NOTICES.md",
     "LICENSE",
   ];
 }
 
-export function verifyArchive(listing, version) {
+export function verifyArchive(listing, version, closurePaths) {
   const present = new Set(
     listing
       .split("\n")
       .map((line) => line.trim().replace(/^\.\//, ""))
       .filter((line) => line !== ""),
   );
-  const missing = archiveEntries(version).filter((name) => !present.has(name));
+  const missing = archiveEntries(version, closurePaths).filter(
+    (name) => !present.has(name),
+  );
 
   if (missing.length > 0) {
     throw new Error(`toolchain archive is missing: ${missing.join(", ")}`);
@@ -53,7 +60,13 @@ export function buildToolchain(root, outDir) {
   const version = JSON.parse(
     readFileSync(join(root, "package.json"), "utf8"),
   ).version;
+  const lock = JSON.parse(
+    readFileSync(join(root, "package-lock.json"), "utf8"),
+  );
+  const closure = closureFromLock(lock);
+  const closurePaths = [...closure.keys()];
   const staging = mkdtempSync(join(tmpdir(), "toolchain-"));
+  const packed = mkdtempSync(join(tmpdir(), "toolchain-packed-"));
 
   try {
     run(
@@ -65,10 +78,41 @@ export function buildToolchain(root, outDir) {
         "-w",
         "recognizer-scan-typescript",
         "--pack-destination",
-        staging,
+        packed,
       ],
       { cwd: root },
     );
+
+    for (const name of OWN_PACKAGES) {
+      const dir = join(staging, "node_modules", name);
+
+      mkdirSync(dir, { recursive: true });
+      run("tar", [
+        "-xzf",
+        join(packed, `${name}-${version}.tgz`),
+        "-C",
+        dir,
+        "--strip-components=1",
+      ]);
+      chmodSync(join(dir, "dist", "bin.js"), 0o755);
+    }
+
+    const versions = {};
+
+    for (const path of closurePaths) {
+      const top = path.split("/node_modules/")[0];
+
+      cpSync(join(root, top), join(staging, top), { recursive: true });
+    }
+
+    for (const path of closurePaths) {
+      versions[path] = JSON.parse(
+        readFileSync(join(staging, path, "package.json"), "utf8"),
+      ).version;
+    }
+
+    verifyVendored(lock, versions);
+
     run("uv", ["build", "--wheel", "--out-dir", staging, "scanners/python"], {
       cwd: root,
     });
@@ -81,20 +125,18 @@ export function buildToolchain(root, outDir) {
     mkdirSync(outDir, { recursive: true });
 
     const archive = join(outDir, ARCHIVE);
-    const wanted = new Set(archiveEntries(version));
-    const names = readdirSync(staging)
-      .filter((name) => wanted.has(name))
-      .sort();
+    const names = readdirSync(staging).sort();
 
     run("tar", ["-czf", archive, "-C", staging, ...names]);
 
     const listing = run("tar", ["-tzf", archive]);
 
-    verifyArchive(listing, version);
+    verifyArchive(listing, version, closurePaths);
 
     return archive;
   } finally {
     rmSync(staging, { recursive: true, force: true });
+    rmSync(packed, { recursive: true, force: true });
   }
 }
 
