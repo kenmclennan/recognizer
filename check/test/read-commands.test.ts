@@ -181,7 +181,7 @@ describe("show", () => {
     expect(signatures.new_order).toBe("new_order(order_id) → Order");
     expect(signatures._build).toBe("_build(order_id: str) → Order");
     expect(signatures.MAX_ITEMS).toBe("MAX_ITEMS = 100");
-    expect(signatures.Order).toBe("Order");
+    expect(signatures.Order).toBe("class Order dataclass");
   });
 
   it("writes a property as name: type and tags after a method", () => {
@@ -218,7 +218,7 @@ describe("show", () => {
       (m: { name: string }) => m.name === "Shape",
     );
 
-    expect(shape.signature).toBe("Shape(Base)");
+    expect(shape.signature).toBe("class Shape extends Base");
     expect(
       shape.methods.map((m: { signature: string }) => m.signature),
     ).toEqual(["area: float", "make(n: int) static async"]);
@@ -231,7 +231,7 @@ describe("show", () => {
     expect(lines[0]).toBe(`${order}  module  uses 0  used by 4`);
     expect(lines[1]).toBe("responsibility: [missing]");
     expect(lines[2]).toBe(`run recognizer describe ${order} to write it`);
-    expect(lines[3]).toBe("9  public  class  Order");
+    expect(lines[3]).toBe("9  public  class  class Order dataclass");
     expect(lines[4]).toBe("    10  public  field  id: str");
     expect(out).toContain("    14  public  method  total() → int");
     expect(out).toContain("6 private hidden");

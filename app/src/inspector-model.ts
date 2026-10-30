@@ -1,16 +1,14 @@
-import type { Scan, ScanEdge, ScanMember } from "recognizer";
+import {
+  fieldTokens,
+  memberHeadTokens,
+  methodTokens,
+  type Scan,
+  type ScanEdge,
+  type ScanMember,
+  type Token,
+} from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
-import {
-  classHeadTokens,
-  constantTokens,
-  fieldTokens,
-  functionTokens,
-  interfaceHeadTokens,
-  methodTokens,
-  type Token,
-  typeAliasTokens,
-} from "./card-code";
 import type { EvidenceSection } from "./edge-evidence";
 import type { Compaction } from "./folder-compaction";
 import type { Disc, Finding } from "./health";
@@ -121,9 +119,11 @@ export type InspectorContent = {
   rows: Row[];
 };
 
-const NEVER_SHOWN_BASES = new Set(["ABC", "Protocol", "object"]);
-const ABSTRACT_BASES = new Set(["ABC", "Protocol"]);
-const EXCEPTION = /(Exception|Error)$/;
+const PLAIN_LABELS: Record<string, CardLabel> = {
+  function: "Function",
+  constant: "Constant",
+  type: "Type",
+};
 const PARENT_SEGMENTS = 2;
 export const UNUSED_SHOWN = 8;
 
@@ -141,38 +141,6 @@ function findModule(scans: Scan[], id: string) {
 
 function plural(count: number, what: { singular: string; plural: string }) {
   return count === 1 ? what.singular : what.plural;
-}
-
-function classTags(member: ScanMember, edges: ScanEdge[]) {
-  const bases = member.bases ?? [];
-  const resolved = (base: string, kind: ScanEdge["kind"]) =>
-    edges.some(
-      (edge) =>
-        edge.kind === kind &&
-        edge.member === member.name &&
-        edge.to_member === base,
-    );
-  const isResolved = (base: string) =>
-    resolved(base, "implements") || resolved(base, "inherits");
-  const exceptions = bases.filter(
-    (base) => EXCEPTION.test(base) && !isResolved(base),
-  );
-  const abstract =
-    member.kind === "interface" ||
-    bases.some((base) => ABSTRACT_BASES.has(base));
-  const implemented = bases.filter((base) => resolved(base, "implements"));
-  const inherited = bases.filter(
-    (base) =>
-      !resolved(base, "implements") &&
-      (resolved(base, "inherits") ||
-        (!exceptions.includes(base) && !NEVER_SHOWN_BASES.has(base))),
-  );
-  const scanned: string[] = member.tags ?? [];
-  const tags = [
-    ...new Set([...scanned, ...exceptions, ...(abstract ? ["abstract"] : [])]),
-  ];
-
-  return { tags, implemented, inherited };
 }
 
 type Placed<T> = { line: number | null; item: T };
@@ -210,14 +178,11 @@ function classCard(
     member.bases !== undefined ||
     member.fields !== undefined ||
     member.methods !== undefined;
-  const heritage = classTags(member, edges);
-  const headOf =
-    member.kind === "interface" ? interfaceHeadTokens : classHeadTokens;
   const base: CardRow = {
     kind: "card",
     label,
     line: member.line ?? null,
-    head: headOf(member.name, heritage),
+    head: memberHeadTokens(member, edges) ?? [],
     lines: [],
     hidden: "",
     private: !member.exported,
@@ -270,32 +235,23 @@ function classCard(
 }
 
 function plainCard(member: ScanMember): CardRow | null {
-  const base = {
-    kind: "card" as const,
+  const head = memberHeadTokens(member, []);
+  const label = PLAIN_LABELS[member.kind ?? ""];
+
+  if (head === null || label === undefined) {
+    return null;
+  }
+
+  return {
+    kind: "card",
+    label,
     line: member.line ?? null,
+    head,
     lines: [],
     hidden: "",
     private: !member.exported,
     hover: member.name,
   };
-
-  if (member.kind === "function") {
-    return { ...base, label: "Function", head: functionTokens(member) };
-  }
-
-  if (member.kind === "constant") {
-    return {
-      ...base,
-      label: "Constant",
-      head: constantTokens(member.name, member.value),
-    };
-  }
-
-  if (member.kind === "type") {
-    return { ...base, label: "Type", head: typeAliasTokens(member.name) };
-  }
-
-  return null;
 }
 
 function moduleContents(module: string, inputs: InspectorInputs): Row[] {

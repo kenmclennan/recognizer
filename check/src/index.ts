@@ -34,6 +34,22 @@ export {
   parseLink,
 } from "./link.js";
 export {
+  classHeadTokens,
+  classHeritage,
+  constantTokens,
+  fieldTokens,
+  functionTokens,
+  interfaceHeadTokens,
+  memberHeadTokens,
+  methodTokens,
+  type Token,
+  type TokenRole,
+  tokensText,
+  typeAliasTokens,
+  typeTokens,
+  valueTokens,
+} from "./member-tokens.js";
+export {
   edgeNames,
   type FolderGroup,
   folderChain,

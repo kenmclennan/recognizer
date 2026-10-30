@@ -1,0 +1,488 @@
+{
+  "fixtures/python/expected-scan.json": {
+    "shop/__init__.py": [],
+    "shop/adapters/memory_store.py": [
+      {
+        "name": "MemoryStore",
+        "signature": "class MemoryStore implements Store",
+        "fields": [],
+        "methods": [
+          "save(order)"
+        ]
+      }
+    ],
+    "shop/adapters/special_store.py": [
+      {
+        "name": "SpecialStore",
+        "signature": "class SpecialStore extends MemoryStore",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/application/audit.py": [],
+    "shop/application/lookup.py": [
+      {
+        "name": "lookup",
+        "signature": "lookup(source)",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/application/place.py": [
+      {
+        "name": "place",
+        "signature": "place(order_id)",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/application/refund.py": [
+      {
+        "name": "refund",
+        "signature": "refund(order, store)",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/application/report.py": [],
+    "shop/domain/__init__.py": [],
+    "shop/domain/aliases.py": [],
+    "shop/domain/customer.py": [
+      {
+        "name": "Customer",
+        "signature": "class Customer",
+        "fields": [
+          "name: str"
+        ],
+        "methods": []
+      }
+    ],
+    "shop/domain/order.py": [
+      {
+        "name": "MAX_ITEMS",
+        "signature": "MAX_ITEMS = 100",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "Order",
+        "signature": "class Order dataclass",
+        "fields": [
+          "id: str",
+          "items: int",
+          "_note: str"
+        ],
+        "methods": [
+          "total() → int",
+          "_sum() → int"
+        ]
+      },
+      {
+        "name": "new_order",
+        "signature": "new_order(order_id) → Order",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "_build",
+        "signature": "_build(order_id: str) → Order",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "_private",
+        "signature": "_private()",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/ports/__init__.py": [],
+    "shop/ports/store.py": [
+      {
+        "name": "Store",
+        "signature": "interface Store abstract",
+        "fields": [],
+        "methods": [
+          "save(order) abstract"
+        ]
+      },
+      {
+        "name": "Clock",
+        "signature": "interface Clock abstract",
+        "fields": [],
+        "methods": [
+          "now()"
+        ]
+      }
+    ]
+  },
+  "fixtures/typescript/expected-scan.json": {
+    "api/src/base-store.ts": [
+      {
+        "name": "limit",
+        "signature": "limit = 10",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "BaseStore",
+        "signature": "class BaseStore",
+        "fields": [
+          "ids: Id[]",
+          "size: number",
+          "cursor"
+        ],
+        "methods": [
+          "grow() → number",
+          "count() → number"
+        ]
+      },
+      {
+        "name": "makeBase",
+        "signature": "makeBase() → BaseStore",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "api/src/cache.ts": [
+      {
+        "name": "cached",
+        "signature": "cached(source)",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "api/src/index.ts": [],
+    "api/src/memory-store.ts": [
+      {
+        "name": "MemoryStore",
+        "signature": "class MemoryStore implements Store extends BaseStore",
+        "fields": [],
+        "methods": [
+          "save() → void"
+        ]
+      },
+      {
+        "name": "load",
+        "signature": "load(p: string)",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "fresh",
+        "signature": "fresh() → BaseStore",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "Mode",
+        "signature": "type Mode",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "api/src/models/customer.ts": [
+      {
+        "name": "Customer",
+        "signature": "class Customer",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "api/src/models/index.ts": [],
+    "api/src/models/order.ts": [
+      {
+        "name": "Order",
+        "signature": "class Order",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "api/src/place.ts": [
+      {
+        "name": "place",
+        "signature": "place(store, id) → void",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "api/src/types.ts": [
+      {
+        "name": "Store",
+        "signature": "interface Store abstract",
+        "fields": [],
+        "methods": [
+          "save(id: Id) → void abstract"
+        ]
+      },
+      {
+        "name": "Id",
+        "signature": "type Id",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "web/src/App.tsx": [
+      {
+        "name": "App",
+        "signature": "App()",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "web/src/lazy.ts": [
+      {
+        "name": "lazyPanel",
+        "signature": "lazyPanel()",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "web/src/legacy.js": [
+      {
+        "name": "util",
+        "signature": "util = require(\"./util.cjs\")",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "web/src/main.tsx": [
+      {
+        "name": "lazy",
+        "signature": "lazy()",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "web/src/orders.ts": [],
+    "web/src/util.cjs": []
+  },
+  "fixtures/rust/expected-scan.json": {
+    "pricing/src/lib.rs": [
+      {
+        "name": "RATE",
+        "signature": "RATE = 15",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "discount",
+        "signature": "discount(total: u64) → u64",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "round",
+        "signature": "round(value: u64) → u64",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/src/adapters.rs": [],
+    "shop/src/adapters/sql.rs": [
+      {
+        "name": "SqlStore",
+        "signature": "class SqlStore",
+        "fields": [
+          "rows: HashMap<u32, u64>"
+        ],
+        "methods": [
+          "save(order: &Order)"
+        ]
+      }
+    ],
+    "shop/src/lib.rs": [
+      {
+        "name": "MAX_LINES",
+        "signature": "MAX_LINES = 100",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "REGISTRY",
+        "signature": "REGISTRY = \"orders\"",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "open",
+        "signature": "open() → Order",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/src/orders.rs": [
+      {
+        "name": "Order",
+        "signature": "class Order",
+        "fields": [
+          "id: u32",
+          "total: u64"
+        ],
+        "methods": [
+          "new(id: u32, total: u64) → Order static",
+          "subtotal() → u64"
+        ]
+      },
+      {
+        "name": "Status",
+        "signature": "class Status",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "shop/src/ports/memory.rs": [
+      {
+        "name": "MemoryStore",
+        "signature": "class MemoryStore",
+        "fields": [],
+        "methods": [
+          "save(order: &Order)"
+        ]
+      }
+    ],
+    "shop/src/ports/mod.rs": [
+      {
+        "name": "Store",
+        "signature": "interface Store abstract",
+        "fields": [],
+        "methods": [
+          "save(order: &Order) abstract",
+          "name() → String"
+        ]
+      }
+    ]
+  },
+  "fixtures/kotlin/expected-scan.json": {
+    "app/src/main/kotlin/shop/application": [
+      {
+        "name": "PlaceOrder",
+        "signature": "class PlaceOrder",
+        "fields": [
+          "store: Store"
+        ],
+        "methods": [
+          "execute(order: Order)"
+        ]
+      },
+      {
+        "name": "UseCase",
+        "signature": "class UseCase",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "app/src/main/kotlin/shop/clients": [
+      {
+        "name": "PaymentClient",
+        "signature": "interface PaymentClient abstract",
+        "fields": [],
+        "methods": [
+          "charge(order: Order) → Boolean abstract"
+        ]
+      }
+    ],
+    "app/src/main/kotlin/shop/config": [
+      {
+        "name": "BASE",
+        "signature": "BASE = \"/api\"",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "app/src/main/kotlin/shop/domain": [
+      {
+        "name": "Currency",
+        "signature": "class Currency",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "Currency.Companion",
+        "signature": "class Currency.Companion",
+        "fields": [],
+        "methods": []
+      },
+      {
+        "name": "Order",
+        "signature": "class Order",
+        "fields": [
+          "id: Long",
+          "amount: Int"
+        ],
+        "methods": []
+      },
+      {
+        "name": "total",
+        "signature": "total() → Int",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "app/src/main/kotlin/shop/persistence": [
+      {
+        "name": "JdbcOrderStore",
+        "signature": "class JdbcOrderStore implements OrderStore",
+        "fields": [
+          "repository: OrderRepository"
+        ],
+        "methods": [
+          "save(order: Order)",
+          "record(order: Order) → OrderRecord"
+        ]
+      },
+      {
+        "name": "OrderRepository",
+        "signature": "interface OrderRepository abstract extends CrudRepository<Order, Long>",
+        "fields": [],
+        "methods": []
+      }
+    ],
+    "app/src/main/kotlin/shop/ports": [
+      {
+        "name": "OrderStore",
+        "signature": "interface OrderStore abstract",
+        "fields": [],
+        "methods": [
+          "save(order: Order) abstract"
+        ]
+      }
+    ],
+    "app/src/main/kotlin/shop/web": [
+      {
+        "name": "OrderController",
+        "signature": "class OrderController",
+        "fields": [
+          "placeOrder: PlaceOrder"
+        ],
+        "methods": [
+          "list() → String",
+          "place(order: Order) → Int"
+        ]
+      }
+    ],
+    "app/src/test/kotlin/shop/web": [
+      {
+        "name": "OrderControllerTest",
+        "signature": "class OrderControllerTest",
+        "fields": [
+          "controller: OrderController?"
+        ],
+        "methods": [
+          "lists()"
+        ]
+      }
+    ]
+  },
+  "fixtures/check/scan.json": {
+    "shop/domain/order.py": [],
+    "shop/domain/money.py": [],
+    "shop/ports/store.py": [],
+    "shop/application/place.py": [],
+    "shop/adapters/memory_store.py": [],
+    "shop/adapters/sql_store.py": [],
+    "shop/main.py": [],
+    "shop/legacy/helpers.py": [],
+    "tests/test_order.py": []
+  }
+}

@@ -1,6 +1,11 @@
-import type { ScanField, ScanMember, ScanMethod } from "recognizer";
+import type {
+  ScanEdge,
+  ScanField,
+  ScanMember,
+  ScanMethod,
+  ScanParam,
+} from "./scan.js";
 
-type ScanParam = NonNullable<ScanMethod["params"]>[number];
 type ScanTag = NonNullable<ScanMember["tags"]>[number];
 
 export type TokenRole =
@@ -129,7 +134,11 @@ function listTokens(items: string[]): Token[] {
   ]);
 }
 
-type Heritage = { tags: string[]; implemented: string[]; inherited: string[] };
+export type Heritage = {
+  tags: string[];
+  implemented: string[];
+  inherited: string[];
+};
 
 function heritageTokens(heritage: Heritage): Token[] {
   return [
@@ -175,4 +184,74 @@ export function interfaceHeadTokens(
     name(interfaceName),
     ...heritageTokens(heritage),
   ];
+}
+
+const NEVER_SHOWN_BASES = new Set(["ABC", "Protocol", "object"]);
+const ABSTRACT_BASES = new Set(["ABC", "Protocol"]);
+const EXCEPTION = /(Exception|Error)$/;
+
+export function classHeritage(
+  member: ScanMember,
+  edges: readonly ScanEdge[],
+): Heritage {
+  const bases = member.bases ?? [];
+  const resolved = (base: string, kind: ScanEdge["kind"]) =>
+    edges.some(
+      (edge) =>
+        edge.kind === kind &&
+        edge.member === member.name &&
+        edge.to_member === base,
+    );
+  const isResolved = (base: string) =>
+    resolved(base, "implements") || resolved(base, "inherits");
+  const exceptions = bases.filter(
+    (base) => EXCEPTION.test(base) && !isResolved(base),
+  );
+  const abstract =
+    member.kind === "interface" ||
+    bases.some((base) => ABSTRACT_BASES.has(base));
+  const implemented = bases.filter((base) => resolved(base, "implements"));
+  const inherited = bases.filter(
+    (base) =>
+      !resolved(base, "implements") &&
+      (resolved(base, "inherits") ||
+        (!exceptions.includes(base) && !NEVER_SHOWN_BASES.has(base))),
+  );
+  const scanned: string[] = member.tags ?? [];
+  const tags = [
+    ...new Set([...scanned, ...exceptions, ...(abstract ? ["abstract"] : [])]),
+  ];
+
+  return { tags, implemented, inherited };
+}
+
+export function memberHeadTokens(
+  member: ScanMember,
+  edges: readonly ScanEdge[],
+): Token[] | null {
+  if (member.kind === "class") {
+    return classHeadTokens(member.name, classHeritage(member, edges));
+  }
+
+  if (member.kind === "interface") {
+    return interfaceHeadTokens(member.name, classHeritage(member, edges));
+  }
+
+  if (member.kind === "function") {
+    return functionTokens(member);
+  }
+
+  if (member.kind === "constant") {
+    return constantTokens(member.name, member.value);
+  }
+
+  if (member.kind === "type") {
+    return typeAliasTokens(member.name);
+  }
+
+  return null;
+}
+
+export function tokensText(tokens: readonly Token[]): string {
+  return tokens.map((token) => token.text).join("");
 }

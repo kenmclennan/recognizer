@@ -5,6 +5,12 @@ import { readConfig } from "./config.js";
 import { InputError } from "./errors.js";
 import { type Finding, findingsByModule } from "./findings.js";
 import { freshScans } from "./freshness.js";
+import {
+  fieldTokens,
+  memberHeadTokens,
+  methodTokens,
+  tokensText,
+} from "./member-tokens.js";
 import { moduleSource } from "./module-source.js";
 import {
   moduleCounts,
@@ -18,12 +24,7 @@ import {
   type ResponsibilityEntry,
   validateResponsibilities,
 } from "./responsibilities.js";
-import type { Scan, ScanMember } from "./scan.js";
-import {
-  fieldSignature,
-  memberSignature,
-  methodSignature,
-} from "./signatures.js";
+import type { Scan, ScanEdge, ScanMember } from "./scan.js";
 
 const DEFAULT_HUB_THRESHOLD = 10;
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -265,6 +266,7 @@ interface ShownMember {
 
 function shownMembers(
   members: ScanMember[],
+  edges: readonly ScanEdge[],
   withPrivate: boolean,
 ): { shown: ShownMember[]; hidden: number } {
   const shown: ShownMember[] = [];
@@ -294,12 +296,16 @@ function shownMembers(
       kind: member.kind,
       line: member.line,
       visibility: member.visibility ?? (member.exported ? "public" : "private"),
-      signature: memberSignature(member),
+      signature: tokensText(
+        memberHeadTokens(member, edges) ?? [
+          { text: member.name, role: "name" },
+        ],
+      ),
       ...(member.fields === undefined
         ? {}
         : {
             fields: fields.map((field) => ({
-              signature: fieldSignature(field),
+              signature: tokensText(fieldTokens(field)),
               line: field.line,
               private: field.private,
             })),
@@ -308,7 +314,7 @@ function shownMembers(
         ? {}
         : {
             methods: methods.map((method) => ({
-              signature: methodSignature(method),
+              signature: tokensText(methodTokens(method)),
               line: method.line,
               private: method.private === true,
             })),
@@ -343,6 +349,9 @@ export function runShow(argv: string[], io: Io): number {
     .find((module) => module.id === id);
   const { shown, hidden } = shownMembers(
     scanned?.members ?? [],
+    loaded.scans.flatMap((scan) =>
+      scan.edges.filter((edge) => edge.from === id),
+    ),
     loaded.values.private === true,
   );
   const responsibility = responsibilityOf(io, loaded.root, loaded.scans, id);
