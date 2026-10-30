@@ -1821,3 +1821,53 @@ svg.i.chevron {
   stroke-width: 2;
   stroke-dasharray: 5 3;
 }
+
+.spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.spinner-icon {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  animation: spinner-turn 0.9s linear infinite;
+}
+
+.spinner-track {
+  stroke: var(--line);
+}
+
+.spinner-arc {
+  stroke: var(--sel);
+}
+
+.canvas-busy {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+@keyframes spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-icon {
+    animation: none;
+  }
+}
+
+.scan-busy {
+  flex: 1;
+}

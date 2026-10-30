@@ -1,5 +1,6 @@
 import { resolveView } from "recognizer";
 import { type Scheduler, timerScheduler } from "./bar-hover";
+import { createBusyGate } from "./busy-gate";
 import {
   buildCanvasGraph,
   type CanvasGraph,
@@ -156,6 +157,7 @@ export function showExplorer(
   const folds = new Set<string>();
   let showPrivate = loadShowPrivate(storage);
   let layoutNotice: string | null = null;
+  let layoutBusy = false;
   let pickerFilter = "";
   const groupFlips = new Set<string>();
   let openView: string | null = null;
@@ -430,15 +432,34 @@ export function showExplorer(
 
   const inspector = buildInspectorView(rootActions, actionsFor);
 
+  const layoutGate = createBusyGate(
+    () => {
+      layoutBusy = true;
+      render();
+    },
+    () => {
+      layoutBusy = false;
+      render();
+    },
+  );
+  let endLayoutBusy: (() => void) | null = null;
+
+  function endLayout() {
+    endLayoutBusy?.();
+    endLayoutBusy = null;
+  }
+
   const layout = createLayoutSource(
     startLayoutWorker(),
     layoutOnMainThread,
     (result) => {
+      endLayout();
       layoutNotice = null;
       scene = toScene(graph, absoluteLayout(result));
       render();
     },
     (message) => {
+      endLayout();
       layoutNotice = `Layout failed: ${message}`;
       render();
     },
@@ -719,6 +740,7 @@ export function showExplorer(
     titles = new Map(
       graph.lines.map((line) => [line.id, describeLine(line.edges)]),
     );
+    endLayoutBusy ??= layoutGate.begin();
     layout.request(toElk(graph, measure));
     render();
   }
@@ -1389,6 +1411,7 @@ export function showExplorer(
       total: modules.total(),
       showInferred: state.showInferred(),
       notice: layoutNotice,
+      busy: layoutBusy,
     });
   }
 
