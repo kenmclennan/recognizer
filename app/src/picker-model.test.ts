@@ -142,13 +142,6 @@ describe("picker rows", () => {
   it("titles each source", () => {
     expect(pickerOf(star, usesHub).title()).toBe("hub uses 3");
     expect(pickerOf(star, usedByHub).title()).toBe("hub is used by 2");
-    expect(
-      pickerOf(star, {
-        kind: "list",
-        items: [{ id: "hub.py" }],
-        title: "calls save",
-      }).title(),
-    ).toBe("calls save");
   });
 });
 
@@ -383,51 +376,6 @@ describe("not used outside", () => {
     expect(pickerOf(bare, usedByHub).unused()).toBeNull();
     expect(pickerOf(all, usedByHub).unused()).toBeNull();
     expect(pickerOf(star, usesHub).unused()).toBeNull();
-  });
-});
-
-describe("explicit list", () => {
-  const list = (items: { id: string; names?: string[] }[]) =>
-    pickerOf(star, { kind: "list", items, title: "calls save" });
-
-  it("lists the known ids with their names and counts the rest as not in the scan", () => {
-    const model = list([
-      { id: "a/x.py", names: ["save"] },
-      { id: "b/z.py" },
-      { id: "unknown.py" },
-    ]);
-
-    expect(model.rowCount()).toBe(2);
-    expect(model.groups().flatMap((g) => g.rows)[0]?.names).toEqual(["save"]);
-    expect(model.missing()).toBe(1);
-  });
-
-  it("handles an all-known and a none-known list", () => {
-    const all = list([{ id: "a/x.py" }, { id: "a/y.py" }]);
-    const none = list([{ id: "q.py" }, { id: "r.py" }]);
-
-    expect(all.missing()).toBe(0);
-    expect(all.rowCount()).toBe(2);
-    expect(none.rowCount()).toBe(0);
-    expect(none.groups()).toEqual([]);
-    expect(none.missing()).toBe(2);
-  });
-
-  it("reports the on-canvas rows and never lists a not-narrowed unused line", () => {
-    const model = pickerOf(
-      star,
-      {
-        kind: "list",
-        items: [{ id: "a/x.py" }, { id: "b/z.py" }],
-        title: "t",
-      },
-      (id) => id === "b/z.py",
-    );
-
-    expect(
-      model.groups().flatMap((g) => g.rows.map((r) => r.onCanvas)),
-    ).toEqual([false, true]);
-    expect(model.unused()).toBeNull();
   });
 });
 

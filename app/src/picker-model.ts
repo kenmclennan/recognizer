@@ -17,8 +17,7 @@ export const NAMES_SHOWN = 4;
 
 export type PickerSource =
   | { kind: "module"; id: string; direction: "uses" | "usedBy" }
-  | { kind: "folder"; id: string; direction: "uses" | "usedBy" }
-  | { kind: "list"; items: { id: string; names?: string[] }[]; title: string };
+  | { kind: "folder"; id: string; direction: "uses" | "usedBy" };
 
 export type PickerRow = {
   id: string;
@@ -46,7 +45,6 @@ export type PickerModel = {
   groups: () => PickerGroup[];
   unused: () => string[] | null;
   rowCount: () => number;
-  missing: () => number;
 };
 
 export type PickerInput = {
@@ -74,37 +72,13 @@ function namesText(names: string[]): string {
 
 export function createPicker(input: PickerInput): PickerModel {
   const { source, onCanvas } = input;
-  const known = new Set(input.modules);
   const allEdges = input.scans.flatMap((scan) => scan.edges);
   const filter = input.filter.trim().toLowerCase();
-  let missing = 0;
 
   const withGroup = (rows: NeighbourRow[]): RawRow[] =>
     rows.map((row) => ({ ...row, group: folderOf(row.id) }));
 
   function buildRows(): RawRow[] {
-    if (source.kind === "list") {
-      const rows: RawRow[] = [];
-
-      for (const item of source.items) {
-        if (!known.has(item.id)) {
-          missing += 1;
-
-          continue;
-        }
-
-        rows.push({
-          id: item.id,
-          group: folderOf(item.id),
-          names: item.names ?? [],
-          private: false,
-          inferred: false,
-        });
-      }
-
-      return rows;
-    }
-
     const uses = source.direction === "uses";
 
     if (source.kind === "module") {
@@ -222,10 +196,6 @@ export function createPicker(input: PickerInput): PickerModel {
   }
 
   function title(): string {
-    if (source.kind === "list") {
-      return source.title;
-    }
-
     const label =
       source.kind === "module"
         ? moduleLabel(source.id)
@@ -242,6 +212,5 @@ export function createPicker(input: PickerInput): PickerModel {
     groups,
     unused,
     rowCount: () => raw.length,
-    missing: () => missing,
   };
 }
