@@ -625,26 +625,70 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "window",
-    summary: "print what one window of the running Recognizer app shows",
-    usage: "recognizer window [<id>] [--json]",
+    summary:
+      "print what one window of the running Recognizer app shows, or change it",
+    usage: [
+      "recognizer window [<id>] [--json]",
+      "recognizer window <id> add|remove|fold|focus|select|trail|open-view|clear <argument>... [--by <name>] [--json]",
+    ].join("\n"),
     arguments: [
       {
         name: "<id>",
         description:
-          "a window's id, as `recognizer windows` lists it; optional when exactly one window is open",
+          "a window's id, as `recognizer windows` lists it; optional when exactly one window is open and no verb is given",
+      },
+      {
+        name: "add | remove <module>...",
+        description:
+          "put each module on the canvas or take it off; refused when a path is not a module in the scan",
+      },
+      {
+        name: "fold <folder>... [--off]",
+        description:
+          "fold each folder, or unfold it with --off; refused when a folder holds no module",
+      },
+      {
+        name: "focus <folder>",
+        description: "focus one folder",
+      },
+      {
+        name: "select <module-or-folder>",
+        description:
+          "select a module (a module wins over a folder of the same id) or a folder",
+      },
+      {
+        name: "trail uses|used-by <module>",
+        description:
+          "follow that relation from the active trail panel's selection to the module and open the Dependencies tab; refused when the trail is empty or the module is not a direct dependency or dependent",
+      },
+      {
+        name: "open-view <name>",
+        description: "open the saved view of that name, as the Views menu does",
+      },
+      {
+        name: "clear modules|folds|focus|selection|all",
+        description: "empty that part of the canvas state",
       },
     ],
-    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    options: [
+      { flag: "--json", description: "print JSON instead of text" },
+      {
+        flag: "--by <name>",
+        description:
+          "who is driving, shown in the window's footer and in its back and forward history; 1-32 letters, digits, spaces, - and _, default Agent",
+      },
+      { flag: "--off", description: "with fold, unfold instead" },
+    ],
     output: {
-      text: "the window's id and folder, then its view, modules, folds, focus, selection, trail and inspector tab",
-      json: "{ id, folder, view, modules, folded, focus, selection, trail: [{ selection, relation, tab, active }], inspector: { open, tab } }",
+      text: "without a verb: the window's id and folder, then its view, modules, folds, focus, selection, trail and inspector tab; with one: a summary of the change, or `nothing changed`",
+      json: "without a verb: { id, folder, view, modules, folded, focus, selection, trail: [{ selection, relation, tab, active }], inspector: { open, tab } }; with one: { summary, changed }",
     },
     exitCodes: [
       { code: 0, meaning: "the app answered" },
       {
         code: 1,
         meaning:
-          "the app is not running, or it refused - no such window, no id given with several windows open, or a window still opening; the reason is on stderr",
+          "the app is not running, or it refused - no such window, no id given with several windows open, a window still opening, or a verb whose argument the window does not know; the reason is on stderr and the window is unchanged",
       },
       { code: 2, meaning: "bad arguments" },
     ],
@@ -652,6 +696,14 @@ export const COMMANDS: Command[] = [
       {
         command: "recognizer window w-2 --json",
         note: "what the second window shows, as JSON",
+      },
+      {
+        command: "recognizer window w-1 add app/a.py app/b.py --by Claude",
+        note: "put two modules on the first window's canvas; its footer reads `Claude added 2 modules` with an Undo",
+      },
+      {
+        command: "recognizer window w-1 fold app/util --off",
+        note: "unfold a folder",
       },
     ],
     run: runWindow,

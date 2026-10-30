@@ -456,6 +456,38 @@ svg.i.chevron {
   display: none;
 }
 
+.footer .agent-line {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  animation: agent-line-fade 6s linear forwards;
+}
+
+.footer .agent-line[hidden] {
+  display: none;
+}
+
+.footer .agent-undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@keyframes agent-line-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 .stage {
   position: relative;
   flex: 1;

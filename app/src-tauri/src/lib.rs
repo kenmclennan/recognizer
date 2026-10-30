@@ -25,7 +25,7 @@ use std::time::Duration;
 use changes::{Baseline, Changes, Origin, ScanOrigin};
 use launch::{launch_for, Launch};
 use repository::ScanReport;
-use socket::{Entry, Snapshots};
+use socket::{Drives, Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use windows::{
@@ -243,6 +243,22 @@ impl socket::Source for AppSource {
             })
             .collect()
     }
+
+    fn drive(&self, label: &str, request: serde_json::Value) -> Result<serde_json::Value, String> {
+        let drives = self.app.state::<Drives>();
+        let (number, receiver) = drives.register(label);
+        let mut payload = request;
+
+        payload["request"] = serde_json::json!(number);
+
+        if let Err(error) = self.app.emit_to(label, "window-drive", payload) {
+            drives.closed(label);
+
+            return Err(format!("{label} could not be reached: {error}"));
+        }
+
+        drives.wait(label, number, &receiver, socket::DRIVE_WAIT)
+    }
 }
 
 fn start_socket(app: &AppHandle) -> Option<socket::Server> {
@@ -416,6 +432,7 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
                 .app_handle()
                 .state::<Snapshots>()
                 .closed(window.label());
+            window.app_handle().state::<Drives>().closed(window.label());
         }
         _ => {}
     }
@@ -786,6 +803,15 @@ fn publish_window_state(
 }
 
 #[tauri::command]
+fn answer_window_drive(
+    app: AppHandle,
+    request: u64,
+    answer: serde_json::Value,
+) -> Result<(), String> {
+    app.state::<Drives>().answer(request, &answer)
+}
+
+#[tauri::command]
 fn view_link(app: AppHandle, window: WebviewWindow, name: String) -> Result<String, String> {
     views::view_link(&window_folder_path(&app, &window)?, &name)
 }
@@ -917,6 +943,7 @@ pub fn run() {
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
             app.manage(Snapshots::default());
+            app.manage(Drives::default());
             app.manage(Mutex::new(start_socket(&handle)));
             app.set_menu(build_menu(&handle)?)?;
 
@@ -945,6 +972,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             adopt_scan,
+            answer_window_drive,
             choose_folder,
             describe_module,
             list_views,

@@ -20,7 +20,15 @@ const cases: Case[] = JSON.parse(
 const SOCKET = "/tmp/app.sock";
 
 function argvOf(request: string): string[] | null {
-  let body: { v?: unknown; command?: unknown; id?: unknown } | null;
+  let body: {
+    v?: unknown;
+    command?: unknown;
+    id?: unknown;
+    action?: unknown;
+    args?: unknown;
+    options?: { off?: boolean };
+    by?: unknown;
+  } | null;
 
   try {
     body = JSON.parse(request);
@@ -38,6 +46,25 @@ function argvOf(request: string): string[] | null {
 
   if (body.command === "window" && body.id === undefined) {
     return ["window"];
+  }
+
+  if (
+    body.command === "drive" &&
+    typeof body.id === "string" &&
+    typeof body.action === "string" &&
+    Array.isArray(body.args) &&
+    typeof body.by === "string" &&
+    /^[A-Za-z0-9 _-]{1,32}$/.test(body.by)
+  ) {
+    return [
+      "window",
+      body.id,
+      body.action,
+      ...(body.args as string[]),
+      ...(body.options?.off === true ? ["--off"] : []),
+      "--by",
+      body.by,
+    ];
   }
 
   return body.command === "window" && typeof body.id === "string"
@@ -213,6 +240,98 @@ describe("window", () => {
 
   it("exits 2 for two ids", () => {
     expect(runWith(asking({}), "window", "w-1", "w-2").code).toBe(2);
+  });
+});
+
+describe("window verbs", () => {
+  const driveCases = cases.filter((c) => c.name.startsWith("drive "));
+
+  it("has a fixture pair for every verb and the refusals", () => {
+    const verbs = new Set(
+      driveCases.map(
+        (c) => (JSON.parse(c.request) as { action?: string }).action,
+      ),
+    );
+
+    for (const verb of [
+      "add",
+      "remove",
+      "fold",
+      "focus",
+      "select",
+      "trail",
+      "open-view",
+      "clear",
+    ]) {
+      expect(verbs.has(verb)).toBe(true);
+    }
+
+    expect(driveCases.length).toBe(23);
+  });
+
+  it("prints the summary of a done answer and the result with --json", () => {
+    const fixture = byName("drive add");
+    const out = runWith(
+      asking(fixture.response),
+      ...(argvOf(fixture.request) as string[]),
+    );
+
+    expect(out.out).toBe("added 1 module\n");
+    expect(out.code).toBe(0);
+  });
+
+  it("sends the default --by Agent when none is given", () => {
+    const fake = asking({
+      v: 1,
+      status: "done",
+      result: { summary: "added 1 module", changed: true },
+    });
+
+    runWith(fake, "window", "w-1", "add", "app/a.py");
+
+    expect(JSON.parse(fake.requests[0]?.text as string).by).toBe("Agent");
+  });
+
+  it("exits 1 with the reason on stderr for a refusal", () => {
+    const fixture = byName("drive add refused for an unknown module");
+    const out = runWith(
+      asking(fixture.response),
+      ...(argvOf(fixture.request) as string[]),
+    );
+
+    expect(out.code).toBe(1);
+    expect(out.err).toBe("no module app/zzz.py in the scan\n");
+    expect(out.out).toBe("");
+  });
+
+  it("exits 1 when the app is not running", () => {
+    expect(
+      runWith(
+        fakeIo({ env: { RECOGNIZER_APP_SOCKET: SOCKET } }),
+        "window",
+        "w-1",
+        "add",
+        "app/a.py",
+      ).code,
+    ).toBe(1);
+  });
+
+  it.each([
+    ["no id", ["window", "add", "a.py"]],
+    ["an unknown verb", ["window", "w-1", "dance", "a.py"]],
+    ["a missing argument", ["window", "w-1", "add"]],
+    ["a missing trail module", ["window", "w-1", "trail", "uses"]],
+    ["two folders to focus", ["window", "w-1", "focus", "a", "b"]],
+    ["a bad --by", ["window", "w-1", "add", "a.py", "--by", "no/good"]],
+    ["an empty --by", ["window", "w-1", "add", "a.py", "--by", ""]],
+    ["--off on add", ["window", "w-1", "add", "a.py", "--off"]],
+    ["--by without a verb", ["window", "w-1", "--by", "Claude"]],
+  ])("exits 2 for %s without asking the app", (_, argv) => {
+    const fake = asking({});
+    const out = runWith(fake, ...argv);
+
+    expect(out.code).toBe(2);
+    expect(fake.requests).toEqual([]);
   });
 });
 

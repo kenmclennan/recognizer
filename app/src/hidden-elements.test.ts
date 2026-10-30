@@ -30,6 +30,7 @@ const HIDEABLE = [
   "inspector-rail",
   "inspector-panel",
   "tools-notice",
+  "agent-line",
 ];
 
 function computedDisplays(css: string): string {
