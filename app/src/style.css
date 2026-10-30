@@ -1905,6 +1905,10 @@ svg.i.chevron {
   pointer-events: none;
 }
 
+.spinner[hidden] {
+  display: none;
+}
+
 .spinner-icon {
   width: 28px;
   height: 28px;

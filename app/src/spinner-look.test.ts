@@ -23,7 +23,7 @@ const advance = (ms) => {
 const state = (node) => {
   if (!node) return { present: false };
   const box = node.getBoundingClientRect();
-  return { present: true, hidden: node.hidden, width: box.width, height: box.height, pointerEvents: getComputedStyle(node).pointerEvents, label: node.getAttribute("aria-label") };
+  return { present: true, hidden: node.hidden, display: getComputedStyle(node).display, width: box.width, height: box.height, pointerEvents: getComputedStyle(node).pointerEvents, label: node.getAttribute("aria-label") };
 };
 
 const actions = {
@@ -75,12 +75,14 @@ describe.skipIf(chrome === undefined)("the spinner, in a real browser", () => {
 
   it("appears over the canvas during a slow layout and goes when it ends", () => {
     expect(f.layoutIdle.hidden).toBe(true);
+    expect(f.layoutIdle.display).toBe("none");
     expect(f.layoutBusy.hidden).toBe(false);
     expect(f.layoutBusy.width).toBeGreaterThan(0);
     expect(f.layoutBusy.pointerEvents).toBe("none");
     expect(f.layoutBusy.label).toBe("Laying out");
     expect(f.layoutSurfaceUnder).toBe(true);
     expect(f.layoutDone.hidden).toBe(true);
+    expect(f.layoutDone.display).toBe("none");
   });
 
   it("appears while scanning only after 200ms and goes when the scan ends", () => {

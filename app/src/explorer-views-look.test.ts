@@ -117,7 +117,7 @@ const facts = {};
   await tick();
   const shown = (selector) => { const node = one.q(selector); return node !== null && getComputedStyle(node).display !== "none"; };
   facts.freshOverlays = { menu: shown(".view-menu"), dialog: shown(".view-dialog"), stale: shown(".stale-panel") };
-  facts.emptyStart = { count: one.count(), view: one.q(".view-name").textContent, bar: one.all(".view-bar button").length, writes: one.port.current.length, menuEmpty: (click(one.q(".view-list")), one.q(".view-menu").textContent) };
+  facts.emptyStart = { count: one.count(), view: one.q(".view-name").textContent, bar: one.all(".view-bar button").length, writes: one.port.current.length, spinnerDisplay: getComputedStyle(one.q(".canvas-busy")).display, menuEmpty: (click(one.q(".view-list")), one.q(".view-menu").textContent) };
   click(one.q(".view-list"));
   click(one.q('.tree .row[data-path="app"] .rcheck'));
   await tick();
@@ -449,6 +449,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.emptyStart.view).toBe("Untitled");
     expect(f.emptyStart.menuEmpty).toContain("No saved views");
     expect(f.emptyStart.writes).toBeGreaterThan(0);
+    expect(f.emptyStart.spinnerDisplay).toBe("none");
   });
 
   it("shows no menu, dialog or stale panel in a fresh window", () => {
