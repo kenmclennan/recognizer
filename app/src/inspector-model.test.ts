@@ -35,6 +35,7 @@ function inputsFor(
     findings: () => [],
     onCanvas: () => false,
     expanded: new Set(),
+    showPrivate: false,
     tab: "contents",
     evidence: null,
     edgeOnCanvas: true,
@@ -51,11 +52,6 @@ const folder = (id: string) => ({ kind: "folder", id }) as const;
 const rowsOf = (scan: Scan, extra: Partial<InspectorInputs> = {}) =>
   inspectorContent(module("pkg/m.py"), inputsFor([scan], extra)).rows;
 
-const texts = (rows: Row[]) =>
-  rows.map((row) =>
-    "text" in row ? row.text : "name" in row ? row.name : row.kind,
-  );
-
 const fn = (name: string, exported: boolean, extra = {}): ScanMember => ({
   name,
   kind: "function",
@@ -64,214 +60,406 @@ const fn = (name: string, exported: boolean, extra = {}): ScanMember => ({
   ...extra,
 });
 
-describe("module contents ordering and folds", () => {
-  const members: ScanMember[] = [
-    { name: "_hidden", kind: "constant", exported: false, value: "1" },
-    fn("_a", false),
-    fn("b", true, { params: [{ name: "x" }], returns: "int" }),
-    { name: "K", kind: "constant", exported: true, value: "30000" },
-    { name: "Alias", kind: "type", exported: true },
-  ];
+const cardsOf = (rows: Row[]) =>
+  rows.filter(
+    (row): row is Extract<Row, { kind: "card" }> => row.kind === "card",
+  );
 
-  it("lists Classes, Functions, Constants and Types in that order", () => {
-    const rows = rowsOf(scanOf(members));
+const plainText = (tokens: { text: string }[]) =>
+  tokens.map((token) => token.text).join("");
+
+const klass = (extra: Partial<ScanMember> = {}): ScanMember => ({
+  name: "C",
+  kind: "class",
+  exported: true,
+  line: 3,
+  bases: [],
+  fields: [
+    { name: "a", type: "int", line: 4, private: false },
+    { name: "_b", line: 5, private: true },
+  ],
+  methods: [
+    {
+      name: "go",
+      line: 6,
+      params: [{ name: "x", type: "int" }],
+      returns: "int",
+    },
+    { name: "_h", line: 8, params: [], private: true },
+  ],
+  ...extra,
+});
+
+describe("module contents as cards", () => {
+  it("opens with the switch and lists cards in file order across kinds", () => {
+    const rows = rowsOf(
+      scanOf([
+        fn("f", true, { line: 11 }),
+        { name: "K", kind: "constant", exported: true, value: "1", line: 2 },
+        klass(),
+        { name: "Alias", kind: "type", exported: true, line: 20 },
+        { name: "I", kind: "interface", exported: true, line: 30 },
+      ]),
+    );
+
+    expect(rows[0]).toEqual({
+      kind: "switch",
+      label: "Show private",
+      on: false,
+    });
+    expect(cardsOf(rows).map((card) => [card.label, card.line])).toEqual([
+      ["Constant", 2],
+      ["Class", 3],
+      ["Function", 11],
+      ["Type", 20],
+      ["Interface", 30],
+    ]);
+  });
+
+  it("sorts a member without a line after the others, in scan order", () => {
+    const cards = cardsOf(
+      rowsOf(
+        scanOf([fn("b", true), fn("a", true, { line: 9 }), fn("c", true)]),
+      ),
+    );
+
+    expect(cards.map((card) => plainText(card.head))).toEqual([
+      "a()",
+      "b()",
+      "c()",
+    ]);
+    expect(cards[1]?.line).toBeNull();
+  });
+
+  it("interleaves a class's fields and methods by line, a field first on a tie", () => {
+    const card = cardsOf(
+      rowsOf(
+        scanOf([
+          klass({
+            fields: [
+              { name: "late", line: 9, private: false },
+              { name: "tie", line: 6, private: false },
+            ],
+            methods: [
+              { name: "m1", line: 5, params: [] },
+              { name: "m2", line: 6, params: [] },
+            ],
+          }),
+        ]),
+      ),
+    )[0];
 
     expect(
-      rows.filter((row) => row.kind === "heading").map((row) => row.text),
-    ).toEqual(["Classes", "Functions", "Constants", "Types"]);
+      card?.lines.map((line) => [line.line, plainText(line.tokens)]),
+    ).toEqual([
+      [5, "m1()"],
+      [6, "tie"],
+      [6, "m2()"],
+      [9, "late"],
+    ]);
   });
 
-  it("leaves Types out when the module has none", () => {
-    const rows = rowsOf(scanOf([fn("b", true)]));
+  it("shows no trace of a hidden top-level member", () => {
+    const cards = cardsOf(
+      rowsOf(
+        scanOf([fn("_g", false, { line: 14 }), fn("f", true, { line: 11 })]),
+      ),
+    );
 
-    expect(
-      rows.some((row) => row.kind === "heading" && row.text === "Types"),
-    ).toBe(false);
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.hidden).toBe("");
   });
 
-  it("shows None for an empty section", () => {
-    const rows = rowsOf(scanOf([fn("b", true)]));
+  it("hides private members and counts them while the switch is off", () => {
+    const card = cardsOf(rowsOf(scanOf([klass()])))[0];
 
-    expect(rows.filter((row) => row.kind === "none")).toHaveLength(2);
+    expect(card?.lines.map((line) => plainText(line.tokens))).toEqual([
+      "a: int",
+      "go(x: int) → int",
+    ]);
+    expect(card?.hidden).toBe("1 private field, 1 private method hidden");
   });
 
-  it("puts public members first and folds private ones into a count", () => {
-    const rows = rowsOf(scanOf(members));
-    const text = texts(rows);
+  it("words the hidden count in plural and drops a zero part", () => {
+    const privateFields = klass({
+      fields: [
+        { name: "_a", line: 4, private: true },
+        { name: "_b", line: 5, private: true },
+      ],
+      methods: [],
+    });
+    const privateMethods = klass({
+      fields: [],
+      methods: [
+        { name: "_a", line: 4, private: true },
+        { name: "_b", line: 5, private: true },
+      ],
+    });
 
-    expect(text).toContain("b(x) → int");
-    expect(text).toContain("1 private function");
-    expect(text).not.toContain("_a()");
-    expect(text).toContain("K = 30000");
-    expect(text).toContain("1 private constant");
+    expect(cardsOf(rowsOf(scanOf([privateFields])))[0]?.hidden).toBe(
+      "2 private fields hidden",
+    );
+    expect(cardsOf(rowsOf(scanOf([privateMethods])))[0]?.hidden).toBe(
+      "2 private methods hidden",
+    );
+  });
+
+  it("leaves hidden empty for a class with no private member", () => {
+    const card = cardsOf(
+      rowsOf(
+        scanOf([klass({ fields: [], methods: [{ name: "go", line: 6 }] })]),
+      ),
+    )[0];
+
+    expect(card?.hidden).toBe("");
+  });
+
+  it("shows every member with the private ones marked while the switch is on", () => {
+    const cards = cardsOf(
+      rowsOf(
+        scanOf([
+          klass(),
+          fn("f", true, { line: 11 }),
+          fn("_g", false, { line: 14 }),
+        ]),
+        { showPrivate: true },
+      ),
+    );
+
+    expect(cards.map((card) => [plainText(card.head), card.private])).toEqual([
+      ["class C", false],
+      ["f()", false],
+      ["_g()", true],
+    ]);
+    expect(cards[0]?.lines.map((line) => [line.line, line.private])).toEqual([
+      [4, false],
+      [5, true],
+      [6, false],
+      [8, true],
+    ]);
+    expect(cards[0]?.hidden).toBe("");
+    expect(rowsOf(scanOf([klass()]), { showPrivate: true })[0]).toEqual(
+      expect.objectContaining({ kind: "switch", on: true }),
+    );
   });
 
   it("follows the exported flag, not the name", () => {
-    const rows = rowsOf(
-      scanOf([fn("_looks_private", true), fn("plain", false)]),
-    );
-    const text = texts(rows);
-
-    expect(text).toContain("_looks_private()");
-    expect(text).not.toContain("plain()");
-    expect(text).toContain("1 private function");
-  });
-
-  it("opens a fold by its key and keeps it open across selections", () => {
-    const scan = scanOf(members);
-    const expanded = new Set(["pkg/m.py|functions"]);
-    const first = texts(rowsOf(scan, { expanded }));
-    const again = texts(
-      inspectorContent(module("pkg/m.py"), inputsFor([scan], { expanded }))
-        .rows,
-    );
-
-    expect(first).toContain("_a()");
-    expect(again).toEqual(first);
-  });
-
-  it("uses plural for several private members", () => {
-    const rows = rowsOf(scanOf([fn("_a", false), fn("_b", false)]));
-
-    expect(texts(rows)).toContain("2 private functions");
-  });
-});
-
-describe("signatures", () => {
-  const cls: ScanMember = {
-    name: "C",
-    kind: "class",
-    exported: true,
-    bases: [],
-    fields: [
-      { name: "a", type: "int", line: 2, private: false },
-      { name: "b", line: 3, private: false },
-    ],
-    methods: [
-      {
-        name: "plain",
-        params: [{ name: "x" }, { name: "y", type: "int" }],
-        returns: "int",
-      },
-      { name: "noReturn", params: [{ name: "x" }] },
-      { name: "prop", params: [], returns: "str", tags: ["property"] },
-      { name: "s", params: [], tags: ["static", "async"] },
-      { name: "bare" },
-      { name: "_p", params: [], private: true },
-    ],
-  };
-
-  it("shows fields, signatures, property form and tags", () => {
-    const rows = rowsOf(scanOf([cls]));
-    const members = rows.filter((row) => row.kind === "member");
-
-    expect(members.map((row) => (row as { text: string }).text)).toEqual([
-      "a: int",
-      "b",
-      "plain(x, y) → int",
-      "noReturn(x)",
-      "prop: str",
-      "s()",
-      "bare",
-    ]);
-    expect((members[5] as { tags: string }).tags).toBe("static, async");
-    expect((members[4] as { tags: string }).tags).toBe("");
-  });
-
-  it("folds private methods per class", () => {
-    const rows = rowsOf(scanOf([cls]));
-
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        kind: "fold",
-        key: "pkg/m.py|C|methods",
-        text: "1 private method",
-      }),
-    );
-  });
-
-  it("shows a bare name for a function with no params", () => {
-    const rows = rowsOf(
-      scanOf([{ name: "f", kind: "function", exported: true }]),
-    );
-
-    expect(texts(rows)).toContain("f");
-    expect(texts(rows)).not.toContain("f()");
-  });
-
-  it("shows a constant without a value as its bare name", () => {
-    const rows = rowsOf(
-      scanOf([{ name: "K", kind: "constant", exported: true }]),
-    );
-
-    expect(texts(rows)).toContain("K");
-  });
-});
-
-describe("class tags", () => {
-  const classOf = (
-    bases: string[],
-    edges: ScanEdge[] = [],
-    kind: "class" | "interface" = "class",
-  ) =>
-    rowsOf(
-      scanOf(
-        [{ name: "C", kind, exported: true, bases, fields: [], methods: [] }],
-        {
-          edges,
-        },
+    const cards = cardsOf(
+      rowsOf(
+        scanOf([
+          fn("_pub", true, { line: 1 }),
+          fn("plain", false, { line: 2 }),
+        ]),
       ),
     );
-  const edge = (kind: ScanEdge["kind"], to_member: string): ScanEdge => ({
-    from: "pkg/m.py",
-    to: "pkg/o.py",
-    kind,
-    line: 1,
-    member: "C",
-    to_member,
+
+    expect(cards.map((card) => card.hover)).toEqual(["_pub"]);
   });
 
-  it("shows an unresolved exception base as a tag", () => {
-    const rows = classOf(["Exception"]);
-
-    expect(rows).toContainEqual(
-      expect.objectContaining({ kind: "class", tags: "Exception" }),
+  it("carries the member name as the hover of the card", () => {
+    const cards = cardsOf(
+      rowsOf(scanOf([klass(), fn("f", true, { line: 11 })])),
     );
-    expect(rows.some((row) => row.kind === "base")).toBe(false);
+
+    expect(cards.map((card) => card.hover)).toEqual(["C", "f"]);
   });
 
-  it("adds abstract for ABC, Protocol and interfaces and drops them as bases", () => {
-    for (const base of ["ABC", "Protocol"]) {
-      const rows = classOf([base]);
-
-      expect(rows).toContainEqual(
-        expect.objectContaining({ kind: "class", tags: "abstract" }),
-      );
-      expect(rows.some((row) => row.kind === "base")).toBe(false);
-    }
-
-    expect(classOf([], [], "interface")).toContainEqual(
-      expect.objectContaining({ kind: "class", tags: "abstract" }),
-    );
+  it("shows None when no member is shown", () => {
+    expect(rowsOf(scanOf([fn("_g", false)])).map((row) => row.kind)).toEqual([
+      "switch",
+      "none",
+    ]);
   });
 
-  it("drops object", () => {
-    expect(classOf(["object"]).some((row) => row.kind === "base")).toBe(false);
+  it("produces no switch for a folder or an edge", () => {
+    const folderRows = inspectorContent(
+      folder("pkg"),
+      inputsFor([scanOf([fn("f", true)])]),
+    ).rows;
+    const edgeRows = inspectorContent(
+      { kind: "edge", id: "pkg/m.py>pkg/o.py" },
+      inputsFor([scanOf([fn("f", true)])]),
+    ).rows;
+
+    expect(folderRows.some((row) => row.kind === "switch")).toBe(false);
+    expect(edgeRows.some((row) => row.kind === "switch")).toBe(false);
+  });
+});
+
+describe("card tokens", () => {
+  const roles = (tokens: { text: string; role: string }[]) =>
+    tokens.map((token) => `${token.role}:${token.text}`);
+
+  it("colours a typed and an untyped parameter and the return type", () => {
+    const card = cardsOf(
+      rowsOf(
+        scanOf([
+          fn("f", true, {
+            line: 1,
+            params: [{ name: "x", type: "int" }, { name: "y" }],
+            returns: "string",
+          }),
+        ]),
+      ),
+    )[0];
+
+    expect(roles(card?.head ?? [])).toEqual([
+      "name:f",
+      "plain:(",
+      "param:x",
+      "plain:: ",
+      "type:int",
+      "plain:, ",
+      "param:y",
+      "plain:)",
+      "plain: → ",
+      "keyword:string",
+    ]);
   });
 
-  it("shows an implements edge on its own line", () => {
-    expect(classOf(["Store"], [edge("implements", "Store")])).toContainEqual(
-      expect.objectContaining({ kind: "base", text: "implements Store" }),
-    );
+  it("prints a bare name for a function with no params and no return", () => {
+    const card = cardsOf(
+      rowsOf(scanOf([{ name: "f", kind: "function", exported: true }])),
+    )[0];
+
+    expect(roles(card?.head ?? [])).toEqual(["name:f"]);
   });
 
-  it("shows an inherits edge and an unresolved base as extends", () => {
-    expect(classOf(["Base"], [edge("inherits", "Base")])).toContainEqual(
-      expect.objectContaining({ kind: "base", text: "extends Base" }),
+  it("prints a function with an empty parameter list as name and brackets", () => {
+    const card = cardsOf(rowsOf(scanOf([fn("f", true)])))[0];
+
+    expect(plainText(card?.head ?? [])).toBe("f()");
+  });
+
+  it("colours a field with and without a type", () => {
+    const card = cardsOf(rowsOf(scanOf([klass()]), { showPrivate: true }))[0];
+
+    expect(roles(card?.lines[0]?.tokens ?? [])).toEqual([
+      "name:a",
+      "plain:: ",
+      "type:int",
+    ]);
+    expect(roles(card?.lines[1]?.tokens ?? [])).toEqual(["name:_b"]);
+  });
+
+  it("shows tags after a method as keywords and a property as name: type", () => {
+    const card = cardsOf(
+      rowsOf(
+        scanOf([
+          klass({
+            fields: [],
+            methods: [
+              { name: "make", line: 5, params: [], tags: ["static", "async"] },
+              { name: "size", line: 6, returns: "int", tags: ["property"] },
+            ],
+          }),
+        ]),
+      ),
+    )[0];
+
+    expect(plainText(card?.lines[0]?.tokens ?? [])).toBe("make() static async");
+    expect(roles(card?.lines[0]?.tokens ?? []).slice(-2)).toEqual([
+      "plain: ",
+      "keyword:async",
+    ]);
+    expect(plainText(card?.lines[1]?.tokens ?? [])).toBe("size: int");
+  });
+
+  it("colours a constant with and without a value, and a type", () => {
+    const cards = cardsOf(
+      rowsOf(
+        scanOf([
+          {
+            name: "K",
+            kind: "constant",
+            exported: true,
+            value: "30000",
+            line: 1,
+          },
+          {
+            name: "N",
+            kind: "constant",
+            exported: true,
+            value: "null",
+            line: 2,
+          },
+          { name: "B", kind: "constant", exported: true, line: 3 },
+          { name: "Alias", kind: "type", exported: true, line: 4 },
+        ]),
+      ),
     );
-    expect(classOf(["Other"])).toContainEqual(
-      expect.objectContaining({ kind: "base", text: "extends Other" }),
+
+    expect(roles(cards[0]?.head ?? [])).toEqual([
+      "name:K",
+      "plain: = ",
+      "value:30000",
+    ]);
+    expect(roles(cards[1]?.head ?? [])[2]).toBe("keyword:null");
+    expect(roles(cards[2]?.head ?? [])).toEqual(["name:B"]);
+    expect(roles(cards[3]?.head ?? [])).toEqual([
+      "keyword:type",
+      "plain: ",
+      "name:Alias",
+    ]);
+  });
+
+  it("builds a class head with its exception tag and extends", () => {
+    const card = cardsOf(
+      rowsOf(scanOf([klass({ bases: ["Exception", "Base"] })])),
+    )[0];
+
+    expect(roles(card?.head ?? [])).toEqual([
+      "keyword:class",
+      "plain: ",
+      "name:C",
+      "plain: ",
+      "keyword:Exception",
+      "plain: ",
+      "keyword:extends",
+      "plain: ",
+      "name:Base",
+    ]);
+  });
+
+  it("builds an interface head with abstract and implements from an edge", () => {
+    const scan = scanOf(
+      [
+        {
+          name: "I",
+          kind: "interface",
+          exported: true,
+          line: 1,
+          bases: ["P"],
+          fields: [],
+          methods: [],
+        },
+      ],
+      {
+        edges: [
+          {
+            from: "pkg/m.py",
+            to: "pkg/p.py",
+            kind: "implements",
+            member: "I",
+            to_member: "P",
+          } as ScanEdge,
+        ],
+      },
     );
+    const card = cardsOf(rowsOf(scan))[0];
+
+    expect(plainText(card?.head ?? [])).toBe(
+      "interface I abstract implements P",
+    );
+    expect(card?.label).toBe("Interface");
+  });
+
+  it("drops object and ABC as bases and adds abstract for ABC", () => {
+    const card = cardsOf(
+      rowsOf(scanOf([klass({ bases: ["ABC", "object"] })])),
+    )[0];
+
+    expect(plainText(card?.head ?? [])).toBe("class C abstract");
   });
 });
 
@@ -289,33 +477,10 @@ describe("missing data", () => {
 
   it("says so for a class with no outline keys", () => {
     const rows = rowsOf(scanOf([{ name: "C", kind: "class", exported: true }]));
+    const card = cardsOf(rows)[0];
 
-    expect(rows).toContainEqual(
-      expect.objectContaining({ kind: "class", tags: "outline not known" }),
-    );
-  });
-
-  it("shows no callers note when the scan has no calls", () => {
-    const rows = rowsOf(scanOf([fn("f", true)]));
-
-    expect(rows[0]?.kind).toBe("heading");
-    expect(
-      rows.some((row) => "text" in row && /^Callers not known/.test(row.text)),
-    ).toBe(false);
-  });
-
-  it("gives members no button when the scan has calls", () => {
-    const scan = scanOf([fn("f", true)], {
-      modules: [
-        { id: "pkg/m.py", kind: "module", members: [fn("f", true)] },
-        { id: "pkg/o.py", kind: "module" },
-      ],
-      calls: [{ from: "pkg/o.py::g", to: "pkg/m.py::f", line: 1, how: "call" }],
-    });
-    const rows = rowsOf(scan);
-
-    expect(rows[0]?.kind).toBe("heading");
-    expect(rows.some((row) => "button" in row)).toBe(false);
+    expect(card?.label).toBe("Class");
+    expect(plainText(card?.lines[0]?.tokens ?? [])).toBe("outline not known");
   });
 });
 
@@ -678,73 +843,49 @@ describe("hover emphasis", () => {
 
 describe("against fixtures/python", () => {
   const scan = expectedScan("python");
-  const rowsFor = (id: string, expanded: string[] = []) =>
-    inspectorContent(
-      module(id),
-      inputsFor([scan], { expanded: new Set(expanded) }),
-    ).rows;
-  const hasText = (rows: Row[], text: string) =>
-    rows.some((row) => "text" in row && row.text === text);
-
-  it("shows shop/domain/order.py's Order, its fields and folded privates", () => {
-    const rows = rowsFor("shop/domain/order.py");
-
-    expect(rows).toContainEqual(
-      expect.objectContaining({ kind: "class", name: "Order" }),
+  const cardsFor = (id: string, showPrivate = false) =>
+    cardsOf(
+      inspectorContent(module(id), inputsFor([scan], { showPrivate })).rows,
     );
-    expect(hasText(rows, "id: str")).toBe(true);
-    expect(hasText(rows, "items: int")).toBe(true);
-    expect(hasText(rows, "total() → int")).toBe(true);
-    expect(hasText(rows, "1 private method")).toBe(true);
-    expect(hasText(rows, "3 private functions")).toBe(true);
-    expect(hasText(rows, "1 private constant")).toBe(true);
+  const headOf = (id: string, name: string, showPrivate = false) =>
+    cardsFor(id, showPrivate).find((card) => card.hover === name);
+
+  it("shows shop/domain/order.py's Order with its fields and a hidden count", () => {
+    const order = headOf("shop/domain/order.py", "Order");
+    const lines = order?.lines.map((line) => plainText(line.tokens));
+
+    expect(lines).toContain("id: str");
+    expect(lines).toContain("items: int");
+    expect(lines).toContain("total() → int");
+    expect(order?.hidden).toMatch(/private method.* hidden$/);
+    expect(
+      cardsFor("shop/domain/order.py").some(
+        (card) => card.label === "Function",
+      ),
+    ).toBe(false);
   });
 
-  it("shows new_order once the fold is open", () => {
-    const rows = rowsFor("shop/domain/order.py", [
-      "shop/domain/order.py|functions",
-    ]);
+  it("shows new_order once the switch is on", () => {
+    const card = headOf("shop/domain/order.py", "new_order", true);
 
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        kind: "member",
-        text: "new_order(order_id) → Order",
-      }),
-    );
+    expect(plainText(card?.head ?? [])).toBe("new_order(order_id) → Order");
   });
 
   it("shows Store as abstract with and Clock abstract", () => {
-    const rows = rowsFor("shop/ports/store.py");
+    const store = headOf("shop/ports/store.py", "Store");
+    const clock = headOf("shop/ports/store.py", "Clock");
 
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        kind: "class",
-        name: "Store",
-        tags: "abstract",
-      }),
-    );
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        kind: "class",
-        name: "Clock",
-        tags: "abstract",
-      }),
-    );
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        kind: "member",
-        text: "save(order)",
-        tags: "abstract",
-      }),
+    expect(plainText(store?.head ?? [])).toContain("abstract");
+    expect(plainText(clock?.head ?? [])).toContain("abstract");
+    expect(store?.lines.map((line) => plainText(line.tokens))).toContain(
+      "save(order) abstract",
     );
   });
 
   it("shows MemoryStore implements Store", () => {
-    const rows = rowsFor("shop/adapters/memory_store.py");
+    const card = headOf("shop/adapters/memory_store.py", "MemoryStore");
 
-    expect(rows).toContainEqual(
-      expect.objectContaining({ kind: "base", text: "implements Store" }),
-    );
+    expect(plainText(card?.head ?? [])).toContain("implements Store");
   });
 
   it("lists the 4 files under shop/domain with no subfolders", () => {
@@ -947,6 +1088,6 @@ describe("dependencies tab", () => {
     const usedBy = section(content.rows, "Used by 7");
 
     expect(content.tabs?.[2]?.label).toBe("Dependencies 10");
-    expect(usedBy.some((row) => row.kind === "heading")).toBe(false);
+    expect(usedBy.some((row) => row.kind === "card")).toBe(false);
   });
 });

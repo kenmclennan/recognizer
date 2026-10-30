@@ -44,6 +44,7 @@ import { repositorySource } from "./repository-source";
 import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
 import type { BarModel } from "./selection-bar-view";
+import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { buildStalePanel, type StalePanelModel } from "./stale-panel-view";
 import {
   currentCommit,
@@ -110,6 +111,7 @@ export function showExplorer(
   let inspectorTab: InspectorTab = "contents";
   let hovered: string | null = null;
   const folds = new Set<string>();
+  let showPrivate = loadShowPrivate(storage);
   let layoutNotice: string | null = null;
   let pickerFilter = "";
   const groupFlips = new Set<string>();
@@ -238,6 +240,11 @@ export function showExplorer(
       }
 
       inspectorTab = tab;
+      render();
+    },
+    setShowPrivate(on) {
+      showPrivate = on;
+      saveShowPrivate(storage, on);
       render();
     },
     toggleFold(key) {
@@ -1114,6 +1121,7 @@ export function showExplorer(
         findings: health.findings,
         onCanvas: modules.isOpen,
         expanded: folds,
+        showPrivate,
         tab: inspectorTab,
         evidence:
           selection?.kind === "edge" && evidence?.id === selection.id

@@ -1,6 +1,12 @@
+import type { Token } from "./card-code";
 import { el } from "./dom";
 import { icon, iconButton } from "./icons";
-import type { InspectorContent, InspectorTab, Row } from "./inspector-model";
+import type {
+  CardRow,
+  InspectorContent,
+  InspectorTab,
+  Row,
+} from "./inspector-model";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 
@@ -17,6 +23,7 @@ export type InspectorActions = {
   toggleGroup: (key: string) => void;
   setFilter: (text: string) => void;
   openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
+  setShowPrivate: (on: boolean) => void;
 };
 
 export type InspectorView = {
@@ -57,11 +64,59 @@ function evidenceNode(row: Extract<Row, { kind: "evidence" }>) {
   return block;
 }
 
-function rowNode(row: Row, actions: InspectorActions): HTMLElement {
-  if (row.kind === "heading") {
-    return el("div", "oh", row.text);
+function tokenNodes(tokens: Token[]): HTMLElement[] {
+  return tokens.map((token) => el("span", `tk-${token.role}`, token.text));
+}
+
+function privateMark(): HTMLElement {
+  return el("span", "pmark", "private");
+}
+
+function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
+  const node = el(
+    "div",
+    `card card-${row.label.toLowerCase()}${row.private ? " priv" : ""}`,
+  );
+  const label = el("div", "card-label");
+  const head = el("div", "card-code");
+
+  label.append(el("span", "card-kind", row.label));
+
+  if (row.private) {
+    label.append(privateMark());
   }
 
+  label.append(el("span", "card-line", row.line === null ? "" : `${row.line}`));
+  head.append(...tokenNodes(row.head));
+  node.append(label, head);
+
+  for (const line of row.lines) {
+    const part = el("div", `card-member${line.private ? " priv" : ""}`);
+    const code = el("span", "card-code");
+
+    code.append(...tokenNodes(line.tokens));
+
+    if (line.private) {
+      code.append(privateMark());
+    }
+
+    part.append(
+      el("span", "card-line", line.line === null ? "" : `${line.line}`),
+      code,
+    );
+    node.append(part);
+  }
+
+  if (row.hidden !== "") {
+    node.append(el("div", "card-hidden", row.hidden));
+  }
+
+  hoverable(node, row.hover, actions);
+
+  return node;
+}
+
+function rowNode(row: Row, actions: InspectorActions): HTMLElement {
   if (row.kind === "note") {
     return el("p", "", row.text);
   }
@@ -70,38 +125,23 @@ function rowNode(row: Row, actions: InspectorActions): HTMLElement {
     return el("div", "none", "None");
   }
 
-  if (row.kind === "class") {
-    const node = el("div", "oc");
+  if (row.kind === "switch") {
+    const node = el("button", "pswitch");
 
-    node.append(row.name, el("span", "t", row.tags));
-    hoverable(node, row.name, actions);
-
-    return node;
-  }
-
-  if (row.kind === "base") {
-    const node = el("div", "ob", row.text);
-
-    hoverable(node, row.hover, actions);
+    node.type = "button";
+    node.setAttribute("role", "switch");
+    node.setAttribute("aria-checked", String(row.on));
+    node.append(el("span", "track"), el("span", "", row.label));
+    node.addEventListener("click", (event) => {
+      event.stopPropagation();
+      actions.setShowPrivate(!row.on);
+    });
 
     return node;
   }
 
-  if (row.kind === "member") {
-    const node = el(
-      "div",
-      `om${row.top ? " top" : ""}${row.muted ? " priv" : ""}`,
-    );
-    const text = el("span", "", row.text);
-
-    if (row.tags !== "") {
-      text.append(" ", el("span", "tag", row.tags));
-    }
-
-    node.append(text);
-    hoverable(node, row.hover, actions);
-
-    return node;
+  if (row.kind === "card") {
+    return cardNode(row, actions);
   }
 
   if (row.kind === "fold") {
