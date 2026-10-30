@@ -1,0 +1,3 @@
+describer:
+  command: [node, "{repository}/describers/claude/dist/bin.js", "{request}"]
+  version: "prompt-b450a986f729"

@@ -5,6 +5,7 @@ on:
     paths:
       - check/**
       - scanners/**
+      - describers/**
       - policies/**
       - schema/**
       - fixtures/**
@@ -17,6 +18,7 @@ on:
     paths:
       - check/**
       - scanners/**
+      - describers/**
       - policies/**
       - schema/**
       - fixtures/**

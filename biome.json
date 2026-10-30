@@ -4,6 +4,7 @@
     "includes": [
       "check/**",
       "scanners/typescript/**",
+      "describers/**",
       "app/**",
       "scripts/**",
       "!**/dist",

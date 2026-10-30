@@ -1,0 +1,23 @@
+{
+  "name": "recognizer-describe-claude",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "recognizer-describe-claude": "dist/bin.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "yaml": "^2.9.1"
+  },
+  "license": "MIT"
+}
