@@ -553,7 +553,12 @@ export function showExplorer(
           const view = openViewValue();
 
           activeNote = view === null ? null : viewNotes(view).length - 1;
-          render();
+
+          if (activeNote === null) {
+            render();
+          } else {
+            orientNote(activeNote);
+          }
         },
       );
     },
