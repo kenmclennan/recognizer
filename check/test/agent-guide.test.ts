@@ -20,6 +20,14 @@ describe("agent guide", () => {
     expect(guide).toMatch(/check --scan[^\n]*CI and fixtures/);
   });
 
+  it("names --repository, direct-only rules and describe for a missing responsibility", () => {
+    const guide = agentGuide();
+
+    expect(guide).toMatch(/--repository <dir>/);
+    expect(guide).toMatch(/--uses and --used-by[^\n]*direct[^\n]*only/);
+    expect(guide).toMatch(/\[missing\][^\n]*recognizer describe/);
+  });
+
   it("is pointed at by the short help", () => {
     expect(shortHelp()).toContain(
       "run `recognizer help agents` for the guide an agent follows",

@@ -7,12 +7,13 @@ const RULES = [
   "  - Never write a view file by hand; build views with recognizer views.",
   "  - recognizer check --scan replays a scan produced elsewhere and is for CI and fixtures only; an agent never uses it.",
   "  - Every command reads the cached scan or scans first, so there is no separate scan step.",
+  "  - The question and view commands take --repository <dir> to name the repository; without it they use the current directory.",
 ];
 
 const RECIPES = [
   "Show me (the user asks to see how something is built):",
   "  1. Find the modules with recognizer find, recognizer modules, recognizer show, recognizer uses, recognizer used-by, recognizer callers and recognizer path.",
-  "  2. Save the answer: recognizer views new <name> --description <text>, then recognizer views add, rule, fold and focus.",
+  "  2. Save the answer: recognizer views new <name> --description <text>, then recognizer views add, rule, fold and focus; a rule's --uses and --used-by reach direct dependencies only, never transitive ones.",
   "  3. Confirm it with recognizer views show <name> and recognizer views check.",
   "  4. Explain the boxes with recognizer views note.",
   "  5. End the answer with the view's link: recognizer://open?repo=<url-encoded absolute repository path>&view=<name>",
@@ -22,7 +23,7 @@ const RECIPES = [
   "  2. recognizer windows and recognizer window <id> read what an open window shows; recognizer views new --from-window <id> saves it.",
   "",
   "Explain (the user asks why or how something works):",
-  "  1. Answer from recognizer show, recognizer callers and recognizer path.",
+  "  1. Answer from recognizer show, recognizer callers and recognizer path; a module whose responsibility shows [missing] needs recognizer describe first.",
   "  2. Attach what you learned with recognizer views note.",
   "",
   "Drive (the user is hands off and wants the open window changed):",

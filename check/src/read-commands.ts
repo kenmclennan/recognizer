@@ -363,6 +363,10 @@ export function runShow(argv: string[], io: Io): number {
     `responsibility:${responsibility.status === "current" ? "" : ` [${responsibility.status}]`} ${responsibility.line ?? ""}`.trimEnd(),
   ];
 
+  if (responsibility.status === "missing") {
+    lines.push(`run recognizer describe ${id} to write it`);
+  }
+
   for (const member of shown) {
     lines.push(
       row([member.line, member.visibility, member.kind, member.signature]),
