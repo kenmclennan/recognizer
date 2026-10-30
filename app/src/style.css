@@ -796,6 +796,11 @@ svg.i.chevron {
   border-left: 1px solid var(--line);
 }
 
+.inspector-rail[hidden],
+.inspector-trail[hidden] {
+  display: none;
+}
+
 .inspector-rail .ib {
   width: 32px;
   height: 32px;
