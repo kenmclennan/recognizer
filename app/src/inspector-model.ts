@@ -664,14 +664,14 @@ export function inspectorContent(
       active: inputs.tab === "contents",
     },
     {
-      tab: "findings" as const,
-      label: count > 0 ? `Findings ${count}` : "Findings",
-      active: inputs.tab === "findings",
-    },
-    {
       tab: "dependencies" as const,
       label: `Dependencies ${figures.uses + figures.usedBy}`,
       active: inputs.tab === "dependencies",
+    },
+    {
+      tab: "findings" as const,
+      label: count > 0 ? `Findings ${count}` : "Findings",
+      active: inputs.tab === "findings",
     },
   ];
   const contents = inputs.tab === "contents";

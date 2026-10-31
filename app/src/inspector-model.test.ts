@@ -667,18 +667,20 @@ describe("header and tabs", () => {
       inputsFor([scan], { findings: () => [finding, finding] }),
     );
 
-    expect(none.tabs?.map((tab) => tab.label).slice(0, 2)).toEqual([
-      "Contents",
-      "Findings",
-    ]);
-    expect(some.tabs?.map((tab) => tab.label).slice(0, 2)).toEqual([
-      "Contents",
-      "Findings 2",
-    ]);
+    expect(
+      none.tabs
+        ?.map((tab) => tab.label)
+        .filter((l) => l.startsWith("Findings")),
+    ).toEqual(["Findings"]);
+    expect(
+      some.tabs
+        ?.map((tab) => tab.label)
+        .filter((l) => l.startsWith("Findings")),
+    ).toEqual(["Findings 2"]);
     expect(some.tabs?.[0]?.active).toBe(true);
   });
 
-  it("offers Contents, Findings and Dependencies N for a module and a folder, from the counts", () => {
+  it("offers Contents, Dependencies N and Findings for a module and a folder, from the counts", () => {
     const counts = () => ({ uses: 12, usedBy: 1 });
     const labels = (selection: ReturnType<typeof module | typeof folder>) =>
       inspectorContent(selection, inputsFor([scan], { counts })).tabs?.map(
@@ -687,13 +689,13 @@ describe("header and tabs", () => {
 
     expect(labels(module("src/app/pkg/m.py"))).toEqual([
       "Contents",
-      "Findings",
       "Dependencies 13",
+      "Findings",
     ]);
     expect(labels(folder("src/app"))).toEqual([
       "Contents",
-      "Findings",
       "Dependencies 13",
+      "Findings",
     ]);
   });
 
@@ -781,7 +783,7 @@ describe("findings", () => {
     expect(
       content.rows.filter((row) => row.kind === "group").map((row) => row.path),
     ).toEqual(["a.py", "sub/b.py"]);
-    expect(content.tabs?.[1]?.label).toBe("Findings 2");
+    expect(content.tabs?.[2]?.label).toBe("Findings 2");
   });
 
   it("notes unmeasured modules in a folder with no findings and after groups", () => {
@@ -1021,8 +1023,8 @@ describe("dependencies tab", () => {
 
     expect(content.tabs?.map((tab) => tab.label)).toEqual([
       "Contents",
-      "Findings",
       "Dependencies 4",
+      "Findings",
     ]);
   });
 
@@ -1134,7 +1136,7 @@ describe("dependencies tab", () => {
     );
     const usedBy = section(content.rows, "Used by 7");
 
-    expect(content.tabs?.[2]?.label).toBe("Dependencies 10");
+    expect(content.tabs?.[1]?.label).toBe("Dependencies 10");
     expect(usedBy.some((row) => row.kind === "card")).toBe(false);
   });
 });
