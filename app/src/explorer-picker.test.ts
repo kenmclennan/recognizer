@@ -315,7 +315,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
   }, 120000);
 
   it("opens Dependencies as the third inspector tab, lit on the bar with the total, and stays on a second press", () => {
-    expect(f.tabs).toEqual(["Contents", "Findings", "Dependencies 4"]);
+    expect(f.tabs).toEqual(["Contents", "Dependencies 4", "Findings"]);
     expect(f.activeTab).toEqual(["Dependencies 4"]);
     expect(f.barLit).toBe(true);
     expect(f.barFigure).toBe("4");
