@@ -1,7 +1,6 @@
 export type ToolsReport =
   | { status: "version"; version: string }
   | { status: "command-missing" }
-  | { status: "config-invalid"; message: string }
   | { status: "failed"; exitCode: number; stderr: string };
 
 const DOTTED = /^(\d+)\.(\d+)\.(\d+)$/;

@@ -138,12 +138,11 @@ describe("loadScans", () => {
     expect(loaded.notices[1]).toContain("scan.typescript.json");
   });
 
-  it("turns the three blocking statuses into one message", () => {
+  it("turns the two blocking statuses into one message", () => {
     const missing = loadScans({
       status: "command-missing",
       hint: "install it",
     });
-    const config = loadScans({ status: "config-invalid", message: "relative" });
     const failed = loadScans({
       status: "scan-failed",
       exitCode: 2,
@@ -151,11 +150,10 @@ describe("loadScans", () => {
     });
 
     expect(missing.blocking).toBe("install it");
-    expect(config.blocking).toContain("relative");
     expect(failed.blocking).toContain("exit 2");
     expect(failed.blocking).toContain("bad usage");
 
-    for (const loaded of [missing, config, failed]) {
+    for (const loaded of [missing, failed]) {
       expect(loaded.modules).toEqual([]);
     }
   });

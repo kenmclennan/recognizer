@@ -1,6 +1,5 @@
 export type ScanReport =
   | { status: "command-missing"; hint: string }
-  | { status: "config-invalid"; message: string }
   | { status: "scan-failed"; exitCode: number; stderr: string }
   | {
       status: "scanned";

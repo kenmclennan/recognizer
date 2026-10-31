@@ -61,10 +61,6 @@ export function loadScans(report: ScanReport): Loaded {
     return { ...EMPTY, blocking: report.hint };
   }
 
-  if (report.status === "config-invalid") {
-    return { ...EMPTY, blocking: `config.json is invalid: ${report.message}` };
-  }
-
   if (report.status === "scan-failed") {
     return {
       ...EMPTY,
