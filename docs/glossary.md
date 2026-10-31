@@ -47,6 +47,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Out of date | A Responsibility that is not a Current line: its module's source (the files the scan recorded for it), the describer command or the version has changed since it was written. |
 | Unchecked | The status of a Responsibility that exists but whose Current line test cannot run, because no Describer registration exists or the module's source cannot be read. |
 | Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, and its Metric declarations. |
+| Sensor | A program that reads the scans, the policy, the overlays or the repository and writes a findings file; it never runs the code it judges. Recognizer ships the structure sensor and a repository registers others. |
+| Sensor registration | An entry of the Config's `sensors` key: a sensor's name and the command to run with `{repository}`, `{commit}` and `{output}` filled in, or for the structure sensor its settings, or `off`. |
+| Structure sensor | Recognizer's own sensor: the policy's violations, the warnings derived from the graph alone (cycles, hubs) and the graph metrics. On unless the Config turns it off. |
 | Producer | The tool that wrote an Overlay file, named with its version in the file's `producer`. |
 | Metric declaration | A metric's `name`, `type`, `granularity` and `bad` direction, registered in the Config and repeated in the Overlay file. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
@@ -85,7 +88,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Card | A member shown in Contents with its label, line and code. |
 | Show private | The remembered switch that adds non-exported members and private fields and methods to Contents. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
-| Finding | A violation or warning attached to a module, with the one-line reason a health disc shows. |
+| Finding | A violation or warning a sensor wrote for the current scan: a stable id, a kind, a principle, a one-line summary, its evidence by scan id and, where one is named, a fix pattern. Attached to the modules in its evidence; a health disc shows the summary. |
 | Needs attention | The tree filter that keeps only modules with an amber or red disc. |
 | Focus | Narrowing the canvas to one folder's files. |
 | Legend | The panel on the canvas, opened from its bottom-right controls, that names every edge style, every disc and what a frame's and a box's figures count, and holds the inferred-edges switch. |
