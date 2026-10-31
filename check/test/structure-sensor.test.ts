@@ -12,6 +12,7 @@ import { validateFindings } from "../src/findings-document.js";
 import { parsePolicy, validateScan } from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
+  measuredModules,
   structureSensor,
 } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
@@ -205,4 +206,30 @@ describe("baseline compatibility", () => {
       expect(serialiseBaseline(parseBaseline(baselineText))).toBe(baselineText);
     },
   );
+});
+
+describe("measuredModules", () => {
+  it("lists the modules the sensor measures, leaving out an ignored one", () => {
+    const { scan, policy } = fixture("check");
+    const withPolicy = measuredModules([scan], policy);
+    const without = measuredModules([scan], null);
+
+    expect(withPolicy.has("shop/main.py")).toBe(true);
+    expect(withPolicy.has("tests/test_order.py")).toBe(false);
+    expect(without.has("tests/test_order.py")).toBe(true);
+  });
+
+  it("equals the ids of the metrics the sensor reports", () => {
+    const { scan, policy } = fixture("check");
+    const { metrics } = structureSensor(
+      [scan],
+      policy,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    );
+
+    expect([...measuredModules([scan], policy)].sort()).toEqual(
+      metrics.map((metric) => metric.id).sort(),
+    );
+  });
 });

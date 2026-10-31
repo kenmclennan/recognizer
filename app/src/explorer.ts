@@ -154,12 +154,7 @@ export function showExplorer(
   windowPort: WindowPort = inertWindow,
   showAgentLine: (line: AgentLineView) => void = () => {},
 ): Explorer {
-  const health = computeHealth(
-    loaded.scans,
-    loaded.policy,
-    loaded.modules,
-    loaded.baseline,
-  );
+  const health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
   const compaction = compactFolders(loaded.modules);
   const root = buildTree(loaded.modules, compaction);

@@ -17,7 +17,7 @@ const scan = {
   edges: [edge("app/hub.py", "lib/a.py", "A"), edge("app/hub.py", "lib/b.py", "B")],
   foreign: [],
 };
-const loaded = { modules: ids, scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null };
+const loaded = { modules: ids, scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
 const viewText = JSON.stringify({ schema_version: 1, description: "d", commit: null, steps: [{ kind: "pick", module: "app/hub.py" }] }, null, 2) + "\\n";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));

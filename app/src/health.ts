@@ -1,9 +1,9 @@
 import {
-  analyse,
-  collectViolations,
   type Finding,
+  findingsByModuleFrom,
   InputError,
   identityKey,
+  measuredModules,
   type Policy,
   parseBaseline,
   parsePolicy,
@@ -11,7 +11,8 @@ import {
   type Violation,
   violationText,
 } from "recognizer";
-import type { LoadedScan } from "./scan-loading";
+import type { Loaded } from "./scan-loading";
+import { scansCommit } from "./sensor-run";
 import type { FolderNode, TreeNode } from "./tree-model";
 
 export type { Finding };
@@ -27,26 +28,11 @@ export type Health = {
 
 export type NodeHealth = { disc: Disc; hover: string };
 
-const HUB_THRESHOLD = 10;
 const MAX_HOVER_LINES = 10;
 const RANK: Record<Disc, number> = { green: 0, grey: 1, amber: 2, red: 3 };
 
 export function violationLine(violation: Violation): string {
   return `violation: ${violationText(violation)} (${ruleText(violation)})`;
-}
-
-function readPolicy(text: string | null, notices: string[]): Policy | null {
-  if (text === null) {
-    return null;
-  }
-
-  try {
-    return parsePolicy(text);
-  } catch (error) {
-    notices.push(`policy.yaml: ${messagesOf(error)}`);
-
-    return null;
-  }
 }
 
 function messagesOf(error: unknown): string {
@@ -69,103 +55,80 @@ function readBaseline(text: string | null, notices: string[]): Set<string> {
   }
 }
 
-function violationsOf(
-  scans: LoadedScan[],
-  policy: Policy,
-  accepted: Set<string>,
-  notices: string[],
-): Violation[][] | null {
-  try {
-    return scans.map(({ scan }) =>
-      collectViolations(scan, policy).violations.filter(
-        (violation) => !accepted.has(identityKey(violation)),
-      ),
-    );
-  } catch (error) {
-    notices.push(`policy.yaml: ${messagesOf(error)}`);
+function readPolicy(text: string | null): Policy | null {
+  if (text === null) {
+    return null;
+  }
 
+  try {
+    return parsePolicy(text);
+  } catch {
     return null;
   }
 }
 
 export function computeHealth(
-  scans: LoadedScan[],
-  policyText: string | null,
-  moduleIds: Iterable<string>,
-  baselineText: string | null = null,
+  loaded: Pick<
+    Loaded,
+    "scans" | "policy" | "modules" | "baseline" | "findings"
+  >,
 ): Health {
   const notices: string[] = [];
-  const known = new Set(moduleIds);
-  const parsed = readPolicy(policyText, notices);
-  const accepted = readBaseline(parsed ? baselineText : null, notices);
-  const violations = parsed
-    ? violationsOf(scans, parsed, accepted, notices)
-    : null;
-  const policy = violations ? parsed : null;
-  const reds = new Map<string, string[]>();
-  const ambers = new Map<string, string[]>();
-  const redFindings = new Map<string, Finding[]>();
-  const amberFindings = new Map<string, Finding[]>();
+  const known = new Set(loaded.modules);
+  const accepted = readBaseline(loaded.baseline ?? null, notices);
+  const scans = loaded.scans.map(({ scan }) => scan);
+  const { commit } = scansCommit(scans);
+  const current = loaded.findings.filter(
+    (document) => document.commit === (commit ?? ""),
+  );
   const measured = new Set<string>();
 
-  function add<T>(target: Map<string, T[]>, id: string, entry: T) {
-    if (known.has(id)) {
-      target.set(id, [...(target.get(id) ?? []), entry]);
+  if (current.some((document) => document.sensor.name === "structure")) {
+    for (const id of measuredModules(scans, readPolicy(loaded.policy))) {
+      measured.add(id);
     }
   }
 
-  scans.forEach(({ scan }, index) => {
-    for (const violation of violations?.[index] ?? []) {
-      add(reds, violation.from, violationLine(violation));
-      add(redFindings, violation.from, {
-        severity: "violation",
-        text: violationText(violation),
-        why: ruleText(violation),
-      });
-    }
+  const visible = current.map((document) => ({
+    ...document,
+    findings: document.findings.filter(
+      (record) =>
+        record.severity !== "violation" || !accepted.has(identityKey(record)),
+    ),
+  }));
+  const byModule = findingsByModuleFrom(visible);
 
-    const analysis = analyse(scan, { hub: HUB_THRESHOLD }, policy?.ignore);
-
-    for (const metric of analysis.metrics) {
-      measured.add(metric.id);
-    }
-
-    for (const warning of analysis.warnings) {
-      const ids =
-        warning.id === "cycle"
-          ? warning.evidence.modules
-          : [warning.evidence.module];
-
-      for (const id of ids) {
-        add(ambers, id, warning.summary);
-        add(amberFindings, id, {
-          severity: "warning",
-          text: warning.summary,
-          why: warning.principle,
-        });
+  for (const document of current) {
+    for (const record of document.findings) {
+      for (const id of record.evidence.modules) {
+        measured.add(id);
       }
     }
-  });
+  }
 
-  const linesOf = (id: string) => [
-    ...(reds.get(id) ?? []),
-    ...(ambers.get(id) ?? []),
-  ];
+  const findingsOf = (id: string) =>
+    known.has(id) ? (byModule.get(id) ?? []) : [];
+  const linesOf = (id: string) =>
+    findingsOf(id).map((finding) =>
+      finding.severity === "violation"
+        ? `violation: ${finding.text} (${finding.why})`
+        : finding.text,
+    );
 
   return {
-    disc: (id) =>
-      reds.has(id)
+    disc: (id) => {
+      const found = findingsOf(id);
+
+      return found.some((finding) => finding.severity === "violation")
         ? "red"
-        : ambers.has(id)
+        : found.length > 0
           ? "amber"
           : measured.has(id)
             ? "green"
-            : "grey",
+            : "grey";
+    },
     lines: linesOf,
-    findings: (id) => [
-      ...(redFindings.get(id) ?? []),
-      ...(amberFindings.get(id) ?? []),
-    ],
+    findings: findingsOf,
     notices,
   };
 }

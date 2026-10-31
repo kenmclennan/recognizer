@@ -96,6 +96,17 @@ export function buildFooter(
       parts.push(run);
     }
 
+    if (line.sensors !== null) {
+      const sensors = el(
+        "span",
+        `sensors-line ${line.sensors.tone}`,
+        line.sensors.text,
+      );
+
+      sensors.title = line.sensors.title;
+      parts.push(sensors);
+    }
+
     scan.replaceChildren(...parts);
 
     if (line.kind !== "files") {

@@ -12,6 +12,7 @@ pub mod link;
 pub mod recent;
 pub mod repository;
 pub mod responsibilities;
+pub mod sensors;
 pub mod settings;
 pub mod socket;
 pub mod source_line;
@@ -857,6 +858,7 @@ fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf
 static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_RESPONSIBILITIES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+static WATCHING_SENSOR_INPUTS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 #[tauri::command]
 fn read_responsibilities(
@@ -921,6 +923,83 @@ fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), S
         }
 
         if let Ok(mut watching) = WATCHING_RESPONSIBILITIES.lock() {
+            if let Some(set) = watching.as_mut() {
+                set.remove(&label);
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn write_structure(
+    app: AppHandle,
+    window: WebviewWindow,
+    document: Option<String>,
+) -> Result<(), String> {
+    sensors::write_structure(&window_folder_path(&app, &window)?, document.as_deref())
+}
+
+#[tauri::command]
+fn read_findings(app: AppHandle, window: WebviewWindow) -> Result<sensors::FindingsRead, String> {
+    Ok(sensors::read_findings(&window_folder_path(&app, &window)?))
+}
+
+#[tauri::command]
+fn remove_findings(
+    app: AppHandle,
+    window: WebviewWindow,
+    names: Vec<String>,
+) -> Result<(), String> {
+    sensors::remove_findings(&window_folder_path(&app, &window)?, &names)
+}
+
+#[tauri::command]
+fn read_sensor_inputs(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<sensors::SensorInputs, String> {
+    Ok(sensors::read_inputs(&window_folder_path(&app, &window)?))
+}
+
+#[tauri::command]
+fn watch_sensor_inputs(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+
+    let first = WATCHING_SENSOR_INPUTS
+        .lock()
+        .map_err(|error| error.to_string())?
+        .get_or_insert_with(HashSet::new)
+        .insert(label.clone());
+
+    if !first {
+        return Ok(());
+    }
+
+    std::thread::spawn(move || {
+        let mut last = sensors::snapshot(&folder);
+
+        loop {
+            std::thread::sleep(Duration::from_millis(500));
+
+            if app.get_webview_window(&label).is_none() {
+                break;
+            }
+
+            let next = sensors::snapshot(&folder);
+
+            if sensors::snapshot_changed(&last, &next) {
+                last = next;
+
+                if app.emit_to(&label, "sensor-inputs-changed", ()).is_err() {
+                    break;
+                }
+            }
+        }
+
+        if let Ok(mut watching) = WATCHING_SENSOR_INPUTS.lock() {
             if let Some(set) = watching.as_mut() {
                 set.remove(&label);
             }
@@ -1131,10 +1210,13 @@ pub fn run() {
             open_folder_in_editor,
             open_in_editor,
             publish_window_state,
+            read_findings,
             read_responsibilities,
+            read_sensor_inputs,
             read_settings,
             read_source_line,
             recognizer_version,
+            remove_findings,
             rename_view,
             renames_since,
             scan_folder,
@@ -1144,9 +1226,11 @@ pub fn run() {
             view_link,
             watch_changes,
             watch_responsibilities,
+            watch_sensor_inputs,
             watch_views,
             window_folder,
             write_settings,
+            write_structure,
             write_view
         ])
         .build(context)

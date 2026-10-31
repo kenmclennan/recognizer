@@ -11,7 +11,7 @@ let rescans = 0;
 const view = buildFooter(footer, () => { rescans += 1; });
 const NOW = Date.now();
 const origin = { branch: "main", commit: "a1b2c3d" };
-const base = { origin, scannedAt: NOW - 3 * 60000, changes: { files: [], moved: null }, rescanning: false };
+const base = { origin, scannedAt: NOW - 3 * 60000, changes: { files: [], moved: null }, rescanning: false, sensors: [] };
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 const q = (selector) => footer.querySelector(selector);
 const rows = () => [...footer.querySelectorAll(".changes-row")].map((row) => [...row.children].map((c) => c.textContent));

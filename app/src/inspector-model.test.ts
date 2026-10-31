@@ -3,8 +3,14 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { expectedScan } from "./fixtures";
+import {
+  CURRENT,
+  expectedScan,
+  fixtureScan,
+  secondSensorDocument,
+} from "./fixtures";
 import { compactFolders } from "./folder-compaction";
+import { computeHealth } from "./health";
 import {
   emphasisedLines,
   followableRows,
@@ -749,6 +755,32 @@ describe("findings", () => {
     expect(rows[0]).toMatchObject({
       why: "level 1 -> 2",
       severity: "violation",
+    });
+  });
+
+  it("shows a finding a second sensor wrote, with its summary and principle", () => {
+    const loaded = fixtureScan("check", "scan.json", CURRENT);
+    const modules = loaded.scan.modules.map((one) => one.id);
+    const health = computeHealth({
+      scans: [loaded],
+      policy: null,
+      modules,
+      baseline: null,
+      findings: [secondSensorDocument("shop/main.py")],
+    });
+    const rows = inspectorContent(
+      module("shop/main.py"),
+      inputsFor([loaded.scan], {
+        tab: "findings",
+        findings: health.findings,
+      }),
+    ).rows;
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      text: "too many magic numbers",
+      why: "name-your-constants",
+      severity: "warning",
     });
   });
 

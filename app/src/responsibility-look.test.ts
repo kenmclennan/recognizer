@@ -14,7 +14,7 @@ const scan = {
   edges: [edge],
   foreign: [],
 };
-const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null };
+const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
 
 const COMMAND = ["node", "d.js"];
 const HASH = "a".repeat(64);

@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-view`",
+          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files and read and watch the policy and config for the sensors, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-findings`\n- `allow-read-responsibilities`\n- `allow-read-sensor-inputs`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-remove-findings`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-structure`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-responsibilities`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-view`"
+          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files and read and watch the policy and config for the sensors, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-findings`\n- `allow-read-responsibilities`\n- `allow-read-sensor-inputs`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-remove-findings`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-structure`\n- `allow-write-view`"
         },
         {
           "description": "Read and write the app's settings\n#### This permission set includes:\n\n- `allow-read-settings`\n- `allow-write-settings`",
@@ -237,10 +237,22 @@
           "markdownDescription": "Enables the publish_window_state command without any pre-configured scope."
         },
         {
+          "description": "Enables the read_findings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-findings",
+          "markdownDescription": "Enables the read_findings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the read_responsibilities command without any pre-configured scope.",
           "type": "string",
           "const": "allow-read-responsibilities",
           "markdownDescription": "Enables the read_responsibilities command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_sensor_inputs command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-sensor-inputs",
+          "markdownDescription": "Enables the read_sensor_inputs command without any pre-configured scope."
         },
         {
           "description": "Enables the read_settings command without any pre-configured scope.",
@@ -259,6 +271,12 @@
           "type": "string",
           "const": "allow-recognizer-version",
           "markdownDescription": "Enables the recognizer_version command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_findings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remove-findings",
+          "markdownDescription": "Enables the remove_findings command without any pre-configured scope."
         },
         {
           "description": "Enables the rename_view command without any pre-configured scope.",
@@ -315,6 +333,12 @@
           "markdownDescription": "Enables the watch_responsibilities command without any pre-configured scope."
         },
         {
+          "description": "Enables the watch_sensor_inputs command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-watch-sensor-inputs",
+          "markdownDescription": "Enables the watch_sensor_inputs command without any pre-configured scope."
+        },
+        {
           "description": "Enables the watch_views command without any pre-configured scope.",
           "type": "string",
           "const": "allow-watch-views",
@@ -331,6 +355,12 @@
           "type": "string",
           "const": "allow-write-settings",
           "markdownDescription": "Enables the write_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_structure command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-structure",
+          "markdownDescription": "Enables the write_structure command without any pre-configured scope."
         },
         {
           "description": "Enables the write_view command without any pre-configured scope.",
@@ -387,10 +417,22 @@
           "markdownDescription": "Denies the publish_window_state command without any pre-configured scope."
         },
         {
+          "description": "Denies the read_findings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-findings",
+          "markdownDescription": "Denies the read_findings command without any pre-configured scope."
+        },
+        {
           "description": "Denies the read_responsibilities command without any pre-configured scope.",
           "type": "string",
           "const": "deny-read-responsibilities",
           "markdownDescription": "Denies the read_responsibilities command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_sensor_inputs command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-sensor-inputs",
+          "markdownDescription": "Denies the read_sensor_inputs command without any pre-configured scope."
         },
         {
           "description": "Denies the read_settings command without any pre-configured scope.",
@@ -409,6 +451,12 @@
           "type": "string",
           "const": "deny-recognizer-version",
           "markdownDescription": "Denies the recognizer_version command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_findings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remove-findings",
+          "markdownDescription": "Denies the remove_findings command without any pre-configured scope."
         },
         {
           "description": "Denies the rename_view command without any pre-configured scope.",
@@ -465,6 +513,12 @@
           "markdownDescription": "Denies the watch_responsibilities command without any pre-configured scope."
         },
         {
+          "description": "Denies the watch_sensor_inputs command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-watch-sensor-inputs",
+          "markdownDescription": "Denies the watch_sensor_inputs command without any pre-configured scope."
+        },
+        {
           "description": "Denies the watch_views command without any pre-configured scope.",
           "type": "string",
           "const": "deny-watch-views",
@@ -481,6 +535,12 @@
           "type": "string",
           "const": "deny-write-settings",
           "markdownDescription": "Denies the write_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_structure command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-structure",
+          "markdownDescription": "Denies the write_structure command without any pre-configured scope."
         },
         {
           "description": "Denies the write_view command without any pre-configured scope.",

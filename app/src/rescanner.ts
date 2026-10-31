@@ -5,6 +5,8 @@ import type { ScanReport } from "./scan-report";
 export type RescanPorts<Carried> = {
   scan: () => Promise<ScanReport>;
   load: (report: ScanReport) => Loaded;
+  sense: (loaded: Loaded) => Promise<Loaded>;
+  resense: () => Promise<Loaded | null>;
   adopt: () => Promise<ScanOrigin>;
   carry: () => Carried | null;
   replace: (loaded: Loaded, carried: Carried | null) => void;
@@ -15,6 +17,7 @@ export type RescanPorts<Carried> = {
 
 export type Rescanner = {
   run: () => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 export function createRescanner<Carried>(
@@ -32,13 +35,15 @@ export function createRescanner<Carried>(
       ports.running(true);
 
       try {
-        const loaded = ports.load(await ports.scan());
+        const scanned = ports.load(await ports.scan());
 
-        if (loaded.blocking !== null) {
-          ports.notify(`Rescan failed: ${loaded.blocking}`);
+        if (scanned.blocking !== null) {
+          ports.notify(`Rescan failed: ${scanned.blocking}`);
 
           return;
         }
+
+        const loaded = await ports.sense(scanned);
 
         const carried = ports.carry();
         const origin = await ports.adopt();
@@ -51,6 +56,27 @@ export function createRescanner<Carried>(
       } finally {
         busy = false;
         ports.running(false);
+      }
+    },
+    async refresh() {
+      if (busy) {
+        return;
+      }
+
+      busy = true;
+
+      try {
+        const loaded = await ports.resense();
+
+        if (loaded === null) {
+          return;
+        }
+
+        ports.replace(loaded, ports.carry());
+      } catch (error) {
+        ports.notify(`Sensors failed: ${String(error)}`);
+      } finally {
+        busy = false;
       }
     },
   };

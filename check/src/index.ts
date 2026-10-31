@@ -21,7 +21,11 @@ export {
   type CallerSummary,
 } from "./callers.js";
 export { type CheckResult, check, rankAgainstBaseline } from "./check.js";
-export { type Config, parseConfig } from "./config-parse.js";
+export {
+  type Config,
+  parseConfig,
+  registeredSensors,
+} from "./config-parse.js";
 export { InputError } from "./errors.js";
 export {
   type Finding,
@@ -106,6 +110,8 @@ export {
   validateScan,
 } from "./scan.js";
 export {
+  measuredModules,
+  resolveStructureSettings,
   type StructureSettings,
   structureSensor,
 } from "./structure-sensor.js";

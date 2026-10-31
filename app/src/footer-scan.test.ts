@@ -8,6 +8,7 @@ const state = (over: Partial<ScanState> = {}): ScanState => ({
   scannedAt: NOW - 3 * 60000,
   changes: NO_CHANGES,
   rescanning: false,
+  sensors: [],
   ...over,
 });
 
@@ -124,5 +125,48 @@ describe("ageText", () => {
 
   it("never goes negative", () => {
     expect(ageText(5000, 0)).toBe("just now");
+  });
+});
+
+describe("scanLine sensors", () => {
+  it("has no sensors line when none were run", () => {
+    expect(scanLine(state(), NOW).sensors).toBeNull();
+  });
+
+  it("names each sensor with its status, muted unless one failed", () => {
+    const line = scanLine(
+      state({
+        sensors: [
+          { name: "structure", status: "ran" },
+          { name: "lint", status: "stale" },
+          { name: "coverage", status: "not run" },
+        ],
+      }),
+      NOW,
+    );
+
+    expect(line.sensors).toEqual({
+      text: "Sensors: structure ran, lint stale, coverage not run",
+      tone: "muted",
+      title: "",
+    });
+  });
+
+  it("is amber and gives the reason when a sensor failed", () => {
+    const line = scanLine(
+      state({
+        sensors: [
+          { name: "structure", status: "ran" },
+          { name: "bad-sensor", status: "failed", reason: "not valid" },
+        ],
+      }),
+      NOW,
+    );
+
+    expect(line.sensors?.text).toBe(
+      "Sensors: structure ran, bad-sensor failed",
+    );
+    expect(line.sensors?.tone).toBe("amber");
+    expect(line.sensors?.title).toBe("bad-sensor: not valid");
   });
 });

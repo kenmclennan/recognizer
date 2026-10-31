@@ -3,6 +3,7 @@ import { violationId } from "./baseline.js";
 import type { Config } from "./config-parse.js";
 import { violationText } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
+import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { collectViolations } from "./rules.js";
 import type { Scan } from "./scan.js";
@@ -53,6 +54,21 @@ export function resolveStructureSettings(
       hub: given.warnings?.hub ?? DEFAULT_STRUCTURE_SETTINGS.warnings.hub,
     },
   };
+}
+
+export function measuredModules(
+  scans: Scan[],
+  policy: Policy | null,
+): Set<string> {
+  const measured = new Set<string>();
+
+  for (const scan of scans) {
+    for (const id of keptGraph(scan, policy?.ignore ?? []).ids) {
+      measured.add(id);
+    }
+  }
+
+  return measured;
 }
 
 export function describeSettings(settings: StructureSettings): string {
