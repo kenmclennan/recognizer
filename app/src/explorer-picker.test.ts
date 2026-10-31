@@ -117,7 +117,7 @@ click(heads()[0]);
 facts.afterCollapse = { heads: heads().map((h) => h.textContent), rows: sectionRows(), chevron: heads()[0].querySelector("svg path").getAttribute("d") };
 click(heads()[0]);
 facts.afterExpand = sectionRows();
-facts.iconTitles = [...document.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title);
+facts.iconTitles = [...document.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title || b.getAttribute("data-label") || "");
 facts.barText = [...document.querySelectorAll(".selection-bar button")].map((b) => b.textContent);
 
 facts.groupHeads = [...document.querySelectorAll(".inspector-panel .row.folder")].map((r) => r.querySelector(".name").textContent);

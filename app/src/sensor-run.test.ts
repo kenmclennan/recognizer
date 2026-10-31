@@ -263,3 +263,48 @@ describe("withSensors", () => {
     expect(next.modules).toEqual(loaded.modules);
   });
 });
+
+describe("fakeSensors.run", () => {
+  const config = `sensors:
+  alpha:
+    command: [node, "{repository}/a.mjs", "{commit}", "{output}"]
+`;
+
+  it("writes a file the next senseRepository reads as ran", async () => {
+    const port = fakeSensors({}, { config });
+    port.commit = CURRENT;
+
+    const result = await port.run(["alpha"]);
+    const run = await senseRepository(scans, { policy, config }, port);
+
+    expect(result).toEqual({
+      status: "sensed",
+      sensors: [{ name: "alpha", status: "ran" }],
+    });
+    expect(port.ran).toEqual([["alpha"]]);
+    expect(statusOf(run, "alpha")).toMatchObject({ status: "ran" });
+  });
+
+  it("removes the file on a failing plan so the status reads not run", async () => {
+    const port = fakeSensors({}, { config });
+    port.commit = CURRENT;
+    await port.run(["alpha"]);
+    port.plan = { alpha: "it broke" };
+
+    const result = await port.run(["alpha"]);
+    const run = await senseRepository(scans, { policy, config }, port);
+
+    expect(result).toEqual({
+      status: "sensed",
+      sensors: [{ name: "alpha", status: "failed", reason: "it broke" }],
+    });
+    expect(statusOf(run, "alpha")).toMatchObject({ status: "not run" });
+  });
+
+  it("rejects an empty list and a name the config does not register", async () => {
+    const port = fakeSensors({}, { config });
+
+    expect(await port.run([])).toMatchObject({ status: "failed" });
+    expect(await port.run(["nope"])).toMatchObject({ status: "failed" });
+  });
+});

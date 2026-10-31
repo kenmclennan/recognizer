@@ -31,11 +31,20 @@ export type SensorInputs = {
   refused: string[];
 };
 
+export type SensorsRunResult =
+  | {
+      status: "sensed";
+      sensors: { name: string; status: "ran" | "failed"; reason?: string }[];
+    }
+  | { status: "command-missing"; hint: string }
+  | { status: "failed"; reason: string };
+
 export type SensorsPort = {
   writeStructure(document: string | null): Promise<void>;
   readFindings(): Promise<FindingsFiles>;
   removeFindings(names: string[]): Promise<void>;
   readInputs(): Promise<SensorInputs>;
+  run(names: string[]): Promise<SensorsRunResult>;
   onInputsChanged(run: () => void): () => void;
 };
 
@@ -49,6 +58,7 @@ export const inertSensors: SensorsPort = {
     baseline: null,
     refused: [],
   }),
+  run: async () => ({ status: "sensed", sensors: [] }),
   onInputsChanged: () => () => {},
 };
 

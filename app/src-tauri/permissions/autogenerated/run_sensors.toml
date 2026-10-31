@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-run-sensors"
+description = "Enables the run_sensors command without any pre-configured scope."
+commands.allow = ["run_sensors"]
+
+[[permission]]
+identifier = "deny-run-sensors"
+description = "Denies the run_sensors command without any pre-configured scope."
+commands.deny = ["run_sensors"]

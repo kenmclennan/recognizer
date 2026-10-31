@@ -4,7 +4,12 @@ import "./style.css";
 import { createBusyGate } from "./busy-gate";
 import { editorSource } from "./editor-source";
 import { showEmpty } from "./empty-view";
-import { type Carried, type Explorer, showExplorer } from "./explorer";
+import {
+  type Carried,
+  type Explorer,
+  type SensorsHost,
+  showExplorer,
+} from "./explorer";
 import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
 import { showMessage } from "./message-view";
@@ -13,6 +18,7 @@ import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
 import { withSensors } from "./sensor-run";
+import { NO_RUN } from "./sensors-panel-model";
 import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
 import { toolsNotice } from "./tools-notice";
@@ -29,6 +35,7 @@ let explorer: Explorer | null = null;
 let folderName = "";
 let scanState: ScanState | null = null;
 let current: Loaded | null = null;
+const sensorsState: SensorsHost["state"] = { ticked: [], run: NO_RUN };
 
 const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
@@ -38,6 +45,8 @@ function setScanState(next: ScanState | null) {
 }
 
 function adoptedOrigin(origin: ScanOrigin) {
+  sensorsState.run = { ...sensorsState.run, failures: {} };
+
   setScanState({
     origin,
     scannedAt: Date.now(),
@@ -68,6 +77,12 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     responsibilitiesSource,
     windowSource,
     (line) => footerView.setAgentLine(line),
+    {
+      port: sensorsSource,
+      scan: () => scanState,
+      refresh: () => rescanner.refresh(),
+      state: sensorsState,
+    },
   );
 }
 
@@ -111,6 +126,8 @@ async function start(): Promise<void> {
   explorer?.dispose();
   explorer = null;
   current = null;
+  sensorsState.ticked = [];
+  sensorsState.run = NO_RUN;
   setScanState(null);
   footerView.setCount("");
 
