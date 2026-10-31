@@ -74,7 +74,7 @@ The controls are on the canvas, not in the sidebars:
 - **Open in Editor.** File > Open in Editor (⌘⇧E) opens the selected module's file, and File > Open Folder in Editor (⌘⇧O) opens the repository, both in the one editor named in Settings: blank for the system's default, an app's name, or a shell command. The bar, the inspector's header and the tree's header have the same as icons.
 - **Settings.** Recognizer > Settings… (⌘,) opens a settings window, as Yori's does. It holds the app's own preferences, never a repository's: today only the editor. The `recognizer` command is found on the login shell's PATH and is not configurable; when it is missing the app says to install it. A repository's tooling settings stay in its committed config.
 - **Zoom and pan follow the device.** On a trackpad, pinch zooms and two fingers pan; with a mouse, the wheel zooms around the pointer and dragging pans. The device is told apart from each event, never from a setting. Zoom is limited to between 10% and 250%.
-- **Health discs** are green for fine, amber for a warning, red for a violation, and a hollow grey ring for not measured. They come from `recognizer check`, run by the viewer as a library on the same scan; without a policy nothing is red.
+- **Health discs** are green for fine, amber for a warning, red for a violation, and a hollow grey ring for not measured. They come from the findings every sensor wrote for the current scan; without a policy nothing is red.
 
 Every edge on the canvas can show its evidence: the quoted import line, the names imported, and the route the names took through re-exporting files. Edges are hairlines under the boxes, so the modules dominate; the selection's own edges are highlighted and the rest dimmed. Boxes and frames unrelated to the selection fade to 60% so their names stay readable; unrelated edges fade further, to 35%. Hovering an edge names what it carries, and clicking it shows its evidence. Edges are drawn by kind: an ordinary dependency; an import of a private name (dashed), which is usually a defect; an inferred dependency (dotted, and switchable off), from the scan's inferred edges; and `implements` and `inherits` with a hollow arrowhead, so an adapter fulfilling a port does not read as depending on it. A legend on screen names every edge style, every disc, and what a frame's and a module's figures count, and holds the switch for inferred edges; nothing is explained only in prose.
 
@@ -137,7 +137,7 @@ One repository with a directory per part, so every scanner is tested against the
 
 ```text
 schema/               the scan document's JSON Schema and example scans
-check/                CLI and library: recognizer check
+check/                CLI and library: recognizer check, the structure sensor
 scanners/python/      CLI: recognizer-scan-python
 scanners/typescript/  CLI: recognizer-scan-typescript
 scanners/kotlin/      CLI: recognizer-scan-kotlin
@@ -159,7 +159,8 @@ Everything the repository's owners write is committed under `.recognizer/`; anyt
 | Ratchet baselines | `.recognizer/baselines/` | yes |
 | Saved views | `.recognizer/views/` | yes |
 | Scan results | `.recognizer/cache/` | no |
-| Tooling configuration: registered overlays and the describer | `.recognizer/config.yaml` | yes |
+| Findings, one file per sensor | `.recognizer/cache/findings/` | no |
+| Tooling configuration: registered sensors, overlays and the describer | `.recognizer/config.yaml` | yes |
 | Module responsibilities | `.recognizer/responsibilities.json` | yes |
 | Health overlays (complexity, coverage, mutation) | `.recognizer/cache/overlays/` | no, unless a project opts in to committing a mutation snapshot keyed by commit |
 
@@ -315,9 +316,18 @@ Each part carries only its own toolchain; no part needs more than one language.
 
 CI is one workflow file per directory, filtered on that directory's path plus `schema/**` and `fixtures/**`: a schema or fixture change runs every scanner, a scanner change runs only itself.
 
-### Where policy checking lives
+### Sensors
 
-`recognizer check` is TypeScript in the npm workspace, at `check/`. It reads a scan (JSON) and, optionally, a policy (YAML), and reports two categories of finding: violations and warnings (below). Without a policy only warnings are reported. It ships two ways: as a CLI (`npx recognizer check`) for any repository's CI and for audit workers, and as a library the viewer imports, so the picture is coloured by the exact code CI runs. It emits JSON (each violating edge, the baseline delta) and a human summary, and exits non-zero on growth. The baseline file format under `.recognizer/baselines/` is defined with it.
+A scanner extracts structure and judges nothing. A sensor judges: it reads the structure, and whatever else it registers for, and writes findings. The viewer and the CLI read findings and know nothing about which sensor wrote them. Recognizer owns the findings format and the registration, as it owns the overlay format, and ships one sensor of its own.
+
+- **What a sensor reads.** The repository's scans from the cache, the policy, the overlays in the cache, and the repository itself, including its git history. A sensor never builds, tests or runs the code it judges; measuring by running something is an overlay's job, and a sensor that needs such a measurement reads the overlay and reports nothing for the ids the overlay lacks. Because a sensor only reads, every sensor runs after every scan, in the CLI and in the app alike.
+- **The structure sensor** ships with recognizer, as the library the viewer imports and the sensor `recognizer check` runs in-process. It reports the policy's violations and the warnings the Principles table derives from the graph alone, today cycles and hubs, and computes the graph metrics. It is on unless the config turns it off, and its settings are the hub threshold and a switch per warning.
+- **Registration.** A repository registers further sensors in `.recognizer/config.yaml` under `sensors`, each with a name and the command that writes its findings, run from the repository root with `{repository}`, `{commit}` and `{output}` filled in, as an overlay's command is. The structure sensor is configured under the same key by its name, and `off` removes it. A sensor's settings are its own flags on its command line; the structure sensor's are keys under its entry. The findings document records the settings it was written with, so a report never needs the config to be read.
+- **Running.** `recognizer check` runs every registered sensor and the structure sensor, then reports: it is the one command CI runs, and its exit code, baseline flags and output are as before. A sensor whose command fails or whose file does not match the format is reported by name and leaves no findings behind. The app runs the same sensors after every scan and after a policy or config change, and shows a failed sensor by name in the scan status.
+- **The file.** One JSON file per sensor at `.recognizer/cache/findings/<name>.json`: `findings_version`, the `sensor` (name and version), `commit`, `modified`, the `settings` the sensor ran with, and `findings`. Each finding has a stable `id` (the same evidence gives the same id across runs, so the baseline can hold it), its `kind`, a `severity` of `violation` or `warning`, the `principle` it offends, a one-line `summary`, its `evidence` by scan id (the `modules`, and where they apply the `edges` with their lines and the `members`), and a `fix_pattern` where one is named. A violation is a verdict and fails a run through the ratchet; a warning is a candidate and never does. Metrics are not findings: the structure sensor writes them in the check report as it does today.
+- **Freshness.** A findings file names the commit of the scan it read; one whose commit differs from the current scan is not shown, and its discs are not measured. A sensor run on a modified tree says so.
+- **The baseline** ratchets violations across every sensor, keyed by finding id, at `.recognizer/baselines/violations.json` as before; the structure sensor's violation ids are the identities the baseline holds today, so an existing baseline keeps its meaning.
+- **In the viewer and for agents.** The health discs, the inspector's Findings tab and the findings panel to come read every current findings file and show a finding with its summary, principle and evidence, never a number alone. `recognizer show` and `recognizer modules --findings` read the same files, and `recognizer check` is how an agent refreshes them.
 
 ### Principles
 
@@ -334,21 +344,20 @@ Hexagonal, clean and onion architecture are each one arrangement of the same few
 | Each rule has one home | structural duplication (from the duplication overlay) | nothing |
 | Interfaces are narrow and explicit | a hub with high fan-in and fan-out; a wide exported surface | nothing; candidates only |
 
-Metrics derived from the scan graph alone (fan-in, fan-out, cycles, instability, abstractness, distance from the main sequence) are structural facts and are computed by recognizer. Anything measured by running something (tests, mutation, duplication, git history) arrives as an overlay.
+Metrics derived from the scan graph alone (fan-in, fan-out, cycles, instability, abstractness, distance from the main sequence) are structural facts and are computed by the structure sensor. Anything measured by running something (tests, mutation, duplication, git history) arrives as an overlay, and a sensor that judges it reads the overlay.
 
 A named architecture is a policy template: a starter `.recognizer/policy.yaml` under `policies/` in this repository, copied into a scanned repository and edited there. Recognizer has no setting that names an architecture and never reads anything but the policy in front of it.
 
 ### Violations and warnings
 
-Recognizer's outputs are sensors, in three layers, and `recognizer check` reports all of them in one run:
+Every sensor's findings are one of two kinds, and `recognizer check` reports both in one run:
 
 - **Violations** are the policy's verdicts: an edge that breaks a rule the policy declares. The baseline ratchets them and CI fails on growth. Only violations affect the exit code.
-- **Graph metrics** are structural facts computed from the scan alone: fan-in, fan-out, strongly connected components, instability, abstractness, distance from the main sequence.
-- **Warnings** are heuristics over the graph: a threshold or pattern tied to one principle in the table above, reported as a candidate with its evidence. A warning is never baselined and never fails a run. Its thresholds are command-line flags whose defaults are documented and printed in the output. A warning confirmed often enough is promoted to a rule in the policy; a violation baselined and never shrinking is a question about the policy.
+- **Warnings** are heuristics: a threshold or pattern tied to one principle in the table above, reported as a candidate with its evidence. A warning is never baselined and never fails a run. Its thresholds are the sensor's settings, recorded in its findings file and printed in the output. A warning confirmed often enough is promoted to a rule in the policy; a violation baselined and never shrinking is a question about the policy.
 
 Every warning carries what a coach needs and never the number alone: the principle it suspects, the evidence (the modules, edges and members that triggered it) and a stable fix-pattern identifier. A bare metric invites gaming the number rather than fixing the design; habit-hooks' pre-registered evaluation measured a genuine fix in under six percent of trials from a bare complexity message and over eighty percent from a coaching message naming the cue and the action. The coaching text itself lives outside recognizer: a habit-hooks plugin wrapping `recognizer check`, or a guidance entry keyed on the fix-pattern id, is a consumer of the format in the same loose relationship as an overlay converter. The plugin is a spike once warnings exist.
 
-The baseline is keyed by violation identity across the whole repository. A later item adds a change scope to `check`, reporting only what the modules touched on a branch introduce, which is what an agent loop acts on.
+The baseline is keyed by finding id across the whole repository. A later item adds a change scope to `check`, reporting only what the modules touched on a branch introduce, which is what an agent loop acts on.
 
 ### Overlays
 
@@ -372,7 +381,7 @@ Decide these with Ken one at a time, in this order, recording each under Decided
 1. **Policy axes.** Whether the policy classifies each module on independent axes, strata (responsibility layers, ruled by direction) and slices (use cases and subdomains, ruled by isolation), instead of one namespace of components. Slices by reachability from entry points fail at module level, because the composition root reaches nearly everything. Decided after examples have been explored.
 2. **Structural change.** How the viewer shows a change above the level of code: files, classes, functions and constants added, modified and removed. One view serves a spec's proposed change, a pull request's actual change, the difference between what a spec proposed and what was delivered, and the difference between any two commits. A proposed change is always labelled as not in the code.
 3. **Overlays in the viewer.** How metrics and churn over a period are laid over the canvas and the tree beyond the health discs, and how the viewer leads the user to a defect and draws attention to it without clutter. Whether and how the app runs registered overlays, given that some (coverage, mutation) run a whole test suite.
-4. **Further warnings.** Candidates found by exploring lightcycle: a module importing another module's private names; an entity's module used far less than the port that stores its data, which suggests the port takes fields rather than the entity; a port whose methods take only primitives; a constructor whose collaborators have no type. Each needs a principle, evidence and a fix-pattern id before it joins `check`.
+4. **Further warnings.** Candidates found by exploring lightcycle: a module importing another module's private names; an entity's module used far less than the port that stores its data, which suggests the port takes fields rather than the entity; a port whose methods take only primitives; a constructor whose collaborators have no type. Each needs a principle, evidence and a fix-pattern id before a sensor reports it.
 5. **The rail's further panels.** Saved views, the window's history, and scan history (when each scan ran, at which commit, for which languages, and what it skipped or could not read), each as a panel on the rail: what each shows and does, and what moves into it from the view bar.
 
 ## First build items
