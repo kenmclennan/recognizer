@@ -325,6 +325,14 @@ function shownMembers(
   return { shown, hidden };
 }
 
+function tableSignature(member: ShownMember): string {
+  const lead = `${member.kind} `;
+
+  return member.kind !== undefined && member.signature.startsWith(lead)
+    ? member.signature.slice(lead.length)
+    : member.signature;
+}
+
 const SHOW_USAGE =
   "recognizer show <module> [--private] [--hub-threshold <n>] [--repository <dir>] [--json]";
 
@@ -378,7 +386,12 @@ export function runShow(argv: string[], io: Io): number {
 
   for (const member of shown) {
     lines.push(
-      row([member.line, member.visibility, member.kind, member.signature]),
+      row([
+        member.line,
+        member.visibility,
+        member.kind,
+        tableSignature(member),
+      ]),
     );
 
     for (const field of member.fields ?? []) {
