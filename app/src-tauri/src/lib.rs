@@ -1,4 +1,4 @@
-use tauri::menu::{Menu, MenuEvent, MenuItem, SubmenuBuilder, WINDOW_SUBMENU_ID};
+use tauri::menu::{Menu, MenuEvent, MenuItem, Submenu, SubmenuBuilder, WINDOW_SUBMENU_ID};
 use tauri::{
     AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     WindowEvent,
@@ -9,6 +9,7 @@ pub mod editor;
 pub mod fs_safe;
 mod launch;
 pub mod link;
+pub mod recent;
 pub mod repository;
 pub mod responsibilities;
 pub mod settings;
@@ -24,6 +25,7 @@ use std::time::Duration;
 
 use changes::{Baseline, Changes, Origin, ScanOrigin};
 use launch::{launch_for, Launch};
+use recent::{open_target, OpenTarget};
 use repository::ScanReport;
 use socket::{Drives, Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -35,6 +37,7 @@ use windows::{
 
 const APP_TITLE: &str = "Recognizer";
 const SETTINGS_LABEL: &str = "settings";
+const RECENT_PREFIX: &str = "recent:";
 const CHANGES_POLL: Duration = Duration::from_secs(2);
 
 #[derive(Default)]
@@ -122,6 +125,8 @@ fn open_folder(app: &AppHandle, folder: Option<&Path>, view: Option<&str>) -> Re
 
     let canonical = canonical_folder(folder)?;
 
+    remember(app, &canonical);
+
     if let Claim::HeldBy(other) = state.claim(&label, &canonical) {
         state.closed(&label);
         focus_label(app, &other);
@@ -165,6 +170,8 @@ fn take_folder(app: &AppHandle, label: &str, folder: &Path) -> Result<(), String
         return open_folder(app, Some(&canonical), None);
     }
 
+    remember(app, &canonical);
+
     match state.claim(label, &canonical) {
         Claim::HeldBy(other) => focus_label(app, &other),
         Claim::Assigned => {
@@ -179,6 +186,19 @@ fn take_folder(app: &AppHandle, label: &str, folder: &Path) -> Result<(), String
     Ok(())
 }
 
+fn open_chosen(app: &AppHandle, folder: &Path) -> Result<(), String> {
+    let focused = focused_label(app);
+    let has_folder = focused
+        .as_deref()
+        .map(|label| app.state::<WindowState>().folder_of(label).is_some())
+        .unwrap_or(false);
+
+    match open_target(focused.as_deref(), has_folder) {
+        OpenTarget::AssignTo(label) => take_folder(app, &label, folder),
+        OpenTarget::NewWindow => open_folder(app, Some(folder), None),
+    }
+}
+
 fn choose_for(app: &AppHandle, label: &str) -> Result<(), String> {
     match app.dialog().file().blocking_pick_folder() {
         None => Ok(()),
@@ -188,6 +208,136 @@ fn choose_for(app: &AppHandle, label: &str) -> Result<(), String> {
             take_folder(app, label, &path)
         }
     }
+}
+
+fn focused_target(app: &AppHandle) -> OpenTarget {
+    let focused = focused_label(app);
+    let has_folder = focused
+        .as_deref()
+        .map(|label| app.state::<WindowState>().folder_of(label).is_some())
+        .unwrap_or(false);
+
+    open_target(focused.as_deref(), has_folder)
+}
+
+fn choose_and_open(app: &AppHandle) {
+    let picked = match focused_target(app) {
+        OpenTarget::NewWindow => rfd::FileDialog::new().pick_folder(),
+        OpenTarget::AssignTo(label) => {
+            let dialog = app.dialog().file();
+            let dialog = match app.get_webview_window(&label) {
+                Some(window) => dialog.set_parent(&window),
+                None => dialog,
+            };
+
+            match dialog
+                .blocking_pick_folder()
+                .map(|chosen| chosen.into_path())
+            {
+                Some(Ok(path)) => Some(path),
+                Some(Err(error)) => {
+                    eprintln!("recognizer: could not open the folder: {error}");
+
+                    None
+                }
+                None => None,
+            }
+        }
+    };
+
+    if let Some(path) = picked {
+        if let Err(error) = open_chosen(app, &path) {
+            eprintln!("recognizer: could not open the folder: {error}");
+        }
+    }
+}
+
+static RECENT_LOCK: Mutex<()> = Mutex::new(());
+
+fn recent_file(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|dir| recent::recent_file_in(&dir))
+        .map_err(|error| error.to_string())
+}
+
+fn update_recent(app: &AppHandle, change: impl FnOnce(&Path) -> Result<Vec<PathBuf>, String>) {
+    let result = {
+        let _guard = RECENT_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+
+        recent_file(app).and_then(|file| change(&file))
+    };
+
+    if let Err(error) = result {
+        eprintln!("recognizer: could not save the recent folders: {error}");
+
+        return;
+    }
+
+    rebuild_menu(app);
+}
+
+fn remember(app: &AppHandle, folder: &Path) {
+    update_recent(app, |file| recent::record(file, folder));
+}
+
+fn rebuild_menu(app: &AppHandle) {
+    let handle = app.clone();
+
+    let _ = app.run_on_main_thread(move || match build_menu(&handle) {
+        Ok(menu) => {
+            let _ = handle.set_menu(menu);
+        }
+        Err(error) => eprintln!("recognizer: could not rebuild the menu: {error}"),
+    });
+}
+
+fn open_recent(app: &AppHandle, folder: &Path) {
+    match canonical_folder(folder) {
+        Ok(_) => {
+            if let Err(error) = open_chosen(app, folder) {
+                eprintln!("recognizer: could not open the folder: {error}");
+            }
+        }
+        Err(message) => {
+            update_recent(app, |file| recent::forget(file, folder));
+            refuse(app, &message);
+        }
+    }
+}
+
+fn clear_recent(app: &AppHandle) {
+    update_recent(app, |file| {
+        recent::write(file, &[])?;
+
+        Ok(Vec::new())
+    });
+}
+
+fn recent_submenu(app: &AppHandle) -> tauri::Result<Submenu<tauri::Wry>> {
+    let list = recent_file(app)
+        .map(|file| recent::read(&file))
+        .unwrap_or_default();
+    let mut builder = SubmenuBuilder::new(app, "Open Recent");
+
+    for (folder, label) in list.iter().zip(recent::labels(&list)) {
+        let id = format!("{RECENT_PREFIX}{}", folder.to_string_lossy());
+        let item = MenuItem::with_id(app, id, label, true, None::<&str>)?;
+
+        builder = builder.item(&item);
+    }
+
+    let clear = MenuItem::with_id(
+        app,
+        "recent-clear",
+        "Clear Menu",
+        !list.is_empty(),
+        None::<&str>,
+    )?;
+
+    builder.separator().item(&clear).build()
 }
 
 fn focused_label(app: &AppHandle) -> Option<String> {
@@ -324,7 +474,11 @@ fn handle_second_launch(app: &AppHandle, args: Vec<String>, cwd: String) {
 fn refuse_link(app: &AppHandle, message: &str) {
     eprintln!("recognizer: link refused: {message}");
 
-    let message = format!("The link was refused: {message}");
+    refuse(app, &format!("The link was refused: {message}"));
+}
+
+fn refuse(app: &AppHandle, message: &str) {
+    let message = message.to_string();
     let shown = app.clone();
 
     app.state::<WindowState>().dialog_opened();
@@ -364,6 +518,7 @@ fn route_link(app: &AppHandle, url: &str) -> Result<(), String> {
 
     match app.state::<WindowState>().route(&folder) {
         Route::Existing(label) => {
+            remember(app, &folder);
             focus_label(app, &label);
             deliver_view(app, &label, link.view.as_deref());
 
@@ -387,16 +542,24 @@ fn handle_link(app: &AppHandle, url: &str) {
 fn handle_menu(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         "new-window" => spawn_open_window(app),
-        "open-folder" => {
-            if let Some(label) = focused_label(app) {
+        "open-folder" => match focused_target(app) {
+            OpenTarget::NewWindow => choose_and_open(app),
+            OpenTarget::AssignTo(_) => {
                 let app = app.clone();
 
-                std::thread::spawn(move || {
-                    if let Err(error) = choose_for(&app, &label) {
-                        eprintln!("recognizer: could not open the folder: {error}");
-                    }
-                });
+                std::thread::spawn(move || choose_and_open(&app));
             }
+        },
+        "recent-clear" => {
+            let app = app.clone();
+
+            std::thread::spawn(move || clear_recent(&app));
+        }
+        id if id.starts_with(RECENT_PREFIX) => {
+            let folder = PathBuf::from(&id[RECENT_PREFIX.len()..]);
+            let app = app.clone();
+
+            std::thread::spawn(move || open_recent(&app, &folder));
         }
         "rescan" => {
             if let Some(label) = focused_label(app) {
@@ -451,6 +614,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     )?;
     let new_window = MenuItem::with_id(app, "new-window", "New Window", true, Some("CmdOrCtrl+N"))?;
     let open = MenuItem::with_id(app, "open-folder", "Open...", true, Some("CmdOrCtrl+O"))?;
+    let recent = recent_submenu(app)?;
     let rescan = MenuItem::with_id(app, "rescan", "Rescan", true, Some("CmdOrCtrl+R"))?;
     let open_in_editor = MenuItem::with_id(
         app,
@@ -482,6 +646,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let file = SubmenuBuilder::new(app, "File")
         .item(&new_window)
         .item(&open)
+        .item(&recent)
         .item(&rescan)
         .separator()
         .item(&open_in_editor)

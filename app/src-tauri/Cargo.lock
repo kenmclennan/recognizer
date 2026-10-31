@@ -2707,6 +2707,7 @@ name = "recognizer_app"
 version = "0.1.0"
 dependencies = [
  "percent-encoding",
+ "rfd",
  "serde",
  "serde_json",
  "sha2",
