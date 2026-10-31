@@ -2,12 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::fs_safe::checked_relative;
 
 const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
 const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
+const SENSE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" sense --json --repository "$1" -- "${@:2}""#;
 const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" --version"#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
@@ -54,6 +55,42 @@ pub enum ToolsReport {
     Failed { exit_code: i32, stderr: String },
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct SensedSensor {
+    pub name: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum SenseReport {
+    Sensed {
+        commit: String,
+        modified: bool,
+        sensors: Vec<SensedSensor>,
+    },
+    CommandMissing {
+        hint: String,
+    },
+    Failed {
+        exit_code: i32,
+        stderr: String,
+    },
+}
+
+#[derive(Deserialize)]
+struct SenseOutput {
+    commit: String,
+    modified: bool,
+    sensors: Vec<SensedSensor>,
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub struct CacheRead {
     pub scans: Vec<ScanFile>,
@@ -90,6 +127,24 @@ pub fn describe_invocation(
             module.to_string(),
         ],
     )
+}
+
+pub fn sense_invocation(
+    shell: &str,
+    command: &str,
+    folder: &Path,
+    names: &[String],
+) -> (String, Vec<String>) {
+    let mut args = vec![
+        "-ilc".to_string(),
+        SENSE_SCRIPT.to_string(),
+        command.to_string(),
+        folder.display().to_string(),
+    ];
+
+    args.extend(names.iter().cloned());
+
+    (shell.to_string(), args)
 }
 
 pub fn version_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
@@ -215,6 +270,52 @@ pub fn scan_with(folder: &Path, shell: &str, command: &str) -> ScanReport {
     }
 }
 
+pub fn sense_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> SenseReport {
+    match exit {
+        Some(127) => SenseReport::CommandMissing {
+            hint: missing_hint(),
+        },
+        Some(code @ (0 | 1)) => match serde_json::from_str::<SenseOutput>(stdout) {
+            Ok(output) => SenseReport::Sensed {
+                commit: output.commit,
+                modified: output.modified,
+                sensors: output.sensors,
+            },
+            Err(error) => SenseReport::Failed {
+                exit_code: code,
+                stderr: format!("unreadable output from recognizer sense: {error}"),
+            },
+        },
+        other => SenseReport::Failed {
+            exit_code: other.unwrap_or(-1),
+            stderr,
+        },
+    }
+}
+
+pub fn sense(folder: &Path, names: &[String], shell: &str) -> SenseReport {
+    sense_with(folder, names, shell, RECOGNIZER_COMMAND)
+}
+
+pub fn sense_with(folder: &Path, names: &[String], shell: &str, command: &str) -> SenseReport {
+    let (program, args) = sense_invocation(shell, command, folder, names);
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .output();
+
+    match output {
+        Err(_) => SenseReport::CommandMissing {
+            hint: missing_hint(),
+        },
+        Ok(output) => sense_report_for(
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ),
+    }
+}
+
 pub fn tools_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> ToolsReport {
     match exit {
         Some(127) => ToolsReport::CommandMissing,
@@ -281,6 +382,128 @@ mod tests {
         assert_eq!(args[1], DESCRIBE_SCRIPT);
         assert!(!args[1].contains("a/"));
         assert_eq!(args[2..], ["recognizer", "/tmp/repo", "a/$(x).py"]);
+    }
+
+    #[test]
+    fn the_folder_and_names_are_positional_never_part_of_the_sense_script() {
+        let folder = Path::new("/tmp/repo");
+        let names = vec!["a$(x)".to_string(), "-x".to_string()];
+        let (shell, args) = sense_invocation("/bin/zsh", "recognizer", folder, &names);
+
+        assert_eq!(shell, "/bin/zsh");
+        assert_eq!(args[0], "-ilc");
+        assert_eq!(args[1], SENSE_SCRIPT);
+        assert!(SENSE_SCRIPT.contains(r#"-- "${@:2}""#));
+        assert!(!args[1].contains("a$(x)"));
+        assert_eq!(args[2..], ["recognizer", "/tmp/repo", "a$(x)", "-x"]);
+    }
+
+    #[test]
+    fn sense_output_with_one_ran_and_one_failed_is_one_report() {
+        let stdout = r#"{"commit":"abc","modified":false,"sensors":[{"name":"a","status":"ran"},{"name":"b","status":"failed","reason":"broke"}]}"#;
+
+        for code in [0, 1] {
+            assert_eq!(
+                sense_report_for(Some(code), stdout, String::new()),
+                SenseReport::Sensed {
+                    commit: "abc".to_string(),
+                    modified: false,
+                    sensors: vec![
+                        SensedSensor {
+                            name: "a".to_string(),
+                            status: "ran".to_string(),
+                            reason: None
+                        },
+                        SensedSensor {
+                            name: "b".to_string(),
+                            status: "failed".to_string(),
+                            reason: Some("broke".to_string())
+                        },
+                    ],
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn sense_exit_two_is_failed_with_stderr_and_127_is_missing() {
+        assert_eq!(
+            sense_report_for(Some(2), "", "no such sensor: x".to_string()),
+            SenseReport::Failed {
+                exit_code: 2,
+                stderr: "no such sensor: x".to_string()
+            }
+        );
+        assert_eq!(
+            sense_report_for(Some(127), "", String::new()),
+            SenseReport::CommandMissing {
+                hint: missing_hint()
+            }
+        );
+        assert_eq!(
+            sense_report_for(None, "", "killed".to_string()),
+            SenseReport::Failed {
+                exit_code: -1,
+                stderr: "killed".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn malformed_sense_output_is_failed() {
+        match sense_report_for(Some(0), "not json", String::new()) {
+            SenseReport::Failed { exit_code, stderr } => {
+                assert_eq!(exit_code, 0);
+                assert!(stderr.contains("unreadable output"));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_sense_report_serialises_to_the_webview_contract() {
+        let report = SenseReport::Sensed {
+            commit: "abc".to_string(),
+            modified: true,
+            sensors: vec![SensedSensor {
+                name: "a".to_string(),
+                status: "failed".to_string(),
+                reason: Some("x".to_string()),
+            }],
+        };
+
+        assert_eq!(
+            serde_json::to_value(&report).unwrap(),
+            serde_json::json!({
+                "status": "sensed",
+                "commit": "abc",
+                "modified": true,
+                "sensors": [{"name": "a", "status": "failed", "reason": "x"}]
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(SenseReport::Failed {
+                exit_code: 2,
+                stderr: "e".to_string()
+            })
+            .unwrap(),
+            serde_json::json!({"status": "failed", "exitCode": 2, "stderr": "e"})
+        );
+    }
+
+    #[test]
+    fn sense_with_a_missing_command_reports_it_missing() {
+        let dir = TempDir::new().unwrap();
+
+        match sense_with(
+            dir.path(),
+            &["a".to_string()],
+            "/bin/sh",
+            "/nonexistent/recognizer",
+        ) {
+            SenseReport::CommandMissing { .. } => {}
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

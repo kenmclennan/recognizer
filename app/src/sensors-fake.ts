@@ -1,4 +1,10 @@
-import type { FindingsFiles, SensorInputs, SensorsPort } from "./sensor-run";
+import { parseConfig, registeredSensors } from "recognizer";
+import type {
+  FindingsFiles,
+  SensorInputs,
+  SensorsPort,
+  SensorsRunResult,
+} from "./sensor-run";
 
 export type FakeSensors = SensorsPort & {
   files: Map<string, string>;
@@ -7,6 +13,10 @@ export type FakeSensors = SensorsPort & {
   removed: string[];
   written: (string | null)[];
   failWrite: boolean;
+  ran: string[][];
+  plan: Record<string, string>;
+  gate: Promise<void> | null;
+  commit: string;
   edit(inputs: Partial<SensorInputs>): void;
 };
 
@@ -28,6 +38,10 @@ export function fakeSensors(
     removed: [],
     written: [],
     failWrite: false,
+    ran: [],
+    plan: {},
+    gate: null,
+    commit: "abc1234",
     async writeStructure(document) {
       if (fake.failWrite) {
         throw new Error("disk full");
@@ -57,6 +71,52 @@ export function fakeSensors(
     async readInputs() {
       return fake.inputs;
     },
+    async run(names): Promise<SensorsRunResult> {
+      fake.ran.push(names);
+
+      let registered: string[];
+
+      try {
+        registered = registeredSensors(
+          fake.inputs.config === null ? null : parseConfig(fake.inputs.config),
+        ).map(({ name }) => name);
+      } catch {
+        registered = [];
+      }
+
+      const unknown = names.filter((name) => !registered.includes(name));
+
+      if (names.length === 0 || unknown.length > 0) {
+        return {
+          status: "failed",
+          reason:
+            names.length === 0
+              ? "no sensor was named"
+              : `no such sensor: ${unknown.join(", ")}`,
+        };
+      }
+
+      if (fake.gate !== null) {
+        await fake.gate;
+      }
+
+      return {
+        status: "sensed",
+        sensors: names.map((name) => {
+          const outcome = fake.plan[name] ?? "ran";
+
+          if (outcome === "ran") {
+            fake.files.set(name, findingsFor(name, fake.commit));
+
+            return { name, status: "ran" as const };
+          }
+
+          fake.files.delete(name);
+
+          return { name, status: "failed" as const, reason: outcome };
+        }),
+      };
+    },
     onInputsChanged(run) {
       listeners.add(run);
 
@@ -72,4 +132,15 @@ export function fakeSensors(
   };
 
   return fake;
+}
+
+function findingsFor(name: string, commit: string): string {
+  return JSON.stringify({
+    findings_version: 1,
+    sensor: { name, version: "1" },
+    commit,
+    modified: false,
+    settings: {},
+    findings: [],
+  });
 }

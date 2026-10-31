@@ -40,6 +40,7 @@ import {
 import { openFolderInEditor, openInEditor } from "./editor-open";
 import { type EditorPort, inertEditor } from "./editor-port";
 import { compactFolders } from "./folder-compaction";
+import type { ScanState } from "./footer-scan";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
@@ -74,6 +75,10 @@ import { nextCheck } from "./row-model";
 import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
 import type { BarModel } from "./selection-bar-view";
+import type { SensorsPort } from "./sensor-run";
+import { inertSensors } from "./sensor-run";
+import { NO_RUN, type RunState, sensorsPanel } from "./sensors-panel-model";
+import { buildSensorsPanelView } from "./sensors-panel-view";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { buildStalePanel, type StalePanelModel } from "./stale-panel-view";
 import {
@@ -126,6 +131,21 @@ import { latestWins, type Snapshot, windowStateOf } from "./window-state";
 export type Carried = {
   history: History<Snapshot>;
   snapshot: Snapshot;
+  leftPanel: LeftPanel;
+};
+
+export type SensorsHost = {
+  port: SensorsPort;
+  scan: () => ScanState | null;
+  refresh: () => Promise<void>;
+  state: { ticked: string[]; run: RunState };
+};
+
+export const inertSensorsHost: SensorsHost = {
+  port: inertSensors,
+  scan: () => null,
+  refresh: async () => {},
+  state: { ticked: [], run: NO_RUN },
 };
 
 export type Explorer = {
@@ -153,6 +173,7 @@ export function showExplorer(
   responsibilities: ResponsibilitiesPort = inertResponsibilities,
   windowPort: WindowPort = inertWindow,
   showAgentLine: (line: AgentLineView) => void = () => {},
+  sensorsHost: SensorsHost = inertSensorsHost,
 ): Explorer {
   const health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
@@ -169,7 +190,8 @@ export function showExplorer(
     onCanvas: false,
     needsAttention: false,
   };
-  let leftPanel: LeftPanel = "files";
+  let leftPanel: LeftPanel = carried?.leftPanel ?? "files";
+  let sensorsConfig: string | null = null;
   let scrollTarget: string | null = null;
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
@@ -559,9 +581,20 @@ export function showExplorer(
       );
     },
   });
+  const sensorsView = buildSensorsPanelView({
+    tick(name, ticked) {
+      const rest = sensorsHost.state.ticked.filter((one) => one !== name);
+
+      sensorsHost.state.ticked = ticked ? [...rest, name] : rest;
+      render();
+    },
+    runSelected: () => void runSensors(sensorsHost.state.ticked),
+    runAll: () => void runSensors(registeredNames()),
+  });
   const rail = buildRailView({
     toggleFiles: toggleTree,
     toggleNotes: () => openNotes(false),
+    toggleSensors: toggleSensorsPanel,
   });
   const notices = el("div", "notices");
 
@@ -581,7 +614,7 @@ export function showExplorer(
   );
 
   canvas.element.append(bar.element, stale.element);
-  tree.element.append(notesPanel.element);
+  tree.element.append(notesPanel.element, sensorsView.element);
   body.append(rail.element, tree.element, canvas.element, inspector.element);
   container.replaceChildren(notices, body);
 
@@ -930,6 +963,94 @@ export function showExplorer(
   function toggleTree() {
     leftPanel = leftPanel === "files" ? null : "files";
     render();
+  }
+
+  function toggleSensorsPanel() {
+    leftPanel = leftPanel === "sensors" ? null : "sensors";
+    render();
+
+    if (leftPanel === "sensors") {
+      void loadSensorsConfig();
+    }
+  }
+
+  async function loadSensorsConfig() {
+    try {
+      sensorsConfig = (await sensorsHost.port.readInputs()).config;
+    } catch {
+      sensorsConfig = null;
+    }
+
+    render();
+  }
+
+  function sensorsModel() {
+    return sensorsPanel({
+      scan: sensorsHost.scan(),
+      scanFiles: loaded.scans.map(({ file }) => file),
+      config: sensorsConfig,
+      sensors: loaded.sensors,
+      ticked: sensorsHost.state.ticked,
+      run: sensorsHost.state.run,
+      now: Date.now(),
+    });
+  }
+
+  function registeredNames(): string[] {
+    return sensorsModel()
+      .rows.filter((row) => row.tickable)
+      .map((row) => row.name);
+  }
+
+  async function runSensors(names: string[]) {
+    const known = new Set(registeredNames());
+    const asked = names.filter((name) => known.has(name));
+
+    if (asked.length === 0 || sensorsHost.state.run.running.length > 0) {
+      return;
+    }
+
+    const state = sensorsHost.state;
+
+    state.run = { ...state.run, running: asked };
+    render();
+
+    const failures = { ...state.run.failures };
+    const ranAt = { ...state.run.ranAt };
+
+    try {
+      const result = await sensorsHost.port.run(asked);
+
+      if (result.status === "sensed") {
+        for (const one of result.sensors) {
+          if (one.status === "ran") {
+            delete failures[one.name];
+            ranAt[one.name] = Date.now();
+          } else {
+            failures[one.name] = one.reason ?? "failed";
+          }
+        }
+      } else {
+        const reason = result.status === "failed" ? result.reason : result.hint;
+
+        for (const name of asked) {
+          failures[name] = reason;
+        }
+      }
+    } catch (error) {
+      for (const name of asked) {
+        failures[name] = String(error);
+      }
+    }
+
+    state.run = { running: [], failures, ranAt };
+    render();
+
+    try {
+      await sensorsHost.refresh();
+    } finally {
+      await loadSensorsConfig();
+    }
   }
 
   function openNotes(focus: boolean) {
@@ -1843,11 +1964,19 @@ export function showExplorer(
     syncTrail(selection);
     body.classList.toggle("tree-hidden", leftPanel === null);
     tree.element.classList.toggle("notes-open", leftPanel === "notes");
+    tree.element.classList.toggle("sensors-open", leftPanel === "sensors");
 
     const noteView = openViewValue();
     const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
 
-    rail.render({ panel: leftPanel, notes: noteTotal });
+    const sensorsModelNow = sensorsModel();
+
+    sensorsView.render(sensorsModelNow);
+    rail.render({
+      panel: leftPanel,
+      notes: noteTotal,
+      sensorsFailed: sensorsModelNow.mark,
+    });
     tree.render({
       title,
       moduleCount: loaded.modules.length,
@@ -2001,6 +2130,7 @@ export function showExplorer(
   );
 
   void readResponsibilities();
+  void loadSensorsConfig();
 
   void loadViewList().then(() => {
     if (carried?.snapshot.view != null) {
@@ -2016,7 +2146,7 @@ export function showExplorer(
     toggleTree,
     openSelectedInEditor,
     openLinkedView: () => void openLinkedView(),
-    carry: () => ({ history, snapshot: snapshot() }),
+    carry: () => ({ history, snapshot: snapshot(), leftPanel }),
     dispose() {
       resizeObserver?.disconnect();
       stopWatching();

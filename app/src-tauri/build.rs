@@ -15,6 +15,7 @@ fn main() {
         "remove_findings",
         "rename_view",
         "renames_since",
+        "run_sensors",
         "scan_folder",
         "scans_at",
         "take_pending_view",

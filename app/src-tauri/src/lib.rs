@@ -887,6 +887,23 @@ async fn describe_module(
 }
 
 #[tauri::command]
+async fn run_sensors(
+    app: AppHandle,
+    window: WebviewWindow,
+    names: Vec<String>,
+) -> Result<repository::SenseReport, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    sensors::check_names(&names)?;
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+
+    tauri::async_runtime::spawn_blocking(move || repository::sense(&folder, &names, &shell))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1219,6 +1236,7 @@ pub fn run() {
             remove_findings,
             rename_view,
             renames_since,
+            run_sensors,
             scan_folder,
             scans_at,
             take_pending_view,
