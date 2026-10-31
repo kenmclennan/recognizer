@@ -102,6 +102,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
 | Note | A text a person or an agent attaches to one module in a saved view, with the name of who wrote it; a module can carry several in one view. |
 | Notes panel | The left-column panel, behind a rail icon beside Files, that lists a view's notes in canvas order grouped by box and orients the display to the selected one. |
+| Sensors panel | The left-column panel, behind the Sensors rail icon, that shows the last scan and each sensor's status, and runs the ticked or all registered sensors on request. |
+| Findings panel | The left-column panel, behind the Findings rail icon, that lists every current finding grouped by severity and kind and orients the display to the selected one, lighting its evidence. |
 | Description | A saved view's required one- or two-sentence statement of what it shows. |
 | Step | One entry in a saved view, replayed on opening: a pick, a rule, a fold, a focus, or a module left out. |
 | Pick | A step naming one module by path. Everything the user adds in the app is recorded as picks. |
