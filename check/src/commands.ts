@@ -13,6 +13,7 @@ import {
 } from "./question-commands.js";
 import { runFind, runModules, runShow } from "./read-commands.js";
 import { runScan } from "./scan-command.js";
+import { runSense } from "./sense-command.js";
 import { runViews } from "./views-command.js";
 import { runWindow, runWindows } from "./window-commands.js";
 
@@ -104,15 +105,15 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs the sensors registered under `sensors` in .recognizer/config.yaml and the structure sensor, and writes one findings file per sensor in .recognizer/cache/findings/",
-      json: "the report document: violations, new, fixed, unranked, baseline, thresholds, warnings and metrics, and in repository mode a sensors list; always JSON on stdout with --scan, and with --json in repository mode",
+      text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs the structure sensor, writes its findings file in .recognizer/cache/findings/ and reads every current findings file there; it never runs a registered sensor, so run `recognizer sense` first when their findings should count",
+      json: "the report document: violations, new, fixed, unranked, baseline, thresholds, warnings and metrics, and in repository mode a sensors list of { name, status, reason?, settings? } where a registered sensor is ran only when its file is current, else stale or missing; always JSON on stdout with --scan, and with --json in repository mode",
     },
     exitCodes: [
       { code: 0, meaning: "no new violation, or no policy" },
       {
         code: 1,
         meaning:
-          "at least one new violation, or a registered or structure sensor failed",
+          "at least one new violation, the structure sensor failed, or a findings file is invalid",
       },
       {
         code: 2,
@@ -837,6 +838,55 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runMeasure,
+  },
+  {
+    name: "sense",
+    summary:
+      "run the sensors a repository registers and write each one's findings to the cache",
+    usage: "recognizer sense [<name>...] [--repository <dir>] [--json]",
+    arguments: [
+      {
+        name: "<name>",
+        description:
+          "a registered sensor's name; without a name, sense runs every registered sensor in config order",
+      },
+    ],
+    options: [
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository to run the sensors on; defaults to the current directory",
+      },
+      { flag: "--json", description: "print JSON instead of text" },
+    ],
+    output: {
+      text: "`ran <name>` or `failed <name>` per sensor on stdout and `failed <name>: <reason>` per failure on stderr",
+      json: "{ commit, modified, sensors: [{ name, status: ran|failed, reason? }] }",
+    },
+    exitCodes: [
+      { code: 0, meaning: "every selected sensor ran" },
+      {
+        code: 1,
+        meaning:
+          "at least one selected sensor failed (the rest still run); a failed sensor leaves no file",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad input - no sensors registered in .recognizer/config.yaml, an invalid config, an unknown sensor name (the registered ones are named), an unknown flag, or no git commit",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer sense",
+        note: "run every registered sensor, then recognizer check reads their findings",
+      },
+      {
+        command: "recognizer sense coverage-gaps --json",
+        note: "run one sensor and print the outcome as JSON",
+      },
+    ],
+    run: runSense,
   },
   {
     name: "agents",
