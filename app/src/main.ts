@@ -12,6 +12,8 @@ import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
+import { withSensors } from "./sensor-run";
+import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
 import { toolsNotice } from "./tools-notice";
 import { toolsSource } from "./tools-source";
@@ -26,6 +28,9 @@ const footerView = buildFooter(footer, () => void rescanner.run());
 let explorer: Explorer | null = null;
 let folderName = "";
 let scanState: ScanState | null = null;
+let current: Loaded | null = null;
+
+const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
 function setScanState(next: ScanState | null) {
   scanState = next;
@@ -38,10 +43,17 @@ function adoptedOrigin(origin: ScanOrigin) {
     scannedAt: Date.now(),
     changes: NO_CHANGES,
     rescanning: false,
+    sensors: current?.sensors ?? [],
   });
 }
 
 function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
+  current = loaded;
+
+  if (scanState !== null) {
+    setScanState({ ...scanState, sensors: loaded.sensors });
+  }
+
   return showExplorer(
     content,
     loaded,
@@ -75,6 +87,8 @@ async function checkTools(): Promise<void> {
 const rescanner = createRescanner<Carried>({
   scan: () => repositorySource.scanFolder(),
   load: loadScans,
+  sense: sensed,
+  resense: async () => (current === null ? null : sensed(current)),
   adopt: () => repositorySource.adoptScan(),
   carry: () => explorer?.carry() ?? null,
   replace: (loaded, carried) => {
@@ -96,6 +110,7 @@ const rescanner = createRescanner<Carried>({
 async function start(): Promise<void> {
   explorer?.dispose();
   explorer = null;
+  current = null;
   setScanState(null);
   footerView.setCount("");
 
@@ -117,18 +132,21 @@ async function start(): Promise<void> {
 
   scanning.classList.add("scan-busy");
 
-  const loaded = loadScans(
+  const scanned = loadScans(
     await createBusyGate(
       () => content.replaceChildren(scanning),
       () => scanning.remove(),
     ).run(repositorySource.scanFolder()),
   );
 
-  if (loaded.blocking !== null) {
-    showMessage(content, loaded.blocking, true);
+  if (scanned.blocking !== null) {
+    showMessage(content, scanned.blocking, true);
 
     return;
   }
+
+  const loaded = await sensed(scanned);
+  current = loaded;
 
   adoptedOrigin(await repositorySource.adoptScan());
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
@@ -152,6 +170,8 @@ void getCurrentWebviewWindow().listen("open-in-editor", () =>
 void getCurrentWebviewWindow().listen("view-link", () =>
   explorer?.openLinkedView(),
 );
+
+sensorsSource.onInputsChanged(() => void rescanner.refresh());
 
 void repositorySource.onRescan(() => void rescanner.run());
 

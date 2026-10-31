@@ -1,3 +1,5 @@
+import type { SensorStatus } from "./sensor-run";
+
 export type FileChange = {
   path: string;
   kind: "modified" | "added" | "deleted";
@@ -15,6 +17,7 @@ export type ScanState = {
   scannedAt: number;
   changes: Changes;
   rescanning: boolean;
+  sensors: SensorStatus[];
 };
 
 export type ScanLine = {
@@ -23,7 +26,31 @@ export type ScanLine = {
   tone: "muted" | "amber";
   files: FileChange[];
   rescan: "none" | "enabled" | "disabled";
+  sensors: SensorsLine | null;
 };
+
+export type SensorsLine = {
+  text: string;
+  tone: "muted" | "amber";
+  title: string;
+};
+
+export function sensorsLine(sensors: SensorStatus[]): SensorsLine | null {
+  if (sensors.length === 0) {
+    return null;
+  }
+
+  const parts = sensors.map(({ name, status }) => `${name} ${status}`);
+  const reasons = sensors
+    .filter(({ reason }) => reason !== undefined)
+    .map(({ name, reason }) => `${name}: ${reason}`);
+
+  return {
+    text: `Sensors: ${parts.join(", ")}`,
+    tone: sensors.some(({ status }) => status === "failed") ? "amber" : "muted",
+    title: reasons.join("\n"),
+  };
+}
 
 export const NO_CHANGES: Changes = { files: [], moved: null };
 
@@ -52,6 +79,15 @@ export function ageText(scannedAt: number, now: number): string {
 }
 
 export function scanLine(state: ScanState, now: number): ScanLine {
+  return {
+    ...scanLineWithoutSensors(state, now),
+    sensors: sensorsLine(state.sensors),
+  };
+}
+
+type ScanLineBase = Omit<ScanLine, "sensors">;
+
+function scanLineWithoutSensors(state: ScanState, now: number): ScanLineBase {
   if (state.rescanning) {
     return {
       kind: "rescanning",

@@ -1,5 +1,10 @@
-import { SCAN_SCHEMA_VERSION, type Scan } from "recognizer";
+import {
+  type FindingsDocument,
+  SCAN_SCHEMA_VERSION,
+  type Scan,
+} from "recognizer";
 import type { ScanReport } from "./scan-report";
+import type { SensorStatus } from "./sensor-run";
 
 export type LoadedScan = { file: string; scan: Scan };
 
@@ -10,6 +15,8 @@ export type Loaded = {
   baseline: string | null;
   notices: string[];
   blocking: string | null;
+  findings: FindingsDocument[];
+  sensors: SensorStatus[];
 };
 
 const EMPTY: Loaded = {
@@ -19,6 +26,8 @@ const EMPTY: Loaded = {
   baseline: null,
   notices: [],
   blocking: null,
+  findings: [],
+  sensors: [],
 };
 
 function isList(value: unknown): boolean {
@@ -104,5 +113,7 @@ export function loadScans(report: ScanReport): Loaded {
     baseline: report.baseline ?? null,
     notices,
     blocking: null,
+    findings: [],
+    sensors: [],
   };
 }

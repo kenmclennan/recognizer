@@ -72,7 +72,7 @@ const scan = {
   edges: [{ from: "lib/c.py", to: "app/a.py", kind: "depends", line: 1, names: ["A"] }, edge("app/a.py", ["A"]), edge("lib/c.py", ["C"]), edge("lib/d.py", ["D"]), edge("lib/e.py", ["E"])],
   foreign: [],
 };
-const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null };
+const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
 
 const app = document.getElementById("app");
 showExplorer(app, loaded, "demo", (text) => { document.getElementById("module-count").textContent = text; });

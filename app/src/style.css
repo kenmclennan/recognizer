@@ -1588,6 +1588,10 @@ svg.i.chevron {
   color: var(--warn);
 }
 
+.footer .sensors-line.amber {
+  color: var(--warn);
+}
+
 .footer .scan-count,
 .footer .rescan-button {
   color: inherit;

@@ -12,6 +12,8 @@ const OK: Loaded = {
   baseline: null,
   notices: [],
   blocking: null,
+  findings: [],
+  sensors: [],
 };
 const REPORT: ScanReport = {
   status: "scanned",
@@ -30,6 +32,16 @@ function harness(over: Partial<RescanPorts<string>> = {}) {
       return REPORT;
     },
     load: () => OK,
+    sense: async (loaded) => {
+      log.push("sense");
+
+      return loaded;
+    },
+    resense: async () => {
+      log.push("resense");
+
+      return OK;
+    },
     adopt: async () => {
       log.push("adopt");
 
@@ -59,6 +71,7 @@ describe("createRescanner", () => {
     expect(log).toEqual([
       "running:true",
       "scan",
+      "sense",
       "carry",
       "adopt",
       "notify:",
@@ -126,5 +139,52 @@ describe("createRescanner", () => {
     await first;
 
     expect(log.filter((entry) => entry === "scan")).toHaveLength(1);
+  });
+
+  it("keeps the old explorer when the sensors throw during a rescan", async () => {
+    const { log, rescanner } = harness({
+      sense: async () => {
+        throw new Error("no sensors");
+      },
+    });
+
+    await rescanner.run();
+
+    expect(log.some((entry) => entry.startsWith("replace"))).toBe(false);
+    expect(log).toContain("notify:Rescan failed: Error: no sensors");
+  });
+
+  it("refreshes the sensors without scanning, carrying the state", async () => {
+    const { log, rescanner } = harness();
+
+    await rescanner.refresh();
+
+    expect(log).toEqual(["resense", "carry", "replace:carried"]);
+  });
+
+  it("refreshes nothing when there is nothing loaded", async () => {
+    const { log, rescanner } = harness({ resense: async () => null });
+
+    await rescanner.refresh();
+
+    expect(log).toEqual([]);
+  });
+
+  it("does not refresh while a rescan is running and the reverse", async () => {
+    let release: () => void = () => {};
+    const { log, rescanner } = harness({
+      scan: () =>
+        new Promise<ScanReport>((resolve) => {
+          release = () => resolve(REPORT);
+        }),
+    });
+
+    const first = rescanner.run();
+
+    await rescanner.refresh();
+    release();
+    await first;
+
+    expect(log).not.toContain("resense");
   });
 });

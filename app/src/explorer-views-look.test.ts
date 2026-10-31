@@ -81,7 +81,7 @@ const thenScan = {
   edges: [edge("lib/c.py", "app/a.py"), edge("app/hub.py", "app/a.py"), edge("app/hub.py", "lib/e.py")],
   foreign: [],
 };
-const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], policy: null, notices: [], blocking: null };
+const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
 
 const viewText = (steps, commit, description = "d", extra) => JSON.stringify({ schema_version: extra ? 2 : 1, description, commit, ...(extra || {}), steps }, null, 2) + "\\n";
 const pick = (module) => ({ kind: "pick", module });

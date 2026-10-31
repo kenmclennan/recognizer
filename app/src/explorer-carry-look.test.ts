@@ -14,7 +14,7 @@ const scanOf = (ids) => ({
   edges: ids.length > 1 ? [edge(ids[0], ids[1])] : [],
   foreign: [],
 });
-const loadedOf = (ids) => ({ modules: ids, scans: [{ file: "scan.json", scan: scanOf(ids) }], policy: null, notices: [], blocking: null });
+const loadedOf = (ids) => ({ modules: ids, scans: [{ file: "scan.json", scan: scanOf(ids) }], policy: null, notices: [], blocking: null, findings: [], sensors: [] });
 const before = ["app/hub.py", "app/a.py", "lib/c.py", "lib/d.py", "lib/e.py"];
 const after = ["app/hub.py", "app/a.py", "lib/e.py"];
 

@@ -79,7 +79,7 @@ const nowScan = {
   edges: [],
   foreign: [],
 };
-const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], policy: null, notices: [], blocking: null };
+const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
 
 const viewText = (steps) => JSON.stringify({ schema_version: 1, description: "d", commit: "cur1234", steps }, null, 2) + "\\n";
 const tick = () => new Promise((resolve) => setTimeout(resolve, 40));

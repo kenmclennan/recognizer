@@ -1,5 +1,13 @@
+import type { FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { fixtureBaseline, fixturePolicy, fixtureScan } from "./fixtures";
+import {
+  CURRENT,
+  fixtureBaseline,
+  fixturePolicy,
+  fixtureScan,
+  secondSensorDocument,
+  structureDocument,
+} from "./fixtures";
 import {
   computeHealth,
   describeTree,
@@ -8,11 +16,30 @@ import {
 } from "./health";
 import { buildTree } from "./tree-model";
 
-function healthOf(name: string, policy: string | null) {
-  const loaded = fixtureScan(name);
-  const ids = loaded.scan.modules.map((module) => module.id);
+function healthFor(
+  name: string,
+  policy: string | null,
+  findings: FindingsDocument[],
+  baseline: string | null = null,
+  modules?: string[],
+) {
+  const loaded = fixtureScan(name, "scan.json", CURRENT);
+  const ids = modules ?? loaded.scan.modules.map((module) => module.id);
 
-  return { health: computeHealth([loaded], policy, ids), ids };
+  return {
+    health: computeHealth({
+      scans: [loaded],
+      policy,
+      modules: ids,
+      baseline,
+      findings,
+    }),
+    ids,
+  };
+}
+
+function healthOf(name: string, policy: string | null) {
+  return healthFor(name, policy, [structureDocument(name, policy)]);
 }
 
 describe("computeHealth on fixtures/check", () => {
@@ -156,10 +183,12 @@ describe("computeHealth with a baseline", () => {
   const baseline = fixtureBaseline("check");
 
   function withBaseline(text: string | null) {
-    const loaded = fixtureScan("check");
-    const ids = loaded.scan.modules.map((module) => module.id);
-
-    return computeHealth([loaded], fixturePolicy("check"), ids, text);
+    return healthFor(
+      "check",
+      fixturePolicy("check"),
+      [structureDocument("check", fixturePolicy("check"))],
+      text,
+    ).health;
   }
 
   it("does not mark a baselined violation red or list it as a finding", () => {
@@ -189,8 +218,8 @@ describe("computeHealth with a baseline", () => {
   });
 });
 
-describe("computeHealth without or with a bad policy", () => {
-  it("shows nothing red without a policy and both cycle modules amber", () => {
+describe("computeHealth without a policy", () => {
+  it("shows nothing red and both cycle modules amber", () => {
     const { health, ids } = healthOf("check", null);
 
     expect(ids.some((id) => health.disc(id) === "red")).toBe(false);
@@ -199,33 +228,98 @@ describe("computeHealth without or with a bad policy", () => {
     expect(health.disc("tests/test_order.py")).toBe("green");
   });
 
-  it("falls back to the no-policy result with a notice for an invalid policy", () => {
-    const { health, ids } = healthOf("check", "levels: [");
-
-    expect(health.notices).toHaveLength(1);
-    expect(health.notices[0]).toMatch(/^policy\.yaml: /);
-    expect(ids.some((id) => health.disc(id) === "red")).toBe(false);
-    expect(health.disc("shop/domain/order.py")).toBe("amber");
-  });
-
-  it("falls back with a notice when a module matches two components", () => {
-    const { health, ids } = healthOf(
+  it("drops a finding on an id that is not a module", () => {
+    const modules = fixtureScan("check", "scan.json", CURRENT)
+      .scan.modules.map((module) => module.id)
+      .filter((id) => id !== "shop/domain/order.py");
+    const { health } = healthFor(
       "check",
-      "components:\n  one: shop/**\n  two: shop/domain/**\nlevels: [one, two]\n",
+      fixturePolicy("check"),
+      [structureDocument("check", fixturePolicy("check"))],
+      null,
+      modules,
     );
 
-    expect(health.notices).toHaveLength(1);
-    expect(ids.some((id) => health.disc(id) === "red")).toBe(false);
+    expect(health.lines("shop/domain/order.py")).toEqual([]);
+  });
+});
+
+describe("computeHealth from findings files", () => {
+  it("measures nothing without a structure file, so every disc is grey", () => {
+    const { health, ids } = healthFor("check", fixturePolicy("check"), []);
+
+    expect(ids.every((id) => health.disc(id) === "grey")).toBe(true);
   });
 
-  it("drops a finding on an id that is not a module", () => {
-    const loaded = fixtureScan("check");
-    const modules = loaded.scan.modules
-      .map((module) => module.id)
-      .filter((id) => id !== "shop/domain/order.py");
-    const health = computeHealth([loaded], fixturePolicy("check"), modules);
+  it("ignores a file from another commit, leaving its modules grey", () => {
+    const { health, ids } = healthFor("check", fixturePolicy("check"), [
+      structureDocument("check", fixturePolicy("check"), "old"),
+    ]);
 
-    expect(health.lines("shop/domain/order.py")).toEqual([]);
+    expect(ids.every((id) => health.disc(id) === "grey")).toBe(true);
+    expect(health.findings("shop/domain/order.py")).toEqual([]);
+  });
+
+  it("reads the hub threshold from the file, not from the app", () => {
+    const strict = structureDocument("check", fixturePolicy("check"));
+    const hubs = strict.findings.filter((record) => record.kind === "hub");
+
+    expect(hubs).toEqual([]);
+
+    const withHub: FindingsDocument = {
+      ...strict,
+      settings: { hub_threshold: 1 },
+      findings: [
+        ...strict.findings,
+        {
+          id: "hub:shop/main.py",
+          kind: "hub",
+          severity: "warning",
+          principle: "small-interfaces",
+          summary: "shop/main.py is a hub",
+          evidence: { modules: ["shop/main.py"] },
+        },
+      ],
+    };
+    const { health } = healthFor("check", fixturePolicy("check"), [withHub]);
+
+    expect(health.disc("shop/main.py")).toBe("amber");
+    expect(health.lines("shop/main.py")).toEqual(["shop/main.py is a hub"]);
+  });
+
+  it("shows a finding from a second sensor with its summary and principle", () => {
+    const { health } = healthFor("check", fixturePolicy("check"), [
+      structureDocument("check", fixturePolicy("check")),
+      secondSensorDocument("shop/main.py"),
+    ]);
+
+    expect(health.disc("shop/main.py")).toBe("amber");
+    expect(health.findings("shop/main.py")).toEqual([
+      {
+        severity: "warning",
+        text: "too many magic numbers",
+        why: "name-your-constants",
+      },
+    ]);
+  });
+
+  it("measures a module a second sensor names even without a structure file", () => {
+    const { health } = healthFor("check", fixturePolicy("check"), [
+      secondSensorDocument("shop/main.py"),
+    ]);
+
+    expect(health.disc("shop/main.py")).toBe("amber");
+    expect(health.disc("shop/ports/store.py")).toBe("grey");
+  });
+
+  it("ignores a stale second sensor", () => {
+    const stale = secondSensorDocument("shop/main.py", "x", "y", "old");
+    const { health } = healthFor("check", fixturePolicy("check"), [
+      structureDocument("check", fixturePolicy("check")),
+      stale,
+    ]);
+
+    expect(health.disc("shop/main.py")).toBe("green");
   });
 });
 
