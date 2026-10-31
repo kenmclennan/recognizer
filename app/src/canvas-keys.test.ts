@@ -93,7 +93,7 @@ describe("canvas keys", () => {
   });
 
   it("maps J and K to walking the notes only with the panel open", () => {
-    const open = { notesOpen: true, noteActive: false };
+    const open = { notesOpen: true, noteActive: false, findingsOpen: false };
 
     expect(keyAction(press("j"), module, open)).toBe("next-note");
     expect(keyAction(press("K"), null, open)).toBe("previous-note");
@@ -105,23 +105,37 @@ describe("canvas keys", () => {
   });
 
   it("removes the active note on Backspace instead of taking the box off", () => {
-    const active = { notesOpen: true, noteActive: true };
+    const active = { notesOpen: true, noteActive: true, findingsOpen: false };
 
     expect(keyAction(press("Backspace"), module, active)).toBe("remove-note");
     expect(
       keyAction(press("Backspace"), module, {
         notesOpen: true,
         noteActive: false,
+        findingsOpen: false,
       }),
     ).toBe("take-off");
     expect(
       keyAction(press("Backspace"), module, {
         notesOpen: false,
         noteActive: true,
+        findingsOpen: false,
       }),
     ).toBe("take-off");
     expect(
       keyAction(press("Backspace", { targetEditable: true }), module, active),
     ).toBeNull();
+  });
+
+  it("maps J and K to walking the findings only with the Findings panel open", () => {
+    const open = { notesOpen: false, noteActive: false, findingsOpen: true };
+
+    expect(keyAction(press("j"), module, open)).toBe("next-finding");
+    expect(keyAction(press("K"), null, open)).toBe("previous-finding");
+    expect(keyAction(press("j"), module)).toBeNull();
+    expect(
+      keyAction(press("j", { targetEditable: true }), module, open),
+    ).toBeNull();
+    expect(keyAction(press("Escape"), module, open)).toBe("escape");
   });
 });

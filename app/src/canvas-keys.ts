@@ -18,11 +18,21 @@ export type KeyAction =
   | "add-note"
   | "remove-note"
   | "next-note"
-  | "previous-note";
+  | "previous-note"
+  | "next-finding"
+  | "previous-finding";
 
-export type NoteKeyContext = { notesOpen: boolean; noteActive: boolean };
+export type NoteKeyContext = {
+  notesOpen: boolean;
+  noteActive: boolean;
+  findingsOpen: boolean;
+};
 
-const NO_NOTES: NoteKeyContext = { notesOpen: false, noteActive: false };
+const NO_NOTES: NoteKeyContext = {
+  notesOpen: false,
+  noteActive: false,
+  findingsOpen: false,
+};
 
 export function keyAction(
   event: KeyInput,
@@ -49,6 +59,14 @@ export function keyAction(
 
   if (notes.notesOpen && key === "k") {
     return "previous-note";
+  }
+
+  if (notes.findingsOpen && key === "j") {
+    return "next-finding";
+  }
+
+  if (notes.findingsOpen && key === "k") {
+    return "previous-finding";
   }
 
   if (notes.notesOpen && notes.noteActive && event.key === "Backspace") {

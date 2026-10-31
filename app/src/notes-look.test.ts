@@ -432,7 +432,7 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
 
   it("puts a Notes icon beside Files with the number of notes", () => {
     expect(f.rail).toEqual({
-      order: ["rail-files", "rail-notes", "rail-sensors"],
+      order: ["rail-files", "rail-notes", "rail-sensors", "rail-findings"],
       count: "4",
       countHidden: false,
     });

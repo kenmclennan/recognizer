@@ -100,7 +100,12 @@ describe.skipIf(chrome === undefined)("the Sensors panel", () => {
   }, 180000);
 
   it("sits third on the rail, swaps with the tree and runs nothing on open", () => {
-    expect(f.good.order).toEqual(["rail-files", "rail-notes", "rail-sensors"]);
+    expect(f.good.order).toEqual([
+      "rail-files",
+      "rail-notes",
+      "rail-sensors",
+      "rail-findings",
+    ]);
     expect(f.good.opened.panel).toBe(true);
     expect(f.good.opened.files).toBe(false);
     expect(f.good.opened.ran).toBe(0);

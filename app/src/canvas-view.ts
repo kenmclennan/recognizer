@@ -11,7 +11,11 @@ import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
-import { cardLayout } from "./notes-order";
+import {
+  cardLayout,
+  FINDING_CARD_WIDTH,
+  FINDING_CARD_WRAP,
+} from "./notes-order";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
@@ -40,6 +44,13 @@ export type CanvasProps = {
   notice: string | null;
   busy?: boolean;
   notes?: CanvasNotes;
+  orientation?: CanvasOrientation | null;
+};
+
+export type CanvasOrientation = {
+  lit: ReadonlySet<string>;
+  tone: "violation" | "warning";
+  card: { module: string; lines: string[]; id: string } | null;
 };
 
 export type CanvasNotes = {
@@ -64,6 +75,9 @@ export type CanvasActions = {
   addNote: () => void;
   removeNote: () => void;
   walkNotes: (delta: 1 | -1) => void;
+  walkFindings: (delta: 1 | -1) => void;
+  openFinding: () => void;
+  copyFindingId: () => void;
 };
 
 export type CanvasView = {
@@ -541,6 +555,100 @@ export function buildCanvasView(
       parts.push(node);
     }
 
+    const orientation = props?.orientation ?? null;
+    const found = orientation?.card ?? null;
+    const target =
+      found === null
+        ? undefined
+        : scene.boxes.find((box) => box.id === found.module);
+
+    if (orientation !== null && found !== null && target !== undefined) {
+      const stage = size();
+      const visible = {
+        x: -viewport.x / viewport.k,
+        y: -viewport.y / viewport.k,
+        width: stage.width / viewport.k,
+        height: stage.height / viewport.k,
+      };
+      const layout = cardLayout(
+        target.rect,
+        found.lines.join("\n"),
+        {
+          width: FINDING_CARD_WIDTH,
+          wrap: FINDING_CARD_WRAP,
+          soft: true,
+        },
+        stage.width > 0 ? visible : undefined,
+        32,
+      );
+
+      if (layout.pan.x !== 0 || layout.pan.y !== 0) {
+        viewport = panBy(
+          viewport,
+          -layout.pan.x * viewport.k,
+          -layout.pan.y * viewport.k,
+        );
+        applyViewport();
+      }
+      const node = svg("g", {
+        class: `finding-card ${orientation.tone}`,
+      });
+      const text = svg("text", { class: "finding-card-text" });
+      const bottom = layout.card.y + layout.card.height;
+
+      layout.lines.forEach((line, index) => {
+        text.append(
+          svg(
+            "tspan",
+            {
+              x: layout.card.x + 10,
+              y: layout.card.y + 8 + (index + 1) * 18 - 5,
+            },
+            line,
+          ),
+        );
+      });
+      node.append(
+        svg("path", { class: "finding-leader", d: layout.leader }),
+        svg("rect", {
+          class: "finding-card-body",
+          x: layout.card.x,
+          y: layout.card.y,
+          width: layout.card.width,
+          height: layout.card.height + 32,
+          rx: 6,
+        }),
+        text,
+      );
+
+      [
+        ["finding-open", "Open in inspector", layout.card.x + 8, 132],
+        ["finding-copy", "Copy id", layout.card.x + 148, 64],
+      ].forEach(([action, label, x, width]) => {
+        const group = svg("g", {
+          class: "finding-button",
+          "data-action": action as string,
+        });
+
+        group.append(
+          svg("rect", {
+            x: x as number,
+            y: bottom + 4,
+            width: width as number,
+            height: 22,
+            rx: 4,
+          }),
+          svg(
+            "text",
+            { x: (x as number) + 8, y: bottom + 19 },
+            label as string,
+          ),
+        );
+        node.append(group);
+      });
+      parts.push(node);
+    }
+
     world.replaceChildren(...parts);
   }
 
@@ -573,6 +681,7 @@ export function buildCanvasView(
     }
 
     const near = props?.neighbourhood ?? null;
+    const orientation = props?.orientation ?? null;
 
     for (const node of world.querySelectorAll<SVGElement>(".frame")) {
       const path = node.dataset.path as string;
@@ -599,6 +708,44 @@ export function buildCanvasView(
       node.classList.toggle(
         "trail",
         props?.trail?.has(node.dataset.id as string) ?? false,
+      );
+    }
+
+    for (const tone of ["lit-violation", "lit-warning"]) {
+      for (const node of world.querySelectorAll<SVGElement>(`.${tone}`)) {
+        node.classList.remove(tone);
+      }
+    }
+
+    if (orientation === null) {
+      return;
+    }
+
+    const litClass = `lit-${orientation.tone}`;
+    const isLit = (id: string) => orientation.lit.has(id);
+
+    for (const group of world.querySelectorAll<SVGElement>(".line-group")) {
+      const on = isLit(group.dataset.line as string);
+
+      group.classList.toggle("dim", !on);
+      group.classList.toggle(litClass, on);
+    }
+
+    for (const node of world.querySelectorAll<SVGElement>(".box")) {
+      const on = isLit(node.dataset.id as string);
+
+      node.classList.toggle("dim", !on);
+      node.classList.toggle(litClass, on);
+    }
+
+    for (const node of world.querySelectorAll<SVGElement>(".frame")) {
+      const path = node.dataset.path as string;
+
+      node.classList.toggle(
+        "dim",
+        ![...orientation.lit].some(
+          (id) => id === path || id.startsWith(`${path}/`),
+        ),
       );
     }
   }
@@ -631,7 +778,11 @@ export function buildCanvasView(
   }
 
   surface.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || targetOf(event)) {
+    if (
+      event.button !== 0 ||
+      targetOf(event) ||
+      (event.target as Element | null)?.closest("[data-action]")
+    ) {
       return;
     }
 
@@ -695,6 +846,22 @@ export function buildCanvasView(
   });
 
   surface.addEventListener("click", (event) => {
+    const pressed = (event.target as Element | null)?.closest<SVGElement>(
+      "[data-action]",
+    );
+
+    if (pressed?.dataset.action === "finding-open") {
+      actions.openFinding();
+
+      return;
+    }
+
+    if (pressed?.dataset.action === "finding-copy") {
+      actions.copyFindingId();
+
+      return;
+    }
+
     const target = targetOf(event);
 
     if (target) {
@@ -782,6 +949,10 @@ export function buildCanvasView(
       actions.walkNotes(1);
     } else if (action === "previous-note") {
       actions.walkNotes(-1);
+    } else if (action === "next-finding") {
+      actions.walkFindings(1);
+    } else if (action === "previous-finding") {
+      actions.walkFindings(-1);
     } else {
       actions.takeOff();
     }
@@ -841,7 +1012,8 @@ export function buildCanvasView(
       if (
         scene !== previous?.scene ||
         next.titles !== previous?.titles ||
-        next.notes !== previous?.notes
+        next.notes !== previous?.notes ||
+        next.orientation !== previous?.orientation
       ) {
         if (scene) {
           drawScene(scene);

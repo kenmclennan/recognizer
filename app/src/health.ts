@@ -1,5 +1,6 @@
 import {
   type Finding,
+  type FindingsDocument,
   findingsByModuleFrom,
   InputError,
   identityKey,
@@ -20,6 +21,7 @@ export type { Finding };
 export type Disc = "red" | "amber" | "grey" | "green";
 
 export type Health = {
+  documents: FindingsDocument[];
   disc: (id: string) => Disc;
   lines: (id: string) => string[];
   findings: (id: string) => Finding[];
@@ -116,6 +118,7 @@ export function computeHealth(
     );
 
   return {
+    documents: visible,
     disc: (id) => {
       const found = findingsOf(id);
 

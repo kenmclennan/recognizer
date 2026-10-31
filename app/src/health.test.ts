@@ -201,6 +201,23 @@ describe("computeHealth with a baseline", () => {
     );
   });
 
+  it("leaves a baselined violation and another commit's document out of documents", () => {
+    const policy = fixturePolicy("check");
+    const plain = withBaseline(null);
+    const health = withBaseline(baseline);
+    const count = (documents: Health["documents"]) =>
+      documents.reduce((total, one) => total + one.findings.length, 0);
+    const stray = healthFor("check", policy, [
+      structureDocument("check", policy),
+      secondSensorDocument("shop/main.py", undefined, undefined, "other"),
+    ]).health;
+
+    expect(count(health.documents)).toBeLessThan(count(plain.documents));
+    expect(stray.documents.map((one) => one.sensor.name)).toEqual([
+      "structure",
+    ]);
+  });
+
   it("keeps a violation the baseline does not list", () => {
     const health = withBaseline(
       JSON.stringify({ schema_version: 1, violations: [] }),
@@ -327,6 +344,7 @@ describe("hover truncation", () => {
   it("ends with and <n> more after ten findings", () => {
     const ids = Array.from({ length: 12 }, (_, index) => `d/m${index}.py`);
     const health: Health = {
+      documents: [],
       disc: () => "amber",
       lines: () => ["a finding"],
       findings: () => [],

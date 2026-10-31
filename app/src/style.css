@@ -2192,3 +2192,205 @@ svg.i.chevron {
   color: var(--muted);
   cursor: pointer;
 }
+
+.findings-panel {
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 12px;
+}
+
+.tree > .findings-panel {
+  display: none;
+}
+
+.tree.findings-open > :not(.findings-panel) {
+  display: none;
+}
+
+.tree.findings-open > .findings-panel {
+  display: flex;
+}
+
+.findings-header {
+  font-size: 14px;
+}
+
+.findings-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.findings-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.findings-chip.on {
+  border-color: var(--sel);
+  color: var(--fg);
+}
+
+.findings-stale {
+  padding: 4px 6px;
+  border: 1px solid #b9770e;
+  border-radius: 4px;
+  background: transparent;
+  color: #b9770e;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.findings-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.finding-severity-title {
+  margin: 12px 0 2px;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.finding-group-title {
+  margin: 6px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.finding-row {
+  display: grid;
+  grid-template-columns: 8px auto 1fr;
+  gap: 2px 6px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finding-row.active,
+.finding-row:hover {
+  background: var(--framebg);
+}
+
+.finding-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b9770e;
+}
+
+.finding-mark.violation {
+  background: #c0392b;
+}
+
+.finding-file {
+  font-weight: 600;
+}
+
+.finding-folder {
+  color: var(--muted);
+}
+
+.finding-summary,
+.finding-principle,
+.finding-sensor {
+  grid-column: 2 / 4;
+}
+
+.finding-principle {
+  color: var(--muted);
+}
+
+.finding-sensor {
+  justify-self: start;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.rail .rail-count.amber {
+  background: #b9770e;
+}
+
+.rail .rail-count.red {
+  background: #c0392b;
+}
+
+.box.lit-violation .box-body,
+.line-group.lit-violation .edge {
+  stroke: #c0392b;
+  stroke-opacity: 1;
+  stroke-width: 2;
+}
+
+.box.lit-warning .box-body,
+.line-group.lit-warning .edge {
+  stroke: #b9770e;
+  stroke-opacity: 1;
+  stroke-width: 2;
+}
+
+.line-group.lit-violation .arrow:not(.hollow) {
+  fill: #c0392b;
+}
+
+.line-group.lit-warning .arrow:not(.hollow) {
+  fill: #b9770e;
+}
+
+.finding-card .finding-leader {
+  fill: none;
+  stroke: #b9770e;
+  stroke-width: 1.5;
+}
+
+.finding-card .finding-card-body {
+  fill: var(--panel);
+  stroke: #b9770e;
+}
+
+.finding-card.violation .finding-leader,
+.finding-card.violation .finding-card-body {
+  stroke: #c0392b;
+}
+
+.finding-card .finding-card-text {
+  fill: var(--fg);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.finding-card .finding-button {
+  cursor: pointer;
+}
+
+.finding-card .finding-button rect {
+  fill: var(--framebg);
+  stroke: var(--line);
+}
+
+.finding-card .finding-button text {
+  fill: var(--fg);
+  font-size: 11px;
+  pointer-events: none;
+}
