@@ -205,6 +205,9 @@ fn focused_label(app: &AppHandle) -> Option<String> {
     )
 }
 
+const SETTINGS_WIDTH: f64 = 480.0;
+const SETTINGS_HEIGHT: f64 = 240.0;
+
 fn open_settings(app: &AppHandle) {
     if app.get_webview_window(SETTINGS_LABEL).is_some() {
         focus_label(app, SETTINGS_LABEL);
@@ -215,7 +218,7 @@ fn open_settings(app: &AppHandle) {
     let built =
         WebviewWindowBuilder::new(app, SETTINGS_LABEL, WebviewUrl::App("settings.html".into()))
             .title("Settings")
-            .inner_size(480.0, 300.0)
+            .inner_size(SETTINGS_WIDTH, SETTINGS_HEIGHT)
             .resizable(false)
             .build();
 
@@ -541,15 +544,12 @@ fn read_source_line(
 }
 
 #[tauri::command]
-async fn recognizer_version(app: AppHandle) -> Result<repository::ToolsReport, String> {
-    let config_file = config_file(&app)?;
+async fn recognizer_version() -> Result<repository::ToolsReport, String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    tauri::async_runtime::spawn_blocking(move || {
-        repository::recognizer_version(&shell, &config_file)
-    })
-    .await
-    .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || repository::recognizer_version(&shell))
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -558,7 +558,6 @@ async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport
         .state::<WindowState>()
         .folder_of(&window_label(&window))
         .ok_or_else(|| "this window holds no folder".to_string())?;
-    let config_file = config_file(&app)?;
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
     let label = window_label(&window);
@@ -569,7 +568,7 @@ async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport
         app.state::<ScanBaselines>()
             .with(&label, |window| window.pending = Some(origin))?;
 
-        Ok(repository::scan(&folder, &shell, &config_file))
+        Ok(repository::scan(&folder, &shell))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -711,11 +710,10 @@ async fn describe_module(
     module: String,
 ) -> Result<responsibilities::DescribeResult, String> {
     let folder = window_folder_path(&app, &window)?;
-    let config_file = config_file(&app)?;
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
     tauri::async_runtime::spawn_blocking(move || {
-        responsibilities::describe(&folder, &module, &shell, &config_file)
+        responsibilities::describe(&folder, &module, &shell)
     })
     .await
     .map_err(|error| error.to_string())
@@ -851,22 +849,11 @@ async fn scans_at(
     commit: String,
 ) -> Result<Option<Vec<repository::ScanFile>>, String> {
     let folder = window_folder_path(&app, &window)?;
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|error| error.to_string())?;
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    tauri::async_runtime::spawn_blocking(move || {
-        views::scans_at(
-            &folder,
-            &commit,
-            &shell,
-            &repository::config_file_in(&config_dir),
-        )
-    })
-    .await
-    .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || views::scans_at(&folder, &commit, &shell))
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

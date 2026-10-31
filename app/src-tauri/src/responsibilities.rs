@@ -190,7 +190,6 @@ pub fn describe_result(
     stdout: &str,
     stderr: &str,
     module: &str,
-    config_file: &Path,
 ) -> DescribeResult {
     match exit {
         Some(0) => DescribeResult::Described,
@@ -209,7 +208,7 @@ pub fn describe_result(
             DescribeResult::Failed { reason }
         }
         Some(127) => DescribeResult::CommandMissing {
-            reason: repository::missing_hint(config_file),
+            reason: repository::missing_hint(),
         },
         Some(2) => DescribeResult::Refused {
             reason: stderr.trim().to_string(),
@@ -224,16 +223,13 @@ pub fn describe_result(
     }
 }
 
-pub fn describe(folder: &Path, module: &str, shell: &str, config_file: &Path) -> DescribeResult {
+pub fn describe(folder: &Path, module: &str, shell: &str) -> DescribeResult {
     if let Err(reason) = refuse_module(module) {
         return DescribeResult::Refused { reason };
     }
 
-    let command = match repository::recognizer_command(config_file) {
-        Ok(command) => command,
-        Err(reason) => return DescribeResult::Refused { reason },
-    };
-    let (program, args) = repository::describe_invocation(shell, &command, folder, module);
+    let (program, args) =
+        repository::describe_invocation(shell, repository::RECOGNIZER_COMMAND, folder, module);
     let output = Command::new(program)
         .args(args)
         .stdin(Stdio::null())
@@ -241,14 +237,13 @@ pub fn describe(folder: &Path, module: &str, shell: &str, config_file: &Path) ->
 
     match output {
         Err(_) => DescribeResult::CommandMissing {
-            reason: repository::missing_hint(config_file),
+            reason: repository::missing_hint(),
         },
         Ok(output) => describe_result(
             output.status.code(),
             &String::from_utf8_lossy(&output.stdout),
             &String::from_utf8_lossy(&output.stderr),
             module,
-            config_file,
         ),
     }
 }
@@ -531,47 +526,41 @@ mod tests {
 
     #[test]
     fn a_refused_id_runs_nothing() {
-        let result = describe(
-            Path::new("/tmp"),
-            "--all",
-            "/nonexistent-shell",
-            Path::new("/c.json"),
-        );
+        let result = describe(Path::new("/tmp"), "--all", "/nonexistent-shell");
 
         assert!(matches!(result, DescribeResult::Refused { .. }));
     }
 
     #[test]
     fn exit_codes_map_to_results() {
-        let config = Path::new("/c.json");
         let failed = r#"{"described":[],"failed":[{"module":"a.py","reason":"model timed out"}],"current":[],"pruned":[]}"#;
 
         assert_eq!(
-            describe_result(Some(0), "", "", "a.py", config),
+            describe_result(Some(0), "", "", "a.py"),
             DescribeResult::Described
         );
         assert_eq!(
-            describe_result(Some(1), failed, "", "a.py", config),
+            describe_result(Some(1), failed, "", "a.py"),
             DescribeResult::Failed {
                 reason: "model timed out".to_string()
             }
         );
         assert!(matches!(
-            describe_result(Some(1), "garbage", "", "a.py", config),
+            describe_result(Some(1), "garbage", "", "a.py"),
             DescribeResult::Failed { .. }
         ));
         assert_eq!(
-            describe_result(Some(2), "", "no describer registered\n", "a.py", config),
+            describe_result(Some(2), "", "no describer registered\n", "a.py"),
             DescribeResult::Refused {
                 reason: "no describer registered".to_string()
             }
         );
         assert!(matches!(
-            describe_result(Some(127), "", "", "a.py", config),
+            describe_result(Some(127), "", "", "a.py"),
             DescribeResult::CommandMissing { .. }
         ));
         assert!(matches!(
-            describe_result(None, "", "", "a.py", config),
+            describe_result(None, "", "", "a.py"),
             DescribeResult::Failed { .. }
         ));
     }
