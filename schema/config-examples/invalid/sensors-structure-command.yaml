@@ -1,0 +1,3 @@
+sensors:
+  structure:
+    command: [node, "{output}"]

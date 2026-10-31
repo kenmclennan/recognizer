@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { findingsByModule } from "../src/findings.js";
+import { findingsByModuleFrom } from "../src/findings.js";
 import { parsePolicy, validateScan } from "../src/index.js";
+import { structureSensor } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 
 function fixture(name: string) {
@@ -18,7 +19,22 @@ function fixture(name: string) {
   };
 }
 
-describe("findingsByModule", () => {
+function findingsByModule(
+  scans: ReturnType<typeof validateScan>[],
+  policy: ReturnType<typeof parsePolicy> | null,
+  hub: number,
+) {
+  const { document } = structureSensor(
+    scans,
+    policy,
+    { hub_threshold: hub, warnings: { cycle: true, hub: true } },
+    { commit: "abc", modified: false },
+  );
+
+  return findingsByModuleFrom([document]);
+}
+
+describe("findingsByModuleFrom over the structure document", () => {
   it("attaches a cycle warning to every module in it and a hub warning to the hub", () => {
     const { scan, policy } = fixture("check-warnings");
     const found = findingsByModule([scan], policy, 3);

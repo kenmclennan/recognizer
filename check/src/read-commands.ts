@@ -3,8 +3,9 @@ import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { InputError } from "./errors.js";
-import { type Finding, findingsByModule } from "./findings.js";
+import { type Finding, findingsByModuleFrom } from "./findings.js";
 import { freshScans } from "./freshness.js";
+import { loadFindings } from "./load-findings.js";
 import {
   fieldTokens,
   memberHeadTokens,
@@ -18,7 +19,6 @@ import {
   neighbourSets,
   under,
 } from "./neighbours.js";
-import { type Policy, parsePolicy } from "./policy.js";
 import {
   lineStatus,
   type ResponsibilityEntry,
@@ -26,7 +26,6 @@ import {
 } from "./responsibilities.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
 
-const DEFAULT_HUB_THRESHOLD = 10;
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 interface Loaded {
@@ -73,19 +72,9 @@ function load(
   };
 }
 
-function readPolicy(io: Io, root: string): Policy | null {
-  const file = join(root, ".recognizer", "policy.yaml");
-
-  if (!io.exists(file)) {
-    return null;
-  }
-
-  return parsePolicy(io.readFile(file));
-}
-
-function hubThreshold(raw: unknown): number {
+function hubThreshold(raw: unknown): number | undefined {
   if (raw === undefined) {
-    return DEFAULT_HUB_THRESHOLD;
+    return undefined;
   }
 
   if (typeof raw !== "string" || !/^\d+$/.test(raw) || Number(raw) < 1) {
@@ -96,10 +85,10 @@ function hubThreshold(raw: unknown): number {
 }
 
 function findingsOf(loaded: Loaded, io: Io): Map<string, Finding[]> {
-  return findingsByModule(
-    loaded.scans,
-    readPolicy(io, loaded.root),
-    hubThreshold(loaded.values["hub-threshold"]),
+  return findingsByModuleFrom(
+    loadFindings(io, loaded.root, loaded.scans, {
+      hubThreshold: hubThreshold(loaded.values["hub-threshold"]),
+    }),
   );
 }
 

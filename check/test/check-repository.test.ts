@@ -55,6 +55,16 @@ describe("check in repository mode", () => {
     delete report.baseline.path;
 
     expect(code).toBe(1);
+    expect(report.sensors).toEqual([
+      {
+        name: "structure",
+        status: "ran",
+        settings: { hub_threshold: 10, warnings: { cycle: true, hub: true } },
+      },
+    ]);
+
+    delete report.sensors;
+
     expect(report).toEqual(expected);
     expect(err).toBe("");
   });
@@ -81,6 +91,7 @@ describe("check in repository mode", () => {
     expect(code).toBe(0);
     expect(Object.keys(JSON.parse(out)).sort()).toEqual([
       "metrics",
+      "sensors",
       "thresholds",
       "warnings",
     ]);

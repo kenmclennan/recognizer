@@ -1,0 +1,8 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "structure", "version": "1" },
+  "commit": "abc",
+  "modified": false,
+  "settings": {},
+  "findings": []
+}

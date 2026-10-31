@@ -1,0 +1,3 @@
+sensors:
+  unused-exports:
+    hub_threshold: 4

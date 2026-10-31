@@ -4,6 +4,7 @@ import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { InputError } from "./errors.js";
 import { type Expected, validateOverlay } from "./overlays.js";
+import { runRegistered } from "./registered-command.js";
 import { isDirty, resolveCommit } from "./scan-command.js";
 
 const OPTIONS = {
@@ -17,21 +18,6 @@ function overlayFile(root: string, name: string): string {
   return join(root, ".recognizer", "cache", "overlays", `${name}.json`);
 }
 
-function fill(
-  item: string,
-  root: string,
-  commit: string,
-  output: string,
-): string {
-  return item
-    .split("{repository}")
-    .join(root)
-    .split("{commit}")
-    .join(commit)
-    .split("{output}")
-    .join(output);
-}
-
 function measureOne(
   io: Io,
   root: string,
@@ -39,49 +25,17 @@ function measureOne(
   command: string[],
   expected: Expected,
 ): string | null {
-  const output = overlayFile(root, name);
-
-  io.remove(output);
-
-  const [program, ...rest] = command.map((item) =>
-    fill(item, root, expected.commit, output),
-  ) as [string, ...string[]];
-  const result = io.run(program, rest, { cwd: root });
-  const stderr = result.stderr.trim();
-
-  if (!result.started) {
-    return stderr !== "" ? stderr : `command did not start: ${program}`;
-  }
-
-  if (result.status !== 0) {
-    return stderr !== ""
-      ? stderr
-      : `command exited with status ${result.status}`;
-  }
-
-  if (!io.exists(output)) {
-    return "command wrote no overlay file";
-  }
-
-  let document: unknown;
-
-  try {
-    document = JSON.parse(io.readFile(output));
-  } catch (error) {
-    io.remove(output);
-
-    return `overlay is not valid JSON: ${(error as Error).message}`;
-  }
-
-  try {
-    validateOverlay(document, expected);
-  } catch (error) {
-    io.remove(output);
-
-    return (error as Error).message;
-  }
-
-  return null;
+  return runRegistered(
+    io,
+    root,
+    command,
+    expected.commit,
+    overlayFile(root, name),
+    "overlay",
+    (document) => {
+      validateOverlay(document, expected);
+    },
+  );
 }
 
 export function runMeasure(argv: string[], io: Io): number {

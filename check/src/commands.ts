@@ -95,7 +95,8 @@ export const COMMANDS: Command[] = [
       },
       {
         flag: "--hub-threshold <n>",
-        description: "the dependent count above which a module is a hub",
+        description:
+          "the dependent count above which a module is a hub; overrides sensors.structure.hub_threshold for this run, and the structure findings file records it",
       },
       {
         flag: "--json",
@@ -103,12 +104,16 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "repository mode: the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout",
-      json: "the report document: violations, new, fixed, unranked, baseline, thresholds, warnings and metrics; always JSON on stdout with --scan, and with --json in repository mode",
+      text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs the sensors registered under `sensors` in .recognizer/config.yaml and the structure sensor, and writes one findings file per sensor in .recognizer/cache/findings/",
+      json: "the report document: violations, new, fixed, unranked, baseline, thresholds, warnings and metrics, and in repository mode a sensors list; always JSON on stdout with --scan, and with --json in repository mode",
     },
     exitCodes: [
       { code: 0, meaning: "no new violation, or no policy" },
-      { code: 1, meaning: "at least one new violation" },
+      {
+        code: 1,
+        meaning:
+          "at least one new violation, or a registered or structure sensor failed",
+      },
       {
         code: 2,
         meaning:
