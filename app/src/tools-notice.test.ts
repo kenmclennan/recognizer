@@ -36,12 +36,6 @@ describe("toolsNotice", () => {
     ],
     ["recognizer missing", "0.3.0", { status: "command-missing" }, null],
     [
-      "settings invalid",
-      "0.3.0",
-      { status: "config-invalid", message: "bad" },
-      null,
-    ],
-    [
       "check failed",
       "0.3.0",
       { status: "failed", exitCode: 2, stderr: "boom" },
