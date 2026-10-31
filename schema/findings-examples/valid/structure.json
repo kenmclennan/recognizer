@@ -1,0 +1,55 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "structure", "version": "1" },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": { "hub_threshold": 10, "warnings": { "cycle": true, "hub": true } },
+  "findings": [
+    {
+      "id": "rule-violation:depends:shop/domain/order.py->shop/adapters/memory_store.py",
+      "kind": "rule-violation",
+      "severity": "violation",
+      "principle": "dependencies-follow-the-policy",
+      "summary": "depends on shop/adapters/memory_store.py at line 4, 12",
+      "evidence": {
+        "modules": ["shop/domain/order.py"],
+        "edges": [
+          {
+            "from": "shop/domain/order.py",
+            "to": "shop/adapters/memory_store.py",
+            "kind": "depends",
+            "lines": [4, 12],
+            "rules": [{ "type": "level", "from_level": "domain", "to_level": "adapters" }]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cycle:app/domain/money.py,app/domain/order.py",
+      "kind": "cycle",
+      "severity": "warning",
+      "principle": "no-cycles",
+      "summary": "cycle of 2 modules: app/domain/money.py, app/domain/order.py",
+      "fix_pattern": "break-cycle",
+      "evidence": {
+        "modules": ["app/domain/money.py", "app/domain/order.py"],
+        "edges": [
+          { "from": "app/domain/money.py", "to": "app/domain/order.py" },
+          { "from": "app/domain/order.py", "to": "app/domain/money.py" }
+        ]
+      }
+    },
+    {
+      "id": "hub:app/application/place.py",
+      "kind": "hub",
+      "severity": "warning",
+      "principle": "interfaces-are-narrow-and-explicit",
+      "summary": "app/application/place.py has fan-in 3 and fan-out 3 (threshold 3)",
+      "fix_pattern": "split-hub",
+      "evidence": {
+        "modules": ["app/application/place.py"],
+        "measures": { "fan_in": 3, "fan_out": 3, "threshold": 3 }
+      }
+    }
+  ]
+}

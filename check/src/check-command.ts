@@ -1,24 +1,85 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { type Analysis, analyse } from "./analyse.js";
+import type { ModuleMetrics, Thresholds, Warning } from "./analyse.js";
 import {
+  type BaselineEntry,
+  entryId,
   type Identity,
-  identityKey,
+  identityOfViolationId,
   parseBaseline,
   serialiseBaseline,
 } from "./baseline.js";
-import { type CheckResult, check, rankAgainstBaseline } from "./check.js";
+import { type Ranking, rankById } from "./check.js";
 import type { Io } from "./cli.js";
+import { readConfig } from "./config.js";
+import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
+import {
+  type FindingRecord,
+  type FindingsDocument,
+  validateFindings,
+} from "./findings-document.js";
+import {
+  findingsFile,
+  readFindingsFiles,
+  writeFindings,
+} from "./findings-files.js";
 import { freshScans } from "./freshness.js";
+import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
-import { collectViolations, type Violation } from "./rules.js";
+import { runRegistered } from "./registered-command.js";
+import type { Violation } from "./rules.js";
 import { type Scan, validateScan } from "./scan.js";
-
-const DEFAULT_HUB_THRESHOLD = 10;
+import {
+  DEFAULT_HUB_THRESHOLD,
+  describeSettings,
+  resolveStructureSettings,
+  type StructureSettings,
+  structureSensor,
+} from "./structure-sensor.js";
 
 type BaselineAction = "none" | "initialised" | "shrunk";
+
+interface OtherFinding {
+  id: string;
+  principle: string;
+  fix_pattern?: string;
+  summary: string;
+  evidence: FindingRecord["evidence"];
+  finding_id?: string;
+}
+
+type ReportedViolation = Violation | OtherFinding;
+type ReportedWarning = Warning | OtherFinding;
+
+interface Candidate {
+  id: string;
+  entry: BaselineEntry;
+  value: ReportedViolation;
+}
+
+interface Ranked {
+  violations: ReportedViolation[];
+  new: ReportedViolation[];
+  fixed: BaselineEntry[];
+  unranked: number;
+}
+
+interface SensorStatus {
+  name: string;
+  status: "ran" | "off" | "failed" | "stale";
+  reason?: string;
+  settings?: StructureSettings;
+}
+
+interface Gathered {
+  documents: FindingsDocument[];
+  metrics: ModuleMetrics[];
+  unranked: number;
+  thresholds: Thresholds | null;
+  sensors: SensorStatus[];
+}
 
 function readInput(io: Io, path: string, what: string): string {
   try {
@@ -28,28 +89,38 @@ function readInput(io: Io, path: string, what: string): string {
   }
 }
 
+function ruleLine(violation: Violation): string {
+  const rules = violation.rules
+    .map((rule) => {
+      if (rule.type === "level") {
+        return `level ${rule.from_level} -> ${rule.to_level}`;
+      }
+
+      if (rule.type === "uses") {
+        return `uses ${rule.from_component} -> ${rule.to_component}`;
+      }
+
+      return `forbid ${rule.pattern}`;
+    })
+    .join("; ");
+
+  return `${violation.from} -> ${violation.to} (${violation.kind}) line ${violation.lines.join(", ")}: ${rules}`;
+}
+
+function isStructureViolation(value: ReportedViolation): value is Violation {
+  return "from" in value;
+}
+
 function summary(
-  result: CheckResult | null,
-  analysis: Analysis,
+  result: Ranked | null,
+  warnings: ReportedWarning[],
   listWarnings = false,
 ): string {
-  const lines = (result?.new ?? []).map((violation) => {
-    const rules = violation.rules
-      .map((rule) => {
-        if (rule.type === "level") {
-          return `level ${rule.from_level} -> ${rule.to_level}`;
-        }
-
-        if (rule.type === "uses") {
-          return `uses ${rule.from_component} -> ${rule.to_component}`;
-        }
-
-        return `forbid ${rule.pattern}`;
-      })
-      .join("; ");
-
-    return `${violation.from} -> ${violation.to} (${violation.kind}) line ${violation.lines.join(", ")}: ${rules}`;
-  });
+  const lines = (result?.new ?? []).map((violation) =>
+    isStructureViolation(violation)
+      ? ruleLine(violation)
+      : `${violation.summary} (${violation.id})`,
+  );
 
   if (result) {
     lines.push(
@@ -61,20 +132,18 @@ function summary(
     }
   }
 
-  lines.push(`warnings: ${analysis.warnings.length}`);
+  lines.push(`warnings: ${warnings.length}`);
 
   if (listWarnings) {
-    lines.push(
-      ...analysis.warnings.map((warning) => `warning: ${warning.summary}`),
-    );
+    lines.push(...warnings.map((warning) => `warning: ${warning.summary}`));
   }
 
   return `${lines.join("\n")}\n`;
 }
 
-function parseThreshold(raw: string | undefined): number {
+function parseThreshold(raw: string | undefined): number | undefined {
   if (raw === undefined) {
-    return DEFAULT_HUB_THRESHOLD;
+    return undefined;
   }
 
   if (!/^\d+$/.test(raw) || Number(raw) < 1) {
@@ -84,8 +153,121 @@ function parseThreshold(raw: string | undefined): number {
   return Number(raw);
 }
 
-function analysePolicy(scan: unknown, policy: Policy, hub: number): Analysis {
-  return analyse(validateScan(scan), { hub }, policy.ignore);
+function violationOf(sensor: string, record: FindingRecord): Candidate {
+  const edge = record.evidence.edges?.[0];
+
+  if (
+    sensor === "structure" &&
+    record.kind === "rule-violation" &&
+    edge !== undefined &&
+    edge.kind !== undefined &&
+    edge.lines !== undefined
+  ) {
+    const identity: Identity = {
+      from: edge.from,
+      to: edge.to,
+      kind: edge.kind,
+    };
+
+    return {
+      id: record.id,
+      entry: identity,
+      value: {
+        from: edge.from,
+        to: edge.to,
+        kind: edge.kind,
+        lines: edge.lines,
+        rules: edge.rules ?? [],
+      },
+    };
+  }
+
+  return {
+    id: record.id,
+    entry: { id: record.id },
+    value: {
+      id: record.kind,
+      principle: record.principle,
+      fix_pattern: record.fix_pattern,
+      summary: record.summary,
+      evidence: record.evidence,
+      finding_id: record.id,
+    },
+  };
+}
+
+function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
+  const measures = record.evidence.measures;
+
+  if (sensor === "structure" && record.kind === "cycle") {
+    return {
+      id: "cycle",
+      principle: "no-cycles",
+      fix_pattern: "break-cycle",
+      summary: record.summary,
+      evidence: {
+        modules: record.evidence.modules,
+        edges: (record.evidence.edges ?? []).map(({ from, to }) => ({
+          from,
+          to,
+        })),
+      },
+    };
+  }
+
+  if (sensor === "structure" && record.kind === "hub" && measures) {
+    return {
+      id: "hub",
+      principle: "interfaces-are-narrow-and-explicit",
+      fix_pattern: "split-hub",
+      summary: record.summary,
+      evidence: {
+        module: record.evidence.modules[0] as string,
+        fan_in: measures.fan_in as number,
+        fan_out: measures.fan_out as number,
+        threshold: measures.threshold as number,
+      },
+    };
+  }
+
+  return {
+    id: record.kind,
+    principle: record.principle,
+    fix_pattern: record.fix_pattern,
+    summary: record.summary,
+    evidence: record.evidence,
+  } as OtherFinding;
+}
+
+function candidatesOf(documents: FindingsDocument[]): Candidate[] {
+  return documents.flatMap((document) =>
+    document.findings
+      .filter((record) => record.severity === "violation")
+      .map((record) => violationOf(document.sensor.name, record)),
+  );
+}
+
+function warningsOf(documents: FindingsDocument[]): ReportedWarning[] {
+  return documents.flatMap((document) =>
+    document.findings
+      .filter((record) => record.severity === "warning")
+      .map((record) => warningOf(document.sensor.name, record)),
+  );
+}
+
+function rankCandidates(
+  candidates: Candidate[],
+  unranked: number,
+  baseline: BaselineEntry[] | null,
+): Ranked {
+  const ranking: Ranking<Candidate> = rankById(candidates, baseline);
+
+  return {
+    violations: candidates.map((one) => one.value),
+    new: ranking.new.map((one) => one.value),
+    fixed: ranking.fixed,
+    unranked,
+  };
 }
 
 const OPTIONS = {
@@ -109,9 +291,10 @@ function settleBaseline(
   io: Io,
   flags: BaselineFlags,
   baselinePath: string,
-  rank: (baseline: Identity[] | null) => CheckResult,
+  candidates: Candidate[],
+  unranked: number,
 ): {
-  result: CheckResult;
+  result: Ranked;
   report: { path: string; present: boolean; action: BaselineAction };
 } {
   const present = io.exists(baselinePath);
@@ -127,22 +310,23 @@ function settleBaseline(
     throw new InputError([`baseline does not exist: ${baselinePath}`]);
   }
 
-  let result = rank(baseline);
+  let result = rankCandidates(candidates, unranked, baseline);
   let action: BaselineAction = "none";
 
   if (flags.init) {
-    const entries: Identity[] = result.violations;
+    const entries = candidates.map((one) => one.entry);
+
     io.writeFile(baselinePath, serialiseBaseline(entries));
-    result = rank(entries);
+    result = rankCandidates(candidates, unranked, entries);
     action = "initialised";
   } else if (
     flags.update &&
     result.new.length === 0 &&
     result.fixed.length > 0
   ) {
-    const fixedKeys = new Set(result.fixed.map(identityKey));
+    const fixedIds = new Set(result.fixed.map(entryId));
     const kept = (baseline ?? []).filter(
-      (entry) => !fixedKeys.has(identityKey(entry)),
+      (entry) => !fixedIds.has(entryId(entry)),
     );
     io.writeFile(baselinePath, serialiseBaseline(kept));
     action = "shrunk";
@@ -171,6 +355,18 @@ function rejectBaselineFlagsWithoutPolicy(
   }
 }
 
+function analysisReport(
+  thresholds: Thresholds | null,
+  warnings: ReportedWarning[],
+  metrics: ModuleMetrics[],
+) {
+  return {
+    ...(thresholds === null ? {} : { thresholds }),
+    warnings,
+    metrics,
+  };
+}
+
 function executeScanReplay(
   values: {
     scan: string;
@@ -182,7 +378,8 @@ function executeScanReplay(
   },
   io: Io,
 ): number {
-  const hubThreshold = parseThreshold(values["hub-threshold"]);
+  const hubThreshold =
+    parseThreshold(values["hub-threshold"]) ?? DEFAULT_HUB_THRESHOLD;
   const flags: BaselineFlags = {
     baseline: values.baseline,
     update: values["update-baseline"] === true,
@@ -205,70 +402,180 @@ function executeScanReplay(
     ]);
   }
 
-  if (!values.policy) {
-    const analysis = analyse(validateScan(scan), { hub: hubThreshold });
+  const policy = values.policy
+    ? parsePolicy(readInput(io, values.policy, "policy"))
+    : null;
+  const settings: StructureSettings = {
+    hub_threshold: hubThreshold,
+    warnings: { cycle: true, hub: true },
+  };
+  const sensed = structureSensor([validateScan(scan)], policy, settings, {
+    commit: "",
+    modified: false,
+  });
+  const thresholds = { hub: hubThreshold };
+  const warnings = warningsOf([sensed.document]);
 
-    io.stdout(`${JSON.stringify(analysis, null, 2)}\n`);
-    io.stderr(summary(null, analysis));
+  if (policy === null) {
+    io.stdout(
+      `${JSON.stringify(analysisReport(thresholds, warnings, sensed.metrics), null, 2)}\n`,
+    );
+    io.stderr(summary(null, warnings));
 
     return 0;
   }
 
-  const policy = parsePolicy(readInput(io, values.policy, "policy"));
   const baselinePath =
     values.baseline ??
-    join(dirname(values.policy), "baselines", "violations.json");
+    join(dirname(values.policy as string), "baselines", "violations.json");
   const { result, report } = settleBaseline(
     io,
     flags,
     baselinePath,
-    (baseline) => check(scan, policy, baseline),
+    candidatesOf([sensed.document]),
+    sensed.unranked,
   );
-  const analysis = analysePolicy(scan, policy, hubThreshold);
 
   io.stdout(
-    `${JSON.stringify({ ...result, baseline: report, ...analysis }, null, 2)}\n`,
+    `${JSON.stringify({ ...result, baseline: report, ...analysisReport(thresholds, warnings, sensed.metrics) }, null, 2)}\n`,
   );
-  io.stderr(summary(result, analysis));
+  io.stderr(summary(result, warnings));
 
   return result.new.length > 0 ? 1 : 0;
 }
 
-function touches(modules: Set<string>, violation: Identity): boolean {
-  return modules.has(violation.from) || modules.has(violation.to);
+function violationModules(value: ReportedViolation): string[] {
+  if (isStructureViolation(value)) {
+    return [value.from, value.to];
+  }
+
+  return [
+    ...value.evidence.modules,
+    ...(value.evidence.edges ?? []).flatMap((edge) => [edge.from, edge.to]),
+  ];
 }
 
-function mergedAnalysis(
-  scans: Scan[],
-  hub: number,
-  policy: Policy | null,
-): Analysis {
-  const analyses = scans.map((scan) => analyse(scan, { hub }, policy?.ignore));
+function warningModules(warning: ReportedWarning): string[] {
+  if (warning.id === "hub") {
+    return [(warning.evidence as { module: string }).module];
+  }
 
-  return {
-    thresholds: { hub },
-    warnings: analyses.flatMap((analysis) => analysis.warnings),
-    metrics: analyses.flatMap((analysis) => analysis.metrics),
-  };
+  return (warning.evidence as { modules: string[] }).modules;
 }
 
-function narrowAnalysis(analysis: Analysis, modules: Set<string>): Analysis {
-  return {
-    thresholds: analysis.thresholds,
-    warnings: analysis.warnings.filter((warning) =>
-      (warning.id === "cycle"
-        ? warning.evidence.modules
-        : [warning.evidence.module]
-      ).some((id) => modules.has(id)),
-    ),
-    metrics: analysis.metrics.filter((metric) => modules.has(metric.id)),
-  };
+function entryModules(entry: BaselineEntry): string[] {
+  const identity = "id" in entry ? identityOfViolationId(entry.id) : entry;
+
+  return identity === null ? [] : [identity.from, identity.to];
+}
+
+function touches(modules: Set<string>, names: string[]): boolean {
+  return names.some((name) => modules.has(name));
 }
 
 function defaultPolicyFile(io: Io, root: string): string | null {
   const file = join(root, ".recognizer", "policy.yaml");
 
   return io.exists(file) ? file : null;
+}
+
+function gather(
+  io: Io,
+  root: string,
+  scans: Scan[],
+  policy: Policy | null,
+  override: number | undefined,
+): Gathered {
+  const config = readConfig(io, root);
+  const { commit, modified } = scansCommit(scans);
+  const sensors: SensorStatus[] = [];
+  const documents: FindingsDocument[] = [];
+  const resolved = resolveStructureSettings(config, override);
+  let metrics: ModuleMetrics[] = [];
+  let unranked = 0;
+  let thresholds: Thresholds | null = null;
+
+  const fail = (name: string, reason: string) => {
+    io.remove(findingsFile(root, name));
+    io.stderr(`failed ${name}: ${reason}\n`);
+    sensors.push({ name, status: "failed", reason });
+  };
+
+  for (const { name, command } of registeredSensors(config)) {
+    if (commit === null) {
+      fail(name, "not a git repository, or no commit");
+
+      continue;
+    }
+
+    const reason = runRegistered(
+      io,
+      root,
+      command,
+      commit,
+      findingsFile(root, name),
+      "findings",
+      (document) => {
+        validateFindings(document, { name, commit });
+      },
+    );
+
+    if (reason === null) {
+      sensors.push({ name, status: "ran" });
+    } else {
+      fail(name, reason);
+    }
+  }
+
+  if (resolved === "off") {
+    io.remove(findingsFile(root, "structure"));
+    sensors.push({ name: "structure", status: "off" });
+  } else {
+    const sensed = structureSensor(scans, policy, resolved, {
+      commit: commit ?? "",
+      modified,
+    });
+
+    metrics = sensed.metrics;
+    unranked = sensed.unranked;
+
+    try {
+      if (commit === null) {
+        documents.push(sensed.document);
+      } else {
+        writeFindings(io, root, sensed.document);
+      }
+
+      thresholds = { hub: resolved.hub_threshold };
+      sensors.push({ name: "structure", status: "ran", settings: resolved });
+    } catch (error) {
+      fail("structure", (error as Error).message);
+    }
+  }
+
+  if (commit !== null) {
+    for (const outcome of readFindingsFiles(io, root, commit)) {
+      if (outcome.status === "read") {
+        documents.push(outcome.document);
+
+        if (!sensors.some((one) => one.name === outcome.name)) {
+          sensors.push({ name: outcome.name, status: "ran" });
+        }
+      } else if (outcome.status === "stale") {
+        io.stderr(`stale ${outcome.name}\n`);
+        sensors.push({ name: outcome.name, status: "stale" });
+      } else {
+        io.stderr(`invalid ${outcome.name}: ${outcome.reason}\n`);
+        sensors.push({
+          name: outcome.name,
+          status: "failed",
+          reason: outcome.reason,
+        });
+      }
+    }
+  }
+
+  return { documents, metrics, unranked, thresholds, sensors };
 }
 
 function executeRepository(
@@ -284,7 +591,7 @@ function executeRepository(
   named: string[],
   io: Io,
 ): number {
-  const hubThreshold = parseThreshold(values["hub-threshold"]);
+  const override = parseThreshold(values["hub-threshold"]);
   const root = resolve(values.repository ?? ".");
   const policyFile = values.policy ?? defaultPolicyFile(io, root);
   const flags: BaselineFlags = {
@@ -315,46 +622,72 @@ function executeRepository(
     policyFile === null
       ? null
       : parsePolicy(readInput(io, policyFile, "policy"));
-  const full = mergedAnalysis(scans, hubThreshold, policy);
-  const analysis = narrowed ? narrowAnalysis(full, listed) : full;
 
-  if (policy === null || policyFile === null) {
+  const gathered = gather(io, root, scans, policy, override);
+  const failed = gathered.sensors.some((one) => one.status === "failed");
+  const allWarnings = warningsOf(gathered.documents);
+  const warnings = narrowed
+    ? allWarnings.filter((warning) => touches(listed, warningModules(warning)))
+    : allWarnings;
+  const metrics = narrowed
+    ? gathered.metrics.filter((metric) => listed.has(metric.id))
+    : gathered.metrics;
+  const analysis = analysisReport(gathered.thresholds, warnings, metrics);
+  const candidates = candidatesOf(gathered.documents);
+  const settings = gathered.sensors.find((one) => one.name === "structure");
+  const sensorLine = `sensor structure: ${
+    settings?.settings
+      ? describeSettings(settings.settings)
+      : (settings?.status ?? "off")
+  }\n`;
+  const exit = (fresh: number) => (failed ? 1 : fresh > 0 ? 1 : 0);
+
+  if (policy === null && candidates.length === 0) {
     io.stdout(
       values.json
-        ? `${JSON.stringify(analysis, null, 2)}\n`
-        : summary(null, analysis, true),
+        ? `${JSON.stringify({ ...analysis, sensors: gathered.sensors }, null, 2)}\n`
+        : `${sensorLine}${summary(null, warnings, true)}`,
     );
 
-    return 0;
+    return exit(0);
   }
 
-  const collected = scans.map((scan) => collectViolations(scan, policy));
-  const violations: Violation[] = collected.flatMap((one) => one.violations);
-  const unranked = collected.reduce((sum, one) => sum + one.unranked, 0);
   const baselinePath =
     values.baseline ??
-    join(dirname(policyFile), "baselines", "violations.json");
-  const settled = settleBaseline(io, flags, baselinePath, (baseline) =>
-    rankAgainstBaseline(violations, unranked, baseline),
+    join(
+      policyFile === null ? join(root, ".recognizer") : dirname(policyFile),
+      "baselines",
+      "violations.json",
+    );
+  const settled = settleBaseline(
+    io,
+    flags,
+    baselinePath,
+    candidates,
+    gathered.unranked,
   );
-  const result: CheckResult = narrowed
+  const result: Ranked = narrowed
     ? {
         violations: settled.result.violations.filter((one) =>
-          touches(listed, one),
+          touches(listed, violationModules(one)),
         ),
-        new: settled.result.new.filter((one) => touches(listed, one)),
-        fixed: settled.result.fixed.filter((one) => touches(listed, one)),
+        new: settled.result.new.filter((one) =>
+          touches(listed, violationModules(one)),
+        ),
+        fixed: settled.result.fixed.filter((one) =>
+          touches(listed, entryModules(one)),
+        ),
         unranked: settled.result.unranked,
       }
     : settled.result;
 
   io.stdout(
     values.json
-      ? `${JSON.stringify({ ...result, baseline: settled.report, ...analysis }, null, 2)}\n`
-      : summary(result, analysis, true),
+      ? `${JSON.stringify({ ...result, baseline: settled.report, ...analysis, sensors: gathered.sensors }, null, 2)}\n`
+      : `${sensorLine}${summary(result, warnings, true)}`,
   );
 
-  return result.new.length > 0 ? 1 : 0;
+  return exit(result.new.length);
 }
 
 export function executeCheck(argv: string[], io: Io): number {

@@ -36,7 +36,7 @@ describe("library load without code generation", () => {
     expect(result.stdout).toContain("resolveView");
     expect(result.stdout).toContain("validateResponsibilities");
     expect(result.stdout).toContain("lineStatus");
-    expect(result.stdout).toContain("findingsByModule");
+    expect(result.stdout).toContain("findingsByModuleFrom");
     expect(result.stdout).not.toContain("freshScans");
   });
 

@@ -14,9 +14,31 @@ export interface OverlayRegistration {
   metrics: MetricDeclaration[];
 }
 
+export interface SensorRegistration {
+  command: string[];
+}
+
+export interface StructureSettingsInput {
+  hub_threshold?: number;
+  warnings?: { cycle?: boolean; hub?: boolean };
+}
+
+export type SensorEntry = SensorRegistration | StructureSettingsInput | "off";
+
 export interface Config {
   describer?: { command: string[]; version: string };
   overlays?: Record<string, OverlayRegistration>;
+  sensors?: Record<string, SensorEntry>;
+}
+
+export function registeredSensors(
+  config: Config | null,
+): { name: string; command: string[] }[] {
+  return Object.entries(config?.sensors ?? {}).flatMap(([name, entry]) =>
+    name !== "structure" && typeof entry === "object" && "command" in entry
+      ? [{ name, command: entry.command }]
+      : [],
+  );
 }
 
 function rejectRepeatedMetrics(config: Config): void {

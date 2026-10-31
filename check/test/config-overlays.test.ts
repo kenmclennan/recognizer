@@ -73,3 +73,50 @@ describe("config overlays", () => {
     expect(() => read(yaml)).toThrow(InputError);
   });
 });
+
+describe("config sensors", () => {
+  it("accepts a registration, structure settings and the off string", () => {
+    expect(
+      read(
+        "sensors:\n  structure:\n    hub_threshold: 4\n    warnings: { cycle: false }\n  unused:\n    command: [node, '{output}']\n",
+      )?.sensors,
+    ).toEqual({
+      structure: { hub_threshold: 4, warnings: { cycle: false } },
+      unused: { command: ["node", "{output}"] },
+    });
+    expect(read("sensors:\n  structure: off\n")?.sensors).toEqual({
+      structure: "off",
+    });
+  });
+
+  it.each([
+    [
+      "structure with a command",
+      "sensors:\n  structure:\n    command: [node]\n",
+    ],
+    ["another name set off", "sensors:\n  unused: off\n"],
+    [
+      "another name with settings",
+      "sensors:\n  unused:\n    hub_threshold: 3\n",
+    ],
+    [
+      "a registration with metrics",
+      "sensors:\n  unused:\n    command: [node]\n    metrics: []\n",
+    ],
+    ["an empty command", "sensors:\n  unused:\n    command: []\n"],
+    ["a threshold below 1", "sensors:\n  structure:\n    hub_threshold: 0\n"],
+    [
+      "a fractional threshold",
+      "sensors:\n  structure:\n    hub_threshold: 2.5\n",
+    ],
+    ["a bad sensor name", "sensors:\n  Bad_Name:\n    command: [node]\n"],
+  ])("rejects %s", (_, yaml) => {
+    expect(() => read(yaml)).toThrow(InputError);
+  });
+
+  it("names the path of a rejected sensor", () => {
+    expect(() => read("sensors:\n  structure:\n    command: [node]\n")).toThrow(
+      /config\/sensors\/structure/,
+    );
+  });
+});

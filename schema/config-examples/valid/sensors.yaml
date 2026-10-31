@@ -1,0 +1,9 @@
+sensors:
+  structure:
+    hub_threshold: 6
+    warnings:
+      cycle: true
+      hub: false
+  unused-exports:
+    command:
+      [node, "{repository}/scripts/unused.mjs", "{commit}", "{output}"]

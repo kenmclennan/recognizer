@@ -11,6 +11,25 @@ Without `--policy` no violations are computed and no baseline is read or written
 
 `check` has two modes, chosen by `--scan`. With `--scan` it replays one scan document exactly as it always has: the report document on stdout, the summary on stderr, no module arguments, no `--json`, no `--repository`. Without `--scan` it checks the repository's current scan (the same freshness rule as the question commands, so a stale cache is rescanned first and the scan summary goes to stderr). The policy is `--policy`, else `.recognizer/policy.yaml` when it exists, else none. Each language's scan is checked on its own and the results are merged: `new` and `fixed` are computed once against the baseline over the union, so one language's baseline entries are not fixed because another scan lacks them. Output is text on stdout by default (the summary lines plus one `warning:` line per warning) and the report document with `--json`; the summary is not repeated on stderr. Module arguments narrow the report to violations touching them, warnings naming them and their metrics, and the exit code follows the narrowed set; they cannot be combined with `--update-baseline` or `--init-baseline`.
 
+## Sensors and findings
+
+A sensor judges and writes findings; `check` runs them and reports from their union. Each sensor writes one document at `.recognizer/cache/findings/<name>.json`, described by [`schema/findings.schema.json`](../schema/findings.schema.json) with examples in `schema/findings-examples/`: `findings_version` 1, `sensor` (`name`, `version`), `commit`, `modified`, `settings` and `findings`. A finding has a stable `id`, `kind`, `severity` (`violation` or `warning`), `principle`, `summary`, `evidence` (`modules`, and where they apply `edges` with `lines` and `rules`, `members` and `measures`) and an optional `fix_pattern`. Ids are unique within a document. The structure sensor's ids are `rule-violation:<edge kind>:<from>-><to>`, `cycle:<sorted modules joined by ",">` and `hub:<module>`.
+
+The structure sensor (`check/src/structure-sensor.ts`) is built in. It is configured in `.recognizer/config.yaml` under `sensors.structure`, and any other entry under `sensors` registers a command:
+
+```yaml
+sensors:
+  structure:
+    hub_threshold: 10
+    warnings: { cycle: true, hub: true }
+  unused-exports:
+    command: [node, "{repository}/scripts/unused.mjs", "{commit}", "{output}"]
+```
+
+`sensors.structure: off` removes it and its file. `structure` takes only settings or `off`; every other name takes only a `command` with the `{repository}`, `{commit}` and `{output}` placeholders an overlay uses. `--hub-threshold` overrides `hub_threshold` for one run. The settings in effect are recorded in the file and printed as `sensor structure: hub_threshold 10, cycle on, hub on`; `--json` gains a `sensors` list of `{ name, status, reason?, settings? }` with the status `ran`, `off`, `failed` or `stale`.
+
+`check` in repository mode runs each registered sensor in config order, then the structure sensor (written through a temp file and a rename), then reads every findings file. A sensor that fails to start, exits non-zero, writes no file, writes invalid JSON or a document that breaks the schema, names another sensor or carries another commit is reported as `failed <name>: <reason>` on stderr, leaves no file and makes the run exit 1. A file whose commit differs from the scans' is ignored and reported as `stale <name>`; it never changes the exit code. Violations from any sensor go through the baseline by id; warnings never change the exit code. `check --scan` runs the structure sensor in memory and writes nothing.
+
 ## Policy
 
 YAML with the keys `components`, `levels`, `uses`, `forbid`, `foreign` and `ignore`; any other key is an error. `levels` and `uses` are optional, and a policy with neither checks only `forbid`.
@@ -85,6 +104,8 @@ The baseline lives at `.recognizer/baselines/violations.json` in the scanned rep
 ```
 
 `violations` is sorted by `from`, `to`, then `kind` by code unit, with no duplicates; an unsorted, duplicated or unknown-version file is rejected. A missing baseline is treated as empty.
+
+A violation from a sensor that is not edge-shaped is held as `{ "id": "<finding id>" }`. The `{from, to, kind}` entries come first in the order above, then the `{id}` entries in id order. A `{from, to, kind}` entry is the finding id `rule-violation:<kind>:<from>-><to>`, so `new`, `fixed` and the baseline flags work over ids and a committed baseline keeps its meaning.
 
 `new` is the violations not in the baseline. `fixed` is the baseline entries that no longer occur; they never fail a run.
 
@@ -217,7 +238,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 - `find` matches a case-insensitive substring against module paths and top-level member names, and lists both. No match is exit 0 with empty lists.
 - `show` prints what the explorer's Contents tab shows: the members in file order with their visibility, line and plain-text signature, a class's fields and methods, the responsibility line with its status (`current`, `out-of-date`, `missing`, or `unchecked` when a line exists but no describer is registered or the source cannot be read), and the module's findings. Only exported members are listed unless `--private`; the rest are counted as `hiddenPrivate`.
 - `modules` lists every module with its `uses`, `usedBy` and finding counts. `--folder`, `--findings`, `--min-uses` and `--min-used-by` filter; `--sort id|uses|used-by|findings` (id ascends, the others descend with ties by id), `--reverse` and `--limit` order the rows; `total` is the count before filters.
-- Findings are the policy's violations plus the warnings (`findingsByModule` in `check/src/findings.ts`), with the policy read from `.recognizer/policy.yaml` when it exists and `--hub-threshold` defaulting to 10.
+- Findings are read from the findings documents (`loadFindings` in `check/src/load-findings.ts`, shaped per module by `findingsByModuleFrom`). The structure document is reused when `.recognizer/cache/findings/structure.json` is valid, has the scans' commit, was written from a clean tree and records the settings the config resolves to; otherwise it is regenerated and written. `--hub-threshold` computes it in memory for that run and writes nothing. A registered sensor's file is read, never run; one from another commit is ignored with a `stale <name>` line on stderr.
 
 ### Freshness
 
@@ -225,7 +246,7 @@ A question uses the cached scans when every detected language has a cache taken 
 
 ## Library
 
-`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `findingsByModule(scans, policy, hub)` returns each module's violations then warnings as `Finding`s, with `violationText` and `ruleText`. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. The neighbour, grouping, caller and path functions the viewer and the question commands share (`usesOf`, `usedByOf`, `groupByFolder`, `buildCallerIndex`, `shortestPath` and the rest of `neighbours.ts`, `callers.ts` and `paths.ts`) are pure and import nothing from `node:`. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
+`import { check, analyse, parsePolicy, parseBaseline, serialiseBaseline, validateScan, collectViolations, SCAN_SCHEMA_VERSION, InputError } from "recognizer"`. `check(scan, policy, baseline)` takes a parsed scan, the result of `parsePolicy` and a parsed baseline or `null`, and performs no IO. `structureSensor(scans, policy, settings, { commit, modified })` returns the structure findings document with the metrics and the unranked count, and performs no IO; `findingsByModuleFrom(documents)` returns each module's violations then warnings as `Finding`s, with `violationText` and `ruleText`; `validateFindings` checks a findings document. `collectViolations(scan, policy)` returns `{ violations, unranked }` for a validated scan, and `SCAN_SCHEMA_VERSION` is the schema version the library reads. The scan validator is built on the first call of `validateScan`, so importing the library compiles nothing and loads where code generation from strings is forbidden. The neighbour, grouping, caller and path functions the viewer and the question commands share (`usesOf`, `usedByOf`, `groupByFolder`, `buildCallerIndex`, `shortestPath` and the rest of `neighbours.ts`, `callers.ts` and `paths.ts`) are pure and import nothing from `node:`. `analyse(scan, { hub }, ignore)` takes a validated scan and returns `{ thresholds, warnings, metrics }`. Only `nodeIo` in `cli.ts` touches the filesystem, and spawning processes is confined to it too.
 
 ## recognizer views
 

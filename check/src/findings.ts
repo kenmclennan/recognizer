@@ -1,7 +1,5 @@
-import { analyse } from "./analyse.js";
-import type { Policy } from "./policy.js";
-import { collectViolations, type Violation } from "./rules.js";
-import type { Scan } from "./scan.js";
+import type { FindingsDocument } from "./findings-document.js";
+import type { Violation } from "./rules.js";
 
 export type Finding = {
   severity: "violation" | "warning";
@@ -9,7 +7,7 @@ export type Finding = {
   why: string;
 };
 
-export function ruleText(violation: Violation): string {
+export function ruleText(violation: Pick<Violation, "rules">): string {
   const rule = violation.rules[0];
 
   if (rule === undefined) {
@@ -33,10 +31,8 @@ export function violationText(violation: Violation): string {
   return `${verb} ${violation.to} at line ${violation.lines.join(", ")}`;
 }
 
-export function findingsByModule(
-  scans: Scan[],
-  policy: Policy | null,
-  hub: number,
+export function findingsByModuleFrom(
+  documents: FindingsDocument[],
 ): Map<string, Finding[]> {
   const violations = new Map<string, Finding[]>();
   const warnings = new Map<string, Finding[]>();
@@ -45,30 +41,20 @@ export function findingsByModule(
     target.set(id, [...(target.get(id) ?? []), finding]);
   }
 
-  for (const scan of scans) {
-    if (policy !== null) {
-      for (const violation of collectViolations(scan, policy).violations) {
-        add(violations, violation.from, {
-          severity: "violation",
-          text: violationText(violation),
-          why: ruleText(violation),
-        });
-      }
-    }
+  for (const document of documents) {
+    for (const record of document.findings) {
+      const isViolation = record.severity === "violation";
+      const rules = record.evidence.edges?.[0]?.rules;
+      const why =
+        isViolation && rules !== undefined
+          ? ruleText({ rules })
+          : record.principle;
 
-    const analysis = analyse(scan, { hub }, policy?.ignore);
-
-    for (const warning of analysis.warnings) {
-      const ids =
-        warning.id === "cycle"
-          ? warning.evidence.modules
-          : [warning.evidence.module];
-
-      for (const id of ids) {
-        add(warnings, id, {
-          severity: "warning",
-          text: warning.summary,
-          why: warning.principle,
+      for (const id of record.evidence.modules) {
+        add(isViolation ? violations : warnings, id, {
+          severity: record.severity,
+          text: record.summary,
+          why,
         });
       }
     }

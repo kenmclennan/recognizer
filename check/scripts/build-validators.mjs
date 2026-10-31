@@ -9,7 +9,7 @@ const generated = join(here, "..", "src", "generated");
 
 mkdirSync(generated, { recursive: true });
 
-for (const name of ["view", "responsibilities", "config"]) {
+for (const name of ["view", "responsibilities", "config", "findings"]) {
   const schema = JSON.parse(
     readFileSync(
       join(here, "..", "..", "schema", `${name}.schema.json`),

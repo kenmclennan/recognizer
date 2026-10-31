@@ -6,10 +6,13 @@ export {
   type Warning,
 } from "./analyse.js";
 export {
+  type BaselineEntry,
+  compareIdentities,
   type Identity,
   identityKey,
   parseBaseline,
   serialiseBaseline,
+  violationId,
 } from "./baseline.js";
 export {
   buildCallerIndex,
@@ -17,15 +20,21 @@ export {
   type CallerIndex,
   type CallerSummary,
 } from "./callers.js";
-export { type CheckResult, check } from "./check.js";
+export { type CheckResult, check, rankAgainstBaseline } from "./check.js";
 export { type Config, parseConfig } from "./config-parse.js";
 export { InputError } from "./errors.js";
 export {
   type Finding,
-  findingsByModule,
+  findingsByModuleFrom,
   ruleText,
   violationText,
 } from "./findings.js";
+export {
+  type FindingEdge,
+  type FindingRecord,
+  type FindingsDocument,
+  validateFindings,
+} from "./findings-document.js";
 export {
   checkLink,
   isLink,
@@ -96,6 +105,10 @@ export {
   type ScanMethod,
   validateScan,
 } from "./scan.js";
+export {
+  type StructureSettings,
+  structureSensor,
+} from "./structure-sensor.js";
 export {
   migrateView,
   type Note,

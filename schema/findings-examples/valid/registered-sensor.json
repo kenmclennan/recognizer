@@ -1,0 +1,20 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "unused-exports", "version": "2.1.0" },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": true,
+  "settings": { "ignore": ["**/generated/**"], "extra": { "any": "shape" } },
+  "findings": [
+    {
+      "id": "unused-export:src/util.ts#helper",
+      "kind": "unused-export",
+      "severity": "warning",
+      "principle": "no-dead-code",
+      "summary": "helper is exported and never imported",
+      "evidence": {
+        "modules": ["src/util.ts"],
+        "members": [{ "module": "src/util.ts", "name": "helper" }]
+      }
+    }
+  ]
+}

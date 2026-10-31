@@ -1,0 +1,6 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "s", "version": "1" },
+  "commit": "abc", "modified": false, "settings": {},
+  "findings": [{ "id": "a", "kind": "k", "severity": "error", "principle": "p", "summary": "s", "evidence": { "modules": ["m"] } }]
+}

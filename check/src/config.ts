@@ -6,6 +6,9 @@ export type {
   Config,
   MetricDeclaration,
   OverlayRegistration,
+  SensorEntry,
+  SensorRegistration,
+  StructureSettingsInput,
 } from "./config-parse.js";
 
 export function configFile(root: string): string {

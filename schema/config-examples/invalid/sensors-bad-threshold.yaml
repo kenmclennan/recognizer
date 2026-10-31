@@ -1,0 +1,3 @@
+sensors:
+  structure:
+    hub_threshold: 0
