@@ -10,7 +10,6 @@ use crate::fs_safe::write_atomic;
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub editor: String,
-    pub recognizer_path: String,
 }
 
 fn parse_object(text: &str) -> Result<Map<String, Value>, String> {
@@ -30,32 +29,16 @@ pub fn parse(text: Option<&str>) -> Result<Settings, String> {
 
     let object = parse_object(text)?;
 
-    let recognizer_path = match object.get("recognizer_path") {
-        None | Some(Value::Null) => String::new(),
-        Some(Value::String(path)) if Path::new(path).is_absolute() => path.clone(),
-        Some(_) => {
-            return Err("recognizer_path in config.json must be an absolute path".to_string())
-        }
-    };
     let editor = match object.get("editor") {
         None | Some(Value::Null) => String::new(),
         Some(Value::String(editor)) => editor.trim().to_string(),
         Some(_) => return Err("editor in config.json must be a string".to_string()),
     };
 
-    Ok(Settings {
-        editor,
-        recognizer_path,
-    })
+    Ok(Settings { editor })
 }
 
 pub fn validate(settings: &Settings) -> Result<(), String> {
-    let path = settings.recognizer_path.trim();
-
-    if !path.is_empty() && !Path::new(path).is_absolute() {
-        return Err("the recognizer command must be an absolute path or blank".to_string());
-    }
-
     if settings.editor.contains('\n') || settings.editor.contains('\r') {
         return Err("the editor must be a single line".to_string());
     }
@@ -85,7 +68,6 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
         Err(_) => Map::new(),
     };
 
-    set_or_remove(&mut object, "recognizer_path", &settings.recognizer_path);
     set_or_remove(&mut object, "editor", &settings.editor);
 
     let mut text =
@@ -115,17 +97,15 @@ mod tests {
     }
 
     #[test]
-    fn an_absolute_recognizer_path_is_carried_over() {
-        let settings = parse(Some(r#"{"recognizer_path": "/opt/bin/recognizer"}"#)).unwrap();
-
-        assert_eq!(settings.recognizer_path, "/opt/bin/recognizer");
-        assert_eq!(settings.editor, "");
-    }
-
-    #[test]
-    fn a_relative_or_non_string_recognizer_path_is_rejected() {
-        assert!(parse(Some(r#"{"recognizer_path": "bin/recognizer"}"#)).is_err());
-        assert!(parse(Some(r#"{"recognizer_path": 4}"#)).is_err());
+    fn a_recognizer_path_in_the_config_is_ignored() {
+        assert_eq!(
+            parse(Some(r#"{"recognizer_path": "bin/recognizer"}"#)),
+            Ok(Settings::default())
+        );
+        assert_eq!(
+            parse(Some(r#"{"recognizer_path": 4}"#)),
+            Ok(Settings::default())
+        );
     }
 
     #[test]
@@ -146,23 +126,17 @@ mod tests {
     }
 
     #[test]
-    fn a_relative_path_and_a_multi_line_editor_fail_validation() {
-        let relative = Settings {
-            recognizer_path: "bin/recognizer".to_string(),
-            ..Settings::default()
-        };
+    fn a_multi_line_editor_fails_validation() {
         let multi = Settings {
             editor: "code\nrm x".to_string(),
-            ..Settings::default()
         };
 
-        assert!(validate(&relative).is_err());
         assert!(validate(&multi).is_err());
         assert!(validate(&Settings::default()).is_ok());
     }
 
     #[test]
-    fn saving_an_editor_keeps_the_recognizer_path_and_unrelated_keys() {
+    fn saving_an_editor_keeps_a_recognizer_path_and_unrelated_keys() {
         let (_dir, path) = file();
 
         fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -186,14 +160,13 @@ mod tests {
     }
 
     #[test]
-    fn saving_a_blank_value_removes_its_key() {
+    fn saving_a_blank_editor_removes_its_key() {
         let (_dir, path) = file();
 
         save(
             &path,
             &Settings {
                 editor: "code".to_string(),
-                recognizer_path: "/opt/bin/recognizer".to_string(),
             },
         )
         .unwrap();
@@ -201,7 +174,6 @@ mod tests {
             &path,
             &Settings {
                 editor: String::new(),
-                recognizer_path: "/opt/bin/recognizer".to_string(),
             },
         )
         .unwrap();
@@ -209,7 +181,6 @@ mod tests {
         let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
 
         assert!(written.get("editor").is_none());
-        assert_eq!(written["recognizer_path"], "/opt/bin/recognizer");
     }
 
     #[test]
@@ -233,8 +204,7 @@ mod tests {
         let (_dir, path) = file();
 
         let bad = Settings {
-            recognizer_path: "relative".to_string(),
-            ..Settings::default()
+            editor: "code\nrm x".to_string(),
         };
 
         assert!(save(&path, &bad).is_err());
@@ -242,11 +212,10 @@ mod tests {
     }
 
     #[test]
-    fn save_then_read_round_trips_both_values() {
+    fn save_then_read_round_trips_the_editor() {
         let (_dir, path) = file();
         let settings = Settings {
             editor: "code --goto".to_string(),
-            recognizer_path: "/opt/bin/recognizer".to_string(),
         };
 
         save(&path, &settings).unwrap();

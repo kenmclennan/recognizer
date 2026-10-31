@@ -1,6 +1,5 @@
 export type SettingsValues = {
   editor: string;
-  recognizerPath: string;
 };
 
 export type SettingsActions = {
@@ -15,9 +14,6 @@ export type SettingsView = {
 
 export const EDITOR_HINT =
   "An app name such as Sublime Text, or a command for a GUI editor such as code or code --goto. Terminal editors are not supported.";
-
-export const RECOGNIZER_HINT =
-  "The recognizer command the app runs to scan. Leave blank for recognizer on your login shell's PATH; a path must be absolute.";
 
 function field(label: string, control: HTMLElement): HTMLLabelElement {
   const node = document.createElement("label");
@@ -56,7 +52,6 @@ export function buildSettings(
 ): SettingsView {
   const form = document.createElement("form");
   const editor = textInput("System default", "editor");
-  const recognizer = textInput("recognizer", "recognizerPath");
   const error = document.createElement("p");
   const buttons = document.createElement("div");
   const saveButton = document.createElement("button");
@@ -74,26 +69,15 @@ export function buildSettings(
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    actions.save({
-      editor: editor.value.trim(),
-      recognizerPath: recognizer.value.trim(),
-    });
+    actions.save({ editor: editor.value.trim() });
   });
 
-  form.append(
-    field("Editor", editor),
-    hintNode(EDITOR_HINT),
-    field("Recognizer command", recognizer),
-    hintNode(RECOGNIZER_HINT),
-    error,
-    buttons,
-  );
+  form.append(field("Editor", editor), hintNode(EDITOR_HINT), error, buttons);
   container.replaceChildren(form);
 
   return {
     fill(values) {
       editor.value = values.editor;
-      recognizer.value = values.recognizerPath;
     },
     showError(text) {
       error.textContent = text;

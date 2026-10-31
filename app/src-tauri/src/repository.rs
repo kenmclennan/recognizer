@@ -5,7 +5,6 @@ use std::process::{Command, Stdio};
 use serde::Serialize;
 
 use crate::fs_safe::checked_relative;
-use crate::settings;
 
 const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
 const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
@@ -30,9 +29,6 @@ pub enum ScanReport {
     CommandMissing {
         hint: String,
     },
-    ConfigInvalid {
-        message: String,
-    },
     ScanFailed {
         exit_code: i32,
         stderr: String,
@@ -55,7 +51,6 @@ pub enum ScanReport {
 pub enum ToolsReport {
     Version { version: String },
     CommandMissing,
-    ConfigInvalid { message: String },
     Failed { exit_code: i32, stderr: String },
 }
 
@@ -108,21 +103,10 @@ pub fn version_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
     )
 }
 
-pub fn recognizer_command(config_file: &Path) -> Result<String, String> {
-    let configured = settings::read(config_file)?.recognizer_path;
+pub const RECOGNIZER_COMMAND: &str = "recognizer";
 
-    Ok(if configured.is_empty() {
-        "recognizer".to_string()
-    } else {
-        configured
-    })
-}
-
-pub fn missing_hint(config_file: &Path) -> String {
-    format!(
-        "recognizer was not found on your login shell's PATH. Install it with brew install kenmclennan/tap/recognizer, or set the recognizer command in Settings (or recognizer_path in {}).",
-        config_file.display()
-    )
+pub fn missing_hint() -> String {
+    "recognizer was not found on your login shell's PATH. Install it with brew install kenmclennan/tap/recognizer.".to_string()
 }
 
 fn scan_file_name(name: &str) -> bool {
@@ -179,12 +163,11 @@ pub fn read_cache(folder: &Path) -> CacheRead {
 pub fn report_for(
     exit: Option<i32>,
     stderr: String,
-    config_file: &Path,
     read: impl FnOnce() -> CacheRead,
 ) -> ScanReport {
     match exit {
         Some(127) => ScanReport::CommandMissing {
-            hint: missing_hint(config_file),
+            hint: missing_hint(),
         },
         Some(code @ (0 | 1)) => {
             let cache = read();
@@ -209,17 +192,12 @@ pub fn report_for(
     }
 }
 
-pub fn scan(folder: &Path, shell: &str, config_file: &Path) -> ScanReport {
-    let configured = match settings::read(config_file) {
-        Ok(settings) => settings.recognizer_path,
-        Err(message) => return ScanReport::ConfigInvalid { message },
-    };
-    let command = if configured.is_empty() {
-        "recognizer".to_string()
-    } else {
-        configured
-    };
-    let (program, args) = shell_invocation(shell, &command, folder);
+pub fn scan(folder: &Path, shell: &str) -> ScanReport {
+    scan_with(folder, shell, RECOGNIZER_COMMAND)
+}
+
+pub fn scan_with(folder: &Path, shell: &str, command: &str) -> ScanReport {
+    let (program, args) = shell_invocation(shell, command, folder);
     let output = Command::new(program)
         .args(args)
         .stdin(Stdio::null())
@@ -227,12 +205,11 @@ pub fn scan(folder: &Path, shell: &str, config_file: &Path) -> ScanReport {
 
     match output {
         Err(_) => ScanReport::CommandMissing {
-            hint: missing_hint(config_file),
+            hint: missing_hint(),
         },
         Ok(output) => report_for(
             output.status.code(),
             String::from_utf8_lossy(&output.stderr).into_owned(),
-            config_file,
             || read_cache(folder),
         ),
     }
@@ -251,17 +228,12 @@ pub fn tools_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> Tool
     }
 }
 
-pub fn recognizer_version(shell: &str, config_file: &Path) -> ToolsReport {
-    let configured = match settings::read(config_file) {
-        Ok(settings) => settings.recognizer_path,
-        Err(message) => return ToolsReport::ConfigInvalid { message },
-    };
-    let command = if configured.is_empty() {
-        "recognizer".to_string()
-    } else {
-        configured
-    };
-    let (program, args) = version_invocation(shell, &command);
+pub fn recognizer_version(shell: &str) -> ToolsReport {
+    recognizer_version_with(shell, RECOGNIZER_COMMAND)
+}
+
+pub fn recognizer_version_with(shell: &str, command: &str) -> ToolsReport {
+    let (program, args) = version_invocation(shell, command);
     let output = Command::new(program)
         .args(args)
         .stdin(Stdio::null())
@@ -285,34 +257,6 @@ pub fn config_file_in(config_dir: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-
-    #[test]
-    fn an_absent_config_means_the_default_command() {
-        assert_eq!(settings::parse(None).unwrap().recognizer_path, "");
-        assert_eq!(settings::parse(Some("{}")).unwrap().recognizer_path, "");
-    }
-
-    #[test]
-    fn an_absolute_recognizer_path_is_accepted() {
-        assert_eq!(
-            settings::parse(Some(r#"{"recognizer_path": "/opt/bin/recognizer"}"#))
-                .unwrap()
-                .recognizer_path,
-            "/opt/bin/recognizer"
-        );
-    }
-
-    #[test]
-    fn a_relative_recognizer_path_is_rejected() {
-        assert!(settings::parse(Some(r#"{"recognizer_path": "bin/recognizer"}"#)).is_err());
-        assert!(settings::parse(Some(r#"{"recognizer_path": 4}"#)).is_err());
-    }
-
-    #[test]
-    fn a_malformed_config_is_rejected() {
-        assert!(settings::parse(Some("not json")).is_err());
-        assert!(settings::parse(Some("[1]")).is_err());
-    }
 
     #[test]
     fn the_folder_is_an_argument_never_part_of_the_script() {
@@ -340,28 +284,19 @@ mod tests {
     }
 
     #[test]
-    fn the_hint_names_the_config_file() {
-        let hint = missing_hint(Path::new("/cfg/config.json"));
+    fn the_hint_says_to_install_and_names_no_setting() {
+        let hint = missing_hint();
 
         assert!(hint.contains("brew install kenmclennan/tap/recognizer"));
-        assert!(hint.ends_with("(or recognizer_path in /cfg/config.json)."));
+        assert!(!hint.contains("recognizer_path"));
+        assert!(!hint.contains("Settings"));
     }
 
     #[test]
-    fn scan_uses_the_command_a_saved_settings_file_names() {
+    fn scan_with_a_missing_command_reports_it_missing() {
         let dir = TempDir::new().unwrap();
-        let config = dir.path().join("config.json");
 
-        settings::save(
-            &config,
-            &settings::Settings {
-                editor: String::new(),
-                recognizer_path: "/nonexistent/recognizer".to_string(),
-            },
-        )
-        .unwrap();
-
-        match scan(dir.path(), "/bin/sh", &config) {
+        match scan_with(dir.path(), "/bin/sh", "/nonexistent/recognizer") {
             ScanReport::CommandMissing { .. } => {}
             other => panic!("{other:?}"),
         }
@@ -444,7 +379,7 @@ mod tests {
 
     #[test]
     fn exit_127_is_a_missing_command_without_reading_the_cache() {
-        let report = report_for(Some(127), String::new(), Path::new("/c.json"), || {
+        let report = report_for(Some(127), String::new(), || {
             panic!("the cache must not be read")
         });
 
@@ -453,20 +388,15 @@ mod tests {
 
     #[test]
     fn exit_one_keeps_the_scans_and_carries_stderr() {
-        let report = report_for(
-            Some(1),
-            "python failed\n".to_string(),
-            Path::new("/c.json"),
-            || CacheRead {
-                scans: vec![ScanFile {
-                    file: "scan.typescript.json".to_string(),
-                    text: "ts".to_string(),
-                }],
-                policy: None,
-                baseline: None,
-                refused: vec!["x: leaves the folder".to_string()],
-            },
-        );
+        let report = report_for(Some(1), "python failed\n".to_string(), || CacheRead {
+            scans: vec![ScanFile {
+                file: "scan.typescript.json".to_string(),
+                text: "ts".to_string(),
+            }],
+            policy: None,
+            baseline: None,
+            refused: vec!["x: leaves the folder".to_string()],
+        });
 
         match report {
             ScanReport::Scanned {
@@ -486,18 +416,8 @@ mod tests {
 
     #[test]
     fn exit_two_and_a_signal_are_scan_failed() {
-        let two = report_for(
-            Some(2),
-            "bad".to_string(),
-            Path::new("/c.json"),
-            CacheRead::default,
-        );
-        let signal = report_for(
-            None,
-            String::new(),
-            Path::new("/c.json"),
-            CacheRead::default,
-        );
+        let two = report_for(Some(2), "bad".to_string(), CacheRead::default);
+        let signal = report_for(None, String::new(), CacheRead::default);
 
         assert_eq!(
             two,
@@ -573,30 +493,13 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn config_naming(dir: &Path, command: &Path) -> PathBuf {
-        let config = dir.join("config.json");
-
-        settings::save(
-            &config,
-            &settings::Settings {
-                editor: String::new(),
-                recognizer_path: command.display().to_string(),
-            },
-        )
-        .unwrap();
-
-        config
-    }
-
-    #[cfg(unix)]
     #[test]
-    fn a_configured_command_printing_a_version_gives_that_version() {
+    fn a_command_printing_a_version_gives_that_version() {
         let dir = TempDir::new().unwrap();
         let command = fake_command(dir.path(), r#"[ "$1" = "--version" ] && echo 0.3.1"#);
-        let config = config_naming(dir.path(), &command);
 
         assert_eq!(
-            recognizer_version("/bin/sh", &config),
+            recognizer_version_with("/bin/sh", &command.display().to_string()),
             ToolsReport::Version {
                 version: "0.3.1".to_string()
             }
@@ -605,35 +508,10 @@ mod tests {
 
     #[test]
     fn a_missing_command_is_reported_missing() {
-        let dir = TempDir::new().unwrap();
-        let config = dir.path().join("config.json");
-
-        settings::save(
-            &config,
-            &settings::Settings {
-                editor: String::new(),
-                recognizer_path: "/nonexistent/recognizer".to_string(),
-            },
-        )
-        .unwrap();
-
         assert_eq!(
-            recognizer_version("/bin/sh", &config),
+            recognizer_version_with("/bin/sh", "/nonexistent/recognizer"),
             ToolsReport::CommandMissing
         );
-    }
-
-    #[test]
-    fn a_settings_error_is_a_config_invalid_report() {
-        let dir = TempDir::new().unwrap();
-        let config = dir.path().join("config.json");
-
-        fs::write(&config, "not json").unwrap();
-
-        assert!(matches!(
-            recognizer_version("/bin/sh", &config),
-            ToolsReport::ConfigInvalid { .. }
-        ));
     }
 
     #[test]

@@ -229,11 +229,15 @@ fn extract_commit(folder: &Path, commit: &str, target: &Path) -> bool {
     unpacked && archived
 }
 
-pub fn scans_at(
+pub fn scans_at(folder: &Path, commit: &str, shell: &str) -> Option<Vec<ScanFile>> {
+    scans_with(folder, commit, shell, repository::RECOGNIZER_COMMAND)
+}
+
+pub fn scans_with(
     folder: &Path,
     commit: &str,
     shell: &str,
-    config_file: &Path,
+    command: &str,
 ) -> Option<Vec<ScanFile>> {
     if !valid_commit(commit) {
         return None;
@@ -249,7 +253,7 @@ pub fn scans_at(
     fs::create_dir_all(&target).ok()?;
 
     let scans = if extract_commit(folder, commit, &target) {
-        match repository::scan(&target, shell, config_file) {
+        match repository::scan_with(&target, shell, command) {
             ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
             _ => None,
         }
@@ -572,19 +576,10 @@ mod tests {
         assert!(git(root, &["commit", "-q", "-m", "two"]));
 
         let second = head(root);
-        let config = dir.path().join("config.json");
-
-        fs::write(
-            &config,
-            format!(
-                r#"{{"recognizer_path": "{}"}}"#,
-                stub_scanner(dir.path()).display()
-            ),
-        )
-        .unwrap();
+        let command = stub_scanner(dir.path()).display().to_string();
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
         let modules = |commit: &str| -> Option<usize> {
-            scans_at(root, commit, &shell, &config).map(|scans| {
+            scans_with(root, commit, &shell, &command).map(|scans| {
                 scans
                     .iter()
                     .map(|scan| scan.text.matches("\"id\"").count())
@@ -594,7 +589,7 @@ mod tests {
 
         assert_eq!(modules(&first), Some(2));
         assert_eq!(modules(&second), Some(3));
-        assert!(scans_at(root, "--output=x", &shell, &config).is_none());
-        assert!(scans_at(root, "deadbeefdeadbeef", &shell, &config).is_none());
+        assert!(scans_with(root, "--output=x", &shell, &command).is_none());
+        assert!(scans_with(root, "deadbeefdeadbeef", &shell, &command).is_none());
     }
 }
