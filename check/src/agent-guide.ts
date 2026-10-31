@@ -30,6 +30,7 @@ const RECIPES = [
   "  1. recognizer window <id> <verb> ... --by Claude changes one open window.",
   "  2. Each change is one marked, undoable step.",
   "  3. Otherwise prefer a saved view.",
+  "  4. Run recognizer sense when the repository registers sensors and their findings should show; it runs each registered sensor on request, and recognizer check and recognizer show only read the files it leaves.",
   "",
   "Where to look next:",
   "  recognizer help <command> prints any command in full.",

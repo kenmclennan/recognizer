@@ -14,11 +14,7 @@ import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
-import {
-  type FindingRecord,
-  type FindingsDocument,
-  validateFindings,
-} from "./findings-document.js";
+import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import {
   findingsFile,
   readFindingsFiles,
@@ -28,7 +24,6 @@ import { freshScans } from "./freshness.js";
 import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
-import { runRegistered } from "./registered-command.js";
 import type { Violation } from "./rules.js";
 import { type Scan, validateScan } from "./scan.js";
 import {
@@ -68,7 +63,7 @@ interface Ranked {
 
 interface SensorStatus {
   name: string;
-  status: "ran" | "off" | "failed" | "stale";
+  status: "ran" | "off" | "failed" | "stale" | "missing";
   reason?: string;
   settings?: StructureSettings;
 }
@@ -501,32 +496,6 @@ function gather(
     sensors.push({ name, status: "failed", reason });
   };
 
-  for (const { name, command } of registeredSensors(config)) {
-    if (commit === null) {
-      fail(name, "not a git repository, or no commit");
-
-      continue;
-    }
-
-    const reason = runRegistered(
-      io,
-      root,
-      command,
-      commit,
-      findingsFile(root, name),
-      "findings",
-      (document) => {
-        validateFindings(document, { name, commit });
-      },
-    );
-
-    if (reason === null) {
-      sensors.push({ name, status: "ran" });
-    } else {
-      fail(name, reason);
-    }
-  }
-
   if (resolved === "off") {
     io.remove(findingsFile(root, "structure"));
     sensors.push({ name: "structure", status: "off" });
@@ -572,6 +541,12 @@ function gather(
           reason: outcome.reason,
         });
       }
+    }
+  }
+
+  for (const { name } of registeredSensors(config)) {
+    if (!sensors.some((one) => one.name === name)) {
+      sensors.push({ name, status: "missing" });
     }
   }
 

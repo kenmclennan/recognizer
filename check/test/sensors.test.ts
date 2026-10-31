@@ -83,13 +83,25 @@ function check(fake: Fake, ...argv: string[]) {
   return { code, out: fake.out(), err: fake.err() };
 }
 
-describe("check running a registered sensor", () => {
-  it("puts the sensor's violation in the union and through the baseline", () => {
+function sense(fake: Fake, ...argv: string[]) {
+  const code = run(["sense", "--repository", ROOT, ...argv], fake.io);
+
+  return { code, out: fake.out(), err: fake.err() };
+}
+
+describe("sense running a registered sensor", () => {
+  it("writes the sensor's findings file and check then puts its violation through the baseline", () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
+
+    const sensed = sense(fake);
+
+    expect(sensed).toMatchObject({ code: 0, out: "ran fake-sensor\n" });
+    expect(fake.files.has(FAKE)).toBe(true);
+
     const { code, out } = check(fake, "--json");
-    const report = JSON.parse(out);
+    const report = JSON.parse(out.slice(sensed.out.length));
 
     expect(code).toBe(1);
     expect(report.violations).toHaveLength(6);
@@ -103,27 +115,46 @@ describe("check running a registered sensor", () => {
         s.status,
       ]),
     ).toEqual([
-      ["fake-sensor", "ran"],
       ["structure", "ran"],
+      ["fake-sensor", "ran"],
     ]);
-    expect(fake.files.has(FAKE)).toBe(true);
   });
 
-  it("accepts the sensor's violation once the baseline lists it by id", () => {
-    const yaml = `${REGISTER}  structure:\n    hub_threshold: 10\n`;
-    const baseline = JSON.stringify({
-      schema_version: 1,
-      violations: [{ id: "fake-violation:shop/main.py" }],
-    });
-    const fake = setup(yaml, {
+  it("prints the outcome as JSON", () => {
+    const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
-      files: { [BASELINE]: `${baseline}\n` },
     });
-    const report = JSON.parse(check(fake, "--json").out);
+    const report = JSON.parse(sense(fake, "--json").out);
 
-    expect(
-      report.new.map((v: { finding_id?: string }) => v.finding_id),
-    ).not.toContain("fake-violation:shop/main.py");
+    expect(report).toMatchObject({
+      commit: COMMIT,
+      sensors: [{ name: "fake-sensor", status: "ran" }],
+    });
+  });
+
+  it("runs only the named sensors and refuses an unknown name with the registered ones", () => {
+    const two = `${REGISTER}  other:\n    command: [other-sensor, "{output}"]\n`;
+    const fake = setup(two, {
+      programs: { "fake-sensor": sensor(fakeDocument()) },
+    });
+
+    expect(sense(fake, "fake-sensor").code).toBe(0);
+    expect(fake.calls.some((call) => call.command === "other-sensor")).toBe(
+      false,
+    );
+
+    const refused = sense(fake, "nope");
+
+    expect(refused.code).toBe(2);
+    expect(refused.err).toContain("no such sensor: nope");
+    expect(refused.err).toContain("registered sensors: fake-sensor, other");
+  });
+
+  it("refuses a repository with no sensor registered", () => {
+    const refused = sense(setup(null));
+
+    expect(refused.code).toBe(2);
+    expect(refused.err).toContain("no sensors are registered");
   });
 
   it.each([
@@ -150,8 +181,11 @@ describe("check running a registered sensor", () => {
   ])(
     "reports a sensor that %s by name, leaves no file and exits 1",
     (_, program) => {
-      const fake = setup(REGISTER, { programs: { "fake-sensor": program } });
-      const { code, err, out } = check(fake, "--json");
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": program },
+        files: { [FAKE]: fakeDocument() },
+      });
+      const { code, err, out } = sense(fake, "--json");
 
       expect(code).toBe(1);
       expect(err).toContain("failed fake-sensor:");
@@ -164,11 +198,45 @@ describe("check running a registered sensor", () => {
   );
 
   it("fails the run for a missing program", () => {
-    const fake = setup(REGISTER);
-    const { code, err } = check(fake);
+    const { code, err } = sense(setup(REGISTER));
 
     expect(code).toBe(1);
     expect(err).toContain("failed fake-sensor:");
+  });
+});
+
+describe("check reading registered sensors", () => {
+  it("never runs a registered sensor and reports one with no file as missing", () => {
+    const fake = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(fakeDocument()) },
+    });
+    const report = JSON.parse(check(fake, "--json").out);
+
+    expect(fake.calls.some((call) => call.command === "fake-sensor")).toBe(
+      false,
+    );
+    expect(fake.files.has(FAKE)).toBe(false);
+    expect(report.sensors).toContainEqual({
+      name: "fake-sensor",
+      status: "missing",
+    });
+    expect(report.violations).toHaveLength(5);
+  });
+
+  it("accepts the sensor's violation once the baseline lists it by id", () => {
+    const yaml = `${REGISTER}  structure:\n    hub_threshold: 10\n`;
+    const baseline = JSON.stringify({
+      schema_version: 1,
+      violations: [{ id: "fake-violation:shop/main.py" }],
+    });
+    const fake = setup(yaml, {
+      files: { [BASELINE]: `${baseline}\n`, [FAKE]: fakeDocument() },
+    });
+    const report = JSON.parse(check(fake, "--json").out);
+
+    expect(
+      report.new.map((v: { finding_id?: string }) => v.finding_id),
+    ).not.toContain("fake-violation:shop/main.py");
   });
 
   it("ignores a leftover file from another commit and reports it stale", () => {
@@ -238,8 +306,7 @@ describe("check running a registered sensor", () => {
       ],
     });
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(fakeDocument()) },
-      files: { [BASELINE]: `${baseline}\n` },
+      files: { [BASELINE]: `${baseline}\n`, [FAKE]: fakeDocument() },
     });
     const report = JSON.parse(check(fake, "--json").out);
 
@@ -499,7 +566,7 @@ describe("show and modules read the findings files", () => {
   });
 });
 
-describe("check running a registered sensor as a real process", () => {
+describe("sense running a registered sensor as a real process", () => {
   it("writes the sensor's findings file with the commit it was given", () => {
     const root = makeTempDir("recognizer-sensor-");
 
@@ -526,11 +593,16 @@ describe("check running a registered sensor as a real process", () => {
       `sensors:\n  fake-sensor:\n    command: ["node", ${JSON.stringify(script)}, "{repository}", "{commit}", "{output}"]\n`,
     );
 
+    const sensed = capture();
+
+    expect(run(["sense", "--repository", root], sensed.io)).toBe(0);
+
     const out = capture();
     const code = run(["check", "--repository", root, "--json"], out.io);
     const file = join(root, ".recognizer/cache/findings/fake-sensor.json");
     const document = JSON.parse(readFileSync(file, "utf8"));
 
+    expect(sensed.err()).toBe("");
     expect(out.err()).toBe("");
     expect(document.commit).toBe(git("rev-parse", "HEAD").trim());
     expect(JSON.parse(out.out()).violations).toHaveLength(1);
