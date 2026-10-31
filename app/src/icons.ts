@@ -23,6 +23,7 @@ export type IconName =
   | "route"
   | "notes"
   | "sensors"
+  | "findings"
   | "x";
 
 type Shape = [string, Record<string, string>];
@@ -119,6 +120,10 @@ const SHAPES: Record<IconName, Shape[]> = {
     ["path", { d: "M8 8h8M8 12h5" }],
   ],
   sensors: [["path", { d: "M3 12h4l3-8 4 16 3-8h4" }]],
+  findings: [
+    ["circle", { cx: "12", cy: "12", r: "9" }],
+    ["path", { d: "M12 7v6M12 16.5v.5" }],
+  ],
   x: [["path", { d: "M18 6L6 18M6 6l12 12" }]],
 };
 

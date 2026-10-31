@@ -38,10 +38,11 @@ const rail = buildRailView({
   toggleFiles() {
     hidden = !hidden;
     grid.classList.toggle("tree-hidden", hidden);
-    rail.render({ panel: hidden ? null : "files", notes: notesTotal, sensorsFailed: false });
+    rail.render({ panel: hidden ? null : "files", notes: notesTotal, sensorsFailed: false, findings: { count: 0, tone: "none" } });
   },
   toggleNotes() {},
   toggleSensors() {},
+  toggleFindings() {},
 });
 const tree = document.createElement("aside");
 tree.className = "tree";
@@ -52,7 +53,7 @@ inspector.className = "inspector";
 
 grid.append(rail.element, tree, canvas, inspector);
 document.body.append(grid);
-rail.render({ panel: "files", notes: notesTotal, sensorsFailed: false });
+rail.render({ panel: "files", notes: notesTotal, sensorsFailed: false, findings: { count: 0, tone: "none" } });
 
 const cs = (node) => getComputedStyle(node);
 const probe = document.createElement("i");
@@ -83,11 +84,11 @@ const notesFacts = {
   order: [...rail.element.querySelectorAll("button")].map((b) => b.className.split(" ")[1]),
 };
 notesTotal = 0;
-rail.render({ panel: "files", notes: 0, sensorsFailed: false });
+rail.render({ panel: "files", notes: 0, sensorsFailed: false, findings: { count: 0, tone: "none" } });
 notesFacts.zeroHidden = countOf().hidden;
 notesFacts.zeroText = countOf().textContent;
 notesTotal = 3;
-rail.render({ panel: "files", notes: 3, sensorsFailed: false });
+rail.render({ panel: "files", notes: 3, sensorsFailed: false, findings: { count: 0, tone: "none" } });
 
 const rect = rail.element.getBoundingClientRect();
 const facts = {
@@ -200,18 +201,19 @@ function collect(): Facts {
 describe.skipIf(chrome === undefined)("the rail in a real browser", () => {
   const f = (chrome === undefined ? null : collect()) as Facts;
 
-  it("sits full height at the window's left holding a 16px stroke-2 Files button then Notes and Sensors buttons", () => {
+  it("sits full height at the window's left holding a 16px stroke-2 Files button then Notes, Sensors and Findings buttons", () => {
     expect(f.tag).toBe("NAV");
-    expect(f.children).toBe(3);
-    expect(f.buttons).toBe(3);
+    expect(f.children).toBe(4);
+    expect(f.buttons).toBe(4);
     expect(f.notesFacts.order).toEqual([
       "rail-files",
       "rail-notes",
       "rail-sensors",
+      "rail-findings",
     ]);
     expect(f.aria).toBe("Files");
     expect(f.label).toBe("Files");
-    expect(f.titles).toEqual(["", "", ""]);
+    expect(f.titles).toEqual(["", "", "", ""]);
     expect(f.iconSize).toBe("16px");
     expect(f.strokeWidth).toBe("2px");
     expect(f.rail.left).toBe(0);

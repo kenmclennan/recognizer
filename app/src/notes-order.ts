@@ -7,7 +7,13 @@ export type NoteGroup = { module: string; entries: IndexedNote[] };
 
 export type NoteOrder = { groups: NoteGroup[]; off: IndexedNote[] };
 
-export type CardLayout = { lines: string[]; card: Rect; leader: string };
+export type CardLayout = {
+  lines: string[];
+  card: Rect;
+  leader: string;
+  side: "right" | "left";
+  pan: { x: number; y: number };
+};
 
 export const CARD_WIDTH = 220;
 export const CARD_GAP = 36;
@@ -79,7 +85,24 @@ export function tint(by: string, author: string): "person" | "agent" {
   return by === author ? "person" : "agent";
 }
 
-function wrap(text: string, width: number): string[] {
+export const FINDING_CARD_WIDTH = 420;
+export const FINDING_CARD_WRAP = 56;
+
+const SOFT_BREAKS = ["/", "-.>:,"];
+
+function softSplit(word: string, width: number): number {
+  for (const breaks of SOFT_BREAKS) {
+    for (let at = width; at > 0; at -= 1) {
+      if (breaks.includes(word[at - 1] as string)) {
+        return at;
+      }
+    }
+  }
+
+  return width;
+}
+
+function wrap(text: string, width: number, soft = false): string[] {
   const lines: string[] = [];
 
   for (const paragraph of text.split("\n")) {
@@ -94,8 +117,10 @@ function wrap(text: string, width: number): string[] {
           line = "";
         }
 
-        lines.push(rest.slice(0, width));
-        rest = rest.slice(width);
+        const cut = soft ? softSplit(rest, width) : width;
+
+        lines.push(rest.slice(0, cut));
+        rest = rest.slice(cut);
       }
 
       if (line === "") {
@@ -114,22 +139,63 @@ function wrap(text: string, width: number): string[] {
   return lines;
 }
 
-export function cardLayout(rect: Rect, text: string): CardLayout {
-  const lines = wrap(text.trim(), CARD_WRAP);
-  const card: Rect = {
-    x: rect.x + rect.width + CARD_GAP,
-    y: rect.y,
+export const CARD_EDGE = 16;
+
+export function cardLayout(
+  rect: Rect,
+  text: string,
+  size: { width: number; wrap: number; soft: boolean } = {
     width: CARD_WIDTH,
-    height: lines.length * CARD_LINE + CARD_PADDING,
+    wrap: CARD_WRAP,
+    soft: false,
+  },
+  view?: Rect,
+  extra = 0,
+): CardLayout {
+  const lines = wrap(text.trim(), size.wrap, size.soft);
+  const height = lines.length * CARD_LINE + CARD_PADDING;
+  const rightX = rect.x + rect.width + CARD_GAP;
+  const leftX = rect.x - CARD_GAP - size.width;
+  const fitsRight =
+    view === undefined || rightX + size.width <= view.x + view.width;
+  const fitsLeft = view !== undefined && leftX >= view.x;
+  const side = fitsRight || !fitsLeft ? "right" : "left";
+  const card: Rect = {
+    x: side === "right" ? rightX : leftX,
+    y: rect.y,
+    width: size.width,
+    height,
   };
-  const startX = rect.x + rect.width;
+  const pan = { x: 0, y: 0 };
+
+  if (view !== undefined && !fitsRight && !fitsLeft) {
+    const left = rect.x;
+    const right = card.x + card.width;
+    const centre = (left + right) / 2 - (view.x + view.width / 2);
+
+    pan.x = Math.min(centre, left - CARD_EDGE - view.x);
+  }
+
+  if (view !== undefined) {
+    const over = card.y + height + extra + CARD_EDGE - (view.y + view.height);
+
+    pan.y = Math.min(
+      Math.max(over, 0),
+      Math.max(rect.y - CARD_EDGE - view.y, 0),
+    );
+  }
+
+  const startX = side === "right" ? rect.x + rect.width : rect.x;
   const startY = rect.y + rect.height / 2;
-  const endY = card.y + card.height / 2;
-  const reach = (card.x - startX) / 2;
+  const endX = side === "right" ? card.x : card.x + card.width;
+  const endY = card.y + height / 2;
+  const reach = (endX - startX) / 2;
 
   return {
     lines,
     card,
-    leader: `M ${startX} ${startY} C ${startX + reach} ${startY}, ${card.x - reach} ${endY}, ${card.x} ${endY}`,
+    side,
+    pan,
+    leader: `M ${startX} ${startY} C ${startX + reach} ${startY}, ${endX - reach} ${endY}, ${endX} ${endY}`,
   };
 }

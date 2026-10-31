@@ -29,6 +29,7 @@ import { createCanvasState, type Selection } from "./canvas-state";
 import {
   buildCanvasView,
   type CanvasNotes,
+  type CanvasOrientation,
   createMeasure,
 } from "./canvas-view";
 import { el } from "./dom";
@@ -39,6 +40,20 @@ import {
 } from "./edge-evidence";
 import { openFolderInEditor, openInEditor } from "./editor-open";
 import { type EditorPort, inertEditor } from "./editor-port";
+import { cardText, litSet, offCanvasModules } from "./findings-card";
+import {
+  applyFilter,
+  badge,
+  chips,
+  type FindingFilter,
+  type FindingRow,
+  findingRows,
+  groupFindings,
+  sameFilter,
+  staleNote,
+  walkFindings,
+} from "./findings-order";
+import { buildFindingsPanelView } from "./findings-panel-view";
 import { compactFolders } from "./folder-compaction";
 import type { ScanState } from "./footer-scan";
 import { computeHealth, describeTree } from "./health";
@@ -239,6 +254,11 @@ export function showExplorer(
   let activeNote: number | null = null;
   let canvasNotes: CanvasNotes | undefined;
   let canvasNotesKey = "";
+  const allFindings = findingRows(health.documents);
+  let orientedFinding: string | null = null;
+  let findingFilter: FindingFilter = { by: "all" };
+  let canvasOrientation: CanvasOrientation | null = null;
+  let canvasOrientationKey = "";
 
   void authorName.then((name) => {
     author = name;
@@ -310,6 +330,7 @@ export function showExplorer(
         }
       },
       clear() {
+        orientedFinding = null;
         state.clear();
         changed();
       },
@@ -338,6 +359,33 @@ export function showExplorer(
 
         if (next !== null) {
           orientNote(next);
+        }
+      },
+      walkFindings(delta) {
+        const next = walkFindings(shownFindings(), orientedFinding, delta);
+
+        if (next !== null) {
+          orientFinding(next);
+        }
+      },
+      openFinding() {
+        const row = allFindings.find((one) => one.id === orientedFinding);
+
+        if (row === undefined) {
+          return;
+        }
+
+        const selection = state.selection();
+
+        if (selection?.kind !== "module" || selection.id !== row.module) {
+          select({ kind: "module", id: row.module });
+        }
+
+        openTab("findings");
+      },
+      copyFindingId() {
+        if (orientedFinding !== null) {
+          void views.copy(orientedFinding);
         }
       },
       measure,
@@ -591,10 +639,23 @@ export function showExplorer(
     runSelected: () => void runSensors(sensorsHost.state.ticked),
     runAll: () => void runSensors(registeredNames()),
   });
+  const findingsView = buildFindingsPanelView({
+    select: (id) => orientFinding(id),
+    filter(next) {
+      findingFilter = next;
+      render();
+    },
+    openSensors() {
+      leftPanel = "sensors";
+      render();
+      void loadSensorsConfig();
+    },
+  });
   const rail = buildRailView({
     toggleFiles: toggleTree,
     toggleNotes: () => openNotes(false),
     toggleSensors: toggleSensorsPanel,
+    toggleFindings: toggleFindingsPanel,
   });
   const notices = el("div", "notices");
 
@@ -614,7 +675,11 @@ export function showExplorer(
   );
 
   canvas.element.append(bar.element, stale.element);
-  tree.element.append(notesPanel.element, sensorsView.element);
+  tree.element.append(
+    notesPanel.element,
+    sensorsView.element,
+    findingsView.element,
+  );
   body.append(rail.element, tree.element, canvas.element, inspector.element);
   container.replaceChildren(notices, body);
 
@@ -883,6 +948,7 @@ export function showExplorer(
     const previous = state.selection();
 
     activeNote = null;
+    orientedFinding = null;
 
     if (previous?.kind !== selection?.kind || previous?.id !== selection?.id) {
       resetList();
@@ -939,6 +1005,7 @@ export function showExplorer(
 
   function find(id: string) {
     activeNote = null;
+    orientedFinding = null;
 
     if (!modules.isOpen(id)) {
       modules.open(id);
@@ -963,6 +1030,70 @@ export function showExplorer(
   function toggleTree() {
     leftPanel = leftPanel === "files" ? null : "files";
     render();
+  }
+
+  function toggleFindingsPanel() {
+    leftPanel = leftPanel === "findings" ? null : "findings";
+    render();
+  }
+
+  function shownFindings(): FindingRow[] {
+    return applyFilter(allFindings, findingFilter);
+  }
+
+  function orientFinding(id: string) {
+    const row = allFindings.find((one) => one.id === id);
+
+    if (row === undefined) {
+      return;
+    }
+
+    if (!modules.isOpen(row.module)) {
+      modules.open(row.module);
+      rebuild();
+    }
+
+    select({ kind: "module", id: row.module });
+    orientedFinding = id;
+    canvas.centerOn(boxFor(row.module));
+    render();
+  }
+
+  function syncOrientation(): CanvasOrientation | null {
+    const row = allFindings.find((one) => one.id === orientedFinding);
+
+    if (row === undefined) {
+      orientedFinding = null;
+      canvasOrientation = null;
+      canvasOrientationKey = "";
+
+      return null;
+    }
+
+    if (scene === null) {
+      return null;
+    }
+
+    const boxIds = new Set(scene.boxes.map((box) => box.id));
+    const lines = scene.lines.map((line) => line.id);
+    const off = offCanvasModules(row.record, boxFor, boxIds);
+    const lit = litSet(row.record, boxFor, lines, boxIds);
+    const key = JSON.stringify([row.id, [...lit].sort(), off]);
+
+    if (key !== canvasOrientationKey || canvasOrientation === null) {
+      canvasOrientationKey = key;
+      canvasOrientation = {
+        lit,
+        tone: row.severity,
+        card: {
+          module: boxFor(row.module),
+          lines: cardText(row, off),
+          id: row.id,
+        },
+      };
+    }
+
+    return canvasOrientation;
   }
 
   function toggleSensorsPanel() {
@@ -1890,6 +2021,7 @@ export function showExplorer(
     const keys = {
       notesOpen: leftPanel === "notes",
       noteActive: activeNote !== null,
+      findingsOpen: leftPanel === "findings",
     };
     const key = JSON.stringify([
       [...marks].sort(),
@@ -1954,6 +2086,7 @@ export function showExplorer(
       notice: layoutNotice,
       busy: layoutBusy,
       notes,
+      orientation: syncOrientation(),
     });
   }
 
@@ -1965,6 +2098,11 @@ export function showExplorer(
     body.classList.toggle("tree-hidden", leftPanel === null);
     tree.element.classList.toggle("notes-open", leftPanel === "notes");
     tree.element.classList.toggle("sensors-open", leftPanel === "sensors");
+    tree.element.classList.toggle("findings-open", leftPanel === "findings");
+
+    if (leftPanel !== null && leftPanel !== "findings") {
+      orientedFinding = null;
+    }
 
     const noteView = openViewValue();
     const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
@@ -1972,10 +2110,33 @@ export function showExplorer(
     const sensorsModelNow = sensorsModel();
 
     sensorsView.render(sensorsModelNow);
+
+    const findingChips = chips(allFindings);
+
+    if (!findingChips.some((chip) => sameFilter(chip.filter, findingFilter))) {
+      findingFilter = { by: "all" };
+    }
+
+    const shown = shownFindings();
+
+    findingsView.render({
+      chips: findingChips,
+      filter: findingFilter,
+      stale: staleNote(sensorsModelNow.rows),
+      groups: groupFindings(shown),
+      active: orientedFinding,
+      empty:
+        allFindings.length === 0
+          ? "No findings for this scan."
+          : shown.length === 0
+            ? "No findings match this filter."
+            : null,
+    });
     rail.render({
       panel: leftPanel,
       notes: noteTotal,
       sensorsFailed: sensorsModelNow.mark,
+      findings: badge(allFindings),
     });
     tree.render({
       title,
