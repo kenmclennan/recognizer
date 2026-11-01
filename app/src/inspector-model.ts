@@ -13,11 +13,12 @@ import type { EvidenceSection } from "./edge-evidence";
 import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
 import type { Disc, Finding } from "./health";
+import type { NoteRow } from "./note-focus";
 import { createPicker, type PickerSource } from "./picker-model";
 import type { ResponsibilityRow } from "./responsibility-model";
 import { type CheckState, checkState } from "./row-model";
 
-export type InspectorTab = "contents" | "findings" | "dependencies";
+export type InspectorTab = "contents" | "findings" | "notes" | "dependencies";
 
 export type InspectorInputs = {
   scans: Scan[];
@@ -26,6 +27,8 @@ export type InspectorInputs = {
   disc: (id: string) => Disc;
   findings: (id: string) => Finding[];
   findingRows: (id: string) => FindingRow[];
+  noteRows: (id: string) => NoteRow[];
+  canAddNote: boolean;
   onCanvas: (id: string) => boolean;
   expanded: ReadonlySet<string>;
   showPrivate: boolean;
@@ -99,6 +102,8 @@ export type Row =
     }
   | { kind: "group"; id: string; disc: Disc; path: string }
   | { kind: "finding"; row: FindingRow }
+  | { kind: "note-row"; row: NoteRow }
+  | { kind: "add-note"; module: string }
   | { kind: "evidence"; section: EvidenceSection };
 
 export type Header = {
@@ -564,6 +569,21 @@ function moduleFindings(id: string, inputs: InspectorInputs): Row[] {
   ];
 }
 
+function moduleNotes(id: string, inputs: InspectorInputs): Row[] {
+  const rows: Row[] = inputs.noteRows(id).map((row) => ({
+    kind: "note-row",
+    row,
+  }));
+
+  rows.push(
+    inputs.canAddNote
+      ? { kind: "add-note", module: id }
+      : { kind: "note", text: "Open or save a view to add notes" },
+  );
+
+  return rows;
+}
+
 function foldersGroups(folder: string, inputs: InspectorInputs): Row[] {
   const grey = inputs.disc(folder) === "grey";
   const groups = inputs.modules
@@ -684,7 +704,9 @@ export function inspectorContent(
 
   const count = countFindings(selection, inputs);
   const figures = inputs.counts(selection);
-  const tabs = [
+  const noted =
+    selection.kind === "module" ? inputs.noteRows(selection.id) : [];
+  const tabs: { tab: InspectorTab; label: string; active: boolean }[] = [
     {
       tab: "contents" as const,
       label: "Contents",
@@ -701,6 +723,14 @@ export function inspectorContent(
       active: inputs.tab === "findings",
     },
   ];
+
+  if (selection.kind === "module") {
+    tabs.push({
+      tab: "notes",
+      label: noted.length > 0 ? `Notes ${noted.length}` : "Notes",
+      active: inputs.tab === "notes",
+    });
+  }
   const contents = inputs.tab === "contents";
   const listed = inputs.tab === "dependencies";
 
@@ -723,7 +753,9 @@ export function inspectorContent(
         ? dependencyRows(selection, figures, inputs)
         : contents
           ? moduleContents(selection.id, inputs)
-          : moduleFindings(selection.id, inputs),
+          : inputs.tab === "notes"
+            ? moduleNotes(selection.id, inputs)
+            : moduleFindings(selection.id, inputs),
     };
   }
 

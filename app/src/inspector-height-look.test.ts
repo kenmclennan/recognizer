@@ -42,6 +42,8 @@ const inputs = {
   evidence: null,
   edgeOnCanvas: true,
   counts: () => ({ uses: 0, usedBy: 0 }),
+  noteRows: () => [],
+  canAddNote: false,
   filter: "",
   collapsed: new Set(),
   responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),

@@ -85,7 +85,7 @@ export function tint(by: string, author: string): "person" | "agent" {
   return by === author ? "person" : "agent";
 }
 
-function wrap(text: string, width: number): string[] {
+export function wrap(text: string, width: number): string[] {
   const lines: string[] = [];
 
   for (const paragraph of text.split("\n")) {
@@ -125,14 +125,14 @@ export const CARD_EDGE = 16;
 export function cardLayout(
   rect: Rect,
   text: string,
-  size: { width: number; wrap: number } = {
+  size: { width: number; wrap: number; height?: number } = {
     width: CARD_WIDTH,
     wrap: CARD_WRAP,
   },
   view?: Rect,
 ): CardLayout {
   const lines = wrap(text.trim(), size.wrap);
-  const height = lines.length * CARD_LINE + CARD_PADDING;
+  const height = size.height ?? lines.length * CARD_LINE + CARD_PADDING;
   const rightX = rect.x + rect.width + CARD_GAP;
   const leftX = rect.x - CARD_GAP - size.width;
   const fitsRight =

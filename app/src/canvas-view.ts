@@ -12,7 +12,9 @@ import { button, el } from "./dom";
 import type { Ghost } from "./finding-focus";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
-import { cardLayout } from "./notes-order";
+import { buildNoteCardView, type NoteCard } from "./note-card-view";
+import { cardHeight } from "./note-focus";
+import { CARD_WIDTH, CARD_WRAP, cardLayout } from "./notes-order";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
@@ -53,7 +55,7 @@ export type CanvasOrientation = {
 export type CanvasNotes = {
   marks: ReadonlySet<string>;
   active: string | null;
-  card: { module: string; text: string; tint: "person" | "agent" } | null;
+  card: NoteCard | null;
   keys: NoteKeyContext;
 };
 
@@ -70,6 +72,9 @@ export type CanvasActions = {
   openContents: () => void;
   openInEditor: () => void;
   addNote: () => void;
+  openNote: (module: string) => void;
+  addNoteText: (module: string, text: string) => void;
+  removeNoteAt: (index: number) => void;
   removeNote: () => void;
   walkNotes: (delta: 1 | -1) => void;
   walkFindings: (delta: 1 | -1) => void;
@@ -209,6 +214,11 @@ export function buildCanvasView(
   const notice = el("p", "canvas-notice");
   const busy = spinner("Laying out");
   const addLayer = el("div", "add-layer");
+  const noteLayer = el("div", "note-layer");
+  const noteCard = buildNoteCardView({
+    add: (module, text) => actions.addNoteText(module, text),
+    remove: (index) => actions.removeNoteAt(index),
+  });
 
   busy.classList.add("canvas-busy");
   busy.hidden = true;
@@ -220,6 +230,7 @@ export function buildCanvasView(
     openContents: () => actions.openContents(),
     openInEditor: () => actions.openInEditor(),
     takeOff: () => actions.takeOff(),
+    openNote: () => actions.addNote(),
   });
 
   const hover = createBarHover(scheduler, (visible) =>
@@ -268,7 +279,16 @@ export function buildCanvasView(
   zoomIn.title = "Zoom in";
   zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
-  stage.append(surface, addLayer, empty, notice, busy, selectionBar.element);
+  noteLayer.hidden = true;
+  stage.append(
+    surface,
+    addLayer,
+    noteLayer,
+    empty,
+    notice,
+    busy,
+    selectionBar.element,
+  );
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
   element.append(stage, controls, legend.element);
 
@@ -299,6 +319,7 @@ export function buildCanvasView(
     level.textContent = zoomLabel(viewport);
     zoomOut.disabled = atMin(viewport);
     zoomIn.disabled = atMax(viewport);
+    noteLayer.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.k})`;
     positionBar();
     positionGhostButtons();
   }
@@ -563,6 +584,7 @@ export function buildCanvasView(
                     ? "note-mark active"
                     : "note-mark",
                 "data-id": box.id,
+                "data-note-mark": box.id,
                 x: rect.x + rect.width - 13,
                 y: rect.y + 5,
                 width: 8,
@@ -594,42 +616,20 @@ export function buildCanvasView(
       parts.push(group);
     }
 
-    const card = props?.notes?.card ?? null;
-    const anchor =
-      card === null
-        ? undefined
-        : scene.boxes.find((box) => box.id === card.module);
+    const placed = placedCard(scene);
 
-    if (card !== null && anchor !== undefined) {
-      const layout = cardLayout(anchor.rect, card.text);
-      const node = svg("g", { class: `note-card ${card.tint}` });
-      const text = svg("text", { class: "note-card-text" });
-
-      layout.lines.forEach((line, index) => {
-        text.append(
-          svg(
-            "tspan",
-            {
-              x: layout.card.x + 10,
-              y: layout.card.y + 8 + (index + 1) * 18 - 5,
-            },
-            line,
-          ),
-        );
-      });
-      node.append(
-        svg("path", { class: "note-leader", d: layout.leader }),
-        svg("rect", {
-          class: "note-card-body",
-          x: layout.card.x,
-          y: layout.card.y,
-          width: layout.card.width,
-          height: layout.card.height,
-          rx: 6,
-        }),
-        text,
+    if (placed !== null) {
+      const lead = placed.card.entries.find(
+        (entry) => entry.index === placed.card.active,
       );
-      parts.push(node);
+      const tinted = (lead ?? placed.card.entries[0])?.tint ?? "person";
+
+      const group = svg("g", { class: `note-leader-group ${tinted}` });
+
+      group.append(
+        svg("path", { class: "note-leader", d: placed.layout.leader }),
+      );
+      parts.push(group);
     }
 
     const tone = props?.orientation?.tone ?? null;
@@ -639,6 +639,83 @@ export function buildCanvasView(
     }
 
     world.replaceChildren(...parts);
+  }
+
+  function placedCard(scene: Scene | null, measured?: number) {
+    const card = props?.notes?.card ?? null;
+    const anchor =
+      card === null || scene === null
+        ? undefined
+        : scene.boxes.find((box) => box.id === card.module);
+
+    if (card === null || anchor === undefined) {
+      return null;
+    }
+
+    const height =
+      measured ??
+      cardHeight(
+        card.entries.map((entry) => ({
+          index: entry.index,
+          note: { module: card.module, text: entry.text, by: entry.by },
+        })),
+      );
+
+    return {
+      card,
+      layout: cardLayout(anchor.rect, "", {
+        width: CARD_WIDTH,
+        wrap: CARD_WRAP,
+        height,
+      }),
+    };
+  }
+
+  function drawCard() {
+    const placed = placedCard(props?.scene ?? null);
+
+    noteLayer.hidden = placed === null;
+
+    if (placed === null) {
+      noteCard.close();
+
+      return;
+    }
+
+    if (noteCard.element.parentElement !== noteLayer) {
+      noteLayer.append(noteCard.element);
+    }
+
+    noteCard.render(placed.card, placed.layout);
+
+    const measured = noteCard.height();
+
+    if (Math.abs(measured - placed.layout.card.height) > 0.5) {
+      const settled = placedCard(props?.scene ?? null, measured);
+
+      if (settled !== null) {
+        noteCard.render(settled.card, settled.layout);
+        world
+          .querySelector(".note-leader")
+          ?.setAttribute("d", settled.layout.leader);
+      }
+    }
+
+    if (placed.card.compose) {
+      noteCard.focusField();
+    }
+  }
+
+  function markNotesButton() {
+    const module = props?.notes?.card?.module;
+    const node = selectionBar.element.querySelector(".bar-notes");
+
+    node?.classList.toggle(
+      "on",
+      module !== undefined &&
+        props?.selection?.kind === "module" &&
+        props.selection.id === module,
+    );
   }
 
   function applySelection() {
@@ -837,6 +914,16 @@ export function buildCanvasView(
   });
 
   surface.addEventListener("click", (event) => {
+    const mark = (event.target as Element | null)?.closest<SVGElement>(
+      "[data-note-mark]",
+    );
+
+    if (mark) {
+      actions.openNote(mark.dataset.noteMark as string);
+
+      return;
+    }
+
     const target = targetOf(event);
 
     if (target) {
@@ -1034,7 +1121,9 @@ export function buildCanvasView(
 
       shownSelection = selected;
       applySelection();
+      drawCard();
       selectionBar.render(next.bar);
+      markNotesButton();
       refreshChrome();
       applyViewport();
     },

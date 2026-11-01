@@ -11,6 +11,7 @@ import type {
   ResponsibilityLineRow,
   Row,
 } from "./inspector-model";
+import { buildNoteRow } from "./notes-panel-view";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 import {
@@ -45,6 +46,9 @@ export type InspectorActions = {
   focusedFinding: () => string | null;
   openEvidence: (module: string, line: number | null) => void;
   copyFinding: (id: string) => void;
+  addNote: (module: string) => void;
+  toggleNote: (index: number) => void;
+  removeNote: (index: number) => void;
 };
 
 export type TrailRender = {
@@ -325,6 +329,26 @@ function rowNode(
         copyId: actions.copyFinding,
       },
     );
+  }
+
+  if (row.kind === "note-row") {
+    return buildNoteRow(row.row, {
+      toggle: actions.toggleNote,
+      remove: actions.removeNote,
+    });
+  }
+
+  if (row.kind === "add-note") {
+    const module = row.module;
+    const node = el("button", "add-note", "Add a note");
+
+    node.type = "button";
+    node.addEventListener("click", (event) => {
+      event.stopPropagation();
+      actions.addNote(module);
+    });
+
+    return node;
   }
 
   return evidenceNode(row);

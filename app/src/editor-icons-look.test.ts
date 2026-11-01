@@ -29,7 +29,7 @@ const barActions = { openTab() {}, toggleFocus() {}, toggleFold() {}, openConten
 const bar = buildSelectionBar(barActions);
 document.body.append(bar.element);
 bar.element.hidden = false;
-const model = (kind) => ({ kind, dependencies: 2, findings: null, files: kind === "folder" ? { open: 1, held: 2 } : null, focused: false, folded: false, inspectorTab: null });
+const model = (kind) => ({ kind, dependencies: 2, notes: null, findings: null, files: kind === "folder" ? { open: 1, held: 2 } : null, focused: false, folded: false, inspectorTab: null });
 bar.render(model("module"));
 facts.barModule = describe(bar.element.querySelector('[aria-label="' + EDITOR + '"]'));
 bar.render(model("folder"));
@@ -41,7 +41,7 @@ click(barFolder);
 const scan = { modules: [{ id: "p/m.py", kind: "module" }, { id: "p/q.py", kind: "module" }], edges: [], foreign: [], calls: [] };
 const inputs = {
   scans: [scan], modules: scan.modules.map((m) => m.id), compaction: compactFolders(scan.modules.map((m) => m.id)), disc: () => "green", findings: () => [], onCanvas: () => true,
-  expanded: new Set(), tab: "contents", evidence: null, edgeOnCanvas: true, counts: () => ({ uses: 0, usedBy: 0 }), filter: "", collapsed: new Set(), responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),
+  expanded: new Set(), tab: "contents", evidence: null, edgeOnCanvas: true, counts: () => ({ uses: 0, usedBy: 0 }), noteRows: () => [], canAddNote: false, filter: "", collapsed: new Set(), responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),
 };
 const inspectorActions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor: (target) => calls.push("inspector:" + target.kind + ":" + target.id) };
 const inspect = (selection) => {
