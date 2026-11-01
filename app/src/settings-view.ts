@@ -13,7 +13,7 @@ export type SettingsView = {
 };
 
 export const EDITOR_HINT =
-  "An app name such as Sublime Text, or a command for a GUI editor such as code or code --goto. Terminal editors are not supported.";
+  "An app name such as Sublime Text, or a command for a GUI editor such as code or code --goto. Use {file} and {line} to open at a line, for example code -g {file}:{line}; without them the file opens at the top. Terminal editors are not supported.";
 
 function field(label: string, control: HTMLElement): HTMLLabelElement {
   const node = document.createElement("label");

@@ -1,20 +1,6 @@
 import type { FindingRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { cardText, litSet, offCanvasModules } from "./findings-card";
-import type { FindingRow } from "./findings-order";
-
-function rowOf(record: FindingRecord, sensor = "structure"): FindingRow {
-  return {
-    id: record.id,
-    module: record.evidence.modules[0] as string,
-    kind: record.kind,
-    severity: record.severity,
-    summary: record.summary,
-    principle: record.principle,
-    sensor,
-    record,
-  };
-}
+import { evidenceLines, litSet, offCanvasModules } from "./findings-card";
 
 const violation: FindingRecord = {
   id: "v",
@@ -58,45 +44,24 @@ const hub: FindingRecord = {
   },
 };
 
-describe("cardText", () => {
-  it("shows an edge with its lines and no fix pattern for a violation", () => {
-    expect(cardText(rowOf(violation))).toEqual([
-      "rule-violation - structure",
-      "depends on b.py",
-      "a.py -> b.py at line 4, 12",
-      "Principle: dependencies-follow-the-policy",
-    ]);
+describe("evidenceLines", () => {
+  it("lists an edge with its lines, and both cycle edges", () => {
+    expect(evidenceLines(violation)).toEqual(["a.py -> b.py at line 4, 12"]);
+    expect(evidenceLines(cycle)).toEqual(["a.py -> b.py", "b.py -> a.py"]);
   });
 
-  it("shows both cycle edges and the fix pattern", () => {
-    expect(cardText(rowOf(cycle))).toEqual([
-      "cycle - structure",
-      "cycle of 2",
-      "a.py -> b.py",
-      "b.py -> a.py",
-      "Principle: no-cycles",
-      "Fix: break-cycle",
-    ]);
-  });
-
-  it("shows members and measures in key order for a hub", () => {
-    expect(cardText(rowOf(hub))).toEqual([
-      "hub - structure",
-      "hub",
+  it("lists members then measures in key order for a hub", () => {
+    expect(evidenceLines(hub)).toEqual([
       "a.py: Thing",
       "fan_in: 3",
       "fan_out: 3",
       "threshold: 3",
-      "Principle: narrow",
-      "Fix: split-hub",
     ]);
   });
 
   it("adds the not on the canvas line only when ids are passed", () => {
-    expect(cardText(rowOf(cycle))).not.toContain("not on the canvas: b.py");
-    expect(cardText(rowOf(cycle), ["b.py"])).toContain(
-      "not on the canvas: b.py",
-    );
+    expect(evidenceLines(cycle)).not.toContain("not on the canvas: b.py");
+    expect(evidenceLines(cycle, ["b.py"])).toContain("not on the canvas: b.py");
   });
 });
 

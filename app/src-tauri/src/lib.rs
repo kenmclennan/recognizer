@@ -442,10 +442,10 @@ fn config_file(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())
 }
 
-fn launch_in_editor(app: &AppHandle, target: &Path) -> Result<(), String> {
+fn launch_in_editor(app: &AppHandle, target: &Path, line: Option<u32>) -> Result<(), String> {
     let editor = settings::read(&config_file(app)?)?.editor;
 
-    editor::launch(&editor, target)
+    editor::launch(&editor, target, line)
 }
 
 fn focus_latest(app: &AppHandle) {
@@ -578,7 +578,7 @@ fn handle_menu(app: &AppHandle, event: MenuEvent) {
                 focused_label(app).and_then(|label| app.state::<WindowState>().folder_of(&label));
 
             if let Some(folder) = folder {
-                if let Err(error) = launch_in_editor(app, &folder) {
+                if let Err(error) = launch_in_editor(app, &folder, None) {
                     eprintln!("recognizer: could not open the editor: {error}");
                 }
             }
@@ -751,18 +751,23 @@ fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), St
 }
 
 #[tauri::command]
-fn open_in_editor(app: AppHandle, window: WebviewWindow, relative: String) -> Result<(), String> {
+fn open_in_editor(
+    app: AppHandle,
+    window: WebviewWindow,
+    relative: String,
+    line: Option<u32>,
+) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let target = fs_safe::checked_relative_entry(&folder, &relative)?;
 
-    launch_in_editor(&app, &target)
+    launch_in_editor(&app, &target, line)
 }
 
 #[tauri::command]
 fn open_folder_in_editor(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
 
-    launch_in_editor(&app, &folder)
+    launch_in_editor(&app, &folder, None)
 }
 
 #[tauri::command]

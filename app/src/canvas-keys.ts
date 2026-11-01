@@ -14,6 +14,7 @@ export type KeyAction =
   | "take-off"
   | "escape"
   | "dependencies"
+  | "findings"
   | "contents"
   | "add-note"
   | "remove-note"
@@ -95,6 +96,10 @@ export function keyAction(
 
   if (key === "i") {
     return "contents";
+  }
+
+  if (key === "w") {
+    return "findings";
   }
 
   if (selection.kind !== "folder") {

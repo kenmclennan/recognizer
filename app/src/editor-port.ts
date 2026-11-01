@@ -1,5 +1,5 @@
 export type EditorPort = {
-  openFile(relative: string): Promise<void>;
+  openFile(relative: string, line?: number): Promise<void>;
   openFolder(): Promise<void>;
 };
 

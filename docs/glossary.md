@@ -78,7 +78,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Selection | The one module, folder or edge the user has picked, highlighted in the tree and shown in the inspector. |
 | Selection bar | The small bar of icon actions shown above the selection while the pointer is over it; right-clicking opens the same bar. |
 | Settings | The app's own preferences (the editor, the `recognizer` command path), set in its settings window; distinct from a repository's Config. |
-| Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command. |
+| Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command; a shell command may use `{file}` and `{line}` placeholders, for example `code -g {file}:{line}`, to open at a line. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
 | Trail | The inspector panels opened by following modules through their Dependencies, one to the right of the next, with breadcrumbs naming each step. |
 | Strip | A narrow vertical column naming a trail panel that is folded out of view, to the left of the shown panels or, once an earlier one is brought back, to their right. Clicking it brings the panel back. |

@@ -1,5 +1,6 @@
 import { button, el } from "./dom";
-import type { FindingFilter, FindingGroup } from "./findings-order";
+import { rowDetail } from "./finding-focus";
+import type { FindingFilter, FindingGroup, FindingRow } from "./findings-order";
 import {
   groupCount,
   kindLabel,
@@ -16,8 +17,13 @@ export type FindingsPanelModel = {
   empty: string | null;
 };
 
-export type FindingsPanelActions = {
-  select: (id: string) => void;
+export type FindingRowActions = {
+  toggle: (id: string) => void;
+  openInEditor: (module: string, line: number | null) => void;
+  copyId: (id: string) => void;
+};
+
+export type FindingsPanelActions = FindingRowActions & {
   filter: (filter: FindingFilter) => void;
   openSensors: () => void;
 };
@@ -33,6 +39,61 @@ function split(path: string): { name: string; folder: string } {
   return at === -1
     ? { name: path, folder: "" }
     : { name: path.slice(at + 1), folder: path.slice(0, at) };
+}
+
+export function buildFindingRow(
+  row: FindingRow,
+  state: { focused: boolean },
+  actions: FindingRowActions,
+): HTMLElement {
+  const place = split(row.module);
+  const entry = el(
+    "div",
+    state.focused ? "finding-entry focused" : "finding-entry",
+  );
+  const node = button(
+    "",
+    state.focused
+      ? `finding-row ${row.severity} active`
+      : `finding-row ${row.severity}`,
+    () => actions.toggle(row.id),
+  );
+
+  node.dataset.id = row.id;
+  node.setAttribute("aria-expanded", String(state.focused));
+  node.append(
+    el("span", `finding-mark ${row.severity}`),
+    el("span", "finding-file", place.name),
+    el("span", "finding-folder", place.folder),
+    el("span", "finding-summary", row.summary),
+    el("span", "finding-principle", row.principle),
+    el("span", "finding-sensor", row.sensor),
+  );
+  entry.append(node);
+
+  if (state.focused) {
+    const detail = rowDetail(row.record);
+    const box = el("div", `finding-detail ${row.severity}`);
+    const buttons = el("div", "finding-detail-buttons");
+
+    for (const line of detail.lines) {
+      box.append(el("div", "finding-evidence", line));
+    }
+
+    box.append(el("div", "finding-fix", detail.fix));
+    buttons.append(
+      button("Open in editor", "finding-detail-button finding-edit", () =>
+        actions.openInEditor(detail.open.module, detail.open.line),
+      ),
+      button("Copy id", "finding-detail-button finding-id", () =>
+        actions.copyId(row.id),
+      ),
+    );
+    box.append(buttons);
+    entry.append(box);
+  }
+
+  return entry;
 }
 
 export function buildFindingsPanelView(
@@ -96,25 +157,13 @@ export function buildFindingsPanelView(
             );
 
             for (const row of kind.rows) {
-              const place = split(row.module);
-              const node = button(
-                "",
-                row.id === model.active
-                  ? `finding-row ${row.severity} active`
-                  : `finding-row ${row.severity}`,
-                () => actions.select(row.id),
+              section.append(
+                buildFindingRow(
+                  row,
+                  { focused: row.id === model.active },
+                  actions,
+                ),
               );
-
-              node.dataset.id = row.id;
-              node.append(
-                el("span", `finding-mark ${row.severity}`),
-                el("span", "finding-file", place.name),
-                el("span", "finding-folder", place.folder),
-                el("span", "finding-summary", row.summary),
-                el("span", "finding-principle", row.principle),
-                el("span", "finding-sensor", row.sensor),
-              );
-              section.append(node);
             }
 
             block.append(section);

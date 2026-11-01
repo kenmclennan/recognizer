@@ -57,9 +57,20 @@ describe("canvas keys", () => {
     expect(keyAction(press("u"), null)).toBeNull();
   });
 
+  it("maps W to the findings action for a module or a folder, and not for an edge", () => {
+    expect(keyAction(press("w"), { kind: "module", id: "a.py" })).toBe(
+      "findings",
+    );
+    expect(keyAction(press("W"), { kind: "folder", id: "src" })).toBe(
+      "findings",
+    );
+    expect(keyAction(press("w"), { kind: "edge", id: "e" })).toBeNull();
+  });
+
   it("ignores U and D for an edge, no selection, a modifier or an editable target", () => {
     expect(keyAction(press("u"), { kind: "edge", id: "e" })).toBeNull();
     expect(keyAction(press("d"), null)).toBeNull();
+    expect(keyAction(press("w"), null)).toBeNull();
     expect(keyAction(press("u", { metaKey: true }), module)).toBeNull();
     expect(keyAction(press("u", { targetEditable: true }), module)).toBeNull();
   });

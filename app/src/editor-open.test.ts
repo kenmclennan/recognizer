@@ -23,6 +23,18 @@ describe("opening the selection in the editor", () => {
     expect(editor.files).toEqual(["src/deep"]);
   });
 
+  it("passes a line to the editor, and undefined without one", async () => {
+    const editor = fakeEditor();
+
+    await openInEditor({ kind: "module", id: "src/a.ts" }, editor, () => {}, 7);
+    await openInEditor({ kind: "module", id: "src/b.ts" }, editor, () => {});
+
+    expect(editor.opened).toEqual([
+      { file: "src/a.ts", line: 7 },
+      { file: "src/b.ts", line: undefined },
+    ]);
+  });
+
   it("opens nothing for an edge or no selection", async () => {
     const editor = fakeEditor();
 

@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { type FindingRow, findingRows } from "./findings-order";
 import {
   CURRENT,
   expectedScan,
@@ -49,6 +50,7 @@ function inputsFor(
     compaction: compactFolders(modules),
     disc: () => "green",
     findings: () => [],
+    findingRows: () => [],
     onCanvas: () => false,
     expanded: new Set(),
     showPrivate: false,
@@ -732,29 +734,50 @@ describe("findings", () => {
     edges: [],
     foreign: [],
   };
+  const findingRow = (
+    severity: "violation" | "warning",
+    summary: string,
+    principle: string,
+  ): FindingRow => ({
+    id: `${severity}-${summary}`,
+    module: "d/a.py",
+    kind: "rule",
+    severity,
+    summary,
+    principle,
+    sensor: "structure",
+    record: {
+      id: `${severity}-${summary}`,
+      kind: "rule",
+      severity,
+      principle,
+      summary,
+      evidence: { modules: ["d/a.py"] },
+    },
+  });
+  const violationRow = findingRow("violation", "v", "level 1 -> 2");
+  const warningRow = findingRow("warning", "w", "no-cycles");
   const violation = {
     severity: "violation",
     text: "v",
     why: "level 1 -> 2",
   } as const;
-  const warning = { severity: "warning", text: "w", why: "no-cycles" } as const;
 
   it("lists violations before warnings with the why", () => {
     const rows = inspectorContent(
       module("d/a.py"),
       inputsFor([scan], {
         tab: "findings",
-        findings: () => [warning, violation],
+        findingRows: () => [warningRow, violationRow],
       }),
     ).rows;
 
-    expect(rows.map((row) => (row as { text: string }).text)).toEqual([
-      "v",
-      "w",
-    ]);
+    expect(rows.map((row) => (row as { row: FindingRow }).row.summary)).toEqual(
+      ["v", "w"],
+    );
     expect(rows[0]).toMatchObject({
-      why: "level 1 -> 2",
-      severity: "violation",
+      kind: "finding",
+      row: { principle: "level 1 -> 2", severity: "violation" },
     });
   });
 
@@ -773,14 +796,20 @@ describe("findings", () => {
       inputsFor([loaded.scan], {
         tab: "findings",
         findings: health.findings,
+        findingRows: (id) =>
+          findingRows(health.documents).filter((row) =>
+            row.record.evidence.modules.includes(id),
+          ),
       }),
     ).rows;
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      text: "too many magic numbers",
-      why: "name-your-constants",
-      severity: "warning",
+      row: {
+        summary: "too many magic numbers",
+        principle: "name-your-constants",
+        severity: "warning",
+      },
     });
   });
 
@@ -803,7 +832,11 @@ describe("findings", () => {
       id === "d/sub/b.py" || id === "d/a.py" ? [violation] : [];
     const content = inspectorContent(
       folder("d"),
-      inputsFor([scan], { tab: "findings", findings }),
+      inputsFor([scan], {
+        tab: "findings",
+        findings,
+        findingRows: (id) => (findings(id).length > 0 ? [violationRow] : []),
+      }),
     );
 
     expect(content.rows.map((row) => row.kind)).toEqual([
@@ -829,7 +862,7 @@ describe("findings", () => {
       inputsFor([scan], {
         tab: "findings",
         disc: grey,
-        findings: (id) => (id === "d/a.py" ? [violation] : []),
+        findingRows: (id) => (id === "d/a.py" ? [violationRow] : []),
       }),
     ).rows;
 
