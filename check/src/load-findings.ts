@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
+import { registeredSensors } from "./config-parse.js";
 import {
   type FindingsDocument,
   validateFindings,
@@ -98,8 +99,18 @@ export function loadFindings(
     }
   }
 
-  for (const outcome of readFindingsFiles(io, root, commit, ["structure"])) {
-    if (outcome.status === "read") {
+  const registered = registeredSensors(config).map(({ name }) => name);
+
+  for (const outcome of readFindingsFiles(
+    io,
+    root,
+    commit,
+    ["structure"],
+    registered,
+  )) {
+    if (outcome.status === "unregistered") {
+      io.stderr(`ignored unregistered ${outcome.name}\n`);
+    } else if (outcome.status === "read") {
       documents.push(outcome.document);
     } else if (outcome.status === "stale") {
       io.stderr(`stale ${outcome.name}\n`);
