@@ -172,7 +172,6 @@ function responsibilityNode(
     );
   } else {
     node.append(el("span", "line", row.state.line));
-    node.append(el("span", "tag", "Generated"));
 
     if (row.state.kind === "out-of-date") {
       const button = el(
@@ -213,10 +212,6 @@ function rowNode(
 
   if (row.kind === "none") {
     return el("div", "none", "None");
-  }
-
-  if (row.kind === "responsibility") {
-    return responsibilityNode(row, actions);
   }
 
   if (row.kind === "switch") {
@@ -398,6 +393,10 @@ function buildPanelView(element: HTMLElement): PanelView {
       head.append(close);
 
       const parts: HTMLElement[] = [head];
+
+      if (content.header.responsibility !== null) {
+        parts.push(responsibilityNode(content.header.responsibility, actions));
+      }
 
       if (content.tabs) {
         const tabs = el("div", "itabs");
