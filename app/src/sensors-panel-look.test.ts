@@ -48,6 +48,7 @@ async function scenario(plan) {
       explorer = build(carried);
     },
     state,
+    runChanged: () => {},
   };
   const build = (carried) => showExplorer(host, current, "demo", () => {}, fakeViews({}), () => {}, carried, undefined, { getItem: () => null, setItem: () => {} }, undefined, undefined, undefined, undefined, sensorsHost);
   explorer = build(null);
@@ -62,6 +63,7 @@ async function scenario(plan) {
 
   facts.order = all(".rail button").map((b) => b.className.split(" ")[1]);
   facts.opened = { panel: visible(".sensors-panel"), files: visible(".tree-header"), ran: fake.ran.length, scan: q(".sensors-scan").textContent, note: q(".sensors-note").textContent };
+  facts.primary = { all: q(".sensors-run-all").classList.contains("primary"), selected: q(".sensors-run-selected").classList.contains("primary") };
   facts.before = { rows: rows(), runSelected: q(".sensors-run-selected").disabled, runAll: q(".sensors-run-all").disabled };
 
   const tickBox = all(".sensor-row")[1].querySelector(".sensor-tick");
@@ -124,6 +126,7 @@ describe.skipIf(chrome === undefined)("the Sensors panel", () => {
       expect.objectContaining({ name: "alpha", chip: "not run", ticks: 1 }),
       expect.objectContaining({ name: "beta", chip: "not run", ticks: 1 }),
     ]);
+    expect(f.good.primary).toEqual({ all: true, selected: false });
     expect(f.good.before.runSelected).toBe(true);
     expect(f.good.before.runAll).toBe(false);
     expect(f.good.ticked.runSelected).toBe(false);

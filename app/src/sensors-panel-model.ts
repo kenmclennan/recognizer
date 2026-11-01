@@ -10,6 +10,31 @@ export type RunState = {
 
 export const NO_RUN: RunState = { running: [], failures: {}, ranAt: {} };
 
+export function sessionStatuses(
+  sensors: SensorStatus[],
+  run: RunState,
+): SensorStatus[] {
+  const held = Object.entries(run.failures);
+
+  if (held.length === 0) {
+    return sensors;
+  }
+
+  const known = new Set(sensors.map(({ name }) => name));
+  const overlaid = sensors.map((one) => {
+    const reason = run.failures[one.name];
+
+    return reason === undefined
+      ? one
+      : { name: one.name, status: "failed" as const, reason };
+  });
+  const added = held
+    .filter(([name]) => !known.has(name))
+    .map(([name, reason]) => ({ name, status: "failed" as const, reason }));
+
+  return [...overlaid, ...added];
+}
+
 export type PanelInput = {
   scan: ScanState | null;
   scanFiles: string[];

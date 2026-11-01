@@ -2029,6 +2029,18 @@ svg.i.chevron {
   gap: 8px;
 }
 
+.sensors-buttons button.primary {
+  padding: 4px 12px;
+  border-color: var(--dark);
+  background: var(--dark);
+  color: var(--darkfg);
+}
+
+.sensors-buttons button.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .rail .ib::after {
   content: attr(data-label);
   position: absolute;

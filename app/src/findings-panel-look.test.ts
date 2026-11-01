@@ -54,6 +54,7 @@ async function mount(loaded, picks, status) {
     scan: () => null,
     refresh: async () => {},
     state: { ticked: [], run: NO_RUN },
+    runChanged: () => {},
   };
   showExplorer(host, { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, "demo", () => {}, port, () => {}, null, undefined, { getItem: () => null, setItem: () => {} }, undefined, undefined, undefined, undefined, sensorsHost);
   await tick();

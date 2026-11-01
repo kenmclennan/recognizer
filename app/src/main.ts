@@ -18,7 +18,7 @@ import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
 import { withSensors } from "./sensor-run";
-import { NO_RUN } from "./sensors-panel-model";
+import { NO_RUN, sessionStatuses } from "./sensors-panel-model";
 import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
 import { toolsNotice } from "./tools-notice";
@@ -52,7 +52,7 @@ function adoptedOrigin(origin: ScanOrigin) {
     scannedAt: Date.now(),
     changes: NO_CHANGES,
     rescanning: false,
-    sensors: current?.sensors ?? [],
+    sensors: sessionStatuses(current?.sensors ?? [], sensorsState.run),
   });
 }
 
@@ -60,7 +60,10 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
   current = loaded;
 
   if (scanState !== null) {
-    setScanState({ ...scanState, sensors: loaded.sensors });
+    setScanState({
+      ...scanState,
+      sensors: sessionStatuses(loaded.sensors, sensorsState.run),
+    });
   }
 
   return showExplorer(
@@ -82,6 +85,14 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
       scan: () => scanState,
       refresh: () => rescanner.refresh(),
       state: sensorsState,
+      runChanged: () => {
+        if (scanState !== null && current !== null) {
+          setScanState({
+            ...scanState,
+            sensors: sessionStatuses(current.sensors, sensorsState.run),
+          });
+        }
+      },
     },
   );
 }
