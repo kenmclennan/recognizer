@@ -5,6 +5,7 @@ import type { InspectorTab } from "./inspector-model";
 export type BarModel = {
   kind: "module" | "folder";
   dependencies: number;
+  findings: { count: number; tone: "red" | "amber" } | null;
   files: { open: number; held: number } | null;
   focused: boolean;
   folded: boolean;
@@ -102,7 +103,22 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         "on",
         model.inspectorTab === "dependencies",
       );
-      parts.push(dependencies, separator());
+      parts.push(dependencies);
+
+      if (model.findings !== null) {
+        const findings = iconButton(
+          "findings",
+          "Findings (W)",
+          () => actions.openTab("findings"),
+          String(model.findings.count),
+        );
+
+        findings.classList.add(`findings-${model.findings.tone}`);
+        findings.classList.toggle("on", model.inspectorTab === "findings");
+        parts.push(findings);
+      }
+
+      parts.push(separator());
 
       if (model.kind === "folder") {
         parts.push(

@@ -9,6 +9,7 @@ export async function openInEditor(
   selection: Selection,
   editor: EditorPort,
   notify: (text: string) => void,
+  line?: number,
 ): Promise<void> {
   const relative = editorRelative(selection);
 
@@ -17,7 +18,7 @@ export async function openInEditor(
   }
 
   try {
-    await editor.openFile(relative);
+    await editor.openFile(relative, line);
   } catch (error) {
     notify(String(error instanceof Error ? error.message : error));
   }

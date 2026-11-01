@@ -5,6 +5,7 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { NO_RUN } from ${JSON.stringify(here("sensors-panel-model.ts"))};
 ${FAKE_WORKER}
@@ -49,6 +50,8 @@ async function mount(loaded, picks, status) {
   document.body.append(host);
   const port = fakeViews(picks === null ? {} : { order: make(picks) });
   const fake = fakeSensors({}, { config: CONFIG });
+  const editor = fakeEditor();
+  const counts = [];
   const sensorsHost = {
     port: fake,
     scan: () => null,
@@ -56,7 +59,7 @@ async function mount(loaded, picks, status) {
     state: { ticked: [], run: NO_RUN },
     runChanged: () => {},
   };
-  showExplorer(host, { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, "demo", () => {}, port, () => {}, null, undefined, { getItem: () => null, setItem: () => {} }, undefined, undefined, undefined, undefined, sensorsHost);
+  showExplorer(host, { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, "demo", (text) => counts.push(text), port, () => {}, null, undefined, { getItem: () => null, setItem: () => {} }, editor, undefined, undefined, undefined, sensorsHost);
   await tick();
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
@@ -66,10 +69,10 @@ async function mount(loaded, picks, status) {
     click(all(".view-item")[0]);
     await tick();
   }
-  return { host, port, q, all, shown };
+  return { host, port, q, all, shown, editor, counts };
 }
 
-const cardText = (m) => m.all(".finding-card-text tspan").map((t) => t.textContent).join(" ");
+const texts = (m, selector) => m.all(selector).map((n) => n.textContent);
 const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
 
 (async () => {
@@ -91,6 +94,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     titles: m.all(".finding-severity-title, .finding-group-title").map((n) => n.textContent),
     stale: m.shown(".findings-stale"),
     cards: m.all(".finding-card").length,
+    expanded: m.all(".finding-detail").length,
   };
 
   click(m.all(".findings-chip")[1]);
@@ -106,36 +110,94 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     litBoxes: m.all(".box.lit-violation").map((n) => n.dataset.id).sort(),
     litLines: m.all(".line-group.lit-violation").length,
     dimmed: dimBoxes(m),
-    card: cardText(m),
-    cardCount: m.all(".finding-card").length,
-    cardWidth: Number(m.q(".finding-card-body").getAttribute("width")),
-    cardLines: m.all(".finding-card-text tspan").map((t) => t.textContent),
+    cards: m.all(".finding-card").length,
+    expanded: m.all(".finding-entry.focused").length,
+    evidence: texts(m, ".finding-detail .finding-evidence"),
+    fix: texts(m, ".finding-detail .finding-fix"),
+    buttons: texts(m, ".finding-detail-buttons button"),
   };
-  press("j");
+  click(m.q(".finding-edit"));
   await tick();
-  facts.walked = { card: cardText(m), tone: m.q(".finding-card").getAttribute("class") };
-  press("Escape");
+  click(m.q(".finding-id"));
   await tick();
-  facts.cleared = { cards: m.all(".finding-card").length, dim: m.all(".dim").length, lit: m.all(".lit-violation, .lit-warning").length };
+  facts.actions = { opened: m.editor.opened, copied: m.port.copied };
 
-  click(m.q('.finding-row[data-id="rule-violation:a"]'));
+  click(m.q('.box[data-id="app/b.py"] .box-body'));
   await tick();
-  click(m.q('[data-action="finding-open"]'));
-  await tick();
-  facts.open = { tab: m.all(".itabs button.on").map((b) => b.textContent), selected: m.all(".box.selected").map((n) => n.dataset.id) };
-  click(m.q('[data-action="finding-copy"]'));
-  await tick();
-  facts.copied = m.port.copied;
-
+  facts.keptOnEvidence = { expanded: m.all(".finding-entry.focused").length, lit: m.all(".box.lit-violation").length, dim: m.all(".box.dim").length };
   click(m.q('.box[data-id="lib/c.py"] .box-body'));
   await tick();
-  facts.canvasSelect = { cards: m.all(".finding-card").length, dim: m.all(".lit-violation").length };
+  facts.droppedOnOther = { expanded: m.all(".finding-entry.focused").length, lit: m.all(".lit-violation, .lit-warning").length };
+
+  press("j");
+  await tick();
+  press("j");
+  await tick();
+  facts.walked = { expanded: texts(m, ".finding-entry.focused .finding-fix"), id: m.q(".finding-entry.focused .finding-row").dataset.id };
+  press("Escape");
+  await tick();
+  facts.cleared = { expanded: m.all(".finding-entry.focused").length, dim: m.all(".dim").length, lit: m.all(".lit-violation, .lit-warning").length };
 
   click(m.q('.finding-row[data-id="rule-violation:a"]'));
   await tick();
   click(m.q(".rail-files"));
   await tick();
-  facts.switched = { cards: m.all(".finding-card").length };
+  facts.switched = { lit: m.all(".box.lit-violation").length };
+  click(m.q(".rail-findings"));
+  await tick();
+  click(m.q('.finding-row[data-id="rule-violation:a"]'));
+  await tick();
+  facts.collapsedAgain = { expanded: m.all(".finding-entry.focused").length, lit: m.all(".lit-violation, .lit-warning").length };
+
+  const bar = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
+  click(bar.q('.box[data-id="app/a.py"] .box-body'));
+  await tick();
+  const findingsButton = () => bar.q('.selection-bar .bar-button[title="Findings (W)"]');
+  facts.bar = { present: findingsButton() !== null, text: findingsButton().textContent, cls: findingsButton().className, order: bar.all(".selection-bar .bar-button").map((b) => b.title).slice(0, 2) };
+  click(findingsButton());
+  await tick();
+  facts.barTab = { tab: texts(bar, ".itabs button.on"), rows: bar.all(".inspector-panel .finding-row").map((r) => r.dataset.id), on: findingsButton().className };
+  click(bar.q('.inspector-panel .finding-row[data-id="cycle:a,b"]'));
+  await tick();
+  facts.tabFocus = { detail: bar.all(".inspector-panel .finding-detail").length, lit: bar.all(".box.lit-warning").map((n) => n.dataset.id).sort(), evidence: texts(bar, ".inspector-panel .finding-evidence") };
+  click(bar.q('.box[data-id="lib/c.py"] .box-body'));
+  await tick();
+  facts.barWarn = findingsButton().className;
+  const quiet = await mount({ findings: [doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
+  click(quiet.q('.box[data-id="app/a.py"] .box-body'));
+  await tick();
+  facts.barQuiet = { present: quiet.q('.selection-bar .bar-button[title="Findings (W)"]') !== null };
+  click(quiet.q('.box[data-id="lib/c.py"] .box-body'));
+  await tick();
+  press("w");
+  await tick();
+  facts.keyW = texts(quiet, ".itabs button.on");
+
+  const ghost = await mount({ findings: [doc("structure", [violation])] }, ["app/a.py"]);
+  const before = ghost.counts.at(-1);
+  const savedBefore = ghost.port.files.size;
+  click(ghost.q('.finding-row[data-id="rule-violation:a"]'));
+  await tick();
+  const ghostBox = ghost.q(".ghost");
+  facts.ghost = {
+    count: ghost.all(".ghost").length,
+    dashed: getComputedStyle(ghost.q(".ghost .ghost-body")).strokeDasharray,
+    lit: ghostBox.getAttribute("class"),
+    selectable: ghost.all(".ghost [data-id]").length,
+    button: texts(ghost, ".ghost-add"),
+    boxes: ghost.all(".box").length,
+    footerSame: ghost.counts.at(-1) === before,
+  };
+  click(ghost.q(".ghost-add"));
+  await tick();
+  await tick();
+  facts.ghostAdded = { ghosts: ghost.all(".ghost").length, box: ghost.all('.box[data-id="app/b.py"]').length, expanded: ghost.all(".finding-entry.focused").length, saved: ghost.port.files.size - savedBefore };
+  const away = await mount({ findings: [doc("structure", [violation])] }, ["app/a.py"]);
+  click(away.q('.finding-row[data-id="rule-violation:a"]'));
+  await tick();
+  click(away.q('.finding-row[data-id="rule-violation:a"]'));
+  await tick();
+  facts.ghostCleared = { ghosts: away.all(".ghost").length, box: away.all('.box[data-id="app/b.py"]').length, buttons: away.all(".ghost-add").length };
 
   const off = await mount({ findings: [doc("lint", [style])] }, ["app/a.py", "app/b.py"]);
   click(off.q(".rail-findings"));
@@ -196,6 +258,7 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.panel.files).toBe(false);
     expect(f.panel.rows).toEqual(["rule-violation:a", "cycle:a,b", "style:c"]);
     expect(f.panel.cards).toBe(0);
+    expect(f.panel.expanded).toBe(0);
     expect(f.panel.stale).toBe(false);
     expect(f.panel.titles).toEqual([
       "Violations 1",
@@ -226,37 +289,76 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.violationsOnly).toEqual(["rule-violation:a"]);
   });
 
-  it("orients a clicked row: selects, lights the evidence, dims the rest and draws the card", () => {
+  it("orients a clicked row: selects, lights the evidence, dims the rest and expands in place", () => {
     expect(f.oriented.selected).toEqual(["app/a.py"]);
     expect(f.oriented.litBoxes).toEqual(["app/a.py", "app/b.py"]);
     expect(f.oriented.litLines).toBe(1);
     expect(f.oriented.dimmed).toEqual(["lib/c.py"]);
-    expect(f.oriented.cardCount).toBe(1);
-    expect(f.oriented.cardWidth).toBe(420);
-    expect(
-      f.oriented.cardLines.every((line: string) => line.length <= 56),
-    ).toBe(true);
-    expect(f.oriented.card).toContain("rule-violation - structure");
-    expect(f.oriented.card).toContain("a.py -> app/b.py at line 4");
-    expect(f.oriented.card).toContain("Principle:");
+    expect(f.oriented.cards).toBe(0);
+    expect(f.oriented.expanded).toBe(1);
+    expect(f.oriented.evidence).toEqual(["app/a.py -> app/b.py at line 4"]);
+    expect(f.oriented.fix).toEqual(["no fix pattern recorded"]);
+    expect(f.oriented.buttons).toEqual(["Open in editor", "Copy id"]);
+  });
+
+  it("opens the evidence line in the editor and copies the id", () => {
+    expect(f.actions.opened).toEqual([{ file: "app/a.py", line: 4 }]);
+    expect(f.actions.copied).toEqual(["rule-violation:a"]);
+  });
+
+  it("keeps the focus on a click inside the evidence and drops it on any other", () => {
+    expect(f.keptOnEvidence.expanded).toBe(1);
+    expect(f.keptOnEvidence.lit).toBe(2);
+    expect(f.keptOnEvidence.dim).toBe(1);
+    expect(f.droppedOnOther).toEqual({ expanded: 0, lit: 0 });
   });
 
   it("walks with j and clears with Escape", () => {
-    expect(f.walked.card).toContain("cycle - structure");
-    expect(f.walked.card).toContain("Fix: break-cycle");
-    expect(f.walked.tone).toContain("warning");
-    expect(f.cleared).toEqual({ cards: 0, dim: 0, lit: 0 });
+    expect(f.walked.id).toBe("cycle:a,b");
+    expect(f.walked.expanded).toEqual(["break-cycle"]);
+    expect(f.cleared).toEqual({ expanded: 0, dim: 0, lit: 0 });
   });
 
-  it("opens the inspector's Findings tab and copies the id from the card", () => {
-    expect(f.open.selected).toEqual(["app/a.py"]);
-    expect(f.open.tab[0]).toMatch(/^Findings/);
-    expect(f.copied).toEqual(["rule-violation:a"]);
+  it("keeps the focus over a panel switch and clears it on clicking the focused row", () => {
+    expect(f.switched.lit).toBe(2);
+    expect(f.collapsedAgain).toEqual({ expanded: 0, lit: 0 });
   });
 
-  it("clears the orientation on a canvas selection or a panel switch", () => {
-    expect(f.canvasSelect).toEqual({ cards: 0, dim: 0 });
-    expect(f.switched.cards).toBe(0);
+  it("shows the selection bar's findings button in the disc's colour, after dependencies, and opens the tab", () => {
+    expect(f.bar.present).toBe(true);
+    expect(f.bar.text).toBe("2");
+    expect(f.bar.cls).toContain("findings-red");
+    expect(f.bar.order).toEqual(["Dependencies (D)", "Findings (W)"]);
+    expect(f.barTab.tab[0]).toMatch(/^Findings/);
+    expect(f.barTab.rows).toEqual(["rule-violation:a", "cycle:a,b"]);
+    expect(f.barTab.on).toContain("on");
+    expect(f.barWarn).toContain("findings-amber");
+    expect(f.barQuiet.present).toBe(false);
+    expect(f.keyW[0]).toMatch(/^Findings/);
+  });
+
+  it("focuses a finding from the inspector's tab exactly as the panel does", () => {
+    expect(f.tabFocus.detail).toBe(1);
+    expect(f.tabFocus.lit).toEqual(["app/a.py", "app/b.py"]);
+    expect(f.tabFocus.evidence).toEqual([
+      "app/a.py -> app/b.py",
+      "app/b.py -> app/a.py",
+    ]);
+  });
+
+  it("draws a dashed ghost for evidence off the view, with an Add button that makes it a box", () => {
+    expect(f.ghost.count).toBe(1);
+    expect(f.ghost.dashed).not.toBe("none");
+    expect(f.ghost.lit).toContain("lit-violation");
+    expect(f.ghost.selectable).toBe(0);
+    expect(f.ghost.button).toEqual(["Add b.py to the view"]);
+    expect(f.ghost.boxes).toBe(1);
+    expect(f.ghost.footerSame).toBe(true);
+    expect(f.ghostAdded).toEqual({ ghosts: 0, box: 1, expanded: 1, saved: 0 });
+  });
+
+  it("removes a ghost that was not added when the focus clears", () => {
+    expect(f.ghostCleared).toEqual({ ghosts: 0, box: 0, buttons: 0 });
   });
 
   it("shows amber for warnings only, hides the badge at zero and ignores another commit", () => {
@@ -277,6 +379,6 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
   });
 
   it("puts a finding's module on the canvas when it is not there", () => {
-    expect(f.offCanvas).toEqual({ box: 1, card: 1 });
+    expect(f.offCanvas).toEqual({ box: 1, card: 0 });
   });
 });

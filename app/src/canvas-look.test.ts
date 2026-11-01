@@ -139,7 +139,7 @@ const scene = {
   ],
   arrows: [arrow("plain", false), arrow("private", false), arrow("inferred", false), arrow("hollow", true)],
 };
-const bar = (over) => ({ kind: "folder", dependencies: 2, files: { open: 1, held: 2 }, focused: false, folded: false, inspectorTab: null, ...over });
+const bar = (over) => ({ kind: "folder", dependencies: 2, findings: null, files: { open: 1, held: 2 }, focused: false, folded: false, inspectorTab: null, ...over });
 const props = (over) => ({
   scene, selection: null, highlight: null, bar: null, titles: new Map(),
   open: 3, total: 5, showInferred: true, notice: null, ...over,

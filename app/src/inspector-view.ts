@@ -1,6 +1,7 @@
 import type { Token } from "recognizer";
 import { isEditable } from "./canvas-keys";
 import { el } from "./dom";
+import { buildFindingRow } from "./findings-panel-view";
 import { icon, iconButton } from "./icons";
 import type {
   CardRow,
@@ -40,6 +41,10 @@ export type InspectorActions = {
   bringBack: (index: number) => void;
   putTrailOnCanvas: () => void;
   trailKey: (action: TrailKeyAction) => boolean;
+  focusFinding: (id: string) => void;
+  focusedFinding: () => string | null;
+  openEvidence: (module: string, line: number | null) => void;
+  copyFinding: (id: string) => void;
 };
 
 export type TrailRender = {
@@ -316,11 +321,15 @@ function rowNode(
   }
 
   if (row.kind === "finding") {
-    const node = el("div", `finding ${row.severity}`);
-
-    node.append(el("div", "", row.text), el("div", "muted", row.why));
-
-    return node;
+    return buildFindingRow(
+      row.row,
+      { focused: actions.focusedFinding() === row.row.id },
+      {
+        toggle: actions.focusFinding,
+        openInEditor: actions.openEvidence,
+        copyId: actions.copyFinding,
+      },
+    );
   }
 
   return evidenceNode(row);

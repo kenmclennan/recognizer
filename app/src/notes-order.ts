@@ -85,24 +85,7 @@ export function tint(by: string, author: string): "person" | "agent" {
   return by === author ? "person" : "agent";
 }
 
-export const FINDING_CARD_WIDTH = 420;
-export const FINDING_CARD_WRAP = 56;
-
-const SOFT_BREAKS = ["/", "-.>:,"];
-
-function softSplit(word: string, width: number): number {
-  for (const breaks of SOFT_BREAKS) {
-    for (let at = width; at > 0; at -= 1) {
-      if (breaks.includes(word[at - 1] as string)) {
-        return at;
-      }
-    }
-  }
-
-  return width;
-}
-
-function wrap(text: string, width: number, soft = false): string[] {
+function wrap(text: string, width: number): string[] {
   const lines: string[] = [];
 
   for (const paragraph of text.split("\n")) {
@@ -117,10 +100,8 @@ function wrap(text: string, width: number, soft = false): string[] {
           line = "";
         }
 
-        const cut = soft ? softSplit(rest, width) : width;
-
-        lines.push(rest.slice(0, cut));
-        rest = rest.slice(cut);
+        lines.push(rest.slice(0, width));
+        rest = rest.slice(width);
       }
 
       if (line === "") {
@@ -144,15 +125,13 @@ export const CARD_EDGE = 16;
 export function cardLayout(
   rect: Rect,
   text: string,
-  size: { width: number; wrap: number; soft: boolean } = {
+  size: { width: number; wrap: number } = {
     width: CARD_WIDTH,
     wrap: CARD_WRAP,
-    soft: false,
   },
   view?: Rect,
-  extra = 0,
 ): CardLayout {
-  const lines = wrap(text.trim(), size.wrap, size.soft);
+  const lines = wrap(text.trim(), size.wrap);
   const height = lines.length * CARD_LINE + CARD_PADDING;
   const rightX = rect.x + rect.width + CARD_GAP;
   const leftX = rect.x - CARD_GAP - size.width;
@@ -177,7 +156,7 @@ export function cardLayout(
   }
 
   if (view !== undefined) {
-    const over = card.y + height + extra + CARD_EDGE - (view.y + view.height);
+    const over = card.y + height + CARD_EDGE - (view.y + view.height);
 
     pan.y = Math.min(
       Math.max(over, 0),

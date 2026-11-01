@@ -10,6 +10,7 @@ import {
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
 import type { EvidenceSection } from "./edge-evidence";
+import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
 import type { Disc, Finding } from "./health";
 import { createPicker, type PickerSource } from "./picker-model";
@@ -24,6 +25,7 @@ export type InspectorInputs = {
   compaction: Compaction;
   disc: (id: string) => Disc;
   findings: (id: string) => Finding[];
+  findingRows: (id: string) => FindingRow[];
   onCanvas: (id: string) => boolean;
   expanded: ReadonlySet<string>;
   showPrivate: boolean;
@@ -97,12 +99,7 @@ export type Row =
       followed: boolean;
     }
   | { kind: "group"; id: string; disc: Disc; path: string }
-  | {
-      kind: "finding";
-      text: string;
-      why: string;
-      severity: Finding["severity"];
-    }
+  | { kind: "finding"; row: FindingRow }
   | { kind: "evidence"; section: EvidenceSection };
 
 export type Header = {
@@ -550,17 +547,17 @@ function dependencyRows(
   return rows;
 }
 
-function findingRows(findings: Finding[]): Row[] {
+function findingRows(rows: FindingRow[]): Row[] {
   const ordered = [
-    ...findings.filter((finding) => finding.severity === "violation"),
-    ...findings.filter((finding) => finding.severity === "warning"),
+    ...rows.filter((row) => row.severity === "violation"),
+    ...rows.filter((row) => row.severity === "warning"),
   ];
 
-  return ordered.map((finding) => ({ kind: "finding", ...finding }));
+  return ordered.map((row) => ({ kind: "finding", row }));
 }
 
 function moduleFindings(id: string, inputs: InspectorInputs): Row[] {
-  const rows = findingRows(inputs.findings(id));
+  const rows = findingRows(inputs.findingRows(id));
 
   if (rows.length > 0) {
     return rows;
@@ -578,7 +575,7 @@ function foldersGroups(folder: string, inputs: InspectorInputs): Row[] {
   const grey = inputs.disc(folder) === "grey";
   const groups = inputs.modules
     .filter((id) => id !== folder && under(id, folder))
-    .map((id) => ({ id, findings: findingRows(inputs.findings(id)) }))
+    .map((id) => ({ id, findings: findingRows(inputs.findingRows(id)) }))
     .filter((group) => group.findings.length > 0)
     .sort((a, b) => a.id.localeCompare(b.id));
   const note = grey ? "Some modules are not measured" : "No findings";
@@ -601,17 +598,42 @@ function foldersGroups(folder: string, inputs: InspectorInputs): Row[] {
   ];
 }
 
-function countFindings(
+type FindingInputs = Pick<InspectorInputs, "findings" | "modules">;
+
+function findingsUnder(
   selection: NonNullable<Selection>,
-  inputs: InspectorInputs,
-) {
+  inputs: FindingInputs,
+): Finding[] {
   if (selection.kind === "module") {
-    return inputs.findings(selection.id).length;
+    return inputs.findings(selection.id);
   }
 
   return inputs.modules
     .filter((id) => id !== selection.id && under(id, selection.id))
-    .reduce((sum, id) => sum + inputs.findings(id).length, 0);
+    .flatMap((id) => inputs.findings(id));
+}
+
+export function countFindings(
+  selection: NonNullable<Selection>,
+  inputs: FindingInputs,
+) {
+  return findingsUnder(selection, inputs).length;
+}
+
+export function findingsTone(
+  selection: NonNullable<Selection>,
+  inputs: FindingInputs,
+): { count: number; tone: "red" | "amber" } | null {
+  const found = findingsUnder(selection, inputs);
+
+  if (found.length === 0) {
+    return null;
+  }
+
+  return {
+    count: found.length,
+    tone: found.some((one) => one.severity === "violation") ? "red" : "amber",
+  };
 }
 
 function parentOf(id: string): string {

@@ -2370,39 +2370,115 @@ svg.i.chevron {
   fill: #b9770e;
 }
 
-.finding-card .finding-leader {
-  fill: none;
-  stroke: #b9770e;
-  stroke-width: 1.5;
+.bar-button.findings-amber .bar-figure {
+  color: #e8a33d;
 }
 
-.finding-card .finding-card-body {
+.bar-button.findings-red .bar-figure {
+  color: #e5604d;
+}
+
+.finding-entry {
+  display: block;
+}
+
+.finding-detail {
+  margin: 0 4px 6px 14px;
+  padding: 6px 8px;
+  border-left: 2px solid #b9770e;
+  font-size: 12px;
+}
+
+.finding-detail.violation {
+  border-left-color: #c0392b;
+}
+
+.finding-evidence,
+.finding-fix {
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.finding-fix {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.finding-detail-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.finding-detail-button {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--framebg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ghost .ghost-body {
   fill: var(--panel);
-  stroke: #b9770e;
+  stroke: var(--line);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
 }
 
-.finding-card.violation .finding-leader,
-.finding-card.violation .finding-card-body {
-  stroke: #c0392b;
-}
-
-.finding-card .finding-card-text {
+.ghost .ghost-name {
   fill: var(--fg);
   font-size: 12px;
   pointer-events: none;
 }
 
-.finding-card .finding-button {
-  cursor: pointer;
-}
-
-.finding-card .finding-button rect {
-  fill: var(--framebg);
+.ghost .ghost-edge {
+  fill: none;
   stroke: var(--line);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
 }
 
-.finding-card .finding-button text {
-  fill: var(--fg);
-  font-size: 11px;
+.ghost .ghost-arrow {
+  fill: var(--line);
+}
+
+.ghost.lit-violation .ghost-body,
+.ghost.lit-violation .ghost-edge {
+  stroke: #c0392b;
+}
+
+.ghost.lit-violation .ghost-arrow {
+  fill: #c0392b;
+}
+
+.ghost.lit-warning .ghost-body,
+.ghost.lit-warning .ghost-edge {
+  stroke: #b9770e;
+}
+
+.ghost.lit-warning .ghost-arrow {
+  fill: #b9770e;
+}
+
+.add-layer {
+  position: absolute;
+  inset: 0;
   pointer-events: none;
+}
+
+.ghost-add {
+  position: absolute;
+  pointer-events: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--framebg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
 }

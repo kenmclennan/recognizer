@@ -6,16 +6,13 @@ import {
   type NoteKeyContext,
 } from "./canvas-keys";
 import type { Point, Rect } from "./canvas-layout";
-import type { Scene } from "./canvas-scene";
+import { arrowhead, type Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
+import type { Ghost } from "./finding-focus";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
-import {
-  cardLayout,
-  FINDING_CARD_WIDTH,
-  FINDING_CARD_WRAP,
-} from "./notes-order";
+import { cardLayout } from "./notes-order";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
@@ -45,12 +42,12 @@ export type CanvasProps = {
   busy?: boolean;
   notes?: CanvasNotes;
   orientation?: CanvasOrientation | null;
+  ghosts?: Ghost[];
 };
 
 export type CanvasOrientation = {
   lit: ReadonlySet<string>;
   tone: "violation" | "warning";
-  card: { module: string; lines: string[]; id: string } | null;
 };
 
 export type CanvasNotes = {
@@ -76,8 +73,7 @@ export type CanvasActions = {
   removeNote: () => void;
   walkNotes: (delta: 1 | -1) => void;
   walkFindings: (delta: 1 | -1) => void;
-  openFinding: () => void;
-  copyFindingId: () => void;
+  pickName: (id: string) => void;
 };
 
 export type CanvasView = {
@@ -150,6 +146,56 @@ function frameText(rect: Rect, label: string, figure: string): SVGElement {
 
 const points = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
 
+function drawGhost(
+  ghost: Ghost,
+  scene: Scene,
+  tone: "violation" | "warning" | null,
+): SVGElement {
+  const { rect } = ghost;
+  const middle = rect.y + rect.height / 2;
+  const node = svg("g", {
+    class: tone === null ? "ghost" : `ghost lit-${tone}`,
+    "data-ghost": ghost.id,
+  });
+  const partner = scene.boxes.find((box) => box.id === ghost.partner);
+
+  if (partner !== undefined) {
+    const from = {
+      x: partner.rect.x + partner.rect.width,
+      y: partner.rect.y + partner.rect.height / 2,
+    };
+    const to = { x: rect.x, y: middle };
+    const towardsGhost = ghost.edge === null || ghost.edge.to === ghost.id;
+    const path = towardsGhost ? [from, to] : [to, from];
+
+    node.append(
+      svg("polyline", { class: "ghost-edge", points: points([from, to]) }),
+      svg("polygon", {
+        class: "ghost-arrow",
+        points: points(arrowhead(path)),
+      }),
+    );
+  }
+
+  node.append(
+    svg("rect", {
+      class: "ghost-body",
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      rx: 7,
+    }),
+    svg(
+      "text",
+      { class: "ghost-name", x: rect.x + 12, y: middle + 4 },
+      ghost.name,
+    ),
+  );
+
+  return node;
+}
+
 export function buildCanvasView(
   actions: CanvasActions,
   scheduler: Scheduler = timerScheduler,
@@ -162,6 +208,7 @@ export function buildCanvasView(
   const empty = el("p", "empty-canvas");
   const notice = el("p", "canvas-notice");
   const busy = spinner("Laying out");
+  const addLayer = el("div", "add-layer");
 
   busy.classList.add("canvas-busy");
   busy.hidden = true;
@@ -221,7 +268,7 @@ export function buildCanvasView(
   zoomIn.title = "Zoom in";
   zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
-  stage.append(surface, empty, notice, busy, selectionBar.element);
+  stage.append(surface, addLayer, empty, notice, busy, selectionBar.element);
   controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
   element.append(stage, controls, legend.element);
 
@@ -253,6 +300,36 @@ export function buildCanvasView(
     zoomOut.disabled = atMin(viewport);
     zoomIn.disabled = atMax(viewport);
     positionBar();
+    positionGhostButtons();
+  }
+
+  function positionGhostButtons() {
+    for (const node of addLayer.querySelectorAll<HTMLElement>(".ghost-add")) {
+      const x = Number(node.dataset.x);
+      const y = Number(node.dataset.y);
+
+      node.style.left = `${viewport.x + x * viewport.k}px`;
+      node.style.top = `${viewport.y + y * viewport.k + 6}px`;
+    }
+  }
+
+  function drawGhostButtons() {
+    addLayer.replaceChildren(
+      ...(props?.ghosts ?? []).map((ghost) => {
+        const node = button(`Add ${ghost.name} to the view`, "ghost-add", () =>
+          actions.pickName(ghost.id),
+        );
+
+        node.dataset.x = String(ghost.rect.x);
+        node.dataset.y = String(ghost.rect.y + ghost.rect.height);
+        node.dataset.ghost = ghost.id;
+        node.addEventListener("pointerdown", (event) =>
+          event.stopPropagation(),
+        );
+
+        return node;
+      }),
+    );
   }
 
   function zoomBy(factor: number, at?: Point) {
@@ -555,98 +632,10 @@ export function buildCanvasView(
       parts.push(node);
     }
 
-    const orientation = props?.orientation ?? null;
-    const found = orientation?.card ?? null;
-    const target =
-      found === null
-        ? undefined
-        : scene.boxes.find((box) => box.id === found.module);
+    const tone = props?.orientation?.tone ?? null;
 
-    if (orientation !== null && found !== null && target !== undefined) {
-      const stage = size();
-      const visible = {
-        x: -viewport.x / viewport.k,
-        y: -viewport.y / viewport.k,
-        width: stage.width / viewport.k,
-        height: stage.height / viewport.k,
-      };
-      const layout = cardLayout(
-        target.rect,
-        found.lines.join("\n"),
-        {
-          width: FINDING_CARD_WIDTH,
-          wrap: FINDING_CARD_WRAP,
-          soft: true,
-        },
-        stage.width > 0 ? visible : undefined,
-        32,
-      );
-
-      if (layout.pan.x !== 0 || layout.pan.y !== 0) {
-        viewport = panBy(
-          viewport,
-          -layout.pan.x * viewport.k,
-          -layout.pan.y * viewport.k,
-        );
-        applyViewport();
-      }
-      const node = svg("g", {
-        class: `finding-card ${orientation.tone}`,
-      });
-      const text = svg("text", { class: "finding-card-text" });
-      const bottom = layout.card.y + layout.card.height;
-
-      layout.lines.forEach((line, index) => {
-        text.append(
-          svg(
-            "tspan",
-            {
-              x: layout.card.x + 10,
-              y: layout.card.y + 8 + (index + 1) * 18 - 5,
-            },
-            line,
-          ),
-        );
-      });
-      node.append(
-        svg("path", { class: "finding-leader", d: layout.leader }),
-        svg("rect", {
-          class: "finding-card-body",
-          x: layout.card.x,
-          y: layout.card.y,
-          width: layout.card.width,
-          height: layout.card.height + 32,
-          rx: 6,
-        }),
-        text,
-      );
-
-      [
-        ["finding-open", "Open in inspector", layout.card.x + 8, 132],
-        ["finding-copy", "Copy id", layout.card.x + 148, 64],
-      ].forEach(([action, label, x, width]) => {
-        const group = svg("g", {
-          class: "finding-button",
-          "data-action": action as string,
-        });
-
-        group.append(
-          svg("rect", {
-            x: x as number,
-            y: bottom + 4,
-            width: width as number,
-            height: 22,
-            rx: 4,
-          }),
-          svg(
-            "text",
-            { x: (x as number) + 8, y: bottom + 19 },
-            label as string,
-          ),
-        );
-        node.append(group);
-      });
-      parts.push(node);
+    for (const ghost of props?.ghosts ?? []) {
+      parts.push(drawGhost(ghost, scene, tone));
     }
 
     world.replaceChildren(...parts);
@@ -712,7 +701,9 @@ export function buildCanvasView(
     }
 
     for (const tone of ["lit-violation", "lit-warning"]) {
-      for (const node of world.querySelectorAll<SVGElement>(`.${tone}`)) {
+      for (const node of world.querySelectorAll<SVGElement>(
+        `.${tone}:not(.ghost)`,
+      )) {
         node.classList.remove(tone);
       }
     }
@@ -846,22 +837,6 @@ export function buildCanvasView(
   });
 
   surface.addEventListener("click", (event) => {
-    const pressed = (event.target as Element | null)?.closest<SVGElement>(
-      "[data-action]",
-    );
-
-    if (pressed?.dataset.action === "finding-open") {
-      actions.openFinding();
-
-      return;
-    }
-
-    if (pressed?.dataset.action === "finding-copy") {
-      actions.copyFindingId();
-
-      return;
-    }
-
     const target = targetOf(event);
 
     if (target) {
@@ -935,6 +910,10 @@ export function buildCanvasView(
       }
     } else if (action === "dependencies") {
       actions.openTab("dependencies");
+    } else if (action === "findings") {
+      if (props?.bar?.findings) {
+        actions.openTab("findings");
+      }
     } else if (action === "contents") {
       actions.openContents();
     } else if (action === "focus") {
@@ -1013,7 +992,8 @@ export function buildCanvasView(
         scene !== previous?.scene ||
         next.titles !== previous?.titles ||
         next.notes !== previous?.notes ||
-        next.orientation !== previous?.orientation
+        next.orientation !== previous?.orientation ||
+        next.ghosts !== previous?.ghosts
       ) {
         if (scene) {
           drawScene(scene);
@@ -1030,6 +1010,10 @@ export function buildCanvasView(
         }
 
         hadContent = has;
+      }
+
+      if (next.ghosts !== previous?.ghosts) {
+        drawGhostButtons();
       }
 
       if (pendingCenter !== null && centerNow(pendingCenter)) {

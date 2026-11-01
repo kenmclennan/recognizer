@@ -40,7 +40,8 @@ import {
 } from "./edge-evidence";
 import { openFolderInEditor, openInEditor } from "./editor-open";
 import { type EditorPort, inertEditor } from "./editor-port";
-import { cardText, litSet, offCanvasModules } from "./findings-card";
+import { type Ghost, ghostPlacement, keepsFocus } from "./finding-focus";
+import { litSet } from "./findings-card";
 import {
   applyFilter,
   badge,
@@ -59,6 +60,7 @@ import type { ScanState } from "./footer-scan";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
+  findingsTone,
   followableRows,
   type InspectorContent,
   type InspectorTab,
@@ -261,6 +263,7 @@ export function showExplorer(
   let findingFilter: FindingFilter = { by: "all" };
   let canvasOrientation: CanvasOrientation | null = null;
   let canvasOrientationKey = "";
+  let canvasGhosts: Ghost[] | undefined;
 
   void authorName.then((name) => {
     author = name;
@@ -370,26 +373,7 @@ export function showExplorer(
           orientFinding(next);
         }
       },
-      openFinding() {
-        const row = allFindings.find((one) => one.id === orientedFinding);
-
-        if (row === undefined) {
-          return;
-        }
-
-        const selection = state.selection();
-
-        if (selection?.kind !== "module" || selection.id !== row.module) {
-          select({ kind: "module", id: row.module });
-        }
-
-        openTab("findings");
-      },
-      copyFindingId() {
-        if (orientedFinding !== null) {
-          void views.copy(orientedFinding);
-        }
-      },
+      pickName,
       measure,
       openTab,
     },
@@ -475,14 +459,11 @@ export function showExplorer(
     },
     putOnCanvas: putAllOn,
     takeOff: takeAllOff,
-    pickName(id) {
-      if (!modules.isOpen(id)) {
-        modules.open(id);
-        changed();
-      }
-
-      canvas.centerOn(boxFor(id));
-    },
+    pickName,
+    focusFinding: toggleFinding,
+    focusedFinding: () => orientedFinding,
+    openEvidence: openEvidence,
+    copyFinding: (id) => void views.copy(id),
     toggleGroup(key) {
       if (!groupFlips.delete(key)) {
         groupFlips.add(key);
@@ -642,7 +623,9 @@ export function showExplorer(
     runAll: () => void runSensors(registeredNames()),
   });
   const findingsView = buildFindingsPanelView({
-    select: (id) => orientFinding(id),
+    toggle: toggleFinding,
+    openInEditor: openEvidence,
+    copyId: (id) => void views.copy(id),
     filter(next) {
       findingFilter = next;
       render();
@@ -950,7 +933,7 @@ export function showExplorer(
     const previous = state.selection();
 
     activeNote = null;
-    orientedFinding = null;
+    dropFocusUnlessKept(selection);
 
     if (previous?.kind !== selection?.kind || previous?.id !== selection?.id) {
       resetList();
@@ -1005,9 +988,47 @@ export function showExplorer(
     );
   }
 
+  function dropFocusUnlessKept(selection: Selection) {
+    const row = allFindings.find((one) => one.id === orientedFinding);
+
+    if (row === undefined || !keepsFocus(selection, row.record, boxFor)) {
+      orientedFinding = null;
+    }
+  }
+
+  function pickName(id: string) {
+    if (!modules.isOpen(id)) {
+      modules.open(id);
+      changed();
+    }
+
+    canvas.centerOn(boxFor(id));
+  }
+
+  function toggleFinding(id: string) {
+    if (orientedFinding === id) {
+      clearFocus();
+    } else {
+      orientFinding(id);
+    }
+  }
+
+  function clearFocus() {
+    orientedFinding = null;
+    render();
+  }
+
+  function openEvidence(module: string, line: number | null) {
+    void editor
+      .openFile(module, line ?? undefined)
+      .catch((error) =>
+        notify(String(error instanceof Error ? error.message : error)),
+      );
+  }
+
   function find(id: string) {
     activeNote = null;
-    orientedFinding = null;
+    dropFocusUnlessKept({ kind: "module", id });
 
     if (!modules.isOpen(id)) {
       modules.open(id);
@@ -1055,9 +1076,12 @@ export function showExplorer(
       rebuild();
     }
 
-    select({ kind: "module", id: row.module });
+    if (!keepsFocus(state.selection(), row.record, boxFor)) {
+      select({ kind: "module", id: row.module });
+    }
+
     orientedFinding = id;
-    canvas.centerOn(boxFor(row.module));
+    canvas.centerOn(boxFor(state.selection()?.id ?? row.module));
     render();
   }
 
@@ -1068,6 +1092,7 @@ export function showExplorer(
       orientedFinding = null;
       canvasOrientation = null;
       canvasOrientationKey = "";
+      canvasGhosts = undefined;
 
       return null;
     }
@@ -1078,21 +1103,14 @@ export function showExplorer(
 
     const boxIds = new Set(scene.boxes.map((box) => box.id));
     const lines = scene.lines.map((line) => line.id);
-    const off = offCanvasModules(row.record, boxFor, boxIds);
     const lit = litSet(row.record, boxFor, lines, boxIds);
-    const key = JSON.stringify([row.id, [...lit].sort(), off]);
+    const ghosts = ghostPlacement(row.record, boxFor, scene);
+    const key = JSON.stringify([row.id, [...lit].sort(), ghosts]);
 
     if (key !== canvasOrientationKey || canvasOrientation === null) {
       canvasOrientationKey = key;
-      canvasOrientation = {
-        lit,
-        tone: row.severity,
-        card: {
-          module: boxFor(row.module),
-          lines: cardText(row, off),
-          id: row.id,
-        },
-      };
+      canvasOrientation = { lit, tone: row.severity };
+      canvasGhosts = ghosts.length > 0 ? ghosts : undefined;
     }
 
     return canvasOrientation;
@@ -1246,6 +1264,10 @@ export function showExplorer(
     return {
       kind: selection.kind,
       dependencies: counts.uses + counts.usedBy,
+      findings: findingsTone(selection, {
+        findings: health.findings,
+        modules: loaded.modules,
+      }),
       files:
         selection.kind === "folder"
           ? { open: graph.openIn(selection.id), held: graph.held(selection.id) }
@@ -2090,6 +2112,7 @@ export function showExplorer(
       busy: layoutBusy,
       notes,
       orientation: syncOrientation(),
+      ghosts: canvasGhosts,
     });
   }
 
@@ -2102,10 +2125,6 @@ export function showExplorer(
     tree.element.classList.toggle("notes-open", leftPanel === "notes");
     tree.element.classList.toggle("sensors-open", leftPanel === "sensors");
     tree.element.classList.toggle("findings-open", leftPanel === "findings");
-
-    if (leftPanel !== null && leftPanel !== "findings") {
-      orientedFinding = null;
-    }
 
     const noteView = openViewValue();
     const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
@@ -2173,6 +2192,8 @@ export function showExplorer(
         compaction,
         disc: context.disc,
         findings: health.findings,
+        findingRows: (id) =>
+          allFindings.filter((one) => one.record.evidence.modules.includes(id)),
         onCanvas: modules.isOpen,
         expanded: root ? folds : panel.folds,
         showPrivate,

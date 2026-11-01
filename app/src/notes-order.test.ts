@@ -130,39 +130,10 @@ describe("cardLayout", () => {
       "xxxx",
     ]);
   });
-
-  it("widens the finding card and keeps words whole", () => {
-    const text =
-      "Dependencies follow the policy and the summary has ordinary words in it";
-    const { lines, card } = cardLayout(at(0, 0), text, {
-      width: 420,
-      wrap: 56,
-      soft: true,
-    });
-
-    expect(card.width).toBe(420);
-    expect(lines.every((line) => line.length <= 56)).toBe(true);
-    expect(lines.join(" ")).toBe(text);
-  });
-
-  it("breaks a long path after a slash, never inside a name", () => {
-    const path = "src/adapters/outbound/persistence/order-repository.py";
-    const { lines } = cardLayout(at(0, 0), `${path} -> src/domain/orders.py`, {
-      width: 420,
-      wrap: 40,
-      soft: true,
-    });
-
-    expect(lines.every((line) => line.length <= 40)).toBe(true);
-    expect(lines.some((line) => line.includes("order-repository.py"))).toBe(
-      true,
-    );
-    expect(lines[0]?.endsWith("/")).toBe(true);
-  });
 });
 
 describe("cardLayout in a view", () => {
-  const size = { width: 420, wrap: 56, soft: true };
+  const size = { width: 420, wrap: 56 };
   const view = (x: number, width: number) => ({ x, y: 0, width, height: 2000 });
 
   it("stays on the right when the card fits", () => {

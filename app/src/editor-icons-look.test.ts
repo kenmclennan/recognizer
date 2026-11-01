@@ -29,7 +29,7 @@ const barActions = { openTab() {}, toggleFocus() {}, toggleFold() {}, openConten
 const bar = buildSelectionBar(barActions);
 document.body.append(bar.element);
 bar.element.hidden = false;
-const model = (kind) => ({ kind, dependencies: 2, files: kind === "folder" ? { open: 1, held: 2 } : null, focused: false, folded: false, inspectorTab: null });
+const model = (kind) => ({ kind, dependencies: 2, findings: null, files: kind === "folder" ? { open: 1, held: 2 } : null, focused: false, folded: false, inspectorTab: null });
 bar.render(model("module"));
 facts.barModule = describe(bar.element.querySelector('[aria-label="' + EDITOR + '"]'));
 bar.render(model("folder"));

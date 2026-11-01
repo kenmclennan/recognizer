@@ -1,5 +1,4 @@
 import type { FindingRecord } from "recognizer";
-import type { FindingRow } from "./findings-order";
 
 export type LitSet = Set<string>;
 
@@ -29,21 +28,6 @@ export function evidenceLines(
   }
 
   return lines;
-}
-
-export function cardText(
-  row: FindingRow,
-  offCanvas: readonly string[] = [],
-): string[] {
-  const { record } = row;
-
-  return [
-    `${row.kind} - ${row.sensor}`,
-    row.summary,
-    ...evidenceLines(record, offCanvas),
-    `Principle: ${row.principle}`,
-    ...(record.fix_pattern === undefined ? [] : [`Fix: ${record.fix_pattern}`]),
-  ];
 }
 
 export function offCanvasModules(
