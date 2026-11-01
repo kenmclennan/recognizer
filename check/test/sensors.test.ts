@@ -240,7 +240,7 @@ describe("check reading registered sensors", () => {
   });
 
   it("ignores a leftover file from another commit and reports it stale", () => {
-    const fake = setup(null, {
+    const fake = setup(REGISTER, {
       files: { [FAKE]: fakeDocument({ commit: "old" }) },
     });
     const { code, err, out } = check(fake, "--json");
@@ -256,7 +256,7 @@ describe("check reading registered sensors", () => {
   });
 
   it("does not let a stale file change the exit code", () => {
-    const fake = setup(null, {
+    const fake = setup(REGISTER, {
       files: {
         [FAKE]: fakeDocument({ commit: "old" }),
         [BASELINE]: JSON.stringify({
@@ -525,7 +525,7 @@ describe("show and modules read the findings files", () => {
   });
 
   it("ignores a registered sensor's file from another commit with a stale line", () => {
-    const fake = setup(null, {
+    const fake = setup(REGISTER, {
       files: { [FAKE]: fakeDocument({ commit: "old" }) },
     });
     const { err } = show(fake);
@@ -560,9 +560,49 @@ describe("show and modules read the findings files", () => {
   });
 
   it("reports an invalid registered file as invalid", () => {
-    const fake = setup(null, { files: { [FAKE]: "{}" } });
+    const fake = setup(REGISTER, { files: { [FAKE]: "{}" } });
 
     expect(show(fake).err).toContain("invalid fake-sensor:");
+  });
+});
+
+describe("a findings file for a sensor no longer registered", () => {
+  it("is removed by check with one stderr line and contributes nothing", () => {
+    const fake = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(fakeDocument()) },
+    });
+
+    sense(fake);
+    expect(fake.files.has(FAKE)).toBe(true);
+
+    fake.files.set(CONFIG, "sensors:\n  structure:\n    hub_threshold: 10\n");
+
+    const { err, out } = check(fake, "--json");
+    const report = JSON.parse(out.slice(out.indexOf("{")));
+
+    expect(err).toContain("removed unregistered fake-sensor\n");
+    expect(fake.files.has(FAKE)).toBe(false);
+    expect(
+      report.new.map((v: { finding_id?: string }) => v.finding_id),
+    ).not.toContain("fake-violation:shop/main.py");
+    expect(report.sensors.map((s: { name: string }) => s.name)).toEqual([
+      "structure",
+    ]);
+  });
+
+  it("is ignored by show and left in place", () => {
+    const fake = setup(null, { files: { [FAKE]: fakeDocument() } });
+    const code = run(
+      ["show", "shop/main.py", "--repository", ROOT, "--json"],
+      fake.io,
+    );
+    const out = fake.out();
+    const err = fake.err();
+
+    expect(code).toBe(0);
+    expect(out).not.toContain("the fake sensor objects");
+    expect(err).toContain("ignored unregistered fake-sensor");
+    expect(fake.files.has(FAKE)).toBe(true);
   });
 });
 

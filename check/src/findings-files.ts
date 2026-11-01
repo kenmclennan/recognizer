@@ -34,7 +34,8 @@ export function writeFindings(
 export type ReadOutcome =
   | { name: string; status: "read"; document: FindingsDocument }
   | { name: string; status: "stale"; document: FindingsDocument }
-  | { name: string; status: "invalid"; reason: string };
+  | { name: string; status: "invalid"; reason: string }
+  | { name: string; status: "unregistered" };
 
 function listed(io: Io, root: string): string[] {
   let entries: DirEntry[];
@@ -56,10 +57,15 @@ export function readFindingsFiles(
   root: string,
   commit: string | null,
   skip: string[] = [],
+  allowed: string[] | null = null,
 ): ReadOutcome[] {
   return listed(io, root)
     .filter((name) => !skip.includes(name))
     .map((name): ReadOutcome => {
+      if (allowed !== null && !allowed.includes(name)) {
+        return { name, status: "unregistered" };
+      }
+
       let document: FindingsDocument;
 
       try {

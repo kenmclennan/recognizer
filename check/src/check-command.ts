@@ -523,8 +523,16 @@ function gather(
   }
 
   if (commit !== null) {
-    for (const outcome of readFindingsFiles(io, root, commit)) {
-      if (outcome.status === "read") {
+    const allowed = [
+      ...(resolved === "off" ? [] : ["structure"]),
+      ...registeredSensors(config).map(({ name }) => name),
+    ];
+
+    for (const outcome of readFindingsFiles(io, root, commit, [], allowed)) {
+      if (outcome.status === "unregistered") {
+        io.remove(findingsFile(root, outcome.name));
+        io.stderr(`removed unregistered ${outcome.name}\n`);
+      } else if (outcome.status === "read") {
         documents.push(outcome.document);
 
         if (!sensors.some((one) => one.name === outcome.name)) {
