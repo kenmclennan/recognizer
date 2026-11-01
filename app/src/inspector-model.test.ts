@@ -19,6 +19,7 @@ import {
   inspectorContent,
   type Row,
 } from "./inspector-model";
+import type { NoteRow } from "./note-focus";
 
 const scanOf = (
   members: ScanMember[] | undefined,
@@ -51,6 +52,8 @@ function inputsFor(
     disc: () => "green",
     findings: () => [],
     findingRows: () => [],
+    noteRows: () => [],
+    canAddNote: false,
     onCanvas: () => false,
     expanded: new Set(),
     showPrivate: false,
@@ -727,6 +730,7 @@ describe("header and tabs", () => {
       "Contents",
       "Dependencies 13",
       "Findings",
+      "Notes",
     ]);
     expect(labels(folder("src/app"))).toEqual([
       "Contents",
@@ -1118,6 +1122,7 @@ describe("dependencies tab", () => {
       "Contents",
       "Dependencies 4",
       "Findings",
+      "Notes",
     ]);
   });
 
@@ -1437,4 +1442,61 @@ describe("signatures shared with recognizer show", () => {
       }
     });
   }
+});
+
+describe("the Notes tab", () => {
+  const scan = scanOf(undefined);
+  const aRow = (index: number): NoteRow => ({
+    index,
+    module: "pkg/m.py",
+    text: `note ${index}`,
+    by: "Ken",
+    tint: "person",
+    off: false,
+    active: false,
+  });
+  const content = (extra: Partial<InspectorInputs>) =>
+    inspectorContent(module("pkg/m.py"), inputsFor([scan], extra));
+
+  it("follows Findings and reads Notes at zero and Notes 2 at two", () => {
+    expect(content({}).tabs?.map((tab) => tab.label)).toEqual([
+      "Contents",
+      "Dependencies 0",
+      "Findings",
+      "Notes",
+    ]);
+    expect(
+      content({ noteRows: () => [aRow(0), aRow(1)] }).tabs?.[3]?.label,
+    ).toBe("Notes 2");
+  });
+
+  it("lists the note rows then the add button when a view is open", () => {
+    const rows = content({
+      tab: "notes",
+      noteRows: () => [aRow(0), aRow(1)],
+      canAddNote: true,
+    }).rows;
+
+    expect(rows.map((row) => row.kind)).toEqual([
+      "note-row",
+      "note-row",
+      "add-note",
+    ]);
+  });
+
+  it("replaces the button with a message when no view is open", () => {
+    const rows = content({ tab: "notes", canAddNote: false }).rows;
+
+    expect(rows).toEqual([
+      { kind: "note", text: "Open or save a view to add notes" },
+    ]);
+  });
+
+  it("gives a folder three tabs and no Notes tab", () => {
+    const labels = inspectorContent(folder("pkg"), inputsFor([scan])).tabs?.map(
+      (tab) => tab.label,
+    );
+
+    expect(labels).toEqual(["Contents", "Dependencies 0", "Findings"]);
+  });
 });

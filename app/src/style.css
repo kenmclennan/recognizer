@@ -554,7 +554,7 @@ svg.i.chevron {
 
 .box .note-mark {
   fill: var(--sel);
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .box .note-mark.active {
@@ -562,30 +562,14 @@ svg.i.chevron {
   stroke-width: 1.5;
 }
 
-.note-card .note-leader {
+.note-leader-group .note-leader {
   fill: none;
   stroke: var(--note-person);
   stroke-width: 1.5;
 }
 
-.note-card .note-card-body {
-  fill: var(--note-person-bg);
-  stroke: var(--note-person);
-}
-
-.note-card.agent .note-leader {
+.note-leader-group.agent .note-leader {
   stroke: var(--note-agent);
-}
-
-.note-card.agent .note-card-body {
-  fill: var(--note-agent-bg);
-  stroke: var(--note-agent);
-}
-
-.note-card .note-card-text {
-  fill: var(--fg);
-  font-size: 12px;
-  pointer-events: none;
 }
 
 .box .halo {
@@ -2081,59 +2065,10 @@ svg.i.chevron {
   font-size: 14px;
 }
 
-.note-composer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 12px 10px;
-  border-bottom: 1px solid var(--line);
-}
-
-.note-composer .note-prompt {
+.notes-hint {
   margin: 0;
+  padding: 0 12px 10px;
   color: var(--muted);
-}
-
-.note-composer .note-target {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.note-composer .note-field {
-  box-sizing: border-box;
-  padding: 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
-  resize: vertical;
-}
-
-.note-composer .note-field:focus {
-  outline: none;
-  border-color: var(--sel);
-  box-shadow: 0 0 0 2px var(--selbg);
-}
-
-.note-composer .note-add {
-  align-self: flex-end;
-  padding: 2px 10px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--sel);
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
-}
-
-.note-composer .note-add:disabled {
-  background: transparent;
-  color: var(--faint);
-  cursor: default;
 }
 
 .note-group,
@@ -2461,6 +2396,111 @@ svg.i.chevron {
 
 .ghost.lit-warning .ghost-arrow {
   fill: #b9770e;
+}
+
+.note-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.note-card {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--note-person);
+  border-radius: 6px;
+  background: var(--note-person-bg);
+  color: var(--fg);
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+.note-card .note-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.note-card .note-block.person {
+  border-left-color: var(--note-person);
+}
+
+.note-card .note-block.agent {
+  border-left-color: var(--note-agent);
+  background: var(--note-agent-bg);
+}
+
+.note-card .note-block.active {
+  outline: 2px solid var(--sel);
+}
+
+.note-card .note-text {
+  flex: 1 1 100%;
+  overflow-wrap: anywhere;
+}
+
+.note-card .note-by {
+  flex: 1;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.note-card .note-remove {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.note-card .note-card-field {
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  resize: none;
+}
+
+.note-card .note-card-field:focus {
+  outline: none;
+  border-color: var(--sel);
+  box-shadow: 0 0 0 2px var(--selbg);
+}
+
+.note-card .note-card-add {
+  align-self: flex-end;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--sel);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.note-card .note-card-add:disabled {
+  background: transparent;
+  color: var(--faint);
+  cursor: default;
 }
 
 .add-layer {

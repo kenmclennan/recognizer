@@ -153,7 +153,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   click(bar.q('.box[data-id="app/a.py"] .box-body'));
   await tick();
   const findingsButton = () => bar.q('.selection-bar .bar-button[title="Findings (W)"]');
-  facts.bar = { present: findingsButton() !== null, text: findingsButton().textContent, cls: findingsButton().className, order: bar.all(".selection-bar .bar-button").map((b) => b.title).slice(0, 2) };
+  facts.bar = { present: findingsButton() !== null, text: findingsButton().textContent, cls: findingsButton().className, order: bar.all(".selection-bar .bar-button").map((b) => b.title).slice(0, 3) };
   click(findingsButton());
   await tick();
   facts.barTab = { tab: texts(bar, ".itabs button.on"), rows: bar.all(".inspector-panel .finding-row").map((r) => r.dataset.id), on: findingsButton().className };
@@ -328,7 +328,11 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.bar.present).toBe(true);
     expect(f.bar.text).toBe("2");
     expect(f.bar.cls).toContain("findings-red");
-    expect(f.bar.order).toEqual(["Dependencies (D)", "Findings (W)"]);
+    expect(f.bar.order).toEqual([
+      "Dependencies (D)",
+      "Notes (N)",
+      "Findings (W)",
+    ]);
     expect(f.barTab.tab[0]).toMatch(/^Findings/);
     expect(f.barTab.rows).toEqual(["rule-violation:a", "cycle:a,b"]);
     expect(f.barTab.on).toContain("on");

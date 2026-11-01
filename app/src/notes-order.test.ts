@@ -96,6 +96,27 @@ describe("tint", () => {
 });
 
 describe("cardLayout", () => {
+  it("uses the given height for the card and the leader's end", () => {
+    const base = cardLayout(at(10, 20), "x");
+    const same = cardLayout(at(10, 20), "x", {
+      width: 220,
+      wrap: 28,
+      height: base.card.height,
+    });
+    const tall = cardLayout(at(10, 20), "x", {
+      width: 220,
+      wrap: 28,
+      height: 200,
+    });
+    const numbers = tall.leader
+      .match(/-?\d+(\.\d+)?/g)
+      ?.map(Number) as number[];
+
+    expect(same).toEqual(base);
+    expect(tall.card.height).toBe(200);
+    expect(numbers.at(-1)).toBe(20 + 100);
+  });
+
   it("wraps the text at 28 characters and sizes the card by line", () => {
     const { lines, card } = cardLayout(
       at(10, 20),

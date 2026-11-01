@@ -72,7 +72,15 @@ import {
   layoutOnMainThread,
   startLayoutWorker,
 } from "./layout-source";
-import { orderNotes, tint, walk } from "./notes-order";
+import {
+  cardNotes,
+  firstNote,
+  keepsFocus as keepsNoteFocus,
+  type NoteFocus,
+  type NoteRow,
+  noteRow,
+} from "./note-focus";
+import { type NoteOrder, orderNotes, tint, walk } from "./notes-order";
 import { buildNotesPanelView } from "./notes-panel-view";
 import { createOpenModules } from "./open-modules";
 import { mountPanelResizers } from "./panel-resizer-view";
@@ -255,7 +263,8 @@ export function showExplorer(
   let lastPublished: string | null = null;
   const authorName = views.author().catch(() => "Me");
   let author = "Me";
-  let activeNote: number | null = null;
+  let noteFocus: NoteFocus | null = null;
+  let composeRequest = false;
   let canvasNotes: CanvasNotes | undefined;
   let canvasNotesKey = "";
   const allFindings = findingRows(health.documents);
@@ -336,6 +345,7 @@ export function showExplorer(
       },
       clear() {
         orientedFinding = null;
+        noteFocus = null;
         state.clear();
         changed();
       },
@@ -349,18 +359,24 @@ export function showExplorer(
         render();
       },
       openInEditor: openSelectedInEditor,
-      addNote() {
-        if (state.selection()?.kind === "module") {
-          openNotes(true);
+      addNote: openComposer,
+      openNote(module) {
+        const view = openViewValue();
+        const first = view === null ? null : firstNote(view, module);
+
+        if (first !== null) {
+          orientNote(first);
         }
       },
+      addNoteText: addNoteTo,
+      removeNoteAt: removeNote,
       removeNote() {
-        if (activeNote !== null) {
-          removeNote(activeNote);
+        if (noteFocus?.active != null) {
+          removeNote(noteFocus.active);
         }
       },
       walkNotes(delta) {
-        const next = walk(noteOrder(), activeNote, delta);
+        const next = walk(noteOrder(), noteFocus?.active ?? null, delta);
 
         if (next !== null) {
           orientNote(next);
@@ -462,6 +478,17 @@ export function showExplorer(
     pickName,
     focusFinding: toggleFinding,
     focusedFinding: () => orientedFinding,
+    addNote(module) {
+      const current = state.selection();
+
+      if (current?.kind !== "module" || current.id !== module) {
+        select({ kind: "module", id: module });
+      }
+
+      openComposer();
+    },
+    toggleNote,
+    removeNote,
     openEvidence: openEvidence,
     copyFinding: (id) => void views.copy(id),
     toggleGroup(key) {
@@ -594,23 +621,8 @@ export function showExplorer(
     },
   });
   const notesPanel = buildNotesPanelView({
-    select: (index) => orientNote(index),
+    toggle: toggleNote,
     remove: (index) => removeNote(index),
-    add(module, text) {
-      void writeNote(async (view) => addNote(view, module, text, author)).then(
-        () => {
-          const view = openViewValue();
-
-          activeNote = view === null ? null : viewNotes(view).length - 1;
-
-          if (activeNote === null) {
-            render();
-          } else {
-            orientNote(activeNote);
-          }
-        },
-      );
-    },
   });
   const sensorsView = buildSensorsPanelView({
     tick(name, ticked) {
@@ -638,7 +650,7 @@ export function showExplorer(
   });
   const rail = buildRailView({
     toggleFiles: toggleTree,
-    toggleNotes: () => openNotes(false),
+    toggleNotes: openNotes,
     toggleSensors: toggleSensorsPanel,
     toggleFindings: toggleFindingsPanel,
   });
@@ -932,7 +944,7 @@ export function showExplorer(
   function select(selection: Selection) {
     const previous = state.selection();
 
-    activeNote = null;
+    dropNoteFocusUnlessKept(selection);
     dropFocusUnlessKept(selection);
 
     if (previous?.kind !== selection?.kind || previous?.id !== selection?.id) {
@@ -1027,7 +1039,7 @@ export function showExplorer(
   }
 
   function find(id: string) {
-    activeNote = null;
+    dropNoteFocusUnlessKept({ kind: "module", id });
     dropFocusUnlessKept({ kind: "module", id });
 
     if (!modules.isOpen(id)) {
@@ -1205,14 +1217,50 @@ export function showExplorer(
     }
   }
 
-  function openNotes(focus: boolean) {
-    const wasOpen = leftPanel === "notes";
-
-    leftPanel = wasOpen && !focus ? null : "notes";
+  function openNotes() {
+    leftPanel = leftPanel === "notes" ? null : "notes";
     render();
+  }
 
-    if (leftPanel === "notes" && (focus || !wasOpen)) {
-      notesPanel.focusComposer();
+  function dropNoteFocusUnlessKept(selection: Selection) {
+    if (noteFocus !== null && !keepsNoteFocus(selection, noteFocus)) {
+      noteFocus = null;
+    }
+  }
+
+  function openComposer() {
+    const selection = state.selection();
+
+    if (selection?.kind !== "module" || openViewValue() === null) {
+      return;
+    }
+
+    noteFocus = {
+      module: selection.id,
+      active: noteFocus?.module === selection.id ? noteFocus.active : null,
+    };
+    composeRequest = true;
+    render();
+  }
+
+  function addNoteTo(module: string, text: string) {
+    void writeNote(async (view) => addNote(view, module, text, author)).then(
+      () => {
+        const view = openViewValue();
+
+        noteFocus =
+          view === null ? null : { module, active: viewNotes(view).length - 1 };
+        render();
+      },
+    );
+  }
+
+  function toggleNote(index: number) {
+    if (noteFocus?.active === index) {
+      noteFocus = null;
+      render();
+    } else {
+      orientNote(index);
     }
   }
 
@@ -1239,19 +1287,56 @@ export function showExplorer(
     }
 
     select({ kind: "module", id: note.module });
-    activeNote = index;
+    noteFocus = { module: note.module, active: index };
     canvas.centerOn(boxFor(note.module));
     render();
   }
 
   function removeNote(index: number) {
-    if (activeNote === index) {
-      activeNote = null;
-    } else if (activeNote !== null && activeNote > index) {
-      activeNote -= 1;
+    if (noteFocus?.active === index) {
+      noteFocus = { ...noteFocus, active: null };
+    } else if (noteFocus?.active != null && noteFocus.active > index) {
+      noteFocus = { ...noteFocus, active: noteFocus.active - 1 };
     }
 
     void writeNote(async (view) => removeNoteAt(view, index));
+  }
+
+  function noteRowsOf(order: NoteOrder): Map<number, NoteRow> {
+    const active = noteFocus?.active ?? null;
+    const rows = new Map<number, NoteRow>();
+
+    for (const group of order.groups) {
+      for (const entry of group.entries) {
+        rows.set(entry.index, noteRow(entry, author, active, false));
+      }
+    }
+
+    for (const entry of order.off) {
+      rows.set(entry.index, noteRow(entry, author, active, true));
+    }
+
+    return rows;
+  }
+
+  function selectionNotes(
+    selection: NonNullable<Selection>,
+  ): { count: number } | null {
+    const view = openViewValue();
+
+    return selection.kind === "module" && view !== null
+      ? { count: cardNotes(view, selection.id).length }
+      : null;
+  }
+
+  function moduleNoteRows(id: string): NoteRow[] {
+    const view = openViewValue();
+
+    return view === null
+      ? []
+      : cardNotes(view, id).map((entry) =>
+          noteRow(entry, author, noteFocus?.active ?? null, false),
+        );
   }
 
   function barOf(selection: Selection): BarModel | null {
@@ -1264,6 +1349,7 @@ export function showExplorer(
     return {
       kind: selection.kind,
       dependencies: counts.uses + counts.usedBy,
+      notes: selectionNotes(selection),
       findings: findingsTone(selection, {
         findings: health.findings,
         modules: loaded.modules,
@@ -2032,27 +2118,41 @@ export function showExplorer(
     const view = openViewValue();
     const notes = view === null ? [] : viewNotes(view);
     const boxes = noteBoxes();
-    const active = activeNote === null ? undefined : notes[activeNote];
 
-    if (
-      activeNote !== null &&
-      (active === undefined || !boxes.has(active.module))
-    ) {
-      activeNote = null;
+    if (noteFocus !== null) {
+      const held =
+        noteFocus.active === null ? undefined : notes[noteFocus.active];
+
+      if (view === null || !boxes.has(noteFocus.module)) {
+        noteFocus = null;
+      } else if (held !== undefined && held.module !== noteFocus.module) {
+        noteFocus = { ...noteFocus, active: null };
+      } else if (noteFocus.active !== null && held === undefined) {
+        noteFocus = { ...noteFocus, active: null };
+      }
     }
 
-    const shown = activeNote === null ? undefined : notes[activeNote];
+    const focus = noteFocus;
+    const entries =
+      view === null || focus === null
+        ? []
+        : cardNotes(view, focus.module).map(({ index, note }) => ({
+            index,
+            text: note.text,
+            by: note.by,
+            tint: tint(note.by, author),
+          }));
     const marks = view === null ? new Set<string>() : notedModules(view);
     const keys = {
       notesOpen: leftPanel === "notes",
-      noteActive: activeNote !== null,
+      noteActive: focus?.active != null,
       findingsOpen: leftPanel === "findings",
     };
     const key = JSON.stringify([
       [...marks].sort(),
-      shown?.module ?? null,
-      shown?.text ?? null,
-      shown === undefined ? null : tint(shown.by, author),
+      focus,
+      entries,
+      composeRequest,
       keys,
     ]);
 
@@ -2060,14 +2160,15 @@ export function showExplorer(
       canvasNotesKey = key;
       canvasNotes = {
         marks,
-        active: shown?.module ?? null,
+        active: focus?.module ?? null,
         card:
-          shown === undefined
+          focus === null
             ? null
             : {
-                module: shown.module,
-                text: shown.text,
-                tint: tint(shown.by, author),
+                module: focus.module,
+                active: focus.active,
+                entries,
+                compose: composeRequest,
               },
         keys,
       };
@@ -2114,6 +2215,7 @@ export function showExplorer(
       orientation: syncOrientation(),
       ghosts: canvasGhosts,
     });
+    composeRequest = false;
   }
 
   function render() {
@@ -2174,13 +2276,12 @@ export function showExplorer(
     body.classList.toggle("inspector-open", inspectorOpen);
     stale.render(stalePanelModel());
     renderCanvas();
+    const order = noteOrder();
+
     notesPanel.render({
       hasView: noteView !== null,
-      order: noteOrder(),
-      active: activeNote,
-      author,
-      target: selection?.kind === "module" ? selection.id : null,
-      targetIsModule: selection?.kind === "module",
+      order,
+      rows: noteRowsOf(order),
     });
     const contentOf = (index: number) => {
       const panel = trail.panels[index];
@@ -2192,6 +2293,8 @@ export function showExplorer(
         compaction,
         disc: context.disc,
         findings: health.findings,
+        noteRows: moduleNoteRows,
+        canAddNote: openViewValue() !== null,
         findingRows: (id) =>
           allFindings.filter((one) => one.record.evidence.modules.includes(id)),
         onCanvas: modules.isOpen,
