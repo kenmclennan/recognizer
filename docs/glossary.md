@@ -101,7 +101,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Files panel | The rail's panel holding the tree. |
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
 | Note | A text a person or an agent attaches to one module in a saved view, with the name of who wrote it; a module can carry several in one view. |
-| Notes panel | The left-column panel, behind a rail icon beside Files, that lists a view's notes in canvas order grouped by box and orients the display to the selected one. |
+| Notes panel | The left-column panel, behind a rail icon beside Files, that lists every note in the view in canvas order grouped by box and focuses the selected one; the overview, with no composer. |
+| Note card | The card beside a box holding every note on it and the composer; the place notes are read and written, opened from the corner mark, the bar's notes button, N, or the inspector's Notes tab. |
+| Note focus | A module selection with its note card open; kept while the noted box stays selected, cleared by any other selection or Escape. |
 | Sensors panel | The left-column panel, behind the Sensors rail icon, that shows the last scan and each sensor's status, and runs the ticked or all registered sensors on request. |
 | Findings panel | The left-column panel, behind the Findings rail icon, that lists every current finding grouped by severity and kind and focuses the selected one. |
 | Finding focus | A module selection with one finding in focus: the evidence lit, the rest dimmed, the row expanded with its evidence and actions. Cleared by Escape, by clicking the finding again, or by selecting a box outside the evidence. |
