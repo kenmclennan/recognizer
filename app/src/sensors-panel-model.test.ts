@@ -8,6 +8,7 @@ import {
   type RunState,
   scanLanguages,
   sensorsPanel,
+  sessionStatuses,
 } from "./sensors-panel-model";
 
 const CONFIG = `sensors:
@@ -207,5 +208,38 @@ describe("the sensors panel model", () => {
     expect(
       scanLanguages(["scan.rust.json", "other.json", "scan.json"]),
     ).toEqual(["rust"]);
+  });
+});
+
+describe("sessionStatuses", () => {
+  it("returns the file statuses untouched when nothing failed this session", () => {
+    const sensors: SensorStatus[] = [{ name: "alpha", status: "not run" }];
+
+    expect(sessionStatuses(sensors, NO_RUN)).toBe(sensors);
+  });
+
+  it("reads a sensor that failed this session as failed with its reason", () => {
+    const run: RunState = { ...NO_RUN, failures: { alpha: "exit 1" } };
+
+    expect(
+      sessionStatuses(
+        [
+          { name: "structure", status: "ran" },
+          { name: "alpha", status: "not run" },
+        ],
+        run,
+      ),
+    ).toEqual([
+      { name: "structure", status: "ran" },
+      { name: "alpha", status: "failed", reason: "exit 1" },
+    ]);
+  });
+
+  it("adds a failed sensor the files do not list", () => {
+    const run: RunState = { ...NO_RUN, failures: { beta: "boom" } };
+
+    expect(sessionStatuses([], run)).toEqual([
+      { name: "beta", status: "failed", reason: "boom" },
+    ]);
   });
 });

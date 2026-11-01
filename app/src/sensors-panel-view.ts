@@ -22,7 +22,9 @@ export function buildSensorsPanelView(
   const runSelected = button("Run selected", "sensors-run-selected", () =>
     actions.runSelected(),
   );
-  const runAll = button("Run all", "sensors-run-all", () => actions.runAll());
+  const runAll = button("Run all", "sensors-run-all primary", () =>
+    actions.runAll(),
+  );
   const buttons = el("div", "sensors-buttons");
   const note = el("p", "sensors-note", "A run writes the findings file.");
 

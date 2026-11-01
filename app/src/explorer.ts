@@ -154,6 +154,7 @@ export type SensorsHost = {
   scan: () => ScanState | null;
   refresh: () => Promise<void>;
   state: { ticked: string[]; run: RunState };
+  runChanged: () => void;
 };
 
 export const inertSensorsHost: SensorsHost = {
@@ -161,6 +162,7 @@ export const inertSensorsHost: SensorsHost = {
   scan: () => null,
   refresh: async () => {},
   state: { ticked: [], run: NO_RUN },
+  runChanged: () => {},
 };
 
 export type Explorer = {
@@ -1175,6 +1177,7 @@ export function showExplorer(
     }
 
     state.run = { running: [], failures, ranAt };
+    sensorsHost.runChanged();
     render();
 
     try {
