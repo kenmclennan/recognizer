@@ -121,7 +121,7 @@ describe("module contents", () => {
   } as unknown as Scan;
 
   it("has no note row, whether or not a view is open", () => {
-    expect(rowsOf(scan)[0]?.kind).toBe("responsibility");
+    expect(rowsOf(scan)[0]?.kind).toBe("switch");
     expect(
       (rowsOf(scan) as { kind: string }[]).some(
         (row) => row.kind === "module-note",
@@ -131,7 +131,7 @@ describe("module contents", () => {
 });
 
 describe("module contents as cards", () => {
-  it("opens with the responsibility row, then the switch, then the cards in file order across kinds", () => {
+  it("opens with the switch, then the cards in file order across kinds", () => {
     const rows = rowsOf(
       scanOf([
         fn("f", true, { line: 11 }),
@@ -143,13 +143,6 @@ describe("module contents as cards", () => {
     );
 
     expect(rows[0]).toEqual({
-      kind: "responsibility",
-      id: "pkg/m.py",
-      state: { kind: "missing" },
-      busy: false,
-      failure: null,
-    });
-    expect(rows[1]).toEqual({
       kind: "switch",
       label: "Show private",
       on: false,
@@ -285,7 +278,7 @@ describe("module contents as cards", () => {
       [8, true],
     ]);
     expect(cards[0]?.hidden).toBe("");
-    expect(rowsOf(scanOf([klass()]), { showPrivate: true })[1]).toEqual(
+    expect(rowsOf(scanOf([klass()]), { showPrivate: true })[0]).toEqual(
       expect.objectContaining({ kind: "switch", on: true }),
     );
   });
@@ -313,7 +306,6 @@ describe("module contents as cards", () => {
 
   it("shows None when no member is shown", () => {
     expect(rowsOf(scanOf([fn("_g", false)])).map((row) => row.kind)).toEqual([
-      "responsibility",
       "switch",
       "none",
     ]);
@@ -331,8 +323,36 @@ describe("module contents as cards", () => {
 
     expect(folderRows.some((row) => row.kind === "switch")).toBe(false);
     expect(edgeRows.some((row) => row.kind === "switch")).toBe(false);
-    expect(folderRows.some((row) => row.kind === "responsibility")).toBe(false);
-    expect(edgeRows.some((row) => row.kind === "responsibility")).toBe(false);
+  });
+});
+
+describe("the responsibility line in the header", () => {
+  const headerOf = (
+    selection: Parameters<typeof inspectorContent>[0],
+    tab?: "dependencies" | "findings",
+  ) =>
+    inspectorContent(
+      selection,
+      inputsFor([scanOf([fn("f", true)])], tab ? { tab } : {}),
+    ).header;
+
+  it("is the module's line, on every tab, and never among the rows", () => {
+    for (const tab of [undefined, "dependencies", "findings"] as const) {
+      expect(headerOf(module("pkg/m.py"), tab).responsibility).toEqual({
+        kind: "responsibility",
+        id: "pkg/m.py",
+        state: { kind: "missing" },
+        busy: false,
+        failure: null,
+      });
+    }
+  });
+
+  it("is absent for a folder and an edge", () => {
+    expect(headerOf(folder("pkg")).responsibility).toBeNull();
+    expect(
+      headerOf({ kind: "edge", id: "pkg/m.py>pkg/o.py" }).responsibility,
+    ).toBeNull();
   });
 });
 
@@ -517,8 +537,8 @@ describe("missing data", () => {
   it("says so for a module with no members", () => {
     const rows = rowsOf(scanOf(undefined));
 
-    expect(rows.map((row) => row.kind)).toEqual(["responsibility", "note"]);
-    expect(rows[1]).toEqual({
+    expect(rows.map((row) => row.kind)).toEqual(["note"]);
+    expect(rows[0]).toEqual({
       kind: "note",
       text: "Not known: this scan has no member outlines for this file.",
     });
@@ -633,6 +653,7 @@ describe("folder contents", () => {
       title: "a/",
       muted: "4 files",
       target: { kind: "folder", id: "a" },
+      responsibility: null,
     });
   });
 
@@ -661,6 +682,13 @@ describe("header and tabs", () => {
       title: "m.py",
       muted: "app/pkg/",
       target: { kind: "module", id: "src/app/pkg/m.py" },
+      responsibility: {
+        kind: "responsibility",
+        id: "src/app/pkg/m.py",
+        state: { kind: "missing" },
+        busy: false,
+        failure: null,
+      },
     });
   });
 

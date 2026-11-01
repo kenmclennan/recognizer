@@ -76,7 +76,6 @@ export type ResponsibilityLineRow = {
 
 export type Row =
   | { kind: "note"; text: string }
-  | ResponsibilityLineRow
   | { kind: "none" }
   | CardRow
   | SwitchRow
@@ -107,6 +106,7 @@ export type Header = {
   title: string;
   muted: string;
   target: { kind: "module" | "folder"; id: string } | null;
+  responsibility: ResponsibilityLineRow | null;
 };
 
 export type InspectorContent = {
@@ -254,14 +254,8 @@ function plainCard(member: ScanMember): CardRow | null {
 function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   const found = findModule(inputs.scans, module);
 
-  const responsibility: Row = {
-    kind: "responsibility",
-    id: module,
-    ...inputs.responsibility(module),
-  };
   if (found?.members === undefined) {
     return [
-      responsibility,
       {
         kind: "note",
         text: "Not known: this scan has no member outlines for this file.",
@@ -287,7 +281,6 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   ).map(({ item }) => item);
 
   return [
-    responsibility,
     { kind: "switch", label: "Show private", on: inputs.showPrivate },
     ...(cards.length === 0 ? [{ kind: "none" } as Row] : cards),
   ];
@@ -649,7 +642,13 @@ export function inspectorContent(
   if (selection === null) {
     return {
       key: "none",
-      header: { disc: null, title: "Inspector", muted: "", target: null },
+      header: {
+        disc: null,
+        title: "Inspector",
+        muted: "",
+        target: null,
+        responsibility: null,
+      },
       tabs: null,
       rows: [
         {
@@ -671,7 +670,13 @@ export function inspectorContent(
 
     return {
       key,
-      header: { disc: null, title: "Edge", muted: "", target: null },
+      header: {
+        disc: null,
+        title: "Edge",
+        muted: "",
+        target: null,
+        responsibility: null,
+      },
       tabs: null,
       rows,
     };
@@ -707,6 +712,11 @@ export function inspectorContent(
         title: lastSegment(selection.id),
         muted: parentOf(selection.id),
         target: { kind: "module", id: selection.id },
+        responsibility: {
+          kind: "responsibility",
+          id: selection.id,
+          ...inputs.responsibility(selection.id),
+        },
       },
       tabs,
       rows: listed
@@ -728,6 +738,7 @@ export function inspectorContent(
       title: `${inputs.compaction.label(selection.id)}/`,
       muted: `${known} files`,
       target: { kind: "folder", id: selection.id },
+      responsibility: null,
     },
     tabs,
     rows: listed

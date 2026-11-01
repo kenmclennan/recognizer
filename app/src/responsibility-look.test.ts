@@ -75,8 +75,8 @@ function snap(scope) {
     lineOpacity: line ? cs(line).opacity : null,
     button: button ? { text: button.textContent, disabled: button.disabled, title: button.title } : null,
     finding: row && row.querySelector(".finding") ? row.querySelector(".finding").textContent : null,
-    beforeSwitch: row && root.querySelector(".pswitch") ? !!(row.compareDocumentPosition(root.querySelector(".pswitch")) & Node.DOCUMENT_POSITION_FOLLOWING) : null,
-    first: root.querySelector(".responsibility") === [...root.querySelectorAll(".responsibility, .pswitch")][0],
+    beforeSwitch: row && root.querySelector(".itabs") ? !!(row.compareDocumentPosition(root.querySelector(".itabs")) & Node.DOCUMENT_POSITION_FOLLOWING) : null,
+    first: !!row && row.previousElementSibling === root.querySelector(".ih"),
   };
 }
 
@@ -204,10 +204,10 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
     facts = await collectFacts<Facts>(HARNESS, "responsibility");
   }, 240000);
 
-  it("shows a current line tagged Generated above the Show private switch", () => {
+  it("shows a current line with no Generated tag under the name and above the tabs", () => {
     expect(facts.current.kind).toBe("current");
-    expect(facts.current.text).toBe("Current line.Generated");
-    expect(facts.current.tags).toEqual(["Generated"]);
+    expect(facts.current.text).toBe("Current line.");
+    expect(facts.current.tags).toEqual([]);
     expect(facts.current.button).toBeNull();
     expect(facts.current.lineOpacity).toBe("1");
     expect(facts.current.beforeSwitch).toBe(true);
@@ -216,7 +216,7 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
 
   it("dims an out-of-date line, tags it and offers a Describe button", () => {
     expect(facts.outOfDate.kind).toBe("out-of-date");
-    expect(facts.outOfDate.tags).toEqual(["Generated", "Out of date"]);
+    expect(facts.outOfDate.tags).toEqual(["Out of date"]);
     expect(Number(facts.outOfDate.lineOpacity)).toBeLessThan(1);
     expect(facts.outOfDate.button).toEqual({
       text: "Describe",
@@ -250,7 +250,7 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
 
   it("shows the new line as current afterwards and leaves other modules alone", () => {
     expect(facts.after.kind).toBe("current");
-    expect(facts.after.text).toBe("Fresh line for p/o.py.Generated");
+    expect(facts.after.text).toBe("Fresh line for p/o.py.");
     expect(facts.other.kind).toBe("out-of-date");
     expect(facts.other.text).toContain("Other stale.");
   });
@@ -266,19 +266,19 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
   it("updates when the files change and reports invalid files as unknown", () => {
     expect(facts.beforeEdit).toBe("missing");
     expect(facts.afterEdit.kind).toBe("current");
-    expect(facts.afterEdit.text).toBe("Written elsewhere.Generated");
+    expect(facts.afterEdit.text).toBe("Written elsewhere.");
     expect(facts.invalid.kind).toBe("unknown");
     expect(facts.invalid.text).toMatch(/^Responsibility unknown: /);
     expect(facts.invalid.button).toBeNull();
   });
 
-  it("is absent from the Dependencies tab", () => {
-    expect(facts.dependenciesTab).toBe(0);
+  it("stays in the header on the Dependencies tab", () => {
+    expect(facts.dependenciesTab).toBe(1);
   });
 
   it("appears in each panel of a trail for that panel's module", () => {
     expect(facts.trail).toEqual([
-      { name: "m.py", row: "Current line.Generated" },
+      { name: "m.py", row: "Current line." },
       { name: "o.py", row: expect.stringContaining("Stale line.") },
     ]);
   });
