@@ -30,12 +30,16 @@ export function runRegistered(
   output: string,
   what: string,
   validate: (document: unknown) => void,
+  timeoutMs?: number,
 ): RegisteredRun {
   io.remove(output);
 
   const filled = command.map((item) => fill(item, root, commit, output));
   const [program, ...rest] = filled as [string, ...string[]];
-  const result = io.run(program, rest, { cwd: root });
+  const result = io.run(program, rest, {
+    cwd: root,
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  });
   const stderr = result.stderr.trim();
   const ran = (reason: string | null): RegisteredRun => ({
     reason,
@@ -43,6 +47,10 @@ export function runRegistered(
     status: result.started ? result.status : null,
     stderr: result.stderr,
   });
+
+  if (result.timedOut) {
+    return ran("timed out");
+  }
 
   if (!result.started) {
     return ran(stderr !== "" ? stderr : `command did not start: ${program}`);
