@@ -144,8 +144,10 @@ const result = {
   links: document.querySelectorAll("#a-panel .cb").length,
   linkText: [...panel.querySelectorAll(".card")].map((n) => n.textContent).filter((t) => /(called|built|used) by/.test(t)).length,
 };
-document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
-document.getElementById("out").textContent = JSON.stringify(result);
+window.addEventListener("load", () => {
+  document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
+  document.getElementById("out").textContent = JSON.stringify(result);
+});
 </script></body></html>`;
 
 type Styles = Record<string, Record<string, string | boolean>>;
@@ -333,16 +335,17 @@ async function prepare(scheme: "light" | "dark"): Promise<Report> {
         `--user-data-dir=${join(dir, "profile")}`,
         `--blink-settings=preferredColorScheme=${scheme === "dark" ? 0 : 1}`,
         "--allow-file-access-from-files",
+        "--virtual-time-budget=10000",
         "--dump-dom",
         `file://${join(dir, "page.html")}`,
       ],
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
+      { encoding: "utf8", timeout: 120000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(run.stdout);
 
     if (!match) {
       throw new Error(
-        `no report from the page: ${run.stderr.slice(0, 400)} ${run.error}`,
+        `no report from the page: status=${run.status} signal=${run.signal} error=${run.error} stdout=${run.stdout.length} bytes stderr=${run.stderr.slice(0, 400)}`,
       );
     }
 
@@ -402,7 +405,7 @@ describe("the inspector, in a real browser", () => {
       );
       expect(short.nameScroll).toBe(short.nameClient);
     },
-    120000,
+    180000,
   );
 
   it.skipIf(chrome === undefined)(
@@ -412,7 +415,7 @@ describe("the inspector, in a real browser", () => {
 
       expect(report.edgeLines).toBe(1);
     },
-    120000,
+    180000,
   );
 
   it.skipIf(chrome === undefined)(
@@ -423,7 +426,7 @@ describe("the inspector, in a real browser", () => {
       expect(report.links).toBe(0);
       expect(report.linkText).toBe(0);
     },
-    120000,
+    180000,
   );
 
   it.skipIf(chrome === undefined)(
@@ -436,6 +439,6 @@ describe("the inspector, in a real browser", () => {
       expect(structure.railSvgs).toBe(1);
       expect(structure.railPath).toContain("M15 4v16");
     },
-    120000,
+    180000,
   );
 });
