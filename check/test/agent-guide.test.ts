@@ -28,6 +28,15 @@ describe("agent guide", () => {
     expect(guide).toMatch(/\[missing\][^\n]*recognizer describe/);
   });
 
+  it("has a recipe for reporting a review", () => {
+    const guide = agentGuide();
+
+    expect(guide).toContain("recognizer report --as");
+    expect(guide).toMatch(/violation is a defect[^\n]*block a merge/);
+    expect(guide).toMatch(/warning is a recommendation/);
+    expect(guide).toMatch(/file and lines/);
+  });
+
   it("is pointed at by the short help", () => {
     expect(shortHelp()).toContain(
       "run `recognizer help agents` for the guide an agent follows",
@@ -35,7 +44,7 @@ describe("agent guide", () => {
   });
 
   it("has a line for every command in the table", () => {
-    expect(COMMANDS).toHaveLength(19);
+    expect(COMMANDS).toHaveLength(20);
 
     for (const command of COMMANDS) {
       expect(agentGuide()).toContain(

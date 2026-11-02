@@ -33,6 +33,13 @@ const RECIPES = [
   "  3. Otherwise prefer a saved view.",
   "  4. Run recognizer scan --sense all when the repository registers sensors and their findings should show; it runs each registered sensor on request, and recognizer check and recognizer show only read the files it leaves.",
   "",
+  "Report a review (the user asks for a code review, or you ran one):",
+  "  1. Run the review as you normally would, over the whole codebase.",
+  '  2. Write the findings as JSON in the findings form, { "findings_version": 1, "findings": [ ... ] }; each finding has id (stable for the same evidence), kind, severity, principle, summary and evidence holding modules and, where they apply, members with module, name, file and lines.',
+  "  3. Severity violation is a defect the reviewer would block a merge on; severity warning is a recommendation.",
+  "  4. Hand it over with recognizer report --as <name> <file>, or pipe it to recognizer report --as <name>, naming the review; read the refusal if the form is wrong.",
+  "  5. A later report under the same name replaces the earlier one.",
+  "",
   "Where to look next:",
   "  recognizer help <command> prints any command in full.",
 ];

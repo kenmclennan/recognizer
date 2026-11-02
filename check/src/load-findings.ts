@@ -113,7 +113,11 @@ export function loadFindings(
     } else if (outcome.status === "read") {
       documents.push(outcome.document);
     } else if (outcome.status === "stale") {
-      io.stderr(`stale ${outcome.name}\n`);
+      io.stderr(
+        outcome.reported
+          ? `stale ${outcome.name} (reported at ${outcome.document.commit.slice(0, 7)})\n`
+          : `stale ${outcome.name}\n`,
+      );
     } else {
       io.stderr(`invalid ${outcome.name}: ${outcome.reason}\n`);
     }

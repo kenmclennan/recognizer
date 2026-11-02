@@ -234,6 +234,52 @@ describe("senseRepository", () => {
   });
 });
 
+describe("senseRepository and reports", () => {
+  const reported = (name: string, commit: string) =>
+    JSON.stringify({
+      ...secondSensorDocument("shop/main.py", "x", "y", commit),
+      sensor: { name, version: "reported" },
+      reported_at: "2026-11-02T10:00:00.000Z",
+    });
+
+  it("marks a document with reported_at as reported and keeps ran or stale", async () => {
+    const port = fakeSensors({
+      review: reported("review", CURRENT),
+      older: reported("older", "old1234567"),
+    });
+    const run = await senseRepository(scans, { policy, config: null }, port);
+
+    expect(statusOf(run, "review")).toEqual({
+      name: "review",
+      status: "ran",
+      reported: { at: "2026-11-02T10:00:00.000Z", commit: CURRENT },
+    });
+    expect(statusOf(run, "older")).toMatchObject({
+      status: "stale",
+      reported: { commit: "old1234567" },
+    });
+    expect(run.documents.map((one) => one.sensor.name)).toContain("review");
+  });
+
+  it("leaves a registered name carrying the mark unmarked and an unmarked file unmarked", async () => {
+    const port = fakeSensors({
+      lint: reported("lint", CURRENT),
+      plain: JSON.stringify({
+        ...secondSensorDocument("shop/main.py"),
+        sensor: { name: "plain", version: "1" },
+      }),
+    });
+    const run = await senseRepository(
+      scans,
+      { policy, config: "sensors:\n  lint:\n    command: [lint]\n" },
+      port,
+    );
+
+    expect(statusOf(run, "lint")).not.toHaveProperty("reported");
+    expect(statusOf(run, "plain")).not.toHaveProperty("reported");
+  });
+});
+
 describe("withSensors", () => {
   it("carries the documents, statuses, policy and baseline on Loaded", async () => {
     const port = fakeSensors({}, { policy, baseline: "{}" });

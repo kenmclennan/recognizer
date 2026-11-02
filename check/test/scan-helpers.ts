@@ -32,6 +32,7 @@ export interface FakeOptions {
   launchFails?: string;
   request?: (socket: string, text: string) => string | null;
   now?: () => number;
+  stdin?: string;
 }
 
 export interface Fake {
@@ -145,6 +146,13 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       }
 
       return content;
+    },
+    readStdin: () => {
+      if (options.stdin === undefined) {
+        throw new Error("no stdin was set");
+      }
+
+      return options.stdin;
     },
     readBytes: (path) => Buffer.from(io.readFile(path), "utf8"),
     hashFile: (path) => {

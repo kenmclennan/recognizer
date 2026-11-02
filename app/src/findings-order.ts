@@ -1,5 +1,5 @@
 import type { FindingRecord, FindingsDocument } from "recognizer";
-import type { SensorRow } from "./scan-panel-model";
+import type { ReportRow, SensorRow } from "./scan-panel-model";
 
 export type FindingRow = {
   id: string;
@@ -195,7 +195,10 @@ export function badge(rows: FindingRow[]): { count: number; tone: BadgeTone } {
   };
 }
 
-export function staleNote(sensors: SensorRow[]): string | null {
+export function staleNote(
+  sensors: SensorRow[],
+  reports: ReportRow[] = [],
+): string | null {
   const named = sensors
     .filter(
       (row) =>
@@ -205,6 +208,12 @@ export function staleNote(sensors: SensorRow[]): string | null {
           row.chip === "not run"),
     )
     .map((row) => `${row.name} (${row.chip})`);
+
+  named.push(
+    ...reports
+      .filter((row) => row.stale)
+      .map((row) => `${row.name} (reported at ${row.commit})`),
+  );
 
   return named.length === 0 ? null : `Not current: ${named.join(", ")}`;
 }

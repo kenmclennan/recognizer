@@ -37,6 +37,7 @@ export interface FindingsDocument {
   commit: string;
   modified: boolean;
   settings: Record<string, unknown>;
+  reported_at?: string;
   findings: FindingRecord[];
 }
 

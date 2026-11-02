@@ -1,5 +1,5 @@
 import { button, el } from "./dom";
-import type { ScanPanelModel, SensorRow } from "./scan-panel-model";
+import type { ReportRow, ScanPanelModel, SensorRow } from "./scan-panel-model";
 
 export type ScanPanelActions = {
   tickDescribe: (ticked: boolean) => void;
@@ -9,6 +9,7 @@ export type ScanPanelActions = {
   stop: () => void;
   addSensor: (name: string) => void;
   removeSensor: (name: string) => void;
+  clearReport: (name: string) => void;
 };
 
 export type ScanPanelView = {
@@ -131,6 +132,29 @@ function sensorNode(
   return node;
 }
 
+function reportNode(
+  row: ReportRow,
+  actions: ScanPanelActions,
+  editable: boolean,
+): HTMLElement {
+  const node = el("div", "sensor-row reported");
+  const clear = button("Clear", "sensor-clear", () =>
+    actions.clearReport(row.name),
+  );
+
+  node.dataset.sensor = row.name;
+  clear.disabled = !editable;
+  clear.setAttribute("aria-label", `Clear ${row.name}`);
+  node.append(
+    el("span", "sensor-name", row.name),
+    el("span", `sensor-chip ${row.stale ? "amber" : "muted"}`, row.chip),
+    el("span", "sensor-commit", row.commit),
+    clear,
+  );
+
+  return node;
+}
+
 export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
   const element = el("div", "scan-panel");
   const header = el("div", "scan-header", "Scan");
@@ -216,6 +240,9 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         sensorsTitle,
         ...model.sensors.rows.map((row) =>
           sensorNode(row, actions, model.sensors.editable),
+        ),
+        ...model.sensors.reports.map((row) =>
+          reportNode(row, actions, model.sensors.editable),
         ),
         ...addNode(model.sensors, actions),
       );

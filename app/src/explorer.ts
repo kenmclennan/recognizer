@@ -206,6 +206,7 @@ export type ScanHost = {
   running: () => boolean;
   run: () => void;
   stop: () => void;
+  refresh: () => void;
 };
 
 export const inertScanHost: ScanHost = {
@@ -217,6 +218,7 @@ export const inertScanHost: ScanHost = {
   running: () => false,
   run: () => {},
   stop: () => {},
+  refresh: () => {},
 };
 
 export type Explorer = {
@@ -734,6 +736,7 @@ export function showExplorer(
     stop: () => scanHost.stop(),
     addSensor: (name) => void editSensor(name, true),
     removeSensor: (name) => void editSensor(name, false),
+    clearReport: (name) => void clearReport(name),
   });
   const findingsView = buildFindingsPanelView({
     toggle: toggleFinding,
@@ -1291,6 +1294,18 @@ export function showExplorer(
       scanEditMessage = error instanceof Error ? error.message : String(error);
     }
 
+    await loadScanConfig();
+  }
+
+  async function clearReport(name: string) {
+    try {
+      await scanHost.port.removeFindings([name]);
+      scanEditMessage = null;
+    } catch (error) {
+      scanEditMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    scanHost.refresh();
     await loadScanConfig();
   }
 
@@ -2554,7 +2569,7 @@ export function showExplorer(
     findingsView.render({
       chips: findingChips,
       filter: findingFilter,
-      stale: staleNote(scanModelNow.sensors.rows),
+      stale: staleNote(scanModelNow.sensors.rows, scanModelNow.sensors.reports),
       groups: groupFindings(shown),
       active: orientedFinding,
       empty:

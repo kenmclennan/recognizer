@@ -19,6 +19,7 @@
     "commit": { "type": "string", "minLength": 1 },
     "modified": { "type": "boolean" },
     "settings": { "type": "object" },
+    "reported_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$" },
     "findings": {
       "type": "array",
       "items": {

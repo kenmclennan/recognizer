@@ -283,6 +283,72 @@ describe("the Sensors block", () => {
   });
 });
 
+describe("report rows", () => {
+  const sensors: SensorStatus[] = [
+    { name: "structure", status: "ran" },
+    {
+      name: "zeta",
+      status: "stale",
+      reported: { at: new Date(0).toISOString(), commit: "def4567890" },
+    },
+    {
+      name: "review",
+      status: "ran",
+      reported: { at: new Date(7 * 60000).toISOString(), commit: "abc1234567" },
+    },
+    {
+      name: "odd",
+      status: "ran",
+      reported: { at: "not a time", commit: "abc1234567" },
+    },
+  ];
+
+  it("lists each report by name with its age chip and short commit, apart from the registered rows", () => {
+    const model = scanPanel(input({ sensors }));
+
+    expect(model.sensors.reports).toEqual([
+      { name: "odd", chip: "reported", commit: "abc1234", stale: false },
+      {
+        name: "review",
+        chip: "reported 3 minutes ago",
+        commit: "abc1234",
+        stale: false,
+      },
+      {
+        name: "zeta",
+        chip: "reported 10 minutes ago",
+        commit: "def4567",
+        stale: true,
+      },
+    ]);
+    expect(model.sensors.rows.map((row) => row.name)).toEqual([
+      "structure",
+      "alpha",
+      "beta",
+    ]);
+  });
+
+  it("never lets a report reach the tick state, the flags or the caption", () => {
+    const model = scanPanel(
+      input({
+        sensors,
+        ticks: { describe: false, sensors: true, ticked: null },
+      }),
+    );
+
+    expect(model.sensors.tickable).toBe(true);
+    expect(model.button.flags).toBe("recognizer scan --sense alpha,beta");
+    expect(model.button.summary).toBe("scans current, 2 sensors");
+    expect(scanPanel(input({ config: null, sensors })).sensors.tickable).toBe(
+      false,
+    );
+  });
+
+  it("has no report rows when no document carries the mark", () => {
+    expect(scanPanel(input()).sensors.reports).toEqual([]);
+  });
+});
+
 describe("phasesFor", () => {
   const registered = ["alpha", "beta"];
 
