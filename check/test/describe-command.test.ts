@@ -772,6 +772,49 @@ describe("describe leaves a run record", () => {
     expect(saved.entries[0].command.slice(0, 2)).toEqual(["node", FAKE]);
   });
 
+  it("leaves a running record with the finished entries when killed between children", () => {
+    const root = ready();
+    const out = capture();
+    let children = 0;
+    const killing: Io = {
+      ...out.io,
+      run: (command, args, options) => {
+        if (command === "node") {
+          children += 1;
+        }
+
+        if (command === "node" && children === 2) {
+          throw new Error("killed");
+        }
+
+        return out.io.run(command, args, options);
+      },
+    };
+
+    const code = run(["describe", ORDER, STORE, "--repository", root], killing);
+
+    expect(code).not.toBe(0);
+    expect(out.err()).toContain("killed");
+
+    const [saved] = recorded(root);
+
+    expect(recorded(root)).toHaveLength(1);
+    expect(saved).toMatchObject({
+      kind: "describe",
+      outcome: "running",
+      finished: null,
+    });
+    expect(saved.entries).toHaveLength(1);
+    expect(saved.entries[0]).toMatchObject({ name: ORDER, outcome: "ok" });
+
+    const listed = exec(root, "log");
+    const printed = exec(root, "log", "--last");
+
+    expect(listed.out).toContain("stopped");
+    expect(printed.out).toContain("stopped: no finish recorded");
+    expect(printed.out).toContain(ORDER);
+  });
+
   it("records an unreadable program as a failed entry with no status", () => {
     const root = repository();
 

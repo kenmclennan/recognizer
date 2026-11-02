@@ -1,0 +1,20 @@
+{
+  "log_version": 1,
+  "kind": "describe",
+  "started": "2026-11-02T09:30:00.120Z",
+  "finished": null,
+  "by": "Claude",
+  "arguments": ["--all", "--repository", "/work/shop"],
+  "outcome": "running",
+  "exit": 0,
+  "entries": [
+    {
+      "name": "orders",
+      "command": ["node", "describe.mjs", "/work/shop", "orders", "/tmp/request-0.json"],
+      "status": 0,
+      "outcome": "ok",
+      "duration_ms": 3100,
+      "stderr": ""
+    }
+  ]
+}
