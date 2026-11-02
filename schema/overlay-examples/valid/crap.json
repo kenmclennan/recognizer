@@ -1,0 +1,16 @@
+{
+  "overlay_version": 1,
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "producer": { "name": "crap", "version": "0.1.0" },
+  "metrics": [
+    { "name": "complexity", "type": "count", "granularity": "member", "bad": "high" },
+    { "name": "coverage", "type": "ratio", "granularity": "member", "bad": "low" },
+    { "name": "crap", "type": "number", "granularity": "member", "bad": "high" }
+  ],
+  "values": {
+    "complexity": { "app/risk.py::classify": 8, "src/other.ts::pick": 1 },
+    "coverage": { "app/risk.py::classify": 0.1818 },
+    "crap": { "app/risk.py::classify": 43.053 }
+  }
+}

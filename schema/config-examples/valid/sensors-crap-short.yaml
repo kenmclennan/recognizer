@@ -1,0 +1,4 @@
+sensors:
+  crap:
+    threshold: 20
+    coverage: build/lcov.info

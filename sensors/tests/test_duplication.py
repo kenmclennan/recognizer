@@ -5,10 +5,10 @@ import random
 import pytest
 from conftest import make_repository
 
-from recognizer_sensors.duplication.functions import find_functions
 from recognizer_sensors.duplication.normalise import count_nodes
 from recognizer_sensors.duplication.score import brute_force_pairs, pruned_pairs, reaches
 from recognizer_sensors.duplication.sensor import SettingsError, parse_settings, run
+from recognizer_sensors.functions import find_functions
 from recognizer_sensors.parsing import parse
 from recognizer_sensors.scans import read_scans
 

@@ -1,22 +1,19 @@
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
 from recognizer_sensors.duplication.fingerprint import fingerprints
-from recognizer_sensors.duplication.functions import find_functions
 from recognizer_sensors.duplication.normalise import count_nodes, normalise
 from recognizer_sensors.duplication.score import pruned_pairs
+from recognizer_sensors.functions import find_functions
+from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
+from recognizer_sensors.settings import SettingsError
 
 DEFAULTS = {"threshold": 0.82, "min_lines": 4, "min_nodes": 20}
 
 PRINCIPLE = "Do not repeat yourself"
 FIX_PATTERN = "extract-shared-function"
-
-
-class SettingsError(ValueError):
-    pass
 
 
 @dataclass(frozen=True)
@@ -100,18 +97,12 @@ def units_in_file(module: str, path: str, source: bytes, settings: dict) -> list
 
 
 def with_identities(units: list[Unit]) -> list[Unit]:
-    counts = Counter((unit.module, unit.qualified) for unit in units)
-    named = []
+    identities = assign_identities([(u.module, u.qualified, u.start_line) for u in units])
 
-    for unit in units:
-        identity = f"{unit.module}::{unit.qualified}"
-
-        if counts[(unit.module, unit.qualified)] > 1:
-            identity = f"{identity}@{unit.start_line}"
-
-        named.append(Unit(**{**unit.__dict__, "identity": identity}))
-
-    return named
+    return [
+        Unit(**{**unit.__dict__, "identity": identity})
+        for unit, identity in zip(units, identities, strict=True)
+    ]
 
 
 def nested(a: Unit, b: Unit) -> bool:

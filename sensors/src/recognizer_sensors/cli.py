@@ -6,7 +6,12 @@ from importlib.metadata import version
 from pathlib import Path
 
 from recognizer_sensors.duplication.sensor import SettingsError
-from recognizer_sensors.findings import build_document, render, write_atomically
+from recognizer_sensors.findings import (
+    build_document,
+    build_overlay,
+    render,
+    write_atomically,
+)
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 
@@ -84,16 +89,24 @@ def main(argv: list[str] | None = None) -> int:
     sys.setrecursionlimit(RECURSION_LIMIT)
 
     scans = read_scans(args.repository)
-    findings = sensor.run(args.repository, scans, settings)
+    outcome = sensor.run(args.repository, scans, settings)
+    modified = any(scan.modified for scan in scans)
     document = build_document(
         args.name,
         version("recognizer-sensors"),
         commit,
-        any(scan.modified for scan in scans),
+        modified,
         settings,
-        findings,
+        outcome.findings,
     )
     text = render(document)
+
+    if outcome.overlay is not None:
+        overlay = build_overlay(
+            args.name, version("recognizer-sensors"), commit, modified, outcome.overlay
+        )
+        outcome.overlay.path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomically(render(overlay), outcome.overlay.path)
 
     if args.output:
         write_atomically(text, args.output)

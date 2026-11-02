@@ -27,6 +27,18 @@ describe("SHIPPED_SENSORS", () => {
   });
 });
 
+describe("expandShortForms for crap", () => {
+  it("puts the settings JSON last", () => {
+    const expanded = expandShortForms(
+      { crap: { threshold: 20 } },
+      SHIPPED_SENSORS,
+    ) as { crap: { command: string[] } };
+
+    expect(expanded.crap.command[1]).toBe("crap");
+    expect(expanded.crap.command.at(-1)).toBe('{"threshold":20}');
+  });
+});
+
 describe("expandShortForms", () => {
   it("expands an empty mapping", () => {
     expect(expandShortForms({ duplication: {} }, SHIPPED_SENSORS)).toEqual({

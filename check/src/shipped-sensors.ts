@@ -1,4 +1,4 @@
-export const SHIPPED_SENSORS: readonly string[] = ["duplication"];
+export const SHIPPED_SENSORS: readonly string[] = ["duplication", "crap"];
 
 function isSettingsMapping(value: unknown): value is Record<string, unknown> {
   return (

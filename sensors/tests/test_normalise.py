@@ -1,8 +1,8 @@
 import pytest
 
 from recognizer_sensors.duplication.fingerprint import fingerprints
-from recognizer_sensors.duplication.functions import find_functions
 from recognizer_sensors.duplication.normalise import normalise
+from recognizer_sensors.functions import find_functions
 from recognizer_sensors.parsing import parse
 
 
