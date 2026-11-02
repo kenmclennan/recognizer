@@ -11,6 +11,7 @@ from recognizer_sensors.mutate.runner import (
     copy_repository,
     new_work_folder,
     output_tail,
+    remove_stale_work_folders,
     remove_work_folder,
     run_mutants,
     run_test_command,
@@ -286,6 +287,7 @@ def run(
                     target.uncovered += 1
 
     work = new_work_folder(repository)
+    remove_stale_work_folders(work)
 
     try:
         baseline = run_baseline(repository, work, settings["test_command"])
@@ -297,6 +299,7 @@ def run(
             timeout_for(baseline, settings["timeout_factor"]),
             settings["max_workers"],
         )
+        remove_stale_work_folders(work)
     finally:
         remove_work_folder(work)
 
