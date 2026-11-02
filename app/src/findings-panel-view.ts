@@ -1,3 +1,4 @@
+import type { FindingRecord } from "recognizer";
 import { button, el } from "./dom";
 import { rowDetail } from "./finding-focus";
 import type { FindingFilter, FindingGroup, FindingRow } from "./findings-order";
@@ -21,6 +22,8 @@ export type FindingRowActions = {
   toggle: (id: string) => void;
   openInEditor: (module: string, line: number | null) => void;
   copyId: (id: string) => void;
+  metricFor: (record: FindingRecord) => { key: string; label: string } | null;
+  showMetric: (key: string) => void;
 };
 
 export type FindingsPanelActions = FindingRowActions & {
@@ -89,6 +92,19 @@ export function buildFindingRow(
           actions.openInEditor(open.module, open.line),
         ),
       );
+    }
+
+    const metric = actions.metricFor(row.record);
+
+    if (metric !== null) {
+      const show = button(
+        `Show ${metric.label} on the canvas`,
+        "finding-detail-button finding-metric",
+        () => actions.showMetric(metric.key),
+      );
+
+      show.dataset.metric = metric.key;
+      buttons.append(show);
     }
 
     buttons.append(
