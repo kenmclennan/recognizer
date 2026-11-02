@@ -10,12 +10,17 @@ export type ScanRunResult =
 
 export type StoredTicks = {
   describe: boolean;
+  measure: boolean;
+  overlays: string[] | null;
   sensors: boolean;
   ticked: string[] | null;
   remembered: boolean;
 };
 
-export type WrittenTicks = Omit<ScanTicks, "ticked"> & { ticked: string[] };
+export type WrittenTicks = Omit<ScanTicks, "ticked" | "overlays"> & {
+  ticked: string[];
+  overlays: string[];
+};
 
 export type ScanPort = {
   run(plan: ScanPlan): Promise<ScanRunResult>;
@@ -38,6 +43,8 @@ export const inertScan: ScanPort = {
   }),
   readTicks: async () => ({
     describe: false,
+    measure: false,
+    overlays: null,
     sensors: false,
     ticked: null,
     remembered: false,

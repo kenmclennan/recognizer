@@ -36,6 +36,28 @@ describe("config overlays", () => {
     });
   });
 
+  it("keeps an optional runs_tests and leaves it absent otherwise", () => {
+    const withIt = read(
+      registration(
+        "coverage",
+        `command: [node]\n    runs_tests: true\n    metrics:\n      - ${METRIC}`,
+      ),
+    );
+
+    expect(withIt?.overlays?.coverage?.runs_tests).toBe(true);
+    expect(read(registration())?.overlays?.coverage).not.toHaveProperty(
+      "runs_tests",
+    );
+    expect(() =>
+      read(
+        registration(
+          "coverage",
+          `command: [node]\n    runs_tests: "yes"\n    metrics:\n      - ${METRIC}`,
+        ),
+      ),
+    ).toThrow(InputError);
+  });
+
   it("keeps the describer key", () => {
     const config = read(
       `describer:\n  command: [node]\n  version: a\n${registration()}`,

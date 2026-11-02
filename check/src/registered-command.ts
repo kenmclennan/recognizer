@@ -32,9 +32,12 @@ export function runRegistered(
   validate: (document: unknown) => void,
   timeoutMs?: number,
 ): RegisteredRun {
-  io.remove(output);
+  const written = `${output}.tmp`;
 
-  const filled = command.map((item) => fill(item, root, commit, output));
+  io.remove(output);
+  io.remove(written);
+
+  const filled = command.map((item) => fill(item, root, commit, written));
   const [program, ...rest] = filled as [string, ...string[]];
   const result = io.run(program, rest, {
     cwd: root,
@@ -47,6 +50,10 @@ export function runRegistered(
     status: result.started ? result.status : null,
     stderr: result.stderr,
   });
+
+  if (result.timedOut || !result.started || result.status !== 0) {
+    io.remove(written);
+  }
 
   if (result.timedOut) {
     return ran("timed out");
@@ -62,16 +69,16 @@ export function runRegistered(
     );
   }
 
-  if (!io.exists(output)) {
+  if (!io.exists(written)) {
     return ran(`command wrote no ${what} file`);
   }
 
   let document: unknown;
 
   try {
-    document = JSON.parse(io.readFile(output));
+    document = JSON.parse(io.readFile(written));
   } catch (error) {
-    io.remove(output);
+    io.remove(written);
 
     return ran(`${what} is not valid JSON: ${(error as Error).message}`);
   }
@@ -79,10 +86,12 @@ export function runRegistered(
   try {
     validate(document);
   } catch (error) {
-    io.remove(output);
+    io.remove(written);
 
     return ran((error as Error).message);
   }
+
+  io.rename(written, output);
 
   return ran(null);
 }

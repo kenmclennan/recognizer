@@ -17,6 +17,7 @@ export interface MetricDeclaration {
 export interface OverlayRegistration {
   command: string[];
   metrics: MetricDeclaration[];
+  runs_tests?: boolean;
 }
 
 export interface SensorRegistration {

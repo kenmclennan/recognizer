@@ -17,7 +17,11 @@ import { repositorySource } from "./repository-source";
 import { createRescanner, type ProgressUpdate } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
-import { describerOf, registeredNames } from "./scan-panel-model";
+import {
+  describerOf,
+  registeredNames,
+  registeredOverlayNames,
+} from "./scan-panel-model";
 import { showTarget } from "./scan-progress";
 import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
@@ -57,7 +61,9 @@ function canShow(update: ProgressUpdate): boolean {
 
   return (
     target !== null &&
-    (target.kind === "sensor" || current?.modules.includes(target.id) === true)
+    (target.kind === "sensor" ||
+      target.kind === "overlay" ||
+      current?.modules.includes(target.id) === true)
   );
 }
 
@@ -106,6 +112,7 @@ const scanHost: ScanHost = {
   ticks: () => rescanner.ticks(),
   setTicks: (next) => rescanner.setTicks(next),
   runState: () => rescanner.runState(),
+  measureRunState: () => rescanner.measureRunState(),
   running: () => rescanner.running(),
   run: () => void rescanner.run(),
   stop: () => void rescanner.stop(),
@@ -154,6 +161,7 @@ const rescanner = createRescanner<Carried>({
 
     return {
       names: registeredNames(config),
+      overlays: registeredOverlayNames(config),
       describer: describerOf(config) !== null,
     };
   },

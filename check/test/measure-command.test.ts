@@ -251,9 +251,21 @@ describe("measure with a scripted fake", () => {
 
     expect(fake.calls.find((call) => call.command === "alpha")).toEqual({
       command: "alpha",
-      args: [ROOT, COMMIT, outputOf("alpha")],
+      args: [ROOT, COMMIT, `${outputOf("alpha")}.tmp`],
       cwd: ROOT,
     });
+  });
+
+  it("publishes the overlay by renaming a temp file and leaves none behind", () => {
+    const fake = setup(["alpha"], { programs: { alpha: writer(overlay()) } });
+
+    measure(fake);
+
+    expect(fake.renames).toContainEqual({
+      from: `${outputOf("alpha")}.tmp`,
+      to: outputOf("alpha"),
+    });
+    expect(fake.files.has(`${outputOf("alpha")}.tmp`)).toBe(false);
   });
 
   it("computes modified before any command runs", () => {

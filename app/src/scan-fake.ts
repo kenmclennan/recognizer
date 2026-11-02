@@ -94,6 +94,8 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
       return (
         remembered ?? {
           ...fake.defaults,
+          measure: false,
+          overlays: null,
           ticked: null,
           remembered: false,
         }

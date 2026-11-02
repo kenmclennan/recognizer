@@ -125,6 +125,7 @@ import {
   NO_RUN,
   type RunState,
   registeredNames,
+  registeredOverlayNames,
   type ScanTicks,
   scanPanel,
 } from "./scan-panel-model";
@@ -214,6 +215,7 @@ export type ScanHost = {
   ticks: () => ScanTicks;
   setTicks: (next: ScanTicks) => void;
   runState: () => RunState;
+  measureRunState: () => RunState;
   running: () => boolean;
   run: () => void;
   stop: () => void;
@@ -223,9 +225,16 @@ export type ScanHost = {
 export const inertScanHost: ScanHost = {
   port: inertSensors,
   scan: () => null,
-  ticks: () => ({ describe: false, sensors: false, ticked: null }),
+  ticks: () => ({
+    describe: false,
+    measure: false,
+    overlays: null,
+    sensors: false,
+    ticked: null,
+  }),
   setTicks: () => {},
   runState: () => NO_RUN,
+  measureRunState: () => NO_RUN,
   running: () => false,
   run: () => {},
   stop: () => {},
@@ -756,6 +765,21 @@ export function showExplorer(
   const scanView = buildScanPanelView({
     tickDescribe(ticked) {
       scanHost.setTicks({ ...scanHost.ticks(), describe: ticked });
+      render();
+    },
+    tickMeasure(ticked) {
+      scanHost.setTicks({ ...scanHost.ticks(), measure: ticked });
+      render();
+    },
+    tickOverlay(name, ticked) {
+      const names = registeredOverlayNames(scanConfig);
+      const held = scanHost.ticks().overlays ?? names;
+      const rest = held.filter((one) => one !== name);
+
+      scanHost.setTicks({
+        ...scanHost.ticks(),
+        overlays: ticked ? [...rest, name] : rest,
+      });
       render();
     },
     tickSensors(ticked) {
@@ -1639,6 +1663,8 @@ export function showExplorer(
       lines: { modules: loaded.modules, of: responsibilityOf },
       ticks: scanHost.ticks(),
       run: scanHost.runState(),
+      overlays: loaded.overlays ?? [],
+      measureRun: scanHost.measureRunState(),
       scanning: scanHost.running(),
       now: Date.now(),
       shipped: shippedSensors,
@@ -1647,10 +1673,10 @@ export function showExplorer(
   }
 
   function showTarget(target: ShowTarget) {
-    if (target.kind === "sensor") {
+    if (target.kind === "sensor" || target.kind === "overlay") {
       leftPanel = "scan";
       render();
-      scanView.reveal(target.name);
+      scanView.reveal(target.name, target.kind);
       void loadScanConfig();
 
       return;

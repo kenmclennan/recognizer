@@ -8,5 +8,6 @@ overlays:
         "{commit}",
         "{output}",
       ]
+    runs_tests: true
     metrics:
       - { name: line_coverage, type: ratio, granularity: module, bad: low }

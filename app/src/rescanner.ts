@@ -20,7 +20,11 @@ import {
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 
-export type Registered = { names: string[]; describer: boolean };
+export type Registered = {
+  names: string[];
+  overlays: string[];
+  describer: boolean;
+};
 
 export type ProgressUpdate = {
   footer: ScanFooter | null;
@@ -53,12 +57,15 @@ export type Rescanner = {
   ticks: () => ScanTicks;
   setTicks: (next: ScanTicks) => void;
   runState: () => RunState;
+  measureRunState: () => RunState;
   running: () => boolean;
   progress: () => ScanProgress;
 };
 
 const DEFAULT_TICKS: ScanTicks = {
   describe: false,
+  measure: false,
+  overlays: null,
   sensors: false,
   ticked: null,
 };
@@ -86,6 +93,7 @@ export function createRescanner<Carried>(
   let remembered = false;
   let ticksLoaded = false;
   let run: RunState = NO_RUN;
+  let measureRun: RunState = NO_RUN;
   let progress: ScanProgress = NO_PROGRESS;
   let current: Promise<void> = Promise.resolve();
 
@@ -104,9 +112,11 @@ export function createRescanner<Carried>(
     });
   }
 
-  async function writeTicks(names: string[]) {
+  async function writeTicks(names: string[], overlays: string[]) {
     await ports.port.writeTicks({
       describe: ticks.describe,
+      measure: ticks.measure,
+      overlays: ticks.overlays ?? overlays,
       sensors: ticks.sensors,
       ticked: ticks.ticked ?? names,
     });
@@ -129,6 +139,7 @@ export function createRescanner<Carried>(
 
       ports.notify("");
       run = { ...run, failures: {} };
+      measureRun = { ...measureRun, failures: {} };
       ports.adopted(origin);
       ports.replace(loaded, carried);
 
@@ -150,7 +161,7 @@ export function createRescanner<Carried>(
     }
   }
 
-  async function handle(line: string, sense: string[]) {
+  async function handle(line: string, measure: string[], sense: string[]) {
     const event = parseScanLine(line);
 
     if (event === null) {
@@ -160,6 +171,28 @@ export function createRescanner<Carried>(
     const before = progress;
 
     progress = foldProgress(progress, event);
+
+    if (event.event === "phase" && event.phase === "measure") {
+      measureRun = { ...measureRun, running: measure };
+    }
+
+    if (event.event === "entry" && event.phase === "measure") {
+      const failures = { ...measureRun.failures };
+      const ranAt = { ...measureRun.ranAt };
+
+      if (event.outcome === "ok") {
+        delete failures[event.name];
+        ranAt[event.name] = Date.now();
+      } else {
+        failures[event.name] = event.reason ?? "failed";
+      }
+
+      measureRun = {
+        running: measureRun.running.filter((name) => name !== event.name),
+        failures,
+        ranAt,
+      };
+    }
 
     if (event.event === "phase" && event.phase === "sense") {
       run = { ...run, running: sense };
@@ -194,7 +227,10 @@ export function createRescanner<Carried>(
       ports.describedLine();
     }
 
-    if (event.event === "entry" && event.phase === "sense") {
+    if (
+      event.event === "entry" &&
+      (event.phase === "sense" || event.phase === "measure")
+    ) {
       await reload();
     }
   }
@@ -206,10 +242,15 @@ export function createRescanner<Carried>(
       await loadTicks();
     }
 
-    const { plan } = phasesFor(ticks, registered.names, registered.describer);
+    const { plan } = phasesFor(
+      ticks,
+      registered.names,
+      registered.describer,
+      registered.overlays,
+    );
 
     if (!remembered) {
-      await writeTicks(registered.names);
+      await writeTicks(registered.names, registered.overlays);
     }
 
     progress = NO_PROGRESS;
@@ -217,7 +258,9 @@ export function createRescanner<Carried>(
 
     let queue: Promise<void> = Promise.resolve();
     const stopListening = ports.port.onLine((line) => {
-      queue = queue.then(() => handle(line, plan.sense)).catch(() => {});
+      queue = queue
+        .then(() => handle(line, plan.measure, plan.sense))
+        .catch(() => {});
     });
     let result: ScanRunResult;
 
@@ -230,6 +273,7 @@ export function createRescanner<Carried>(
     await queue;
     stopListening();
     run = { ...run, running: [] };
+    measureRun = { ...measureRun, running: [] };
 
     const text = failureText(result);
 
@@ -255,6 +299,10 @@ export function createRescanner<Carried>(
       await settle();
     }
 
+    if (plan.measure.length > 0) {
+      await reload();
+    }
+
     progress = { ...progress, done: true };
     publish(result.status === "finished" ? result.log : null);
     ports.settled();
@@ -265,6 +313,8 @@ export function createRescanner<Carried>(
 
     ticks = {
       describe: stored.describe,
+      measure: stored.measure,
+      overlays: stored.overlays,
       sensors: stored.sensors,
       ticked: stored.ticked,
     };
@@ -319,9 +369,12 @@ export function createRescanner<Carried>(
     setTicks(next) {
       ticks = next;
 
-      void ports.registered().then(({ names }) => writeTicks(names));
+      void ports
+        .registered()
+        .then(({ names, overlays }) => writeTicks(names, overlays));
     },
     runState: () => run,
+    measureRunState: () => measureRun,
     running: () => busy,
     progress: () => progress,
   };

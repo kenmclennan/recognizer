@@ -831,6 +831,208 @@ describe("recognizer scan: phases", () => {
     expect(err).toContain("not a git repository, or no commit");
   });
 
+  const OVERLAYS =
+    'overlays:\n  alpha:\n    command: [alpha-overlay, "{commit}", "{output}"]\n    metrics:\n      - { name: line_coverage, type: ratio, granularity: module, bad: low }\n  beta:\n    command: [beta-overlay, "{commit}", "{output}"]\n    metrics:\n      - { name: line_coverage, type: ratio, granularity: module, bad: low }\n';
+  const overlayFile = (name: string) =>
+    `${ROOT}/.recognizer/cache/overlays/${name}.json`;
+
+  function overlayWriter(args: string[], files: Map<string, string>) {
+    files.set(
+      args[args.length - 1] as string,
+      JSON.stringify({
+        overlay_version: 1,
+        commit: COMMIT,
+        modified: false,
+        producer: { name: "p", version: "1" },
+        metrics: [
+          {
+            name: "line_coverage",
+            type: "ratio",
+            granularity: "module",
+            bad: "low",
+          },
+        ],
+        values: { line_coverage: { "m0.py": 0.5 } },
+      }),
+    );
+
+    return undefined;
+  }
+
+  function measuring(
+    programs: NonNullable<FakeOptions["programs"]> = {},
+    config = `${DESCRIBER}${OVERLAYS}${SENSORS}`,
+  ) {
+    return setup(
+      {
+        programs: {
+          describer: () => ({ stdout: "a line\n" }),
+          "first-sensor": findings("first"),
+          "second-sensor": findings("second"),
+          "alpha-overlay": overlayWriter,
+          "beta-overlay": overlayWriter,
+          ...programs,
+        },
+      },
+      { [CONFIG]: config },
+    );
+  }
+
+  it("runs extract, describe, measure and sense in that order and records them", () => {
+    const { out, fake, code } = scan(
+      measuring(),
+      "--describe",
+      "--measure",
+      "all",
+      "--sense",
+      "all",
+    );
+
+    expect(code).toBe(0);
+    expect(out).toContain(
+      "described 2, failed 0, already current 0\nmeasure\nmeasured alpha\nmeasured beta\nsense\nran first\n",
+    );
+    expect(
+      records(fake)[0].phases.map((one: { phase: string }) => one.phase),
+    ).toEqual(["extract", "describe", "measure", "sense"]);
+    expect(fake.files.has(overlayFile("alpha"))).toBe(true);
+  });
+
+  it("streams the measure phase with a total and one entry per overlay", () => {
+    const { out } = scan(measuring(), "--measure", "all", "--json");
+    const events = lines(out);
+
+    expect(events.map((one) => [one.event, one.phase ?? null])).toEqual([
+      ["phase", "extract"],
+      ["phase", "measure"],
+      ["entry", "measure"],
+      ["entry", "measure"],
+      ["summary", null],
+    ]);
+    expect(events[1]).toEqual({ event: "phase", phase: "measure", total: 2 });
+    expect(events[2]).toEqual({
+      event: "entry",
+      phase: "measure",
+      name: "alpha",
+      outcome: "ok",
+    });
+    expect(
+      (events.at(-1) as { phases: { phase: string }[] }).phases.map(
+        (one) => one.phase,
+      ),
+    ).toEqual(["extract", "measure"]);
+  });
+
+  it("fails the scan after every overlay ran, removing only the failed overlay's file and still sensing", () => {
+    const { code, err, out, fake } = scan(
+      measuring({ "beta-overlay": () => ({ status: 3, stderr: "boom" }) }),
+      "--measure",
+      "all",
+      "--sense",
+      "all",
+      "--json",
+    );
+    const entries = lines(out).filter(
+      (one) => one.event === "entry" && one.phase === "measure",
+    );
+
+    expect(code).toBe(1);
+    expect(entries.map((one) => [one.name, one.outcome, one.reason])).toEqual([
+      ["alpha", "ok", undefined],
+      ["beta", "failed", "boom"],
+    ]);
+    expect(err).toContain("failed beta: boom");
+    expect(fake.files.has(overlayFile("alpha"))).toBe(true);
+    expect(fake.files.has(overlayFile("beta"))).toBe(false);
+    expect(lines(out).some((one) => one.phase === "sense")).toBe(true);
+  });
+
+  it("is exit 1 with every reason when every overlay fails", () => {
+    const { code, err } = scan(
+      measuring({
+        "alpha-overlay": () => ({ status: 3, stderr: "one" }),
+        "beta-overlay": () => ({ status: 4, stderr: "two" }),
+      }),
+      "--measure",
+      "all",
+    );
+
+    expect(code).toBe(1);
+    expect(err).toContain("failed alpha: one");
+    expect(err).toContain("failed beta: two");
+  });
+
+  it("prints failed lines in text mode", () => {
+    const { out } = scan(
+      measuring({ "beta-overlay": () => ({ status: 3, stderr: "boom" }) }),
+      "--measure",
+      "all",
+    );
+
+    expect(out).toContain("measure\nmeasured alpha\nfailed beta\n");
+  });
+
+  it("selects the named overlays", () => {
+    const { out } = scan(measuring(), "--measure", "beta");
+
+    expect(out).toContain("measured beta");
+    expect(out).not.toContain("measured alpha");
+  });
+
+  it.each([
+    ["no overlays registered", ["--measure", "all"], DESCRIBER],
+    ["an unknown name", ["--measure", "nope"], OVERLAYS],
+  ])("is exit 2 before anything runs for %s", (_, args, config) => {
+    const { code, fake } = scan(measuring({}, config), ...args);
+
+    expect(code).toBe(2);
+    expect(fake.calls).toEqual([]);
+    expect(records(fake)).toEqual([]);
+  });
+
+  it("is exit 2 for --measure with no commit", () => {
+    const { code, err } = scan(
+      { ...measuring(), commit: undefined },
+      "--measure",
+      "all",
+    );
+
+    expect(code).toBe(2);
+    expect(err).toContain("not a git repository, or no commit");
+  });
+
+  it("leaves the measure phase out when --measure is not asked for", () => {
+    const { out, fake } = scan(measuring(), "--sense", "all", "--json");
+
+    expect(out).not.toContain("measure");
+    expect(
+      records(fake)[0].phases.map((one: { phase: string }) => one.phase),
+    ).toEqual(["extract", "sense"]);
+  });
+
+  it("does not kill an overlay that runs past sixty seconds", () => {
+    const fake = fakeIo(measuring());
+    const calls: (number | undefined)[] = [];
+    const watching = {
+      ...fake.io,
+      run: (
+        command: string,
+        args: string[],
+        options?: { timeoutMs?: number },
+      ) => {
+        if (command.endsWith("-overlay")) {
+          calls.push(options?.timeoutMs);
+        }
+
+        return fake.io.run(command, args, options as never);
+      },
+    };
+
+    run(["scan", ROOT, "--measure", "all"], watching);
+
+    expect(calls).toEqual([undefined, undefined]);
+  });
+
   it("streams phase, entry and summary lines under --json", () => {
     const { out } = scan(
       setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),

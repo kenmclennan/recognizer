@@ -5,17 +5,17 @@ export type ScanEvent =
       state: "run" | "current";
       commit: string | null;
     }
-  | { event: "phase"; phase: "describe" | "sense"; total: number }
+  | { event: "phase"; phase: "describe" | "measure" | "sense"; total: number }
   | {
       event: "entry";
-      phase: "extract" | "describe" | "sense";
+      phase: "extract" | "describe" | "measure" | "sense";
       name: string;
       outcome: "ok" | "failed";
       reason?: string;
     }
   | { event: "summary" };
 
-export type PhaseName = "extract" | "describe" | "sense";
+export type PhaseName = "extract" | "describe" | "measure" | "sense";
 
 export type EntryResult = {
   name: string;
@@ -29,6 +29,7 @@ export type ScanProgress = {
   extract: "pending" | "run" | "current";
   extractEntries: EntryResult[];
   describe: PhaseProgress | null;
+  measure: PhaseProgress | null;
   sense: PhaseProgress | null;
   extractSettled: boolean;
   done: boolean;
@@ -44,19 +45,21 @@ export type ScanFooter = {
 
 export type ShowTarget =
   | { kind: "sensor"; name: string; reason: string }
-  | { kind: "module"; id: string; reason: string };
+  | { kind: "module"; id: string; reason: string }
+  | { kind: "overlay"; name: string; reason: string };
 
 export const NO_PROGRESS: ScanProgress = {
   extract: "pending",
   extractEntries: [],
   describe: null,
+  measure: null,
   sense: null,
   extractSettled: false,
   done: false,
   stopped: false,
 };
 
-const PHASES: readonly string[] = ["extract", "describe", "sense"];
+const PHASES: readonly string[] = ["extract", "describe", "measure", "sense"];
 
 export function parseScanLine(text: string): ScanEvent | null {
   let parsed: unknown;
@@ -98,7 +101,9 @@ function phaseEvent(line: Record<string, unknown>): ScanEvent | null {
   }
 
   if (
-    (line.phase === "describe" || line.phase === "sense") &&
+    (line.phase === "describe" ||
+      line.phase === "measure" ||
+      line.phase === "sense") &&
     typeof line.total === "number"
   ) {
     return { event: "phase", phase: line.phase, total: line.total };
@@ -219,6 +224,12 @@ function ranText(progress: ScanProgress): string[] {
     parts.push(`described ${described}`);
   }
 
+  const measured = progress.measure?.entries.length ?? 0;
+
+  if (progress.measure !== null) {
+    parts.push(`measured ${measured}`);
+  }
+
   const sensed = progress.sense?.entries.length ?? 0;
 
   if (progress.sense !== null) {
@@ -232,6 +243,7 @@ export function failedCount(progress: ScanProgress): number {
   return (
     failures(progress.extractEntries).length +
     failures(progress.describe?.entries ?? []).length +
+    failures(progress.measure?.entries ?? []).length +
     failures(progress.sense?.entries ?? []).length
   );
 }
@@ -241,12 +253,14 @@ function failureText(progress: ScanProgress): string {
   const phasesInFailure = [
     failures(progress.extractEntries).length,
     failures(progress.describe?.entries ?? []).length,
+    failures(progress.measure?.entries ?? []).length,
     failures(progress.sense?.entries ?? []).length,
   ].filter((count) => count > 0).length;
 
   if (phasesInFailure === 1) {
     const sentence =
       sameReasonSentence("Describe", progress.describe) ??
+      sameReasonSentence("Measure", progress.measure) ??
       sameReasonSentence("Sensors", progress.sense);
 
     if (sentence !== null) {
@@ -260,6 +274,10 @@ function failureText(progress: ScanProgress): string {
 function runningText(progress: ScanProgress): string {
   if (progress.sense !== null) {
     return `Sensors ${progress.sense.entries.length} of ${progress.sense.total}`;
+  }
+
+  if (progress.measure !== null) {
+    return `Measuring ${progress.measure.entries.length} of ${progress.measure.total}`;
   }
 
   if (progress.describe !== null) {
@@ -323,6 +341,16 @@ export function showTarget(progress: ScanProgress): ShowTarget | null {
       kind: "module",
       id: module.name,
       reason: module.reason ?? "describe failed",
+    };
+  }
+
+  const overlay = failures(progress.measure?.entries ?? [])[0];
+
+  if (overlay !== undefined) {
+    return {
+      kind: "overlay",
+      name: overlay.name,
+      reason: overlay.reason ?? "failed",
     };
   }
 

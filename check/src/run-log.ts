@@ -16,7 +16,7 @@ export interface RunEntry {
   stderr_truncated?: true;
 }
 
-export type PhaseName = "extract" | "describe" | "sense";
+export type PhaseName = "extract" | "describe" | "measure" | "sense";
 
 export interface RunPhase {
   phase: PhaseName;

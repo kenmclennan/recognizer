@@ -45,14 +45,14 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Metric bar | A thin bar with its value on a box, one per ticked metric in the order ticked; a member-granularity metric shows the box's worst member; hover names it; a folder box and a module the overlay did not measure show a dashed empty bar. |
 | Thresholds sensor | The shipped sensor that turns any overlay metric over a configured line into a finding, a warning or a violation as `sensors.thresholds` says. |
 | Report | A findings file an agent hands to recognizer with `recognizer report --as <name>` after a review it ran itself; listed with the sensors but never run by a scan, stale once the scan passes its commit, replaced only by the next report under the same name. |
-| Measure phase | The third phase of a scan, run when ticked: the registered overlays, before the sensors. |
+| Measure phase | The third of the four phases of a scan, between Describe and Sensors, run when ticked: the registered overlays, before the sensors. |
 | Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/responsibilities.json` and current while its source and describer are unchanged. |
 | Describer | The command a repository registers in its config to write responsibilities. |
 | Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}` and `{request}` filled in, and a version naming its prompt. |
 | Current line | A Responsibility whose source hash, describer and version all match the module and the registration today. |
 | Out of date | A Responsibility that is not a Current line: its module's source (the files the scan recorded for it), the describer command or the version has changed since it was written. |
 | Unchecked | The status of a Responsibility that exists but whose Current line test cannot run, because no Describer registration exists or the module's source cannot be read. |
-| Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, and its Metric declarations. |
+| Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, its Metric declarations and, optionally, `runs_tests: true` when it runs the repository's tests. |
 | Sensor | A program that reads the scans, the policy, the overlays or the repository and writes a findings file; it never runs the code it judges. Recognizer ships the structure sensor and a repository registers others. |
 | Sensor registration | An entry of the Config's `sensors` key: a sensor's name and the command to run with `{repository}`, `{commit}` and `{output}` filled in, or for the structure sensor its settings, or `off`. |
 | Folder cycle | Two folders whose modules import each other in both directions; one `folder_cycle` warning per folder pair. |
@@ -103,7 +103,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Selection bar | The small bar of icon actions shown above the selection while the pointer is over it; right-clicking opens the same bar. |
 | Settings | The app's own preferences (the editor, and what a repository's first scan includes), set in its settings window; distinct from a repository's Config. |
 | Describe phase | The second phase of a scan, run when ticked: the modules whose line is missing or out of date are described; progress and failures show in the footer. |
-| Run log | The record of one run of a registered command (scan, describe or measure; a scan record holds its extract, describe and sense phases) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
+| Run log | The record of one run of a registered command (scan, describe or measure; a scan record holds its extract, describe, measure and sense phases) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
 | Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command; a shell command may use `{file}` and `{line}` placeholders, for example `code -g {file}:{line}`, to open at a line. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
 | Trail | The inspector panels opened by following modules through their Dependencies, one to the right of the next, with breadcrumbs naming each step. |
@@ -139,8 +139,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
 | Notes toggle | The Notes button before Legend in the canvas controls; on, every note on the view is drawn as a bubble at once, each read-only until clicked, which focuses it; held per window. |
 | Box tooltip | The small dark text beneath a module box after a short delay on hover: its responsibility line and, when it has a note, the note's first sixty characters in the muted colour; folders have none. |
-| Scan panel | The left-column panel, behind the Scan rail icon, that shows the three phases of a scan, Extract, Describe and Sensors, with the ticks a repository remembers, and runs them on request. |
-| Phase | One of the three parts of a scan: extraction (when the files changed), describing (when ticked) and the registered sensors (when ticked). |
+| Scan panel | The left-column panel, behind the Scan rail icon, that shows the four phases of a scan, Extract, Describe, Measure and Sensors, with the ticks a repository remembers, and runs them on request. |
+| Phase | One of the four parts of a scan: extraction (when the files changed), describing (when ticked), measuring (when ticked) and the registered sensors (when ticked). |
 | Findings panel | The left-column panel, behind the Findings rail icon, that lists every current finding grouped by severity and kind and focuses the selected one. |
 | Finding focus | A module selection with one finding in focus: the evidence lit, the rest dimmed, the row expanded with its evidence and actions. Cleared by Escape, by clicking the finding again, or by selecting a box outside the evidence. |
 | Ghost box | A dashed box the finding focus draws for an evidence module the view does not hold, beside its partner with the lit edge; Add to the view makes it a pick, clearing the focus removes it. |

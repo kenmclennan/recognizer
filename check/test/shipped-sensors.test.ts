@@ -186,6 +186,17 @@ describe("the mutation config examples", () => {
 
     expect(config.overlays?.mutate?.metrics).toEqual(measurers.mutate);
     expect(config.overlays?.mutate?.command[1]).toBe("mutate");
+    expect(config.overlays?.mutate?.runs_tests).toBe(true);
+  });
+
+  it("reads runs_tests from the committed overlays example and rejects a string", () => {
+    const config = parseConfig(example("valid/overlays.yaml"));
+
+    expect(Object.keys(config.overlays ?? {})).toEqual(["coverage"]);
+    expect(config.overlays?.coverage?.runs_tests).toBe(true);
+    expect(() =>
+      parseConfig(example("invalid/overlays-runs-tests-not-boolean.yaml")),
+    ).toThrow();
   });
 
   it("parses the mutation sensor short form", () => {
