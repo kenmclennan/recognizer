@@ -50,8 +50,8 @@ describe("members", () => {
       "r:constant:10:false",
       "I:interface:11:false",
       "T:type:12:false",
-      "E:type:13:false",
-      "D:type:14:false",
+      "E:enum:13:false",
+      "D:enum:14:false",
     ]);
   });
 

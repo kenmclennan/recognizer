@@ -127,6 +127,7 @@ class Decl:
     node: Node | None
     owner: str | None = None
     is_object: bool = False
+    is_enum: bool = False
     members: set[str] = field(default_factory=set)
     supertypes: list[list[str]] = field(default_factory=list)
 
@@ -221,6 +222,7 @@ def decl_of(node: Node) -> list[Decl]:
     if node.type == "class_declaration":
         kind = "interface" if child(node, "interface") else "class"
         decl = Decl(name or "", kind, line_of(child(node, "identifier") or node), visibility, node)
+        decl.is_enum = "enum" in modifier_words(node)
         decl.members = member_names(node)
         decl.supertypes = supertypes_of(node)
         found = [decl]

@@ -51,6 +51,7 @@ export {
   classHeadTokens,
   classHeritage,
   constantTokens,
+  enumTokens,
   fieldTokens,
   functionTokens,
   interfaceHeadTokens,

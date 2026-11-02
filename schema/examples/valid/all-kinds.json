@@ -62,6 +62,12 @@
           "kind": "constant",
           "line": 12,
           "exported": false
+        },
+        {
+          "name": "Mode",
+          "kind": "enum",
+          "line": 14,
+          "exported": true
         }
       ]
     },

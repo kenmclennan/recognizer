@@ -12,7 +12,7 @@ def one(run, body: str) -> dict:
         ("class A", "A", "class"),
         ("data class A(val x: Int)", "A", "class"),
         ("sealed class A", "A", "class"),
-        ("enum class A {\n    X,\n    Y\n}", "A", "class"),
+        ("enum class A {\n    X,\n    Y\n}", "A", "enum"),
         ("annotation class A", "A", "class"),
         ("@JvmInline\nvalue class A(val x: Int)", "A", "class"),
         ("object A", "A", "class"),

@@ -13,7 +13,8 @@ export type MemberKind =
   | "function"
   | "interface"
   | "type"
-  | "constant";
+  | "constant"
+  | "enum";
 
 export interface Member {
   name: string;
@@ -432,7 +433,7 @@ export function extract(sf: ts.SourceFile): FileInfo {
     } else if (ts.isEnumDeclaration(statement)) {
       add({
         name: statement.name.text,
-        kind: "type",
+        kind: "enum",
         line: startLine(sf, statement.name),
         exported: isExported(statement),
         abstraction: false,

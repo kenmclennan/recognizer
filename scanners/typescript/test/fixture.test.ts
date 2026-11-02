@@ -112,7 +112,9 @@ describe("fixture", () => {
     );
     expect(
       [...kinds].every((k) =>
-        ["class", "function", "interface", "type", "constant"].includes(k),
+        ["class", "function", "interface", "type", "constant", "enum"].includes(
+          k,
+        ),
       ),
     ).toBe(true);
   });

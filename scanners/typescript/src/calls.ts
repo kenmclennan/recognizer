@@ -88,7 +88,11 @@ export function findCalls(input: CallInput): ScanCall[] {
     }
 
     for (const member of members) {
-      if (member.kind === "constant" || member.kind === "type") {
+      if (
+        member.kind === "constant" ||
+        member.kind === "type" ||
+        member.kind === "enum"
+      ) {
         continue;
       }
 
