@@ -104,6 +104,10 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Rail | The thin strip of icons at the window's far left, one per left-hand panel; an icon opens its panel, or closes it when it is open. |
 | Files panel | The rail's panel holding the tree. |
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
+| Walkthrough | A view whose notes are read in order: numbered marks, a Notes panel that reorders by drag, and a bubble with Previous and Next that pans the canvas to each box. |
+| Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
+| Lens | A saved view whose notes have no order (`ordered: false`): plain marks, unnumbered rows, no Previous and Next. |
+| Stale view | A saved view the list shows under Stale with Delete: a change view whose head is merged or whose branch is gone, or any view with a pick that no longer resolves. |
 | Note | The one text a person or an agent attaches to a module or folder in a saved view, with the name of who last wrote it; writing again replaces it. |
 | Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view in canvas order and focuses the selected note; the overview, with no composer. |
 | Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove; the place notes are read and written, opened from the mark, the bar's notes button or N. |
