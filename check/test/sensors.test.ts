@@ -350,6 +350,72 @@ describe("check reading registered sensors", () => {
   });
 });
 
+describe("check ratcheting a thresholds violation", () => {
+  const THRESHOLDS = `${ROOT}/.recognizer/cache/findings/thresholds.json`;
+  const ID = "thresholds:churn:app/billing.py";
+  const YAML =
+    'sensors:\n  thresholds:\n    command: [thresholds, "{commit}", "{output}"]\n';
+
+  function thresholdsDocument() {
+    return JSON.stringify({
+      findings_version: 1,
+      sensor: { name: "thresholds", version: "1" },
+      commit: COMMIT,
+      modified: false,
+      settings: {},
+      findings: [
+        {
+          id: ID,
+          kind: "thresholds.churn",
+          severity: "violation",
+          principle: "churn",
+          metric: "churn",
+          summary: "app/billing.py: churn 25 is at or above 20",
+          evidence: {
+            modules: ["app/billing.py"],
+            measures: { value: 25, line: 20 },
+            producer: "quality-tool",
+          },
+        },
+        {
+          id: "thresholds:complexity:app/billing.py::price",
+          kind: "thresholds.complexity",
+          severity: "warning",
+          principle: "functions-stay-small",
+          metric: "complexity",
+          summary: "app/billing.py::price: complexity 14 is at or above 10",
+          evidence: { modules: ["app/billing.py"] },
+        },
+      ],
+    });
+  }
+
+  const findingIds = (list: { finding_id?: string }[]) =>
+    list.map((v) => v.finding_id);
+
+  it("reports the violation as new, writes it by id, then reports it baselined", () => {
+    const fake = setup(YAML, { files: { [THRESHOLDS]: thresholdsDocument() } });
+    const first = JSON.parse(check(fake, "--json").out);
+
+    expect(findingIds(first.new)).toContain(ID);
+    expect(findingIds(first.new)).not.toContain(
+      "thresholds:complexity:app/billing.py::price",
+    );
+
+    fake.files.delete(BASELINE);
+    check(fake, "--init-baseline");
+
+    const baseline = JSON.parse(fake.files.get(BASELINE) as string);
+
+    expect(baseline.violations).toContainEqual({ id: ID });
+
+    const printed = fake.out().length;
+    const second = JSON.parse(check(fake, "--json").out.slice(printed));
+
+    expect(findingIds(second.new)).not.toContain(ID);
+  });
+});
+
 describe("check running the structure sensor", () => {
   it("writes structure.json through a temp file and a rename, recording the settings", () => {
     const fake = setup(null);

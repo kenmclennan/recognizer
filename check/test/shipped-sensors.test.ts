@@ -45,6 +45,20 @@ describe("expandShortForms for crap", () => {
   });
 });
 
+describe("expandShortForms for thresholds", () => {
+  it("carries the mapping as the settings JSON", () => {
+    const expanded = expandShortForms(
+      { thresholds: { complexity: { above: 15 } } },
+      SHIPPED_SENSORS,
+    ) as { thresholds: { command: string[] } };
+
+    expect(expanded.thresholds.command[1]).toBe("thresholds");
+    expect(expanded.thresholds.command.at(-1)).toBe(
+      '{"complexity":{"above":15}}',
+    );
+  });
+});
+
 describe("expandShortForms", () => {
   it("expands an empty mapping", () => {
     expect(expandShortForms({ duplication: {} }, SHIPPED_SENSORS)).toEqual({
@@ -122,6 +136,36 @@ describe("expandMeasurerShortForms", () => {
 
   it("passes undefined through", () => {
     expect(expandMeasurerShortForms(undefined)).toBeUndefined();
+  });
+});
+
+describe("the thresholds config examples", () => {
+  const example = (path: string) =>
+    readFileSync(join(REPO, "schema/config-examples", path), "utf8");
+
+  it("expands the short form exactly", () => {
+    const config = parseConfig(example("valid/sensors-thresholds-short.yaml"));
+
+    expect(config.sensors?.thresholds).toEqual({
+      command: [
+        "recognizer-sensors",
+        "thresholds",
+        "--repository",
+        "{repository}",
+        "--commit",
+        "{commit}",
+        "--output",
+        "{output}",
+        "--settings",
+        '{"complexity":{"above":15},"coverage":"off","churn":{"above":20,"severity":"violation"}}',
+      ],
+    });
+  });
+
+  it("rejects both lines on one metric", () => {
+    expect(() =>
+      parseConfig(example("invalid/sensors-thresholds-both-lines.yaml")),
+    ).toThrow(/config\/sensors\/thresholds/);
   });
 });
 

@@ -16,6 +16,7 @@ export interface FindingRecord {
   principle: string;
   summary: string;
   fix_pattern?: string;
+  metric?: string;
   evidence: {
     modules: string[];
     edges?: FindingEdge[];
@@ -26,6 +27,7 @@ export interface FindingRecord {
       lines?: [number, number];
     }[];
     measures?: Record<string, number>;
+    producer?: string;
   };
 }
 

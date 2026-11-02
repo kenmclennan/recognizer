@@ -1,0 +1,8 @@
+sensors:
+  thresholds:
+    complexity:
+      above: 15
+    coverage: off
+    churn:
+      above: 20
+      severity: violation

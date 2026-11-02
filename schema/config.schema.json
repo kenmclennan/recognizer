@@ -416,6 +416,83 @@
               }
             }
           ]
+        },
+        "thresholds": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "command"
+              ],
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "not": {
+                  "const": "command"
+                }
+              },
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "const": "off"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "above": {
+                        "type": "number"
+                      },
+                      "below": {
+                        "type": "number"
+                      },
+                      "severity": {
+                        "enum": [
+                          "warning",
+                          "violation"
+                        ]
+                      }
+                    },
+                    "oneOf": [
+                      {
+                        "required": [
+                          "above"
+                        ],
+                        "not": {
+                          "required": [
+                            "below"
+                          ]
+                        }
+                      },
+                      {
+                        "required": [
+                          "below"
+                        ],
+                        "not": {
+                          "required": [
+                            "above"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       "additionalProperties": {

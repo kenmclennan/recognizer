@@ -31,6 +31,7 @@
           "severity": { "enum": ["violation", "warning"] },
           "principle": { "type": "string", "minLength": 1 },
           "summary": { "type": "string", "minLength": 1 },
+          "metric": { "type": "string", "minLength": 1 },
           "fix_pattern": { "type": "string", "minLength": 1 },
           "evidence": {
             "type": "object",
@@ -71,7 +72,8 @@
                   }
                 }
               },
-              "measures": { "type": "object", "additionalProperties": { "type": "number" } }
+              "measures": { "type": "object", "additionalProperties": { "type": "number" } },
+              "producer": { "type": "string", "minLength": 1 }
             }
           }
         }
