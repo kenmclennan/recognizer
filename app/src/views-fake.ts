@@ -1,5 +1,5 @@
 import type { Scan } from "recognizer";
-import { VIEW_NAME, type ViewsPort } from "./views-port";
+import { type ChangeRange, VIEW_NAME, type ViewsPort } from "./views-port";
 
 export type FakeViews = ViewsPort & {
   files: Map<string, string>;
@@ -8,6 +8,10 @@ export type FakeViews = ViewsPort & {
   renames: { from: string; to: string }[];
   renamed: { from: string; to: string }[];
   scansByCommit: Map<string, Scan[] | null>;
+  ranges: Map<string, ChangeRange | null>;
+  opened: string[];
+  removed: string[];
+  rangeCalls: string[];
   authorName: string;
   edit(name: string, text: string | null): void;
   settle(): Promise<void>;
@@ -17,6 +21,7 @@ export function fakeViews(
   initial: Record<string, string> = {},
   options: {
     delayScans?: boolean;
+    delayRanges?: boolean;
     listError?: string;
     writeError?: string;
     refused?: string[];
@@ -27,6 +32,8 @@ export function fakeViews(
   const copied: string[] = [];
   const pending: string[] = [];
   const scansByCommit = new Map<string, Scan[] | null>();
+  const ranges = new Map<string, ChangeRange | null>();
+  const opened: string[] = [];
   const waiting: (() => void)[] = [];
   const fake: FakeViews = {
     files,
@@ -35,6 +42,10 @@ export function fakeViews(
     renames: [],
     renamed: [],
     scansByCommit,
+    ranges,
+    opened,
+    removed: [],
+    rangeCalls: [],
     authorName: "Me",
     async author() {
       return fake.authorName;
@@ -78,6 +89,39 @@ export function fakeViews(
       files.delete(from);
       files.set(to, text);
       fake.renamed.push({ from, to });
+    },
+    async remove(name) {
+      if (!files.has(name)) {
+        throw new Error(`there is no view named ${name}`);
+      }
+
+      files.delete(name);
+      fake.removed.push(name);
+
+      for (const run of listeners) {
+        run();
+      }
+    },
+    async changeRange(base, head) {
+      fake.rangeCalls.push(`${base}..${head}`);
+
+      if (options.delayRanges) {
+        await new Promise<void>((resolve) => waiting.push(resolve));
+      }
+
+      return ranges.get(`${base}..${head}`) ?? null;
+    },
+    async recent() {
+      return opened.slice(0, 5);
+    },
+    async recordOpened(name) {
+      const at = opened.indexOf(name);
+
+      if (at >= 0) {
+        opened.splice(at, 1);
+      }
+
+      opened.unshift(name);
     },
     async link(name) {
       if (!VIEW_NAME.test(name)) {

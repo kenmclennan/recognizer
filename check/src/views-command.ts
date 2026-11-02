@@ -1,12 +1,20 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { changeMarks, parseNameStatus } from "./change-marks.js";
 import type { Io } from "./cli.js";
-import { InputError } from "./errors.js";
+import { InputError, Refusal } from "./errors.js";
 import { freshScans } from "./freshness.js";
+import { changeFacts, diffNameStatus, parseChangeFlag } from "./git-range.js";
 import { moduleNames, under } from "./neighbours.js";
 import { appendNote, placeNote, reorderNotes } from "./notes-order.js";
-import type { Scan } from "./scan.js";
+import type { RecordedScan, Scan } from "./scan.js";
 import { resolveCommit } from "./scan-command.js";
+import {
+  type ChangeFacts,
+  type StaleReason,
+  staleReasons,
+  staleReasonText,
+} from "./view-staleness.js";
 import {
   isOrdered,
   lastNotePerPath,
@@ -14,12 +22,14 @@ import {
   noteWarnings,
   orderedStep,
   type ResolvedView,
+  rangeText,
   resolveView,
   serialiseView,
   type View,
   type ViewNote,
   type ViewStep,
   validateView,
+  viewKind,
   viewNotes,
 } from "./views.js";
 import { windowOrFail } from "./window-commands.js";
@@ -35,6 +45,7 @@ export const VIEW_SUBCOMMANDS = [
   "reorder",
   "set",
   "show",
+  "diff",
   "list",
   "check",
   "rm",
@@ -60,12 +71,13 @@ const OPTIONS = {
   after: { type: "string" },
   first: { type: "boolean" },
   ordered: { type: "string" },
+  change: { type: "string" },
 } as const;
 
 export const VIEW_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
 
 const ALLOWED: Record<Subcommand, string[]> = {
-  new: ["description", "from-window"],
+  new: ["description", "from-window", "change"],
   add: [],
   rule: ["folder", "uses", "used-by", "within"],
   fold: [],
@@ -73,15 +85,16 @@ const ALLOWED: Record<Subcommand, string[]> = {
   remove: ["fold", "focus", "rule", "within"],
   note: ["by", "remove", "after", "first"],
   reorder: [],
-  set: ["ordered"],
+  set: ["ordered", "change"],
   show: [],
+  diff: [],
   list: [],
   check: ["fix"],
   rm: [],
 };
 
 const USAGE: Record<Subcommand, string> = {
-  new: "recognizer views new <name> --description <text> [--from-window <id>] [--repository <dir>] [--json]",
+  new: "recognizer views new <name> --description <text> [--change <base>..<head>] [--from-window <id>] [--repository <dir>] [--json]",
   add: "recognizer views add <name> <module>... [--repository <dir>] [--json]",
   rule: "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>] [--repository <dir>] [--json]",
   fold: "recognizer views fold <name> <folder> [--repository <dir>] [--json]",
@@ -91,8 +104,9 @@ const USAGE: Record<Subcommand, string> = {
   note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>]) [--repository <dir>] [--json]",
   reorder:
     "recognizer views reorder <name> <module-or-folder>... [--repository <dir>] [--json]",
-  set: "recognizer views set <name> --ordered true|false [--repository <dir>] [--json]",
+  set: "recognizer views set <name> (--ordered true|false | --change <base>..<head>|none) [--repository <dir>] [--json]",
   show: "recognizer views show <name> [--repository <dir>] [--json]",
+  diff: "recognizer views diff <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
   check:
     "recognizer views check [<name>] [--fix] [--repository <dir>] [--json]",
@@ -358,6 +372,11 @@ function runNew(argv: string[], io: Io): number {
     throw new InputError([`view already exists: ${name}`]);
   }
 
+  const changeFlag = c.values.change;
+  const change =
+    typeof changeFlag === "string"
+      ? parseChangeFlag(io, c.root, changeFlag)
+      : undefined;
   const windowId = c.values["from-window"];
   const fromWindow =
     typeof windowId === "string" ? windowSteps(c, windowId) : null;
@@ -366,6 +385,7 @@ function runNew(argv: string[], io: Io): number {
     schema_version: 4,
     description,
     commit: resolveCommit(io, c.root),
+    ...(change === undefined ? {} : { change }),
     steps: fromWindow?.steps ?? [],
   };
 
@@ -722,13 +742,23 @@ function runReorder(argv: string[], io: Io): number {
 function runSet(argv: string[], io: Io): number {
   const probe = context("set", argv, io);
   const ordered = probe.values.ordered;
+  const changeFlag = probe.values.change;
 
-  if (ordered !== "true" && ordered !== "false") {
+  if ((ordered === undefined) === (changeFlag === undefined)) {
+    throw usageError("set");
+  }
+
+  if (ordered !== undefined && ordered !== "true" && ordered !== "false") {
     throw new InputError([
       "--ordered must be true or false",
       `usage: ${USAGE.set}`,
     ]);
   }
+
+  const change =
+    typeof changeFlag === "string" && changeFlag !== "none"
+      ? parseChangeFlag(io, probe.root, changeFlag)
+      : undefined;
 
   return mutate(
     "set",
@@ -736,6 +766,22 @@ function runSet(argv: string[], io: Io): number {
     io,
     (_c, view) => {
       const migrated = migrateView(view);
+
+      if (ordered === undefined) {
+        if (change === undefined) {
+          delete migrated.change;
+        } else {
+          migrated.change = change;
+        }
+
+        return {
+          view: migrated,
+          what:
+            change === undefined
+              ? "removed the range"
+              : `set the range to ${rangeText(change)}`,
+        };
+      }
 
       if (ordered === "true") {
         delete migrated.ordered;
@@ -775,6 +821,85 @@ function resolvedJson(resolved: ResolvedView) {
   };
 }
 
+function staleOf(
+  io: Io,
+  root: string,
+  view: View,
+  scans: Scan[],
+): StaleReason[] {
+  const facts: ChangeFacts | null =
+    view.change === undefined ? null : changeFacts(io, root, view.change);
+
+  return staleReasons(view, resolveView(view, scans).unresolved, facts);
+}
+
+function runDiff(argv: string[], io: Io): number {
+  const c = context("diff", argv, io);
+
+  if (c.positionals.length !== 1) {
+    throw usageError("diff");
+  }
+
+  const name = checkName(c.positionals[0]);
+  const view = readView(io, c.root, name);
+
+  if (view.change === undefined) {
+    throw new Refusal([`view ${name} is not a change view`]);
+  }
+
+  const facts = changeFacts(io, c.root, view.change);
+
+  if (facts.headCommit === null) {
+    throw new Refusal([`head ${view.change.head} is not in the repository`]);
+  }
+
+  if (facts.baseCommit === null) {
+    throw new Refusal([`base ${view.change.base} is not in the repository`]);
+  }
+
+  const stdout = diffNameStatus(io, c.root, view.change);
+
+  if (stdout === null) {
+    throw new Refusal(["git could not diff the range"]);
+  }
+
+  const scans = freshScans(io, c.root).scans as RecordedScan[];
+  const parsed = parseNameStatus(stdout);
+  const base =
+    scans.length > 0 && scans.every((scan) => scan.commit === facts.baseCommit)
+      ? scans
+      : null;
+  const { modules, unmatched } = changeMarks(parsed.changes, scans, base);
+  const range = rangeText(view.change);
+
+  emit(
+    c,
+    {
+      view: name,
+      range,
+      baseCommit: facts.baseCommit,
+      headCommit: facts.headCommit,
+      modules,
+      unmatched,
+    },
+    [
+      `${name}: ${range} (${facts.baseCommit.slice(0, 7)}..${facts.headCommit.slice(0, 7)})`,
+      modules.length === 0
+        ? "no changed modules"
+        : `${plural(modules.length, "changed module")}:`,
+      ...modules.map(
+        (entry) =>
+          `  ${entry.mark} ${entry.id}${entry.box === "none" ? " (no box)" : ""}`,
+      ),
+      ...(unmatched > 0
+        ? [`${plural(unmatched, "changed file")} matched no module`]
+        : []),
+    ].join("\n"),
+  );
+
+  return 0;
+}
+
 function runShow(argv: string[], io: Io): number {
   const c = context("show", argv, io);
 
@@ -794,6 +919,8 @@ function runShow(argv: string[], io: Io): number {
         name,
         description: view.description,
         commit: view.commit,
+        kind: viewKind(view),
+        ...(view.change === undefined ? {} : { change: view.change }),
         steps: view.steps,
         ordered: isOrdered(view),
         notes: viewNotes(view).map((note, index) => ({
@@ -813,6 +940,7 @@ function runShow(argv: string[], io: Io): number {
   const lines = [
     `${name}: ${view.description}`,
     `saved at ${view.commit ?? "none"}`,
+    ...(view.change === undefined ? [] : [`change: ${rangeText(view.change)}`]),
     view.steps.length === 0 ? "no steps" : "steps:",
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
     `resolves to ${plural(resolved.modules.length, "module")}`,
@@ -869,7 +997,9 @@ function runList(argv: string[], io: Io): number {
     throw usageError("list");
   }
 
-  const rows = viewNames(io, c.root).map((name) => {
+  const listed = viewNames(io, c.root);
+  const scans = listed.length === 0 ? [] : freshScans(io, c.root).scans;
+  const rows = listed.map((name) => {
     try {
       const view = parseView(io, viewFile(c.root, name), name);
 
@@ -878,6 +1008,9 @@ function runList(argv: string[], io: Io): number {
         description: view.description,
         commit: view.commit,
         steps: view.steps.length,
+        kind: viewKind(view),
+        ...(view.change === undefined ? {} : { change: view.change }),
+        stale: staleOf(io, c.root, view, scans),
       };
     } catch (error) {
       return { name, error: (error as InputError).messages.join("; ") };
@@ -891,7 +1024,12 @@ function runList(argv: string[], io: Io): number {
       .map((row) =>
         "error" in row
           ? `${row.name}  invalid: ${row.error}`
-          : `${row.name}  ${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
+          : [
+              `${row.name}  ${row.change === undefined ? row.kind : rangeText(row.change)}  ${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
+              ...row.stale.map(
+                (reason) => `  stale: ${staleReasonText(reason)}`,
+              ),
+            ].join("\n"),
       )
       .join("\n"),
   );
@@ -914,6 +1052,7 @@ interface CheckedView {
   unresolved: CheckedStep[];
   fixed: { step: number; from: string; to: string }[];
   warnings: string[];
+  stale: StaleReason[];
 }
 
 function parseRenames(stdout: string): Map<string, string> {
@@ -992,6 +1131,7 @@ function runCheck(argv: string[], io: Io): number {
           unresolved: [],
           fixed: [],
           warnings: [],
+          stale: [],
         });
 
         continue;
@@ -1070,6 +1210,7 @@ function runCheck(argv: string[], io: Io): number {
         unresolved,
         fixed,
         warnings,
+        stale: staleOf(io, c.root, view, scans),
       });
     }
   }
@@ -1112,6 +1253,12 @@ function runCheck(argv: string[], io: Io): number {
     for (const warning of result.warnings) {
       lines.push(`  warning: ${warning}`);
     }
+
+    for (const reason of result.stale.filter(
+      (entry) => entry.kind !== "pick-unresolved",
+    )) {
+      lines.push(`  stale: ${staleReasonText(reason)}`);
+    }
   }
 
   if (lines.length > 0) {
@@ -1153,6 +1300,7 @@ const HANDLERS: Record<Subcommand, (argv: string[], io: Io) => number> = {
   reorder: runReorder,
   set: runSet,
   show: runShow,
+  diff: runDiff,
   list: runList,
   check: runCheck,
   rm: runRm,
@@ -1168,5 +1316,15 @@ export function runViews(argv: string[], io: Io): number {
     );
   }
 
-  return HANDLERS[known](rest, io);
+  try {
+    return HANDLERS[known](rest, io);
+  } catch (error) {
+    if (error instanceof Refusal) {
+      io.stderr(`${error.messages.join("\n")}\n`);
+
+      return 1;
+    }
+
+    throw error;
+  }
 }

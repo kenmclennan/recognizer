@@ -23,6 +23,7 @@ export type IconName =
   | "route"
   | "notes"
   | "scan"
+  | "views"
   | "findings"
   | "x";
 
@@ -119,6 +120,10 @@ const SHAPES: Record<IconName, Shape[]> = {
     ],
   ],
   scan: [["path", { d: "M3 12h4l3-8 4 16 3-8h4" }]],
+  views: [
+    ["path", { d: "M12 3l9 5-9 5-9-5z" }],
+    ["path", { d: "M3 13l9 5 9-5" }],
+  ],
   findings: [
     ["circle", { cx: "12", cy: "12", r: "9" }],
     ["path", { d: "M12 7v6M12 16.5v.5" }],

@@ -6,7 +6,7 @@ import { buildCheckbox, setCheckState } from "./row-view";
 
 export type LegendView = {
   element: HTMLElement;
-  render: (open: boolean, showInferred: boolean) => void;
+  render: (open: boolean, showInferred: boolean, changes: boolean) => void;
 };
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -51,6 +51,12 @@ function swatch(style: EdgeStyle): SVGElement {
   return svg;
 }
 
+const CHANGE_MARKS: { mark: string; label: string }[] = [
+  { mark: "added", label: "added" },
+  { mark: "modified", label: "modified" },
+  { mark: "removed", label: "removed" },
+];
+
 export function buildLegendView(
   setShowInferred: (show: boolean) => void,
 ): LegendView {
@@ -78,6 +84,23 @@ export function buildLegendView(
     rows.push(row);
   }
 
+  const changeRows: HTMLElement[] = [el("h4", "", "Changes")];
+
+  for (const entry of CHANGE_MARKS) {
+    const row = el("div", `legend-row change-legend-row ${entry.mark}`);
+
+    row.append(
+      el("span", `change-swatch ${entry.mark}`),
+      el("span", "", entry.label),
+    );
+    changeRows.push(row);
+  }
+
+  for (const row of changeRows) {
+    row.hidden = true;
+  }
+
+  rows.push(...changeRows);
   rows.push(el("h4", "", "Discs"));
 
   for (const entry of DISCS) {
@@ -104,8 +127,13 @@ export function buildLegendView(
 
   return {
     element,
-    render(open, showInferred) {
+    render(open, showInferred, changes) {
       element.hidden = !open;
+
+      for (const row of changeRows) {
+        row.hidden = !changes;
+      }
+
       shown = showInferred;
       setCheckState(checkbox, showInferred ? "checked" : "unchecked");
     },

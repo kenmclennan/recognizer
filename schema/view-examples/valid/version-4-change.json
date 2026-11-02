@@ -1,0 +1,1 @@
+{ "schema_version": 4, "description": "What the discounts branch changes.", "commit": null, "change": { "base": "main", "head": "feature/discounts" }, "steps": [{ "kind": "pick", "module": "shop/application/place.py" }] }

@@ -472,9 +472,9 @@ export const COMMANDS: Command[] = [
   {
     name: "views",
     summary:
-      "build, show and check saved views: new, add, rule, fold, focus, remove, note, reorder, set, show, list, check, rm",
+      "build, show and check saved views: new, add, rule, fold, focus, remove, note, reorder, set, show, diff, list, check, rm",
     usage: [
-      "recognizer views new <name> --description <text> [--from-window <id>]",
+      "recognizer views new <name> --description <text> [--change <base>..<head>] [--from-window <id>]",
       "recognizer views add <name> <module>...",
       "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>]",
       "recognizer views fold <name> <folder>",
@@ -482,8 +482,9 @@ export const COMMANDS: Command[] = [
       "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
       "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>])",
       "recognizer views reorder <name> <module-or-folder>...",
-      "recognizer views set <name> --ordered true|false",
+      "recognizer views set <name> (--ordered true|false | --change <base>..<head>|none)",
       "recognizer views show <name>",
+      "recognizer views diff <name>",
       "recognizer views list",
       "recognizer views check [<name>] [--fix]",
       "recognizer views rm <name>",
@@ -540,11 +541,20 @@ export const COMMANDS: Command[] = [
         name: "show",
         description: "print a view's steps and the modules they resolve to now",
       },
-      { name: "list", description: "list every saved view" },
+      {
+        name: "diff",
+        description:
+          "for a change view, run git diff --name-status over its range and print the modules it changed, each marked added, modified or removed, with the two commits and the count of changed files that matched no module; read-only, exit 1 for a view with no range or a ref git does not know",
+      },
+      {
+        name: "list",
+        description:
+          "list every saved view with its kind (the range for a change view, walkthrough or lens) and, for a stale view, its reasons",
+      },
       {
         name: "check",
         description:
-          "list the steps that name a path that no longer exists; --fix rewrites picks whose files git records as renamed",
+          "list the steps that name a path that no longer exists, and a stale view's reasons (a change view whose head is merged into its base or is not in the repository); --fix rewrites picks whose files git records as renamed; a stale view never fails the check, only an invalid file or an unresolved pick does",
       },
       { name: "rm", description: "delete a view" },
     ],
@@ -574,6 +584,11 @@ export const COMMANDS: Command[] = [
           "save what the app window with this id shows as the view: one pick per module on the canvas, one fold per folded folder and the focus; the window must hold --repository (new)",
       },
       {
+        flag: "--change <base>..<head>|none",
+        description:
+          "make the view a change view over a git range, each side a ref git knows; none removes the range (new, set)",
+      },
+      {
         flag: "--fix",
         description: "rewrite renamed picks (check)",
       },
@@ -592,15 +607,15 @@ export const COMMANDS: Command[] = [
       text: [
         "new, add, rule, fold, focus, remove, note: `<name>: <what changed>; N steps, resolves to M modules`",
         "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then `notes:` with one `<n>. <module-or-folder>: <text> (<by>)` line per note in reading order, or `notes: no order` and unnumbered lines when the view is a lens (marked `(not on the view)` when it is not), then a `warning:` line when the file holds several notes on one path, then unresolved, folded and focus lines when there are any",
-        "list: one `<name>  N steps  <commit>  <description>` line per view",
+        "diff: `<name>: <range> (<base>..<head>)`, then one `<added|modified|removed> <module>` line per changed module (`(no box)` when a removed module is in no scan we hold) and a count of files that matched no module\n  list: one `<name>  <kind or range>  N steps  <commit>  <description>` line per view, then a `  stale: <reason>` line for each reason",
         "check: `<name>: ok` or `<name>: N unresolved` with one `step N <kind> <path> - no such <module|folder>` line each, plus `(renamed to <path>)` when git records one",
         "rm: `<name>: removed`",
       ].join("\n"),
       json: [
         "new, add, rule, fold, focus, remove, note: { view, changed, steps, modules }",
         "show: { name, description, commit, steps, ordered, notes: [{ module, text, by, number }], resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }], warnings: [string] }",
-        "list: { views: [{ name, description, commit, steps } | { name, error }] }",
-        "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }], warnings: [string] }] }",
+        "diff: { view, range, baseCommit, headCommit, modules: [{ id, mark, box }], unmatched }\n  list: { views: [{ name, description, commit, steps, kind, change?, stale: [{ kind, ... }] } | { name, error }] }",
+        "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }], warnings: [string], stale: [{ kind, ... }] }] }",
         "rm: { view, removed }",
       ].join("\n"),
     },

@@ -201,19 +201,20 @@ function collect(): Facts {
 describe.skipIf(chrome === undefined)("the rail in a real browser", () => {
   const f = (chrome === undefined ? null : collect()) as Facts;
 
-  it("sits full height at the window's left holding a 16px stroke-2 Files button then Notes, Scan and Findings buttons", () => {
+  it("sits full height at the window's left holding a 16px stroke-2 Files button then Views, Notes, Scan and Findings buttons", () => {
     expect(f.tag).toBe("NAV");
-    expect(f.children).toBe(4);
-    expect(f.buttons).toBe(4);
+    expect(f.children).toBe(5);
+    expect(f.buttons).toBe(5);
     expect(f.notesFacts.order).toEqual([
       "rail-files",
+      "rail-views",
       "rail-notes",
       "rail-scan",
       "rail-findings",
     ]);
     expect(f.aria).toBe("Files");
     expect(f.label).toBe("Files");
-    expect(f.titles).toEqual(["", "", "", ""]);
+    expect(f.titles).toEqual(["", "", "", "", ""]);
     expect(f.iconSize).toBe("16px");
     expect(f.strokeWidth).toBe("2px");
     expect(f.rail.left).toBe(0);

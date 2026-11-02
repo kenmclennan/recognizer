@@ -2,10 +2,17 @@ import { el } from "./dom";
 import type { BadgeTone } from "./findings-order";
 import { iconButton } from "./icons";
 
-export type LeftPanel = "files" | "notes" | "scan" | "findings" | null;
+export type LeftPanel =
+  | "files"
+  | "views"
+  | "notes"
+  | "scan"
+  | "findings"
+  | null;
 
 export type RailActions = {
   toggleFiles: () => void;
+  toggleViews: () => void;
   toggleNotes: () => void;
   toggleScan: () => void;
   toggleFindings: () => void;
@@ -31,6 +38,7 @@ export function buildRailView(actions: RailActions): RailView {
     "rail-files",
     actions.toggleFiles,
   );
+  const views = iconButton("views", "Views", "rail-views", actions.toggleViews);
   const notes = iconButton("notes", "Notes", "rail-notes", actions.toggleNotes);
   const scan = iconButton("scan", "Scan", "rail-scan", actions.toggleScan);
   const findings = iconButton(
@@ -47,9 +55,9 @@ export function buildRailView(actions: RailActions): RailView {
   notes.append(count);
   scan.append(dot);
   findings.append(found);
-  element.append(files, notes, scan, findings);
+  element.append(files, views, notes, scan, findings);
 
-  for (const one of [files, notes, scan, findings]) {
+  for (const one of [files, views, notes, scan, findings]) {
     one.setAttribute("data-label", one.getAttribute("aria-label") ?? "");
     one.removeAttribute("title");
   }
@@ -59,6 +67,8 @@ export function buildRailView(actions: RailActions): RailView {
     render({ panel, notes: total, scanFailed, findings: badge }) {
       files.classList.toggle("open", panel === "files");
       files.setAttribute("aria-pressed", String(panel === "files"));
+      views.classList.toggle("open", panel === "views");
+      views.setAttribute("aria-pressed", String(panel === "views"));
       notes.classList.toggle("open", panel === "notes");
       notes.setAttribute("aria-pressed", String(panel === "notes"));
       scan.classList.toggle("open", panel === "scan");

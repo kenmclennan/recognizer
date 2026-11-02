@@ -1,9 +1,16 @@
 import {
+  type ChangeFacts,
+  changeMarks,
+  type FileChange,
   type FindingRecord,
   folderUsedBy,
   folderUses,
   isOrdered,
+  type MarkedModule,
+  type MarkScan,
+  rangeText,
   resolveView,
+  type Scan,
   usedByOf,
   usesOf,
   type View,
@@ -34,6 +41,7 @@ import {
   buildCanvasView,
   type CanvasNotes,
   type CanvasOrientation,
+  type ChangeOverlay,
   createMeasure,
 } from "./canvas-view";
 import { el } from "./dom";
@@ -60,7 +68,7 @@ import {
 } from "./findings-order";
 import { buildFindingsPanelView } from "./findings-panel-view";
 import { compactFolders } from "./folder-compaction";
-import type { ScanState } from "./footer-scan";
+import { ageText, type ScanState } from "./footer-scan";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
@@ -98,6 +106,7 @@ import {
 } from "./overlay-model";
 import { mountPanelResizers } from "./panel-resizer-view";
 import { buildRailView, type LeftPanel } from "./rail-view";
+import { removedPlacement } from "./removed-boxes";
 import { repositorySource } from "./repository-source";
 import {
   inertResponsibilities,
@@ -180,6 +189,8 @@ import {
   removeNote as withoutNote,
 } from "./view-notes";
 import { stepsFor } from "./view-steps";
+import { chipOf, dropdownNames, viewsPanelModel } from "./views-panel-model";
+import { buildViewsPanelView } from "./views-panel-view";
 import { inertViews, type ViewsPort } from "./views-port";
 import {
   type DriveAction,
@@ -232,6 +243,21 @@ export type Explorer = {
   dispose: () => void;
 };
 
+type ChangeInfo =
+  | {
+      name: string;
+      range: string;
+      state: "loading" | "unavailable" | "head-missing" | "base-unknown";
+    }
+  | {
+      name: string;
+      range: string;
+      state: "ok";
+      marked: MarkedModule[];
+      unmatched: number;
+      at: number;
+    };
+
 export function showExplorer(
   container: HTMLElement,
   loaded: Loaded,
@@ -276,6 +302,16 @@ export function showExplorer(
     overlayModel.metrics,
   );
   let leftPanel: LeftPanel = carried?.leftPanel ?? "files";
+  let recentNames: string[] = [];
+  let viewFacts = new Map<string, ChangeFacts | null>();
+  let changeInfo: ChangeInfo | null = null;
+  let overlayCache: {
+    info: ChangeInfo;
+    scene: Scene;
+    value: ChangeOverlay;
+  } | null = null;
+  const baseScanCache = new Map<string, Scan[] | null>();
+  const undoable: { name: string; text: string }[] = [];
   let scanConfig: string | null = null;
   let shippedSensors: ShippedSensors | null = null;
   let scanEditMessage: string | null = null;
@@ -682,6 +718,7 @@ export function showExplorer(
     back,
     forward,
     openView: (name) => void openSaved(name),
+    openViewsPanel: toggleViewsPanel,
     save: () => void saveOpen(),
     saveNew: (name, description) => saveNew(name, description),
     rename: (from, to) => renameOpen(from, to),
@@ -696,6 +733,10 @@ export function showExplorer(
         render();
       }
     },
+  });
+  const viewsPanel = buildViewsPanelView({
+    open: (name) => void openSaved(name),
+    remove: (name) => void removeSavedView(name),
   });
   const notesPanel = buildNotesPanelView({
     toggle: toggleNote,
@@ -756,6 +797,7 @@ export function showExplorer(
   });
   const rail = buildRailView({
     toggleFiles: toggleTree,
+    toggleViews: toggleViewsPanel,
     toggleNotes: openNotes,
     toggleScan: toggleScanPanel,
     toggleFindings: toggleFindingsPanel,
@@ -779,6 +821,7 @@ export function showExplorer(
 
   canvas.element.append(bar.element, stale.element);
   tree.element.append(
+    viewsPanel.element,
     notesPanel.element,
     scanView.element,
     findingsView.element,
@@ -1195,6 +1238,270 @@ export function showExplorer(
   function toggleTree() {
     leftPanel = leftPanel === "files" ? null : "files";
     render();
+  }
+
+  function toggleViewsPanel() {
+    leftPanel = leftPanel === "views" ? null : "views";
+    render();
+
+    if (leftPanel === "views") {
+      void refreshFacts();
+    }
+  }
+
+  async function refreshFacts() {
+    const next = new Map<string, ChangeFacts | null>();
+
+    await Promise.all(
+      viewList.map(async ({ name, text }) => {
+        const parsed = parseViewFile(text);
+
+        if (!parsed.ok || parsed.view.change === undefined) {
+          return;
+        }
+
+        const range = await views
+          .changeRange(parsed.view.change.base, parsed.view.change.head)
+          .catch(() => null);
+
+        next.set(
+          name,
+          range === null
+            ? null
+            : {
+                headCommit: range.headCommit,
+                baseCommit: range.baseCommit,
+                merged: range.merged,
+              },
+        );
+      }),
+    );
+
+    viewFacts = next;
+    render();
+  }
+
+  async function removeSavedView(name: string) {
+    const text = viewList.find((entry) => entry.name === name)?.text;
+
+    if (text === undefined) {
+      return;
+    }
+
+    try {
+      await views.remove(name);
+    } catch (error) {
+      notify(`Could not delete ${name}: ${String(error)}`);
+
+      return;
+    }
+
+    undoable.push({ name, text });
+    showUndo();
+    await loadViewList();
+    render();
+  }
+
+  function showUndo() {
+    const top = undoable[undoable.length - 1];
+
+    if (top === undefined) {
+      showAgentLine(null);
+
+      return;
+    }
+
+    showAgentLine({
+      text: `Deleted ${top.name}`,
+      onUndo() {
+        undoable.pop();
+        void views
+          .write(top.name, top.text)
+          .then(() => loadViewList())
+          .then(() => {
+            render();
+            showUndo();
+          })
+          .catch((error) =>
+            notify(`Could not restore ${top.name}: ${String(error)}`),
+          );
+      },
+    });
+  }
+
+  async function loadRecent() {
+    recentNames = await views.recent().catch(() => []);
+    renderBar();
+  }
+
+  function noteOpened(name: string) {
+    void views
+      .recordOpened(name)
+      .then(() => loadRecent())
+      .catch(() => {});
+  }
+
+  async function loadChange(name: string, view: View, token: number) {
+    if (view.change === undefined) {
+      changeInfo = null;
+
+      return;
+    }
+
+    const range = rangeText(view.change);
+
+    changeInfo = { name, range, state: "loading" };
+    render();
+
+    const answer = await views
+      .changeRange(view.change.base, view.change.head)
+      .catch(() => null);
+
+    if (token !== openToken) {
+      return;
+    }
+
+    if (answer === null) {
+      changeInfo = { name, range, state: "unavailable" };
+      render();
+
+      return;
+    }
+
+    if (answer.headCommit === null) {
+      changeInfo = { name, range, state: "head-missing" };
+      render();
+
+      return;
+    }
+
+    if (answer.baseCommit === null) {
+      changeInfo = { name, range, state: "base-unknown" };
+      render();
+
+      return;
+    }
+
+    const files: FileChange[] = [];
+
+    for (const change of answer.changes) {
+      if (
+        change.status === "A" ||
+        change.status === "M" ||
+        change.status === "D" ||
+        change.status === "T"
+      ) {
+        files.push({ status: change.status, path: change.path });
+      }
+    }
+
+    const present = scans as unknown as MarkScan[];
+    let found = changeMarks(files, present, null);
+
+    if (found.modules.some((one) => one.mark === "removed")) {
+      const baseScans =
+        answer.baseCommit === currentCommit(scans)
+          ? present
+          : ((await baseScansAt(answer.baseCommit)) as MarkScan[] | null);
+
+      if (token !== openToken) {
+        return;
+      }
+
+      found = changeMarks(files, present, baseScans);
+    }
+
+    for (const one of found.modules) {
+      if (one.box === "current" && knownModules.has(one.id)) {
+        modules.open(one.id);
+      }
+    }
+
+    changeInfo = {
+      name,
+      range,
+      state: "ok",
+      marked: found.modules,
+      unmatched: found.unmatched,
+      at: Date.now(),
+    };
+    rebuild();
+    render();
+  }
+
+  async function baseScansAt(commit: string): Promise<Scan[] | null> {
+    if (!baseScanCache.has(commit)) {
+      baseScanCache.set(commit, await views.scansAt(commit).catch(() => null));
+    }
+
+    return baseScanCache.get(commit) ?? null;
+  }
+
+  function changeOverlay(): ChangeOverlay | null {
+    const info = changeInfo;
+
+    if (
+      info === null ||
+      info.state !== "ok" ||
+      info.name !== openView ||
+      scene === null
+    ) {
+      return null;
+    }
+
+    if (
+      overlayCache !== null &&
+      overlayCache.info === info &&
+      overlayCache.scene === scene
+    ) {
+      return overlayCache.value;
+    }
+
+    const value: ChangeOverlay = {
+      marks: new Map(info.marked.map((one) => [one.id, one.mark])),
+      removed: removedPlacement(
+        scene,
+        info.marked
+          .filter((one) => one.mark === "removed" && one.box === "base")
+          .map((one) => one.id),
+      ),
+    };
+
+    overlayCache = { info, scene, value };
+
+    return value;
+  }
+
+  function changeFooter(): string {
+    const info = changeInfo;
+
+    if (info === null || info.name !== openView) {
+      return "";
+    }
+
+    switch (info.state) {
+      case "loading":
+        return "";
+      case "unavailable":
+        return ` · git could not diff ${info.range}`;
+      case "head-missing":
+        return ` · head ${info.range.slice(info.range.indexOf("..") + 2)} is not in the repository`;
+      case "base-unknown":
+        return ` · base ${info.range.slice(0, info.range.indexOf(".."))} is not in the repository`;
+      case "ok": {
+        const noBox = info.marked.filter((one) => one.box === "none").length;
+        const extra = [
+          ...(info.unmatched > 0
+            ? [`${info.unmatched} changed files matched no module`]
+            : []),
+          ...(noBox > 0 ? [`${noBox} removed modules have no box`] : []),
+        ];
+
+        return ` · diffed against ${info.range} ${ageText(info.at, Date.now())}${
+          extra.length === 0 ? "" : ` (${extra.join(", ")})`
+        }`;
+      }
+    }
   }
 
   function toggleFindingsPanel() {
@@ -1928,6 +2235,11 @@ export function showExplorer(
       listKnown = true;
       listProblem = null;
       setViewList(listing.views);
+      void loadRecent();
+
+      if (leftPanel === "views") {
+        void refreshFacts();
+      }
     } catch (error) {
       listNotice = `Could not list saved views: ${String(error)}`;
       listProblem = String(error);
@@ -1967,14 +2279,23 @@ export function showExplorer(
   function renderBar() {
     bar.render({
       open: openView,
-      views: viewList.map(({ name, text }) => {
-        const parsed = parseViewFile(text);
+      views: dropdownNames(
+        viewList.map((entry) => entry.name),
+        recentNames,
+      ).map((name) => {
+        const parsed = parseViewFile(
+          viewList.find((entry) => entry.name === name)?.text ?? "",
+        );
 
         return {
           name,
           description: parsed.ok ? parsed.view.description : null,
+          chip: parsed.ok ? chipOf(parsed.view) : null,
         };
       }),
+      names: viewList.map((entry) => entry.name),
+      total: viewList.length,
+      openChip: openChipOf(),
       canBack: history.canBack(),
       listed: listKnown,
       listProblem,
@@ -1983,6 +2304,12 @@ export function showExplorer(
       forwardLabel: forwardLabel(history.markNext()),
       canCopy: openView !== null,
     });
+  }
+
+  function openChipOf(): string | null {
+    const view = openViewValue();
+
+    return view?.change === undefined ? null : rangeText(view.change);
   }
 
   function rowFor(id: string): RowSpec {
@@ -2081,11 +2408,14 @@ export function showExplorer(
     openView = name;
     pendingLanding =
       landing && isOrdered(view) && viewNotes(view).length > 0 ? name : null;
+    changeInfo = null;
     setCanvas(
       [...resolved.modules, ...renamed],
       resolved.folded,
       resolved.focus,
     );
+    noteOpened(name);
+    void loadChange(name, view, token);
     await compare(name, view, renames, token);
   }
 
@@ -2116,6 +2446,7 @@ export function showExplorer(
     }
 
     viewTexts.set(name, text);
+    void loadChange(name, parsed.view, token);
     await compare(name, parsed.view, renames, token);
   }
 
@@ -2235,6 +2566,7 @@ export function showExplorer(
       reports.delete(name);
       openView = name;
       record();
+      noteOpened(name);
       notify(`Saved ${name}`);
     }
 
@@ -2502,7 +2834,9 @@ export function showExplorer(
   function renderCanvas() {
     const notes = syncNotes();
 
-    onCount(`${modules.count()} of ${modules.total()} modules on the canvas`);
+    onCount(
+      `${modules.count()} of ${modules.total()} modules on the canvas${changeFooter()}`,
+    );
 
     const selection = state.selection();
     const outlined =
@@ -2538,6 +2872,7 @@ export function showExplorer(
       orientation: syncOrientation(),
       ghosts: canvasGhosts,
       metrics: canvasMetrics(),
+      changes: changeOverlay(),
     });
   }
 
@@ -2547,6 +2882,7 @@ export function showExplorer(
 
     syncTrail(selection);
     body.classList.toggle("tree-hidden", leftPanel === null);
+    tree.element.classList.toggle("views-open", leftPanel === "views");
     tree.element.classList.toggle("notes-open", leftPanel === "notes");
     tree.element.classList.toggle("scan-open", leftPanel === "scan");
     tree.element.classList.toggle("findings-open", leftPanel === "findings");
@@ -2557,6 +2893,12 @@ export function showExplorer(
     const scanModelNow = scanModel();
 
     scanView.render(scanModelNow);
+    viewsPanel.render(
+      leftPanel === "views"
+        ? viewsPanelModel(viewList, scans, viewFacts)
+        : null,
+      openView,
+    );
 
     const findingChips = chips(allFindings);
 

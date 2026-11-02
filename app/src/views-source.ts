@@ -1,9 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Scan } from "recognizer";
-import type { ViewListing, ViewsPort } from "./views-port";
+import type { ChangeRange, ViewListing, ViewsPort } from "./views-port";
 
 export const viewsSource: ViewsPort = {
+  remove: (name) => invoke<void>("remove_view", { name }),
+  changeRange: (base, head) =>
+    invoke<ChangeRange | null>("change_range", { base, head }),
+  recent: () => invoke<string[]>("read_recent_views"),
+  recordOpened: (name) => invoke<void>("record_recent_view", { name }),
   list: () => invoke<ViewListing>("list_views"),
   write: (name, text) => invoke<void>("write_view", { name, text }),
   rename: (from, to) => invoke<void>("rename_view", { from, to }),

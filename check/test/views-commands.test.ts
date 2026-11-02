@@ -449,9 +449,10 @@ describe("views list", () => {
     const { out } = go(fake, "list");
     const lines = out.trimEnd().split("\n");
 
-    expect(lines[0]).toBe("a  0 steps  abc123  p");
-    expect(lines[1]).toBe("b  1 step  abc123  p");
-    expect(lines[2]).toMatch(/^c {2}invalid: /);
+    expect(lines[0]).toBe("a  walkthrough  0 steps  abc123  p");
+    expect(lines[1]).toBe("b  walkthrough  1 step  abc123  p");
+    expect(lines[2]).toBe("  stale: step 1 x no longer resolves");
+    expect(lines[3]).toMatch(/^c {2}invalid: /);
 
     const document = JSON.parse(go(fake, "list", "--json").out);
 
@@ -460,6 +461,8 @@ describe("views list", () => {
       description: "p",
       commit: COMMIT,
       steps: 0,
+      kind: "walkthrough",
+      stale: [],
     });
     expect(document.views[2].error).toBeTruthy();
   });
@@ -1204,5 +1207,211 @@ describe("views note ordering", () => {
       ordered: false,
       notes: [{ number: null }, { number: null }],
     });
+  });
+});
+
+describe("change views", () => {
+  const SHAS: Record<string, string> = {
+    main: COMMIT,
+    feat: "feed01",
+    old: "0ld001",
+  };
+
+  function git(
+    merged: string[] = [],
+    diff = "A\0shop/adapters/memory_store.py\0D\0shop/gone.py\0",
+  ) {
+    return {
+      git: (args: string[]) => {
+        if (args.includes("--verify")) {
+          const ref = (args.at(-1) as string).replace("^{commit}", "");
+          const sha = SHAS[ref];
+
+          return sha === undefined ? { status: 1 } : { stdout: `${sha}\n` };
+        }
+
+        if (args.includes("merge-base")) {
+          return { status: merged.includes(args.at(-2) as string) ? 0 : 1 };
+        }
+
+        if (args.includes("--no-renames")) {
+          return { stdout: diff };
+        }
+
+        if (args.includes("status") || args.includes("diff")) {
+          return {};
+        }
+
+        return { stdout: `${COMMIT}\n` };
+      },
+    };
+  }
+
+  function repo(
+    files: Record<string, string> = {},
+    merged?: string[],
+    diff?: string,
+  ) {
+    return fakeIo({
+      programs: git(merged, diff),
+      files: {
+        [`${ROOT}/shop/a.py`]: "",
+        [CACHE]: JSON.stringify({
+          ...fixture,
+          commit: COMMIT,
+          modified: false,
+          files: [],
+        }),
+        ...files,
+      },
+    });
+  }
+
+  function changeView(name: string, change: unknown, steps: unknown[] = []) {
+    return {
+      [`${VIEWS}/${name}.json`]: `${JSON.stringify({ schema_version: 4, description: "p", commit: COMMIT, change, steps }, null, 2)}\n`,
+    };
+  }
+
+  it("writes the range on new --change", () => {
+    const fake = repo();
+    const result = go(
+      fake,
+      "new",
+      "c",
+      "--description",
+      "D",
+      "--change",
+      "main..feat",
+    );
+
+    expect(result.code).toBe(0);
+    expect(saved(fake, "c").change).toEqual({ base: "main", head: "feat" });
+  });
+
+  it("refuses an unknown ref, naming it, and writes nothing", () => {
+    const fake = repo();
+    const result = go(
+      fake,
+      "new",
+      "c",
+      "--description",
+      "D",
+      "--change",
+      "main..nope",
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.err).toContain("unknown ref: nope");
+    expect(fake.files.has(`${VIEWS}/c.json`)).toBe(false);
+  });
+
+  it("never passes an option-shaped ref to git", () => {
+    const fake = repo();
+    const result = go(
+      fake,
+      "new",
+      "c",
+      "--description",
+      "D",
+      "--change",
+      "main..--output=x",
+    );
+
+    expect(result.code).toBe(2);
+    expect(
+      fake.calls.some((call) =>
+        call.args.some((arg) => arg.includes("--output")),
+      ),
+    ).toBe(false);
+  });
+
+  it("sets, replaces and removes the range", () => {
+    const fake = repo(view("a"));
+
+    go(fake, "set", "a", "--change", "main..feat");
+    expect(saved(fake, "a").change).toEqual({ base: "main", head: "feat" });
+
+    go(fake, "set", "a", "--change", "main..old");
+    expect(saved(fake, "a").change.head).toBe("old");
+
+    go(fake, "set", "a", "--change", "none");
+    expect(saved(fake, "a")).not.toHaveProperty("change");
+  });
+
+  it("requires exactly one of --ordered and --change on set", () => {
+    const fake = repo(view("a"));
+
+    expect(go(fake, "set", "a").code).toBe(2);
+    expect(
+      go(fake, "set", "a", "--ordered", "true", "--change", "main..feat").code,
+    ).toBe(2);
+  });
+
+  it("prints the marked modules and the unmatched count from diff", () => {
+    const fake = repo(changeView("c", { base: "main", head: "feat" }));
+    const result = go(fake, "diff", "c", "--json");
+    const document = JSON.parse(result.out);
+
+    expect(result.code).toBe(0);
+    expect(document).toMatchObject({
+      view: "c",
+      range: "main..feat",
+      baseCommit: COMMIT,
+      headCommit: "feed01",
+      unmatched: 0,
+    });
+    expect(document.modules).toEqual([
+      {
+        id: "shop/adapters/memory_store.py",
+        mark: "added",
+        box: "current",
+      },
+      { id: "shop/gone.py", mark: "removed", box: "none" },
+    ]);
+  });
+
+  it("refuses diff for a view without a range and writes nothing", () => {
+    const fake = repo(view("a"));
+    const result = go(fake, "diff", "a");
+
+    expect(result.code).toBe(1);
+    expect(fake.writes).toEqual([]);
+  });
+
+  it("lists and checks a merged view and a head-gone view with exit 0", () => {
+    const fake = repo(
+      {
+        ...changeView("merged", { base: "main", head: "old" }),
+        ...changeView("gone", { base: "main", head: "ghost" }),
+        ...changeView("live", { base: "main", head: "feat" }),
+      },
+      ["0ld001"],
+    );
+    const list = JSON.parse(go(fake, "list", "--json").out) as {
+      views: { name: string; kind: string; stale: unknown[] }[];
+    };
+    const byName = Object.fromEntries(list.views.map((row) => [row.name, row]));
+
+    expect(byName.live?.stale).toEqual([]);
+    expect(byName.merged?.stale).toEqual([
+      { kind: "merged", head: "old", base: "main" },
+    ]);
+    expect(byName.gone?.stale).toEqual([
+      { kind: "head-missing", head: "ghost" },
+    ]);
+    expect(byName.live?.kind).toBe("change");
+
+    const text = go(fake, "list").out;
+
+    expect(text).toContain("stale: head old is merged into main");
+
+    const check = go(fake, "check");
+
+    expect(check.code).toBe(0);
+    expect(check.out).toContain("stale: head ghost is not in the repository");
+    expect(
+      JSON.parse(go(fake, "check", "--json").out).views[0].stale,
+    ).toBeDefined();
   });
 });

@@ -1,3 +1,4 @@
+import type { Mark } from "recognizer";
 import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
 import type { TooltipLine } from "./box-tooltip";
 import {
@@ -31,6 +32,7 @@ import {
   type NoteBubbleView,
 } from "./note-bubble-view";
 import { bubblePlace, bubbleSize } from "./note-focus";
+import type { RemovedBox } from "./removed-boxes";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
@@ -64,6 +66,12 @@ export type CanvasProps = {
   orientation?: CanvasOrientation | null;
   ghosts?: Ghost[];
   metrics?: CanvasMetrics | null;
+  changes?: ChangeOverlay | null;
+};
+
+export type ChangeOverlay = {
+  marks: ReadonlyMap<string, Mark>;
+  removed: RemovedBox[];
 };
 
 export type CanvasOrientation = {
@@ -188,6 +196,31 @@ function frameText(rect: Rect, label: string, figure: string): SVGElement {
 }
 
 const points = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
+
+function drawRemoved(removed: RemovedBox): SVGElement {
+  const { rect } = removed;
+  const middle = rect.y + rect.height / 2;
+  const node = svg("g", {
+    class: "box module mark-removed removed-box",
+    "data-kind": "module",
+    "data-id": removed.id,
+    "data-removed": removed.id,
+  });
+
+  node.append(
+    svg("rect", {
+      class: "box-body",
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      rx: 7,
+    }),
+    svg("text", { class: "name", x: rect.x + 12, y: middle + 4 }, removed.name),
+  );
+
+  return node;
+}
 
 function drawGhost(
   ghost: Ghost,
@@ -354,6 +387,7 @@ export function buildCanvasView(
     notesButton,
     legendButton,
   );
+
   element.append(stage, controls, legend.element, metricsView.element);
 
   function size() {
@@ -485,7 +519,11 @@ export function buildCanvasView(
   }
 
   function refreshChrome() {
-    legend.render(legendOpen, props?.showInferred ?? true);
+    legend.render(
+      legendOpen,
+      props?.showInferred ?? true,
+      props?.changes != null,
+    );
     legendButton.classList.toggle("on", legendOpen);
     metricsView.render(metricsOpen, props?.metrics ?? null);
     metricsButton.classList.toggle("on", metricsOpen);
@@ -652,7 +690,11 @@ export function buildCanvasView(
         for (const box of scene.boxes) {
           const { rect } = box;
           const node = svg("g", {
-            class: `box ${box.kind}`,
+            class: `box ${box.kind}${
+              props?.changes?.marks.has(box.id)
+                ? ` mark-${props.changes.marks.get(box.id)}`
+                : ""
+            }`,
             "data-kind": box.kind,
             "data-id": box.id,
           });
@@ -726,6 +768,10 @@ export function buildCanvasView(
 
     for (const ghost of props?.ghosts ?? []) {
       parts.push(drawGhost(ghost, scene, tone));
+    }
+
+    for (const removed of props?.changes?.removed ?? []) {
+      parts.push(drawRemoved(removed));
     }
 
     world.replaceChildren(...parts);
@@ -1498,7 +1544,8 @@ export function buildCanvasView(
         next.titles !== previous?.titles ||
         next.notes !== previous?.notes ||
         next.orientation !== previous?.orientation ||
-        next.ghosts !== previous?.ghosts
+        next.ghosts !== previous?.ghosts ||
+        next.changes !== previous?.changes
       ) {
         if (scene) {
           drawScene(scene);
