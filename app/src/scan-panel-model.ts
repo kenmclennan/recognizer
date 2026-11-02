@@ -74,6 +74,13 @@ export type SensorRow = {
   removable: boolean;
 };
 
+export type ReportRow = {
+  name: string;
+  chip: string;
+  commit: string;
+  stale: boolean;
+};
+
 export type AddSensors =
   | { status: "hidden" }
   | { status: "unavailable"; reason: string }
@@ -98,6 +105,7 @@ export type ScanPanelModel = {
     ticked: boolean;
     tickable: boolean;
     rows: SensorRow[];
+    reports: ReportRow[];
     add: AddSensors;
     editable: boolean;
     message: string | null;
@@ -279,6 +287,25 @@ function registeredRow(
   }
 }
 
+function reportRows(sensors: SensorStatus[], now: number): ReportRow[] {
+  return sensors
+    .filter((one) => one.reported !== undefined)
+    .map((one) => {
+      const { at, commit } = one.reported as { at: string; commit: string };
+      const when = Date.parse(at);
+
+      return {
+        name: one.name,
+        chip: Number.isNaN(when)
+          ? "reported"
+          : `reported ${ageText(when, now)}`,
+        commit: commit.slice(0, 7),
+        stale: one.status === "stale",
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function addBlock(shipped: ShippedSensors | null, names: string[]): AddSensors {
   if (shipped === null) {
     return { status: "hidden" };
@@ -369,6 +396,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       ticked: input.ticks.sensors && names.length > 0,
       tickable: names.length > 0,
       rows,
+      reports: reportRows(input.sensors, input.now),
       add: addBlock(input.shipped, names),
       editable: !input.scanning,
       message: input.editMessage,

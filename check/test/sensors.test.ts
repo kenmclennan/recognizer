@@ -912,3 +912,116 @@ describe("scan --sense running a registered sensor as a real process", () => {
     expect(code).toBe(1);
   });
 });
+
+describe("a report in the findings folder", () => {
+  const MODULE = "shop/domain/order.py";
+  const REVIEW = `${ROOT}/.recognizer/cache/findings/review.json`;
+  const OLD = `${ROOT}/.recognizer/cache/findings/old-review.json`;
+  const STRAY = `${ROOT}/.recognizer/cache/findings/stray.json`;
+
+  function reportDocument(name: string, commit: string, summary: string) {
+    return fakeDocument({
+      sensor: { name, version: "reported" },
+      commit,
+      reported_at: "2026-11-02T10:00:00.000Z",
+      findings: [
+        {
+          id: `${name}:1`,
+          kind: "review",
+          severity: "warning",
+          principle: "p",
+          summary,
+          evidence: { modules: [MODULE] },
+        },
+      ],
+    });
+  }
+
+  function mixed() {
+    return setup(null, {
+      files: {
+        [REVIEW]: reportDocument("review", COMMIT, "current report finding"),
+        [OLD]: reportDocument(
+          "old-review",
+          "def4567890",
+          "stale report finding",
+        ),
+        [STRAY]: fakeDocument({ sensor: { name: "stray", version: "1" } }),
+      },
+    });
+  }
+
+  it("is read by check at the scan's commit and listed ran with reported", () => {
+    const fake = setup(null, {
+      files: {
+        [REVIEW]: reportDocument("review", COMMIT, "current report finding"),
+      },
+    });
+    const { out, err } = check(fake, "--json");
+    const report = JSON.parse(out.slice(out.indexOf("{")));
+
+    expect(JSON.stringify(report)).toContain("current report finding");
+    expect(report.sensors).toContainEqual({
+      name: "review",
+      status: "ran",
+      reported: true,
+    });
+    expect(err).not.toContain("review");
+    expect(fake.files.has(REVIEW)).toBe(true);
+  });
+
+  it("from another commit is ignored, named as reported at its short commit and kept", () => {
+    const fake = setup(null, {
+      files: {
+        [OLD]: reportDocument(
+          "old-review",
+          "def4567890",
+          "stale report finding",
+        ),
+      },
+    });
+    const { out, err } = check(fake, "--json");
+    const report = JSON.parse(out.slice(out.indexOf("{")));
+
+    expect(err).toContain("stale old-review (reported at def4567)\n");
+    expect(JSON.stringify(report)).not.toContain("stale report finding");
+    expect(report.sensors).toContainEqual({
+      name: "old-review",
+      status: "stale",
+      reported: true,
+    });
+    expect(fake.files.has(OLD)).toBe(true);
+  });
+
+  it("is not a report when the file is a registered sensor's or carries no mark", () => {
+    const fake = mixed();
+    const { err } = check(fake, "--json");
+
+    expect(err).toContain("removed unregistered stray\n");
+    expect(fake.files.has(STRAY)).toBe(false);
+    expect(fake.files.has(REVIEW)).toBe(true);
+    expect(fake.files.has(OLD)).toBe(true);
+  });
+
+  it("with a current, a stale and a stray file names only the stale one as not current", () => {
+    const fake = mixed();
+    const { out, err } = check(fake, "--json");
+
+    expect(err).toContain("stale old-review (reported at def4567)");
+    expect(err).not.toContain("stale review");
+    expect(out).toContain("current report finding");
+    expect(out).not.toContain("stale report finding");
+  });
+
+  it("is included by show when current and named on stderr when stale", () => {
+    const fake = mixed();
+    const code = run(["show", MODULE, "--repository", ROOT, "--json"], fake.io);
+
+    expect(code).toBe(0);
+    expect(fake.out()).toContain("current report finding");
+    expect(fake.out()).not.toContain("stale report finding");
+    expect(fake.err()).toContain("stale old-review (reported at def4567)");
+    expect(fake.err()).toContain("ignored unregistered stray");
+    expect(fake.files.has(STRAY)).toBe(true);
+  });
+});

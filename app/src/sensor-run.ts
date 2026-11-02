@@ -19,6 +19,7 @@ export type SensorStatus = {
   name: string;
   status: "ran" | "failed" | "off" | "stale" | "not run";
   reason?: string;
+  reported?: { at: string; commit: string };
 };
 
 export type FindingsFiles = {
@@ -206,6 +207,7 @@ export async function senseRepository(
 
   const read = await port.readFindings();
   const failed: string[] = [];
+  const registered = registeredSensors(config).map(({ name }) => name);
 
   for (const name of read.refused) {
     failed.push(name);
@@ -226,6 +228,10 @@ export async function senseRepository(
       statuses.push({
         name: file.name,
         status: document.commit === commit ? "ran" : "stale",
+        ...(document.reported_at !== undefined &&
+        !registered.includes(file.name)
+          ? { reported: { at: document.reported_at, commit: document.commit } }
+          : {}),
       });
     } catch (error) {
       failed.push(file.name);
@@ -245,7 +251,7 @@ export async function senseRepository(
     await port.removeFindings(failed);
   }
 
-  for (const { name } of registeredSensors(config)) {
+  for (const name of registered) {
     if (!statuses.some((status) => status.name === name)) {
       statuses.push({ name, status: "not run" });
     }

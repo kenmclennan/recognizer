@@ -66,6 +66,7 @@ interface SensorStatus {
   status: "ran" | "off" | "failed" | "stale" | "missing";
   reason?: string;
   settings?: StructureSettings;
+  reported?: true;
 }
 
 interface Gathered {
@@ -547,11 +548,23 @@ function gather(
         documents.push(outcome.document);
 
         if (!sensors.some((one) => one.name === outcome.name)) {
-          sensors.push({ name: outcome.name, status: "ran" });
+          sensors.push({
+            name: outcome.name,
+            status: "ran",
+            ...(outcome.reported ? { reported: true } : {}),
+          });
         }
       } else if (outcome.status === "stale") {
-        io.stderr(`stale ${outcome.name}\n`);
-        sensors.push({ name: outcome.name, status: "stale" });
+        io.stderr(
+          outcome.reported
+            ? `stale ${outcome.name} (reported at ${outcome.document.commit.slice(0, 7)})\n`
+            : `stale ${outcome.name}\n`,
+        );
+        sensors.push({
+          name: outcome.name,
+          status: "stale",
+          ...(outcome.reported ? { reported: true } : {}),
+        });
       } else {
         io.stderr(`invalid ${outcome.name}: ${outcome.reason}\n`);
         sensors.push({

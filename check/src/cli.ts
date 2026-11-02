@@ -72,6 +72,7 @@ export interface RequestResult {
 export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
+  readStdin(): string;
   readBytes(path: string): Buffer;
   hashFile(path: string): string | null;
   writeFile(path: string, content: string): void;
@@ -113,6 +114,7 @@ export function nodeIo(): Io {
   return {
     exists: (path) => existsSync(path),
     readFile: (path) => readFileSync(path, "utf8"),
+    readStdin: () => readFileSync(0, "utf8"),
     readBytes: (path) => readFileSync(path),
     hashFile: (path) => {
       try {

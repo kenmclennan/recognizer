@@ -239,6 +239,41 @@ describe("staleNote", () => {
     ).toBe("Not current: a (stale), b (failed), d (not run)");
   });
 
+  it("appends a report whose commit is not the scan's and omits a current one", () => {
+    expect(
+      staleNote(
+        [sensorRow("a", "stale")],
+        [
+          {
+            name: "review",
+            chip: "reported 1 minute ago",
+            commit: "abc1234",
+            stale: true,
+          },
+          {
+            name: "fresh",
+            chip: "reported just now",
+            commit: "def5678",
+            stale: false,
+          },
+        ],
+      ),
+    ).toBe("Not current: a (stale), review (reported at abc1234)");
+    expect(
+      staleNote(
+        [],
+        [
+          {
+            name: "fresh",
+            chip: "reported just now",
+            commit: "def5678",
+            stale: false,
+          },
+        ],
+      ),
+    ).toBeNull();
+  });
+
   it("is null when every sensor ran", () => {
     expect(
       staleNote([sensorRow("a", "ran"), sensorRow("b", "ran 1m ago")]),

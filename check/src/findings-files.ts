@@ -32,8 +32,18 @@ export function writeFindings(
 }
 
 export type ReadOutcome =
-  | { name: string; status: "read"; document: FindingsDocument }
-  | { name: string; status: "stale"; document: FindingsDocument }
+  | {
+      name: string;
+      status: "read";
+      document: FindingsDocument;
+      reported?: true;
+    }
+  | {
+      name: string;
+      status: "stale";
+      document: FindingsDocument;
+      reported?: true;
+    }
   | { name: string; status: "invalid"; reason: string }
   | { name: string; status: "unregistered" };
 
@@ -62,10 +72,7 @@ export function readFindingsFiles(
   return listed(io, root)
     .filter((name) => !skip.includes(name))
     .map((name): ReadOutcome => {
-      if (allowed !== null && !allowed.includes(name)) {
-        return { name, status: "unregistered" };
-      }
-
+      const outside = allowed !== null && !allowed.includes(name);
       let document: FindingsDocument;
 
       try {
@@ -74,11 +81,22 @@ export function readFindingsFiles(
           { name },
         );
       } catch (error) {
-        return { name, status: "invalid", reason: (error as Error).message };
+        return outside
+          ? { name, status: "unregistered" }
+          : { name, status: "invalid", reason: (error as Error).message };
       }
 
+      if (
+        outside &&
+        (name === "structure" || document.reported_at === undefined)
+      ) {
+        return { name, status: "unregistered" };
+      }
+
+      const reported = outside ? { reported: true as const } : {};
+
       return document.commit === commit
-        ? { name, status: "read", document }
-        : { name, status: "stale", document };
+        ? { name, status: "read", document, ...reported }
+        : { name, status: "stale", document, ...reported };
     });
 }

@@ -13,6 +13,7 @@ import {
   runUses,
 } from "./question-commands.js";
 import { runFind, runModules, runShow } from "./read-commands.js";
+import { runReport } from "./report-command.js";
 import { runScan } from "./scan-command.js";
 import { runSensors } from "./sensors-command.js";
 import { runViews } from "./views-command.js";
@@ -928,6 +929,61 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runMeasure,
+  },
+  {
+    name: "report",
+    summary:
+      "file an agent's review findings as a report the viewer and check read",
+    usage:
+      "recognizer report --as <name> [<file>] [--repository <dir>] [--json]",
+    arguments: [
+      {
+        name: "<file>",
+        description:
+          "a findings document (findings_version and findings); without a file it is read from stdin",
+      },
+    ],
+    options: [
+      {
+        flag: "--as <name>",
+        description:
+          "the name the report is filed under; required, not structure and not a registered sensor",
+      },
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository the review was made in; defaults to the current directory",
+      },
+      { flag: "--json", description: "print JSON instead of text" },
+    ],
+    output: {
+      text: "`reported <name>: <n> findings at <short commit>`",
+      json: "{ path, commit, findings }",
+    },
+    exitCodes: [
+      { code: 0, meaning: "the report was written" },
+      {
+        code: 1,
+        meaning:
+          "the document is not JSON or fails the findings schema; nothing is written",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad input - no --as, a name that is not a sensor name, structure or a registered sensor, an unreadable file, an unknown flag, or no git commit; nothing is written",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer report --as review findings.json",
+        note: "file a review's findings under the name review",
+      },
+      {
+        command: "recognizer report --as review --json < findings.json",
+        note: "read the findings from stdin and print where they were written",
+      },
+    ],
+    run: runReport,
   },
   {
     name: "log",

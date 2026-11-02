@@ -2174,8 +2174,14 @@ svg.i.chevron {
   color: var(--muted);
 }
 
+.sensor-commit {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+
 .sensor-add-button,
-.sensor-remove {
+.sensor-remove,
+.sensor-clear {
   padding: 1px 8px;
 }
 

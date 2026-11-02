@@ -69,6 +69,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
     running: () => wired.rescanner.running(),
     run: () => void wired.rescanner.run(),
     stop: () => void wired.rescanner.stop(),
+    refresh: () => void wired.rescanner.refresh(),
   };
   const build = (loaded, carried) => {
     wired.current = loaded;
@@ -253,6 +254,24 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   await tick();
   facts.addDown = { text: down.text(".sensor-add-unavailable"), buttons: down.all(".sensor-add-button").length };
 
+  const REPORT = json({ findings_version: 1, sensor: { name: "review", version: "reported" }, commit: "feed123abc", modified: false, settings: {}, reported_at: new Date(Date.now() - 3 * 60000).toISOString(), findings: [] });
+  const reportSensors = fakeSensors({ review: REPORT }, { config: CONFIG }, {}, SHIPPED);
+  const rp = await mount(fakeScan(), reportSensors);
+  click(rp.q(".rail-scan"));
+  await tick();
+  const reportRow = () => rp.q('.sensor-row.reported[data-sensor="review"]');
+  facts.report = {
+    names: rp.all(".sensor-row").map((r) => r.querySelector(".sensor-name").textContent),
+    ticks: reportRow()?.querySelectorAll("input").length ?? null,
+    chip: reportRow()?.querySelector(".sensor-chip").textContent ?? "",
+    commit: reportRow()?.querySelector(".sensor-commit").textContent ?? "",
+    clear: reportRow()?.querySelector(".sensor-clear")?.textContent ?? "",
+    beforeAdd: reportRow() !== null && reportRow().compareDocumentPosition(rp.q(".sensor-add-title")) === Node.DOCUMENT_POSITION_FOLLOWING,
+  };
+  click(reportRow().querySelector(".sensor-clear"));
+  await tick(); await tick();
+  facts.reportCleared = { removed: [...reportSensors.removed], present: reportRow() !== null, names: rp.all(".sensor-row").map((r) => r.querySelector(".sensor-name").textContent) };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -417,5 +436,17 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   it("says why the list is unavailable and offers no Add", () => {
     expect(f.addDown.text).toContain("recognizer is not installed");
     expect(f.addDown.buttons).toBe(0);
+  });
+
+  it("lists a report after the registered rows with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
+    expect(f.report.names).toEqual(["structure", "alpha", "beta", "review"]);
+    expect(f.report.ticks).toBe(0);
+    expect(f.report.chip).toBe("reported 3 minutes ago");
+    expect(f.report.commit).toBe("feed123");
+    expect(f.report.clear).toBe("Clear");
+    expect(f.report.beforeAdd).toBe(true);
+    expect(f.reportCleared.removed).toEqual(["review"]);
+    expect(f.reportCleared.present).toBe(false);
+    expect(f.reportCleared.names).toEqual(["structure", "alpha", "beta"]);
   });
 });

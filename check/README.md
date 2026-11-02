@@ -255,7 +255,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ## The command table
 
-`check/src/commands.ts` exports `COMMANDS`, the one list `recognizer` dispatches from and `check/src/help.ts` renders help from. Each entry holds a command's name, one-line summary, usage, arguments, options, what it prints as text and with `--json`, exit codes and examples. `recognizer --help` prints every command with its one line; `recognizer help <command>` and `<command> --help` print the full entry. The table holds `check`, `scan`, `open`, `uses`, `used-by`, `callers`, `path`, `find`, `show`, `modules`, `views`, `windows`, `window`, `describe`, `measure`, `agents` and `help`.
+`check/src/commands.ts` exports `COMMANDS`, the one list `recognizer` dispatches from and `check/src/help.ts` renders help from. Each entry holds a command's name, one-line summary, usage, arguments, options, what it prints as text and with `--json`, exit codes and examples. `recognizer --help` prints every command with its one line; `recognizer help <command>` and `<command> --help` print the full entry. The table holds `check`, `scan`, `open`, `uses`, `used-by`, `callers`, `path`, `find`, `show`, `modules`, `views`, `windows`, `window`, `describe`, `measure`, `report`, `agents` and `help`.
 
 ## The agent guide
 
@@ -344,6 +344,12 @@ describer:
 | `describe --check [<module>...]` | run no describer and write nothing: print each module's status and line; exit 1 unless every module is current |
 
 Each success is written at once, so a later failure keeps the lines already paid for. A describer that does not start, exits non-zero, prints nothing or prints more than one line leaves that module's entry as it was and is reported; the run exits 1 and the other modules are still processed. Entries for modules no longer in the scan are pruned by `describe` and listed under `gone` by `--check`. Bad input (no describer registered, an invalid config or file, an unknown module, `--all` with a module or with `--check`) is exit 2 and runs nothing. One run at a time is assumed: there is no lock.
+
+## recognizer report
+
+`recognizer report --as <name> [<file>] [--repository <dir>] [--json]` files an agent's review as a report. It reads a findings document (`findings_version` and `findings`) from the file, or from stdin when no file is given, fills `sensor` (`name` from `--as`, `version` the document's own or `reported`), `commit` (git HEAD), `modified`, `settings` (`{}`) and `reported_at` (the time, the top-level mark of a report), validates the result against the findings schema and writes `.recognizer/cache/findings/<name>.json`, replacing any earlier file of that name. `principle` stays free text. Nothing is written, with exit 1, for a document that is not JSON or fails the schema; `--as` is refused with exit 2 when it is missing, is not a sensor name, is `structure` or is a registered sensor, and so is a folder with no git commit. `--json` prints `{ path, commit, findings }`. A report writes no run-log record.
+
+`check`, `show`, `find` and the question commands read a report whose commit is the scan's like any findings file and ignore one from another commit, printing `stale <name> (reported at <short commit>)` on stderr; `check --json` lists it under `sensors` as `ran` or `stale` with `reported: true`. A findings file outside the registered names is removed by `check` unless it validates and carries `reported_at`; only the app's Clear or the next report removes a report.
 
 ## recognizer measure
 

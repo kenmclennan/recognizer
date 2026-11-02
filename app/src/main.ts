@@ -109,6 +109,7 @@ const scanHost: ScanHost = {
   running: () => rescanner.running(),
   run: () => void rescanner.run(),
   stop: () => void rescanner.stop(),
+  refresh: () => void rescanner.refresh(),
 };
 
 function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
