@@ -39,7 +39,14 @@ export {
   type FindingsDocument,
   validateFindings,
 } from "./findings-document.js";
-export type { FolderMetrics } from "./folder-metrics.js";
+export {
+  type FolderMetrics,
+  type FolderZone,
+  measureFolders,
+  metricsLine,
+  metricsTable,
+  zoneOf,
+} from "./folder-metrics.js";
 export {
   checkLink,
   isLink,
@@ -122,6 +129,7 @@ export {
   validateScan,
 } from "./scan.js";
 export {
+  DEFAULT_DISTANCE_THRESHOLD,
   measuredModules,
   resolveStructureSettings,
   type StructureSettings,

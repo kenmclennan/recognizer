@@ -1,6 +1,8 @@
 import {
   type Config,
+  DEFAULT_DISTANCE_THRESHOLD,
   type FindingsDocument,
+  type FolderMetrics,
   InputError,
   type Policy,
   parseConfig,
@@ -62,6 +64,8 @@ export const inertSensors: SensorsPort = {
 export type SensorRun = {
   documents: FindingsDocument[];
   statuses: SensorStatus[];
+  folderMetrics: FolderMetrics[];
+  distanceThreshold: number;
 };
 
 type RecordedScan = Scan & {
@@ -142,6 +146,7 @@ export async function senseRepository(
   const settings = resolveStructureSettings(config);
   const documents: FindingsDocument[] = [];
   let structure: FindingsDocument | null = null;
+  let folderMetrics: FolderMetrics[] = [];
   let structureRan = false;
 
   if (settings === "off") {
@@ -151,14 +156,20 @@ export async function senseRepository(
     const context = { commit: commit ?? "", modified };
 
     try {
-      structure = structureSensor(plain, policy, settings, context).document;
+      const sensed = structureSensor(plain, policy, settings, context);
+
+      structure = sensed.document;
+      folderMetrics = sensed.folder_metrics;
     } catch (error) {
       statuses.push({
         name: "policy.yaml",
         status: "failed",
         reason: messagesOf(error),
       });
-      structure = structureSensor(plain, null, settings, context).document;
+      const sensed = structureSensor(plain, null, settings, context);
+
+      structure = sensed.document;
+      folderMetrics = sensed.folder_metrics;
     }
 
     try {
@@ -223,7 +234,15 @@ export async function senseRepository(
     }
   }
 
-  return { documents, statuses };
+  return {
+    documents,
+    statuses,
+    folderMetrics,
+    distanceThreshold:
+      settings === "off"
+        ? DEFAULT_DISTANCE_THRESHOLD
+        : settings.distance_threshold,
+  };
 }
 
 export async function withSensors(
@@ -242,5 +261,7 @@ export async function withSensors(
     sensors: run.statuses,
     overlays: overlays.files,
     overlaysUnreadable: overlays.refused,
+    folderMetrics: run.folderMetrics,
+    distanceThreshold: run.distanceThreshold,
   };
 }

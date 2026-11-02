@@ -15,6 +15,54 @@ export interface FolderMetrics {
   distance: number | null;
 }
 
+export type FolderZone = "pain" | "useless" | "main sequence" | "unknown";
+
+export function zoneOf(row: FolderMetrics, threshold: number): FolderZone {
+  if (
+    row.abstractness === null ||
+    row.instability === null ||
+    row.distance === null
+  ) {
+    return "unknown";
+  }
+
+  if (row.distance <= threshold) {
+    return "main sequence";
+  }
+
+  return row.abstractness + row.instability - 1 < 0 ? "pain" : "useless";
+}
+
+function figure(value: number | null): string {
+  return value === null ? "unknown" : value.toFixed(2);
+}
+
+export function metricsLine(row: FolderMetrics, threshold: number): string {
+  const zone = zoneOf(row, threshold);
+
+  return [
+    `I ${figure(row.instability)}`,
+    `A ${figure(row.abstractness)}`,
+    `D ${figure(row.distance)}`,
+    ...(zone === "pain" || zone === "useless" ? [zone] : []),
+  ].join(" \u00b7 ");
+}
+
+export function metricsTable(
+  row: FolderMetrics,
+  threshold: number,
+): [string, string][] {
+  return [
+    ["Modules", String(row.modules)],
+    ["Afferent coupling (Ca)", String(row.afferent)],
+    ["Efferent coupling (Ce)", String(row.efferent)],
+    ["Instability (I)", figure(row.instability)],
+    ["Abstractness (A)", figure(row.abstractness)],
+    ["Distance (D)", figure(row.distance)],
+    ["Zone", zoneOf(row, threshold)],
+  ];
+}
+
 export interface FolderMeasures {
   rows: FolderMetrics[];
   between: Map<string, { from: string; to: string }[]>;

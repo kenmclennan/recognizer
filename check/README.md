@@ -272,7 +272,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ## Read commands
 
-`recognizer find <text>`, `recognizer show <module>` and `recognizer modules` read the scan like the question commands do (`--repository`, `--json`, exit 0 for an answer and 2 for bad input).
+`recognizer find <text>`, `recognizer show <module>` and `recognizer modules` read the scan like the question commands do (`--repository`, `--json`, exit 0 for an answer and 2 for bad input). `show <folder>` takes a folder in place of a module and prints its metrics as one line (`I 0.42 · A 0.10 · D 0.48 · pain`, the zone named only when it is `pain` or `useless`, that is when `distance` is beyond the structure sensor's `distance_threshold`) and a table of the values, whose Zone row reads `pain`, `useless`, `main sequence` or `unknown`; `--json` holds `folder`, `metrics` and `line`.
 
 - `find` matches a case-insensitive substring against module paths and top-level member names, and lists both. No match is exit 0 with empty lists.
 - `show` prints what the explorer's Contents tab shows: the members in file order with their visibility, line and plain-text signature, a class's fields and methods, the responsibility line with its status (`current`, `out-of-date`, `missing`, or `unchecked` when a line exists but no describer is registered or the source cannot be read), and the module's findings. Only exported members are listed unless `--private`; the rest are counted as `hiddenPrivate`.

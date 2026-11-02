@@ -152,6 +152,32 @@ describe("show", () => {
     ]);
   });
 
+  it("prints a folder's metrics line and table, and refuses an unknown name", () => {
+    const { code, out } = ask(python, ["show", "shop/domain", "--json"]);
+    const document = JSON.parse(out);
+
+    expect(code).toBe(0);
+    expect(document.folder).toBe("shop/domain");
+    expect(document.metrics.id).toBe("shop/domain");
+    expect(document.line).toMatch(/^I \S+ \u00b7 A \S+ \u00b7 D \S+ \u00b7 \S/);
+    expect(ask(python, ["show", "shop/domain/"]).out).toContain(document.line);
+    expect(ask(python, ["show", "nowhere"]).code).toBe(2);
+  });
+
+  it("takes the zone from the structure sensor's distance_threshold", () => {
+    const config = (threshold: number) => ({
+      [`${ROOT}/.recognizer/config.yaml`]: `sensors:\n  structure:\n    distance_threshold: ${threshold}\n`,
+    });
+    const beyond = ask(python, ["show", "shop/domain", "--json"], config(0.3));
+    const within = ask(python, ["show", "shop/domain", "--json"], config(0.9));
+
+    expect(JSON.parse(beyond.out).line).toMatch(/ \u00b7 pain$/);
+    expect(JSON.parse(within.out).line).not.toMatch(/pain|useless/);
+    expect(ask(python, ["show", "shop/domain"], config(0.9)).out).toContain(
+      "Zone: main sequence",
+    );
+  });
+
   it("lists every member with --private", () => {
     const { out } = ask(python, ["show", order, "--private", "--json"]);
     const document = JSON.parse(out);

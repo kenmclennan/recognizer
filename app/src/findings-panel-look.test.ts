@@ -36,7 +36,7 @@ const violation = { id: "rule-violation:a", kind: "rule-violation", severity: "v
 const cycle = { id: "cycle:a,b", kind: "cycle", severity: "warning", principle: "no-cycles", summary: "cycle of 2 modules", fix_pattern: "break-cycle", evidence: { modules: [ids[0], ids[1]], edges: [{ from: ids[0], to: ids[1] }, { from: ids[1], to: ids[0] }] } };
 const style = { id: "style:c", kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers", evidence: { modules: [ids[2]] } };
 const doc = (name, findings, commit = "cur1234") => ({ findings_version: 1, sensor: { name, version: "1" }, commit, modified: false, settings: {}, findings });
-const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [] };
+const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
 const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n";
 const make = (picks) => JSON.stringify({ schema_version: 1, description: "d", commit: "cur1234", steps: picks.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
 

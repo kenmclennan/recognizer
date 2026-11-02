@@ -18,7 +18,7 @@ const scan = {
   ],
   foreign: [],
 };
-const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
+const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 30));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
