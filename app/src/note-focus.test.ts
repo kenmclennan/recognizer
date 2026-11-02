@@ -5,6 +5,7 @@ import {
   BUBBLE_EDGE,
   BUBBLE_GAP,
   bubblePlace,
+  bubbleSet,
   keepsFocus,
   notePathOf,
   noteRows,
@@ -186,5 +187,85 @@ describe("bubblePlace", () => {
 
   it("places on the right with no view", () => {
     expect(bubblePlace(box, mark, size).side).toBe("right");
+  });
+});
+
+describe("bubbleSet", () => {
+  const positions = new Map<string, Rect>([
+    ["b.py", rect(0, 100)],
+    ["a.py", rect(0, 0)],
+    ["pkg/", rect(0, 50)],
+  ]);
+
+  it("holds only the focused bubble while the toggle is off", () => {
+    const set = bubbleSet(
+      viewOf("a.py", "b.py"),
+      positions,
+      { path: "a.py", editing: false },
+      false,
+    );
+
+    expect(set).toEqual([
+      {
+        path: "a.py",
+        text: "t a.py",
+        by: "Ken",
+        editing: false,
+        focused: true,
+      },
+    ]);
+  });
+
+  it("holds nothing with no focus and the toggle off", () => {
+    expect(bubbleSet(viewOf("a.py"), positions, null, false)).toEqual([]);
+  });
+
+  it("holds every note on the canvas in canvas order when the toggle is on, read-only and unfocused", () => {
+    const set = bubbleSet(
+      viewOf("b.py", "pkg/", "a.py"),
+      positions,
+      null,
+      true,
+    );
+
+    expect(set.map((one) => one.path)).toEqual(["a.py", "pkg/", "b.py"]);
+    expect(set.every((one) => !one.focused && !one.editing)).toBe(true);
+  });
+
+  it("leaves out a note whose box is off the canvas", () => {
+    const set = bubbleSet(viewOf("a.py", "gone.py"), positions, null, true);
+
+    expect(set.map((one) => one.path)).toEqual(["a.py"]);
+  });
+
+  it("lists the focused bubble once, last, and keeps its editing flag", () => {
+    const set = bubbleSet(
+      viewOf("a.py", "b.py"),
+      positions,
+      { path: "a.py", editing: true },
+      true,
+    );
+
+    expect(set.map((one) => [one.path, one.focused, one.editing])).toEqual([
+      ["b.py", false, false],
+      ["a.py", true, true],
+    ]);
+  });
+
+  it("gives a focused box with no note an empty bubble ready to write", () => {
+    const set = bubbleSet(
+      viewOf("a.py"),
+      positions,
+      { path: "b.py", editing: true },
+      false,
+    );
+
+    expect(set).toEqual([
+      { path: "b.py", text: null, by: null, editing: true, focused: true },
+    ]);
+  });
+
+  it("holds nothing without a view", () => {
+    expect(bubbleSet(null, positions, null, true)).toEqual([]);
   });
 });

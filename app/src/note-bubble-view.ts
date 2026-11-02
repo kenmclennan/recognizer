@@ -6,9 +6,11 @@ export type NoteBubble = {
   text: string | null;
   by: string | null;
   editing: boolean;
+  focused: boolean;
 };
 
 export type NoteBubbleActions = {
+  focus: (path: string) => void;
   edit: (path: string) => void;
   cancel: (path: string) => void;
   save: (path: string, text: string) => void;
@@ -33,9 +35,20 @@ export function buildNoteBubbleView(
     element.addEventListener(type, (event) => event.stopPropagation());
   }
 
+  element.addEventListener("click", () => {
+    if (element.classList.contains("idle") && shown !== null) {
+      actions.focus(shown);
+    }
+  });
+
   function readMode(bubble: NoteBubble) {
     const text = el("div", "note-text", bubble.text ?? "");
     const by = el("div", "note-by", `by ${bubble.by ?? ""}`);
+
+    if (!bubble.focused) {
+      return [text, by];
+    }
+
     const row = el("div", "note-actions");
 
     text.addEventListener("click", () => actions.edit(bubble.path));
@@ -114,7 +127,7 @@ export function buildNoteBubbleView(
 
       shown = bubble.path;
       element.dataset.path = bubble.path;
-      element.className = `note-bubble ${place.side === "right" ? "right" : "left"}`;
+      element.className = `note-bubble ${place.side === "right" ? "right" : "left"}${bubble.focused ? "" : " idle"}`;
       element.style.left = `${place.left}px`;
       element.style.top = `${place.top}px`;
       element.style.setProperty("--tail-y", `${place.tailY}px`);

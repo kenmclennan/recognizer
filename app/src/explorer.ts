@@ -15,6 +15,7 @@ import {
   realTimer,
 } from "./agent-line";
 import { type Scheduler, timerScheduler } from "./bar-hover";
+import { boxTooltip, type TooltipLine } from "./box-tooltip";
 import { createBusyGate } from "./busy-gate";
 import {
   buildCanvasGraph,
@@ -74,6 +75,7 @@ import {
   startLayoutWorker,
 } from "./layout-source";
 import {
+  bubbleSet,
   keepsFocus as keepsNoteFocus,
   type NoteFocus,
   type NoteRow,
@@ -269,6 +271,7 @@ export function showExplorer(
   const authorName = views.author().catch(() => "Me");
   let author = "Me";
   let noteFocus: NoteFocus | null = null;
+  let notesShown = false;
   let canvasNotes: CanvasNotes | undefined;
   let canvasNotesKey = "";
   const allFindings = findingRows(health.documents);
@@ -364,6 +367,10 @@ export function showExplorer(
       },
       openInEditor: openSelectedInEditor,
       addNote: openBubbleForSelection,
+      toggleNotes() {
+        notesShown = !notesShown;
+        render();
+      },
       openNote(path) {
         if (noteFocus?.path === path) {
           noteFocus = null;
@@ -2196,34 +2203,40 @@ export function showExplorer(
     const focus = noteFocus;
     const held =
       view === null || focus === null ? null : noteAt(view, focus.path);
-    const bubble =
-      focus === null
-        ? null
-        : {
-            path: focus.path,
-            text: held?.text ?? null,
-            by: held?.by ?? null,
-            editing: focus.editing,
-          };
+    const bubbles = bubbleSet(view, positions, focus, notesShown);
     const marks = view === null ? new Set<string>() : notedPaths(view);
     const keys = {
       notesOpen: leftPanel === "notes",
       noteActive: held !== null,
       findingsOpen: leftPanel === "findings",
     };
-    const key = JSON.stringify([[...marks].sort(), focus, bubble, keys]);
+    const key = JSON.stringify([
+      [...marks].sort(),
+      focus,
+      bubbles,
+      notesShown,
+      keys,
+    ]);
 
     if (key !== canvasNotesKey || canvasNotes === undefined) {
       canvasNotesKey = key;
       canvasNotes = {
         marks,
         active: focus?.path ?? null,
-        bubble,
+        bubbles,
+        showAll: notesShown,
         keys,
       };
     }
 
     return canvasNotes;
+  }
+
+  function tooltipOf(id: string): TooltipLine[] {
+    const view = openViewValue();
+    const held = view === null ? null : noteAt(view, id);
+
+    return boxTooltip(responsibilityOf(id), held?.text ?? null);
   }
 
   function renderCanvas() {
@@ -2261,6 +2274,7 @@ export function showExplorer(
       notice: layoutNotice,
       busy: layoutBusy,
       notes,
+      tooltip: tooltipOf,
       orientation: syncOrientation(),
       ghosts: canvasGhosts,
     });

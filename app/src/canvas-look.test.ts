@@ -862,10 +862,17 @@ describe("the canvas, in a real browser", () => {
 
           expect(zoom.order.slice(0, 1)).toEqual(["−"]);
           expect(zoom.order[1]).toMatch(/^\d+%$/);
-          expect(zoom.order.slice(2)).toEqual(["+", "Fit", "Clear", "Legend"]);
+          expect(zoom.order.slice(2)).toEqual([
+            "+",
+            "Fit",
+            "Clear",
+            "Legend",
+            "Notes",
+          ]);
           expect(zoom.tags).toEqual([
             "button",
             "span",
+            "button",
             "button",
             "button",
             "button",

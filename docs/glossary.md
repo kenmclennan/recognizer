@@ -119,6 +119,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Note mark | The small outlined speech-bubble icon after a noted box's name or at a noted frame's corner; clicking it opens the bubble. |
 | Notes toggle | The canvas control beside Fit, Clear and Legend that shows every note on the view as a bubble at once. |
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
+| Notes toggle | The Notes button after Legend in the canvas controls; on, every note on the view is drawn as a bubble at once, each read-only until clicked, which focuses it; held per window. |
+| Box tooltip | The small dark text beneath a module box after a short delay on hover: its responsibility line and, when it has a note, the note's first sixty characters in the muted colour; folders have none. |
 | Scan panel | The left-column panel, behind the Scan rail icon, that shows the three phases of a scan, Extract, Describe and Sensors, with the ticks a repository remembers, and runs them on request. |
 | Phase | One of the three parts of a scan: extraction (when the files changed), describing (when ticked) and the registered sensors (when ticked). |
 | Findings panel | The left-column panel, behind the Findings rail icon, that lists every current finding grouped by severity and kind and focuses the selected one. |

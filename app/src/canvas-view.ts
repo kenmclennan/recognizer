@@ -1,4 +1,5 @@
 import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
+import type { TooltipLine } from "./box-tooltip";
 import {
   isEditable,
   type KeyAction,
@@ -13,7 +14,11 @@ import type { Ghost } from "./finding-focus";
 import { icon } from "./icons";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
-import { buildNoteBubbleView, type NoteBubble } from "./note-bubble-view";
+import {
+  buildNoteBubbleView,
+  type NoteBubble,
+  type NoteBubbleView,
+} from "./note-bubble-view";
 import { bubblePlace, bubbleSize } from "./note-focus";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
@@ -43,6 +48,7 @@ export type CanvasProps = {
   notice: string | null;
   busy?: boolean;
   notes?: CanvasNotes;
+  tooltip?: (id: string) => TooltipLine[] | null;
   orientation?: CanvasOrientation | null;
   ghosts?: Ghost[];
 };
@@ -55,7 +61,8 @@ export type CanvasOrientation = {
 export type CanvasNotes = {
   marks: ReadonlySet<string>;
   active: string | null;
-  bubble: NoteBubble | null;
+  bubbles: NoteBubble[];
+  showAll: boolean;
   keys: NoteKeyContext;
 };
 
@@ -72,6 +79,7 @@ export type CanvasActions = {
   openContents: () => void;
   openInEditor: () => void;
   addNote: () => void;
+  toggleNotes: () => void;
   openNote: (path: string) => void;
   editNote: (path: string) => void;
   cancelNote: (path: string) => void;
@@ -96,6 +104,7 @@ export const DRAG_THRESHOLD = 4;
 
 const SVG = "http://www.w3.org/2000/svg";
 const FIGURES_CLEAR = 30;
+const TIP_DELAY = 400;
 
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
@@ -218,12 +227,10 @@ export function buildCanvasView(
   const busy = spinner("Laying out");
   const addLayer = el("div", "add-layer");
   const noteLayer = el("div", "note-layer");
-  const noteBubble = buildNoteBubbleView({
-    edit: (path) => actions.editNote(path),
-    cancel: (path) => actions.cancelNote(path),
-    save: (path, text) => actions.saveNote(path, text),
-    remove: (path) => actions.removeNoteAt(path),
-  });
+  const bubbleViews = new Map<string, NoteBubbleView>();
+  const tip = el("div", "box-tip");
+  let tipTimer: ReturnType<typeof setTimeout> | null = null;
+  let tipFor: string | null = null;
 
   busy.classList.add("canvas-busy");
   busy.hidden = true;
@@ -273,6 +280,9 @@ export function buildCanvasView(
     legendOpen = !legendOpen;
     refreshChrome();
   });
+  const notesButton = button("Notes", "control notes-toggle", () =>
+    actions.toggleNotes(),
+  );
 
   empty.append(
     "Open a file from the tree to start.",
@@ -285,16 +295,26 @@ export function buildCanvasView(
   zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
   noteLayer.hidden = true;
+  tip.hidden = true;
   stage.append(
     surface,
     addLayer,
     noteLayer,
+    tip,
     empty,
     notice,
     busy,
     selectionBar.element,
   );
-  controls.append(zoomOut, level, zoomIn, fitButton, clearButton, legendButton);
+  controls.append(
+    zoomOut,
+    level,
+    zoomIn,
+    fitButton,
+    clearButton,
+    legendButton,
+    notesButton,
+  );
   element.append(stage, controls, legend.element);
 
   function size() {
@@ -428,6 +448,11 @@ export function buildCanvasView(
   function refreshChrome() {
     legend.render(legendOpen, props?.showInferred ?? true);
     legendButton.classList.toggle("on", legendOpen);
+    notesButton.classList.toggle("on", props?.notes?.showAll === true);
+    notesButton.setAttribute(
+      "aria-pressed",
+      String(props?.notes?.showAll === true),
+    );
   }
 
   function drawScene(scene: Scene) {
@@ -684,21 +709,52 @@ export function buildCanvasView(
     return frameMarkRect(box.rect);
   }
 
-  function drawBubble() {
-    const bubble = props?.notes?.bubble ?? null;
-    const scene = props?.scene ?? null;
-    const anchor =
-      bubble === null || scene === null
-        ? null
-        : bubbleAnchor(scene, bubble.path);
+  function bubbleViewFor(path: string): NoteBubbleView {
+    let one = bubbleViews.get(path);
 
-    noteLayer.hidden = bubble === null || anchor === null;
-
-    if (bubble === null || anchor === null) {
-      noteBubble.close();
-
-      return;
+    if (one === undefined) {
+      one = buildNoteBubbleView({
+        focus: (target) => actions.openNote(target),
+        edit: (target) => actions.editNote(target),
+        cancel: (target) => actions.cancelNote(target),
+        save: (target, text) => actions.saveNote(target, text),
+        remove: (target) => actions.removeNoteAt(target),
+      });
+      bubbleViews.set(path, one);
     }
+
+    return one;
+  }
+
+  function drawBubbles() {
+    const bubbles = props?.notes?.bubbles ?? [];
+    const scene = props?.scene ?? null;
+    const drawn = new Set<string>();
+
+    for (const bubble of bubbles) {
+      const anchor = scene === null ? null : bubbleAnchor(scene, bubble.path);
+
+      if (anchor !== null) {
+        drawBubble(bubble, anchor);
+        drawn.add(bubble.path);
+      }
+    }
+
+    for (const [path, one] of bubbleViews) {
+      if (!drawn.has(path)) {
+        one.close();
+        bubbleViews.delete(path);
+      }
+    }
+
+    noteLayer.hidden = drawn.size === 0;
+  }
+
+  function drawBubble(
+    bubble: NoteBubble,
+    anchor: { target: Rect; mark: Rect },
+  ) {
+    const noteBubble = bubbleViewFor(bubble.path);
 
     if (noteBubble.element.parentElement !== noteLayer) {
       noteLayer.append(noteBubble.element);
@@ -731,6 +787,56 @@ export function buildCanvasView(
         ),
       );
     }
+
+    noteBubble.element.style.zIndex = bubble.focused ? "2" : "1";
+  }
+
+  function hideTip() {
+    if (tipTimer !== null) {
+      clearTimeout(tipTimer);
+      tipTimer = null;
+    }
+
+    tipFor = null;
+    tip.hidden = true;
+  }
+
+  function showTip(id: string) {
+    const lines = props?.tooltip?.(id) ?? null;
+    const rect = rectOf(id);
+
+    if (lines === null || !rect) {
+      tip.hidden = true;
+
+      return;
+    }
+
+    tip.replaceChildren(
+      ...lines.map((line) => el("div", `tip-line ${line.tone}`, line.text)),
+    );
+    tip.style.left = `${viewport.x + rect.x * viewport.k}px`;
+    tip.style.top = `${viewport.y + (rect.y + rect.height) * viewport.k + 6}px`;
+    tip.hidden = false;
+  }
+
+  function hoverTip(over: { kind: string; id: string } | null) {
+    const id = over !== null && over.kind === "module" ? over.id : null;
+
+    if (id === tipFor) {
+      return;
+    }
+
+    hideTip();
+
+    if (id === null) {
+      return;
+    }
+
+    tipFor = id;
+    tipTimer = setTimeout(() => {
+      tipTimer = null;
+      showTip(id);
+    }, TIP_DELAY);
   }
 
   function applySelection() {
@@ -879,11 +985,16 @@ export function buildCanvasView(
     surface.setPointerCapture(event.pointerId);
   });
 
-  surface.addEventListener("pointerleave", () => hover.leave());
+  surface.addEventListener("pointerleave", () => {
+    hover.leave();
+    hoverTip(null);
+  });
 
   surface.addEventListener("pointermove", (event) => {
     const selection = props?.selection;
     const over = targetOf(event);
+
+    hoverTip(over);
 
     if (
       selection &&
@@ -909,6 +1020,7 @@ export function buildCanvasView(
     }
 
     if (drag.moved) {
+      hideTip();
       viewport = { ...viewport, x: drag.origin.x + dx, y: drag.origin.y + dy };
       applyViewport();
     }
@@ -1138,7 +1250,10 @@ export function buildCanvasView(
 
       shownSelection = selected;
       applySelection();
-      drawBubble();
+      drawBubbles();
+      if (tipFor !== null && !tip.hidden) {
+        showTip(tipFor);
+      }
       selectionBar.render(next.bar);
       refreshChrome();
       applyViewport();

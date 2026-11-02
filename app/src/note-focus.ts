@@ -79,6 +79,57 @@ export function noteRows(
   return [...on, ...off];
 }
 
+export type BubbleModel = {
+  path: string;
+  text: string | null;
+  by: string | null;
+  editing: boolean;
+  focused: boolean;
+};
+
+export function bubbleSet(
+  view: View | null,
+  positions: ReadonlyMap<string, Rect>,
+  focus: NoteFocus | null,
+  showAll: boolean,
+): BubbleModel[] {
+  const held = (path: string) =>
+    view === null
+      ? null
+      : (viewNotes(view).find((note) => note.module === path) ?? null);
+  const bubbles: BubbleModel[] = [];
+
+  if (showAll && view !== null) {
+    for (const note of noteRows(view, positions, null)) {
+      if (note.off || note.path === focus?.path) {
+        continue;
+      }
+
+      bubbles.push({
+        path: note.path,
+        text: note.text,
+        by: note.by,
+        editing: false,
+        focused: false,
+      });
+    }
+  }
+
+  if (focus !== null) {
+    const note = held(focus.path);
+
+    bubbles.push({
+      path: focus.path,
+      text: note?.text ?? null,
+      by: note?.by ?? null,
+      editing: focus.editing,
+      focused: true,
+    });
+  }
+
+  return bubbles;
+}
+
 export function walkNotes(
   rows: readonly NoteRow[],
   active: string | null,
