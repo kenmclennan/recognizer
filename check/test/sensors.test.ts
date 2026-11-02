@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
@@ -61,6 +67,7 @@ function setup(yaml: string | null, options: FakeOptions = {}): Fake {
   return fakeIo({
     commit: COMMIT,
     ...options,
+    scanners: { [PYTHON]: {}, ...options.scanners },
     files: {
       [`${ROOT}/shop/a.py`]: "",
       [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(),
@@ -83,13 +90,33 @@ function check(fake: Fake, ...argv: string[]) {
   return { code, out: fake.out(), err: fake.err() };
 }
 
-function sense(fake: Fake, ...argv: string[]) {
-  const code = run(["sense", "--repository", ROOT, ...argv], fake.io);
+function sense(fake: Fake, names = "all", ...argv: string[]) {
+  const code = run(["scan", ROOT, "--sense", names, ...argv], fake.io);
 
   return { code, out: fake.out(), err: fake.err() };
 }
 
-describe("sense running a registered sensor", () => {
+function senseReport(out: string) {
+  const events = out
+    .split("\n")
+    .filter((line) => line.startsWith("{"))
+    .map((line) => JSON.parse(line));
+  const summary = events.find((one) => one.event === "summary");
+
+  return {
+    commit: summary.commit,
+    modified: summary.modified,
+    sensors: events
+      .filter((one) => one.event === "entry" && one.phase === "sense")
+      .map((one) => ({
+        name: one.name,
+        status: one.outcome === "ok" ? "ran" : "failed",
+        reason: one.reason,
+      })),
+  };
+}
+
+describe("scan --sense running a registered sensor", () => {
   it("writes the sensor's findings file and check then puts its violation through the baseline", () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
@@ -97,7 +124,10 @@ describe("sense running a registered sensor", () => {
 
     const sensed = sense(fake);
 
-    expect(sensed).toMatchObject({ code: 0, out: "ran fake-sensor\n" });
+    expect(sensed.code).toBe(0);
+    expect(sensed.out).toBe(
+      "extract\nscans current at abc123\nsense\nran fake-sensor\n",
+    );
     expect(fake.files.has(FAKE)).toBe(true);
 
     const { code, out } = check(fake, "--json");
@@ -124,7 +154,7 @@ describe("sense running a registered sensor", () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
-    const report = JSON.parse(sense(fake, "--json").out);
+    const report = senseReport(sense(fake, "all", "--json").out);
 
     expect(report).toMatchObject({
       commit: COMMIT,
@@ -185,12 +215,12 @@ describe("sense running a registered sensor", () => {
         programs: { "fake-sensor": program },
         files: { [FAKE]: fakeDocument() },
       });
-      const { code, err, out } = sense(fake, "--json");
+      const { code, err, out } = sense(fake, "all", "--json");
 
       expect(code).toBe(1);
       expect(err).toContain("failed fake-sensor:");
       expect(fake.files.has(FAKE)).toBe(false);
-      expect(JSON.parse(out).sensors[0]).toMatchObject({
+      expect(senseReport(out).sensors[0]).toMatchObject({
         name: "fake-sensor",
         status: "failed",
       });
@@ -503,7 +533,7 @@ describe("show and modules read the findings files", () => {
 
     expect(
       fake.writes.filter((path) => path.endsWith("structure.json.tmp")).length,
-    ).toBe(2);
+    ).toBe(4);
   });
 
   it("does not write under --hub-threshold", () => {
@@ -606,7 +636,7 @@ describe("a findings file for a sensor no longer registered", () => {
   });
 });
 
-describe("sense leaves a running record while it works", () => {
+describe("scan --sense leaves a running record while it works", () => {
   const TWO =
     'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';
   const LOG = `${ROOT}/.recognizer/cache/log`;
@@ -641,7 +671,7 @@ describe("sense leaves a running record while it works", () => {
       },
     });
 
-    expect(run(["sense", "--repository", ROOT], fake.io)).not.toBe(0);
+    expect(run(["scan", ROOT, "--sense", "all"], fake.io)).not.toBe(0);
     expect(fake.err()).toContain("killed");
 
     expect(snapshot).toHaveLength(1);
@@ -650,13 +680,17 @@ describe("sense leaves a running record while it works", () => {
 
     expect(saved(fake)).toHaveLength(1);
     expect(record).toMatchObject({
-      kind: "sense",
+      kind: "scan",
       outcome: "running",
       finished: null,
     });
-    expect(record.entries.map((one: { name: string }) => one.name)).toEqual([
-      "first",
+    expect(record.phases.map((one: { phase: string }) => one.phase)).toEqual([
+      "extract",
+      "sense",
     ]);
+    expect(
+      record.phases[1].entries.map((one: { name: string }) => one.name),
+    ).toEqual(["first"]);
 
     const listed = run(["log", "--repository", ROOT], fake.io);
 
@@ -678,14 +712,14 @@ describe("sense leaves a running record while it works", () => {
       },
     });
 
-    run(["sense", "--repository", ROOT], fake.io);
+    run(["scan", ROOT, "--sense", "all"], fake.io);
 
-    expect(atStart).toMatchObject([{ outcome: "running", entries: [] }]);
+    expect(atStart).toMatchObject([{ outcome: "running", phases: [] }]);
     expect(saved(fake)).toMatchObject([{ outcome: "failed" }]);
   });
 });
 
-describe("sense running a registered sensor as a real process", () => {
+describe("scan --sense running a registered sensor as a real process", () => {
   it("writes the sensor's findings file with the commit it was given", () => {
     const root = makeTempDir("recognizer-sensor-");
 
@@ -713,8 +747,22 @@ describe("sense running a registered sensor as a real process", () => {
     );
 
     const sensed = capture();
+    const versionProbe = join(makeTempDir("recognizer-scanner-"), "python.sh");
+    const saved = process.env.RECOGNIZER_SCAN_PYTHON;
 
-    expect(run(["sense", "--repository", root], sensed.io)).toBe(0);
+    writeFileSync(versionProbe, "#!/bin/sh\necho 0.0.0\n");
+    chmodSync(versionProbe, 0o755);
+    process.env.RECOGNIZER_SCAN_PYTHON = versionProbe;
+
+    try {
+      expect(run(["scan", root, "--sense", "all"], sensed.io)).toBe(0);
+    } finally {
+      if (saved === undefined) {
+        delete process.env.RECOGNIZER_SCAN_PYTHON;
+      } else {
+        process.env.RECOGNIZER_SCAN_PYTHON = saved;
+      }
+    }
 
     const out = capture();
     const code = run(["check", "--repository", root, "--json"], out.io);

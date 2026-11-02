@@ -105,6 +105,7 @@ export interface Scan {
 }
 
 export interface RecordedScan extends Scan {
+  scanner: { name: string; version: string };
   commit: string | null;
   modified: boolean | null;
   files: { path: string; hash: string }[];

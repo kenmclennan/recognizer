@@ -1,16 +1,40 @@
 import { join, relative, resolve } from "node:path";
-import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
+import { readConfig } from "./config.js";
+import { registeredSensors } from "./config-parse.js";
+import {
+  describeModules,
+  describeSummaryText,
+  readResponsibilities,
+} from "./describe-modules.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
+import { findingsFile } from "./findings-files.js";
+import { readPolicy } from "./load-findings.js";
 import {
-  buildRecord,
   entryFrom,
+  openPhasedRunLog,
   type RunEntry,
-  recordRun,
+  type RunPhase,
   requireBy,
 } from "./run-log.js";
-import { SCAN_SCHEMA_VERSION, validateScan } from "./scan.js";
+import { runSensors } from "./run-sensors.js";
+import {
+  type RecordedScan,
+  SCAN_SCHEMA_VERSION,
+  type Scan,
+  validateScan,
+} from "./scan.js";
+import {
+  type EventEntry,
+  entryLine,
+  extractionNeeded,
+  extractionPrecheck,
+  parseScanArgs,
+  phaseLine,
+  selectSensors,
+  summaryLine,
+} from "./scan-phases.js";
 import {
   buildArgs,
   notInstalledMessage,
@@ -18,6 +42,8 @@ import {
   SCANNERS,
   scannerFor,
 } from "./scanners.js";
+import { runStructureSensor } from "./structure-run.js";
+import { resolveStructureSettings } from "./structure-sensor.js";
 
 type FailureReason =
   | "not-installed"
@@ -25,21 +51,6 @@ type FailureReason =
   | "scanner-failed"
   | "invalid-scan"
   | "unknown-schema-version";
-
-type LanguageResult =
-  | {
-      language: Language;
-      status: "written";
-      modules: number;
-      edges: number;
-      file: string;
-    }
-  | {
-      language: Language;
-      status: "failed";
-      reason: FailureReason;
-      message: string;
-    };
 
 type Outcome =
   | { ok: true; bytes: string; modules: number; edges: number }
@@ -192,23 +203,87 @@ function removeIfPresent(io: Io, path: string, removed: string[]): void {
   }
 }
 
-export function runScan(argv: string[], io: Io): number {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    strict: true,
-    options: { json: { type: "boolean" }, by: { type: "string" } },
-  });
+export function readCachedScan(
+  io: Io,
+  root: string,
+  language: Language,
+): RecordedScan | null {
+  try {
+    return validateScan(
+      JSON.parse(io.readFile(cacheFile(root, language))),
+    ) as RecordedScan;
+  } catch {
+    return null;
+  }
+}
 
-  if (positionals.length > 1) {
-    throw new InputError(["usage: recognizer scan [REPOSITORY] [--json]"]);
+function installedVersion(io: Io, language: Language): string | null {
+  const resolution = resolveCommand(io, scannerFor(language));
+
+  if (!resolution.ok) {
+    return null;
   }
 
-  requireBy(values.by);
+  const result = io.run(resolution.command, ["--version"]);
+
+  return result.started && result.status === 0 ? result.stdout.trim() : null;
+}
+
+function decideExtraction(
+  io: Io,
+  root: string,
+  detected: Language[],
+  force: boolean,
+  commit: string | null,
+  dirty: boolean,
+) {
+  const languages = detected.map((language) => {
+    const cached = readCachedScan(io, root, language);
+
+    return {
+      language,
+      cachedScan:
+        cached === null
+          ? null
+          : {
+              commit: cached.commit,
+              modified: cached.modified !== false,
+              scannerVersion: cached.scanner.version,
+            },
+    };
+  });
+  const early = extractionPrecheck({ force, commit, dirty, languages });
+
+  if (early !== null) {
+    return early;
+  }
+
+  return extractionNeeded({
+    force,
+    commit,
+    dirty,
+    languages: languages.map((one) => ({
+      ...one,
+      installedVersion: installedVersion(io, one.language),
+    })),
+  });
+}
+
+function eventEntry(entry: RunEntry): EventEntry {
+  return {
+    name: entry.name,
+    outcome: entry.outcome,
+    ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+  };
+}
+
+export function runScan(argv: string[], io: Io): number {
+  const options = parseScanArgs(argv);
+
+  requireBy(options.by);
 
   const startedAt = io.now();
-
-  const root = resolve(positionals[0] ?? ".");
+  const root = resolve(options.positionals[0] ?? ".");
 
   try {
     io.readDir(root);
@@ -216,17 +291,100 @@ export function runScan(argv: string[], io: Io): number {
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
-  const detected = detectLanguages(io, root);
-  const removed: string[] = [];
-  const results: LanguageResult[] = [];
-  const stderr: string[] = [];
-  const stdout: string[] = [];
-  const entries: RunEntry[] = [];
+  const wantsConfig = options.describe !== false || options.sense !== null;
+  const config = wantsConfig ? readConfig(io, root) : null;
+  const describer = config?.describer;
+
+  if (options.describe !== false) {
+    if (describer === undefined) {
+      throw new InputError([
+        "no describer is registered: add one to .recognizer/config.yaml",
+      ]);
+    }
+
+    readResponsibilities(io, root);
+  }
+
+  const selected =
+    options.sense === null
+      ? []
+      : selectSensors(registeredSensors(config), options.sense);
   const commit = resolveCommit(io, root);
+
+  if (options.sense !== null && commit === null) {
+    throw new InputError(["not a git repository, or no commit"]);
+  }
+
   const modified = commit === null ? null : isDirty(io, root);
+  const detected = detectLanguages(io, root);
+  const json = options.json;
+  const removed: string[] = [];
+  const phases: RunPhase[] = [];
+  const summary = new Map<RunPhase["phase"], EventEntry[]>();
+  const runLog =
+    detected.length > 0 || wantsConfig
+      ? openPhasedRunLog(io, root, startedAt, options.by, argv)
+      : null;
+  let failed = false;
+
+  const startPhase = (phase: RunPhase["phase"]): RunPhase => {
+    const one: RunPhase = { phase, entries: [] };
+
+    phases.push(one);
+    summary.set(phase, []);
+
+    if (!json) {
+      io.stdout(`${phase}\n`);
+    }
+
+    return one;
+  };
+
+  const finishEntry = (
+    phase: RunPhase,
+    entry: RunEntry,
+    extra: Partial<EventEntry> = {},
+  ) => {
+    const shown = { ...eventEntry(entry), ...extra };
+
+    phase.entries.push(entry);
+    summary.get(phase.phase)?.push(shown);
+    runLog?.update(phases);
+
+    if (json) {
+      io.stdout(entryLine(phase.phase, shown));
+    }
+
+    if (entry.outcome === "failed") {
+      failed = true;
+    }
+  };
 
   if (detected.length === 0) {
-    stderr.push("no languages detected");
+    io.stderr("no languages detected\n");
+  }
+
+  const decision = decideExtraction(
+    io,
+    root,
+    detected,
+    options.extract,
+    commit,
+    modified === true,
+  );
+  const extract = startPhase("extract");
+
+  if (json) {
+    io.stdout(
+      phaseLine(
+        "extract",
+        decision.run
+          ? { state: "run", commit, reason: decision.reason }
+          : { state: "current", commit: decision.commit },
+      ),
+    );
+  } else if (!decision.run) {
+    io.stdout(`scans current at ${decision.commit}\n`);
   }
 
   for (const spec of SCANNERS) {
@@ -239,81 +397,179 @@ export function runScan(argv: string[], io: Io): number {
       removeIfPresent(io, file, removed);
 
       if (removed.length > before) {
-        stderr.push(`${spec.language}: removed stale ${shown}`);
+        io.stderr(`${spec.language}: removed stale ${shown}\n`);
       }
 
       continue;
     }
 
+    if (!decision.run) {
+      continue;
+    }
+
     const scanned = runScanner(io, spec.language, root, commit, modified);
     const { outcome } = scanned;
-
-    entries.push(
-      entryFrom(spec.language, {
-        command: scanned.command,
-        status: scanned.status,
-        stderr: scanned.stderr,
-        duration_ms: scanned.duration_ms,
-        ...(outcome.ok
-          ? {}
-          : { reason: `${outcome.reason} - ${outcome.message}` }),
-      }),
-    );
+    const entry = entryFrom(spec.language, {
+      command: scanned.command,
+      status: scanned.status,
+      stderr: scanned.stderr,
+      duration_ms: scanned.duration_ms,
+      ...(outcome.ok
+        ? {}
+        : { reason: `${outcome.reason} - ${outcome.message}` }),
+    });
 
     if (outcome.ok) {
       io.writeFile(file, outcome.bytes);
-      results.push({
-        language: spec.language,
-        status: "written",
+
+      if (!json) {
+        io.stdout(
+          `${spec.language}: ${outcome.modules} modules, ${outcome.edges} edges -> ${shown}\n`,
+        );
+      }
+
+      finishEntry(extract, entry, {
         modules: outcome.modules,
         edges: outcome.edges,
-        file,
       });
-      stdout.push(
-        `${spec.language}: ${outcome.modules} modules, ${outcome.edges} edges -> ${shown}`,
-      );
 
       continue;
     }
 
-    results.push({
-      language: spec.language,
-      status: "failed",
-      reason: outcome.reason,
-      message: outcome.message,
-    });
-    stderr.push(`${spec.language}: ${outcome.reason} - ${outcome.message}`);
+    io.stderr(`${spec.language}: ${outcome.reason} - ${outcome.message}\n`);
 
     const before = removed.length;
 
     removeIfPresent(io, file, removed);
 
     if (removed.length > before) {
-      stderr.push(`${spec.language}: removed stale ${shown}`);
+      io.stderr(`${spec.language}: removed stale ${shown}\n`);
     }
+
+    finishEntry(extract, entry);
   }
 
-  if (entries.length > 0) {
-    recordRun(
+  const scans = detected
+    .map((language) => readCachedScan(io, root, language))
+    .filter((scan): scan is RecordedScan => scan !== null);
+
+  if (runStructure(io, root, scans)) {
+    failed = true;
+  }
+
+  if (describer !== undefined && options.describe !== false) {
+    const phase = startPhase("describe");
+
+    for (const language of detected) {
+      if (readCachedScan(io, root, language) === null) {
+        io.stderr(`skipped: no scan for ${language}\n`);
+      }
+    }
+
+    const result = describeModules({
       io,
       root,
-      buildRecord(io, "scan", startedAt, values.by, argv, entries),
-    );
-  }
+      scans,
+      describer,
+      selection: { kind: options.describe === "all" ? "all" : "stale" },
+      onStart: (total) => {
+        if (json) {
+          io.stdout(phaseLine("describe", { total }));
+        }
+      },
+      onEntry: (entry) => {
+        finishEntry(phase, entry);
 
-  for (const line of stderr) {
-    io.stderr(`${line}\n`);
-  }
+        if (!json && entry.outcome === "ok") {
+          io.stdout(`described ${entry.name}\n`);
+        }
+      },
+    });
 
-  if (values.json) {
-    io.stdout(
-      `${JSON.stringify({ repository: root, commit, languages: results, removed }, null, 2)}\n`,
-    );
-  } else {
-    for (const line of stdout) {
-      io.stdout(`${line}\n`);
+    if (!json) {
+      io.stdout(describeSummaryText(result));
     }
   }
 
-  return results.some((result) => result.status === "failed") ? 1 : 0;
+  if (options.sense !== null && commit !== null) {
+    const phase = startPhase("sense");
+
+    if (json) {
+      io.stdout(phaseLine("sense", { total: selected.length }));
+    }
+
+    runSensors({
+      io,
+      root,
+      selected,
+      commit,
+      onEntry: (entry) => {
+        finishEntry(phase, entry);
+
+        if (!json) {
+          io.stdout(
+            `${entry.outcome === "ok" ? "ran" : "failed"} ${entry.name}\n`,
+          );
+        }
+      },
+    });
+  }
+
+  runLog?.finish(phases);
+
+  const exit = failed ? 1 : 0;
+
+  if (json) {
+    io.stdout(
+      summaryLine({
+        repository: root,
+        commit,
+        modified,
+        exit,
+        phases: phases.map((one) => ({
+          phase: one.phase,
+          entries: summary.get(one.phase) ?? [],
+        })),
+        removed,
+      }),
+    );
+  }
+
+  return exit;
+}
+
+function runStructure(io: Io, root: string, scans: Scan[]): boolean {
+  if (scans.length === 0) {
+    return false;
+  }
+
+  try {
+    const settings = resolveStructureSettings(readConfig(io, root));
+
+    if (settings === "off") {
+      io.remove(findingsFile(root, "structure"));
+
+      return false;
+    }
+
+    const run = runStructureSensor(
+      io,
+      root,
+      scans,
+      readPolicy(io, root),
+      settings,
+    );
+
+    if (run.error !== null) {
+      io.stderr(`failed structure: ${run.error}\n`);
+
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    io.stderr(`failed structure: ${(error as Error).message}\n`);
+
+    return true;
+  }
 }

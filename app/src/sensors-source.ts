@@ -28,7 +28,7 @@ function runResult(report: SenseReport): SensorsRunResult {
         status: "failed",
         reason:
           report.stderr.trim() === ""
-            ? `recognizer sense exited ${report.exitCode}`
+            ? `recognizer scan exited ${report.exitCode}`
             : report.stderr.trim(),
       };
   }

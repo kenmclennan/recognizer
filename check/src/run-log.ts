@@ -16,6 +16,13 @@ export interface RunEntry {
   stderr_truncated?: true;
 }
 
+export type PhaseName = "extract" | "describe" | "sense";
+
+export interface RunPhase {
+  phase: PhaseName;
+  entries: RunEntry[];
+}
+
 export interface RunRecord {
   log_version: 1;
   kind: RunKind;
@@ -25,7 +32,14 @@ export interface RunRecord {
   arguments: string[];
   outcome: "ok" | "failed" | "running";
   exit: 0 | 1;
-  entries: RunEntry[];
+  entries?: RunEntry[];
+  phases?: RunPhase[];
+}
+
+export function entriesOf(record: RunRecord): RunEntry[] {
+  return (
+    record.phases?.flatMap((phase) => phase.entries) ?? record.entries ?? []
+  );
 }
 
 export interface RunSummary {
@@ -133,6 +147,31 @@ export function buildRecord(
   };
 }
 
+export function buildPhasedRecord(
+  io: Io,
+  startedAt: number,
+  by: string | undefined,
+  argv: string[],
+  phases: RunPhase[],
+  running: boolean,
+): RunRecord {
+  const failed = phases.some((phase) =>
+    phase.entries.some((entry) => entry.outcome === "failed"),
+  );
+
+  return {
+    log_version: 1,
+    kind: "scan",
+    started: new Date(startedAt).toISOString(),
+    finished: running ? null : new Date(io.now()).toISOString(),
+    by: asker(io, by),
+    arguments: argv,
+    outcome: running ? "running" : failed ? "failed" : "ok",
+    exit: running ? 0 : failed ? 1 : 0,
+    phases,
+  };
+}
+
 export function buildRunningRecord(
   io: Io,
   kind: RunKind,
@@ -224,18 +263,16 @@ export interface OpenRunLog {
   finish(entries: RunEntry[]): void;
 }
 
-export function openRunLog(
-  io: Io,
-  root: string,
-  kind: RunKind,
-  startedAt: number,
-  by: string | undefined,
-  argv: string[],
-): OpenRunLog {
+export interface OpenPhasedRunLog {
+  update(phases: RunPhase[]): void;
+  finish(phases: RunPhase[]): void;
+}
+
+function openWriter(io: Io, root: string): (record: RunRecord) => void {
   let file: string | null = null;
   let reported = false;
 
-  const write = (record: RunRecord) => {
+  return (record) => {
     try {
       if (file === null) {
         file = placeRunLog(io, root, record);
@@ -249,6 +286,40 @@ export function openRunLog(
       }
     }
   };
+}
+
+export function openPhasedRunLog(
+  io: Io,
+  root: string,
+  startedAt: number,
+  by: string | undefined,
+  argv: string[],
+): OpenPhasedRunLog {
+  const write = openWriter(io, root);
+  const snapshot = (phases: RunPhase[]): RunPhase[] =>
+    phases.map((one) => ({ phase: one.phase, entries: [...one.entries] }));
+
+  write(buildPhasedRecord(io, startedAt, by, argv, [], true));
+
+  return {
+    update: (phases) =>
+      write(buildPhasedRecord(io, startedAt, by, argv, snapshot(phases), true)),
+    finish: (phases) =>
+      write(
+        buildPhasedRecord(io, startedAt, by, argv, snapshot(phases), false),
+      ),
+  };
+}
+
+export function openRunLog(
+  io: Io,
+  root: string,
+  kind: RunKind,
+  startedAt: number,
+  by: string | undefined,
+  argv: string[],
+): OpenRunLog {
+  const write = openWriter(io, root);
 
   write(buildRunningRecord(io, kind, startedAt, by, argv, []));
 
@@ -276,8 +347,9 @@ function summarise(id: string, record: RunRecord): RunSummary {
     finished: record.finished,
     by: record.by,
     outcome: record.outcome,
-    entries: record.entries.length,
-    failed: record.entries.filter((entry) => entry.outcome === "failed").length,
+    entries: entriesOf(record).length,
+    failed: entriesOf(record).filter((entry) => entry.outcome === "failed")
+      .length,
   };
 }
 

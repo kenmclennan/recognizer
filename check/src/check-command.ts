@@ -15,17 +15,14 @@ import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
-import {
-  findingsFile,
-  readFindingsFiles,
-  writeFindings,
-} from "./findings-files.js";
+import { findingsFile, readFindingsFiles } from "./findings-files.js";
 import { freshScans } from "./freshness.js";
 import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import type { Violation } from "./rules.js";
 import { type Scan, validateScan } from "./scan.js";
+import { runStructureSensor } from "./structure-run.js";
 import {
   DEFAULT_HUB_THRESHOLD,
   describeSettings,
@@ -482,7 +479,7 @@ function gather(
   override: number | undefined,
 ): Gathered {
   const config = readConfig(io, root);
-  const { commit, modified } = scansCommit(scans);
+  const { commit } = scansCommit(scans);
   const sensors: SensorStatus[] = [];
   const documents: FindingsDocument[] = [];
   const resolved = resolveStructureSettings(config, override);
@@ -500,25 +497,21 @@ function gather(
     io.remove(findingsFile(root, "structure"));
     sensors.push({ name: "structure", status: "off" });
   } else {
-    const sensed = structureSensor(scans, policy, resolved, {
-      commit: commit ?? "",
-      modified,
-    });
+    const run = runStructureSensor(io, root, scans, policy, resolved);
+    const { sensed } = run;
 
     metrics = sensed.metrics;
     unranked = sensed.unranked;
 
-    try {
+    if (run.error !== null) {
+      fail("structure", run.error);
+    } else {
       if (commit === null) {
         documents.push(sensed.document);
-      } else {
-        writeFindings(io, root, sensed.document);
       }
 
       thresholds = { hub: resolved.hub_threshold };
       sensors.push({ name: "structure", status: "ran", settings: resolved });
-    } catch (error) {
-      fail("structure", (error as Error).message);
     }
   }
 

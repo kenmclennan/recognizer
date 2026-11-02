@@ -1,0 +1,12 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-02T09:00:00.000Z",
+  "finished": "2026-11-02T09:00:09.500Z",
+  "by": "ken",
+  "arguments": [
+    "/work/shop"
+  ],
+  "outcome": "ok",
+  "exit": 0
+}

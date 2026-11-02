@@ -1,4 +1,4 @@
-import { cpSync, writeFileSync } from "node:fs";
+import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
@@ -62,12 +62,18 @@ describe("scan leaves a run record", () => {
     expect(file).toMatch(/\/\d{8}T\d{9}Z-scan\.json$/);
     expect(saved.by).toBe("ken");
     expect(saved.outcome).toBe("failed");
-    expect(saved.entries.map((one: { name: string }) => one.name)).toEqual([
+    expect(saved.entries).toBeUndefined();
+    expect(saved.phases).toHaveLength(1);
+    expect(saved.phases[0].phase).toBe("extract");
+
+    const extract = saved.phases[0].entries;
+
+    expect(extract.map((one: { name: string }) => one.name)).toEqual([
       "python",
       "typescript",
     ]);
-    expect(saved.entries[0]).toMatchObject({ status: 0, outcome: "ok" });
-    expect(saved.entries[1]).toMatchObject({
+    expect(extract[0]).toMatchObject({ status: 0, outcome: "ok" });
+    expect(extract[1]).toMatchObject({
       status: 3,
       outcome: "failed",
       stderr: "boom",
@@ -175,6 +181,38 @@ describe("recognizer log", () => {
     expect(log(fake, id).out).toBe(last.out);
   });
 
+  it("prints one heading per phase for a phased record and none for a legacy one", () => {
+    const fake = fakeIo({
+      files: { [`${ROOT}/a.py`]: "" },
+      scanners: { [PYTHON]: { output: scanJson(2, 1) } },
+    });
+
+    run(["scan", ROOT], fake.io);
+
+    const phased = log(fake, "--last").out;
+
+    expect(phased).toMatch(/^extract$/m);
+    expect(phased).toContain("python  ok  exit 0");
+    expect(phased).not.toMatch(/^describe$/m);
+
+    const legacy = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/log-examples/valid/scan-ok.json"),
+        "utf8",
+      ),
+    );
+
+    fake.files.set(
+      `${DIRECTORY}/20990101T000000000Z-scan.json`,
+      JSON.stringify(legacy),
+    );
+
+    const flat = log(fake, "20990101T000000000Z-scan").out;
+
+    expect(flat).toContain("python  ok  exit 0");
+    expect(flat).not.toMatch(/^extract$/m);
+  });
+
   it("prints json for the list, --last and an id", () => {
     const fake = twoRuns();
     const listed = JSON.parse(log(fake, "--json").out);
@@ -189,7 +227,7 @@ describe("recognizer log", () => {
     });
     expect(last.id).toBe(listed.runs[0].id);
     expect(one.id).toBe(listed.runs[1].id);
-    expect(last.entries).toHaveLength(2);
+    expect(last.phases[0].entries).toHaveLength(2);
   });
 
   it("filters by kind", () => {
@@ -297,7 +335,7 @@ describe("sense and measure", () => {
         },
       },
     });
-    const code = run(["sense", "--repository", ROOT, ...args], fake.io);
+    const code = run(["scan", ROOT, "--sense", ...args], fake.io);
 
     return { fake, code };
   }
@@ -314,10 +352,17 @@ describe("sense and measure", () => {
     );
 
     expect(code).toBe(1);
-    expect(saved.kind).toBe("sense");
+    expect(saved.kind).toBe("scan");
     expect(saved.by).toBe("Claude");
-    expect(saved.entries).toHaveLength(1);
-    expect(saved.entries[0]).toMatchObject({
+    expect(saved.phases.map((one: { phase: string }) => one.phase)).toEqual([
+      "extract",
+      "sense",
+    ]);
+
+    const sensed = saved.phases[1].entries;
+
+    expect(sensed).toHaveLength(1);
+    expect(sensed[0]).toMatchObject({
       name: "fake-sensor",
       status: 0,
       outcome: "failed",
@@ -327,19 +372,18 @@ describe("sense and measure", () => {
         `${ROOT}/.recognizer/cache/findings/fake-sensor.json`,
       ],
     });
-    expect(saved.entries[0].reason).toContain("findings commit zzz");
+    expect(sensed[0].reason).toContain("findings commit zzz");
   });
 
-  it("selects names after -- and records one entry per sensor", () => {
-    const { fake } = sensing(document(), "--json", "--", "other");
+  it("selects the named sensors and records one entry per sensor", () => {
+    const { fake } = sensing(document(), "other", "--json");
     const saved = JSON.parse(
       fake.files.get(records(fake)[0] as string) as string,
     );
+    const sensed = saved.phases[1].entries;
 
-    expect(saved.entries.map((one: { name: string }) => one.name)).toEqual([
-      "other",
-    ]);
-    expect(saved.entries[0].stderr).toBe("chatty");
+    expect(sensed.map((one: { name: string }) => one.name)).toEqual(["other"]);
+    expect(sensed[0].stderr).toBe("chatty");
   });
 
   it("writes nothing on bad input", () => {

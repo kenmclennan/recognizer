@@ -71,7 +71,6 @@ describe("command table", () => {
       "window",
       "describe",
       "measure",
-      "sense",
       "log",
       "agents",
       "help",

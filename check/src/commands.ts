@@ -14,7 +14,6 @@ import {
 } from "./question-commands.js";
 import { runFind, runModules, runShow } from "./read-commands.js";
 import { runScan } from "./scan-command.js";
-import { runSense } from "./sense-command.js";
 import { runViews } from "./views-command.js";
 import { runWindow, runWindows } from "./window-commands.js";
 
@@ -106,7 +105,7 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs the structure sensor, writes its findings file in .recognizer/cache/findings/ and reads every current findings file there; it never runs a registered sensor, so run `recognizer sense` first when their findings should count",
+      text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs the structure sensor, writes its findings file in .recognizer/cache/findings/ and reads every current findings file there; it never runs a registered sensor, so run `recognizer scan --sense all` first when their findings should count",
       json: "the report document: violations, new, fixed, unranked, baseline, thresholds, warnings and metrics, and in repository mode a sensors list of { name, status, reason?, settings? } where a registered sensor is ran only when its file is current, else stale or missing; always JSON on stdout with --scan, and with --json in repository mode",
     },
     exitCodes: [
@@ -137,8 +136,10 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "scan",
-    summary: "scan a repository's languages into its cache",
-    usage: "recognizer scan [REPOSITORY] [--by <name>] [--json]",
+    summary:
+      "scan a repository in up to three phases: extract when the files changed, describe, sense",
+    usage:
+      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--by <name>] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -147,29 +148,59 @@ export const COMMANDS: Command[] = [
       },
     ],
     options: [
-      { flag: "--json", description: "print one JSON document" },
+      {
+        flag: "--extract",
+        description:
+          "extract even when the cached scans are current for the commit, the tree and the scanner versions",
+      },
+      {
+        flag: "--describe[=all]",
+        description:
+          "describe every module whose line is missing or out of date, as recognizer describe does with no names; =all describes every module (the value only with =)",
+      },
+      {
+        flag: "--sense <all|name[,name...]>",
+        description:
+          "run every registered sensor, or the named ones, in config order",
+      },
       {
         flag: "--by <name>",
         description:
           "who asked, recorded in the run log; defaults to the login user",
       },
+      {
+        flag: "--json",
+        description: "print one JSON line per event instead of text",
+      },
     ],
     output: {
-      text: "one line per written language on stdout; failures on stderr",
-      json: "one document on stdout with repository, commit, languages and removed",
+      text: "a heading line per phase (extract, describe, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
+      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed)",
     },
     exitCodes: [
       {
         code: 0,
-        meaning: "every detected language was written, or none was detected",
+        meaning: "every phase asked for succeeded, or no language was detected",
       },
-      { code: 1, meaning: "at least one detected language failed" },
-      { code: 2, meaning: "bad usage" },
+      {
+        code: 1,
+        meaning:
+          "a language, a describer entry or a sensor entry failed (the remaining entries still run)",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad input - an unknown sensor name, --sense with no sensors registered or no git commit, --describe with no describer registered, more than one repository, an empty --by or an unknown flag",
+      },
     ],
     examples: [
       {
         command: "recognizer scan fixtures/python/sample",
-        note: "scan the Python sample into its cache",
+        note: "scan the Python sample into its cache, or report the cached scans current",
+      },
+      {
+        command: "recognizer scan --sense all",
+        note: "bring the scans up to date, then run every registered sensor; recognizer check reads their findings",
       },
     ],
     run: runScan,
@@ -859,65 +890,11 @@ export const COMMANDS: Command[] = [
     run: runMeasure,
   },
   {
-    name: "sense",
-    summary:
-      "run the sensors a repository registers and write each one's findings to the cache",
-    usage: "recognizer sense [<name>...] [--repository <dir>] [--json]",
-    arguments: [
-      {
-        name: "<name>",
-        description:
-          "a registered sensor's name; without a name, sense runs every registered sensor in config order",
-      },
-    ],
-    options: [
-      {
-        flag: "--repository <dir>",
-        description:
-          "the repository to run the sensors on; defaults to the current directory",
-      },
-      {
-        flag: "--by <name>",
-        description:
-          "who asked, recorded in the run log; defaults to the login user",
-      },
-      { flag: "--json", description: "print JSON instead of text" },
-    ],
-    output: {
-      text: "`ran <name>` or `failed <name>` per sensor on stdout and `failed <name>: <reason>` per failure on stderr",
-      json: "{ commit, modified, sensors: [{ name, status: ran|failed, reason? }] }",
-    },
-    exitCodes: [
-      { code: 0, meaning: "every selected sensor ran" },
-      {
-        code: 1,
-        meaning:
-          "at least one selected sensor failed (the rest still run); a failed sensor leaves no file",
-      },
-      {
-        code: 2,
-        meaning:
-          "bad input - no sensors registered in .recognizer/config.yaml, an invalid config, an unknown sensor name (the registered ones are named), an unknown flag, or no git commit",
-      },
-    ],
-    examples: [
-      {
-        command: "recognizer sense",
-        note: "run every registered sensor, then recognizer check reads their findings",
-      },
-      {
-        command: "recognizer sense coverage-gaps --json",
-        note: "run one sensor and print the outcome as JSON",
-      },
-    ],
-    run: runSense,
-  },
-  {
     name: "log",
     summary:
-      "read the record each scan, sense, describe and measure run leaves, to see what ran and why it failed",
+      "read the record each scan, describe and measure run leaves, to see what ran and why it failed",
     usage:
-      "recognizer log [<id>] [--last] [--kind scan|sense|describe|measure] [--repository <dir>] [--json]",
+      "recognizer log [<id>] [--last] [--kind scan|describe|measure] [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<id>",
@@ -928,7 +905,7 @@ export const COMMANDS: Command[] = [
     options: [
       { flag: "--last", description: "print the newest run in full" },
       {
-        flag: "--kind scan|sense|describe|measure",
+        flag: "--kind scan|describe|measure",
         description: "only runs of that kind, for the list and --last",
       },
       {
