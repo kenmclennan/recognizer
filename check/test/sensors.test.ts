@@ -606,6 +606,85 @@ describe("a findings file for a sensor no longer registered", () => {
   });
 });
 
+describe("sense leaves a running record while it works", () => {
+  const TWO =
+    'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';
+  const LOG = `${ROOT}/.recognizer/cache/log`;
+
+  function saved(fake: Fake) {
+    const names = [...fake.files.keys()].filter((key) =>
+      key.startsWith(`${LOG}/`),
+    );
+
+    return names.map((name) => JSON.parse(fake.files.get(name) as string));
+  }
+
+  it("holds one entry after the first child returns and a running outcome when the second throws", () => {
+    let snapshot: unknown[] = [];
+    const fake = setup(TWO, {
+      programs: {
+        "first-sensor": (args, files) => {
+          files.set(
+            args[args.length - 1] as string,
+            fakeDocument({ sensor: { name: "first", version: "1" } }),
+          );
+
+          return undefined;
+        },
+        "second-sensor": (_args, files) => {
+          snapshot = [...files.keys()]
+            .filter((key) => key.startsWith(`${LOG}/`))
+            .map((key) => JSON.parse(files.get(key) as string));
+
+          throw new Error("killed");
+        },
+      },
+    });
+
+    expect(run(["sense", "--repository", ROOT], fake.io)).not.toBe(0);
+    expect(fake.err()).toContain("killed");
+
+    expect(snapshot).toHaveLength(1);
+
+    const [record] = saved(fake);
+
+    expect(saved(fake)).toHaveLength(1);
+    expect(record).toMatchObject({
+      kind: "sense",
+      outcome: "running",
+      finished: null,
+    });
+    expect(record.entries.map((one: { name: string }) => one.name)).toEqual([
+      "first",
+    ]);
+
+    const listed = run(["log", "--repository", ROOT], fake.io);
+
+    expect(listed).toBe(0);
+    expect(fake.out()).toContain("stopped");
+  });
+
+  it("starts with an empty running record before the first child runs", () => {
+    let atStart: unknown[] = [];
+    const fake = setup(REGISTER, {
+      programs: {
+        "fake-sensor": (_args, files) => {
+          atStart = [...files.keys()]
+            .filter((key) => key.startsWith(`${LOG}/`))
+            .map((key) => JSON.parse(files.get(key) as string));
+
+          return undefined;
+        },
+      },
+    });
+
+    run(["sense", "--repository", ROOT], fake.io);
+
+    expect(atStart).toMatchObject([{ outcome: "running", entries: [] }]);
+    expect(saved(fake)).toMatchObject([{ outcome: "failed" }]);
+  });
+});
+
 describe("sense running a registered sensor as a real process", () => {
   it("writes the sensor's findings file with the commit it was given", () => {
     const root = makeTempDir("recognizer-sensor-");

@@ -7,13 +7,7 @@ import { InputError } from "./errors.js";
 import { validateFindings } from "./findings-document.js";
 import { findingsFile } from "./findings-files.js";
 import { runRegistered } from "./registered-command.js";
-import {
-  buildRecord,
-  entryFrom,
-  type RunEntry,
-  recordRun,
-  requireBy,
-} from "./run-log.js";
+import { entryFrom, openRunLog, type RunEntry, requireBy } from "./run-log.js";
 import { isDirty, resolveCommit } from "./scan-command.js";
 
 const OPTIONS = {
@@ -70,6 +64,7 @@ export function runSense(argv: string[], io: Io): number {
       : registered;
   const sensors: SenseStatus[] = [];
   const entries: RunEntry[] = [];
+  const runLog = openRunLog(io, root, "sense", startedAt, values.by, argv);
 
   for (const { name, command } of selected) {
     const output = findingsFile(root, name);
@@ -97,6 +92,7 @@ export function runSense(argv: string[], io: Io): number {
         ...(reason === null ? {} : { reason }),
       }),
     );
+    runLog.update(entries);
 
     if (reason === null) {
       sensors.push({ name, status: "ran" });
@@ -121,11 +117,7 @@ export function runSense(argv: string[], io: Io): number {
     io.stdout(`${JSON.stringify({ commit, modified, sensors }, null, 2)}\n`);
   }
 
-  recordRun(
-    io,
-    root,
-    buildRecord(io, "sense", startedAt, values.by, argv, entries),
-  );
+  runLog.finish(entries);
 
   return sensors.some((one) => one.status === "failed") ? 1 : 0;
 }

@@ -19,10 +19,10 @@ import {
   validateResponsibilities,
 } from "./responsibilities.js";
 import {
-  buildRecord,
   entryFrom,
+  type OpenRunLog,
+  openRunLog,
   type RunEntry,
-  recordRun,
   requireBy,
 } from "./run-log.js";
 import type { Scan, ScanMember } from "./scan.js";
@@ -378,6 +378,15 @@ function runDescribe(loaded: Loaded, io: Io): number {
   const failed: { module: string; reason: string }[] = [];
   const recorded: RunEntry[] = [];
   let temp: string | null = null;
+  const runLog: OpenRunLog | null =
+    selected.length > 0
+      ? openRunLog(io, root, "describe", startedAt, loaded.by, loaded.argv)
+      : null;
+
+  const record = (entry: RunEntry) => {
+    recorded.push(entry);
+    runLog?.update(recorded);
+  };
 
   const fail = (module: string, reason: string) => {
     failed.push({ module, reason });
@@ -388,7 +397,7 @@ function runDescribe(loaded: Loaded, io: Io): number {
     for (const [index, subject] of selected.entries()) {
       if (subject.hash === null) {
         fail(subject.id, "source could not be read");
-        recorded.push(
+        record(
           entryFrom(subject.id, {
             command: [],
             status: null,
@@ -418,7 +427,7 @@ function runDescribe(loaded: Loaded, io: Io): number {
       const result = io.run(program, rest);
       const reason = failureReason(result, program);
 
-      recorded.push(
+      record(
         entryFrom(subject.id, {
           command: filled,
           status: result.started ? result.status : null,
@@ -464,13 +473,7 @@ function runDescribe(loaded: Loaded, io: Io): number {
     writeResponsibilities(io, root, entries);
   }
 
-  if (recorded.length > 0) {
-    recordRun(
-      io,
-      root,
-      buildRecord(io, "describe", startedAt, loaded.by, loaded.argv, recorded),
-    );
-  }
+  runLog?.finish(recorded);
 
   const selectedIds = new Set(selected.map((subject) => subject.id));
   const current = subjects.filter(

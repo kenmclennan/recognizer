@@ -18,18 +18,21 @@ const USAGE =
 const KINDS = ["scan", "sense", "describe", "measure"];
 
 function listLine(run: RunSummary): string {
-  return `${run.id}  ${run.kind}  ${run.started}  ${run.outcome}  ${run.entries - run.failed} ok, ${run.failed} failed`;
+  const outcome = run.outcome === "running" ? "stopped" : run.outcome;
+
+  return `${run.id}  ${run.kind}  ${run.started}  ${outcome}  ${run.entries - run.failed} ok, ${run.failed} failed`;
 }
 
 function fullText(run: { id: string } & RunRecord): string {
+  const stopped = run.outcome === "running";
   const lines = [
     `id: ${run.id}`,
     `kind: ${run.kind}`,
     `started: ${run.started}`,
-    `finished: ${run.finished}`,
+    stopped ? "stopped: no finish recorded" : `finished: ${run.finished}`,
     `by: ${run.by}`,
     `arguments: ${run.arguments.join(" ")}`,
-    `outcome: ${run.outcome} (exit ${run.exit})`,
+    stopped ? "outcome: stopped" : `outcome: ${run.outcome} (exit ${run.exit})`,
   ];
 
   for (const entry of run.entries) {

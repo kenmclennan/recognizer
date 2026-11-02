@@ -20,10 +20,10 @@ export interface RunRecord {
   log_version: 1;
   kind: RunKind;
   started: string;
-  finished: string;
+  finished: string | null;
   by: string;
   arguments: string[];
-  outcome: "ok" | "failed";
+  outcome: "ok" | "failed" | "running";
   exit: 0 | 1;
   entries: RunEntry[];
 }
@@ -32,9 +32,9 @@ export interface RunSummary {
   id: string;
   kind: RunKind;
   started: string;
-  finished: string;
+  finished: string | null;
   by: string;
-  outcome: "ok" | "failed";
+  outcome: "ok" | "failed" | "running";
   entries: number;
   failed: number;
 }
@@ -133,6 +133,27 @@ export function buildRecord(
   };
 }
 
+export function buildRunningRecord(
+  io: Io,
+  kind: RunKind,
+  startedAt: number,
+  by: string | undefined,
+  argv: string[],
+  entries: RunEntry[],
+): RunRecord {
+  return {
+    log_version: 1,
+    kind,
+    started: new Date(startedAt).toISOString(),
+    finished: null,
+    by: asker(io, by),
+    arguments: argv,
+    outcome: "running",
+    exit: 0,
+    entries,
+  };
+}
+
 function stamp(startedAt: string): number {
   return Date.parse(startedAt);
 }
@@ -146,45 +167,97 @@ function nameFor(epoch: number, kind: RunKind): string {
   return `${text}-${kind}`;
 }
 
+function placeRunLog(io: Io, root: string, record: RunRecord): string {
+  const directory = logDirectory(root);
+  let existing: Set<string>;
+
+  try {
+    existing = new Set(io.readDir(directory).map((entry) => entry.name));
+  } catch {
+    existing = new Set();
+  }
+
+  let epoch = stamp(record.started);
+
+  while (existing.has(`${nameFor(epoch, record.kind)}.json`)) {
+    epoch += 1;
+  }
+
+  const file = join(directory, `${nameFor(epoch, record.kind)}.json`);
+
+  writeAtomic(io, file, record);
+
+  const names = [...existing, `${nameFor(epoch, record.kind)}.json`]
+    .filter((name) => NAME.test(name))
+    .sort();
+
+  for (const name of names.slice(0, Math.max(0, names.length - KEEP))) {
+    io.remove(join(directory, name));
+  }
+
+  return file;
+}
+
+function writeAtomic(io: Io, file: string, record: RunRecord): void {
+  const temp = `${file}.tmp`;
+
+  io.writeFile(temp, `${JSON.stringify(record, null, 2)}\n`);
+  io.rename(temp, file);
+}
+
 export function writeRunLog(
   io: Io,
   root: string,
   record: RunRecord,
 ): string | null {
   try {
-    const directory = logDirectory(root);
-    let existing: Set<string>;
-
-    try {
-      existing = new Set(io.readDir(directory).map((entry) => entry.name));
-    } catch {
-      existing = new Set();
-    }
-
-    let epoch = stamp(record.started);
-
-    while (existing.has(`${nameFor(epoch, record.kind)}.json`)) {
-      epoch += 1;
-    }
-
-    const file = join(directory, `${nameFor(epoch, record.kind)}.json`);
-    const temp = `${file}.tmp`;
-
-    io.writeFile(temp, `${JSON.stringify(record, null, 2)}\n`);
-    io.rename(temp, file);
-
-    const names = [...existing, `${nameFor(epoch, record.kind)}.json`]
-      .filter((name) => NAME.test(name))
-      .sort();
-
-    for (const name of names.slice(0, Math.max(0, names.length - KEEP))) {
-      io.remove(join(directory, name));
-    }
+    placeRunLog(io, root, record);
 
     return null;
   } catch (error) {
     return (error as Error).message;
   }
+}
+
+export interface OpenRunLog {
+  update(entries: RunEntry[]): void;
+  finish(entries: RunEntry[]): void;
+}
+
+export function openRunLog(
+  io: Io,
+  root: string,
+  kind: RunKind,
+  startedAt: number,
+  by: string | undefined,
+  argv: string[],
+): OpenRunLog {
+  let file: string | null = null;
+  let reported = false;
+
+  const write = (record: RunRecord) => {
+    try {
+      if (file === null) {
+        file = placeRunLog(io, root, record);
+      } else {
+        writeAtomic(io, file, record);
+      }
+    } catch (error) {
+      if (!reported) {
+        reported = true;
+        io.stderr(`could not write run log: ${(error as Error).message}\n`);
+      }
+    }
+  };
+
+  write(buildRunningRecord(io, kind, startedAt, by, argv, []));
+
+  return {
+    update: (entries) =>
+      write(buildRunningRecord(io, kind, startedAt, by, argv, [...entries])),
+    finish: (entries) =>
+      write(buildRecord(io, kind, startedAt, by, argv, entries)),
+  };
 }
 
 export function recordRun(io: Io, root: string, record: RunRecord): void {
