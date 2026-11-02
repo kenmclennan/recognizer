@@ -13,6 +13,8 @@ brew install --cask kenmclennan/tap/recognizer
 
 The app runs the `recognizer` command it finds on the login shell's `PATH`, and the footer says when the two are out of step.
 
+The app is ad-hoc signed, not notarized. The cask strips the quarantine attribute after install, so it opens without a prompt; an app taken from the releases page instead is refused by Gatekeeper until it is allowed under Privacy and Security in System Settings.
+
 ## Use
 
 Open a repository in the viewer from its folder:
