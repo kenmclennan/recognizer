@@ -21,6 +21,7 @@ import {
   describerOf,
   registeredNames,
   registeredOverlayNames,
+  registeredOverlays,
 } from "./scan-panel-model";
 import { showTarget } from "./scan-progress";
 import { scanSource } from "./scan-source";
@@ -162,6 +163,9 @@ const rescanner = createRescanner<Carried>({
     return {
       names: registeredNames(config),
       overlays: registeredOverlayNames(config),
+      testing: registeredOverlays(config)
+        .filter(({ runsTests }) => runsTests)
+        .map(({ name }) => name),
       describer: describerOf(config) !== null,
     };
   },

@@ -19,3 +19,4 @@ class Outcome:
 class Measurement:
     overlay: Overlay
     survivors: dict
+    record: dict | None = None

@@ -126,6 +126,7 @@ import {
   type RunState,
   registeredNames,
   registeredOverlayNames,
+  registeredOverlays,
   type ScanTicks,
   scanPanel,
 } from "./scan-panel-model";
@@ -231,6 +232,7 @@ export const inertScanHost: ScanHost = {
     overlays: null,
     sensors: false,
     ticked: null,
+    once: [],
   }),
   setTicks: () => {},
   runState: () => NO_RUN,
@@ -772,6 +774,22 @@ export function showExplorer(
       render();
     },
     tickOverlay(name, ticked) {
+      const runsTests = registeredOverlays(scanConfig).some(
+        (overlay) => overlay.name === name && overlay.runsTests,
+      );
+
+      if (runsTests) {
+        const once = scanHost.ticks().once.filter((one) => one !== name);
+
+        scanHost.setTicks({
+          ...scanHost.ticks(),
+          once: ticked ? [...once, name] : once,
+        });
+        render();
+
+        return;
+      }
+
       const names = registeredOverlayNames(scanConfig);
       const held = scanHost.ticks().overlays ?? names;
       const rest = held.filter((one) => one !== name);

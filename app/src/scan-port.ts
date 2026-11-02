@@ -17,7 +17,7 @@ export type StoredTicks = {
   remembered: boolean;
 };
 
-export type WrittenTicks = Omit<ScanTicks, "ticked" | "overlays"> & {
+export type WrittenTicks = Omit<ScanTicks, "ticked" | "overlays" | "once"> & {
   ticked: string[];
   overlays: string[];
 };

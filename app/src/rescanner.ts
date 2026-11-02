@@ -23,6 +23,7 @@ import type { ScanReport } from "./scan-report";
 export type Registered = {
   names: string[];
   overlays: string[];
+  testing: string[];
   describer: boolean;
 };
 
@@ -68,6 +69,7 @@ const DEFAULT_TICKS: ScanTicks = {
   overlays: null,
   sensors: false,
   ticked: null,
+  once: [],
 };
 
 function failureText(result: ScanRunResult): string | null {
@@ -112,11 +114,17 @@ export function createRescanner<Carried>(
     });
   }
 
-  async function writeTicks(names: string[], overlays: string[]) {
+  async function writeTicks(
+    names: string[],
+    overlays: string[],
+    testing: string[],
+  ) {
     await ports.port.writeTicks({
       describe: ticks.describe,
       measure: ticks.measure,
-      overlays: ticks.overlays ?? overlays,
+      overlays: (ticks.overlays ?? overlays).filter(
+        (name) => !testing.includes(name),
+      ),
       sensors: ticks.sensors,
       ticked: ticks.ticked ?? names,
     });
@@ -236,6 +244,14 @@ export function createRescanner<Carried>(
   }
 
   async function execute() {
+    try {
+      await executeScan();
+    } finally {
+      ticks = { ...ticks, once: [] };
+    }
+  }
+
+  async function executeScan() {
     const registered = await ports.registered();
 
     if (!ticksLoaded) {
@@ -247,10 +263,15 @@ export function createRescanner<Carried>(
       registered.names,
       registered.describer,
       registered.overlays,
+      registered.testing,
     );
 
     if (!remembered) {
-      await writeTicks(registered.names, registered.overlays);
+      await writeTicks(
+        registered.names,
+        registered.overlays,
+        registered.testing,
+      );
     }
 
     progress = NO_PROGRESS;
@@ -317,6 +338,7 @@ export function createRescanner<Carried>(
       overlays: stored.overlays,
       sensors: stored.sensors,
       ticked: stored.ticked,
+      once: ticks.once,
     };
     remembered = stored.remembered;
     ticksLoaded = true;
@@ -371,7 +393,9 @@ export function createRescanner<Carried>(
 
       void ports
         .registered()
-        .then(({ names, overlays }) => writeTicks(names, overlays));
+        .then(({ names, overlays, testing }) =>
+          writeTicks(names, overlays, testing),
+        );
     },
     runState: () => run,
     measureRunState: () => measureRun,

@@ -13,7 +13,7 @@ import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
-import { describerOf, registeredNames, registeredOverlayNames } from ${JSON.stringify(here("scan-panel-model.ts"))};
+import { describerOf, registeredNames, registeredOverlayNames, registeredOverlays } from ${JSON.stringify(here("scan-panel-model.ts"))};
 import { showTarget } from ${JSON.stringify(here("scan-progress.ts"))};
 ${FAKE_WORKER}
 
@@ -80,7 +80,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({
     port: fake,
-    registered: async () => { const { config } = await sensors.readInputs(); return { names: registeredNames(config), overlays: registeredOverlayNames(config), describer: describerOf(config) !== null }; },
+    registered: async () => { const { config } = await sensors.readInputs(); return { names: registeredNames(config), overlays: registeredOverlayNames(config), testing: registeredOverlays(config).filter((o) => o.runsTests).map((o) => o.name), describer: describerOf(config) !== null }; },
     load: () => base,
     sense: (loaded) => withSensors(loaded, sensors),
     resense: async () => withSensors(wired.current, sensors),
@@ -294,9 +294,9 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   };
   await ms.setTick(".scan-measure .scan-tick", true);
   facts.measure.ticked = { button: ms.text(".scan-run"), summary: ms.text(".scan-summary"), title: ms.q(".scan-run").title, written: mFake.written.at(-1) };
-  await ms.setTick('.measure-row[data-overlay="mut"] .sensor-tick', false);
-  facts.measure.untick = { button: ms.text(".scan-run"), summary: ms.text(".scan-summary"), written: mFake.written.at(-1) };
+  facts.measure.firstOpenTick = ms.q('.measure-row[data-overlay="mut"] .sensor-tick').checked;
   await ms.setTick('.measure-row[data-overlay="mut"] .sensor-tick', true);
+  facts.measure.untick = { button: ms.text(".scan-run"), summary: ms.text(".scan-summary"), written: mFake.written.at(-1) };
   const mFooters = [];
   mFake.onStep = () => { const text = ms.footerText().replace(/Stop|Rescan/g, ""); if (mFooters.at(-1) !== text) mFooters.push(text); };
   click(ms.q(".scan-run"));
@@ -373,7 +373,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.ticked.written.at(-1)).toEqual({
       describe: true,
       measure: false,
-      overlays: ["cov", "mut"],
+      overlays: ["cov"],
       sensors: true,
       ticked: ["alpha", "beta"],
     });
@@ -415,7 +415,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
       {
         name: "mut",
         chip: "not run",
-        sub: "recognizer-sensors \u00b7 runs the tests",
+        sub: "recognizer-sensors \u00b7 runs the tests \u00b7 ticked for one Scan only",
         title: "",
       },
     ]);
@@ -423,16 +423,17 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
 
   it("counts measurers in the caption and remembers the block and row ticks", () => {
     expect(f.measure.summary).toBe("scans current");
-    expect(f.measure.ticked.summary).toBe("scans current, 2 measurers");
-    expect(f.measure.ticked.title).toBe("recognizer scan --measure cov,mut");
+    expect(f.measure.ticked.summary).toBe("scans current, 1 measurer");
+    expect(f.measure.ticked.title).toBe("recognizer scan --measure cov");
+    expect(f.measure.firstOpenTick).toBe(false);
     expect(f.measure.ticked.written).toEqual({
       describe: false,
       measure: true,
-      overlays: ["cov", "mut"],
+      overlays: ["cov"],
       sensors: false,
       ticked: ["alpha", "beta"],
     });
-    expect(f.measure.untick.summary).toBe("scans current, 1 measurer");
+    expect(f.measure.untick.summary).toBe("scans current, 2 measurers");
     expect(f.measure.untick.written.overlays).toEqual(["cov"]);
   });
 

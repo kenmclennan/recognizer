@@ -60,6 +60,7 @@ function input(overrides: Partial<PanelInput> = {}): PanelInput {
       overlays: null,
       sensors: false,
       ticked: null,
+      once: [],
     },
     run: NO_RUN,
     overlays: [],
@@ -136,6 +137,7 @@ describe("the Describe block", () => {
       overlays: null,
       sensors: false,
       ticked: null,
+      once: [],
     };
 
     expect(scanPanel(input({ ticks })).describe.ticked).toBe(true);
@@ -204,6 +206,7 @@ describe("the Sensors block", () => {
           overlays: null,
           sensors: true,
           ticked: ["beta"],
+          once: [],
         },
       }),
     ).sensors.rows.slice(1);
@@ -360,6 +363,7 @@ describe("report rows", () => {
           overlays: null,
           sensors: true,
           ticked: null,
+          once: [],
         },
       }),
     );
@@ -389,6 +393,7 @@ describe("phasesFor", () => {
           overlays: null,
           sensors: true,
           ticked: null,
+          once: [],
         },
         registered,
         true,
@@ -408,6 +413,7 @@ describe("phasesFor", () => {
           overlays: null,
           sensors: true,
           ticked: ["alpha", "gone"],
+          once: [],
         },
         registered,
         true,
@@ -427,6 +433,7 @@ describe("phasesFor", () => {
           overlays: null,
           sensors: false,
           ticked: null,
+          once: [],
         },
         registered,
         false,
@@ -483,6 +490,7 @@ describe("scanCaption and scanFlags", () => {
       overlays: null,
       sensors: true,
       ticked: null,
+      once: [],
     };
     const idle = scanPanel(input({ ticks })).button;
 
@@ -650,7 +658,7 @@ describe("the Measure block", () => {
     expect(rows.map((row) => row.name)).toEqual(["cov", "mut"]);
     expect(rows.map((row) => row.subline)).toEqual([
       "node",
-      "recognizer-sensors · runs the tests",
+      "recognizer-sensors · runs the tests · ticked for one Scan only",
     ]);
   });
 
@@ -667,16 +675,22 @@ describe("the Measure block", () => {
       overlays: null,
       sensors: false,
       ticked: null,
+      once: [],
     };
 
     expect(
       scanPanel(withOverlays({ ticks })).measure.rows.map((row) => row.ticked),
-    ).toEqual([true, true]);
+    ).toEqual([true, false]);
     expect(
       scanPanel(
         withOverlays({ ticks: { ...ticks, overlays: ["mut"] } }),
       ).measure.rows.map((row) => row.ticked),
-    ).toEqual([false, true]);
+    ).toEqual([false, false]);
+    expect(
+      scanPanel(
+        withOverlays({ ticks: { ...ticks, once: ["mut"] } }),
+      ).measure.rows.map((row) => row.ticked),
+    ).toEqual([true, true]);
     expect(scanPanel(withOverlays({ ticks })).measure.ticked).toBe(true);
   });
 
@@ -802,6 +816,7 @@ describe("the measure phase in the plan", () => {
     overlays: ["cov", "gone"],
     sensors: false,
     ticked: null,
+    once: [],
   };
 
   it("drops an unregistered ticked overlay and returns nothing when the tick is off", () => {
@@ -835,5 +850,47 @@ describe("the measure phase in the plan", () => {
     expect(scanCaption({ ...plan, measure: [] }, false)).not.toContain(
       "measurer",
     );
+  });
+});
+
+describe("a test-running overlay in the plan", () => {
+  const ticks = {
+    describe: false,
+    measure: true,
+    overlays: null,
+    sensors: false,
+    ticked: null,
+    once: [] as string[],
+  };
+
+  it("is left out of all ticked and of a stored list that names it", () => {
+    expect(
+      phasesFor(ticks, [], false, ["cov", "mut"], ["mut"]).plan.measure,
+    ).toEqual(["cov"]);
+    expect(
+      phasesFor(
+        { ...ticks, overlays: ["cov", "mut"] },
+        [],
+        false,
+        ["cov", "mut"],
+        ["mut"],
+      ).plan.measure,
+    ).toEqual(["cov"]);
+  });
+
+  it("runs only through once", () => {
+    expect(
+      phasesFor({ ...ticks, once: ["mut"] }, [], false, ["cov", "mut"], ["mut"])
+        .plan.measure,
+    ).toEqual(["cov", "mut"]);
+    expect(
+      phasesFor(
+        { ...ticks, overlays: [], once: ["mut"] },
+        [],
+        false,
+        ["cov", "mut"],
+        ["mut"],
+      ).plan.measure,
+    ).toEqual(["mut"]);
   });
 });

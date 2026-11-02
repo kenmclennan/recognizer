@@ -363,3 +363,12 @@ def test_an_overlay_written_after_a_first_run_is_judged_by_the_second(tmp_path):
 
     assert first["findings"] == []
     assert [f["id"] for f in second["findings"]] == ["thresholds:complexity:a.py::f"]
+
+
+def test_a_function_absent_from_the_overlay_is_not_judged(tmp_path):
+    root, commit = repository(tmp_path)
+    install(root, "t.json", overlay(commit, {"complexity": {"b.py": 99}}))
+
+    _, document = sense(root, tmp_path)
+
+    assert [f["id"] for f in document["findings"]] == ["thresholds:complexity:b.py"]

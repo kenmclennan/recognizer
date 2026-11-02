@@ -131,6 +131,15 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
             "or does not match the overlay"
         )
 
+    if survivors.get("complete") is False:
+        skipped = survivors.get("skipped")
+        count = len(skipped) if isinstance(skipped, list) else 0
+        print(
+            f"recognizer-sensors: mutation: {count} functions were not measured (budget); "
+            "their survivors are unknown",
+            file=sys.stderr,
+        )
+
     values = overlay["values"]
     findings = [
         finding_for(identity, entry, values)
