@@ -109,6 +109,11 @@
                   "type": "integer",
                   "minimum": 1
                 },
+                "distance_threshold": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
                 "warnings": {
                   "type": "object",
                   "additionalProperties": false,
@@ -123,6 +128,12 @@
                       "type": "boolean"
                     },
                     "policy_drift": {
+                      "type": "boolean"
+                    },
+                    "stable_dependencies": {
+                      "type": "boolean"
+                    },
+                    "stable_abstractions": {
                       "type": "boolean"
                     },
                     "orphan": {

@@ -80,6 +80,55 @@
           "app/application/report.py"
         ]
       }
+    },
+    {
+      "id": "stable_dependencies",
+      "principle": "dependencies-point-toward-stability",
+      "fix_pattern": "depend-on-stabler-folder",
+      "summary": "folder app/application depends on folder app/domain, which is less stable (instability 0.3333 -> 0.5)",
+      "evidence": {
+        "modules": [
+          "app/application/place.py",
+          "app/domain/money.py",
+          "app/domain/order.py"
+        ],
+        "edges": [
+          {
+            "from": "app/application/place.py",
+            "to": "app/domain/money.py"
+          },
+          {
+            "from": "app/application/place.py",
+            "to": "app/domain/order.py"
+          }
+        ],
+        "measures": {
+          "source_instability": 0.3333,
+          "target_instability": 0.5
+        }
+      }
+    },
+    {
+      "id": "stable_dependencies",
+      "principle": "dependencies-point-toward-stability",
+      "fix_pattern": "depend-on-stabler-folder",
+      "summary": "folder app/domain depends on folder app/adapters, which is less stable (instability 0.5 -> 0.8)",
+      "evidence": {
+        "modules": [
+          "app/adapters/memory.py",
+          "app/domain/order.py"
+        ],
+        "edges": [
+          {
+            "from": "app/domain/order.py",
+            "to": "app/adapters/memory.py"
+          }
+        ],
+        "measures": {
+          "source_instability": 0.5,
+          "target_instability": 0.8
+        }
+      }
     }
   ],
   "metrics": [
@@ -172,6 +221,52 @@
       "efferent": 0,
       "instability": 0,
       "abstractness": 1
+    }
+  ],
+  "folder_metrics": [
+    {
+      "id": "app/adapters",
+      "modules": 4,
+      "afferent": 1,
+      "efferent": 4,
+      "instability": 0.8,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "app/application",
+      "modules": 2,
+      "afferent": 2,
+      "efferent": 1,
+      "instability": 0.3333,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "app/domain",
+      "modules": 2,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "app/ports",
+      "modules": 1,
+      "afferent": 3,
+      "efferent": 0,
+      "instability": 0,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
     }
   ]
 }

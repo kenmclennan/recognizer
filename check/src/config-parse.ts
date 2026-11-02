@@ -21,11 +21,14 @@ export interface SensorRegistration {
 
 export interface StructureSettingsInput {
   hub_threshold?: number;
+  distance_threshold?: number;
   warnings?: {
     cycle?: boolean;
     hub?: boolean;
     folder_cycle?: boolean;
     policy_drift?: boolean;
+    stable_dependencies?: boolean;
+    stable_abstractions?: boolean;
     orphan?: boolean | { entry_points: string[] };
   };
 }

@@ -298,7 +298,7 @@ function writeScan(dir: string, edges: Edge[], modules: string[] = []) {
 }
 
 describe("policy-free mode", () => {
-  it("emits exactly thresholds, warnings and metrics and exits 0", () => {
+  it("emits exactly thresholds, warnings, metrics and folder metrics and exits 0", () => {
     const dir = makeTempDir("recognizer-warn-");
     const scan = writeScan(dir, [
       ["a", "b"],
@@ -311,6 +311,7 @@ describe("policy-free mode", () => {
       "thresholds",
       "warnings",
       "metrics",
+      "folder_metrics",
     ]);
     expect(err).toBe("warnings: 1\n");
   });

@@ -333,5 +333,73 @@
       "instability": 0,
       "abstractness": 0
     }
+  ],
+  "folder_metrics": [
+    {
+      "id": "shop",
+      "modules": 1,
+      "afferent": 0,
+      "efferent": 0,
+      "instability": null,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "shop/adapters",
+      "modules": 2,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "shop/application",
+      "modules": 1,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "shop/domain",
+      "modules": 2,
+      "afferent": 2,
+      "efferent": 2,
+      "instability": 0.5,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "shop/legacy",
+      "modules": 1,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "shop/ports",
+      "modules": 1,
+      "afferent": 2,
+      "efferent": 0,
+      "instability": 0,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    }
   ]
 }

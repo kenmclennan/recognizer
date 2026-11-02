@@ -29,6 +29,7 @@ function findingsByModule(
     policy,
     {
       hub_threshold: hub,
+      distance_threshold: 0.3,
       entry_points: [],
       warnings: {
         cycle: true,
@@ -36,6 +37,8 @@ function findingsByModule(
         folder_cycle: true,
         orphan: true,
         policy_drift: true,
+        stable_dependencies: true,
+        stable_abstractions: true,
       },
     },
     { commit: "abc", modified: false },
@@ -50,6 +53,7 @@ describe("findingsByModuleFrom over the structure document", () => {
     const found = findingsByModule([scan], policy, 3);
 
     expect(found.get("app/domain/money.py")?.map((f) => f.severity)).toEqual([
+      "warning",
       "warning",
     ]);
     expect(found.get("app/domain/order.py")?.map((f) => f.why)).toContain(

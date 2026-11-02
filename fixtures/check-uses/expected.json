@@ -164,6 +164,28 @@
           "app/legacy/old.py"
         ]
       }
+    },
+    {
+      "id": "stable_dependencies",
+      "principle": "dependencies-point-toward-stability",
+      "fix_pattern": "depend-on-stabler-folder",
+      "summary": "folder app/shared depends on folder app/orders, which is less stable (instability 0.3333 -> 0.5)",
+      "evidence": {
+        "modules": [
+          "app/orders/place.py",
+          "app/shared/money.py"
+        ],
+        "edges": [
+          {
+            "from": "app/shared/money.py",
+            "to": "app/orders/place.py"
+          }
+        ],
+        "measures": {
+          "source_instability": 0.3333,
+          "target_instability": 0.5
+        }
+      }
     }
   ],
   "metrics": [
@@ -216,6 +238,52 @@
       "efferent": 1,
       "instability": 0.3333,
       "abstractness": 0
+    }
+  ],
+  "folder_metrics": [
+    {
+      "id": "app/billing",
+      "modules": 1,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "app/legacy",
+      "modules": 1,
+      "afferent": 1,
+      "efferent": 0,
+      "instability": 0,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "app/orders",
+      "modules": 2,
+      "afferent": 1,
+      "efferent": 1,
+      "instability": 0.5,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
+    },
+    {
+      "id": "app/shared",
+      "modules": 1,
+      "afferent": 2,
+      "efferent": 1,
+      "instability": 0.3333,
+      "exported_members": 0,
+      "abstract_members": 0,
+      "abstractness": null,
+      "distance": null
     }
   ]
 }

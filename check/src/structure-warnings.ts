@@ -1,5 +1,6 @@
 import { isEntryPoint, isLiteralPath } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
+import type { FolderMeasures } from "./folder-metrics.js";
 import { compileGlob, matchesAny } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
@@ -194,4 +195,97 @@ export function policyDriftFindings(
     .sort((a, b) => compare(a.id, b.id));
 
   return [...unmatched, ...uncovered];
+}
+
+function fixed(value: number): string {
+  return String(value);
+}
+
+export function stableDependenciesFindings(
+  measures: FolderMeasures,
+): FindingRecord[] {
+  const instability = new Map(
+    measures.rows.map((row) => [row.id, row.instability]),
+  );
+  const findings: FindingRecord[] = [];
+
+  for (const [key, held] of measures.between) {
+    const [source, target] = key.split("\0") as [string, string];
+    const sourceI = instability.get(source) ?? null;
+    const targetI = instability.get(target) ?? null;
+
+    if (sourceI === null || targetI === null || !(targetI > sourceI)) {
+      continue;
+    }
+
+    const edges = [...held].sort(
+      (a, b) => compare(a.from, b.from) || compare(a.to, b.to),
+    );
+    const modules = [
+      ...new Set(edges.flatMap((edge) => [edge.from, edge.to])),
+    ].sort(compare);
+
+    findings.push({
+      id: `stable_dependencies:${source}->${target}`,
+      kind: "stable_dependencies",
+      severity: "warning",
+      principle: "dependencies-point-toward-stability",
+      summary: `folder ${source} depends on folder ${target}, which is less stable (instability ${fixed(sourceI)} -> ${fixed(targetI)})`,
+      fix_pattern: "depend-on-stabler-folder",
+      evidence: {
+        modules,
+        edges,
+        measures: {
+          source_instability: sourceI,
+          target_instability: targetI,
+        },
+      },
+    });
+  }
+
+  return findings.sort((a, b) => compare(a.id, b.id));
+}
+
+export function stableAbstractionsFindings(
+  measures: FolderMeasures,
+  threshold: number,
+): FindingRecord[] {
+  const findings: FindingRecord[] = [];
+
+  for (const row of measures.rows) {
+    const { abstractness, instability, distance } = row;
+
+    if (
+      abstractness === null ||
+      instability === null ||
+      distance === null ||
+      !(distance > threshold)
+    ) {
+      continue;
+    }
+
+    const zone = abstractness + instability - 1 < 0 ? "pain" : "useless";
+
+    findings.push({
+      id: `stable_abstractions:${row.id}`,
+      kind: "stable_abstractions",
+      severity: "warning",
+      principle: "stable-folders-are-abstract",
+      summary: `folder ${row.id} is in the ${zone} zone (abstractness ${fixed(abstractness)}, instability ${fixed(instability)}, distance ${fixed(distance)}, threshold ${fixed(threshold)})`,
+      fix_pattern: "move-toward-main-sequence",
+      evidence: {
+        modules: measures.modulesOf.get(row.id) ?? [],
+        measures: {
+          afferent: row.afferent,
+          efferent: row.efferent,
+          instability,
+          abstractness,
+          distance,
+          threshold,
+        },
+      },
+    });
+  }
+
+  return findings.sort((a, b) => compare(a.id, b.id));
 }
