@@ -83,7 +83,7 @@ export function keyAction(
   }
 
   if (key === "n") {
-    return selection.kind === "module" ? "add-note" : null;
+    return selection.kind === "edge" ? null : "add-note";
   }
 
   if (selection.kind === "edge") {

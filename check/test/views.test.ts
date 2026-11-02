@@ -5,6 +5,7 @@ import { InputError } from "../src/errors.js";
 import type { Scan } from "../src/scan.js";
 import {
   migrateView,
+  noteWarnings,
   resolveView,
   type View,
   type ViewStep,
@@ -105,7 +106,7 @@ describe("migrateView and viewNotes", () => {
 
     expect(viewNotes(old)).toEqual(migrateView(old).notes);
     expect(old.schema_version).toBe(2);
-    expect(viewNotes(example("version-3-with-notes.json"))).toHaveLength(2);
+    expect(viewNotes(example("version-3-with-notes.json"))).toHaveLength(1);
     expect(viewNotes(view())).toEqual([]);
   });
 
@@ -243,6 +244,76 @@ describe("resolveView", () => {
     expect(resolved.unresolved).toEqual([
       { step: 1, kind: "pick", path: "shop/gone.py", what: "module" },
       { step: 3, kind: "rule", path: "shop/missing", what: "folder" },
+    ]);
+  });
+});
+
+describe("one note per path", () => {
+  const example = (name: string) =>
+    validateView(
+      JSON.parse(readFileSync(join(EXAMPLES, "valid", name), "utf8")),
+    );
+
+  const notes = (...entries: [string, string][]): View => ({
+    schema_version: 3,
+    description: "p",
+    commit: null,
+    notes: entries.map(([module, by]) => ({ module, text: `t-${by}`, by })),
+    steps: [],
+  });
+
+  it("accepts a folder path with one trailing slash and rejects two", () => {
+    expect(() =>
+      validateView(example("version-3-folder-note.json")),
+    ).not.toThrow();
+    expect(() =>
+      validateView(
+        JSON.parse(
+          readFileSync(
+            join(EXAMPLES, "invalid/note-path-double-slash.json"),
+            "utf8",
+          ),
+        ),
+      ),
+    ).toThrow(InputError);
+  });
+
+  it("keeps the last note on each path in the order of the kept entries", () => {
+    const view3 = notes(["a.py", "1"], ["b.py", "2"], ["a.py", "3"]);
+
+    expect(viewNotes(view3).map((n) => [n.module, n.by])).toEqual([
+      ["b.py", "2"],
+      ["a.py", "3"],
+    ]);
+    expect(migrateView(view3).notes).toEqual(viewNotes(view3));
+  });
+
+  it("warns once naming every repeated path, and not for a clean view", () => {
+    const warnings = noteWarnings(
+      notes(
+        ["a.py", "1"],
+        ["b/", "2"],
+        ["a.py", "3"],
+        ["b/", "4"],
+        ["a.py", "5"],
+      ),
+    );
+
+    expect(warnings).toEqual([
+      "view holds 3 notes on a.py, b/; kept the last on each",
+    ]);
+    expect(noteWarnings(notes(["a.py", "1"], ["b.py", "2"]))).toEqual([]);
+    expect(noteWarnings(view())).toEqual([]);
+  });
+
+  it("reads the committed legacy example as one note by Claude and one warning", () => {
+    const legacy = example("version-3-with-notes.json");
+
+    expect(viewNotes(legacy).map((n) => [n.module, n.by])).toEqual([
+      ["shop/application/place.py", "Claude"],
+    ]);
+    expect(noteWarnings(legacy)).toEqual([
+      "view holds 1 note on shop/application/place.py; kept the last on each",
     ]);
   });
 });

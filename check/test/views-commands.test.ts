@@ -646,13 +646,13 @@ function noteEntry(module: string, text: string, by: string) {
 }
 
 describe("views note", () => {
-  it("adds a note with the default author at version 3", () => {
+  it("sets a note with the default author at version 3", () => {
     const fake = repository(view("a", ON_VIEW));
     const { code, out } = go(fake, "note", "a", PLACE, "Start here");
 
     expect(code).toBe(0);
     expect(out).toBe(
-      `a: added a note on ${PLACE}; 2 steps, resolves to 2 modules\n`,
+      `a: set the note on ${PLACE}; 2 steps, resolves to 2 modules\n`,
     );
     expect(saved(fake, "a").notes).toEqual([
       noteEntry(PLACE, "Start here", "agent"),
@@ -660,16 +660,24 @@ describe("views note", () => {
     expect(saved(fake, "a").schema_version).toBe(3);
   });
 
-  it("adds a second note on the same module without replacing the first", () => {
+  it("replaces the note on the same module, leaving one", () => {
     const fake = repository(view("a", ON_VIEW));
 
     go(fake, "note", "a", PLACE, "One", "--by", "Ken");
     go(fake, "note", "a", PLACE, "Two", "--by", "Claude");
 
+    expect(saved(fake, "a").notes).toEqual([noteEntry(PLACE, "Two", "Claude")]);
+  });
+
+  it("sets a note on a folder that has a module on the view and refuses one that has none", () => {
+    const fake = repository(view("a", ON_VIEW));
+
+    expect(go(fake, "note", "a", "shop/domain/", "Core").code).toBe(0);
     expect(saved(fake, "a").notes).toEqual([
-      noteEntry(PLACE, "One", "Ken"),
-      noteEntry(PLACE, "Two", "Claude"),
+      noteEntry("shop/domain/", "Core", "agent"),
     ]);
+    expect(go(fake, "note", "a", "nowhere/", "x").code).toBe(2);
+    expect(fake.err()).toContain("nowhere/ has no module on the view");
   });
 
   it("reports no change and writes nothing for an identical note", () => {
@@ -692,7 +700,7 @@ describe("views note", () => {
     expect(fake.writes).toEqual([]);
   });
 
-  it("removes every note on a module and keeps the others", () => {
+  it("removes the note on a module or a folder and keeps the others", () => {
     const fake = repository(
       noted(
         "a",
@@ -700,7 +708,7 @@ describe("views note", () => {
           notes: [
             noteEntry(PLACE, "A", "Ken"),
             noteEntry(STORE, "B", "Ken"),
-            noteEntry(PLACE, "C", "Claude"),
+            noteEntry("shop/domain/", "C", "Claude"),
           ],
         },
         ON_VIEW,
@@ -709,40 +717,30 @@ describe("views note", () => {
     );
 
     expect(go(fake, "note", "a", PLACE, "--remove").out).toContain(
-      `removed 2 notes on ${PLACE}`,
+      `removed the note on ${PLACE}`,
     );
+    expect(go(fake, "note", "a", "shop/domain/", "--remove").code).toBe(0);
     expect(saved(fake, "a").notes).toEqual([noteEntry(STORE, "B", "Ken")]);
 
     expect(go(fake, "note", "a", STORE, "--remove").out).toContain(
-      `removed 1 note on ${STORE}`,
+      `removed the note on ${STORE}`,
     );
     expect(saved(fake, "a").notes).toBeUndefined();
   });
 
-  it("removes only one author's notes with --by", () => {
+  it("removes with --by only when that author wrote the note last", () => {
     const fake = repository(
-      noted(
-        "a",
-        {
-          notes: [
-            noteEntry(PLACE, "A", "Ken"),
-            noteEntry(PLACE, "C", "Claude"),
-          ],
-        },
-        ON_VIEW,
-        3,
-      ),
+      noted("a", { notes: [noteEntry(PLACE, "C", "Claude")] }, ON_VIEW, 3),
     );
+    const mismatch = go(fake, "note", "a", PLACE, "--remove", "--by", "Ken");
 
+    expect(mismatch.code).toBe(2);
+    expect(fake.err()).toContain(`the note on ${PLACE} is by Claude, not Ken`);
+    expect(saved(fake, "a").notes).toEqual([noteEntry(PLACE, "C", "Claude")]);
     expect(
-      go(fake, "note", "a", PLACE, "--remove", "--by", "Claude").out,
-    ).toContain(`removed 1 note by Claude on ${PLACE}`);
-    expect(saved(fake, "a").notes).toEqual([noteEntry(PLACE, "A", "Ken")]);
-
-    const none = go(fake, "note", "a", PLACE, "--remove", "--by", "Nobody");
-
-    expect(none.code).toBe(2);
-    expect(fake.err()).toContain(`no note by Nobody on ${PLACE}`);
+      go(fake, "note", "a", PLACE, "--remove", "--by", "Claude").code,
+    ).toBe(0);
+    expect(saved(fake, "a").notes).toBeUndefined();
   });
 
   it("removes a note on a module that has left the view", () => {
@@ -781,15 +779,16 @@ describe("views note", () => {
     expect(fake.err()).toContain("shop/domain/other.py is not on the view");
   });
 
-  it("is shown by show in text and json, marking a module that left the scan", () => {
+  it("is shown by show in text and json, marking a module that left the scan and a folder with none on the view", () => {
     const fake = repository(
       noted(
         "a",
         {
           notes: [
             noteEntry(PLACE, "Here", "Ken"),
-            noteEntry(PLACE, "Again", "Claude"),
             noteEntry("shop/gone.py", "Lost", "Claude"),
+            noteEntry("shop/domain/", "Folder", "Claude"),
+            noteEntry("shop/missing/", "Empty", "Claude"),
           ],
         },
         ON_VIEW,
@@ -800,18 +799,70 @@ describe("views note", () => {
 
     expect(text).not.toContain("note:");
     expect(text).toContain(`  ${PLACE}: Here (Ken)\n`);
-    expect(text).toContain(`  ${PLACE}: Again (Claude)\n`);
     expect(text).toContain("  shop/gone.py: Lost (Claude) (not on the view)");
-    expect(text.match(/\(not on the view\)/g)).toHaveLength(1);
+    expect(text).toContain("  shop/domain/: Folder (Claude)\n");
+    expect(text).toContain("  shop/missing/: Empty (Claude) (not on the view)");
+    expect(text.match(/\(not on the view\)/g)).toHaveLength(2);
+    expect(text).not.toContain("warning:");
 
     const document = JSON.parse(go(fake, "show", "a", "--json").out);
 
-    expect(document.notes).toHaveLength(3);
+    expect(document.notes).toHaveLength(4);
+    expect(document.warnings).toEqual([]);
     expect(document.note).toBeUndefined();
     expect(document.module_notes).toBeUndefined();
     expect(
       JSON.parse(go(repository(view("b")), "show", "b", "--json").out),
     ).toMatchObject({ notes: [] });
+  });
+
+  it("shows the last of several notes on one path with one warning, and check prints it without failing", () => {
+    const fake = repository(
+      noted(
+        "a",
+        {
+          notes: [
+            noteEntry(PLACE, "First", "Ken"),
+            noteEntry(PLACE, "Second", "Claude"),
+          ],
+        },
+        ON_VIEW,
+        3,
+      ),
+    );
+    const text = go(fake, "show", "a").out;
+
+    expect(text).toContain(`  ${PLACE}: Second (Claude)\n`);
+    expect(text).not.toContain("First");
+    expect(text).toContain(
+      `warning: view holds 1 note on ${PLACE}; kept the last on each\n`,
+    );
+
+    const json = JSON.parse(go(fake, "show", "a", "--json").out);
+
+    expect(json.notes).toEqual([noteEntry(PLACE, "Second", "Claude")]);
+    expect(json.warnings).toHaveLength(1);
+
+    const checked = go(fake, "check");
+
+    expect(checked.code).toBe(0);
+    expect(checked.out).toContain("  warning: view holds 1 note on");
+  });
+
+  it("lists the committed legacy example's last note and its warning", () => {
+    const legacy = readFileSync(
+      join(REPO, "schema/view-examples/valid/version-3-with-notes.json"),
+      "utf8",
+    );
+    const fake = repository({ [`${VIEWS}/legacy.json`]: legacy });
+    const document = JSON.parse(go(fake, "show", "legacy", "--json").out);
+
+    expect(document.notes).toEqual([
+      noteEntry("shop/application/place.py", expect.any(String), "Claude"),
+    ]);
+    expect(document.warnings).toEqual([
+      "view holds 1 note on shop/application/place.py; kept the last on each",
+    ]);
   });
 
   it("shows the module notes of a version 2 file before it is rewritten", () => {
@@ -935,7 +986,7 @@ describe("views note", () => {
     );
   });
 
-  it("renames the module on every note of a renamed pick", () => {
+  it("renames the module on the notes of a renamed pick and keeps the last where two land on one path", () => {
     const OLD = "shop/old.py";
     const renamed = `R100\0${OLD}\0${PLACE}\0`;
     const moving = repository(
@@ -957,7 +1008,6 @@ describe("views note", () => {
     go(moving, "check", "--fix");
 
     expect(saved(moving, "a").notes).toEqual([
-      noteEntry(PLACE, "One", "Ken"),
       noteEntry(STORE, "Other", "Ken"),
       noteEntry(PLACE, "Two", "Claude"),
     ]);

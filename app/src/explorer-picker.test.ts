@@ -315,7 +315,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
   }, 120000);
 
   it("opens Dependencies as the third inspector tab, lit on the bar with the total, and stays on a second press", () => {
-    expect(f.tabs).toEqual(["Contents", "Dependencies 4", "Findings", "Notes"]);
+    expect(f.tabs).toEqual(["Contents", "Dependencies 4", "Findings"]);
     expect(f.activeTab).toEqual(["Dependencies 4"]);
     expect(f.barLit).toBe(true);
     expect(f.barFigure).toBe("4");
@@ -401,7 +401,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
 
   it("gives all the tabs the one underline style", () => {
     expect(new Set(f.tabStyle).size).toBe(1);
-    expect(f.tabStyle).toHaveLength(3);
+    expect(f.tabStyle).toHaveLength(2);
     expect(f.activeTabStyle).toContain("inset");
   });
 

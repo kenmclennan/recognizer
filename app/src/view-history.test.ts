@@ -26,6 +26,20 @@ describe("history", () => {
     expect(history.forward()).toBe("c");
   });
 
+  it("keeps an entry whose mark carries a note although the snapshot is equal", () => {
+    const history = createHistory({ x: 1 });
+    const note = { view: "v", path: "a.py", text: "t", by: "Ken" };
+    const mark = { by: "Me", summary: "removed the note on a.py", note };
+
+    expect(history.record({ x: 1 })).toBe(false);
+    expect(history.record({ x: 1 }, mark)).toBe(true);
+    expect(history.markNow()).toEqual(mark);
+    expect(history.back()).toEqual({ x: 1 });
+    expect(history.markNow()).toBeNull();
+    expect(history.forward()).toEqual({ x: 1 });
+    expect(history.markNow()?.note).toEqual(note);
+  });
+
   it("ignores a record deeply equal to the current entry", () => {
     const history = createHistory({ x: [1] });
 

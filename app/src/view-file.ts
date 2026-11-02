@@ -1,7 +1,13 @@
-import { InputError, migrateView, type View, validateView } from "recognizer";
+import {
+  InputError,
+  migrateView,
+  noteWarnings,
+  type View,
+  validateView,
+} from "recognizer";
 
 export type ParsedView =
-  | { ok: true; view: View }
+  | { ok: true; view: View; warnings: string[] }
   | { ok: false; reason: string };
 
 export function serialiseView(view: View): string {
@@ -35,7 +41,9 @@ export function parseViewFile(text: string): ParsedView {
   }
 
   try {
-    return { ok: true, view: validateView(value) };
+    const view = validateView(value);
+
+    return { ok: true, view, warnings: noteWarnings(view) };
   } catch (error) {
     if (error instanceof InputError) {
       return { ok: false, reason: error.messages.join("; ") };

@@ -1,16 +1,15 @@
 import { button, el } from "./dom";
 import type { NoteRow } from "./note-focus";
-import type { NoteOrder } from "./notes-order";
 
 export type NotesPanelProps = {
   hasView: boolean;
-  order: NoteOrder;
-  rows: ReadonlyMap<number, NoteRow>;
+  rows: readonly NoteRow[];
 };
 
 export type NoteRowActions = {
-  toggle: (index: number) => void;
-  remove: (index: number) => void;
+  toggle: (path: string) => void;
+  remove: (path: string) => void;
+  edit?: (path: string) => void;
 };
 
 export type NotesPanelActions = NoteRowActions;
@@ -20,34 +19,52 @@ export type NotesPanelView = {
   render: (props: NotesPanelProps) => void;
 };
 
-function fileName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
+function displayName(path: string): string {
+  const bare = path.endsWith("/") ? path.slice(0, -1) : path;
+  const name = bare.slice(bare.lastIndexOf("/") + 1);
+
+  return path.endsWith("/") ? `${name}/` : name;
 }
 
 export function buildNoteRow(
   row: NoteRow,
   actions: NoteRowActions,
+  named = false,
 ): HTMLElement {
   const node = el(
     "div",
-    `note-row ${row.tint}${row.off ? " off" : ""}${row.active ? " active" : ""}`,
+    `note-row ${row.kind}${row.off ? " off" : ""}${row.active ? " active" : ""}`,
   );
   const remove = button("Remove", "note-remove", () =>
-    actions.remove(row.index),
+    actions.remove(row.path),
   );
 
-  node.dataset.index = String(row.index);
+  node.dataset.path = row.path;
   remove.setAttribute("aria-label", "Remove note");
   remove.title = "Remove note";
-  remove.textContent = "×";
+
+  if (named) {
+    const title = el("span", "note-path", displayName(row.path));
+
+    title.title = row.path;
+    node.append(title);
+  }
+
   node.append(
     el("span", "note-text", row.text),
     el("span", "note-by", `by ${row.by}`),
-    remove,
   );
 
+  if (actions.edit !== undefined) {
+    const edit = actions.edit;
+
+    node.append(button("Edit", "note-edit", () => edit(row.path)));
+  }
+
+  node.append(remove);
+
   if (!row.off) {
-    node.addEventListener("click", () => actions.toggle(row.index));
+    node.addEventListener("click", () => actions.toggle(row.path));
   }
 
   return node;
@@ -63,18 +80,6 @@ export function buildNotesPanelView(
 
   element.append(header, prompt, list);
 
-  function group(module: string, rows: NoteRow[]) {
-    const node = el("section", "note-group");
-    const heading = el("h3", "note-group-title");
-    const dir = module.slice(0, module.length - fileName(module).length);
-
-    node.dataset.module = module;
-    heading.append(dir, el("strong", "", fileName(module)));
-    node.append(heading, ...rows.map((row) => buildNoteRow(row, actions)));
-
-    return node;
-  }
-
   return {
     element,
     render(next) {
@@ -86,24 +91,20 @@ export function buildNotesPanelView(
         return;
       }
 
-      const rowOf = (index: number) => next.rows.get(index) as NoteRow;
-      const parts: HTMLElement[] = next.order.groups.map((entry) =>
-        group(
-          entry.module,
-          entry.entries.map((one) => rowOf(one.index)),
-        ),
+      const on = next.rows.filter((row) => !row.off);
+      const off = next.rows.filter((row) => row.off);
+      const parts: HTMLElement[] = on.map((row) =>
+        buildNoteRow(row, actions, true),
       );
 
-      if (next.order.off.length > 0) {
-        const off = el("section", "note-off");
+      if (off.length > 0) {
+        const section = el("section", "note-off");
 
-        off.append(
+        section.append(
           el("h3", "note-group-title", "Not on the canvas"),
-          ...next.order.off.map((one) =>
-            buildNoteRow(rowOf(one.index), actions),
-          ),
+          ...off.map((row) => buildNoteRow(row, actions, true)),
         );
-        parts.push(off);
+        parts.push(section);
       }
 
       list.replaceChildren(...parts);

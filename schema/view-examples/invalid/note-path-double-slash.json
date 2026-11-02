@@ -1,0 +1,13 @@
+{
+  "schema_version": 3,
+  "description": "A note path with two trailing slashes.",
+  "commit": "abc123",
+  "notes": [
+    {
+      "module": "a/b//",
+      "text": "No.",
+      "by": "Ken"
+    }
+  ],
+  "steps": []
+}

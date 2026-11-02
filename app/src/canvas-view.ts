@@ -10,11 +10,11 @@ import { arrowhead, type Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import type { Ghost } from "./finding-focus";
+import { icon } from "./icons";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
-import { buildNoteCardView, type NoteCard } from "./note-card-view";
-import { cardHeight } from "./note-focus";
-import { CARD_WIDTH, CARD_WRAP, cardLayout } from "./notes-order";
+import { buildNoteBubbleView, type NoteBubble } from "./note-bubble-view";
+import { bubblePlace, bubbleSize } from "./note-focus";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
@@ -55,7 +55,7 @@ export type CanvasOrientation = {
 export type CanvasNotes = {
   marks: ReadonlySet<string>;
   active: string | null;
-  card: NoteCard | null;
+  bubble: NoteBubble | null;
   keys: NoteKeyContext;
 };
 
@@ -72,9 +72,11 @@ export type CanvasActions = {
   openContents: () => void;
   openInEditor: () => void;
   addNote: () => void;
-  openNote: (module: string) => void;
-  addNoteText: (module: string, text: string) => void;
-  removeNoteAt: (index: number) => void;
+  openNote: (path: string) => void;
+  editNote: (path: string) => void;
+  cancelNote: (path: string) => void;
+  saveNote: (path: string, text: string) => void;
+  removeNoteAt: (path: string) => void;
   removeNote: () => void;
   walkNotes: (delta: 1 | -1) => void;
   walkFindings: (delta: 1 | -1) => void;
@@ -93,6 +95,7 @@ export const BUTTON_ZOOM_STEP = 1.25;
 export const DRAG_THRESHOLD = 4;
 
 const SVG = "http://www.w3.org/2000/svg";
+const FIGURES_CLEAR = 30;
 
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
@@ -215,9 +218,11 @@ export function buildCanvasView(
   const busy = spinner("Laying out");
   const addLayer = el("div", "add-layer");
   const noteLayer = el("div", "note-layer");
-  const noteCard = buildNoteCardView({
-    add: (module, text) => actions.addNoteText(module, text),
-    remove: (index) => actions.removeNoteAt(index),
+  const noteBubble = buildNoteBubbleView({
+    edit: (path) => actions.editNote(path),
+    cancel: (path) => actions.cancelNote(path),
+    save: (path, text) => actions.saveNote(path, text),
+    remove: (path) => actions.removeNoteAt(path),
   });
 
   busy.classList.add("canvas-busy");
@@ -466,6 +471,13 @@ export function buildCanvasView(
             }),
             frameText(rect, frame.label, frame.figure),
           );
+
+          if (props?.notes?.marks.has(`${frame.path}/`)) {
+            const at = frameMarkRect(rect);
+
+            node.append(noteMark(`${frame.path}/`, at.x, at.y));
+          }
+
           group.append(node);
         }
       } else if (layer === "lines") {
@@ -576,22 +588,14 @@ export function buildCanvasView(
             );
           }
 
-          if (box.kind === "module" && props?.notes?.marks.has(box.id)) {
-            node.append(
-              svg("rect", {
-                class:
-                  props.notes.active === box.id
-                    ? "note-mark active"
-                    : "note-mark",
-                "data-id": box.id,
-                "data-note-mark": box.id,
-                x: rect.x + rect.width - 13,
-                y: rect.y + 5,
-                width: 8,
-                height: 8,
-                rx: 2,
-              }),
-            );
+          const boxPath = box.kind === "folder" ? `${box.id}/` : box.id;
+
+          const marked = props?.notes?.marks.has(boxPath) === true;
+
+          if (marked) {
+            const at = markRect(box);
+
+            node.append(noteMark(boxPath, at.x, at.y));
           }
 
           if (box.figures) {
@@ -600,7 +604,7 @@ export function buildCanvasView(
                 "text",
                 {
                   class: "figure",
-                  x: rect.x + rect.width - 8,
+                  x: rect.x + rect.width - (marked ? FIGURES_CLEAR : 8),
                   y: rect.y + rect.height / 2 + 4,
                   "text-anchor": "end",
                 },
@@ -616,22 +620,6 @@ export function buildCanvasView(
       parts.push(group);
     }
 
-    const placed = placedCard(scene);
-
-    if (placed !== null) {
-      const lead = placed.card.entries.find(
-        (entry) => entry.index === placed.card.active,
-      );
-      const tinted = (lead ?? placed.card.entries[0])?.tint ?? "person";
-
-      const group = svg("g", { class: `note-leader-group ${tinted}` });
-
-      group.append(
-        svg("path", { class: "note-leader", d: placed.layout.leader }),
-      );
-      parts.push(group);
-    }
-
     const tone = props?.orientation?.tone ?? null;
 
     for (const ghost of props?.ghosts ?? []) {
@@ -641,81 +629,108 @@ export function buildCanvasView(
     world.replaceChildren(...parts);
   }
 
-  function placedCard(scene: Scene | null, measured?: number) {
-    const card = props?.notes?.card ?? null;
-    const anchor =
-      card === null || scene === null
-        ? undefined
-        : scene.boxes.find((box) => box.id === card.module);
+  function noteMark(path: string, x: number, y: number): SVGElement {
+    const mark = icon("notes", "note-mark");
 
-    if (card === null || anchor === undefined) {
-      return null;
+    mark.setAttribute("x", String(x));
+    mark.setAttribute("y", String(y));
+    mark.setAttribute("width", "14");
+    mark.setAttribute("height", "14");
+    mark.dataset.noteMark = path;
+
+    if (props?.notes?.active === path) {
+      mark.classList.add("active");
     }
 
-    const height =
-      measured ??
-      cardHeight(
-        card.entries.map((entry) => ({
-          index: entry.index,
-          note: { module: card.module, text: entry.text, by: entry.by },
-        })),
-      );
+    return mark;
+  }
 
+  function bubbleAnchor(
+    scene: Scene,
+    path: string,
+  ): { target: Rect; mark: Rect } | null {
+    if (path.endsWith("/")) {
+      const bare = path.slice(0, -1);
+      const frame = scene.frames.find((one) => one.path === bare);
+
+      if (frame !== undefined) {
+        const mark = frameMarkRect(frame.rect);
+
+        return {
+          target: { ...mark, y: frame.rect.y, height: mark.height + 12 },
+          mark,
+        };
+      }
+    }
+
+    const id = path.endsWith("/") ? path.slice(0, -1) : path;
+    const box = scene.boxes.find(
+      (one) => one.id === id && (one.kind === "folder") === path.endsWith("/"),
+    );
+
+    return box === undefined ? null : { target: box.rect, mark: markRect(box) };
+  }
+
+  function frameMarkRect(rect: Rect): Rect {
     return {
-      card,
-      layout: cardLayout(anchor.rect, "", {
-        width: CARD_WIDTH,
-        wrap: CARD_WRAP,
-        height,
-      }),
+      x: rect.x + rect.width - 20,
+      y: rect.y + 6,
+      width: 14,
+      height: 14,
     };
   }
 
-  function drawCard() {
-    const placed = placedCard(props?.scene ?? null);
+  function markRect(box: Scene["boxes"][number]): Rect {
+    return frameMarkRect(box.rect);
+  }
 
-    noteLayer.hidden = placed === null;
+  function drawBubble() {
+    const bubble = props?.notes?.bubble ?? null;
+    const scene = props?.scene ?? null;
+    const anchor =
+      bubble === null || scene === null
+        ? null
+        : bubbleAnchor(scene, bubble.path);
 
-    if (placed === null) {
-      noteCard.close();
+    noteLayer.hidden = bubble === null || anchor === null;
+
+    if (bubble === null || anchor === null) {
+      noteBubble.close();
 
       return;
     }
 
-    if (noteCard.element.parentElement !== noteLayer) {
-      noteLayer.append(noteCard.element);
+    if (noteBubble.element.parentElement !== noteLayer) {
+      noteLayer.append(noteBubble.element);
     }
 
-    noteCard.render(placed.card, placed.layout);
+    const view = {
+      x: -viewport.x / viewport.k,
+      y: -viewport.y / viewport.k,
+      width: surface.clientWidth / viewport.k,
+      height: surface.clientHeight / viewport.k,
+    };
+    const useView = view.width > 0 && view.height > 0 ? view : undefined;
+    const size = bubbleSize(bubble.text ?? "", bubble.editing);
 
-    const measured = noteCard.height();
-
-    if (Math.abs(measured - placed.layout.card.height) > 0.5) {
-      const settled = placedCard(props?.scene ?? null, measured);
-
-      if (settled !== null) {
-        noteCard.render(settled.card, settled.layout);
-        world
-          .querySelector(".note-leader")
-          ?.setAttribute("d", settled.layout.leader);
-      }
-    }
-
-    if (placed.card.compose) {
-      noteCard.focusField();
-    }
-  }
-
-  function markNotesButton() {
-    const module = props?.notes?.card?.module;
-    const node = selectionBar.element.querySelector(".bar-notes");
-
-    node?.classList.toggle(
-      "on",
-      module !== undefined &&
-        props?.selection?.kind === "module" &&
-        props.selection.id === module,
+    noteBubble.render(
+      bubble,
+      bubblePlace(anchor.target, anchor.mark, size, useView),
     );
+
+    const measured = noteBubble.height();
+
+    if (measured > 0 && Math.abs(measured - size.height) > 0.5) {
+      noteBubble.render(
+        bubble,
+        bubblePlace(
+          anchor.target,
+          anchor.mark,
+          { width: size.width, height: measured },
+          useView,
+        ),
+      );
+    }
   }
 
   function applySelection() {
@@ -849,7 +864,9 @@ export function buildCanvasView(
     if (
       event.button !== 0 ||
       targetOf(event) ||
-      (event.target as Element | null)?.closest("[data-action]")
+      (event.target as Element | null)?.closest(
+        "[data-action], [data-note-mark]",
+      )
     ) {
       return;
     }
@@ -1121,9 +1138,8 @@ export function buildCanvasView(
 
       shownSelection = selected;
       applySelection();
-      drawCard();
+      drawBubble();
       selectionBar.render(next.bar);
-      markNotesButton();
       refreshChrome();
       applyViewport();
     },

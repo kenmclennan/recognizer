@@ -77,7 +77,7 @@ describe("view files", () => {
 
   it("writes the committed version 3 example back to the same bytes", () => {
     const text = readFileSync(
-      join(EXAMPLES, "version-3-with-notes.json"),
+      join(EXAMPLES, "version-3-folder-note.json"),
       "utf8",
     );
     const parsed = parseViewFile(text);
@@ -128,5 +128,32 @@ describe("view files", () => {
         true,
       );
     }
+  });
+});
+
+describe("parseViewFile warnings", () => {
+  it("returns no warning for one note per path and one warning for several on a path", () => {
+    const view = (notes: { module: string; text: string; by: string }[]) =>
+      JSON.stringify({
+        schema_version: 3,
+        description: "d",
+        commit: null,
+        notes,
+        steps: [],
+      });
+    const clean = parseViewFile(
+      view([{ module: "a.py", text: "t", by: "Ken" }]),
+    );
+    const doubled = parseViewFile(
+      view([
+        { module: "a.py", text: "one", by: "Ken" },
+        { module: "a.py", text: "two", by: "Claude" },
+      ]),
+    );
+
+    expect(clean).toMatchObject({ ok: true, warnings: [] });
+    expect(doubled.ok && doubled.warnings).toEqual([
+      "view holds 1 note on a.py; kept the last on each",
+    ]);
   });
 });
