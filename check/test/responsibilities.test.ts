@@ -87,7 +87,9 @@ describe("parseConfig", () => {
     readdirSync(join(CONFIGS, "valid")).filter(
       (file) =>
         file !== "sensors-duplication-short.yaml" &&
-        file !== "sensors-crap-short.yaml",
+        file !== "sensors-crap-short.yaml" &&
+        file !== "sensors-mutation-short.yaml" &&
+        file !== "overlays-mutate-short.yaml",
     ),
   )("parses %s", (file) => {
     const text = readFileSync(join(CONFIGS, "valid", file), "utf8");

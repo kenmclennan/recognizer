@@ -1,0 +1,8 @@
+{
+  "mutate": [
+    { "name": "killed", "type": "count", "granularity": "member", "bad": "low" },
+    { "name": "survived", "type": "count", "granularity": "member", "bad": "high" },
+    { "name": "uncovered", "type": "count", "granularity": "member", "bad": "high" },
+    { "name": "score", "type": "ratio", "granularity": "member", "bad": "low" }
+  ]
+}

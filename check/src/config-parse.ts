@@ -1,7 +1,11 @@
 import { parse } from "yaml";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
-import { expandShortForms, SHIPPED_SENSORS } from "./shipped-sensors.js";
+import {
+  expandMeasurerShortForms,
+  expandShortForms,
+  SHIPPED_SENSORS,
+} from "./shipped-sensors.js";
 
 export interface MetricDeclaration {
   name: string;
@@ -87,9 +91,8 @@ function expandConfig(document: unknown): unknown {
     record.sensors as Record<string, unknown> | undefined,
     SHIPPED_SENSORS,
   );
-  const overlays = expandShortForms(
+  const overlays = expandMeasurerShortForms(
     record.overlays as Record<string, unknown> | undefined,
-    [],
   );
 
   return {

@@ -1,0 +1,5 @@
+{
+  "files": [{ "path": "app/rules.py", "hash": "0000000000000000000000000000000000000000000000000000000000000000" }],
+  "modules": [{ "id": "app/rules.py" }],
+  "modified": false
+}
