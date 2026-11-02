@@ -7,7 +7,7 @@ import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
-import { NO_RUN } from ${JSON.stringify(here("sensors-panel-model.ts"))};
+import { NO_RUN } from ${JSON.stringify(here("scan-panel-model.ts"))};
 ${FAKE_WORKER}
 const plainWorker = window.__fakeWorker;
 window.__fakeWorker = () => {
@@ -52,14 +52,17 @@ async function mount(loaded, picks, status) {
   const fake = fakeSensors({}, { config: CONFIG });
   const editor = fakeEditor();
   const counts = [];
-  const sensorsHost = {
+  const scanHost = {
     port: fake,
     scan: () => null,
-    refresh: async () => {},
-    state: { ticked: [], run: NO_RUN },
-    runChanged: () => {},
+    ticks: () => ({ describe: false, sensors: false, ticked: null }),
+    setTicks: () => {},
+    runState: () => NO_RUN,
+    running: () => false,
+    run: () => {},
+    stop: () => {},
   };
-  showExplorer(host, { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, "demo", (text) => counts.push(text), port, () => {}, null, undefined, { getItem: () => null, setItem: () => {} }, editor, undefined, undefined, undefined, sensorsHost);
+  showExplorer(host, { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, "demo", (text) => counts.push(text), port, () => {}, null, undefined, { getItem: () => null, setItem: () => {} }, editor, undefined, undefined, undefined, scanHost);
   await tick();
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
@@ -224,7 +227,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   facts.stale = { text: stale.q(".findings-stale").textContent, shown: stale.shown(".findings-stale") };
   click(stale.q(".findings-stale"));
   await tick();
-  facts.staleClick = { sensors: stale.shown(".sensors-panel"), findings: stale.shown(".findings-panel") };
+  facts.staleClick = { sensors: stale.shown(".scan-panel"), findings: stale.shown(".findings-panel") };
 
   const fresh = await mount({ findings: [doc("structure", [violation])] }, null, [{ name: "alpha", status: "ran" }]);
   click(fresh.q(".rail-findings"));
@@ -248,7 +251,7 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.panel.order).toEqual([
       "rail-files",
       "rail-notes",
-      "rail-sensors",
+      "rail-scan",
       "rail-findings",
     ]);
     expect(f.panel.badge).toBe("3");

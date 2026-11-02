@@ -1,4 +1,4 @@
-import type { SensorStatus } from "./sensor-run";
+import type { ScanFooter } from "./scan-progress";
 
 export type FileChange = {
   path: string;
@@ -16,41 +16,21 @@ export type ScanState = {
   origin: ScanOrigin;
   scannedAt: number;
   changes: Changes;
-  rescanning: boolean;
-  sensors: SensorStatus[];
+  progress: ScanFooter | null;
+  canShow: boolean;
+  log: string | null;
 };
 
 export type ScanLine = {
-  kind: "up-to-date" | "files" | "moved" | "rescanning";
+  kind: "up-to-date" | "files" | "moved" | "scanning" | "result";
   text: string;
   tone: "muted" | "amber";
   files: FileChange[];
   rescan: "none" | "enabled" | "disabled";
-  sensors: SensorsLine | null;
+  stop: boolean;
+  show: boolean;
+  openLog: boolean;
 };
-
-export type SensorsLine = {
-  text: string;
-  tone: "muted" | "amber";
-  title: string;
-};
-
-export function sensorsLine(sensors: SensorStatus[]): SensorsLine | null {
-  if (sensors.length === 0) {
-    return null;
-  }
-
-  const parts = sensors.map(({ name, status }) => `${name} ${status}`);
-  const reasons = sensors
-    .filter(({ reason }) => reason !== undefined)
-    .map(({ name, reason }) => `${name}: ${reason}`);
-
-  return {
-    text: `Sensors: ${parts.join(", ")}`,
-    tone: sensors.some(({ status }) => status === "failed") ? "amber" : "muted",
-    title: reasons.join("\n"),
-  };
-}
 
 export const NO_CHANGES: Changes = { files: [], moved: null };
 
@@ -79,26 +59,38 @@ export function ageText(scannedAt: number, now: number): string {
 }
 
 export function scanLine(state: ScanState, now: number): ScanLine {
-  return {
-    ...scanLineWithoutSensors(state, now),
-    sensors: sensorsLine(state.sensors),
-  };
-}
+  const idle = { stop: false, show: false, openLog: false };
+  const { progress } = state;
 
-type ScanLineBase = Omit<ScanLine, "sensors">;
-
-function scanLineWithoutSensors(state: ScanState, now: number): ScanLineBase {
-  if (state.rescanning) {
+  if (progress?.running) {
     return {
-      kind: "rescanning",
-      text: "Rescanning...",
+      kind: "scanning",
+      text: progress.text,
       tone: "muted",
       files: [],
       rescan: "disabled",
+      stop: true,
+      show: false,
+      openLog: false,
     };
   }
 
   const { moved, files } = state.changes;
+
+  if (progress !== null && moved === null && files.length === 0) {
+    const failed = progress.failed > 0;
+
+    return {
+      kind: "result",
+      text: progress.text,
+      tone: progress.tone,
+      files: [],
+      rescan: "enabled",
+      stop: false,
+      show: failed && state.canShow,
+      openLog: failed && state.log !== null,
+    };
+  }
 
   if (moved !== null) {
     return {
@@ -110,6 +102,7 @@ function scanLineWithoutSensors(state: ScanState, now: number): ScanLineBase {
       tone: "amber",
       files: [],
       rescan: "enabled",
+      ...idle,
     };
   }
 
@@ -120,6 +113,7 @@ function scanLineWithoutSensors(state: ScanState, now: number): ScanLineBase {
       tone: "amber",
       files,
       rescan: "enabled",
+      ...idle,
     };
   }
 
@@ -134,5 +128,6 @@ function scanLineWithoutSensors(state: ScanState, now: number): ScanLineBase {
     tone: "muted",
     files: [],
     rescan: "none",
+    ...idle,
   };
 }

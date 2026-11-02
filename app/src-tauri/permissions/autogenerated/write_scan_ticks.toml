@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-write-scan-ticks"
+description = "Enables the write_scan_ticks command without any pre-configured scope."
+commands.allow = ["write_scan_ticks"]
+
+[[permission]]
+identifier = "deny-write-scan-ticks"
+description = "Denies the write_scan_ticks command without any pre-configured scope."
+commands.deny = ["write_scan_ticks"]

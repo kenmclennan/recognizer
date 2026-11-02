@@ -158,6 +158,24 @@ const REASON_TEXT = {
   version: "version changed",
 };
 
+function describeButton(
+  row: ResponsibilityLineRow,
+  actions: InspectorActions,
+  title: string,
+): HTMLElement {
+  const button = el("button", "describe", row.busy ? "Describing" : "Describe");
+
+  button.type = "button";
+  button.disabled = row.busy;
+  button.title = title;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    actions.describe(row.id);
+  });
+
+  return button;
+}
+
 function responsibilityNode(
   row: ResponsibilityLineRow,
   actions: InspectorActions,
@@ -165,7 +183,10 @@ function responsibilityNode(
   const node = el("div", `responsibility ${row.state.kind}`);
 
   if (row.state.kind === "missing") {
-    node.append(el("span", "muted", "No responsibility line yet"));
+    node.append(
+      el("span", "muted", "No responsibility line yet"),
+      describeButton(row, actions, "No line has been written for this module"),
+    );
   } else if (row.state.kind === "unknown") {
     node.append(
       el("span", "muted", `Responsibility unknown: ${row.state.reason}`),
@@ -174,23 +195,14 @@ function responsibilityNode(
     node.append(el("span", "line", row.state.line));
 
     if (row.state.kind === "out-of-date") {
-      const button = el(
-        "button",
-        "describe",
-        row.busy ? "Describing" : "Describe",
+      node.append(
+        el("span", "tag stale", "Out of date"),
+        describeButton(
+          row,
+          actions,
+          row.state.reasons.map((reason) => REASON_TEXT[reason]).join(", "),
+        ),
       );
-
-      node.append(el("span", "tag stale", "Out of date"));
-      button.type = "button";
-      button.disabled = row.busy;
-      button.title = row.state.reasons
-        .map((reason) => REASON_TEXT[reason])
-        .join(", ");
-      button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        actions.describe(row.id);
-      });
-      node.append(button);
     }
   }
 

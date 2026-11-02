@@ -1,5 +1,5 @@
 import type { FindingRecord, FindingsDocument } from "recognizer";
-import type { SensorRow } from "./sensors-panel-model";
+import type { SensorRow } from "./scan-panel-model";
 
 export type FindingRow = {
   id: string;

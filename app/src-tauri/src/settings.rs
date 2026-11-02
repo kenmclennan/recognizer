@@ -10,6 +10,22 @@ use crate::fs_safe::write_atomic;
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub editor: String,
+    #[serde(default)]
+    pub scanning: Scanning,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, serde::Deserialize)]
+pub struct Scanning {
+    pub describe: bool,
+    pub sensors: bool,
+}
+
+fn parse_flag(scanning: &Map<String, Value>, key: &str) -> Result<bool, String> {
+    match scanning.get(key) {
+        None | Some(Value::Null) => Ok(false),
+        Some(Value::Bool(flag)) => Ok(*flag),
+        Some(_) => Err(format!("scanning.{key} in config.json must be a boolean")),
+    }
 }
 
 fn parse_object(text: &str) -> Result<Map<String, Value>, String> {
@@ -35,7 +51,16 @@ pub fn parse(text: Option<&str>) -> Result<Settings, String> {
         Some(_) => return Err("editor in config.json must be a string".to_string()),
     };
 
-    Ok(Settings { editor })
+    let scanning = match object.get("scanning") {
+        None | Some(Value::Null) => Scanning::default(),
+        Some(Value::Object(scanning)) => Scanning {
+            describe: parse_flag(scanning, "describe")?,
+            sensors: parse_flag(scanning, "sensors")?,
+        },
+        Some(_) => return Err("scanning in config.json must be an object".to_string()),
+    };
+
+    Ok(Settings { editor, scanning })
 }
 
 pub fn validate(settings: &Settings) -> Result<(), String> {
@@ -69,6 +94,18 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
     };
 
     set_or_remove(&mut object, "editor", &settings.editor);
+
+    if settings.scanning.describe || settings.scanning.sensors {
+        object.insert(
+            "scanning".to_string(),
+            serde_json::json!({
+                "describe": settings.scanning.describe,
+                "sensors": settings.scanning.sensors,
+            }),
+        );
+    } else {
+        object.remove("scanning");
+    }
 
     let mut text =
         serde_json::to_string_pretty(&Value::Object(object)).map_err(|error| error.to_string())?;
@@ -129,6 +166,7 @@ mod tests {
     fn a_multi_line_editor_fails_validation() {
         let multi = Settings {
             editor: "code\nrm x".to_string(),
+            ..Settings::default()
         };
 
         assert!(validate(&multi).is_err());
@@ -167,6 +205,7 @@ mod tests {
             &path,
             &Settings {
                 editor: "code".to_string(),
+                ..Settings::default()
             },
         )
         .unwrap();
@@ -174,6 +213,7 @@ mod tests {
             &path,
             &Settings {
                 editor: String::new(),
+                ..Settings::default()
             },
         )
         .unwrap();
@@ -205,6 +245,7 @@ mod tests {
 
         let bad = Settings {
             editor: "code\nrm x".to_string(),
+            ..Settings::default()
         };
 
         assert!(save(&path, &bad).is_err());
@@ -216,6 +257,7 @@ mod tests {
         let (_dir, path) = file();
         let settings = Settings {
             editor: "code --goto".to_string(),
+            ..Settings::default()
         };
 
         save(&path, &settings).unwrap();
@@ -228,5 +270,52 @@ mod tests {
         let (_dir, path) = file();
 
         assert_eq!(read(&path), Ok(Settings::default()));
+    }
+
+    #[test]
+    fn scanning_defaults_to_both_off_and_rejects_a_bad_shape() {
+        assert_eq!(parse(Some("{}")).unwrap().scanning, Scanning::default());
+        assert!(parse(Some(r#"{"scanning": 3}"#)).is_err());
+        assert!(parse(Some(r#"{"scanning": {"describe": "yes"}}"#)).is_err());
+        assert_eq!(
+            parse(Some(r#"{"scanning": {"sensors": true}}"#))
+                .unwrap()
+                .scanning,
+            Scanning {
+                describe: false,
+                sensors: true
+            }
+        );
+    }
+
+    #[test]
+    fn saving_scanning_writes_the_key_only_when_one_is_on_and_keeps_other_keys() {
+        let (_dir, path) = file();
+
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"recognizer_path": "/x", "other": 1}"#).unwrap();
+
+        let mut settings = read(&path).unwrap();
+
+        settings.scanning.describe = true;
+        save(&path, &settings).unwrap();
+
+        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+
+        assert_eq!(
+            written["scanning"],
+            serde_json::json!({"describe": true, "sensors": false})
+        );
+        assert_eq!(written["recognizer_path"], "/x");
+        assert_eq!(written["other"], 1);
+        assert_eq!(read(&path).unwrap().scanning, settings.scanning);
+
+        settings.scanning = Scanning::default();
+        save(&path, &settings).unwrap();
+
+        let cleared: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+
+        assert!(cleared.get("scanning").is_none());
+        assert_eq!(cleared["recognizer_path"], "/x");
     }
 }

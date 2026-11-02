@@ -7,11 +7,11 @@ window.__TAURI_INTERNALS__ = { invoke: async () => "0.0.0" };
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 
 const footer = document.getElementById("footer");
-let rescans = 0;
-const view = buildFooter(footer, () => { rescans += 1; });
+const calls = { rescan: 0, stop: 0, show: 0, openLog: 0 };
+const view = buildFooter(footer, { rescan: () => { calls.rescan += 1; }, stop: () => { calls.stop += 1; }, show: () => { calls.show += 1; }, openLog: () => { calls.openLog += 1; } });
 const NOW = Date.now();
 const origin = { branch: "main", commit: "a1b2c3d" };
-const base = { origin, scannedAt: NOW - 3 * 60000, changes: { files: [], moved: null }, rescanning: false, sensors: [] };
+const base = { origin, scannedAt: NOW - 3 * 60000, changes: { files: [], moved: null }, progress: null, canShow: false, log: null };
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 const q = (selector) => footer.querySelector(selector);
 const rows = () => [...footer.querySelectorAll(".changes-row")].map((row) => [...row.children].map((c) => c.textContent));
@@ -48,15 +48,29 @@ click(q(".changes-list"));
 facts.afterInside = shape().listHidden;
 click(q(".scan-count"));
 click(q(".rescan-button"));
-facts.rescans = rescans;
+facts.rescans = calls.rescan;
 
 view.setScan({ ...base, changes: { files, moved: { branch: "main", commit: "9f8e7d6" } } });
 facts.moved = { ...shape(), count: footer.querySelectorAll(".scan-count").length };
 view.setScan({ ...base, changes: { files: [], moved: { branch: null, commit: "9f8e7d6" } } });
 facts.detached = shape().text;
 
-view.setScan({ ...base, rescanning: true, changes: { files, moved: null } });
-facts.rescanning = shape();
+view.setScan({ ...base, progress: { text: "Describing 1 of 2", running: true, failed: 0, tone: "muted" }, changes: { files, moved: null } });
+facts.scanning = shape();
+click(q(".scan-stop"));
+facts.stops = calls.stop;
+
+view.setScan({ ...base, progress: { text: "Scan done - extracted, described 2", running: false, failed: 0, tone: "muted" } });
+facts.done = shape();
+
+view.setScan({ ...base, progress: { text: "2 failed", running: false, failed: 2, tone: "amber" }, canShow: true, log: ".recognizer/cache/log/x-scan.json" });
+facts.failed = shape();
+click(q(".scan-show"));
+click(q(".scan-open-log"));
+facts.failedCalls = { show: calls.show, openLog: calls.openLog };
+
+view.setScan({ ...base, progress: { text: "2 failed", running: false, failed: 2, tone: "amber" }, canShow: false, log: null });
+facts.failedBare = shape();
 
 view.setScan({ ...base, origin: { branch: null, commit: null } });
 facts.noGit = shape().text;
@@ -117,11 +131,27 @@ describe.skipIf(chrome === undefined)("the footer's scan line", () => {
     expect(f.detached).toBe("Now at 9f8e7d6Rescan");
   });
 
-  it("shows Rescanning... muted with a disabled Rescan button", () => {
-    expect(f.rescanning.text).toBe("Rescanning...Rescan");
-    expect(f.rescanning.amber).toBe(false);
-    expect(f.rescanning.buttons).toEqual([{ text: "Rescan", disabled: true }]);
-    expect(f.rescanning.listHidden).toBe(true);
+  it("shows the phase text muted with Stop and a disabled Rescan while a scan runs", () => {
+    expect(f.scanning.text).toBe("Describing 1 of 2RescanStop");
+    expect(f.scanning.amber).toBe(false);
+    expect(f.scanning.buttons).toEqual([
+      { text: "Rescan", disabled: true },
+      { text: "Stop", disabled: false },
+    ]);
+    expect(f.scanning.listHidden).toBe(true);
+    expect(f.stops).toBe(1);
+  });
+
+  it("shows Scan done with what ran and an enabled Rescan", () => {
+    expect(f.done.text).toBe("Scan done - extracted, described 2Rescan");
+    expect(f.done.buttons).toEqual([{ text: "Rescan", disabled: false }]);
+  });
+
+  it("shows a failure amber with Show and Open log, each calling back, and leaves them out when there is nothing to show", () => {
+    expect(f.failed.text).toBe("2 failedRescan\u00b7Show\u00b7Open log");
+    expect(f.failed.amber).toBe(true);
+    expect(f.failedCalls).toEqual({ show: 1, openLog: 1 });
+    expect(f.failedBare.buttons).toEqual([{ text: "Rescan", disabled: false }]);
   });
 
   it("gives no commit outside git", () => {

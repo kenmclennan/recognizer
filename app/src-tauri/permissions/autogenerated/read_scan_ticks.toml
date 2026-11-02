@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-scan-ticks"
+description = "Enables the read_scan_ticks command without any pre-configured scope."
+commands.allow = ["read_scan_ticks"]
+
+[[permission]]
+identifier = "deny-read-scan-ticks"
+description = "Denies the read_scan_ticks command without any pre-configured scope."
+commands.deny = ["read_scan_ticks"]

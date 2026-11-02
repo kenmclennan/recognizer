@@ -2,19 +2,19 @@ import { el } from "./dom";
 import type { BadgeTone } from "./findings-order";
 import { iconButton } from "./icons";
 
-export type LeftPanel = "files" | "notes" | "sensors" | "findings" | null;
+export type LeftPanel = "files" | "notes" | "scan" | "findings" | null;
 
 export type RailActions = {
   toggleFiles: () => void;
   toggleNotes: () => void;
-  toggleSensors: () => void;
+  toggleScan: () => void;
   toggleFindings: () => void;
 };
 
 export type RailState = {
   panel: LeftPanel;
   notes: number;
-  sensorsFailed: boolean;
+  scanFailed: boolean;
   findings: { count: number; tone: BadgeTone };
 };
 
@@ -32,12 +32,7 @@ export function buildRailView(actions: RailActions): RailView {
     actions.toggleFiles,
   );
   const notes = iconButton("notes", "Notes", "rail-notes", actions.toggleNotes);
-  const sensors = iconButton(
-    "sensors",
-    "Sensors",
-    "rail-sensors",
-    actions.toggleSensors,
-  );
+  const scan = iconButton("scan", "Scan", "rail-scan", actions.toggleScan);
   const findings = iconButton(
     "findings",
     "Findings",
@@ -50,27 +45,27 @@ export function buildRailView(actions: RailActions): RailView {
 
   element.setAttribute("aria-label", "Panels");
   notes.append(count);
-  sensors.append(dot);
+  scan.append(dot);
   findings.append(found);
-  element.append(files, notes, sensors, findings);
+  element.append(files, notes, scan, findings);
 
-  for (const one of [files, notes, sensors, findings]) {
+  for (const one of [files, notes, scan, findings]) {
     one.setAttribute("data-label", one.getAttribute("aria-label") ?? "");
     one.removeAttribute("title");
   }
 
   return {
     element,
-    render({ panel, notes: total, sensorsFailed, findings: badge }) {
+    render({ panel, notes: total, scanFailed, findings: badge }) {
       files.classList.toggle("open", panel === "files");
       files.setAttribute("aria-pressed", String(panel === "files"));
       notes.classList.toggle("open", panel === "notes");
       notes.setAttribute("aria-pressed", String(panel === "notes"));
-      sensors.classList.toggle("open", panel === "sensors");
-      sensors.setAttribute("aria-pressed", String(panel === "sensors"));
+      scan.classList.toggle("open", panel === "scan");
+      scan.setAttribute("aria-pressed", String(panel === "scan"));
       findings.classList.toggle("open", panel === "findings");
       findings.setAttribute("aria-pressed", String(panel === "findings"));
-      dot.hidden = !sensorsFailed;
+      dot.hidden = !scanFailed;
       count.textContent = total > 0 ? String(total) : "";
       count.hidden = total === 0;
       found.className =
