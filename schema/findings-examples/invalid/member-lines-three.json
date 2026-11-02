@@ -1,0 +1,20 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "duplication", "version": "0.1.0" },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": {},
+  "findings": [
+    {
+      "id": "duplication:a|b",
+      "kind": "duplication",
+      "severity": "warning",
+      "principle": "Do not repeat yourself",
+      "summary": "a is 100% similar to b",
+      "evidence": {
+        "modules": ["a.py"],
+        "members": [{ "module": "a.py", "name": "a", "file": "a.py", "lines": [1, 2, 3] }]
+      }
+    }
+  ]
+}

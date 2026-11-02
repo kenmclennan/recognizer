@@ -62,6 +62,10 @@ describe("renderAll on the committed templates", () => {
     expect(formula).toContain('bin.install "recognizer-scan-rust"');
     expect(formula).toContain('"--no-index", "--find-links", "wheelhouse"');
     expect(formula).toContain("recognizer_scan_kotlin-1.2.3-py3-none-any.whl");
+    expect(formula).toContain("recognizer_sensors-1.2.3-py3-none-any.whl");
+    expect(formula).toContain(
+      'bin.install_symlink libexec/"venv/bin/recognizer-sensors"',
+    );
     expect(formula).toContain("depends_on arch: :arm64");
   });
 
@@ -71,6 +75,9 @@ describe("renderAll on the committed templates", () => {
     );
     expect(formula).toContain(
       'shell_output("#{bin}/recognizer-scan-rust --version")',
+    );
+    expect(formula).toContain(
+      'shell_output("#{bin}/recognizer-sensors --version")',
     );
     expect(formula).toContain(
       'shell_output("#{bin}/recognizer-describe-claude --prompt-version")',

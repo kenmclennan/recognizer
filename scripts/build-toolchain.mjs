@@ -31,11 +31,42 @@ export function archiveEntries(version, closurePaths, wheelhouseFiles = []) {
     ...closurePaths.map((path) => `${path}/package.json`),
     `recognizer_scan_python-${version}-py3-none-any.whl`,
     `recognizer_scan_kotlin-${version}-py3-none-any.whl`,
+    `recognizer_sensors-${version}-py3-none-any.whl`,
     ...wheelhouseFiles.map((name) => `${WHEELHOUSE}/${name}`),
     RUST_BINARY,
     "THIRD-PARTY-NOTICES.md",
     "LICENSE",
   ];
+}
+
+export function mergeRequirements(exports) {
+  const blocks = new Map();
+
+  for (const text of exports) {
+    let current = null;
+
+    for (const line of text.split("\n")) {
+      if (line.trim() === "" || line.startsWith("#")) {
+        continue;
+      }
+
+      if (!/^\s/.test(line)) {
+        current = line.replace(/\s*\\$/, "").trim();
+
+        if (!blocks.has(current)) {
+          blocks.set(current, []);
+        } else {
+          current = null;
+        }
+      }
+
+      if (current !== null) {
+        blocks.get(current).push(line);
+      }
+    }
+  }
+
+  return `${[...blocks.values()].flat().join("\n")}\n`;
 }
 
 export function verifyArchive(
@@ -137,22 +168,28 @@ export function buildToolchain(root, outDir) {
       cwd: root,
     });
 
+    run("uv", ["build", "--wheel", "--out-dir", staging, "sensors"], {
+      cwd: root,
+    });
+
     const wheelhouse = join(staging, WHEELHOUSE);
-    const requirements = join(packed, "kotlin-requirements.txt");
-    const exported = run(
-      "uv",
-      [
-        "export",
-        "--frozen",
-        "--no-dev",
-        "--no-emit-project",
-        "--format",
-        "requirements-txt",
-      ],
-      { cwd: join(root, "scanners/kotlin") },
+    const requirements = join(packed, "wheelhouse-requirements.txt");
+    const exported = ["scanners/kotlin", "sensors"].map((project) =>
+      run(
+        "uv",
+        [
+          "export",
+          "--frozen",
+          "--no-dev",
+          "--no-emit-project",
+          "--format",
+          "requirements-txt",
+        ],
+        { cwd: join(root, project) },
+      ),
     );
 
-    writeFileSync(requirements, exported);
+    writeFileSync(requirements, mergeRequirements(exported));
     mkdirSync(wheelhouse, { recursive: true });
     run("python3", [
       "-m",

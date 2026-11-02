@@ -20,9 +20,11 @@ class Recognizer < Formula
     system formula_opt_bin("python@3.13")/"python3.13", "-m", "venv", libexec/"venv"
     system libexec/"venv/bin/pip", "install", "--no-index", "--find-links", "wheelhouse",
            "recognizer_scan_python-@@version@@-py3-none-any.whl",
-           "recognizer_scan_kotlin-@@version@@-py3-none-any.whl"
+           "recognizer_scan_kotlin-@@version@@-py3-none-any.whl",
+           "recognizer_sensors-@@version@@-py3-none-any.whl"
     bin.install_symlink libexec/"venv/bin/recognizer-scan-python"
     bin.install_symlink libexec/"venv/bin/recognizer-scan-kotlin"
+    bin.install_symlink libexec/"venv/bin/recognizer-sensors"
 
     bin.install "recognizer-scan-rust"
 
@@ -35,6 +37,7 @@ class Recognizer < Formula
     assert_match "@@version@@", shell_output("#{bin}/recognizer-scan-python --version")
     assert_match "@@version@@", shell_output("#{bin}/recognizer-scan-kotlin --version")
     assert_match "@@version@@", shell_output("#{bin}/recognizer-scan-rust --version")
+    assert_match "@@version@@", shell_output("#{bin}/recognizer-sensors --version")
     assert_match(/prompt-[0-9a-f]{12}/, shell_output("#{bin}/recognizer-describe-claude --prompt-version"))
   end
 end

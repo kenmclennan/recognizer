@@ -19,7 +19,12 @@ export interface FindingRecord {
   evidence: {
     modules: string[];
     edges?: FindingEdge[];
-    members?: { module: string; name: string }[];
+    members?: {
+      module: string;
+      name: string;
+      file?: string;
+      lines?: [number, number];
+    }[];
     measures?: Record<string, number>;
   };
 }

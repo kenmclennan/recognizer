@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { parseConfig } from "../src/config-parse.js";
+import { parseConfig, registeredSensors } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
 import {
   lineStatus,
@@ -83,7 +83,11 @@ describe("lineStatus", () => {
 });
 
 describe("parseConfig", () => {
-  it.each(readdirSync(join(CONFIGS, "valid")))("parses %s", (file) => {
+  it.each(
+    readdirSync(join(CONFIGS, "valid")).filter(
+      (file) => file !== "sensors-duplication-short.yaml",
+    ),
+  )("parses %s", (file) => {
     const text = readFileSync(join(CONFIGS, "valid", file), "utf8");
 
     expect(parseConfig(text)).toEqual(parse(text) ?? {});
@@ -93,5 +97,58 @@ describe("parseConfig", () => {
     const text = readFileSync(join(CONFIGS, "invalid", file), "utf8");
 
     expect(() => parseConfig(text)).toThrow(InputError);
+  });
+
+  it("expands the duplication short form to the shipped command", () => {
+    const text = readFileSync(
+      join(CONFIGS, "valid/sensors-duplication-short.yaml"),
+      "utf8",
+    );
+
+    expect(parseConfig(text).sensors?.duplication).toEqual({
+      command: [
+        "recognizer-sensors",
+        "duplication",
+        "--repository",
+        "{repository}",
+        "--commit",
+        "{commit}",
+        "--output",
+        "{output}",
+        "--settings",
+        '{"threshold":0.9,"min_lines":6}',
+      ],
+    });
+  });
+
+  it("names the sensor when a command-less entry is not shipped", () => {
+    const text = readFileSync(
+      join(CONFIGS, "invalid/sensors-unknown-shipped.yaml"),
+      "utf8",
+    );
+
+    expect(() => parseConfig(text)).toThrow(/config\/sensors\/nonesuch/);
+  });
+
+  it("registers the short form as an ordinary sensor", () => {
+    const config = parseConfig("sensors:\n  duplication: {}\n");
+
+    expect(registeredSensors(config)).toEqual([
+      {
+        name: "duplication",
+        command: [
+          "recognizer-sensors",
+          "duplication",
+          "--repository",
+          "{repository}",
+          "--commit",
+          "{commit}",
+          "--output",
+          "{output}",
+          "--settings",
+          "{}",
+        ],
+      },
+    ]);
   });
 });

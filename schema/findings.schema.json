@@ -60,7 +60,14 @@
                   "required": ["module", "name"],
                   "properties": {
                     "module": { "type": "string", "minLength": 1 },
-                    "name": { "type": "string", "minLength": 1 }
+                    "name": { "type": "string", "minLength": 1 },
+                    "file": { "type": "string", "minLength": 1 },
+                    "lines": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": { "type": "integer", "minimum": 1 }
+                    }
                   }
                 }
               },
