@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOverlayModel,
+  currentMetricNamed,
   DESCRIPTIONS,
   footerText,
   type MetricDescriptor,
@@ -243,6 +244,22 @@ describe("pruneTicks", () => {
       "a/m1",
     ]);
     expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([]);
+  });
+});
+
+describe("currentMetricNamed", () => {
+  const text = overlay([{ name: "m1" }], {});
+  const fresh = buildOverlayModel([{ name: "a", text }], { commit: COMMIT });
+  const stale = buildOverlayModel([{ name: "a", text }], { commit: "other" });
+
+  it("finds a current metric by its name", () => {
+    expect(currentMetricNamed("m1", fresh.metrics)?.key).toBe("a/m1");
+  });
+
+  it("finds nothing for a stale, unknown or absent name", () => {
+    expect(currentMetricNamed("m1", stale.metrics)).toBeNull();
+    expect(currentMetricNamed("m2", fresh.metrics)).toBeNull();
+    expect(currentMetricNamed(undefined, fresh.metrics)).toBeNull();
   });
 });
 

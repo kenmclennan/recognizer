@@ -176,6 +176,19 @@ export function pruneTicks(
   return ticks.filter((key) => live.has(key));
 }
 
+export function currentMetricNamed(
+  name: string | undefined,
+  metrics: readonly MetricDescriptor[],
+): MetricDescriptor | null {
+  if (name === undefined) {
+    return null;
+  }
+
+  return (
+    metrics.find((metric) => !metric.stale && metric.label === name) ?? null
+  );
+}
+
 export function footerText(ticked: readonly MetricDescriptor[]): string | null {
   if (ticked.length === 0) {
     return null;

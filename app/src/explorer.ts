@@ -1,4 +1,5 @@
 import {
+  type FindingRecord,
   folderUsedBy,
   folderUses,
   isOrdered,
@@ -89,6 +90,7 @@ import { buildNotesPanelView } from "./notes-panel-view";
 import { createOpenModules } from "./open-modules";
 import {
   buildOverlayModel,
+  currentMetricNamed,
   footerText,
   type MetricDescriptor,
   moduleValue,
@@ -559,6 +561,8 @@ export function showExplorer(
     focusedFinding: () => orientedFinding,
     openEvidence: openEvidence,
     copyFinding: (id) => void views.copy(id),
+    metricFor: metricOffered,
+    showMetric,
     toggleGroup(key) {
       if (!groupFlips.delete(key)) {
         groupFlips.add(key);
@@ -735,6 +739,8 @@ export function showExplorer(
     toggle: toggleFinding,
     openInEditor: openEvidence,
     copyId: (id) => void views.copy(id),
+    metricFor: metricOffered,
+    showMetric,
     filter(next) {
       findingFilter = next;
       render();
@@ -1123,6 +1129,19 @@ export function showExplorer(
     }
 
     canvas.centerOn(boxFor(id));
+  }
+
+  function metricOffered(record: FindingRecord) {
+    const found = currentMetricNamed(record.metric, overlayModel.metrics);
+
+    return found === null ? null : { key: found.key, label: found.label };
+  }
+
+  function showMetric(key: string) {
+    if (!metricTicks.includes(key)) {
+      metricTicks = [...metricTicks, key];
+      render();
+    }
   }
 
   function toggleFinding(id: string) {
