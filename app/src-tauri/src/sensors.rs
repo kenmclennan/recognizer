@@ -43,10 +43,6 @@ pub fn sensor_name_ok(name: &str) -> bool {
 }
 
 pub fn check_names(names: &[String]) -> Result<(), String> {
-    if names.is_empty() {
-        return Err("no sensor was named".to_string());
-    }
-
     match names.iter().find(|name| !sensor_name_ok(name)) {
         Some(name) => Err(format!("{name} is not a sensor name")),
         None => Ok(()),
@@ -176,13 +172,20 @@ pub fn snapshot_changed(previous: &Snapshot, next: &Snapshot) -> bool {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn run_sensors_rejects_an_empty_list_and_a_bad_name_before_spawning() {
-        assert!(check_names(&[]).is_err());
+    fn run_scan_refuses_a_bad_sensor_name_before_spawning_and_accepts_an_empty_list() {
+        assert!(check_names(&[]).is_ok());
         assert_eq!(
             check_names(&["ok".to_string(), "-x".to_string()]),
             Err("-x is not a sensor name".to_string())
         );
-        assert!(check_names(&["a$(x)".to_string()]).is_err());
+
+        for bad in ["Bad Name", "a,b", "$(x)", "--extract", "", "-x", "a$(x)"] {
+            assert_eq!(
+                check_names(&[bad.to_string()]),
+                Err(format!("{bad} is not a sensor name"))
+            );
+        }
+
         assert!(check_names(&["unused-exports".to_string()]).is_ok());
     }
 

@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files and read and watch the policy and config for the sensors, run the named registered sensors, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-findings`\n- `allow-read-responsibilities`\n- `allow-read-sensor-inputs`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-remove-findings`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-sensors`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-structure`\n- `allow-write-view`",
+          "description": "Choose, run and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files and read and watch the policy and config for the sensors, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-findings`\n- `allow-read-responsibilities`\n- `allow-read-sensor-inputs`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-remove-findings`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-scan-ticks`\n- `allow-write-structure`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, scan, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files and read and watch the policy and config for the sensors, run the named registered sensors, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-findings`\n- `allow-read-responsibilities`\n- `allow-read-sensor-inputs`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-remove-findings`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-sensors`\n- `allow-scan-folder`\n- `allow-scans-at`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-structure`\n- `allow-write-view`"
+          "markdownDescription": "Choose, run and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for changes to, read a line of and name the folder a window holds, open the folder or a file in it in the editor, and read, write and watch its saved views, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files and read and watch the policy and config for the sensors, describe one module, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-window-drive`\n- `allow-choose-folder`\n- `allow-describe-module`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-read-findings`\n- `allow-read-responsibilities`\n- `allow-read-sensor-inputs`\n- `allow-read-source-line`\n- `allow-recognizer-version`\n- `allow-remove-findings`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-scan-ticks`\n- `allow-write-structure`\n- `allow-write-view`"
         },
         {
           "description": "Read and write the app's settings\n#### This permission set includes:\n\n- `allow-read-settings`\n- `allow-write-settings`",
@@ -249,6 +249,18 @@
           "markdownDescription": "Enables the read_responsibilities command without any pre-configured scope."
         },
         {
+          "description": "Enables the read_scan_cache command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-scan-cache",
+          "markdownDescription": "Enables the read_scan_cache command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_scan_ticks command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-scan-ticks",
+          "markdownDescription": "Enables the read_scan_ticks command without any pre-configured scope."
+        },
+        {
           "description": "Enables the read_sensor_inputs command without any pre-configured scope.",
           "type": "string",
           "const": "allow-read-sensor-inputs",
@@ -291,22 +303,22 @@
           "markdownDescription": "Enables the renames_since command without any pre-configured scope."
         },
         {
-          "description": "Enables the run_sensors command without any pre-configured scope.",
+          "description": "Enables the run_scan command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-run-sensors",
-          "markdownDescription": "Enables the run_sensors command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the scan_folder command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-scan-folder",
-          "markdownDescription": "Enables the scan_folder command without any pre-configured scope."
+          "const": "allow-run-scan",
+          "markdownDescription": "Enables the run_scan command without any pre-configured scope."
         },
         {
           "description": "Enables the scans_at command without any pre-configured scope.",
           "type": "string",
           "const": "allow-scans-at",
           "markdownDescription": "Enables the scans_at command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the stop_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-stop-scan",
+          "markdownDescription": "Enables the stop_scan command without any pre-configured scope."
         },
         {
           "description": "Enables the take_pending_view command without any pre-configured scope.",
@@ -355,6 +367,12 @@
           "type": "string",
           "const": "allow-window-folder",
           "markdownDescription": "Enables the window_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_scan_ticks command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-scan-ticks",
+          "markdownDescription": "Enables the write_scan_ticks command without any pre-configured scope."
         },
         {
           "description": "Enables the write_settings command without any pre-configured scope.",
@@ -435,6 +453,18 @@
           "markdownDescription": "Denies the read_responsibilities command without any pre-configured scope."
         },
         {
+          "description": "Denies the read_scan_cache command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-scan-cache",
+          "markdownDescription": "Denies the read_scan_cache command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_scan_ticks command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-scan-ticks",
+          "markdownDescription": "Denies the read_scan_ticks command without any pre-configured scope."
+        },
+        {
           "description": "Denies the read_sensor_inputs command without any pre-configured scope.",
           "type": "string",
           "const": "deny-read-sensor-inputs",
@@ -477,22 +507,22 @@
           "markdownDescription": "Denies the renames_since command without any pre-configured scope."
         },
         {
-          "description": "Denies the run_sensors command without any pre-configured scope.",
+          "description": "Denies the run_scan command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-run-sensors",
-          "markdownDescription": "Denies the run_sensors command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the scan_folder command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-scan-folder",
-          "markdownDescription": "Denies the scan_folder command without any pre-configured scope."
+          "const": "deny-run-scan",
+          "markdownDescription": "Denies the run_scan command without any pre-configured scope."
         },
         {
           "description": "Denies the scans_at command without any pre-configured scope.",
           "type": "string",
           "const": "deny-scans-at",
           "markdownDescription": "Denies the scans_at command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-stop-scan",
+          "markdownDescription": "Denies the stop_scan command without any pre-configured scope."
         },
         {
           "description": "Denies the take_pending_view command without any pre-configured scope.",
@@ -541,6 +571,12 @@
           "type": "string",
           "const": "deny-window-folder",
           "markdownDescription": "Denies the window_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_scan_ticks command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-scan-ticks",
+          "markdownDescription": "Denies the write_scan_ticks command without any pre-configured scope."
         },
         {
           "description": "Denies the write_settings command without any pre-configured scope.",

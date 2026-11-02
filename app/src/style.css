@@ -1559,11 +1559,10 @@ svg.i.chevron {
   color: var(--warn);
 }
 
-.footer .sensors-line.amber {
-  color: var(--warn);
-}
-
 .footer .scan-count,
+.footer .scan-stop,
+.footer .scan-show,
+.footer .scan-open-log,
 .footer .rescan-button {
   color: inherit;
   background: none;
@@ -1613,11 +1612,6 @@ svg.i.chevron {
 .change-kind {
   min-width: 64px;
   color: var(--muted);
-}
-
-.content.rescanning {
-  opacity: 0.5;
-  pointer-events: none;
 }
 
 .panel-resizer {
@@ -1677,6 +1671,33 @@ svg.i.chevron {
   color: inherit;
   font: inherit;
   font-weight: 400;
+}
+
+.settings .scanning {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings .scanning legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings label.switch {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.settings label.switch input {
+  padding: 0;
 }
 
 .settings .hint {
@@ -1935,7 +1956,7 @@ svg.i.chevron {
   display: flex;
 }
 
-.sensors-panel {
+.scan-panel {
   flex: 1;
   flex-direction: column;
   gap: 8px;
@@ -1945,30 +1966,48 @@ svg.i.chevron {
   font-size: 12px;
 }
 
-.tree > .sensors-panel {
+.tree > .scan-panel {
   display: none;
 }
 
-.tree.sensors-open > :not(.sensors-panel) {
+.tree.scan-open > :not(.scan-panel) {
   display: none;
 }
 
-.tree.sensors-open > .sensors-panel {
+.tree.scan-open > .scan-panel {
   display: flex;
 }
 
-.sensors-header {
+.scan-header {
   font-size: 14px;
 }
 
-.sensors-scan,
-.sensors-note {
-  margin: 0;
+.scan-head {
+  color: var(--muted);
+}
+
+.scan-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.scan-block-title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.scan-block-line.muted {
   color: var(--muted);
 }
 
 .sensor-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   padding: 4px 0;
@@ -1985,6 +2024,11 @@ svg.i.chevron {
   color: var(--muted);
 }
 
+.sensor-chip.ok {
+  color: #1e8449;
+  border-color: #1e8449;
+}
+
 .sensor-chip.red {
   color: #c0392b;
   border-color: #c0392b;
@@ -1995,21 +2039,32 @@ svg.i.chevron {
   border-color: #b9770e;
 }
 
-.sensors-buttons {
+.scan-block .sensor-chip {
+  align-self: flex-start;
+}
+
+.scan-block .sensor-row .sensor-chip {
+  align-self: auto;
+}
+
+.sensor-reason {
+  flex-basis: 100%;
+  color: #c0392b;
+}
+
+.scan-buttons {
   display: flex;
   gap: 8px;
 }
 
-.sensors-buttons button.primary {
+.scan-panel .scan-buttons button {
   padding: 4px 12px;
+}
+
+.scan-panel .scan-buttons button.primary {
   border-color: var(--dark);
   background: var(--dark);
   color: var(--darkfg);
-}
-
-.sensors-buttons button.primary:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .rail .ib::after {

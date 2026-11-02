@@ -2,14 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::fs_safe::checked_relative;
 
 const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
+const SCAN_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; folder="$1"; shift; exec "$0" scan "$folder" "$@""#;
 const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
-const SENSE_SCRIPT: &str =
-    r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1" --sense "$2" --json"#;
 const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" --version"#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
@@ -56,94 +55,6 @@ pub enum ToolsReport {
     Failed { exit_code: i32, stderr: String },
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct SensedSensor {
-    pub name: String,
-    pub status: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-#[serde(
-    tag = "status",
-    rename_all = "kebab-case",
-    rename_all_fields = "camelCase"
-)]
-pub enum SenseReport {
-    Sensed {
-        commit: String,
-        modified: bool,
-        sensors: Vec<SensedSensor>,
-    },
-    CommandMissing {
-        hint: String,
-    },
-    Failed {
-        exit_code: i32,
-        stderr: String,
-    },
-}
-
-#[derive(Deserialize)]
-struct ScanEvent {
-    event: String,
-    phase: Option<String>,
-    name: Option<String>,
-    outcome: Option<String>,
-    reason: Option<String>,
-    commit: Option<String>,
-    modified: Option<bool>,
-}
-
-struct SenseOutput {
-    commit: String,
-    modified: bool,
-    sensors: Vec<SensedSensor>,
-}
-
-fn parse_sense_output(stdout: &str) -> Result<SenseOutput, String> {
-    let mut sensors = Vec::new();
-    let mut summary = None;
-
-    for line in stdout.lines().filter(|line| !line.trim().is_empty()) {
-        let event: ScanEvent = serde_json::from_str(line).map_err(|error| error.to_string())?;
-
-        match event.event.as_str() {
-            "entry" if event.phase.as_deref() == Some("sense") => {
-                let name = event.name.ok_or("a sense entry has no name")?;
-                let status = match event.outcome.as_deref() {
-                    Some("ok") => "ran",
-                    Some("failed") => "failed",
-                    _ => return Err(format!("sense entry {name} has no outcome")),
-                };
-
-                sensors.push(SensedSensor {
-                    name,
-                    status: status.to_string(),
-                    reason: event.reason,
-                });
-            }
-            "summary" => {
-                summary = Some((
-                    event.commit.ok_or("the summary has no commit")?,
-                    event.modified.ok_or("the summary has no modified")?,
-                ));
-            }
-            _ => {}
-        }
-    }
-
-    match summary {
-        Some((commit, modified)) => Ok(SenseOutput {
-            commit,
-            modified,
-            sensors,
-        }),
-        None => Err("no summary line".to_string()),
-    }
-}
-
 #[derive(Debug, Default, PartialEq)]
 pub struct CacheRead {
     pub scans: Vec<ScanFile>,
@@ -164,6 +75,40 @@ pub fn shell_invocation(shell: &str, command: &str, folder: &Path) -> (String, V
     )
 }
 
+pub fn scan_flags(describe: bool, sense: &[String]) -> Vec<String> {
+    let mut flags = vec!["--json".to_string()];
+
+    if describe {
+        flags.push("--describe".to_string());
+    }
+
+    if !sense.is_empty() {
+        flags.push("--sense".to_string());
+        flags.push(sense.join(","));
+    }
+
+    flags
+}
+
+pub fn scan_invocation(
+    shell: &str,
+    command: &str,
+    folder: &Path,
+    describe: bool,
+    sense: &[String],
+) -> (String, Vec<String>) {
+    let mut args = vec![
+        "-ilc".to_string(),
+        SCAN_SCRIPT.to_string(),
+        command.to_string(),
+        folder.display().to_string(),
+    ];
+
+    args.extend(scan_flags(describe, sense));
+
+    (shell.to_string(), args)
+}
+
 pub fn describe_invocation(
     shell: &str,
     command: &str,
@@ -178,24 +123,6 @@ pub fn describe_invocation(
             command.to_string(),
             folder.display().to_string(),
             module.to_string(),
-        ],
-    )
-}
-
-pub fn sense_invocation(
-    shell: &str,
-    command: &str,
-    folder: &Path,
-    names: &[String],
-) -> (String, Vec<String>) {
-    (
-        shell.to_string(),
-        vec![
-            "-ilc".to_string(),
-            SENSE_SCRIPT.to_string(),
-            command.to_string(),
-            folder.display().to_string(),
-            names.join(","),
         ],
     )
 }
@@ -300,75 +227,6 @@ pub fn report_for(
     }
 }
 
-pub fn scan(folder: &Path, shell: &str) -> ScanReport {
-    scan_with(folder, shell, RECOGNIZER_COMMAND)
-}
-
-pub fn scan_with(folder: &Path, shell: &str, command: &str) -> ScanReport {
-    let (program, args) = shell_invocation(shell, command, folder);
-    let output = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .output();
-
-    match output {
-        Err(_) => ScanReport::CommandMissing {
-            hint: missing_hint(),
-        },
-        Ok(output) => report_for(
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-            || read_cache(folder),
-        ),
-    }
-}
-
-pub fn sense_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> SenseReport {
-    match exit {
-        Some(127) => SenseReport::CommandMissing {
-            hint: missing_hint(),
-        },
-        Some(code @ (0 | 1)) => match parse_sense_output(stdout) {
-            Ok(output) => SenseReport::Sensed {
-                commit: output.commit,
-                modified: output.modified,
-                sensors: output.sensors,
-            },
-            Err(error) => SenseReport::Failed {
-                exit_code: code,
-                stderr: format!("unreadable output from recognizer scan: {error}"),
-            },
-        },
-        other => SenseReport::Failed {
-            exit_code: other.unwrap_or(-1),
-            stderr,
-        },
-    }
-}
-
-pub fn sense(folder: &Path, names: &[String], shell: &str) -> SenseReport {
-    sense_with(folder, names, shell, RECOGNIZER_COMMAND)
-}
-
-pub fn sense_with(folder: &Path, names: &[String], shell: &str, command: &str) -> SenseReport {
-    let (program, args) = sense_invocation(shell, command, folder, names);
-    let output = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .output();
-
-    match output {
-        Err(_) => SenseReport::CommandMissing {
-            hint: missing_hint(),
-        },
-        Ok(output) => sense_report_for(
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-        ),
-    }
-}
-
 pub fn tools_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> ToolsReport {
     match exit {
         Some(127) => ToolsReport::CommandMissing,
@@ -403,6 +261,25 @@ pub fn recognizer_version_with(shell: &str, command: &str) -> ToolsReport {
     }
 }
 
+pub fn scan_with(folder: &Path, shell: &str, command: &str) -> ScanReport {
+    let (program, args) = shell_invocation(shell, command, folder);
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .output();
+
+    match output {
+        Err(_) => ScanReport::CommandMissing {
+            hint: missing_hint(),
+        },
+        Ok(output) => report_for(
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+            || read_cache(folder),
+        ),
+    }
+}
+
 pub fn config_file_in(config_dir: &Path) -> PathBuf {
     config_dir.join("config.json")
 }
@@ -411,6 +288,10 @@ pub fn config_file_in(config_dir: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|name| name.to_string()).collect()
+    }
 
     #[test]
     fn the_folder_is_an_argument_never_part_of_the_script() {
@@ -426,6 +307,51 @@ mod tests {
     }
 
     #[test]
+    fn scan_with_a_missing_command_reports_it_missing() {
+        let dir = TempDir::new().unwrap();
+
+        match scan_with(dir.path(), "/bin/sh", "/nonexistent/recognizer") {
+            ScanReport::CommandMissing { .. } => {}
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_scan_flags_are_json_plus_what_was_asked_and_never_extract() {
+        assert_eq!(scan_flags(false, &[]), ["--json"]);
+        assert_eq!(scan_flags(true, &[]), ["--json", "--describe"]);
+        assert_eq!(
+            scan_flags(false, &names(&["a", "b"])),
+            ["--json", "--sense", "a,b"]
+        );
+        assert_eq!(
+            scan_flags(true, &names(&["a"])),
+            ["--json", "--describe", "--sense", "a"]
+        );
+
+        for describe in [false, true] {
+            for sense in [names(&[]), names(&["a"])] {
+                assert!(!scan_flags(describe, &sense).contains(&"--extract".to_string()));
+            }
+        }
+    }
+
+    #[test]
+    fn the_folder_and_flags_are_positional_never_part_of_the_scan_script() {
+        let folder = Path::new("/tmp/it's a \"folder\" $(rm -rf x)");
+        let (shell, args) = scan_invocation("/bin/zsh", "recognizer", folder, true, &names(&["a"]));
+
+        assert_eq!(shell, "/bin/zsh");
+        assert_eq!(args[0], "-ilc");
+        assert_eq!(args[1], SCAN_SCRIPT);
+        assert!(!args[1].contains("tmp"));
+        assert!(!args[1].contains("--describe"));
+        assert_eq!(args[2], "recognizer");
+        assert_eq!(args[3], folder.display().to_string());
+        assert_eq!(args[4..], ["--json", "--describe", "--sense", "a"]);
+    }
+
+    #[test]
     fn the_module_is_a_positional_argument_never_part_of_the_describe_script() {
         let folder = Path::new("/tmp/repo");
         let (shell, args) = describe_invocation("/bin/zsh", "recognizer", folder, "a/$(x).py");
@@ -438,170 +364,12 @@ mod tests {
     }
 
     #[test]
-    fn the_folder_and_names_are_positional_never_part_of_the_sense_script() {
-        let folder = Path::new("/tmp/repo");
-        let names = vec!["a$(x)".to_string(), "-x".to_string()];
-        let (shell, args) = sense_invocation("/bin/zsh", "recognizer", folder, &names);
-
-        assert_eq!(shell, "/bin/zsh");
-        assert_eq!(args[0], "-ilc");
-        assert_eq!(args[1], SENSE_SCRIPT);
-        assert!(SENSE_SCRIPT.contains(r#"scan "$1" --sense "$2" --json"#));
-        assert!(!args[1].contains("a$(x)"));
-        assert_eq!(args[2..], ["recognizer", "/tmp/repo", "a$(x),-x"]);
-    }
-
-    #[test]
-    fn sense_output_with_one_ran_and_one_failed_is_one_report() {
-        let stdout = concat!(
-            r#"{"event":"phase","phase":"extract","state":"current","commit":"abc"}"#,
-            "\n",
-            r#"{"event":"entry","phase":"extract","name":"python","outcome":"ok","modules":2,"edges":1}"#,
-            "\n",
-            r#"{"event":"phase","phase":"sense","total":2}"#,
-            "\n",
-            r#"{"event":"entry","phase":"sense","name":"a","outcome":"ok"}"#,
-            "\n",
-            r#"{"event":"entry","phase":"sense","name":"b","outcome":"failed","reason":"broke"}"#,
-            "\n",
-            r#"{"event":"summary","repository":"/r","commit":"abc","modified":false,"exit":1,"phases":[],"removed":[]}"#,
-            "\n",
-        );
-
-        for code in [0, 1] {
-            assert_eq!(
-                sense_report_for(Some(code), stdout, String::new()),
-                SenseReport::Sensed {
-                    commit: "abc".to_string(),
-                    modified: false,
-                    sensors: vec![
-                        SensedSensor {
-                            name: "a".to_string(),
-                            status: "ran".to_string(),
-                            reason: None
-                        },
-                        SensedSensor {
-                            name: "b".to_string(),
-                            status: "failed".to_string(),
-                            reason: Some("broke".to_string())
-                        },
-                    ],
-                }
-            );
-        }
-    }
-
-    #[test]
-    fn sense_exit_two_is_failed_with_stderr_and_127_is_missing() {
-        assert_eq!(
-            sense_report_for(Some(2), "", "no such sensor: x".to_string()),
-            SenseReport::Failed {
-                exit_code: 2,
-                stderr: "no such sensor: x".to_string()
-            }
-        );
-        assert_eq!(
-            sense_report_for(Some(127), "", String::new()),
-            SenseReport::CommandMissing {
-                hint: missing_hint()
-            }
-        );
-        assert_eq!(
-            sense_report_for(None, "", "killed".to_string()),
-            SenseReport::Failed {
-                exit_code: -1,
-                stderr: "killed".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn a_stream_with_no_summary_is_failed() {
-        let stdout = r#"{"event":"entry","phase":"sense","name":"a","outcome":"ok"}"#;
-
-        match sense_report_for(Some(0), stdout, String::new()) {
-            SenseReport::Failed { exit_code, stderr } => {
-                assert_eq!(exit_code, 0);
-                assert!(stderr.contains("unreadable output from recognizer scan"));
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn malformed_sense_output_is_failed() {
-        match sense_report_for(Some(0), "not json", String::new()) {
-            SenseReport::Failed { exit_code, stderr } => {
-                assert_eq!(exit_code, 0);
-                assert!(stderr.contains("unreadable output"));
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn the_sense_report_serialises_to_the_webview_contract() {
-        let report = SenseReport::Sensed {
-            commit: "abc".to_string(),
-            modified: true,
-            sensors: vec![SensedSensor {
-                name: "a".to_string(),
-                status: "failed".to_string(),
-                reason: Some("x".to_string()),
-            }],
-        };
-
-        assert_eq!(
-            serde_json::to_value(&report).unwrap(),
-            serde_json::json!({
-                "status": "sensed",
-                "commit": "abc",
-                "modified": true,
-                "sensors": [{"name": "a", "status": "failed", "reason": "x"}]
-            })
-        );
-        assert_eq!(
-            serde_json::to_value(SenseReport::Failed {
-                exit_code: 2,
-                stderr: "e".to_string()
-            })
-            .unwrap(),
-            serde_json::json!({"status": "failed", "exitCode": 2, "stderr": "e"})
-        );
-    }
-
-    #[test]
-    fn sense_with_a_missing_command_reports_it_missing() {
-        let dir = TempDir::new().unwrap();
-
-        match sense_with(
-            dir.path(),
-            &["a".to_string()],
-            "/bin/sh",
-            "/nonexistent/recognizer",
-        ) {
-            SenseReport::CommandMissing { .. } => {}
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
     fn the_hint_says_to_install_and_names_no_setting() {
         let hint = missing_hint();
 
         assert!(hint.contains("brew install kenmclennan/tap/recognizer"));
         assert!(!hint.contains("recognizer_path"));
         assert!(!hint.contains("Settings"));
-    }
-
-    #[test]
-    fn scan_with_a_missing_command_reports_it_missing() {
-        let dir = TempDir::new().unwrap();
-
-        match scan_with(dir.path(), "/bin/sh", "/nonexistent/recognizer") {
-            ScanReport::CommandMissing { .. } => {}
-            other => panic!("{other:?}"),
-        }
     }
 
     fn cache_folder() -> TempDir {

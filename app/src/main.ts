@@ -7,18 +7,20 @@ import { showEmpty } from "./empty-view";
 import {
   type Carried,
   type Explorer,
-  type SensorsHost,
+  type ScanHost,
   showExplorer,
 } from "./explorer";
 import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
-import { createRescanner } from "./rescanner";
+import { createRescanner, type ProgressUpdate } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
+import { describerOf, registeredNames } from "./scan-panel-model";
+import { showTarget } from "./scan-progress";
+import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
-import { NO_RUN, sessionStatuses } from "./sensors-panel-model";
 import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
 import { toolsNotice } from "./tools-notice";
@@ -29,13 +31,19 @@ import { windowSource } from "./window-source";
 const content = document.getElementById("content") as HTMLElement;
 const footer = document.getElementById("footer") as HTMLElement;
 
-const footerView = buildFooter(footer, () => void rescanner.run());
+const footerView = buildFooter(footer, {
+  rescan: () => void rescanner.run(),
+  stop: () => void rescanner.stop(),
+  show: showFailure,
+  openLog,
+});
 
 let explorer: Explorer | null = null;
 let folderName = "";
 let scanState: ScanState | null = null;
 let current: Loaded | null = null;
-const sensorsState: SensorsHost["state"] = { ticked: [], run: NO_RUN };
+let shownProgress: ProgressUpdate = { footer: null, target: null, log: null };
+let releaseFirstScan: () => void = () => {};
 
 const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
@@ -44,27 +52,67 @@ function setScanState(next: ScanState | null) {
   footerView.setScan(next);
 }
 
-function adoptedOrigin(origin: ScanOrigin) {
-  sensorsState.run = { ...sensorsState.run, failures: {} };
+function canShow(update: ProgressUpdate): boolean {
+  const { target } = update;
 
-  setScanState({
-    origin,
-    scannedAt: Date.now(),
-    changes: NO_CHANGES,
-    rescanning: false,
-    sensors: sessionStatuses(current?.sensors ?? [], sensorsState.run),
-  });
+  return (
+    target !== null &&
+    (target.kind === "sensor" || current?.modules.includes(target.id) === true)
+  );
 }
+
+function withProgress(
+  state: Omit<ScanState, "progress" | "canShow" | "log">,
+): ScanState {
+  return {
+    ...state,
+    progress: shownProgress.footer,
+    canShow: canShow(shownProgress),
+    log: shownProgress.log,
+  };
+}
+
+function adoptedOrigin(origin: ScanOrigin) {
+  setScanState(
+    withProgress({
+      origin,
+      scannedAt: Date.now(),
+      changes: NO_CHANGES,
+    }),
+  );
+}
+
+function showFailure() {
+  const target = showTarget(rescanner.progress());
+
+  if (target !== null) {
+    explorer?.show(target);
+  }
+}
+
+function openLog() {
+  const { log } = shownProgress;
+
+  if (log !== null) {
+    void editorSource
+      .openFile(log)
+      .catch((error: unknown) => footerView.notify(String(error)));
+  }
+}
+
+const scanHost: ScanHost = {
+  port: sensorsSource,
+  scan: () => scanState,
+  ticks: () => rescanner.ticks(),
+  setTicks: (next) => rescanner.setTicks(next),
+  runState: () => rescanner.runState(),
+  running: () => rescanner.running(),
+  run: () => void rescanner.run(),
+  stop: () => void rescanner.stop(),
+};
 
 function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
   current = loaded;
-
-  if (scanState !== null) {
-    setScanState({
-      ...scanState,
-      sensors: sessionStatuses(loaded.sensors, sensorsState.run),
-    });
-  }
 
   return showExplorer(
     content,
@@ -80,20 +128,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     responsibilitiesSource,
     windowSource,
     (line) => footerView.setAgentLine(line),
-    {
-      port: sensorsSource,
-      scan: () => scanState,
-      refresh: () => rescanner.refresh(),
-      state: sensorsState,
-      runChanged: () => {
-        if (scanState !== null && current !== null) {
-          setScanState({
-            ...scanState,
-            sensors: sessionStatuses(current.sensors, sensorsState.run),
-          });
-        }
-      },
-    },
+    scanHost,
   );
 }
 
@@ -111,7 +146,15 @@ async function checkTools(): Promise<void> {
 }
 
 const rescanner = createRescanner<Carried>({
-  scan: () => repositorySource.scanFolder(),
+  port: scanSource,
+  registered: async () => {
+    const { config } = await sensorsSource.readInputs();
+
+    return {
+      names: registeredNames(config),
+      describer: describerOf(config) !== null,
+    };
+  },
   load: loadScans,
   sense: sensed,
   resense: async () => (current === null ? null : sensed(current)),
@@ -122,23 +165,37 @@ const rescanner = createRescanner<Carried>({
     explorer = buildExplorer(loaded, carried);
     void checkTools();
   },
-  running: (on) => {
-    content.classList.toggle("rescanning", on);
+  adopted: adoptedOrigin,
+  describedLine: () => explorer?.refreshResponsibilities(),
+  progress: (update) => {
+    shownProgress = update;
 
     if (scanState !== null) {
-      setScanState({ ...scanState, rescanning: on });
+      setScanState(withProgress(scanState));
+    }
+
+    explorer?.refreshPanel();
+  },
+  settled: () => {
+    releaseFirstScan();
+    releaseFirstScan = () => {};
+  },
+  blocked: (text) => {
+    if (explorer === null) {
+      showMessage(content, text, true);
+    } else {
+      footerView.notify(`Rescan failed: ${text}`);
     }
   },
-  adopted: adoptedOrigin,
   notify: (text) => footerView.notify(text),
 });
 
 async function start(): Promise<void> {
+  await rescanner.stop();
   explorer?.dispose();
   explorer = null;
   current = null;
-  sensorsState.ticked = [];
-  sensorsState.run = NO_RUN;
+  shownProgress = { footer: null, target: null, log: null };
   setScanState(null);
   footerView.setCount("");
 
@@ -154,33 +211,29 @@ async function start(): Promise<void> {
     return;
   }
 
+  folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   content.replaceChildren();
 
   const scanning = spinner("Scanning");
 
   scanning.classList.add("scan-busy");
 
-  const scanned = loadScans(
-    await createBusyGate(
-      () => content.replaceChildren(scanning),
-      () => scanning.remove(),
-    ).run(repositorySource.scanFolder()),
-  );
+  const firstSettled = new Promise<void>((resolve) => {
+    releaseFirstScan = resolve;
+  });
 
-  if (scanned.blocking !== null) {
-    showMessage(content, scanned.blocking, true);
+  void rescanner.run();
 
+  await createBusyGate(
+    () => content.replaceChildren(scanning),
+    () => scanning.remove(),
+  ).run(firstSettled);
+
+  if (explorer === null) {
     return;
   }
 
-  const loaded = await sensed(scanned);
-  current = loaded;
-
-  adoptedOrigin(await repositorySource.adoptScan());
-  folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
-  explorer = buildExplorer(loaded, null);
-  explorer.openLinkedView();
-  void checkTools();
+  (explorer as Explorer).openLinkedView();
   await repositorySource.watchChanges();
 }
 

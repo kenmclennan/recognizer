@@ -4,6 +4,19 @@ import { APP_NAME } from "./app-info";
 import { el } from "./dom";
 import { type ScanState, scanLine } from "./footer-scan";
 
+function footerButton(
+  label: string,
+  className: string,
+  onClick: () => void,
+): HTMLElement {
+  const node = el("button", className, label);
+
+  node.type = "button";
+  node.addEventListener("click", () => onClick());
+
+  return node;
+}
+
 export type FooterView = {
   setToolsNotice: (text: string | null) => void;
   notify: (text: string) => void;
@@ -14,10 +27,25 @@ export type FooterView = {
 
 const AGE_REFRESH_MS = 30000;
 
+export type FooterActions = {
+  rescan: () => void;
+  stop: () => void;
+  show: () => void;
+  openLog: () => void;
+};
+
+const NO_ACTIONS: FooterActions = {
+  rescan: () => {},
+  stop: () => {},
+  show: () => {},
+  openLog: () => {},
+};
+
 export function buildFooter(
   container: HTMLElement,
-  rescan: () => void = () => {},
+  actions: Partial<FooterActions> = {},
 ): FooterView {
+  const { rescan, stop, show, openLog } = { ...NO_ACTIONS, ...actions };
   const identity = document.createElement("span");
   const count = document.createElement("span");
   const scan = el("span", "scan-line");
@@ -96,15 +124,18 @@ export function buildFooter(
       parts.push(run);
     }
 
-    if (line.sensors !== null) {
-      const sensors = el(
-        "span",
-        `sensors-line ${line.sensors.tone}`,
-        line.sensors.text,
-      );
+    if (line.stop) {
+      parts.push(footerButton("Stop", "scan-stop", stop));
+    }
 
-      sensors.title = line.sensors.title;
-      parts.push(sensors);
+    if (line.show) {
+      parts.push(el("span", "scan-dot", "\u00b7"));
+      parts.push(footerButton("Show", "scan-show", show));
+    }
+
+    if (line.openLog) {
+      parts.push(el("span", "scan-dot", "\u00b7"));
+      parts.push(footerButton("Open log", "scan-open-log", openLog));
     }
 
     scan.replaceChildren(...parts);

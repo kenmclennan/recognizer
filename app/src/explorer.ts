@@ -101,11 +101,18 @@ import {
 import { nextCheck } from "./row-model";
 import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
+import {
+  NO_RUN,
+  type RunState,
+  registeredNames,
+  type ScanTicks,
+  scanPanel,
+} from "./scan-panel-model";
+import { buildScanPanelView } from "./scan-panel-view";
+import type { ShowTarget } from "./scan-progress";
 import type { BarModel } from "./selection-bar-view";
 import type { SensorsPort } from "./sensor-run";
 import { inertSensors } from "./sensor-run";
-import { NO_RUN, type RunState, sensorsPanel } from "./sensors-panel-model";
-import { buildSensorsPanelView } from "./sensors-panel-view";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { buildStalePanel, type StalePanelModel } from "./stale-panel-view";
 import {
@@ -166,20 +173,26 @@ export type Carried = {
   leftPanel: LeftPanel;
 };
 
-export type SensorsHost = {
+export type ScanHost = {
   port: SensorsPort;
   scan: () => ScanState | null;
-  refresh: () => Promise<void>;
-  state: { ticked: string[]; run: RunState };
-  runChanged: () => void;
+  ticks: () => ScanTicks;
+  setTicks: (next: ScanTicks) => void;
+  runState: () => RunState;
+  running: () => boolean;
+  run: () => void;
+  stop: () => void;
 };
 
-export const inertSensorsHost: SensorsHost = {
+export const inertScanHost: ScanHost = {
   port: inertSensors,
   scan: () => null,
-  refresh: async () => {},
-  state: { ticked: [], run: NO_RUN },
-  runChanged: () => {},
+  ticks: () => ({ describe: false, sensors: false, ticked: null }),
+  setTicks: () => {},
+  runState: () => NO_RUN,
+  running: () => false,
+  run: () => {},
+  stop: () => {},
 };
 
 export type Explorer = {
@@ -187,6 +200,9 @@ export type Explorer = {
   carry: () => Carried;
   openSelectedInEditor: () => void;
   openLinkedView: () => void;
+  refreshResponsibilities: () => void;
+  refreshPanel: () => void;
+  show: (target: ShowTarget) => void;
   dispose: () => void;
 };
 
@@ -207,7 +223,7 @@ export function showExplorer(
   responsibilities: ResponsibilitiesPort = inertResponsibilities,
   windowPort: WindowPort = inertWindow,
   showAgentLine: (line: AgentLineView) => void = () => {},
-  sensorsHost: SensorsHost = inertSensorsHost,
+  scanHost: ScanHost = inertScanHost,
 ): Explorer {
   const health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
@@ -225,7 +241,7 @@ export function showExplorer(
     needsAttention: false,
   };
   let leftPanel: LeftPanel = carried?.leftPanel ?? "files";
-  let sensorsConfig: string | null = null;
+  let scanConfig: string | null = null;
   let scrollTarget: string | null = null;
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
@@ -634,15 +650,28 @@ export function showExplorer(
     toggle: toggleNote,
     remove: (path) => removeNotePath(path),
   });
-  const sensorsView = buildSensorsPanelView({
-    tick(name, ticked) {
-      const rest = sensorsHost.state.ticked.filter((one) => one !== name);
-
-      sensorsHost.state.ticked = ticked ? [...rest, name] : rest;
+  const scanView = buildScanPanelView({
+    tickDescribe(ticked) {
+      scanHost.setTicks({ ...scanHost.ticks(), describe: ticked });
       render();
     },
-    runSelected: () => void runSensors(sensorsHost.state.ticked),
-    runAll: () => void runSensors(registeredNames()),
+    tickSensors(ticked) {
+      scanHost.setTicks({ ...scanHost.ticks(), sensors: ticked });
+      render();
+    },
+    tickSensor(name, ticked) {
+      const names = registeredNames(scanConfig);
+      const held = scanHost.ticks().ticked ?? names;
+      const rest = held.filter((one) => one !== name);
+
+      scanHost.setTicks({
+        ...scanHost.ticks(),
+        ticked: ticked ? [...rest, name] : rest,
+      });
+      render();
+    },
+    run: () => scanHost.run(),
+    stop: () => scanHost.stop(),
   });
   const findingsView = buildFindingsPanelView({
     toggle: toggleFinding,
@@ -653,15 +682,15 @@ export function showExplorer(
       render();
     },
     openSensors() {
-      leftPanel = "sensors";
+      leftPanel = "scan";
       render();
-      void loadSensorsConfig();
+      void loadScanConfig();
     },
   });
   const rail = buildRailView({
     toggleFiles: toggleTree,
     toggleNotes: openNotes,
-    toggleSensors: toggleSensorsPanel,
+    toggleScan: toggleScanPanel,
     toggleFindings: toggleFindingsPanel,
   });
   const notices = el("div", "notices");
@@ -684,7 +713,7 @@ export function showExplorer(
   canvas.element.append(bar.element, stale.element);
   tree.element.append(
     notesPanel.element,
-    sensorsView.element,
+    scanView.element,
     findingsView.element,
   );
   body.append(rail.element, tree.element, canvas.element, inspector.element);
@@ -1138,93 +1167,71 @@ export function showExplorer(
     return canvasOrientation;
   }
 
-  function toggleSensorsPanel() {
-    leftPanel = leftPanel === "sensors" ? null : "sensors";
+  function toggleScanPanel() {
+    leftPanel = leftPanel === "scan" ? null : "scan";
     render();
 
-    if (leftPanel === "sensors") {
-      void loadSensorsConfig();
+    if (leftPanel === "scan") {
+      void loadScanConfig();
     }
   }
 
-  async function loadSensorsConfig() {
+  async function loadScanConfig() {
     try {
-      sensorsConfig = (await sensorsHost.port.readInputs()).config;
+      scanConfig = (await scanHost.port.readInputs()).config;
     } catch {
-      sensorsConfig = null;
+      scanConfig = null;
     }
 
     render();
   }
 
-  function sensorsModel() {
-    return sensorsPanel({
-      scan: sensorsHost.scan(),
+  function structureCounts() {
+    const rows = allFindings.filter((row) => row.sensor === "structure");
+
+    return {
+      violations: rows.filter((row) => row.severity === "violation").length,
+      warnings: rows.filter((row) => row.severity === "warning").length,
+    };
+  }
+
+  function scanModel() {
+    return scanPanel({
+      scan: scanHost.scan(),
       scanFiles: loaded.scans.map(({ file }) => file),
-      config: sensorsConfig,
+      counts: {
+        modules: loaded.modules.length,
+        edges: scans.reduce((total, scan) => total + scan.edges.length, 0),
+      },
+      config: scanConfig,
       sensors: loaded.sensors,
-      ticked: sensorsHost.state.ticked,
-      run: sensorsHost.state.run,
+      structure: structureCounts(),
+      lines: { modules: loaded.modules, of: responsibilityOf },
+      ticks: scanHost.ticks(),
+      run: scanHost.runState(),
+      scanning: scanHost.running(),
       now: Date.now(),
     });
   }
 
-  function registeredNames(): string[] {
-    return sensorsModel()
-      .rows.filter((row) => row.tickable)
-      .map((row) => row.name);
-  }
+  function showTarget(target: ShowTarget) {
+    if (target.kind === "sensor") {
+      leftPanel = "scan";
+      render();
+      scanView.reveal(target.name);
+      void loadScanConfig();
 
-  async function runSensors(names: string[]) {
-    const known = new Set(registeredNames());
-    const asked = names.filter((name) => known.has(name));
-
-    if (asked.length === 0 || sensorsHost.state.run.running.length > 0) {
       return;
     }
 
-    const state = sensorsHost.state;
-
-    state.run = { ...state.run, running: asked };
-    render();
-
-    const failures = { ...state.run.failures };
-    const ranAt = { ...state.run.ranAt };
-
-    try {
-      const result = await sensorsHost.port.run(asked);
-
-      if (result.status === "sensed") {
-        for (const one of result.sensors) {
-          if (one.status === "ran") {
-            delete failures[one.name];
-            ranAt[one.name] = Date.now();
-          } else {
-            failures[one.name] = one.reason ?? "failed";
-          }
-        }
-      } else {
-        const reason = result.status === "failed" ? result.reason : result.hint;
-
-        for (const name of asked) {
-          failures[name] = reason;
-        }
-      }
-    } catch (error) {
-      for (const name of asked) {
-        failures[name] = String(error);
-      }
+    if (!knownModules.has(target.id)) {
+      return;
     }
 
-    state.run = { running: [], failures, ranAt };
-    sensorsHost.runChanged();
-    render();
-
-    try {
-      await sensorsHost.refresh();
-    } finally {
-      await loadSensorsConfig();
-    }
+    describing.finish(target.id, { status: "failed", reason: target.reason });
+    inspectorOpen = true;
+    inspectorTab = "contents";
+    select({ kind: "module", id: target.id });
   }
 
   function openNotes() {
@@ -2287,15 +2294,15 @@ export function showExplorer(
     syncTrail(selection);
     body.classList.toggle("tree-hidden", leftPanel === null);
     tree.element.classList.toggle("notes-open", leftPanel === "notes");
-    tree.element.classList.toggle("sensors-open", leftPanel === "sensors");
+    tree.element.classList.toggle("scan-open", leftPanel === "scan");
     tree.element.classList.toggle("findings-open", leftPanel === "findings");
 
     const noteView = openViewValue();
     const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
 
-    const sensorsModelNow = sensorsModel();
+    const scanModelNow = scanModel();
 
-    sensorsView.render(sensorsModelNow);
+    scanView.render(scanModelNow);
 
     const findingChips = chips(allFindings);
 
@@ -2308,7 +2315,7 @@ export function showExplorer(
     findingsView.render({
       chips: findingChips,
       filter: findingFilter,
-      stale: staleNote(sensorsModelNow.rows),
+      stale: staleNote(scanModelNow.sensors.rows),
       groups: groupFindings(shown),
       active: orientedFinding,
       empty:
@@ -2321,7 +2328,7 @@ export function showExplorer(
     rail.render({
       panel: leftPanel,
       notes: noteTotal,
-      sensorsFailed: sensorsModelNow.mark,
+      scanFailed: scanModelNow.mark,
       findings: badge(allFindings),
     });
     tree.render({
@@ -2475,7 +2482,7 @@ export function showExplorer(
   );
 
   void readResponsibilities();
-  void loadSensorsConfig();
+  void loadScanConfig();
 
   void loadViewList().then(() => {
     if (carried?.snapshot.view != null) {
@@ -2507,6 +2514,9 @@ export function showExplorer(
     toggleTree,
     openSelectedInEditor,
     openLinkedView: () => void openLinkedView(),
+    refreshResponsibilities: () => void readResponsibilities(),
+    refreshPanel: () => render(),
+    show: showTarget,
     carry: () => ({ history, snapshot: snapshot(), leftPanel }),
     dispose() {
       document.removeEventListener("keydown", onUndoKey);

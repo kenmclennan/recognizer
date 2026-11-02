@@ -18,18 +18,22 @@ const q = (selector) => host.querySelector(selector);
 const cs = (node) => getComputedStyle(node);
 const facts = {};
 
-view.fill({ editor: "" });
+view.fill({ editor: "", scanning: { describe: false, sensors: false } });
 facts.empty = {
   labels: [...host.querySelectorAll("label > span")].map((n) => n.textContent),
-  placeholders: [...host.querySelectorAll("input")].map((n) => n.placeholder),
-  values: [...host.querySelectorAll("input")].map((n) => n.value),
+  placeholders: [...host.querySelectorAll('input[type="text"]')].map((n) => n.placeholder),
+  values: [...host.querySelectorAll('input[type="text"]')].map((n) => n.value),
+  legend: q(".scanning legend").textContent,
+  switches: [...host.querySelectorAll(".scanning label")].map((n) => n.textContent),
+  switchesChecked: [...host.querySelectorAll('.scanning input[type="checkbox"]')].map((n) => n.checked),
   hints: [...host.querySelectorAll(".hint")].map((n) => n.textContent),
   buttons: [...host.querySelectorAll(".buttons button")].map((n) => n.textContent),
   error: q(".error").textContent,
 };
 
-view.fill({ editor: "Sublime Text" });
-facts.filled = [...host.querySelectorAll("input")].map((n) => n.value);
+view.fill({ editor: "Sublime Text", scanning: { describe: true, sensors: false } });
+facts.filled = [...host.querySelectorAll('input[type="text"]')].map((n) => n.value);
+facts.filledSwitches = [...host.querySelectorAll('.scanning input[type="checkbox"]')].map((n) => n.checked);
 
 view.showError("the editor must be a single line");
 facts.errorShown = {
@@ -41,6 +45,7 @@ facts.errorShown = {
 };
 
 host.querySelector('input[name="editor"]').value = "  code --goto  ";
+host.querySelector('input[name="sensors"]').checked = true;
 q("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 facts.saved = saved;
 q('.buttons button[type="button"]').click();
@@ -52,7 +57,7 @@ facts.saveBottom = Math.round(save.bottom - host.getBoundingClientRect().top);
 facts.saveBottomRaw = save.bottom - host.getBoundingClientRect().top;
 facts.layout = {
   display: cs(q("form")).display,
-  inputWidth: Math.round(q("input").getBoundingClientRect().width),
+  inputWidth: Math.round(q('input[type="text"]').getBoundingClientRect().width),
 };
 
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
@@ -73,19 +78,25 @@ describe.skipIf(chrome === undefined)("the settings window", () => {
     f = await collectFacts<Facts>(HARNESS, "settings-look");
   }, 180000);
 
-  it("shows only the editor field with its placeholder, hint and buttons", () => {
-    expect(f.empty.labels).toEqual(["Editor"]);
+  it("shows the editor field with its placeholder, hint and buttons and a Scanning section with two switches, both off", () => {
+    expect(f.empty.labels).toEqual(["Editor", "Descriptions", "Sensors"]);
+    expect(f.empty.legend).toBe("Scanning");
+    expect(f.empty.switches).toEqual(["Descriptions", "Sensors"]);
+    expect(f.empty.switchesChecked).toEqual([false, false]);
     expect(f.empty.placeholders).toEqual(["System default"]);
     expect(f.empty.values).toEqual([""]);
     expect(f.empty.hints[0]).toContain("Sublime Text");
     expect(f.empty.hints[0]).toContain("Terminal editors are not supported");
-    expect(f.empty.hints).toHaveLength(1);
+    expect(f.empty.hints).toHaveLength(2);
+    expect(f.empty.hints[1]).toContain("has not scanned before");
+    expect(f.empty.hints[1]).toContain("remembered");
     expect(f.empty.buttons).toEqual(["Cancel", "Save"]);
     expect(f.empty.error).toBe("");
   });
 
   it("fills the fields from the loaded settings", () => {
     expect(f.filled).toEqual(["Sublime Text"]);
+    expect(f.filledSwitches).toEqual([true, false]);
   });
 
   it("shows an error line as an alert in the error colour", () => {
@@ -95,7 +106,9 @@ describe.skipIf(chrome === undefined)("the settings window", () => {
   });
 
   it("saves the trimmed values and cancels without saving", () => {
-    expect(f.saved).toEqual([{ editor: "code --goto" }]);
+    expect(f.saved).toEqual([
+      { editor: "code --goto", scanning: { describe: true, sensors: true } },
+    ]);
     expect(f.cancels).toBe(1);
   });
 

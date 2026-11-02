@@ -12,6 +12,8 @@ pub mod link;
 pub mod recent;
 pub mod repository;
 pub mod responsibilities;
+pub mod scan_run;
+pub mod scan_ticks;
 pub mod sensors;
 pub mod settings;
 pub mod socket;
@@ -28,6 +30,7 @@ use changes::{Baseline, Changes, Origin, ScanOrigin};
 use launch::{launch_for, Launch};
 use recent::{open_target, OpenTarget};
 use repository::ScanReport;
+use scan_run::{ScanRun, ScanRuns};
 use socket::{Drives, Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
@@ -262,6 +265,13 @@ fn recent_file(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())
 }
 
+fn ticks_file(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|dir| scan_ticks::ticks_file_in(&dir))
+        .map_err(|error| error.to_string())
+}
+
 fn update_recent(app: &AppHandle, change: impl FnOnce(&Path) -> Result<Vec<PathBuf>, String>) {
     let result = {
         let _guard = RECENT_LOCK
@@ -357,7 +367,7 @@ fn focused_label(app: &AppHandle) -> Option<String> {
 }
 
 const SETTINGS_WIDTH: f64 = 480.0;
-const SETTINGS_HEIGHT: f64 = 240.0;
+const SETTINGS_HEIGHT: f64 = 340.0;
 
 fn open_settings(app: &AppHandle) {
     if app.get_webview_window(SETTINGS_LABEL).is_some() {
@@ -600,6 +610,7 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
                 .state::<Snapshots>()
                 .closed(window.label());
             window.app_handle().state::<Drives>().closed(window.label());
+            window.app_handle().state::<ScanRuns>().stop(window.label());
         }
         _ => {}
     }
@@ -719,25 +730,81 @@ async fn recognizer_version() -> Result<repository::ToolsReport, String> {
 }
 
 #[tauri::command]
-async fn scan_folder(app: AppHandle, window: WebviewWindow) -> Result<ScanReport, String> {
-    let folder = app
-        .state::<WindowState>()
-        .folder_of(&window_label(&window))
-        .ok_or_else(|| "this window holds no folder".to_string())?;
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-
+async fn run_scan(
+    app: AppHandle,
+    window: WebviewWindow,
+    describe: bool,
+    sense: Vec<String>,
+) -> Result<ScanRun, String> {
+    let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
 
+    if let Err(reason) = sensors::check_names(&sense) {
+        return Ok(ScanRun::Refused { reason });
+    }
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+
     tauri::async_runtime::spawn_blocking(move || {
-        let origin = changes::take_origin(&folder);
+        let runs = app.state::<ScanRuns>();
 
-        app.state::<ScanBaselines>()
-            .with(&label, |window| window.pending = Some(origin))?;
+        Ok(scan_run::run_with(
+            &runs,
+            &label,
+            &folder,
+            &shell,
+            repository::RECOGNIZER_COMMAND,
+            describe,
+            &sense,
+            || {
+                let origin = changes::take_origin(&folder);
 
-        Ok(repository::scan(&folder, &shell))
+                let _ = app
+                    .state::<ScanBaselines>()
+                    .with(&label, |window| window.pending = Some(origin));
+            },
+            &|line| {
+                let _ = app.emit_to(&label, "scan-event", line);
+            },
+        ))
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+fn stop_scan(app: AppHandle, window: WebviewWindow) {
+    app.state::<ScanRuns>().stop(&window_label(&window));
+}
+
+#[tauri::command]
+fn read_scan_cache(app: AppHandle, window: WebviewWindow) -> Result<ScanReport, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    Ok(repository::report_for(Some(0), String::new(), || {
+        repository::read_cache(&folder)
+    }))
+}
+
+#[tauri::command]
+fn read_scan_ticks(app: AppHandle, window: WebviewWindow) -> Result<scan_ticks::ScanTicks, String> {
+    let folder = window_folder_path(&app, &window)?;
+    let defaults = settings::read(&config_file(&app)?)?;
+
+    Ok(scan_ticks::read(&ticks_file(&app)?, &folder, &defaults))
+}
+
+#[tauri::command]
+fn write_scan_ticks(
+    app: AppHandle,
+    window: WebviewWindow,
+    describe: bool,
+    sensors: bool,
+    ticked: Vec<String>,
+) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    scan_ticks::write(&ticks_file(&app)?, &folder, describe, sensors, ticked)
 }
 
 #[tauri::command]
@@ -889,23 +956,6 @@ async fn describe_module(
     })
     .await
     .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-async fn run_sensors(
-    app: AppHandle,
-    window: WebviewWindow,
-    names: Vec<String>,
-) -> Result<repository::SenseReport, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    sensors::check_names(&names)?;
-
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-
-    tauri::async_runtime::spawn_blocking(move || repository::sense(&folder, &names, &shell))
-        .await
-        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1195,6 +1245,7 @@ pub fn run() {
 
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
+            app.manage(ScanRuns::default());
             app.manage(Snapshots::default());
             app.manage(Drives::default());
             app.manage(Mutex::new(start_socket(&handle)));
@@ -1241,9 +1292,11 @@ pub fn run() {
             remove_findings,
             rename_view,
             renames_since,
-            run_sensors,
-            scan_folder,
+            read_scan_cache,
+            read_scan_ticks,
+            run_scan,
             scans_at,
+            stop_scan,
             take_pending_view,
             view_author,
             view_link,
@@ -1252,6 +1305,7 @@ pub fn run() {
             watch_sensor_inputs,
             watch_views,
             window_folder,
+            write_scan_ticks,
             write_settings,
             write_structure,
             write_view

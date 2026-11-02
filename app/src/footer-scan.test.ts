@@ -7,8 +7,9 @@ const state = (over: Partial<ScanState> = {}): ScanState => ({
   origin: { branch: "main", commit: "a1b2c3d" },
   scannedAt: NOW - 3 * 60000,
   changes: NO_CHANGES,
-  rescanning: false,
-  sensors: [],
+  progress: null,
+  canShow: false,
+  log: null,
   ...over,
 });
 
@@ -96,21 +97,82 @@ describe("scanLine", () => {
     expect(line.text).toBe("Now at 9f8e7d6");
   });
 
-  it("shows only Rescanning... with a disabled button while a rescan runs", () => {
+  it("shows the phase text with Stop and a disabled Rescan while a scan runs", () => {
     const line = scanLine(
       state({
-        rescanning: true,
+        progress: {
+          text: "Describing 1 of 2",
+          running: true,
+          failed: 0,
+          tone: "muted",
+        },
         changes: { files: [{ path: "a.py", kind: "added" }], moved: null },
       }),
       NOW,
     );
 
     expect(line).toMatchObject({
-      kind: "rescanning",
-      text: "Rescanning...",
+      kind: "scanning",
+      text: "Describing 1 of 2",
       tone: "muted",
       rescan: "disabled",
+      stop: true,
+      show: false,
+      openLog: false,
     });
+  });
+
+  it("shows the result after a scan, with Show and Open log only for a failure", () => {
+    const done = {
+      text: "Scan done - extracted",
+      running: false,
+      failed: 0,
+      tone: "muted" as const,
+    };
+    const failed = {
+      text: "2 failed",
+      running: false,
+      failed: 2,
+      tone: "amber" as const,
+    };
+
+    expect(scanLine(state({ progress: done }), NOW)).toMatchObject({
+      kind: "result",
+      text: "Scan done - extracted",
+      rescan: "enabled",
+      stop: false,
+      show: false,
+      openLog: false,
+    });
+    expect(
+      scanLine(state({ progress: failed, canShow: true, log: "l.json" }), NOW),
+    ).toMatchObject({
+      kind: "result",
+      tone: "amber",
+      show: true,
+      openLog: true,
+    });
+    expect(scanLine(state({ progress: failed }), NOW)).toMatchObject({
+      show: false,
+      openLog: false,
+    });
+  });
+
+  it("gives way to the changed-files line once the repository changes after a scan", () => {
+    const line = scanLine(
+      state({
+        progress: {
+          text: "Scan done - extracted",
+          running: false,
+          failed: 0,
+          tone: "muted",
+        },
+        changes: { files: [{ path: "a.py", kind: "added" }], moved: null },
+      }),
+      NOW,
+    );
+
+    expect(line.kind).toBe("files");
   });
 });
 
@@ -125,48 +187,5 @@ describe("ageText", () => {
 
   it("never goes negative", () => {
     expect(ageText(5000, 0)).toBe("just now");
-  });
-});
-
-describe("scanLine sensors", () => {
-  it("has no sensors line when none were run", () => {
-    expect(scanLine(state(), NOW).sensors).toBeNull();
-  });
-
-  it("names each sensor with its status, muted unless one failed", () => {
-    const line = scanLine(
-      state({
-        sensors: [
-          { name: "structure", status: "ran" },
-          { name: "lint", status: "stale" },
-          { name: "coverage", status: "not run" },
-        ],
-      }),
-      NOW,
-    );
-
-    expect(line.sensors).toEqual({
-      text: "Sensors: structure ran, lint stale, coverage not run",
-      tone: "muted",
-      title: "",
-    });
-  });
-
-  it("is amber and gives the reason when a sensor failed", () => {
-    const line = scanLine(
-      state({
-        sensors: [
-          { name: "structure", status: "ran" },
-          { name: "bad-sensor", status: "failed", reason: "not valid" },
-        ],
-      }),
-      NOW,
-    );
-
-    expect(line.sensors?.text).toBe(
-      "Sensors: structure ran, bad-sensor failed",
-    );
-    expect(line.sensors?.tone).toBe("amber");
-    expect(line.sensors?.title).toBe("bad-sensor: not valid");
   });
 });

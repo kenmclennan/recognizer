@@ -1,0 +1,82 @@
+import { describe, expect, it } from "vitest";
+import { fakeScan } from "./scan-fake";
+
+const PLAN = { describe: true, sense: ["alpha"] };
+
+describe("fakeScan", () => {
+  it("delivers the scripted lines in order before the run resolves", async () => {
+    const fake = fakeScan({ steps: ["one", "two"] });
+    const lines: string[] = [];
+
+    fake.onLine((line) => lines.push(line));
+
+    const result = await fake.run(PLAN);
+
+    expect(lines).toEqual(["one", "two"]);
+    expect(result).toEqual({
+      status: "finished",
+      exitCode: 0,
+      stderr: "",
+      log: null,
+    });
+    expect(fake.ran).toEqual([PLAN]);
+  });
+
+  it("refuses a second run while one is pending", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fake = fakeScan({ steps: [gate] });
+    const first = fake.run(PLAN);
+    const second = await fake.run(PLAN);
+
+    expect(second).toEqual({
+      status: "refused",
+      reason: "a scan is already running",
+    });
+
+    release();
+    await first;
+  });
+
+  it("stops the pending run and delivers no further lines", async () => {
+    const gate = new Promise<void>(() => {});
+    const fake = fakeScan({ steps: ["one", gate, "two"] });
+    const lines: string[] = [];
+
+    fake.onLine((line) => lines.push(line));
+
+    const pending = fake.run(PLAN);
+
+    await fake.stop();
+
+    expect(await pending).toEqual({ status: "stopped" });
+    expect(lines).toEqual(["one"]);
+    expect(fake.stopped).toBe(1);
+  });
+
+  it("reads the defaults as not remembered until ticks are written", async () => {
+    const fake = fakeScan({ defaults: { describe: true, sensors: false } });
+
+    expect(await fake.readTicks()).toEqual({
+      describe: true,
+      sensors: false,
+      ticked: null,
+      remembered: false,
+    });
+
+    await fake.writeTicks({
+      describe: false,
+      sensors: true,
+      ticked: ["alpha"],
+    });
+
+    expect(await fake.readTicks()).toEqual({
+      describe: false,
+      sensors: true,
+      ticked: ["alpha"],
+      remembered: true,
+    });
+  });
+});

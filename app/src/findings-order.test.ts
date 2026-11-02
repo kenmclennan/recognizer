@@ -16,7 +16,7 @@ import {
   staleNote,
   walkFindings,
 } from "./findings-order";
-import type { SensorRow } from "./sensors-panel-model";
+import type { SensorRow } from "./scan-panel-model";
 
 function record(
   id: string,
@@ -70,6 +70,7 @@ function sensorRow(
     ticked: false,
     chip,
     tone: "muted",
+    extra: null,
     reason: null,
   };
 }

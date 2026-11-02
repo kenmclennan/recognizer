@@ -226,9 +226,12 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
     expect(facts.outOfDate.beforeSwitch).toBe(true);
   });
 
-  it("says so when a module has no line, with no button", () => {
-    expect(facts.missing.text).toBe("No responsibility line yet");
-    expect(facts.missing.button).toBeNull();
+  it("says so when a module has no line, with a Describe button", () => {
+    expect(facts.missing.text).toBe("No responsibility line yetDescribe");
+    expect(facts.missing.button).toMatchObject({
+      text: "Describe",
+      disabled: false,
+    });
     expect(facts.missing.beforeSwitch).toBe(true);
   });
 
