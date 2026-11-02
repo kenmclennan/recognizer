@@ -292,6 +292,7 @@ describe("event lines", () => {
             { phase: "extract", entries: [{ name: "python", outcome: "ok" }] },
           ],
           removed: [],
+          log: "20261102T123456789Z-scan",
         }),
       ),
     ).toEqual({
@@ -304,6 +305,7 @@ describe("event lines", () => {
         { phase: "extract", entries: [{ name: "python", outcome: "ok" }] },
       ],
       removed: [],
+      log: "20261102T123456789Z-scan",
     });
   });
 });

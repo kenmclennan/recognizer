@@ -531,6 +531,7 @@ export function runScan(argv: string[], io: Io): number {
           entries: summary.get(one.phase) ?? [],
         })),
         removed,
+        log: runLog?.id() ?? null,
       }),
     );
   }
