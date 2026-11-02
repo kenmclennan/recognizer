@@ -1,9 +1,16 @@
-import type { FindingsFiles, SensorInputs, SensorsPort } from "./sensor-run";
+import type {
+  FindingsFiles,
+  OverlayFiles,
+  SensorInputs,
+  SensorsPort,
+} from "./sensor-run";
 
 export type FakeSensors = SensorsPort & {
   files: Map<string, string>;
   inputs: SensorInputs;
   refused: string[];
+  overlays: Map<string, string>;
+  overlaysRefused: string[];
   removed: string[];
   written: (string | null)[];
   failWrite: boolean;
@@ -13,6 +20,7 @@ export type FakeSensors = SensorsPort & {
 export function fakeSensors(
   files: Record<string, string> = {},
   inputs: Partial<SensorInputs> = {},
+  overlays: Record<string, string> = {},
 ): FakeSensors {
   const listeners = new Set<() => void>();
   const fake: FakeSensors = {
@@ -25,6 +33,8 @@ export function fakeSensors(
       ...inputs,
     },
     refused: [],
+    overlays: new Map(Object.entries(overlays)),
+    overlaysRefused: [],
     removed: [],
     written: [],
     failWrite: false,
@@ -45,6 +55,12 @@ export function fakeSensors(
       return {
         files: [...fake.files].map(([name, text]) => ({ name, text })),
         refused: fake.refused,
+      };
+    },
+    async readOverlays(): Promise<OverlayFiles> {
+      return {
+        files: [...fake.overlays].map(([name, text]) => ({ name, text })),
+        refused: fake.overlaysRefused,
       };
     },
     async removeFindings(names) {

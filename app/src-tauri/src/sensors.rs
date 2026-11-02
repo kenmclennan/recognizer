@@ -5,6 +5,7 @@ use std::time::UNIX_EPOCH;
 use serde::Serialize;
 
 use crate::fs_safe::{checked_relative, write_atomic};
+use crate::overlays::{overlay_names, OVERLAYS};
 
 const FINDINGS: &str = ".recognizer/cache/findings";
 const POLICY: &str = ".recognizer/policy.yaml";
@@ -148,20 +149,27 @@ pub fn read_inputs(folder: &Path) -> SensorInputs {
     }
 }
 
-pub fn snapshot(folder: &Path) -> Snapshot {
-    [POLICY, CONFIG]
-        .iter()
-        .filter_map(|relative| {
-            let metadata = fs::metadata(folder.join(relative)).ok()?;
-            let modified = metadata
-                .modified()
-                .ok()?
-                .duration_since(UNIX_EPOCH)
-                .ok()?
-                .as_nanos();
+fn stamp(folder: &Path, relative: &str) -> Option<(String, u128, u64)> {
+    let metadata = fs::metadata(folder.join(relative)).ok()?;
+    let modified = metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
 
-            Some((relative.to_string(), modified, metadata.len()))
-        })
+    Some((relative.to_string(), modified, metadata.len()))
+}
+
+pub fn snapshot(folder: &Path) -> Snapshot {
+    let overlays = overlay_names(folder)
+        .into_iter()
+        .map(|name| format!("{OVERLAYS}/{name}.json"));
+
+    [POLICY.to_string(), CONFIG.to_string()]
+        .into_iter()
+        .chain(overlays)
+        .filter_map(|relative| stamp(folder, &relative))
         .collect()
 }
 
@@ -329,5 +337,32 @@ mod tests {
         fs::write(dir.path().join("other.txt"), "x").unwrap();
 
         assert!(!snapshot_changed(&two, &snapshot(dir.path())));
+    }
+
+    #[test]
+    fn the_snapshot_changes_when_an_overlay_is_added_rewritten_or_removed() {
+        let dir = TempDir::new().unwrap();
+        let empty = snapshot(dir.path());
+
+        fs::create_dir_all(dir.path().join(OVERLAYS)).unwrap();
+
+        let path = dir.path().join(OVERLAYS).join("crap.json");
+
+        fs::write(&path, "one").unwrap();
+
+        let added = snapshot(dir.path());
+
+        assert!(snapshot_changed(&empty, &added));
+
+        fs::write(&path, "longer text").unwrap();
+
+        let rewritten = snapshot(dir.path());
+
+        assert!(snapshot_changed(&added, &rewritten));
+
+        fs::remove_file(&path).unwrap();
+
+        assert!(snapshot_changed(&rewritten, &snapshot(dir.path())));
+        assert_eq!(snapshot(dir.path()), empty);
     }
 }

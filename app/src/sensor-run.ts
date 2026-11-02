@@ -24,6 +24,11 @@ export type FindingsFiles = {
   refused: string[];
 };
 
+export type OverlayFiles = {
+  files: { name: string; text: string }[];
+  refused: string[];
+};
+
 export type SensorInputs = {
   policy: string | null;
   config: string | null;
@@ -34,6 +39,7 @@ export type SensorInputs = {
 export type SensorsPort = {
   writeStructure(document: string | null): Promise<void>;
   readFindings(): Promise<FindingsFiles>;
+  readOverlays(): Promise<OverlayFiles>;
   removeFindings(names: string[]): Promise<void>;
   readInputs(): Promise<SensorInputs>;
   onInputsChanged(run: () => void): () => void;
@@ -42,6 +48,7 @@ export type SensorsPort = {
 export const inertSensors: SensorsPort = {
   writeStructure: async () => {},
   readFindings: async () => ({ files: [], refused: [] }),
+  readOverlays: async () => ({ files: [], refused: [] }),
   removeFindings: async () => {},
   readInputs: async () => ({
     policy: null,
@@ -225,6 +232,7 @@ export async function withSensors(
 ): Promise<Loaded> {
   const inputs = await port.readInputs();
   const run = await senseRepository(loaded.scans, inputs, port);
+  const overlays = await port.readOverlays();
 
   return {
     ...loaded,
@@ -232,5 +240,7 @@ export async function withSensors(
     baseline: inputs.baseline,
     findings: run.documents,
     sensors: run.statuses,
+    overlays: overlays.files,
+    overlaysUnreadable: overlays.refused,
   };
 }

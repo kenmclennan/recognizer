@@ -7,6 +7,7 @@ import {
   BOX_HEIGHT,
   BOX_MIN_WIDTH,
   boxWidth,
+  FOLDER_BOX_HEIGHT,
   FRAME_PAD,
   FRAME_TOP,
   frameLabelWidth,
@@ -15,6 +16,7 @@ import {
   NOTE_MARK_SIZE,
   toElk,
 } from "./canvas-layout";
+import { BAR_MIN_BOX_WIDTH, BAR_ROW } from "./metric-bars";
 
 const elk = new ELK();
 const measure = (text: string) => text.length * 7;
@@ -161,5 +163,50 @@ describe("nesting and edges", () => {
     expect(
       a !== undefined && points[0] !== undefined && points[0].y >= a.y,
     ).toBe(true);
+  });
+});
+
+describe("metric bar rows", () => {
+  const scan = scanOf(["a/x.py", "b/y.py"], []);
+  const graphOf = (folded: string[] = []) =>
+    buildCanvasGraph({
+      scans: [scan],
+      modules: scan.modules.map((module) => module.id),
+      opened: scan.modules.map((module) => module.id),
+      disc: () => "green",
+      folded: new Set(folded),
+      focus: null,
+      showInferred: true,
+    });
+  const boxes = (barRows: number, folded: string[] = []) =>
+    (
+      toElk(graphOf(folded), measure, new Set(), barRows).children ?? []
+    ).flatMap((node) => [node, ...(node.children ?? [])]);
+
+  it("adds one row per bar to a module box and a folder box", () => {
+    const module = boxes(2).find((node) => node.id === "a/x.py");
+    const folder = boxes(2, ["b"]).find((node) => node.id === "b");
+
+    expect(module?.height).toBe(BOX_HEIGHT + 2 * BAR_ROW);
+    expect(folder?.height).toBe(FOLDER_BOX_HEIGHT + 2 * BAR_ROW);
+  });
+
+  it("leaves heights alone with no bars", () => {
+    expect(boxes(0).find((node) => node.id === "a/x.py")?.height).toBe(
+      BOX_HEIGHT,
+    );
+  });
+
+  it("widens a narrow box to the minimum and never narrows a wider one", () => {
+    expect(boxes(1).find((node) => node.id === "a/x.py")?.width).toBe(
+      BAR_MIN_BOX_WIDTH,
+    );
+
+    const wide = () => 300;
+    const node = (toElk(graphOf(), wide, new Set(), 1).children ?? [])
+      .flatMap((n) => [n, ...(n.children ?? [])])
+      .find((n) => n.id === "a/x.py");
+
+    expect(node?.width).toBe(300 + 16 + 20);
   });
 });

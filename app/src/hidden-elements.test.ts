@@ -27,6 +27,7 @@ const HIDEABLE = [
   "canvas-notice",
   "selection-bar",
   "canvas-legend",
+  "canvas-metrics",
   "inspector-rail",
   "inspector-panel",
   "tools-notice",

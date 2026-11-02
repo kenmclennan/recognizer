@@ -1,7 +1,5 @@
-import type { ValidateFunction } from "ajv";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import type { MetricDeclaration } from "./config.js";
-import schema from "./generated/overlay.schema.json" with { type: "json" };
+import validate from "./generated/overlay-validator.js";
 
 export interface Overlay {
   overlay_version: 1;
@@ -16,14 +14,6 @@ export interface Expected {
   commit: string;
   modified: boolean;
   metrics: MetricDeclaration[];
-}
-
-let compiled: ValidateFunction | undefined;
-
-function validator(): ValidateFunction {
-  compiled ??= new Ajv2020({ allErrors: true }).compile(schema);
-
-  return compiled;
 }
 
 function valueProblem(
@@ -59,8 +49,6 @@ function sameDeclaration(a: MetricDeclaration, b: MetricDeclaration): boolean {
 }
 
 export function validateOverlay(value: unknown, expected: Expected): Overlay {
-  const validate = validator();
-
   if (!validate(value)) {
     const first = validate.errors?.[0];
 

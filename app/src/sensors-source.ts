@@ -1,10 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { FindingsFiles, SensorInputs, SensorsPort } from "./sensor-run";
+import type {
+  FindingsFiles,
+  OverlayFiles,
+  SensorInputs,
+  SensorsPort,
+} from "./sensor-run";
 
 export const sensorsSource: SensorsPort = {
   writeStructure: (document) => invoke<void>("write_structure", { document }),
   readFindings: () => invoke<FindingsFiles>("read_findings"),
+  readOverlays: () => invoke<OverlayFiles>("read_overlays"),
   removeFindings: (names) => invoke<void>("remove_findings", { names }),
   readInputs: () => invoke<SensorInputs>("read_sensor_inputs"),
   onInputsChanged(run) {

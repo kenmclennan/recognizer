@@ -9,6 +9,7 @@ pub mod editor;
 pub mod fs_safe;
 mod launch;
 pub mod link;
+pub mod overlays;
 pub mod recent;
 pub mod repository;
 pub mod responsibilities;
@@ -1019,6 +1020,11 @@ fn read_findings(app: AppHandle, window: WebviewWindow) -> Result<sensors::Findi
 }
 
 #[tauri::command]
+fn read_overlays(app: AppHandle, window: WebviewWindow) -> Result<overlays::OverlaysRead, String> {
+    Ok(overlays::read_overlays(&window_folder_path(&app, &window)?))
+}
+
+#[tauri::command]
 fn remove_findings(
     app: AppHandle,
     window: WebviewWindow,
@@ -1284,6 +1290,7 @@ pub fn run() {
             open_in_editor,
             publish_window_state,
             read_findings,
+            read_overlays,
             read_responsibilities,
             read_sensor_inputs,
             read_settings,

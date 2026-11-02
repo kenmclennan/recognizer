@@ -21,6 +21,7 @@ export type FooterView = {
   setToolsNotice: (text: string | null) => void;
   notify: (text: string) => void;
   setCount: (text: string) => void;
+  setMetrics: (text: string | null) => void;
   setScan: (state: ScanState | null) => void;
   setAgentLine: (line: AgentLineView) => void;
 };
@@ -49,6 +50,7 @@ export function buildFooter(
   const identity = document.createElement("span");
   const count = document.createElement("span");
   const scan = el("span", "scan-line");
+  const metrics = el("span", "metrics-line");
   const notice = document.createElement("span");
   const agentLine = el("span", "agent-line");
   const toolsNotice = el("span", "tools-notice");
@@ -66,11 +68,14 @@ export function buildFooter(
   agentLine.hidden = true;
   toolsNotice.setAttribute("role", "status");
   toolsNotice.hidden = true;
+  metrics.hidden = true;
+  metrics.setAttribute("role", "status");
   list.hidden = true;
   container.replaceChildren(
     identity,
     count,
     scan,
+    metrics,
     notice,
     agentLine,
     toolsNotice,
@@ -179,6 +184,10 @@ export function buildFooter(
     },
     setCount(text) {
       count.textContent = text;
+    },
+    setMetrics(text) {
+      metrics.textContent = text ?? "";
+      metrics.hidden = text === null;
     },
     notify(text) {
       notice.textContent = text;

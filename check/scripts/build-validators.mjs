@@ -9,7 +9,14 @@ const generated = join(here, "..", "src", "generated");
 
 mkdirSync(generated, { recursive: true });
 
-for (const name of ["view", "responsibilities", "config", "findings", "log"]) {
+for (const name of [
+  "view",
+  "responsibilities",
+  "config",
+  "findings",
+  "log",
+  "overlay",
+]) {
   const schema = JSON.parse(
     readFileSync(
       join(here, "..", "..", "schema", `${name}.schema.json`),
@@ -19,6 +26,7 @@ for (const name of ["view", "responsibilities", "config", "findings", "log"]) {
   const ajv = new Ajv2020({
     allErrors: true,
     code: { source: true, esm: true },
+    allowUnionTypes: true,
   });
   const imports = [];
   const code = standaloneCode(ajv, ajv.compile(schema))

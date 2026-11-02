@@ -152,10 +152,10 @@ describe.skipIf(chrome === undefined)("box tooltip and Notes toggle", () => {
     ]);
   });
 
-  it("puts a Notes button after Legend that draws a read-only bubble for every note, leaving the marks as they were", () => {
+  it("puts a Notes button before Legend that draws a read-only bubble for every note, leaving the marks as they were", () => {
     expect(f.toggle.off).toBe(0);
     expect(f.toggle.pressed).toBe("false");
-    expect(f.toggle.after).toEqual(["Clear", "Legend", "Notes"]);
+    expect(f.toggle.after).toEqual(["Metrics", "Notes", "Legend"]);
     expect(f.on).toEqual({
       pressed: "true",
       count: 2,
