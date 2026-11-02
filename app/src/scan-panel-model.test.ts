@@ -356,13 +356,14 @@ describe("scanCaption and scanFlags", () => {
     }
   });
 
-  it("puts the caption and the command line on the button and swaps it for Stop while scanning", () => {
+  it("puts the label, the summary and the command line on the button and swaps it for Stop while scanning", () => {
     const ticks = { describe: true, sensors: true, ticked: null };
     const idle = scanPanel(input({ ticks })).button;
 
     expect(idle).toEqual({
       mode: "scan",
-      caption: "scans current, describe, 2 sensors",
+      label: "Scan",
+      summary: "scans current, describe, 2 sensors",
       flags: "recognizer scan --describe --sense alpha,beta",
     });
     expect(scanPanel(input({ ticks, scanning: true })).button.mode).toBe(
@@ -371,7 +372,7 @@ describe("scanCaption and scanFlags", () => {
   });
 
   it("predicts an extraction when there is no scan or files changed", () => {
-    expect(scanPanel(input({ scan: null })).button.caption).toBe("extract");
+    expect(scanPanel(input({ scan: null })).button.summary).toBe("extract");
   });
 });
 

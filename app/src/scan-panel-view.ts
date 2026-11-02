@@ -223,12 +223,13 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       const stopping = model.button.mode === "stop";
       const action = stopping
         ? button("Stop", "scan-stop-button", () => actions.stop())
-        : button(`Scan: ${model.button.caption}`, "scan-run primary", () =>
-            actions.run(),
-          );
+        : button(model.button.label, "scan-run primary", () => actions.run());
 
       action.title = model.button.flags;
-      buttons.replaceChildren(action);
+      buttons.replaceChildren(
+        action,
+        ...(stopping ? [] : [el("span", "scan-summary", model.button.summary)]),
+      );
     },
   };
 }
