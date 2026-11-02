@@ -2191,17 +2191,26 @@ svg.i.chevron {
 
 .scan-buttons {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.scan-summary {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .scan-panel .scan-buttons button {
   padding: 4px 12px;
+  white-space: nowrap;
 }
 
 .scan-panel .scan-buttons button.primary {
-  border-color: var(--dark);
-  background: var(--dark);
-  color: var(--darkfg);
+  border-color: var(--sel);
+  background: var(--selbg);
+  color: var(--sel);
 }
 
 .rail .ib::after {

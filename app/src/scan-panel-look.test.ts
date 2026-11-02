@@ -130,11 +130,12 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
     rows: a.rows(),
     button: a.text(".scan-run"),
     buttonTitle: (a.q(".scan-run")?.title ?? ""),
+    summary: a.text(".scan-summary"),
   };
 
   await a.setTick('.scan-describe .scan-tick', true);
   await a.setTick('.scan-sensors .scan-tick', true);
-  facts.ticked = { button: a.text(".scan-run"), buttonTitle: (a.q(".scan-run")?.title ?? ""), written: fake.written };
+  facts.ticked = { button: a.text(".scan-run"), summary: a.text(".scan-summary"), buttonTitle: (a.q(".scan-run")?.title ?? ""), written: fake.written };
 
   const b = await mount(fake);
   click(b.q(".rail-scan"));
@@ -298,10 +299,12 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     ]);
   });
 
-  it("captions the button with what it will run and shows the command line as its tooltip", () => {
-    expect(f.idle.button).toBe("Scan: scans current");
+  it("labels the button Scan, summarises what it will run beside it and shows the command line as its tooltip", () => {
+    expect(f.idle.button).toBe("Scan");
+    expect(f.idle.summary).toBe("scans current");
     expect(f.idle.buttonTitle).toBe("recognizer scan");
-    expect(f.ticked.button).toBe("Scan: scans current, describe, 2 sensors");
+    expect(f.ticked.button).toBe("Scan");
+    expect(f.ticked.summary).toBe("scans current, describe, 2 sensors");
     expect(f.ticked.buttonTitle).toBe(
       "recognizer scan --describe --sense alpha,beta",
     );
@@ -333,7 +336,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.run.during.rescanDisabled).toBe(true);
     expect(f.run.rowDuring).toEqual(["running", "running"]);
     expect(f.run.after.footer).toContain("Scan done");
-    expect(f.run.after.button).toBe("Scan: scans current, describe, 2 sensors");
+    expect(f.run.after.button).toBe("Scan");
   });
 
   it("refuses a second scan while one runs", () => {
@@ -346,7 +349,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
 
   it("stops a running scan and says Stopped", () => {
     expect(f.stop.footer).toContain("Stopped");
-    expect(f.stop.button).toContain("Scan:");
+    expect(f.stop.button).toBe("Scan");
   });
 
   it("shows a failed sensor row from Show with its reason, and opens the log in the editor", () => {

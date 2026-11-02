@@ -102,7 +102,12 @@ export type ScanPanelModel = {
     editable: boolean;
     message: string | null;
   };
-  button: { mode: "scan" | "stop"; caption: string; flags: string };
+  button: {
+    mode: "scan" | "stop";
+    label: string;
+    summary: string;
+    flags: string;
+  };
   mark: boolean;
 };
 
@@ -370,7 +375,8 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     },
     button: {
       mode: input.scanning ? "stop" : "scan",
-      caption: scanCaption(plan, expected),
+      label: input.scanning ? "Stop" : "Scan",
+      summary: scanCaption(plan, expected),
       flags: ["recognizer", "scan", ...scanFlags(plan)].join(" "),
     },
     mark:
