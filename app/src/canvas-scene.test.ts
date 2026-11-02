@@ -139,3 +139,32 @@ describe("scene", () => {
     expect(scene.frames[0]?.figure).toBe("2 of 3");
   });
 });
+
+describe("scene trunks", () => {
+  it("draws three parallel routed lines as one trunk and keeps their routes", () => {
+    const route = (x: number) => [
+      { x, y: 0 },
+      { x, y: 200 },
+    ];
+    const parallel = {
+      ...graph,
+      lines: (graph.lines as { id: string }[]).slice(0, 3),
+    } as unknown as CanvasGraph;
+    const scene = toScene(parallel, {
+      ...layout,
+      lines: new Map([
+        ["one", route(0)],
+        ["two", route(5)],
+        ["three", route(10)],
+      ]),
+    });
+
+    expect(scene.trunks).toHaveLength(1);
+    expect(scene.lines.map((l) => l.points)).toEqual([
+      route(0),
+      route(5),
+      route(10),
+    ]);
+    expect(scene.lines[0]?.drawn.length).toBeGreaterThan(0);
+  });
+});

@@ -7,8 +7,9 @@ import {
   type NoteKeyContext,
 } from "./canvas-keys";
 import type { Point, Rect } from "./canvas-layout";
-import { arrowhead, type Scene } from "./canvas-scene";
+import { arrowhead, DASH, type Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
+import { type Trunk, trunkLitCount, trunkWidth } from "./canvas-trunks";
 import { button, el } from "./dom";
 import type { Ghost } from "./finding-focus";
 import { icon } from "./icons";
@@ -514,22 +515,26 @@ export function buildCanvasView(
             "data-id": line.id,
             points: points(line.points),
           });
-          const stroke = svg("polyline", {
-            class: `edge ${line.style}`,
-            points: points(line.points),
+          const strokes = line.drawn.map((piece) => {
+            const stroke = svg("polyline", {
+              class: `edge ${line.style}`,
+              points: points(piece),
+            });
+
+            if (line.dash) {
+              stroke.setAttribute("stroke-dasharray", line.dash);
+            }
+
+            return stroke;
           });
           const arrow = scene.arrows.find((a) => a.lineId === line.id);
           const title = props?.titles.get(line.id);
-
-          if (line.dash) {
-            stroke.setAttribute("stroke-dasharray", line.dash);
-          }
 
           if (title) {
             hit.append(svg("title", {}, title));
           }
 
-          node.append(stroke);
+          node.append(...strokes);
 
           if (arrow) {
             node.append(
@@ -556,6 +561,51 @@ export function buildCanvasView(
 
           node.append(hit);
 
+          group.append(node);
+        }
+
+        for (const trunk of scene.trunks) {
+          const route = points([trunk.from, trunk.to]);
+          const node = svg("g", {
+            class: "trunk-group",
+            "data-trunk": trunk.id,
+          });
+          const stroke = svg("polyline", {
+            class: `trunk ${trunk.style}`,
+            points: route,
+            "stroke-width": trunk.width,
+          });
+          const dash = DASH[trunk.style];
+
+          if (dash) {
+            stroke.setAttribute("stroke-dasharray", dash);
+          }
+
+          const hit = svg("polyline", {
+            class: "trunk-hit",
+            points: route,
+            "stroke-width": Math.max(10, trunk.width),
+          });
+
+          hit.append(svg("title", {}, trunk.title));
+          node.append(
+            stroke,
+            svg("polyline", {
+              class: "trunk-lit",
+              points: route,
+              "stroke-width": trunk.width,
+            }),
+            hit,
+            svg(
+              "text",
+              {
+                class: "trunk-count",
+                x: trunk.countAt.x,
+                y: trunk.countAt.y,
+              },
+              String(trunk.count),
+            ),
+          );
           group.append(node);
         }
       } else {
@@ -842,6 +892,9 @@ export function buildCanvasView(
   function applySelection() {
     const selection = props?.selection ?? null;
     const highlight = props?.highlight ?? null;
+    const trunkById = new Map<string, Trunk>(
+      (props?.scene?.trunks ?? []).map((trunk) => [trunk.id, trunk]),
+    );
 
     for (const group of world.querySelectorAll<SVGElement>(".line-group")) {
       const id = group.dataset.line as string;
@@ -852,6 +905,20 @@ export function buildCanvasView(
       group.classList.toggle(
         "selected",
         selection?.kind === "edge" && selection.id === id,
+      );
+    }
+
+    for (const group of world.querySelectorAll<SVGElement>(".trunk-group")) {
+      const trunk = trunkById.get(group.dataset.trunk as string);
+      const count = trunk && highlight ? trunkLitCount(trunk, highlight) : 0;
+      const lit = trunk?.lineIds.some((id) => highlight?.has(id)) ?? false;
+      const plain = group.querySelector<SVGElement>(".trunk-lit");
+
+      group.classList.toggle("highlight", lit);
+      group.classList.toggle("dim", highlight !== null && !lit);
+      plain?.setAttribute(
+        "stroke-width",
+        String(lit && trunk ? trunkWidth(count) : (trunk?.width ?? 0)),
       );
     }
 
@@ -920,6 +987,14 @@ export function buildCanvasView(
       group.classList.toggle(litClass, on);
     }
 
+    for (const group of world.querySelectorAll<SVGElement>(".trunk-group")) {
+      const trunk = trunkById.get(group.dataset.trunk as string);
+      const on = trunk?.lineIds.some(isLit) ?? false;
+
+      group.classList.toggle("dim", !on);
+      group.classList.toggle(litClass, on);
+    }
+
     for (const node of world.querySelectorAll<SVGElement>(".box")) {
       const on = isLit(node.dataset.id as string);
 
@@ -970,6 +1045,7 @@ export function buildCanvasView(
     if (
       event.button !== 0 ||
       targetOf(event) ||
+      (event.target as Element | null)?.closest(".trunk-group") ||
       (event.target as Element | null)?.closest(
         "[data-action], [data-note-mark]",
       )

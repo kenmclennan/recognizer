@@ -670,7 +670,49 @@ svg.i.chevron {
   fill: var(--sel);
 }
 
-.surface .count-label {
+.trunk {
+  fill: none;
+  stroke: var(--faint);
+  stroke-opacity: 0.55;
+}
+
+.trunk.private {
+  stroke: var(--priv);
+  stroke-opacity: 0.8;
+}
+
+.trunk.inferred {
+  stroke: var(--inf);
+  stroke-opacity: 0.7;
+}
+
+.trunk.hollow {
+  stroke: var(--impl);
+  stroke-opacity: 0.75;
+}
+
+.trunk-hit {
+  fill: none;
+  stroke: transparent;
+  cursor: default;
+}
+
+.trunk-lit {
+  fill: none;
+  stroke: var(--sel);
+  display: none;
+}
+
+.trunk-group.highlight .trunk-lit {
+  display: inline;
+}
+
+.trunk-group.dim {
+  opacity: 0.35;
+}
+
+.surface .count-label,
+.surface .trunk-count {
   font-size: 10px;
   fill: var(--muted);
 }
@@ -2334,6 +2376,16 @@ svg.i.chevron {
   stroke: #b9770e;
   stroke-opacity: 1;
   stroke-width: 2;
+}
+
+.trunk-group.lit-violation .trunk-lit {
+  display: inline;
+  stroke: #c0392b;
+}
+
+.trunk-group.lit-warning .trunk-lit {
+  display: inline;
+  stroke: #b9770e;
 }
 
 .line-group.lit-violation .arrow:not(.hollow) {
