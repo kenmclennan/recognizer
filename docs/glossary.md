@@ -104,7 +104,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
 | Note | The one text a person or an agent attaches to a module or folder in a saved view, with the name of who last wrote it; writing again replaces it. |
 | Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view in canvas order and focuses the selected note; the overview, with no composer. |
-| Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove; the place notes are read and written, opened from the mark, the bar's notes button, N, or the inspector's Notes tab. |
+| Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove; the place notes are read and written, opened from the mark, the bar's notes button or N. |
 | Note mark | The small outlined speech-bubble icon after a noted box's name or at a noted frame's corner; clicking it opens the bubble. |
 | Notes toggle | The canvas control beside Fit, Clear and Legend that shows every note on the view as a bubble at once. |
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
