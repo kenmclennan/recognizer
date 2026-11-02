@@ -77,8 +77,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Open | On the canvas. A module is opened from the tree or by following an edge, and closed the same way. |
 | Selection | The one module, folder or edge the user has picked, highlighted in the tree and shown in the inspector. |
 | Selection bar | The small bar of icon actions shown above the selection while the pointer is over it; right-clicking opens the same bar. |
-| Settings | The app's own preferences (the editor, and the switch that describes after each scan), set in its settings window; distinct from a repository's Config. |
-| Describe phase | The optional background run of `recognizer describe` the app starts after a scan when the Settings switch is on; progress and failures show in the footer. |
+| Settings | The app's own preferences (the editor, and what a repository's first scan includes), set in its settings window; distinct from a repository's Config. |
+| Describe phase | The second phase of a scan, run when ticked: the modules whose line is missing or out of date are described; progress and failures show in the footer. |
 | Run log | The record of one run of a registered command (scan, sense, describe or measure) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
 | Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command; a shell command may use `{file}` and `{line}` placeholders, for example `code -g {file}:{line}`, to open at a line. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
@@ -108,7 +108,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Note mark | The small outlined speech-bubble icon after a noted box's name or at a noted frame's corner; clicking it opens the bubble. |
 | Notes toggle | The canvas control beside Fit, Clear and Legend that shows every note on the view as a bubble at once. |
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
-| Sensors panel | The left-column panel, behind the Sensors rail icon, that shows the last scan and each sensor's status, and runs the ticked or all registered sensors on request. |
+| Scan panel | The left-column panel, behind the Scan rail icon, that shows the three phases of a scan, Extract, Describe and Sensors, with the ticks a repository remembers, and runs them on request. |
+| Phase | One of the three parts of a scan: extraction (when the files changed), describing (when ticked) and the registered sensors (when ticked). |
 | Findings panel | The left-column panel, behind the Findings rail icon, that lists every current finding grouped by severity and kind and focuses the selected one. |
 | Finding focus | A module selection with one finding in focus: the evidence lit, the rest dimmed, the row expanded with its evidence and actions. Cleared by Escape, by clicking the finding again, or by selecting a box outside the evidence. |
 | Ghost box | A dashed box the finding focus draws for an evidence module the view does not hold, beside its partner with the lit edge; Add to the view makes it a pick, clearing the focus removes it. |
