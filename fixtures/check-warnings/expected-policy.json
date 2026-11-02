@@ -106,6 +106,105 @@
       }
     },
     {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/adapters/audit.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/adapters/audit.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/adapters/clock.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/adapters/clock.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/adapters/memory.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/adapters/memory.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/adapters/sql.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/adapters/sql.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/application/place.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/application/place.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/application/report.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/application/report.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/domain/money.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/domain/money.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/domain/order.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/domain/order.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/ports/store.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/ports/store.py"
+        ]
+      }
+    },
+    {
       "id": "stable_dependencies",
       "principle": "dependencies-point-toward-stability",
       "fix_pattern": "depend-on-stabler-folder",

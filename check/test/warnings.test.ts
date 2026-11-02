@@ -313,7 +313,7 @@ describe("policy-free mode", () => {
       "metrics",
       "folder_metrics",
     ]);
-    expect(err).toBe("warnings: 1\n");
+    expect(err).toBe("warnings: 3\n");
   });
 
   it.each(["--baseline", "--update-baseline", "--init-baseline"])(

@@ -415,6 +415,7 @@ function executeScanReplay(
       policy_drift: true,
       stable_dependencies: true,
       stable_abstractions: true,
+      untested: true,
     },
   };
   const sensed = structureSensor([validateScan(scan)], policy, settings, {

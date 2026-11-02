@@ -241,6 +241,72 @@
       }
     },
     {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "shop/adapters/memory_store.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "shop/adapters/memory_store.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "shop/adapters/sql_store.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "shop/adapters/sql_store.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "shop/application/place.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "shop/application/place.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "shop/domain/money.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "shop/domain/money.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "shop/legacy/helpers.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "shop/legacy/helpers.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "shop/ports/store.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "shop/ports/store.py"
+        ]
+      }
+    },
+    {
       "id": "policy_drift",
       "principle": "policy-describes-the-code",
       "fix_pattern": "update-policy",

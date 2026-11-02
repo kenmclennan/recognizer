@@ -18,6 +18,7 @@ import {
   policyDriftFindings,
   stableAbstractionsFindings,
   stableDependenciesFindings,
+  untestedFindings,
 } from "../src/structure-warnings.js";
 import {
   scanOf as foldersOf,
@@ -317,14 +318,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"hub_threshold":10,"distance_threshold":0.3,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"stable_abstractions":true}}',
+      '{"hub_threshold":10,"distance_threshold":0.3,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"stable_abstractions":true,"untested":true}}',
     );
-    expect(document.sensor.version).toBe("3");
+    expect(document.sensor.version).toBe("4");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on";
+      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on, untested on";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -748,5 +749,162 @@ describe("real committed content", () => {
       "stable_dependencies:app/application->app/domain",
       "stable_dependencies:app/domain->app/adapters",
     ]);
+  });
+});
+
+describe("untested", () => {
+  const withEdges = (modules: string[], edges: [string, string][]) =>
+    scanOf(edges, modules);
+
+  const untested = (
+    modules: string[],
+    edges: [string, string][] = [],
+    entryPoints: string[] = [],
+    policy: string | null = null,
+  ) =>
+    ids(
+      untestedFindings(
+        withEdges(modules, edges),
+        policy === null ? null : parsePolicy(policy),
+        entryPoints,
+      ),
+    );
+
+  it.each([
+    ["app/x.py", "tests/test_x.py"],
+    ["app/x.py", "app/test_x.py"],
+    ["app/x.py", "app/x_test.py"],
+    ["src/x.ts", "src/x.test.ts"],
+    ["src/x.ts", "src/x.spec.ts"],
+    ["src/x.ts", "src/__tests__/x.ts"],
+    ["src/main/kotlin/app/X.kt", "src/test/kotlin/app/XTest.kt"],
+    ["src/x.rs", "tests/x.rs"],
+    ["src/x.rs", "src/x_test.rs"],
+  ])("treats %s as tested when %s imports it", (module, test) => {
+    expect(untested([module, test, "other/z.py"], [[test, module]])).toEqual([
+      "untested:other/z.py",
+    ]);
+  });
+
+  it("reports a module no test file imports", () => {
+    expect(untested(["app/a.py", "app/b.py", "tests/test_b.py"])).toEqual([
+      "untested:app/a.py",
+      "untested:app/b.py",
+    ]);
+  });
+
+  it("does not count an import by a non-test module", () => {
+    expect(
+      untested(["app/a.py", "app/b.py"], [["app/b.py", "app/a.py"]]),
+    ).toEqual(["untested:app/a.py", "untested:app/b.py"]);
+  });
+
+  it("counts a module reached through a re-export the scan resolved", () => {
+    const base = scanOf([], ["tests/test_a.py", "app/impl.py", "app/pkg.py"]);
+
+    const scan = validateScan({
+      ...JSON.parse(JSON.stringify(base)),
+      edges: [
+        {
+          from: "tests/test_a.py",
+          to: "app/impl.py",
+          kind: "depends",
+          line: 1,
+          via: ["app/pkg.py"],
+        },
+      ],
+    });
+
+    expect(ids(untestedFindings(scan, null, []))).toEqual([]);
+  });
+
+  it("counts an import by a test file a policy ignores", () => {
+    expect(
+      untested(
+        ["app/a.py", "tests/test_a.py"],
+        [["tests/test_a.py", "app/a.py"]],
+        [],
+        "components:\n  all: [app/**]\nignore: [tests/**]\n",
+      ),
+    ).toEqual([]);
+  });
+
+  it("never reports test files, entry points or generated files", () => {
+    expect(
+      untested(
+        [
+          "tests/test_a.py",
+          "app/__init__.py",
+          "app/main.py",
+          "src/api.generated.ts",
+          "src/generated/client.ts",
+          "src/types.d.ts",
+          "app/schema_pb2.py",
+          "scripts/run.mjs",
+        ],
+        [],
+        ["scripts/**"],
+      ),
+    ).toEqual([]);
+  });
+
+  it("describes the finding with the language's convention", () => {
+    const [finding] = untestedFindings(withEdges(["app/a.py"], []), null, []);
+
+    expect(finding).toMatchObject({
+      id: "untested:app/a.py",
+      kind: "untested",
+      severity: "warning",
+      principle: "every-module-has-a-test-that-reaches-it",
+      fix_pattern: "add-a-test",
+      summary:
+        "app/a.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      evidence: { modules: ["app/a.py"] },
+    });
+  });
+
+  it.each([
+    ["src/X.kt", "Kotlin: src/test/"],
+    ["src/x.rs", "Rust: tests/, *_test.rs"],
+    ["src/x.ts", "TypeScript: *.test.ts, *.spec.ts, __tests__/"],
+  ])("names the convention for %s", (id, convention) => {
+    const [finding] = untestedFindings(withEdges([id], []), null, []);
+
+    expect(finding?.summary).toBe(
+      `${id} is reached by no test file (${convention})`,
+    );
+  });
+
+  it("is switched off by warnings.untested", () => {
+    const scan = withEdges(["app/a.py"], []);
+    const run = (untestedOn: boolean) =>
+      structureSensor(
+        [scan],
+        null,
+        {
+          ...DEFAULT_STRUCTURE_SETTINGS,
+          warnings: {
+            ...DEFAULT_STRUCTURE_SETTINGS.warnings,
+            untested: untestedOn,
+          },
+        },
+        CONTEXT,
+      ).document.findings.map((finding) => finding.id);
+
+    expect(run(true)).toContain("untested:app/a.py");
+    expect(run(false)).not.toContain("untested:app/a.py");
+  });
+
+  it("is on by default and reads the config switch", () => {
+    expect(resolveStructureSettings(null)).toMatchObject({
+      warnings: { untested: true },
+    });
+    expect(
+      resolveStructureSettings(
+        parseConfig(
+          "sensors:\n  structure:\n    warnings: { untested: false }\n",
+        ),
+      ),
+    ).toMatchObject({ warnings: { untested: false } });
   });
 });

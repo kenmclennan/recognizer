@@ -33,6 +33,7 @@ export interface StructureSettingsInput {
     policy_drift?: boolean;
     stable_dependencies?: boolean;
     stable_abstractions?: boolean;
+    untested?: boolean;
     orphan?: boolean | { entry_points: string[] };
   };
 }

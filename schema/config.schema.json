@@ -237,6 +237,9 @@
                     "stable_abstractions": {
                       "type": "boolean"
                     },
+                    "untested": {
+                      "type": "boolean"
+                    },
                     "orphan": {
                       "oneOf": [
                         {

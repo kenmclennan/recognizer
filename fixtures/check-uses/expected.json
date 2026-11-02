@@ -155,6 +155,61 @@
       }
     },
     {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/billing/invoice.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/billing/invoice.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/legacy/old.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/legacy/old.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/orders/cart.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/orders/cart.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/orders/place.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/orders/place.py"
+        ]
+      }
+    },
+    {
+      "id": "untested",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "fix_pattern": "add-a-test",
+      "summary": "app/shared/money.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "evidence": {
+        "modules": [
+          "app/shared/money.py"
+        ]
+      }
+    },
+    {
       "id": "policy_drift",
       "principle": "policy-describes-the-code",
       "fix_pattern": "update-policy",

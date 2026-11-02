@@ -14,7 +14,8 @@
       "orphan": true,
       "policy_drift": true,
       "stable_dependencies": true,
-      "stable_abstractions": true
+      "stable_abstractions": true,
+      "untested": true
     }
   },
   "findings": [
@@ -137,6 +138,15 @@
           "threshold": 0.3
         }
       }
+    },
+    {
+      "id": "untested:app/util/fmt.py",
+      "kind": "untested",
+      "severity": "warning",
+      "principle": "every-module-has-a-test-that-reaches-it",
+      "summary": "app/util/fmt.py is reached by no test file (Python: test_*.py, *_test.py, tests/)",
+      "fix_pattern": "add-a-test",
+      "evidence": { "modules": ["app/util/fmt.py"] }
     }
   ]
 }

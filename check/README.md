@@ -29,6 +29,7 @@ sensors:
       policy_drift: true
       stable_dependencies: true
       stable_abstractions: true
+      untested: true
       orphan:
         entry_points: ["packages/*/src/main.ts", "scripts/**"]
   unused-exports:
@@ -192,6 +193,7 @@ A warning is a graph heuristic reported as a candidate with evidence, never a ve
 | `policy_drift` | `policy-describes-the-code` | `update-policy` |
 | `stable_dependencies` | `dependencies-point-toward-stability` | `depend-on-stabler-folder` |
 | `stable_abstractions` | `stable-folders-are-abstract` | `move-toward-main-sequence` |
+| `untested` | `every-module-has-a-test-that-reaches-it` | `add-a-test` |
 
 - `cycle`: a strongly connected component of two or more modules; evidence is its sorted `modules` and the `edges` inside it.
 - `hub`: a module whose `fan_in` and `fan_out` are both at or above `--hub-threshold` (default `10`); evidence is `module`, `fan_in`, `fan_out` and `threshold`.
@@ -200,8 +202,9 @@ A warning is a graph heuristic reported as a candidate with evidence, never a ve
 - `policy_drift`: with a policy that has components, one finding per policy glob that matches no scanned module (`evidence.modules` is empty) and one per scanned folder in which no module matches any component.
 - `stable_dependencies`: for each ordered pair of distinct folders where a module of the first imports a module of the second, one finding when the second folder's `instability` is strictly greater than the first's; evidence is the `modules` and `edges` between them and `measures` `source_instability` and `target_instability`. Foreign targets make no pair.
 - `stable_abstractions`: one finding per folder whose `distance` is strictly greater than `distance_threshold` (compared on the rounded value), in the `pain` zone when `abstractness + instability - 1` is below 0 and the `useless` zone when above; evidence is the folder's `modules` and `measures` `afferent`, `efferent`, `instability`, `abstractness`, `distance` and `threshold`.
+- `untested`: one finding per module no test file reaches, directly or through a re-export (an edge's `via`) the scan resolved. A test file is recognised from the module id by convention: TypeScript `*.test.ts`, `*.spec.ts`, `__tests__/`; Python `test_*.py`, `*_test.py`, `tests/`; Kotlin `src/test/` and `*Test.kt`; Rust `tests/` and `*_test.rs`. Test files, entry points (as for `orphan`) and generated files (a `generated` or `__generated__` directory, `*.generated.*`, `*_generated.*`, `*.gen.*`, `*.d.ts`, `*_pb2.py`, `*.pb.*`) are never reported. Imports by a test file a policy ignores still count. The scan does not record an inline Rust `mod tests` block, so a Rust module tested only that way is reported. The summary names the convention applied.
 - `depend-on-stabler-folder` and `move-toward-main-sequence`: the fix patterns for `stable_dependencies` and `stable_abstractions`.
-- `break-folder-cycle`, `remove-or-wire-orphan` and `update-policy`: the fix patterns for `folder_cycle`, `orphan` and `policy_drift`.
+- `add-a-test`, `break-folder-cycle`, `remove-or-wire-orphan` and `update-policy`: the fix patterns for `folder_cycle`, `orphan` and `policy_drift`.
 - `break-cycle`: the fix pattern for `cycle`, naming the change that removes at least one edge of the cycle.
 - `split-hub`: the fix pattern for `hub`, naming the change that divides the module so that no part is both widely used and widely dependent.
 

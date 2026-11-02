@@ -439,11 +439,12 @@ describe("check running the structure sensor", () => {
         policy_drift: true,
         stable_dependencies: true,
         stable_abstractions: true,
+        untested: true,
       },
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on",
+      "sensor structure: hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on, untested on",
     );
     expect(err).toBe("");
   });
@@ -599,7 +600,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("3");
+    expect(written.sensor.version).toBe("4");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -628,7 +629,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("3");
+    expect(written.sensor.version).toBe("4");
     expect(written.settings.distance_threshold).toBe(0.3);
   });
 

@@ -3,7 +3,10 @@ import { compileGlob } from "./glob.js";
 const TEST_DIRECTORIES = new Set(["test", "tests", "__tests__"]);
 const INDEX_STEMS = new Set(["index", "__init__", "main", "mod", "lib"]);
 const TEST_BASENAME =
-  /^(?:test_.*\.py|.*_test\.py|conftest\.py|.*\.(?:test|spec)\.(?:ts|tsx|js|jsx|mjs))$/;
+  /^(?:test_.*\.py|.*_test\.py|conftest\.py|.*_test\.rs|.*\.(?:test|spec)\.(?:ts|tsx|js|jsx|mjs))$/;
+const GENERATED_DIRECTORIES = new Set(["generated", "__generated__"]);
+const GENERATED_BASENAME =
+  /^(?:.*\.generated\..*|.*_generated\..*|.*\.gen\..*|.*\.d\.ts|.*_pb2(?:_grpc)?\.pyi?|.*\.pb\.[a-z]+)$/;
 
 export function isLiteralPath(glob: string): boolean {
   return !glob.includes("*") && !glob.includes("?");
@@ -30,6 +33,18 @@ export function isTestFile(id: string): boolean {
   const stem = stemOf(basename);
 
   return stem.endsWith("Test") || stem.endsWith("Tests");
+}
+
+export function isGeneratedFile(id: string): boolean {
+  const segments = id.split("/");
+  const basename = segments[segments.length - 1] as string;
+
+  return (
+    segments
+      .slice(0, -1)
+      .some((segment) => GENERATED_DIRECTORIES.has(segment)) ||
+    GENERATED_BASENAME.test(basename)
+  );
 }
 
 export function isEntryPoint(

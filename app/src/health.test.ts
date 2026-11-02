@@ -59,13 +59,11 @@ describe("computeHealth on fixtures/check", () => {
     expect(health.disc("shop/application/place.py")).toBe("amber");
   });
 
-  it("marks the other measured modules green", () => {
-    for (const id of [
-      "shop/ports/store.py",
-      "shop/adapters/memory_store.py",
-      "shop/main.py",
-    ]) {
-      expect(health.disc(id)).toBe("green");
+  it("marks an entry point green and the untested modules amber", () => {
+    expect(health.disc("shop/main.py")).toBe("green");
+
+    for (const id of ["shop/ports/store.py", "shop/adapters/memory_store.py"]) {
+      expect(health.disc(id)).toBe("amber");
     }
   });
 
@@ -82,7 +80,7 @@ describe("computeHealth on fixtures/check", () => {
 
     expect(described.get("shop/domain")?.disc).toBe("red");
     expect(described.get("shop")?.disc).toBe("red");
-    expect(described.get("shop/ports")?.disc).toBe("green");
+    expect(described.get("shop/ports")?.disc).toBe("amber");
     expect(described.get("tests")?.disc).toBe("grey");
   });
 
@@ -94,7 +92,7 @@ describe("computeHealth on fixtures/check", () => {
     expect(health.lines("shop/domain/order.py")[0]).toMatch(
       /^violation: depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)* \((level|uses|forbid) /,
     );
-    expect(health.lines("shop/application/place.py")).toHaveLength(2);
+    expect(health.lines("shop/application/place.py")).toHaveLength(3);
     expect(health.lines("shop/application/place.py")[0]).toContain("cycle");
   });
 
@@ -137,7 +135,7 @@ describe("findings", () => {
     const { health } = healthOf("check", fixturePolicy("check"));
     const place = health.findings("shop/application/place.py");
 
-    expect(place).toHaveLength(2);
+    expect(place).toHaveLength(3);
     expect(place[0]?.severity).toBe("warning");
     expect(place[0]?.text).toContain("cycle");
     expect(place[0]?.why).toBe("no-cycles");
@@ -164,7 +162,7 @@ describe("findings", () => {
 });
 
 describe("computeHealth on fixtures/check-warnings", () => {
-  it("has one red, seven amber and one green", () => {
+  it("has one red and eight amber", () => {
     const { health, ids } = healthOf(
       "check-warnings",
       fixturePolicy("check-warnings"),
@@ -184,7 +182,7 @@ describe("computeHealth on fixtures/check-warnings", () => {
 
     const others = ids.filter((id) => health.disc(id) === "green");
 
-    expect(others).toEqual(["app/ports/store.py"]);
+    expect(others).toEqual([]);
   });
 });
 

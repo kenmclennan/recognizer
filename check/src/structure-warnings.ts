@@ -1,4 +1,9 @@
-import { isEntryPoint, isLiteralPath } from "./entry-points.js";
+import {
+  isEntryPoint,
+  isGeneratedFile,
+  isLiteralPath,
+  isTestFile,
+} from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
 import type { FolderMeasures } from "./folder-metrics.js";
 import { compileGlob, matchesAny } from "./glob.js";
@@ -35,6 +40,20 @@ function moduleEdges(scan: Scan, policy: Policy | null) {
   }
 
   return { ids, pairs };
+}
+
+function literalPathsOf(policy: Policy | null): Set<string> {
+  const literalPaths = new Set<string>();
+
+  for (const globs of policy?.componentGlobs.values() ?? []) {
+    for (const glob of globs) {
+      if (isLiteralPath(glob)) {
+        literalPaths.add(glob);
+      }
+    }
+  }
+
+  return literalPaths;
 }
 
 export function folderCycleFindings(
@@ -100,15 +119,7 @@ export function orphanFindings(
 ): FindingRecord[] {
   const { ids, pairs } = moduleEdges(scan, policy);
   const imported = new Set(pairs.map((pair) => pair.to));
-  const literalPaths = new Set<string>();
-
-  for (const globs of policy?.componentGlobs.values() ?? []) {
-    for (const glob of globs) {
-      if (isLiteralPath(glob)) {
-        literalPaths.add(glob);
-      }
-    }
-  }
+  const literalPaths = literalPathsOf(policy);
 
   return [...ids]
     .filter((id) => !imported.has(id))
@@ -123,6 +134,59 @@ export function orphanFindings(
       fix_pattern: "remove-or-wire-orphan",
       evidence: { modules: [id] },
     }));
+}
+
+export function untestedFindings(
+  scan: Scan,
+  policy: Policy | null,
+  entryPoints: string[],
+): FindingRecord[] {
+  const { ids } = moduleEdges(scan, policy);
+  const literalPaths = literalPathsOf(policy);
+  const reached = new Set<string>();
+
+  for (const edge of scan.edges) {
+    if (edge.inferred !== undefined || !isTestFile(edge.from)) {
+      continue;
+    }
+
+    reached.add(edge.to);
+
+    for (const through of edge.via ?? []) {
+      reached.add(through);
+    }
+  }
+
+  return [...ids]
+    .filter((id) => !reached.has(id))
+    .filter((id) => !isGeneratedFile(id))
+    .filter((id) => !isEntryPoint(id, literalPaths, entryPoints))
+    .sort(compare)
+    .map((id) => ({
+      id: `untested:${id}`,
+      kind: "untested",
+      severity: "warning" as const,
+      principle: "every-module-has-a-test-that-reaches-it",
+      summary: `${id} is reached by no test file (${testConvention(id)})`,
+      fix_pattern: "add-a-test",
+      evidence: { modules: [id] },
+    }));
+}
+
+function testConvention(id: string): string {
+  const extension = id.slice(id.lastIndexOf(".") + 1);
+
+  switch (extension) {
+    case "py":
+      return "Python: test_*.py, *_test.py, tests/";
+    case "kt":
+    case "kts":
+      return "Kotlin: src/test/";
+    case "rs":
+      return "Rust: tests/, *_test.rs";
+    default:
+      return "TypeScript: *.test.ts, *.spec.ts, __tests__/";
+  }
 }
 
 export function policyDriftFindings(

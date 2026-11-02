@@ -9,6 +9,7 @@ sensors:
       policy_drift: false
       stable_dependencies: true
       stable_abstractions: false
+      untested: false
       orphan:
         entry_points: ["packages/*/src/main.ts", "scripts/**"]
   unused-exports:
