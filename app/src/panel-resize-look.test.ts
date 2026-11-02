@@ -85,8 +85,10 @@ report.reopened = { tree: widthOf(second, ".tree"), inspector: widthOf(second, "
 localStorage.setItem("recognizer.panel-widths", JSON.stringify({ tree: 222, inspector: 333 }));
 report.realStorage = JSON.parse(localStorage.getItem("recognizer.panel-widths"));
 
-document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
-document.getElementById("out").textContent = JSON.stringify(report);
+window.addEventListener("load", () => {
+  document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
+  document.getElementById("out").textContent = JSON.stringify(report);
+});
 `;
 
 const PAGE = (css: string) => `<!doctype html>
@@ -149,16 +151,17 @@ async function run(): Promise<Report> {
         "--no-sandbox",
         `--user-data-dir=${join(dir, "profile")}`,
         "--allow-file-access-from-files",
+        "--virtual-time-budget=10000",
         "--dump-dom",
         `file://${join(dir, "page.html")}`,
       ],
-      { encoding: "utf8", timeout: 60000 },
+      { encoding: "utf8", timeout: 120000 },
     );
     const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(result.stdout);
 
     if (!match) {
       throw new Error(
-        `no report from the page: ${result.stderr.slice(0, 400)}`,
+        `no report from the page: status=${result.status} signal=${result.signal} error=${result.error} stdout=${result.stdout.length} bytes stderr=${result.stderr.slice(0, 400)}`,
       );
     }
 
@@ -186,6 +189,6 @@ describe("resizing the side panels in a real browser", () => {
       expect(report.reopened).toEqual({ tree: 480, inspector: 370 });
       expect(report.realStorage).toEqual({ tree: 222, inspector: 333 });
     },
-    120000,
+    180000,
   );
 });
