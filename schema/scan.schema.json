@@ -107,7 +107,7 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "kind": {
-          "enum": ["class", "function", "interface", "type", "constant"]
+          "enum": ["class", "function", "interface", "type", "constant", "enum"]
         },
         "line": { "$ref": "#/$defs/line" },
         "exported": { "type": "boolean" },
@@ -147,7 +147,7 @@
         },
         {
           "if": {
-            "properties": { "kind": { "enum": ["class", "interface"] } }
+            "properties": { "kind": { "enum": ["class", "interface", "enum"] } }
           },
           "then": {},
           "else": {
@@ -174,7 +174,7 @@
         },
         {
           "if": {
-            "properties": { "kind": { "enum": ["class", "interface"] } }
+            "properties": { "kind": { "enum": ["class", "interface", "enum"] } }
           },
           "then": { "properties": { "tags": { "$ref": "#/$defs/classTags" } } },
           "else": {

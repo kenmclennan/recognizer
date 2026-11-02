@@ -216,7 +216,7 @@
         },
         {
           "name": "Mode",
-          "kind": "type",
+          "kind": "enum",
           "line": 13,
           "exported": true
         }

@@ -47,6 +47,7 @@ export type CardLabel =
   | "Class"
   | "Interface"
   | "Type"
+  | "Enum"
   | "Function"
   | "Constant";
 
@@ -120,6 +121,7 @@ const PLAIN_LABELS: Record<string, CardLabel> = {
   function: "Function",
   constant: "Constant",
   type: "Type",
+  enum: "Enum",
 };
 const PARENT_SEGMENTS = 2;
 export const UNUSED_SHOWN = 8;

@@ -176,7 +176,7 @@
       },
       {
         "name": "Mode",
-        "signature": "type Mode",
+        "signature": "enum Mode",
         "fields": [],
         "methods": []
       }

@@ -123,6 +123,10 @@ export function constantTokens(
     : [name(constant), plain(" = "), ...valueTokens(value)];
 }
 
+export function enumTokens(enumName: string): Token[] {
+  return [keyword("enum"), plain(" "), name(enumName)];
+}
+
 export function typeAliasTokens(alias: string): Token[] {
   return [keyword("type"), plain(" "), name(alias)];
 }
@@ -247,6 +251,10 @@ export function memberHeadTokens(
 
   if (member.kind === "type") {
     return typeAliasTokens(member.name);
+  }
+
+  if (member.kind === "enum") {
+    return enumTokens(member.name);
   }
 
   return null;

@@ -59,7 +59,7 @@ export interface ScanMember {
   name: string;
   exported: boolean;
   visibility?: "public" | "protected" | "internal" | "private";
-  kind?: "class" | "function" | "interface" | "type" | "constant";
+  kind?: "class" | "function" | "interface" | "type" | "constant" | "enum";
   line?: number;
   bases?: string[];
   fields?: ScanField[];

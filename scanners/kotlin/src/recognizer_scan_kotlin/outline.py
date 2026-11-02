@@ -174,7 +174,7 @@ def constant_outline(node: Node) -> dict:
 def member_of(decl: Decl) -> dict:
     member = {
         "name": decl.name,
-        "kind": decl.kind,
+        "kind": "enum" if decl.is_enum else decl.kind,
         "line": decl.line,
         "exported": decl.visibility != "private",
         "visibility": decl.visibility,
