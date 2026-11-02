@@ -145,4 +145,21 @@ describe("history", () => {
     expect(history.markNow()).toBeNull();
     expect(history.markNext()).toEqual(mark);
   });
+
+  it("keeps an entry whose mark carries an order although the snapshot is equal", () => {
+    const history = createHistory({ x: 1 });
+    const state = { paths: ["a"], ordered: true };
+
+    expect(
+      history.record(
+        { x: 1 },
+        {
+          by: "Ken",
+          summary: "reordered the notes",
+          order: { view: "v", before: state, after: state },
+        },
+      ),
+    ).toBe(true);
+    expect(history.canBack()).toBe(true);
+  });
 });

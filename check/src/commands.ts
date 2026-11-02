@@ -470,7 +470,7 @@ export const COMMANDS: Command[] = [
   {
     name: "views",
     summary:
-      "build, show and check saved views: new, add, rule, fold, focus, remove, note, show, list, check, rm",
+      "build, show and check saved views: new, add, rule, fold, focus, remove, note, reorder, set, show, list, check, rm",
     usage: [
       "recognizer views new <name> --description <text> [--from-window <id>]",
       "recognizer views add <name> <module>...",
@@ -478,7 +478,9 @@ export const COMMANDS: Command[] = [
       "recognizer views fold <name> <folder>",
       "recognizer views focus <name> <folder>",
       "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
-      "recognizer views note <name> <module-or-folder> (<text> [--by <name>] | --remove [--by <name>])",
+      "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>])",
+      "recognizer views reorder <name> <module-or-folder>...",
+      "recognizer views set <name> --ordered true|false",
       "recognizer views show <name>",
       "recognizer views list",
       "recognizer views check [<name>] [--fix]",
@@ -587,14 +589,14 @@ export const COMMANDS: Command[] = [
     output: {
       text: [
         "new, add, rule, fold, focus, remove, note: `<name>: <what changed>; N steps, resolves to M modules`",
-        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then `notes:` with one `<module-or-folder>: <text> (<by>)` line per note in file order (marked `(not on the view)` when it is not), then a `warning:` line when the file holds several notes on one path, then unresolved, folded and focus lines when there are any",
+        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then `notes:` with one `<n>. <module-or-folder>: <text> (<by>)` line per note in reading order, or `notes: no order` and unnumbered lines when the view is a lens (marked `(not on the view)` when it is not), then a `warning:` line when the file holds several notes on one path, then unresolved, folded and focus lines when there are any",
         "list: one `<name>  N steps  <commit>  <description>` line per view",
         "check: `<name>: ok` or `<name>: N unresolved` with one `step N <kind> <path> - no such <module|folder>` line each, plus `(renamed to <path>)` when git records one",
         "rm: `<name>: removed`",
       ].join("\n"),
       json: [
         "new, add, rule, fold, focus, remove, note: { view, changed, steps, modules }",
-        "show: { name, description, commit, steps, notes: [{ module, text, by }], resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }], warnings: [string] }",
+        "show: { name, description, commit, steps, ordered, notes: [{ module, text, by, number }], resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }], warnings: [string] }",
         "list: { views: [{ name, description, commit, steps } | { name, error }] }",
         "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }], warnings: [string] }] }",
         "rm: { view, removed }",
@@ -637,7 +639,21 @@ export const COMMANDS: Command[] = [
       {
         command:
           'recognizer views note order-placement shop/application/place.py "The one use case" --by Claude',
-        note: "explain a module on the view; writing it again replaces the note, and a path ending in / notes a folder",
+        note: "explain a module on the view; writing it again replaces the note in its place, and a path ending in / notes a folder; a new note goes last, so the order notes are written in is the reading order",
+      },
+      {
+        command:
+          'recognizer views note order-placement shop/ports/store.py "Then the port" --after shop/application/place.py',
+        note: "place a note right after another; --first places it first",
+      },
+      {
+        command:
+          "recognizer views reorder order-placement shop/ports/store.py shop/application/place.py",
+        note: "set the whole reading order; name every noted path once",
+      },
+      {
+        command: "recognizer views set order-placement --ordered false",
+        note: "make the notes a lens with no order (true restores the walkthrough)",
       },
       {
         command: "recognizer views show order-placement --json",

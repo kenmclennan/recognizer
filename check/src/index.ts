@@ -87,6 +87,16 @@ export {
   usesOf,
 } from "./neighbours.js";
 export {
+  appendNote,
+  dropIndex,
+  moveNote,
+  NoteOrderError,
+  type NotePlace,
+  numberOf,
+  placeNote,
+  reorderNotes,
+} from "./notes-order.js";
+export {
   type Overlay,
   validateOverlay,
 } from "./overlays.js";
@@ -118,11 +128,14 @@ export {
   structureSensor,
 } from "./structure-sensor.js";
 export {
+  isOrdered,
   migrateView,
   type Note,
   noteWarnings,
+  orderedStep,
   type ResolvedView,
   resolveView,
+  serialiseView,
   type View,
   type ViewNote,
   type ViewStep,

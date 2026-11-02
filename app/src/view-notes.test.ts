@@ -1,6 +1,14 @@
 import type { View } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { noteAt, notedPaths, removeNote, setNote } from "./view-notes";
+import {
+  noteAt,
+  notedPaths,
+  orderOf,
+  removeNote,
+  setNote,
+  withNoteMoved,
+  withOrder,
+} from "./view-notes";
 
 const base: View = {
   schema_version: 1,
@@ -36,7 +44,7 @@ describe("setNote", () => {
   it("appends a note at version 3, trimming the text and keeping the steps", () => {
     const next = setNote(base, "a.py", "  Start here ", " Ken ");
 
-    expect(next.schema_version).toBe(3);
+    expect(next.schema_version).toBe(4);
     expect(next.notes).toEqual([
       { module: "a.py", text: "Start here", by: "Ken" },
     ]);
@@ -70,7 +78,7 @@ describe("setNote", () => {
   it("migrates a version 2 file, keeping its module notes", () => {
     const next = setNote(version2, "c.py", "C", "Ken");
 
-    expect(next.schema_version).toBe(3);
+    expect(next.schema_version).toBe(4);
     expect(next.notes?.map((note) => note.module)).toEqual([
       "a.py",
       "b.py",
@@ -116,5 +124,53 @@ describe("noteAt and notedPaths", () => {
 
     expect(noteAt(legacy, "a.py")?.text).toBe("second");
     expect(notedPaths(legacy).size).toBe(1);
+  });
+});
+
+describe("note order", () => {
+  const three: View = {
+    schema_version: 4,
+    description: "d",
+    commit: null,
+    notes: ["a", "b", "c"].map((module) => ({
+      module,
+      text: module,
+      by: "Ken",
+    })),
+    steps: [],
+  };
+
+  it("moves a note and keeps the others in order", () => {
+    expect(orderOf(withNoteMoved(three, "c", 0)).paths).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
+    expect(orderOf(withNoteMoved(three, "a", 2)).paths).toEqual([
+      "b",
+      "c",
+      "a",
+    ]);
+  });
+
+  it("sets and drops ordered false", () => {
+    const lens = withOrder(three, { paths: ["a", "b", "c"], ordered: false });
+
+    expect(lens.ordered).toBe(false);
+    expect(
+      "ordered" in withOrder(lens, { paths: ["a", "b", "c"], ordered: true }),
+    ).toBe(false);
+  });
+
+  it("puts unnamed notes after the named ones and ignores unheld paths", () => {
+    expect(
+      orderOf(withOrder(three, { paths: ["c", "zzz"], ordered: true })).paths,
+    ).toEqual(["c", "a", "b"]);
+  });
+
+  it("applies two moves in turn", () => {
+    expect(
+      orderOf(withNoteMoved(withNoteMoved(three, "c", 0), "b", 0)).paths,
+    ).toEqual(["b", "c", "a"]);
   });
 });

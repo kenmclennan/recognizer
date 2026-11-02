@@ -23,7 +23,8 @@ export interface ViewNote {
 }
 
 export interface View {
-  schema_version: 1 | 2 | 3;
+  schema_version: 1 | 2 | 3 | 4;
+  ordered?: boolean;
   description: string;
   commit: string | null;
   note?: Note;
@@ -57,7 +58,7 @@ export function validateView(value: unknown): View {
 }
 
 function rawNotes(view: View): ViewNote[] {
-  if (view.schema_version === 3) {
+  if (view.schema_version >= 3) {
     return (view.notes ?? []).map((note) => ({ ...note }));
   }
 
@@ -107,16 +108,64 @@ export function noteWarnings(view: View): string[] {
   ];
 }
 
+export function isOrdered(view: View): boolean {
+  return view.schema_version === 4 ? view.ordered !== false : true;
+}
+
 export function migrateView(view: View): View {
   const notes = viewNotes(view);
 
   return {
-    schema_version: 3,
+    schema_version: 4,
     description: view.description,
     commit: view.commit,
+    ...(isOrdered(view) ? {} : { ordered: false }),
     ...(notes.length === 0 ? {} : { notes }),
     steps: view.steps,
   };
+}
+
+export function serialiseView(view: View): string {
+  const migrated = migrateView(view);
+
+  return `${JSON.stringify(
+    {
+      schema_version: 4,
+      description: migrated.description,
+      commit: migrated.commit,
+      ...(migrated.ordered === false ? { ordered: false } : {}),
+      ...(migrated.notes === undefined
+        ? {}
+        : { notes: migrated.notes.map(orderedNote) }),
+      steps: migrated.steps.map(orderedStep),
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+export function orderedNote(note: ViewNote): ViewNote {
+  return { module: note.module, text: note.text, by: note.by };
+}
+
+export function orderedStep(step: ViewStep): ViewStep {
+  switch (step.kind) {
+    case "pick":
+    case "left-out":
+      return { kind: step.kind, module: step.module };
+    case "fold":
+    case "focus":
+      return { kind: step.kind, folder: step.folder };
+    case "rule":
+      return step.relation === "folder"
+        ? { kind: "rule", relation: "folder", of: step.of }
+        : {
+            kind: "rule",
+            relation: step.relation,
+            of: step.of,
+            ...(step.within === undefined ? {} : { within: step.within }),
+          };
+  }
 }
 
 export function resolveView(view: View, scans: Scan[]): ResolvedView {

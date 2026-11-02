@@ -559,6 +559,25 @@ svg.i.chevron {
   fill: var(--box);
 }
 
+.note-mark.numbered circle {
+  fill: var(--muted);
+  stroke: var(--box);
+}
+
+.note-mark.numbered text {
+  fill: var(--box);
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.note-mark.numbered.active circle,
+.note-mark.numbered:hover circle {
+  fill: var(--sel);
+}
+
 .box .halo {
   display: none;
   fill: none;
@@ -2145,8 +2164,66 @@ svg.i.chevron {
 }
 
 .notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 12px 12px 8px;
   font-size: 14px;
+}
+
+.notes-order-toggle {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.notes-order-toggle[aria-pressed="true"] {
+  border-color: var(--sel);
+  color: var(--sel);
+}
+
+.note-list {
+  position: relative;
+}
+
+.note-row .note-number {
+  flex: 0 0 auto;
+  min-width: 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.note-row .note-handle {
+  align-self: stretch;
+  flex: 0 0 12px;
+  margin: -6px 0 -6px -8px;
+  background: repeating-linear-gradient(var(--line) 0 2px, transparent 2px 5px);
+  background-clip: content-box;
+  border-radius: 3px 0 0 3px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.note-row.dragging {
+  position: relative;
+  z-index: 2;
+  background: var(--selbg);
+  opacity: 0.85;
+}
+
+.note-drop-line {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--sel);
+  pointer-events: none;
 }
 
 .notes-hint {
@@ -2556,6 +2633,30 @@ svg.i.chevron {
 .note-bubble .note-by {
   color: var(--muted);
   font-size: 11px;
+}
+
+.note-bubble .note-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.note-bubble .note-step button {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.note-bubble .note-step button:disabled {
+  color: var(--faint);
+  cursor: default;
 }
 
 .note-bubble .note-actions {

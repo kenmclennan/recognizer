@@ -1,4 +1,13 @@
-import { migrateView, type View, type ViewNote, viewNotes } from "recognizer";
+import {
+  appendNote,
+  isOrdered,
+  migrateView,
+  moveNote,
+  type View,
+  type ViewNote,
+  viewNotes,
+} from "recognizer";
+import type { OrderState } from "./view-history";
 
 export const NOTE_AUTHOR_LIMIT = 64;
 
@@ -17,14 +26,46 @@ export function setNote(
 
   const notes = viewNotes(view);
   const entry: ViewNote = { module: path, text: trimmed, by: author };
-  const replaced = notes.some((note) => note.module === path);
 
+  return { ...migrateView(view), notes: appendNote(notes, entry) };
+}
+
+export function orderOf(view: View): OrderState {
   return {
-    ...migrateView(view),
-    notes: replaced
-      ? notes.map((note) => (note.module === path ? entry : note))
-      : [...notes, entry],
+    paths: viewNotes(view).map((note) => note.module),
+    ordered: isOrdered(view),
   };
+}
+
+export function withOrder(view: View, state: OrderState): View {
+  const notes = viewNotes(view);
+  const named = state.paths.flatMap((path) => {
+    const held = notes.find((note) => note.module === path);
+
+    return held === undefined ? [] : [held];
+  });
+  const rest = notes.filter((note) => !state.paths.includes(note.module));
+  const migrated = migrateView(view);
+  const { ordered: _ordered, ...plain } = migrated;
+  const all = [...named, ...rest];
+  const next: View = state.ordered ? plain : { ...plain, ordered: false };
+
+  if (all.length === 0) {
+    const { notes: _notes, ...bare } = next;
+
+    return bare;
+  }
+
+  return { ...next, notes: all };
+}
+
+export function withNoteMoved(view: View, path: string, toIndex: number): View {
+  const state = orderOf(view);
+  const moved = moveNote(viewNotes(view), path, toIndex).map(
+    (note) => note.module,
+  );
+
+  return withOrder(view, { paths: moved, ordered: state.ordered });
 }
 
 export function removeNote(view: View, path: string): View {

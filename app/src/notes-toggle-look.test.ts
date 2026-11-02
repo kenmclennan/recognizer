@@ -28,7 +28,7 @@ const NOTES = [
   { module: "p/m.py", text: "Split this module up", by: "Ken" },
   { module: "p/n.py", text: LONG, by: "Claude" },
 ];
-const view = JSON.stringify({ schema_version: 3, description: "d", commit: "cur1234", notes: NOTES, steps: IDS.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
+const view = JSON.stringify({ schema_version: 4, ordered: false, description: "d", commit: "cur1234", notes: NOTES, steps: IDS.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
 
 const tick = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

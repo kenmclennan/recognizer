@@ -9,13 +9,21 @@ import {
   keepsFocus,
   notePathOf,
   noteRows,
+  stepModel,
   walkNotes,
 } from "./note-focus";
+
+const orderedOf = (...paths: string[]): View => {
+  const { ordered: _ordered, ...rest } = viewOf(...paths);
+
+  return rest;
+};
 
 const rect = (x: number, y: number): Rect => ({ x, y, width: 100, height: 30 });
 
 const viewOf = (...paths: string[]): View => ({
-  schema_version: 3,
+  schema_version: 4,
+  ordered: false,
   description: "d",
   commit: null,
   notes: paths.map((module) => ({ module, text: `t ${module}`, by: "Ken" })),
@@ -212,6 +220,7 @@ describe("bubbleSet", () => {
         by: "Ken",
         editing: false,
         focused: true,
+        step: null,
       },
     ]);
   });
@@ -261,11 +270,114 @@ describe("bubbleSet", () => {
     );
 
     expect(set).toEqual([
-      { path: "b.py", text: null, by: null, editing: true, focused: true },
+      {
+        path: "b.py",
+        text: null,
+        by: null,
+        editing: true,
+        focused: true,
+        step: null,
+      },
     ]);
   });
 
   it("holds nothing without a view", () => {
     expect(bubbleSet(null, positions, null, true)).toEqual([]);
+  });
+});
+
+describe("ordered notes", () => {
+  const positions = new Map<string, Rect>([
+    ["a.py", rect(0, 300)],
+    ["b.py", rect(0, 100)],
+    ["c.py", rect(0, 200)],
+  ]);
+
+  it("lists rows in list order with their numbers, off-canvas rows in place", () => {
+    const rows = noteRows(
+      orderedOf("c.py", "gone.py", "a.py", "b.py"),
+      positions,
+      null,
+    );
+
+    expect(rows.map((row) => [row.path, row.number, row.off])).toEqual([
+      ["c.py", 1, false],
+      ["gone.py", 2, true],
+      ["a.py", 3, false],
+      ["b.py", 4, false],
+    ]);
+  });
+
+  it("keeps the canvas sort and no numbers when unordered", () => {
+    const rows = noteRows(viewOf("a.py", "b.py", "c.py"), positions, null);
+
+    expect(rows.map((row) => [row.path, row.number])).toEqual([
+      ["b.py", null],
+      ["c.py", null],
+      ["a.py", null],
+    ]);
+  });
+
+  describe("stepModel", () => {
+    const rows = noteRows(
+      orderedOf("a.py", "gone.py", "b.py", "c.py"),
+      positions,
+      null,
+    );
+
+    it("has no previous on the first note and no next on the last", () => {
+      expect(stepModel(rows, "a.py")).toEqual({
+        number: 1,
+        total: 4,
+        previous: null,
+        next: "b.py",
+      });
+      expect(stepModel(rows, "c.py")).toEqual({
+        number: 4,
+        total: 4,
+        previous: "b.py",
+        next: null,
+      });
+    });
+
+    it("skips an off-canvas neighbour", () => {
+      expect(stepModel(rows, "b.py")).toMatchObject({
+        number: 3,
+        previous: "a.py",
+        next: "c.py",
+      });
+    });
+
+    it("is null for an unordered view or a path with no note", () => {
+      expect(
+        stepModel(noteRows(viewOf("a.py"), positions, null), "a.py"),
+      ).toBeNull();
+      expect(stepModel(rows, "zzz.py")).toBeNull();
+    });
+  });
+
+  it("gives only the focused, non-editing bubble of an ordered view a step", () => {
+    const view = orderedOf("a.py", "b.py");
+    const reading = bubbleSet(
+      view,
+      positions,
+      { path: "a.py", editing: false },
+      true,
+    );
+    const editing = bubbleSet(
+      view,
+      positions,
+      { path: "a.py", editing: true },
+      true,
+    );
+
+    expect(reading.find((one) => one.focused)?.step).toMatchObject({
+      number: 1,
+      total: 2,
+    });
+    expect(
+      reading.filter((one) => !one.focused).every((one) => one.step === null),
+    ).toBe(true);
+    expect(editing.find((one) => one.focused)?.step).toBeNull();
   });
 });

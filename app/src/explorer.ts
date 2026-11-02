@@ -1,6 +1,7 @@
 import {
   folderUsedBy,
   folderUses,
+  isOrdered,
   resolveView,
   usedByOf,
   usesOf,
@@ -148,12 +149,20 @@ import { buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
-import { createHistory, type History, type Mark } from "./view-history";
+import {
+  createHistory,
+  type History,
+  type Mark,
+  type OrderState,
+} from "./view-history";
 import { resolveLinkedView } from "./view-link";
 import {
   noteAt,
   notedPaths,
+  orderOf,
   setNote,
+  withNoteMoved,
+  withOrder,
   removeNote as withoutNote,
 } from "./view-notes";
 import { stepsFor } from "./view-steps";
@@ -412,6 +421,9 @@ export function showExplorer(
           removeNotePath(noteFocus.path);
         }
       },
+      stepNote(path) {
+        orientNote(path);
+      },
       walkNotes(delta) {
         const next = walkNotes(noteRowsNow(), noteFocus?.path ?? null, delta);
 
@@ -606,6 +618,7 @@ export function showExplorer(
   );
   let endLayoutBusy: (() => void) | null = null;
   let layoutNoted = "";
+  let pendingLanding: string | null = null;
 
   function endLayout() {
     endLayoutBusy?.();
@@ -619,6 +632,7 @@ export function showExplorer(
       endLayout();
       layoutNotice = null;
       scene = toScene(graph, absoluteLayout(result));
+      land();
       render();
     },
     (message) => {
@@ -650,6 +664,17 @@ export function showExplorer(
   const notesPanel = buildNotesPanelView({
     toggle: toggleNote,
     remove: (path) => removeNotePath(path),
+    moveNote: (path, toIndex) =>
+      reorderNotes(`reordered the notes`, (view) =>
+        withNoteMoved(view, path, toIndex),
+      ),
+    setOrdered: (ordered) =>
+      reorderNotes(
+        ordered
+          ? "set the notes to read in order"
+          : "set the notes to read in no order",
+        (view) => withOrder(view, { ...orderOf(view), ordered }),
+      ),
   });
   const scanView = buildScanPanelView({
     tickDescribe(ticked) {
@@ -1304,6 +1329,29 @@ export function showExplorer(
     }
   }
 
+  function land() {
+    if (pendingLanding === null) {
+      return;
+    }
+
+    const name = pendingLanding;
+
+    pendingLanding = null;
+
+    const view = openViewValue();
+
+    if (view === null || openView !== name || !isOrdered(view)) {
+      return;
+    }
+
+    const positions = notePositions();
+    const first = viewNotes(view).find((note) => positions.has(note.module));
+
+    if (first !== undefined) {
+      orientNote(first.module, false);
+    }
+  }
+
   function notePositions(): Map<string, Rect> {
     const positions = new Map<string, Rect>();
 
@@ -1326,7 +1374,7 @@ export function showExplorer(
       : noteRows(view, notePositions(), noteFocus?.path ?? null);
   }
 
-  function orientNote(path: string) {
+  function orientNote(path: string, animate = true) {
     const view = openViewValue();
 
     if (view === null || noteAt(view, path) === null) {
@@ -1339,7 +1387,60 @@ export function showExplorer(
 
     select(selectionOf(path));
     noteFocus = { path, editing: false };
-    canvas.centerOn(boxFor(path.endsWith("/") ? path.slice(0, -1) : path));
+
+    if (isOrdered(view)) {
+      canvas.walkTo(path, { animate });
+    } else {
+      canvas.centerOn(boxFor(path.endsWith("/") ? path.slice(0, -1) : path));
+    }
+
+    render();
+  }
+
+  function reorderNotes(summary: string, change: (view: View) => View) {
+    const name = openView;
+    const view = openViewValue();
+
+    if (name === null || view === null) {
+      return;
+    }
+
+    const before = orderOf(view);
+    let after: OrderState = before;
+
+    void writeNote(async (current) => {
+      const next = change(current);
+
+      after = orderOf(next);
+
+      return next;
+    }).then(() => {
+      if (JSON.stringify(before) === JSON.stringify(after)) {
+        return;
+      }
+
+      const mark: Mark = {
+        by: author,
+        summary,
+        order: { view: name, before, after },
+      };
+
+      history.record(snapshot(), mark);
+      agentLine.show(mark, back);
+      publish();
+      renderBar();
+    });
+  }
+
+  async function restoreOrder(view: string, state: OrderState) {
+    const current = viewNamed(view);
+
+    if (current === null) {
+      return;
+    }
+
+    await writeView(view, withOrder(current, state));
+    renderBar();
     render();
   }
 
@@ -1378,6 +1479,10 @@ export function showExplorer(
     if (mark?.note !== undefined) {
       void restoreNote(mark.note);
     }
+
+    if (mark?.order !== undefined) {
+      void restoreOrder(mark.order.view, mark.order.before);
+    }
   }
 
   function forward() {
@@ -1387,6 +1492,10 @@ export function showExplorer(
 
     if (mark?.note !== undefined) {
       void dropNote(mark.note);
+    }
+
+    if (mark?.order !== undefined) {
+      void restoreOrder(mark.order.view, mark.order.after);
     }
   }
 
@@ -1833,7 +1942,12 @@ export function showExplorer(
     return `${edge.from} -> ${edge.to}`;
   }
 
-  async function applyView(name: string, text: string, withRenames: boolean) {
+  async function applyView(
+    name: string,
+    text: string,
+    withRenames: boolean,
+    landing = false,
+  ) {
     const parsed = parseViewFile(text);
 
     if (!parsed.ok) {
@@ -1877,6 +1991,8 @@ export function showExplorer(
     viewTexts.set(name, text);
     dismissed.delete(name);
     openView = name;
+    pendingLanding =
+      landing && isOrdered(view) && viewNotes(view).length > 0 ? name : null;
     setCanvas(
       [...resolved.modules, ...renamed],
       resolved.folded,
@@ -1957,7 +2073,7 @@ export function showExplorer(
     const text = viewList.find((view) => view.name === name)?.text;
 
     if (text !== undefined) {
-      await applyView(name, text, true);
+      await applyView(name, text, true, true);
     }
   }
 
@@ -2021,7 +2137,7 @@ export function showExplorer(
 
   async function saveNew(name: string, description: string) {
     const problem = await writeView(name, {
-      schema_version: 3,
+      schema_version: 4,
       description,
       commit: currentCommit(scans),
       steps: stepsFor([], canvasContent(), scans),
@@ -2234,13 +2350,19 @@ export function showExplorer(
       view === null || focus === null ? null : noteAt(view, focus.path);
     const bubbles = bubbleSet(view, positions, focus, notesShown);
     const marks = view === null ? new Set<string>() : notedPaths(view);
+    const ordered = view !== null && isOrdered(view);
+    const numbers = ordered
+      ? new Map(viewNotes(view).map((note, index) => [note.module, index + 1]))
+      : null;
     const keys = {
       notesOpen: leftPanel === "notes",
       noteActive: held !== null,
       findingsOpen: leftPanel === "findings",
+      stepping: ordered && held !== null && focus?.editing === false,
     };
     const key = JSON.stringify([
       [...marks].sort(),
+      numbers === null ? null : [...numbers],
       focus,
       bubbles,
       notesShown,
@@ -2251,6 +2373,7 @@ export function showExplorer(
       canvasNotesKey = key;
       canvasNotes = {
         marks,
+        numbers,
         active: focus?.path ?? null,
         bubbles,
         showAll: notesShown,
@@ -2370,6 +2493,7 @@ export function showExplorer(
     notesPanel.render({
       hasView: noteView !== null,
       rows: noteRowsNow(),
+      ordered: noteView === null || isOrdered(noteView),
     });
     const contentOf = (index: number) => {
       const panel = trail.panels[index];

@@ -1,5 +1,5 @@
 import { button, el } from "./dom";
-import type { BubblePlace } from "./note-focus";
+import type { BubblePlace, StepModel } from "./note-focus";
 
 export type NoteBubble = {
   path: string;
@@ -7,6 +7,7 @@ export type NoteBubble = {
   by: string | null;
   editing: boolean;
   focused: boolean;
+  step?: StepModel | null;
 };
 
 export type NoteBubbleActions = {
@@ -15,6 +16,8 @@ export type NoteBubbleActions = {
   cancel: (path: string) => void;
   save: (path: string, text: string) => void;
   remove: (path: string) => void;
+  previous: (path: string) => void;
+  next: (path: string) => void;
 };
 
 export type NoteBubbleView = {
@@ -57,7 +60,36 @@ export function buildNoteBubbleView(
       button("Remove", "note-remove", () => actions.remove(bubble.path)),
     );
 
-    return [text, by, row];
+    const step = bubble.step;
+
+    if (step === null || step === undefined) {
+      return [text, by, row];
+    }
+
+    const previous = button("Previous", "note-previous", () => {
+      if (step.previous !== null) {
+        actions.previous(step.previous);
+      }
+    });
+    const next = button("Next", "note-next", () => {
+      if (step.next !== null) {
+        actions.next(step.next);
+      }
+    });
+    const position = el(
+      "span",
+      "note-position",
+      `${step.number} of ${step.total}`,
+    );
+
+    previous.disabled = step.previous === null;
+    next.disabled = step.next === null;
+
+    const header = el("div", "note-step");
+
+    header.append(previous, position, next);
+
+    return [header, text, by, row];
   }
 
   function editMode(bubble: NoteBubble) {

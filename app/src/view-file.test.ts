@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { serialiseView as cliSerialise } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { parseViewFile, serialiseView } from "./view-file";
 
@@ -16,7 +17,7 @@ describe("view files", () => {
     const text = serialiseView(view);
 
     expect(text).toBe(
-      `${JSON.stringify({ schema_version: 3, description: "d", commit: null, steps: view.steps }, null, 2)}\n`,
+      `${JSON.stringify({ schema_version: 4, description: "d", commit: null, steps: view.steps }, null, 2)}\n`,
     );
     expect(Object.keys(JSON.parse(text))).toEqual([
       "schema_version",
@@ -56,7 +57,7 @@ describe("view files", () => {
     expect(parsed.ok && parsed.view.notes).toEqual(view.notes);
   });
 
-  it("writes a version 2 view with both note kinds at version 3 without the view note", () => {
+  it("writes a version 2 view with both note kinds at version 4 without the view note", () => {
     const text = serialiseView({
       schema_version: 2,
       description: "d",
@@ -67,7 +68,7 @@ describe("view files", () => {
     });
     const written = JSON.parse(text);
 
-    expect(written.schema_version).toBe(3);
+    expect(written.schema_version).toBe(4);
     expect(written.note).toBeUndefined();
     expect(written.module_notes).toBeUndefined();
     expect(written.notes).toEqual([
@@ -75,17 +76,14 @@ describe("view files", () => {
     ]);
   });
 
-  it("writes the committed version 3 example back to the same bytes", () => {
-    const text = readFileSync(
-      join(EXAMPLES, "version-3-folder-note.json"),
-      "utf8",
-    );
+  it("writes the committed version 4 example back to the same bytes", () => {
+    const text = readFileSync(join(EXAMPLES, "version-4-lens.json"), "utf8");
     const parsed = parseViewFile(text);
 
     expect(parsed.ok && serialiseView(parsed.view)).toBe(text);
   });
 
-  it("writes a version 1 view at version 3", () => {
+  it("writes a version 1 view at version 4", () => {
     const text = serialiseView({
       schema_version: 1,
       description: "d",
@@ -93,7 +91,7 @@ describe("view files", () => {
       steps: [],
     });
 
-    expect(JSON.parse(text).schema_version).toBe(3);
+    expect(JSON.parse(text).schema_version).toBe(4);
   });
 
   it("rejects a blank description with the reason", () => {
@@ -154,6 +152,27 @@ describe("parseViewFile warnings", () => {
     expect(clean).toMatchObject({ ok: true, warnings: [] });
     expect(doubled.ok && doubled.warnings).toEqual([
       "view holds 1 note on a.py; kept the last on each",
+    ]);
+  });
+
+  it("gives the app and the command byte-identical text for one view", () => {
+    const view = {
+      schema_version: 4 as const,
+      ordered: false,
+      description: "d",
+      commit: "abc",
+      notes: [{ module: "b.py", text: "B", by: "Ken" }],
+      steps: [{ kind: "pick" as const, module: "b.py" }],
+    };
+
+    expect(serialiseView(view)).toBe(cliSerialise(view));
+    expect(Object.keys(JSON.parse(serialiseView(view)))).toEqual([
+      "schema_version",
+      "description",
+      "commit",
+      "ordered",
+      "notes",
+      "steps",
     ]);
   });
 });
