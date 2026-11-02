@@ -115,9 +115,10 @@ jobs:
           uv venv --python 3.13 "$smoke/venv"
           uv pip install --python "$smoke/venv/bin/python" --no-index --find-links "$smoke/wheelhouse" \
             "$smoke/recognizer_scan_python-$VERSION-py3-none-any.whl" \
-            "$smoke/recognizer_scan_kotlin-$VERSION-py3-none-any.whl"
+            "$smoke/recognizer_scan_kotlin-$VERSION-py3-none-any.whl" \
+            "$smoke/recognizer_sensors-$VERSION-py3-none-any.whl"
           export PATH="$smoke/bin:$smoke/venv/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
-          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-rust; do
+          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-rust recognizer-sensors; do
             got=$("$tool" --version)
             if [ "$got" != "$VERSION" ]; then
               echo "$tool --version printed $got, expected $VERSION" >&2
@@ -126,6 +127,11 @@ jobs:
           done
           recognizer scan "$repo/fixtures/python/sample"
           recognizer scan "$repo/fixtures/typescript/sample"
+          recognizer-sensors duplication --repository "$repo/fixtures/duplication/sample" --commit smoke --output "$smoke/out.json"
+          if [ ! -f "$smoke/out.json" ]; then
+            echo "recognizer-sensors wrote no findings file" >&2
+            exit 1
+          fi
           prompt=$(recognizer-describe-claude --prompt-version)
           case "$prompt" in
             prompt-*) ;;

@@ -1,0 +1,38 @@
+name: sensors
+
+on:
+  pull_request:
+    paths:
+      - sensors/**
+      - schema/**
+      - fixtures/**
+      - scripts/assert-clean-tmpdir.mjs
+      - .github/workflows/sensors.yml
+  push:
+    branches: [main]
+    paths:
+      - sensors/**
+      - schema/**
+      - fixtures/**
+      - scripts/assert-clean-tmpdir.mjs
+      - .github/workflows/sensors.yml
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: sensors
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: node "$GITHUB_WORKSPACE/scripts/assert-clean-tmpdir.mjs" uv run pytest

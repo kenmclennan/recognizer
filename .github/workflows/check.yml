@@ -5,6 +5,7 @@ on:
     paths:
       - check/**
       - scanners/**
+      - sensors/**
       - describers/**
       - scripts/**
       - policies/**
@@ -19,6 +20,7 @@ on:
     paths:
       - check/**
       - scanners/**
+      - sensors/**
       - describers/**
       - scripts/**
       - policies/**
@@ -43,6 +45,7 @@ jobs:
       - run: npm run lint -w check
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked --project scanners/python
+      - run: uv sync --locked --project sensors
       - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w recognizer-describe-claude
       - run: npm run build -w check

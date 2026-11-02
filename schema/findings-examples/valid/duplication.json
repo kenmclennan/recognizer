@@ -1,0 +1,25 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "duplication", "version": "0.1.0" },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": { "threshold": 0.82, "min_lines": 4, "min_nodes": 20 },
+  "findings": [
+    {
+      "id": "duplication:src/pricing.ts::sumWithLevy|src/pricing.ts::totalWithTax",
+      "kind": "duplication",
+      "severity": "warning",
+      "principle": "Do not repeat yourself",
+      "fix_pattern": "extract-shared-function",
+      "summary": "sumWithLevy in src/pricing.ts is 100% similar to totalWithTax in src/pricing.ts",
+      "evidence": {
+        "modules": ["src/pricing.ts"],
+        "members": [
+          { "module": "src/pricing.ts", "name": "sumWithLevy", "file": "src/pricing.ts", "lines": [12, 21] },
+          { "module": "src/pricing.ts", "name": "totalWithTax", "file": "src/pricing.ts", "lines": [1, 10] }
+        ],
+        "measures": { "similarity": 1 }
+      }
+    }
+  ]
+}

@@ -38,6 +38,11 @@ export function stampVersion(root, version) {
     /^(version = ")[^"]*(")/m,
     version,
   );
+  rewrite(
+    join(root, "sensors/pyproject.toml"),
+    /^(version = ")[^"]*(")/m,
+    version,
+  );
   rewrite(join(root, "describers/claude/package.json"), json, version);
   rewrite(
     join(root, "scanners/rust/Cargo.toml"),

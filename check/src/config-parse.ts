@@ -1,6 +1,7 @@
 import { parse } from "yaml";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
+import { expandShortForms, SHIPPED_SENSORS } from "./shipped-sensors.js";
 
 export interface MetricDeclaration {
   name: string;
@@ -69,6 +70,32 @@ function rejectRepeatedMetrics(config: Config): void {
   }
 }
 
+function expandConfig(document: unknown): unknown {
+  if (
+    typeof document !== "object" ||
+    document === null ||
+    Array.isArray(document)
+  ) {
+    return document;
+  }
+
+  const record = document as Record<string, unknown>;
+  const sensors = expandShortForms(
+    record.sensors as Record<string, unknown> | undefined,
+    SHIPPED_SENSORS,
+  );
+  const overlays = expandShortForms(
+    record.overlays as Record<string, unknown> | undefined,
+    [],
+  );
+
+  return {
+    ...record,
+    ...(sensors === undefined ? {} : { sensors }),
+    ...(overlays === undefined ? {} : { overlays }),
+  };
+}
+
 export function parseConfig(text: string): Config {
   let document: unknown;
 
@@ -81,9 +108,11 @@ export function parseConfig(text: string): Config {
   }
 
   if (validate(document)) {
-    rejectRepeatedMetrics(document as Config);
+    const config = expandConfig(document) as Config;
 
-    return document as Config;
+    rejectRepeatedMetrics(config);
+
+    return config;
   }
 
   const messages = (validate.errors ?? []).map(

@@ -21,6 +21,8 @@ const FILES = {
     '[project]\nname = "recognizer-scan-python"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
   "scanners/kotlin/pyproject.toml":
     '[project]\nname = "recognizer-scan-kotlin"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
+  "sensors/pyproject.toml":
+    '[project]\nname = "recognizer-sensors"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
   "describers/claude/package.json":
     '{\n  "name": "recognizer-describe-claude",\n  "version": "0.1.0"\n}\n',
   "scanners/rust/Cargo.toml":
@@ -38,6 +40,7 @@ function fixture() {
   mkdirSync(join(root, "scanners/python"), { recursive: true });
   mkdirSync(join(root, "scanners/kotlin"), { recursive: true });
   mkdirSync(join(root, "scanners/rust"), { recursive: true });
+  mkdirSync(join(root, "sensors"), { recursive: true });
   mkdirSync(join(root, "describers/claude"), { recursive: true });
 
   for (const [path, text] of Object.entries(FILES)) {
@@ -92,6 +95,7 @@ describe("stampVersion on the real manifests", () => {
       "app/src-tauri/Cargo.toml",
       "scanners/python/pyproject.toml",
       "scanners/kotlin/pyproject.toml",
+      "sensors/pyproject.toml",
       "describers/claude/package.json",
       "scanners/rust/Cargo.toml",
       "scanners/rust/Cargo.lock",
@@ -124,6 +128,9 @@ describe("stampVersion on the real manifests", () => {
     expect(
       readFileSync(join(root, "scanners/kotlin/pyproject.toml"), "utf8"),
     ).toMatch(/^version = "7\.8\.9"$/m);
+    expect(readFileSync(join(root, "sensors/pyproject.toml"), "utf8")).toMatch(
+      /^version = "7\.8\.9"$/m,
+    );
     expect(
       readFileSync(join(root, "scanners/rust/Cargo.toml"), "utf8"),
     ).toMatch(/^version = "7\.8\.9"$/m);

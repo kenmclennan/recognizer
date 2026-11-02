@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { archiveEntries, verifyArchive } from "./build-toolchain.mjs";
+import {
+  archiveEntries,
+  mergeRequirements,
+  verifyArchive,
+} from "./build-toolchain.mjs";
 
 const closure = ["node_modules/ajv", "node_modules/yaml"];
 const wheelhouse = ["tree_sitter-0.26.0-cp313-cp313-macosx_11_0_arm64.whl"];
@@ -14,11 +18,25 @@ describe("archiveEntries", () => {
       "node_modules/yaml/package.json",
       "recognizer_scan_python-1.2.3-py3-none-any.whl",
       "recognizer_scan_kotlin-1.2.3-py3-none-any.whl",
+      "recognizer_sensors-1.2.3-py3-none-any.whl",
       "wheelhouse/tree_sitter-0.26.0-cp313-cp313-macosx_11_0_arm64.whl",
       "recognizer-scan-rust",
       "THIRD-PARTY-NOTICES.md",
       "LICENSE",
     ]);
+  });
+});
+
+describe("mergeRequirements", () => {
+  const kotlin =
+    "# header\ntree-sitter==0.26.0 \\\n    --hash=sha256:aa \\\n    --hash=sha256:bb\ntree-sitter-kotlin==1.1.0 \\\n    --hash=sha256:cc\n";
+  const sensors =
+    "# header\ntree-sitter==0.26.0 \\\n    --hash=sha256:aa \\\n    --hash=sha256:bb\ntree-sitter-rust==0.24.2 \\\n    --hash=sha256:dd\ntree-sitter-kotlin==1.1.0 \\\n    --hash=sha256:cc\n";
+
+  it("keeps each requirement once with its own hashes", () => {
+    expect(mergeRequirements([kotlin, sensors])).toBe(
+      "tree-sitter==0.26.0 \\\n    --hash=sha256:aa \\\n    --hash=sha256:bb\ntree-sitter-kotlin==1.1.0 \\\n    --hash=sha256:cc\ntree-sitter-rust==0.24.2 \\\n    --hash=sha256:dd\n",
+    );
   });
 });
 
@@ -55,6 +73,11 @@ describe("verifyArchive", () => {
       "the Kotlin wheel",
       "recognizer_scan_kotlin-1.2.3-py3-none-any.whl\n",
       /recognizer_scan_kotlin/,
+    ],
+    [
+      "the sensors wheel",
+      "recognizer_sensors-1.2.3-py3-none-any.whl\n",
+      /recognizer_sensors/,
     ],
     [
       "a wheelhouse file",

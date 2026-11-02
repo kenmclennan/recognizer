@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "recognizer-sensors"
+version = "0.1.0"
+license = "MIT"
+description = "Recognizer's shipped sensors"
+requires-python = ">=3.11"
+dependencies = [
+  "tree-sitter==0.26.0",
+  "tree-sitter-typescript==0.23.2",
+  "tree-sitter-python==0.25.0",
+  "tree-sitter-kotlin==1.1.0",
+  "tree-sitter-rust==0.24.2",
+]
+
+[project.scripts]
+recognizer-sensors = "recognizer_sensors.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "ruff", "jsonschema"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/recognizer_sensors"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+tmp_path_retention_policy = "none"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
