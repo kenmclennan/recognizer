@@ -1,0 +1,18 @@
+{
+  "overlay_version": 1,
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "producer": { "name": "mutate", "version": "0.1.0" },
+  "metrics": [
+    { "name": "killed", "type": "count", "granularity": "member", "bad": "low" },
+    { "name": "survived", "type": "count", "granularity": "member", "bad": "high" },
+    { "name": "uncovered", "type": "count", "granularity": "member", "bad": "high" },
+    { "name": "score", "type": "ratio", "granularity": "member", "bad": "low" }
+  ],
+  "values": {
+    "killed": { "app/rules.py::grade": 0, "app/rules.py::both": 1, "app/rules.py::total": 0 },
+    "survived": { "app/rules.py::grade": 2, "app/rules.py::both": 0, "app/rules.py::total": 0 },
+    "uncovered": { "app/rules.py::grade": 0, "app/rules.py::both": 0, "app/rules.py::total": 1 },
+    "score": { "app/rules.py::grade": 0.0, "app/rules.py::both": 1.0 }
+  }
+}

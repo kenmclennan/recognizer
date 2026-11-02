@@ -33,6 +33,107 @@
         "pattern": "^[a-z0-9][a-z0-9_-]*$",
         "maxLength": 64
       },
+      "properties": {
+        "mutate": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "command",
+                "metrics"
+              ],
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "metrics": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "type",
+                      "granularity",
+                      "bad"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "type": {
+                        "enum": [
+                          "ratio",
+                          "count",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "granularity": {
+                        "enum": [
+                          "module",
+                          "member"
+                        ]
+                      },
+                      "bad": {
+                        "enum": [
+                          "high",
+                          "low"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "test_command"
+              ],
+              "properties": {
+                "test_command": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "timeout_factor": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "max_workers": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "coverage": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "crap_overlay": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "survivors": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        }
+      },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -240,6 +341,41 @@
                   "minLength": 1
                 },
                 "overlay": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        },
+        "mutation": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "command"
+              ],
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "overlay": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "survivors": {
                   "type": "string",
                   "minLength": 1
                 }

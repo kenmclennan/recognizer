@@ -13,3 +13,9 @@ class Overlay:
 class Outcome:
     findings: list[dict]
     overlay: Overlay | None = None
+
+
+@dataclass(frozen=True)
+class Measurement:
+    overlay: Overlay
+    survivors: dict

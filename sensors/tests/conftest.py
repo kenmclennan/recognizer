@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path, PurePosixPath
 
 import pytest
@@ -98,3 +99,29 @@ def run_cli(root: Path, output: Path, *extra: str) -> int:
             *extra,
         ]
     )
+
+
+MUTATE_FIXTURE = REPOSITORY / "fixtures" / "mutate" / "sample"
+MEASURERS_FILE = REPOSITORY / "fixtures" / "sensors" / "measurers.json"
+OVERLAY_SCHEMA = REPOSITORY / "schema" / "overlay.schema.json"
+
+
+def mutate_repository(tmp_path: Path) -> tuple[Path, str]:
+    root = tmp_path / "sample"
+    shutil.copytree(
+        MUTATE_FIXTURE,
+        root,
+        ignore=shutil.ignore_patterns("scan.python.json", "crap.json"),
+    )
+    commit = git_commit(root)
+    cache = root / ".recognizer" / "cache"
+    (cache / "overlays").mkdir(parents=True)
+    shutil.copy(MUTATE_FIXTURE / "scan.python.json", cache / "scan.python.json")
+    crap = (MUTATE_FIXTURE / "crap.json").read_text().replace("@COMMIT@", commit)
+    (cache / "overlays" / "crap.json").write_text(crap)
+
+    return root, commit
+
+
+def mutate_settings(script: str, **extra) -> str:
+    return json.dumps({"test_command": [sys.executable, script], **extra})

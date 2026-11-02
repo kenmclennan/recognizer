@@ -5,15 +5,15 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
-from recognizer_sensors.duplication.sensor import SettingsError
 from recognizer_sensors.findings import (
     build_document,
     build_overlay,
     render,
     write_atomically,
 )
-from recognizer_sensors.registry import SHIPPED
+from recognizer_sensors.registry import MEASURERS, SHIPPED
 from recognizer_sensors.scans import read_scans
+from recognizer_sensors.settings import MeasurementError, SettingsError
 
 RECURSION_LIMIT = 20000
 
@@ -61,9 +61,47 @@ def parse_raw_settings(text: str) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
+def is_dirty(root: Path) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--", ".", ":!.recognizer"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return True
+
+    return result.returncode != 0 or bool(result.stdout.strip())
+
+
+def measure(args, measurer, scans, settings: dict, commit: str) -> int:
+    modified = is_dirty(args.repository)
+
+    try:
+        measurement = measurer.run(args.repository, scans, settings, commit, modified)
+    except MeasurementError as error:
+        return fail(str(error))
+
+    package_version = version("recognizer-sensors")
+    overlay = build_overlay(args.name, package_version, commit, modified, measurement.overlay)
+    survivors_path = args.repository / settings["survivors"]
+    survivors_path.parent.mkdir(parents=True, exist_ok=True)
+    write_atomically(render(measurement.survivors), survivors_path)
+    text = render(overlay)
+
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        write_atomically(text, args.output)
+    else:
+        sys.stdout.write(text)
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    sensor = SHIPPED.get(args.name)
+    sensor = SHIPPED.get(args.name) or MEASURERS.get(args.name)
 
     if sensor is None:
         return fail(f"unknown sensor: {args.name}")
@@ -89,7 +127,15 @@ def main(argv: list[str] | None = None) -> int:
     sys.setrecursionlimit(RECURSION_LIMIT)
 
     scans = read_scans(args.repository)
-    outcome = sensor.run(args.repository, scans, settings)
+
+    if args.name in MEASURERS:
+        return measure(args, sensor, scans, settings, commit)
+
+    outcome = (
+        sensor.run(args.repository, scans, settings, commit)
+        if sensor.needs_commit
+        else sensor.run(args.repository, scans, settings)
+    )
     modified = any(scan.modified for scan in scans)
     document = build_document(
         args.name,

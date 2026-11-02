@@ -1,6 +1,6 @@
 import sys
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
 from recognizer_sensors.crap.lcov import Coverage, function_coverage, read_lcov
@@ -9,7 +9,7 @@ from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
-from recognizer_sensors.settings import SettingsError
+from recognizer_sensors.settings import SettingsError, relative_path
 
 DEFAULTS = {
     "threshold": 30,
@@ -36,18 +36,6 @@ class Measured:
     end_line: int
     complexity: int
     coverage: float | None
-
-
-def relative_path(key: str, value: object) -> str:
-    if not isinstance(value, str) or not value:
-        raise SettingsError(f"{key} must be a non-empty string")
-
-    path = PurePosixPath(value)
-
-    if path.is_absolute() or ".." in path.parts:
-        raise SettingsError(f"{key} must be a relative path inside the repository")
-
-    return value
 
 
 def parse_settings(raw: dict) -> dict:
