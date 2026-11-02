@@ -110,6 +110,7 @@ export function expandMeasurerShortForms(
             name,
             {
               command: shippedCommand(name, entry),
+              runs_tests: true,
               metrics: SHIPPED_MEASURERS.mutate.map((metric) => ({
                 ...metric,
               })),

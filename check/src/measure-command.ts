@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
+import type { OverlayRegistration } from "./config-parse.js";
 import { InputError } from "./errors.js";
 import { type Expected, validateOverlay } from "./overlays.js";
 import { type RegisteredRun, runRegistered } from "./registered-command.js";
@@ -46,6 +47,48 @@ function measureOne(
   );
 }
 
+export interface RunMeasurersInput {
+  io: Io;
+  root: string;
+  selected: { name: string; registration: OverlayRegistration }[];
+  commit: string;
+  modified: boolean;
+  onEntry?: (entry: RunEntry) => void;
+}
+
+export function runMeasurers(input: RunMeasurersInput): RunEntry[] {
+  const { io, root, commit, modified } = input;
+  const entries: RunEntry[] = [];
+
+  for (const { name, registration } of input.selected) {
+    const began = io.now();
+    const run = measureOne(io, root, name, registration.command, {
+      commit,
+      modified,
+      metrics: registration.metrics,
+    });
+    const { reason } = run;
+    const entry = entryFrom(name, {
+      command: run.command,
+      status: run.status,
+      stderr: run.stderr,
+      duration_ms: io.now() - began,
+      ...(reason === null ? {} : { reason }),
+    });
+
+    entries.push(entry);
+
+    if (reason !== null) {
+      io.remove(overlayFile(root, name));
+      io.stderr(`failed ${name}: ${reason}\n`);
+    }
+
+    input.onEntry?.(entry);
+  }
+
+  return entries;
+}
+
 export function runMeasure(argv: string[], io: Io): number {
   const { values, positionals } = parseArgs({
     args: argv,
@@ -82,42 +125,29 @@ export function runMeasure(argv: string[], io: Io): number {
   const selected = positionals.length > 0 ? positionals : registered;
   const measured: string[] = [];
   const failed: { overlay: string; reason: string }[] = [];
-  const entries: RunEntry[] = [];
+  const entries = runMeasurers({
+    io,
+    root,
+    commit,
+    modified,
+    selected: selected.map((name) => ({
+      name,
+      registration: overlays[name] as OverlayRegistration,
+    })),
+    onEntry: (entry) => {
+      if (entry.outcome === "failed") {
+        failed.push({ overlay: entry.name, reason: entry.reason as string });
 
-  for (const name of selected) {
-    const registration = overlays[name] as (typeof overlays)[string];
-    const began = io.now();
-    const run = measureOne(io, root, name, registration.command, {
-      commit,
-      modified,
-      metrics: registration.metrics,
-    });
-    const { reason } = run;
+        return;
+      }
 
-    entries.push(
-      entryFrom(name, {
-        command: run.command,
-        status: run.status,
-        stderr: run.stderr,
-        duration_ms: io.now() - began,
-        ...(reason === null ? {} : { reason }),
-      }),
-    );
+      measured.push(entry.name);
 
-    if (reason !== null) {
-      io.remove(overlayFile(root, name));
-      failed.push({ overlay: name, reason });
-      io.stderr(`failed ${name}: ${reason}\n`);
-
-      continue;
-    }
-
-    measured.push(name);
-
-    if (values.json !== true) {
-      io.stdout(`measured ${name}\n`);
-    }
-  }
+      if (values.json !== true) {
+        io.stdout(`measured ${entry.name}\n`);
+      }
+    },
+  });
 
   if (values.json === true) {
     io.stdout(

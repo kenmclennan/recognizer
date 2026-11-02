@@ -1,0 +1,6 @@
+overlays:
+  coverage:
+    command: [node, coverage.mjs]
+    runs_tests: "yes"
+    metrics:
+      - { name: line_coverage, type: ratio, granularity: module, bad: low }

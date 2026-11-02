@@ -54,7 +54,11 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
   const updates: ProgressUpdate[] = [];
   const ports: RescanPorts<string> = {
     port: scan,
-    registered: async () => ({ names: ["alpha", "beta"], describer: true }),
+    registered: async () => ({
+      names: ["alpha", "beta"],
+      overlays: ["cov", "mut"],
+      describer: true,
+    }),
     load: () => OK,
     sense: async (loaded) => {
       log.push("sense");
@@ -101,9 +105,17 @@ describe("createRescanner", () => {
 
     await rescanner.run();
 
-    expect(scan.ran).toEqual([{ describe: true, sense: ["alpha", "beta"] }]);
+    expect(scan.ran).toEqual([
+      { describe: true, measure: [], sense: ["alpha", "beta"] },
+    ]);
     expect(scan.written).toEqual([
-      { describe: true, sensors: true, ticked: ["alpha", "beta"] },
+      {
+        describe: true,
+        measure: false,
+        overlays: ["cov", "mut"],
+        sensors: true,
+        ticked: ["alpha", "beta"],
+      },
     ]);
 
     await rescanner.run();
@@ -167,6 +179,41 @@ describe("createRescanner", () => {
     expect(rescanner.runState().failures).toEqual({ beta: "boom" });
     expect(Object.keys(rescanner.runState().ranAt)).toEqual(["alpha"]);
     expect(rescanner.runState().running).toEqual([]);
+  });
+
+  it("tracks the measure phase, re-reading overlays as each reports, and holds a failure until the next settle", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: false },
+      steps: [
+        current,
+        line({ event: "phase", phase: "measure", total: 2 }),
+        entry("measure", "cov"),
+        entry("measure", "mut", "boom"),
+        summary,
+      ],
+    });
+    const { log, rescanner } = harness(scan);
+    const seen: string[][] = [];
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({ ...rescanner.ticks(), measure: true });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    scan.onStep = (index) => {
+      if (index === 1 || index === 2) {
+        seen.push(rescanner.measureRunState().running);
+      }
+    };
+
+    await rescanner.run();
+
+    expect(scan.ran[0].measure).toEqual(["cov", "mut"]);
+    expect(log.filter((entry) => entry === "resense")).toHaveLength(3);
+    expect(seen).toEqual([["cov", "mut"], ["mut"]]);
+    expect(rescanner.measureRunState().failures).toEqual({ mut: "boom" });
+    expect(Object.keys(rescanner.measureRunState().ranAt)).toEqual(["cov"]);
+    expect(rescanner.measureRunState().running).toEqual([]);
+    expect(rescanner.runState().failures).toEqual({});
   });
 
   it("hands the log path to the final update and offers Show for a failed module", async () => {
@@ -325,14 +372,28 @@ describe("createRescanner", () => {
     const { rescanner } = harness(scan);
 
     await rescanner.loadTicks();
-    rescanner.setTicks({ describe: true, sensors: false, ticked: null });
+    rescanner.setTicks({
+      describe: true,
+      measure: false,
+      overlays: null,
+      sensors: false,
+      ticked: null,
+    });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(scan.written).toEqual([
-      { describe: true, sensors: false, ticked: ["alpha", "beta"] },
+      {
+        describe: true,
+        measure: false,
+        overlays: ["cov", "mut"],
+        sensors: false,
+        ticked: ["alpha", "beta"],
+      },
     ]);
     expect(rescanner.ticks()).toEqual({
       describe: true,
+      measure: false,
+      overlays: null,
       sensors: false,
       ticked: null,
     });

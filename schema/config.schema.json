@@ -91,6 +91,9 @@
                       }
                     }
                   }
+                },
+                "runs_tests": {
+                  "type": "boolean"
                 }
               }
             },
@@ -189,6 +192,9 @@
                 }
               }
             }
+          },
+          "runs_tests": {
+            "type": "boolean"
           }
         }
       }

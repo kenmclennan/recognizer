@@ -13,7 +13,7 @@ import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
-import { describerOf, registeredNames } from ${JSON.stringify(here("scan-panel-model.ts"))};
+import { describerOf, registeredNames, registeredOverlayNames } from ${JSON.stringify(here("scan-panel-model.ts"))};
 import { showTarget } from ${JSON.stringify(here("scan-progress.ts"))};
 ${FAKE_WORKER}
 
@@ -25,12 +25,13 @@ const scan = {
   foreign: [],
 };
 const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
-const CONFIG = "describer:\\n  command: [recognizer-describe-claude]\\n  version: v3\\nsensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
+const CONFIG = "describer:\\n  command: [recognizer-describe-claude]\\n  version: v3\\noverlays:\\n  cov:\\n    command: [node, '{repository}/cov.mjs', '{commit}', '{output}']\\n    metrics:\\n      - { name: line_coverage, type: ratio, granularity: module, bad: low }\\n  mut:\\n    command: [recognizer-sensors, mutate]\\n    runs_tests: true\\n    metrics:\\n      - { name: score, type: ratio, granularity: member, bad: low }\\nsensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
 const FILES = { responsibilities: null, config: CONFIG, refused: [], hashes: {} };
 const ORIGIN = { branch: "main", commit: "cur1234" };
 const json = (value) => JSON.stringify(value);
 const current = json({ event: "phase", phase: "extract", state: "current", commit: "cur1234" });
 const describing = (total) => json({ event: "phase", phase: "describe", total });
+const measuring = (total) => json({ event: "phase", phase: "measure", total });
 const sensing = (total) => json({ event: "phase", phase: "sense", total });
 const entry = (phase, name, reason) => json({ event: "entry", phase, name, outcome: reason === undefined ? "ok" : "failed", ...(reason === undefined ? {} : { reason }) });
 const summary = json({ event: "summary" });
@@ -52,7 +53,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   const editor = fakeEditor();
   const responsibilities = fakeResponsibilities(FILES);
   const wired = { explorer: null, current: null, scanState: null, shown: { footer: null, target: null, log: null }, rescanner: null };
-  const canShow = (update) => update.target !== null && (update.target.kind === "sensor" || wired.current.modules.includes(update.target.id));
+  const canShow = (update) => update.target !== null && (update.target.kind === "sensor" || update.target.kind === "overlay" || wired.current.modules.includes(update.target.id));
   const withProgress = (state) => ({ ...state, progress: wired.shown.footer, canShow: canShow(wired.shown), log: wired.shown.log });
   const footer = buildFooter(footerEl, {
     rescan: () => void wired.rescanner.run(),
@@ -66,6 +67,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
     ticks: () => wired.rescanner.ticks(),
     setTicks: (next) => wired.rescanner.setTicks(next),
     runState: () => wired.rescanner.runState(),
+    measureRunState: () => wired.rescanner.measureRunState(),
     running: () => wired.rescanner.running(),
     run: () => void wired.rescanner.run(),
     stop: () => void wired.rescanner.stop(),
@@ -78,7 +80,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({
     port: fake,
-    registered: async () => { const { config } = await sensors.readInputs(); return { names: registeredNames(config), describer: describerOf(config) !== null }; },
+    registered: async () => { const { config } = await sensors.readInputs(); return { names: registeredNames(config), overlays: registeredOverlayNames(config), describer: describerOf(config) !== null }; },
     load: () => base,
     sense: (loaded) => withSensors(loaded, sensors),
     resense: async () => withSensors(wired.current, sensors),
@@ -272,6 +274,43 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   await tick(); await tick();
   facts.reportCleared = { removed: [...reportSensors.removed], present: reportRow() !== null, names: rp.all(".sensor-row").map((r) => r.querySelector(".sensor-name").textContent) };
 
+  const overlayFile = (commit) => JSON.stringify({ overlay_version: 1, commit, modified: false, producer: { name: "p", version: "1" }, metrics: [{ name: "line_coverage", type: "ratio", granularity: "module", bad: "low" }], values: { line_coverage: { "app/a.py": 0.5 } } });
+  const mGate = gate();
+  const mFake = fakeScan({
+    steps: [current, measuring(2), mGate.promise, entry("measure", "cov"), entry("measure", "mut", "no tests found"), summary],
+    result: { status: "finished", exitCode: 1, stderr: "", log: ".recognizer/cache/log/m-scan.json" },
+  });
+  const mSensors = fakeSensors({}, { config: CONFIG }, { cov: overlayFile("old0000") });
+  const ms = await mount(mFake, mSensors);
+  click(ms.q(".rail-scan"));
+  await tick();
+  const mrows = () => ms.all(".measure-row").map((r) => ({ name: r.dataset.overlay, chip: r.querySelector(".sensor-chip").textContent, sub: r.querySelector(".measure-subline").textContent, title: r.title }));
+  facts.measure = {
+    summary: ms.text(".scan-summary"),
+    order: ms.all(".scan-panel > .scan-block").map((b) => b.className.split(" ")[1]),
+    title: ms.text(".scan-measure .scan-block-title"),
+    rows: mrows(),
+    button: ms.text(".scan-run"),
+  };
+  await ms.setTick(".scan-measure .scan-tick", true);
+  facts.measure.ticked = { button: ms.text(".scan-run"), summary: ms.text(".scan-summary"), title: ms.q(".scan-run").title, written: mFake.written.at(-1) };
+  await ms.setTick('.measure-row[data-overlay="mut"] .sensor-tick', false);
+  facts.measure.untick = { button: ms.text(".scan-run"), summary: ms.text(".scan-summary"), written: mFake.written.at(-1) };
+  await ms.setTick('.measure-row[data-overlay="mut"] .sensor-tick', true);
+  const mFooters = [];
+  mFake.onStep = () => { const text = ms.footerText().replace(/Stop|Rescan/g, ""); if (mFooters.at(-1) !== text) mFooters.push(text); };
+  click(ms.q(".scan-run"));
+  await tick();
+  facts.measure.run = { plans: mFake.ran, rowsDuring: mrows().map((r) => r.chip), stop: ms.all(".scan-line .scan-stop").length };
+  mGate.release(); await tick(); await tick(); await tick();
+  facts.measure.run.footers = [...mFooters];
+  facts.measure.after = { footer: ms.footerText(), rows: mrows() };
+  click(ms.q(".rail-files"));
+  await tick();
+  click(ms.q(".scan-show"));
+  await tick();
+  facts.measure.show = { panelOpen: ms.visible(".scan-panel"), reason: ms.q('[data-overlay="mut"] .sensor-reason')?.textContent ?? "" };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -332,6 +371,8 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   it("remembers a tick through the port and a window reopened on the same port reads it back", () => {
     expect(f.ticked.written.at(-1)).toEqual({
       describe: true,
+      measure: false,
+      overlays: ["cov", "mut"],
       sensors: true,
       ticked: ["alpha", "beta"],
     });
@@ -340,7 +381,9 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   });
 
   it("runs the ticked plan from the Scan button, which becomes Stop, and walks the footer through the phases", () => {
-    expect(f.run.plans).toEqual([{ describe: true, sense: ["alpha", "beta"] }]);
+    expect(f.run.plans).toEqual([
+      { describe: true, measure: [], sense: ["alpha", "beta"] },
+    ]);
     expect(f.run.during.button).toBe("Stop");
     expect(f.run.footers).toEqual([
       "Scans current",
@@ -356,6 +399,61 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.run.rowDuring).toEqual(["running", "running"]);
     expect(f.run.after.footer).toContain("Scan done");
     expect(f.run.after.button).toBe("Scan");
+  });
+
+  it("lists the Measure block between Describe and Sensors with a row, sub-line and chip per overlay", () => {
+    expect(f.measure.order).toEqual([
+      "scan-extract",
+      "scan-describe",
+      "scan-measure",
+      "scan-sensors",
+    ]);
+    expect(f.measure.title).toBe("Measure");
+    expect(f.measure.rows).toEqual([
+      { name: "cov", chip: "stale", sub: "node", title: "" },
+      {
+        name: "mut",
+        chip: "not run",
+        sub: "recognizer-sensors \u00b7 runs the tests",
+        title: "",
+      },
+    ]);
+  });
+
+  it("counts measurers in the caption and remembers the block and row ticks", () => {
+    expect(f.measure.summary).toBe("scans current");
+    expect(f.measure.ticked.summary).toBe("scans current, 2 measurers");
+    expect(f.measure.ticked.title).toBe("recognizer scan --measure cov,mut");
+    expect(f.measure.ticked.written).toEqual({
+      describe: false,
+      measure: true,
+      overlays: ["cov", "mut"],
+      sensors: false,
+      ticked: ["alpha", "beta"],
+    });
+    expect(f.measure.untick.summary).toBe("scans current, 1 measurer");
+    expect(f.measure.untick.written.overlays).toEqual(["cov"]);
+  });
+
+  it("walks the footer through Measuring n of N with Stop, then holds the failure on its row", () => {
+    expect(f.measure.run.plans.at(-1)).toEqual({
+      describe: false,
+      measure: ["cov", "mut"],
+      sense: [],
+    });
+    expect(f.measure.run.footers).toContain("Measuring 0 of 2");
+    expect(f.measure.run.footers).toContain("Measuring 1 of 2");
+    expect(f.measure.run.stop).toBe(1);
+    expect(f.measure.run.rowsDuring).toEqual(["running", "running"]);
+    expect(f.measure.after.footer).toContain("1 failed");
+    expect(f.measure.after.rows[1]).toMatchObject({
+      chip: "failed",
+      title: "no tests found",
+    });
+    expect(f.measure.show).toEqual({
+      panelOpen: true,
+      reason: "no tests found",
+    });
   });
 
   it("refuses a second scan while one runs", () => {

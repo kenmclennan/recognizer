@@ -2109,7 +2109,8 @@ svg.i.chevron {
   color: var(--muted);
 }
 
-.sensor-row {
+.sensor-row,
+.measure-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -2147,8 +2148,13 @@ svg.i.chevron {
   align-self: flex-start;
 }
 
-.scan-block .sensor-row .sensor-chip {
+.scan-block .sensor-row .sensor-chip,
+.scan-block .measure-row .sensor-chip {
   align-self: auto;
+}
+
+.measure-subline {
+  flex-basis: 100%;
 }
 
 .sensor-reason {

@@ -147,6 +147,7 @@ pub fn run_with(
     shell: &str,
     command: &str,
     describe: bool,
+    measure: &[String],
     sense: &[String],
     prepare: impl FnOnce(),
     emit: &(dyn Fn(String) + Sync),
@@ -157,7 +158,9 @@ pub fn run_with(
 
     prepare();
 
-    let result = spawn_and_stream(runs, label, folder, shell, command, describe, sense, emit);
+    let result = spawn_and_stream(
+        runs, label, folder, shell, command, describe, measure, sense, emit,
+    );
 
     runs.finish(label);
 
@@ -172,10 +175,11 @@ fn spawn_and_stream(
     shell: &str,
     command: &str,
     describe: bool,
+    measure: &[String],
     sense: &[String],
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
-    let (program, args) = scan_invocation(shell, command, folder, describe, sense);
+    let (program, args) = scan_invocation(shell, command, folder, describe, measure, sense);
     let mut process = Command::new(program);
 
     process
@@ -274,6 +278,7 @@ mod tests {
         folder: &Path,
         command: &Path,
         describe: bool,
+        measure: &[String],
         sense: &[String],
     ) -> (ScanRun, Vec<String>) {
         let lines = Mutex::new(Vec::new());
@@ -284,6 +289,7 @@ mod tests {
             "/bin/sh",
             &command.display().to_string(),
             describe,
+            measure,
             sense,
             || {},
             &|line| lines.lock().unwrap().push(line),
@@ -344,7 +350,7 @@ mod tests {
             dir.path(),
             r#"echo '{"event":"phase"}'; echo '{"event":"summary"}'; exit 1"#,
         );
-        let (result, lines) = collect(&ScanRuns::default(), dir.path(), &command, false, &[]);
+        let (result, lines) = collect(&ScanRuns::default(), dir.path(), &command, false, &[], &[]);
 
         assert_eq!(
             lines,
@@ -370,13 +376,14 @@ mod tests {
             dir.path(),
             &command,
             true,
+            &names(&["m"]),
             &names(&["a"]),
         );
 
         assert_eq!(
             lines,
             vec![format!(
-                "scan {} --json --describe --sense a",
+                "scan {} --json --describe --measure m --sense a",
                 dir.path().display()
             )]
         );
@@ -390,7 +397,7 @@ mod tests {
             dir.path(),
             r#"echo '{"event":"summary","log":"20261102T123456789Z-scan"}'"#,
         );
-        let (result, _) = collect(&ScanRuns::default(), dir.path(), &command, false, &[]);
+        let (result, _) = collect(&ScanRuns::default(), dir.path(), &command, false, &[], &[]);
 
         assert_eq!(
             result,
@@ -407,7 +414,7 @@ mod tests {
     fn exit_two_is_failed_with_stderr_and_127_is_missing() {
         let dir = TempDir::new().unwrap();
         let command = fake_command(dir.path(), "echo bad flag >&2; exit 2");
-        let (result, _) = collect(&ScanRuns::default(), dir.path(), &command, false, &[]);
+        let (result, _) = collect(&ScanRuns::default(), dir.path(), &command, false, &[], &[]);
 
         assert_eq!(
             result,
@@ -422,6 +429,7 @@ mod tests {
             dir.path(),
             Path::new("/nonexistent/recognizer"),
             false,
+            &[],
             &[],
         );
 
@@ -449,6 +457,7 @@ mod tests {
                     &path.display().to_string(),
                     false,
                     &[],
+                    &[],
                     || {},
                     &|line| {
                         let _ = sender.send(line);
@@ -459,7 +468,7 @@ mod tests {
 
         assert_eq!(receiver.recv().unwrap(), "started");
 
-        let (second, _) = collect(&runs, dir.path(), &command, false, &[]);
+        let (second, _) = collect(&runs, dir.path(), &command, false, &[], &[]);
 
         assert_eq!(
             second,

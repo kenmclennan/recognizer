@@ -2,12 +2,13 @@ import { InputError } from "./errors.js";
 import type { PhaseName } from "./run-log.js";
 
 export const SCAN_USAGE =
-  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--by <name>] [--json]";
+  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--measure <all|name[,name...]>] [--sense <all|name[,name...]>] [--by <name>] [--json]";
 
 export interface ScanOptions {
   positionals: string[];
   extract: boolean;
   describe: false | "stale" | "all";
+  measure: null | "all" | string[];
   sense: null | "all" | string[];
   json: boolean;
   by: string | undefined;
@@ -17,7 +18,7 @@ function usageError(message: string): InputError {
   return new InputError([message, `usage: ${SCAN_USAGE}`]);
 }
 
-function senseNames(value: string): "all" | string[] {
+function phaseNames(flag: string, value: string): "all" | string[] {
   if (value === "all") {
     return "all";
   }
@@ -25,7 +26,7 @@ function senseNames(value: string): "all" | string[] {
   const names = value.split(",");
 
   if (names.some((name) => name.trim() === "")) {
-    throw usageError("--sense names must not be empty");
+    throw usageError(`${flag} names must not be empty`);
   }
 
   return [...new Set(names)];
@@ -36,6 +37,7 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     positionals: [],
     extract: false,
     describe: false,
+    measure: null,
     sense: null,
     json: false,
     by: undefined,
@@ -56,6 +58,19 @@ export function parseScanArgs(argv: string[]): ScanOptions {
       }
 
       options.describe = "all";
+    } else if (arg === "--measure" || arg.startsWith("--measure=")) {
+      const inline = arg.startsWith("--measure=");
+      const value = inline ? arg.slice(10) : argv[index + 1];
+
+      if (value === undefined || value === "" || value.startsWith("--")) {
+        throw usageError("--measure needs all or an overlay name");
+      }
+
+      if (!inline) {
+        index += 1;
+      }
+
+      options.measure = phaseNames("--measure", value);
     } else if (arg === "--sense" || arg.startsWith("--sense=")) {
       const inline = arg.startsWith("--sense=");
       const value = inline ? arg.slice(8) : argv[index + 1];
@@ -68,7 +83,7 @@ export function parseScanArgs(argv: string[]): ScanOptions {
         index += 1;
       }
 
-      options.sense = senseNames(value);
+      options.sense = phaseNames("--sense", value);
     } else if (arg === "--by" || arg.startsWith("--by=")) {
       const inline = arg.startsWith("--by=");
       const value = inline ? arg.slice(5) : argv[index + 1];
@@ -117,6 +132,33 @@ export function selectSensors<T extends { name: string }>(
     throw new InputError([
       ...unknown.map((name) => `no such sensor: ${name}`),
       `registered sensors: ${names.join(", ")}`,
+    ]);
+  }
+
+  return registered.filter((one) => requested.includes(one.name));
+}
+
+export function selectMeasurers<T extends { name: string }>(
+  registered: T[],
+  requested: "all" | string[],
+): T[] {
+  if (registered.length === 0) {
+    throw new InputError([
+      "no overlays are registered: add one to .recognizer/config.yaml",
+    ]);
+  }
+
+  if (requested === "all") {
+    return registered;
+  }
+
+  const names = registered.map((one) => one.name);
+  const unknown = requested.filter((name) => !names.includes(name));
+
+  if (unknown.length > 0) {
+    throw new InputError([
+      ...unknown.map((name) => `no such overlay: ${name}`),
+      `registered overlays: ${names.join(", ")}`,
     ]);
   }
 

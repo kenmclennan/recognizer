@@ -1,4 +1,10 @@
-import { type Config, parseConfig, registeredSensors } from "recognizer";
+import {
+  type Config,
+  type Overlay,
+  parseConfig,
+  registeredSensors,
+  validateOverlay,
+} from "recognizer";
 import { ageText, type ScanState } from "./footer-scan";
 import type { ResponsibilityState } from "./responsibility-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
@@ -38,11 +44,17 @@ export function sessionStatuses(
 
 export type ScanTicks = {
   describe: boolean;
+  measure: boolean;
+  overlays: string[] | null;
   sensors: boolean;
   ticked: string[] | null;
 };
 
-export type ScanPlan = { describe: boolean; sense: string[] };
+export type ScanPlan = {
+  describe: boolean;
+  measure: string[];
+  sense: string[];
+};
 
 export type PanelInput = {
   scan: ScanState | null;
@@ -54,6 +66,8 @@ export type PanelInput = {
   lines: { modules: string[]; of: (id: string) => ResponsibilityState };
   ticks: ScanTicks;
   run: RunState;
+  overlays: { name: string; text: string }[];
+  measureRun: RunState;
   scanning: boolean;
   now: number;
   shipped: ShippedSensors | null;
@@ -81,6 +95,15 @@ export type ReportRow = {
   stale: boolean;
 };
 
+export type MeasureRow = {
+  name: string;
+  ticked: boolean;
+  subline: string;
+  chip: string;
+  tone: ChipTone;
+  reason: string | null;
+};
+
 export type AddSensors =
   | { status: "hidden" }
   | { status: "unavailable"; reason: string }
@@ -100,6 +123,11 @@ export type ScanPanelModel = {
     tickable: boolean;
     counts: { current: number; outOfDate: number; missing: number };
     describer: string | null;
+  };
+  measure: {
+    ticked: boolean;
+    tickable: boolean;
+    rows: MeasureRow[];
   };
   sensors: {
     ticked: boolean;
@@ -148,6 +176,26 @@ export function registeredNames(config: string | null): string[] {
     : registeredSensors(parsed).map(({ name }) => name);
 }
 
+export type RegisteredOverlay = {
+  name: string;
+  command: string;
+  runsTests: boolean;
+};
+
+export function registeredOverlays(config: string | null): RegisteredOverlay[] {
+  const overlays = readConfig(config)?.overlays ?? {};
+
+  return Object.entries(overlays).map(([name, registration]) => ({
+    name,
+    command: registration.command[0] ?? "",
+    runsTests: registration.runs_tests === true,
+  }));
+}
+
+export function registeredOverlayNames(config: string | null): string[] {
+  return registeredOverlays(config).map(({ name }) => name);
+}
+
 export function describerOf(config: string | null): string | null {
   const describer = readConfig(config)?.describer;
 
@@ -160,14 +208,18 @@ export function phasesFor(
   ticks: ScanTicks,
   registered: string[],
   describerRegistered: boolean,
+  overlays: string[] = [],
 ): { plan: ScanPlan; dropped: string[] } {
   const wanted = ticks.ticked ?? registered;
   const sense = wanted.filter((name) => registered.includes(name));
   const dropped = wanted.filter((name) => !registered.includes(name));
+  const wantedOverlays = ticks.overlays ?? overlays;
+  const measure = wantedOverlays.filter((name) => overlays.includes(name));
 
   return {
     plan: {
       describe: ticks.describe && describerRegistered,
+      measure: ticks.measure ? measure : [],
       sense: ticks.sensors ? sense : [],
     },
     dropped,
@@ -179,6 +231,10 @@ export function scanFlags(plan: ScanPlan): string[] {
 
   if (plan.describe) {
     flags.push("--describe");
+  }
+
+  if (plan.measure.length > 0) {
+    flags.push("--measure", plan.measure.join(","));
   }
 
   if (plan.sense.length > 0) {
@@ -196,6 +252,14 @@ export function scanCaption(
 
   if (plan.describe) {
     parts.push("describe");
+  }
+
+  if (plan.measure.length > 0) {
+    parts.push(
+      plan.measure.length === 1
+        ? "1 measurer"
+        : `${plan.measure.length} measurers`,
+    );
   }
 
   if (plan.sense.length > 0) {
@@ -306,6 +370,80 @@ function reportRows(sensors: SensorStatus[], now: number): ReportRow[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function overlayFile(
+  files: PanelInput["overlays"],
+  name: string,
+): Overlay | null {
+  const text = files.find((file) => file.name === name)?.text;
+
+  if (text === undefined) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(text) as Overlay;
+
+    return validateOverlay(parsed, {
+      commit: parsed.commit,
+      modified: parsed.modified,
+      metrics: parsed.metrics,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function sameCommit(a: string, b: string): boolean {
+  return a !== "" && b !== "" && (a.startsWith(b) || b.startsWith(a));
+}
+
+function measureRow(overlay: RegisteredOverlay, input: PanelInput): MeasureRow {
+  const { name } = overlay;
+  const run = input.measureRun;
+  const base = {
+    name,
+    ticked:
+      input.ticks.overlays === null || input.ticks.overlays.includes(name),
+    subline: overlay.runsTests
+      ? `${overlay.command} · runs the tests`
+      : overlay.command,
+  };
+  const held = run.failures[name];
+
+  if (run.running.includes(name)) {
+    return { ...base, chip: "running", tone: "amber", reason: null };
+  }
+
+  if (held !== undefined) {
+    return { ...base, chip: "failed", tone: "red", reason: held };
+  }
+
+  const file = overlayFile(input.overlays, name);
+
+  if (file === null) {
+    return { ...base, chip: "not run", tone: "muted", reason: null };
+  }
+
+  const scanCommit = input.scan?.origin.commit ?? null;
+
+  if (scanCommit === null || !sameCommit(file.commit, scanCommit)) {
+    return { ...base, chip: "stale", tone: "amber", reason: null };
+  }
+
+  if (file.modified) {
+    return { ...base, chip: "modified tree", tone: "amber", reason: null };
+  }
+
+  const at = run.ranAt[name];
+
+  return {
+    ...base,
+    chip: at === undefined ? "ran" : `ran ${ageText(at, input.now)}`,
+    tone: "ok",
+    reason: null,
+  };
+}
+
 function addBlock(shipped: ShippedSensors | null, names: string[]): AddSensors {
   if (shipped === null) {
     return { status: "hidden" };
@@ -374,7 +512,13 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     ...names.map((name) => registeredRow(name, statusOf(name), input)),
   ];
   const extract = extractBlock(input);
-  const { plan } = phasesFor(input.ticks, names, describer !== null);
+  const overlays = registeredOverlays(input.config);
+  const { plan } = phasesFor(
+    input.ticks,
+    names,
+    describer !== null,
+    overlays.map(({ name }) => name),
+  );
   const expected = input.scan === null || extract.tone === "amber";
 
   return {
@@ -391,6 +535,11 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       tickable: describer !== null,
       counts: lineCounts(input.lines),
       describer,
+    },
+    measure: {
+      ticked: input.ticks.measure && overlays.length > 0,
+      tickable: overlays.length > 0,
+      rows: overlays.map((one) => measureRow(one, input)),
     },
     sensors: {
       ticked: input.ticks.sensors && names.length > 0,
@@ -409,6 +558,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     },
     mark:
       input.sensors.some(({ status }) => status === "failed") ||
-      Object.keys(input.run.failures).length > 0,
+      Object.keys(input.run.failures).length > 0 ||
+      Object.keys(input.measureRun.failures).length > 0,
   };
 }

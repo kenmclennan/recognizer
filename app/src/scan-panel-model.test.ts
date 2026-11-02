@@ -54,8 +54,16 @@ function input(overrides: Partial<PanelInput> = {}): PanelInput {
     sensors: [{ name: "structure", status: "ran" }],
     structure: { violations: 0, warnings: 0 },
     lines: { modules: Object.keys(LINES), of: (id) => LINES[id] },
-    ticks: { describe: false, sensors: false, ticked: null },
+    ticks: {
+      describe: false,
+      measure: false,
+      overlays: null,
+      sensors: false,
+      ticked: null,
+    },
     run: NO_RUN,
+    overlays: [],
+    measureRun: NO_RUN,
     scanning: false,
     now: NOW,
     shipped: null,
@@ -122,7 +130,13 @@ describe("the Describe block", () => {
   });
 
   it("is ticked only when the tick is on and a describer is registered", () => {
-    const ticks = { describe: true, sensors: false, ticked: null };
+    const ticks = {
+      describe: true,
+      measure: false,
+      overlays: null,
+      sensors: false,
+      ticked: null,
+    };
 
     expect(scanPanel(input({ ticks })).describe.ticked).toBe(true);
 
@@ -183,7 +197,15 @@ describe("the Sensors block", () => {
   it("ticks every registered sensor when the remembered list is null and only the listed ones otherwise", () => {
     const all = scanPanel(input()).sensors.rows.slice(1);
     const some = scanPanel(
-      input({ ticks: { describe: false, sensors: true, ticked: ["beta"] } }),
+      input({
+        ticks: {
+          describe: false,
+          measure: false,
+          overlays: null,
+          sensors: true,
+          ticked: ["beta"],
+        },
+      }),
     ).sensors.rows.slice(1);
 
     expect(all.map((row) => row.ticked)).toEqual([true, true]);
@@ -332,7 +354,13 @@ describe("report rows", () => {
     const model = scanPanel(
       input({
         sensors,
-        ticks: { describe: false, sensors: true, ticked: null },
+        ticks: {
+          describe: false,
+          measure: false,
+          overlays: null,
+          sensors: true,
+          ticked: null,
+        },
       }),
     );
 
@@ -355,12 +383,18 @@ describe("phasesFor", () => {
   it("takes every registered sensor when the remembered list is null", () => {
     expect(
       phasesFor(
-        { describe: true, sensors: true, ticked: null },
+        {
+          describe: true,
+          measure: false,
+          overlays: null,
+          sensors: true,
+          ticked: null,
+        },
         registered,
         true,
       ),
     ).toEqual({
-      plan: { describe: true, sense: ["alpha", "beta"] },
+      plan: { describe: true, measure: [], sense: ["alpha", "beta"] },
       dropped: [],
     });
   });
@@ -368,12 +402,18 @@ describe("phasesFor", () => {
   it("keeps the registered names, lists the unregistered ones as dropped and leaves a newly registered one unticked", () => {
     expect(
       phasesFor(
-        { describe: false, sensors: true, ticked: ["alpha", "gone"] },
+        {
+          describe: false,
+          measure: false,
+          overlays: null,
+          sensors: true,
+          ticked: ["alpha", "gone"],
+        },
         registered,
         true,
       ),
     ).toEqual({
-      plan: { describe: false, sense: ["alpha"] },
+      plan: { describe: false, measure: [], sense: ["alpha"] },
       dropped: ["gone"],
     });
   });
@@ -381,17 +421,31 @@ describe("phasesFor", () => {
   it("runs no sensors when the Sensors tick is off and no describe without a describer", () => {
     expect(
       phasesFor(
-        { describe: true, sensors: false, ticked: null },
+        {
+          describe: true,
+          measure: false,
+          overlays: null,
+          sensors: false,
+          ticked: null,
+        },
         registered,
         false,
       ),
-    ).toEqual({ plan: { describe: false, sense: [] }, dropped: [] });
+    ).toEqual({
+      plan: { describe: false, measure: [], sense: [] },
+      dropped: [],
+    });
   });
 });
 
 describe("scanCaption and scanFlags", () => {
-  const plan = (describe: boolean, sense: string[]): ScanPlan => ({
+  const plan = (
+    describe: boolean,
+    sense: string[],
+    measure: string[] = [],
+  ): ScanPlan => ({
     describe,
+    measure,
     sense,
   });
 
@@ -423,7 +477,13 @@ describe("scanCaption and scanFlags", () => {
   });
 
   it("puts the label, the summary and the command line on the button and swaps it for Stop while scanning", () => {
-    const ticks = { describe: true, sensors: true, ticked: null };
+    const ticks = {
+      describe: true,
+      measure: false,
+      overlays: null,
+      sensors: true,
+      ticked: null,
+    };
     const idle = scanPanel(input({ ticks })).button;
 
     expect(idle).toEqual({
@@ -543,6 +603,237 @@ describe("the Add a sensor block", () => {
     expect(scanPanel(input({ scanning: true })).sensors.editable).toBe(false);
     expect(scanPanel(input({ editMessage: "read-only" })).sensors.message).toBe(
       "read-only",
+    );
+  });
+});
+
+const MEASURE_CONFIG = `${CONFIG}overlays:
+  cov:
+    command: [node, "{repository}/cov.mjs", "{commit}", "{output}"]
+    metrics:
+      - { name: line_coverage, type: ratio, granularity: module, bad: low }
+  mut:
+    command: [recognizer-sensors, mutate]
+    runs_tests: true
+    metrics:
+      - { name: score, type: ratio, granularity: member, bad: low }
+`;
+
+function overlayText(commit: string, modified = false): string {
+  return JSON.stringify({
+    overlay_version: 1,
+    commit,
+    modified,
+    producer: { name: "p", version: "1" },
+    metrics: [
+      {
+        name: "line_coverage",
+        type: "ratio",
+        granularity: "module",
+        bad: "low",
+      },
+    ],
+    values: { line_coverage: { "a.py": 0.5 } },
+  });
+}
+
+const measureChips = (model: ReturnType<typeof scanPanel>) =>
+  model.measure.rows.map((row) => `${row.name}: ${row.chip}`);
+
+describe("the Measure block", () => {
+  const withOverlays = (overrides: Partial<PanelInput> = {}) =>
+    input({ config: MEASURE_CONFIG, ...overrides });
+
+  it("lists one row per registered overlay in config order with its sub-line", () => {
+    const { rows } = scanPanel(withOverlays()).measure;
+
+    expect(rows.map((row) => row.name)).toEqual(["cov", "mut"]);
+    expect(rows.map((row) => row.subline)).toEqual([
+      "node",
+      "recognizer-sensors · runs the tests",
+    ]);
+  });
+
+  it("is not tickable with no overlay registered", () => {
+    const model = scanPanel(input());
+
+    expect(model.measure).toEqual({ ticked: false, tickable: false, rows: [] });
+  });
+
+  it("ticks every overlay when the list is null and only the listed ones otherwise", () => {
+    const ticks = {
+      describe: false,
+      measure: true,
+      overlays: null,
+      sensors: false,
+      ticked: null,
+    };
+
+    expect(
+      scanPanel(withOverlays({ ticks })).measure.rows.map((row) => row.ticked),
+    ).toEqual([true, true]);
+    expect(
+      scanPanel(
+        withOverlays({ ticks: { ...ticks, overlays: ["mut"] } }),
+      ).measure.rows.map((row) => row.ticked),
+    ).toEqual([false, true]);
+    expect(scanPanel(withOverlays({ ticks })).measure.ticked).toBe(true);
+  });
+
+  it("reads not run with no file and with an unparseable file", () => {
+    expect(measureChips(scanPanel(withOverlays()))).toEqual([
+      "cov: not run",
+      "mut: not run",
+    ]);
+    expect(
+      measureChips(
+        scanPanel(withOverlays({ overlays: [{ name: "cov", text: "{" }] })),
+      )[0],
+    ).toBe("cov: not run");
+  });
+
+  it("reads stale when the commit differs and when there is no scan", () => {
+    const overlays = [{ name: "cov", text: overlayText("other") }];
+
+    expect(measureChips(scanPanel(withOverlays({ overlays })))[0]).toBe(
+      "cov: stale",
+    );
+
+    const same = [{ name: "cov", text: overlayText("abc1234") }];
+
+    expect(
+      measureChips(scanPanel(withOverlays({ overlays: same, scan: null })))[0],
+    ).toBe("cov: stale");
+  });
+
+  it("reads ran when the overlay's full commit extends the scan's short commit", () => {
+    const full = "abc1234".padEnd(40, "0");
+    const overlays = [{ name: "cov", text: overlayText(full) }];
+
+    expect(measureChips(scanPanel(withOverlays({ overlays })))[0]).toBe(
+      "cov: ran",
+    );
+  });
+
+  it("reads modified tree, ran with a time and plain ran", () => {
+    const modified = [{ name: "cov", text: overlayText("abc1234", true) }];
+    const clean = [{ name: "cov", text: overlayText("abc1234") }];
+
+    expect(
+      measureChips(scanPanel(withOverlays({ overlays: modified })))[0],
+    ).toBe("cov: modified tree");
+    expect(measureChips(scanPanel(withOverlays({ overlays: clean })))[0]).toBe(
+      "cov: ran",
+    );
+    expect(
+      measureChips(
+        scanPanel(
+          withOverlays({
+            overlays: clean,
+            measureRun: run({ ranAt: { cov: 0 } }),
+          }),
+        ),
+      )[0],
+    ).toBe("cov: ran 10 minutes ago");
+  });
+
+  it("reads ran just now for an overlay a measure phase finished this moment", () => {
+    const clean = [{ name: "cov", text: overlayText("abc1234") }];
+
+    expect(
+      measureChips(
+        scanPanel(
+          withOverlays({
+            overlays: clean,
+            measureRun: run({ ranAt: { cov: NOW } }),
+          }),
+        ),
+      )[0],
+    ).toBe("cov: ran just now");
+  });
+
+  it("reads running and failed with the held reason, ahead of the file", () => {
+    const clean = [{ name: "cov", text: overlayText("abc1234") }];
+    const running = scanPanel(
+      withOverlays({ overlays: clean, measureRun: run({ running: ["cov"] }) }),
+    );
+    const failed = scanPanel(
+      withOverlays({
+        overlays: clean,
+        measureRun: run({ failures: { cov: "boom" } }),
+      }),
+    );
+
+    expect(running.measure.rows[0]).toMatchObject({
+      chip: "running",
+      tone: "amber",
+    });
+    expect(failed.measure.rows[0]).toMatchObject({
+      chip: "failed",
+      tone: "red",
+      reason: "boom",
+    });
+    expect(failed.mark).toBe(true);
+  });
+
+  it("keeps an overlay and a sensor of the same name apart", () => {
+    const config = `${CONFIG}overlays:
+  alpha:
+    command: [node]
+    metrics:
+      - { name: line_coverage, type: ratio, granularity: module, bad: low }
+`;
+    const model = scanPanel(
+      input({ config, run: run({ failures: { alpha: "sensor boom" } }) }),
+    );
+
+    expect(model.measure.rows[0]).toMatchObject({
+      name: "alpha",
+      chip: "not run",
+    });
+    expect(chips(model)).toContain("alpha: failed");
+  });
+});
+
+describe("the measure phase in the plan", () => {
+  const ticks = {
+    describe: false,
+    measure: true,
+    overlays: ["cov", "gone"],
+    sensors: false,
+    ticked: null,
+  };
+
+  it("drops an unregistered ticked overlay and returns nothing when the tick is off", () => {
+    expect(phasesFor(ticks, [], false, ["cov", "mut"]).plan.measure).toEqual([
+      "cov",
+    ]);
+    expect(
+      phasesFor({ ...ticks, measure: false }, [], false, ["cov"]).plan.measure,
+    ).toEqual([]);
+  });
+
+  it("puts --measure between --describe and --sense", () => {
+    expect(
+      scanFlags({ describe: true, measure: ["cov", "mut"], sense: ["a"] }),
+    ).toEqual(["--describe", "--measure", "cov,mut", "--sense", "a"]);
+  });
+
+  it("builds the caption with measurers and the singular forms", () => {
+    const plan: ScanPlan = {
+      describe: true,
+      measure: ["cov", "mut"],
+      sense: ["a", "b", "c"],
+    };
+
+    expect(scanCaption(plan, false)).toBe(
+      "scans current, describe, 2 measurers, 3 sensors",
+    );
+    expect(scanCaption({ ...plan, measure: ["cov"], sense: ["a"] }, true)).toBe(
+      "extract, describe, 1 measurer, 1 sensor",
+    );
+    expect(scanCaption({ ...plan, measure: [] }, false)).not.toContain(
+      "measurer",
     );
   });
 });

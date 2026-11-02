@@ -6,6 +6,7 @@ import {
   extractionNeeded,
   parseScanArgs,
   phaseLine,
+  selectMeasurers,
   selectSensors,
   summaryLine,
 } from "../src/scan-phases.js";
@@ -162,6 +163,7 @@ describe("parseScanArgs", () => {
       positionals: [],
       extract: false,
       describe: false,
+      measure: null,
       sense: null,
       json: false,
       by: undefined,
@@ -197,6 +199,22 @@ describe("parseScanArgs", () => {
     expect(() => parseScanArgs(["--sense", "a,"])).toThrow(InputError);
   });
 
+  it("reads --measure all, a comma list and the inline form", () => {
+    expect(parseScanArgs(["--measure", "all"]).measure).toBe("all");
+    expect(parseScanArgs(["--measure", "a,b"]).measure).toEqual(["a", "b"]);
+    expect(parseScanArgs(["--measure=a"]).measure).toEqual(["a"]);
+  });
+
+  it("refuses --measure with no value and an empty name", () => {
+    expect(() => parseScanArgs(["--measure"])).toThrow(
+      /--measure needs all or an overlay name/,
+    );
+    expect(() => parseScanArgs(["--measure", "--json"])).toThrow(InputError);
+    expect(() => parseScanArgs(["--measure", "a,"])).toThrow(
+      /--measure names must not be empty/,
+    );
+  });
+
   it("reads --extract, --json, --by and one repository", () => {
     expect(
       parseScanArgs(["repo", "--extract", "--json", "--by", "ken"]),
@@ -229,6 +247,27 @@ describe("selectSensors", () => {
 
   it("refuses when no sensor is registered", () => {
     expect(() => selectSensors([], "all")).toThrow(/no sensors are registered/);
+  });
+});
+
+describe("selectMeasurers", () => {
+  const registered = [{ name: "a" }, { name: "b" }];
+
+  it("selects in config order", () => {
+    expect(selectMeasurers(registered, ["b", "a"])).toEqual(registered);
+    expect(selectMeasurers(registered, "all")).toEqual(registered);
+  });
+
+  it("names the unknown overlay and the registered ones", () => {
+    expect(() => selectMeasurers(registered, ["a", "nope"])).toThrow(
+      /no such overlay: nope[\s\S]*registered overlays: a, b/,
+    );
+  });
+
+  it("refuses when no overlay is registered", () => {
+    expect(() => selectMeasurers([], "all")).toThrow(
+      /no overlays are registered/,
+    );
   });
 });
 

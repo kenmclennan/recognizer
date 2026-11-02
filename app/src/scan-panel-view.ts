@@ -1,8 +1,15 @@
 import { button, el } from "./dom";
-import type { ReportRow, ScanPanelModel, SensorRow } from "./scan-panel-model";
+import type {
+  MeasureRow,
+  ReportRow,
+  ScanPanelModel,
+  SensorRow,
+} from "./scan-panel-model";
 
 export type ScanPanelActions = {
   tickDescribe: (ticked: boolean) => void;
+  tickMeasure: (ticked: boolean) => void;
+  tickOverlay: (name: string, ticked: boolean) => void;
   tickSensors: (ticked: boolean) => void;
   tickSensor: (name: string, ticked: boolean) => void;
   run: () => void;
@@ -15,7 +22,7 @@ export type ScanPanelActions = {
 export type ScanPanelView = {
   element: HTMLElement;
   render: (model: ScanPanelModel) => void;
-  reveal: (name: string) => void;
+  reveal: (name: string, kind?: "sensor" | "overlay") => void;
 };
 
 function addNode(
@@ -77,6 +84,37 @@ function tickBox(
   tick.addEventListener("change", () => onChange(tick.checked));
 
   return tick;
+}
+
+function measureNode(row: MeasureRow, actions: ScanPanelActions): HTMLElement {
+  const node = el("div", "measure-row");
+
+  node.dataset.overlay = row.name;
+
+  if (row.reason !== null) {
+    node.title = row.reason;
+  }
+
+  const tick = el("input", "sensor-tick");
+
+  tick.type = "checkbox";
+  tick.checked = row.ticked;
+  tick.setAttribute("aria-label", `Select ${row.name}`);
+  tick.addEventListener("change", () =>
+    actions.tickOverlay(row.name, tick.checked),
+  );
+  node.append(
+    tick,
+    el("span", "sensor-name", row.name),
+    el("span", `sensor-chip ${row.tone}`, row.chip),
+    el("div", "scan-block-line muted measure-subline", row.subline),
+  );
+
+  if (row.reason !== null) {
+    node.append(el("div", "sensor-reason", row.reason));
+  }
+
+  return node;
 }
 
 function sensorNode(
@@ -161,16 +199,17 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
   const head = el("div", "scan-head");
   const extract = el("div", "scan-block scan-extract");
   const describe = el("div", "scan-block scan-describe");
+  const measure = el("div", "scan-block scan-measure");
   const sensors = el("div", "scan-block scan-sensors");
   const buttons = el("div", "scan-buttons");
 
-  element.append(header, head, extract, describe, sensors, buttons);
+  element.append(header, head, extract, describe, measure, sensors, buttons);
 
   return {
     element,
-    reveal(name) {
+    reveal(name, kind = "sensor") {
       const row = element.querySelector<HTMLElement>(
-        `[data-sensor="${CSS.escape(name)}"]`,
+        `[data-${kind}="${CSS.escape(name)}"]`,
       );
 
       row?.scrollIntoView({ block: "nearest" });
@@ -223,6 +262,24 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
             : `${model.describe.counts.current} current · ${model.describe.counts.outOfDate} out of date · ${model.describe.counts.missing} missing`,
         ),
         el("div", "scan-block-line muted", model.describe.describer ?? ""),
+      );
+
+      const measureTitle = el("label", "scan-block-title");
+
+      measureTitle.append(
+        tickBox(
+          "Measure",
+          model.measure.ticked,
+          model.measure.tickable,
+          actions.tickMeasure,
+        ),
+        "Measure",
+      );
+      measure.replaceChildren(
+        measureTitle,
+        ...(model.measure.rows.length === 0
+          ? [el("div", "scan-block-line", "no overlays registered")]
+          : model.measure.rows.map((row) => measureNode(row, actions))),
       );
 
       const sensorsTitle = el("label", "scan-block-title");

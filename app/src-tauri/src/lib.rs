@@ -770,12 +770,13 @@ async fn run_scan(
     app: AppHandle,
     window: WebviewWindow,
     describe: bool,
+    measure: Vec<String>,
     sense: Vec<String>,
 ) -> Result<ScanRun, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
 
-    if let Err(reason) = sensors::check_names(&sense) {
+    if let Err(reason) = sensors::check_scan_names(&measure, &sense) {
         return Ok(ScanRun::Refused { reason });
     }
 
@@ -791,6 +792,7 @@ async fn run_scan(
             &shell,
             repository::RECOGNIZER_COMMAND,
             describe,
+            &measure,
             &sense,
             || {
                 let origin = changes::take_origin(&folder);
@@ -835,12 +837,24 @@ fn write_scan_ticks(
     app: AppHandle,
     window: WebviewWindow,
     describe: bool,
+    measure: bool,
+    overlays: Vec<String>,
     sensors: bool,
     ticked: Vec<String>,
 ) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
 
-    scan_ticks::write(&ticks_file(&app)?, &folder, describe, sensors, ticked)
+    scan_ticks::write(
+        &ticks_file(&app)?,
+        &folder,
+        scan_ticks::StoredTicks {
+            describe,
+            measure,
+            overlays,
+            sensors,
+            ticked,
+        },
+    )
 }
 
 #[tauri::command]

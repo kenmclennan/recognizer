@@ -139,9 +139,9 @@ export const COMMANDS: Command[] = [
   {
     name: "scan",
     summary:
-      "scan a repository in up to three phases: extract when the files changed, describe, sense",
+      "scan a repository in up to four phases: extract when the files changed, describe, measure, sense",
     usage:
-      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--by <name>] [--json]",
+      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--measure <all|name[,name...]>] [--sense <all|name[,name...]>] [--by <name>] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -161,6 +161,11 @@ export const COMMANDS: Command[] = [
           "describe every module whose line is missing or out of date, as recognizer describe does with no names; =all describes every module (the value only with =)",
       },
       {
+        flag: "--measure <all|name[,name...]>",
+        description:
+          "run every registered overlay, or the named ones, in config order, as recognizer measure does; an overlay may run the repository's tests, and it runs before the sensors so they read this scan's overlays",
+      },
+      {
         flag: "--sense <all|name[,name...]>",
         description:
           "run every registered sensor, or the named ones, in config order",
@@ -176,8 +181,8 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "a heading line per phase (extract, describe, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
-      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed)",
+      text: "a heading line per phase (extract, describe, measure, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
+      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe, measure and sense: total), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed)",
     },
     exitCodes: [
       {
@@ -187,12 +192,12 @@ export const COMMANDS: Command[] = [
       {
         code: 1,
         meaning:
-          "a language, a describer entry or a sensor entry failed (the remaining entries still run)",
+          "a language, a describer entry, an overlay or a sensor entry failed (the remaining entries still run)",
       },
       {
         code: 2,
         meaning:
-          "bad input - an unknown sensor name, --sense with no sensors registered or no git commit, --describe with no describer registered, more than one repository, an empty --by or an unknown flag",
+          "bad input - an unknown sensor or overlay name, --sense with no sensors registered, --measure with no overlays registered, --sense or --measure with no git commit, --describe with no describer registered, more than one repository, an empty --by or an unknown flag",
       },
     ],
     examples: [

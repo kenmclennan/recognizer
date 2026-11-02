@@ -211,6 +211,19 @@ describe("recognizer log", () => {
 
     expect(flat).toContain("python  ok  exit 0");
     expect(flat).not.toMatch(/^extract$/m);
+
+    fake.files.set(
+      `${DIRECTORY}/20990102T000000000Z-scan.json`,
+      readFileSync(
+        join(REPO, "schema/log-examples/valid/scan-phases-measure.json"),
+        "utf8",
+      ),
+    );
+
+    const measured = log(fake, "20990102T000000000Z-scan").out;
+
+    expect(measured).toMatch(/^measure$/m);
+    expect(measured).toContain("coverage  ok  exit 0");
   });
 
   it("prints json for the list, --last and an id", () => {
@@ -369,7 +382,7 @@ describe("sense and measure", () => {
       command: [
         "fake-sensor",
         COMMIT,
-        `${ROOT}/.recognizer/cache/findings/fake-sensor.json`,
+        `${ROOT}/.recognizer/cache/findings/fake-sensor.json.tmp`,
       ],
     });
     expect(sensed[0].reason).toContain("findings commit zzz");
@@ -424,7 +437,11 @@ describe("sense and measure", () => {
       outcome: "failed",
       reason: "no",
       stderr: "no",
-      command: ["cov", COMMIT, `${ROOT}/.recognizer/cache/overlays/cov.json`],
+      command: [
+        "cov",
+        COMMIT,
+        `${ROOT}/.recognizer/cache/overlays/cov.json.tmp`,
+      ],
     });
     expect(log(fake, "--kind", "measure").out).toContain("measure");
     expect(log(fake, "--kind", "sense").out).not.toContain("measure");

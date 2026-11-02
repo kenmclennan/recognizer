@@ -285,7 +285,7 @@ describe("a phased scan record", () => {
 
 describe("log schema examples", () => {
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(7);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(8);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {
