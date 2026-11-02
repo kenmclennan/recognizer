@@ -79,7 +79,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Selection bar | The small bar of icon actions shown above the selection while the pointer is over it; right-clicking opens the same bar. |
 | Settings | The app's own preferences (the editor, and the switch that describes after each scan), set in its settings window; distinct from a repository's Config. |
 | Describe phase | The optional background run of `recognizer describe` the app starts after a scan when the Settings switch is on; progress and failures show in the footer. |
-| Run log | The record of one run of a registered command (scan, sense or describe) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
+| Run log | The record of one run of a registered command (scan, sense, describe or measure) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
 | Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command; a shell command may use `{file}` and `{line}` placeholders, for example `code -g {file}:{line}`, to open at a line. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
 | Trail | The inspector panels opened by following modules through their Dependencies, one to the right of the next, with breadcrumbs naming each step. |

@@ -7,7 +7,7 @@
   "required": ["log_version", "kind", "started", "finished", "by", "arguments", "outcome", "exit", "entries"],
   "properties": {
     "log_version": { "const": 1 },
-    "kind": { "enum": ["scan", "sense", "describe"] },
+    "kind": { "enum": ["scan", "sense", "describe", "measure"] },
     "started": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
     "finished": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
     "by": { "type": "string", "minLength": 1, "maxLength": 64 },

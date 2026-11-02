@@ -807,7 +807,8 @@ export const COMMANDS: Command[] = [
     name: "measure",
     summary:
       "run the overlays a repository registers and write each one's measurements to the cache",
-    usage: "recognizer measure [<name>...] [--repository <dir>] [--json]",
+    usage:
+      "recognizer measure [<name>...] [--repository <dir>] [--by <name>] [--json]",
     arguments: [
       {
         name: "<name>",
@@ -822,6 +823,11 @@ export const COMMANDS: Command[] = [
           "the repository to measure; defaults to the current directory",
       },
       { flag: "--json", description: "print JSON instead of text" },
+      {
+        flag: "--by <name>",
+        description:
+          "who asked, recorded in the run log; defaults to the login user",
+      },
     ],
     output: {
       text: "`measured <name>` per success on stdout and `failed <name>: <reason>` per failure on stderr, then `measured N, failed M`",
@@ -909,9 +915,9 @@ export const COMMANDS: Command[] = [
   {
     name: "log",
     summary:
-      "read the record each scan, sense and describe run leaves, to see what ran and why it failed",
+      "read the record each scan, sense, describe and measure run leaves, to see what ran and why it failed",
     usage:
-      "recognizer log [<id>] [--last] [--kind scan|sense|describe] [--repository <dir>] [--json]",
+      "recognizer log [<id>] [--last] [--kind scan|sense|describe|measure] [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<id>",
@@ -922,7 +928,7 @@ export const COMMANDS: Command[] = [
     options: [
       { flag: "--last", description: "print the newest run in full" },
       {
-        flag: "--kind scan|sense|describe",
+        flag: "--kind scan|sense|describe|measure",
         description: "only runs of that kind, for the list and --last",
       },
       {
