@@ -125,3 +125,29 @@ def mutate_repository(tmp_path: Path) -> tuple[Path, str]:
 
 def mutate_settings(script: str, **extra) -> str:
     return json.dumps({"test_command": [sys.executable, script], **extra})
+
+
+def write_scan_document(
+    root: Path, language: str, modules: list[dict], edges: list[dict], files: list[str]
+) -> None:
+    cache = root / ".recognizer" / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    document = {
+        "files": [{"path": f, "hash": "0" * 64} for f in files],
+        "modules": modules,
+        "edges": edges,
+        "modified": False,
+    }
+    (cache / f"scan.{language}.json").write_text(json.dumps(document))
+
+
+def exports_module(module_id: str, *names: str, hidden: tuple[str, ...] = ()) -> dict:
+    members = [
+        {"name": n, "kind": "function", "line": 10 + i, "exported": True}
+        for i, n in enumerate(names)
+    ] + [
+        {"name": n, "kind": "function", "line": 50 + i, "exported": False}
+        for i, n in enumerate(hidden)
+    ]
+
+    return {"id": module_id, "members": members}

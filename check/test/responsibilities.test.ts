@@ -89,6 +89,7 @@ describe("parseConfig", () => {
         file !== "sensors-duplication-short.yaml" &&
         file !== "sensors-crap-short.yaml" &&
         file !== "sensors-mutation-short.yaml" &&
+        file !== "sensors-unused-exports-short.yaml" &&
         file !== "overlays-mutate-short.yaml",
     ),
   )("parses %s", (file) => {
