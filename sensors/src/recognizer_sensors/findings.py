@@ -3,6 +3,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from recognizer_sensors.outcome import Overlay
+
 
 def build_document(
     name: str,
@@ -19,6 +21,19 @@ def build_document(
         "modified": modified,
         "settings": settings,
         "findings": sorted(findings, key=lambda finding: finding["id"]),
+    }
+
+
+def build_overlay(name: str, version: str, commit: str, modified: bool, overlay: Overlay) -> dict:
+    return {
+        "overlay_version": 1,
+        "commit": commit,
+        "modified": modified,
+        "producer": {"name": name, "version": version},
+        "metrics": overlay.metrics,
+        "values": {
+            metric: dict(sorted(entries.items())) for metric, entries in overlay.values.items()
+        },
     }
 
 

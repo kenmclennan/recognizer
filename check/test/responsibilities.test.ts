@@ -85,7 +85,9 @@ describe("lineStatus", () => {
 describe("parseConfig", () => {
   it.each(
     readdirSync(join(CONFIGS, "valid")).filter(
-      (file) => file !== "sensors-duplication-short.yaml",
+      (file) =>
+        file !== "sensors-duplication-short.yaml" &&
+        file !== "sensors-crap-short.yaml",
     ),
   )("parses %s", (file) => {
     const text = readFileSync(join(CONFIGS, "valid", file), "utf8");
@@ -119,6 +121,37 @@ describe("parseConfig", () => {
         '{"threshold":0.9,"min_lines":6}',
       ],
     });
+  });
+
+  it("expands the crap short form to the shipped command", () => {
+    const text = readFileSync(
+      join(CONFIGS, "valid/sensors-crap-short.yaml"),
+      "utf8",
+    );
+
+    expect(parseConfig(text).sensors?.crap).toEqual({
+      command: [
+        "recognizer-sensors",
+        "crap",
+        "--repository",
+        "{repository}",
+        "--commit",
+        "{commit}",
+        "--output",
+        "{output}",
+        "--settings",
+        '{"threshold":20,"coverage":"build/lcov.info"}',
+      ],
+    });
+  });
+
+  it("rejects a crap threshold of zero", () => {
+    const text = readFileSync(
+      join(CONFIGS, "invalid/sensors-crap-bad-threshold.yaml"),
+      "utf8",
+    );
+
+    expect(() => parseConfig(text)).toThrow(/config\/sensors\/crap/);
   });
 
   it("names the sensor when a command-less entry is not shipped", () => {

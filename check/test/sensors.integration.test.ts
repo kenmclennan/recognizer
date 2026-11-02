@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -199,6 +200,75 @@ describe.skipIf(!HAS_UV)(
         run(["scan", repository, "--sense", "duplication"], captured.io),
       ).not.toBe(0);
       expect(captured.err()).toContain("config/sensors/duplication");
+    }, 180_000);
+
+    function crapOverlay(): { values: Record<string, Record<string, number>> } {
+      return JSON.parse(
+        readFileSync(
+          join(repository, ".recognizer/cache/overlays/crap.json"),
+          "utf8",
+        ),
+      );
+    }
+
+    function useCrapFixture(sensors: string): void {
+      rmSync(repository, { recursive: true, force: true });
+      mkdirSync(repository, { recursive: true });
+      cpSync(join(REPO, "fixtures/crap/sample"), repository, {
+        recursive: true,
+      });
+      mkdirSync(join(repository, ".recognizer"), { recursive: true });
+      writeFileSync(
+        join(repository, ".recognizer/config.yaml"),
+        `sensors:\n  crap: ${sensors}\n`,
+      );
+      commit();
+    }
+
+    it("finds the two planted risks and writes the overlay for crap", () => {
+      useCrapFixture("{}");
+
+      expect(run(["scan", repository, "--sense", "crap"], capture().io)).toBe(
+        0,
+      );
+
+      const document = JSON.parse(
+        readFileSync(
+          join(repository, ".recognizer/cache/findings/crap.json"),
+          "utf8",
+        ),
+      );
+
+      expect(() =>
+        validateFindings(document, { name: "crap", commit: document.commit }),
+      ).not.toThrow();
+      expect(document.findings.map((f: { id: string }) => f.id)).toEqual([
+        "crap:app/risk.py::classify",
+        "crap:app/risk.py::gate",
+      ]);
+
+      const overlay = crapOverlay();
+
+      expect(overlay.values.complexity?.["app/risk.py::classify"]).toBe(8);
+      expect(overlay.values.coverage?.["app/risk.py::classify"]).toBe(0.1818);
+      expect(overlay.values.crap?.["app/risk.py::classify"]).toBe(43.053);
+      expect(Object.keys(overlay.values.complexity ?? {})).toHaveLength(7);
+      expect(Object.keys(overlay.values.coverage ?? {})).toHaveLength(6);
+      expect(overlay.values.coverage?.["src/other.ts::pick"]).toBeUndefined();
+    }, 180_000);
+
+    it("leaves coverage unknown when the coverage file is missing", () => {
+      useCrapFixture("{coverage: missing/lcov.info}");
+
+      expect(run(["scan", repository, "--sense", "crap"], capture().io)).toBe(
+        0,
+      );
+
+      const overlay = crapOverlay();
+
+      expect(Object.keys(overlay.values.complexity ?? {})).toHaveLength(7);
+      expect(overlay.values.coverage).toEqual({});
+      expect(overlay.values.crap).toEqual({});
     }, 180_000);
   },
 );
