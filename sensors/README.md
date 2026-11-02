@@ -79,3 +79,16 @@ Reports, per module, the exports that no other module uses. It reads the cached 
 Test files and index-like files (`index`, `__init__`, `main`, `mod`, `lib`) are always skipped, by the rules of `check/src/entry-points.ts` ported to `entry_points.py` and checked against `fixtures/sensors/entry-points.json`. The policy's literal entries are not honoured. When `sensors.unused-exports` sets no `entry_points` and `sensors.structure.warnings.orphan` has an `entry_points` array, `recognizer` passes that array when it expands the short form; this sensor never reads the config.
 
 One warning per module, id `unused-exports:<module>`, fix pattern `narrow-exports`, the names sorted in the summary and each as an evidence member with `file` and `lines` (a Kotlin member whose file cannot be resolved carries `module` and `name` only). The sensor reports candidates: an export reached by a dynamic import, reflection or a framework convention looks unused.
+
+## thresholds
+
+Reads every current overlay in `.recognizer/cache/overlays/` and writes one finding for each module or member whose value for a configured metric crosses its line. It measures nothing. The settings are a mapping from metric name to a line: `{above: N}` or `{below: N}` with an optional `severity` of `warning` (default) or `violation`, or the string `off` to switch a metric's line off.
+
+| metric       | default line |
+| ------------ | ------------ |
+| `complexity` | above 10     |
+| `coverage`   | below 0.6    |
+
+There is no default for `crap` or `survived`: the `crap` and `mutation` sensors judge those, and a user may still name them. An entry replaces a metric's default whole. An `above` line fires at `value >= line` and a `below` line at `value < line`. A finding has the id `thresholds:<metric>:<key>` (the overlay's own key), the kind `thresholds.<metric>`, the principle `tests-cover-the-code` for `coverage`, `functions-stay-small` for `complexity` and the metric's name otherwise, the new `metric` field, and `evidence.measures` `{value, line}` with `evidence.producer` naming the overlay's producer. A violation ratchets in the baseline by its id.
+
+An overlay of another commit, or an unreadable one, is skipped with a line on stderr. The first overlay by file name that declares a metric supplies all of its values. A key matching no scanned module is counted and skipped; a metric you named that no current overlay declares prints a line. `recognizer scan --sense` runs sensors in the config's order, so list `thresholds` after `crap` to judge that run's overlay.

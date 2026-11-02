@@ -1,0 +1,31 @@
+{
+  "overlay_version": 1,
+  "commit": "COMMIT",
+  "modified": false,
+  "producer": { "name": "quality-tool", "version": "1.0.0" },
+  "metrics": [
+    { "name": "complexity", "type": "count", "granularity": "member", "bad": "high" },
+    { "name": "coverage", "type": "ratio", "granularity": "member", "bad": "low" },
+    { "name": "churn", "type": "count", "granularity": "module", "bad": "high" }
+  ],
+  "values": {
+    "complexity": {
+      "app/billing.py::price": 14,
+      "app/billing.py::round_up": 10,
+      "app/billing.py::tidy": 9,
+      "src/cart.ts::Cart.total": 11,
+      "nowhere/ghost.py::f": 30
+    },
+    "coverage": {
+      "app/billing.py::price": 0.5,
+      "src/cart.ts::Cart.total": 0.6,
+      "app/billing.py::tidy": 0.59,
+      "src/util.ts::pad": 0.9
+    },
+    "churn": {
+      "app/billing.py": 25,
+      "src/cart.ts": 20,
+      "src/util.ts": 3
+    }
+  }
+}

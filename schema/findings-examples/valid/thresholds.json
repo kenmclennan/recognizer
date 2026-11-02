@@ -1,0 +1,40 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "thresholds", "version": "0.1.0" },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": {
+    "churn": { "above": 20, "severity": "violation" },
+    "complexity": { "above": 10, "severity": "warning" },
+    "coverage": { "below": 0.6, "severity": "warning" }
+  },
+  "findings": [
+    {
+      "id": "thresholds:churn:app/billing.py",
+      "kind": "thresholds.churn",
+      "severity": "violation",
+      "principle": "churn",
+      "metric": "churn",
+      "summary": "app/billing.py: churn 25 is at or above 20",
+      "evidence": {
+        "modules": ["app/billing.py"],
+        "measures": { "value": 25, "line": 20 },
+        "producer": "quality-tool"
+      }
+    },
+    {
+      "id": "thresholds:complexity:app/billing.py::price",
+      "kind": "thresholds.complexity",
+      "severity": "warning",
+      "principle": "functions-stay-small",
+      "metric": "complexity",
+      "summary": "app/billing.py::price: complexity 14 is at or above 10",
+      "evidence": {
+        "modules": ["app/billing.py"],
+        "members": [{ "module": "app/billing.py", "name": "price" }],
+        "measures": { "value": 14, "line": 10 },
+        "producer": "quality-tool"
+      }
+    }
+  ]
+}

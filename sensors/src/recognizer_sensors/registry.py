@@ -8,6 +8,7 @@ from recognizer_sensors.mutate import measurer as mutate
 from recognizer_sensors.mutation import sensor as mutation
 from recognizer_sensors.outcome import Measurement, Outcome
 from recognizer_sensors.scans import Scan
+from recognizer_sensors.thresholds import sensor as thresholds
 from recognizer_sensors.unused_exports import sensor as unused_exports
 
 
@@ -32,6 +33,7 @@ SHIPPED = {
     "crap": Sensor(crap.parse_settings, crap.run),
     "mutation": Sensor(mutation.parse_settings, mutation.run, needs_commit=True),
     "unused-exports": Sensor(unused_exports.parse_settings, unused_exports.run),
+    "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }
 
 MEASURERS = {"mutate": Measurer(mutate.parse_settings, mutate.run)}

@@ -270,5 +270,114 @@ describe.skipIf(!HAS_UV)(
       expect(overlay.values.coverage).toEqual({});
       expect(overlay.values.crap).toEqual({});
     }, 180_000);
+
+    describe("thresholds on the committed fixture", () => {
+      const COMMIT_ENV = {
+        ...process.env,
+        GIT_AUTHOR_NAME: "t",
+        GIT_AUTHOR_EMAIL: "t@example.com",
+        GIT_COMMITTER_NAME: "t",
+        GIT_COMMITTER_EMAIL: "t@example.com",
+      };
+
+      function useThresholdsFixture(settings: string): void {
+        rmSync(repository, { recursive: true, force: true });
+        mkdirSync(repository, { recursive: true });
+        cpSync(
+          join(REPO, "fixtures/thresholds/sample/app"),
+          join(repository, "app"),
+          {
+            recursive: true,
+          },
+        );
+        cpSync(
+          join(REPO, "fixtures/thresholds/sample/src"),
+          join(repository, "src"),
+          {
+            recursive: true,
+          },
+        );
+        commit();
+
+        const head = spawnSync("git", ["-C", repository, "rev-parse", "HEAD"], {
+          encoding: "utf8",
+          env: COMMIT_ENV,
+        }).stdout.trim();
+        const overlays = join(repository, ".recognizer/cache/overlays");
+
+        mkdirSync(overlays, { recursive: true });
+        writeFileSync(
+          join(overlays, "quality.json"),
+          readFileSync(
+            join(REPO, "fixtures/thresholds/sample/overlays/quality.json"),
+            "utf8",
+          ).replace("COMMIT", head),
+        );
+        cpSync(
+          join(REPO, "fixtures/thresholds/sample/overlays/stale.json"),
+          join(overlays, "stale.json"),
+        );
+        writeFileSync(
+          join(repository, ".recognizer/config.yaml"),
+          `sensors:\n  thresholds: ${settings}\n`,
+        );
+      }
+
+      function thresholdIds(): string[] {
+        const document = JSON.parse(
+          readFileSync(
+            join(repository, ".recognizer/cache/findings/thresholds.json"),
+            "utf8",
+          ),
+        );
+
+        expect(() =>
+          validateFindings(document, {
+            name: "thresholds",
+            commit: document.commit,
+          }),
+        ).not.toThrow();
+
+        return document.findings.map((f: { id: string }) => f.id);
+      }
+
+      it("finds the seven planted crossings", () => {
+        useThresholdsFixture("{churn: {above: 20, severity: violation}}");
+
+        expect(
+          run(["scan", repository, "--sense", "thresholds"], capture().io),
+        ).toBe(0);
+        expect(thresholdIds()).toEqual([
+          "thresholds:churn:app/billing.py",
+          "thresholds:churn:src/cart.ts",
+          "thresholds:complexity:app/billing.py::price",
+          "thresholds:complexity:app/billing.py::round_up",
+          "thresholds:complexity:src/cart.ts::Cart.total",
+          "thresholds:coverage:app/billing.py::price",
+          "thresholds:coverage:app/billing.py::tidy",
+        ]);
+      }, 180_000);
+
+      it.each(["{complexity: {above: 15}}", "{complexity: off}"])(
+        "drops the complexity findings for %s",
+        (settings) => {
+          useThresholdsFixture(settings);
+
+          expect(
+            run(["scan", repository, "--sense", "thresholds"], capture().io),
+          ).toBe(0);
+
+          const ids = thresholdIds();
+
+          expect(
+            ids.filter((id) => id.startsWith("thresholds:complexity:")),
+          ).toEqual([]);
+          expect(
+            ids.filter((id) => id.startsWith("thresholds:coverage:")),
+          ).toHaveLength(2);
+        },
+        180_000,
+      );
+    });
   },
 );

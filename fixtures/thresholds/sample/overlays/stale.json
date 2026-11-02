@@ -1,0 +1,8 @@
+{
+  "overlay_version": 1,
+  "commit": "0000000000000000000000000000000000000000",
+  "modified": false,
+  "producer": { "name": "old-tool", "version": "0.1.0" },
+  "metrics": [{ "name": "complexity", "type": "count", "granularity": "member", "bad": "high" }],
+  "values": { "complexity": { "app/billing.py::price": 99 } }
+}

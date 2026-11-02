@@ -1,0 +1,5 @@
+sensors:
+  thresholds:
+    complexity:
+      above: 15
+      below: 2
