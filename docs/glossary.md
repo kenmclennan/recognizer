@@ -50,6 +50,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Sensor | A program that reads the scans, the policy, the overlays or the repository and writes a findings file; it never runs the code it judges. Recognizer ships the structure sensor and a repository registers others. |
 | Sensor registration | An entry of the Config's `sensors` key: a sensor's name and the command to run with `{repository}`, `{commit}` and `{output}` filled in, or for the structure sensor its settings, or `off`. |
 | Structure sensor | Recognizer's own sensor: the policy's violations, the warnings derived from the graph alone (cycles, hubs) and the graph metrics. On unless the Config turns it off. |
+| Shipped sensor | A sensor recognizer writes and releases with the toolchain in `sensors/`, run by `recognizer-sensors <name>`, registered by command or in the short form `<name>: {}`: duplication, CRAP, mutation (a measurer with its sensor) and unused exports. |
+| Mutation measurer | The shipped overlay command that mutates covered functions, runs the repository's tests against each mutant and writes killed, survived and uncovered counts; the mutation sensor judges its overlay. |
 | Producer | The tool that wrote an Overlay file, named with its version in the file's `producer`. |
 | Metric declaration | A metric's `name`, `type`, `granularity` and `bad` direction, registered in the Config and repeated in the Overlay file. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
