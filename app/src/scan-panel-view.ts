@@ -7,6 +7,8 @@ export type ScanPanelActions = {
   tickSensor: (name: string, ticked: boolean) => void;
   run: () => void;
   stop: () => void;
+  addSensor: (name: string) => void;
+  removeSensor: (name: string) => void;
 };
 
 export type ScanPanelView = {
@@ -14,6 +16,50 @@ export type ScanPanelView = {
   render: (model: ScanPanelModel) => void;
   reveal: (name: string) => void;
 };
+
+function addNode(
+  model: ScanPanelModel["sensors"],
+  actions: ScanPanelActions,
+): HTMLElement[] {
+  const nodes: HTMLElement[] = [];
+
+  if (model.add.status === "unavailable") {
+    nodes.push(
+      el(
+        "div",
+        "sensor-add-unavailable",
+        `Add a sensor is unavailable: ${model.add.reason}`,
+      ),
+    );
+  }
+
+  if (model.add.status === "list") {
+    nodes.push(el("div", "scan-block-title sensor-add-title", "Add a sensor"));
+
+    for (const item of model.add.items) {
+      const row = el("div", "sensor-add");
+      const add = button("Add", "sensor-add-button", () =>
+        actions.addSensor(item.name),
+      );
+
+      row.dataset.shipped = item.name;
+      add.disabled = !model.editable;
+      add.setAttribute("aria-label", `Add ${item.name}`);
+      row.append(
+        el("span", "sensor-name", item.name),
+        el("span", "sensor-add-line", item.line),
+        add,
+      );
+      nodes.push(row);
+    }
+  }
+
+  if (model.message !== null) {
+    nodes.push(el("div", "sensor-add-message", model.message));
+  }
+
+  return nodes;
+}
 
 function tickBox(
   label: string,
@@ -32,7 +78,11 @@ function tickBox(
   return tick;
 }
 
-function sensorNode(row: SensorRow, actions: ScanPanelActions): HTMLElement {
+function sensorNode(
+  row: SensorRow,
+  actions: ScanPanelActions,
+  editable: boolean,
+): HTMLElement {
   const node = el("div", `sensor-row ${row.kind}`);
 
   node.dataset.sensor = row.name;
@@ -62,6 +112,16 @@ function sensorNode(row: SensorRow, actions: ScanPanelActions): HTMLElement {
     node.append(
       el("span", `sensor-chip extra ${row.extra.tone}`, row.extra.text),
     );
+  }
+
+  if (row.removable) {
+    const remove = button("Remove", "sensor-remove", () =>
+      actions.removeSensor(row.name),
+    );
+
+    remove.disabled = !editable;
+    remove.setAttribute("aria-label", `Remove ${row.name}`);
+    node.append(remove);
   }
 
   if (row.reason !== null) {
@@ -154,7 +214,10 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       );
       sensors.replaceChildren(
         sensorsTitle,
-        ...model.sensors.rows.map((row) => sensorNode(row, actions)),
+        ...model.sensors.rows.map((row) =>
+          sensorNode(row, actions, model.sensors.editable),
+        ),
+        ...addNode(model.sensors, actions),
       );
 
       const stopping = model.button.mode === "stop";

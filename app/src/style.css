@@ -2113,6 +2113,39 @@ svg.i.chevron {
   color: #c0392b;
 }
 
+.sensor-add-title {
+  margin-top: 8px;
+}
+
+.sensor-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.sensor-add-line {
+  flex-basis: 100%;
+  order: 3;
+  color: var(--muted);
+}
+
+.sensor-add-button,
+.sensor-remove {
+  padding: 1px 8px;
+}
+
+.sensor-add-unavailable {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.sensor-add-message {
+  margin-top: 4px;
+  color: #c0392b;
+}
+
 .scan-buttons {
   display: flex;
   gap: 8px;

@@ -1,0 +1,6 @@
+# my config
+describer:
+  command: [describe-it]
+  version: "1"
+
+# end

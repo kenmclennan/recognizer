@@ -14,6 +14,7 @@ import {
 } from "./question-commands.js";
 import { runFind, runModules, runShow } from "./read-commands.js";
 import { runScan } from "./scan-command.js";
+import { runSensors } from "./sensors-command.js";
 import { runViews } from "./views-command.js";
 import { runWindow, runWindows } from "./window-commands.js";
 
@@ -661,6 +662,28 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runViews,
+  },
+  {
+    name: "sensors",
+    summary: "list the shipped sensors, with what each judges",
+    usage: "recognizer sensors [--json]",
+    arguments: [],
+    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    output: {
+      text: "one `<name>  <line>` line per shipped sensor",
+      json: "[{ name, line, defaults }], defaults being the settings the short form `<name>: {}` runs with",
+    },
+    exitCodes: [
+      { code: 0, meaning: "the list was printed" },
+      { code: 2, meaning: "bad arguments" },
+    ],
+    examples: [
+      {
+        command: "recognizer sensors --json",
+        note: "the shipped sensors and their default settings",
+      },
+    ],
+    run: runSensors,
   },
   {
     name: "windows",

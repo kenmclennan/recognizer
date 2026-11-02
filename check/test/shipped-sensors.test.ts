@@ -24,6 +24,14 @@ const command = (settings: string) => [
 ];
 
 describe("SHIPPED_SENSORS", () => {
+  it("equals the names in fixtures/sensors/list.json", () => {
+    const list: { name: string }[] = JSON.parse(
+      readFileSync(join(REPO, "fixtures/sensors/list.json"), "utf8"),
+    );
+
+    expect(SHIPPED_SENSORS).toEqual(list.map(({ name }) => name));
+  });
+
   it("equals fixtures/sensors/shipped.json", () => {
     expect(SHIPPED_SENSORS).toEqual(
       JSON.parse(

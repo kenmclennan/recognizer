@@ -1,0 +1,11 @@
+describer:
+  command: [describe-it]
+  version: "1"
+sensors:
+  mine:
+    command: [mine, --out, "{output}"]
+  duplication:
+    threshold: 0.82
+    min_lines: 4
+    min_nodes: 20
+  # trailing

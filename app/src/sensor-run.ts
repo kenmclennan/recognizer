@@ -38,6 +38,16 @@ export type SensorInputs = {
   refused: string[];
 };
 
+export type ShippedSensor = {
+  name: string;
+  line: string;
+  defaults: Record<string, number | boolean | string>;
+};
+
+export type ShippedSensors =
+  | { status: "ok"; sensors: ShippedSensor[] }
+  | { status: "unavailable"; reason: string };
+
 export type SensorsPort = {
   writeStructure(document: string | null): Promise<void>;
   readFindings(): Promise<FindingsFiles>;
@@ -45,6 +55,8 @@ export type SensorsPort = {
   removeFindings(names: string[]): Promise<void>;
   readInputs(): Promise<SensorInputs>;
   onInputsChanged(run: () => void): () => void;
+  shipped(): Promise<ShippedSensors>;
+  edit(name: string, add: boolean): Promise<void>;
 };
 
 export const inertSensors: SensorsPort = {
@@ -59,6 +71,11 @@ export const inertSensors: SensorsPort = {
     refused: [],
   }),
   onInputsChanged: () => () => {},
+  shipped: async () => ({
+    status: "unavailable",
+    reason: "the shipped sensors are not available",
+  }),
+  edit: async () => {},
 };
 
 export type SensorRun = {

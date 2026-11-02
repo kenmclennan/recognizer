@@ -120,7 +120,12 @@ import {
 import { buildScanPanelView } from "./scan-panel-view";
 import type { ShowTarget } from "./scan-progress";
 import type { BarModel } from "./selection-bar-view";
-import { inertSensors, type SensorsPort, scansCommit } from "./sensor-run";
+import {
+  inertSensors,
+  type SensorsPort,
+  type ShippedSensors,
+  scansCommit,
+} from "./sensor-run";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { buildStalePanel, type StalePanelModel } from "./stale-panel-view";
 import {
@@ -268,6 +273,8 @@ export function showExplorer(
   );
   let leftPanel: LeftPanel = carried?.leftPanel ?? "files";
   let scanConfig: string | null = null;
+  let shippedSensors: ShippedSensors | null = null;
+  let scanEditMessage: string | null = null;
   let scrollTarget: string | null = null;
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
@@ -721,6 +728,8 @@ export function showExplorer(
     },
     run: () => scanHost.run(),
     stop: () => scanHost.stop(),
+    addSensor: (name) => void editSensor(name, true),
+    removeSensor: (name) => void editSensor(name, false),
   });
   const findingsView = buildFindingsPanelView({
     toggle: toggleFinding,
@@ -1229,6 +1238,7 @@ export function showExplorer(
 
   function toggleScanPanel() {
     leftPanel = leftPanel === "scan" ? null : "scan";
+    scanEditMessage = null;
     render();
 
     if (leftPanel === "scan") {
@@ -1243,7 +1253,26 @@ export function showExplorer(
       scanConfig = null;
     }
 
+    if (leftPanel === "scan" || shippedSensors !== null) {
+      try {
+        shippedSensors = await scanHost.port.shipped();
+      } catch (error) {
+        shippedSensors = { status: "unavailable", reason: String(error) };
+      }
+    }
+
     render();
+  }
+
+  async function editSensor(name: string, add: boolean) {
+    try {
+      await scanHost.port.edit(name, add);
+      scanEditMessage = null;
+    } catch (error) {
+      scanEditMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    await loadScanConfig();
   }
 
   function structureCounts() {
@@ -1271,6 +1300,8 @@ export function showExplorer(
       run: scanHost.runState(),
       scanning: scanHost.running(),
       now: Date.now(),
+      shipped: shippedSensors,
+      editMessage: scanEditMessage,
     });
   }
 

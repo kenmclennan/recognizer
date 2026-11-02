@@ -67,6 +67,7 @@ describe("command table", () => {
       "show",
       "modules",
       "views",
+      "sensors",
       "windows",
       "window",
       "describe",

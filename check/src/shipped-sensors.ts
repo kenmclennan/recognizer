@@ -7,13 +7,50 @@ export const SHIPPED_MEASURERS = {
   ],
 } as const;
 
-export const SHIPPED_SENSORS: readonly string[] = [
-  "duplication",
-  "crap",
-  "mutation",
-  "unused-exports",
-  "thresholds",
+export interface ShippedSensorEntry {
+  name: string;
+  line: string;
+  defaults: Record<string, number | boolean | string>;
+}
+
+export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
+  {
+    name: "duplication",
+    line: "Finds functions whose structure repeats another's, so shared logic can be extracted once.",
+    defaults: { threshold: 0.82, min_lines: 4, min_nodes: 20 },
+  },
+  {
+    name: "crap",
+    line: "Flags functions that are complex and poorly covered by tests, where a change is most likely to break something.",
+    defaults: {
+      threshold: 30,
+      coverage: "coverage/lcov.info",
+      overlay: ".recognizer/cache/overlays/crap.json",
+    },
+  },
+  {
+    name: "mutation",
+    line: "Warns on functions where a mutated copy still passes the tests, naming each surviving mutation.",
+    defaults: {
+      overlay: ".recognizer/cache/overlays/mutate.json",
+      survivors: ".recognizer/cache/mutation/survivors.json",
+    },
+  },
+  {
+    name: "unused-exports",
+    line: "Lists the exports of each module that no other module uses, so dead public surface can be trimmed.",
+    defaults: {},
+  },
+  {
+    name: "thresholds",
+    line: "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
+    defaults: {},
+  },
 ];
+
+export const SHIPPED_SENSORS: readonly string[] = SHIPPED_SENSOR_LIST.map(
+  ({ name }) => name,
+);
 
 function isSettingsMapping(value: unknown): value is Record<string, unknown> {
   return (
