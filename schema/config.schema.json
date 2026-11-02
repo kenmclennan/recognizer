@@ -131,6 +131,17 @@
                 "survivors": {
                   "type": "string",
                   "minLength": 1
+                },
+                "record": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "incremental": {
+                  "type": "boolean"
+                },
+                "max_minutes": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
                 }
               }
             }

@@ -56,6 +56,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
     port: scan,
     registered: async () => ({
       names: ["alpha", "beta"],
+      testing: [],
       overlays: ["cov", "mut"],
       describer: true,
     }),
@@ -367,6 +368,54 @@ describe("createRescanner", () => {
     expect(log).not.toContain("resense");
   });
 
+  it("never writes a test-running overlay and clears once after every Scan however it ends", async () => {
+    for (const steps of [
+      [current, summary],
+      [current, "not json at all"],
+    ]) {
+      const scan = fakeScan({ steps });
+      const { rescanner } = harness(scan, {
+        registered: async () => ({
+          names: ["alpha", "beta"],
+          testing: ["mut"],
+          overlays: ["cov", "mut"],
+          describer: true,
+        }),
+      });
+
+      await rescanner.loadTicks();
+      rescanner.setTicks({
+        ...rescanner.ticks(),
+        measure: true,
+        once: ["mut"],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await rescanner.run();
+
+      expect(scan.ran[0].measure).toEqual(["cov", "mut"]);
+      expect(scan.written.every((one) => !one.overlays.includes("mut"))).toBe(
+        true,
+      );
+      expect(rescanner.ticks().once).toEqual([]);
+    }
+  });
+
+  it("clears once when the Scan fails or is stopped", async () => {
+    for (const result of [
+      { status: "failed" as const, exitCode: 1, stderr: "boom" },
+      { status: "stopped" as const },
+    ]) {
+      const scan = fakeScan({ result });
+      const { rescanner } = harness(scan);
+
+      await rescanner.loadTicks();
+      rescanner.setTicks({ ...rescanner.ticks(), once: ["mut"] });
+      await rescanner.run();
+
+      expect(rescanner.ticks().once).toEqual([]);
+    }
+  });
+
   it("writes the ticks through the port when they change", async () => {
     const scan = fakeScan();
     const { rescanner } = harness(scan);
@@ -378,6 +427,7 @@ describe("createRescanner", () => {
       overlays: null,
       sensors: false,
       ticked: null,
+      once: [],
     });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -396,6 +446,7 @@ describe("createRescanner", () => {
       overlays: null,
       sensors: false,
       ticked: null,
+      once: [],
     });
   });
 });

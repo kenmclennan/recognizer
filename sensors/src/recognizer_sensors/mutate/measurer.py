@@ -1,11 +1,20 @@
 import json
 import os
+import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from recognizer_sensors.crap.lcov import read_lcov
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.identity import assign_identities
+from recognizer_sensors.mutate.record import (
+    body_hash,
+    build_record,
+    read_record,
+    recorded_verdicts,
+    stale_test_reason,
+)
 from recognizer_sensors.mutate.runner import (
     Mutant,
     copy_repository,
@@ -13,7 +22,8 @@ from recognizer_sensors.mutate.runner import (
     output_tail,
     remove_stale_work_folders,
     remove_work_folder,
-    run_mutants,
+    run_function,
+    run_functions,
     run_test_command,
 )
 from recognizer_sensors.mutate.sites import Site, find_sites
@@ -27,9 +37,13 @@ DEFAULTS = {
     "coverage": "coverage/lcov.info",
     "crap_overlay": ".recognizer/cache/overlays/crap.json",
     "survivors": ".recognizer/cache/mutation/survivors.json",
+    "record": ".recognizer/cache/mutation/record.json",
+    "incremental": True,
 }
 
-ALLOWED = {"test_command", "max_workers", *DEFAULTS}
+ALLOWED = {"test_command", "max_workers", "max_minutes", *DEFAULTS}
+
+CLOCK = time.monotonic
 
 TIMEOUT_FLOOR = 2.0
 
@@ -56,6 +70,11 @@ class Target:
     survived: int = 0
     uncovered: int = 0
     survivors: list[Site] = field(default_factory=list)
+    body: str = ""
+    covered: list[bool] = field(default_factory=list)
+    timeouts: list[Site] = field(default_factory=list)
+    verdicts: list[str | None] = field(default_factory=list)
+    reused: bool = False
 
 
 def parse_settings(raw: dict) -> dict:
@@ -90,8 +109,25 @@ def parse_settings(raw: dict) -> dict:
     if workers < 1:
         raise SettingsError("max_workers must be at least 1")
 
+    incremental = settings["incremental"]
+
+    if not isinstance(incremental, bool):
+        raise SettingsError("incremental must be true or false")
+
+    budget = settings.get("max_minutes")
+
+    if budget is not None:
+        if isinstance(budget, bool) or not isinstance(budget, int | float):
+            raise SettingsError("max_minutes must be a number")
+
+        if not budget > 0:
+            raise SettingsError("max_minutes must be above 0")
+
     return {
         "test_command": list(command),
+        "max_minutes": float(budget) if budget is not None else None,
+        "incremental": incremental,
+        "record": relative_path("record", settings["record"]),
         "timeout_factor": float(factor),
         "max_workers": workers,
         "coverage": relative_path("coverage", settings["coverage"]),
@@ -142,7 +178,7 @@ def innermost(sites: list[Site], spans: list[tuple[int, int]]) -> dict[int, list
 
 
 def collect_targets(repository: Path, scan: Scan) -> tuple[list[Target], dict[str, bytes]]:
-    pending: list[tuple[str, str, str, int, int, list[Site]]] = []
+    pending: list[tuple[str, str, str, int, int, list[Site], str]] = []
     sources: dict[str, bytes] = {}
 
     for module in scan.modules:
@@ -173,13 +209,14 @@ def collect_targets(repository: Path, scan: Scan) -> tuple[list[Target], dict[st
                         node.start_point[0] + 1,
                         node.end_point[0] + 1,
                         owned.get(index, []),
+                        body_hash(source[node.start_byte : node.end_byte]),
                     )
                 )
 
-    identities = assign_identities([(m, q, start) for m, _, q, start, _, _ in pending])
+    identities = assign_identities([(m, q, start) for m, _, q, start, _, _, _ in pending])
     targets = [
-        Target(identity, module, path, qualified, start, end, sites)
-        for identity, (module, path, qualified, start, end, sites) in zip(
+        Target(identity, module, path, qualified, start, end, sites, body=body)
+        for identity, (module, path, qualified, start, end, sites, body) in zip(
             identities, pending, strict=True
         )
     ]
@@ -217,23 +254,34 @@ def run_baseline(repository: Path, work: Path, command: list[str]) -> float:
     raise MeasurementError(f"baseline test run failed ({state})\n{output_tail(result.output)}")
 
 
-def survivors_document(commit: str, targets: list[Target]) -> dict:
+def site_entry(site: Site) -> dict:
+    return {"line": site.line, "operator": site.operator, "replacement": site.replacement}
+
+
+def survivors_document(commit: str, targets: list[Target], skipped: list[str], reused: int) -> dict:
     functions = {
         target.identity: {
             "module": target.module,
             "name": target.qualified,
             "file": target.file,
             "lines": [target.start_line, target.end_line],
-            "survivors": [
-                {"line": s.line, "operator": s.operator, "replacement": s.replacement}
-                for s in target.survivors
-            ],
+            "survivors": [site_entry(s) for s in target.survivors],
+            "timeouts": [site_entry(s) for s in target.timeouts],
         }
         for target in sorted(targets, key=lambda t: t.identity)
-        if target.survivors
+        if target.survivors or target.timeouts
     }
 
-    return {"survivors_version": 1, "commit": commit, "functions": functions}
+    return {
+        "survivors_version": 1,
+        "commit": commit,
+        "complete": not skipped,
+        "reused": reused,
+        "skipped": [
+            {"identity": identity, "reason": "uncovered-by-budget"} for identity in sorted(skipped)
+        ],
+        "functions": functions,
+    }
 
 
 def overlay_values(targets: list[Target]) -> dict[str, dict[str, float]]:
@@ -251,9 +299,64 @@ def overlay_values(targets: list[Target]) -> dict[str, dict[str, float]]:
     return values
 
 
+def covered_sites(target: Target) -> list[tuple[int, Site]]:
+    return [(index, site) for index, site in enumerate(target.sites) if target.covered[index]]
+
+
+def apply_verdicts(target: Target, verdicts: list[str | None]) -> None:
+    target.verdicts = list(verdicts)
+
+    for site, verdict in zip(target.sites, verdicts, strict=True):
+        if verdict is None:
+            continue
+
+        if verdict == "survived":
+            target.survived += 1
+            target.survivors.append(site)
+        else:
+            target.killed += 1
+
+            if verdict == "timeout":
+                target.timeouts.append(site)
+
+
+def reusable(target: Target, record: dict | None) -> list[str | None] | None:
+    if record is None:
+        return None
+
+    verdicts = recorded_verdicts(record, target.identity, target.body)
+
+    if verdicts is None or len(verdicts) != len(target.sites):
+        return None
+
+    recorded = [verdict is not None for verdict in verdicts]
+
+    return verdicts if recorded == target.covered else None
+
+
+def mutants_for(target: Target, sources: dict[str, bytes]) -> list[Mutant]:
+    return [
+        Mutant(
+            target.file,
+            sources[target.file],
+            site.start_byte,
+            site.end_byte,
+            site.replacement.encode("utf-8"),
+        )
+        for _, site in covered_sites(target)
+    ]
+
+
+def queue_order(pending: list[Target], skipped: list[str]) -> list[Target]:
+    earlier = set(skipped)
+
+    return sorted(pending, key=lambda t: (t.identity not in earlier, t.identity))
+
+
 def run(
     repository: Path, scans: list[Scan], settings: dict, commit: str, modified: bool
 ) -> Measurement:
+    started = CLOCK()
     known = read_known_coverage(repository, settings["crap_overlay"], commit)
     coverage = read_lcov(repository / settings["coverage"], repository)
 
@@ -261,10 +364,11 @@ def run(
         raise MeasurementError(f"coverage file {settings['coverage']} is missing or unreadable")
 
     targets: list[Target] = []
-    planned: list[tuple[Target, Site, Mutant]] = []
+    sources: dict[str, bytes] = {}
 
     for scan in scans:
-        found, sources = collect_targets(repository, scan)
+        found, scan_sources = collect_targets(repository, scan)
+        sources.update(scan_sources)
 
         for target in found:
             if target.identity not in known:
@@ -272,44 +376,94 @@ def run(
 
             targets.append(target)
             lines = coverage.get(target.file)
+            target.covered = [
+                known[target.identity] > 0 and site_is_covered(site, target, lines)
+                for site in target.sites
+            ]
+            target.uncovered = target.covered.count(False)
 
-            for site in target.sites:
-                if known[target.identity] > 0 and site_is_covered(site, target, lines):
-                    mutant = Mutant(
-                        target.file,
-                        sources[target.file],
-                        site.start_byte,
-                        site.end_byte,
-                        site.replacement.encode("utf-8"),
-                    )
-                    planned.append((target, site, mutant))
-                else:
-                    target.uncovered += 1
+    command = settings["test_command"]
+    record = (
+        read_record(repository / settings["record"], command) if settings["incremental"] else None
+    )
+    earlier_skipped = record["skipped"] if record else []
+    reuse = record
 
-    work = new_work_folder(repository)
-    remove_stale_work_folders(work)
+    if record is not None:
+        reason = stale_test_reason(repository, record["commit"])
 
-    try:
-        baseline = run_baseline(repository, work, settings["test_command"])
-        outcomes = run_mutants(
-            repository,
-            work,
-            [mutant for _, _, mutant in planned],
-            settings["test_command"],
-            timeout_for(baseline, settings["timeout_factor"]),
-            settings["max_workers"],
-        )
-        remove_stale_work_folders(work)
-    finally:
-        remove_work_folder(work)
+        if reason is not None:
+            print(f"recognizer-sensors: mutate: {reason}", file=sys.stderr)
+            reuse = None
 
-    for (target, site, _), killed in zip(planned, outcomes, strict=True):
-        if killed:
-            target.killed += 1
+    pending: list[Target] = []
+
+    for target in targets:
+        verdicts = reusable(target, reuse)
+
+        if verdicts is not None:
+            target.reused = True
+            apply_verdicts(target, verdicts)
+        elif any(target.covered):
+            pending.append(target)
         else:
-            target.survived += 1
-            target.survivors.append(site)
+            apply_verdicts(target, [None] * len(target.sites))
 
-    overlay = Overlay(METRICS, overlay_values(targets), repository / OVERLAY_PATH)
+    queue = queue_order(pending, earlier_skipped)
+    skipped: list[Target] = []
 
-    return Measurement(overlay, survivors_document(commit, targets))
+    if queue:
+        work = new_work_folder(repository)
+        remove_stale_work_folders(work)
+
+        try:
+            baseline = run_baseline(repository, work, command)
+            timeout = timeout_for(baseline, settings["timeout_factor"])
+            budget = settings["max_minutes"]
+            deadline = started + budget * 60 if budget is not None else None
+            results = run_functions(
+                queue,
+                lambda target: run_function(
+                    repository, work, mutants_for(target, sources), command, timeout
+                ),
+                settings["max_workers"],
+                deadline,
+                CLOCK,
+            )
+            remove_stale_work_folders(work)
+        finally:
+            remove_work_folder(work)
+
+        for target, outcome in zip(queue, results, strict=True):
+            if outcome is None:
+                skipped.append(target)
+                continue
+
+            verdicts: list[str | None] = [None] * len(target.sites)
+
+            for (index, _), verdict in zip(covered_sites(target), outcome, strict=True):
+                verdicts[index] = verdict
+
+            apply_verdicts(target, verdicts)
+
+    skipped_ids = [target.identity for target in skipped]
+    skipped_set = set(skipped_ids)
+    measured = [target for target in targets if target.identity not in skipped_set]
+    reused = sum(1 for target in measured if target.reused)
+    mutated = len(measured) - reused
+
+    print(
+        f"recognizer-sensors: mutate: {reused} of {len(targets)} functions reused, "
+        f"{mutated} mutated, {len(skipped_ids)} skipped (uncovered-by-budget)",
+        file=sys.stderr,
+    )
+
+    overlay = Overlay(METRICS, overlay_values(measured), repository / OVERLAY_PATH)
+    document = build_record(
+        command,
+        commit,
+        {t.identity: {"body": t.body, "verdicts": t.verdicts} for t in measured},
+        sorted(skipped_ids),
+    )
+
+    return Measurement(overlay, survivors_document(commit, measured, skipped_ids, reused), document)

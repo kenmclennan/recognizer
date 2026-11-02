@@ -52,10 +52,19 @@ The mutation measurer: it mutates each covered function and runs the repository'
 | `coverage` | `coverage/lcov.info` | relative path to the LCOV file |
 | `crap_overlay` | `.recognizer/cache/overlays/crap.json` | relative path to the CRAP overlay; it must be from the run's commit and hold `coverage` |
 | `survivors` | `.recognizer/cache/mutation/survivors.json` | relative path the survivors file is written to |
+| `record` | `.recognizer/cache/mutation/record.json` | relative path the mutation record is written to |
+| `incremental` | `true` | `false` ignores the record and mutates every function; the record is still written |
+| `max_minutes` | none | number above 0; no function starts once this many minutes have passed since the run began |
 
 The operators, one replacement each: `true`/`false` (`True`/`False` in Python), `==`/`!=`, `<`/`<=`, `>`/`>=`, `+`/`-`, `*`/`/`, `&&`/`||` (`and`/`or` and removing `not` in Python), and in TypeScript `===`/`!==` and `??` to `&&`. Strings, comments, generics, unary minus and Rust dereference yield none, and neither does an uncovered line.
 
-The baseline run must pass, or the run exits `2` and writes nothing. A mutant is killed by a non-zero exit, a failure to start or a timeout, and survives on exit `0`. The overlay holds `killed`, `survived` and `uncovered` counts and `score = killed / (killed + survived)` (absent when nothing ran) per function, keyed `module::function`; a function with unknown CRAP coverage is absent. Copies live under `.recognizer/cache/mutation/work/` and are removed as each mutant finishes; a measurer killed with `SIGKILL` leaves its copies behind. The run takes the suite's duration times the covered-site count over `max_workers`.
+The baseline run must pass, or the run exits `2` and writes nothing. A mutant is killed by a non-zero exit, a failure to start or a timeout, and survives on exit `0`. The overlay holds `killed`, `survived` and `uncovered` counts and `score = killed / (killed + survived)` (absent when nothing ran) per function, keyed `module::function`; a function with unknown CRAP coverage is absent. Copies live under `.recognizer/cache/mutation/work/` and are removed as each mutant finishes; a measurer killed with `SIGKILL` leaves its copies behind. The run takes the suite's duration times the covered-site count over `max_workers` on a first or full run.
+
+A timed-out mutant is a kill: it counts in `killed` and the score, is listed under `timeouts` in the survivors file and never under `survivors`.
+
+**Mutation record.** Beside the survivors file the run writes the record: per function, the sha256 of its body and one verdict per mutation site (`killed`, `survived`, `timeout`, or `null` for an uncovered site), plus the sha256 of `test_command`, the commit and the identities the last run skipped. A rerun reuses a function's verdicts when its body hash matches and the set of covered sites is the same; a function that only moved keeps its verdicts and reports its new lines. A missing, unreadable or other-version record, or a changed `test_command` (any argument, its order or its length), means a full run. Before reusing, the run asks git which paths differ between the record's commit and the working tree (tracked, staged, committed, untracked or deleted); if any is a test file by the `unused-exports` convention, or git cannot compare with that commit, every verdict is dropped and one stderr line says so. Known limit: a change to a callee or other production code, with the function's body and `test_command` unchanged, leaves a stale verdict the rule cannot see, as does a test file the convention does not recognise; set `incremental: false` for a full re-verdict.
+
+**Budget.** With `max_minutes` set, work is queued by function: the functions the last run skipped first, then the rest, each in identity order. A function is wholly reused, wholly mutated or skipped; one already running when the budget ends finishes, so a run can overshoot by up to one function per worker. A skipped function is absent from the overlay (unknown, never healthy), listed in the survivors file's `skipped` with reason `uncovered-by-budget`, and `complete` is `false`. The survivors file also carries `reused`, the number of reused functions. Every run prints `recognizer-sensors: mutate: <r> of <n> functions reused, <m> mutated, <k> skipped (uncovered-by-budget)` on stderr and exits `0`.
 
 ## mutation
 
@@ -66,7 +75,7 @@ Reads the `mutate` overlay and the survivors file and warns on each function wit
 | `overlay` | `.recognizer/cache/overlays/mutate.json` | relative path to the `mutate` overlay |
 | `survivors` | `.recognizer/cache/mutation/survivors.json` | relative path to the survivors file |
 
-When the overlay or survivors file is missing, from another commit than the run's, or disagrees with the overlay's `survived` counts, the sensor reports nothing, prints one line on stderr and exits `0`: survivors are unknown, not healthy.
+When the overlay or survivors file is missing, from another commit than the run's, or disagrees with the overlay's `survived` counts, the sensor reports nothing, prints one line on stderr and exits `0`: survivors are unknown, not healthy. When the survivors file has `complete: false` it prints `recognizer-sensors: mutation: <k> functions were not measured (budget); their survivors are unknown` and still reports the survivors it has.
 
 ## unused-exports
 

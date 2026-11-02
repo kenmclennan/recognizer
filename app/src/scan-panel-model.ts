@@ -48,6 +48,7 @@ export type ScanTicks = {
   overlays: string[] | null;
   sensors: boolean;
   ticked: string[] | null;
+  once: string[];
 };
 
 export type ScanPlan = {
@@ -209,12 +210,20 @@ export function phasesFor(
   registered: string[],
   describerRegistered: boolean,
   overlays: string[] = [],
+  testing: string[] = [],
 ): { plan: ScanPlan; dropped: string[] } {
   const wanted = ticks.ticked ?? registered;
   const sense = wanted.filter((name) => registered.includes(name));
   const dropped = wanted.filter((name) => !registered.includes(name));
   const wantedOverlays = ticks.overlays ?? overlays;
-  const measure = wantedOverlays.filter((name) => overlays.includes(name));
+  const measure = [
+    ...wantedOverlays.filter(
+      (name) => overlays.includes(name) && !testing.includes(name),
+    ),
+    ...testing.filter(
+      (name) => overlays.includes(name) && ticks.once.includes(name),
+    ),
+  ];
 
   return {
     plan: {
@@ -402,10 +411,11 @@ function measureRow(overlay: RegisteredOverlay, input: PanelInput): MeasureRow {
   const run = input.measureRun;
   const base = {
     name,
-    ticked:
-      input.ticks.overlays === null || input.ticks.overlays.includes(name),
+    ticked: overlay.runsTests
+      ? input.ticks.once.includes(name)
+      : input.ticks.overlays === null || input.ticks.overlays.includes(name),
     subline: overlay.runsTests
-      ? `${overlay.command} · runs the tests`
+      ? `${overlay.command} · runs the tests · ticked for one Scan only`
       : overlay.command,
   };
   const held = run.failures[name];
@@ -518,6 +528,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     names,
     describer !== null,
     overlays.map(({ name }) => name),
+    overlays.filter(({ runsTests }) => runsTests).map(({ name }) => name),
   );
   const expected = input.scan === null || extract.tone === "amber";
 

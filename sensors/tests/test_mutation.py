@@ -95,7 +95,11 @@ def unknown_case(root, capsys, expected):
     assert main(["mutation", "--repository", str(root), "--output", str(out)]) == 0
     assert json.loads(out.read_text())["findings"] == []
 
-    lines = capsys.readouterr().err.strip().splitlines()
+    lines = [
+        line
+        for line in capsys.readouterr().err.strip().splitlines()
+        if line.startswith("recognizer-sensors: mutation: ")
+    ]
 
     assert len(lines) == 1
     assert lines[0].startswith("recognizer-sensors: mutation: ")
@@ -165,3 +169,43 @@ def test_bad_settings_are_rejected(raw):
 
 def test_defaults():
     assert sensor.parse_settings({}) == {"overlay": OVERLAY, "survivors": SURVIVORS}
+
+
+def mark_incomplete(root, skipped):
+    document = json.loads((root / SURVIVORS).read_text())
+    document["complete"] = False
+    document["skipped"] = [{"identity": i, "reason": "uncovered-by-budget"} for i in skipped]
+    (root / SURVIVORS).write_text(json.dumps(document))
+
+
+def not_measured_lines(capsys):
+    return [line for line in capsys.readouterr().err.splitlines() if "were not measured" in line]
+
+
+def test_an_incomplete_survivors_file_prints_the_not_measured_line_and_keeps_findings(
+    tmp_path, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    measure(root, "tests/weak.py")
+    mark_incomplete(root, ["app/rules.py::a", "app/rules.py::b"])
+    capsys.readouterr()
+
+    document = sense(root, tmp_path)
+
+    assert len(document["findings"]) == 2
+    assert not_measured_lines(capsys) == [
+        "recognizer-sensors: mutation: 2 functions were not measured (budget); "
+        "their survivors are unknown"
+    ]
+
+
+def test_a_survivors_file_without_a_complete_key_is_read_as_complete(tmp_path, capsys):
+    root, _ = mutate_repository(tmp_path)
+    measure(root, "tests/weak.py")
+    document = json.loads((root / SURVIVORS).read_text())
+    del document["complete"]
+    (root / SURVIVORS).write_text(json.dumps(document))
+    capsys.readouterr()
+
+    assert len(sense(root, tmp_path)["findings"]) == 2
+    assert not_measured_lines(capsys) == []

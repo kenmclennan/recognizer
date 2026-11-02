@@ -1,7 +1,9 @@
+import itertools
 import os
 import shutil
 import signal
 import subprocess
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -99,9 +101,12 @@ def output_tail(output: str) -> str:
     return "\n".join(output.splitlines()[-TAIL_LINES:])
 
 
+NUMBERS = itertools.count()
+
+
 def run_mutant(
     repository: Path, work: Path, number: int, mutant: Mutant, command: list[str], timeout: float
-) -> bool:
+) -> str:
     copy = work / str(number)
 
     try:
@@ -111,26 +116,43 @@ def run_mutant(
         (copy / mutant.path).write_bytes(head + mutant.replacement + tail)
         result = run_test_command(command, copy, timeout)
     except OSError:
-        return True
+        return "killed"
     finally:
         shutil.rmtree(copy, ignore_errors=True)
 
-    return not result.passed
+    if result.timed_out:
+        return "timeout"
+
+    return "survived" if result.passed else "killed"
 
 
-def run_mutants(
-    repository: Path,
-    work: Path,
-    mutants: list[Mutant],
-    command: list[str],
-    timeout: float,
+def run_function(
+    repository: Path, work: Path, mutants: list[Mutant], command: list[str], timeout: float
+) -> list[str]:
+    return [
+        run_mutant(repository, work, next(NUMBERS), mutant, command, timeout) for mutant in mutants
+    ]
+
+
+def run_functions(
+    items: list,
+    run_item: Callable[[object], list[str]],
     max_workers: int,
-) -> list[bool]:
+    deadline: float | None,
+    clock: Callable[[], float],
+) -> list[list[str] | None]:
+    spent = threading.Event()
+
+    def take(item: object) -> list[str] | None:
+        if spent.is_set() or (deadline is not None and clock() >= deadline):
+            spent.set()
+
+            return None
+
+        return run_item(item)
+
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [
-            pool.submit(run_mutant, repository, work, number, mutant, command, timeout)
-            for number, mutant in enumerate(mutants)
-        ]
+        futures = [pool.submit(take, item) for item in items]
 
         return [future.result() for future in futures]
 

@@ -88,6 +88,12 @@ def measure(args, measurer, scans, settings: dict, commit: str) -> int:
     survivors_path = args.repository / settings["survivors"]
     survivors_path.parent.mkdir(parents=True, exist_ok=True)
     write_atomically(render(measurement.survivors), survivors_path)
+
+    if measurement.record is not None:
+        record_path = args.repository / settings["record"]
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomically(render(measurement.record), record_path)
+
     text = render(overlay)
 
     if args.output:
