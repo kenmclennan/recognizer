@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::fs_safe::checked_relative;
 
@@ -10,6 +10,8 @@ const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec 
 const SCAN_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; folder="$1"; shift; exec "$0" scan "$folder" "$@""#;
 const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
 const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" --version"#;
+const SENSORS_SCRIPT: &str =
+    r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" sensors --json"#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
 const BASELINE: &str = ".recognizer/baselines/violations.json";
@@ -53,6 +55,20 @@ pub enum ToolsReport {
     Version { version: String },
     CommandMissing,
     Failed { exit_code: i32, stderr: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShippedSensor {
+    pub name: String,
+    pub line: String,
+    pub defaults: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum ShippedSensors {
+    Ok { sensors: Vec<ShippedSensor> },
+    Unavailable { reason: String },
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -133,6 +149,17 @@ pub fn version_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
         vec![
             "-ilc".to_string(),
             VERSION_SCRIPT.to_string(),
+            command.to_string(),
+        ],
+    )
+}
+
+pub fn sensors_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
+    (
+        shell.to_string(),
+        vec![
+            "-ilc".to_string(),
+            SENSORS_SCRIPT.to_string(),
             command.to_string(),
         ],
     )
@@ -257,6 +284,48 @@ pub fn recognizer_version_with(shell: &str, command: &str) -> ToolsReport {
             output.status.code(),
             &String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr).into_owned(),
+        ),
+    }
+}
+
+pub fn shipped_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> ShippedSensors {
+    let unavailable = |reason: String| ShippedSensors::Unavailable { reason };
+
+    match exit {
+        Some(127) => unavailable(missing_hint()),
+        Some(0) => match serde_json::from_str::<Vec<ShippedSensor>>(stdout) {
+            Ok(sensors) => ShippedSensors::Ok { sensors },
+            Err(_) => {
+                unavailable("recognizer sensors printed something that is not the list".to_string())
+            }
+        },
+        other => unavailable(format!(
+            "recognizer sensors exited {}: {}",
+            other.map_or("without a status".to_string(), |code| code.to_string()),
+            stderr.trim()
+        )),
+    }
+}
+
+pub fn shipped_sensors(shell: &str) -> ShippedSensors {
+    shipped_sensors_with(shell, RECOGNIZER_COMMAND)
+}
+
+pub fn shipped_sensors_with(shell: &str, command: &str) -> ShippedSensors {
+    let (program, args) = sensors_invocation(shell, command);
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .output();
+
+    match output {
+        Err(_) => ShippedSensors::Unavailable {
+            reason: missing_hint(),
+        },
+        Ok(output) => shipped_sensors_for(
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
         ),
     }
 }
@@ -573,6 +642,49 @@ mod tests {
             ToolsReport::Version {
                 version: "0.3.1".to_string()
             }
+        );
+    }
+
+    #[test]
+    fn the_shipped_list_is_read_from_the_command_and_failures_are_unavailable() {
+        let dir = TempDir::new().unwrap();
+        let good = fake_command(
+            dir.path(),
+            r#"echo '[{"name":"duplication","line":"l","defaults":{"threshold":0.82}}]'"#,
+        );
+        let other = TempDir::new().unwrap();
+        let bad = fake_command(other.path(), "echo nope");
+
+        match shipped_sensors_with("/bin/sh", &good.display().to_string()) {
+            ShippedSensors::Ok { sensors } => {
+                assert_eq!(sensors.len(), 1);
+                assert_eq!(sensors[0].name, "duplication");
+            }
+            other => panic!("{other:?}"),
+        }
+
+        assert!(matches!(
+            shipped_sensors_with("/bin/sh", &bad.display().to_string()),
+            ShippedSensors::Unavailable { .. }
+        ));
+        assert!(matches!(
+            shipped_sensors_with("/bin/sh", "/nonexistent/recognizer"),
+            ShippedSensors::Unavailable { .. }
+        ));
+        assert!(matches!(
+            shipped_sensors_for(Some(2), "", "bad"),
+            ShippedSensors::Unavailable { reason } if reason.contains("exited 2: bad")
+        ));
+    }
+
+    #[test]
+    fn the_shipped_list_serialises_to_the_webview_contract() {
+        assert_eq!(
+            serde_json::to_value(ShippedSensors::Unavailable {
+                reason: "r".to_string()
+            })
+            .unwrap(),
+            serde_json::json!({ "status": "unavailable", "reason": "r" })
         );
     }
 

@@ -1,7 +1,7 @@
 import { type Config, parseConfig, registeredSensors } from "recognizer";
 import { ageText, type ScanState } from "./footer-scan";
 import type { ResponsibilityState } from "./responsibility-model";
-import type { SensorStatus } from "./sensor-run";
+import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type RunState = {
   running: string[];
@@ -56,6 +56,8 @@ export type PanelInput = {
   run: RunState;
   scanning: boolean;
   now: number;
+  shipped: ShippedSensors | null;
+  editMessage: string | null;
 };
 
 export type ChipTone = "ok" | "amber" | "red" | "muted";
@@ -69,7 +71,13 @@ export type SensorRow = {
   tone: ChipTone;
   extra: { text: string; tone: ChipTone } | null;
   reason: string | null;
+  removable: boolean;
 };
+
+export type AddSensors =
+  | { status: "hidden" }
+  | { status: "unavailable"; reason: string }
+  | { status: "list"; items: { name: string; line: string }[] };
 
 export type ScanPanelModel = {
   head: { commit: string | null; ageText: string } | null;
@@ -86,7 +94,14 @@ export type ScanPanelModel = {
     counts: { current: number; outOfDate: number; missing: number };
     describer: string | null;
   };
-  sensors: { ticked: boolean; tickable: boolean; rows: SensorRow[] };
+  sensors: {
+    ticked: boolean;
+    tickable: boolean;
+    rows: SensorRow[];
+    add: AddSensors;
+    editable: boolean;
+    message: string | null;
+  };
   button: { mode: "scan" | "stop"; caption: string; flags: string };
   mark: boolean;
 };
@@ -205,6 +220,7 @@ function structureRow(
     tone: "muted",
     extra,
     reason: null,
+    removable: false,
   };
 }
 
@@ -219,6 +235,9 @@ function registeredRow(
     tickable: true,
     ticked: input.ticks.ticked === null || input.ticks.ticked.includes(name),
     extra: null,
+    removable:
+      input.shipped?.status === "ok" &&
+      input.shipped.sensors.some((one) => one.name === name),
   };
   const held = input.run.failures[name];
 
@@ -253,6 +272,22 @@ function registeredRow(
     default:
       return { ...base, chip: "not run", tone: "muted", reason: null };
   }
+}
+
+function addBlock(shipped: ShippedSensors | null, names: string[]): AddSensors {
+  if (shipped === null) {
+    return { status: "hidden" };
+  }
+
+  if (shipped.status === "unavailable") {
+    return { status: "unavailable", reason: shipped.reason };
+  }
+
+  const items = shipped.sensors
+    .filter(({ name }) => !names.includes(name))
+    .map(({ name, line }) => ({ name, line }));
+
+  return items.length === 0 ? { status: "hidden" } : { status: "list", items };
 }
 
 function lineCounts(lines: PanelInput["lines"]) {
@@ -329,6 +364,9 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       ticked: input.ticks.sensors && names.length > 0,
       tickable: names.length > 0,
       rows,
+      add: addBlock(input.shipped, names),
+      editable: !input.scanning,
+      message: input.editMessage,
     },
     button: {
       mode: input.scanning ? "stop" : "scan",

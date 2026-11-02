@@ -9,6 +9,7 @@ from conftest import (
     FINDINGS_SCHEMA,
     FIXTURE,
     REPOSITORY,
+    SENSOR_LIST,
     SHIPPED,
     git_commit,
     make_repository,
@@ -18,6 +19,7 @@ from conftest import (
 from jsonschema import Draft202012Validator
 
 from recognizer_sensors.cli import main
+from recognizer_sensors.duplication.sensor import DEFAULTS
 from recognizer_sensors.registry import SHIPPED as REGISTRY
 
 
@@ -225,3 +227,10 @@ def test_real_committed_content_yields_no_findings(language, tmp_path):
 
     assert run_cli(root, output) == 0
     assert json.loads(output.read_text())["findings"] == []
+
+
+def test_the_registry_and_defaults_agree_with_the_sensor_list():
+    listed = {entry["name"]: entry for entry in json.loads(SENSOR_LIST.read_text())}
+
+    assert sorted(REGISTRY) == sorted(listed)
+    assert listed["duplication"]["defaults"] == DEFAULTS

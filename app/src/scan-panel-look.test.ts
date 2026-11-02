@@ -217,6 +217,41 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   };
   facts.missing = { text: m.q(".responsibility")?.textContent ?? "", describe: m.all(".responsibility .describe").length };
 
+  const SHIPPED = [{ name: "duplication", line: "Finds repeated structure.", defaults: { threshold: 0.82 } }];
+  const addSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  const ad = await mount(fakeScan(), addSensors);
+  click(ad.q(".rail-scan"));
+  await tick();
+  const listed = () => ad.all(".sensor-add").map((r) => r.querySelector(".sensor-name").textContent + " | " + r.querySelector(".sensor-add-line").textContent);
+  const removes = () => ad.all(".sensor-row .sensor-remove").map((b) => b.getAttribute("aria-label"));
+  const names = () => ad.rows().map((r) => r.name);
+  facts.addRow = { listed: listed(), removes: removes(), title: ad.text(".sensor-add-title") };
+  click(ad.q(".sensor-add-button"));
+  await tick(); await tick();
+  facts.added = { edits: [...addSensors.edits], config: addSensors.inputs.config, names: names(), listed: listed(), removes: removes() };
+  click(ad.q('.sensor-row[data-sensor="duplication"] .sensor-remove'));
+  await tick(); await tick();
+  facts.removed = { edits: [...addSensors.edits], names: names(), listed: listed(), removes: removes() };
+  addSensors.failEdit = true;
+  click(ad.q(".sensor-add-button"));
+  await tick(); await tick();
+  facts.addFailed = { message: ad.text(".sensor-add-message"), names: names() };
+
+  const busyGate = gate();
+  const busySensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  const busy = await mount(fakeScan({ steps: [current, busyGate.promise] }), busySensors);
+  click(busy.q(".rail-scan"));
+  await tick();
+  click(busy.q(".scan-run"));
+  await tick();
+  facts.addBusy = { add: busy.q(".sensor-add-button")?.disabled ?? null };
+
+  const downSensors = fakeSensors({}, { config: CONFIG }, {}, { status: "unavailable", reason: "recognizer is not installed" });
+  const down = await mount(fakeScan(), downSensors);
+  click(down.q(".rail-scan"));
+  await tick();
+  facts.addDown = { text: down.text(".sensor-add-unavailable"), buttons: down.all(".sensor-add-button").length };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -335,5 +370,49 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   it("offers Describe for a module whose line is missing", () => {
     expect(f.missing.text).toContain("No responsibility line yet");
     expect(f.missing.describe).toBe(1);
+  });
+
+  it("lists an unregistered shipped sensor under Add a sensor with its line, and Remove only on a registered shipped one", () => {
+    expect(f.addRow.title).toBe("Add a sensor");
+    expect(f.addRow.listed).toEqual([
+      "duplication | Finds repeated structure.",
+    ]);
+    expect(f.addRow.removes).toEqual([]);
+  });
+
+  it("writes the entry on Add, shows the registered row with Remove, and returns it to the list on Remove", () => {
+    expect(f.added.edits).toEqual([{ name: "duplication", add: true }]);
+    expect(f.added.config).toContain("duplication: {}");
+    expect(f.added.names).toEqual([
+      "structure",
+      "duplication",
+      "alpha",
+      "beta",
+    ]);
+    expect(f.added.listed).toEqual([]);
+    expect(f.added.removes).toEqual(["Remove duplication"]);
+    expect(f.removed.edits).toEqual([
+      { name: "duplication", add: true },
+      { name: "duplication", add: false },
+    ]);
+    expect(f.removed.names).toEqual(["structure", "alpha", "beta"]);
+    expect(f.removed.listed).toEqual([
+      "duplication | Finds repeated structure.",
+    ]);
+    expect(f.removed.removes).toEqual([]);
+  });
+
+  it("shows the message when the edit fails and leaves the rows as they were", () => {
+    expect(f.addFailed.message).toContain("config.yaml is read-only");
+    expect(f.addFailed.names).toEqual(["structure", "alpha", "beta"]);
+  });
+
+  it("disables Add while a scan runs", () => {
+    expect(f.addBusy.add).toBe(true);
+  });
+
+  it("says why the list is unavailable and offers no Add", () => {
+    expect(f.addDown.text).toContain("recognizer is not installed");
+    expect(f.addDown.buttons).toBe(0);
   });
 });

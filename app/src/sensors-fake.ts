@@ -3,7 +3,35 @@ import type {
   OverlayFiles,
   SensorInputs,
   SensorsPort,
+  ShippedSensor,
+  ShippedSensors,
 } from "./sensor-run";
+
+export function withSensorEntry(
+  config: string | null,
+  name: string,
+  add: boolean,
+): string | null {
+  const lines = (config ?? "").split("\n").filter((line) => line !== "");
+  const entry = `  ${name}: {}`;
+
+  if (add) {
+    const at = lines.indexOf("sensors:");
+
+    return at === -1
+      ? [...lines, "sensors:", entry, ""].join("\n")
+      : [...lines.slice(0, at + 1), entry, ...lines.slice(at + 1), ""].join(
+          "\n",
+        );
+  }
+
+  const kept = lines.filter((line) => line !== entry);
+  const empty = !kept.some((line, at) => at > 0 && line.startsWith("  "));
+
+  return (empty ? kept.filter((line) => line !== "sensors:") : kept)
+    .concat("")
+    .join("\n");
+}
 
 export type FakeSensors = SensorsPort & {
   files: Map<string, string>;
@@ -14,13 +42,17 @@ export type FakeSensors = SensorsPort & {
   removed: string[];
   written: (string | null)[];
   failWrite: boolean;
-  edit(inputs: Partial<SensorInputs>): void;
+  failEdit: boolean;
+  list: ShippedSensors;
+  edits: { name: string; add: boolean }[];
+  editInputs(inputs: Partial<SensorInputs>): void;
 };
 
 export function fakeSensors(
   files: Record<string, string> = {},
   inputs: Partial<SensorInputs> = {},
   overlays: Record<string, string> = {},
+  shipped: ShippedSensors | ShippedSensor[] = [],
 ): FakeSensors {
   const listeners = new Set<() => void>();
   const fake: FakeSensors = {
@@ -38,6 +70,39 @@ export function fakeSensors(
     removed: [],
     written: [],
     failWrite: false,
+    failEdit: false,
+    list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
+    edits: [],
+    async shipped() {
+      return fake.list;
+    },
+    async edit(name, add) {
+      fake.edits.push({ name, add });
+
+      if (fake.failEdit) {
+        throw new Error("config.yaml is read-only");
+      }
+
+      if (
+        fake.list.status !== "ok" ||
+        !fake.list.sensors.some((one) => one.name === name)
+      ) {
+        throw new Error(`${name} is not a shipped sensor`);
+      }
+
+      fake.inputs = {
+        ...fake.inputs,
+        config: withSensorEntry(fake.inputs.config, name, add),
+      };
+
+      if (!add) {
+        fake.files.delete(name);
+      }
+
+      for (const run of listeners) {
+        run();
+      }
+    },
     async writeStructure(document) {
       if (fake.failWrite) {
         throw new Error("disk full");
@@ -78,7 +143,7 @@ export function fakeSensors(
 
       return () => listeners.delete(run);
     },
-    edit(next) {
+    editInputs(next) {
       fake.inputs = { ...fake.inputs, ...next };
 
       for (const run of listeners) {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shipped-sensors"
+description = "Enables the shipped_sensors command without any pre-configured scope."
+commands.allow = ["shipped_sensors"]
+
+[[permission]]
+identifier = "deny-shipped-sensors"
+description = "Denies the shipped_sensors command without any pre-configured scope."
+commands.deny = ["shipped_sensors"]

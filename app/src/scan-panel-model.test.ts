@@ -14,7 +14,7 @@ import {
   scanPanel,
   sessionStatuses,
 } from "./scan-panel-model";
-import type { SensorStatus } from "./sensor-run";
+import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 const CONFIG = `describer:
   command: [recognizer-describe-claude]
@@ -58,6 +58,8 @@ function input(overrides: Partial<PanelInput> = {}): PanelInput {
     run: NO_RUN,
     scanning: false,
     now: NOW,
+    shipped: null,
+    editMessage: null,
     ...overrides,
   };
 }
@@ -411,5 +413,69 @@ describe("sessionStatuses", () => {
     expect(sessionStatuses([], run)).toEqual([
       { name: "beta", status: "failed", reason: "boom" },
     ]);
+  });
+});
+
+const shipped = (...names: string[]): ShippedSensors => ({
+  status: "ok",
+  sensors: names.map((name) => ({
+    name,
+    line: `${name} judges something`,
+    defaults: {},
+  })),
+});
+
+describe("the Add a sensor block", () => {
+  it("lists a shipped sensor that is not registered, with its line", () => {
+    const model = scanPanel(input({ shipped: shipped("duplication") }));
+
+    expect(model.sensors.add).toEqual({
+      status: "list",
+      items: [{ name: "duplication", line: "duplication judges something" }],
+    });
+  });
+
+  it("is hidden while the list is unread and when every shipped sensor is registered", () => {
+    expect(scanPanel(input()).sensors.add).toEqual({ status: "hidden" });
+    expect(
+      scanPanel(input({ shipped: shipped("alpha", "beta") })).sensors.add,
+    ).toEqual({ status: "hidden" });
+  });
+
+  it("carries the reason when the list is unavailable", () => {
+    expect(
+      scanPanel(
+        input({ shipped: { status: "unavailable", reason: "not installed" } }),
+      ).sensors.add,
+    ).toEqual({ status: "unavailable", reason: "not installed" });
+  });
+
+  it("lists only the unregistered one and marks the registered shipped one removable", () => {
+    const model = scanPanel(
+      input({ shipped: shipped("alpha", "duplication") }),
+    );
+    const [, alpha, beta] = model.sensors.rows;
+
+    expect(model.sensors.add).toEqual({
+      status: "list",
+      items: [{ name: "duplication", line: "duplication judges something" }],
+    });
+    expect(alpha.removable).toBe(true);
+    expect(beta.removable).toBe(false);
+  });
+
+  it("never marks structure or a registered third-party sensor removable", () => {
+    const rows = scanPanel(input({ shipped: shipped("duplication") })).sensors
+      .rows;
+
+    expect(rows.map((row) => row.removable)).toEqual([false, false, false]);
+  });
+
+  it("is not editable while a scan runs and carries the edit message", () => {
+    expect(scanPanel(input()).sensors.editable).toBe(true);
+    expect(scanPanel(input({ scanning: true })).sensors.editable).toBe(false);
+    expect(scanPanel(input({ editMessage: "read-only" })).sensors.message).toBe(
+      "read-only",
+    );
   });
 });

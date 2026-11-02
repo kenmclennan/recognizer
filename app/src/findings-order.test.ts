@@ -72,6 +72,7 @@ function sensorRow(
     tone: "muted",
     extra: null,
     reason: null,
+    removable: false,
   };
 }
 
