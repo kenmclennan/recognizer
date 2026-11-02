@@ -1,0 +1,37 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-02T09:00:00.000Z",
+  "finished": null,
+  "by": "ken",
+  "arguments": [
+    "/work/shop",
+    "--describe",
+    "--sense",
+    "all"
+  ],
+  "outcome": "running",
+  "exit": 0,
+  "phases": [
+    {
+      "phase": "extract",
+      "entries": [
+        {
+          "name": "python",
+          "command": [
+            "recognizer-scan-python",
+            "/work/shop"
+          ],
+          "status": 0,
+          "outcome": "ok",
+          "duration_ms": 2400,
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "phase": "describe",
+      "entries": []
+    }
+  ]
+}

@@ -20,6 +20,13 @@ function scan(options: FakeOptions, ...args: string[]) {
   return { code, fake, out: fake.out(), err: fake.err() };
 }
 
+function lines(out: string): Record<string, unknown>[] {
+  return out
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line));
+}
+
 function both(extra: Record<string, string> = {}): Record<string, string> {
   return { [`${ROOT}/a.py`]: "", [`${ROOT}/b.ts`]: "", ...extra };
 }
@@ -276,27 +283,25 @@ describe("recognizer scan: outcomes", () => {
       { files: both(), scanners: { [PYTHON]: okPython } },
       "--json",
     );
-    const document = JSON.parse(out);
+    const events = lines(out);
 
     expect(code).toBe(1);
-    expect(document.languages).toHaveLength(2);
-    expect(document.languages[0]).toEqual({
-      language: "python",
-      status: "written",
-      modules: 2,
-      edges: 1,
-      file: PY_CACHE,
-    });
-    expect(document.languages[1]).toMatchObject({
-      language: "typescript",
-      status: "failed",
-      reason: "not-installed",
-    });
-    expect(Object.keys(document.languages[1]).sort()).toEqual([
-      "language",
-      "message",
-      "reason",
-      "status",
+    expect(events.filter((one) => one.event === "entry")).toEqual([
+      {
+        event: "entry",
+        phase: "extract",
+        name: "python",
+        outcome: "ok",
+        modules: 2,
+        edges: 1,
+      },
+      {
+        event: "entry",
+        phase: "extract",
+        name: "typescript",
+        outcome: "failed",
+        reason: expect.stringContaining("not-installed"),
+      },
     ]);
     expect(fake.files.has(PY_CACHE)).toBe(true);
     expect(fake.files.has(TS_CACHE)).toBe(false);
@@ -339,7 +344,7 @@ describe("recognizer scan: stale files", () => {
     );
 
     expect(code).toBe(0);
-    expect(JSON.parse(out).removed).toEqual([TS_CACHE]);
+    expect(lines(out).at(-1)?.removed).toEqual([TS_CACHE]);
     expect(err).toBe(
       "typescript: removed stale .recognizer/cache/scan.typescript.json\n",
     );
@@ -382,41 +387,62 @@ describe("recognizer scan: summary", () => {
 
     expect(code).toBe(0);
     expect(out).toBe(
-      "python: 2 modules, 1 edges -> .recognizer/cache/scan.python.json\ntypescript: 3 modules, 2 edges -> .recognizer/cache/scan.typescript.json\n",
+      "extract\npython: 2 modules, 1 edges -> .recognizer/cache/scan.python.json\ntypescript: 3 modules, 2 edges -> .recognizer/cache/scan.typescript.json\n",
     );
     expect(err).toBe("");
   });
 
-  it("prints the exact --json document", () => {
+  it("prints one line per event, ending in the summary", () => {
     const { out } = scan(options, "--json");
 
-    expect(JSON.parse(out)).toEqual({
-      repository: ROOT,
-      commit: "abc123",
-      languages: [
-        {
-          language: "python",
-          status: "written",
-          modules: 2,
-          edges: 1,
-          file: PY_CACHE,
-        },
-        {
-          language: "typescript",
-          status: "written",
-          modules: 3,
-          edges: 2,
-          file: TS_CACHE,
-        },
-      ],
-      removed: [],
-    });
+    expect(lines(out)).toEqual([
+      {
+        event: "phase",
+        phase: "extract",
+        state: "run",
+        commit: "abc123",
+        reason: "no-scan:python",
+      },
+      {
+        event: "entry",
+        phase: "extract",
+        name: "python",
+        outcome: "ok",
+        modules: 2,
+        edges: 1,
+      },
+      {
+        event: "entry",
+        phase: "extract",
+        name: "typescript",
+        outcome: "ok",
+        modules: 3,
+        edges: 2,
+      },
+      {
+        event: "summary",
+        repository: ROOT,
+        commit: "abc123",
+        modified: false,
+        exit: 0,
+        phases: [
+          {
+            phase: "extract",
+            entries: [
+              { name: "python", outcome: "ok", modules: 2, edges: 1 },
+              { name: "typescript", outcome: "ok", modules: 3, edges: 2 },
+            ],
+          },
+        ],
+        removed: [],
+      },
+    ]);
   });
 
   it("reports commit null outside git", () => {
     const { out } = scan({ ...options, commit: undefined }, "--json");
 
-    expect(JSON.parse(out).commit).toBeNull();
+    expect(lines(out).at(-1)?.commit).toBeNull();
   });
 
   it("leaves stderr lines unchanged under --json", () => {
@@ -453,7 +479,408 @@ describe("recognizer scan: usage", () => {
     run([], fake.io);
 
     expect(fake.err()).toContain(
-      "usage: recognizer <check|scan|open|uses|used-by|callers|path|find|show|modules|views|windows|window|describe|measure|sense|log|agents|help> ...",
+      "usage: recognizer <check|scan|open|uses|used-by|callers|path|find|show|modules|views|windows|window|describe|measure|log|agents|help> ...",
     );
+  });
+});
+
+describe("recognizer scan: phases", () => {
+  const COMMIT = "abc123";
+  const CONFIG = `${ROOT}/.recognizer/config.yaml`;
+  const STRUCTURE = `${ROOT}/.recognizer/cache/findings/structure.json`;
+  const LOG = `${ROOT}/.recognizer/cache/log`;
+  const SENSORS =
+    'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';
+  const DESCRIBER =
+    'describer:\n  command: [describer, "{module}"]\n  version: "v1"\n';
+
+  function current(changes: Record<string, unknown> = {}): string {
+    return scanJson(2, 1, {
+      commit: COMMIT,
+      modified: false,
+      files: [
+        { path: "m0.py", hash: "0".repeat(64) },
+        { path: "m1.py", hash: "1".repeat(64) },
+      ],
+      ...changes,
+    });
+  }
+
+  function findings(name: string) {
+    return (args: string[], files: Map<string, string>) => {
+      files.set(
+        args[args.length - 1] as string,
+        JSON.stringify({
+          findings_version: 1,
+          sensor: { name, version: "1" },
+          commit: COMMIT,
+          modified: false,
+          settings: {},
+          findings: [],
+        }),
+      );
+
+      return undefined;
+    };
+  }
+
+  function setup(
+    changes: FakeOptions = {},
+    files: Record<string, string> = {},
+  ): FakeOptions {
+    return {
+      commit: COMMIT,
+      files: {
+        [`${ROOT}/a.py`]: "",
+        [`${ROOT}/m0.py`]: "one",
+        [`${ROOT}/m1.py`]: "two",
+        [PY_CACHE]: current(),
+        ...files,
+      },
+      scanners: { [PYTHON]: { output: current() } },
+      programs: {
+        describer: () => ({ stdout: "a line\n" }),
+        "first-sensor": findings("first"),
+        "second-sensor": findings("second"),
+      },
+      ...changes,
+    };
+  }
+
+  function records(fake: ReturnType<typeof fakeIo>) {
+    return [...fake.files.keys()]
+      .filter((key) => key.startsWith(`${LOG}/`))
+      .map((key) => JSON.parse(fake.files.get(key) as string));
+  }
+
+  function extractCalls(fake: ReturnType<typeof fakeIo>) {
+    return fake.calls
+      .filter((call) => call.command === PYTHON)
+      .map((call) => call.args);
+  }
+
+  it("skips extraction on current scans, probing only the scanner version", () => {
+    const { out, fake, code } = scan(setup());
+
+    expect(code).toBe(0);
+    expect(out).toBe(`extract\nscans current at ${COMMIT}\n`);
+    expect(extractCalls(fake)).toEqual([["--version"]]);
+    expect(fake.tempDirs()).toEqual([]);
+  });
+
+  it("runs the structure sensor on current scans and writes its findings", () => {
+    const { fake } = scan(setup());
+
+    expect(fake.files.has(STRUCTURE)).toBe(true);
+    expect(records(fake)[0].phases).toEqual([
+      { phase: "extract", entries: [] },
+    ]);
+  });
+
+  it("writes the structure findings after extracting too", () => {
+    const { fake } = scan(
+      setup({}, { [PY_CACHE]: current({ commit: "old" }) }),
+    );
+
+    expect(fake.files.has(STRUCTURE)).toBe(true);
+  });
+
+  it("removes the structure findings when the sensor is off", () => {
+    const { fake } = scan(
+      setup(
+        {},
+        {
+          [CONFIG]: "sensors:\n  structure: off\n",
+          [STRUCTURE]: "stale",
+        },
+      ),
+    );
+
+    expect(fake.files.has(STRUCTURE)).toBe(false);
+    expect(fake.removed).toContain(STRUCTURE);
+  });
+
+  it.each<[string, FakeOptions, Record<string, string>, string, string[]]>([
+    ["no cached scan", setup(), { [PY_CACHE]: "" }, "no-scan:python", []],
+    [
+      "a moved commit",
+      setup(),
+      { [PY_CACHE]: current({ commit: "old" }) },
+      "commit-changed",
+      [],
+    ],
+    [
+      "a scan taken dirty",
+      setup(),
+      { [PY_CACHE]: current({ modified: true }) },
+      "dirty",
+      [],
+    ],
+    ["a dirty tree", { ...setup(), status: " M a.py\n" }, {}, "dirty", []],
+    [
+      "a different scanner version",
+      {
+        ...setup(),
+        scanners: { [PYTHON]: { output: current(), version: "9.9.9" } },
+      },
+      {},
+      "scanner-version:python",
+      ["--version"],
+    ],
+  ])("extracts for %s", (_, options, files, reason, probes) => {
+    const merged = {
+      ...options,
+      files: { ...options.files, ...files },
+    };
+
+    if (files[PY_CACHE] === "") {
+      delete merged.files[PY_CACHE];
+    }
+
+    const { out, fake } = scan(merged, "--json");
+    const first = lines(out)[0];
+
+    expect(first).toMatchObject({ state: "run", reason });
+    expect(
+      extractCalls(fake).filter((args) => args[0] === "--version"),
+    ).toEqual(probes.length === 0 ? [] : [probes]);
+    expect(extractCalls(fake).some((args) => args.includes("--output"))).toBe(
+      true,
+    );
+  });
+
+  it("extracts with --extract on a current tree", () => {
+    const { out, fake } = scan(setup(), "--extract", "--json");
+
+    expect(lines(out)[0]).toMatchObject({ state: "run", reason: "forced" });
+    expect(extractCalls(fake)).toHaveLength(1);
+    expect(extractCalls(fake)[0]).toContain("--output");
+  });
+
+  it("runs extract, describe and sense in that order and records them", () => {
+    const { out, fake, code } = scan(
+      setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
+      "--describe",
+      "--sense",
+      "all",
+    );
+
+    expect(code).toBe(0);
+    expect(out).toBe(
+      `extract\nscans current at ${COMMIT}\ndescribe\ndescribed m0.py\ndescribed m1.py\ndescribed 2, failed 0, already current 0\nsense\nran first\nran second\n`,
+    );
+
+    const [record] = records(fake);
+
+    expect(record.kind).toBe("scan");
+    expect(record.outcome).toBe("ok");
+    expect(record.phases.map((one: { phase: string }) => one.phase)).toEqual([
+      "extract",
+      "describe",
+      "sense",
+    ]);
+    expect(
+      record.phases[1].entries.map((one: { name: string }) => one.name),
+    ).toEqual(["m0.py", "m1.py"]);
+    expect(records(fake)).toHaveLength(1);
+  });
+
+  it("leaves absent phases out of the output and the record", () => {
+    const { fake, out } = scan(
+      setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
+    );
+
+    expect(out).not.toContain("describe");
+    expect(out).not.toContain("sense");
+    expect(records(fake)[0].phases).toHaveLength(1);
+  });
+
+  it("describes everything with --describe=all and only stale lines without", () => {
+    const files = { [CONFIG]: DESCRIBER };
+    const first = scan(setup({}, files), "--describe");
+
+    expect(first.out).toContain("described 2, failed 0, already current 0");
+
+    const again = fakeIo(setup({}, files));
+
+    run(["scan", ROOT, "--describe"], again.io);
+    run(["scan", ROOT, "--describe"], again.io);
+
+    expect(again.out()).toContain("described 0, failed 0, already current 2");
+
+    run(["scan", ROOT, "--describe=all"], again.io);
+
+    expect(again.out()).toContain("described 2, failed 0, already current 0");
+  });
+
+  it("fails the run after the remaining entries when a describer entry fails", () => {
+    const calls: string[] = [];
+    const { code, fake, err } = scan(
+      setup(
+        {
+          programs: {
+            describer: (args) => {
+              calls.push(args[0] as string);
+
+              return args[0] === "m0.py"
+                ? { status: 1, stderr: "nope" }
+                : { stdout: "ok\n" };
+            },
+          },
+        },
+        { [CONFIG]: DESCRIBER },
+      ),
+      "--describe",
+    );
+
+    expect(code).toBe(1);
+    expect(calls).toEqual(["m0.py", "m1.py"]);
+    expect(err).toContain("failed m0.py: nope");
+    expect(records(fake)[0].outcome).toBe("failed");
+  });
+
+  it("fails the run after the remaining entries when a sensor entry fails", () => {
+    const { code, fake, out } = scan(
+      setup(
+        {
+          programs: {
+            "first-sensor": () => ({ status: 3, stderr: "bad" }),
+            "second-sensor": findings("second"),
+          },
+        },
+        { [CONFIG]: SENSORS },
+      ),
+      "--sense",
+      "all",
+    );
+
+    expect(code).toBe(1);
+    expect(out).toContain("failed first\nran second\n");
+    expect(
+      fake.files.has(`${ROOT}/.recognizer/cache/findings/second.json`),
+    ).toBe(true);
+  });
+
+  it("still runs the sense phase when extraction failed", () => {
+    const { code, out } = scan(
+      {
+        ...setup(
+          {},
+          { [CONFIG]: SENSORS, [PY_CACHE]: current({ commit: "old" }) },
+        ),
+        scanners: {},
+      },
+      "--sense",
+      "first",
+    );
+
+    expect(code).toBe(1);
+    expect(out).toContain("sense\nran first\n");
+  });
+
+  it("selects the named sensors in config order", () => {
+    const { out } = scan(
+      setup({}, { [CONFIG]: SENSORS }),
+      "--sense",
+      "second,first",
+    );
+
+    expect(out.indexOf("ran first")).toBeLessThan(out.indexOf("ran second"));
+  });
+
+  it("is exit 2 before anything runs for an unknown sensor, naming the registered ones", () => {
+    const { code, err, fake } = scan(
+      setup({}, { [CONFIG]: SENSORS }),
+      "--sense",
+      "first,nope,second",
+    );
+
+    expect(code).toBe(2);
+    expect(err).toContain("no such sensor: nope");
+    expect(err).toContain("registered sensors: first, second");
+    expect(fake.calls).toEqual([]);
+    expect(records(fake)).toEqual([]);
+  });
+
+  it.each([
+    ["--sense with no sensors registered", ["--sense", "all"], ""],
+    ["--describe with no describer registered", ["--describe"], ""],
+  ])("is exit 2 for %s", (_, args, config) => {
+    const { code, fake } = scan(setup({}, { [CONFIG]: config }), ...args);
+
+    expect(code).toBe(2);
+    expect(extractCalls(fake)).toEqual([]);
+    expect(records(fake)).toEqual([]);
+  });
+
+  it("is exit 2 for --sense with no commit", () => {
+    const { code, err } = scan(
+      { ...setup({}, { [CONFIG]: SENSORS }), commit: undefined },
+      "--sense",
+      "all",
+    );
+
+    expect(code).toBe(2);
+    expect(err).toContain("not a git repository, or no commit");
+  });
+
+  it("streams phase, entry and summary lines under --json", () => {
+    const { out } = scan(
+      setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
+      "--describe",
+      "--sense",
+      "first",
+      "--json",
+    );
+    const events = lines(out);
+
+    expect(events.map((one) => [one.event, one.phase ?? null])).toEqual([
+      ["phase", "extract"],
+      ["phase", "describe"],
+      ["entry", "describe"],
+      ["entry", "describe"],
+      ["phase", "sense"],
+      ["entry", "sense"],
+      ["summary", null],
+    ]);
+    expect(events[0]).toEqual({
+      event: "phase",
+      phase: "extract",
+      state: "current",
+      commit: COMMIT,
+    });
+    expect(events[1]).toEqual({ event: "phase", phase: "describe", total: 2 });
+    expect(events[5]).toEqual({
+      event: "entry",
+      phase: "sense",
+      name: "first",
+      outcome: "ok",
+    });
+    expect(events.at(-1)).toMatchObject({
+      exit: 0,
+      commit: COMMIT,
+      modified: false,
+    });
+  });
+
+  it("writes the record when it opens, after every entry and when it finishes", () => {
+    const fake = fakeIo(setup({}, { [CONFIG]: SENSORS }));
+    const snapshots: string[] = [];
+    const watching = {
+      ...fake.io,
+      rename: (from: string, to: string) => {
+        fake.io.rename(from, to);
+
+        if (to.startsWith(`${LOG}/`)) {
+          snapshots.push(fake.files.get(to) as string);
+        }
+      },
+    };
+
+    run(["scan", ROOT, "--sense", "all"], watching);
+
+    const outcomes = snapshots.map((text) => JSON.parse(text).outcome);
+
+    expect(outcomes).toEqual(["running", "running", "running", "ok"]);
   });
 });

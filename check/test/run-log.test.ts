@@ -226,7 +226,68 @@ describe("listRuns", () => {
   });
 });
 
+describe("a phased scan record", () => {
+  function phased(): RunRecord {
+    return {
+      ...record(),
+      outcome: "failed",
+      exit: 1,
+      entries: undefined,
+      phases: [
+        { phase: "extract", entries: [entry()] },
+        {
+          phase: "sense",
+          entries: [
+            entry({ name: "gaps", outcome: "failed", status: 1, reason: "x" }),
+            entry({ name: "other" }),
+          ],
+        },
+      ],
+    };
+  }
+
+  it("sums entries and failures across phases in the summary", () => {
+    const fake = fakeIo();
+    const written = JSON.parse(JSON.stringify(phased()));
+
+    writeRunLog(fake.io, ROOT, written);
+
+    expect(listRuns(fake.io, ROOT).runs[0]).toMatchObject({
+      kind: "scan",
+      entries: 3,
+      failed: 1,
+    });
+    expect(latestRun(fake.io, ROOT, "scan")?.phases).toHaveLength(2);
+  });
+
+  it("validates, and so does a legacy flat scan and a legacy sense record", () => {
+    expect(() =>
+      validateRunRecord(JSON.parse(JSON.stringify(phased()))),
+    ).not.toThrow();
+    expect(() => validateRunRecord(record())).not.toThrow();
+    expect(() => validateRunRecord(record(undefined, "sense"))).not.toThrow();
+  });
+
+  it("refuses phases on a describe record and an empty finished phase list", () => {
+    const describing = JSON.parse(JSON.stringify(phased()));
+
+    describing.kind = "describe";
+
+    expect(() => validateRunRecord(describing)).toThrow();
+
+    const empty = JSON.parse(JSON.stringify(phased()));
+
+    empty.phases = [];
+
+    expect(() => validateRunRecord(empty)).toThrow();
+  });
+});
+
 describe("log schema examples", () => {
+  it("holds the expected count of valid examples", () => {
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(7);
+  });
+
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {
     const value = JSON.parse(
       readFileSync(join(EXAMPLES, "valid", file), "utf8"),

@@ -3,8 +3,10 @@ import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import {
+  entriesOf,
   latestRun,
   listRuns,
+  type RunEntry,
   type RunKind,
   type RunRecord,
   type RunSummary,
@@ -13,7 +15,7 @@ import {
 } from "./run-log.js";
 
 const USAGE =
-  "recognizer log [<id>] [--last] [--kind scan|sense|describe|measure] [--repository <dir>] [--json]";
+  "recognizer log [<id>] [--last] [--kind scan|describe|measure] [--repository <dir>] [--json]";
 
 const KINDS = ["scan", "sense", "describe", "measure"];
 
@@ -21,6 +23,30 @@ function listLine(run: RunSummary): string {
   const outcome = run.outcome === "running" ? "stopped" : run.outcome;
 
   return `${run.id}  ${run.kind}  ${run.started}  ${outcome}  ${run.entries - run.failed} ok, ${run.failed} failed`;
+}
+
+function entryLines(entry: RunEntry): string[] {
+  const lines = [
+    "",
+    `${entry.name}  ${entry.outcome}  exit ${entry.status ?? "none"}  ${entry.duration_ms}ms`,
+    `  command: ${entry.command.join(" ")}`,
+  ];
+
+  if (entry.reason !== undefined) {
+    lines.push(`  reason: ${entry.reason}`);
+  }
+
+  if (entry.stderr !== "") {
+    if (entry.stderr_truncated === true) {
+      lines.push(`  (stderr cut to the last ${STDERR_LIMIT} characters)`);
+    }
+
+    for (const line of entry.stderr.split("\n")) {
+      lines.push(`    ${line}`.trimEnd());
+    }
+  }
+
+  return lines;
 }
 
 function fullText(run: { id: string } & RunRecord): string {
@@ -35,25 +61,17 @@ function fullText(run: { id: string } & RunRecord): string {
     stopped ? "outcome: stopped" : `outcome: ${run.outcome} (exit ${run.exit})`,
   ];
 
-  for (const entry of run.entries) {
-    lines.push(
-      "",
-      `${entry.name}  ${entry.outcome}  exit ${entry.status ?? "none"}  ${entry.duration_ms}ms`,
-      `  command: ${entry.command.join(" ")}`,
-    );
+  if (run.phases !== undefined) {
+    for (const phase of run.phases) {
+      lines.push("", phase.phase);
 
-    if (entry.reason !== undefined) {
-      lines.push(`  reason: ${entry.reason}`);
+      for (const entry of phase.entries) {
+        lines.push(...entryLines(entry));
+      }
     }
-
-    if (entry.stderr !== "") {
-      if (entry.stderr_truncated === true) {
-        lines.push(`  (stderr cut to the last ${STDERR_LIMIT} characters)`);
-      }
-
-      for (const line of entry.stderr.split("\n")) {
-        lines.push(`    ${line}`.trimEnd());
-      }
+  } else {
+    for (const entry of entriesOf(run)) {
+      lines.push(...entryLines(entry));
     }
   }
 

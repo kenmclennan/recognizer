@@ -1,0 +1,83 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-02T09:00:00.000Z",
+  "finished": "2026-11-02T09:00:09.500Z",
+  "by": "ken",
+  "arguments": [
+    "/work/shop",
+    "--describe",
+    "--sense",
+    "all"
+  ],
+  "outcome": "ok",
+  "exit": 0,
+  "phases": [
+    {
+      "phase": "extract",
+      "entries": [
+        {
+          "name": "python",
+          "command": [
+            "recognizer-scan-python",
+            "/work/shop",
+            "--output",
+            "/tmp/recognizer-scan-x/scan.python.json"
+          ],
+          "status": 0,
+          "outcome": "ok",
+          "duration_ms": 2400,
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "phase": "describe",
+      "entries": [
+        {
+          "name": "orders",
+          "command": [
+            "node",
+            "describe.mjs",
+            "/work/shop",
+            "orders",
+            "/tmp/request-0.json"
+          ],
+          "status": 0,
+          "outcome": "ok",
+          "duration_ms": 2400,
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "phase": "sense",
+      "entries": [
+        {
+          "name": "coverage-gaps",
+          "command": [
+            "node",
+            "gaps.mjs",
+            "/work/shop"
+          ],
+          "status": 0,
+          "outcome": "ok",
+          "duration_ms": 2400,
+          "stderr": ""
+        }
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "name": "python",
+      "command": [
+        "x"
+      ],
+      "status": 0,
+      "outcome": "ok",
+      "duration_ms": 2400,
+      "stderr": ""
+    }
+  ]
+}

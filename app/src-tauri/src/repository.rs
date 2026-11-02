@@ -8,7 +8,8 @@ use crate::fs_safe::checked_relative;
 
 const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
 const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
-const SENSE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" sense --json --repository "$1" -- "${@:2}""#;
+const SENSE_SCRIPT: &str =
+    r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1" --sense "$2" --json"#;
 const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" --version"#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
@@ -85,10 +86,62 @@ pub enum SenseReport {
 }
 
 #[derive(Deserialize)]
+struct ScanEvent {
+    event: String,
+    phase: Option<String>,
+    name: Option<String>,
+    outcome: Option<String>,
+    reason: Option<String>,
+    commit: Option<String>,
+    modified: Option<bool>,
+}
+
 struct SenseOutput {
     commit: String,
     modified: bool,
     sensors: Vec<SensedSensor>,
+}
+
+fn parse_sense_output(stdout: &str) -> Result<SenseOutput, String> {
+    let mut sensors = Vec::new();
+    let mut summary = None;
+
+    for line in stdout.lines().filter(|line| !line.trim().is_empty()) {
+        let event: ScanEvent = serde_json::from_str(line).map_err(|error| error.to_string())?;
+
+        match event.event.as_str() {
+            "entry" if event.phase.as_deref() == Some("sense") => {
+                let name = event.name.ok_or("a sense entry has no name")?;
+                let status = match event.outcome.as_deref() {
+                    Some("ok") => "ran",
+                    Some("failed") => "failed",
+                    _ => return Err(format!("sense entry {name} has no outcome")),
+                };
+
+                sensors.push(SensedSensor {
+                    name,
+                    status: status.to_string(),
+                    reason: event.reason,
+                });
+            }
+            "summary" => {
+                summary = Some((
+                    event.commit.ok_or("the summary has no commit")?,
+                    event.modified.ok_or("the summary has no modified")?,
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    match summary {
+        Some((commit, modified)) => Ok(SenseOutput {
+            commit,
+            modified,
+            sensors,
+        }),
+        None => Err("no summary line".to_string()),
+    }
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -135,16 +188,16 @@ pub fn sense_invocation(
     folder: &Path,
     names: &[String],
 ) -> (String, Vec<String>) {
-    let mut args = vec![
-        "-ilc".to_string(),
-        SENSE_SCRIPT.to_string(),
-        command.to_string(),
-        folder.display().to_string(),
-    ];
-
-    args.extend(names.iter().cloned());
-
-    (shell.to_string(), args)
+    (
+        shell.to_string(),
+        vec![
+            "-ilc".to_string(),
+            SENSE_SCRIPT.to_string(),
+            command.to_string(),
+            folder.display().to_string(),
+            names.join(","),
+        ],
+    )
 }
 
 pub fn version_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
@@ -275,7 +328,7 @@ pub fn sense_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> Sens
         Some(127) => SenseReport::CommandMissing {
             hint: missing_hint(),
         },
-        Some(code @ (0 | 1)) => match serde_json::from_str::<SenseOutput>(stdout) {
+        Some(code @ (0 | 1)) => match parse_sense_output(stdout) {
             Ok(output) => SenseReport::Sensed {
                 commit: output.commit,
                 modified: output.modified,
@@ -283,7 +336,7 @@ pub fn sense_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> Sens
             },
             Err(error) => SenseReport::Failed {
                 exit_code: code,
-                stderr: format!("unreadable output from recognizer sense: {error}"),
+                stderr: format!("unreadable output from recognizer scan: {error}"),
             },
         },
         other => SenseReport::Failed {
@@ -393,14 +446,27 @@ mod tests {
         assert_eq!(shell, "/bin/zsh");
         assert_eq!(args[0], "-ilc");
         assert_eq!(args[1], SENSE_SCRIPT);
-        assert!(SENSE_SCRIPT.contains(r#"-- "${@:2}""#));
+        assert!(SENSE_SCRIPT.contains(r#"scan "$1" --sense "$2" --json"#));
         assert!(!args[1].contains("a$(x)"));
-        assert_eq!(args[2..], ["recognizer", "/tmp/repo", "a$(x)", "-x"]);
+        assert_eq!(args[2..], ["recognizer", "/tmp/repo", "a$(x),-x"]);
     }
 
     #[test]
     fn sense_output_with_one_ran_and_one_failed_is_one_report() {
-        let stdout = r#"{"commit":"abc","modified":false,"sensors":[{"name":"a","status":"ran"},{"name":"b","status":"failed","reason":"broke"}]}"#;
+        let stdout = concat!(
+            r#"{"event":"phase","phase":"extract","state":"current","commit":"abc"}"#,
+            "\n",
+            r#"{"event":"entry","phase":"extract","name":"python","outcome":"ok","modules":2,"edges":1}"#,
+            "\n",
+            r#"{"event":"phase","phase":"sense","total":2}"#,
+            "\n",
+            r#"{"event":"entry","phase":"sense","name":"a","outcome":"ok"}"#,
+            "\n",
+            r#"{"event":"entry","phase":"sense","name":"b","outcome":"failed","reason":"broke"}"#,
+            "\n",
+            r#"{"event":"summary","repository":"/r","commit":"abc","modified":false,"exit":1,"phases":[],"removed":[]}"#,
+            "\n",
+        );
 
         for code in [0, 1] {
             assert_eq!(
@@ -447,6 +513,19 @@ mod tests {
                 stderr: "killed".to_string()
             }
         );
+    }
+
+    #[test]
+    fn a_stream_with_no_summary_is_failed() {
+        let stdout = r#"{"event":"entry","phase":"sense","name":"a","outcome":"ok"}"#;
+
+        match sense_report_for(Some(0), stdout, String::new()) {
+            SenseReport::Failed { exit_code, stderr } => {
+                assert_eq!(exit_code, 0);
+                assert!(stderr.contains("unreadable output from recognizer scan"));
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

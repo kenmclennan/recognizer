@@ -5,12 +5,14 @@ export interface ScannerBehaviour {
   status?: number;
   stderr?: string;
   output?: string;
+  version?: string;
 }
 
 export interface ProgramEffect {
   started?: boolean;
   status?: number;
   stderr?: string;
+  stdout?: string;
 }
 
 export type Program = (
@@ -216,7 +218,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         return {
           started: effect.started ?? true,
           status: effect.started === false ? null : (effect.status ?? 0),
-          stdout: "",
+          stdout: effect.stdout ?? "",
           stderr: effect.stderr ?? "",
         };
       }
@@ -254,6 +256,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
 
       if (!behaviour) {
         return { started: false, status: null, stdout: "", stderr: "" };
+      }
+
+      if (args[0] === "--version") {
+        return {
+          started: true,
+          status: 0,
+          stdout: `${behaviour.version ?? "0.0.0"}\n`,
+          stderr: "",
+        };
       }
 
       const output = args[args.indexOf("--output") + 1] as string;

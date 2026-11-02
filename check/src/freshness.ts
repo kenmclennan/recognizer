@@ -2,26 +2,17 @@ import { join, resolve } from "node:path";
 import type { Io } from "./cli.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
-import { type RecordedScan, type Scan, validateScan } from "./scan.js";
-import { cacheFile, isDirty, resolveCommit, runScan } from "./scan-command.js";
+import type { RecordedScan, Scan } from "./scan.js";
+import {
+  isDirty,
+  readCachedScan,
+  resolveCommit,
+  runScan,
+} from "./scan-command.js";
 
 export interface FreshScans {
   scans: Scan[];
   scanned: boolean;
-}
-
-function readCache(
-  io: Io,
-  root: string,
-  language: Language,
-): RecordedScan | null {
-  try {
-    return validateScan(
-      JSON.parse(io.readFile(cacheFile(root, language))),
-    ) as RecordedScan;
-  } catch {
-    return null;
-  }
 }
 
 function readAll(
@@ -29,7 +20,7 @@ function readAll(
   root: string,
   languages: Language[],
 ): RecordedScan[] | null {
-  const scans = languages.map((language) => readCache(io, root, language));
+  const scans = languages.map((language) => readCachedScan(io, root, language));
 
   return scans.every((scan) => scan !== null)
     ? (scans as RecordedScan[])
@@ -72,7 +63,10 @@ export function freshScans(io: Io, root: string): FreshScans {
     }
   }
 
-  const status = runScan([directory], { ...io, stdout: io.stderr });
+  const status = runScan([directory, "--extract"], {
+    ...io,
+    stdout: io.stderr,
+  });
 
   if (status !== 0) {
     throw new InputError([`recognizer scan failed in ${directory}`]);
