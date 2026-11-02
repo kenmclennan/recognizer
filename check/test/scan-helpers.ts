@@ -29,6 +29,7 @@ export interface FakeOptions {
   diff?: string;
   launchFails?: string;
   request?: (socket: string, text: string) => string | null;
+  now?: () => number;
 }
 
 export interface Fake {
@@ -100,6 +101,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   const temps: string[] = [];
   const requests: { socket: string; text: string }[] = [];
   let readDirs = 0;
+  let clock = Date.UTC(2026, 10, 2);
   let out = "";
   let err = "";
 
@@ -284,6 +286,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         : { connected: true, response, message: "" };
     },
     env: (name) => options.env?.[name],
+    now: () => {
+      if (options.now) {
+        return options.now();
+      }
+
+      clock += 1;
+
+      return clock;
+    },
   };
 
   return {

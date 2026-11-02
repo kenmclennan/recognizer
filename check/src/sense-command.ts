@@ -7,11 +7,19 @@ import { InputError } from "./errors.js";
 import { validateFindings } from "./findings-document.js";
 import { findingsFile } from "./findings-files.js";
 import { runRegistered } from "./registered-command.js";
+import {
+  buildRecord,
+  entryFrom,
+  type RunEntry,
+  recordRun,
+  requireBy,
+} from "./run-log.js";
 import { isDirty, resolveCommit } from "./scan-command.js";
 
 const OPTIONS = {
   repository: { type: "string" },
   json: { type: "boolean" },
+  by: { type: "string" },
 } as const;
 
 interface SenseStatus {
@@ -27,6 +35,9 @@ export function runSense(argv: string[], io: Io): number {
     strict: true,
     options: OPTIONS,
   });
+  requireBy(values.by);
+
+  const startedAt = io.now();
   const root = resolve(values.repository ?? ".");
   const registered = registeredSensors(readConfig(io, root));
 
@@ -58,10 +69,12 @@ export function runSense(argv: string[], io: Io): number {
       ? registered.filter((one) => positionals.includes(one.name))
       : registered;
   const sensors: SenseStatus[] = [];
+  const entries: RunEntry[] = [];
 
   for (const { name, command } of selected) {
     const output = findingsFile(root, name);
-    const reason = runRegistered(
+    const began = io.now();
+    const run = runRegistered(
       io,
       root,
       command,
@@ -71,6 +84,18 @@ export function runSense(argv: string[], io: Io): number {
       (document) => {
         validateFindings(document, { name, commit });
       },
+    );
+
+    const { reason } = run;
+
+    entries.push(
+      entryFrom(name, {
+        command: run.command,
+        status: run.status,
+        stderr: run.stderr,
+        duration_ms: io.now() - began,
+        ...(reason === null ? {} : { reason }),
+      }),
     );
 
     if (reason === null) {
@@ -95,6 +120,12 @@ export function runSense(argv: string[], io: Io): number {
   if (values.json === true) {
     io.stdout(`${JSON.stringify({ commit, modified, sensors }, null, 2)}\n`);
   }
+
+  recordRun(
+    io,
+    root,
+    buildRecord(io, "sense", startedAt, values.by, argv, entries),
+  );
 
   return sensors.some((one) => one.status === "failed") ? 1 : 0;
 }

@@ -1,0 +1,20 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-02T09:00:00.000Z",
+  "finished": "2026-11-02T09:00:02.500Z",
+  "by": "ken",
+  "arguments": ["/work/shop"],
+  "outcome": "ok",
+  "exit": 0,
+  "entries": [
+    {
+      "name": "python",
+      "command": ["recognizer-scan-python", "--repository", "/work/shop", "--output", "/tmp/recognizer-scan-x/scan.python.json"],
+      "status": 0,
+      "outcome": "ok",
+      "duration_ms": 2400,
+      "stderr": ""
+    }
+  ]
+}

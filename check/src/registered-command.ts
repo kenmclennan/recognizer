@@ -1,5 +1,12 @@
 import type { Io } from "./cli.js";
 
+export interface RegisteredRun {
+  reason: string | null;
+  command: string[];
+  status: number | null;
+  stderr: string;
+}
+
 export function fill(
   item: string,
   root: string,
@@ -23,27 +30,32 @@ export function runRegistered(
   output: string,
   what: string,
   validate: (document: unknown) => void,
-): string | null {
+): RegisteredRun {
   io.remove(output);
 
-  const [program, ...rest] = command.map((item) =>
-    fill(item, root, commit, output),
-  ) as [string, ...string[]];
+  const filled = command.map((item) => fill(item, root, commit, output));
+  const [program, ...rest] = filled as [string, ...string[]];
   const result = io.run(program, rest, { cwd: root });
   const stderr = result.stderr.trim();
+  const ran = (reason: string | null): RegisteredRun => ({
+    reason,
+    command: filled,
+    status: result.started ? result.status : null,
+    stderr: result.stderr,
+  });
 
   if (!result.started) {
-    return stderr !== "" ? stderr : `command did not start: ${program}`;
+    return ran(stderr !== "" ? stderr : `command did not start: ${program}`);
   }
 
   if (result.status !== 0) {
-    return stderr !== ""
-      ? stderr
-      : `command exited with status ${result.status}`;
+    return ran(
+      stderr !== "" ? stderr : `command exited with status ${result.status}`,
+    );
   }
 
   if (!io.exists(output)) {
-    return `command wrote no ${what} file`;
+    return ran(`command wrote no ${what} file`);
   }
 
   let document: unknown;
@@ -53,7 +65,7 @@ export function runRegistered(
   } catch (error) {
     io.remove(output);
 
-    return `${what} is not valid JSON: ${(error as Error).message}`;
+    return ran(`${what} is not valid JSON: ${(error as Error).message}`);
   }
 
   try {
@@ -61,8 +73,8 @@ export function runRegistered(
   } catch (error) {
     io.remove(output);
 
-    return (error as Error).message;
+    return ran((error as Error).message);
   }
 
-  return null;
+  return ran(null);
 }

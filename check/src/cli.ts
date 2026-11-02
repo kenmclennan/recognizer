@@ -58,6 +58,7 @@ export interface Io {
   launch(command: string, args: string[]): LaunchResult;
   request(socket: string, text: string): RequestResult;
   env(name: string): string | undefined;
+  now(): number;
   stdout(text: string): void;
   stderr(text: string): void;
 }
@@ -159,6 +160,7 @@ export function nodeIo(): Io {
       };
     },
     env: (name) => process.env[name],
+    now: () => Date.now(),
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
   };

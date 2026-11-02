@@ -1,0 +1,20 @@
+{
+  "log_version": 1,
+  "kind": "sense",
+  "started": "2026-11-02T10:00:00.000Z",
+  "finished": "2026-11-02T10:00:01.000Z",
+  "by": "Claude",
+  "arguments": ["--json", "--by", "Claude"],
+  "outcome": "ok",
+  "exit": 0,
+  "entries": [
+    {
+      "name": "coverage-gaps",
+      "command": ["node", "sensors/coverage.mjs", "/work/shop", "abc123", "/work/shop/.recognizer/cache/findings/coverage-gaps.json"],
+      "status": 0,
+      "outcome": "ok",
+      "duration_ms": 900,
+      "stderr": "warning: slow\n"
+    }
+  ]
+}

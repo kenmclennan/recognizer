@@ -18,6 +18,13 @@ import {
   type ResponsibilityEntry,
   validateResponsibilities,
 } from "./responsibilities.js";
+import {
+  buildRecord,
+  entryFrom,
+  type RunEntry,
+  recordRun,
+  requireBy,
+} from "./run-log.js";
 import type { Scan, ScanMember } from "./scan.js";
 
 export interface DescribeRequest {
@@ -35,6 +42,7 @@ const OPTIONS = {
   check: { type: "boolean" },
   repository: { type: "string" },
   json: { type: "boolean" },
+  by: { type: "string" },
 } as const;
 
 export const DESCRIBE_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
@@ -205,6 +213,8 @@ interface Loaded {
   names: string[];
   all: boolean;
   check: boolean;
+  by: string | undefined;
+  argv: string[];
 }
 
 function load(argv: string[], io: Io): Loaded {
@@ -222,6 +232,8 @@ function load(argv: string[], io: Io): Loaded {
   if (values.all === true && values.check === true) {
     throw new InputError([`--check cannot be combined with --all`]);
   }
+
+  requireBy(values.by);
 
   const root = resolve(values.repository ?? ".");
   const { scans } = freshScans(io, root);
@@ -251,6 +263,8 @@ function load(argv: string[], io: Io): Loaded {
     names: positionals,
     all: values.all === true,
     check: values.check === true,
+    by: values.by,
+    argv,
   };
 }
 
@@ -338,6 +352,7 @@ function buildRequest(loaded: Loaded, subject: Subject): DescribeRequest {
 }
 
 function runDescribe(loaded: Loaded, io: Io): number {
+  const startedAt = io.now();
   const { root, describer, names } = loaded;
   const entries = { ...loaded.entries };
   const subjects = loaded.modules
@@ -361,6 +376,7 @@ function runDescribe(loaded: Loaded, io: Io): number {
   });
   const described: string[] = [];
   const failed: { module: string; reason: string }[] = [];
+  const recorded: RunEntry[] = [];
   let temp: string | null = null;
 
   const fail = (module: string, reason: string) => {
@@ -372,6 +388,15 @@ function runDescribe(loaded: Loaded, io: Io): number {
     for (const [index, subject] of selected.entries()) {
       if (subject.hash === null) {
         fail(subject.id, "source could not be read");
+        recorded.push(
+          entryFrom(subject.id, {
+            command: [],
+            status: null,
+            stderr: "",
+            duration_ms: 0,
+            reason: "source could not be read",
+          }),
+        );
 
         continue;
       }
@@ -385,11 +410,23 @@ function runDescribe(loaded: Loaded, io: Io): number {
         `${JSON.stringify(buildRequest(loaded, subject), null, 2)}\n`,
       );
 
-      const [program, ...rest] = describer.command.map((item) =>
+      const filled = describer.command.map((item) =>
         fill(item, root, subject.id, requestFile),
-      ) as [string, ...string[]];
+      );
+      const [program, ...rest] = filled as [string, ...string[]];
+      const began = io.now();
       const result = io.run(program, rest);
       const reason = failureReason(result, program);
+
+      recorded.push(
+        entryFrom(subject.id, {
+          command: filled,
+          status: result.started ? result.status : null,
+          stderr: result.stderr,
+          duration_ms: io.now() - began,
+          ...(reason === null ? {} : { reason }),
+        }),
+      );
 
       if (reason !== null) {
         fail(subject.id, reason);
@@ -425,6 +462,14 @@ function runDescribe(loaded: Loaded, io: Io): number {
 
   if (pruned.length > 0) {
     writeResponsibilities(io, root, entries);
+  }
+
+  if (recorded.length > 0) {
+    recordRun(
+      io,
+      root,
+      buildRecord(io, "describe", startedAt, loaded.by, loaded.argv, recorded),
+    );
   }
 
   const selectedIds = new Set(selected.map((subject) => subject.id));

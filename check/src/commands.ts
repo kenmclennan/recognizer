@@ -3,6 +3,7 @@ import { executeCheck } from "./check-command.js";
 import type { Io } from "./cli.js";
 import { runDescribeCommand } from "./describe-command.js";
 import { runHelp } from "./help.js";
+import { runLog } from "./log-command.js";
 import { runMeasure } from "./measure-command.js";
 import { runOpen } from "./open-command.js";
 import {
@@ -137,7 +138,7 @@ export const COMMANDS: Command[] = [
   {
     name: "scan",
     summary: "scan a repository's languages into its cache",
-    usage: "recognizer scan [REPOSITORY] [--json]",
+    usage: "recognizer scan [REPOSITORY] [--by <name>] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -145,7 +146,14 @@ export const COMMANDS: Command[] = [
           "the repository to scan; defaults to the current directory",
       },
     ],
-    options: [{ flag: "--json", description: "print one JSON document" }],
+    options: [
+      { flag: "--json", description: "print one JSON document" },
+      {
+        flag: "--by <name>",
+        description:
+          "who asked, recorded in the run log; defaults to the login user",
+      },
+    ],
     output: {
       text: "one line per written language on stdout; failures on stderr",
       json: "one document on stdout with repository, commit, languages and removed",
@@ -745,6 +753,11 @@ export const COMMANDS: Command[] = [
         description:
           "the repository to describe; defaults to the current directory",
       },
+      {
+        flag: "--by <name>",
+        description:
+          "who asked, recorded in the run log; defaults to the login user",
+      },
       { flag: "--json", description: "print JSON instead of text" },
     ],
     output: {
@@ -857,6 +870,11 @@ export const COMMANDS: Command[] = [
         description:
           "the repository to run the sensors on; defaults to the current directory",
       },
+      {
+        flag: "--by <name>",
+        description:
+          "who asked, recorded in the run log; defaults to the login user",
+      },
       { flag: "--json", description: "print JSON instead of text" },
     ],
     output: {
@@ -887,6 +905,60 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runSense,
+  },
+  {
+    name: "log",
+    summary:
+      "read the record each scan, sense and describe run leaves, to see what ran and why it failed",
+    usage:
+      "recognizer log [<id>] [--last] [--kind scan|sense|describe] [--repository <dir>] [--json]",
+    arguments: [
+      {
+        name: "<id>",
+        description:
+          "a run's id, as the list prints it; without an id, log lists the recent runs",
+      },
+    ],
+    options: [
+      { flag: "--last", description: "print the newest run in full" },
+      {
+        flag: "--kind scan|sense|describe",
+        description: "only runs of that kind, for the list and --last",
+      },
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository whose runs to read; defaults to the current directory",
+      },
+      { flag: "--json", description: "print JSON instead of text" },
+    ],
+    output: {
+      text: "the list is one line per run, newest first: `<id>  <kind>  <started>  <outcome>  <n> ok, <n> failed`, or `no runs recorded`; a single run prints a header (id, kind, started, finished, by, arguments, outcome), then per scanner, sensor or module its outcome, exit status, duration, command, reason and stderr; a record that cannot be read is named on stderr as `skipped <id>: <message>`",
+      json: "the list is { runs: [{ id, kind, started, finished, by, outcome, entries, failed }] }; a single run is { id, log_version, kind, started, finished, by, arguments, outcome, exit, entries: [{ name, command, status, outcome, duration_ms, reason?, stderr, stderr_truncated? }] }",
+    },
+    exitCodes: [
+      {
+        code: 0,
+        meaning:
+          "the request was answered, whatever the run's own outcome was; an empty list is answered",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad input - an unknown flag or kind, --last with an id or two ids, --kind with an id, an unknown or invalid id, --last with no runs recorded, or an unreadable repository",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer log --last --kind describe",
+        note: "what the latest describe run ran and why it failed",
+      },
+      {
+        command: "recognizer log --json",
+        note: "list the recent runs as JSON, then pass an id to read one",
+      },
+    ],
+    run: runLog,
   },
   {
     name: "agents",

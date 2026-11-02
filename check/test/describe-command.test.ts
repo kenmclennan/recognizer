@@ -736,3 +736,88 @@ describe("describe help", () => {
     expect(out.out()).toContain("describe");
   });
 });
+
+describe("describe leaves a run record", () => {
+  function recorded(root: string) {
+    const directory = join(root, ".recognizer/cache/log");
+
+    return existsSync(directory)
+      ? readdirSync(directory).map((name) =>
+          JSON.parse(readFileSync(join(directory, name), "utf8")),
+        )
+      : [];
+  }
+
+  it("records a failing describer's stderr, command and who asked", () => {
+    const root = ready("v1", "--fail", ORDER);
+    const result = exec(root, "describe", ORDER, "--by", "Claude", "--json");
+    const [saved] = recorded(root);
+
+    expect(result.code).toBe(1);
+    expect(recorded(root)).toHaveLength(1);
+    expect(saved).toMatchObject({
+      kind: "describe",
+      by: "Claude",
+      outcome: "failed",
+      exit: 1,
+    });
+    expect(saved.entries).toHaveLength(1);
+    expect(saved.entries[0]).toMatchObject({
+      name: ORDER,
+      status: 1,
+      outcome: "failed",
+      reason: `cannot describe ${ORDER}`,
+      stderr: `cannot describe ${ORDER}`,
+    });
+    expect(saved.entries[0].command.slice(0, 2)).toEqual(["node", FAKE]);
+  });
+
+  it("records an unreadable program as a failed entry with no status", () => {
+    const root = repository();
+
+    writeFileSync(
+      join(root, ".recognizer/config.yaml"),
+      'describer:\n  command: ["/no/such/describer", "{request}"]\n  version: "v1"\n',
+    );
+    exec(root, "describe", ORDER);
+
+    expect(recorded(root)[0].entries[0]).toMatchObject({
+      status: null,
+      outcome: "failed",
+    });
+  });
+
+  it("records an unreadable module with an empty command", () => {
+    const root = ready();
+
+    rmSync(join(root, ORDER));
+    commitAll(root);
+    exec(root, "describe");
+
+    const saved = recorded(root).find((one) => one.kind === "describe");
+
+    expect(
+      saved.entries.find((one: { name: string }) => one.name === ORDER),
+    ).toMatchObject({
+      name: ORDER,
+      command: [],
+      status: null,
+      duration_ms: 0,
+      reason: "source could not be read",
+    });
+  });
+
+  it("writes nothing for --check, for nothing to do, and for a blank --by", () => {
+    const root = ready();
+
+    exec(root, "describe", "--check");
+    expect(recorded(root)).toEqual([]);
+
+    exec(root, "describe");
+    exec(root, "describe");
+    expect(recorded(root)).toHaveLength(1);
+
+    expect(exec(ready(), "describe", "--by", "  ").code).toBe(2);
+    expect(recorded(root)).toHaveLength(1);
+  });
+});

@@ -5,6 +5,7 @@ const RULES = [
   "  - The command line is your only interface.",
   "  - Never read, write or list anything under .recognizer/, including scans, views, config and the cache.",
   "  - Never write a view file by hand; build views with recognizer views.",
+  "  - When a scan, sense or describe fails, run recognizer log --last (add --kind describe, sense or scan) for what ran and why it failed; never read the files under .recognizer/ by hand.",
   "  - recognizer check --scan replays a scan produced elsewhere and is for CI and fixtures only; an agent never uses it.",
   "  - Every command reads the cached scan or scans first, so there is no separate scan step.",
   "  - The question and view commands take --repository <dir> to name the repository; without it they use the current directory.",
