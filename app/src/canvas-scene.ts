@@ -1,5 +1,4 @@
 import {
-  boxFigures,
   boxSubline,
   type CanvasGraph,
   type EdgeStyle,
@@ -37,7 +36,6 @@ export type SceneBox = {
   kind: "module" | "folder";
   rect: Rect;
   label: string;
-  figures: string;
   subline: string;
   disc: Disc;
 };
@@ -147,7 +145,6 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
         kind: box.kind,
         rect,
         label: box.label,
-        figures: boxFigures(box),
         subline: boxSubline(box),
         disc: box.disc,
       });

@@ -106,8 +106,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Finding | A violation or warning a sensor wrote for the current scan: a stable id, a kind, a principle, a one-line summary, its evidence by scan id and, where one is named, a fix pattern. Attached to the modules in its evidence; a health disc shows the summary. |
 | Needs attention | The tree filter that keeps only modules with an amber or red disc. |
 | Focus | Narrowing the canvas to one folder's files. |
-| Legend | The panel on the canvas, opened from its bottom-right controls, that names every edge style, every disc and what a frame's and a box's figures count, and holds the inferred-edges switch. |
-| Box | What the canvas draws for a module, or for a folded folder: its disc, its name and its figures. |
+| Legend | The panel on the canvas, opened from its bottom-right controls, that names every edge style, every disc and what a frame's figure counts, and holds the inferred-edges switch. |
+| Box | What the canvas draws for a module, or for a folded folder: its disc, its name and, when it has a note, its note mark. |
 | Private-name import | An import of a name the target module does not export. Drawn dashed. |
 | Evidence | Why an edge exists: the quoted source line, the names, the route, or what an inferred edge was inferred from. |
 | View state | Everything that decides what the user sees, as one record. Each change makes a new one; it lasts only as long as the window. |

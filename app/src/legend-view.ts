@@ -97,11 +97,6 @@ export function buildLegendView(
       "",
       "Frame: open files of the files it holds, subfolders included.",
     ),
-    el(
-      "p",
-      "",
-      "Box: dependencies (up) and dependents (down) that are not on the canvas.",
-    ),
     el("p", "", "Folded box: open files of its files."),
     label,
   );

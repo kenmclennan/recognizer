@@ -51,7 +51,6 @@ function sceneOf(...ids: string[]): Scene {
       kind: "module",
       rect: { x: index * 300, y: 20, width: 200, height: 50 },
       label: id,
-      figures: "",
       subline: "",
       disc: "green",
     }),

@@ -1,7 +1,6 @@
 import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
-  boxFigures,
   boxSubline,
   buildCanvasGraph,
   edgesOf,
@@ -117,7 +116,6 @@ describe("folding", () => {
       held: 2,
       parent: "lightcycle",
     });
-    expect(boxFigures(folded as NonNullable<typeof folded>)).toBe("");
     expect(boxSubline(folded as NonNullable<typeof folded>)).toBe(
       "2 open, folded",
     );
@@ -164,7 +162,7 @@ describe("folding", () => {
   });
 });
 
-describe("figures", () => {
+describe("counts", () => {
   const scan: Scan = {
     modules: ["a.py", "b.py", "c.py", "d.py"].map((id) => ({
       id,
@@ -177,14 +175,6 @@ describe("figures", () => {
     ],
     foreign: [],
   };
-
-  it("shows how many neighbours are off the canvas, split by direction", () => {
-    const graph = graphOf(scan, { opened: ["a.py", "b.py"] });
-    const a = graph.boxes.find((box) => box.id === "a.py");
-
-    expect(a).toMatchObject({ missingUses: 1, missingUsedBy: 1 });
-    expect(boxFigures(a as NonNullable<typeof a>)).toBe("+1↓ +1↑");
-  });
 
   it("gives the full counts for the bar and not the missing ones", () => {
     const graph = graphOf(scan, { opened: ["a.py"] });
