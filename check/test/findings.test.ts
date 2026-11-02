@@ -27,7 +27,17 @@ function findingsByModule(
   const { document } = structureSensor(
     scans,
     policy,
-    { hub_threshold: hub, warnings: { cycle: true, hub: true } },
+    {
+      hub_threshold: hub,
+      entry_points: [],
+      warnings: {
+        cycle: true,
+        hub: true,
+        folder_cycle: true,
+        orphan: true,
+        policy_drift: true,
+      },
+    },
     { commit: "abc", modified: false },
   );
 

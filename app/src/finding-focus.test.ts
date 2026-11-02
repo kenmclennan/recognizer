@@ -5,6 +5,7 @@ import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { Scene, SceneBox } from "./canvas-scene";
 import { ghostPlacement, keepsFocus, rowDetail } from "./finding-focus";
+import { findingRows } from "./findings-order";
 
 const violation: FindingRecord = {
   id: "v",
@@ -118,6 +119,40 @@ describe("rowDetail", () => {
     expect(detail.fix).toBe("no fix pattern recorded");
     expect(detail.lines).toEqual(["fan_in: 12"]);
     expect(detail.open).toEqual({ module: "hub.py", line: null });
+  });
+});
+
+describe("a finding with no module", () => {
+  const drift: FindingRecord = {
+    id: "policy_drift:entry:gone/**",
+    kind: "policy_drift",
+    severity: "warning",
+    principle: "policy-describes-the-code",
+    summary: "policy entry gone/** matches no scanned module",
+    fix_pattern: "update-policy",
+    evidence: { modules: [] },
+  };
+
+  it("offers nothing to open and still names the fix", () => {
+    const detail = rowDetail(drift);
+
+    expect(detail.open).toBeNull();
+    expect(detail.fix).toBe("update-policy");
+  });
+
+  it("makes a row with an empty module", () => {
+    const [row] = findingRows([
+      {
+        findings_version: 1,
+        sensor: { name: "structure", version: "2" },
+        commit: "c",
+        modified: false,
+        settings: {},
+        findings: [drift],
+      },
+    ]);
+
+    expect(row?.module).toBe("");
   });
 });
 

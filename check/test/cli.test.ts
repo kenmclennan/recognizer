@@ -332,7 +332,7 @@ describe("warnings fixture", () => {
     expect(code).toBe(0);
     expect(actual).toEqual(read("expected-policy.json"));
     expect(actual.violations).toHaveLength(1);
-    expect(err).toContain("warnings: 2");
+    expect(err).toContain("warnings: 6");
   });
 
   it("matches expected-no-policy.json without a policy and exits 0", () => {
@@ -346,13 +346,20 @@ describe("warnings fixture", () => {
 
     expect(code).toBe(0);
     expect(JSON.parse(out)).toEqual(read("expected-no-policy.json"));
-    expect(err).toContain("warnings: 2");
+    expect(err).toContain("warnings: 6");
   });
 
   it("has the hand-derived metrics and warning order", () => {
     const { metrics, warnings } = read("expected-no-policy.json");
 
-    expect(warnings.map((w: { id: string }) => w.id)).toEqual(["cycle", "hub"]);
+    expect(warnings.map((w: { id: string }) => w.id)).toEqual([
+      "cycle",
+      "hub",
+      "orphan",
+      "orphan",
+      "orphan",
+      "orphan",
+    ]);
     expect(
       metrics.map((m: Record<string, unknown>) => [
         m.id,
@@ -390,7 +397,7 @@ describe("warnings fixture", () => {
     );
 
     expect(child.status).toBe(0);
-    expect(JSON.parse(child.stdout).warnings).toHaveLength(2);
+    expect(JSON.parse(child.stdout).warnings).toHaveLength(6);
   });
 
   it("exits 1 for a new violation even with warnings, and 0 when baselined", () => {
@@ -401,7 +408,7 @@ describe("warnings fixture", () => {
     const fresh = execute(checkArgs(dir, "--hub-threshold", "3"));
 
     expect(fresh.code).toBe(1);
-    expect(JSON.parse(fresh.out).warnings).toHaveLength(2);
+    expect(JSON.parse(fresh.out).warnings).toHaveLength(6);
   });
 
   it.each(["design-example.json", "all-kinds.json"])(

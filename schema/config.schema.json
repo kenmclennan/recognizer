@@ -118,6 +118,35 @@
                     },
                     "hub": {
                       "type": "boolean"
+                    },
+                    "folder_cycle": {
+                      "type": "boolean"
+                    },
+                    "policy_drift": {
+                      "type": "boolean"
+                    },
+                    "orphan": {
+                      "oneOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "entry_points"
+                          ],
+                          "properties": {
+                            "entry_points": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          }
+                        }
+                      ]
                     }
                   }
                 }

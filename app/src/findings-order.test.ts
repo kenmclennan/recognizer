@@ -84,7 +84,7 @@ describe("findingRows", () => {
     });
   });
 
-  it("reads the committed structure example as three rows, rule violation first", () => {
+  it("reads the committed structure example as seven rows, rule violation first", () => {
     const text = readFileSync(
       fileURLToPath(
         new URL(
@@ -100,9 +100,13 @@ describe("findingRows", () => {
     expect(ordered.map((row) => row.kind)).toEqual([
       "rule-violation",
       "cycle",
+      "folder_cycle",
       "hub",
+      "orphan",
+      "policy_drift",
+      "policy_drift",
     ]);
-    expect(badge(real)).toEqual({ count: 3, tone: "red" });
+    expect(badge(real)).toEqual({ count: 7, tone: "red" });
   });
 });
 

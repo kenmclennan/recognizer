@@ -81,10 +81,17 @@ export function buildFindingRow(
     }
 
     box.append(el("div", "finding-fix", detail.fix));
+    const open = detail.open;
+
+    if (open !== null) {
+      buttons.append(
+        button("Open in editor", "finding-detail-button finding-edit", () =>
+          actions.openInEditor(open.module, open.line),
+        ),
+      );
+    }
+
     buttons.append(
-      button("Open in editor", "finding-detail-button finding-edit", () =>
-        actions.openInEditor(detail.open.module, detail.open.line),
-      ),
       button("Copy id", "finding-detail-button finding-id", () =>
         actions.copyId(row.id),
       ),

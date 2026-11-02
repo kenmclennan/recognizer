@@ -68,7 +68,14 @@ export function structureDocument(
     policy,
     {
       hub_threshold: 10,
-      warnings: { cycle: true, hub: true },
+      entry_points: [],
+      warnings: {
+        cycle: true,
+        hub: true,
+        folder_cycle: true,
+        orphan: true,
+        policy_drift: true,
+      },
     },
     { commit, modified: false },
   );

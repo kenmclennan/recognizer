@@ -49,7 +49,11 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, and its Metric declarations. |
 | Sensor | A program that reads the scans, the policy, the overlays or the repository and writes a findings file; it never runs the code it judges. Recognizer ships the structure sensor and a repository registers others. |
 | Sensor registration | An entry of the Config's `sensors` key: a sensor's name and the command to run with `{repository}`, `{commit}` and `{output}` filled in, or for the structure sensor its settings, or `off`. |
-| Structure sensor | Recognizer's own sensor: the policy's violations, the warnings derived from the graph alone (cycles, hubs) and the graph metrics. On unless the Config turns it off. |
+| Folder cycle | Two folders whose modules import each other in both directions; one `folder_cycle` warning per folder pair. |
+| Orphan | A module nothing imports that is not an entry point; reported as an `orphan` warning. |
+| Entry point | A module that need not be imported: one a policy entry names literally, a test file by convention, an index-like file (`index`, `__init__`, `main`, `mod`, `lib`) or one matched by a glob in `warnings.orphan.entry_points`. |
+| Policy drift | A policy entry that matches no scanned module, or a scanned folder no policy component covers; reported as a `policy_drift` warning. |
+| Structure sensor | Recognizer's own sensor: the policy's violations, the warnings derived from the graph alone (cycles, hubs, folder cycles, orphans, policy drift) and the graph metrics. On unless the Config turns it off. |
 | Shipped sensor | A sensor recognizer writes and releases with the toolchain in `sensors/`, run by `recognizer-sensors <name>`, registered by command or in the short form `<name>: {}`: duplication, CRAP, mutation (a measurer with its sensor) and unused exports. |
 | Mutation measurer | The shipped overlay command that mutates covered functions, runs the repository's tests against each mutant and writes killed, survived and uncovered counts; the mutation sensor judges its overlay. |
 | Producer | The tool that wrote an Overlay file, named with its version in the file's `producer`. |

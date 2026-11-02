@@ -13,7 +13,7 @@ Without `--policy` no violations are computed and no baseline is read or written
 
 ## Sensors and findings
 
-A sensor judges and writes findings; `recognizer scan --sense` runs the registered ones, and `check` runs the structure sensor and reports from the current findings files of the structure sensor and the registered sensors. Each sensor writes one document at `.recognizer/cache/findings/<name>.json`, described by [`schema/findings.schema.json`](../schema/findings.schema.json) with examples in `schema/findings-examples/`: `findings_version` 1, `sensor` (`name`, `version`), `commit`, `modified`, `settings` and `findings`. A finding has a stable `id`, `kind`, `severity` (`violation` or `warning`), `principle`, `summary`, `evidence` (`modules`, and where they apply `edges` with `lines` and `rules`, `members` and `measures`) and an optional `fix_pattern`. Ids are unique within a document. The structure sensor's ids are `rule-violation:<edge kind>:<from>-><to>`, `cycle:<sorted modules joined by ",">` and `hub:<module>`.
+A sensor judges and writes findings; `recognizer scan --sense` runs the registered ones, and `check` runs the structure sensor and reports from the current findings files of the structure sensor and the registered sensors. Each sensor writes one document at `.recognizer/cache/findings/<name>.json`, described by [`schema/findings.schema.json`](../schema/findings.schema.json) with examples in `schema/findings-examples/`: `findings_version` 1, `sensor` (`name`, `version`), `commit`, `modified`, `settings` and `findings`. A finding has a stable `id`, `kind`, `severity` (`violation` or `warning`), `principle`, `summary`, `evidence` (`modules`, and where they apply `edges` with `lines` and `rules`, `members` and `measures`) and an optional `fix_pattern`. Ids are unique within a document. The structure sensor's ids are `rule-violation:<edge kind>:<from>-><to>`, `cycle:<sorted modules joined by ",">`, `hub:<module>`, `folder_cycle:<folder A>,<folder B>`, `orphan:<module>`, `policy_drift:entry:<glob>` and `policy_drift:folder:<folder>`.
 
 The structure sensor (`check/src/structure-sensor.ts`) is built in. It is configured in `.recognizer/config.yaml` under `sensors.structure`, and any other entry under `sensors` registers a command:
 
@@ -21,12 +21,18 @@ The structure sensor (`check/src/structure-sensor.ts`) is built in. It is config
 sensors:
   structure:
     hub_threshold: 10
-    warnings: { cycle: true, hub: true }
+    warnings:
+      cycle: true
+      hub: true
+      folder_cycle: true
+      policy_drift: true
+      orphan:
+        entry_points: ["packages/*/src/main.ts", "scripts/**"]
   unused-exports:
     command: [node, "{repository}/scripts/unused.mjs", "{commit}", "{output}"]
 ```
 
-`sensors.structure: off` removes it and its file. `structure` takes only settings or `off`; every other name takes only a `command` with the `{repository}`, `{commit}` and `{output}` placeholders an overlay uses. `--hub-threshold` overrides `hub_threshold` for one run. The settings in effect are recorded in the file and printed as `sensor structure: hub_threshold 10, cycle on, hub on`; `--json` gains a `sensors` list of `{ name, status, reason?, settings? }` with the status `ran`, `off`, `failed`, `stale` or `missing`; a registered sensor is `ran` only when its file is current, `stale` when its file is from another commit and `missing` when it has none.
+`sensors.structure: off` removes it and its file. `structure` takes only settings or `off`; every other name takes only a `command` with the `{repository}`, `{commit}` and `{output}` placeholders an overlay uses. `--hub-threshold` overrides `hub_threshold` for one run; `entry_points` has no command-line flag. `warnings.orphan` is a boolean or `{ entry_points: [<glob>, ...] }`, which means on with those entry points. The settings in effect are recorded in the file and printed as `sensor structure: hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on` (with `, entry_points N` appended when `warnings.orphan.entry_points` lists any); `--json` gains a `sensors` list of `{ name, status, reason?, settings? }` with the status `ran`, `off`, `failed`, `stale` or `missing`; a registered sensor is `ran` only when its file is current, `stale` when its file is from another commit and `missing` when it has none.
 
 `recognizer scan --sense all` (or `--sense <name>[,<name>...]`, run in config order) runs the registered sensors after the scan's first phase, and prints `ran <name>` or `failed <name>` per sensor under a `sense` heading. An unknown name is exit 2 before anything runs, naming the registered ones. A sensor that fails to start, exits non-zero, writes no file, writes invalid JSON or a document that breaks the schema, names another sensor or carries another commit is reported as `failed <name>: <reason>` on stderr, leaves no file and makes the run exit 1; the remaining sensors still run. [The scan phases](#recognizer-scan) describe the whole command.
 
@@ -162,13 +168,20 @@ Metrics are computed per module from the scan alone, over distinct modules after
 
 A warning is a graph heuristic reported as a candidate with evidence, never a verdict. Warnings are never baselined and never affect the exit code. Each carries `id`, `principle`, `fix_pattern`, a one-line `summary` and `evidence`, and they are sorted by `id` then by module.
 
-| id      | principle                            | fix pattern   |
-| ------- | ------------------------------------ | ------------- |
-| `cycle` | `no-cycles`                          | `break-cycle` |
-| `hub`   | `interfaces-are-narrow-and-explicit` | `split-hub`   |
+| id | principle | fix pattern |
+| --- | --- | --- |
+| `cycle` | `no-cycles` | `break-cycle` |
+| `hub` | `interfaces-are-narrow-and-explicit` | `split-hub` |
+| `folder_cycle` | `no-cycles` | `break-folder-cycle` |
+| `orphan` | `every-module-is-reachable` | `remove-or-wire-orphan` |
+| `policy_drift` | `policy-describes-the-code` | `update-policy` |
 
 - `cycle`: a strongly connected component of two or more modules; evidence is its sorted `modules` and the `edges` inside it.
 - `hub`: a module whose `fan_in` and `fan_out` are both at or above `--hub-threshold` (default `10`); evidence is `module`, `fan_in`, `fan_out` and `threshold`.
+- `folder_cycle`: two folders (a module id up to its last `/`, or `.`) whose modules import each other in both directions; one finding per folder pair, with the sorted `modules` on those edges and the `edges` in both directions. A ring of three folders with no two-way pair reports nothing here.
+- `orphan`: a module nothing imports that is not an entry point: named literally by a policy entry, a test file by convention (a `test`, `tests` or `__tests__` directory, `test_*.py`, `*_test.py`, `conftest.py`, `*.test.*`, `*.spec.*`, a stem ending `Test` or `Tests`), an `index`, `__init__`, `main`, `mod` or `lib` file, or matched by a glob in `warnings.orphan.entry_points`. The sensor reads no manifest; a repository lists its manifests' mains, bins and scripts there.
+- `policy_drift`: with a policy that has components, one finding per policy glob that matches no scanned module (`evidence.modules` is empty) and one per scanned folder in which no module matches any component.
+- `break-folder-cycle`, `remove-or-wire-orphan` and `update-policy`: the fix patterns for `folder_cycle`, `orphan` and `policy_drift`.
 - `break-cycle`: the fix pattern for `cycle`, naming the change that removes at least one edge of the cycle.
 - `split-hub`: the fix pattern for `hub`, naming the change that divides the module so that no part is both widely used and widely dependent.
 

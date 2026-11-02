@@ -59,7 +59,17 @@ describe("check in repository mode", () => {
       {
         name: "structure",
         status: "ran",
-        settings: { hub_threshold: 10, warnings: { cycle: true, hub: true } },
+        settings: {
+          hub_threshold: 10,
+          entry_points: [],
+          warnings: {
+            cycle: true,
+            hub: true,
+            folder_cycle: true,
+            orphan: true,
+            policy_drift: true,
+          },
+        },
       },
     ]);
 
