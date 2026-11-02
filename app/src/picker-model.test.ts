@@ -155,8 +155,8 @@ describe("grouping and sorting", () => {
 
     expect(groups.map((group) => group.key)).toEqual(["a", "b"]);
     expect(groups.map((group) => group.label)).toEqual(["a/", "b/"]);
-    expect(groups[0]?.rows.map((row) => row.label)).toEqual(["x", "y"]);
-    expect(groups[1]?.rows[0]?.label).toBe("z");
+    expect(groups[0]?.rows.map((row) => row.label)).toEqual(["x.py", "y.py"]);
+    expect(groups[1]?.rows[0]?.label).toBe("z.py");
   });
 
   it("names a nested folder by its whole path and a root module under ./", () => {
@@ -235,7 +235,7 @@ describe("grouping and sorting", () => {
 });
 
 describe("names and marks", () => {
-  it("shows sorted names, four at most then +N", () => {
+  it("keeps the names sorted", () => {
     const scan = scanOf(
       ["hub.py", "a.py"],
       [{ from: "hub.py", to: "a.py", names: ["e", "d", "c", "b", "a", "f"] }],
@@ -243,7 +243,6 @@ describe("names and marks", () => {
     const row = pickerOf(scan, usesHub).groups()[0]?.rows[0];
 
     expect(row?.names).toEqual(["a", "b", "c", "d", "e", "f"]);
-    expect(row?.namesText).toBe("a, b, c, d +2");
   });
 
   it("falls back to to_member and shows nothing for a bare module import", () => {

@@ -347,7 +347,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
 
   it("groups by folder with the full path, one row each: checkbox, name, disc", () => {
     expect(f.groupHeads).toEqual(["app/", "lib/"]);
-    expect(f.pickOrder).toEqual(["check", "name", "disc", "detail"]);
+    expect(f.pickOrder).toEqual(["check", "name", "disc"]);
   });
 
   it("clicking an unchecked name puts it on, ticks it in the tree and Dependencies, centres on its box and keeps the selection", () => {

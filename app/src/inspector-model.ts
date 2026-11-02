@@ -461,17 +461,7 @@ function pickerRows(
           folder: false,
           indent: true,
           chevron: null,
-          detail:
-            row.namesText === ""
-              ? null
-              : {
-                  text: row.namesText,
-                  tone: row.private
-                    ? "private"
-                    : row.inferred
-                      ? "inferred"
-                      : undefined,
-                },
+          detail: null,
           title: row.id,
           follow: direction,
           followed:

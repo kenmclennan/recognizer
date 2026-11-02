@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { expectedModuleIds } from "./fixtures";
-import { buildTree, filesOf } from "./tree-model";
+import { buildTree, fileLabel, filesOf } from "./tree-model";
 
 describe("buildTree", () => {
   it("holds every python fixture module as a file", () => {
@@ -46,6 +46,21 @@ describe("buildTree", () => {
     expect(root.children.map((child) => child.path)).toEqual([
       "pkg",
       "setup.py",
+    ]);
+  });
+});
+
+describe("fileLabel", () => {
+  it("keeps the file extension and drops the folders", () => {
+    expect(fileLabel("a/b/x.py")).toBe("x.py");
+    expect(fileLabel("top.ts")).toBe("top.ts");
+  });
+
+  it("is the name a tree file row shows", () => {
+    const tree = buildTree(["a/b/x.py"]);
+
+    expect(filesOf(tree).map((file) => file.name)).toEqual([
+      fileLabel("a/b/x.py"),
     ]);
   });
 });

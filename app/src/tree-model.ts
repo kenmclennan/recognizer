@@ -29,6 +29,10 @@ function sorted(folder: FolderNode): void {
   }
 }
 
+export function fileLabel(id: string): string {
+  return id.slice(id.lastIndexOf("/") + 1);
+}
+
 export function buildTree(
   ids: readonly string[],
   compaction: Compaction = compactFolders(ids),
@@ -58,7 +62,7 @@ export function buildTree(
 
     parent.children.push({
       kind: "file",
-      name: id.slice(id.lastIndexOf("/") + 1),
+      name: fileLabel(id),
       path: id,
     });
   }
