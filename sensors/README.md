@@ -67,3 +67,15 @@ Reads the `mutate` overlay and the survivors file and warns on each function wit
 | `survivors` | `.recognizer/cache/mutation/survivors.json` | relative path to the survivors file |
 
 When the overlay or survivors file is missing, from another commit than the run's, or disagrees with the overlay's `survived` counts, the sensor reports nothing, prints one line on stderr and exits `0`: survivors are unknown, not healthy.
+
+## unused-exports
+
+Reports, per module, the exports that no other module uses. It reads the cached scans only: a member with `exported: true` is unused when no edge from another module names it. A `depends` edge uses a name in its `names`; a `depends` edge with no names (a namespace, wildcard or side-effect import) uses every export of its target; an `inherits` or `implements` edge uses its `to_member`. A dotted member such as `Currency.Companion` is used when it or its leading segment (`Currency`) is. Edges to `foreign:` ids and from a module to itself are ignored.
+
+| setting | default | meaning |
+| --- | --- | --- |
+| `entry_points` | `[]` | array of non-empty globs; a module that matches is skipped, as for the orphan warning |
+
+Test files and index-like files (`index`, `__init__`, `main`, `mod`, `lib`) are always skipped, by the rules of `check/src/entry-points.ts` ported to `entry_points.py` and checked against `fixtures/sensors/entry-points.json`. The policy's literal entries are not honoured. When `sensors.unused-exports` sets no `entry_points` and `sensors.structure.warnings.orphan` has an `entry_points` array, `recognizer` passes that array when it expands the short form; this sensor never reads the config.
+
+One warning per module, id `unused-exports:<module>`, fix pattern `narrow-exports`, the names sorted in the summary and each as an evidence member with `file` and `lines` (a Kotlin member whose file cannot be resolved carries `module` and `name` only). The sensor reports candidates: an export reached by a dynamic import, reflection or a framework convention looks unused.
