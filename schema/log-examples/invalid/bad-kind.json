@@ -1,0 +1,38 @@
+{
+  "log_version": 1,
+  "kind": "measure",
+  "started": "2026-11-02T09:30:00.120Z",
+  "finished": "2026-11-02T09:30:07.480Z",
+  "by": "Claude",
+  "arguments": [
+    "--repository",
+    "/work/shop"
+  ],
+  "outcome": "failed",
+  "exit": 1,
+  "entries": [
+    {
+      "name": "shop/application/place.py",
+      "command": [
+        "recognizer-describe-claude",
+        "/tmp/recognizer-scan-x/request-0.json"
+      ],
+      "status": 0,
+      "outcome": "ok",
+      "duration_ms": 3120,
+      "stderr": ""
+    },
+    {
+      "name": "shop/domain/order.py",
+      "command": [
+        "recognizer-describe-claude",
+        "/tmp/recognizer-scan-x/request-1.json"
+      ],
+      "status": 1,
+      "outcome": "failed",
+      "duration_ms": 4240,
+      "reason": "claude: rate limit reached",
+      "stderr": "claude: rate limit reached\n"
+    }
+  ]
+}

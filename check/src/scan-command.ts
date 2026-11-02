@@ -3,6 +3,13 @@ import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
+import {
+  buildRecord,
+  entryFrom,
+  type RunEntry,
+  recordRun,
+  requireBy,
+} from "./run-log.js";
 import { SCAN_SCHEMA_VERSION, validateScan } from "./scan.js";
 import {
   buildArgs,
@@ -108,37 +115,59 @@ function checkScan(bytes: string): Outcome {
   }
 }
 
+interface Scanned {
+  outcome: Outcome;
+  command: string[];
+  status: number | null;
+  stderr: string;
+  duration_ms: number;
+}
+
 function runScanner(
   io: Io,
   language: Language,
   root: string,
   commit: string | null,
   modified: boolean | null,
-): Outcome {
+): Scanned {
   const spec = scannerFor(language);
   const resolution = resolveCommand(io, spec);
 
   if (!resolution.ok) {
-    return failure("invalid-override", resolution.message);
+    return {
+      outcome: failure("invalid-override", resolution.message),
+      command: [],
+      status: null,
+      stderr: "",
+      duration_ms: 0,
+    };
   }
 
   const directory = io.makeTempDir();
 
   try {
     const output = join(directory, `scan.${language}.json`);
-    const result = io.run(
-      resolution.command,
-      buildArgs(root, output, commit, modified),
-    );
+    const args = buildArgs(root, output, commit, modified);
+    const began = io.now();
+    const result = io.run(resolution.command, args);
+    const scanned = (outcome: Outcome): Scanned => ({
+      outcome,
+      command: [resolution.command, ...args],
+      status: result.started ? result.status : null,
+      stderr: result.stderr,
+      duration_ms: io.now() - began,
+    });
 
     if (!result.started) {
-      return failure("not-installed", notInstalledMessage(spec));
+      return scanned(failure("not-installed", notInstalledMessage(spec)));
     }
 
     if (result.status !== 0) {
-      return failure(
-        "scanner-failed",
-        `exit ${result.status}: ${result.stderr.trim()}`,
+      return scanned(
+        failure(
+          "scanner-failed",
+          `exit ${result.status}: ${result.stderr.trim()}`,
+        ),
       );
     }
 
@@ -147,10 +176,10 @@ function runScanner(
     try {
       bytes = io.readFile(output);
     } catch {
-      return failure("invalid-scan", "scanner wrote no output file");
+      return scanned(failure("invalid-scan", "scanner wrote no output file"));
     }
 
-    return checkScan(bytes);
+    return scanned(checkScan(bytes));
   } finally {
     io.removeDir(directory);
   }
@@ -168,12 +197,16 @@ export function runScan(argv: string[], io: Io): number {
     args: argv,
     allowPositionals: true,
     strict: true,
-    options: { json: { type: "boolean" } },
+    options: { json: { type: "boolean" }, by: { type: "string" } },
   });
 
   if (positionals.length > 1) {
     throw new InputError(["usage: recognizer scan [REPOSITORY] [--json]"]);
   }
+
+  requireBy(values.by);
+
+  const startedAt = io.now();
 
   const root = resolve(positionals[0] ?? ".");
 
@@ -188,6 +221,7 @@ export function runScan(argv: string[], io: Io): number {
   const results: LanguageResult[] = [];
   const stderr: string[] = [];
   const stdout: string[] = [];
+  const entries: RunEntry[] = [];
   const commit = resolveCommit(io, root);
   const modified = commit === null ? null : isDirty(io, root);
 
@@ -211,7 +245,20 @@ export function runScan(argv: string[], io: Io): number {
       continue;
     }
 
-    const outcome = runScanner(io, spec.language, root, commit, modified);
+    const scanned = runScanner(io, spec.language, root, commit, modified);
+    const { outcome } = scanned;
+
+    entries.push(
+      entryFrom(spec.language, {
+        command: scanned.command,
+        status: scanned.status,
+        stderr: scanned.stderr,
+        duration_ms: scanned.duration_ms,
+        ...(outcome.ok
+          ? {}
+          : { reason: `${outcome.reason} - ${outcome.message}` }),
+      }),
+    );
 
     if (outcome.ok) {
       io.writeFile(file, outcome.bytes);
@@ -244,6 +291,14 @@ export function runScan(argv: string[], io: Io): number {
     if (removed.length > before) {
       stderr.push(`${spec.language}: removed stale ${shown}`);
     }
+  }
+
+  if (entries.length > 0) {
+    recordRun(
+      io,
+      root,
+      buildRecord(io, "scan", startedAt, values.by, argv, entries),
+    );
   }
 
   for (const line of stderr) {

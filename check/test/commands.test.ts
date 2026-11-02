@@ -72,6 +72,7 @@ describe("command table", () => {
       "describe",
       "measure",
       "sense",
+      "log",
       "agents",
       "help",
     ]);

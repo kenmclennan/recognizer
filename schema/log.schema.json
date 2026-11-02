@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/log.schema.json",
+  "title": "Recognizer run log record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["log_version", "kind", "started", "finished", "by", "arguments", "outcome", "exit", "entries"],
+  "properties": {
+    "log_version": { "const": 1 },
+    "kind": { "enum": ["scan", "sense", "describe"] },
+    "started": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
+    "finished": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
+    "by": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "arguments": { "type": "array", "items": { "type": "string" } },
+    "outcome": { "enum": ["ok", "failed"] },
+    "exit": { "enum": [0, 1] },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command", "status", "outcome", "duration_ms", "stderr"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "command": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": ["integer", "null"] },
+          "outcome": { "enum": ["ok", "failed"] },
+          "duration_ms": { "type": "integer", "minimum": 0 },
+          "reason": { "type": "string", "pattern": "\\S" },
+          "stderr": { "type": "string", "maxLength": 8192 },
+          "stderr_truncated": { "const": true }
+        }
+      }
+    }
+  }
+}

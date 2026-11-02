@@ -25,7 +25,7 @@ function measureOne(
   command: string[],
   expected: Expected,
 ): string | null {
-  return runRegistered(
+  const run = runRegistered(
     io,
     root,
     command,
@@ -36,6 +36,8 @@ function measureOne(
       validateOverlay(document, expected);
     },
   );
+
+  return run.reason;
 }
 
 export function runMeasure(argv: string[], io: Io): number {
