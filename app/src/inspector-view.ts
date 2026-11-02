@@ -8,6 +8,7 @@ import type {
   Direction,
   InspectorContent,
   InspectorTab,
+  MetricTable,
   ResponsibilityLineRow,
   Row,
 } from "./inspector-model";
@@ -108,6 +109,48 @@ function privateMark(): HTMLElement {
   return el("span", "pmark", "private");
 }
 
+function metricTableNode(table: MetricTable): HTMLElement {
+  const named = table.rows.some((row) => row.name !== null);
+  const node = el("table", "card-metrics");
+  const head = el("tr", "metrics-head");
+
+  if (named) {
+    head.append(el("th", "metrics-name"));
+  }
+
+  for (const column of table.head) {
+    const cell = el("th", "metrics-cell", column.text);
+
+    cell.title = column.title;
+    head.append(cell);
+  }
+
+  node.append(head);
+
+  for (const row of table.rows) {
+    const line = el("tr", "metrics-row");
+
+    if (named) {
+      line.append(el("td", "metrics-name", row.name ?? ""));
+    }
+
+    for (const found of row.cells) {
+      const cell = el(
+        "td",
+        `metrics-cell${found.tone === null ? " unknown" : ` ${found.tone}`}`,
+        found.text,
+      );
+
+      cell.title = found.title;
+      line.append(cell);
+    }
+
+    node.append(line);
+  }
+
+  return node;
+}
+
 function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   const node = el(
     "div",
@@ -145,6 +188,10 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
 
   if (row.hidden !== "") {
     node.append(el("div", "card-hidden", row.hidden));
+  }
+
+  if (row.table !== null) {
+    node.append(metricTableNode(row.table));
   }
 
   hoverable(node, row.hover, actions);

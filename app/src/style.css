@@ -1151,6 +1151,49 @@ svg.i.chevron {
   letter-spacing: 0;
 }
 
+.card-metrics {
+  margin-top: 6px;
+  border-collapse: collapse;
+  font:
+    10.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.card-metrics th {
+  padding: 0 0 2px 10px;
+  color: var(--muted);
+  font-weight: normal;
+  text-align: right;
+}
+
+.card-metrics td {
+  padding: 1px 0 1px 10px;
+  text-align: right;
+}
+
+.card-metrics .metrics-name {
+  padding-left: 0;
+  text-align: left;
+}
+
+.card-metrics .metrics-cell.green {
+  color: var(--ok);
+}
+
+.card-metrics .metrics-cell.amber {
+  color: var(--warn);
+}
+
+.card-metrics .metrics-cell.red {
+  color: var(--bad);
+}
+
+.card-metrics .metrics-cell.unknown {
+  color: var(--muted);
+}
+
 .card-hidden {
   margin-top: 4px;
   color: var(--muted);

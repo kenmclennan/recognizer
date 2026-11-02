@@ -19,6 +19,7 @@ import {
   inspectorContent,
   type Row,
 } from "./inspector-model";
+import type { MetricDescriptor } from "./overlay-model";
 
 const scanOf = (
   members: ScanMember[] | undefined,
@@ -68,6 +69,7 @@ function inputsFor(
       failure: null,
     }),
     folderMetrics: () => null,
+    metrics: [],
     ...extra,
   };
 }
@@ -1507,4 +1509,110 @@ describe("signatures shared with recognizer show", () => {
       }
     });
   }
+});
+
+describe("the metric table on a card", () => {
+  const metric = (
+    label: string,
+    values: MetricDescriptor["values"],
+    extra: Partial<MetricDescriptor> = {},
+  ): MetricDescriptor => ({
+    key: `t/${label}`,
+    label,
+    granularity: "member",
+    type: "count",
+    bad: "high",
+    overlay: "t",
+    stale: false,
+    max: 12,
+    values,
+    ...extra,
+  });
+  const tableRows = (members: ScanMember[], metrics: MetricDescriptor[]) =>
+    cardsOf(rowsOf(scanOf(members), { metrics, showPrivate: true }));
+  const cls = klass();
+
+  it("lists each method by short name with a dash for an unmeasured one", () => {
+    const [card] = tableRows(
+      [cls],
+      [
+        metric("complexity", { "pkg/m.py::C.go": 12 }),
+        metric(
+          "coverage",
+          { "pkg/m.py::C.go": 0.5 },
+          { type: "ratio", bad: "low", max: 1 },
+        ),
+      ],
+    );
+
+    expect(card?.table?.head).toEqual([
+      { text: "cc", title: "complexity" },
+      { text: "cov", title: "coverage" },
+    ]);
+    expect(card?.table?.rows.map((row) => row.name)).toEqual(
+      (cls.methods ?? []).map((method) => method.name),
+    );
+    expect(card?.table?.rows[0]?.cells).toEqual([
+      { text: "12", tone: "red", title: "complexity 12" },
+      { text: "50%", tone: "amber", title: "coverage 50%" },
+    ]);
+    expect(card?.table?.rows[1]?.cells[0]).toEqual({
+      text: "-",
+      tone: null,
+      title: "complexity: not measured",
+    });
+  });
+
+  it("gives a function card one row with no name", () => {
+    const [card] = tableRows(
+      [fn("f", true)],
+      [metric("crap", { "pkg/m.py::f": 3 })],
+    );
+
+    expect(card?.table?.head).toEqual([{ text: "CRAP", title: "crap" }]);
+    expect(card?.table?.rows).toHaveLength(1);
+    expect(card?.table?.rows[0]?.name).toBeNull();
+    expect(card?.table?.rows[0]?.cells[0]?.tone).toBe("green");
+  });
+
+  it("names the mutation columns short and any other metric by its name", () => {
+    const [card] = tableRows(
+      [fn("f", true)],
+      [
+        metric(
+          "score",
+          { "pkg/m.py::f": 1 },
+          { overlay: "mutate", type: "ratio", bad: "low", max: 1 },
+        ),
+        metric("survived", { "pkg/m.py::f": 1 }, { overlay: "mutate" }),
+        metric("flaky", { "pkg/m.py::f": 1 }),
+      ],
+    );
+
+    expect(card?.table?.head.map((column) => column.text)).toEqual([
+      "mut",
+      "surv",
+      "flaky",
+    ]);
+  });
+
+  it("has no table without a member metric or on a card of another kind", () => {
+    const moduleLevel = metric(
+      "line_coverage",
+      { "pkg/m.py": 1 },
+      { granularity: "module" },
+    );
+    const constant: ScanMember = {
+      name: "K",
+      kind: "constant",
+      exported: true,
+    };
+
+    expect(tableRows([fn("f", true)], [moduleLevel])[0]?.table).toBeNull();
+    expect(tableRows([fn("f", true)], [])[0]?.table).toBeNull();
+    expect(
+      tableRows([constant], [metric("complexity", { "pkg/m.py::K": 1 })])[0]
+        ?.table ?? null,
+    ).toBeNull();
+  });
 });
