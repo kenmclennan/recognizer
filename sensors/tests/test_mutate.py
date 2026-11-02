@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.mutate import measurer
+from recognizer_sensors.mutate.runner import new_work_folder, remove_stale_work_folders
 from recognizer_sensors.settings import SettingsError
 
 SURVIVORS = ".recognizer/cache/mutation/survivors.json"
@@ -156,6 +157,78 @@ def test_the_real_tree_is_unchanged_and_no_copy_is_left(tmp_path):
     assert run_mutate(root, tmp_path / "overlay.json", mutate_settings("tests/weak.py")) == 0
     assert snapshot(root) == before
     assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
+
+
+def stale_folder(work, name, pid):
+    folder = work.parent / name
+    folder.mkdir()
+    (folder / "copy.txt").write_text("x")
+
+    if pid is not None:
+        (folder / "pid").write_text(str(pid))
+
+    return folder
+
+
+def dead_pid():
+    import subprocess
+
+    process = subprocess.Popen(["true"])
+    process.wait()
+
+    return process.pid
+
+
+def test_a_work_folder_whose_process_is_dead_is_removed(tmp_path):
+    work = new_work_folder(tmp_path)
+    stale = stale_folder(work, "dead", dead_pid())
+
+    remove_stale_work_folders(work)
+
+    assert not stale.exists()
+    assert work.exists()
+
+
+def test_a_work_folder_whose_process_is_alive_is_kept(tmp_path):
+    work = new_work_folder(tmp_path)
+    live = stale_folder(work, "live", os.getpid())
+
+    remove_stale_work_folders(work)
+
+    assert live.exists()
+
+
+def test_an_old_work_folder_without_a_pid_file_is_removed(tmp_path):
+    work = new_work_folder(tmp_path)
+    stale = stale_folder(work, "nopid", None)
+    old = time.time() - 120
+    os.utime(stale, (old, old))
+
+    remove_stale_work_folders(work)
+
+    assert not stale.exists()
+
+
+def test_a_fresh_work_folder_without_a_pid_file_is_kept(tmp_path):
+    work = new_work_folder(tmp_path)
+    fresh = stale_folder(work, "nopid", None)
+
+    remove_stale_work_folders(work)
+
+    assert fresh.exists()
+
+
+def test_a_run_removes_the_folders_a_killed_run_left(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    work = new_work_folder(root)
+    stale = stale_folder(work, "dead", dead_pid())
+    live = work.parent / "keep-parent"
+    live.mkdir()
+    (live / "pid").write_text(str(os.getpid()))
+
+    assert run_mutate(root, tmp_path / "overlay.json", mutate_settings("tests/weak.py")) == 0
+    assert not stale.exists()
+    assert live.exists()
 
 
 def test_a_function_without_crap_coverage_is_absent_everywhere(tmp_path):

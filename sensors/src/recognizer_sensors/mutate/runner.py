@@ -11,6 +11,8 @@ from pathlib import Path
 
 WORK = Path(".recognizer") / "cache" / "mutation" / "work"
 TAIL_LINES = 20
+PID_FILE = "pid"
+PID_GRACE_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -136,8 +138,47 @@ def run_mutants(
 def new_work_folder(repository: Path) -> Path:
     folder = repository / WORK / f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
     folder.mkdir(parents=True)
+    (folder / PID_FILE).write_text(str(os.getpid()))
 
     return folder
+
+
+def process_is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+    return True
+
+
+def folder_is_old(folder: Path) -> bool:
+    try:
+        return time.time() - folder.stat().st_mtime > PID_GRACE_SECONDS
+    except OSError:
+        return False
+
+
+def folder_is_stale(folder: Path) -> bool:
+    try:
+        pid = int((folder / PID_FILE).read_text().strip())
+    except (OSError, ValueError):
+        return folder_is_old(folder)
+
+    return pid <= 0 or not process_is_alive(pid)
+
+
+def remove_stale_work_folders(own: Path) -> None:
+    try:
+        siblings = list(own.parent.iterdir())
+    except OSError:
+        return
+
+    for folder in siblings:
+        if folder != own and folder.is_dir() and folder_is_stale(folder):
+            shutil.rmtree(folder, ignore_errors=True)
 
 
 def remove_work_folder(folder: Path) -> None:
