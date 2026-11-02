@@ -4,8 +4,9 @@ import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { InputError } from "./errors.js";
 import { type Finding, findingsByModuleFrom } from "./findings.js";
+import { measureFolders, metricsLine, metricsTable } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
-import { loadFindings } from "./load-findings.js";
+import { loadFindings, readPolicy } from "./load-findings.js";
 import {
   fieldTokens,
   memberHeadTokens,
@@ -25,6 +26,10 @@ import {
   validateResponsibilities,
 } from "./responsibilities.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
+import {
+  DEFAULT_DISTANCE_THRESHOLD,
+  resolveStructureSettings,
+} from "./structure-sensor.js";
 
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -325,6 +330,38 @@ function tableSignature(member: ShownMember): string {
 const SHOW_USAGE =
   "recognizer show <module> [--private] [--hub-threshold <n>] [--repository <dir>] [--json]";
 
+function showFolder(loaded: Loaded, io: Io, id: string): number {
+  const folder = id.replace(/\/+$/, "");
+  const row = measureFolders(
+    loaded.scans,
+    readPolicy(io, loaded.root),
+  ).rows.find((one) => one.id === folder);
+
+  if (row === undefined) {
+    throw new InputError([`no such module: ${id}`]);
+  }
+
+  const settings = resolveStructureSettings(readConfig(io, loaded.root));
+  const threshold =
+    settings === "off"
+      ? DEFAULT_DISTANCE_THRESHOLD
+      : settings.distance_threshold;
+  const lines = [
+    `${row.id}  folder  ${plural(row.modules, "module")}`,
+    metricsLine(row, threshold),
+    ...metricsTable(row, threshold).map(([name, value]) => `${name}: ${value}`),
+  ];
+
+  print(
+    io,
+    loaded,
+    { folder: row.id, metrics: row, line: metricsLine(row, threshold) },
+    lines,
+  );
+
+  return 0;
+}
+
 export function runShow(argv: string[], io: Io): number {
   const loaded = load(argv, io, SHOW_USAGE, 1, {
     private: { type: "boolean" },
@@ -333,7 +370,7 @@ export function runShow(argv: string[], io: Io): number {
   const id = loaded.positionals[0] as string;
 
   if (!loaded.modules.includes(id)) {
-    throw new InputError([`no such module: ${id}`]);
+    return showFolder(loaded, io, id);
   }
 
   const sets = neighbourSets(

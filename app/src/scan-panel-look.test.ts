@@ -24,7 +24,7 @@ const scan = {
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
 };
-const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [] };
+const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
 const CONFIG = "describer:\\n  command: [recognizer-describe-claude]\\n  version: v3\\nsensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
 const FILES = { responsibilities: null, config: CONFIG, refused: [], hashes: {} };
 const ORIGIN = { branch: "main", commit: "cur1234" };

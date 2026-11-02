@@ -11,7 +11,7 @@ ${FAKE_WORKER}
 const IDS = ["p/m.py", "p/o.py", "p/n.py", "p/q.py"];
 const edge = { from: "p/m.py", to: "p/o.py", kind: "depends", line: 1, names: ["f"] };
 const scan = { commit: "cur1234", modules: IDS.map((id) => ({ id, kind: "module" })), edges: [edge], foreign: [] };
-const loaded = { modules: IDS, scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
+const loaded = { modules: IDS, scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
 
 const COMMAND = ["node", "d.js"];
 const HASH = "a".repeat(64);
