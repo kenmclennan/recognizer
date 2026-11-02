@@ -16,6 +16,30 @@ import { COMMANDS } from "./commands.js";
 import { InputError } from "./errors.js";
 import { fullHelp, shortHelp } from "./help.js";
 
+const CEILING_EXIT = 124;
+
+const CEILING_SCRIPT = `
+kill_tree() {
+  for child in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$child"; done
+  kill -KILL "$1" 2>/dev/null
+}
+limit=$1
+shift
+flag=$(mktemp)
+"$@" &
+command_pid=$!
+( sleep "$limit"; echo expired > "$flag"; kill_tree "$command_pid" ) &
+watchdog_pid=$!
+wait "$command_pid"
+status=$?
+expired=0
+[ -s "$flag" ] && expired=1
+kill_tree "$watchdog_pid"
+rm -f "$flag"
+[ "$expired" = 1 ] && exit ${CEILING_EXIT}
+exit "$status"
+`;
+
 export interface DirEntry {
   name: string;
   kind: "file" | "directory" | "other";
@@ -26,10 +50,12 @@ export interface RunResult {
   status: number | null;
   stdout: string;
   stderr: string;
+  timedOut?: boolean;
 }
 
 export interface RunOptions {
   cwd?: string;
+  timeoutMs?: number;
 }
 
 export interface LaunchResult {
@@ -113,18 +139,40 @@ export function nodeIo(): Io {
     makeTempDir: () => mkdtempSync(join(tmpdir(), "recognizer-scan-")),
     removeDir: (path) => rmSync(path, { recursive: true, force: true }),
     run: (command, args, options) => {
-      const result = spawnSync(command, args, {
-        cwd: options?.cwd,
-        encoding: "utf8",
-        maxBuffer: 256 * 1024 * 1024,
-      });
+      const timeoutMs = options?.timeoutMs;
+      const result =
+        timeoutMs === undefined
+          ? spawnSync(command, args, {
+              cwd: options?.cwd,
+              encoding: "utf8",
+              maxBuffer: 256 * 1024 * 1024,
+            })
+          : spawnSync(
+              "sh",
+              [
+                "-c",
+                CEILING_SCRIPT,
+                "sh",
+                String(timeoutMs / 1000),
+                command,
+                ...args,
+              ],
+              {
+                cwd: options?.cwd,
+                encoding: "utf8",
+                maxBuffer: 256 * 1024 * 1024,
+              },
+            );
       const code = (result.error as NodeJS.ErrnoException | undefined)?.code;
+      const timedOut =
+        timeoutMs !== undefined && result.status === CEILING_EXIT;
 
       return {
         started: code !== "ENOENT",
         status: result.status,
         stdout: result.stdout ?? "",
         stderr: result.error ? result.error.message : (result.stderr ?? ""),
+        ...(timedOut ? { timedOut } : {}),
       };
     },
     launch: (command, args) => {

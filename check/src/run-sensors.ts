@@ -4,12 +4,15 @@ import { findingsFile } from "./findings-files.js";
 import { runRegistered } from "./registered-command.js";
 import { entryFrom, type RunEntry } from "./run-log.js";
 
+export const SENSOR_TIMEOUT_MS = 60_000;
+
 export interface RunSensorsInput {
   io: Io;
   root: string;
   selected: { name: string; command: string[] }[];
   commit: string;
   onEntry?: (entry: RunEntry) => void;
+  timeoutMs?: number;
 }
 
 export function runSensors(input: RunSensorsInput): RunEntry[] {
@@ -29,6 +32,7 @@ export function runSensors(input: RunSensorsInput): RunEntry[] {
       (document) => {
         validateFindings(document, { name, commit });
       },
+      input.timeoutMs ?? SENSOR_TIMEOUT_MS,
     );
     const { reason } = run;
     const entry = entryFrom(name, {
