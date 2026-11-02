@@ -89,3 +89,18 @@ export function verifyVendored(
     );
   }
 }
+
+export function assertNoInstallScripts(
+  lock,
+  workspaces = TOOLCHAIN_WORKSPACES,
+) {
+  const withScripts = [...closureFromLock(lock, workspaces).keys()].filter(
+    (path) => lock.packages[path].hasInstallScript,
+  );
+
+  if (withScripts.length > 0) {
+    throw new Error(
+      `vendored dependencies skip lifecycle scripts, but these have an install script: ${withScripts.join(", ")}`,
+    );
+  }
+}

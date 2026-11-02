@@ -13,7 +13,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
+import {
+  assertNoInstallScripts,
+  closureFromLock,
+  verifyVendored,
+} from "./toolchain-closure.mjs";
 
 export const ARCHIVE = "recognizer-toolchain.tar.gz";
 
@@ -110,6 +114,7 @@ export function buildToolchain(root, outDir) {
     readFileSync(join(root, "package-lock.json"), "utf8"),
   );
   const closure = closureFromLock(lock);
+  assertNoInstallScripts(lock);
   const closurePaths = [...closure.keys()];
   const staging = mkdtempSync(join(tmpdir(), "toolchain-"));
   const packed = mkdtempSync(join(tmpdir(), "toolchain-packed-"));
