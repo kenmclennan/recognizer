@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-change-range"
+description = "Enables the change_range command without any pre-configured scope."
+commands.allow = ["change_range"]
+
+[[permission]]
+identifier = "deny-change-range"
+description = "Denies the change_range command without any pre-configured scope."
+commands.deny = ["change_range"]

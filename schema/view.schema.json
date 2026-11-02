@@ -8,6 +8,7 @@
   "properties": {
     "schema_version": { "enum": [1, 2, 3, 4] },
     "ordered": { "type": "boolean" },
+    "change": { "$ref": "#/$defs/change" },
     "description": { "type": "string", "pattern": "\\S" },
     "commit": { "type": ["string", "null"], "minLength": 1 },
     "note": { "$ref": "#/$defs/note" },
@@ -66,10 +67,25 @@
         "properties": { "schema_version": { "enum": [1, 2, 3] } },
         "required": ["schema_version"]
       },
-      "then": { "not": { "required": ["ordered"] } }
+      "then": {
+        "not": { "anyOf": [{ "required": ["ordered"] }, { "required": ["change"] }] }
+      }
     }
   ],
   "$defs": {
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head"],
+      "properties": {
+        "base": { "$ref": "#/$defs/ref" },
+        "head": { "$ref": "#/$defs/ref" }
+      }
+    },
+    "ref": {
+      "type": "string",
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_][A-Za-z0-9_./@+-]*$"
+    },
     "note": {
       "type": "object",
       "additionalProperties": false,

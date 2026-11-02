@@ -5,7 +5,20 @@ export type ViewListing = {
   refused: string[];
 };
 
+export type RangeChange = { status: string; path: string };
+
+export type ChangeRange = {
+  baseCommit: string | null;
+  headCommit: string | null;
+  merged: boolean;
+  changes: RangeChange[];
+};
+
 export type ViewsPort = {
+  remove(name: string): Promise<void>;
+  changeRange(base: string, head: string): Promise<ChangeRange | null>;
+  recent(): Promise<string[]>;
+  recordOpened(name: string): Promise<void>;
   list(): Promise<ViewListing>;
   write(name: string, text: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
@@ -19,6 +32,10 @@ export type ViewsPort = {
 };
 
 export const inertViews: ViewsPort = {
+  remove: async () => {},
+  changeRange: async () => null,
+  recent: async () => [],
+  recordOpened: async () => {},
   list: async () => ({ views: [], refused: [] }),
   write: async () => {},
   rename: async () => {},

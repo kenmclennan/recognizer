@@ -12,6 +12,7 @@ import {
   type View,
   type ViewStep,
   validateView,
+  viewKind,
   viewNotes,
 } from "../src/views.js";
 import { REPO } from "./helpers.js";
@@ -358,7 +359,41 @@ describe("ordered", () => {
   });
 
   it("counts the examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(9);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(26);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(10);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(30);
+  });
+});
+
+describe("change views", () => {
+  const change: View = {
+    schema_version: 4,
+    description: "p",
+    commit: null,
+    change: { base: "main", head: "feat" },
+    steps: [],
+  };
+
+  it("round-trips the range between commit and ordered", () => {
+    const text = serialiseView({ ...change, ordered: false });
+
+    expect(Object.keys(JSON.parse(text))).toEqual([
+      "schema_version",
+      "description",
+      "commit",
+      "change",
+      "ordered",
+      "steps",
+    ]);
+    expect(migrateView(validateView(JSON.parse(text))).change).toEqual(
+      change.change,
+    );
+  });
+
+  it("names the kind", () => {
+    expect(viewKind(change)).toBe("change");
+    expect(viewKind({ ...change, change: undefined })).toBe("walkthrough");
+    expect(viewKind({ ...change, change: undefined, ordered: false })).toBe(
+      "lens",
+    );
   });
 });

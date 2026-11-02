@@ -2,11 +2,18 @@ import { button, el } from "./dom";
 import { type IconName, icon } from "./icons";
 import { VIEW_NAME } from "./views-port";
 
-export type ViewBarItem = { name: string; description: string | null };
+export type ViewBarItem = {
+  name: string;
+  description: string | null;
+  chip: string | null;
+};
 
 export type ViewBarProps = {
   open: string | null;
   views: ViewBarItem[];
+  names: string[];
+  total: number;
+  openChip: string | null;
   listed: boolean;
   listProblem: string | null;
   canBack: boolean;
@@ -20,6 +27,7 @@ export type ViewBarActions = {
   back: () => void;
   forward: () => void;
   openView: (name: string) => void;
+  openViewsPanel: () => void;
   save: () => void;
   saveNew: (name: string, description: string) => Promise<string | null>;
   rename: (from: string, to: string) => Promise<string | null>;
@@ -57,6 +65,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   );
   const list = button("", "view-list", () => toggleMenu());
   const name = button("", "view-name", () => startEditing());
+  const rangeChip = el("span", "view-range-chip");
   const nameText = el("span", "view-name-text", "Untitled");
   const nameField = el("input", "view-name-field-inline");
   const nameProblemLine = el("p", "view-name-problem");
@@ -80,6 +89,9 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   let props: ViewBarProps = {
     open: null,
     views: [],
+    names: [],
+    total: 0,
+    openChip: null,
     listed: false,
     listProblem: null,
     canBack: false,
@@ -112,6 +124,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     forward,
     list,
     name,
+    rangeChip,
     nameField,
     save,
     copy,
@@ -178,7 +191,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
 
   async function commitName() {
     const next = nameField.value;
-    const existing = props.views.map((view) => view.name);
+    const existing = props.names;
 
     if (next === (props.open ?? "")) {
       stopEditing();
@@ -297,8 +310,21 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
           ),
         );
 
+        if (view.chip !== null) {
+          item.append(el("span", "view-item-chip", view.chip));
+        }
+
         return item;
       }),
+      ...(props.total > props.views.length
+        ? [
+            button(`All views (${props.total})`, "view-all", () => {
+              menuOpen = false;
+              renderOverlay();
+              actions.openViewsPanel();
+            }),
+          ]
+        : []),
     );
   }
 
@@ -336,7 +362,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       dialogName = "";
       renderOverlay();
     });
-    const existing = props.views.map((view) => view.name);
+    const existing = props.names;
     const refresh = (clear = true) => {
       confirm.disabled = !canSaveNew(
         nameInput.value,
@@ -393,6 +419,8 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       relabel(back, next.backLabel);
       relabel(forward, next.forwardLabel);
       nameText.textContent = next.open ?? "Untitled";
+      rangeChip.hidden = next.openChip === null;
+      rangeChip.textContent = next.openChip ?? "";
       renderName();
       copy.disabled = !next.canCopy;
       renderMenu();

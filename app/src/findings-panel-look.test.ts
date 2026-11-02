@@ -250,6 +250,7 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
   it("sits last on the rail with a red count and lists violations before warnings", () => {
     expect(f.panel.order).toEqual([
       "rail-files",
+      "rail-views",
       "rail-notes",
       "rail-scan",
       "rail-findings",

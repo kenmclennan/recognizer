@@ -2938,3 +2938,165 @@ svg.i.chevron {
   font-size: 9px;
   fill: currentColor;
 }
+
+.views-panel {
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 12px;
+}
+
+.tree > .views-panel {
+  display: none;
+}
+
+.tree.views-open > :not(.views-panel) {
+  display: none;
+}
+
+.tree.views-open > .views-panel {
+  display: flex;
+}
+
+.views-header {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.views-stale-header {
+  margin: 12px 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.views-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.views-row.stale,
+.views-row.invalid {
+  cursor: default;
+}
+
+.views-row:hover {
+  background: var(--selbg);
+}
+
+.views-row.current .views-row-name::before {
+  content: "\2713 ";
+  color: var(--sel);
+}
+
+.views-row-name {
+  font-weight: 600;
+}
+
+.views-row-description,
+.views-row-notes {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.views-row-description {
+  flex-basis: 100%;
+}
+
+.views-row-reason {
+  flex-basis: 100%;
+  color: var(--warn);
+  font-size: 11px;
+}
+
+.views-delete {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--boxline);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--bad);
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-chip,
+.view-item-chip,
+.view-range-chip {
+  padding: 0 6px;
+  border: 1px solid var(--boxline);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.view-range-chip {
+  align-self: center;
+  margin-left: 4px;
+}
+
+.view-all {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--sel);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.box.mark-added .box-body {
+  stroke: var(--ok);
+  stroke-width: 2;
+}
+
+.box.mark-modified .box-body {
+  stroke: var(--warn);
+  stroke-width: 2;
+}
+
+.box.mark-removed .box-body {
+  fill: var(--panel);
+  stroke: var(--bad);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.surface .box.mark-removed .name {
+  text-decoration: line-through;
+}
+
+.change-swatch {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--muted);
+  border-radius: 3px;
+}
+
+.change-swatch.added {
+  border-color: var(--ok);
+}
+
+.change-swatch.modified {
+  border-color: var(--warn);
+}
+
+.change-swatch.removed {
+  border-color: var(--bad);
+  border-style: dashed;
+}

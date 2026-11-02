@@ -20,6 +20,15 @@ export {
   type CallerIndex,
   type CallerSummary,
 } from "./callers.js";
+export {
+  changeMarks,
+  type FileChange,
+  type Mark,
+  type MarkedModule,
+  type MarkScan,
+  type ParsedChanges,
+  parseNameStatus,
+} from "./change-marks.js";
 export { type CheckResult, check, rankAgainstBaseline } from "./check.js";
 export {
   type Config,
@@ -136,17 +145,29 @@ export {
   structureSensor,
 } from "./structure-sensor.js";
 export {
+  type ChangeFacts,
+  type StaleReason,
+  staleReasons,
+  staleReasonText,
+} from "./view-staleness.js";
+export {
   isOrdered,
+  isValidRef,
   migrateView,
   type Note,
   noteWarnings,
   orderedStep,
+  parseRange,
   type ResolvedView,
+  rangeText,
   resolveView,
   serialiseView,
   type View,
+  type ViewChange,
+  type ViewKind,
   type ViewNote,
   type ViewStep,
   validateView,
+  viewKind,
   viewNotes,
 } from "./views.js";

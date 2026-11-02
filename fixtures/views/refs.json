@@ -1,0 +1,4 @@
+{
+  "accept": ["main", "origin/main", "feature/discounts", "v1.2.0", "HEAD@1", "a", "_x", "a-b", "a+b"],
+  "reject": ["-x", "--output=f", "a..b", ".hidden", "a b", "a:b", "a^", "a~1", "", "a\\b", "a\nb"]
+}

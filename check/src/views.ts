@@ -22,9 +22,17 @@ export interface ViewNote {
   by: string;
 }
 
+export interface ViewChange {
+  base: string;
+  head: string;
+}
+
+export type ViewKind = "change" | "walkthrough" | "lens";
+
 export interface View {
   schema_version: 1 | 2 | 3 | 4;
   ordered?: boolean;
+  change?: ViewChange;
   description: string;
   commit: string | null;
   note?: Note;
@@ -112,6 +120,35 @@ export function isOrdered(view: View): boolean {
   return view.schema_version === 4 ? view.ordered !== false : true;
 }
 
+export function viewKind(view: View): ViewKind {
+  if (view.change !== undefined) {
+    return "change";
+  }
+
+  return view.ordered === false ? "lens" : "walkthrough";
+}
+
+export function isValidRef(ref: string): boolean {
+  return /^(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9_./@+-]*$/.test(ref);
+}
+
+export function parseRange(text: string): ViewChange | null {
+  const at = text.indexOf("..");
+
+  if (at < 0) {
+    return null;
+  }
+
+  const base = text.slice(0, at);
+  const head = text.slice(at + 2);
+
+  return isValidRef(base) && isValidRef(head) ? { base, head } : null;
+}
+
+export function rangeText(change: ViewChange): string {
+  return `${change.base}..${change.head}`;
+}
+
 export function migrateView(view: View): View {
   const notes = viewNotes(view);
 
@@ -119,6 +156,9 @@ export function migrateView(view: View): View {
     schema_version: 4,
     description: view.description,
     commit: view.commit,
+    ...(view.change === undefined
+      ? {}
+      : { change: { base: view.change.base, head: view.change.head } }),
     ...(isOrdered(view) ? {} : { ordered: false }),
     ...(notes.length === 0 ? {} : { notes }),
     steps: view.steps,
@@ -133,6 +173,7 @@ export function serialiseView(view: View): string {
       schema_version: 4,
       description: migrated.description,
       commit: migrated.commit,
+      ...(migrated.change === undefined ? {} : { change: migrated.change }),
       ...(migrated.ordered === false ? { ordered: false } : {}),
       ...(migrated.notes === undefined
         ? {}

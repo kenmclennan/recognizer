@@ -288,6 +288,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
     expect(f.idle.order).toEqual([
       "rail-files",
+      "rail-views",
       "rail-notes",
       "rail-scan",
       "rail-findings",

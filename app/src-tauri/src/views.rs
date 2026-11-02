@@ -115,6 +115,135 @@ pub fn rename_view(folder: &Path, from: &str, to: &str) -> Result<(), String> {
     fs::rename(source, target).map_err(|error| error.to_string())
 }
 
+pub fn valid_ref(reference: &str) -> bool {
+    let mut characters = reference.chars();
+
+    !reference.contains("..")
+        && characters
+            .next()
+            .is_some_and(|first| first.is_ascii_alphanumeric() || first == '_')
+        && characters.all(|c| c.is_ascii_alphanumeric() || "_./@+-".contains(c))
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub struct FileChange {
+    pub status: String,
+    pub path: String,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeRange {
+    pub base_commit: Option<String>,
+    pub head_commit: Option<String>,
+    pub merged: bool,
+    pub changes: Vec<FileChange>,
+}
+
+pub fn parse_name_status(output: &str) -> Vec<FileChange> {
+    let mut fields = output.split('\0');
+    let mut changes = Vec::new();
+
+    while let (Some(status), Some(path)) = (fields.next(), fields.next()) {
+        if matches!(status, "A" | "M" | "D" | "T") {
+            changes.push(FileChange {
+                status: status.to_string(),
+                path: path.to_string(),
+            });
+        }
+    }
+
+    changes
+}
+
+fn git_in(folder: &Path, args: &[&str]) -> Option<std::process::Output> {
+    Command::new("git")
+        .arg("-C")
+        .arg(folder)
+        .args(args)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+}
+
+fn resolve_ref(folder: &Path, reference: &str) -> Result<Option<String>, ()> {
+    let output = git_in(
+        folder,
+        &[
+            "rev-parse",
+            "--verify",
+            "-q",
+            &format!("{reference}^{{commit}}"),
+        ],
+    )
+    .ok_or(())?;
+
+    match output.status.code() {
+        Some(0) => {
+            let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+            Ok((!commit.is_empty()).then_some(commit))
+        }
+        Some(1) => Ok(None),
+        _ => Err(()),
+    }
+}
+
+pub fn change_range(folder: &Path, base: &str, head: &str) -> Option<ChangeRange> {
+    if !valid_ref(base) || !valid_ref(head) {
+        return None;
+    }
+
+    let base_commit = resolve_ref(folder, base).ok()?;
+    let head_commit = resolve_ref(folder, head).ok()?;
+    let (Some(b), Some(h)) = (&base_commit, &head_commit) else {
+        return Some(ChangeRange {
+            base_commit,
+            head_commit,
+            merged: false,
+            changes: Vec::new(),
+        });
+    };
+    let merged = h != b
+        && git_in(folder, &["merge-base", "--is-ancestor", h, b])
+            .is_some_and(|output| output.status.success());
+    let diff = git_in(
+        folder,
+        &[
+            "diff",
+            "--no-renames",
+            "--name-status",
+            "-z",
+            &format!("{b}...{h}"),
+        ],
+    )
+    .filter(|output| output.status.success())?;
+
+    Some(ChangeRange {
+        merged,
+        changes: parse_name_status(&String::from_utf8_lossy(&diff.stdout)),
+        base_commit,
+        head_commit,
+    })
+}
+
+pub fn remove_view(folder: &Path, name: &str) -> Result<(), String> {
+    if !valid_name(name) {
+        return Err(format!("{name:?} is not a valid view name"));
+    }
+
+    let path = view_file(folder, name);
+    let metadata =
+        fs::symlink_metadata(&path).map_err(|_| format!("there is no view named {name}"))?;
+
+    if !metadata.is_file() {
+        return Err(format!("{name} is not a plain view file"));
+    }
+
+    fs::remove_file(path).map_err(|error| error.to_string())
+}
+
 pub fn view_file(folder: &Path, name: &str) -> PathBuf {
     folder.join(VIEWS).join(format!("{name}.json"))
 }
@@ -591,5 +720,171 @@ mod tests {
         assert_eq!(modules(&second), Some(3));
         assert!(scans_with(root, "--output=x", &shell, &command).is_none());
         assert!(scans_with(root, "deadbeefdeadbeef", &shell, &command).is_none());
+    }
+
+    fn run_git(dir: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args([
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .unwrap();
+
+        assert!(status.success(), "git {args:?}");
+    }
+
+    fn commit_file(dir: &Path, file: &str, text: &str) {
+        fs::write(dir.join(file), text).unwrap();
+        run_git(dir, &["add", file]);
+        run_git(dir, &["commit", "-m", file]);
+    }
+
+    fn git_repo() -> TempDir {
+        let dir = TempDir::new().unwrap();
+
+        run_git(dir.path(), &["init", "-q", "-b", "main"]);
+        commit_file(dir.path(), "a.py", "1");
+
+        dir
+    }
+
+    #[test]
+    fn refs_agree_with_the_shared_fixture() {
+        let text = fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/views/refs.json"
+        ))
+        .unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(&text).unwrap();
+
+        for key in ["accept", "reject"] {
+            for entry in fixture[key].as_array().unwrap() {
+                let reference = entry.as_str().unwrap();
+
+                assert_eq!(valid_ref(reference), key == "accept", "{reference:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn name_status_parses_known_letters_only() {
+        assert_eq!(
+            parse_name_status("D\0src/b.py\0A\0src/c.py\0U\0x\0"),
+            vec![
+                FileChange {
+                    status: "D".into(),
+                    path: "src/b.py".into()
+                },
+                FileChange {
+                    status: "A".into(),
+                    path: "src/c.py".into()
+                },
+            ]
+        );
+        assert!(parse_name_status("").is_empty());
+    }
+
+    #[test]
+    fn a_diverged_branch_is_live_with_its_changes() {
+        let dir = git_repo();
+
+        run_git(dir.path(), &["checkout", "-q", "-b", "feat"]);
+        commit_file(dir.path(), "b.py", "2");
+        run_git(dir.path(), &["checkout", "-q", "main"]);
+        commit_file(dir.path(), "c.py", "3");
+
+        let range = change_range(dir.path(), "main", "feat").unwrap();
+
+        assert!(!range.merged);
+        assert!(range.base_commit.is_some() && range.head_commit.is_some());
+        assert_eq!(
+            range.changes,
+            vec![FileChange {
+                status: "A".into(),
+                path: "b.py".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn a_head_behind_the_base_is_merged() {
+        let dir = git_repo();
+
+        run_git(dir.path(), &["branch", "feat"]);
+        commit_file(dir.path(), "b.py", "2");
+
+        assert!(change_range(dir.path(), "main", "feat").unwrap().merged);
+    }
+
+    #[test]
+    fn equal_commits_are_not_merged_and_have_no_changes() {
+        let dir = git_repo();
+
+        run_git(dir.path(), &["branch", "feat"]);
+
+        let range = change_range(dir.path(), "main", "feat").unwrap();
+
+        assert!(!range.merged);
+        assert!(range.changes.is_empty());
+    }
+
+    #[test]
+    fn an_unknown_head_or_base_has_no_commit_and_no_changes() {
+        let dir = git_repo();
+        let head = change_range(dir.path(), "main", "ghost").unwrap();
+        let base = change_range(dir.path(), "ghost", "main").unwrap();
+
+        assert!(head.head_commit.is_none() && head.base_commit.is_some());
+        assert!(base.base_commit.is_none() && base.head_commit.is_some());
+        assert!(!head.merged && head.changes.is_empty());
+    }
+
+    #[test]
+    fn option_shaped_refs_are_refused_before_git_runs() {
+        let dir = TempDir::new().unwrap();
+
+        assert!(change_range(dir.path(), "--output=x", "main").is_none());
+        assert!(change_range(dir.path(), "main", "-x").is_none());
+        assert!(!dir.path().join("x").exists());
+    }
+
+    #[test]
+    fn a_folder_outside_git_returns_nothing() {
+        let dir = TempDir::new().unwrap();
+
+        assert!(change_range(dir.path(), "main", "feat").is_none());
+    }
+
+    #[test]
+    fn remove_view_deletes_the_file_and_refuses_the_rest() {
+        let dir = repo();
+
+        write_view(dir.path(), "a", "{}").unwrap();
+        remove_view(dir.path(), "a").unwrap();
+
+        assert!(!view_file(dir.path(), "a").exists());
+        assert!(remove_view(dir.path(), "a").is_err());
+        assert!(remove_view(dir.path(), "../a").is_err());
+
+        #[cfg(unix)]
+        {
+            let target = dir.path().join("target.json");
+
+            fs::write(&target, "{}").unwrap();
+            std::os::unix::fs::symlink(&target, view_file(dir.path(), "link")).unwrap();
+
+            assert!(remove_view(dir.path(), "link").is_err());
+            assert!(target.exists());
+        }
     }
 }

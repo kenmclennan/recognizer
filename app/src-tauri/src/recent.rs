@@ -1,9 +1,52 @@
+use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::fs_safe::write_atomic;
+use crate::views::valid_name;
 
 pub const LIMIT: usize = 10;
 
 pub fn recent_file_in(config_dir: &Path) -> PathBuf {
     config_dir.join("recent.json")
+}
+
+pub const VIEW_LIMIT: usize = 5;
+
+pub fn recent_views_file_in(config_dir: &Path) -> PathBuf {
+    config_dir.join("recent-views.json")
+}
+
+fn read_recent_map(path: &Path) -> BTreeMap<String, Vec<String>> {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+pub fn read_recent_views(path: &Path, folder: &Path) -> Vec<String> {
+    read_recent_map(path)
+        .remove(&folder.display().to_string())
+        .unwrap_or_default()
+}
+
+pub fn record_recent_view(path: &Path, folder: &Path, name: &str) -> Result<(), String> {
+    if !valid_name(name) {
+        return Err(format!("{name:?} is not a valid view name"));
+    }
+
+    let mut all = read_recent_map(path);
+    let list = all.entry(folder.display().to_string()).or_default();
+
+    list.retain(|existing| existing != name);
+    list.insert(0, name.to_string());
+    list.truncate(VIEW_LIMIT);
+
+    let mut text = serde_json::to_string_pretty(&all).map_err(|error| error.to_string())?;
+
+    text.push('\n');
+
+    write_atomic(path, &text).map_err(|error| format!("{}: {error}", path.display()))
 }
 
 #[derive(Debug, PartialEq)]
@@ -128,6 +171,38 @@ mod tests {
 
     fn paths(names: &[&str]) -> Vec<PathBuf> {
         names.iter().map(PathBuf::from).collect()
+    }
+
+    #[test]
+    fn recent_views_record_dedupe_cap_and_key_by_folder() {
+        let dir = TempDir::new().unwrap();
+        let file = recent_views_file_in(dir.path());
+        let one = Path::new("/one");
+        let two = Path::new("/two");
+
+        for name in ["a", "b", "c", "d", "e", "f", "c"] {
+            record_recent_view(&file, one, name).unwrap();
+        }
+
+        record_recent_view(&file, two, "z").unwrap();
+
+        assert_eq!(read_recent_views(&file, one), ["c", "f", "e", "d", "b"]);
+        assert_eq!(read_recent_views(&file, two), ["z"]);
+        assert!(record_recent_view(&file, one, "../x").is_err());
+    }
+
+    #[test]
+    fn an_unreadable_recent_views_file_reads_as_empty() {
+        let dir = TempDir::new().unwrap();
+        let file = recent_views_file_in(dir.path());
+
+        assert!(read_recent_views(&file, Path::new("/one")).is_empty());
+
+        fs::write(&file, "not json").unwrap();
+
+        assert!(read_recent_views(&file, Path::new("/one")).is_empty());
+        record_recent_view(&file, Path::new("/one"), "a").unwrap();
+        assert_eq!(read_recent_views(&file, Path::new("/one")), ["a"]);
     }
 
     #[test]

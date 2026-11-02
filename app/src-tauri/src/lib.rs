@@ -1137,6 +1137,49 @@ fn write_view(
     views::write_view(&window_folder_path(&app, &window)?, &name, &text)
 }
 
+fn recent_views_file(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|dir| recent::recent_views_file_in(&dir))
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn change_range(
+    app: AppHandle,
+    window: WebviewWindow,
+    base: String,
+    head: String,
+) -> Result<Option<views::ChangeRange>, String> {
+    Ok(views::change_range(
+        &window_folder_path(&app, &window)?,
+        &base,
+        &head,
+    ))
+}
+
+#[tauri::command]
+fn remove_view(app: AppHandle, window: WebviewWindow, name: String) -> Result<(), String> {
+    views::remove_view(&window_folder_path(&app, &window)?, &name)
+}
+
+#[tauri::command]
+fn read_recent_views(app: AppHandle, window: WebviewWindow) -> Result<Vec<String>, String> {
+    Ok(recent::read_recent_views(
+        &recent_views_file(&app)?,
+        &window_folder_path(&app, &window)?,
+    ))
+}
+
+#[tauri::command]
+fn record_recent_view(app: AppHandle, window: WebviewWindow, name: String) -> Result<(), String> {
+    recent::record_recent_view(
+        &recent_views_file(&app)?,
+        &window_folder_path(&app, &window)?,
+        &name,
+    )
+}
+
 #[tauri::command]
 fn rename_view(
     app: AppHandle,
@@ -1318,6 +1361,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             adopt_scan,
             answer_window_drive,
+            change_range,
             choose_folder,
             describe_module,
             list_views,
@@ -1331,11 +1375,14 @@ pub fn run() {
             read_settings,
             read_source_line,
             recognizer_version,
+            record_recent_view,
             remove_findings,
             shipped_sensors,
             edit_sensor,
+            remove_view,
             rename_view,
             renames_since,
+            read_recent_views,
             read_scan_cache,
             read_scan_ticks,
             run_scan,
