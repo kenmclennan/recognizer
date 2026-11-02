@@ -8,6 +8,7 @@ fn main() {
         "open_in_editor",
         "publish_window_state",
         "read_findings",
+        "read_overlays",
         "read_sensor_inputs",
         "read_settings",
         "read_source_line",

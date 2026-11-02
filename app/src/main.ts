@@ -129,6 +129,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     windowSource,
     (line) => footerView.setAgentLine(line),
     scanHost,
+    (text) => footerView.setMetrics(text),
   );
 }
 

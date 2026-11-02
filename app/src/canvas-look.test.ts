@@ -953,12 +953,14 @@ describe("the canvas, in a real browser", () => {
             "+",
             "Fit",
             "Clear",
-            "Legend",
+            "Metrics",
             "Notes",
+            "Legend",
           ]);
           expect(zoom.tags).toEqual([
             "button",
             "span",
+            "button",
             "button",
             "button",
             "button",

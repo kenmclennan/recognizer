@@ -262,4 +262,30 @@ describe("withSensors", () => {
     expect(next.baseline).toBe("{}");
     expect(next.modules).toEqual(loaded.modules);
   });
+
+  it("carries the overlay files and the names the read refused", async () => {
+    const port = fakeSensors({}, {}, { crap: "{}", other: "{}" });
+
+    port.overlaysRefused.push("evil");
+
+    const next = await withSensors(
+      {
+        modules: [],
+        scans: [],
+        policy: null,
+        baseline: null,
+        notices: [],
+        blocking: null,
+        findings: [],
+        sensors: [],
+      },
+      port,
+    );
+
+    expect(next.overlays).toEqual([
+      { name: "crap", text: "{}" },
+      { name: "other", text: "{}" },
+    ]);
+    expect(next.overlaysUnreadable).toEqual(["evil"]);
+  });
 });

@@ -75,6 +75,7 @@ import {
   layoutOnMainThread,
   startLayoutWorker,
 } from "./layout-source";
+import type { CanvasMetrics } from "./metrics-view";
 import {
   bubbleSet,
   keepsFocus as keepsNoteFocus,
@@ -86,6 +87,13 @@ import {
 } from "./note-focus";
 import { buildNotesPanelView } from "./notes-panel-view";
 import { createOpenModules } from "./open-modules";
+import {
+  buildOverlayModel,
+  footerText,
+  type MetricDescriptor,
+  moduleValue,
+  pruneTicks,
+} from "./overlay-model";
 import { mountPanelResizers } from "./panel-resizer-view";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import { repositorySource } from "./repository-source";
@@ -112,8 +120,7 @@ import {
 import { buildScanPanelView } from "./scan-panel-view";
 import type { ShowTarget } from "./scan-progress";
 import type { BarModel } from "./selection-bar-view";
-import type { SensorsPort } from "./sensor-run";
-import { inertSensors } from "./sensor-run";
+import { inertSensors, type SensorsPort, scansCommit } from "./sensor-run";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { buildStalePanel, type StalePanelModel } from "./stale-panel-view";
 import {
@@ -180,6 +187,7 @@ export type Carried = {
   history: History<Snapshot>;
   snapshot: Snapshot;
   leftPanel: LeftPanel;
+  metricTicks?: string[];
 };
 
 export type ScanHost = {
@@ -233,6 +241,7 @@ export function showExplorer(
   windowPort: WindowPort = inertWindow,
   showAgentLine: (line: AgentLineView) => void = () => {},
   scanHost: ScanHost = inertScanHost,
+  showMetrics: (text: string | null) => void = () => {},
 ): Explorer {
   const health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
@@ -249,6 +258,14 @@ export function showExplorer(
     onCanvas: false,
     needsAttention: false,
   };
+  const overlayModel = buildOverlayModel(
+    loaded.overlays ?? [],
+    scansCommit(scans),
+  );
+  let metricTicks = pruneTicks(
+    carried?.metricTicks ?? [],
+    overlayModel.metrics,
+  );
   let leftPanel: LeftPanel = carried?.leftPanel ?? "files";
   let scanConfig: string | null = null;
   let scrollTarget: string | null = null;
@@ -384,6 +401,12 @@ export function showExplorer(
       setShowInferred(show) {
         state.setShowInferred(show);
         changed();
+      },
+      toggleMetric(key) {
+        metricTicks = metricTicks.includes(key)
+          ? metricTicks.filter((tick) => tick !== key)
+          : [...metricTicks, key];
+        render();
       },
       openContents() {
         inspectorOpen = true;
@@ -985,7 +1008,7 @@ export function showExplorer(
     );
     endLayoutBusy ??= layoutGate.begin();
     layoutNoted = notedKey();
-    layout.request(toElk(graph, measure, notedBoxes()));
+    layout.request(toElk(graph, measure, notedBoxes(), metricTicks.length));
     render();
   }
 
@@ -996,7 +1019,7 @@ export function showExplorer(
   }
 
   function notedKey(): string {
-    return [...notedBoxes()].sort().join("\n");
+    return `${metricTicks.length}|${[...notedBoxes()].sort().join("\n")}`;
   }
 
   function reveal(selection: Selection) {
@@ -2329,7 +2352,9 @@ export function showExplorer(
         if (notedKey() !== layoutNoted) {
           layoutNoted = notedKey();
           endLayoutBusy ??= layoutGate.begin();
-          layout.request(toElk(graph, measure, notedBoxes()));
+          layout.request(
+            toElk(graph, measure, notedBoxes(), metricTicks.length),
+          );
         }
       });
     }
@@ -2391,6 +2416,24 @@ export function showExplorer(
     return boxTooltip(responsibilityOf(id), held?.text ?? null);
   }
 
+  function tickedMetrics(): MetricDescriptor[] {
+    return metricTicks.flatMap((key) =>
+      overlayModel.metrics.filter((metric) => metric.key === key),
+    );
+  }
+
+  function canvasMetrics(): CanvasMetrics {
+    const ticked = tickedMetrics();
+
+    showMetrics(footerText(ticked));
+
+    return {
+      groups: overlayModel.groups,
+      ticked,
+      valueOf: (metric, boxId) => moduleValue(metric, boxId),
+    };
+  }
+
   function renderCanvas() {
     const notes = syncNotes();
 
@@ -2429,6 +2472,7 @@ export function showExplorer(
       tooltip: tooltipOf,
       orientation: syncOrientation(),
       ghosts: canvasGhosts,
+      metrics: canvasMetrics(),
     });
   }
 
@@ -2604,6 +2648,13 @@ export function showExplorer(
 
   renderNotices();
 
+  for (const name of [
+    ...(loaded.overlaysUnreadable ?? []),
+    ...overlayModel.unreadable,
+  ]) {
+    notify(`Overlay ${name} could not be read`);
+  }
+
   if (carried === null) {
     changed();
   } else {
@@ -2663,7 +2714,7 @@ export function showExplorer(
     refreshResponsibilities: () => void readResponsibilities(),
     refreshPanel: () => render(),
     show: showTarget,
-    carry: () => ({ history, snapshot: snapshot(), leftPanel }),
+    carry: () => ({ history, snapshot: snapshot(), leftPanel, metricTicks }),
     dispose() {
       document.removeEventListener("keydown", onUndoKey);
       resizeObserver?.disconnect();

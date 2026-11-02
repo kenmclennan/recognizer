@@ -16,6 +16,16 @@ import { icon } from "./icons";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
 import {
+  BAR_ROW,
+  BAR_TRACK_HEIGHT,
+  barRect,
+  barTitle,
+  fraction,
+  tone as metricTone,
+  valueLabel,
+} from "./metric-bars";
+import { buildMetricsView, type CanvasMetrics } from "./metrics-view";
+import {
   buildNoteBubbleView,
   type NoteBubble,
   type NoteBubbleView,
@@ -53,6 +63,7 @@ export type CanvasProps = {
   tooltip?: (id: string) => TooltipLine[] | null;
   orientation?: CanvasOrientation | null;
   ghosts?: Ghost[];
+  metrics?: CanvasMetrics | null;
 };
 
 export type CanvasOrientation = {
@@ -77,6 +88,7 @@ export type CanvasActions = {
   toggleFocus: () => void;
   clear: () => void;
   setShowInferred: (show: boolean) => void;
+  toggleMetric: (key: string) => void;
   measure: (text: string) => number;
   openTab: (tab: InspectorTab) => void;
   openContents: () => void;
@@ -249,6 +261,7 @@ export function buildCanvasView(
   busy.classList.add("canvas-busy");
   busy.hidden = true;
   const legend = buildLegendView((show) => actions.setShowInferred(show));
+  const metricsView = buildMetricsView((key) => actions.toggleMetric(key));
   const selectionBar = buildSelectionBar({
     openTab: (tab) => actions.openTab(tab),
     toggleFocus: () => actions.toggleFocus(),
@@ -273,6 +286,7 @@ export function buildCanvasView(
   let viewport: Viewport = { x: 0, y: 0, k: 1 };
   let hadContent = false;
   let legendOpen = false;
+  let metricsOpen = false;
   let pointerAnchor: Point | null = null;
   let pendingCenter: string | null = null;
   let bubbleScreen: BubbleScreen | null = null;
@@ -296,6 +310,12 @@ export function buildCanvasView(
   });
   const legendButton = button("Legend", "control", () => {
     legendOpen = !legendOpen;
+    metricsOpen = false;
+    refreshChrome();
+  });
+  const metricsButton = button("Metrics", "control metrics-toggle", () => {
+    metricsOpen = !metricsOpen;
+    legendOpen = false;
     refreshChrome();
   });
   const notesButton = button("Notes", "control notes-toggle", () =>
@@ -330,10 +350,11 @@ export function buildCanvasView(
     zoomIn,
     fitButton,
     clearButton,
-    legendButton,
+    metricsButton,
     notesButton,
+    legendButton,
   );
-  element.append(stage, controls, legend.element);
+  element.append(stage, controls, legend.element, metricsView.element);
 
   function size() {
     const box = stage.getBoundingClientRect();
@@ -466,6 +487,8 @@ export function buildCanvasView(
   function refreshChrome() {
     legend.render(legendOpen, props?.showInferred ?? true);
     legendButton.classList.toggle("on", legendOpen);
+    metricsView.render(metricsOpen, props?.metrics ?? null);
+    metricsButton.classList.toggle("on", metricsOpen);
     notesButton.classList.toggle("on", props?.notes?.showAll === true);
     notesButton.setAttribute(
       "aria-pressed",
@@ -680,6 +703,8 @@ export function buildCanvasView(
             );
           }
 
+          node.append(...metricBars(box));
+
           const boxPath = box.kind === "folder" ? `${box.id}/` : box.id;
 
           const marked = props?.notes?.marks.has(boxPath) === true;
@@ -704,6 +729,60 @@ export function buildCanvasView(
     }
 
     world.replaceChildren(...parts);
+  }
+
+  function metricBars(box: Scene["boxes"][number]): SVGElement[] {
+    const ticked = props?.metrics?.ticked ?? [];
+    const base = box.rect.height - ticked.length * BAR_ROW;
+
+    return ticked.map((metric, index) => {
+      const found =
+        box.kind === "folder"
+          ? null
+          : (props?.metrics?.valueOf(metric, box.id) ?? null);
+      const track = barRect(box.rect, base, index);
+      const group = svg("g", {
+        class: "metric-bar",
+        "data-metric": metric.key,
+      });
+      const body = svg("rect", {
+        class: found === null ? "metric-track unknown" : "metric-track",
+        x: track.x,
+        y: track.y,
+        width: track.width,
+        height: BAR_TRACK_HEIGHT,
+        rx: 3,
+      });
+      const label = svg(
+        "text",
+        {
+          class: "metric-value",
+          x: box.rect.x + box.rect.width - 10,
+          y: track.y + BAR_TRACK_HEIGHT,
+          "text-anchor": "end",
+        },
+        found === null ? "-" : valueLabel(metric, found.value),
+      );
+
+      group.append(svg("title", {}, barTitle(metric, found)), body);
+
+      if (found !== null) {
+        group.append(
+          svg("rect", {
+            class: `metric-fill ${metricTone(metric, found.value)}`,
+            x: track.x,
+            y: track.y,
+            width: track.width * fraction(metric, found.value),
+            height: BAR_TRACK_HEIGHT,
+            rx: 3,
+          }),
+        );
+      }
+
+      group.append(label);
+
+      return group;
+    });
   }
 
   function noteMark(path: string, x: number, y: number): SVGElement {
@@ -1240,6 +1319,12 @@ export function buildCanvasView(
     zoomBy(e.scale / lastScale, localPoint(e));
     lastScale = e.scale;
   });
+  stage.addEventListener("pointerdown", () => {
+    if (metricsOpen) {
+      metricsOpen = false;
+      refreshChrome();
+    }
+  });
   stage.addEventListener("gestureend", (event) => {
     event.preventDefault();
     gesture = false;
@@ -1247,8 +1332,9 @@ export function buildCanvasView(
 
   function perform(action: KeyAction) {
     if (action === "escape") {
-      if (legendOpen) {
+      if (legendOpen || metricsOpen) {
         legendOpen = false;
+        metricsOpen = false;
         refreshChrome();
       } else {
         actions.select(null);

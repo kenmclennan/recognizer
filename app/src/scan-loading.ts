@@ -17,6 +17,8 @@ export type Loaded = {
   blocking: string | null;
   findings: FindingsDocument[];
   sensors: SensorStatus[];
+  overlays?: { name: string; text: string }[];
+  overlaysUnreadable?: string[];
 };
 
 const EMPTY: Loaded = {

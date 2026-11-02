@@ -42,7 +42,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
 | Overlay | Measurements from a tool a repository registers (coverage, churn, mutation), written as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
 | Metrics list | The canvas control, before Legend, that lists every metric of the current overlays and ticks the ones shown as bars on the boxes; it controls the canvas only. |
-| Metric bar | A thin bar with its value on a box, one per ticked metric in the order ticked; a member-granularity metric shows the box's worst member; hover names it. |
+| Metric bar | A thin bar with its value on a box, one per ticked metric in the order ticked; a member-granularity metric shows the box's worst member; hover names it; a folder box and a module the overlay did not measure show a dashed empty bar. |
 | Thresholds sensor | The shipped sensor that turns any overlay metric over a configured line into a finding, a warning or a violation as `sensors.thresholds` says. |
 | Report | A findings file an agent hands to recognizer with `recognizer report --as <name>` after a review it ran itself; listed with the sensors but never run by a scan, stale once the scan passes its commit, replaced only by the next report under the same name. |
 | Measure phase | The third phase of a scan, run when ticked: the registered overlays, before the sensors. |
@@ -135,9 +135,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view, numbered and in reading order with a drag handle on each row when the view is ordered (an In order / No order toggle in its header flips that) or in canvas order when it is not, and focuses the selected note; the overview, with no composer. |
 | Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove, and on an ordered view its number, "n of N", and Previous and Next that pan the canvas to the next box with the bubble kept where it is; the place notes are read and written, opened from the mark, the bar's notes button or N. |
 | Note mark | The small outlined speech-bubble icon after a noted box's name or at a noted frame's corner; clicking it opens the bubble. |
-| Notes toggle | The canvas control beside Fit, Clear and Legend that shows every note on the view as a bubble at once. |
+| Notes toggle | The canvas control after Metrics and before Legend that shows every note on the view as a bubble at once. |
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
-| Notes toggle | The Notes button after Legend in the canvas controls; on, every note on the view is drawn as a bubble at once, each read-only until clicked, which focuses it; held per window. |
+| Notes toggle | The Notes button before Legend in the canvas controls; on, every note on the view is drawn as a bubble at once, each read-only until clicked, which focuses it; held per window. |
 | Box tooltip | The small dark text beneath a module box after a short delay on hover: its responsibility line and, when it has a note, the note's first sixty characters in the muted colour; folders have none. |
 | Scan panel | The left-column panel, behind the Scan rail icon, that shows the three phases of a scan, Extract, Describe and Sensors, with the ticks a repository remembers, and runs them on request. |
 | Phase | One of the three parts of a scan: extraction (when the files changed), describing (when ticked) and the registered sensors (when ticked). |
