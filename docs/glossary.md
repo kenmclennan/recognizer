@@ -22,6 +22,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Foreign library | Code outside the repository that a module depends on, such as `sqlite3`. |
 | Re-export | A module that makes another module's names importable from itself, such as a Python `__init__.py` or a TypeScript `index.ts`. |
 | Dependency | An edge from a module to the module that defines a name it uses. |
+| Trunk | A single stroke the canvas draws for a corridor of three or more lines running side by side after ELK routes them, its width by the log of the lines it carries; each line leaves it with a short diagonal where its own route turns. |
 | Dependent | A module on the other end of a dependency: the one that uses. |
 | Route | The re-exports a name passed through on its way from its defining module to the module that imports it. Stored as `via`. |
 | Generic method | A method name too common to identify a class, such as `get`. The scanners ignore an untyped parameter whose called methods are all generic. |
