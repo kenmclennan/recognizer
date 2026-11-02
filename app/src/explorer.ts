@@ -2575,6 +2575,7 @@ export function showExplorer(
           busy: describing.busy(id),
           failure: describing.failure(id),
         }),
+        metrics: overlayModel.metrics.filter((metric) => !metric.stale),
       });
     };
 

@@ -16,6 +16,8 @@ import type { EvidenceSection } from "./edge-evidence";
 import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
 import type { Disc, Finding } from "./health";
+import { barTitle, type Tone, tone, valueLabel } from "./metric-bars";
+import type { MetricDescriptor } from "./overlay-model";
 import { createPicker, type PickerSource } from "./picker-model";
 import type { ResponsibilityRow } from "./responsibility-model";
 import { type CheckState, checkState } from "./row-model";
@@ -42,6 +44,7 @@ export type InspectorInputs = {
   responsibility: (id: string) => ResponsibilityRow;
   folderMetrics: (folder: string) => FolderMetrics | null;
   distanceThreshold: number;
+  metrics: readonly MetricDescriptor[];
 };
 
 export type Direction = "uses" | "usedBy";
@@ -62,6 +65,13 @@ export type CardLine = {
   private: boolean;
 };
 
+export type MetricCell = { text: string; tone: Tone | null; title: string };
+
+export type MetricTable = {
+  head: { text: string; title: string }[];
+  rows: { name: string | null; cells: MetricCell[] }[];
+};
+
 export type CardRow = {
   kind: "card";
   label: CardLabel;
@@ -71,6 +81,7 @@ export type CardRow = {
   hidden: string;
   private: boolean;
   hover: string;
+  table: MetricTable | null;
 };
 
 export type SwitchRow = { kind: "switch"; label: "Show private"; on: boolean };
@@ -130,7 +141,68 @@ const PLAIN_LABELS: Record<string, CardLabel> = {
   type: "Type",
   enum: "Enum",
 };
+const SHORT_METRIC: Record<string, string> = {
+  complexity: "cc",
+  coverage: "cov",
+  crap: "CRAP",
+  mutation_score: "mut",
+  mutation_survived: "surv",
+};
+const SHORT_MUTATION: Record<string, string> = {
+  score: "mut",
+  survived: "surv",
+};
+const MUTATION_OVERLAYS = new Set(["mutate", "mutation"]);
 const PARENT_SEGMENTS = 2;
+
+function shortMetric(metric: MetricDescriptor): string {
+  const mutation = MUTATION_OVERLAYS.has(metric.overlay)
+    ? SHORT_MUTATION[metric.label]
+    : undefined;
+
+  return mutation ?? SHORT_METRIC[metric.label] ?? metric.label;
+}
+
+function cellOf(metric: MetricDescriptor, memberId: string): MetricCell {
+  const value = metric.values[memberId];
+
+  if (value === undefined) {
+    return {
+      text: "-",
+      tone: null,
+      title: barTitle(metric, null),
+    };
+  }
+
+  return {
+    text: valueLabel(metric, value),
+    tone: tone(metric, value),
+    title: barTitle(metric, { value, member: null }),
+  };
+}
+
+function metricTable(
+  metrics: readonly MetricDescriptor[],
+  module: string,
+  members: { name: string | null; id: string }[],
+): MetricTable | null {
+  const columns = metrics.filter((metric) => metric.granularity === "member");
+
+  if (columns.length === 0 || members.length === 0) {
+    return null;
+  }
+
+  return {
+    head: columns.map((metric) => ({
+      text: shortMetric(metric),
+      title: metric.label,
+    })),
+    rows: members.map((member) => ({
+      name: member.name,
+      cells: columns.map((metric) => cellOf(metric, `${module}::${member.id}`)),
+    })),
+  };
+}
 export const UNUSED_SHOWN = 8;
 
 function findModule(scans: Scan[], id: string) {
@@ -178,6 +250,8 @@ function classCard(
   member: ScanMember,
   edges: ScanEdge[],
   showPrivate: boolean,
+  module: string,
+  metrics: readonly MetricDescriptor[],
 ): CardRow {
   const label = member.kind === "interface" ? "Interface" : "Class";
   const outline =
@@ -193,6 +267,7 @@ function classCard(
     hidden: "",
     private: !member.exported,
     hover: member.name,
+    table: null,
   };
 
   if (!outline) {
@@ -237,10 +312,24 @@ function classCard(
     ...base,
     lines: shown,
     hidden: showPrivate ? "" : hiddenText(hiddenFields, hiddenMethods),
+    table: metricTable(
+      metrics,
+      module,
+      (member.methods ?? [])
+        .filter((method) => showPrivate || method.private !== true)
+        .map((method) => ({
+          name: method.name,
+          id: `${member.name}.${method.name}`,
+        })),
+    ),
   };
 }
 
-function plainCard(member: ScanMember): CardRow | null {
+function plainCard(
+  member: ScanMember,
+  module: string,
+  metrics: readonly MetricDescriptor[],
+): CardRow | null {
   const head = memberHeadTokens(member, []);
   const label = PLAIN_LABELS[member.kind ?? ""];
 
@@ -257,6 +346,10 @@ function plainCard(member: ScanMember): CardRow | null {
     hidden: "",
     private: !member.exported,
     hover: member.name,
+    table:
+      member.kind === "function"
+        ? metricTable(metrics, module, [{ name: null, id: member.name }])
+        : null,
   };
 }
 
@@ -282,8 +375,8 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
     shown.flatMap((member): Placed<CardRow>[] => {
       const card =
         member.kind === "class" || member.kind === "interface"
-          ? classCard(member, edges, inputs.showPrivate)
-          : plainCard(member);
+          ? classCard(member, edges, inputs.showPrivate, module, inputs.metrics)
+          : plainCard(member, module, inputs.metrics);
 
       return card === null ? [] : [{ line: member.line ?? null, item: card }];
     }),

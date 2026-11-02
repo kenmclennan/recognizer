@@ -63,6 +63,10 @@ const inputs = {
   filter: "",
   collapsed: new Set(),
   responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),
+  metrics: [
+    { key: "t/complexity", label: "complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },
+    { key: "t/coverage", label: "coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },
+  ],
 };
 const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {} };
 const mount = (id, selection, open) => {
@@ -142,6 +146,23 @@ const result = {
   heads: { long: measureHead("a-long"), short: measureHead("a-short") },
   edgeLines: document.querySelectorAll("#a-edge .ih-text > *").length,
   links: document.querySelectorAll("#a-panel .cb").length,
+  tables: [...panel.querySelectorAll(".card")].map((card) => {
+    const table = card.querySelector(".card-metrics");
+    if (!table) return null;
+    const cells = [...table.querySelectorAll("td.metrics-cell")];
+    return {
+      kind: card.querySelector(".card-kind").textContent,
+      head: [...table.querySelectorAll("th.metrics-cell")].map((n) => n.textContent),
+      names: [...table.querySelectorAll("td.metrics-name")].map((n) => n.textContent),
+      rows: table.querySelectorAll("tr.metrics-row").length,
+      text: cells.map((n) => n.textContent),
+      titles: cells.map((n) => n.title),
+      align: cells.map((n) => getComputedStyle(n).textAlign),
+      mono: cells.map((n) => /mono|Menlo/i.test(getComputedStyle(n).fontFamily)),
+      colors: cells.map((n) => getComputedStyle(n).color),
+      header: panel.querySelector(".ih").querySelectorAll(".card-metrics").length,
+    };
+  }),
   linkText: [...panel.querySelectorAll(".card")].map((n) => n.textContent).filter((t) => /(called|built|used) by/.test(t)).length,
 };
 window.addEventListener("load", () => {
@@ -164,6 +185,18 @@ type Report = {
   edgeLines: number;
   links: number;
   linkText: number;
+  tables: ({
+    kind: string;
+    head: string[];
+    names: string[];
+    rows: number;
+    text: string[];
+    titles: string[];
+    align: string[];
+    mono: boolean[];
+    colors: string[];
+    header: number;
+  } | null)[];
 };
 
 const EXPECTED: Record<"light" | "dark", Styles> = {
@@ -425,6 +458,34 @@ describe("the inspector, in a real browser", () => {
 
       expect(report.links).toBe(0);
       expect(report.linkText).toBe(0);
+    },
+    180000,
+  );
+
+  it.skipIf(chrome === undefined)(
+    "shows a metric table at the foot of the class and function cards and none in the header",
+    async () => {
+      const { tables } = await prepare("light");
+      const klass = tables.find((table) => table?.kind === "Class");
+      const func = tables.find((table) => table?.kind === "Function");
+
+      expect(klass?.head).toEqual(["cc", "cov"]);
+      expect(klass?.names).toEqual(["go", "_h"]);
+      expect(klass?.rows).toBe(2);
+      expect(klass?.text).toEqual(["12", "50%", "-", "-"]);
+      expect(klass?.titles).toEqual([
+        "complexity 12",
+        "coverage 50%",
+        "complexity: not measured",
+        "coverage: not measured",
+      ]);
+      expect(klass?.align).toEqual(["right", "right", "right", "right"]);
+      expect(klass?.mono.every(Boolean)).toBe(true);
+      expect(klass?.colors[0]).not.toBe(klass?.colors[2]);
+      expect(klass?.header).toBe(0);
+      expect(func?.names).toEqual([]);
+      expect(func?.rows).toBe(1);
+      expect(func?.text).toEqual(["1", "-"]);
     },
     180000,
   );
