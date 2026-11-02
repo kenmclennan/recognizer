@@ -100,10 +100,12 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Rail | The thin strip of icons at the window's far left, one per left-hand panel; an icon opens its panel, or closes it when it is open. |
 | Files panel | The rail's panel holding the tree. |
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
-| Note | A text a person or an agent attaches to one module in a saved view, with the name of who wrote it; a module can carry several in one view. |
-| Notes panel | The left-column panel, behind a rail icon beside Files, that lists every note in the view in canvas order grouped by box and focuses the selected one; the overview, with no composer. |
-| Note card | The card beside a box holding every note on it and the composer; the place notes are read and written, opened from the corner mark, the bar's notes button, N, or the inspector's Notes tab. |
-| Note focus | A module selection with its note card open; kept while the noted box stays selected, cleared by any other selection or Escape. |
+| Note | The one text a person or an agent attaches to a module or folder in a saved view, with the name of who last wrote it; writing again replaces it. |
+| Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view in canvas order and focuses the selected note; the overview, with no composer. |
+| Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove; the place notes are read and written, opened from the mark, the bar's notes button, N, or the inspector's Notes tab. |
+| Note mark | The small outlined speech-bubble icon after a noted box's name or at a noted frame's corner; clicking it opens the bubble. |
+| Notes toggle | The canvas control beside Fit, Clear and Legend that shows every note on the view as a bubble at once. |
+| Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
 | Sensors panel | The left-column panel, behind the Sensors rail icon, that shows the last scan and each sensor's status, and runs the ticked or all registered sensors on request. |
 | Findings panel | The left-column panel, behind the Findings rail icon, that lists every current finding grouped by severity and kind and focuses the selected one. |
 | Finding focus | A module selection with one finding in focus: the evidence lit, the rest dimmed, the row expanded with its evidence and actions. Cleared by Escape, by clicking the finding again, or by selecting a box outside the evidence. |
