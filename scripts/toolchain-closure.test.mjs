@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
+import {
+  assertNoInstallScripts,
+  closureFromLock,
+  verifyVendored,
+} from "./toolchain-closure.mjs";
 
 const lock = {
   packages: {
@@ -90,5 +94,37 @@ describe("verifyVendored", () => {
     };
 
     expect(() => verifyVendored(small, found, ["app"])).not.toThrow();
+  });
+});
+
+describe("assertNoInstallScripts", () => {
+  const scripted = {
+    packages: {
+      app: { dependencies: { plain: "1", native: "1" } },
+      "node_modules/plain": { version: "1.0.0" },
+      "node_modules/native": { version: "1.0.0", hasInstallScript: true },
+      "node_modules/dev-native": {
+        version: "1.0.0",
+        hasInstallScript: true,
+        dev: true,
+      },
+    },
+  };
+
+  it("fails naming the closure package that has an install script", () => {
+    expect(() => assertNoInstallScripts(scripted, ["app"])).toThrow(
+      /node_modules\/native/,
+    );
+    expect(() => assertNoInstallScripts(scripted, ["app"])).not.toThrow(
+      /plain|dev-native/,
+    );
+  });
+
+  it("passes for the real lockfile", () => {
+    const real = JSON.parse(
+      readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
+    );
+
+    expect(() => assertNoInstallScripts(real)).not.toThrow();
   });
 });
