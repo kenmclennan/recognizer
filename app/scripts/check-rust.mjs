@@ -9,10 +9,10 @@ function available(command) {
   return spawnSync(command, ["--version"], { stdio: "ignore" }).status === 0;
 }
 
-function run(command, args) {
+function run(command, args, cwd = root) {
   process.stdout.write(`check:rust ${command} ${args.join(" ")}\n`);
 
-  const result = spawnSync(command, args, { cwd: root, stdio: "inherit" });
+  const result = spawnSync(command, args, { cwd, stdio: "inherit" });
 
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
@@ -46,4 +46,17 @@ if (!available("cargo")) {
     "-D",
     "warnings",
   ]);
+
+  run(
+    "node",
+    [
+      fileURLToPath(
+        new URL("../../scripts/assert-clean-tmpdir.mjs", import.meta.url),
+      ),
+      "cargo",
+      "test",
+      "--locked",
+    ],
+    fileURLToPath(new URL("../../scanners/rust", import.meta.url)),
+  );
 }
