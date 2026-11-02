@@ -118,6 +118,7 @@ export {
 export {
   migrateView,
   type Note,
+  noteWarnings,
   type ResolvedView,
   resolveView,
   type View,

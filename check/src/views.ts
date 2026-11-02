@@ -56,7 +56,7 @@ export function validateView(value: unknown): View {
   throw new InputError(messages.length > 0 ? messages : ["view is invalid"]);
 }
 
-export function viewNotes(view: View): ViewNote[] {
+function rawNotes(view: View): ViewNote[] {
   if (view.schema_version === 3) {
     return (view.notes ?? []).map((note) => ({ ...note }));
   }
@@ -68,6 +68,43 @@ export function viewNotes(view: View): ViewNote[] {
   }
 
   return [];
+}
+
+export function lastNotePerPath(notes: ViewNote[]): ViewNote[] {
+  const lastIndex = new Map<string, number>();
+
+  notes.forEach((note, index) => {
+    lastIndex.set(note.module, index);
+  });
+
+  return notes.filter((note, index) => lastIndex.get(note.module) === index);
+}
+
+export function viewNotes(view: View): ViewNote[] {
+  return lastNotePerPath(rawNotes(view));
+}
+
+export function noteWarnings(view: View): string[] {
+  const all = rawNotes(view);
+  const dropped = all.length - lastNotePerPath(all).length;
+
+  if (dropped === 0) {
+    return [];
+  }
+
+  const counts = new Map<string, number>();
+
+  for (const note of all) {
+    counts.set(note.module, (counts.get(note.module) ?? 0) + 1);
+  }
+
+  const repeated = [...counts]
+    .filter(([, count]) => count > 1)
+    .map(([path]) => path);
+
+  return [
+    `view holds ${dropped} ${dropped === 1 ? "note" : "notes"} on ${repeated.join(", ")}; kept the last on each`,
+  ];
 }
 
 export function migrateView(view: View): View {

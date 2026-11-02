@@ -93,10 +93,10 @@ describe("canvas keys", () => {
     expect(keyAction(press("z", { ctrlKey: true }), folder)).toBeNull();
   });
 
-  it("maps N to add-note for a module only", () => {
+  it("maps N to add-note for a module or a folder, not an edge", () => {
     expect(keyAction(press("n"), module)).toBe("add-note");
     expect(keyAction(press("N"), module)).toBe("add-note");
-    expect(keyAction(press("n"), folder)).toBeNull();
+    expect(keyAction(press("n"), folder)).toBe("add-note");
     expect(keyAction(press("n"), { kind: "edge", id: "e" })).toBeNull();
     expect(keyAction(press("n"), null)).toBeNull();
     expect(keyAction(press("n", { metaKey: true }), module)).toBeNull();

@@ -36,18 +36,10 @@
   --tk-punct: #57606a;
   --card-bg: #f6f8fa;
   --card-border: #d8dee4;
-  --note-person: #bf8700;
-  --note-person-bg: #fff8c5;
-  --note-agent: #8250df;
-  --note-agent-bg: #fbefff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --note-person: #d29922;
-    --note-person-bg: #3a2f10;
-    --note-agent: #a371f7;
-    --note-agent-bg: #2d2342;
     --bg: #16181c;
     --fg: #e6edf3;
     --muted: #9198a1;
@@ -552,24 +544,19 @@ svg.i.chevron {
   cursor: pointer;
 }
 
-.box .note-mark {
-  fill: var(--sel);
+.note-mark {
+  color: var(--muted);
   cursor: pointer;
+  pointer-events: all;
 }
 
-.box .note-mark.active {
-  stroke: var(--fg);
-  stroke-width: 1.5;
+.note-mark:hover,
+.note-mark.active {
+  color: var(--sel);
 }
 
-.note-leader-group .note-leader {
-  fill: none;
-  stroke: var(--note-person);
-  stroke-width: 1.5;
-}
-
-.note-leader-group.agent .note-leader {
-  stroke: var(--note-agent);
+.note-mark path {
+  fill: var(--box);
 }
 
 .box .halo {
@@ -2071,8 +2058,7 @@ svg.i.chevron {
   color: var(--muted);
 }
 
-.note-group,
-.note-off {
+.note-list {
   padding: 8px 12px 0;
 }
 
@@ -2084,10 +2070,6 @@ svg.i.chevron {
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.note-group-title strong {
-  color: var(--fg);
 }
 
 .note-row {
@@ -2103,14 +2085,6 @@ svg.i.chevron {
   cursor: pointer;
 }
 
-.note-row.person {
-  border-left-color: var(--note-person);
-}
-
-.note-row.agent {
-  border-left-color: var(--note-agent);
-}
-
 .note-row.active {
   background: var(--selbg);
 }
@@ -2118,6 +2092,15 @@ svg.i.chevron {
 .note-row.off {
   color: var(--faint);
   cursor: default;
+}
+
+.note-row .note-path {
+  flex: 1 1 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .note-row .note-text {
@@ -2131,6 +2114,7 @@ svg.i.chevron {
   font-size: 11px;
 }
 
+.note-row .note-edit,
 .note-row .note-remove {
   padding: 0 6px;
   border: 1px solid var(--line);
@@ -2408,68 +2392,93 @@ svg.i.chevron {
   pointer-events: none;
 }
 
-.note-card {
+.note-bubble {
   position: absolute;
   box-sizing: border-box;
+  width: 240px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px;
-  overflow-y: auto;
-  border: 1px solid var(--note-person);
-  border-radius: 6px;
-  background: var(--note-person-bg);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
   color: var(--fg);
   font-size: 12px;
   pointer-events: auto;
 }
 
-.note-card .note-block {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 6px;
-  padding: 4px 6px;
-  border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: 4px;
-  background: var(--bg);
+.note-bubble::before,
+.note-bubble::after {
+  position: absolute;
+  top: var(--tail-y, 20px);
+  width: 0;
+  height: 0;
+  margin-top: -7px;
+  border: 7px solid transparent;
+  content: "";
 }
 
-.note-card .note-block.person {
-  border-left-color: var(--note-person);
+.note-bubble.right::before {
+  left: -14px;
+  border-right-color: var(--line);
 }
 
-.note-card .note-block.agent {
-  border-left-color: var(--note-agent);
-  background: var(--note-agent-bg);
+.note-bubble.right::after {
+  left: -13px;
+  border-right-color: var(--bg);
 }
 
-.note-card .note-block.active {
-  outline: 2px solid var(--sel);
+.note-bubble.left::before {
+  right: -14px;
+  border-left-color: var(--line);
 }
 
-.note-card .note-text {
-  flex: 1 1 100%;
+.note-bubble.left::after {
+  right: -13px;
+  border-left-color: var(--bg);
+}
+
+.note-bubble .note-text {
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  cursor: text;
 }
 
-.note-card .note-by {
-  flex: 1;
+.note-bubble .note-by {
   color: var(--muted);
   font-size: 11px;
 }
 
-.note-card .note-remove {
-  padding: 0 6px;
+.note-bubble .note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.note-bubble .note-actions button {
+  padding: 2px 10px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: transparent;
   color: var(--muted);
+  font: inherit;
   cursor: pointer;
 }
 
-.note-card .note-card-field {
+.note-bubble .note-actions button.primary {
+  background: var(--sel);
+  color: #fff;
+}
+
+.note-bubble .note-actions button:disabled {
+  background: transparent;
+  color: var(--faint);
+  cursor: default;
+}
+
+.note-bubble .note-field {
   box-sizing: border-box;
   padding: 4px 6px;
   border: 1px solid var(--line);
@@ -2480,27 +2489,10 @@ svg.i.chevron {
   resize: none;
 }
 
-.note-card .note-card-field:focus {
+.note-bubble .note-field:focus {
   outline: none;
   border-color: var(--sel);
   box-shadow: 0 0 0 2px var(--selbg);
-}
-
-.note-card .note-card-add {
-  align-self: flex-end;
-  padding: 2px 10px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--sel);
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
-}
-
-.note-card .note-card-add:disabled {
-  background: transparent;
-  color: var(--faint);
-  cursor: default;
 }
 
 .add-layer {

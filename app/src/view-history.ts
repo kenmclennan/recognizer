@@ -1,6 +1,8 @@
 export const HISTORY_LIMIT = 200;
 
-export type Mark = { by: string; summary: string };
+export type NoteMark = { view: string; path: string; text: string; by: string };
+
+export type Mark = { by: string; summary: string; note?: NoteMark };
 
 export type History<T> = {
   record: (snapshot: T, mark?: Mark) => boolean;
@@ -20,7 +22,10 @@ export function createHistory<T>(first: T): History<T> {
 
   return {
     record(snapshot, mark) {
-      if (JSON.stringify(snapshot) === JSON.stringify(entries[index])) {
+      if (
+        mark?.note === undefined &&
+        JSON.stringify(snapshot) === JSON.stringify(entries[index])
+      ) {
         return false;
       }
 

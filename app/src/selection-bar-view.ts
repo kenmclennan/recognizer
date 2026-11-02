@@ -5,7 +5,7 @@ import type { InspectorTab } from "./inspector-model";
 export type BarModel = {
   kind: "module" | "folder";
   dependencies: number;
-  notes: { count: number } | null;
+  notes: { noted: boolean } | null;
   findings: { count: number; tone: "red" | "amber" } | null;
   files: { open: number; held: number } | null;
   focused: boolean;
@@ -108,14 +108,12 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
       parts.push(dependencies);
 
       if (model.notes !== null) {
-        const notes = iconButton(
-          "notes",
-          `Notes (N)`,
-          () => actions.openNote(),
-          model.notes.count > 0 ? String(model.notes.count) : null,
+        const notes = iconButton("notes", `Notes (N)`, () =>
+          actions.openNote(),
         );
 
         notes.classList.add("bar-notes");
+        notes.classList.toggle("on", model.notes.noted);
         parts.push(notes);
       }
 

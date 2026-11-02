@@ -7,7 +7,9 @@ import { moduleNames, under } from "./neighbours.js";
 import type { Scan } from "./scan.js";
 import { resolveCommit } from "./scan-command.js";
 import {
+  lastNotePerPath,
   migrateView,
+  noteWarnings,
   type ResolvedView,
   resolveView,
   type View,
@@ -75,7 +77,7 @@ const USAGE: Record<Subcommand, string> = {
   focus: "recognizer views focus <name> <folder> [--repository <dir>] [--json]",
   remove:
     "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
-  note: "recognizer views note <name> <module> (<text> [--by <name>] | --remove [--by <name>]) [--repository <dir>] [--json]",
+  note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] | --remove [--by <name>]) [--repository <dir>] [--json]",
   show: "recognizer views show <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
   check:
@@ -645,37 +647,41 @@ function runNote(argv: string[], io: Io): number {
     argv,
     io,
     (c, view, scans) => {
-      const module = c.positionals[1] as string;
+      const path = c.positionals[1] as string;
       const notes = viewNotes(view);
       const rawBy = c.values.by as string | undefined;
 
       if (removing) {
         const author = rawBy?.trim();
-        const kept = notes.filter(
-          (note) =>
-            note.module !== module ||
-            (author !== undefined && note.by !== author),
-        );
-        const taken = notes.length - kept.length;
+        const existing = notes.find((note) => note.module === path);
 
-        if (taken === 0) {
+        if (existing === undefined) {
+          throw new InputError([`no note on ${path}`]);
+        }
+
+        if (author !== undefined && existing.by !== author) {
           throw new InputError([
-            author === undefined
-              ? `no note on ${module}`
-              : `no note by ${author} on ${module}`,
+            `the note on ${path} is by ${existing.by}, not ${author}`,
           ]);
         }
 
-        const by = author === undefined ? "" : ` by ${author}`;
-
         return {
-          view: withNotes(view, kept),
-          what: `removed ${plural(taken, "note")}${by} on ${module}`,
+          view: withNotes(
+            view,
+            notes.filter((note) => note.module !== path),
+          ),
+          what: `removed the note on ${path}`,
         };
       }
 
-      if (!resolveView(view, scans).modules.includes(module)) {
-        throw new InputError([`${module} is not on the view`]);
+      const modules = resolveView(view, scans).modules;
+
+      if (path.endsWith("/")) {
+        if (!modules.some((module) => under(module, folderPath(path)))) {
+          throw new InputError([`${path} has no module on the view`]);
+        }
+      } else if (!modules.includes(path)) {
+        throw new InputError([`${path} is not on the view`]);
       }
 
       const text = (c.positionals[2] as string).trim();
@@ -691,17 +697,16 @@ function runNote(argv: string[], io: Io): number {
         ]);
       }
 
-      const duplicate = notes.some(
-        (note) =>
-          note.module === module && note.text === text && note.by === by,
-      );
+      const replaced = notes.some((note) => note.module === path);
+      const next = replaced
+        ? notes.map((note) =>
+            note.module === path ? { module: path, text, by } : note,
+          )
+        : [...notes, { module: path, text, by }];
 
       return {
-        view: withNotes(
-          view,
-          duplicate ? notes : [...notes, { module, text, by }],
-        ),
-        what: `added a note on ${module}`,
+        view: withNotes(view, next),
+        what: `set the note on ${path}`,
       };
     },
     (count) => (removing ? count === 2 : count === 3),
@@ -751,6 +756,7 @@ function runShow(argv: string[], io: Io): number {
         notes: viewNotes(view),
         resolved: resolvedJson(resolved),
         unresolved: resolved.unresolved,
+        warnings: noteWarnings(view),
       },
       "",
     );
@@ -768,6 +774,10 @@ function runShow(argv: string[], io: Io): number {
   ];
 
   const onView = new Set(resolved.modules);
+  const notedOnView = (path: string) =>
+    path.endsWith("/")
+      ? resolved.modules.some((module) => under(module, folderPath(path)))
+      : onView.has(path);
   const notes = viewNotes(view);
 
   if (notes.length > 0) {
@@ -775,10 +785,12 @@ function runShow(argv: string[], io: Io): number {
       "notes:",
       ...notes.map(
         (note) =>
-          `  ${note.module}: ${note.text} (${note.by})${onView.has(note.module) ? "" : " (not on the view)"}`,
+          `  ${note.module}: ${note.text} (${note.by})${notedOnView(note.module) ? "" : " (not on the view)"}`,
       ),
     );
   }
+
+  lines.push(...noteWarnings(view).map((warning) => `warning: ${warning}`));
 
   if (resolved.unresolved.length > 0) {
     lines.push(
@@ -853,6 +865,7 @@ interface CheckedView {
   error?: string;
   unresolved: CheckedStep[];
   fixed: { step: number; from: string; to: string }[];
+  warnings: string[];
 }
 
 function parseRenames(stdout: string): Map<string, string> {
@@ -930,10 +943,13 @@ function runCheck(argv: string[], io: Io): number {
           error: (error as InputError).messages.join("; "),
           unresolved: [],
           fixed: [],
+          warnings: [],
         });
 
         continue;
       }
+
+      const warnings = noteWarnings(view);
 
       const annotate = (current: View): CheckedStep[] =>
         resolveView(current, scans).unresolved.map((u) => {
@@ -988,10 +1004,12 @@ function runCheck(argv: string[], io: Io): number {
         };
 
         if (view.notes !== undefined) {
-          view.notes = view.notes.map((note) => ({
-            ...note,
-            module: renamed.get(note.module) ?? note.module,
-          }));
+          view.notes = lastNotePerPath(
+            view.notes.map((note) => ({
+              ...note,
+              module: renamed.get(note.module) ?? note.module,
+            })),
+          );
         }
 
         writeViewFile(io, viewFile(c.root, name), view);
@@ -1003,6 +1021,7 @@ function runCheck(argv: string[], io: Io): number {
         ok: unresolved.length === 0,
         unresolved,
         fixed,
+        warnings,
       });
     }
   }
@@ -1040,6 +1059,10 @@ function runCheck(argv: string[], io: Io): number {
       lines.push(
         `  step ${u.step} ${u.kind} ${u.path} - no such ${u.what}${u.renamedTo === null ? "" : ` (renamed to ${u.renamedTo})`}`,
       );
+    }
+
+    for (const warning of result.warnings) {
+      lines.push(`  warning: ${warning}`);
     }
   }
 

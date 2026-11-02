@@ -17,6 +17,7 @@
     },
     "notes": {
       "type": "array",
+      "description": "At most one note per module; a module is a module path or a folder path with one trailing slash. When a file holds several notes on one path, readers keep the last.",
       "items": { "$ref": "#/$defs/viewNote" }
     },
     "steps": {
@@ -75,7 +76,7 @@
       "additionalProperties": false,
       "required": ["module", "text", "by"],
       "properties": {
-        "module": { "$ref": "#/$defs/path" },
+        "module": { "$ref": "#/$defs/notePath" },
         "text": { "type": "string", "pattern": "\\S" },
         "by": { "type": "string", "pattern": "\\S", "maxLength": 64 }
       }
@@ -84,6 +85,11 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^(?!\\./)(?!/)[^\\\\]*[^\\\\/]$"
+    },
+    "notePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\./)(?!/)[^\\\\]*[^\\\\/]/?$"
     },
     "step": {
       "oneOf": [
