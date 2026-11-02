@@ -108,6 +108,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
 | Lens | A saved view whose notes have no order (`ordered: false`): plain marks, unnumbered rows, no Previous and Next. |
 | Stale view | A saved view the list shows under Stale with Delete: a change view whose head is merged or whose branch is gone, or any view with a pick that no longer resolves. |
+| Views panel | The left-column panel, behind the rail icon between Files and Notes, that lists every saved view: live ones, then stale ones with Delete; opened from the view bar's All views link. |
 | Note | The one text a person or an agent attaches to a module or folder in a saved view, with the name of who last wrote it; writing again replaces it. |
 | Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view in canvas order and focuses the selected note; the overview, with no composer. |
 | Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove; the place notes are read and written, opened from the mark, the bar's notes button or N. |
