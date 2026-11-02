@@ -1141,22 +1141,22 @@ describe("dependencies tab", () => {
 
     expect(list.map((row) => [row.folder, row.label])).toEqual([
       [true, "a/"],
-      [false, "x"],
-      [false, "y"],
+      [false, "x.py"],
+      [false, "y.py"],
       [true, "b/"],
-      [false, "z"],
+      [false, "z.py"],
     ]);
     expect(list[0]).toMatchObject({
       chevron: { key: "a", open: true },
       detail: { text: "2" },
     });
-    expect(list[1]).toMatchObject({ indent: true, detail: { text: "X" } });
+    expect(list[1]).toMatchObject({ indent: true, detail: null });
   });
 
   it("lists the modules that use a module in the Used by section", () => {
     const list = moduleRows(section(rows({}), "Used by 1"));
 
-    expect(list.map((row) => row.label)).toEqual(["./", "caller"]);
+    expect(list.map((row) => row.label)).toEqual(["./", "caller.py"]);
     expect(list[0]).toMatchObject({ id: "" });
   });
 
@@ -1186,7 +1186,7 @@ describe("dependencies tab", () => {
     const list = rows({ filter: "z" });
 
     expect(moduleRows(section(list, "Uses 3")).map((row) => row.label)).toEqual(
-      ["b/", "z"],
+      ["b/", "z.py"],
     );
     expect(section(list, "Used by 1")).toEqual([
       { kind: "note", text: "Nothing matches." },
@@ -1195,7 +1195,7 @@ describe("dependencies tab", () => {
       moduleRows(section(rows({ filter: "hub" }), "Used by 1")).map(
         (row) => row.label,
       ),
-    ).toEqual(["./", "caller"]);
+    ).toEqual(["./", "caller.py"]);
   });
 
   it("shows None for an empty section", () => {
@@ -1215,7 +1215,7 @@ describe("dependencies tab", () => {
       section(rows({ collapsed: new Set(["a"]) }), "Uses 3"),
     );
 
-    expect(list.map((row) => row.label)).toEqual(["a/", "b/", "z"]);
+    expect(list.map((row) => row.label)).toEqual(["a/", "b/", "z.py"]);
     expect(list[0]).toMatchObject({ chevron: { key: "a", open: false } });
   });
 

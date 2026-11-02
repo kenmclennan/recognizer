@@ -297,7 +297,7 @@ describe.skipIf(chrome === undefined)("the trail", () => {
   it("shows the follow arrow only on hover", () => {
     expect(f.arrow.visibility).toBe("hidden");
     expect(f.arrow.hoverRule).toBe(true);
-    expect(f.arrow.label).toBe("Follow a into its own panel");
+    expect(f.arrow.label).toBe("Follow a.py into its own panel");
     expect(f.arrow.inRow).toBe(0);
   });
 

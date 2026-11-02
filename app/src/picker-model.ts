@@ -11,9 +11,9 @@ import {
 } from "recognizer";
 import type { Compaction } from "./folder-compaction";
 import { type CheckState, checkState } from "./row-model";
+import { fileLabel } from "./tree-model";
 
 export const LONG_LIST = 18;
-export const NAMES_SHOWN = 4;
 
 export type PickerSource =
   | { kind: "module"; id: string; direction: "uses" | "usedBy" }
@@ -23,7 +23,6 @@ export type PickerRow = {
   id: string;
   label: string;
   names: string[];
-  namesText: string;
   private: boolean;
   inferred: boolean;
   onCanvas: boolean;
@@ -62,14 +61,6 @@ type RawRow = NeighbourRow & { group: string };
 export { edgeNames };
 
 const compare = (a: string, b: string) => a.localeCompare(b);
-
-function namesText(names: string[]): string {
-  const shown = names.slice(0, NAMES_SHOWN).join(", ");
-
-  return names.length > NAMES_SHOWN
-    ? `${shown} +${names.length - NAMES_SHOWN}`
-    : shown;
-}
 
 export function createPicker(input: PickerInput): PickerModel {
   const { source, onCanvas } = input;
@@ -121,9 +112,8 @@ export function createPicker(input: PickerInput): PickerModel {
 
   const view = (row: RawRow): PickerRow => ({
     id: row.id,
-    label: moduleLabel(row.id),
+    label: fileLabel(row.id),
     names: row.names,
-    namesText: namesText(row.names),
     private: row.private,
     inferred: row.inferred,
     onCanvas: onCanvas(row.id),
