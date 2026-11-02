@@ -131,6 +131,39 @@
           }
         ]
       }
+    },
+    {
+      "id": "folder_cycle",
+      "principle": "no-cycles",
+      "fix_pattern": "break-folder-cycle",
+      "summary": "folders app/orders and app/shared import each other (2 edges)",
+      "evidence": {
+        "modules": [
+          "app/orders/place.py",
+          "app/shared/money.py"
+        ],
+        "edges": [
+          {
+            "from": "app/orders/place.py",
+            "to": "app/shared/money.py"
+          },
+          {
+            "from": "app/shared/money.py",
+            "to": "app/orders/place.py"
+          }
+        ]
+      }
+    },
+    {
+      "id": "policy_drift",
+      "principle": "policy-describes-the-code",
+      "fix_pattern": "update-policy",
+      "summary": "folder app/legacy holds 1 scanned modules that no component covers",
+      "evidence": {
+        "modules": [
+          "app/legacy/old.py"
+        ]
+      }
     }
   ],
   "metrics": [

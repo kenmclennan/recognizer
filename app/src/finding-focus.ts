@@ -15,7 +15,7 @@ export type Ghost = {
 export type RowDetail = {
   lines: string[];
   fix: string;
-  open: { module: string; line: number | null };
+  open: { module: string; line: number | null } | null;
 };
 
 export const GHOST_GAP = 40;
@@ -46,13 +46,17 @@ export function rowDetail(record: FindingRecord): RowDetail {
   const first = record.evidence.edges?.[0];
   const line = first?.lines?.[0];
 
+  const module = record.evidence.modules[0];
+
   return {
     lines: evidenceLines(record),
     fix: record.fix_pattern ?? "no fix pattern recorded",
     open:
       first !== undefined && line !== undefined
         ? { module: first.from, line }
-        : { module: record.evidence.modules[0] as string, line: null },
+        : module !== undefined
+          ? { module, line: null }
+          : null,
   };
 }
 

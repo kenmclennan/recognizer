@@ -7,13 +7,25 @@ import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { collectViolations } from "./rules.js";
 import type { Scan } from "./scan.js";
+import {
+  folderCycleFindings,
+  orphanFindings,
+  policyDriftFindings,
+} from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "1";
+export const STRUCTURE_SENSOR_VERSION = "2";
 export const DEFAULT_HUB_THRESHOLD = 10;
 
 export interface StructureSettings {
   hub_threshold: number;
-  warnings: { cycle: boolean; hub: boolean };
+  entry_points: string[];
+  warnings: {
+    cycle: boolean;
+    hub: boolean;
+    folder_cycle: boolean;
+    orphan: boolean;
+    policy_drift: boolean;
+  };
 }
 
 export interface StructureContext {
@@ -29,7 +41,14 @@ export interface StructureResult {
 
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
   hub_threshold: DEFAULT_HUB_THRESHOLD,
-  warnings: { cycle: true, hub: true },
+  entry_points: [],
+  warnings: {
+    cycle: true,
+    hub: true,
+    folder_cycle: true,
+    orphan: true,
+    policy_drift: true,
+  },
 };
 
 export function resolveStructureSettings(
@@ -44,14 +63,21 @@ export function resolveStructureSettings(
 
   const given = entry !== undefined && "command" in entry ? {} : (entry ?? {});
 
+  const defaults = DEFAULT_STRUCTURE_SETTINGS.warnings;
+  const orphan = given.warnings?.orphan ?? true;
+
   return {
     hub_threshold:
       override ??
       given.hub_threshold ??
       DEFAULT_STRUCTURE_SETTINGS.hub_threshold,
+    entry_points: typeof orphan === "object" ? [...orphan.entry_points] : [],
     warnings: {
-      cycle: given.warnings?.cycle ?? DEFAULT_STRUCTURE_SETTINGS.warnings.cycle,
-      hub: given.warnings?.hub ?? DEFAULT_STRUCTURE_SETTINGS.warnings.hub,
+      cycle: given.warnings?.cycle ?? defaults.cycle,
+      hub: given.warnings?.hub ?? defaults.hub,
+      folder_cycle: given.warnings?.folder_cycle ?? defaults.folder_cycle,
+      orphan: orphan !== false,
+      policy_drift: given.warnings?.policy_drift ?? defaults.policy_drift,
     },
   };
 }
@@ -74,7 +100,13 @@ export function measuredModules(
 export function describeSettings(settings: StructureSettings): string {
   const on = (value: boolean) => (value ? "on" : "off");
 
-  return `hub_threshold ${settings.hub_threshold}, cycle ${on(settings.warnings.cycle)}, hub ${on(settings.warnings.hub)}`;
+  const w = settings.warnings;
+  const entries =
+    settings.entry_points.length > 0
+      ? `, entry_points ${settings.entry_points.length}`
+      : "";
+
+  return `hub_threshold ${settings.hub_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}${entries}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -177,6 +209,25 @@ export function structureSensor(
         add(warnings, warningFinding(warning));
       }
     }
+
+    const extra = [
+      ...(settings.warnings.folder_cycle
+        ? folderCycleFindings(scan, policy)
+        : []),
+      ...(settings.warnings.orphan
+        ? orphanFindings(scan, policy, settings.entry_points)
+        : []),
+    ];
+
+    for (const finding of extra) {
+      add(warnings, finding);
+    }
+  }
+
+  if (settings.warnings.policy_drift) {
+    for (const finding of policyDriftFindings(scans, policy)) {
+      add(warnings, finding);
+    }
   }
 
   return {
@@ -187,7 +238,14 @@ export function structureSensor(
       modified: context.modified,
       settings: {
         hub_threshold: settings.hub_threshold,
-        warnings: { ...settings.warnings },
+        entry_points: [...settings.entry_points],
+        warnings: {
+          cycle: settings.warnings.cycle,
+          hub: settings.warnings.hub,
+          folder_cycle: settings.warnings.folder_cycle,
+          orphan: settings.warnings.orphan,
+          policy_drift: settings.warnings.policy_drift,
+        },
       },
       findings: [...findings, ...warnings],
     },

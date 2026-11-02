@@ -4,6 +4,10 @@ sensors:
     warnings:
       cycle: true
       hub: false
+      folder_cycle: true
+      policy_drift: false
+      orphan:
+        entry_points: ["packages/*/src/main.ts", "scripts/**"]
   unused-exports:
     command:
       [node, "{repository}/scripts/unused.mjs", "{commit}", "{output}"]

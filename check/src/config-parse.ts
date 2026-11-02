@@ -20,7 +20,13 @@ export interface SensorRegistration {
 
 export interface StructureSettingsInput {
   hub_threshold?: number;
-  warnings?: { cycle?: boolean; hub?: boolean };
+  warnings?: {
+    cycle?: boolean;
+    hub?: boolean;
+    folder_cycle?: boolean;
+    policy_drift?: boolean;
+    orphan?: boolean | { entry_points: string[] };
+  };
 }
 
 export type SensorEntry = SensorRegistration | StructureSettingsInput | "off";

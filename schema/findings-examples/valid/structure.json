@@ -1,9 +1,19 @@
 {
   "findings_version": 1,
-  "sensor": { "name": "structure", "version": "1" },
+  "sensor": { "name": "structure", "version": "2" },
   "commit": "0123456789abcdef0123456789abcdef01234567",
   "modified": false,
-  "settings": { "hub_threshold": 10, "warnings": { "cycle": true, "hub": true } },
+  "settings": {
+    "hub_threshold": 10,
+    "entry_points": [],
+    "warnings": {
+      "cycle": true,
+      "hub": true,
+      "folder_cycle": true,
+      "orphan": true,
+      "policy_drift": true
+    }
+  },
   "findings": [
     {
       "id": "rule-violation:depends:shop/domain/order.py->shop/adapters/memory_store.py",
@@ -50,6 +60,48 @@
         "modules": ["app/application/place.py"],
         "measures": { "fan_in": 3, "fan_out": 3, "threshold": 3 }
       }
+    },
+    {
+      "id": "folder_cycle:app/adapters,app/application",
+      "kind": "folder_cycle",
+      "severity": "warning",
+      "principle": "no-cycles",
+      "summary": "folders app/adapters and app/application import each other (2 edges)",
+      "fix_pattern": "break-folder-cycle",
+      "evidence": {
+        "modules": ["app/adapters/sql.py", "app/application/place.py"],
+        "edges": [
+          { "from": "app/adapters/sql.py", "to": "app/application/place.py" },
+          { "from": "app/application/place.py", "to": "app/adapters/sql.py" }
+        ]
+      }
+    },
+    {
+      "id": "orphan:app/adapters/audit.py",
+      "kind": "orphan",
+      "severity": "warning",
+      "principle": "every-module-is-reachable",
+      "summary": "app/adapters/audit.py is imported by no module and is not an entry point",
+      "fix_pattern": "remove-or-wire-orphan",
+      "evidence": { "modules": ["app/adapters/audit.py"] }
+    },
+    {
+      "id": "policy_drift:entry:app/legacy/**",
+      "kind": "policy_drift",
+      "severity": "warning",
+      "principle": "policy-describes-the-code",
+      "summary": "policy entry app/legacy/** (component legacy) matches no scanned module",
+      "fix_pattern": "update-policy",
+      "evidence": { "modules": [] }
+    },
+    {
+      "id": "policy_drift:folder:app/tools",
+      "kind": "policy_drift",
+      "severity": "warning",
+      "principle": "policy-describes-the-code",
+      "summary": "folder app/tools holds 1 scanned modules that no component covers",
+      "fix_pattern": "update-policy",
+      "evidence": { "modules": ["app/tools/seed.py"] }
     }
   ]
 }

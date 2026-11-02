@@ -38,7 +38,17 @@ function sense(name: string, hub = 10, cycle = true, hubOn = true) {
   return structureSensor(
     [scan],
     policy,
-    { hub_threshold: hub, warnings: { cycle, hub: hubOn } },
+    {
+      hub_threshold: hub,
+      entry_points: [],
+      warnings: {
+        cycle,
+        hub: hubOn,
+        folder_cycle: cycle,
+        orphan: cycle,
+        policy_drift: cycle,
+      },
+    },
     CONTEXT,
   );
 }
@@ -116,7 +126,14 @@ describe("structureSensor ids", () => {
     expect(off.metrics.length).toBeGreaterThan(0);
     expect(off.document.settings).toEqual({
       hub_threshold: 3,
-      warnings: { cycle: false, hub: false },
+      entry_points: [],
+      warnings: {
+        cycle: false,
+        hub: false,
+        folder_cycle: false,
+        orphan: false,
+        policy_drift: false,
+      },
     });
   });
 });

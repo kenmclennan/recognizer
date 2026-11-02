@@ -54,7 +54,7 @@ export function findingRows(documents: FindingsDocument[]): FindingRow[] {
   return documents.flatMap((document) =>
     document.findings.map((record) => ({
       id: record.id,
-      module: record.evidence.modules[0] as string,
+      module: record.evidence.modules[0] ?? "",
       kind: record.kind,
       severity: record.severity,
       summary: record.summary,

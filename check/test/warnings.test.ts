@@ -360,7 +360,10 @@ describe("--hub-threshold", () => {
     );
 
     expect(low.thresholds).toEqual({ hub: 1 });
-    expect(low.warnings).toHaveLength(1);
-    expect(high.warnings).toHaveLength(0);
+    const hubs = (report: { warnings: { id: string }[] }) =>
+      report.warnings.filter((warning) => warning.id === "hub");
+
+    expect(hubs(low)).toHaveLength(1);
+    expect(hubs(high)).toHaveLength(0);
   });
 });

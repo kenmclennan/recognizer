@@ -172,6 +172,84 @@
           }
         ]
       }
+    },
+    {
+      "id": "folder_cycle",
+      "principle": "no-cycles",
+      "fix_pattern": "break-folder-cycle",
+      "summary": "folders shop/application and shop/domain import each other (2 edges)",
+      "evidence": {
+        "modules": [
+          "shop/application/place.py",
+          "shop/domain/order.py"
+        ],
+        "edges": [
+          {
+            "from": "shop/application/place.py",
+            "to": "shop/domain/order.py"
+          },
+          {
+            "from": "shop/domain/order.py",
+            "to": "shop/application/place.py"
+          }
+        ]
+      }
+    },
+    {
+      "id": "folder_cycle",
+      "principle": "no-cycles",
+      "fix_pattern": "break-folder-cycle",
+      "summary": "folders shop/domain and shop/legacy import each other (2 edges)",
+      "evidence": {
+        "modules": [
+          "shop/domain/money.py",
+          "shop/domain/order.py",
+          "shop/legacy/helpers.py"
+        ],
+        "edges": [
+          {
+            "from": "shop/domain/money.py",
+            "to": "shop/legacy/helpers.py"
+          },
+          {
+            "from": "shop/legacy/helpers.py",
+            "to": "shop/domain/order.py"
+          }
+        ]
+      }
+    },
+    {
+      "id": "orphan",
+      "principle": "every-module-is-reachable",
+      "fix_pattern": "remove-or-wire-orphan",
+      "summary": "shop/adapters/sql_store.py is imported by no module and is not an entry point",
+      "evidence": {
+        "modules": [
+          "shop/adapters/sql_store.py"
+        ]
+      }
+    },
+    {
+      "id": "orphan",
+      "principle": "every-module-is-reachable",
+      "fix_pattern": "remove-or-wire-orphan",
+      "summary": "shop/domain/money.py is imported by no module and is not an entry point",
+      "evidence": {
+        "modules": [
+          "shop/domain/money.py"
+        ]
+      }
+    },
+    {
+      "id": "policy_drift",
+      "principle": "policy-describes-the-code",
+      "fix_pattern": "update-policy",
+      "summary": "folder shop/legacy holds 1 scanned modules that no component covers",
+      "evidence": {
+        "modules": [
+          "shop/legacy/helpers.py"
+        ]
+      }
     }
   ],
   "metrics": [

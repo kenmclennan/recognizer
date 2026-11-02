@@ -64,10 +64,13 @@ describe("computeHealth on fixtures/check", () => {
       "shop/ports/store.py",
       "shop/adapters/memory_store.py",
       "shop/main.py",
-      "shop/legacy/helpers.py",
     ]) {
       expect(health.disc(id)).toBe("green");
     }
+  });
+
+  it("marks the module in an uncovered folder amber", () => {
+    expect(health.disc("shop/legacy/helpers.py")).toBe("amber");
   });
 
   it("shows an ignored module as a grey ring", () => {
@@ -91,7 +94,7 @@ describe("computeHealth on fixtures/check", () => {
     expect(health.lines("shop/domain/order.py")[0]).toMatch(
       /^violation: depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)* \((level|uses|forbid) /,
     );
-    expect(health.lines("shop/application/place.py")).toHaveLength(1);
+    expect(health.lines("shop/application/place.py")).toHaveLength(2);
     expect(health.lines("shop/application/place.py")[0]).toContain("cycle");
   });
 
@@ -134,7 +137,7 @@ describe("findings", () => {
     const { health } = healthOf("check", fixturePolicy("check"));
     const place = health.findings("shop/application/place.py");
 
-    expect(place).toHaveLength(1);
+    expect(place).toHaveLength(2);
     expect(place[0]?.severity).toBe("warning");
     expect(place[0]?.text).toContain("cycle");
     expect(place[0]?.why).toBe("no-cycles");
@@ -161,7 +164,7 @@ describe("findings", () => {
 });
 
 describe("computeHealth on fixtures/check-warnings", () => {
-  it("has one red, one amber and seven green", () => {
+  it("has one red, five amber and three green", () => {
     const { health, ids } = healthOf(
       "check-warnings",
       fixturePolicy("check-warnings"),
@@ -170,12 +173,18 @@ describe("computeHealth on fixtures/check-warnings", () => {
     expect(health.disc("app/domain/order.py")).toBe("red");
     expect(health.disc("app/domain/money.py")).toBe("amber");
 
-    const others = ids.filter(
-      (id) => id !== "app/domain/order.py" && id !== "app/domain/money.py",
-    );
+    for (const orphan of [
+      "app/adapters/audit.py",
+      "app/adapters/clock.py",
+      "app/adapters/sql.py",
+      "app/application/report.py",
+    ]) {
+      expect(health.disc(orphan)).toBe("amber");
+    }
 
-    expect(others).toHaveLength(7);
-    expect(others.every((id) => health.disc(id) === "green")).toBe(true);
+    const others = ids.filter((id) => health.disc(id) === "green");
+
+    expect(others).toHaveLength(3);
   });
 });
 

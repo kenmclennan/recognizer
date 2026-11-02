@@ -10,6 +10,7 @@ export interface ForbidRule {
 
 export interface Policy {
   components: Map<string, Matcher[]>;
+  componentGlobs: Map<string, string[]>;
   levels: string[];
   uses: Map<string, string[]> | null;
   forbid: ForbidRule[];
@@ -76,6 +77,7 @@ export function parsePolicy(yamlText: string): Policy {
   }
 
   const components = new Map<string, Matcher[]>();
+  const componentGlobs = new Map<string, string[]>();
 
   if (document.components !== undefined) {
     if (!isPlainObject(document.components)) {
@@ -89,6 +91,7 @@ export function parsePolicy(yamlText: string): Policy {
 
         const globs = readGlobList(value, `components.${name}`, errors);
         components.set(name, globs.map(compileGlob));
+        componentGlobs.set(name, globs);
       }
     }
   }
@@ -195,7 +198,7 @@ export function parsePolicy(yamlText: string): Policy {
     throw new InputError(errors);
   }
 
-  return { components, levels, uses, forbid, ignore };
+  return { components, componentGlobs, levels, uses, forbid, ignore };
 }
 
 function parseForbid(entry: unknown, errors: string[]): ForbidRule | null {

@@ -363,11 +363,18 @@ describe("check running the structure sensor", () => {
     expect(fake.files.has(`${STRUCTURE}.tmp`)).toBe(false);
     expect(document.settings).toEqual({
       hub_threshold: 10,
-      warnings: { cycle: true, hub: true },
+      entry_points: [],
+      warnings: {
+        cycle: true,
+        hub: true,
+        folder_cycle: true,
+        orphan: true,
+        policy_drift: true,
+      },
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: hub_threshold 10, cycle on, hub on",
+      "sensor structure: hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on",
     );
     expect(err).toBe("");
   });
@@ -486,7 +493,17 @@ describe("show and modules read the findings files", () => {
       sensor: { name: "structure", version: "1" },
       commit: "old",
       modified: false,
-      settings: { hub_threshold: 10, warnings: { cycle: true, hub: true } },
+      settings: {
+        hub_threshold: 10,
+        entry_points: [],
+        warnings: {
+          cycle: true,
+          hub: true,
+          folder_cycle: true,
+          orphan: true,
+          policy_drift: true,
+        },
+      },
       findings: [],
     });
     const fake = setup(null, { files: { [STRUCTURE]: stale } });
@@ -494,6 +511,25 @@ describe("show and modules read the findings files", () => {
     show(fake);
 
     expect(JSON.parse(fake.files.get(STRUCTURE) as string).commit).toBe(COMMIT);
+  });
+
+  it("regenerates a current file that records the settings from before the new warnings", () => {
+    const old = JSON.stringify({
+      findings_version: 1,
+      sensor: { name: "structure", version: "1" },
+      commit: COMMIT,
+      modified: false,
+      settings: { hub_threshold: 10, warnings: { cycle: true, hub: true } },
+      findings: [],
+    });
+    const fake = setup(null, { files: { [STRUCTURE]: old } });
+
+    show(fake);
+
+    const written = JSON.parse(fake.files.get(STRUCTURE) as string);
+
+    expect(written.sensor.version).toBe("2");
+    expect(written.settings.entry_points).toEqual([]);
   });
 
   it("regenerates when the config's settings differ from the file's", () => {
