@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { BOX_HEIGHT, FOLDER_BOX_HEIGHT, FRAME_TOP } from "./canvas-layout";
+import { trunkWidth } from "./canvas-trunks";
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_BIN,
@@ -103,6 +104,7 @@ const PALETTE: Record<"light" | "dark", Record<string, string>> = {
 
 const HARNESS = `
 import { buildCanvasView } from "./canvas-view";
+import { planTrunks, trunkWidth } from "./canvas-trunks";
 
 window.addEventListener("error", (event) => {
   document.getElementById("out").textContent = "ERR " + event.message + " " + (event.error && event.error.stack);
@@ -119,7 +121,7 @@ const actions = {
 
 const rect = (x, y, width, height) => ({ x, y, width, height });
 const line = (id, style, dash, count, points) => ({
-  id, points, style, dash, count,
+  id, points, drawn: [points], style, dash, count,
   countAt: count > 1 ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } : null,
 });
 const arrow = (lineId, hollow) => ({ lineId, hollow, points: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }] });
@@ -137,6 +139,7 @@ const scene = {
     line("inferred", "inferred", "1.5 3", 1, [{ x: 100, y: 90 }, { x: 100, y: 140 }]),
     line("hollow", "hollow", null, 1, [{ x: 140, y: 90 }, { x: 140, y: 140 }]),
   ],
+  trunks: [],
   arrows: [arrow("plain", false), arrow("private", false), arrow("inferred", false), arrow("hollow", true)],
 };
 const bar = (over) => ({ kind: "folder", dependencies: 2, notes: null, findings: null, files: { open: 1, held: 2 }, focused: false, folded: false, inspectorTab: null, ...over });
@@ -379,10 +382,52 @@ hov.rightClickedThenLeft = away();
 hov.iconTitles = [...canvas.element.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title);
 hov.barButtonText = [...canvas.element.querySelectorAll(".selection-bar button")].map((b) => b.textContent);
 result.hover = hov;
+const trunkLines = (styles) => styles.map((style, i) => ({
+  id: "t" + i, from: "from" + i, to: "to" + i, style,
+  points: [{ x: 200 + i * 6, y: 20 }, { x: 200 + i * 6, y: 220 }],
+}));
+const trunkSceneOf = (styles) => {
+  const inputs = trunkLines(styles);
+  const plan = planTrunks(inputs);
+  return {
+    ...scene,
+    lines: [...scene.lines, ...inputs.map((l) => line(l.id, l.style, l.style === "private" ? "4 3" : null, 1, l.points))].map((l) => ({ ...l, drawn: plan.drawn.get(l.id) ?? l.drawn })),
+    trunks: plan.trunks,
+  };
+};
+const trunkOf = (sel) => canvas.element.querySelector(".trunk-group " + sel);
+const trunkState = () => ({
+  group: pick(q(".trunk-group"), ["opacity"]),
+  plain: pick(trunkOf(".trunk"), ["stroke", "stroke-width", "stroke-opacity"]),
+  lit: pick(trunkOf(".trunk-lit"), ["display", "stroke", "stroke-width"]),
+});
+const tr = {};
+canvas.render(props({ scene: trunkSceneOf(["plain", "plain", "plain"]) }));
+tr.count = canvas.element.querySelectorAll(".trunk-group").length;
+tr.idle = trunkState();
+tr.label = { text: q(".trunk-count").textContent, countLabels: canvas.element.querySelectorAll(".count-label").length };
+tr.title = trunkOf(".trunk-hit title").textContent;
+tr.width = trunkWidth(3);
+canvas.render(props({ scene: trunkSceneOf(["plain", "plain", "plain"]), highlight: new Set(["t0"]), selection: { kind: "edge", id: "t0" } }));
+tr.oneLit = trunkState();
+canvas.render(props({ scene: trunkSceneOf(["plain", "plain", "plain"]), highlight: new Set(["plain"]) }));
+tr.dimmed = trunkState();
+const picks = [];
+selectHook = (selection) => picks.push(selection);
+const hit = trunkOf(".trunk-hit");
+hit.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+hit.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, button: 0 }));
+hit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+tr.picks = picks.length;
+canvas.render(props({ scene: trunkSceneOf(["private", "plain", "plain"]) }));
+tr.mixed = trunkState();
+tr.mixedDash = trunkOf(".trunk").getAttribute("stroke-dasharray");
+result.trunk = tr;
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
 `;
 
 type Props = Record<string, string>;
+type TrunkState = { group: Props; plain: Props; lit: Props };
 type Kid = {
   tag: string;
   cls: string | null;
@@ -404,6 +449,18 @@ type Report = {
     rxs: string[][];
   };
   frames: Record<string, unknown>;
+  trunk: {
+    count: number;
+    width: number;
+    label: { text: string; countLabels: number };
+    title: string;
+    picks: number;
+    mixedDash: string | null;
+    idle: TrunkState;
+    oneLit: TrunkState;
+    dimmed: TrunkState;
+    mixed: TrunkState;
+  };
   dimming: Record<string, Props>;
   pinned: {
     beforePan: { offset: { dx: number; dy: number }; box: number };
@@ -582,6 +639,41 @@ describe("the canvas, in a real browser", () => {
           expect(edges.count?.["font-size"]).toBe("10px");
           expect(edges.countText).toBe("2");
           expect(edges.countLabels).toBe(1);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "draws a corridor of three lines as one trunk with its own count",
+        () => {
+          const { trunk } = r();
+
+          expect(trunk.count).toBe(1);
+          expect(
+            Number.parseFloat(trunk.idle.plain["stroke-width"] ?? ""),
+          ).toBeCloseTo(trunk.width, 3);
+          expect(trunk.idle.lit.display).toBe("none");
+          expect(trunk.idle.group.opacity).toBe("1");
+          expect(trunk.label).toEqual({ text: "3", countLabels: 1 });
+          expect(trunk.title.startsWith("3 lines")).toBe(true);
+          expect(trunk.picks).toBe(0);
+        },
+        120000,
+      );
+
+      it.skipIf(chrome === undefined)(
+        "lights only the shared stretch of a selected line, dims an unrelated trunk, and draws a mixed trunk plain",
+        () => {
+          const { trunk } = r();
+          const colour = r().tokens as Props;
+
+          expect(trunk.oneLit.lit.display).not.toBe("none");
+          expect(trunk.oneLit.lit.stroke).toBe(colour.sel);
+          expect(trunk.oneLit.lit["stroke-width"]).toBe(`${trunkWidth(1)}px`);
+          expect(trunk.oneLit.plain.stroke).toBe(colour.faint);
+          expect(trunk.dimmed.group.opacity).toBe("0.35");
+          expect(trunk.mixed.plain.stroke).toBe(colour.faint);
+          expect(trunk.mixedDash).toBeNull();
         },
         120000,
       );

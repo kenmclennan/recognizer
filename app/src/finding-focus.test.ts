@@ -60,6 +60,7 @@ function sceneOf(...ids: string[]): Scene {
     drawOrder: ["frames", "lines", "boxes"],
     frames: [],
     lines: [],
+    trunks: [],
     arrows: [],
     boxes,
     bounds: { x: 0, y: 0, width: 600, height: 100 },
