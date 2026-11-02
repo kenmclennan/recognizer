@@ -103,7 +103,6 @@ export const BUTTON_ZOOM_STEP = 1.25;
 export const DRAG_THRESHOLD = 4;
 
 const SVG = "http://www.w3.org/2000/svg";
-const FIGURES_CLEAR = 30;
 const TIP_DELAY = 400;
 
 function svg<K extends keyof SVGElementTagNameMap>(
@@ -623,21 +622,6 @@ export function buildCanvasView(
             node.append(noteMark(boxPath, at.x, at.y));
           }
 
-          if (box.figures) {
-            node.append(
-              svg(
-                "text",
-                {
-                  class: "figure",
-                  x: rect.x + rect.width - (marked ? FIGURES_CLEAR : 8),
-                  y: rect.y + rect.height / 2 + 4,
-                  "text-anchor": "end",
-                },
-                box.figures,
-              ),
-            );
-          }
-
           group.append(node);
         }
       }
@@ -706,7 +690,9 @@ export function buildCanvasView(
   }
 
   function markRect(box: Scene["boxes"][number]): Rect {
-    return frameMarkRect(box.rect);
+    const mark = frameMarkRect(box.rect);
+
+    return { ...mark, y: box.rect.y + (box.rect.height - mark.height) / 2 };
   }
 
   function bubbleViewFor(path: string): NoteBubbleView {

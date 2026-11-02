@@ -5,11 +5,14 @@ import { buildCanvasGraph, type GraphInput } from "./canvas-graph";
 import {
   absoluteLayout,
   BOX_HEIGHT,
+  BOX_MIN_WIDTH,
   boxWidth,
   FRAME_PAD,
   FRAME_TOP,
   frameLabelWidth,
   type Layout,
+  NOTE_MARK_INSET,
+  NOTE_MARK_SIZE,
   toElk,
 } from "./canvas-layout";
 
@@ -33,6 +36,7 @@ async function layoutOf(
   scan: Scan,
   overrides: Partial<GraphInput> = {},
   fixedMeasure = measure,
+  noted: ReadonlySet<string> = new Set(),
 ) {
   const modules = scan.modules.map((module) => module.id);
   const graph = buildCanvasGraph({
@@ -45,7 +49,7 @@ async function layoutOf(
     showInferred: true,
     ...overrides,
   });
-  const result = await elk.layout(toElk(graph, fixedMeasure));
+  const result = await elk.layout(toElk(graph, fixedMeasure, noted));
 
   return { graph, layout: absoluteLayout(result) };
 }
@@ -67,12 +71,29 @@ describe("frame sizing", () => {
     const { graph, layout } = await layoutOf(scanOf(["f/a.py"], []));
     const box = layout.boxes.get("f/a.py");
     const frame = layout.frames.get("f");
-    const width = boxWidth(measure, "a", "");
+    const width = boxWidth(measure, "a");
 
     expect(graph.frames).toHaveLength(1);
     expect(box?.width).toBe(width);
     expect(frame?.width).toBe(width + FRAME_PAD * 2);
     expect(frame?.height).toBe(BOX_HEIGHT + FRAME_TOP + FRAME_PAD);
+  });
+
+  it("reserves the note mark's width in a noted box", async () => {
+    const name = "a-module-with-a-long-name";
+    const file = `f/${name}.py`;
+    const { layout } = await layoutOf(
+      scanOf([file], []),
+      {},
+      measure,
+      new Set([file]),
+    );
+    const plain = boxWidth(measure, name);
+
+    expect(plain).toBeGreaterThan(BOX_MIN_WIDTH);
+    expect(layout.boxes.get(file)?.width).toBe(
+      plain + NOTE_MARK_SIZE + NOTE_MARK_INSET * 2,
+    );
   });
 
   it("is exactly as wide as its label when the label is wider", async () => {

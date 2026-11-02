@@ -31,8 +31,6 @@ export type Box = {
   disc: Disc;
   open: number;
   held: number;
-  missingUses: number;
-  missingUsedBy: number;
 };
 
 export type Line = {
@@ -138,8 +136,6 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     input.modules.filter((id) => under(id, folder)).length;
 
   const sets = neighbourSets(allEdges, known);
-  const { uses, usedBy } = sets;
-  const hidden = (id: string) => !visible.has(id);
   const boxes = new Map<string, Box>();
   const frameChains = new Map<string, string[]>();
 
@@ -167,12 +163,6 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       disc: input.disc(key),
       open: folded ? openIn(key) : 1,
       held: folded ? held(key) : 1,
-      missingUses: folded
-        ? 0
-        : [...(uses.get(key) ?? [])].filter(hidden).length,
-      missingUsedBy: folded
-        ? 0
-        : [...(usedBy.get(key) ?? [])].filter(hidden).length,
     });
   }
 
@@ -324,17 +314,4 @@ export function frameFigure(frame: Pick<Frame, "open" | "held">): string {
 
 export function boxSubline(box: Box): string {
   return box.kind === "folder" ? `${box.open} open, folded` : "";
-}
-
-export function boxFigures(box: Box): string {
-  if (box.kind === "folder") {
-    return "";
-  }
-
-  return [
-    box.missingUses > 0 ? `+${box.missingUses}↓` : "",
-    box.missingUsedBy > 0 ? `+${box.missingUsedBy}↑` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
 }

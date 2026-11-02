@@ -16,8 +16,6 @@ const graph = {
       disc: "green",
       open: 1,
       held: 1,
-      missingUses: 2,
-      missingUsedBy: 0,
     },
     {
       id: "f/b.py",
@@ -27,8 +25,6 @@ const graph = {
       disc: "red",
       open: 1,
       held: 1,
-      missingUses: 0,
-      missingUsedBy: 0,
     },
   ],
   lines: [
@@ -134,8 +130,7 @@ describe("scene", () => {
     expect(scene.bounds).toEqual({ x: 0, y: 0, width: 200, height: 150 });
   });
 
-  it("carries the figures on boxes and frames", () => {
-    expect(scene.boxes[0]?.figures).toBe("+2↓");
+  it("carries the figure on frames", () => {
     expect(scene.frames[0]?.figure).toBe("2 of 3");
   });
 });

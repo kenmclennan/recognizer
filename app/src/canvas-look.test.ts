@@ -128,8 +128,8 @@ const scene = {
   bounds: rect(0, 0, 420, 320),
   frames: [{ path: "f", rect: rect(0, 0, 300, 200), label: "f", figure: "1 of 2", disc: "green", labelRect: rect(0, 0, 300, 28) }],
   boxes: [
-    { id: "f/a.py", kind: "module", rect: rect(14, 40, 160, 40), label: "a", figures: "+1↓ +2↑", subline: "", disc: "green" },
-    { id: "g", kind: "folder", rect: rect(14, 240, 160, 50), label: "g/", figures: "", subline: "3 open, folded", disc: "amber" },
+    { id: "f/a.py", kind: "module", rect: rect(14, 40, 160, 40), label: "a", subline: "", disc: "green" },
+    { id: "g", kind: "folder", rect: rect(14, 240, 160, 50), label: "g/", subline: "3 open, folded", disc: "amber" },
   ],
   lines: [
     line("plain", "plain", null, 2, [{ x: 20, y: 90 }, { x: 20, y: 140 }]),
@@ -220,8 +220,7 @@ result.boxes = {
   idleHalo: pick(q('[data-id="g"] .halo'), ["display"]),
   nameSelected: pick(q('[data-id="f/a.py"] .name'), ["font-weight", "font-size", "fill"]),
   nameIdle: pick(q('[data-id="g"] .name'), ["font-weight", "fill"]),
-  hidden: pick(q('[data-id="f/a.py"] .figure'), ["font-size", "fill"]),
-  hiddenText: q('[data-id="f/a.py"] .figure').textContent,
+  figureCount: q('[data-id="f/a.py"]').querySelectorAll(".figure").length,
   folder: { body: pick(q('[data-id="g"] .box-body'), STROKE), name: q('[data-id="g"] .name').textContent, texts: [...q('[data-id="g"]').querySelectorAll("text")].map((t) => [t.textContent, getComputedStyle(t).fontSize, getComputedStyle(t).fill]) },
 };
 result.frameIdle = { ...pick(q(".frame-body"), STROKE), rx: q(".frame-body").getAttribute("rx") };
@@ -639,7 +638,7 @@ describe("the canvas, in a real browser", () => {
       );
 
       it.skipIf(chrome === undefined)(
-        "draws boxes 40px high with hidden counts, a halo when selected and a 50px folded box",
+        "draws boxes 40px high with no counts, a halo when selected and a 50px folded box",
         () => {
           const { boxes } = r();
           const colour = r().tokens as Props;
@@ -664,11 +663,7 @@ describe("the canvas, in a real browser", () => {
           expect(boxes.idleHalo).toEqual({ display: "none" });
           expect((boxes.nameSelected as Props)["font-weight"]).toBe("600");
           expect((boxes.nameIdle as Props)["font-weight"]).toBe("400");
-          expect(boxes.hiddenText).toBe("+1↓ +2↑");
-          expect(boxes.hidden).toEqual({
-            "font-size": "10px",
-            fill: colour.muted,
-          });
+          expect(boxes.figureCount).toBe(0);
 
           const folder = boxes.folder as {
             body: Props;

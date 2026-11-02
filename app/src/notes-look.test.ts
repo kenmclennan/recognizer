@@ -186,9 +186,10 @@ function mount(files, author) {
     tinted: m.all(".note-mark.person, .note-mark.agent").length,
     isSvgRect: m.all("rect.note-mark").length,
     sameWidth: m.rect('.box[data-id="' + HUB + '"] .box-body').width === bareWidth,
+    drawn: m.all(".box").length >= 3 && m.all(".frame").length >= 1,
+    noFigureText: m.all(".box text.figure").length === 0,
     bubbles: m.bubbles().length,
     atRightEnd: (() => { const box = m.q('.box[data-id="' + HUB + '"] .box-body').getBoundingClientRect(); const mark = hubMark().getBoundingClientRect(); return mark.right <= box.right && box.right - mark.right < 12 && mark.left > box.left; })(),
-    figuresGap: (() => { const fig = m.q('.box[data-id="' + HUB + '"] text.figure'); if (!fig) return null; const gap = hubMark().getBoundingClientRect().left - fig.getBoundingClientRect().right; return gap >= 8; })(),
     sameIconAsRail: m.q(".rail-notes svg path").getAttribute("d") === hubMark().querySelector("path").getAttribute("d"),
   };
 
@@ -495,9 +496,10 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
     expect(f.marks.tinted).toBe(0);
     expect(f.marks.isSvgRect).toBe(0);
     expect(f.marks.sameWidth).toBe(true);
+    expect(f.marks.drawn).toBe(true);
+    expect(f.marks.noFigureText).toBe(true);
     expect(f.marks.bubbles).toBe(0);
     expect(f.marks.atRightEnd).toBe(true);
-    expect(f.marks.figuresGap).not.toBe(false);
     expect(f.marks.sameIconAsRail).toBe(true);
   });
 

@@ -1,10 +1,5 @@
 import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api";
-import {
-  boxFigures,
-  boxSubline,
-  type CanvasGraph,
-  frameFigure,
-} from "./canvas-graph";
+import { boxSubline, type CanvasGraph, frameFigure } from "./canvas-graph";
 
 export const BOX_HEIGHT = 40;
 export const FOLDER_BOX_HEIGHT = 50;
@@ -13,6 +8,8 @@ export const BOX_MIN_WIDTH = 96;
 export const BOX_PAD = 10;
 export const DISC_SIZE = 10;
 export const LABEL_GAP = 6;
+export const NOTE_MARK_SIZE = 14;
+export const NOTE_MARK_INSET = 6;
 export const FRAME_TOP = 28;
 export const FRAME_PAD = 12;
 export const NODE_SPACING = 24;
@@ -35,14 +32,14 @@ export const frameNodeId = (path: string) => `${FRAME_PREFIX}${path}`;
 export function boxWidth(
   measure: Measure,
   label: string,
-  figures: string,
   subline = "",
+  noted = false,
 ): number {
   const text =
     Math.max(measure(label), measure(subline) * SUBLINE_SCALE) +
     DISC_SIZE +
     LABEL_GAP +
-    (figures === "" ? 0 : measure(figures) + LABEL_GAP);
+    (noted ? NOTE_MARK_SIZE + NOTE_MARK_INSET * 2 : 0);
 
   return Math.max(BOX_MIN_WIDTH, Math.ceil(text + BOX_PAD * 2));
 }
@@ -61,7 +58,11 @@ export function frameLabelWidth(
   );
 }
 
-export function toElk(graph: CanvasGraph, measure: Measure): ElkNode {
+export function toElk(
+  graph: CanvasGraph,
+  measure: Measure,
+  noted: ReadonlySet<string> = new Set(),
+): ElkNode {
   const nodes = new Map<string, ElkNode>();
 
   for (const frame of graph.frames) {
@@ -102,7 +103,12 @@ export function toElk(graph: CanvasGraph, measure: Measure): ElkNode {
   for (const box of graph.boxes) {
     holder(box.parent).push({
       id: box.id,
-      width: boxWidth(measure, box.label, boxFigures(box), boxSubline(box)),
+      width: boxWidth(
+        measure,
+        box.label,
+        boxSubline(box),
+        noted.has(box.kind === "folder" ? `${box.id}/` : box.id),
+      ),
       height: box.kind === "folder" ? FOLDER_BOX_HEIGHT : BOX_HEIGHT,
     });
   }

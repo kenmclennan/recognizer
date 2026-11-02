@@ -589,6 +589,7 @@ export function showExplorer(
     },
   );
   let endLayoutBusy: (() => void) | null = null;
+  let layoutNoted = "";
 
   function endLayout() {
     endLayoutBusy?.();
@@ -929,8 +930,19 @@ export function showExplorer(
       graph.lines.map((line) => [line.id, describeLine(line.edges)]),
     );
     endLayoutBusy ??= layoutGate.begin();
-    layout.request(toElk(graph, measure));
+    layoutNoted = notedKey();
+    layout.request(toElk(graph, measure, notedBoxes()));
     render();
+  }
+
+  function notedBoxes(): ReadonlySet<string> {
+    const view = openViewValue();
+
+    return view === null ? new Set<string>() : notedPaths(view);
+  }
+
+  function notedKey(): string {
+    return [...notedBoxes()].sort().join("\n");
   }
 
   function reveal(selection: Selection) {
@@ -2188,6 +2200,16 @@ export function showExplorer(
 
   function syncNotes(): CanvasNotes {
     const view = openViewValue();
+
+    if (notedKey() !== layoutNoted) {
+      queueMicrotask(() => {
+        if (notedKey() !== layoutNoted) {
+          layoutNoted = notedKey();
+          endLayoutBusy ??= layoutGate.begin();
+          layout.request(toElk(graph, measure, notedBoxes()));
+        }
+      });
+    }
     const positions = notePositions();
 
     if (noteFocus !== null) {
