@@ -289,7 +289,9 @@ describe("measure with a scripted fake", () => {
 
     measure(fake);
 
-    expect(fake.writes).toEqual([]);
+    expect(
+      fake.writes.filter((path) => !path.includes("/.recognizer/cache/log/")),
+    ).toEqual([]);
     expect(programCalls(fake)).toEqual(["alpha"]);
   });
 });

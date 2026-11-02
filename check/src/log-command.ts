@@ -13,9 +13,9 @@ import {
 } from "./run-log.js";
 
 const USAGE =
-  "recognizer log [<id>] [--last] [--kind scan|sense|describe] [--repository <dir>] [--json]";
+  "recognizer log [<id>] [--last] [--kind scan|sense|describe|measure] [--repository <dir>] [--json]";
 
-const KINDS = ["scan", "sense", "describe"];
+const KINDS = ["scan", "sense", "describe", "measure"];
 
 function listLine(run: RunSummary): string {
   return `${run.id}  ${run.kind}  ${run.started}  ${run.outcome}  ${run.entries - run.failed} ok, ${run.failed} failed`;

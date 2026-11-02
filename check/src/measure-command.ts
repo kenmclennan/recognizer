@@ -4,12 +4,20 @@ import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { InputError } from "./errors.js";
 import { type Expected, validateOverlay } from "./overlays.js";
-import { runRegistered } from "./registered-command.js";
+import { type RegisteredRun, runRegistered } from "./registered-command.js";
+import {
+  buildRecord,
+  entryFrom,
+  type RunEntry,
+  recordRun,
+  requireBy,
+} from "./run-log.js";
 import { isDirty, resolveCommit } from "./scan-command.js";
 
 const OPTIONS = {
   repository: { type: "string" },
   json: { type: "boolean" },
+  by: { type: "string" },
 } as const;
 
 export const MEASURE_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
@@ -24,8 +32,8 @@ function measureOne(
   name: string,
   command: string[],
   expected: Expected,
-): string | null {
-  const run = runRegistered(
+): RegisteredRun {
+  return runRegistered(
     io,
     root,
     command,
@@ -36,8 +44,6 @@ function measureOne(
       validateOverlay(document, expected);
     },
   );
-
-  return run.reason;
 }
 
 export function runMeasure(argv: string[], io: Io): number {
@@ -47,6 +53,9 @@ export function runMeasure(argv: string[], io: Io): number {
     strict: true,
     options: OPTIONS,
   });
+  requireBy(values.by);
+
+  const startedAt = io.now();
   const root = resolve(values.repository ?? ".");
   const overlays = readConfig(io, root)?.overlays ?? {};
   const registered = Object.keys(overlays);
@@ -73,14 +82,27 @@ export function runMeasure(argv: string[], io: Io): number {
   const selected = positionals.length > 0 ? positionals : registered;
   const measured: string[] = [];
   const failed: { overlay: string; reason: string }[] = [];
+  const entries: RunEntry[] = [];
 
   for (const name of selected) {
     const registration = overlays[name] as (typeof overlays)[string];
-    const reason = measureOne(io, root, name, registration.command, {
+    const began = io.now();
+    const run = measureOne(io, root, name, registration.command, {
       commit,
       modified,
       metrics: registration.metrics,
     });
+    const { reason } = run;
+
+    entries.push(
+      entryFrom(name, {
+        command: run.command,
+        status: run.status,
+        stderr: run.stderr,
+        duration_ms: io.now() - began,
+        ...(reason === null ? {} : { reason }),
+      }),
+    );
 
     if (reason !== null) {
       io.remove(overlayFile(root, name));
@@ -104,6 +126,12 @@ export function runMeasure(argv: string[], io: Io): number {
   } else {
     io.stdout(`measured ${measured.length}, failed ${failed.length}\n`);
   }
+
+  recordRun(
+    io,
+    root,
+    buildRecord(io, "measure", startedAt, values.by, argv, entries),
+  );
 
   return failed.length > 0 ? 1 : 0;
 }
