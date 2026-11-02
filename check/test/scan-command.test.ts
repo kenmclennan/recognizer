@@ -366,6 +366,12 @@ describe("recognizer scan: stale files", () => {
     expect(fake.calls.map((call) => call.command)).toEqual(["git"]);
   });
 
+  it("reports log null in the summary when no record was written", () => {
+    const { out } = scan({ files: { [`${ROOT}/readme.md`]: "" } }, "--json");
+
+    expect(lines(out).at(-1)?.log).toBeNull();
+  });
+
   it("creates no cache directory when nothing is detected", () => {
     const { fake } = scan({ files: { [`${ROOT}/readme.md`]: "" } });
 
@@ -435,6 +441,7 @@ describe("recognizer scan: summary", () => {
           },
         ],
         removed: [],
+        log: "20261102T000000001Z-scan",
       },
     ]);
   });

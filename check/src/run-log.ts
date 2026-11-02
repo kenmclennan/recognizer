@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import { validateRunRecord } from "./log-document.js";
@@ -264,15 +264,19 @@ export interface OpenRunLog {
 }
 
 export interface OpenPhasedRunLog {
+  id(): string | null;
   update(phases: RunPhase[]): void;
   finish(phases: RunPhase[]): void;
 }
 
-function openWriter(io: Io, root: string): (record: RunRecord) => void {
+function openWriter(
+  io: Io,
+  root: string,
+): { write: (record: RunRecord) => void; id: () => string | null } {
   let file: string | null = null;
   let reported = false;
 
-  return (record) => {
+  const write = (record: RunRecord) => {
     try {
       if (file === null) {
         file = placeRunLog(io, root, record);
@@ -286,6 +290,11 @@ function openWriter(io: Io, root: string): (record: RunRecord) => void {
       }
     }
   };
+
+  return {
+    write,
+    id: () => (file === null ? null : basename(file, ".json")),
+  };
 }
 
 export function openPhasedRunLog(
@@ -295,13 +304,14 @@ export function openPhasedRunLog(
   by: string | undefined,
   argv: string[],
 ): OpenPhasedRunLog {
-  const write = openWriter(io, root);
+  const { write, id } = openWriter(io, root);
   const snapshot = (phases: RunPhase[]): RunPhase[] =>
     phases.map((one) => ({ phase: one.phase, entries: [...one.entries] }));
 
   write(buildPhasedRecord(io, startedAt, by, argv, [], true));
 
   return {
+    id,
     update: (phases) =>
       write(buildPhasedRecord(io, startedAt, by, argv, snapshot(phases), true)),
     finish: (phases) =>
@@ -319,7 +329,7 @@ export function openRunLog(
   by: string | undefined,
   argv: string[],
 ): OpenRunLog {
-  const write = openWriter(io, root);
+  const { write } = openWriter(io, root);
 
   write(buildRunningRecord(io, kind, startedAt, by, argv, []));
 

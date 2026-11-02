@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -107,49 +106,19 @@ impl ScanRuns {
     }
 }
 
-fn is_scan_record(name: &str) -> bool {
-    let Some(stamp) = name.strip_suffix("-scan.json") else {
-        return false;
-    };
-    let bytes = stamp.as_bytes();
+pub fn summary_log(line: &str) -> Option<String> {
+    let event: serde_json::Value = serde_json::from_str(line).ok()?;
 
-    bytes.len() == 19
-        && bytes[..8].iter().all(u8::is_ascii_digit)
-        && bytes[8] == b'T'
-        && bytes[9..18].iter().all(u8::is_ascii_digit)
-        && bytes[18] == b'Z'
-}
-
-pub fn log_names(folder: &Path) -> Vec<String> {
-    fs::read_dir(folder.join(LOG))
-        .map(|entries| {
-            entries
-                .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
-                .filter(|name| name.ends_with(".json"))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-pub fn new_scan_record(before: &[String], after: &[String]) -> Option<String> {
-    let mut fresh = after
-        .iter()
-        .filter(|name| is_scan_record(name) && !before.contains(name));
-    let first = fresh.next()?;
-
-    if fresh.next().is_some() {
+    if event.get("event")?.as_str()? != "summary" {
         return None;
     }
 
-    Some(format!("{LOG}/{first}"))
+    let id = event.get("log")?.as_str()?;
+
+    Some(format!("{LOG}/{id}.json"))
 }
 
-fn result_for(
-    exit: Option<i32>,
-    stopped: bool,
-    stderr: String,
-    log: impl FnOnce() -> Option<String>,
-) -> ScanRun {
+fn result_for(exit: Option<i32>, stopped: bool, stderr: String, log: Option<String>) -> ScanRun {
     if stopped {
         return ScanRun::Stopped;
     }
@@ -161,7 +130,7 @@ fn result_for(
         Some(code @ (0 | 1)) => ScanRun::Finished {
             exit_code: code,
             stderr,
-            log: log(),
+            log,
         },
         other => ScanRun::Failed {
             exit_code: other.unwrap_or(-1),
@@ -206,7 +175,6 @@ fn spawn_and_stream(
     sense: &[String],
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
-    let before = log_names(folder);
     let (program, args) = scan_invocation(shell, command, folder, describe, sense);
     let mut process = Command::new(program);
 
@@ -237,6 +205,8 @@ fn spawn_and_stream(
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
+    let mut log = None;
+
     let (stderr_text, status) = std::thread::scope(|scope| {
         let collected = scope.spawn(move || {
             let mut text = String::new();
@@ -254,6 +224,10 @@ fn spawn_and_stream(
         if let Some(stdout) = stdout {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 if !line.trim().is_empty() {
+                    if let Some(found) = summary_log(&line) {
+                        log = Some(found);
+                    }
+
                     emit(line);
                 }
             }
@@ -267,14 +241,13 @@ fn spawn_and_stream(
     let stopped = runs.lock().get(label).is_some_and(|handle| handle.stopped);
     let exit = status.ok().and_then(|status| status.code());
 
-    result_for(exit, stopped, stderr_text, || {
-        new_scan_record(&before, &log_names(folder))
-    })
+    result_for(exit, stopped, stderr_text, log)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::path::PathBuf;
     use std::sync::mpsc;
     use std::sync::Arc;
@@ -320,39 +293,18 @@ mod tests {
     }
 
     #[test]
-    fn a_scan_record_is_the_one_new_timestamped_scan_name() {
-        let record = "20261102T123456789Z-scan.json";
-
+    fn the_summary_names_the_log_record_or_none() {
         assert_eq!(
-            new_scan_record(&names(&["a.json"]), &names(&["a.json", record])),
-            Some(format!("{LOG}/{record}"))
+            summary_log(r#"{"event":"summary","exit":0,"log":"20261102T123456789Z-scan"}"#),
+            Some(format!("{LOG}/20261102T123456789Z-scan.json"))
         );
-        assert_eq!(new_scan_record(&names(&[record]), &names(&[record])), None);
+        assert_eq!(summary_log(r#"{"event":"summary","log":null}"#), None);
+        assert_eq!(summary_log(r#"{"event":"summary"}"#), None);
         assert_eq!(
-            new_scan_record(&[], &names(&[record, "20261102T123456790Z-scan.json"])),
+            summary_log(r#"{"event":"entry","log":"20261102T123456789Z-scan"}"#),
             None
         );
-        assert_eq!(
-            new_scan_record(&[], &names(&["20261102T123456789Z-describe.json"])),
-            None
-        );
-        assert_eq!(
-            new_scan_record(&[], &names(&["scan.json", "x-scan.json"])),
-            None
-        );
-    }
-
-    #[test]
-    fn the_log_listing_reads_json_names_and_a_missing_folder_reads_empty() {
-        let dir = TempDir::new().unwrap();
-
-        assert_eq!(log_names(dir.path()), Vec::<String>::new());
-
-        fs::create_dir_all(dir.path().join(LOG)).unwrap();
-        fs::write(dir.path().join(LOG).join("a.json"), "{}").unwrap();
-        fs::write(dir.path().join(LOG).join("b.txt"), "x").unwrap();
-
-        assert_eq!(log_names(dir.path()), names(&["a.json"]));
+        assert_eq!(summary_log("not json"), None);
     }
 
     #[test]
@@ -432,15 +384,11 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_new_scan_record_is_returned_as_the_log() {
+    fn the_summary_log_is_returned_as_the_log() {
         let dir = TempDir::new().unwrap();
         let command = fake_command(
             dir.path(),
-            &format!(
-                "mkdir -p \"{0}/{1}\"; echo '{{}}' > \"{0}/{1}/20261102T123456789Z-scan.json\"",
-                dir.path().display(),
-                LOG
-            ),
+            r#"echo '{"event":"summary","log":"20261102T123456789Z-scan"}'"#,
         );
         let (result, _) = collect(&ScanRuns::default(), dir.path(), &command, false, &[]);
 
