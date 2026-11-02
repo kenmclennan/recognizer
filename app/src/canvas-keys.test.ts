@@ -150,3 +150,31 @@ describe("canvas keys", () => {
     expect(keyAction(press("Escape"), module, open)).toBe("escape");
   });
 });
+
+describe("stepping notes with the arrows", () => {
+  const stepping = {
+    notesOpen: false,
+    noteActive: true,
+    findingsOpen: false,
+    stepping: true,
+  };
+  const arrow = (key: string, extra = {}) => ({ ...press(key), ...extra });
+
+  it("steps only when stepping", () => {
+    expect(keyAction(arrow("ArrowRight"), null, stepping)).toBe("next-note");
+    expect(keyAction(arrow("ArrowLeft"), null, stepping)).toBe("previous-note");
+    expect(
+      keyAction(arrow("ArrowRight"), null, { ...stepping, stepping: false }),
+    ).toBeNull();
+    expect(keyAction(arrow("ArrowRight"), null)).toBeNull();
+  });
+
+  it("leaves the arrows to an editable field and to the inspector", () => {
+    expect(
+      keyAction(arrow("ArrowRight", { targetEditable: true }), null, stepping),
+    ).toBeNull();
+    expect(
+      keyAction(arrow("ArrowRight", { inInspector: true }), null, stepping),
+    ).toBeNull();
+  });
+});

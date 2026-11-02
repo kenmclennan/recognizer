@@ -6,7 +6,8 @@
   "additionalProperties": false,
   "required": ["schema_version", "description", "commit", "steps"],
   "properties": {
-    "schema_version": { "enum": [1, 2, 3] },
+    "schema_version": { "enum": [1, 2, 3, 4] },
+    "ordered": { "type": "boolean" },
     "description": { "type": "string", "pattern": "\\S" },
     "commit": { "type": ["string", "null"], "minLength": 1 },
     "note": { "$ref": "#/$defs/note" },
@@ -51,7 +52,7 @@
     },
     {
       "if": {
-        "properties": { "schema_version": { "const": 3 } },
+        "properties": { "schema_version": { "enum": [3, 4] } },
         "required": ["schema_version"]
       },
       "then": {
@@ -59,6 +60,13 @@
           "anyOf": [{ "required": ["note"] }, { "required": ["module_notes"] }]
         }
       }
+    },
+    {
+      "if": {
+        "properties": { "schema_version": { "enum": [1, 2, 3] } },
+        "required": ["schema_version"]
+      },
+      "then": { "not": { "required": ["ordered"] } }
     }
   ],
   "$defs": {

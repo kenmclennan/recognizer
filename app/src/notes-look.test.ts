@@ -84,7 +84,7 @@ const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], po
 const HUB = "app/hub.py";
 const A = "app/a.py";
 const GONE = "lib/gone.py";
-const make = (steps, notes) => JSON.stringify({ schema_version: notes ? 3 : 1, description: "d", commit: "cur1234", ...(notes ? { notes } : {}), steps }, null, 2) + "\\n";
+const make = (steps, notes) => JSON.stringify({ schema_version: notes ? 4 : 1, description: "d", commit: "cur1234", ...(notes ? { ordered: false, notes } : {}), steps }, null, 2) + "\\n";
 const pick = (module) => ({ kind: "pick", module });
 const PICKS = [pick(HUB), pick(A), pick("lib/c.py")];
 const NOTES = [

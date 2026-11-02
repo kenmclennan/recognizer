@@ -6,6 +6,7 @@ export type KeyInput = {
   ctrlKey: boolean;
   altKey: boolean;
   targetEditable: boolean;
+  inInspector?: boolean;
 };
 
 export type KeyAction =
@@ -27,6 +28,7 @@ export type NoteKeyContext = {
   notesOpen: boolean;
   noteActive: boolean;
   findingsOpen: boolean;
+  stepping?: boolean;
 };
 
 const NO_NOTES: NoteKeyContext = {
@@ -53,6 +55,16 @@ export function keyAction(
   }
 
   const key = event.key.toLowerCase();
+
+  if (notes.stepping === true && event.inInspector !== true) {
+    if (event.key === "ArrowRight") {
+      return "next-note";
+    }
+
+    if (event.key === "ArrowLeft") {
+      return "previous-note";
+    }
+  }
 
   if (notes.notesOpen && key === "j") {
     return "next-note";

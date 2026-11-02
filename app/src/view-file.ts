@@ -1,35 +1,16 @@
 import {
   InputError,
-  migrateView,
   noteWarnings,
+  serialiseView,
   type View,
   validateView,
 } from "recognizer";
 
+export { serialiseView };
+
 export type ParsedView =
   | { ok: true; view: View; warnings: string[] }
   | { ok: false; reason: string };
-
-export function serialiseView(view: View): string {
-  const migrated = migrateView(view);
-  const ordered = {
-    schema_version: 3,
-    description: migrated.description,
-    commit: migrated.commit,
-    ...(migrated.notes === undefined
-      ? {}
-      : {
-          notes: migrated.notes.map((note) => ({
-            module: note.module,
-            text: note.text,
-            by: note.by,
-          })),
-        }),
-    steps: migrated.steps,
-  };
-
-  return `${JSON.stringify(ordered, null, 2)}\n`;
-}
 
 export function parseViewFile(text: string): ParsedView {
   let value: unknown;

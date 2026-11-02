@@ -16,7 +16,7 @@ const RECIPES = [
   "  1. Find the modules with recognizer find, recognizer modules, recognizer show, recognizer uses, recognizer used-by, recognizer callers and recognizer path.",
   "  2. Save the answer: recognizer views new <name> --description <text>, then recognizer views add, rule, fold and focus; a rule's --uses and --used-by reach direct dependencies only, never transitive ones.",
   "  3. Confirm it with recognizer views show <name> and recognizer views check.",
-  "  4. Explain the boxes with recognizer views note: one note per module or folder, and writing again replaces it.",
+  "  4. Explain the boxes with recognizer views note: one note per module or folder, and writing again replaces it in its place. The order notes are written in is the reading order (a new note goes last; --after <module> or --first places it, recognizer views reorder sets the whole order, recognizer views set <name> --ordered false makes the notes a lens with no order).",
   "  5. End the answer with the view's link: recognizer://open?repo=<url-encoded absolute repository path>&view=<name>",
   "",
   "Extend (the user hands a view back or says to extend it):",

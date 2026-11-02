@@ -1,4 +1,4 @@
-import { type View, viewNotes } from "recognizer";
+import { isOrdered, type View, viewNotes } from "recognizer";
 import type { Rect } from "./canvas-layout";
 import type { Selection } from "./canvas-state";
 
@@ -11,6 +11,7 @@ export type NoteRow = {
   by: string;
   off: boolean;
   active: boolean;
+  number: number | null;
 };
 
 export type BubblePlace = {
@@ -56,14 +57,21 @@ export function noteRows(
   positions: ReadonlyMap<string, Rect>,
   active: string | null,
 ): NoteRow[] {
-  const rows = viewNotes(view).map((note) => ({
+  const ordered = isOrdered(view);
+  const rows = viewNotes(view).map((note, index) => ({
     path: note.module,
     kind: noteKind(note.module),
     text: note.text,
     by: note.by,
     off: !positions.has(note.module),
     active: note.module === active,
+    number: ordered ? index + 1 : null,
   }));
+
+  if (ordered) {
+    return rows;
+  }
+
   const on = rows
     .filter((row) => !row.off)
     .sort((a, b) => {
@@ -79,12 +87,42 @@ export function noteRows(
   return [...on, ...off];
 }
 
+export type StepModel = {
+  number: number;
+  total: number;
+  previous: string | null;
+  next: string | null;
+};
+
+export function stepModel(
+  rows: readonly NoteRow[],
+  active: string,
+): StepModel | null {
+  const row = rows.find((candidate) => candidate.path === active);
+
+  if (row === undefined || row.number === null) {
+    return null;
+  }
+
+  const at = rows.findIndex((candidate) => candidate.path === active);
+  const before = rows.slice(0, at).filter((candidate) => !candidate.off);
+  const after = rows.slice(at + 1).filter((candidate) => !candidate.off);
+
+  return {
+    number: row.number,
+    total: rows.length,
+    previous: before.at(-1)?.path ?? null,
+    next: after[0]?.path ?? null,
+  };
+}
+
 export type BubbleModel = {
   path: string;
   text: string | null;
   by: string | null;
   editing: boolean;
   focused: boolean;
+  step: StepModel | null;
 };
 
 export function bubbleSet(
@@ -111,12 +149,17 @@ export function bubbleSet(
         by: note.by,
         editing: false,
         focused: false,
+        step: null,
       });
     }
   }
 
   if (focus !== null) {
     const note = held(focus.path);
+    const step =
+      view !== null && !focus.editing && note !== null && isOrdered(view)
+        ? stepModel(noteRows(view, positions, focus.path), focus.path)
+        : null;
 
     bubbles.push({
       path: focus.path,
@@ -124,6 +167,7 @@ export function bubbleSet(
       by: note?.by ?? null,
       editing: focus.editing,
       focused: true,
+      step,
     });
   }
 

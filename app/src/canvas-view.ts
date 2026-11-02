@@ -33,6 +33,7 @@ import {
   zoomAt,
   zoomLabel,
 } from "./viewport";
+import { easeViewport, walkthroughViewport } from "./walkthrough-pan";
 import { classifyWheel } from "./wheel-device";
 
 export type CanvasProps = {
@@ -61,6 +62,7 @@ export type CanvasOrientation = {
 
 export type CanvasNotes = {
   marks: ReadonlySet<string>;
+  numbers: ReadonlyMap<string, number> | null;
   active: string | null;
   bubbles: NoteBubble[];
   showAll: boolean;
@@ -88,6 +90,7 @@ export type CanvasActions = {
   removeNoteAt: (path: string) => void;
   removeNote: () => void;
   walkNotes: (delta: 1 | -1) => void;
+  stepNote: (path: string) => void;
   walkFindings: (delta: 1 | -1) => void;
   pickName: (id: string) => void;
 };
@@ -96,7 +99,18 @@ export type CanvasView = {
   element: HTMLElement;
   render: (props: CanvasProps) => void;
   centerOn: (id: string) => void;
+  walkTo: (path: string, options: { animate: boolean }) => void;
 };
+
+type BubbleScreen = {
+  path: string;
+  x: number;
+  y: number;
+  side: "right" | "left";
+};
+
+const PAN_MS = 200;
+const PAN_FRAME_MS = 16;
 
 export const PINCH_SPEED = 0.01;
 export const MOUSE_ZOOM_STEP = 1.15;
@@ -261,6 +275,10 @@ export function buildCanvasView(
   let legendOpen = false;
   let pointerAnchor: Point | null = null;
   let pendingCenter: string | null = null;
+  let bubbleScreen: BubbleScreen | null = null;
+  let priorScreen: BubbleScreen | null = null;
+  let pan: ReturnType<typeof setTimeout> | null = null;
+  let pendingWalk: { path: string; animate: boolean } | null = null;
   let gesture = false;
   let lastScale = 1;
   let drag: { start: Point; origin: Point; moved: boolean } | null = null;
@@ -689,6 +707,24 @@ export function buildCanvasView(
   }
 
   function noteMark(path: string, x: number, y: number): SVGElement {
+    const number = props?.notes?.numbers?.get(path);
+
+    if (number !== undefined) {
+      const disc = svg("g", { class: "note-mark numbered" });
+
+      disc.dataset.noteMark = path;
+      disc.append(
+        svg("circle", { cx: x + 7, cy: y + 7, r: 8 }),
+        svg("text", { x: x + 7, y: y + 7 }, String(number)),
+      );
+
+      if (props?.notes?.active === path) {
+        disc.classList.add("active");
+      }
+
+      return disc;
+    }
+
     const mark = icon("notes", "note-mark");
 
     mark.setAttribute("x", String(x));
@@ -755,6 +791,8 @@ export function buildCanvasView(
         cancel: (target) => actions.cancelNote(target),
         save: (target, text) => actions.saveNote(target, text),
         remove: (target) => actions.removeNoteAt(target),
+        previous: (target) => actions.stepNote(target),
+        next: (target) => actions.stepNote(target),
       });
       bubbleViews.set(path, one);
     }
@@ -825,6 +863,32 @@ export function buildCanvasView(
     }
 
     noteBubble.element.style.zIndex = bubble.focused ? "2" : "1";
+
+    if (bubble.focused) {
+      rememberBubble(bubble.path, noteBubble.element);
+    }
+  }
+
+  function rememberBubble(path: string, element: HTMLElement) {
+    const left = Number.parseFloat(element.style.left);
+    const top = Number.parseFloat(element.style.top);
+
+    if (Number.isNaN(left) || Number.isNaN(top)) {
+      return;
+    }
+
+    const next: BubbleScreen = {
+      path,
+      x: left,
+      y: top,
+      side: element.classList.contains("left") ? "left" : "right",
+    };
+
+    if (bubbleScreen !== null && bubbleScreen.path !== path) {
+      priorScreen = bubbleScreen;
+    }
+
+    bubbleScreen = next;
   }
 
   function hideTip() {
@@ -1028,6 +1092,8 @@ export function buildCanvasView(
   }
 
   surface.addEventListener("pointerdown", (event) => {
+    cancelPan();
+
     if (
       event.button !== 0 ||
       targetOf(event) ||
@@ -1136,6 +1202,7 @@ export function buildCanvasView(
     "wheel",
     (event) => {
       event.preventDefault();
+      cancelPan();
 
       const at = localPoint(event);
       const kind = classifyWheel(event);
@@ -1223,6 +1290,8 @@ export function buildCanvasView(
         ctrlKey: event.ctrlKey,
         altKey: event.altKey,
         targetEditable: isEditable(event.target),
+        inInspector:
+          (event.target as Element | null)?.closest?.(".inspector") != null,
       },
       props?.selection ?? null,
       props?.notes?.keys,
@@ -1247,8 +1316,80 @@ export function buildCanvasView(
     return true;
   }
 
+  function cancelPan() {
+    if (pan !== null) {
+      clearTimeout(pan);
+      pan = null;
+    }
+  }
+
+  function walkNow(path: string, animate: boolean): boolean {
+    const scene = props?.scene ?? null;
+    const anchor = scene === null ? null : bubbleAnchor(scene, path);
+
+    if (anchor === null) {
+      return false;
+    }
+
+    const from =
+      bubbleScreen !== null && bubbleScreen.path !== path
+        ? bubbleScreen
+        : (priorScreen ?? bubbleScreen);
+
+    priorScreen = null;
+
+    if (from === null) {
+      return centerNow(path.endsWith("/") ? path.slice(0, -1) : path);
+    }
+
+    const to = walkthroughViewport({
+      box: anchor.target,
+      side: from.side,
+      bubbleWidth: bubbleSize("", false).width,
+      anchor: {
+        x: viewport.x + from.x * viewport.k,
+        y: viewport.y + from.y * viewport.k,
+      },
+      k: viewport.k,
+    });
+
+    cancelPan();
+
+    const reduced =
+      typeof matchMedia === "function" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (!animate || reduced) {
+      viewport = to;
+      applyViewport();
+      drawBubbles();
+
+      return true;
+    }
+
+    const start = viewport;
+    const began = performance.now();
+    const frame = () => {
+      const t = (performance.now() - began) / PAN_MS;
+
+      viewport = easeViewport(start, to, t);
+      applyViewport();
+      drawBubbles();
+      pan = t >= 1 ? null : setTimeout(frame, PAN_FRAME_MS);
+    };
+
+    pan = setTimeout(frame, PAN_FRAME_MS);
+
+    return true;
+  }
+
   return {
     element,
+    walkTo(path, options) {
+      if (!walkNow(path, options.animate)) {
+        pendingWalk = { path, animate: options.animate };
+      }
+    },
     centerOn(id) {
       if (!centerNow(id)) {
         pendingCenter = id;
@@ -1298,8 +1439,20 @@ export function buildCanvasView(
         pendingCenter = null;
       }
 
+      if (
+        pendingWalk !== null &&
+        walkNow(pendingWalk.path, pendingWalk.animate)
+      ) {
+        pendingWalk = null;
+      }
+
       if (next.selection === null) {
         pointerAnchor = null;
+
+        if (!next.notes?.bubbles.some((bubble) => bubble.focused)) {
+          bubbleScreen = null;
+          priorScreen = null;
+        }
       }
 
       const selected = next.bar

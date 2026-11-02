@@ -80,7 +80,7 @@ describe("views new", () => {
     expect(code).toBe(0);
     expect(out).toBe("a: created; 0 steps, resolves to 0 modules\n");
     expect(saved(fake, "a")).toEqual({
-      schema_version: 3,
+      schema_version: 4,
       description: "Why",
       commit: COMMIT,
       steps: [],
@@ -657,7 +657,7 @@ describe("views note", () => {
     expect(saved(fake, "a").notes).toEqual([
       noteEntry(PLACE, "Start here", "agent"),
     ]);
-    expect(saved(fake, "a").schema_version).toBe(3);
+    expect(saved(fake, "a").schema_version).toBe(4);
   });
 
   it("replaces the note on the same module, leaving one", () => {
@@ -798,10 +798,14 @@ describe("views note", () => {
     const text = go(fake, "show", "a").out;
 
     expect(text).not.toContain("note:");
-    expect(text).toContain(`  ${PLACE}: Here (Ken)\n`);
-    expect(text).toContain("  shop/gone.py: Lost (Claude) (not on the view)");
-    expect(text).toContain("  shop/domain/: Folder (Claude)\n");
-    expect(text).toContain("  shop/missing/: Empty (Claude) (not on the view)");
+    expect(text).toContain(`  1. ${PLACE}: Here (Ken)\n`);
+    expect(text).toContain(
+      "  2. shop/gone.py: Lost (Claude) (not on the view)",
+    );
+    expect(text).toContain("  3. shop/domain/: Folder (Claude)\n");
+    expect(text).toContain(
+      "  4. shop/missing/: Empty (Claude) (not on the view)",
+    );
     expect(text.match(/\(not on the view\)/g)).toHaveLength(2);
     expect(text).not.toContain("warning:");
 
@@ -832,7 +836,7 @@ describe("views note", () => {
     );
     const text = go(fake, "show", "a").out;
 
-    expect(text).toContain(`  ${PLACE}: Second (Claude)\n`);
+    expect(text).toContain(`  1. ${PLACE}: Second (Claude)\n`);
     expect(text).not.toContain("First");
     expect(text).toContain(
       `warning: view holds 1 note on ${PLACE}; kept the last on each\n`,
@@ -840,7 +844,9 @@ describe("views note", () => {
 
     const json = JSON.parse(go(fake, "show", "a", "--json").out);
 
-    expect(json.notes).toEqual([noteEntry(PLACE, "Second", "Claude")]);
+    expect(json.notes).toEqual([
+      { ...noteEntry(PLACE, "Second", "Claude"), number: 1 },
+    ]);
     expect(json.warnings).toHaveLength(1);
 
     const checked = go(fake, "check");
@@ -858,7 +864,10 @@ describe("views note", () => {
     const document = JSON.parse(go(fake, "show", "legacy", "--json").out);
 
     expect(document.notes).toEqual([
-      noteEntry("shop/application/place.py", expect.any(String), "Claude"),
+      {
+        ...noteEntry("shop/application/place.py", expect.any(String), "Claude"),
+        number: 1,
+      },
     ]);
     expect(document.warnings).toEqual([
       "view holds 1 note on shop/application/place.py; kept the last on each",
@@ -876,7 +885,7 @@ describe("views note", () => {
     );
 
     expect(JSON.parse(go(fake, "show", "a", "--json").out).notes).toEqual([
-      noteEntry(PLACE, "M", "Ken"),
+      { ...noteEntry(PLACE, "M", "Ken"), number: 1 },
     ]);
     expect(fake.writes).toEqual([]);
   });
@@ -917,7 +926,7 @@ describe("views note", () => {
 
     const written = saved(fake, "a");
 
-    expect(written.schema_version).toBe(3);
+    expect(written.schema_version).toBe(4);
     expect(written.note).toBeUndefined();
     expect(written.module_notes).toBeUndefined();
     expect(written.notes).toEqual([
@@ -935,7 +944,7 @@ describe("views note", () => {
 
     go(fake, "note", "a", PLACE, "Hi");
 
-    expect(saved(fake, "a").schema_version).toBe(3);
+    expect(saved(fake, "a").schema_version).toBe(4);
   });
 
   it("writes keys in order with notes in the order they were added", () => {
@@ -971,7 +980,7 @@ describe("views note", () => {
     expect(fake.files.get(`${VIEWS}/a.json`)).toBe(
       `${JSON.stringify(
         {
-          schema_version: 3,
+          schema_version: 4,
           description: "p",
           commit: COMMIT,
           notes: [
@@ -1080,5 +1089,120 @@ describe("the help examples", () => {
 
     expect(JSON.parse(last).resolved.modules).toEqual(acceptance.expected);
     expect(JSON.parse(last).unresolved).toEqual([]);
+  });
+});
+
+describe("views note ordering", () => {
+  const three = () =>
+    repository(
+      noted(
+        "a",
+        {
+          notes: [noteEntry(PLACE, "P", "Ken"), noteEntry(STORE, "S", "Ken")],
+        },
+        [...ON_VIEW, { kind: "pick", module: "shop/domain/aliases.py" }],
+        4,
+      ),
+    );
+  const order = (fake: Fake) =>
+    (saved(fake, "a").notes as { module: string }[]).map((n) => n.module);
+
+  it("puts a new note last and keeps an existing note in place", () => {
+    const fake = three();
+
+    go(fake, "note", "a", "shop/domain/aliases.py", "A");
+    expect(order(fake)).toEqual([PLACE, STORE, "shop/domain/aliases.py"]);
+
+    go(fake, "note", "a", PLACE, "P2");
+    expect(order(fake)[0]).toBe(PLACE);
+  });
+
+  it("places with --after and --first and moves an existing note", () => {
+    const fake = three();
+
+    go(fake, "note", "a", "shop/domain/aliases.py", "A", "--after", PLACE);
+    expect(order(fake)).toEqual([PLACE, "shop/domain/aliases.py", STORE]);
+
+    go(fake, "note", "a", STORE, "S", "--first");
+    expect(order(fake)[0]).toBe(STORE);
+  });
+
+  it("refuses --after with --first, either with --remove, and an unheld --after", () => {
+    const fake = three();
+
+    expect(
+      go(fake, "note", "a", PLACE, "x", "--after", STORE, "--first").code,
+    ).toBe(2);
+    expect(go(fake, "note", "a", PLACE, "--remove", "--first").code).toBe(2);
+    expect(
+      go(fake, "note", "a", PLACE, "--remove", "--after", STORE).code,
+    ).toBe(2);
+    expect(go(fake, "note", "a", PLACE, "x", "--after", "nope.py").code).toBe(
+      2,
+    );
+  });
+
+  it("reorders with the exact set", () => {
+    const fake = three();
+
+    expect(go(fake, "reorder", "a", STORE, PLACE).code).toBe(0);
+    expect(order(fake)).toEqual([STORE, PLACE]);
+  });
+
+  it("names a missing, an extra and a repeated path in one error", () => {
+    const fake = three();
+    const result = go(fake, "reorder", "a", STORE, STORE, "x.py");
+
+    expect(result.code).toBe(2);
+    expect(result.err).toContain(`${PLACE} is missing`);
+    expect(result.err).toContain("no note on x.py");
+    expect(result.err).toContain(`${STORE} is repeated`);
+  });
+
+  it("refuses reorder on a view with no notes", () => {
+    const fake = repository(noted("a", {}, ON_VIEW, 4));
+    const result = go(fake, "reorder", "a", PLACE);
+
+    expect(result.code).toBe(2);
+    expect(result.err).toContain("no notes to reorder");
+  });
+
+  it("sets ordered false then true, writing the key then dropping it", () => {
+    const fake = three();
+
+    go(fake, "set", "a", "--ordered", "false");
+    expect(saved(fake, "a").ordered).toBe(false);
+
+    go(fake, "set", "a", "--ordered", "true");
+    expect(saved(fake, "a")).not.toHaveProperty("ordered");
+  });
+
+  it("refuses set without the flag or with a bad value", () => {
+    const fake = three();
+
+    expect(go(fake, "set", "a").code).toBe(2);
+    expect(go(fake, "set", "a", "--ordered", "maybe").code).toBe(2);
+  });
+
+  it("shows numbers when ordered and a no-order heading when not", () => {
+    const fake = three();
+
+    expect(go(fake, "show", "a").out).toContain(
+      `notes:\n  1. ${PLACE}: P (Ken)`,
+    );
+    expect(JSON.parse(go(fake, "show", "a", "--json").out)).toMatchObject({
+      ordered: true,
+      notes: [{ number: 1 }, { number: 2 }],
+    });
+
+    go(fake, "set", "a", "--ordered", "false");
+
+    expect(go(fake, "show", "a").out).toContain(
+      `notes: no order\n  ${PLACE}: P (Ken)`,
+    );
+    expect(JSON.parse(go(fake, "show", "a", "--json").out)).toMatchObject({
+      ordered: false,
+      notes: [{ number: null }, { number: null }],
+    });
   });
 });

@@ -1,0 +1,32 @@
+{
+  "schema_version": 4,
+  "description": "How an order is placed.",
+  "commit": null,
+  "notes": [
+    {
+      "module": "shop/application/place.py",
+      "text": "Start here.",
+      "by": "Ken"
+    },
+    {
+      "module": "shop/domain/order.py",
+      "text": "Then the order.",
+      "by": "Ken"
+    },
+    {
+      "module": "shop/adapters/",
+      "text": "Finally the adapters.",
+      "by": "Ken"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "pick",
+      "module": "shop/application/place.py"
+    },
+    {
+      "kind": "pick",
+      "module": "shop/domain/order.py"
+    }
+  ]
+}

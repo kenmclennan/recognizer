@@ -4,9 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { InputError } from "../src/errors.js";
 import type { Scan } from "../src/scan.js";
 import {
+  isOrdered,
   migrateView,
   noteWarnings,
   resolveView,
+  serialiseView,
   type View,
   type ViewStep,
   validateView,
@@ -71,7 +73,7 @@ describe("migrateView and viewNotes", () => {
   it("turns a version 2 view note and module note into one notes entry", () => {
     const migrated = migrateView(example("with-notes.json"));
 
-    expect(migrated.schema_version).toBe(3);
+    expect(migrated.schema_version).toBe(4);
     expect(migrated.notes).toEqual([
       {
         module: "shop/application/place.py",
@@ -112,7 +114,7 @@ describe("migrateView and viewNotes", () => {
 
   it("migrates a version 1 view without adding notes", () => {
     expect(migrateView(view())).toEqual({
-      schema_version: 3,
+      schema_version: 4,
       description: "p",
       commit: null,
       steps: [],
@@ -315,5 +317,48 @@ describe("one note per path", () => {
     expect(noteWarnings(legacy)).toEqual([
       "view holds 1 note on shop/application/place.py; kept the last on each",
     ]);
+  });
+});
+
+describe("ordered", () => {
+  const at = (schema_version: View["schema_version"], extra = {}): View =>
+    ({
+      schema_version,
+      description: "p",
+      commit: null,
+      steps: [],
+      ...extra,
+    }) as View;
+
+  it("reads every version as ordered unless version 4 says false", () => {
+    expect(isOrdered(at(1))).toBe(true);
+    expect(isOrdered(at(2))).toBe(true);
+    expect(isOrdered(at(3))).toBe(true);
+    expect(isOrdered(at(4))).toBe(true);
+    expect(isOrdered(at(4, { ordered: false }))).toBe(false);
+  });
+
+  it("migrates versions 2 and 3 to 4 without an ordered key", () => {
+    expect(migrateView(at(2))).not.toHaveProperty("ordered");
+    expect(migrateView(at(3))).toMatchObject({ schema_version: 4 });
+    expect(migrateView(at(3))).not.toHaveProperty("ordered");
+  });
+
+  it("keeps ordered false and writes keys in the fixed order", () => {
+    const text = serialiseView(at(4, { ordered: false }));
+
+    expect(migrateView(at(4, { ordered: false })).ordered).toBe(false);
+    expect(Object.keys(JSON.parse(text))).toEqual([
+      "schema_version",
+      "description",
+      "commit",
+      "ordered",
+      "steps",
+    ]);
+  });
+
+  it("counts the examples", () => {
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(9);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(26);
   });
 });

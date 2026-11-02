@@ -4,14 +4,18 @@ import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import { freshScans } from "./freshness.js";
 import { moduleNames, under } from "./neighbours.js";
+import { appendNote, placeNote, reorderNotes } from "./notes-order.js";
 import type { Scan } from "./scan.js";
 import { resolveCommit } from "./scan-command.js";
 import {
+  isOrdered,
   lastNotePerPath,
   migrateView,
   noteWarnings,
+  orderedStep,
   type ResolvedView,
   resolveView,
+  serialiseView,
   type View,
   type ViewNote,
   type ViewStep,
@@ -28,6 +32,8 @@ export const VIEW_SUBCOMMANDS = [
   "focus",
   "remove",
   "note",
+  "reorder",
+  "set",
   "show",
   "list",
   "check",
@@ -51,6 +57,9 @@ const OPTIONS = {
   "from-window": { type: "string" },
   by: { type: "string" },
   remove: { type: "boolean" },
+  after: { type: "string" },
+  first: { type: "boolean" },
+  ordered: { type: "string" },
 } as const;
 
 export const VIEW_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
@@ -62,7 +71,9 @@ const ALLOWED: Record<Subcommand, string[]> = {
   fold: [],
   focus: [],
   remove: ["fold", "focus", "rule", "within"],
-  note: ["by", "remove"],
+  note: ["by", "remove", "after", "first"],
+  reorder: [],
+  set: ["ordered"],
   show: [],
   list: [],
   check: ["fix"],
@@ -77,7 +88,10 @@ const USAGE: Record<Subcommand, string> = {
   focus: "recognizer views focus <name> <folder> [--repository <dir>] [--json]",
   remove:
     "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
-  note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] | --remove [--by <name>]) [--repository <dir>] [--json]",
+  note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>]) [--repository <dir>] [--json]",
+  reorder:
+    "recognizer views reorder <name> <module-or-folder>... [--repository <dir>] [--json]",
+  set: "recognizer views set <name> --ordered true|false [--repository <dir>] [--json]",
   show: "recognizer views show <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
   check:
@@ -112,7 +126,7 @@ function viewFile(root: string, name: string): string {
 function writeViewFile(io: Io, file: string, view: View): void {
   const temp = `${file}.tmp`;
 
-  io.writeFile(temp, serialise(view));
+  io.writeFile(temp, serialiseView(view));
   io.rename(temp, file);
 }
 
@@ -138,48 +152,6 @@ function checkName(name: string | undefined): string {
   }
 
   return name;
-}
-
-function serialise(view: View): string {
-  const migrated = migrateView(view);
-
-  return `${JSON.stringify(
-    {
-      schema_version: 3,
-      description: migrated.description,
-      commit: migrated.commit,
-      ...(migrated.notes === undefined
-        ? {}
-        : { notes: migrated.notes.map(orderedNote) }),
-      steps: migrated.steps.map(orderedStep),
-    },
-    null,
-    2,
-  )}\n`;
-}
-
-function orderedNote(note: ViewNote): ViewNote {
-  return { module: note.module, text: note.text, by: note.by };
-}
-
-function orderedStep(step: ViewStep): ViewStep {
-  switch (step.kind) {
-    case "pick":
-    case "left-out":
-      return { kind: step.kind, module: step.module };
-    case "fold":
-    case "focus":
-      return { kind: step.kind, folder: step.folder };
-    case "rule":
-      return step.relation === "folder"
-        ? { kind: "rule", relation: "folder", of: step.of }
-        : {
-            kind: "rule",
-            relation: step.relation,
-            of: step.of,
-            ...(step.within === undefined ? {} : { within: step.within }),
-          };
-  }
 }
 
 function readView(io: Io, root: string, name: string): View {
@@ -297,7 +269,7 @@ function finishMutation(
   scans: Scan[],
   what: string,
 ): number {
-  const changed = serialise(view) !== serialise(before);
+  const changed = serialiseView(view) !== serialiseView(before);
   const modules = resolveView(view, scans).modules.length;
 
   if (changed) {
@@ -391,7 +363,7 @@ function runNew(argv: string[], io: Io): number {
     typeof windowId === "string" ? windowSteps(c, windowId) : null;
 
   const view: View = {
-    schema_version: 3,
+    schema_version: 4,
     description,
     commit: resolveCommit(io, c.root),
     steps: fromWindow?.steps ?? [],
@@ -641,6 +613,18 @@ function runRemove(argv: string[], io: Io): number {
 function runNote(argv: string[], io: Io): number {
   const probe = context("note", argv, io);
   const removing = probe.values.remove === true;
+  const after = probe.values.after;
+  const first = probe.values.first === true;
+
+  if (
+    (after !== undefined && first) ||
+    (removing && (after !== undefined || first))
+  ) {
+    throw new InputError([
+      "--after, --first and --remove cannot be combined",
+      `usage: ${USAGE.note}`,
+    ]);
+  }
 
   return mutate(
     "note",
@@ -697,12 +681,13 @@ function runNote(argv: string[], io: Io): number {
         ]);
       }
 
-      const replaced = notes.some((note) => note.module === path);
-      const next = replaced
-        ? notes.map((note) =>
-            note.module === path ? { module: path, text, by } : note,
-          )
-        : [...notes, { module: path, text, by }];
+      const entry = { module: path, text, by };
+      const next =
+        typeof after === "string"
+          ? placeNote(notes, entry, { after })
+          : first
+            ? placeNote(notes, entry, "first")
+            : appendNote(notes, entry);
 
       return {
         view: withNotes(view, next),
@@ -710,6 +695,63 @@ function runNote(argv: string[], io: Io): number {
       };
     },
     (count) => (removing ? count === 2 : count === 3),
+  );
+}
+
+function runReorder(argv: string[], io: Io): number {
+  return mutate(
+    "reorder",
+    argv,
+    io,
+    (c, view) => {
+      const notes = viewNotes(view);
+
+      if (notes.length === 0) {
+        throw new InputError(["no notes to reorder"]);
+      }
+
+      return {
+        view: withNotes(view, reorderNotes(notes, c.positionals.slice(1))),
+        what: "reordered the notes",
+      };
+    },
+    (count) => count >= 2,
+  );
+}
+
+function runSet(argv: string[], io: Io): number {
+  const probe = context("set", argv, io);
+  const ordered = probe.values.ordered;
+
+  if (ordered !== "true" && ordered !== "false") {
+    throw new InputError([
+      "--ordered must be true or false",
+      `usage: ${USAGE.set}`,
+    ]);
+  }
+
+  return mutate(
+    "set",
+    argv,
+    io,
+    (_c, view) => {
+      const migrated = migrateView(view);
+
+      if (ordered === "true") {
+        delete migrated.ordered;
+      } else {
+        migrated.ordered = false;
+      }
+
+      return {
+        view: migrated,
+        what:
+          ordered === "true"
+            ? "set the notes in order"
+            : "set the notes in no order",
+      };
+    },
+    (count) => count === 1,
   );
 }
 
@@ -753,7 +795,11 @@ function runShow(argv: string[], io: Io): number {
         description: view.description,
         commit: view.commit,
         steps: view.steps,
-        notes: viewNotes(view),
+        ordered: isOrdered(view),
+        notes: viewNotes(view).map((note, index) => ({
+          ...note,
+          number: isOrdered(view) ? index + 1 : null,
+        })),
         resolved: resolvedJson(resolved),
         unresolved: resolved.unresolved,
         warnings: noteWarnings(view),
@@ -781,11 +827,13 @@ function runShow(argv: string[], io: Io): number {
   const notes = viewNotes(view);
 
   if (notes.length > 0) {
+    const ordered = isOrdered(view);
+
     lines.push(
-      "notes:",
+      ordered ? "notes:" : "notes: no order",
       ...notes.map(
-        (note) =>
-          `  ${note.module}: ${note.text} (${note.by})${notedOnView(note.module) ? "" : " (not on the view)"}`,
+        (note, index) =>
+          `  ${ordered ? `${index + 1}. ` : ""}${note.module}: ${note.text} (${note.by})${notedOnView(note.module) ? "" : " (not on the view)"}`,
       ),
     );
   }
@@ -1102,6 +1150,8 @@ const HANDLERS: Record<Subcommand, (argv: string[], io: Io) => number> = {
   focus: runFocus,
   remove: runRemove,
   note: runNote,
+  reorder: runReorder,
+  set: runSet,
   show: runShow,
   list: runList,
   check: runCheck,
