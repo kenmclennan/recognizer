@@ -1,0 +1,3 @@
+sensors:
+  structure:
+    distance_threshold: 1.5

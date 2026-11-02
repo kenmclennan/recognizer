@@ -235,7 +235,10 @@ describe("show", () => {
     expect(lines[4]).toBe("    10  public  field  id: str");
     expect(out).toContain("    14  public  method  total() → int");
     expect(out).toContain("6 private hidden");
-    expect(out).toContain("no findings");
+    expect(out).not.toContain("no findings");
+    expect(out).toContain(
+      "folder shop/domain is in the pain zone (abstractness 0, instability 0.2, distance 0.8, threshold 0.3)",
+    );
   });
 
   it("reports the hub and cycle warnings on the check-warnings fixture", () => {

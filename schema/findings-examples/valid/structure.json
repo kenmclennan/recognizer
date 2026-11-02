@@ -1,17 +1,20 @@
 {
   "findings_version": 1,
-  "sensor": { "name": "structure", "version": "2" },
+  "sensor": { "name": "structure", "version": "3" },
   "commit": "0123456789abcdef0123456789abcdef01234567",
   "modified": false,
   "settings": {
     "hub_threshold": 10,
+    "distance_threshold": 0.3,
     "entry_points": [],
     "warnings": {
       "cycle": true,
       "hub": true,
       "folder_cycle": true,
       "orphan": true,
-      "policy_drift": true
+      "policy_drift": true,
+      "stable_dependencies": true,
+      "stable_abstractions": true
     }
   },
   "findings": [
@@ -102,6 +105,38 @@
       "summary": "folder app/tools holds 1 scanned modules that no component covers",
       "fix_pattern": "update-policy",
       "evidence": { "modules": ["app/tools/seed.py"] }
+    },
+    {
+      "id": "stable_dependencies:app/domain->app/util",
+      "kind": "stable_dependencies",
+      "severity": "warning",
+      "principle": "dependencies-point-toward-stability",
+      "summary": "folder app/domain depends on folder app/util, which is less stable (instability 0.5 -> 0.6667)",
+      "fix_pattern": "depend-on-stabler-folder",
+      "evidence": {
+        "modules": ["app/domain/order.py", "app/util/fmt.py"],
+        "edges": [{ "from": "app/domain/order.py", "to": "app/util/fmt.py" }],
+        "measures": { "source_instability": 0.5, "target_instability": 0.6667 }
+      }
+    },
+    {
+      "id": "stable_abstractions:app/contracts",
+      "kind": "stable_abstractions",
+      "severity": "warning",
+      "principle": "stable-folders-are-abstract",
+      "summary": "folder app/contracts is in the useless zone (abstractness 1, instability 1, distance 1, threshold 0.3)",
+      "fix_pattern": "move-toward-main-sequence",
+      "evidence": {
+        "modules": ["app/contracts/audit.py"],
+        "measures": {
+          "afferent": 0,
+          "efferent": 1,
+          "instability": 1,
+          "abstractness": 1,
+          "distance": 1,
+          "threshold": 0.3
+        }
+      }
     }
   ]
 }

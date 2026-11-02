@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
+import { measureFolders } from "../src/folder-metrics.js";
 import { parsePolicy, validateScan } from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
@@ -15,7 +16,15 @@ import {
   folderCycleFindings,
   orphanFindings,
   policyDriftFindings,
+  stableAbstractionsFindings,
+  stableDependenciesFindings,
 } from "../src/structure-warnings.js";
+import {
+  scanOf as foldersOf,
+  type Spec,
+  WORKED,
+  WORKED_EDGES,
+} from "./folder-fixtures.js";
 import { REPO } from "./helpers.js";
 
 function scanOf(edges: [string, string][], modules: string[] = []) {
@@ -308,14 +317,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"hub_threshold":10,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true}}',
+      '{"hub_threshold":10,"distance_threshold":0.3,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"stable_abstractions":true}}',
     );
-    expect(document.sensor.version).toBe("2");
+    expect(document.sensor.version).toBe("3");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on";
+      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -396,6 +405,348 @@ describe("fixtures/check-warnings", () => {
       "orphan:app/adapters/clock.py",
       "orphan:app/adapters/sql.py",
       "orphan:app/application/report.py",
+    ]);
+  });
+});
+
+describe("stable_dependencies", () => {
+  const worked = () => measureFolders([foldersOf(WORKED, WORKED_EDGES)], null);
+
+  it("flags only the worked example's domain to util edge", () => {
+    const found = stableDependenciesFindings(worked());
+
+    expect(found).toEqual([
+      {
+        id: "stable_dependencies:app/domain->app/util",
+        kind: "stable_dependencies",
+        severity: "warning",
+        principle: "dependencies-point-toward-stability",
+        summary:
+          "folder app/domain depends on folder app/util, which is less stable (instability 0.5 -> 0.6667)",
+        fix_pattern: "depend-on-stabler-folder",
+        evidence: {
+          modules: ["app/domain/order.ts", "app/util/fmt.ts"],
+          edges: [{ from: "app/domain/order.ts", to: "app/util/fmt.ts" }],
+          measures: { source_instability: 0.5, target_instability: 0.6667 },
+        },
+      },
+    ]);
+  });
+
+  it("does not warn when the instabilities are equal", () => {
+    const found = stableDependenciesFindings(
+      measureFolders(
+        [
+          foldersOf(
+            [
+              { id: "a/x.ts" },
+              { id: "b/y.ts" },
+              { id: "c/z.ts" },
+              { id: "d/w.ts" },
+            ],
+            [
+              ["a/x.ts", "b/y.ts"],
+              ["c/z.ts", "a/x.ts"],
+              ["b/y.ts", "d/w.ts"],
+            ],
+          ),
+        ],
+        null,
+      ),
+    );
+
+    expect(found).toEqual([]);
+  });
+
+  it("warns in only one direction of a two-way pair", () => {
+    const found = stableDependenciesFindings(
+      measureFolders(
+        [
+          foldersOf(
+            [{ id: "a/x.ts" }, { id: "b/y.ts" }, { id: "c/z.ts" }],
+            [
+              ["a/x.ts", "b/y.ts"],
+              ["b/y.ts", "a/x.ts"],
+              ["c/z.ts", "b/y.ts"],
+            ],
+          ),
+        ],
+        null,
+      ),
+    );
+
+    expect(ids(found)).toEqual(["stable_dependencies:b->a"]);
+  });
+
+  it("warns on the ring edges whose target is less stable and no others", () => {
+    const found = stableDependenciesFindings(
+      measureFolders(
+        [
+          foldersOf(
+            [
+              { id: "a/x.ts" },
+              { id: "a/x2.ts" },
+              { id: "b/y.ts" },
+              { id: "c/z.ts" },
+              { id: "d/w.ts" },
+            ],
+            [
+              ["a/x.ts", "b/y.ts"],
+              ["b/y.ts", "c/z.ts"],
+              ["c/z.ts", "a/x.ts"],
+              ["a/x2.ts", "d/w.ts"],
+            ],
+          ),
+        ],
+        null,
+      ),
+    );
+
+    expect(ids(found)).toEqual(["stable_dependencies:c->a"]);
+  });
+
+  it("makes no pair from foreign edges", () => {
+    const found = stableDependenciesFindings(
+      measureFolders(
+        [foldersOf([{ id: "a/x.ts" }], [["a/x.ts", "foreign:q"]])],
+        null,
+      ),
+    );
+
+    expect(found).toEqual([]);
+  });
+});
+
+describe("stable_abstractions", () => {
+  const worked = () => measureFolders([foldersOf(WORKED, WORKED_EDGES)], null);
+
+  it("names the zones in the worked example at the default threshold", () => {
+    const found = stableAbstractionsFindings(worked(), 0.3);
+
+    expect(ids(found)).toEqual([
+      "stable_abstractions:app/contracts",
+      "stable_abstractions:app/domain",
+      "stable_abstractions:app/util",
+    ]);
+    expect(found[0]?.summary).toContain("useless zone");
+    expect(found[1]?.summary).toContain("pain zone");
+    expect(found[2]?.summary).toContain("pain zone");
+    expect(found[0]).toMatchObject({
+      principle: "stable-folders-are-abstract",
+      fix_pattern: "move-toward-main-sequence",
+      evidence: {
+        modules: ["app/contracts/audit.ts"],
+        measures: {
+          afferent: 0,
+          efferent: 1,
+          instability: 1,
+          abstractness: 1,
+          distance: 1,
+          threshold: 0.3,
+        },
+      },
+    });
+  });
+
+  it("drops a folder exactly on the bound", () => {
+    expect(ids(stableAbstractionsFindings(worked(), 0.3333))).toEqual([
+      "stable_abstractions:app/contracts",
+      "stable_abstractions:app/domain",
+    ]);
+    expect(ids(stableAbstractionsFindings(worked(), 0.5))).toEqual([
+      "stable_abstractions:app/contracts",
+    ]);
+  });
+
+  it("yields none when abstractness or instability is null", () => {
+    const measures = measureFolders(
+      [foldersOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]])],
+      null,
+    );
+
+    expect(stableAbstractionsFindings(measures, 0)).toEqual([]);
+  });
+
+  it("does not warn at distance 0.3 computed as 0.30000000000000004", () => {
+    const importers: Spec[] = [];
+    const edges: [string, string][] = [];
+
+    for (let index = 0; index < 7; index += 1) {
+      importers.push({ id: `f/m${index}.ts`, exports: ["class"] });
+      edges.push([`f/m${index}.ts`, "foreign:q"]);
+    }
+
+    for (let index = 0; index < 3; index += 1) {
+      importers.push({ id: `o/u${index}.ts` });
+      edges.push([`o/u${index}.ts`, "f/m0.ts"]);
+    }
+
+    const measures = measureFolders([foldersOf(importers, edges)], null);
+    const folder = measures.rows.find((row) => row.id === "f");
+
+    expect(folder).toMatchObject({ afferent: 3, efferent: 7, distance: 0.3 });
+    expect(stableAbstractionsFindings(measures, 0.3)).toEqual([]);
+  });
+});
+
+describe("switches for the package metric warnings", () => {
+  const scan = foldersOf(WORKED, WORKED_EDGES);
+
+  const run = (deps: boolean, abstractions: boolean) =>
+    structureSensor(
+      [scan],
+      null,
+      {
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: {
+          cycle: false,
+          hub: false,
+          folder_cycle: false,
+          orphan: false,
+          policy_drift: false,
+          stable_dependencies: deps,
+          stable_abstractions: abstractions,
+        },
+      },
+      CONTEXT,
+    );
+
+  it("keeps folder metrics whatever the switches say", () => {
+    const both = run(true, true);
+    const none = run(false, false);
+
+    expect(none.document.findings).toEqual([]);
+    expect(none.folder_metrics).toEqual(both.folder_metrics);
+    expect(both.folder_metrics.map((row) => row.id)).toEqual(
+      [...both.folder_metrics.map((row) => row.id)].sort(),
+    );
+  });
+
+  it("switches each kind off on its own", () => {
+    expect(
+      ids(run(false, true).document.findings).every((id) =>
+        id.startsWith("stable_abstractions:"),
+      ),
+    ).toBe(true);
+    expect(ids(run(true, false).document.findings)).toEqual([
+      "stable_dependencies:app/domain->app/util",
+    ]);
+  });
+});
+
+describe("settings for the package metrics", () => {
+  const resolve = (yaml: string) =>
+    resolveStructureSettings(parseConfig(yaml), undefined);
+
+  it("defaults the threshold and both switches", () => {
+    expect(resolveStructureSettings(null)).toMatchObject({
+      distance_threshold: 0.3,
+      warnings: { stable_dependencies: true, stable_abstractions: true },
+    });
+  });
+
+  it("reads the configured values", () => {
+    expect(
+      resolve(
+        "sensors:\n  structure:\n    distance_threshold: 0.5\n    warnings: { stable_dependencies: false }\n",
+      ),
+    ).toMatchObject({
+      distance_threshold: 0.5,
+      warnings: { stable_dependencies: false, stable_abstractions: true },
+    });
+  });
+
+  it.each([
+    "sensors:\n  structure:\n    distance_threshold: 1.5\n",
+    "sensors:\n  structure:\n    distance_threshold: -0.1\n",
+    "sensors:\n  structure:\n    warnings: { stable_abstractions: 1 }\n",
+  ])("rejects %j", (yaml) => {
+    expect(() => parseConfig(yaml)).toThrow(InputError);
+  });
+});
+
+describe("real committed content", () => {
+  it("measures fixtures/check-warnings", () => {
+    const dir = join(REPO, "fixtures", "check-warnings");
+    const scan = validateScan(
+      JSON.parse(readFileSync(join(dir, "scan.json"), "utf8")),
+    );
+    const policy = parsePolicy(
+      readFileSync(join(dir, ".recognizer", "policy.yaml"), "utf8"),
+    );
+    const result = structureSensor(
+      [scan],
+      policy,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    );
+
+    expect(
+      result.folder_metrics.map(
+        ({
+          id,
+          modules,
+          afferent,
+          efferent,
+          instability,
+          abstractness,
+          distance,
+        }) => ({
+          id,
+          modules,
+          afferent,
+          efferent,
+          instability,
+          abstractness,
+          distance,
+        }),
+      ),
+    ).toEqual([
+      {
+        id: "app/adapters",
+        modules: 4,
+        afferent: 1,
+        efferent: 4,
+        instability: 0.8,
+        abstractness: null,
+        distance: null,
+      },
+      {
+        id: "app/application",
+        modules: 2,
+        afferent: 2,
+        efferent: 1,
+        instability: 0.3333,
+        abstractness: null,
+        distance: null,
+      },
+      {
+        id: "app/domain",
+        modules: 2,
+        afferent: 1,
+        efferent: 1,
+        instability: 0.5,
+        abstractness: null,
+        distance: null,
+      },
+      {
+        id: "app/ports",
+        modules: 1,
+        afferent: 3,
+        efferent: 0,
+        instability: 0,
+        abstractness: null,
+        distance: null,
+      },
+    ]);
+
+    const added = ids(result.document.findings).filter((id) =>
+      id.startsWith("stable_"),
+    );
+
+    expect(added).toEqual([
+      "stable_dependencies:app/application->app/domain",
+      "stable_dependencies:app/domain->app/adapters",
     ]);
   });
 });

@@ -61,6 +61,7 @@ describe("check in repository mode", () => {
         status: "ran",
         settings: {
           hub_threshold: 10,
+          distance_threshold: 0.3,
           entry_points: [],
           warnings: {
             cycle: true,
@@ -68,6 +69,8 @@ describe("check in repository mode", () => {
             folder_cycle: true,
             orphan: true,
             policy_drift: true,
+            stable_dependencies: true,
+            stable_abstractions: true,
           },
         },
       },
@@ -100,6 +103,7 @@ describe("check in repository mode", () => {
 
     expect(code).toBe(0);
     expect(Object.keys(JSON.parse(out)).sort()).toEqual([
+      "folder_metrics",
       "metrics",
       "sensors",
       "thresholds",
@@ -175,6 +179,9 @@ describe("check in repository mode", () => {
       ),
     ).toBe(true);
     expect(report.metrics.map((m: { id: string }) => m.id)).toEqual([named]);
+    expect(report.folder_metrics.map((m: { id: string }) => m.id)).toEqual([
+      "shop/adapters",
+    ]);
   });
 
   it("follows the narrowed set for the exit code", () => {

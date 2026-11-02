@@ -16,6 +16,7 @@ import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { findingsFile, readFindingsFiles } from "./findings-files.js";
+import type { FolderMetrics } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
 import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
@@ -24,12 +25,14 @@ import type { Violation } from "./rules.js";
 import { type Scan, validateScan } from "./scan.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
+  DEFAULT_DISTANCE_THRESHOLD,
   DEFAULT_HUB_THRESHOLD,
   describeSettings,
   resolveStructureSettings,
   type StructureSettings,
   structureSensor,
 } from "./structure-sensor.js";
+import { folderOf } from "./structure-warnings.js";
 
 type BaselineAction = "none" | "initialised" | "shrunk";
 
@@ -68,6 +71,7 @@ interface SensorStatus {
 interface Gathered {
   documents: FindingsDocument[];
   metrics: ModuleMetrics[];
+  folderMetrics: FolderMetrics[];
   unranked: number;
   thresholds: Thresholds | null;
   sensors: SensorStatus[];
@@ -351,11 +355,13 @@ function analysisReport(
   thresholds: Thresholds | null,
   warnings: ReportedWarning[],
   metrics: ModuleMetrics[],
+  folderMetrics: FolderMetrics[],
 ) {
   return {
     ...(thresholds === null ? {} : { thresholds }),
     warnings,
     metrics,
+    folder_metrics: folderMetrics,
   };
 }
 
@@ -399,6 +405,7 @@ function executeScanReplay(
     : null;
   const settings: StructureSettings = {
     hub_threshold: hubThreshold,
+    distance_threshold: DEFAULT_DISTANCE_THRESHOLD,
     entry_points: [],
     warnings: {
       cycle: true,
@@ -406,6 +413,8 @@ function executeScanReplay(
       folder_cycle: true,
       orphan: true,
       policy_drift: true,
+      stable_dependencies: true,
+      stable_abstractions: true,
     },
   };
   const sensed = structureSensor([validateScan(scan)], policy, settings, {
@@ -417,7 +426,7 @@ function executeScanReplay(
 
   if (policy === null) {
     io.stdout(
-      `${JSON.stringify(analysisReport(thresholds, warnings, sensed.metrics), null, 2)}\n`,
+      `${JSON.stringify(analysisReport(thresholds, warnings, sensed.metrics, sensed.folder_metrics), null, 2)}\n`,
     );
     io.stderr(summary(null, warnings));
 
@@ -436,7 +445,7 @@ function executeScanReplay(
   );
 
   io.stdout(
-    `${JSON.stringify({ ...result, baseline: report, ...analysisReport(thresholds, warnings, sensed.metrics) }, null, 2)}\n`,
+    `${JSON.stringify({ ...result, baseline: report, ...analysisReport(thresholds, warnings, sensed.metrics, sensed.folder_metrics) }, null, 2)}\n`,
   );
   io.stderr(summary(result, warnings));
 
@@ -491,6 +500,7 @@ function gather(
   const documents: FindingsDocument[] = [];
   const resolved = resolveStructureSettings(config, override);
   let metrics: ModuleMetrics[] = [];
+  let folderMetrics: FolderMetrics[] = [];
   let unranked = 0;
   let thresholds: Thresholds | null = null;
 
@@ -508,6 +518,7 @@ function gather(
     const { sensed } = run;
 
     metrics = sensed.metrics;
+    folderMetrics = sensed.folder_metrics;
     unranked = sensed.unranked;
 
     if (run.error !== null) {
@@ -558,7 +569,7 @@ function gather(
     }
   }
 
-  return { documents, metrics, unranked, thresholds, sensors };
+  return { documents, metrics, folderMetrics, unranked, thresholds, sensors };
 }
 
 function executeRepository(
@@ -615,7 +626,17 @@ function executeRepository(
   const metrics = narrowed
     ? gathered.metrics.filter((metric) => listed.has(metric.id))
     : gathered.metrics;
-  const analysis = analysisReport(gathered.thresholds, warnings, metrics);
+  const folderMetrics = narrowed
+    ? gathered.folderMetrics.filter((row) =>
+        named.some((id) => folderOf(id) === row.id),
+      )
+    : gathered.folderMetrics;
+  const analysis = analysisReport(
+    gathered.thresholds,
+    warnings,
+    metrics,
+    folderMetrics,
+  );
   const candidates = candidatesOf(gathered.documents);
   const settings = gathered.sensors.find((one) => one.name === "structure");
   const sensorLine = `sensor structure: ${

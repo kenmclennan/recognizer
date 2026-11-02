@@ -164,7 +164,7 @@ describe("findings", () => {
 });
 
 describe("computeHealth on fixtures/check-warnings", () => {
-  it("has one red, five amber and three green", () => {
+  it("has one red, seven amber and one green", () => {
     const { health, ids } = healthOf(
       "check-warnings",
       fixturePolicy("check-warnings"),
@@ -184,7 +184,7 @@ describe("computeHealth on fixtures/check-warnings", () => {
 
     const others = ids.filter((id) => health.disc(id) === "green");
 
-    expect(others).toHaveLength(3);
+    expect(others).toEqual(["app/ports/store.py"]);
   });
 });
 

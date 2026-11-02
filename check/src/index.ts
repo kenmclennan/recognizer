@@ -39,6 +39,7 @@ export {
   type FindingsDocument,
   validateFindings,
 } from "./findings-document.js";
+export type { FolderMetrics } from "./folder-metrics.js";
 export {
   checkLink,
   isLink,
