@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BAR_BOTTOM_PAD,
   BAR_MIN_BOX_WIDTH,
   BAR_ROW,
   BAR_TRACK_HEIGHT,
@@ -114,13 +115,18 @@ describe("labels", () => {
 });
 
 describe("geometry", () => {
-  const rect = { x: 100, y: 200, width: 160, height: 40 + 2 * BAR_ROW };
+  const rect = {
+    x: 100,
+    y: 200,
+    width: 160,
+    height: 40 + 2 * BAR_ROW + BAR_BOTTOM_PAD,
+  };
 
   it("places each track in its own row below the base", () => {
     const first = barRect(rect, 40, 0);
     const second = barRect(rect, 40, 1);
 
-    expect(first.x).toBe(125);
+    expect(first.x).toBe(144);
     expect(first.height).toBe(BAR_TRACK_HEIGHT);
     expect(second.y - first.y).toBe(BAR_ROW);
     expect(first.y).toBeGreaterThanOrEqual(240);

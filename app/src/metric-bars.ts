@@ -7,7 +7,8 @@ import type {
 export const BAR_ROW = 14;
 export const BAR_MIN_BOX_WIDTH = 150;
 export const BAR_TRACK_HEIGHT = 6;
-export const BAR_LEFT = 25;
+export const BAR_LEFT = 44;
+export const BAR_BOTTOM_PAD = 6;
 export const BAR_PAD = 10;
 
 export type Tone = "green" | "amber" | "red";

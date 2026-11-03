@@ -45,10 +45,31 @@ const facts = {};
 const boxOf = (id) => q('.box[data-id="' + id + '"]');
 const discs = () => qa(".box .disc-fill").map((d) => d.getAttribute("class"));
 const heightOf = (id) => Number(boxOf(id).querySelector(".box-body").getAttribute("height"));
+const shapeOf = (id) => {
+  const body = boxOf(id).querySelector(".box-body");
+  const mark = boxOf(id).querySelector(".note-mark");
+  return {
+    x: Number(body.getAttribute("x")),
+    y: Number(body.getAttribute("y")),
+    width: Number(body.getAttribute("width")),
+    height: Number(body.getAttribute("height")),
+    nameY: Number(boxOf(id).querySelector(".name").getAttribute("y")),
+    discY: Number(boxOf(id).querySelector(".disc-fill").getAttribute("cy")),
+    bars: boxOf(id).querySelectorAll(".metric-bar").length,
+    unknown: boxOf(id).querySelectorAll(".metric-track.unknown").length,
+    dashes: [...boxOf(id).querySelectorAll("text")].filter((t) => t.textContent === "-").length,
+    mark: mark ? { x: Number(mark.firstElementChild.getAttribute("x")), y: Number(mark.firstElementChild.getAttribute("y")), size: Number(mark.firstElementChild.getAttribute("height")) } : null,
+  };
+};
 const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) => ({
   metric: bar.dataset.metric,
   title: bar.querySelector("title").textContent,
   track: bar.querySelector(".metric-track").getAttribute("class"),
+  trackX: Number(bar.querySelector(".metric-track").getAttribute("x")),
+  trackY: Number(bar.querySelector(".metric-track").getAttribute("y")),
+  valueX: Number(bar.querySelector(".metric-value").getAttribute("x")),
+  label: bar.querySelector(".metric-label").textContent,
+  labelX: Number(bar.querySelector(".metric-label").getAttribute("x")),
   trackWidth: Number(bar.querySelector(".metric-track").getAttribute("width")),
   fill: bar.querySelector(".metric-fill") ? bar.querySelector(".metric-fill").getAttribute("class") : null,
   fillWidth: bar.querySelector(".metric-fill") ? Number(bar.querySelector(".metric-fill").getAttribute("width")) : null,
@@ -84,11 +105,22 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   facts.risk = barsOf("app/risk.py");
   facts.other = barsOf("src/other.ts");
   facts.none = barsOf("lib/none.py");
+  facts.oneShape = shapeOf("src/other.ts");
+  facts.twoShape = shapeOf("app/risk.py");
+  facts.noneShape = shapeOf("lib/none.py");
+  facts.plainName = facts.noneShape.nameY;
+  click(q('.metric-row[data-metric="crap/crap"]'));
+  await tick();
+  facts.threeShape = shapeOf("app/risk.py");
+  facts.threeBars = barsOf("app/risk.py");
+  click(q('.metric-row[data-metric="crap/crap"]'));
+  await tick();
   facts.discsAfter = discs();
   facts.notePosition = Number(boxOf("app/risk.py").querySelector(".metric-bar rect").getAttribute("y"));
   facts.boxY = Number(boxOf("app/risk.py").querySelector(".box-body").getAttribute("y"));
 
   const carried = explorer.carry();
+  facts.carriedTicks = carried;
   explorer.dispose();
   host.replaceChildren();
   explorer = mount(${JSON.stringify(fresh)}, carried);
@@ -126,6 +158,28 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   await tick();
   facts.empty = q(".canvas-metrics").textContent;
 
+  const viewFile = JSON.stringify({
+    schema_version: 4,
+    description: "d",
+    commit: ${JSON.stringify(SCAN_COMMIT)},
+    notes: [
+      { module: "app/risk.py", text: "Risk note", by: "Ken" },
+      { module: "lib/none.py", text: "None note", by: "Ken" },
+    ],
+    steps: [{ kind: "pick", module: "app/risk.py" }, { kind: "pick", module: "lib/none.py" }],
+  }) + "\\n";
+  explorer.dispose();
+  host.replaceChildren();
+  const notedPort = fakeViews({ order: viewFile });
+  explorer = mountExplorer({ container: host, loaded: loadedFor(${JSON.stringify(fresh)}), title: "demo", views: notedPort, post: () => null, carried: facts.carriedTicks, showMetrics: () => {} });
+  await tick();
+  click(q(".view-list"));
+  click(qa(".view-item")[0]);
+  await tick();
+  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  await tick();
+  facts.markShapes = { risk: shapeOf("app/risk.py"), none: shapeOf("lib/none.py") };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -151,9 +205,9 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
     expect(f.rows[0].text).toContain("per member");
   });
 
-  it("adds a bar per ticked metric in tick order and grows the box by one row each", () => {
+  it("draws a row per measured metric in tick order and grows the box by each row plus 6px", () => {
     expect(f.heightBefore).toBe(40);
-    expect(f.heightTwo).toBe(40 + 2 * 14);
+    expect(f.heightTwo).toBe(40 + 2 * 14 + 6);
     expect(f.risk.map((b: { metric: string }) => b.metric)).toEqual([
       "crap/complexity",
       "crap/coverage",
@@ -180,17 +234,74 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
     expect(f.other[0].title).toBe("Cyclomatic complexity 1, worst: pick");
   });
 
-  it("draws an unmeasured module as a dashed empty track and a dash", () => {
-    for (const bar of [...f.none, f.other[1]]) {
-      expect(bar.track).toBe("metric-track unknown");
-      expect(bar.fill).toBeNull();
-      expect(bar.value).toBe("-");
-      expect(bar.title).toMatch(/: not measured$/);
+  it("draws no element for a metric a module has no value for", () => {
+    expect(f.none).toEqual([]);
+    expect(f.other.length).toBe(1);
+    expect(f.noneShape.bars).toBe(0);
+    expect(f.noneShape.height).toBe(40);
+
+    for (const shape of [f.oneShape, f.twoShape, f.threeShape, f.noneShape]) {
+      expect(shape.unknown).toBe(0);
+      expect(shape.dashes).toBe(0);
     }
+  });
+
+  it("gives boxes in one view different heights by their own measured rows", () => {
+    expect(f.oneShape.height).toBe(40 + 14 + 6);
+    expect(f.twoShape.height).toBe(40 + 2 * 14 + 6);
+    expect(f.threeShape.height).toBe(40 + 3 * 14 + 6);
+    expect(f.noneShape.height).toBe(40);
+  });
+
+  it("keeps the name row where a plain box has it, whatever the rows", () => {
+    const plainOffset = f.noneShape.nameY - f.noneShape.y;
+
+    for (const shape of [f.oneShape, f.twoShape, f.threeShape]) {
+      expect(shape.nameY - shape.y).toBe(plainOffset);
+      expect(shape.discY - shape.y).toBe(20);
+    }
+  });
+
+  it("lays each row out from the mock: label, track and right-aligned figure", () => {
+    const shape = f.threeShape;
+
+    f.threeBars.forEach(
+      (
+        bar: {
+          trackX: number;
+          trackY: number;
+          valueX: number;
+          labelX: number;
+          anchor: string;
+          label: string;
+        },
+        index: number,
+      ) => {
+        expect(bar.trackY).toBe(shape.y + 40 + index * 14 + 4);
+        expect(bar.trackX).toBe(shape.x + 44);
+        expect(bar.valueX).toBe(shape.x + shape.width - 10);
+        expect(bar.labelX).toBe(shape.x + 12);
+        expect(bar.anchor).toBe("end");
+        expect(bar.label.length).toBeGreaterThan(0);
+      },
+    );
+    expect(f.twoShape.width).toBeGreaterThanOrEqual(150);
+    expect(f.oneShape.width).toBeGreaterThanOrEqual(150);
+    expect(f.noneShape.width).toBeLessThan(150);
   });
 
   it("leaves the discs unchanged", () => {
     expect(f.discsAfter).toEqual(f.discsBefore);
+  });
+
+  it("keeps the note mark on the name row whatever the rows", () => {
+    for (const shape of [f.markShapes.risk, f.markShapes.none]) {
+      expect(shape.mark).not.toBeNull();
+      expect(shape.mark.x).toBe(shape.x + shape.width - 22);
+      expect(shape.mark.y + shape.mark.size / 2).toBe(shape.y + 20);
+    }
+    expect(f.markShapes.risk.height).toBe(40 + 2 * 14 + 6);
+    expect(f.markShapes.none.height).toBe(40);
   });
 
   it("keeps the ticks across a rebuild and drops one when unticked", () => {
@@ -199,7 +310,7 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
       "Showing complexity, coverage from crap",
     );
     expect(f.afterUntick.bars).toBe(1);
-    expect(f.afterUntick.height).toBe(40 + 14);
+    expect(f.afterUntick.height).toBe(40 + 14 + 6);
     expect(f.afterUntick.footer).toBe("Showing complexity from crap");
   });
 
