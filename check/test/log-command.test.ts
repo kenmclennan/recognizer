@@ -406,53 +406,6 @@ describe("sense and measure", () => {
     expect(records(fake)).toEqual([]);
     expect(sensing(document(), "--by", "").code).toBe(2);
   });
-
-  it("records one measure entry per overlay, failed ones with their reason", () => {
-    const fake = fakeIo({
-      commit: COMMIT,
-      files: {
-        [`${ROOT}/.recognizer/config.yaml`]:
-          'overlays:\n  cov:\n    command: [cov, "{commit}", "{output}"]\n    metrics:\n      - { name: line_coverage, type: ratio, granularity: module, bad: low }\n',
-      },
-      programs: { cov: () => ({ status: 1, stderr: "no" }) },
-    });
-
-    const code = run(
-      ["measure", "--repository", ROOT, "--by", "Claude"],
-      fake.io,
-    );
-    const saved = JSON.parse(
-      fake.files.get(records(fake)[0] as string) as string,
-    );
-
-    expect(code).toBe(1);
-    expect(records(fake)[0]).toMatch(/-measure\.json$/);
-    expect(saved.kind).toBe("measure");
-    expect(saved.by).toBe("Claude");
-    expect(saved.outcome).toBe("failed");
-    expect(saved.entries).toHaveLength(1);
-    expect(saved.entries[0]).toMatchObject({
-      name: "cov",
-      status: 1,
-      outcome: "failed",
-      reason: "no",
-      stderr: "no",
-      command: [
-        "cov",
-        COMMIT,
-        `${ROOT}/.recognizer/cache/overlays/cov.json.tmp`,
-      ],
-    });
-    expect(log(fake, "--kind", "measure").out).toContain("measure");
-    expect(log(fake, "--kind", "sense").out).not.toContain("measure");
-  });
-
-  it("writes nothing when measure stops on bad input", () => {
-    const fake = fakeIo({ commit: COMMIT });
-
-    expect(run(["measure", "--repository", ROOT], fake.io)).toBe(2);
-    expect(records(fake)).toEqual([]);
-  });
 });
 
 describe("a scan record from the real run", () => {

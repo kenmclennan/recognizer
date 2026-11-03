@@ -13,7 +13,6 @@ import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { readPolicy } from "./load-findings.js";
-import { runMeasurers } from "./measure-command.js";
 import {
   entryFrom,
   openPhasedRunLog,
@@ -35,7 +34,6 @@ import {
   extractionPrecheck,
   parseScanArgs,
   phaseLine,
-  selectMeasurers,
   selectSensors,
   startLine,
   summaryLine,
@@ -297,10 +295,7 @@ export function runScan(argv: string[], io: Io): number {
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
-  const wantsConfig =
-    options.describe !== false ||
-    options.measure !== null ||
-    options.sense !== null;
+  const wantsConfig = options.describe !== false || options.sense !== null;
   const config = wantsConfig ? readConfig(io, root) : null;
   let describer: Describer | undefined;
 
@@ -311,15 +306,6 @@ export function runScan(argv: string[], io: Io): number {
     readResponsibilities(io, root);
   }
 
-  const measurers =
-    options.measure === null
-      ? []
-      : selectMeasurers(
-          Object.entries(config?.overlays ?? {}).map(
-            ([name, registration]) => ({ name, registration }),
-          ),
-          options.measure,
-        );
   const selected =
     options.sense === null
       ? []
@@ -330,7 +316,7 @@ export function runScan(argv: string[], io: Io): number {
         );
   const commit = resolveCommit(io, root);
 
-  if ((options.sense !== null || options.measure !== null) && commit === null) {
+  if (options.sense !== null && commit === null) {
     throw new InputError(["not a git repository, or no commit"]);
   }
 
@@ -508,31 +494,6 @@ export function runScan(argv: string[], io: Io): number {
     if (!json) {
       io.stdout(describeSummaryText(result));
     }
-  }
-
-  if (options.measure !== null && commit !== null) {
-    const phase = startPhase("measure");
-
-    if (json) {
-      io.stdout(phaseLine("measure", { total: measurers.length }));
-    }
-
-    runMeasurers({
-      io,
-      root,
-      selected: measurers,
-      commit,
-      modified: modified === true,
-      onEntry: (entry) => {
-        finishEntry(phase, entry);
-
-        if (!json) {
-          io.stdout(
-            `${entry.outcome === "ok" ? "measured" : "failed"} ${entry.name}\n`,
-          );
-        }
-      },
-    });
   }
 
   if (options.sense !== null && commit !== null) {

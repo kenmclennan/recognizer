@@ -39,12 +39,11 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Violation | An edge that breaks a rule the policy declares. Baselined; the only finding that fails a run. |
 | Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
-| Overlay | Measurements from a tool a repository registers (coverage, churn, mutation), written as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
+| Overlay | Measurements a sensor writes (coverage, churn, mutation), as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
 | Metrics list | The canvas control, before Legend, that lists every metric of the current overlays and ticks the ones shown as bars on the boxes; it controls the canvas only. |
 | Metric bar | A thin bar with its value on a box, one per ticked metric in the order ticked; a member-granularity metric shows the box's worst member; hover names it; a folder box and a module the overlay did not measure show a dashed empty bar. |
 | Thresholds sensor | The shipped sensor that turns any overlay metric over a configured line into a finding, a warning or a violation as `sensors.thresholds` says. |
 | Report | A findings file an agent hands to recognizer with `recognizer report --as <name>` after a review it ran itself; listed with the sensors but never run by a scan, stale once the scan passes its commit, replaced only by the next report under the same name. |
-| Measure phase | The CLI-only phase of `recognizer scan --measure` that runs the registered overlays before the sensors; the app no longer runs it. |
 | Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/responsibilities.json` and current while its source and describer are unchanged. |
 | Describer | The command a repository registers in its config to write responsibilities. |
 | Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}` and `{request}` filled in, and a version naming its prompt. A Config without one falls back to the Describer in effect. |
@@ -105,7 +104,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Selection bar | The small bar of icon actions shown above the selection while the pointer is over it; right-clicking opens the same bar. |
 | Settings | The app's own preferences (the editor, and what a repository's first scan includes), set in its settings window; distinct from a repository's Config. |
 | Describe phase | The second phase of a scan, run when ticked: the modules whose line is missing or out of date are described; progress shows in the footer's scan line and the result is a message in the message tray. |
-| Run log | The record of one run of a registered command (scan, describe or measure; a scan record holds its extract, describe, measure and sense phases) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
+| Run log | The record of one run of a registered command (scan or describe, and measure in records written before measurers were retired; a scan record holds its extract, describe and sense phases) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
 | Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command; a shell command may use `{file}` and `{line}` placeholders, for example `code -g {file}:{line}`, to open at a line. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
 | Trail | The inspector panels opened by following modules through their Dependencies, one to the right of the next, with breadcrumbs naming each step. |
