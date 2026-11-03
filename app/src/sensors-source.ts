@@ -17,7 +17,6 @@ export const sensorsSource: SensorsPort = {
   readInputs: () => invoke<SensorInputs>("read_sensor_inputs"),
   shipped: () => invoke<ShippedSensors>("shipped_sensors"),
   describer: () => invoke<DescriberInEffect>("shipped_describer"),
-  edit: (name, add) => invoke<void>("edit_sensor", { name, add }),
   onInputsChanged(run) {
     void invoke<void>("watch_sensor_inputs");
 

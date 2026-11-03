@@ -5,7 +5,6 @@ use tauri::{
 };
 
 pub mod changes;
-pub mod config_edit;
 pub mod editor;
 pub mod fs_safe;
 mod launch;
@@ -754,31 +753,6 @@ async fn shipped_describer(
 }
 
 #[tauri::command]
-async fn edit_sensor(
-    app: AppHandle,
-    window: WebviewWindow,
-    name: String,
-    add: bool,
-) -> Result<(), String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    if !sensors::sensor_name_ok(&name) {
-        return Err(format!("{name} is not a sensor name"));
-    }
-
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-
-    tauri::async_runtime::spawn_blocking(move || match repository::shipped_sensors(&shell) {
-        repository::ShippedSensors::Ok { sensors } => {
-            sensors::edit_config(&folder, &sensors, &name, add)
-        }
-        repository::ShippedSensors::Unavailable { reason } => Err(reason),
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
 async fn run_scan(
     app: AppHandle,
     window: WebviewWindow,
@@ -1403,7 +1377,6 @@ pub fn run() {
             remove_findings,
             shipped_sensors,
             shipped_describer,
-            edit_sensor,
             remove_view,
             rename_view,
             renames_since,
