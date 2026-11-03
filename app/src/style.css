@@ -958,9 +958,14 @@ svg.i.chevron {
 
 .inspector-panel .ih {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.inspector-panel .ih > :first-child:not(.ih-text) {
+  align-self: flex-start;
+  margin-top: 5px;
 }
 
 .inspector-panel .ih-text {
@@ -974,6 +979,17 @@ svg.i.chevron {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.ih-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ih-folder {
+  margin-top: 1px;
+  font-size: 12px;
 }
 
 .ih .ib {
@@ -991,13 +1007,22 @@ svg.i.chevron {
 
 .itabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
+  gap: 0;
+  margin: 0 -12px 8px;
+  padding: 0 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
   border-bottom: 1px solid var(--line);
 }
 
+.itabs::-webkit-scrollbar {
+  display: none;
+}
+
 .itabs button {
-  padding: 6px 8px;
+  padding: 6px 10px 7px;
+  line-height: 1;
+  white-space: nowrap;
   border: 0;
   background: none;
   color: var(--muted);
@@ -1006,6 +1031,8 @@ svg.i.chevron {
 }
 
 .itabs button .n {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
   color: var(--faint);
 }
 
@@ -1024,34 +1051,12 @@ svg.i.chevron {
 }
 
 .responsibility {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  margin: 8px 0;
+  margin: 0 0 10px 17px;
   font-size: 12px;
 }
 
-.responsibility.out-of-date .line {
-  opacity: 0.55;
-}
-
-.responsibility .tag {
-  padding: 0 5px;
-  border-radius: 4px;
-  background: var(--code);
-  color: var(--muted);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.responsibility .describe {
-  font-size: 11px;
-}
-
 .responsibility .finding {
-  flex-basis: 100%;
+  margin-top: 4px;
 }
 
 .pswitch {

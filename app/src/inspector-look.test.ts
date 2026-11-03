@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chrome, collectFacts, here } from "./look-page";
 
-const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-edge" style="width:340px;height:200px;display:flex;flex-direction:column"></div>`;
+const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-edge" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-tabs" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-top" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-narrow" style="width:200px;height:300px;display:flex;flex-direction:column"></div><div id="a-fit" style="width:340px;height:300px;display:flex;flex-direction:column"></div>`;
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -43,7 +43,7 @@ const inputs = {
   canAddNote: false,
   filter: "",
   collapsed: new Set(),
-  responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),
+  responsibility: () => ({ state: { kind: "missing" }, failure: null }),
   metrics: [
     { key: "t/complexity", label: "complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },
     { key: "t/coverage", label: "coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },
@@ -61,6 +61,58 @@ mount("a-panel", { kind: "module", id: "p/m.py" }, true);
 mount("a-long", { kind: "module", id: "deep/folder/" + "n".repeat(120) + ".py" }, true);
 mount("a-short", { kind: "module", id: "p/q.py" }, true);
 mount("a-edge", { kind: "edge", id: "p/m.py>p/q.py" }, true);
+const counted = { ...inputs, counts: () => ({ uses: 1000, usedBy: 114 }), findings: () => Array.from({ length: 49 }, () => ({ severity: "warning" })), responsibility: () => ({ state: { kind: "out-of-date", line: "Does the thing.", reasons: ["source"] }, failure: null }) };
+const mountCounted = (id, selection) => {
+  const view = buildInspectorView(actions);
+  view.render(inspectorContent(selection, counted), true);
+  document.getElementById(id).append(view.element);
+};
+mountCounted("a-tabs", { kind: "module", id: "p/m.py" });
+mountCounted("a-folder", { kind: "folder", id: "deep/folder" });
+mountCounted("a-top", { kind: "folder", id: "p" });
+mountCounted("a-narrow", { kind: "module", id: "p/m.py" });
+mountCounted("a-fit", { kind: "module", id: "p/m.py" });
+const measureTabs = (id) => {
+  const row = document.querySelector("#" + id + " .itabs");
+  const buttons = [...row.querySelectorAll("button")];
+  return {
+    rowHeight: row.getBoundingClientRect().height,
+    heights: buttons.map((b) => b.getBoundingClientRect().height),
+    labels: buttons.map((b) => b.textContent),
+    nowrap: buttons.map((b) => getComputedStyle(b).whiteSpace),
+    tabular: buttons.map((b) => { const n = b.querySelector(".n"); return n ? getComputedStyle(n).fontVariantNumeric : null; }),
+    scrollWidth: row.scrollWidth,
+    clientWidth: row.clientWidth,
+  };
+};
+const measureFit = () => {
+  const host = document.getElementById("a-fit");
+  const row = host.querySelector(".itabs");
+  host.style.width = "1200px";
+  const natural = row.scrollWidth - 24;
+  host.style.width = natural + "px";
+  return measureTabs("a-fit");
+};
+const measureShape = (id) => {
+  const root = document.querySelector("#" + id);
+  const disc = root.querySelector(".ih .disc").getBoundingClientRect();
+  const name = root.querySelector(".ih-name").getBoundingClientRect();
+  const line = root.querySelector(".responsibility .line");
+  return {
+    discTop: disc.top,
+    discBottom: disc.bottom,
+    nameTop: name.top,
+    nameBottom: name.bottom,
+    nameLeft: name.left,
+    lineLeft: line ? line.getBoundingClientRect().left : null,
+    muted: root.querySelector(".ih-folder").textContent,
+    tags: root.querySelectorAll(".responsibility .tag").length,
+    describe: root.querySelectorAll("button.describe").length,
+    nameSize: getComputedStyle(root.querySelector(".ih-name")).fontSize,
+    nameWeight: getComputedStyle(root.querySelector(".ih-name")).fontWeight,
+    folderSize: getComputedStyle(root.querySelector(".ih-folder")).fontSize,
+  };
+};
 const BOX = ["padding-top", "padding-right", "padding-bottom", "padding-left"];
 const BORDER_L = ["border-left-width", "border-left-color"];
 const ROW = ["display", "column-gap", "align-items", "color", "font-size", "font-weight", "border-top-left-radius", ...BOX];
@@ -114,6 +166,8 @@ const result = {
     railPath: [...document.querySelectorAll("#a-rail svg path")].map((n) => n.getAttribute("d")),
   },
   heads: { long: measureHead("a-long"), short: measureHead("a-short") },
+  tabsRow: { default: measureTabs("a-tabs"), narrow: measureTabs("a-narrow"), fit: measureFit(), folder: measureTabs("a-folder") },
+  shapes: { module: measureShape("a-tabs"), folder: measureShape("a-folder"), top: measureShape("a-top") },
   edgeLines: document.querySelectorAll("#a-edge .ih-text > *").length,
   links: document.querySelectorAll("#a-panel .cb").length,
   tables: [...panel.querySelectorAll(".card")].map((card) => {
@@ -139,6 +193,30 @@ window.addEventListener("load", () => {
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
 });`;
 
+type TabsFacts = {
+  rowHeight: number;
+  heights: number[];
+  labels: string[];
+  nowrap: string[];
+  tabular: (string | null)[];
+  scrollWidth: number;
+  clientWidth: number;
+};
+type ShapeFacts = {
+  discTop: number;
+  discBottom: number;
+  nameTop: number;
+  nameBottom: number;
+  nameLeft: number;
+  lineLeft: number | null;
+  muted: string;
+  tags: number;
+  describe: number;
+  nameSize: string;
+  nameWeight: string;
+  folderSize: string;
+};
+
 type Styles = Record<string, Record<string, string | boolean>>;
 type Report = {
   dark: boolean;
@@ -150,6 +228,8 @@ type Report = {
     railPath: string[];
   };
   heads: Record<string, Record<string, number | string | null>>;
+  tabsRow: Record<string, TabsFacts>;
+  shapes: Record<string, ShapeFacts>;
   edgeLines: number;
   links: number;
   linkText: number;
@@ -209,14 +289,14 @@ const EXPECTED: Record<"light" | "dark", Styles> = {
     },
     tabs: {
       display: "flex",
-      "column-gap": "4px",
+      "column-gap": "0px",
       "margin-bottom": "8px",
       "border-bottom-width": "1px",
       "border-bottom-color": "rgb(216, 222, 228)",
     },
     tabOn: {
       "padding-top": "6px",
-      "padding-left": "8px",
+      "padding-left": "10px",
       color: "rgb(31, 35, 40)",
       "font-weight": "600",
       "font-size": "12px",
@@ -225,7 +305,7 @@ const EXPECTED: Record<"light" | "dark", Styles> = {
     },
     tabOff: {
       "padding-top": "6px",
-      "padding-left": "8px",
+      "padding-left": "10px",
       color: "rgb(89, 99, 110)",
       "font-weight": "400",
       "font-size": "12px",
@@ -274,14 +354,14 @@ const EXPECTED: Record<"light" | "dark", Styles> = {
     },
     tabs: {
       display: "flex",
-      "column-gap": "4px",
+      "column-gap": "0px",
       "margin-bottom": "8px",
       "border-bottom-width": "1px",
       "border-bottom-color": "rgb(48, 54, 61)",
     },
     tabOn: {
       "padding-top": "6px",
-      "padding-left": "8px",
+      "padding-left": "10px",
       color: "rgb(230, 237, 243)",
       "font-weight": "600",
       "font-size": "12px",
@@ -290,7 +370,7 @@ const EXPECTED: Record<"light" | "dark", Styles> = {
     },
     tabOff: {
       "padding-top": "6px",
-      "padding-left": "8px",
+      "padding-left": "10px",
       color: "rgb(145, 152, 161)",
       "font-weight": "400",
       "font-size": "12px",
@@ -331,7 +411,7 @@ describe("the inspector, in a real browser", () => {
       const long = heads.long as Record<string, number | string>;
       const short = heads.short as Record<string, number | string>;
 
-      expect(long.nameHeight).toBe(long.line);
+      expect(long.nameHeight).toBeCloseTo(long.line as number, 1);
       expect(long.nameScroll as number).toBeGreaterThan(
         long.nameClient as number,
       );
@@ -346,6 +426,61 @@ describe("the inspector, in a real browser", () => {
         long.panelRight as number,
       );
       expect(short.nameScroll).toBe(short.nameClient);
+    },
+    180000,
+  );
+
+  it.skipIf(chrome === undefined)(
+    "keeps the tab row to one line with three counted tabs, scrolling sideways when narrow",
+    async () => {
+      const { tabsRow } = await prepare("light");
+
+      for (const name of ["default", "folder"]) {
+        const row = tabsRow[name];
+
+        expect(row.labels).toEqual([
+          "Contents",
+          "Dependencies 1114",
+          "Findings 49",
+        ]);
+        expect(new Set(row.heights).size).toBe(1);
+        expect(row.rowHeight).toBeLessThanOrEqual(row.heights[0] + 2);
+        expect(row.nowrap.every((value) => value === "nowrap")).toBe(true);
+        expect(row.tabular.slice(1)).toEqual(["tabular-nums", "tabular-nums"]);
+      }
+
+      expect(tabsRow.narrow.rowHeight).toBe(tabsRow.default.rowHeight);
+      expect(tabsRow.narrow.scrollWidth).toBeGreaterThan(
+        tabsRow.narrow.clientWidth,
+      );
+      expect(tabsRow.fit.scrollWidth).toBeLessThanOrEqual(
+        tabsRow.fit.clientWidth,
+      );
+    },
+    180000,
+  );
+
+  it.skipIf(chrome === undefined)(
+    "gives a folder and a module one header shape with the sentence under the name",
+    async () => {
+      const { shapes } = await prepare("light");
+
+      for (const name of ["module", "folder", "top"]) {
+        const shape = shapes[name];
+
+        expect(shape.nameSize).toBe("14px");
+        expect(shape.nameWeight).toBe("600");
+        expect(shape.folderSize).toBe("12px");
+        expect(shape.discTop).toBeGreaterThanOrEqual(shape.nameTop - 1);
+        expect(shape.discBottom).toBeLessThanOrEqual(shape.nameBottom + 1);
+      }
+
+      expect(shapes.module.lineLeft).toBe(shapes.module.nameLeft);
+      expect(shapes.module.tags).toBe(0);
+      expect(shapes.module.describe).toBe(0);
+      expect(shapes.module.muted).toBe("p/");
+      expect(shapes.folder.muted).toBe("1 files · deep/");
+      expect(shapes.top.muted).toBe("3 files");
     },
     180000,
   );

@@ -31,7 +31,6 @@ export type DescribeResult = {
 
 export type ResponsibilityRow = {
   state: ResponsibilityState;
-  busy: boolean;
   failure: string | null;
 };
 
@@ -119,32 +118,17 @@ export function responsibilityStates(
 }
 
 export type Describing = {
-  busy: (id: string) => boolean;
   failure: (id: string) => string | null;
-  start: (id: string) => boolean;
   finish: (id: string, result: DescribeResult) => void;
   read: (states: (id: string) => ResponsibilityState) => void;
 };
 
 export function createDescribing(): Describing {
-  const running = new Set<string>();
   const failures = new Map<string, string>();
 
   return {
-    busy: (id) => running.has(id),
     failure: (id) => failures.get(id) ?? null,
-    start(id) {
-      if (running.has(id)) {
-        return false;
-      }
-
-      running.add(id);
-
-      return true;
-    },
     finish(id, result) {
-      running.delete(id);
-
       if (result.status === "described") {
         failures.delete(id);
       } else {

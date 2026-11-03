@@ -38,7 +38,6 @@ export type InspectorActions = {
   setFilter: (text: string) => void;
   openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
   setShowPrivate: (on: boolean) => void;
-  describe: (id: string) => void;
   follow: (relation: Direction, id: string) => void;
   bringBack: (index: number) => void;
   putTrailOnCanvas: () => void;
@@ -200,58 +199,17 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   return node;
 }
 
-const REASON_TEXT = {
-  source: "source changed",
-  describer: "describer changed",
-  version: "version changed",
-};
-
-function describeButton(
-  row: ResponsibilityLineRow,
-  actions: InspectorActions,
-  title: string,
-): HTMLElement {
-  const button = el("button", "describe", row.busy ? "Describing" : "Describe");
-
-  button.type = "button";
-  button.disabled = row.busy;
-  button.title = title;
-  button.addEventListener("click", (event) => {
-    event.stopPropagation();
-    actions.describe(row.id);
-  });
-
-  return button;
-}
-
-function responsibilityNode(
-  row: ResponsibilityLineRow,
-  actions: InspectorActions,
-): HTMLElement {
+function responsibilityNode(row: ResponsibilityLineRow): HTMLElement {
   const node = el("div", `responsibility ${row.state.kind}`);
 
   if (row.state.kind === "missing") {
-    node.append(
-      el("span", "muted", "No responsibility line yet"),
-      describeButton(row, actions, "No line has been written for this module"),
-    );
+    node.append(el("span", "muted", "No responsibility line yet"));
   } else if (row.state.kind === "unknown") {
     node.append(
       el("span", "muted", `Responsibility unknown: ${row.state.reason}`),
     );
   } else {
     node.append(el("span", "line", row.state.line));
-
-    if (row.state.kind === "out-of-date") {
-      node.append(
-        el("span", "tag stale", "Out of date"),
-        describeButton(
-          row,
-          actions,
-          row.state.reasons.map((reason) => REASON_TEXT[reason]).join(", "),
-        ),
-      );
-    }
   }
 
   if (row.failure !== null) {
@@ -455,7 +413,7 @@ function buildPanelView(element: HTMLElement): PanelView {
       const parts: HTMLElement[] = [head];
 
       if (content.header.responsibility !== null) {
-        parts.push(responsibilityNode(content.header.responsibility, actions));
+        parts.push(responsibilityNode(content.header.responsibility));
       }
 
       if (content.tabs) {

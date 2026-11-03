@@ -822,7 +822,10 @@ export function inspectorContent(
     header: {
       disc: inputs.disc(selection.id),
       title: `${inputs.compaction.label(selection.id)}/`,
-      muted: `${known} files`,
+      muted:
+        parentOf(selection.id) === ""
+          ? `${known} files`
+          : `${known} files · ${parentOf(selection.id)}`,
       target: { kind: "folder", id: selection.id },
       responsibility: null,
     },
