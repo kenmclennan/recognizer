@@ -70,6 +70,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   valueX: Number(bar.querySelector(".metric-value").getAttribute("x")),
   label: bar.querySelector(".metric-label").textContent,
   labelX: Number(bar.querySelector(".metric-label").getAttribute("x")),
+  labelRight: bar.querySelector(".metric-label").getBBox().x + bar.querySelector(".metric-label").getBBox().width,
   trackWidth: Number(bar.querySelector(".metric-track").getAttribute("width")),
   fill: bar.querySelector(".metric-fill") ? bar.querySelector(".metric-fill").getAttribute("class") : null,
   fillWidth: bar.querySelector(".metric-fill") ? Number(bar.querySelector(".metric-fill").getAttribute("width")) : null,
@@ -157,6 +158,28 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   click(q(".metrics-toggle"));
   await tick();
   facts.empty = q(".canvas-metrics").textContent;
+
+  explorer.dispose();
+  host.replaceChildren();
+  const longOverlay = JSON.stringify({
+    overlay_version: 1,
+    commit: ${JSON.stringify(SCAN_COMMIT)},
+    modified: false,
+    producer: { name: "long", version: "0.1.0" },
+    metrics: [{ name: "a-very-long-metric", type: "count", granularity: "member", bad: "high" }],
+    values: { "a-very-long-metric": { "app/risk.py::classify": 3 } },
+  });
+  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "long", text: longOverlay }] }), title: "demo", views: port, post: () => null, carried: null, showMetrics: () => {} });
+  await tick();
+  for (const folder of ["app", "src", "lib"]) {
+    click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+    await tick();
+  }
+  click(q(".metrics-toggle"));
+  await tick();
+  click(q('.metric-row[data-metric="long/a-very-long-metric"]'));
+  await tick();
+  facts.long = barsOf("app/risk.py");
 
   const viewFile = JSON.stringify({
     schema_version: 4,
@@ -288,6 +311,14 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
     expect(f.twoShape.width).toBeGreaterThanOrEqual(150);
     expect(f.oneShape.width).toBeGreaterThanOrEqual(150);
     expect(f.noneShape.width).toBeLessThan(150);
+  });
+
+  it("clips a label with no short name so it ends before the track", () => {
+    const [bar] = f.long;
+
+    expect(bar.label).toBe("a-v\u2026");
+    expect(bar.title).toBe("a-very-long-metric 3, worst: classify");
+    expect(bar.labelRight).toBeLessThanOrEqual(bar.trackX);
   });
 
   it("leaves the discs unchanged", () => {

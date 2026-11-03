@@ -7,6 +7,7 @@ import {
   barRect,
   barTitle,
   barWidth,
+  clipLabel,
   fraction,
   rangeLabel,
   tone,
@@ -139,5 +140,12 @@ describe("geometry", () => {
     expect(barWidth(BAR_MIN_BOX_WIDTH, 1)).toBe(BAR_MIN_BOX_WIDTH);
     expect(barWidth(200, 2)).toBe(200);
     expect(barWidth(96, 0)).toBe(96);
+  });
+});
+
+describe("clipLabel", () => {
+  it("keeps a label that fits and ends a longer one with an ellipsis", () => {
+    expect(clipLabel("CRAP")).toBe("CRAP");
+    expect(clipLabel("uncovered")).toBe("unc…");
   });
 });

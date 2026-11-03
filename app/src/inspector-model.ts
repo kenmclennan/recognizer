@@ -142,6 +142,8 @@ const METRIC_NAMES: Record<string, Naming> = {
   crap: { short: "CRAP", full: "C.R.A.P. (Change Risk Anti-Patterns) score" },
   mutation_score: { short: "mut", full: "Mutation score" },
   mutation_survived: { short: "surv", full: "Survived mutants" },
+  killed: { short: "kill", full: "Killed mutants" },
+  uncovered: { short: "unc", full: "Uncovered" },
 };
 const MUTATION_NAMES: Record<string, Naming> = {
   score: METRIC_NAMES.mutation_score as Naming,
