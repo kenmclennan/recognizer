@@ -76,15 +76,13 @@ export function walkFindings(
 }
 
 export function badge(rows: FindingRow[]): { count: number; tone: BadgeTone } {
-  return {
-    count: rows.length,
-    tone:
-      rows.length === 0
-        ? "none"
-        : rows.some((row) => row.severity === "violation")
-          ? "red"
-          : "amber",
-  };
+  const violations = rows.filter((row) => row.severity === "violation").length;
+
+  if (violations > 0) {
+    return { count: violations, tone: "red" };
+  }
+
+  return { count: 0, tone: rows.length === 0 ? "none" : "amber" };
 }
 
 export function staleNote(

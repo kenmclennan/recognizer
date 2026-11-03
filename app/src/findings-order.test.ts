@@ -93,7 +93,7 @@ describe("findingRows", () => {
       "stable_abstractions",
       "stable_dependencies",
     ]);
-    expect(badge(real)).toEqual({ count: 9, tone: "red" });
+    expect(badge(real)).toEqual({ count: 1, tone: "red" });
   });
 });
 
@@ -139,13 +139,16 @@ describe("walkFindings", () => {
 });
 
 describe("badge", () => {
-  it("is none at zero, amber for warnings and red with a violation", () => {
+  it("counts violations in red, shows a bare amber dot for warnings only and nothing at zero", () => {
     expect(badge([])).toEqual({ count: 0, tone: "none" });
     expect(badge(rows.filter((row) => row.severity === "warning"))).toEqual({
-      count: 3,
+      count: 0,
       tone: "amber",
     });
-    expect(badge(rows)).toEqual({ count: 6, tone: "red" });
+    expect(badge(rows)).toEqual({
+      count: rows.filter((row) => row.severity === "violation").length,
+      tone: "red",
+    });
   });
 });
 
