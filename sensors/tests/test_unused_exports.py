@@ -283,6 +283,7 @@ EXPECTED = {
         "app/src/main/kotlin/shop/clients": ["PaymentClient"],
         "app/src/main/kotlin/shop/domain": ["Currency", "Currency.Companion"],
         "app/src/main/kotlin/shop/persistence": ["JdbcOrderStore", "OrderRepository"],
+        "app/src/main/kotlin/shop/web": ["OrderController"],
     },
     "rust": {},
 }

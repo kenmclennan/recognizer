@@ -46,10 +46,6 @@
     {
       "path": "app/src/main/kotlin/shop/web/OrderController.kt",
       "hash": "44c61a440ef9a49e0637a013767a76e41d94d2084798707dd0c65ff5da868816"
-    },
-    {
-      "path": "app/src/test/kotlin/shop/web/OrderControllerTest.kt",
-      "hash": "8508c7bbb7e604534d89ba4d51112399daaab05db18daff98850bb3de70be542"
     }
   ],
   "selection": {
@@ -57,14 +53,23 @@
       ".kt"
     ],
     "skip_directory_names": [
-      "build"
+      "build",
+      "test",
+      "androidTest",
+      "integrationTest",
+      "testFixtures"
     ],
     "skip_directory_prefixes": [
       "."
     ],
-    "skip_directory_suffixes": [],
+    "skip_directory_suffixes": [
+      "Test"
+    ],
     "skip_directories_containing": [],
-    "skip_file_globs": []
+    "skip_file_globs": [
+      "*Test.kt",
+      "*Tests.kt"
+    ]
   },
   "modules": [
     {
@@ -351,37 +356,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "app/src/test/kotlin/shop/web",
-      "language": "kotlin",
-      "kind": "package",
-      "members": [
-        {
-          "name": "OrderControllerTest",
-          "kind": "class",
-          "line": 3,
-          "exported": true,
-          "visibility": "public",
-          "bases": [],
-          "fields": [
-            {
-              "name": "controller",
-              "line": 4,
-              "private": true,
-              "type": "OrderController?"
-            }
-          ],
-          "methods": [
-            {
-              "name": "lists",
-              "line": 6,
-              "params": [],
-              "private": false
-            }
-          ]
-        }
-      ]
     }
   ],
   "edges": [
@@ -516,15 +490,6 @@
         "Order",
         "total"
       ]
-    },
-    {
-      "from": "app/src/test/kotlin/shop/web",
-      "to": "app/src/main/kotlin/shop/web",
-      "kind": "depends",
-      "line": 4,
-      "names": [
-        "OrderController"
-      ]
     }
   ],
   "foreign": [
@@ -576,12 +541,6 @@
       "from": "app/src/main/kotlin/shop/web::OrderController.place",
       "to": "app/src/main/kotlin/shop/application::PlaceOrder.execute",
       "line": 16,
-      "how": "call"
-    },
-    {
-      "from": "app/src/test/kotlin/shop/web::OrderControllerTest.lists",
-      "to": "app/src/main/kotlin/shop/web::OrderController.list",
-      "line": 6,
       "how": "call"
     }
   ],

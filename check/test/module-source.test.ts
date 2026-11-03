@@ -240,12 +240,12 @@ describe("describe over a Kotlin package module", () => {
     }
   });
 
-  it("reports 8 current and none unreadable after describe --all", () => {
+  it("reports 7 current and none unreadable after describe --all", () => {
     const root = repository();
 
     expect(exec(root, "describe", "--all").code).toBe(0);
     expect(counts(root).counts).toEqual({
-      current: 8,
+      current: 7,
       outOfDate: 0,
       missing: 0,
       unreadable: 0,

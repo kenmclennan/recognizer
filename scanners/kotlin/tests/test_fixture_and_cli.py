@@ -51,7 +51,7 @@ def test_the_fixture_edges_hold_the_listed_relationships():
     assert (persistence, persistence) not in depends
     assert (persistence, "foreign:io.micronaut.data.repository") in depends
     assert (persistence, "foreign:shop.generated") in depends
-    assert (f"{TEST}/web", f"{MAIN}/web") in depends
+    assert not any(m["id"].startswith(TEST) for m in document["modules"])
 
 
 def test_the_fixture_wildcard_names_only_the_used_domain_names():
@@ -115,11 +115,11 @@ def test_the_fixture_calls_dispatch_through_the_port():
 def test_the_selection_equals_the_binding_constants():
     assert selection() == {
         "extensions": [".kt"],
-        "skip_directory_names": ["build"],
+        "skip_directory_names": ["build", "test", "androidTest", "integrationTest", "testFixtures"],
         "skip_directory_prefixes": ["."],
-        "skip_directory_suffixes": [],
+        "skip_directory_suffixes": ["Test"],
         "skip_directories_containing": [],
-        "skip_file_globs": [],
+        "skip_file_globs": ["*Test.kt", "*Tests.kt"],
     }
     assert scan(FIXTURE_ROOT, None)["selection"] == selection()
 
@@ -148,7 +148,7 @@ def test_cli_end_to_end(tmp_path):
 
     assert result.returncode == 0
     assert document == wanted
-    assert result.stderr == "recognizer-scan-kotlin: 2 of 11 files had damaged spans\n"
+    assert result.stderr == "recognizer-scan-kotlin: 2 of 10 files had damaged spans\n"
     validate(document)
 
     output = tmp_path / "scan.json"

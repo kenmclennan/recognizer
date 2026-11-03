@@ -831,7 +831,7 @@ mod tests {
 
     #[test]
     fn the_kotlin_fixture_scan_compares_clean_against_its_own_files() {
-        assert_fixture_scan_is_a_clean_baseline("kotlin", 11);
+        assert_fixture_scan_is_a_clean_baseline("kotlin", 10);
     }
 
     #[test]

@@ -454,7 +454,7 @@ describe("describe a Kotlin package module", () => {
 
     expect(code).toBe(1);
     expect(parsed.counts.unreadable).toBe(1);
-    expect(parsed.counts.current).toBe(7);
+    expect(parsed.counts.current).toBe(6);
     expect(
       parsed.modules
         .filter((m: { status: string }) => m.status === "unreadable")
