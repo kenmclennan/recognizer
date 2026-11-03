@@ -31,7 +31,9 @@ async function mount(text) {
   document.body.append(host);
   const port = fakeViews({ order: text });
   const lines = [];
-  showExplorer(host, loaded, "demo", () => {}, port, () => {}, null, undefined, undefined, undefined, undefined, undefined, (line) => lines.push(line));
+  const post = (input) => { if (input.action && input.action.label === "Undo") lines.push({ text: input.text, onUndo: input.action.run }); return lines.length; };
+  const withdraw = () => lines.push(null);
+  showExplorer(host, loaded, "demo", () => {}, port, post, null, undefined, undefined, undefined, undefined, undefined, undefined, undefined, withdraw);
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const m = { host, port, lines, q, all };

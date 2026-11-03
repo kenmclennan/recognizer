@@ -62,10 +62,6 @@ function addNode(
     }
   }
 
-  if (model.message !== null) {
-    nodes.push(el("div", "sensor-add-message", model.message));
-  }
-
   return nodes;
 }
 

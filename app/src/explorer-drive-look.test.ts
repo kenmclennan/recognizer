@@ -29,16 +29,15 @@ const facts = {};
 
 function mount(host, views) {
   const win = fakeWindow();
-  const lines = [];
   host.style.cssText = "flex:none;height:800px;display:flex;flex-direction:column;width:1800px";
   document.getElementById("content").append(host);
-  showExplorer(host, loaded, "demo", () => {}, views, undefined, null, undefined, undefined, undefined, undefined, win, (line) => { lines.push(line === null ? null : line.text); footer.setAgentLine(line); });
-  return { win, lines, q: (s) => host.querySelector(s) };
+  showExplorer(host, loaded, "demo", () => {}, views, footer.post, null, undefined, undefined, undefined, undefined, win, undefined, undefined, footer.withdraw, footer.reconcile);
+  return { win, q: (s) => host.querySelector(s) };
 }
 
 const drive = (win, action, args = [], options = {}, by = "Claude") => win.drive({ action, args, options, by });
-const lineNode = () => footerHost.querySelector(".agent-line");
-const lineText = () => (lineNode().hidden ? null : lineNode().textContent);
+const lineNode = () => [...footerHost.querySelectorAll(".message-list .msg")].find((row) => row.querySelector(".msg-act")) ?? null;
+const lineText = () => { const row = lineNode(); return row === null ? null : row.querySelector(".msg-text").textContent; };
 
 (async () => {
   const views = fakeViews({ overview: viewText });
@@ -51,13 +50,13 @@ const lineText = () => (lineNode().hidden ? null : lineNode().textContent);
   await tick();
   facts.afterAdd = win.last().modules;
   facts.line = lineText();
-  facts.undoButton = lineNode().querySelector("button").textContent;
-  facts.role = lineNode().getAttribute("role");
+  facts.undoButton = lineNode().querySelector(".msg-act").textContent;
+  facts.role = footerHost.querySelector(".message-toast").getAttribute("role");
   facts.backTitle = q(".view-back").title;
   facts.backAria = q(".view-back").getAttribute("aria-label");
   facts.secondUntouched = second.win.published.length === 0 || second.win.last().modules.length === 0;
 
-  click(lineNode().querySelector("button"));
+  click(lineNode().querySelector(".msg-act"));
   await tick();
   facts.afterUndo = win.last().modules;
   facts.lineAfterUndo = lineText();
@@ -196,7 +195,7 @@ describe.skipIf(chrome === undefined)("driving a window", () => {
     ]);
   });
 
-  it("shows one footer line with an Undo button", () => {
+  it("posts a message with an Undo action and announces it through the toast", () => {
     expect(f.line).toContain("Claude added 4 modules");
     expect(f.undoButton).toBe("Undo");
     expect(f.role).toBe("status");
@@ -207,7 +206,7 @@ describe.skipIf(chrome === undefined)("driving a window", () => {
     expect(f.backAria).toBe(f.backTitle);
   });
 
-  it("Undo steps back one entry and clears the line", () => {
+  it("Undo steps back one entry and withdraws the action", () => {
     expect(f.afterUndo).toEqual([]);
     expect(f.lineAfterUndo).toBeNull();
     expect(f.backAfterUndo).toBe("Back");

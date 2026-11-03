@@ -1,8 +1,13 @@
 import { getVersion } from "@tauri-apps/api/app";
-import type { AgentLineView } from "./agent-line";
 import { APP_NAME } from "./app-info";
 import { el } from "./dom";
 import { type ScanState, scanLine } from "./footer-scan";
+import {
+  createMessageTray,
+  type MessageInput,
+  realTimer,
+} from "./message-tray";
+import { buildTrayView } from "./message-tray-view";
 
 function footerButton(
   label: string,
@@ -18,12 +23,13 @@ function footerButton(
 }
 
 export type FooterView = {
-  setToolsNotice: (text: string | null) => void;
-  notify: (text: string) => void;
+  post: (input: MessageInput) => number | null;
+  withdraw: (id: number) => void;
+  relabel: (id: number, label: string) => void;
+  reconcile: (foundKeys: readonly string[]) => void;
   setCount: (text: string) => void;
   setMetrics: (text: string | null) => void;
   setScan: (state: ScanState | null) => void;
-  setAgentLine: (line: AgentLineView) => void;
 };
 
 const AGE_REFRESH_MS = 30000;
@@ -51,9 +57,9 @@ export function buildFooter(
   const count = document.createElement("span");
   const scan = el("span", "scan-line");
   const metrics = el("span", "metrics-line");
-  const notice = document.createElement("span");
-  const agentLine = el("span", "agent-line");
-  const toolsNotice = el("span", "tools-notice");
+  const gap = el("span", "footer-gap");
+  const tray = createMessageTray(Date.now, realTimer);
+  const trayView = buildTrayView(tray);
   const list = el("div", "changes-list");
   let scanState: ScanState | null = null;
   let listOpen = false;
@@ -62,12 +68,6 @@ export function buildFooter(
   identity.textContent = APP_NAME;
   count.className = "module-count";
   count.id = "module-count";
-  notice.className = "notice";
-  notice.setAttribute("role", "status");
-  agentLine.setAttribute("role", "status");
-  agentLine.hidden = true;
-  toolsNotice.setAttribute("role", "status");
-  toolsNotice.hidden = true;
   metrics.hidden = true;
   metrics.setAttribute("role", "status");
   list.hidden = true;
@@ -76,9 +76,10 @@ export function buildFooter(
     count,
     scan,
     metrics,
-    notice,
-    agentLine,
-    toolsNotice,
+    gap,
+    trayView.bell,
+    trayView.tray,
+    trayView.toast,
     list,
   );
 
@@ -178,38 +179,16 @@ export function buildFooter(
   setInterval(renderScan, AGE_REFRESH_MS);
 
   return {
-    setToolsNotice(text) {
-      toolsNotice.hidden = text === null;
-      toolsNotice.textContent = text ?? "";
-    },
+    post: (input) => tray.post(input),
+    withdraw: (id) => tray.withdraw(id),
+    relabel: (id, label) => tray.relabel(id, label),
+    reconcile: (foundKeys) => tray.reconcile(foundKeys),
     setCount(text) {
       count.textContent = text;
     },
     setMetrics(text) {
       metrics.textContent = text ?? "";
       metrics.hidden = text === null;
-    },
-    notify(text) {
-      notice.textContent = text;
-    },
-    setAgentLine(line) {
-      agentLine.hidden = line === null;
-
-      if (line === null) {
-        agentLine.replaceChildren();
-
-        return;
-      }
-
-      const undo = el("button", "agent-undo", "Undo");
-
-      undo.type = "button";
-      undo.addEventListener("click", () => line.onUndo());
-      agentLine.replaceChildren(
-        el("span", "agent-text", line.text),
-        el("span", "agent-dot", "\u00b7"),
-        undo,
-      );
     },
     setScan(state) {
       scanState = state;

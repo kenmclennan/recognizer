@@ -99,7 +99,7 @@ function mount(files, options) {
   const win = fakeWindow();
   const state = { count: "" };
   const notes = [];
-  showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, (text) => notes.push(text), null, undefined, undefined, undefined, undefined, win);
+  showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, (input) => { notes.push(input.text); return null; }, null, undefined, undefined, undefined, undefined, win);
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const count = () => Number(/^(\\d+) of/.exec(state.count)[1]);
@@ -185,13 +185,14 @@ const facts = {};
   const before = one.win.published.length;
   one.port.edit("overview", "{nope");
   await tick();
-  facts.invalidEdit = { count: one.count(), notice: one.q(".notices").textContent, writes: one.win.published.length - before };
+  facts.invalidEdit = { count: one.count(), notice: one.notes.join(" | "), writes: one.win.published.length - before };
+  const postedBefore = one.notes.length;
   one.port.edit("overview", viewText([pick("app/hub.py")], "cur1234"));
   await tick();
-  facts.retried = { count: one.count(), notice: one.q(".notices").hidden };
+  facts.retried = { count: one.count(), quiet: one.notes.length === postedBefore };
   one.port.edit("overview", null);
   await tick();
-  facts.deleted = { count: one.count(), name: one.q(".view-name").textContent, notice: one.q(".notices").textContent };
+  facts.deleted = { count: one.count(), name: one.q(".view-name").textContent, notice: one.notes.join(" | ") };
 
   const staleFile = viewText([pick("app/hub.py"), pick("lib/c.py"), pick("lib/deleted.py")], "old1234");
   const two = mount({ stale: staleFile, stale2: staleFile });
@@ -309,18 +310,18 @@ const facts = {};
     name: broken.q(".view-dialog .view-field-name").value,
     description: descriptionBox.value,
     problem: broken.q(".view-problem").textContent,
-    notice: broken.q(".notices").textContent,
+    notice: broken.notes.join(" | "),
     tag: descriptionBox.tagName,
     rows: descriptionBox.rows,
     wrapsInside: descriptionBox.offsetWidth <= broken.q(".view-dialog").offsetWidth,
     enterPrevented: !descriptionBox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })) ,
     enabled: !broken.q(".view-confirm").disabled,
   };
-  facts.failedList = { menu: six.q(".view-menu").textContent, notice: six.q(".notices").textContent, noticeShown: !six.q(".notices").hidden };
+  facts.failedList = { menu: six.q(".view-menu").textContent, notice: six.notes.join(" | "), noticeShown: six.notes.length > 0 };
 
   const seven = mount({ ok: viewText([pick("app/hub.py")], "cur1234") }, { refused: ["views/x.json: unreadable"] });
   await tick();
-  facts.refusedList = { notice: seven.q(".notices").textContent, items: (click(seven.q(".view-list")), seven.all(".view-item").length) };
+  facts.refusedList = { notice: seven.notes.join(" | "), items: (click(seven.q(".view-list")), seven.all(".view-item").length) };
 
   const rename = mount({ alpha: viewText([pick("app/hub.py")], "cur1234"), beta: viewText([pick("app/a.py")], "cur1234") });
   await tick();
@@ -350,7 +351,7 @@ const facts = {};
   edit("gamma", "Enter");
   await tick();
   click(rename.q(".view-list"));
-  facts.renamed = { field: !rename.q(".view-name-field-inline").hidden, name: rename.q(".view-name").textContent, port: rename.port.renamed, files: [...rename.port.files.keys()], menu: rename.all(".view-item").map((n) => n.querySelector(".view-item-name").textContent), current: rename.all(".view-item.current").map((n) => n.querySelector(".view-item-name").textContent), currentView: rename.lastCurrent().view, wrote: rename.win.published.length > before2, notice: rename.q(".notices").textContent };
+  facts.renamed = { field: !rename.q(".view-name-field-inline").hidden, name: rename.q(".view-name").textContent, port: rename.port.renamed, files: [...rename.port.files.keys()], menu: rename.all(".view-item").map((n) => n.querySelector(".view-item-name").textContent), current: rename.all(".view-item.current").map((n) => n.querySelector(".view-item-name").textContent), currentView: rename.lastCurrent().view, wrote: rename.win.published.length > before2, notice: rename.notes.join(" | ") };
   click(rename.q(".view-back"));
   click(rename.q(".view-forward"));
   await tick();
@@ -525,7 +526,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.invalidEdit.count).toBe(3);
     expect(f.invalidEdit.notice).toContain("overview is not a valid view");
     expect(f.retried.count).toBe(1);
-    expect(f.retried.notice).toBe(true);
+    expect(f.retried.quiet).toBe(true);
     expect(f.deleted.count).toBe(1);
     expect(f.deleted.name).toBe("Untitled");
     expect(f.deleted.notice).toContain("overview was deleted");
@@ -703,7 +704,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.failedSave.enabled).toBe(true);
   });
 
-  it("shows a failed list in the notices and never says there are no saved views", () => {
+  it("posts a failed list as a message and never says there are no saved views", () => {
     expect(f.failedList.noticeShown).toBe(true);
     expect(f.failedList.notice).toContain("Could not list saved views");
     expect(f.failedList.notice).toContain("no folder");
@@ -713,7 +714,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.failedList.menu).not.toContain("No saved views");
   });
 
-  it("shows a view file the list refused in the notices and still lists the rest", () => {
+  it("posts a view file the list refused as a message and still lists the rest", () => {
     expect(f.refusedList.notice).toContain("views/x.json: unreadable");
     expect(f.refusedList.items).toBe(1);
   });

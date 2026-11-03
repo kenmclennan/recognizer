@@ -81,7 +81,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Command table | `COMMANDS` in `check/src/commands.ts`: the one list `recognizer` dispatches from and generates its help from. |
 | Freshness | Whether the cached scans can be used: they were taken at the current commit from a clean working tree, and the scanned files still hash the same. Otherwise `recognizer scan` runs first. |
 | Scanner | A language's standalone command that emits a scan. |
-| Toolchain | The `recognizer` command, the scanners and the app, versioned and installed together. Out of step: the app and the installed `recognizer` command report different versions, which the app's footer says. |
+| Toolchain | The `recognizer` command, the scanners and the app, versioned and installed together. Out of step: the app and the installed `recognizer` command report different versions, which the app reports as a message in the message tray. |
 | Scan | The document a scanner emits: modules, edges and foreign nodes for one language, the files it read and the selection it used. |
 | Scanned file | A file a scanner read, recorded in the scan's `files` with the SHA-256 of its bytes. |
 | Selection | A scanner's rule for choosing files, recorded in the scan as data: extensions, skipped directories and skipped file globs. A consumer applies it to a path the scan has not seen. |
@@ -103,7 +103,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Selection | The one module, folder or edge the user has picked, highlighted in the tree and shown in the inspector. |
 | Selection bar | The small bar of icon actions shown above the selection while the pointer is over it; right-clicking opens the same bar. |
 | Settings | The app's own preferences (the editor, and what a repository's first scan includes), set in its settings window; distinct from a repository's Config. |
-| Describe phase | The second phase of a scan, run when ticked: the modules whose line is missing or out of date are described; progress and failures show in the footer. |
+| Describe phase | The second phase of a scan, run when ticked: the modules whose line is missing or out of date are described; progress shows in the footer's scan line and the result is a message in the message tray. |
 | Run log | The record of one run of a registered command (scan, describe or measure; a scan record holds its extract, describe, measure and sense phases) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
 | Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command; a shell command may use `{file}` and `{line}` placeholders, for example `code -g {file}:{line}`, to open at a line. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
@@ -154,7 +154,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Window id | The `w-<n>` label the app gives a window, which `recognizer windows` lists and `recognizer window <id>` takes. |
 | App socket | The per-user local socket, `app.sock` in the app's config folder, through which the `recognizer` command reads the running app. |
 | Agent change | A view-state change made through `recognizer window <id> <verb>`, carrying `--by`. It is one ordinary history step, so one Back undoes it. |
-| Agent line | The one fading footer line naming the latest agent change (`Claude added 4 modules`) with an Undo that steps back. |
+| Message | A kind (warning, error, done or info), one sentence, a time and at most one action (Upgrade, Show or Undo), held in the message tray. |
+| Message tray | The popover the footer's bell opens: per window, in memory only, newest message first, with a badge on the bell counting the unread. |
+| Toast | A new message shown above the bell for 3.5 seconds, then only in the message tray. |
 | Mark | Who made a history entry and what the change was, kept beside it so Back and Forward can name the agent's entries as the agent's. |
 | View bar | The control group at the canvas's top left: back and forward over the history, the open view's name with the saved views to open, Save and Copy link. |
 | Agent guide | The text `recognizer help agents` prints: how an agent answers show-me, extend, explain and drive requests, which commands to use and that `.recognizer/` is off limits. Its command section is generated from the command table. |

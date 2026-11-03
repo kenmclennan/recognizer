@@ -15,13 +15,7 @@ import {
   type View,
   viewNotes,
 } from "recognizer";
-import {
-  type AgentLineView,
-  backLabel,
-  createAgentLine,
-  forwardLabel,
-  realTimer,
-} from "./agent-line";
+import { agentLineOf, backLabel, forwardLabel } from "./agent-line";
 import { type Scheduler, timerScheduler } from "./bar-hover";
 import { boxTooltip, type TooltipLine } from "./box-tooltip";
 import { createBusyGate } from "./busy-gate";
@@ -83,6 +77,7 @@ import {
   layoutOnMainThread,
   startLayoutWorker,
 } from "./layout-source";
+import type { MessageInput, MessageKind } from "./message-tray";
 import type { CanvasMetrics } from "./metrics-view";
 import {
   bubbleSet,
@@ -274,7 +269,7 @@ export function showExplorer(
   title: string,
   onCount: (text: string) => void = () => {},
   views: ViewsPort = inertViews,
-  notify: (text: string) => void = () => {},
+  post: (input: MessageInput) => number | null = () => null,
   carried: Carried | null = null,
   scheduler: Scheduler = timerScheduler,
   storage: Pick<Storage, "getItem" | "setItem"> = {
@@ -284,9 +279,10 @@ export function showExplorer(
   editor: EditorPort = inertEditor,
   responsibilities: ResponsibilitiesPort = inertResponsibilities,
   windowPort: WindowPort = inertWindow,
-  showAgentLine: (line: AgentLineView) => void = () => {},
   scanHost: ScanHost = inertScanHost,
   showMetrics: (text: string | null) => void = () => {},
+  withdraw: (id: number) => void = () => {},
+  reconcileMessages: (foundKeys: readonly string[]) => void = () => {},
 ): Explorer {
   const health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
@@ -321,10 +317,9 @@ export function showExplorer(
     value: ChangeOverlay;
   } | null = null;
   const baseScanCache = new Map<string, Scan[] | null>();
-  const undoable: { name: string; text: string }[] = [];
+  const deletionUndos = new Set<number>();
   let scanConfig: string | null = null;
   let shippedSensors: ShippedSensors | null = null;
-  let scanEditMessage: string | null = null;
   let scrollTarget: string | null = null;
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
@@ -345,6 +340,7 @@ export function showExplorer(
   let viewList: { name: string; text: string }[] = [];
   let viewNotice: string | null = null;
   let listNotice: string | null = null;
+  const heldViewKeys = new Set<string>();
   let listKnown = false;
   let listProblem: string | null = null;
   let openToken = 0;
@@ -363,7 +359,24 @@ export function showExplorer(
       focus: null,
       selection: null,
     });
-  const agentLine = createAgentLine(showAgentLine, realTimer);
+  let historyMessage: number | null = null;
+  const agentLine = {
+    show(mark: Mark, undo: () => void) {
+      agentLine.clear();
+      historyMessage = post({
+        kind: "done",
+        text: agentLineOf(mark),
+        action: { label: "Undo", run: undo },
+      });
+    },
+    clear() {
+      if (historyMessage !== null) {
+        withdraw(historyMessage);
+        historyMessage = null;
+      }
+    },
+  };
+  const fail = (text: string) => void post({ kind: "error", text });
   let batch: { touched: boolean } | null = null;
   const publishWindow = latestWins(windowPort.publish);
   let lastPublished: string | null = null;
@@ -421,7 +434,7 @@ export function showExplorer(
     putFolderOnCanvas: putAllOn,
     takeFolderOff: takeAllOff,
     find,
-    openFolderInEditor: () => void openFolderInEditor(editor, notify),
+    openFolderInEditor: () => void openFolderInEditor(editor, fail),
   });
 
   const canvas = buildCanvasView(
@@ -622,7 +635,7 @@ export function showExplorer(
       pickerFilter = text;
       render();
     },
-    openInEditor: (target) => void openInEditor(target, editor, notify),
+    openInEditor: (target) => void openInEditor(target, editor, fail),
     follow: (relation, id) => followFrom(0, relation, id),
     bringBack(index) {
       trail = bringBack(trail, index);
@@ -836,10 +849,6 @@ export function showExplorer(
     toggleScan: toggleScanPanel,
     toggleFindings: toggleFindingsPanel,
   });
-  const notices = el("div", "notices");
-
-  notices.setAttribute("role", "status");
-
   const body = el("div", "explorer");
 
   const widths = mountPanelResizers(
@@ -861,7 +870,7 @@ export function showExplorer(
     findingsView.element,
   );
   body.append(rail.element, tree.element, canvas.element, inspector.element);
-  container.replaceChildren(notices, body);
+  container.replaceChildren(body);
 
   function emptyGraph(): CanvasGraph {
     return buildCanvasGraph({
@@ -873,18 +882,6 @@ export function showExplorer(
       focus: null,
       showInferred: true,
     });
-  }
-
-  function renderNotices() {
-    notices.replaceChildren(
-      ...[
-        ...loaded.notices,
-        ...health.notices,
-        ...(listNotice === null ? [] : [listNotice]),
-        ...(viewNotice === null ? [] : [viewNotice]),
-      ].map((text) => el("p", "notice-line", text)),
-    );
-    notices.hidden = notices.childElementCount === 0;
   }
 
   function hoverIn(index: number, name: string | null) {
@@ -1241,7 +1238,7 @@ export function showExplorer(
     void editor
       .openFile(module, line ?? undefined)
       .catch((error) =>
-        notify(String(error instanceof Error ? error.message : error)),
+        fail(String(error instanceof Error ? error.message : error)),
       );
   }
 
@@ -1325,42 +1322,51 @@ export function showExplorer(
     try {
       await views.remove(name);
     } catch (error) {
-      notify(`Could not delete ${name}: ${String(error)}`);
+      fail(`Could not delete ${name}: ${String(error)}`);
 
       return;
     }
 
-    undoable.push({ name, text });
-    showUndo();
+    showUndo(name, text);
     await loadViewList();
     render();
   }
 
-  function showUndo() {
-    const top = undoable[undoable.length - 1];
+  function showUndo(name: string, text: string) {
+    let id: number | null = null;
+    let used = false;
 
-    if (top === undefined) {
-      showAgentLine(null);
+    id = post({
+      kind: "done",
+      text: `Deleted ${name}`,
+      action: {
+        label: "Undo",
+        run() {
+          if (used) {
+            return;
+          }
 
-      return;
-    }
+          used = true;
 
-    showAgentLine({
-      text: `Deleted ${top.name}`,
-      onUndo() {
-        undoable.pop();
-        void views
-          .write(top.name, top.text)
-          .then(() => loadViewList())
-          .then(() => {
-            render();
-            showUndo();
-          })
-          .catch((error) =>
-            notify(`Could not restore ${top.name}: ${String(error)}`),
-          );
+          if (id !== null) {
+            withdraw(id);
+            deletionUndos.delete(id);
+          }
+
+          void views
+            .write(name, text)
+            .then(() => loadViewList())
+            .then(() => render())
+            .catch((error) =>
+              fail(`Could not restore ${name}: ${String(error)}`),
+            );
+        },
       },
     });
+
+    if (id !== null) {
+      deletionUndos.add(id);
+    }
   }
 
   async function loadRecent() {
@@ -1601,7 +1607,6 @@ export function showExplorer(
 
   function toggleScanPanel() {
     leftPanel = leftPanel === "scan" ? null : "scan";
-    scanEditMessage = null;
     render();
 
     if (leftPanel === "scan") {
@@ -1630,9 +1635,8 @@ export function showExplorer(
   async function editSensor(name: string, add: boolean) {
     try {
       await scanHost.port.edit(name, add);
-      scanEditMessage = null;
     } catch (error) {
-      scanEditMessage = error instanceof Error ? error.message : String(error);
+      fail(error instanceof Error ? error.message : String(error));
     }
 
     await loadScanConfig();
@@ -1641,9 +1645,8 @@ export function showExplorer(
   async function clearReport(name: string) {
     try {
       await scanHost.port.removeFindings([name]);
-      scanEditMessage = null;
     } catch (error) {
-      scanEditMessage = error instanceof Error ? error.message : String(error);
+      fail(error instanceof Error ? error.message : String(error));
     }
 
     scanHost.refresh();
@@ -1678,7 +1681,6 @@ export function showExplorer(
       scanning: scanHost.running(),
       now: Date.now(),
       shipped: shippedSensors,
-      editMessage: scanEditMessage,
     });
   }
 
@@ -2264,6 +2266,15 @@ export function showExplorer(
         listing.refused.length === 0
           ? null
           : `Could not read saved views: ${listing.refused.join("; ")}`;
+
+      if (listNotice !== null) {
+        heldViewKeys.add("view-list");
+        post({ kind: "error", text: listNotice, key: "view-list" });
+      } else if (heldViewKeys.delete("view-list")) {
+        listKnown = true;
+        postConditions();
+      }
+
       listKnown = true;
       listProblem = null;
       setViewList(listing.views);
@@ -2274,12 +2285,12 @@ export function showExplorer(
       }
     } catch (error) {
       listNotice = `Could not list saved views: ${String(error)}`;
+      heldViewKeys.add("view-list");
+      post({ kind: "error", text: listNotice, key: "view-list" });
       listProblem = String(error);
       listKnown = false;
       renderBar();
     }
-
-    renderNotices();
   }
 
   function viewNamed(name: string): View | null {
@@ -2399,7 +2410,12 @@ export function showExplorer(
 
     if (!parsed.ok) {
       viewNotice = `${name} is not a valid view: ${parsed.reason}`;
-      renderNotices();
+      heldViewKeys.add(`view-invalid:${name}`);
+      post({
+        kind: "error",
+        text: viewNotice,
+        key: `view-invalid:${name}`,
+      });
 
       return;
     }
@@ -2407,7 +2423,7 @@ export function showExplorer(
     const { view } = parsed;
 
     for (const warning of parsed.warnings) {
-      notify(`${name}: ${warning}`);
+      post({ kind: "warning", text: `${name}: ${warning}` });
     }
 
     const token = ++openToken;
@@ -2434,7 +2450,7 @@ export function showExplorer(
     });
 
     viewNotice = null;
-    renderNotices();
+    heldViewKeys.delete(`view-invalid:${name}`);
     viewTexts.set(name, text);
     dismissed.delete(name);
     openView = name;
@@ -2533,7 +2549,8 @@ export function showExplorer(
   ): Promise<string | null> {
     const fail = (problem: string) => {
       viewNotice = problem;
-      renderNotices();
+      heldViewKeys.add(`view-invalid:${name}`);
+      post({ kind: "error", text: problem, key: `view-invalid:${name}` });
 
       return problem;
     };
@@ -2581,7 +2598,7 @@ export function showExplorer(
         steps: stepsFor(parsed.view.steps, canvasContent(), scans),
       })) === null
     ) {
-      notify(`Saved ${name}`);
+      post({ kind: "done", text: `Saved ${name}` });
     }
   }
 
@@ -2598,7 +2615,7 @@ export function showExplorer(
       openView = name;
       record();
       noteOpened(name);
-      notify(`Saved ${name}`);
+      post({ kind: "done", text: `Saved ${name}` });
     }
 
     return problem;
@@ -2642,7 +2659,7 @@ export function showExplorer(
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
     render();
-    notify(`Renamed ${from} to ${to}`);
+    post({ kind: "done", text: `Renamed ${from} to ${to}` });
 
     return null;
   }
@@ -2655,7 +2672,7 @@ export function showExplorer(
     const link = await views.link(openView);
 
     await views.copy(link);
-    notify(`Copied ${link}`);
+    post({ kind: "done", text: `Copied ${link}` });
   }
 
   async function openLinkedView() {
@@ -2675,8 +2692,50 @@ export function showExplorer(
     if ("open" in resolved) {
       await openSaved(resolved.open);
     } else {
-      notify(resolved.refuse);
+      fail(resolved.refuse);
     }
+  }
+
+  function postConditions() {
+    const found: string[] = [];
+    const condition = (key: string, kind: MessageKind, text: string) => {
+      found.push(key);
+      post({ kind, text, key, onOpen: true });
+    };
+
+    for (const text of loaded.notices) {
+      condition(
+        `scan-file:${text}`,
+        text.startsWith("recognizer scan exited") ? "error" : "warning",
+        text,
+      );
+    }
+
+    for (const text of health.notices) {
+      condition(
+        "baseline-unreadable",
+        "warning",
+        `The baseline cannot be read: ${text.replace(/^baseline: /, "")}`,
+      );
+    }
+
+    for (const name of [
+      ...(loaded.overlaysUnreadable ?? []),
+      ...overlayModel.unreadable,
+    ]) {
+      condition(
+        `overlay-unreadable:${name}`,
+        "warning",
+        `Overlay ${name} could not be read`,
+      );
+    }
+
+    found.push(...heldViewKeys);
+    if (!listKnown) {
+      found.push("view-list");
+    }
+
+    reconcileMessages(found);
   }
 
   async function update() {
@@ -2757,7 +2816,7 @@ export function showExplorer(
       reports.delete(name);
       openToken += 1;
       viewNotice = `${name} was deleted from .recognizer/views`;
-      renderNotices();
+      post({ kind: "warning", text: viewNotice });
       record();
       render();
 
@@ -3075,20 +3134,14 @@ export function showExplorer(
     record();
 
     if (gone > 0) {
-      notify(
-        `Rescanned: ${gone} ${gone === 1 ? "module" : "modules"} on the canvas ${gone === 1 ? "is" : "are"} gone`,
-      );
+      post({
+        kind: "info",
+        text: `Rescanned: ${gone} ${gone === 1 ? "module" : "modules"} on the canvas ${gone === 1 ? "is" : "are"} gone`,
+      });
     }
   }
 
-  renderNotices();
-
-  for (const name of [
-    ...(loaded.overlaysUnreadable ?? []),
-    ...overlayModel.unreadable,
-  ]) {
-    notify(`Overlay ${name} could not be read`);
-  }
+  postConditions();
 
   if (carried === null) {
     changed();
@@ -3123,7 +3176,7 @@ export function showExplorer(
   });
 
   function openSelectedInEditor() {
-    void openInEditor(state.selection(), editor, notify);
+    void openInEditor(state.selection(), editor, fail);
   }
 
   const onUndoKey = (event: KeyboardEvent) => {
@@ -3156,6 +3209,12 @@ export function showExplorer(
       stopWatching();
       stopDriving();
       agentLine.clear();
+
+      for (const id of deletionUndos) {
+        withdraw(id);
+      }
+
+      deletionUndos.clear();
       stopWatchingResponsibilities();
       bar.dispose();
     },

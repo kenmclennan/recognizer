@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScanOrigin } from "./footer-scan";
+import type { MessageInput } from "./message-tray";
 import {
   createRescanner,
   type ProgressUpdate,
@@ -52,6 +53,7 @@ const summary = line({ event: "summary" });
 function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
   const log: string[] = [];
   const updates: ProgressUpdate[] = [];
+  const posted: MessageInput[] = [];
   const ports: RescanPorts<string> = {
     port: scan,
     registered: async () => ({
@@ -89,11 +91,17 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
     },
     settled: () => log.push("settled"),
     blocked: (text) => log.push(`blocked:${text}`),
-    notify: (text) => log.push(`notify:${text}`),
+    post: (input) => {
+      posted.push(input);
+      log.push(`post:${input.kind}:${input.text}`);
+
+      return null;
+    },
+    show: (target) => log.push(`show:${target.kind}`),
     ...over,
   };
 
-  return { log, updates, scan, rescanner: createRescanner(ports) };
+  return { log, updates, posted, scan, rescanner: createRescanner(ports) };
 }
 
 const texts = (updates: ProgressUpdate[]) =>
@@ -448,5 +456,109 @@ describe("createRescanner", () => {
       ticked: null,
       once: [],
     });
+  });
+
+  it("posts a failed sensor as an error whose Show reaches the sensor row", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [current, sensing(1), entry("sense", "alpha", "boom"), summary],
+    });
+    const { log, posted, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    const failure = posted.find((input) => input.text.startsWith("alpha"));
+
+    expect(failure).toMatchObject({
+      kind: "error",
+      text: "alpha failed: boom",
+    });
+    expect(failure?.key).toBeUndefined();
+    expect(failure?.action?.label).toBe("Show");
+
+    failure?.action?.run();
+
+    expect(log).toContain("show:sensor");
+  });
+
+  it("posts a failed overlay as an error whose Show reaches the overlay row", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: false },
+      steps: [
+        current,
+        line({ event: "phase", phase: "measure", total: 1 }),
+        entry("measure", "cov", "no tests"),
+        summary,
+      ],
+    });
+    const { log, posted, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    const failure = posted.find((input) => input.text.startsWith("cov"));
+
+    expect(failure?.text).toBe("cov failed: no tests");
+
+    failure?.action?.run();
+
+    expect(log).toContain("show:overlay");
+  });
+
+  it("posts the describe result as info with no action when nothing failed", async () => {
+    const scan = fakeScan({
+      steps: [
+        current,
+        describing(2),
+        entry("describe", "a.py"),
+        entry("describe", "b.py"),
+        summary,
+      ],
+    });
+    const { posted, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    expect(posted.at(-1)).toEqual({
+      kind: "info",
+      text: "Describe wrote 2 lines, 0 modules failed.",
+    });
+  });
+
+  it("posts the describe result with Show on the first failed module", async () => {
+    const scan = fakeScan({
+      steps: [
+        current,
+        describing(4),
+        entry("describe", "a.py"),
+        entry("describe", "b.py", "x"),
+        entry("describe", "c.py", "y"),
+        entry("describe", "d.py", "z"),
+        summary,
+      ],
+    });
+    const { log, posted, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    const result = posted.find((input) => input.text.startsWith("Describe"));
+
+    expect(result?.text).toBe("Describe wrote 1 lines, 3 modules failed.");
+    expect(result?.action?.label).toBe("Show");
+
+    result?.action?.run();
+
+    expect(log).toContain("show:module");
+  });
+
+  it("posts nothing about describe when no describe phase ran", async () => {
+    const { posted, rescanner } = harness(
+      fakeScan({ steps: [current, summary] }),
+    );
+
+    await rescanner.run();
+
+    expect(posted.some((input) => input.text.startsWith("Describe"))).toBe(
+      false,
+    );
   });
 });

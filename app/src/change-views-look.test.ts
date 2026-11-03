@@ -27,7 +27,9 @@ function mount(files, options) {
   const port = fakeViews(files, options);
   const state = { count: "" };
   const lines = [];
-  const explorer = showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, () => {}, null, undefined, undefined, undefined, undefined, undefined, (line) => lines.push(line));
+  const post = (input) => { if (input.action && input.action.label === "Undo") lines.push({ text: input.text, onUndo: input.action.run }); return lines.length; };
+  const withdraw = () => lines.push(null);
+  const explorer = showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, post, null, undefined, undefined, undefined, undefined, undefined, undefined, undefined, withdraw);
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   return { host, port, state, lines, q, all, explorer };

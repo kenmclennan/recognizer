@@ -54,7 +54,7 @@ const shows = (scope) => qa(scope + " .finding-metric").map((b) => b.textContent
 (async () => {
   const mount = (overlay, findings) => {
     host.replaceChildren();
-    return showExplorer(host, loadedOf(overlay, findings), "demo", () => {}, port, () => {}, null, undefined, undefined, undefined, undefined, undefined, undefined, undefined, (text) => { footer.text = text; });
+    return showExplorer(host, loadedOf(overlay, findings), "demo", () => {}, port, () => {}, null, undefined, undefined, undefined, undefined, undefined, undefined, (text) => { footer.text = text; });
   };
   const plain = finding("t:plain");
   const measured = finding("t:measured", "complexity");

@@ -28,7 +28,7 @@ import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
-import { toolsNotice } from "./tools-notice";
+import { postToolsMessage, TOOLS_KEY, toolsNotice } from "./tools-notice";
 import { toolsSource } from "./tools-source";
 import { viewsSource } from "./views-source";
 import { windowSource } from "./window-source";
@@ -49,6 +49,8 @@ let scanState: ScanState | null = null;
 let current: Loaded | null = null;
 let shownProgress: ProgressUpdate = { footer: null, target: null, log: null };
 let releaseFirstScan: () => void = () => {};
+let explorerKeys: readonly string[] = [];
+let toolsFound = false;
 
 const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
@@ -103,7 +105,9 @@ function openLog() {
   if (log !== null) {
     void editorSource
       .openFile(log)
-      .catch((error: unknown) => footerView.notify(String(error)));
+      .catch((error: unknown) =>
+        footerView.post({ kind: "error", text: String(error) }),
+      );
   }
 }
 
@@ -129,17 +133,25 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     folderName,
     (text) => footerView.setCount(text),
     viewsSource,
-    (text) => footerView.notify(text),
+    (input) => footerView.post(input),
     carried,
     undefined,
     localStorage,
     editorSource,
     responsibilitiesSource,
     windowSource,
-    (line) => footerView.setAgentLine(line),
     scanHost,
     (text) => footerView.setMetrics(text),
+    (id) => footerView.withdraw(id),
+    (keys) => {
+      explorerKeys = keys;
+      reconcileKeys();
+    },
   );
+}
+
+function reconcileKeys() {
+  footerView.reconcile([...explorerKeys, ...(toolsFound ? [TOOLS_KEY] : [])]);
 }
 
 async function checkTools(): Promise<void> {
@@ -148,11 +160,18 @@ async function checkTools(): Promise<void> {
       getVersion(),
       toolsSource.recognizerVersion(),
     ]);
+    const notice = toolsNotice(appVersion, report);
 
-    footerView.setToolsNotice(toolsNotice(appVersion, report));
+    toolsFound = notice !== null;
+
+    if (notice !== null) {
+      postToolsMessage(notice, footerView, (text) => viewsSource.copy(text));
+    }
   } catch {
-    footerView.setToolsNotice(null);
+    toolsFound = false;
   }
+
+  reconcileKeys();
 }
 
 const rescanner = createRescanner<Carried>({
@@ -198,10 +217,14 @@ const rescanner = createRescanner<Carried>({
     if (explorer === null) {
       showMessage(content, text, true);
     } else {
-      footerView.notify(`Rescan failed: ${text}`);
+      footerView.post({
+        kind: "error",
+        text: `The recognizer scan exited non-zero: ${text}`,
+      });
     }
   },
-  notify: (text) => footerView.notify(text),
+  post: (input) => footerView.post(input),
+  show: (target) => explorer?.show(target),
 });
 
 async function start(): Promise<void> {
@@ -218,7 +241,7 @@ async function start(): Promise<void> {
   if (folder === null) {
     showEmpty(content, () => {
       void repositorySource.chooseFolder().catch((error: unknown) => {
-        footerView.notify(String(error));
+        footerView.post({ kind: "error", text: String(error) });
       });
     });
 
