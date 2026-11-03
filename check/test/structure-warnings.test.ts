@@ -953,6 +953,37 @@ describe("unused_exports", () => {
     ).toEqual({ "shop/a.py": ["a"] });
   });
 
+  it("reports only the names an __all__ lists, never the module's other public functions", () => {
+    expect(
+      unusedOf([
+        {
+          id: "shop/application/summary.py",
+          exports: ["summarise"],
+          hidden: ["detail"],
+        },
+      ]),
+    ).toEqual({ "shop/application/summary.py": ["summarise"] });
+
+    expect(
+      unusedOf(
+        [
+          {
+            id: "shop/application/summary.py",
+            exports: ["summarise"],
+            hidden: ["detail"],
+          },
+        ],
+        [
+          {
+            from: "shop/b.py",
+            to: "shop/application/summary.py",
+            names: ["summarise"],
+          },
+        ],
+      ),
+    ).toEqual({});
+  });
+
   it.each([
     "shop/tests/helper.py",
     "shop/test_x.py",

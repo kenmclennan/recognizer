@@ -26,6 +26,12 @@
         "signature": "lookup(source)",
         "fields": [],
         "methods": []
+      },
+      {
+        "name": "peek",
+        "signature": "peek(source)",
+        "fields": [],
+        "methods": []
       }
     ],
     "shop/application/place.py": [
