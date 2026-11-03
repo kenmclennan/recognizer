@@ -1,8 +1,10 @@
 import os
+import queue
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -238,12 +240,56 @@ def timeout_for(baseline_seconds: float, factor: float) -> float:
 LOG_LOCK = threading.Lock()
 
 
-def run_baseline(repository: Path, work: Path, command: list[str], subject: str) -> float:
-    copy = work / f"baseline-{next(NUMBERS)}"
+class CopyPool:
+    def __init__(self, repository: Path, work: Path, size: int) -> None:
+        self.repository = repository
+        self.work = work
+        self.size = size
+        self.lock = threading.Lock()
+        self.free: queue.Queue[Path] = queue.Queue()
+        self.made = 0
 
+    @contextmanager
+    def lease(self) -> Iterator[Path]:
+        copy = self.take()
+
+        try:
+            yield copy
+        finally:
+            self.free.put(copy)
+
+    def take(self) -> Path:
+        with self.lock:
+            try:
+                return self.free.get_nowait()
+            except queue.Empty:
+                pass
+
+            create = self.made < self.size
+
+            if create:
+                self.made += 1
+
+        if not create:
+            return self.free.get()
+
+        copy = self.work / f"baseline-{next(NUMBERS)}"
+
+        try:
+            copy_repository(self.repository, copy)
+        except BaseException:
+            with self.lock:
+                self.made -= 1
+
+            raise
+
+        return copy
+
+
+def run_baseline(repository: Path, copies: CopyPool, command: list[str], subject: str) -> float:
     try:
-        copy_repository(repository, copy)
-        result = run_test_command(command, copy, None)
+        with copies.lease() as copy:
+            result = run_test_command(command, copy, None)
     except OSError:
         raise MeasurementError(f"{subject} did not start: {command[0]}") from None
 
@@ -272,9 +318,9 @@ class Baseline:
 
 
 class Baselines:
-    def __init__(self, repository: Path, work: Path) -> None:
+    def __init__(self, repository: Path, work: Path, max_workers: int) -> None:
         self.repository = repository
-        self.work = work
+        self.copies = CopyPool(repository, work, max_workers)
         self.lock = threading.Lock()
         self.entries: dict[tuple[str, ...], Baseline] = {}
 
@@ -290,7 +336,7 @@ class Baselines:
 
         if owner:
             try:
-                entry.seconds = run_baseline(self.repository, self.work, command, subject)
+                entry.seconds = run_baseline(self.repository, self.copies, command, subject)
             except Exception as error:
                 entry.error = error
 
@@ -481,6 +527,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         coverage = collect_coverage(repository, scans, None, settings.get("coverage"))
         selection = {}
 
+    suite_size = len({f for lines in selection.values() for files in lines.values() for f in files})
     targets: list[Target] = []
     sources: dict[str, bytes] = {}
     no_covering_test = 0
@@ -547,7 +594,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         restore_handler = install_stop_handler(work)
 
         try:
-            baselines = Baselines(repository, work)
+            baselines = Baselines(repository, work, settings["max_workers"])
             tally_lock = threading.Lock()
 
             def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
@@ -564,7 +611,9 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
                     command = whole
                     files = chosen[index] if configured is None else None
                     selected = (
-                        selected_command(repository, target.language, files) if files else None
+                        selected_command(repository, target.language, files)
+                        if files and len(files) * 2 <= suite_size
+                        else None
                     )
 
                     if selected is not None and selected != whole:
