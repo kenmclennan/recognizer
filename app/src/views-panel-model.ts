@@ -15,9 +15,9 @@ export const RECENT_LIMIT = 5;
 
 export type ViewRow = {
   name: string;
+  title: string | null;
   description: string;
-  range: string | null;
-  notes: number;
+  meta: string | null;
   reasons: string[];
 };
 
@@ -33,6 +33,27 @@ export type ViewEntry = { name: string; text: string };
 
 export function rangeOf(view: View): string | null {
   return view.change === undefined ? null : rangeText(view.change);
+}
+
+function shortRef(ref: string): string {
+  return /^[0-9a-f]{40}$/i.test(ref) ? ref.slice(0, 7) : ref;
+}
+
+export function metaOf(view: View): string | null {
+  const parts: string[] = [];
+  const notes = viewNotes(view).length;
+
+  if (view.change !== undefined) {
+    parts.push(
+      `Changes ${shortRef(view.change.base)} to ${shortRef(view.change.head)}`,
+    );
+  }
+
+  if (notes > 0) {
+    parts.push(`${notes} ${notes === 1 ? "note" : "notes"}`);
+  }
+
+  return parts.length === 0 ? null : parts.join(" \u00b7 ");
 }
 
 export function reasonsOf(
@@ -69,9 +90,9 @@ export function viewsPanelModel(
     );
     const row: ViewRow = {
       name,
+      title: view.title ?? null,
       description: view.description,
-      range: rangeOf(view),
-      notes: viewNotes(view).length,
+      meta: metaOf(view),
       reasons,
     };
 

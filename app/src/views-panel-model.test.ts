@@ -1,7 +1,8 @@
-import type { Scan } from "recognizer";
+import type { Scan, View } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   dropdownNames,
+  metaOf,
   rangeOf,
   showsAllLink,
   viewsPanelModel,
@@ -42,7 +43,7 @@ describe("viewsPanelModel", () => {
       facts,
     );
 
-    expect(model.live.map((row) => [row.name, row.range])).toEqual([
+    expect(model.live.map((row) => [row.name, row.meta])).toEqual([
       ["alpha", null],
       ["zeta", null],
     ]);
@@ -51,6 +52,19 @@ describe("viewsPanelModel", () => {
       ["merged", ["head old is merged into main"]],
     ]);
     expect(model.invalid.map((row) => row.name)).toEqual(["bad"]);
+  });
+
+  it("carries the title of a titled file and null for an untitled one", () => {
+    const model = viewsPanelModel(
+      [
+        { name: "a", text: text({ title: "A title" }) },
+        { name: "b", text: text({}) },
+      ],
+      [scan],
+      new Map(),
+    );
+
+    expect(model.live.map((row) => row.title)).toEqual(["A title", null]);
   });
 
   it("counts notes and keeps a change view live with no git answer", () => {
@@ -68,8 +82,52 @@ describe("viewsPanelModel", () => {
       new Map(),
     );
 
-    expect(model.live[0]).toMatchObject({ range: "main..feat", notes: 1 });
+    expect(model.live[0]).toMatchObject({
+      title: null,
+      meta: "Changes main to feat \u00b7 1 note",
+    });
     expect(model.stale).toEqual([]);
+  });
+});
+
+describe("metaOf", () => {
+  const view = (extra: Record<string, unknown>) =>
+    ({
+      schema_version: 4,
+      description: "d",
+      commit: null,
+      steps: [],
+      ...extra,
+    }) as unknown as View;
+  const note = (module: string) => ({ module, text: "x", by: "K" });
+
+  it("counts notes on an ordinary view and is null with none", () => {
+    expect(metaOf(view({}))).toBeNull();
+    expect(metaOf(view({ notes: [note("a.py")] }))).toBe("1 note");
+    expect(
+      metaOf(view({ notes: [note("a.py"), note("b.py"), note("c.py")] })),
+    ).toBe("3 notes");
+  });
+
+  it("names a change view's refs, then its notes", () => {
+    const change = { base: "main", head: "feat" };
+
+    expect(metaOf(view({ change }))).toBe("Changes main to feat");
+
+    const base = "c1933e0".padEnd(40, "1");
+    const head = "9e7f13b".padEnd(40, "2");
+
+    expect(
+      metaOf(
+        view({
+          change: { base, head },
+          notes: ["a", "b", "c", "d"].map((m) => note(`${m}.py`)),
+        }),
+      ),
+    ).toBe("Changes c1933e0 to 9e7f13b \u00b7 4 notes");
+    expect(metaOf(view({ change: { base: "abcdef0", head: "feat" } }))).toBe(
+      "Changes abcdef0 to feat",
+    );
   });
 });
 

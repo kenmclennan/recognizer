@@ -2898,11 +2898,10 @@ svg.i.chevron {
 }
 
 .views-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  padding: 6px 8px;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: none;
@@ -2921,33 +2920,55 @@ svg.i.chevron {
   background: var(--selbg);
 }
 
-.views-row.current .views-row-name::before {
-  content: "\2713 ";
+.views-row.current {
+  border-color: var(--sel);
+  background: var(--selbg);
+}
+
+.views-row-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.views-row.current .views-row-title {
   color: var(--sel);
 }
 
 .views-row-name {
-  font-weight: 600;
-}
-
-.views-row-description,
-.views-row-notes {
-  color: var(--muted);
+  display: block;
+  margin-top: 1px;
+  color: var(--faint);
   font-size: 11px;
 }
 
 .views-row-description {
-  flex-basis: 100%;
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.views-row-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 11px;
 }
 
 .views-row-reason {
-  flex-basis: 100%;
+  display: block;
+  margin-top: 4px;
   color: var(--warn);
   font-size: 11px;
 }
 
 .views-delete {
-  margin-left: auto;
+  margin-top: 6px;
   padding: 2px 8px;
   border: 1px solid var(--boxline);
   border-radius: 6px;

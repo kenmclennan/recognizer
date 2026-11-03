@@ -79,9 +79,10 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
     live: panel.all(".views-row:not(.stale):not(.invalid)").map((r) => r.dataset.view),
     stale: panel.all(".views-row.stale").map((r) => [r.dataset.view, [...r.querySelectorAll(".views-row-reason")].map((n) => n.textContent)]),
     heading: panel.q(".views-stale-header").textContent,
-    chips: panel.all(".view-chip").length,
-    ranges: Object.fromEntries(["alpha", "beta", "live"].map((n) => [n, rowOf(n).querySelector(".views-row-description").textContent])),
-    notes: rowOf("noted").querySelector(".views-row-notes").textContent,
+    chips: panel.all(".views-panel [class*='chip']").length,
+    descriptions: Object.fromEntries(["alpha", "beta"].map((n) => [n, rowOf(n).querySelector(".views-row-description").textContent])),
+    metas: Object.fromEntries(["alpha", "beta", "live"].map((n) => [n, rowOf(n).querySelector(".views-row-meta")?.textContent ?? null])),
+    notes: rowOf("noted").querySelector(".views-row-meta").textContent,
     liveHasDelete: rowOf("alpha").querySelector(".views-delete") !== null,
     files: panel.port.files.size,
     railIndex: panel.all(".rail button").map((b) => b.getAttribute("data-label")).indexOf("Views"),
@@ -199,7 +200,8 @@ type Facts = {
     stale: [string, string[]][];
     heading: string;
     chips: number;
-    ranges: Record<string, string>;
+    descriptions: Record<string, string>;
+    metas: Record<string, string | null>;
     notes: string;
     liveHasDelete: boolean;
     files: number;
@@ -262,9 +264,12 @@ describe.skipIf(chrome === undefined)("change views in a real browser", () => {
   it("lists live views first with ranges and note counts, then a Stale heading", () => {
     expect(f.panel.live).toEqual(["alpha", "beta", "live", "noted"]);
     expect(f.panel.chips).toBe(0);
-    expect(f.panel.ranges.alpha).toBe("d");
-    expect(f.panel.ranges.beta).toBe("d");
-    expect(f.panel.ranges.live).toContain("main..feat");
+    expect(f.panel.descriptions).toEqual({ alpha: "d", beta: "d" });
+    expect(f.panel.metas).toEqual({
+      alpha: null,
+      beta: null,
+      live: "Changes main to feat",
+    });
     expect(f.panel.notes).toBe("1 note");
     expect(f.panel.heading).toBe("Stale");
     expect(f.panel.liveHasDelete).toBe(false);
