@@ -45,11 +45,11 @@ async function mount(text) {
   m.open = async () => { click(q(".view-list")); click(all(".view-item")[0]); await tick(); };
   m.notesPanel = async () => { click(q('[data-label="Notes"]') || all(".rail button").find((b) => b.getAttribute("data-label") === "Notes")); await tick(); };
   m.drag = async (from, toRow, below) => {
-    const handle = all(".note-row")[from].querySelector(".note-handle");
+    const handle = all(".note-row")[from];
     const target = all(".note-row")[toRow].getBoundingClientRect();
     const start = handle.getBoundingClientRect();
     const y = below ? target.bottom - 2 : target.top + 2;
-    const fire = (type, clientY) => handle.dispatchEvent(new PointerEvent(type, { pointerId: 1, bubbles: true, clientX: start.left + 3, clientY }));
+    const fire = (type, clientY) => handle.dispatchEvent(new PointerEvent(type, { pointerId: 1, bubbles: true, clientX: start.left + 30, clientY }));
     fire("pointerdown", start.top + start.height / 2);
     for (let i = 1; i <= 5; i += 1) { fire("pointermove", start.top + ((y - start.top) * i) / 5); await tick(10); }
     return { fire, y };
@@ -65,7 +65,7 @@ const facts = {};
   await m.open();
   facts.landing = { text: m.bubble() && m.bubble().querySelector(".note-text").textContent, position: m.bubble() && m.bubble().querySelector(".note-position").textContent };
   await m.notesPanel();
-  facts.panel = { rows: m.rows(), numbers: m.numbers(), handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle").textContent, pressed: m.q(".notes-order-toggle").getAttribute("aria-pressed") };
+  facts.panel = { rows: m.rows(), numbers: m.numbers(), draggable: m.all(".note-row.draggable").length, handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle").textContent, pressed: m.q(".notes-order-toggle").getAttribute("aria-pressed") };
   facts.marks = m.marks();
 
   const drag = await m.drag(0, 2, true);
@@ -89,7 +89,7 @@ const facts = {};
 
   click(m.q(".notes-order-toggle"));
   await tick(80);
-  facts.lens = { ordered: m.saved().ordered, version: m.saved().schema_version, numbers: m.numbers(), handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle").textContent, marks: m.marks(), buttons: m.all(".note-bubble .note-step").length };
+  facts.lens = { ordered: m.saved().ordered, version: m.saved().schema_version, numbers: m.numbers(), draggable: m.all(".note-row.draggable").length, toggle: m.q(".notes-order-toggle").textContent, marks: m.marks(), buttons: m.all(".note-bubble .note-step").length };
   click(m.q(".notes-order-toggle"));
   await tick(80);
   facts.restored = { ordered: m.saved().ordered === undefined, numbers: m.numbers() };
@@ -134,10 +134,11 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
     expect(f.landing).toEqual({ text: "First stop", position: "1 of 3" });
   });
 
-  it("numbers the panel rows in list order, each with a handle, under an In order toggle", () => {
+  it("numbers the panel rows in list order, each draggable as a whole with no handle strip, under an In order toggle", () => {
     expect(f.panel.rows).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
     expect(f.panel.numbers).toEqual(["1", "2", "3"]);
-    expect(f.panel.handles).toBe(3);
+    expect(f.panel.draggable).toBe(3);
+    expect(f.panel.handles).toBe(0);
     expect(f.panel.toggle).toBe("In order");
     expect(f.panel.pressed).toBe("true");
   });
@@ -166,11 +167,11 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
     expect(f.undone.rows).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
   });
 
-  it("flips to No order: no numbers or handles, bubble marks, no Previous or Next, file says ordered false", () => {
+  it("flips to No order: no numbers or draggable rows, bubble marks, no Previous or Next, file says ordered false", () => {
     expect(f.lens.ordered).toBe(false);
     expect(f.lens.version).toBe(4);
     expect(f.lens.numbers).toEqual([]);
-    expect(f.lens.handles).toBe(0);
+    expect(f.lens.draggable).toBe(0);
     expect(f.lens.toggle).toBe("No order");
     expect(f.lens.marks.every((mark: unknown[]) => mark[2] === false)).toBe(
       true,
