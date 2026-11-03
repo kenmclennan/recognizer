@@ -1,0 +1,401 @@
+import hashlib
+import json
+import subprocess
+import sys
+
+import pytest
+from conftest import make_repository, mutate_repository, mutate_settings
+from test_mutation import COVERAGE, RECORD, SURVIVORS, read, run_mutate
+
+from recognizer_sensors.mutation import runner, sensor
+from recognizer_sensors.scans import read_scans
+from recognizer_sensors.testrun import profiles
+from recognizer_sensors.testrun.profiles import mutant_command, selected_command
+from recognizer_sensors.testrun.run import (
+    collect_coverage_with_tests,
+    python_selection,
+    read_contexts,
+)
+
+TS_LCOV = ".recognizer/cache/coverage/typescript/lcov.info"
+
+SHOP = """import os
+
+TAX = 2
+
+
+def clamp(x):
+    return min(x, 10)
+
+
+def total(items):
+    return sum(items)
+
+
+def shared(x):
+    return x + 1
+
+
+def other(x):
+    return x * 2
+"""
+
+TEST_A = """from app.shop import clamp, shared
+
+
+def test_clamp():
+    assert clamp(20) == 10
+
+
+def test_shared():
+    assert shared(1) == 2
+"""
+
+TEST_B = """import pytest
+
+from app.shop import shared, total
+
+
+@pytest.fixture
+def items():
+    return total([1, 2])
+
+
+def test_total(items):
+    assert items == 3
+
+
+def test_shared():
+    assert shared(2) == 3
+"""
+
+
+def contexts_document(lines):
+    return json.dumps({"files": {"app/m.py": {"contexts": lines}}})
+
+
+def test_the_context_reader_keeps_only_lines_whose_every_context_is_an_existing_file(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text("")
+    (tmp_path / "tests" / "test_b.py").write_text("")
+    document = contexts_document(
+        {
+            "1": ["tests/test_a.py"],
+            "2": ["tests/test_a.py", "tests/test_b.py"],
+            "3": [""],
+            "4": ["test_a.test_one"],
+            "5": ["tests/missing.py"],
+            "6": ["tests/test_a.py", ""],
+        }
+    )
+
+    assert read_contexts(document, tmp_path) == {
+        "app/m.py": {
+            1: frozenset({"tests/test_a.py"}),
+            2: frozenset({"tests/test_a.py", "tests/test_b.py"}),
+        }
+    }
+
+
+@pytest.mark.parametrize("text", ["not json", "[]", '{"files": []}', '{"files": {"a": 1}}'])
+def test_an_unreadable_context_document_selects_nothing(tmp_path, text):
+    assert read_contexts(text, tmp_path) == {}
+
+
+def test_a_missing_context_file_selects_nothing(tmp_path):
+    assert python_selection(tmp_path) == {}
+
+
+@pytest.mark.parametrize(
+    ("lockfile", "runner_words"),
+    [("uv.lock", ["uv", "run"]), ("poetry.lock", ["poetry", "run"]), (None, ["python3", "-m"])],
+)
+def test_python_selection_follows_the_runner(tmp_path, lockfile, runner_words):
+    if lockfile:
+        (tmp_path / lockfile).write_text("")
+
+    assert selected_command(tmp_path, "python", {"tests/b.py", "tests/a.py"}) == [
+        *runner_words,
+        "pytest",
+        "tests/a.py",
+        "tests/b.py",
+    ]
+
+
+def test_typescript_selection_passes_the_files_after_a_separator(tmp_path):
+    assert selected_command(tmp_path, "typescript", {"web/a.test.ts"}) == [
+        "npm",
+        "test",
+        "--",
+        "web/a.test.ts",
+    ]
+
+
+@pytest.mark.parametrize("language", ["kotlin", "rust"])
+def test_kotlin_and_rust_have_no_selection(tmp_path, language):
+    assert selected_command(tmp_path, language, {"a"}) is None
+
+
+def test_fifty_one_files_or_a_dashed_name_run_the_whole_suite(tmp_path):
+    whole = mutant_command(tmp_path, "python")
+    many = {f"tests/test_{n}.py" for n in range(51)}
+
+    assert selected_command(tmp_path, "python", many) == whole
+    assert selected_command(tmp_path, "python", set(list(many)[:50])) != whole
+    assert selected_command(tmp_path, "python", {"-x.py"}) == whole
+
+
+def test_a_real_python_coverage_pass_attributes_each_line_to_the_test_files_that_ran_it(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(profiles, "python_runner", lambda repository: [sys.executable, "-m"])
+    root = make_repository(
+        tmp_path / "r",
+        {"app/shop.py": SHOP, "tests/test_a.py": TEST_A, "tests/test_b.py": TEST_B},
+    )
+    scans = [scan for scan in read_scans(root) if scan.language == "python"]
+
+    coverage, selection = collect_coverage_with_tests(root, scans, None)
+    lines = selection["app/shop.py"]
+
+    assert lines[7] == frozenset({"tests/test_a.py"})
+    assert lines[11] == frozenset({"tests/test_b.py"})
+    assert lines[15] == frozenset({"tests/test_a.py", "tests/test_b.py"})
+    assert 1 not in lines
+    assert 3 not in lines
+    assert 6 not in lines
+    assert 19 not in lines
+    assert coverage["app/shop.py"][19] == 0
+
+
+def fake_selection(monkeypatch, selection):
+    monkeypatch.setattr(
+        sensor,
+        "collect_coverage_with_tests",
+        lambda repository, scans, coverage: (
+            {"app/rules.py": {1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 9: 1, 10: 1, 13: 0, 14: 0}},
+            selection,
+        ),
+    )
+
+
+def spy_commands(monkeypatch):
+    seen = []
+    real = runner.run_test_command
+
+    def spy(command, cwd, timeout):
+        seen.append((list(command), timeout))
+
+        return real([sys.executable, "tests/strong.py"], cwd, timeout)
+
+    monkeypatch.setattr(runner, "run_test_command", spy)
+    monkeypatch.setattr(sensor, "run_test_command", spy)
+
+    return seen
+
+
+A = frozenset({"tests/test_a.py"})
+SELECTED = {"app/rules.py": {2: A, 4: A, 5: A, 6: A}}
+SELECTED_COMMAND = ["python3", "-m", "pytest", "tests/test_a.py"]
+WHOLE_COMMAND = ["python3", "-m", "pytest"]
+
+
+def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once(
+    tmp_path, monkeypatch, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    seen = spy_commands(monkeypatch)
+    settings = json.dumps({"incremental": False, "max_workers": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    commands = [command for command, _ in seen]
+
+    assert commands.count(SELECTED_COMMAND) == 3
+    assert commands.count(WHOLE_COMMAND) == 2
+    assert [timeout is None for _, timeout in seen].count(True) == 2
+    assert capsys.readouterr().err.splitlines()[-1] == (
+        "recognizer-sensors: mutation: 1 functions without a covering test; "
+        "2 mutants ran a selection, 1 ran the whole suite"
+    )
+
+
+def test_a_selected_command_whose_baseline_fails_runs_its_mutants_under_the_whole_suite(
+    tmp_path, monkeypatch, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    seen = []
+    real = runner.run_test_command
+
+    def spy(command, cwd, timeout):
+        seen.append(list(command))
+        failing = command == SELECTED_COMMAND and timeout is None
+
+        return real([sys.executable, "-c", "raise SystemExit(1)" if failing else ""], cwd, timeout)
+
+    monkeypatch.setattr(runner, "run_test_command", spy)
+    monkeypatch.setattr(sensor, "run_test_command", spy)
+    settings = json.dumps({"incremental": False, "max_workers": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    assert "the selected test command exited 1; running the whole suite" in capsys.readouterr().err
+    assert seen.count(SELECTED_COMMAND) == 1
+    assert seen.count(WHOLE_COMMAND) == 4
+
+
+def test_a_failing_whole_suite_baseline_still_ends_the_run(tmp_path, monkeypatch, capsys):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, {})
+    real = runner.run_test_command
+    monkeypatch.setattr(
+        sensor,
+        "run_test_command",
+        lambda c, cwd, t: real([sys.executable, "-c", "exit(1)"], cwd, t),
+    )
+    settings = json.dumps({"incremental": False, "max_workers": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+    assert capsys.readouterr().err.strip() == "the test command exited 1"
+
+
+def test_a_configured_command_replaces_selection_and_keeps_its_record_key(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    seen = spy_commands(monkeypatch)
+    configured = [sys.executable, "tests/strong.py"]
+
+    assert run_mutate(root, tmp_path / "overlay.json", mutate_settings("tests/strong.py")) == 0
+
+    assert {tuple(command) for command, _ in seen} == {tuple(configured)}
+
+    expected = hashlib.sha256(json.dumps(configured, separators=(",", ":")).encode()).hexdigest()
+
+    assert read(root / RECORD)["command"] == expected
+
+
+def test_the_record_key_without_a_configured_command_carries_the_selection_marker(
+    tmp_path, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    spy_commands(monkeypatch)
+
+    assert run_mutate(root, tmp_path / "overlay.json", json.dumps({})) == 0
+
+    key = {"commands": {"python": WHOLE_COMMAND}, "selection": 1}
+    expected = hashlib.sha256(
+        json.dumps(key, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+
+    assert read(root / RECORD)["command"] == expected
+
+
+def test_a_coverage_setting_runs_the_whole_suite_for_every_mutant(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    seen = spy_commands(monkeypatch)
+    settings = json.dumps({"coverage": COVERAGE, "incremental": False, "max_workers": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert {tuple(command) for command, _ in seen} == {tuple(WHOLE_COMMAND)}
+
+
+@pytest.mark.parametrize("third_read", [1000.0, 60.0])
+def test_the_budget_starts_after_setup_and_reports_what_it_left_unmeasured(
+    tmp_path, monkeypatch, third_read
+):
+    root, _ = mutate_repository(tmp_path)
+    ticks = iter([0.0, 0.0, third_read])
+    monkeypatch.setattr(sensor, "CLOCK", lambda: next(ticks, 1000.0))
+
+    assert (
+        run_mutate(
+            root,
+            tmp_path / "overlay.json",
+            mutate_settings("tests/strong.py", max_workers=1, max_minutes=1),
+        )
+        == 0
+    )
+
+    survivors = read(root / SURVIVORS)
+
+    assert survivors["complete"] is False
+    assert survivors["survivors_version"] == 1
+    assert survivors["unmeasured"] == {"budget": 1, "no-covering-test": 1}
+    assert len(survivors["skipped"]) == 1
+
+
+def test_a_complete_run_reports_only_the_functions_without_a_covering_test(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+
+    assert run_mutate(root, tmp_path / "overlay.json", mutate_settings("tests/strong.py")) == 0
+    assert read(root / SURVIVORS)["unmeasured"] == {"budget": 0, "no-covering-test": 1}
+
+
+def typescript_repository(tmp_path):
+    root = make_repository(
+        tmp_path / "r",
+        {
+            "web/lib.ts": "export const a = 1;\nexport const b = 2;\nexport const c = 3;\n",
+            "web/a.test.ts": "",
+            "web/b.test.ts": "",
+        },
+    )
+
+    return root
+
+
+def fake_c8(root, failing=None):
+    def fake(command, **kwargs):
+        if command[0] != "npx":
+            raise AssertionError(command)
+
+        directory = command[command.index("--reports-dir") + 1]
+        by_file = command[-1] if "--" in command else None
+        number = directory.rsplit("/", 1)[-1]
+        body = {
+            None: "SF:web/lib.ts\nDA:1,1\nDA:2,1\nDA:3,1\nend_of_record\n",
+            "0": "SF:web/lib.ts\nDA:1,1\nDA:2,1\nDA:3,0\nend_of_record\n",
+            "1": "SF:web/lib.ts\nDA:1,1\nDA:2,0\nDA:3,1\nend_of_record\n",
+        }[number if by_file else None]
+        (root / directory).mkdir(parents=True, exist_ok=True)
+        (root / directory / "lcov.info").write_text(body)
+        code = 1 if failing is not None and by_file == failing else 0
+
+        return subprocess.CompletedProcess(command, code)
+
+    return fake
+
+
+def test_typescript_runs_one_coverage_pass_per_test_file_and_reads_each_report(
+    tmp_path, monkeypatch
+):
+    root = typescript_repository(tmp_path)
+    monkeypatch.setattr("recognizer_sensors.testrun.run.subprocess.run", fake_c8(root))
+
+    _, selection = collect_coverage_with_tests(root, read_scans(root), None)
+
+    assert selection == {
+        "web/lib.ts": {
+            1: frozenset({"web/a.test.ts", "web/b.test.ts"}),
+            2: frozenset({"web/a.test.ts"}),
+            3: frozenset({"web/b.test.ts"}),
+        }
+    }
+
+
+def test_one_failing_per_file_run_drops_typescript_selection_for_the_run(
+    tmp_path, monkeypatch, capsys
+):
+    root = typescript_repository(tmp_path)
+    monkeypatch.setattr(
+        "recognizer_sensors.testrun.run.subprocess.run", fake_c8(root, failing="web/b.test.ts")
+    )
+
+    coverage, selection = collect_coverage_with_tests(root, read_scans(root), None)
+
+    assert selection == {}
+    assert coverage == {"web/lib.ts": {1: 1, 2: 1, 3: 1}}
+    assert "running the whole suite for typescript" in capsys.readouterr().err

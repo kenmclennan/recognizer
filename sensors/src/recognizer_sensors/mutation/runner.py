@@ -136,11 +136,18 @@ def run_mutant(
 
 
 def run_function(
-    repository: Path, work: Path, mutants: list[Mutant], command: list[str], timeout: float
+    repository: Path,
+    work: Path,
+    mutants: list[Mutant],
+    plan_for: Callable[[int], tuple[list[str], float]],
 ) -> list[str]:
-    return [
-        run_mutant(repository, work, next(NUMBERS), mutant, command, timeout) for mutant in mutants
-    ]
+    verdicts = []
+
+    for index, mutant in enumerate(mutants):
+        command, timeout = plan_for(index)
+        verdicts.append(run_mutant(repository, work, next(NUMBERS), mutant, command, timeout))
+
+    return verdicts
 
 
 def run_functions(
