@@ -1,22 +1,17 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 
 use crate::fs_safe::checked_relative;
+use crate::tool_runner::{runner, Captured, ToolRunner};
 
 pub const OUTPUT_MARK: &str = "@@recognizer-output@@";
-const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" scan "$1""#;
-const SCAN_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; folder="$1"; shift; printf '\n@@recognizer-output@@\n'; exec "$0" scan "$folder" "$@""#;
-const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" describe "$2" --json --repository "$1""#;
-const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" --version"#;
-const SENSORS_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" sensors --json"#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
 const BASELINE: &str = ".recognizer/baselines/violations.json";
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ScanFile {
     pub file: String,
     pub text: String,
@@ -109,16 +104,8 @@ pub struct CacheRead {
     pub refused: Vec<String>,
 }
 
-pub fn shell_invocation(shell: &str, command: &str, folder: &Path) -> (String, Vec<String>) {
-    (
-        shell.to_string(),
-        vec![
-            "-ilc".to_string(),
-            SHELL_SCRIPT.to_string(),
-            command.to_string(),
-            folder.display().to_string(),
-        ],
-    )
+pub fn plain_scan_args(folder: &Path) -> Vec<String> {
+    vec!["scan".to_string(), folder.display().to_string()]
 }
 
 pub fn scan_flags(describe: bool, measure: &[String], sense: &[String]) -> Vec<String> {
@@ -141,78 +128,45 @@ pub fn scan_flags(describe: bool, measure: &[String], sense: &[String]) -> Vec<S
     flags
 }
 
-pub fn scan_invocation(
-    shell: &str,
-    command: &str,
+pub fn scan_args(
     folder: &Path,
     describe: bool,
     measure: &[String],
     sense: &[String],
-) -> (String, Vec<String>) {
-    let mut args = vec![
-        "-ilc".to_string(),
-        SCAN_SCRIPT.to_string(),
-        command.to_string(),
-        folder.display().to_string(),
-    ];
+) -> Vec<String> {
+    let mut args = plain_scan_args(folder);
 
     args.extend(scan_flags(describe, measure, sense));
 
-    (shell.to_string(), args)
+    args
 }
 
-pub fn describe_invocation(
-    shell: &str,
-    command: &str,
-    folder: &Path,
-    module: &str,
-) -> (String, Vec<String>) {
-    (
-        shell.to_string(),
-        vec![
-            "-ilc".to_string(),
-            DESCRIBE_SCRIPT.to_string(),
-            command.to_string(),
-            folder.display().to_string(),
-            module.to_string(),
-        ],
-    )
+pub fn describe_args(folder: &Path, module: &str) -> Vec<String> {
+    vec![
+        "describe".to_string(),
+        module.to_string(),
+        "--json".to_string(),
+        "--repository".to_string(),
+        folder.display().to_string(),
+    ]
 }
 
-pub fn version_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
-    (
-        shell.to_string(),
-        vec![
-            "-ilc".to_string(),
-            VERSION_SCRIPT.to_string(),
-            command.to_string(),
-        ],
-    )
+pub fn version_args() -> Vec<String> {
+    vec!["--version".to_string()]
 }
 
-pub fn sensors_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
-    (
-        shell.to_string(),
-        vec![
-            "-ilc".to_string(),
-            SENSORS_SCRIPT.to_string(),
-            command.to_string(),
-        ],
-    )
+pub fn sensors_args() -> Vec<String> {
+    vec!["sensors".to_string(), "--json".to_string()]
 }
 
-const DESCRIBER_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" describe --describer --json --repository "$1""#;
-
-pub fn describer_invocation(shell: &str, command: &str, folder: &Path) -> (String, Vec<String>) {
-    (
-        shell.to_string(),
-        vec![
-            "-ilc".to_string(),
-            DESCRIBER_SCRIPT.to_string(),
-            command.to_string(),
-            folder.display().to_string(),
-        ],
-    )
+pub fn describer_args(folder: &Path) -> Vec<String> {
+    vec![
+        "describe".to_string(),
+        "--describer".to_string(),
+        "--json".to_string(),
+        "--repository".to_string(),
+        folder.display().to_string(),
+    ]
 }
 
 pub fn shipped_describer_for(exit: Option<i32>, stdout: &str, stderr: &str) -> ShippedDescriber {
@@ -240,26 +194,24 @@ pub fn shipped_describer_for(exit: Option<i32>, stdout: &str, stderr: &str) -> S
     }
 }
 
-pub fn shipped_describer(shell: &str, folder: &Path) -> ShippedDescriber {
-    shipped_describer_with(shell, RECOGNIZER_COMMAND, folder)
+pub fn shipped_describer(folder: &Path) -> ShippedDescriber {
+    shipped_describer_with(runner(), RECOGNIZER_COMMAND, folder)
 }
 
-pub fn shipped_describer_with(shell: &str, command: &str, folder: &Path) -> ShippedDescriber {
-    let (program, args) = describer_invocation(shell, command, folder);
-    let output = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .output();
-
-    match output {
-        Err(_) => ShippedDescriber::Unavailable {
+pub fn shipped_describer_with(
+    runner: &ToolRunner,
+    command: &str,
+    folder: &Path,
+) -> ShippedDescriber {
+    match runner.capture(command, &describer_args(folder), true) {
+        None => ShippedDescriber::Unavailable {
             reason: missing_hint(),
         },
-        Ok(output) => shipped_describer_for(
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-        ),
+        Some(Captured {
+            code,
+            stdout,
+            stderr,
+        }) => shipped_describer_for(code, &stdout, &stderr),
     }
 }
 
@@ -428,24 +380,18 @@ pub fn tools_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> Tool
     }
 }
 
-pub fn recognizer_version(shell: &str) -> ToolsReport {
-    recognizer_version_with(shell, RECOGNIZER_COMMAND)
+pub fn recognizer_version() -> ToolsReport {
+    recognizer_version_with(runner(), RECOGNIZER_COMMAND)
 }
 
-pub fn recognizer_version_with(shell: &str, command: &str) -> ToolsReport {
-    let (program, args) = version_invocation(shell, command);
-    let output = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .output();
-
-    match output {
-        Err(_) => ToolsReport::CommandMissing,
-        Ok(output) => tools_report_for(
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-        ),
+pub fn recognizer_version_with(runner: &ToolRunner, command: &str) -> ToolsReport {
+    match runner.capture(command, &version_args(), true) {
+        None => ToolsReport::CommandMissing,
+        Some(Captured {
+            code,
+            stdout,
+            stderr,
+        }) => tools_report_for(code, &stdout, stderr),
     }
 }
 
@@ -470,45 +416,29 @@ pub fn shipped_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> Shi
     }
 }
 
-pub fn shipped_sensors(shell: &str) -> ShippedSensors {
-    shipped_sensors_with(shell, RECOGNIZER_COMMAND)
+pub fn shipped_sensors() -> ShippedSensors {
+    shipped_sensors_with(runner(), RECOGNIZER_COMMAND)
 }
 
-pub fn shipped_sensors_with(shell: &str, command: &str) -> ShippedSensors {
-    let (program, args) = sensors_invocation(shell, command);
-    let output = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .output();
-
-    match output {
-        Err(_) => ShippedSensors::Unavailable {
+pub fn shipped_sensors_with(runner: &ToolRunner, command: &str) -> ShippedSensors {
+    match runner.capture(command, &sensors_args(), true) {
+        None => ShippedSensors::Unavailable {
             reason: missing_hint(),
         },
-        Ok(output) => shipped_sensors_for(
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-        ),
+        Some(Captured {
+            code,
+            stdout,
+            stderr,
+        }) => shipped_sensors_for(code, &stdout, &stderr),
     }
 }
 
-pub fn scan_with(folder: &Path, shell: &str, command: &str) -> ScanReport {
-    let (program, args) = shell_invocation(shell, command, folder);
-    let output = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .output();
-
-    match output {
-        Err(_) => ScanReport::CommandMissing {
+pub fn scan_with(runner: &ToolRunner, folder: &Path, command: &str) -> ScanReport {
+    match runner.capture(command, &plain_scan_args(folder), false) {
+        None => ScanReport::CommandMissing {
             hint: missing_hint(),
         },
-        Ok(output) => report_for(
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-            || read_cache(folder),
-        ),
+        Some(Captured { code, stderr, .. }) => report_for(code, stderr, || read_cache(folder)),
     }
 }
 
@@ -519,6 +449,8 @@ pub fn config_file_in(config_dir: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tool_runner::tests::{runner_with, shell_with_path, working_runner};
+    use std::time::Duration;
     use tempfile::TempDir;
 
     fn names(list: &[&str]) -> Vec<String> {
@@ -526,23 +458,20 @@ mod tests {
     }
 
     #[test]
-    fn the_folder_is_an_argument_never_part_of_the_script() {
+    fn the_scan_folder_is_its_own_argv_entry() {
         let folder = Path::new("/tmp/it's a \"folder\" $(rm -rf x)");
-        let (shell, args) = shell_invocation("/bin/zsh", "recognizer", folder);
+        let args = plain_scan_args(folder);
 
-        assert_eq!(shell, "/bin/zsh");
-        assert_eq!(args[0], "-ilc");
-        assert_eq!(args[1], SHELL_SCRIPT);
-        assert!(!args[1].contains("folder"));
-        assert_eq!(args[2], "recognizer");
-        assert_eq!(args[3], folder.display().to_string());
+        assert_eq!(args, ["scan", &folder.display().to_string()]);
+        assert_eq!(args.len(), 2);
     }
 
     #[test]
     fn scan_with_a_missing_command_reports_it_missing() {
         let dir = TempDir::new().unwrap();
+        let runner = working_runner(dir.path());
 
-        match scan_with(dir.path(), "/bin/sh", "/nonexistent/recognizer") {
+        match scan_with(&runner, dir.path(), "/nonexistent/recognizer") {
             ScanReport::CommandMissing { .. } => {}
             other => panic!("{other:?}"),
         }
@@ -577,26 +506,14 @@ mod tests {
     }
 
     #[test]
-    fn the_folder_and_flags_are_positional_never_part_of_the_scan_script() {
+    fn the_scan_flags_follow_the_folder_in_argv() {
         let folder = Path::new("/tmp/it's a \"folder\" $(rm -rf x)");
-        let (shell, args) = scan_invocation(
-            "/bin/zsh",
-            "recognizer",
-            folder,
-            true,
-            &names(&["$(rm -rf x)"]),
-            &names(&["a"]),
-        );
+        let args = scan_args(folder, true, &names(&["$(rm -rf x)"]), &names(&["a"]));
 
-        assert_eq!(shell, "/bin/zsh");
-        assert_eq!(args[0], "-ilc");
-        assert_eq!(args[1], SCAN_SCRIPT);
-        assert!(!args[1].contains("tmp"));
-        assert!(!args[1].contains("--describe"));
-        assert_eq!(args[2], "recognizer");
-        assert_eq!(args[3], folder.display().to_string());
+        assert_eq!(args[0], "scan");
+        assert_eq!(args[1], folder.display().to_string());
         assert_eq!(
-            args[4..],
+            args[2..],
             [
                 "--json",
                 "--describe",
@@ -606,19 +523,37 @@ mod tests {
                 "a"
             ]
         );
-        assert!(!args[1].contains("rm -rf"));
     }
 
     #[test]
-    fn the_module_is_a_positional_argument_never_part_of_the_describe_script() {
-        let folder = Path::new("/tmp/repo");
-        let (shell, args) = describe_invocation("/bin/zsh", "recognizer", folder, "a/$(x).py");
+    fn the_describe_module_is_its_own_argv_entry() {
+        let args = describe_args(Path::new("/tmp/repo"), "a/$(x).py");
 
-        assert_eq!(shell, "/bin/zsh");
-        assert_eq!(args[0], "-ilc");
-        assert_eq!(args[1], DESCRIBE_SCRIPT);
-        assert!(!args[1].contains("a/"));
-        assert_eq!(args[2..], ["recognizer", "/tmp/repo", "a/$(x).py"]);
+        assert_eq!(
+            args,
+            [
+                "describe",
+                "a/$(x).py",
+                "--json",
+                "--repository",
+                "/tmp/repo"
+            ]
+        );
+    }
+
+    #[test]
+    fn the_describer_and_sensors_argv_carry_only_their_flags() {
+        assert_eq!(
+            describer_args(Path::new("/tmp/repo")),
+            [
+                "describe",
+                "--describer",
+                "--json",
+                "--repository",
+                "/tmp/repo"
+            ]
+        );
+        assert_eq!(sensors_args(), ["sensors", "--json"]);
     }
 
     #[test]
@@ -795,17 +730,8 @@ mod tests {
     }
 
     #[test]
-    fn the_version_invocation_is_the_script_and_the_command_only() {
-        let (shell, args) = version_invocation("/bin/zsh", "recognizer");
-
-        assert_eq!(shell, "/bin/zsh");
-        assert_eq!(
-            args,
-            vec!["-ilc", VERSION_SCRIPT, "recognizer"]
-                .into_iter()
-                .map(String::from)
-                .collect::<Vec<_>>()
-        );
+    fn the_version_argv_is_the_flag_only() {
+        assert_eq!(version_args(), ["--version"]);
     }
 
     #[cfg(unix)]
@@ -826,8 +752,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let command = fake_command(dir.path(), r#"[ "$1" = "--version" ] && echo 0.3.1"#);
 
+        let runner = working_runner(dir.path());
+
         assert_eq!(
-            recognizer_version_with("/bin/sh", &command.display().to_string()),
+            recognizer_version_with(&runner, &command.display().to_string()),
             ToolsReport::Version {
                 version: "0.3.1".to_string()
             }
@@ -844,7 +772,9 @@ mod tests {
         let other = TempDir::new().unwrap();
         let bad = fake_command(other.path(), "echo nope");
 
-        match shipped_sensors_with("/bin/sh", &good.display().to_string()) {
+        let runner = working_runner(dir.path());
+
+        match shipped_sensors_with(&runner, &good.display().to_string()) {
             ShippedSensors::Ok { sensors } => {
                 assert_eq!(sensors.len(), 1);
                 assert_eq!(sensors[0].name, "duplication");
@@ -853,11 +783,11 @@ mod tests {
         }
 
         assert!(matches!(
-            shipped_sensors_with("/bin/sh", &bad.display().to_string()),
+            shipped_sensors_with(&runner, &bad.display().to_string()),
             ShippedSensors::Unavailable { .. }
         ));
         assert!(matches!(
-            shipped_sensors_with("/bin/sh", "/nonexistent/recognizer"),
+            shipped_sensors_with(&runner, "/nonexistent/recognizer"),
             ShippedSensors::Unavailable { .. }
         ));
         assert!(matches!(
@@ -884,9 +814,10 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_shell_that_prints_escape_sequences_first_still_yields_the_version_and_the_list() {
+    fn a_profile_that_prints_escape_sequences_first_still_resolves_the_environment() {
         let dir = TempDir::new().unwrap();
-        let shell = fake_shell(dir.path()).display().to_string();
+        let shell = fake_shell(dir.path());
+        let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
         let other = TempDir::new().unwrap();
         let version = fake_command(other.path(), "echo 0.1.77");
         let third = TempDir::new().unwrap();
@@ -896,13 +827,13 @@ mod tests {
         );
 
         assert_eq!(
-            recognizer_version_with(&shell, &version.display().to_string()),
+            recognizer_version_with(&runner, &version.display().to_string()),
             ToolsReport::Version {
                 version: "0.1.77".to_string()
             }
         );
         assert!(matches!(
-            shipped_sensors_with(&shell, &sensors.display().to_string()),
+            shipped_sensors_with(&runner, &sensors.display().to_string()),
             ShippedSensors::Ok { sensors } if sensors.len() == 1
         ));
     }
@@ -965,7 +896,11 @@ mod tests {
             ShippedDescriber::Unavailable { .. }
         ));
         assert!(matches!(
-            shipped_describer_with("/bin/sh", "/nonexistent/recognizer", Path::new("/tmp")),
+            shipped_describer_with(
+                &working_runner(TempDir::new().unwrap().path()),
+                "/nonexistent/recognizer",
+                Path::new("/tmp")
+            ),
             ShippedDescriber::Unavailable { .. }
         ));
     }
@@ -983,9 +918,59 @@ mod tests {
 
     #[test]
     fn a_missing_command_is_reported_missing() {
+        let dir = TempDir::new().unwrap();
+
         assert_eq!(
-            recognizer_version_with("/bin/sh", "/nonexistent/recognizer"),
+            recognizer_version_with(&working_runner(dir.path()), "/nonexistent/recognizer"),
             ToolsReport::CommandMissing
+        );
+    }
+
+    #[test]
+    fn with_no_recognizer_on_the_resolved_path_every_verb_reports_it_missing() {
+        let dir = TempDir::new().unwrap();
+        let empty = TempDir::new().unwrap();
+        let shell = shell_with_path(dir.path(), &empty.path().display().to_string());
+        let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
+
+        assert!(matches!(
+            scan_with(&runner, dir.path(), RECOGNIZER_COMMAND),
+            ScanReport::CommandMissing { .. }
+        ));
+        assert_eq!(
+            recognizer_version_with(&runner, RECOGNIZER_COMMAND),
+            ToolsReport::CommandMissing
+        );
+        assert_eq!(
+            shipped_sensors_with(&runner, RECOGNIZER_COMMAND),
+            ShippedSensors::Unavailable {
+                reason: missing_hint()
+            }
+        );
+        assert_eq!(
+            shipped_describer_with(&runner, RECOGNIZER_COMMAND, dir.path()),
+            ShippedDescriber::Unavailable {
+                reason: missing_hint()
+            }
+        );
+    }
+
+    #[test]
+    fn a_hung_profile_reports_the_unavailable_message() {
+        let dir = TempDir::new().unwrap();
+        let shell = crate::tool_runner::tests::script(dir.path(), "hung", "sleep 30");
+        let runner = runner_with(
+            &shell,
+            Duration::from_millis(200),
+            Duration::from_secs(30),
+            4,
+        );
+
+        assert_eq!(
+            shipped_sensors_with(&runner, RECOGNIZER_COMMAND),
+            ShippedSensors::Unavailable {
+                reason: missing_hint()
+            }
         );
     }
 

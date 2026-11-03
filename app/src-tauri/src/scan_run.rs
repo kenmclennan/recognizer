@@ -6,7 +6,8 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 
-use crate::repository::{missing_hint, scan_invocation, strip_escapes, OUTPUT_MARK};
+use crate::repository::{missing_hint, scan_args, strip_escapes};
+use crate::tool_runner::ToolRunner;
 
 const LOG: &str = ".recognizer/cache/log";
 
@@ -44,7 +45,7 @@ struct Handle {
 #[derive(Default)]
 pub struct ScanRuns(Mutex<HashMap<String, Handle>>);
 
-fn kill_group(pid: u32) {
+pub fn kill_group(pid: u32) {
     let _ = Command::new("/bin/kill")
         .args(["-TERM", "--"])
         .arg(format!("-{pid}"))
@@ -144,7 +145,7 @@ pub fn run_with(
     runs: &ScanRuns,
     label: &str,
     folder: &Path,
-    shell: &str,
+    runner: &ToolRunner,
     command: &str,
     describe: bool,
     measure: &[String],
@@ -159,7 +160,7 @@ pub fn run_with(
     prepare();
 
     let result = spawn_and_stream(
-        runs, label, folder, shell, command, describe, measure, sense, emit,
+        runs, label, folder, runner, command, describe, measure, sense, emit,
     );
 
     runs.finish(label);
@@ -172,18 +173,21 @@ fn spawn_and_stream(
     runs: &ScanRuns,
     label: &str,
     folder: &Path,
-    shell: &str,
+    runner: &ToolRunner,
     command: &str,
     describe: bool,
     measure: &[String],
     sense: &[String],
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
-    let (program, args) = scan_invocation(shell, command, folder, describe, measure, sense);
-    let mut process = Command::new(program);
+    let Some(mut process) = runner.command(command) else {
+        return ScanRun::CommandMissing {
+            hint: missing_hint(),
+        };
+    };
 
     process
-        .args(args)
+        .args(scan_args(folder, describe, measure, sense))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -226,15 +230,7 @@ fn spawn_and_stream(
         });
 
         if let Some(stdout) = stdout {
-            let mut marked = false;
-
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                if !marked {
-                    marked = line.contains(OUTPUT_MARK);
-
-                    continue;
-                }
-
                 let line = strip_escapes(&line);
 
                 if !line.trim().is_empty() {
@@ -265,7 +261,10 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::mpsc;
     use std::sync::Arc;
+    use std::time::Duration;
     use tempfile::TempDir;
+
+    use crate::tool_runner::tests::{runner_with, working_runner};
 
     fn names(list: &[&str]) -> Vec<String> {
         list.iter().map(|name| name.to_string()).collect()
@@ -292,11 +291,13 @@ mod tests {
         sense: &[String],
     ) -> (ScanRun, Vec<String>) {
         let lines = Mutex::new(Vec::new());
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
         let result = run_with(
             runs,
             "w-1",
             folder,
-            "/bin/sh",
+            &runner,
             &command.display().to_string(),
             describe,
             measure,
@@ -354,7 +355,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn escape_sequences_a_shell_prints_first_never_reach_the_emitted_lines() {
+    fn a_profile_noise_never_reaches_the_emitted_lines() {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = TempDir::new().unwrap();
@@ -368,13 +369,14 @@ mod tests {
         .unwrap();
         fs::set_permissions(&shell, fs::Permissions::from_mode(0o755)).unwrap();
 
+        let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
         let lines = Mutex::new(Vec::new());
         let runs = ScanRuns::default();
         let result = run_with(
             &runs,
             "w-1",
             dir.path(),
-            &shell.display().to_string(),
+            &runner,
             &command.display().to_string(),
             false,
             &[],
@@ -487,18 +489,20 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let command = fake_command(dir.path(), "echo started; sleep 30");
         let runs = Arc::new(ScanRuns::default());
+        let runner = Arc::new(working_runner(dir.path()));
         let (sender, receiver) = mpsc::channel();
         let folder = dir.path().to_path_buf();
         let path = command.clone();
         let worker = {
             let runs = Arc::clone(&runs);
+            let runner = Arc::clone(&runner);
 
             std::thread::spawn(move || {
                 run_with(
                     &runs,
                     "w-1",
                     &folder,
-                    "/bin/sh",
+                    &runner,
                     &path.display().to_string(),
                     false,
                     &[],

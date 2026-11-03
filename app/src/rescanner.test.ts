@@ -427,6 +427,47 @@ describe("createRescanner", () => {
     expect(log).toEqual(["resense", "carry", "replace:carried"]);
   });
 
+  it("replaces once and skips a refresh whose sensed data equals the last replaced", async () => {
+    const { log, rescanner } = harness();
+
+    for (let turn = 0; turn < 5; turn++) {
+      await rescanner.refresh();
+    }
+
+    expect(log.filter((entry) => entry.startsWith("replace"))).toHaveLength(1);
+    expect(log.filter((entry) => entry === "carry")).toHaveLength(1);
+  });
+
+  it("replaces again when a refresh senses changed data", async () => {
+    let turn = 0;
+    const { log, rescanner } = harness(fakeScan(), {
+      resense: async () => ({ ...OK, policy: `p${turn++}` }),
+    });
+
+    await rescanner.refresh();
+    await rescanner.refresh();
+
+    expect(log.filter((entry) => entry.startsWith("replace"))).toHaveLength(2);
+  });
+
+  it("compares a refresh with the data a scan run replaced", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: false },
+      steps: [current, summary],
+    });
+    const { log, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    const before = log.filter((entry) => entry.startsWith("replace")).length;
+
+    await rescanner.refresh();
+
+    expect(log.filter((entry) => entry.startsWith("replace"))).toHaveLength(
+      before,
+    );
+  });
+
   it("refreshes nothing when there is nothing loaded", async () => {
     const { log, rescanner } = harness(fakeScan(), {
       resense: async () => null,

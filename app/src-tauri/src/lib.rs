@@ -19,6 +19,7 @@ pub mod sensors;
 pub mod settings;
 pub mod socket;
 pub mod source_line;
+pub mod tool_runner;
 pub mod views;
 pub mod windows;
 
@@ -723,18 +724,14 @@ fn read_source_line(
 
 #[tauri::command]
 async fn recognizer_version() -> Result<repository::ToolsReport, String> {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-
-    tauri::async_runtime::spawn_blocking(move || repository::recognizer_version(&shell))
+    tauri::async_runtime::spawn_blocking(repository::recognizer_version)
         .await
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-
-    tauri::async_runtime::spawn_blocking(move || repository::shipped_sensors(&shell))
+    tauri::async_runtime::spawn_blocking(repository::shipped_sensors)
         .await
         .map_err(|error| error.to_string())
 }
@@ -745,9 +742,8 @@ async fn shipped_describer(
     window: WebviewWindow,
 ) -> Result<repository::ShippedDescriber, String> {
     let folder = window_folder_path(&app, &window)?;
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    tauri::async_runtime::spawn_blocking(move || repository::shipped_describer(&shell, &folder))
+    tauri::async_runtime::spawn_blocking(move || repository::shipped_describer(&folder))
         .await
         .map_err(|error| error.to_string())
 }
@@ -767,8 +763,6 @@ async fn run_scan(
         return Ok(ScanRun::Refused { reason });
     }
 
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-
     tauri::async_runtime::spawn_blocking(move || {
         let runs = app.state::<ScanRuns>();
 
@@ -776,7 +770,7 @@ async fn run_scan(
             &runs,
             &label,
             &folder,
-            &shell,
+            tool_runner::runner(),
             repository::RECOGNIZER_COMMAND,
             describe,
             &measure,
@@ -983,13 +977,10 @@ async fn describe_module(
     module: String,
 ) -> Result<responsibilities::DescribeResult, String> {
     let folder = window_folder_path(&app, &window)?;
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    tauri::async_runtime::spawn_blocking(move || {
-        responsibilities::describe(&folder, &module, &shell)
-    })
-    .await
-    .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || responsibilities::describe(&folder, &module))
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1247,9 +1238,8 @@ async fn scans_at(
     commit: String,
 ) -> Result<Option<Vec<repository::ScanFile>>, String> {
     let folder = window_folder_path(&app, &window)?;
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    tauri::async_runtime::spawn_blocking(move || views::scans_at(&folder, &commit, &shell))
+    tauri::async_runtime::spawn_blocking(move || views::scans_at(&folder, &commit))
         .await
         .map_err(|error| error.to_string())
 }
@@ -1327,6 +1317,7 @@ pub fn run() {
 
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
+            std::thread::spawn(views::sweep_stale_temp_dirs);
             app.manage(ScanRuns::default());
             app.manage(Snapshots::default());
             app.manage(Drives::default());
