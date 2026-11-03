@@ -1,12 +1,16 @@
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::UNIX_EPOCH;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use serde::Serialize;
 
 use crate::fs_safe::{checked_relative, write_atomic};
 use crate::repository::{self, ScanFile, ScanReport};
+use crate::tool_runner::{runner, Flights, ToolRunner};
 
 const VIEWS: &str = ".recognizer/views";
 
@@ -358,41 +362,161 @@ fn extract_commit(folder: &Path, commit: &str, target: &Path) -> bool {
     unpacked && archived
 }
 
-pub fn scans_at(folder: &Path, commit: &str, shell: &str) -> Option<Vec<ScanFile>> {
-    scans_with(folder, commit, shell, repository::RECOGNIZER_COMMAND)
+const TEMP_PREFIX: &str = "recognizer-at-";
+const MEMO_LIMIT: usize = 16;
+const MEMO_FOUND: Duration = Duration::from_secs(600);
+const MEMO_EMPTY: Duration = Duration::from_secs(60);
+const STALE_TEMP: Duration = Duration::from_secs(3600);
+
+struct TempScan(PathBuf);
+
+impl TempScan {
+    fn create(root: &Path) -> Option<TempScan> {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let target = root.join(format!(
+            "{TEMP_PREFIX}{}-{nanos}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+
+        fs::create_dir_all(&target).ok()?;
+
+        Some(TempScan(target))
+    }
 }
 
-pub fn scans_with(
+impl Drop for TempScan {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+pub fn sweep_stale(root: &Path, max_age: Duration) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let stale = entry.file_name().to_string_lossy().starts_with(TEMP_PREFIX)
+            && entry
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| modified.elapsed().ok())
+                .is_some_and(|age| age > max_age);
+
+        if stale {
+            let _ = fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+pub fn sweep_stale_temp_dirs() {
+    sweep_stale(&std::env::temp_dir(), STALE_TEMP);
+}
+
+pub fn scans_in(
+    root: &Path,
     folder: &Path,
     commit: &str,
-    shell: &str,
+    runner: &ToolRunner,
     command: &str,
 ) -> Option<Vec<ScanFile>> {
     if !valid_commit(commit) {
         return None;
     }
 
-    let nanos = std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_nanos())
-        .unwrap_or(0);
-    let target: PathBuf =
-        std::env::temp_dir().join(format!("recognizer-at-{}-{nanos}", std::process::id()));
+    let temp = TempScan::create(root)?;
 
-    fs::create_dir_all(&target).ok()?;
+    if !extract_commit(folder, commit, &temp.0) {
+        return None;
+    }
 
-    let scans = if extract_commit(folder, commit, &target) {
-        match repository::scan_with(&target, shell, command) {
-            ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
-            _ => None,
+    match repository::scan_with(runner, &temp.0, command) {
+        ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
+        _ => None,
+    }
+}
+
+type Comparison = Option<Vec<ScanFile>>;
+
+#[derive(Default)]
+pub struct Comparisons {
+    flights: Flights<Comparison>,
+    memo: Mutex<VecDeque<(String, Instant, Comparison)>>,
+}
+
+impl Comparisons {
+    fn remembered(&self, key: &str) -> Option<Comparison> {
+        let mut memo = self.memo.lock().unwrap_or_else(|error| error.into_inner());
+
+        memo.retain(|(_, at, found)| {
+            at.elapsed()
+                < if found.is_some() {
+                    MEMO_FOUND
+                } else {
+                    MEMO_EMPTY
+                }
+        });
+
+        memo.iter()
+            .find(|(remembered, _, _)| remembered == key)
+            .map(|(_, _, found)| found.clone())
+    }
+
+    fn remember(&self, key: String, found: &Comparison) {
+        let mut memo = self.memo.lock().unwrap_or_else(|error| error.into_inner());
+
+        memo.push_back((key, Instant::now(), found.clone()));
+
+        while memo.len() > MEMO_LIMIT {
+            memo.pop_front();
         }
-    } else {
-        None
-    };
+    }
 
-    let _ = fs::remove_dir_all(&target);
+    pub fn scans(
+        &self,
+        root: &Path,
+        folder: &Path,
+        commit: &str,
+        runner: &ToolRunner,
+        command: &str,
+    ) -> Comparison {
+        let key = format!("{}\0{commit}", folder.display());
 
-    scans
+        if let Some(found) = self.remembered(&key) {
+            return found;
+        }
+
+        self.flights.run(&key, || {
+            if let Some(found) = self.remembered(&key) {
+                return found;
+            }
+
+            let found = scans_in(root, folder, commit, runner, command);
+
+            self.remember(key.clone(), &found);
+
+            found
+        })
+    }
+}
+
+pub fn scans_at(folder: &Path, commit: &str) -> Option<Vec<ScanFile>> {
+    static COMPARISONS: OnceLock<Comparisons> = OnceLock::new();
+
+    COMPARISONS.get_or_init(Comparisons::default).scans(
+        &std::env::temp_dir(),
+        folder,
+        commit,
+        runner(),
+        repository::RECOGNIZER_COMMAND,
+    )
 }
 
 pub fn snapshot(folder: &Path) -> Snapshot {
@@ -428,6 +552,9 @@ pub fn snapshot_changed(previous: &Snapshot, next: &Snapshot) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tool_runner::tests::{
+        runner_with, script, shell_running_the_script, working_runner,
+    };
     use tempfile::TempDir;
 
     fn repo() -> TempDir {
@@ -706,9 +833,11 @@ mod tests {
 
         let second = head(root);
         let command = stub_scanner(dir.path()).display().to_string();
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
         let modules = |commit: &str| -> Option<usize> {
-            scans_with(root, commit, &shell, &command).map(|scans| {
+            scans_in(temp.path(), root, commit, &runner, &command).map(|scans| {
                 scans
                     .iter()
                     .map(|scan| scan.text.matches("\"id\"").count())
@@ -718,8 +847,182 @@ mod tests {
 
         assert_eq!(modules(&first), Some(2));
         assert_eq!(modules(&second), Some(3));
-        assert!(scans_with(root, "--output=x", &shell, &command).is_none());
-        assert!(scans_with(root, "deadbeefdeadbeef", &shell, &command).is_none());
+        assert!(scans_in(temp.path(), root, "--output=x", &runner, &command).is_none());
+        assert!(scans_in(temp.path(), root, "deadbeefdeadbeef", &runner, &command).is_none());
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    fn history(dir: &Path, commits: usize) -> (PathBuf, Vec<String>) {
+        let root = dir.join("history");
+
+        fs::create_dir_all(root.join("pkg")).unwrap();
+        assert!(git(&root, &["init", "-q"]));
+
+        let mut found = Vec::new();
+
+        for n in 0..commits {
+            fs::write(root.join(format!("pkg/m{n}.py")), "X = 1\n").unwrap();
+            assert!(git(&root, &["add", "."]));
+            assert!(git(&root, &["commit", "-q", "-m", &format!("c{n}")]));
+            found.push(head(&root));
+        }
+
+        (root, found)
+    }
+
+    fn logging_scanner(dir: &Path, log: &Path, exit: i32) -> String {
+        script(
+            dir,
+            "logging-recognizer",
+            &format!(
+                "echo start >> '{log}'\nsleep 0.2\nmkdir -p \"$2/.recognizer/cache\"\nprintf '{{\"id\":1}}' > \"$2/.recognizer/cache/scan.stub.json\"\necho end >> '{log}'\nexit {exit}",
+                log = log.display()
+            ),
+        )
+        .display()
+        .to_string()
+    }
+
+    fn peak_overlap(log: &Path) -> (usize, usize) {
+        let text = fs::read_to_string(log).unwrap();
+        let (mut active, mut peak, mut starts) = (0usize, 0usize, 0usize);
+
+        for line in text.lines() {
+            if line == "start" {
+                active += 1;
+                starts += 1;
+                peak = peak.max(active);
+            } else {
+                active -= 1;
+            }
+        }
+
+        (peak, starts)
+    }
+
+    #[test]
+    fn many_scans_at_once_never_run_more_than_the_bound() {
+        let dir = TempDir::new().unwrap();
+        let (root, commits) = history(dir.path(), 24);
+        let log = dir.path().join("log");
+        let command = logging_scanner(dir.path(), &log, 0);
+        let tools = TempDir::new().unwrap();
+        let shell = shell_running_the_script(tools.path(), &tools.path().join("count"));
+        let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 3);
+        let temp = TempDir::new().unwrap();
+
+        let found: Vec<_> = std::thread::scope(|scope| {
+            let handles: Vec<_> = commits
+                .iter()
+                .map(|commit| {
+                    let (root, runner, command, temp) = (&root, &runner, &command, temp.path());
+
+                    scope.spawn(move || scans_in(temp, root, commit, runner, command))
+                })
+                .collect();
+
+            handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap())
+                .collect()
+        });
+
+        let (peak, starts) = peak_overlap(&log);
+
+        assert!(found.iter().all(Option::is_some));
+        assert_eq!(starts, 24);
+        assert!(peak <= 3, "peak {peak}");
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn identical_comparisons_run_once_and_a_repeat_inside_the_window_runs_none() {
+        let dir = TempDir::new().unwrap();
+        let (root, commits) = history(dir.path(), 1);
+        let log = dir.path().join("log");
+        let command = logging_scanner(dir.path(), &log, 0);
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let comparisons = Comparisons::default();
+
+        let found: Vec<_> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..10)
+                .map(|_| {
+                    scope.spawn(|| {
+                        comparisons.scans(temp.path(), &root, &commits[0], &runner, &command)
+                    })
+                })
+                .collect();
+
+            handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap())
+                .collect()
+        });
+
+        assert!(found[0].is_some());
+        assert!(found.iter().all(|one| one == &found[0]));
+        assert_eq!(peak_overlap(&log).1, 1);
+
+        assert_eq!(
+            comparisons.scans(temp.path(), &root, &commits[0], &runner, &command),
+            found[0]
+        );
+        assert_eq!(peak_overlap(&log).1, 1);
+    }
+
+    #[test]
+    fn the_temp_directory_is_removed_when_the_scan_fails() {
+        let dir = TempDir::new().unwrap();
+        let (root, commits) = history(dir.path(), 1);
+        let log = dir.path().join("log");
+        let command = logging_scanner(dir.path(), &log, 2);
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+
+        assert!(scans_in(temp.path(), &root, &commits[0], &runner, &command).is_none());
+        assert_eq!(peak_overlap(&log).1, 1);
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn the_temp_directory_is_removed_when_the_scan_panics() {
+        let temp = TempDir::new().unwrap();
+
+        let panicked = std::panic::catch_unwind(|| {
+            let held = TempScan::create(temp.path()).unwrap();
+
+            assert!(held.0.exists());
+            panic!("scan blew up");
+        });
+
+        assert!(panicked.is_err());
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn the_startup_sweep_removes_only_old_recognizer_at_directories() {
+        let temp = TempDir::new().unwrap();
+        let old = std::time::SystemTime::now() - Duration::from_secs(7200);
+
+        for name in ["recognizer-at-1-1", "recognizer-at-2-2", "other-dir"] {
+            fs::create_dir(temp.path().join(name)).unwrap();
+        }
+
+        for name in ["recognizer-at-1-1", "other-dir"] {
+            fs::File::open(temp.path().join(name))
+                .unwrap()
+                .set_modified(old)
+                .unwrap();
+        }
+
+        sweep_stale(temp.path(), Duration::from_secs(3600));
+
+        assert!(!temp.path().join("recognizer-at-1-1").exists());
+        assert!(temp.path().join("recognizer-at-2-2").exists());
+        assert!(temp.path().join("other-dir").exists());
     }
 
     fn run_git(dir: &Path, args: &[&str]) {

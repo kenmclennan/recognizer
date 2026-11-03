@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::time::UNIX_EPOCH;
 
 use serde::{Deserialize, Serialize};
@@ -9,6 +8,7 @@ use sha2::{Digest, Sha256};
 
 use crate::fs_safe::checked_relative;
 use crate::repository;
+use crate::tool_runner::{runner, Captured, ToolRunner};
 
 const RESPONSIBILITIES: &str = ".recognizer/responsibilities.json";
 const CONFIG: &str = ".recognizer/config.yaml";
@@ -233,28 +233,29 @@ pub fn describe_result(
     }
 }
 
-pub fn describe(folder: &Path, module: &str, shell: &str) -> DescribeResult {
+pub fn describe(folder: &Path, module: &str) -> DescribeResult {
+    describe_with(runner(), folder, module, repository::RECOGNIZER_COMMAND)
+}
+
+pub fn describe_with(
+    runner: &ToolRunner,
+    folder: &Path,
+    module: &str,
+    command: &str,
+) -> DescribeResult {
     if let Err(reason) = refuse_module(module) {
         return DescribeResult::Refused { reason };
     }
 
-    let (program, args) =
-        repository::describe_invocation(shell, repository::RECOGNIZER_COMMAND, folder, module);
-    let output = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .output();
-
-    match output {
-        Err(_) => DescribeResult::CommandMissing {
+    match runner.capture(command, &repository::describe_args(folder, module), true) {
+        None => DescribeResult::CommandMissing {
             reason: repository::missing_hint(),
         },
-        Ok(output) => describe_result(
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-            module,
-        ),
+        Some(Captured {
+            code,
+            stdout,
+            stderr,
+        }) => describe_result(code, &stdout, &stderr, module),
     }
 }
 
@@ -541,9 +542,35 @@ mod tests {
 
     #[test]
     fn a_refused_id_runs_nothing() {
-        let result = describe(Path::new("/tmp"), "--all", "/nonexistent-shell");
+        let dir = tempfile::TempDir::new().unwrap();
+        let runner = crate::tool_runner::tests::working_runner(dir.path());
+        let result = describe_with(
+            &runner,
+            Path::new("/tmp"),
+            "--all",
+            "/nonexistent/recognizer",
+        );
 
         assert!(matches!(result, DescribeResult::Refused { .. }));
+    }
+
+    #[test]
+    fn describe_without_recognizer_reports_it_missing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let runner = crate::tool_runner::tests::working_runner(dir.path());
+        let result = describe_with(
+            &runner,
+            Path::new("/tmp"),
+            "a.py",
+            "/nonexistent/recognizer",
+        );
+
+        assert_eq!(
+            result,
+            DescribeResult::CommandMissing {
+                reason: repository::missing_hint()
+            }
+        );
     }
 
     #[test]

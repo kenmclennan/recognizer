@@ -73,6 +73,8 @@ pub fn write_structure(folder: &Path, document: Option<&str>) -> Result<(), Stri
 
             if fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
                 fs::remove_file(&target).map_err(|error| error.to_string())?;
+            } else if fs::read_to_string(&target).is_ok_and(|existing| existing == text) {
+                return Ok(());
             }
 
             write_atomic(&target, text).map_err(|error| error.to_string())
@@ -259,6 +261,33 @@ mod tests {
 
         assert!(!findings_path(&dir, "structure").exists());
         write_structure(dir.path(), None).unwrap();
+    }
+
+    #[test]
+    fn writing_the_same_structure_again_is_not_a_change() {
+        let dir = TempDir::new().unwrap();
+
+        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
+
+        let target = dir.path().join(findings_relative("structure"));
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+
+        fs::File::options()
+            .write(true)
+            .open(&target)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+
+        let before = snapshot(dir.path());
+
+        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
+
+        assert!(!snapshot_changed(&before, &snapshot(dir.path())));
+
+        write_structure(dir.path(), Some("{\"a\":2}")).unwrap();
+
+        assert!(snapshot_changed(&before, &snapshot(dir.path())));
     }
 
     #[test]

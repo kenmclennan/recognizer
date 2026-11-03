@@ -1,4 +1,5 @@
 import type { ScanOrigin } from "./footer-scan";
+import { loadedUnchanged } from "./loaded-unchanged";
 import type { MessageInput } from "./message-tray";
 import type { Loaded } from "./scan-loading";
 import {
@@ -86,6 +87,7 @@ export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
   let busy = false;
+  let replaced: Loaded | null = null;
   let ticks: ScanTicks = DEFAULT_TICKS;
   let remembered = false;
   let ticksLoaded = false;
@@ -135,6 +137,7 @@ export function createRescanner<Carried>(
       const origin = await ports.adopt();
 
       ports.adopted(origin);
+      replaced = loaded;
       ports.replace(loaded, carried);
 
       return true;
@@ -150,9 +153,12 @@ export function createRescanner<Carried>(
   async function reload() {
     const loaded = await ports.resense();
 
-    if (loaded !== null) {
-      ports.replace(loaded, ports.carry());
+    if (loaded === null || loadedUnchanged(replaced, loaded)) {
+      return;
     }
+
+    replaced = loaded;
+    ports.replace(loaded, ports.carry());
   }
 
   function postFailure(name: string, reason: string) {
