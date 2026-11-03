@@ -2207,13 +2207,6 @@ svg.i.chevron {
   position: relative;
 }
 
-.note-row .note-number {
-  flex: 0 0 auto;
-  min-width: 16px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
 .note-row.draggable {
   cursor: grab;
   touch-action: none;
