@@ -15,6 +15,10 @@ WORK = Path(".recognizer") / "cache" / "mutation" / "work"
 TAIL_LINES = 20
 PID_FILE = "pid"
 PID_GRACE_SECONDS = 60
+STOPPED_STATUS = 143
+
+LIVE_LOCK = threading.Lock()
+LIVE: set[subprocess.Popen] = set()
 
 
 @dataclass(frozen=True)
@@ -70,14 +74,16 @@ def run_test_command(command: list[str], cwd: Path, timeout: float | None) -> Te
     started = time.monotonic()
 
     try:
-        process = subprocess.Popen(
-            command,
-            cwd=cwd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+        with LIVE_LOCK:
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            LIVE.add(process)
     except OSError as error:
         return TestRun(None, False, time.monotonic() - started, str(error))
 
@@ -88,6 +94,9 @@ def run_test_command(command: list[str], cwd: Path, timeout: float | None) -> Te
         kill_group(process)
         output, _ = process.communicate()
         timed_out = True
+    finally:
+        with LIVE_LOCK:
+            LIVE.discard(process)
 
     return TestRun(
         process.returncode,
@@ -210,3 +219,29 @@ def remove_work_folder(folder: Path) -> None:
         folder.parent.rmdir()
     except OSError:
         return
+
+
+def stop_all(work: Path) -> None:
+    with LIVE_LOCK:
+        for process in list(LIVE):
+            if process.returncode is None:
+                kill_group(process)
+
+        remove_work_folder(work)
+
+
+def install_stop_handler(work: Path) -> Callable[[], None]:
+    requested = threading.Event()
+
+    def stop() -> None:
+        requested.wait()
+        stop_all(work)
+        os._exit(STOPPED_STATUS)
+
+    threading.Thread(target=stop, daemon=True).start()
+    previous = signal.signal(signal.SIGTERM, lambda _signum, _frame: requested.set())
+
+    def restore() -> None:
+        signal.signal(signal.SIGTERM, previous)
+
+    return restore
