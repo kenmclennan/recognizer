@@ -1592,12 +1592,10 @@ export function showExplorer(
       scanConfig = null;
     }
 
-    if (leftPanel === "scan" || shippedSensors !== null) {
-      try {
-        shippedSensors = await scanHost.port.shipped();
-      } catch (error) {
-        shippedSensors = { status: "unavailable", reason: String(error) };
-      }
+    try {
+      shippedSensors = await scanHost.port.shipped();
+    } catch (error) {
+      shippedSensors = { status: "unavailable", reason: String(error) };
     }
 
     render();

@@ -137,6 +137,15 @@ describe("scanPanel rows", () => {
     ]);
   });
 
+  it("is pending with no rows, reports or Scan button content while the shipped list is unread", () => {
+    const model = scanPanel(input({ shipped: null }));
+
+    expect(model.pending).toBe(true);
+    expect(model.rows).toEqual([]);
+    expect(model.reports).toEqual([]);
+    expect(scanPanel(input()).pending).toBe(false);
+  });
+
   it("does not list a shipped sensor a repository also registers as third-party", () => {
     expect(
       rowSensors(CONFIG, LIST).filter((one) => one.name === "duplication"),

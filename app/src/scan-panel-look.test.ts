@@ -234,6 +234,18 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   facts.down = down.rows().map((r) => ({ name: r.name, disabled: r.disabled }));
 
+  const pendingGate = gate();
+  const slowSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  const instantShipped = slowSensors.shipped.bind(slowSensors);
+  slowSensors.shipped = async () => { await pendingGate.promise; return instantShipped(); };
+  const slow = await mount(fakeScan(), slowSensors);
+  click(slow.q(".rail-scan"));
+  await tick();
+  facts.pending = { header: slow.q(".scan-sub").textContent, rows: slow.rows().length, buttons: slow.all(".scan-buttons button").length, list: slow.q(".scan-list").children.length };
+  pendingGate.release();
+  await tick();
+  facts.loaded = { rows: slow.rows().map((r) => r.name), buttons: slow.all(".scan-buttons button").length };
+
   const REPORT = json({ findings_version: 1, sensor: { name: "review", version: "reported" }, commit: "feed123abc", modified: false, settings: {}, reported_at: new Date(Date.now() - 3 * 60000).toISOString(), findings: [] });
   const reportSensors = fakeSensors({ review: REPORT }, { config: CONFIG }, {}, SHIPPED);
   const rp = await mount(fakeScan(), reportSensors);
@@ -453,6 +465,24 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
       { name: "alpha", disabled: false },
       { name: "beta", disabled: false },
     ]);
+  });
+
+  it("renders only the header while the shipped list is being read, then every row at once", () => {
+    expect(f.pending).toEqual({
+      header: "Scanned just now",
+      rows: 0,
+      buttons: 0,
+      list: 0,
+    });
+    expect(f.loaded.rows).toEqual([
+      "Descriptions",
+      "C.R.A.P.",
+      "Duplication",
+      "Mutation",
+      "alpha",
+      "beta",
+    ]);
+    expect(f.loaded.buttons).toBe(1);
   });
 
   it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
