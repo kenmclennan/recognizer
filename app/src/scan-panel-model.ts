@@ -97,6 +97,16 @@ function readConfig(config: string | null): Config | null {
   }
 }
 
+const EXPANSIONS: Record<string, string> = {
+  crap: "C.R.A.P.: Change Risk Anti-Patterns.",
+};
+
+function titleFor(one: { name: string; line: string }): string {
+  const expansion = EXPANSIONS[one.name];
+
+  return expansion === undefined ? one.line : `${expansion} ${one.line}`;
+}
+
 export function rowSensors(
   config: string | null,
   shipped: ShippedSensors | null,
@@ -112,7 +122,7 @@ export function rowSensors(
       rows.push({
         name: one.name,
         display: one.display,
-        title: one.line,
+        title: titleFor(one),
         runsTests: one.runsTests,
       });
     }

@@ -1504,7 +1504,7 @@ describe("the metric table on a card", () => {
     );
 
     expect(card?.table?.head).toEqual([
-      { text: "CRAP", title: "C.R.A.P. score" },
+      { text: "CRAP", title: "C.R.A.P. (Change Risk Anti-Patterns) score" },
     ]);
     expect(card?.table?.rows).toHaveLength(1);
     expect(card?.table?.rows[0]?.name).toBeNull();

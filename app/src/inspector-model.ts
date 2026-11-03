@@ -139,7 +139,7 @@ type Naming = { short: string; full: string };
 const METRIC_NAMES: Record<string, Naming> = {
   complexity: { short: "cc", full: "Cyclomatic complexity" },
   coverage: { short: "cov", full: "Coverage" },
-  crap: { short: "CRAP", full: "C.R.A.P. score" },
+  crap: { short: "CRAP", full: "C.R.A.P. (Change Risk Anti-Patterns) score" },
   mutation_score: { short: "mut", full: "Mutation score" },
   mutation_survived: { short: "surv", full: "Survived mutants" },
 };

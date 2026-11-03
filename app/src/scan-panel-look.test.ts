@@ -327,7 +327,9 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.fresh.rows[0].title).toBe(
       "Writes one line per module saying what it is responsible for.",
     );
-    expect(f.fresh.rows[1].title).toBe("Runs the tests with coverage.");
+    expect(f.fresh.rows[1].title).toBe(
+      "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
+    );
     expect(f.fresh.rows[2].title).toBe("Finds repeated structure.");
   });
 

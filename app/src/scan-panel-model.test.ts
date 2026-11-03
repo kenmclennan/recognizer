@@ -121,7 +121,7 @@ describe("scanPanel rows", () => {
       "Writes one line per module saying what it is responsible for.",
     );
     expect(rows.find((row) => row.key === "crap")?.title).toBe(
-      "C.R.A.P. does its thing.",
+      "C.R.A.P.: Change Risk Anti-Patterns. C.R.A.P. does its thing.",
     );
   });
 
