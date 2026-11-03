@@ -54,11 +54,17 @@ const SKIP_RULES: Record<Language, SkipRules> = {
     fileGlobs: ["*.d.ts", "*.test.*", "*.spec.*"],
   },
   kotlin: {
-    directoryNames: ["build"],
+    directoryNames: [
+      "build",
+      "test",
+      "androidTest",
+      "integrationTest",
+      "testFixtures",
+    ],
     directoryPrefixes: ["."],
-    directorySuffixes: [],
+    directorySuffixes: ["Test"],
     directoryMarkers: [],
-    fileGlobs: [],
+    fileGlobs: ["*Test.kt", "*Tests.kt"],
   },
   rust: {
     directoryNames: ["target", "node_modules"],

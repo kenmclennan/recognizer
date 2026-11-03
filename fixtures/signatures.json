@@ -460,18 +460,6 @@
           "place(order: Order) → Int"
         ]
       }
-    ],
-    "app/src/test/kotlin/shop/web": [
-      {
-        "name": "OrderControllerTest",
-        "signature": "class OrderControllerTest",
-        "fields": [
-          "controller: OrderController?"
-        ],
-        "methods": [
-          "lists()"
-        ]
-      }
     ]
   },
   "fixtures/check/scan.json": {

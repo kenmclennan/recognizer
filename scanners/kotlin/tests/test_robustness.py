@@ -92,7 +92,7 @@ def test_a_damaged_body_makes_no_calls(run):
 def test_the_damaged_count_is_reported_for_the_fixture():
     result = scan_with_stats(FIXTURE_ROOT, None)
 
-    assert (result.damaged, result.total) == (2, 11)
+    assert (result.damaged, result.total) == (2, 10)
 
 
 def test_the_cli_prints_one_stderr_line_when_files_are_damaged(tmp_path, capsys):

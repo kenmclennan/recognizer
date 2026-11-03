@@ -54,13 +54,15 @@
       "src/main/kotlin/Keep.kt",
       "src/main/kotlin/keep.kts",
       "src/test/kotlin/KeepTest.kt",
-      "src/main/kotlin/build/Gen.kt"
+      "src/main/kotlin/build/Gen.kt",
+      "src/main/kotlin/FooTest.kt",
+      "src/main/kotlin/FooTests.kt",
+      "src/androidTest/kotlin/Ui.kt",
+      "src/integrationTest/kotlin/It.kt",
+      "src/testFixtures/kotlin/Fx.kt",
+      "src/main/kotlin/FooTest/Bar.kt"
     ],
-    "accepted": [
-      "a.kt",
-      "src/main/kotlin/Keep.kt",
-      "src/test/kotlin/KeepTest.kt"
-    ]
+    "accepted": ["a.kt", "src/main/kotlin/Keep.kt"]
   },
   "rust": {
     "tree": [
