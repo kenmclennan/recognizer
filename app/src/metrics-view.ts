@@ -1,4 +1,5 @@
 import { el } from "./dom";
+import { fullMetricName } from "./inspector-model";
 import { rangeLabel } from "./metric-bars";
 import type {
   MetricDescriptor,
@@ -47,7 +48,14 @@ function row(
     node.classList.add("disabled");
   }
 
-  head.append(el("span", "metric-label", metric.label));
+  const label = el("span", "metric-label", metric.label);
+  const full = fullMetricName(metric);
+
+  if (full !== metric.label) {
+    label.title = full;
+  }
+
+  head.append(label);
 
   if (metric.stale) {
     head.append(el("span", "metric-chip", "stale"));

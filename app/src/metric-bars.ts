@@ -87,12 +87,16 @@ export function rangeLabel(metric: Shape): string {
   return `${range}, ${metric.bad === "high" ? "high is bad" : "low is bad"}`;
 }
 
-export function barTitle(metric: Shape, found: ModuleValue | null): string {
+export function barTitle(
+  metric: Shape,
+  found: ModuleValue | null,
+  name: string = metric.label,
+): string {
   if (found === null) {
-    return `${metric.label}: not measured`;
+    return `${name}: not measured`;
   }
 
-  const text = `${metric.label} ${valueLabel(metric, found.value)}`;
+  const text = `${name} ${valueLabel(metric, found.value)}`;
 
   return found.member === null ? text : `${text}, worst: ${found.member}`;
 }

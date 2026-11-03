@@ -134,26 +134,36 @@ const PLAIN_LABELS: Record<string, CardLabel> = {
   type: "Type",
   enum: "Enum",
 };
-const SHORT_METRIC: Record<string, string> = {
-  complexity: "cc",
-  coverage: "cov",
-  crap: "CRAP",
-  mutation_score: "mut",
-  mutation_survived: "surv",
+type Naming = { short: string; full: string };
+
+const METRIC_NAMES: Record<string, Naming> = {
+  complexity: { short: "cc", full: "Cyclomatic complexity" },
+  coverage: { short: "cov", full: "Coverage" },
+  crap: { short: "CRAP", full: "C.R.A.P. score" },
+  mutation_score: { short: "mut", full: "Mutation score" },
+  mutation_survived: { short: "surv", full: "Survived mutants" },
 };
-const SHORT_MUTATION: Record<string, string> = {
-  score: "mut",
-  survived: "surv",
+const MUTATION_NAMES: Record<string, Naming> = {
+  score: METRIC_NAMES.mutation_score as Naming,
+  survived: METRIC_NAMES.mutation_survived as Naming,
 };
 const MUTATION_OVERLAYS = new Set(["mutate", "mutation"]);
 const PARENT_SEGMENTS = 2;
 
-function shortMetric(metric: MetricDescriptor): string {
+function naming(metric: MetricDescriptor): Naming | undefined {
   const mutation = MUTATION_OVERLAYS.has(metric.overlay)
-    ? SHORT_MUTATION[metric.label]
+    ? MUTATION_NAMES[metric.label]
     : undefined;
 
-  return mutation ?? SHORT_METRIC[metric.label] ?? metric.label;
+  return mutation ?? METRIC_NAMES[metric.label];
+}
+
+export function fullMetricName(metric: MetricDescriptor): string {
+  return naming(metric)?.full ?? metric.label;
+}
+
+function shortMetric(metric: MetricDescriptor): string {
+  return naming(metric)?.short ?? metric.label;
 }
 
 function cellOf(metric: MetricDescriptor, memberId: string): MetricCell {
@@ -163,14 +173,14 @@ function cellOf(metric: MetricDescriptor, memberId: string): MetricCell {
     return {
       text: "-",
       tone: null,
-      title: barTitle(metric, null),
+      title: barTitle(metric, null, fullMetricName(metric)),
     };
   }
 
   return {
     text: valueLabel(metric, value),
     tone: tone(metric, value),
-    title: barTitle(metric, { value, member: null }),
+    title: barTitle(metric, { value, member: null }, fullMetricName(metric)),
   };
 }
 
@@ -188,7 +198,7 @@ function metricTable(
   return {
     head: columns.map((metric) => ({
       text: shortMetric(metric),
-      title: metric.label,
+      title: fullMetricName(metric),
     })),
     rows: members.map((member) => ({
       name: member.name,

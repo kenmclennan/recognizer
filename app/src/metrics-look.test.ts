@@ -169,15 +169,15 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
     expect(complexity.fill).toBe("metric-fill red");
     expect(complexity.fillWidth).toBe(complexity.trackWidth);
     expect(complexity.value).toBe("8");
-    expect(complexity.title).toBe("complexity 8, worst: classify");
+    expect(complexity.title).toBe("Cyclomatic complexity 8, worst: classify");
     expect(complexity.anchor).toBe("end");
     expect(coverage.fill).toBe("metric-fill red");
     expect(coverage.fillWidth).toBeCloseTo(coverage.trackWidth * 0.1818, 5);
     expect(coverage.value).toBe("18%");
-    expect(coverage.title).toBe("coverage 18%, worst: classify");
+    expect(coverage.title).toBe("Coverage 18%, worst: classify");
     expect(f.other[0].fill).toBe("metric-fill green");
     expect(f.other[0].value).toBe("1");
-    expect(f.other[0].title).toBe("complexity 1, worst: pick");
+    expect(f.other[0].title).toBe("Cyclomatic complexity 1, worst: pick");
   });
 
   it("draws an unmeasured module as a dashed empty track and a dash", () => {

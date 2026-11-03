@@ -16,7 +16,7 @@ import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import { icon } from "./icons";
-import type { InspectorTab } from "./inspector-model";
+import { fullMetricName, type InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
 import {
   BAR_ROW,
@@ -759,7 +759,10 @@ export function buildCanvasView(
         found === null ? "-" : valueLabel(metric, found.value),
       );
 
-      group.append(svg("title", {}, barTitle(metric, found)), body);
+      group.append(
+        svg("title", {}, barTitle(metric, found, fullMetricName(metric))),
+        body,
+      );
 
       if (found !== null) {
         group.append(
