@@ -12,7 +12,7 @@ fn the_selection_is_the_binding_list() {
         selection(),
         json!({
             "extensions": [".rs"],
-            "skip_directory_names": ["target", "node_modules"],
+            "skip_directory_names": ["target", "node_modules", "tests"],
             "skip_directory_prefixes": ["."],
             "skip_directory_suffixes": [],
             "skip_directories_containing": [],
@@ -48,15 +48,16 @@ fn the_parity_tree_gives_exactly_the_accepted_list() {
 }
 
 #[test]
-fn test_code_and_build_scripts_are_scanned() {
+fn examples_benches_and_build_scripts_are_scanned_and_tests_are_not() {
     let document = run(&[
         ("tests/it.rs", ""),
+        ("src/tests/inner.rs", ""),
         ("benches/b.rs", ""),
         ("examples/e.rs", ""),
         ("build.rs", ""),
     ]);
 
-    assert_eq!(document["files"].as_array().unwrap().len(), 4);
+    assert_eq!(document["files"].as_array().unwrap().len(), 3);
 }
 
 #[test]

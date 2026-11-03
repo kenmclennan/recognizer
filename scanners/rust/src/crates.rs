@@ -250,7 +250,7 @@ fn target_roots(manifest: &Manifest, source_files: &HashSet<String>) -> Vec<Stri
     };
 
     for path in source_files {
-        for folder in ["src/bin", "tests", "examples", "benches"] {
+        for folder in ["src/bin", "examples", "benches"] {
             let Some(rest) = path.strip_prefix(&prefix(folder)) else {
                 continue;
             };

@@ -4,7 +4,7 @@ use std::path::Path;
 use serde_json::{json, Value};
 
 pub const EXTENSIONS: [&str; 1] = [".rs"];
-pub const SKIPPED_DIRECTORY_NAMES: [&str; 2] = ["target", "node_modules"];
+pub const SKIPPED_DIRECTORY_NAMES: [&str; 3] = ["target", "node_modules", "tests"];
 pub const SKIPPED_DIRECTORY_PREFIXES: [&str; 1] = ["."];
 
 pub fn selection() -> Value {

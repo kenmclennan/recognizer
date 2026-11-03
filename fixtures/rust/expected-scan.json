@@ -38,7 +38,7 @@
   ],
   "selection": {
     "extensions": [".rs"],
-    "skip_directory_names": ["target", "node_modules"],
+    "skip_directory_names": ["target", "node_modules", "tests"],
     "skip_directory_prefixes": ["."],
     "skip_directory_suffixes": [],
     "skip_directories_containing": [],

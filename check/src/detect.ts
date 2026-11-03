@@ -67,7 +67,7 @@ const SKIP_RULES: Record<Language, SkipRules> = {
     fileGlobs: ["*Test.kt", "*Tests.kt"],
   },
   rust: {
-    directoryNames: ["target", "node_modules"],
+    directoryNames: ["target", "node_modules", "tests"],
     directoryPrefixes: ["."],
     directorySuffixes: [],
     directoryMarkers: [],
