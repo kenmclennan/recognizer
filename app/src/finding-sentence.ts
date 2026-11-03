@@ -168,18 +168,32 @@ function unusedExports(record: FindingRecord): string | null {
 }
 
 function duplication(record: FindingRecord): string | null {
-  const [first, second] = record.evidence.members ?? [];
+  const members = record.evidence.members ?? [];
+  const [first, second, third] = members;
 
   if (first === undefined || second === undefined) {
     return null;
   }
 
-  const sizes = [first, second].flatMap((member) =>
+  const sizes = members.flatMap((member) =>
     member.lines === undefined ? [] : [member.lines[1] - member.lines[0] + 1],
   );
   const tail = sizes.length === 0 ? "" : ` (${Math.max(...sizes)} lines)`;
 
-  return `${first.name} in ${shortName(first.module)} repeats the structure of ${second.name} in ${shortName(second.module)}${tail}.`;
+  if (third === undefined) {
+    return `${first.name} in ${shortName(first.module)} repeats the structure of ${second.name} in ${shortName(second.module)}${tail}.`;
+  }
+
+  const named = [first, second, third].map(
+    (member) => `${member.name} in ${shortName(member.module)}`,
+  );
+  const rest = members.length - 3;
+  const list =
+    rest === 0
+      ? `${named[0]}, ${named[1]} and ${named[2]}`
+      : `${named.join(", ")} and ${rest} more`;
+
+  return `${members.length} functions repeat one structure: ${list}${tail}.`;
 }
 
 function crap(record: FindingRecord): string | null {
