@@ -4,6 +4,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -14,7 +15,7 @@ const scanOf = (ids) => ({
   edges: ids.length > 1 ? [edge(ids[0], ids[1])] : [],
   foreign: [],
 });
-const loadedOf = (ids) => ({ modules: ids, scans: [{ file: "scan.json", scan: scanOf(ids) }], policy: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] });
+const loadedFor = (ids) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf(ids) }] });
 const before = ["app/hub.py", "app/a.py", "lib/c.py", "lib/d.py", "lib/e.py"];
 const after = ["app/hub.py", "app/a.py", "lib/e.py"];
 
@@ -28,7 +29,7 @@ const port = fakeViews({});
 const facts = {};
 
 (async () => {
-  const first = showExplorer(host, loadedOf(before), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; });
+  const first = showExplorer(host, loadedFor(before), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; });
   await tick();
   click(q('.tree .row[data-path="app"] .rcheck'));
   await tick();
@@ -39,7 +40,7 @@ const facts = {};
   const carried = first.carry();
   first.dispose();
   host.replaceChildren();
-  showExplorer(host, loadedOf(after), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; }, carried);
+  showExplorer(host, loadedFor(after), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; }, carried);
   await tick();
   facts.afterRescan = { count: counts.text, notes: [...notes], canBack: !q(".view-back").disabled, canForward: !q(".view-forward").disabled };
 

@@ -41,6 +41,7 @@ const fakeWorker: Plugin = {
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
@@ -79,7 +80,7 @@ const nowScan = {
   edges: [],
   foreign: [],
 };
-const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], policy: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
+const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: nowScan }] });
 
 const viewText = (steps) => JSON.stringify({ schema_version: 1, description: "d", commit: "cur1234", steps }, null, 2) + "\\n";
 const tick = () => new Promise((resolve) => setTimeout(resolve, 40));

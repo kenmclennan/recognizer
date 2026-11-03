@@ -16,6 +16,7 @@ const stale = JSON.stringify({
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -27,14 +28,9 @@ const scanOf = () => ({
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
 });
-const loadedOf = (overlay) => ({
+const loadedFor = (overlay) => loadedOf({
   modules: ids,
   scans: [{ file: "scan.json", scan: scanOf() }],
-  policy: null,
-  notices: [],
-  blocking: null,
-  findings: [],
-  sensors: [],
   overlays: overlay === null ? [] : [{ name: "crap", text: overlay }],
 });
 
@@ -62,7 +58,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 }));
 
 (async () => {
-  const mount = (overlay, carried) => showExplorer(host, loadedOf(overlay), "demo", () => {}, port, () => {}, carried, undefined, undefined, undefined, undefined, undefined, undefined, (text) => { footer.text = text; });
+  const mount = (overlay, carried) => showExplorer(host, loadedFor(overlay), "demo", () => {}, port, () => {}, carried, undefined, undefined, undefined, undefined, undefined, undefined, (text) => { footer.text = text; });
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
   for (const folder of ["app", "src", "lib"]) {

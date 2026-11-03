@@ -4,10 +4,10 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
-import { NO_RUN } from ${JSON.stringify(here("scan-panel-model.ts"))};
 ${FAKE_WORKER}
 const plainWorker = window.__fakeWorker;
 window.__fakeWorker = () => {
@@ -39,7 +39,7 @@ const longName = "a-very-long-module-name-".repeat(5) + "x.py";
 const longOne = { id: "orphan:long", kind: "orphan", severity: "warning", principle: "p", summary: "s", evidence: { modules: ["app/" + longName] } };
 const longReport = { id: "note:long", kind: "note", severity: "warning", principle: "p", summary: "This is a long agent sentence that has to wrap at word boundaries inside a narrow panel and never be cut at the edge of it. ".repeat(3), evidence: { modules: [ids[2]] } };
 const doc = (name, findings, commit = "cur1234") => ({ findings_version: 1, sensor: { name, version: "1" }, commit, modified: false, settings: {}, findings });
-const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
+const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
 const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n";
 const make = (picks) => JSON.stringify({ schema_version: 1, description: "d", commit: "cur1234", steps: picks.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
 
@@ -55,16 +55,7 @@ async function mount(loaded, picks, status) {
   const fake = fakeSensors({}, { config: CONFIG });
   const editor = fakeEditor();
   const counts = [];
-  const scanHost = {
-    port: fake,
-    scan: () => null,
-    ticks: () => ({ describe: false, ticked: null, once: [] }),
-    setTicks: () => {},
-    runState: () => NO_RUN,
-    running: () => false,
-    run: () => {},
-    stop: () => {},
-  };
+  const scanHost = scanHostOf({ port: fake });
   showExplorer(host, { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, "demo", (text) => counts.push(text), port, () => {}, null, undefined, { getItem: () => null, setItem: () => {} }, editor, undefined, undefined, scanHost);
   await tick();
   const q = (selector) => host.querySelector(selector);

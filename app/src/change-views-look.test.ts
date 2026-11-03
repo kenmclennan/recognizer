@@ -4,6 +4,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 Element.prototype.setPointerCapture = () => {};
@@ -14,7 +15,7 @@ const edge = { from: "p/a.py", to: "p/b.py", kind: "depends", line: 1, names: ["
 const selection = { extensions: [".py"], skip_directory_names: [], skip_directory_prefixes: [], skip_directory_suffixes: [], skip_directories_containing: [], skip_file_globs: [] };
 const scan = { commit: "cur1234", selection, modules: IDS.map((id) => ({ id, kind: "module" })), edges: [edge], foreign: [] };
 const baseScan = { commit: "base999", selection, modules: [...IDS, "p/gone.py"].map((id) => ({ id, kind: "module" })), edges: [edge], foreign: [] };
-const loaded = { modules: IDS, scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
+const loaded = loadedOf({ modules: IDS, scans: [{ file: "scan.json", scan }] });
 
 const make = (extra, steps) => JSON.stringify({ schema_version: 4, description: "d", commit: "cur1234", ...extra, steps: steps || [{ kind: "pick", module: "p/a.py" }] }, null, 2) + "\\n";
 const tick = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));

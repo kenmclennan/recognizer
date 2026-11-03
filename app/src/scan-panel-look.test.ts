@@ -4,6 +4,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf, registeredOf, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
@@ -24,7 +25,7 @@ const scan = {
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
 };
-const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
+const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
 const SHIPPED = [
   { name: "mutation", display: "Mutation", line: "Mutates and tests.", defaults: {}, runsTests: true, listed: true },
   { name: "crap", display: "C.R.A.P.", line: "Runs the tests with coverage.", defaults: {}, runsTests: true, listed: true },
@@ -66,7 +67,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     show: () => { const target = showTarget(wired.rescanner.progress()); if (target !== null) wired.explorer.show(target); },
     openLog: () => { if (wired.shown.log !== null) void editor.openFile(wired.shown.log); },
   });
-  const scanHost = {
+  const scanHost = scanHostOf({
     port: sensors,
     scan: () => wired.scanState,
     ticks: () => wired.rescanner.ticks(),
@@ -76,7 +77,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     run: () => void wired.rescanner.run(),
     stop: () => void wired.rescanner.stop(),
     refresh: () => void wired.rescanner.refresh(),
-  };
+  });
   const build = (loaded, carried) => {
     wired.current = loaded;
     return showExplorer(host, loaded, "demo", () => {}, fakeViews({}), (input) => { wired.posted.push(input); return null; }, carried, undefined, { getItem: () => null, setItem: () => {} }, editor, responsibilities, undefined, scanHost);
@@ -84,7 +85,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({
     port: fake,
-    registered: async () => { const { config } = await sensors.readInputs(); return rowSensors(config, await sensors.shipped()); },
+    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.shipped())); },
     load: () => base,
     sense: (loaded) => withSensors(loaded, sensors),
     resense: async () => withSensors(wired.current, sensors),
