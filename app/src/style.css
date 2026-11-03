@@ -588,6 +588,9 @@ svg.i.chevron {
 
 .message-toast {
   display: flex;
+  box-sizing: border-box;
+  width: 340px;
+  max-width: calc(100% - 20px);
 }
 
 .message-toast .msg {

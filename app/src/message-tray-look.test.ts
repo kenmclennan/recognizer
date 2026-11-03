@@ -86,6 +86,11 @@ click(q(".bell"));
 const long = q(".message-tray");
 facts.scrolling = { height: rect(long).height, scrollHeight: long.scrollHeight, rows: all(".message-list .msg").length };
 
+document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+view.post({ kind: "warning", text: "x".repeat(300) });
+const longToast = rect(q(".message-toast"));
+facts.longToast = { width: longToast.width, rightGap: rect(footer).right - longToast.right };
+
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
 
@@ -130,6 +135,12 @@ describe.skipIf(chrome === undefined)(
       expect(f.badgeWarning.hidden).toBe(false);
       expect(f.badgeWarning.quiet).toBe(false);
       expect(f.badgeWarning.background).toBe("rgb(191, 135, 0)");
+    });
+
+    it("keeps a 300-character toast to the 340 px card inside the footer padding", () => {
+      expect(f.longToast.width).toBeLessThanOrEqual(340);
+      expect(f.longToast.rightGap).toBeGreaterThanOrEqual(0);
+      expect(f.longToast.rightGap).toBeLessThanOrEqual(10);
     });
 
     it("toasts a new message above the footer with a status role, replaced by the next", () => {
