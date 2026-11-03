@@ -46,7 +46,7 @@ const inputs = {
   canAddNote: false,
   filter: "",
   collapsed: new Set(),
-  responsibility: () => ({ state: { kind: "missing" }, busy: false, failure: null }),
+  responsibility: () => ({ state: { kind: "missing" }, failure: null }),
  
 };
 const noop = () => {};

@@ -65,15 +65,14 @@ async function select(id) {
 function snap(scope) {
   const root = scope || q(".inspector-panel");
   const row = root.querySelector(".responsibility");
-  const button = row && row.querySelector("button.describe");
   const line = row && row.querySelector(".line");
   return {
     present: !!row,
     kind: row ? row.className.replace("responsibility", "").trim() : null,
     text: row ? row.textContent : null,
-    tags: row ? [...row.querySelectorAll(".tag")].map((n) => n.textContent) : [],
+    tags: row ? row.querySelectorAll(".tag").length : 0,
     lineOpacity: line ? cs(line).opacity : null,
-    button: button ? { text: button.textContent, disabled: button.disabled, title: button.title } : null,
+    buttons: row ? row.querySelectorAll("button").length : 0,
     finding: row && row.querySelector(".finding") ? row.querySelector(".finding").textContent : null,
     beforeSwitch: row && root.querySelector(".itabs") ? !!(row.compareDocumentPosition(root.querySelector(".itabs")) & Node.DOCUMENT_POSITION_FOLLOWING) : null,
     first: !!row && row.previousElementSibling === root.querySelector(".ih"),
@@ -82,13 +81,7 @@ function snap(scope) {
 
 (async () => {
   const facts = {};
-  const fake = fakeResponsibilities(initial(), {
-    onDescribe(module, f) {
-      const files = JSON.parse(f.files.responsibilities);
-      files.modules[module] = entry("Fresh line for " + module + ".");
-      f.files = { ...f.files, responsibilities: JSON.stringify(files) };
-    },
-  });
+  const fake = fakeResponsibilities(initial());
   let explorer = await open(fake);
 
   await select("p/m.py");
@@ -98,41 +91,14 @@ function snap(scope) {
   await select("p/o.py");
   facts.outOfDate = snap();
   facts.describedBefore = [...fake.described];
-
-  fake.described.length = 0;
-  await select("p/m.py");
-  explorer.dispose();
-  facts.unasked = { described: fake.described.length };
-
-  const held = fakeResponsibilities(initial(), { hold: true, onDescribe(module, f) {
-    const files = JSON.parse(f.files.responsibilities);
-    files.modules[module] = entry("Fresh line for " + module + ".");
-    f.files = { ...f.files, responsibilities: JSON.stringify(files) };
-  } });
-  explorer = await open(held);
-  await select("p/o.py");
-  if (!q(".responsibility button.describe")) throw new Error("no button: " + (q(".inspector-panel") ? q(".inspector-panel").textContent.slice(0, 300) : "no panel"));
-  click(q(".responsibility button.describe"));
-  await tick();
-  facts.busy = snap();
-  click(q(".responsibility button.describe"));
-  await tick();
-  facts.busyDescribed = [...held.described];
-  await held.settle();
-  await tick();
-  facts.after = snap();
-  facts.afterDescribed = [...held.described];
   await select("p/n.py");
   facts.other = snap();
   explorer.dispose();
 
-  const failing = fakeResponsibilities(initial(), { result: { status: "failed", reason: "model timed out" } });
+  const failing = fakeResponsibilities(initial());
   explorer = await open(failing);
   await select("p/o.py");
-  click(q(".responsibility button.describe"));
-  await tick();
-  facts.failed = snap();
-  facts.failedDescribed = [...failing.described];
+  facts.noControls = qa(".inspector-panel button.describe, .inspector-panel .tag").length;
   explorer.dispose();
 
   const watched = fakeResponsibilities(initial());
@@ -169,9 +135,9 @@ type Snap = {
   present: boolean;
   kind: string | null;
   text: string | null;
-  tags: string[];
+  tags: number;
   lineOpacity: string | null;
-  button: { text: string; disabled: boolean; title: string } | null;
+  buttons: number;
   finding: string | null;
   beforeSwitch: boolean | null;
   first: boolean;
@@ -181,14 +147,8 @@ type Facts = {
   missing: Snap;
   outOfDate: Snap;
   describedBefore: string[];
-  unasked: { described: number };
-  busy: Snap;
-  busyDescribed: string[];
-  after: Snap;
-  afterDescribed: string[];
   other: Snap;
-  failed: Snap;
-  failedDescribed: string[];
+  noControls: number;
   beforeEdit: string;
   afterEdit: Snap;
   invalid: Snap;
@@ -204,66 +164,36 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
     facts = await collectFacts<Facts>(HARNESS, "responsibility");
   }, 240000);
 
-  it("shows a current line with no Generated tag under the name and above the tabs", () => {
+  it("shows a current line alone under the name and above the tabs", () => {
     expect(facts.current.kind).toBe("current");
     expect(facts.current.text).toBe("Current line.");
-    expect(facts.current.tags).toEqual([]);
-    expect(facts.current.button).toBeNull();
+    expect(facts.current.tags).toBe(0);
+    expect(facts.current.buttons).toBe(0);
     expect(facts.current.lineOpacity).toBe("1");
     expect(facts.current.beforeSwitch).toBe(true);
     expect(facts.current.first).toBe(true);
   });
 
-  it("dims an out-of-date line, tags it and offers a Describe button", () => {
+  it("shows an out-of-date line undimmed with no tag and no button", () => {
     expect(facts.outOfDate.kind).toBe("out-of-date");
-    expect(facts.outOfDate.tags).toEqual(["Out of date"]);
-    expect(Number(facts.outOfDate.lineOpacity)).toBeLessThan(1);
-    expect(facts.outOfDate.button).toEqual({
-      text: "Describe",
-      disabled: false,
-      title: "source changed",
-    });
+    expect(facts.outOfDate.text).toBe("Stale line.");
+    expect(facts.outOfDate.tags).toBe(0);
+    expect(facts.outOfDate.buttons).toBe(0);
+    expect(facts.outOfDate.lineOpacity).toBe("1");
     expect(facts.outOfDate.beforeSwitch).toBe(true);
+    expect(facts.other.text).toBe("Other stale.");
   });
 
-  it("says so when a module has no line, with a Describe button", () => {
-    expect(facts.missing.text).toBe("No responsibility line yetDescribe");
-    expect(facts.missing.button).toMatchObject({
-      text: "Describe",
-      disabled: false,
-    });
+  it("says so when a module has no line, with no button", () => {
+    expect(facts.missing.text).toBe("No responsibility line yet");
+    expect(facts.missing.buttons).toBe(0);
     expect(facts.missing.beforeSwitch).toBe(true);
   });
 
-  it("describes nothing unasked", () => {
+  it("offers nothing that describes", () => {
     expect(facts.describedBefore).toEqual([]);
-    expect(facts.unasked.described).toBe(0);
+    expect(facts.noControls).toBe(0);
     expect(facts.watchedDescribed).toBe(0);
-  });
-
-  it("describes exactly that module on click, disabled while it runs", () => {
-    expect(facts.busy.button).toEqual({
-      text: "Describing",
-      disabled: true,
-      title: "source changed",
-    });
-    expect(facts.busyDescribed).toEqual(["p/o.py"]);
-    expect(facts.afterDescribed).toEqual(["p/o.py"]);
-  });
-
-  it("shows the new line as current afterwards and leaves other modules alone", () => {
-    expect(facts.after.kind).toBe("current");
-    expect(facts.after.text).toBe("Fresh line for p/o.py.");
-    expect(facts.other.kind).toBe("out-of-date");
-    expect(facts.other.text).toContain("Other stale.");
-  });
-
-  it("shows a failed describe's reason and keeps the old line dimmed", () => {
-    expect(facts.failedDescribed).toEqual(["p/o.py"]);
-    expect(facts.failed.kind).toBe("out-of-date");
-    expect(facts.failed.finding).toBe("model timed out");
-    expect(facts.failed.text).toContain("Stale line.");
-    expect(facts.failed.button?.disabled).toBe(false);
   });
 
   it("updates when the files change and reports invalid files as unknown", () => {
@@ -272,7 +202,7 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
     expect(facts.afterEdit.text).toBe("Written elsewhere.");
     expect(facts.invalid.kind).toBe("unknown");
     expect(facts.invalid.text).toMatch(/^Responsibility unknown: /);
-    expect(facts.invalid.button).toBeNull();
+    expect(facts.invalid.buttons).toBe(0);
   });
 
   it("stays in the header on the Dependencies tab", () => {
@@ -282,7 +212,7 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
   it("appears in each panel of a trail for that panel's module", () => {
     expect(facts.trail).toEqual([
       { name: "m.py", row: "Current line." },
-      { name: "o.py", row: expect.stringContaining("Stale line.") },
+      { name: "o.py", row: "Stale line." },
     ]);
   });
 });

@@ -64,7 +64,6 @@ function inputsFor(
     followed: null,
     responsibility: () => ({
       state: { kind: "missing" },
-      busy: false,
       failure: null,
     }),
     metrics: [],
@@ -344,7 +343,6 @@ describe("the responsibility line in the header", () => {
         kind: "responsibility",
         id: "pkg/m.py",
         state: { kind: "missing" },
-        busy: false,
         failure: null,
       });
     }
@@ -659,6 +657,12 @@ describe("folder contents", () => {
     });
   });
 
+  it("headers a nested folder with its file count and parent", () => {
+    const { header } = inspectorContent(folder("a/b"), inputsFor([scan]));
+
+    expect(header.muted).toMatch(/^\d+ files · a\/$/);
+  });
+
   it("shows None for a folder with no known modules", () => {
     expect(inspectorContent(folder("zz"), inputsFor([scan])).rows).toEqual([
       { kind: "none" },
@@ -688,7 +692,6 @@ describe("header and tabs", () => {
         kind: "responsibility",
         id: "src/app/pkg/m.py",
         state: { kind: "missing" },
-        busy: false,
         failure: null,
       },
     });

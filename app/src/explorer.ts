@@ -567,24 +567,7 @@ export function showExplorer(
     return describerSeen.found;
   }
 
-  async function describeModule(id: string) {
-    if (!describing.start(id)) {
-      return;
-    }
-
-    render();
-
-    try {
-      describing.finish(id, await responsibilities.describe(id));
-    } catch (error) {
-      describing.finish(id, { status: "failed", reason: String(error) });
-    }
-
-    await readResponsibilities();
-  }
-
   const rootActions: InspectorActions = {
-    describe: (id) => void describeModule(id),
     open() {
       inspectorOpen = true;
       render();
@@ -3038,7 +3021,6 @@ export function showExplorer(
         followed: panel.followed,
         responsibility: (id) => ({
           state: responsibilityOf(id),
-          busy: describing.busy(id),
           failure: describing.failure(id),
         }),
         metrics: overlayModel.metrics.filter((metric) => !metric.stale),

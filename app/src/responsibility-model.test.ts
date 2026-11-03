@@ -165,24 +165,9 @@ describe("the repository's own examples", () => {
 });
 
 describe("createDescribing", () => {
-  it("allows one run per module at a time", () => {
-    const describing = createDescribing();
-
-    expect(describing.start("a.py")).toBe(true);
-    expect(describing.start("a.py")).toBe(false);
-    expect(describing.start("b.py")).toBe(true);
-    expect(describing.busy("a.py")).toBe(true);
-
-    describing.finish("a.py", { status: "described" });
-
-    expect(describing.busy("a.py")).toBe(false);
-    expect(describing.start("a.py")).toBe(true);
-  });
-
   it("holds a failure until the module reads current", () => {
     const describing = createDescribing();
 
-    describing.start("a.py");
     describing.finish("a.py", { status: "failed", reason: "timed out" });
 
     expect(describing.failure("a.py")).toBe("timed out");

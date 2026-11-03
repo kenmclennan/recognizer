@@ -454,9 +454,9 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.moduleFail.reason).toBe("no describer");
   });
 
-  it("offers Describe for a module whose line is missing", () => {
+  it("shows the missing line with no Describe button", () => {
     expect(f.missing.text).toContain("No responsibility line yet");
-    expect(f.missing.describe).toBe(1);
+    expect(f.missing.describe).toBe(0);
   });
 
   it("lists Descriptions and the third-party rows, none disabled, when the shipped list is unavailable", () => {
