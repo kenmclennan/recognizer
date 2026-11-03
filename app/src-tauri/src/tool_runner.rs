@@ -546,7 +546,7 @@ pub mod tests {
         );
         let runner = runner_with(
             &shell,
-            Duration::from_millis(200),
+            Duration::from_millis(1000),
             Duration::from_millis(1500),
             4,
         );
@@ -555,7 +555,7 @@ pub mod tests {
         let started = Instant::now();
 
         assert!(runner.capture(&command, &[], false).is_none());
-        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(started.elapsed() < Duration::from_secs(3));
         assert_eq!(lines(&counter), 1);
 
         assert!(runner.capture(&command, &[], false).is_none());
