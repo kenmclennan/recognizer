@@ -32,9 +32,12 @@ const scan = {
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 4, names: ["X"] }],
   foreign: [],
 };
-const violation = { id: "rule-violation:a", kind: "rule-violation", severity: "violation", principle: "dependencies-follow-the-policy", summary: "depends on app/b.py at line 4", evidence: { modules: [ids[0]], edges: [{ from: ids[0], to: ids[1], kind: "depends", lines: [4] }] } };
+const violation = { id: "rule-violation:a", kind: "rule-violation", severity: "violation", principle: "dependencies-follow-the-policy", summary: "depends on app/b.py at line 4", evidence: { modules: [ids[0]], edges: [{ from: ids[0], to: ids[1], kind: "depends", lines: [4], rules: [{ type: "level", from_level: "domain", to_level: "adapters" }] }] } };
 const cycle = { id: "cycle:a,b", kind: "cycle", severity: "warning", principle: "no-cycles", summary: "cycle of 2 modules", fix_pattern: "break-cycle", evidence: { modules: [ids[0], ids[1]], edges: [{ from: ids[0], to: ids[1] }, { from: ids[1], to: ids[0] }] } };
 const style = { id: "style:c", kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers", evidence: { modules: [ids[2]] } };
+const longName = "a-very-long-module-name-".repeat(5) + "x.py";
+const longOne = { id: "orphan:long", kind: "orphan", severity: "warning", principle: "p", summary: "s", evidence: { modules: ["app/" + longName] } };
+const longReport = { id: "note:long", kind: "note", severity: "warning", principle: "p", summary: "This is a long agent sentence that has to wrap at word boundaries inside a narrow panel and never be cut at the edge of it. ".repeat(3), evidence: { modules: [ids[2]] } };
 const doc = (name, findings, commit = "cur1234") => ({ findings_version: 1, sensor: { name, version: "1" }, commit, modified: false, settings: {}, findings });
 const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
 const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n";
@@ -92,66 +95,83 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     label: getComputedStyle(m.q(".rail-findings"), "::after").content,
     open: m.shown(".findings-panel"),
     files: m.shown(".tree-header"),
-    rows: m.all(".finding-row").map((r) => r.dataset.id),
-    firstRow: { file: m.q(".finding-row .finding-file").textContent, folder: m.q(".finding-row .finding-folder").textContent, sensor: m.q(".finding-row .finding-sensor").textContent, principle: m.q(".finding-row .finding-principle").textContent },
-    chips: m.all(".findings-chip").map((c) => c.textContent),
-    titles: m.all(".finding-severity-title, .finding-group-title").map((n) => n.textContent),
-    stale: m.shown(".findings-stale"),
+    heading: m.q(".findings-header").textContent,
+    line: m.q(".findings-line").textContent,
+    chips: m.all(".findings-chip").length,
+    groups: texts(m, ".finding-group-name"),
+    counts: texts(m, ".finding-group-count"),
+    marks: m.all(".finding-group-head .finding-mark").map((n) => n.className.split(" ")[1]),
     cards: m.all(".finding-card").length,
-    expanded: m.all(".finding-detail").length,
+    stale: m.shown(".findings-stale"),
+    ghosts: m.all(".ghost, .ghost-add").length,
   };
 
-  click(m.all(".findings-chip")[1]);
+  click(m.all(".finding-group-head")[0]);
   await tick();
-  facts.violationsOnly = m.all(".finding-row").map((r) => r.dataset.id);
-  click(m.all(".findings-chip")[0]);
-  await tick();
+  facts.card = {
+    groupsOpen: m.all(".finding-group.open").length,
+    cards: m.all(".finding-card").length,
+    name: m.q(".finding-card .finding-name").textContent,
+    folder: m.q(".finding-card .finding-folder").textContent,
+    sentence: m.q(".finding-card .finding-sentence").textContent,
+    weight: getComputedStyle(m.q(".finding-card .finding-name")).fontWeight,
+    extras: m.all(".finding-card .finding-principle, .finding-card .finding-sensor, .finding-card .finding-edit, .finding-card .finding-id").length,
+    text: m.q(".finding-card").textContent,
+  };
 
-  click(m.q('.finding-row[data-id="rule-violation:a"]'));
+  click(m.all(".finding-group-head")[1]);
+  await tick();
+  const boxesBefore = m.all(".box").map((n) => n.dataset.id).sort();
+  click(m.q('.finding-card[data-id="rule-violation:a"] .finding-card-head'));
   await tick();
   facts.oriented = {
     selected: m.all(".box.selected").map((n) => n.dataset.id),
+    inspector: m.q(".explorer").classList.contains("inspector-open"),
+    boxesSame: JSON.stringify(m.all(".box").map((n) => n.dataset.id).sort()) === JSON.stringify(boxesBefore),
     litBoxes: m.all(".box.lit-violation").map((n) => n.dataset.id).sort(),
     litLines: m.all(".line-group.lit-violation").length,
     dimmed: dimBoxes(m),
-    cards: m.all(".finding-card").length,
-    expanded: m.all(".finding-entry.focused").length,
-    evidence: texts(m, ".finding-detail .finding-evidence"),
-    fix: texts(m, ".finding-detail .finding-fix"),
-    buttons: texts(m, ".finding-detail-buttons button"),
+    open: m.all(".finding-card.open").length,
+    rows: texts(m, ".finding-card.open .finding-item"),
+    adds: m.all(".finding-card.open .finding-add").length,
   };
-  click(m.q(".finding-edit"));
+
+  click(m.q('.finding-card[data-id="cycle:a,b"] .finding-card-head'));
   await tick();
-  click(m.q(".finding-id"));
-  await tick();
-  facts.actions = { opened: m.editor.opened, copied: m.port.copied };
+  facts.one = { open: m.all(".finding-card.open").map((n) => n.dataset.id), rows: texts(m, ".finding-card.open .finding-item") };
 
   click(m.q('.box[data-id="app/b.py"] .box-body'));
   await tick();
-  facts.keptOnEvidence = { expanded: m.all(".finding-entry.focused").length, lit: m.all(".box.lit-violation").length, dim: m.all(".box.dim").length };
+  facts.keptOnEvidence = { open: m.all(".finding-card.open").length, lit: m.all(".box.lit-warning").length, dim: m.all(".box.dim").length };
   click(m.q('.box[data-id="lib/c.py"] .box-body'));
   await tick();
-  facts.droppedOnOther = { expanded: m.all(".finding-entry.focused").length, lit: m.all(".lit-violation, .lit-warning").length };
+  facts.droppedOnOther = { open: m.all(".finding-card.open").length, lit: m.all(".lit-violation, .lit-warning").length };
 
   press("j");
   await tick();
+  facts.walkedFirst = { id: m.q(".finding-card.open")?.dataset.id ?? null };
   press("j");
   await tick();
-  facts.walked = { expanded: texts(m, ".finding-entry.focused .finding-fix"), id: m.q(".finding-entry.focused .finding-row").dataset.id };
+  press("j");
+  await tick();
+  facts.walked = { id: m.q(".finding-card.open")?.dataset.id ?? null, groupOpen: m.all(".finding-group.open").length };
+  press("k");
+  await tick();
+  facts.walkedBack = { id: m.q(".finding-card.open")?.dataset.id ?? null };
   press("Escape");
   await tick();
-  facts.cleared = { expanded: m.all(".finding-entry.focused").length, dim: m.all(".dim").length, lit: m.all(".lit-violation, .lit-warning").length };
+  facts.cleared = { open: m.all(".finding-card.open").length, dim: m.all(".dim").length, lit: m.all(".lit-violation, .lit-warning").length };
 
-  click(m.q('.finding-row[data-id="rule-violation:a"]'));
+  click(m.q('.finding-card[data-id="rule-violation:a"] .finding-card-head'));
   await tick();
   click(m.q(".rail-files"));
   await tick();
   facts.switched = { lit: m.all(".box.lit-violation").length };
   click(m.q(".rail-findings"));
   await tick();
-  click(m.q('.finding-row[data-id="rule-violation:a"]'));
+  click(m.q('.finding-card[data-id="rule-violation:a"] .finding-card-head'));
   await tick();
-  facts.collapsedAgain = { expanded: m.all(".finding-entry.focused").length, lit: m.all(".lit-violation, .lit-warning").length };
+  facts.closedAgain = { open: m.all(".finding-card.open").length, lit: m.all(".lit-violation, .lit-warning").length };
 
   const bar = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
   click(bar.q('.box[data-id="app/a.py"] .box-body'));
@@ -160,10 +180,10 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   facts.bar = { present: findingsButton() !== null, text: findingsButton().textContent, cls: findingsButton().className, order: bar.all(".selection-bar .bar-button").map((b) => b.title).slice(0, 3) };
   click(findingsButton());
   await tick();
-  facts.barTab = { tab: texts(bar, ".itabs button.on"), rows: bar.all(".inspector-panel .finding-row").map((r) => r.dataset.id), on: findingsButton().className };
-  click(bar.q('.inspector-panel .finding-row[data-id="cycle:a,b"]'));
+  facts.barTab = { tab: texts(bar, ".itabs button.on"), rows: bar.all(".inspector-panel .finding-card").map((r) => r.dataset.id), on: findingsButton().className };
+  click(bar.q('.inspector-panel .finding-card[data-id="cycle:a,b"] .finding-card-head'));
   await tick();
-  facts.tabFocus = { detail: bar.all(".inspector-panel .finding-detail").length, lit: bar.all(".box.lit-warning").map((n) => n.dataset.id).sort(), evidence: texts(bar, ".inspector-panel .finding-evidence") };
+  facts.tabFocus = { open: bar.all(".inspector-panel .finding-card.open").length, lit: bar.all(".box.lit-warning").map((n) => n.dataset.id).sort(), rows: texts(bar, ".inspector-panel .finding-card.open .finding-item"), selected: bar.all(".box.selected").map((n) => n.dataset.id) };
   click(bar.q('.box[data-id="lib/c.py"] .box-body'));
   await tick();
   facts.barWarn = findingsButton().className;
@@ -177,50 +197,61 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.keyW = texts(quiet, ".itabs button.on");
 
-  const ghost = await mount({ findings: [doc("structure", [violation])] }, ["app/a.py"]);
-  const before = ghost.counts.at(-1);
-  const savedBefore = ghost.port.files.size;
-  click(ghost.q('.finding-row[data-id="rule-violation:a"]'));
+  const adder = await mount({ findings: [doc("structure", [cycle])] }, ["app/a.py"]);
+  const savedBefore = adder.port.files.size;
+  click(adder.q(".rail-findings"));
   await tick();
-  const ghostBox = ghost.q(".ghost");
-  facts.ghost = {
-    count: ghost.all(".ghost").length,
-    dashed: getComputedStyle(ghost.q(".ghost .ghost-body")).strokeDasharray,
-    lit: ghostBox.getAttribute("class"),
-    selectable: ghost.all(".ghost [data-id]").length,
-    button: texts(ghost, ".ghost-add"),
-    boxes: ghost.all(".box").length,
-    footerSame: ghost.counts.at(-1) === before,
+  click(adder.q(".finding-group-head"));
+  await tick();
+  click(adder.q(".finding-card-head"));
+  await tick();
+  facts.offView = {
+    adds: texts(adder, ".finding-card.open .finding-add"),
+    rows: texts(adder, ".finding-card.open .finding-item"),
+    boxes: adder.all(".box").length,
+    ghosts: adder.all(".ghost, .ghost-add").length,
+    lit: adder.all(".box.lit-warning").map((n) => n.dataset.id),
   };
-  click(ghost.q(".ghost-add"));
+  click(adder.q(".finding-add"));
   await tick();
   await tick();
-  facts.ghostAdded = { ghosts: ghost.all(".ghost").length, box: ghost.all('.box[data-id="app/b.py"]').length, expanded: ghost.all(".finding-entry.focused").length, saved: ghost.port.files.size - savedBefore };
-  const away = await mount({ findings: [doc("structure", [violation])] }, ["app/a.py"]);
-  click(away.q('.finding-row[data-id="rule-violation:a"]'));
-  await tick();
-  click(away.q('.finding-row[data-id="rule-violation:a"]'));
-  await tick();
-  facts.ghostCleared = { ghosts: away.all(".ghost").length, box: away.all('.box[data-id="app/b.py"]').length, buttons: away.all(".ghost-add").length };
+  facts.added = { boxes: adder.all(".box").map((n) => n.dataset.id).sort(), adds: adder.all(".finding-card.open .finding-add").length, open: adder.all(".finding-card.open").length, selected: adder.all(".box.selected").length, saved: adder.port.files.size - savedBefore };
 
-  const off = await mount({ findings: [doc("lint", [style])] }, ["app/a.py", "app/b.py"]);
-  click(off.q(".rail-findings"));
+  const wide = await mount({ findings: [doc("structure", [longOne]), doc("review", [longReport])] }, null);
+  wide.host.querySelector(".tree").style.cssText += ";width:340px;flex:none";
+  click(wide.q(".rail-findings"));
   await tick();
-  click(off.q(".finding-row"));
+  for (const head of wide.all(".finding-group-head")) click(head);
   await tick();
-  facts.offCanvas = { box: off.all('.box[data-id="lib/c.py"]').length, card: off.all(".finding-card").length };
+  const measure = (node) => ({ scroll: node.scrollWidth, client: node.clientWidth, height: node.getBoundingClientRect().height });
+  facts.wrap = {
+    panel: wide.q(".findings-panel").clientWidth,
+    cards: wide.all(".finding-card").map(measure),
+    sentences: wide.all(".finding-sentence").map(measure),
+    names: wide.all(".finding-name").map(measure),
+    lineHeight: parseFloat(getComputedStyle(wide.q(".finding-sentence")).lineHeight),
+  };
+
+  const mixed = await mount({ findings: [doc("structure", [cycle])] }, ["app/a.py"]);
+  click(mixed.q(".rail-findings"));
+  await tick();
+  click(mixed.q(".finding-group-head"));
+  await tick();
+  click(mixed.q(".finding-card-head"));
+  await tick();
+  facts.mixed = mixed.all(".finding-card.open .finding-item").map((row) => ({ text: row.textContent, add: row.querySelector(".finding-add") !== null }));
 
   const warn = await mount({ findings: [doc("lint", [style])] }, null);
   facts.warnings = { class: warn.q(".rail-findings .rail-count").className, hidden: warn.q(".rail-findings .rail-count").hidden };
   const none = await mount({ findings: [] }, null);
   click(none.q(".rail-findings"));
   await tick();
-  facts.none = { hidden: none.q(".rail-findings .rail-count").hidden, empty: none.q(".findings-empty").textContent, rows: none.all(".finding-row").length };
+  facts.none = { hidden: none.q(".rail-findings .rail-count").hidden, empty: none.q(".findings-empty").textContent, rows: none.all(".finding-card").length };
 
   const other = await mount({ findings: [doc("structure", [violation], "other")] }, null);
   click(other.q(".rail-findings"));
   await tick();
-  facts.otherCommit = { rows: other.all(".finding-row").length, hidden: other.q(".rail-findings .rail-count").hidden };
+  facts.otherCommit = { rows: other.all(".finding-card").length, hidden: other.q(".rail-findings .rail-count").hidden };
 
   const stale = await mount({ findings: [doc("structure", [violation])] }, null, [{ name: "alpha", status: "stale" }]);
   click(stale.q(".rail-findings"));
@@ -248,7 +279,7 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     f = await collectFacts<Facts>(HARNESS, "findings-panel");
   }, 180000);
 
-  it("sits last on the rail with a red count and lists violations before warnings", () => {
+  it("shows the header line and collapsed groups in the fixed order with counts and dots", () => {
     expect(f.panel.order).toEqual([
       "rail-files",
       "rail-views",
@@ -261,72 +292,79 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.panel.label).toContain("Findings");
     expect(f.panel.open).toBe(true);
     expect(f.panel.files).toBe(false);
-    expect(f.panel.rows).toEqual(["rule-violation:a", "cycle:a,b", "style:c"]);
+    expect(f.panel.heading).toBe("Findings");
+    expect(f.panel.line).toBe("1 violation, 2 warnings");
+    expect(f.panel.chips).toBe(0);
+    expect(f.panel.groups).toEqual([
+      "Policy violation",
+      "Cyclic dependency",
+      "Style",
+    ]);
+    expect(f.panel.counts).toEqual(["1", "1", "1"]);
+    expect(f.panel.marks).toEqual(["violation", "warning", "warning"]);
     expect(f.panel.cards).toBe(0);
-    expect(f.panel.expanded).toBe(0);
     expect(f.panel.stale).toBe(false);
-    expect(f.panel.titles).toEqual([
-      "Violations 1",
-      "Rule violation 1",
-      "Warnings 2",
-      "Cycle 1",
-      "Style 1",
-    ]);
+    expect(f.panel.ghosts).toBe(0);
   });
 
-  it("shows the file name, folder, principle and sensor on a row", () => {
-    expect(f.panel.firstRow).toEqual({
-      file: "a.py",
-      folder: "app",
-      sensor: "structure",
-      principle: "dependencies-follow-the-policy",
-    });
+  it("a group is collapsed until clicked", () => {
+    expect(f.panel.cards).toBe(0);
+    expect(f.card.groupsOpen).toBe(1);
+    expect(f.card.cards).toBe(1);
   });
 
-  it("offers a chip per severity and sensor and narrows by it", () => {
-    expect(f.panel.chips).toEqual([
-      "all 3",
-      "violations 1",
-      "warnings 2",
-      "lint 1",
-      "structure 2",
-    ]);
-    expect(f.violationsOnly).toEqual(["rule-violation:a"]);
+  it("shows a card with its bold name, muted folder and one sentence, and nothing else", () => {
+    expect(f.card.name).toBe("a.py");
+    expect(f.card.folder).toBe("app");
+    expect(f.card.sentence).toBe(
+      "a.py imports b.py, which the policy forbids: domain may not use adapters.",
+    );
+    expect(f.card.weight).toBe("600");
+    expect(f.card.extras).toBe(0);
+    expect(f.card.text).not.toMatch(
+      /dependencies-follow|rule-violation|Open in editor|Copy id|structure/,
+    );
   });
 
-  it("orients a clicked row: selects, lights the evidence, dims the rest and expands in place", () => {
-    expect(f.oriented.selected).toEqual(["app/a.py"]);
+  it("a clicked card lights the evidence, dims the rest, opens inline and changes no selection or box", () => {
+    expect(f.oriented.selected).toEqual([]);
+    expect(f.oriented.inspector).toBe(false);
+    expect(f.oriented.boxesSame).toBe(true);
     expect(f.oriented.litBoxes).toEqual(["app/a.py", "app/b.py"]);
     expect(f.oriented.litLines).toBe(1);
     expect(f.oriented.dimmed).toEqual(["lib/c.py"]);
-    expect(f.oriented.cards).toBe(0);
-    expect(f.oriented.expanded).toBe(1);
-    expect(f.oriented.evidence).toEqual(["app/a.py -> app/b.py at line 4"]);
-    expect(f.oriented.fix).toEqual(["no fix pattern recorded"]);
-    expect(f.oriented.buttons).toEqual(["Open in editor", "Copy id"]);
+    expect(f.oriented.open).toBe(1);
+    expect(f.oriented.rows).toEqual(["a.pyapp", "a.py -> b.py"]);
+    expect(f.oriented.adds).toBe(0);
   });
 
-  it("opens the evidence line in the editor and copies the id", () => {
-    expect(f.actions.opened).toEqual([{ file: "app/a.py", line: 4 }]);
-    expect(f.actions.copied).toEqual(["rule-violation:a"]);
+  it("one card open at a time", () => {
+    expect(f.one.open).toEqual(["cycle:a,b"]);
+    expect(f.one.rows).toEqual([
+      "a.pyapp",
+      "b.pyapp",
+      "a.py -> b.py",
+      "b.py -> a.py",
+    ]);
   });
 
   it("keeps the focus on a click inside the evidence and drops it on any other", () => {
-    expect(f.keptOnEvidence.expanded).toBe(1);
+    expect(f.keptOnEvidence.open).toBe(1);
     expect(f.keptOnEvidence.lit).toBe(2);
     expect(f.keptOnEvidence.dim).toBe(1);
-    expect(f.droppedOnOther).toEqual({ expanded: 0, lit: 0 });
+    expect(f.droppedOnOther).toEqual({ open: 0, lit: 0 });
   });
 
-  it("walks with j and clears with Escape", () => {
-    expect(f.walked.id).toBe("cycle:a,b");
-    expect(f.walked.expanded).toEqual(["break-cycle"]);
-    expect(f.cleared).toEqual({ expanded: 0, dim: 0, lit: 0 });
+  it("walks with j and k through the cards, opening the group, and clears with Escape", () => {
+    expect(f.walkedFirst.id).toBe("rule-violation:a");
+    expect(f.walked).toEqual({ id: "style:c", groupOpen: 3 });
+    expect(f.walkedBack.id).toBe("cycle:a,b");
+    expect(f.cleared).toEqual({ open: 0, dim: 0, lit: 0 });
   });
 
-  it("keeps the focus over a panel switch and clears it on clicking the focused row", () => {
+  it("keeps the focus over a panel switch and clears it on clicking the open card", () => {
     expect(f.switched.lit).toBe(2);
-    expect(f.collapsedAgain).toEqual({ expanded: 0, lit: 0 });
+    expect(f.closedAgain).toEqual({ open: 0, lit: 0 });
   });
 
   it("shows the selection bar's findings button in the disc's colour, after dependencies, and opens the tab", () => {
@@ -347,27 +385,62 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
   });
 
   it("focuses a finding from the inspector's tab exactly as the panel does", () => {
-    expect(f.tabFocus.detail).toBe(1);
+    expect(f.tabFocus.open).toBe(1);
     expect(f.tabFocus.lit).toEqual(["app/a.py", "app/b.py"]);
-    expect(f.tabFocus.evidence).toEqual([
-      "app/a.py -> app/b.py",
-      "app/b.py -> app/a.py",
+    expect(f.tabFocus.rows).toEqual([
+      "a.pyapp",
+      "b.pyapp",
+      "a.py -> b.py",
+      "b.py -> a.py",
     ]);
   });
 
-  it("draws a dashed ghost for evidence off the view, with an Add button that makes it a box", () => {
-    expect(f.ghost.count).toBe(1);
-    expect(f.ghost.dashed).not.toBe("none");
-    expect(f.ghost.lit).toContain("lit-violation");
-    expect(f.ghost.selectable).toBe(0);
-    expect(f.ghost.button).toEqual(["Add b.py to the view"]);
-    expect(f.ghost.boxes).toBe(1);
-    expect(f.ghost.footerSame).toBe(true);
-    expect(f.ghostAdded).toEqual({ ghosts: 0, box: 1, expanded: 1, saved: 0 });
+  it("lists an off-view module with Add to view, which adds that one box and nothing else", () => {
+    expect(f.offView.adds).toEqual(["Add to view"]);
+    expect(f.offView.rows).toEqual([
+      "a.pyapp",
+      "b.pyappAdd to view",
+      "a.py -> b.py",
+      "b.py -> a.py",
+    ]);
+    expect(f.offView.boxes).toBe(1);
+    expect(f.offView.ghosts).toBe(0);
+    expect(f.offView.lit).toEqual(["app/a.py"]);
+    expect(f.added).toEqual({
+      boxes: ["app/a.py", "app/b.py"],
+      adds: 0,
+      open: 1,
+      selected: 0,
+      saved: 0,
+    });
   });
 
-  it("removes a ghost that was not added when the focus clears", () => {
-    expect(f.ghostCleared).toEqual({ ghosts: 0, box: 0, buttons: 0 });
+  it("shows Add to view only on the rows whose module is absent", () => {
+    expect(f.mixed).toEqual([
+      { text: "a.pyapp", add: false },
+      { text: "b.pyappAdd to view", add: true },
+      { text: "a.py -> b.py", add: false },
+      { text: "b.py -> a.py", add: false },
+    ]);
+  });
+
+  it("wraps long text at word boundaries and never clips", () => {
+    expect(f.wrap.panel).toBeLessThanOrEqual(340);
+    expect(f.wrap.cards).toHaveLength(2);
+
+    for (const node of [
+      ...f.wrap.cards,
+      ...f.wrap.sentences,
+      ...f.wrap.names,
+    ]) {
+      expect(node.scroll).toBeLessThanOrEqual(node.client);
+    }
+
+    expect(f.wrap.names[0].height).toBeGreaterThan(30);
+
+    for (const node of f.wrap.sentences) {
+      expect(node.height).toBeGreaterThan(f.wrap.lineHeight * 1.5);
+    }
   });
 
   it("shows amber for warnings only, hides the badge at zero and ignores another commit", () => {
@@ -385,9 +458,5 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.stale.text).toBe("Not current: alpha (stale)");
     expect(f.staleClick).toEqual({ sensors: true, findings: false });
     expect(f.fresh.shown).toBe(false);
-  });
-
-  it("puts a finding's module on the canvas when it is not there", () => {
-    expect(f.offCanvas).toEqual({ box: 1, card: 0 });
   });
 });

@@ -2,17 +2,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
-import type { FindingGroup } from "./findings-order";
 import {
-  applyFilter,
   badge,
-  chips,
   findingRows,
-  groupCount,
-  groupFindings,
-  kindLabel,
   orderFindings,
-  severityLabel,
   staleNote,
   walkFindings,
 } from "./findings-order";
@@ -114,7 +107,7 @@ describe("findingRows", () => {
   });
 });
 
-describe("orderFindings and groupFindings", () => {
+describe("orderFindings", () => {
   it("puts violations first, then kind, module and id ascending", () => {
     expect(orderFindings(rows).map((row) => row.id)).toEqual([
       "v1",
@@ -125,92 +118,33 @@ describe("orderFindings and groupFindings", () => {
       "l1",
     ]);
   });
-
-  it("groups by severity then kind and omits empty groups", () => {
-    const groups = groupFindings(rows);
-
-    expect(groups.map((group) => group.severity)).toEqual([
-      "violation",
-      "warning",
-    ]);
-    expect(groups[0]?.kinds.map((group) => group.kind)).toEqual([
-      "rule-violation",
-    ]);
-    expect(groups[1]?.kinds.map((group) => group.kind)).toEqual([
-      "cycle",
-      "hub",
-      "style",
-    ]);
-    expect(
-      groupFindings(rows.filter((row) => row.severity === "warning")).map(
-        (group) => group.severity,
-      ),
-    ).toEqual(["warning"]);
-  });
-});
-
-describe("applyFilter", () => {
-  it("narrows by severity and by sensor", () => {
-    expect(applyFilter(rows, { by: "all" })).toHaveLength(6);
-    expect(
-      applyFilter(rows, { by: "severity", severity: "violation" }),
-    ).toHaveLength(3);
-    expect(applyFilter(rows, { by: "sensor", name: "lint" })).toHaveLength(1);
-  });
-
-  it("treats a sensor with no current document as all", () => {
-    expect(applyFilter(rows, { by: "sensor", name: "gone" })).toHaveLength(6);
-  });
-});
-
-describe("chips", () => {
-  it("lists all, severities with rows and each sensor with counts", () => {
-    expect(chips(rows).map((chip) => [chip.label, chip.count])).toEqual([
-      ["all", 6],
-      ["violations", 3],
-      ["warnings", 3],
-      ["lint", 1],
-      ["structure", 5],
-    ]);
-  });
-
-  it("omits a severity chip without rows and offers no absent sensor", () => {
-    const warnings = rows.filter((row) => row.severity === "warning");
-
-    expect(chips(warnings).map((chip) => chip.label)).toEqual([
-      "all",
-      "warnings",
-      "lint",
-      "structure",
-    ]);
-  });
 });
 
 describe("walkFindings", () => {
   const order = orderFindings(rows);
 
   it("starts at the first or last from no selection", () => {
-    expect(walkFindings(rows, null, 1)).toBe("v1");
-    expect(walkFindings(rows, null, -1)).toBe("l1");
+    expect(walkFindings(order, null, 1)).toBe("v1");
+    expect(walkFindings(order, null, -1)).toBe("l1");
   });
 
   it("walks forward and backward in display order", () => {
-    expect(walkFindings(rows, "v1", 1)).toBe("v2");
-    expect(walkFindings(rows, "v2", -1)).toBe("v1");
+    expect(walkFindings(order, "v1", 1)).toBe("v2");
+    expect(walkFindings(order, "v2", -1)).toBe("v1");
   });
 
   it("clamps at both ends", () => {
-    expect(walkFindings(rows, order.at(-1)?.id ?? null, 1)).toBe("l1");
-    expect(walkFindings(rows, "c1", 1)).toBe("h1");
-    expect(walkFindings(rows, "h1", 1)).toBe("l1");
-    expect(walkFindings(rows, "l1", 1)).toBe("l1");
-    expect(walkFindings(rows, "v1", -1)).toBe("v1");
+    expect(walkFindings(order, order.at(-1)?.id ?? null, 1)).toBe("l1");
+    expect(walkFindings(order, "c1", 1)).toBe("h1");
+    expect(walkFindings(order, "h1", 1)).toBe("l1");
+    expect(walkFindings(order, "l1", 1)).toBe("l1");
+    expect(walkFindings(order, "v1", -1)).toBe("v1");
   });
 
   it("returns the active id for an empty list and restarts from a hidden id", () => {
     expect(walkFindings([], "v1", 1)).toBe("v1");
     expect(walkFindings([], null, 1)).toBeNull();
-    expect(walkFindings(rows, "gone", 1)).toBe("v1");
+    expect(walkFindings(order, "gone", 1)).toBe("v1");
   });
 });
 
@@ -279,30 +213,5 @@ describe("staleNote", () => {
       staleNote([sensorRow("a", "ran"), sensorRow("b", "ran 1m ago")]),
     ).toBeNull();
     expect(staleNote([])).toBeNull();
-  });
-});
-
-describe("group headings", () => {
-  it("turns a kind id into a readable label", () => {
-    expect(kindLabel("rule-violation")).toBe("Rule violation");
-    expect(kindLabel("unused_export")).toBe("Unused export");
-    expect(kindLabel("cycle")).toBe("Cycle");
-  });
-
-  it("names a severity once and counts its rows across kinds", () => {
-    const groups = groupFindings(
-      findingRows([
-        document("structure", [
-          record("a", "rule-violation", "violation", "x.py"),
-          record("b", "rule-violation", "violation", "y.py"),
-          record("c", "cycle", "violation", "z.py"),
-        ]),
-      ]),
-    );
-
-    expect(groups).toHaveLength(1);
-    expect(severityLabel("violation")).toBe("Violations");
-    expect(severityLabel("warning")).toBe("Warnings");
-    expect(groupCount(groups[0] as FindingGroup)).toBe(3);
   });
 });

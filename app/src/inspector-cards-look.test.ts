@@ -101,6 +101,9 @@ function snap() {
       labelCase: label.textTransform,
       labelWeight: label.fontWeight,
       lineColor: cs(node.querySelector(".card-line")).color,
+      padding: s.padding,
+      codeLineHeight: cs(node.querySelector(".card-code")).lineHeight,
+      codeFontSize: cs(node.querySelector(".card-code")).fontSize,
     };
   };
   return {
@@ -292,6 +295,18 @@ describe.skipIf(chrome === undefined)("the Contents cards", () => {
       expect(style.labelWeight).toBe("600");
     });
   }
+
+  it("the Contents tab's code card has line-height 1.7", () => {
+    for (const scheme of ["light", "dark"] as const) {
+      const style = facts[scheme].off.classStyle;
+
+      expect(style.codeFontSize).toBe("11.5px");
+      expect(style.codeLineHeight).toBe("19.55px");
+      expect(style.padding).toBe("6px 8px");
+      expect(style.labelWeight).toBe("600");
+      expect(style.borderWidth).toBe("1px");
+    }
+  });
 
   it("interleaves a class's fields and methods by line", () => {
     expect(facts.light.on.memberLines).toEqual(["4", "5", "7", "9"]);

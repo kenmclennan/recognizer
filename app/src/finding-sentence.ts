@@ -1,0 +1,276 @@
+import type { FindingRecord } from "recognizer";
+
+export type SentenceInput = {
+  record: FindingRecord;
+  reported: boolean;
+};
+
+export function shortName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+function num(value: number): string {
+  return String(Math.round(value * 100) / 100);
+}
+
+function whole(value: number): string {
+  return String(Math.round(value));
+}
+
+function after(id: string, prefix: string): string {
+  return id.startsWith(prefix) ? id.slice(prefix.length) : "";
+}
+
+function plural(count: number, one: string, many: string): string {
+  return count === 1 ? one : many;
+}
+
+function ruleClause(
+  rule: NonNullable<FindingRecord["evidence"]["edges"]>[number]["rules"],
+): string | null {
+  const first = rule?.[0];
+
+  if (first === undefined) {
+    return null;
+  }
+
+  if (first.type === "level") {
+    return `${first.from_level} may not use ${first.to_level}`;
+  }
+
+  if (first.type === "uses") {
+    return `${first.from_component} may not use ${first.to_component}`;
+  }
+
+  return `nothing may match ${first.pattern}`;
+}
+
+function violation(record: FindingRecord): string | null {
+  const edge = record.evidence.edges?.[0];
+
+  if (edge === undefined) {
+    return null;
+  }
+
+  const verb =
+    edge.kind === undefined || edge.kind === "depends" ? "imports" : edge.kind;
+  const clause = ruleClause(edge.rules);
+  const head = `${shortName(edge.from)} ${verb} ${shortName(edge.to)}`;
+
+  return clause === null
+    ? `${head}, which the policy forbids.`
+    : `${head}, which the policy forbids: ${clause}.`;
+}
+
+function cycle(record: FindingRecord): string | null {
+  const names = record.evidence.modules.map(shortName);
+
+  if (names.length < 2) {
+    return null;
+  }
+
+  if (names.length === 2) {
+    return `${names[0]} and ${names[1]} import each other.`;
+  }
+
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)} form a cycle of ${names.length}.`;
+}
+
+function hub(record: FindingRecord): string | null {
+  const measures = record.evidence.measures;
+  const module = record.evidence.modules[0];
+
+  if (
+    measures?.fan_in === undefined ||
+    measures.fan_out === undefined ||
+    measures.threshold === undefined ||
+    module === undefined
+  ) {
+    return null;
+  }
+
+  return `${shortName(module)} is imported by ${num(measures.fan_in)} modules and imports ${num(measures.fan_out)}; the limit is ${num(measures.threshold)}.`;
+}
+
+function folderCycle(record: FindingRecord): string | null {
+  const folders = after(record.id, "folder_cycle:").split(",");
+
+  if (folders.length < 2 || folders[0] === "") {
+    return null;
+  }
+
+  const through = record.evidence.edges?.length ?? 0;
+
+  return `${folders[0]} and ${folders[1]} import each other, through ${through} ${plural(through, "import", "imports")}.`;
+}
+
+function unstable(record: FindingRecord): string | null {
+  const [from, to] = after(record.id, "stable_dependencies:").split("->");
+  const measures = record.evidence.measures;
+
+  if (
+    from === undefined ||
+    to === undefined ||
+    from === "" ||
+    measures?.source_instability === undefined ||
+    measures.target_instability === undefined
+  ) {
+    return null;
+  }
+
+  return `${from} depends on ${to}, which changes more often (instability ${num(measures.source_instability)} against ${num(measures.target_instability)}).`;
+}
+
+export function isPainZone(record: FindingRecord): boolean {
+  const measures = record.evidence.measures;
+
+  return (
+    measures?.abstractness !== undefined &&
+    measures.instability !== undefined &&
+    measures.abstractness + measures.instability < 1
+  );
+}
+
+function zone(record: FindingRecord): string | null {
+  const folder = after(record.id, "stable_abstractions:");
+  const distance = record.evidence.measures?.distance;
+
+  if (folder === "" || distance === undefined) {
+    return null;
+  }
+
+  return isPainZone(record)
+    ? `${folder} is concrete and much depends on it, so it is hard to change (distance ${num(distance)} from the main sequence).`
+    : `${folder} is abstract and little depends on it (distance ${num(distance)} from the main sequence).`;
+}
+
+function drift(record: FindingRecord): string | null {
+  const entry = after(record.id, "policy_drift:entry:");
+
+  if (entry !== "") {
+    return `The policy names ${entry}, which matches no module.`;
+  }
+
+  const folder = after(record.id, "policy_drift:folder:");
+
+  return folder === "" ? null : `${folder} is covered by no policy layer.`;
+}
+
+function unusedExports(record: FindingRecord): string | null {
+  const module = record.evidence.modules[0];
+  const names = (record.evidence.members ?? []).map((member) => member.name);
+
+  if (module === undefined || names.length === 0) {
+    return null;
+  }
+
+  return `${shortName(module)} exports ${names.length} ${plural(names.length, "name", "names")} no other module imports: ${names.join(", ")}.`;
+}
+
+function duplication(record: FindingRecord): string | null {
+  const [first, second] = record.evidence.members ?? [];
+
+  if (first === undefined || second === undefined) {
+    return null;
+  }
+
+  const sizes = [first, second].flatMap((member) =>
+    member.lines === undefined ? [] : [member.lines[1] - member.lines[0] + 1],
+  );
+  const tail = sizes.length === 0 ? "" : ` (${Math.max(...sizes)} lines)`;
+
+  return `${first.name} in ${shortName(first.module)} repeats the structure of ${second.name} in ${shortName(second.module)}${tail}.`;
+}
+
+function crap(record: FindingRecord): string | null {
+  const member = record.evidence.members?.[0];
+  const measures = record.evidence.measures;
+
+  if (member === undefined || measures?.complexity === undefined) {
+    return null;
+  }
+
+  const head = `${member.name} in ${shortName(member.module)} has complexity ${num(measures.complexity)}`;
+
+  if (measures.coverage === undefined || measures.crap === undefined) {
+    return `${head} and unknown coverage.`;
+  }
+
+  return `${head} and ${whole(measures.coverage * 100)}% coverage, C.R.A.P. ${whole(measures.crap)}.`;
+}
+
+function mutation(record: FindingRecord): string | null {
+  const member = record.evidence.members?.[0];
+  const survived = record.evidence.measures?.survived;
+
+  if (member === undefined || survived === undefined) {
+    return null;
+  }
+
+  return `${member.name} in ${shortName(member.module)} has ${num(survived)} surviving ${plural(survived, "mutation", "mutations")}.`;
+}
+
+function threshold(record: FindingRecord): string | null {
+  const measures = record.evidence.measures;
+  const metric = record.kind.slice("thresholds.".length);
+  const member = record.evidence.members?.[0];
+  const module = member?.module ?? record.evidence.modules[0];
+
+  if (
+    measures?.value === undefined ||
+    measures.line === undefined ||
+    module === undefined
+  ) {
+    return null;
+  }
+
+  const subject =
+    member === undefined
+      ? shortName(module)
+      : `${member.name} in ${shortName(module)}`;
+  const limit =
+    measures.value > measures.line
+      ? "over the limit of"
+      : measures.value < measures.line
+        ? "under the limit of"
+        : "at the limit of";
+
+  return `${subject} has ${metric} ${num(measures.value)}, ${limit} ${num(measures.line)}.`;
+}
+
+function orphan(record: FindingRecord): string | null {
+  const module = record.evidence.modules[0];
+
+  return module === undefined
+    ? null
+    : `${shortName(module)} is imported by nothing and is not an entry point.`;
+}
+
+const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
+  "rule-violation": violation,
+  cycle,
+  folder_cycle: folderCycle,
+  hub,
+  orphan,
+  policy_drift: drift,
+  stable_dependencies: unstable,
+  stable_abstractions: zone,
+  unused_exports: unusedExports,
+  duplication,
+  crap,
+  mutation,
+};
+
+export function sentenceOf(input: SentenceInput): string {
+  const { record, reported } = input;
+
+  if (reported) {
+    return record.summary;
+  }
+
+  const build = record.kind.startsWith("thresholds.")
+    ? threshold
+    : TEMPLATES[record.kind];
+
+  return build?.(record) ?? record.summary;
+}

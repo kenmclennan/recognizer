@@ -2,34 +2,6 @@ import type { FindingRecord } from "recognizer";
 
 export type LitSet = Set<string>;
 
-function compare(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-export function evidenceLines(
-  record: FindingRecord,
-  offCanvas: readonly string[] = [],
-): string[] {
-  const { edges = [], members = [], measures = {} } = record.evidence;
-  const lines = [
-    ...edges.map((edge) =>
-      edge.lines !== undefined && edge.lines.length > 0
-        ? `${edge.from} -> ${edge.to} at line ${edge.lines.join(", ")}`
-        : `${edge.from} -> ${edge.to}`,
-    ),
-    ...members.map((member) => `${member.module}: ${member.name}`),
-    ...Object.keys(measures)
-      .sort(compare)
-      .map((key) => `${key}: ${measures[key]}`),
-  ];
-
-  if (offCanvas.length > 0) {
-    lines.push(`not on the canvas: ${offCanvas.join(", ")}`);
-  }
-
-  return lines;
-}
-
 export function offCanvasModules(
   record: FindingRecord,
   boxFor: (id: string) => string,

@@ -1,34 +1,25 @@
-import type { FindingRecord } from "recognizer";
 import { button, el } from "./dom";
-import { rowDetail } from "./finding-focus";
-import type { FindingFilter, FindingGroup, FindingRow } from "./findings-order";
-import {
-  groupCount,
-  kindLabel,
-  sameFilter,
-  severityLabel,
-} from "./findings-order";
-
-export type FindingsPanelModel = {
-  chips: { label: string; count: number; filter: FindingFilter }[];
-  filter: FindingFilter;
-  stale: string | null;
-  groups: FindingGroup[];
-  active: string | null;
-  empty: string | null;
-};
+import type { CardModel, CardRowModel } from "./finding-card";
+import { shortName } from "./finding-sentence";
+import type { FindingGroupModel } from "./findings-groups";
 
 export type FindingRowActions = {
   toggle: (id: string) => void;
-  openInEditor: (module: string, line: number | null) => void;
-  copyId: (id: string) => void;
-  metricFor: (record: FindingRecord) => { key: string; label: string } | null;
-  showMetric: (key: string) => void;
+  addToView: (module: string) => void;
 };
 
 export type FindingsPanelActions = FindingRowActions & {
-  filter: (filter: FindingFilter) => void;
+  toggleGroup: (key: string) => void;
   openSensors: () => void;
+};
+
+export type FindingsPanelModel = {
+  header: string | null;
+  stale: string | null;
+  groups: { group: FindingGroupModel; open: boolean; cards: CardModel[] }[];
+  active: string | null;
+  absent: (module: string) => boolean;
+  empty: string | null;
 };
 
 export type FindingsPanelView = {
@@ -36,87 +27,76 @@ export type FindingsPanelView = {
   render: (model: FindingsPanelModel) => void;
 };
 
-function split(path: string): { name: string; folder: string } {
-  const at = path.lastIndexOf("/");
-
-  return at === -1
-    ? { name: path, folder: "" }
-    : { name: path.slice(at + 1), folder: path.slice(0, at) };
-}
-
-export function buildFindingRow(
-  row: FindingRow,
-  state: { focused: boolean },
+function itemNode(
+  row: CardRowModel,
+  severity: "violation" | "warning",
+  absent: boolean,
   actions: FindingRowActions,
 ): HTMLElement {
-  const place = split(row.module);
-  const entry = el(
-    "div",
-    state.focused ? "finding-entry focused" : "finding-entry",
-  );
-  const node = button(
-    "",
-    state.focused
-      ? `finding-row ${row.severity} active`
-      : `finding-row ${row.severity}`,
-    () => actions.toggle(row.id),
-  );
+  const node = el("div", "finding-item");
+  const text = el("span", "finding-item-text");
 
-  node.dataset.id = row.id;
-  node.setAttribute("aria-expanded", String(state.focused));
-  node.append(
-    el("span", `finding-mark ${row.severity}`),
-    el("span", "finding-file", place.name),
-    el("span", "finding-folder", place.folder),
-    el("span", "finding-summary", row.summary),
-    el("span", "finding-principle", row.principle),
-    el("span", "finding-sensor", row.sensor),
-  );
-  entry.append(node);
+  node.append(el("span", `finding-mark ${severity}`), text);
 
-  if (state.focused) {
-    const detail = rowDetail(row.record);
-    const box = el("div", `finding-detail ${row.severity}`);
-    const buttons = el("div", "finding-detail-buttons");
+  if (row.kind === "edge") {
+    text.textContent = `${shortName(row.from)} -> ${shortName(row.to)}`;
 
-    for (const line of detail.lines) {
-      box.append(el("div", "finding-evidence", line));
-    }
+    return node;
+  }
 
-    box.append(el("div", "finding-fix", detail.fix));
-    const open = detail.open;
+  text.append(el("span", "finding-item-name", row.name));
 
-    if (open !== null) {
-      buttons.append(
-        button("Open in editor", "finding-detail-button finding-edit", () =>
-          actions.openInEditor(open.module, open.line),
+  if (row.folder !== "") {
+    text.append(el("span", "finding-folder", row.folder));
+  }
+
+  if (absent) {
+    node.append(
+      button("Add to view", "finding-add", () => actions.addToView(row.module)),
+    );
+  }
+
+  return node;
+}
+
+export function buildFindingCard(
+  card: CardModel,
+  severity: "violation" | "warning",
+  state: { open: boolean; absent: (module: string) => boolean },
+  actions: FindingRowActions,
+): HTMLElement {
+  const node = el("div", state.open ? "finding-card open" : "finding-card");
+  const head = button("", "finding-card-head", () => actions.toggle(card.id));
+
+  node.dataset.id = card.id;
+  head.setAttribute("aria-expanded", String(state.open));
+  head.append(el("span", "finding-name", card.name));
+
+  if (card.folder !== "") {
+    head.append(el("span", "finding-folder", card.folder));
+  }
+
+  head.append(el("span", "finding-sentence", card.sentence));
+  node.append(head);
+
+  if (state.open) {
+    const more = el("div", "finding-more");
+
+    for (const row of card.rows) {
+      more.append(
+        itemNode(
+          row,
+          severity,
+          row.kind !== "edge" && state.absent(row.module),
+          actions,
         ),
       );
     }
 
-    const metric = actions.metricFor(row.record);
-
-    if (metric !== null) {
-      const show = button(
-        `Show ${metric.label} on the canvas`,
-        "finding-detail-button finding-metric",
-        () => actions.showMetric(metric.key),
-      );
-
-      show.dataset.metric = metric.key;
-      buttons.append(show);
-    }
-
-    buttons.append(
-      button("Copy id", "finding-detail-button finding-id", () =>
-        actions.copyId(row.id),
-      ),
-    );
-    box.append(buttons);
-    entry.append(box);
+    node.append(more);
   }
 
-  return entry;
+  return node;
 }
 
 export function buildFindingsPanelView(
@@ -124,72 +104,53 @@ export function buildFindingsPanelView(
 ): FindingsPanelView {
   const element = el("div", "findings-panel");
   const header = el("div", "findings-header", "Findings");
-  const chipBar = el("div", "findings-chips");
+  const line = el("p", "findings-line");
   const stale = button("", "findings-stale", () => actions.openSensors());
-  const list = el("div", "finding-rows");
+  const list = el("div", "finding-groups");
   const empty = el("p", "findings-empty");
 
-  element.append(header, chipBar, stale, list, empty);
+  element.append(header, line, stale, list, empty);
 
   return {
     element,
     render(model) {
-      chipBar.replaceChildren(
-        ...model.chips.map((chip) => {
-          const node = button(
-            `${chip.label} ${chip.count}`,
-            sameFilter(chip.filter, model.filter)
-              ? "findings-chip on"
-              : "findings-chip",
-            () => actions.filter(chip.filter),
-          );
-
-          node.setAttribute(
-            "aria-pressed",
-            String(sameFilter(chip.filter, model.filter)),
-          );
-
-          return node;
-        }),
-      );
+      line.textContent = model.header ?? "";
+      line.hidden = model.header === null;
       stale.textContent = model.stale ?? "";
       stale.hidden = model.stale === null;
       empty.textContent = model.empty ?? "";
       empty.hidden = model.empty === null;
       list.replaceChildren(
-        ...model.groups.map((group) => {
-          const block = el("div", `finding-severity ${group.severity}`);
-
-          block.append(
-            el(
-              "div",
-              "finding-severity-title",
-              `${severityLabel(group.severity)} ${groupCount(group)}`,
-            ),
+        ...model.groups.map(({ group, open, cards }) => {
+          const block = el(
+            "div",
+            open ? "finding-group open" : "finding-group",
+          );
+          const head = button("", "finding-group-head", () =>
+            actions.toggleGroup(group.key),
           );
 
-          for (const kind of group.kinds) {
-            const section = el("div", `finding-group ${group.severity}`);
+          block.dataset.group = group.key;
+          head.setAttribute("aria-expanded", String(open));
+          head.append(
+            el("span", "finding-chevron", "›"),
+            el("span", `finding-mark ${group.severity}`),
+            el("span", "finding-group-name", group.name),
+            el("span", "finding-group-count", String(group.rows.length)),
+          );
+          block.append(head);
 
-            section.append(
-              el(
-                "div",
-                "finding-group-title",
-                `${kindLabel(kind.kind)} ${kind.rows.length}`,
-              ),
-            );
-
-            for (const row of kind.rows) {
-              section.append(
-                buildFindingRow(
-                  row,
-                  { focused: row.id === model.active },
+          if (open) {
+            group.rows.forEach((row, index) => {
+              block.append(
+                buildFindingCard(
+                  cards[index] as CardModel,
+                  row.severity,
+                  { open: row.id === model.active, absent: model.absent },
                   actions,
                 ),
               );
-            }
-
-            block.append(section);
+            });
           }
 
           return block;
