@@ -24,6 +24,8 @@ export type NotesPanelView = {
   render: (props: NotesPanelProps) => void;
 };
 
+const DRAG_THRESHOLD = 4;
+
 function displayName(path: string): string {
   const bare = path.endsWith("/") ? path.slice(0, -1) : path;
   const name = bare.slice(bare.lastIndexOf("/") + 1);
@@ -94,6 +96,7 @@ export function buildNotesPanelView(
   const list = el("div", "note-list");
   let current: readonly NoteRow[] = [];
   let dragging = false;
+  let suppressClick = false;
   let deferred: NotesPanelProps | null = null;
 
   function flush() {
@@ -108,29 +111,36 @@ export function buildNotesPanelView(
   header.append(title, toggle);
   element.append(header, prompt, list);
 
-  function attachHandle(row: NoteRow, node: HTMLElement) {
-    const handle = el("span", "note-handle");
-
-    handle.setAttribute("aria-label", "Drag to reorder");
-    handle.addEventListener("click", (event) => event.stopPropagation());
-    handle.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      handle.setPointerCapture(event.pointerId);
+  function attachDrag(row: NoteRow, node: HTMLElement) {
+    node.classList.add("draggable");
+    node.addEventListener(
+      "click",
+      (event) => {
+        if (suppressClick) {
+          suppressClick = false;
+          event.stopImmediatePropagation();
+        }
+      },
+      true,
+    );
+    node.addEventListener("pointerdown", (event) => {
+      if (
+        event.button !== 0 ||
+        (event.target as HTMLElement).closest("button") !== null
+      ) {
+        return;
+      }
 
       const nodes = [...list.querySelectorAll<HTMLElement>(".note-row")];
       const from = nodes.indexOf(node);
       const startY = event.clientY;
       const line = el("div", "note-drop-line");
       let target = from;
-      let active = true;
-
-      node.classList.add("dragging");
-      list.append(line);
-
-      const rects = nodes.map((entry) => entry.getBoundingClientRect());
-      const midpoints = rects.map((box) => box.top + box.height / 2);
-      const listTop = list.getBoundingClientRect().top;
+      let active = false;
+      let finished = false;
+      let rects: DOMRect[] = [];
+      let midpoints: number[] = [];
+      let listTop = 0;
 
       const place = (y: number) => {
         const index = dropIndex(midpoints, y);
@@ -144,45 +154,88 @@ export function buildNotesPanelView(
         line.dataset.index = String(index);
       };
 
+      const begin = (y: number) => {
+        active = true;
+        dragging = true;
+        suppressClick = true;
+        node.setPointerCapture(event.pointerId);
+        node.classList.add("dragging");
+        list.append(line);
+        rects = nodes.map((entry) => entry.getBoundingClientRect());
+        midpoints = rects.map((box) => box.top + box.height / 2);
+        listTop = list.getBoundingClientRect().top;
+        document.addEventListener("keydown", onKey, true);
+        place(y);
+      };
+
       const stop = () => {
-        active = false;
-        dragging = false;
-        node.classList.remove("dragging");
-        node.style.transform = "";
-        line.remove();
-        document.removeEventListener("keydown", onKey, true);
-        handle.removeEventListener("pointermove", onMove);
-        handle.removeEventListener("pointerup", onUp);
-        handle.removeEventListener("pointercancel", onCancel);
+        finished = true;
+        node.removeEventListener("pointermove", onMove);
+        node.removeEventListener("pointerup", onUp);
+        node.removeEventListener("pointercancel", onCancel);
+
+        if (active) {
+          active = false;
+          dragging = false;
+          node.classList.remove("dragging");
+          node.style.transform = "";
+          line.remove();
+          document.removeEventListener("keydown", onKey, true);
+          setTimeout(() => {
+            suppressClick = false;
+          }, 0);
+        }
       };
 
       const onMove = (move: PointerEvent) => {
-        if (active) {
-          node.style.transform = `translateY(${move.clientY - startY}px)`;
-          place(move.clientY);
-        }
-      };
-
-      const onUp = (up: PointerEvent) => {
-        if (!active) {
+        if (finished) {
           return;
         }
 
-        place(up.clientY);
+        if (!active) {
+          if (Math.abs(move.clientY - startY) < DRAG_THRESHOLD) {
+            return;
+          }
+
+          begin(move.clientY);
+        }
+
+        node.style.transform = `translateY(${move.clientY - startY}px)`;
+        place(move.clientY);
+      };
+
+      const onUp = (up: PointerEvent) => {
+        if (finished) {
+          return;
+        }
+
+        const dropped = active;
+
+        if (dropped) {
+          place(up.clientY);
+        }
 
         const moveTo = target;
 
         stop();
-        flush();
 
-        if (moveTo !== from) {
-          actions.moveNote(row.path, moveTo);
+        if (dropped) {
+          flush();
+
+          if (moveTo !== from) {
+            actions.moveNote(row.path, moveTo);
+          }
         }
       };
 
       const onCancel = () => {
+        const wasActive = active;
+
         stop();
-        flush();
+
+        if (wasActive) {
+          flush();
+        }
       };
 
       const onKey = (key: KeyboardEvent) => {
@@ -194,14 +247,10 @@ export function buildNotesPanelView(
         }
       };
 
-      dragging = true;
-      document.addEventListener("keydown", onKey, true);
-      handle.addEventListener("pointermove", onMove);
-      handle.addEventListener("pointerup", onUp);
-      handle.addEventListener("pointercancel", onCancel);
-      place(event.clientY);
+      node.addEventListener("pointermove", onMove);
+      node.addEventListener("pointerup", onUp);
+      node.addEventListener("pointercancel", onCancel);
     });
-    node.prepend(handle);
   }
 
   const view: NotesPanelView = {
@@ -230,7 +279,7 @@ export function buildNotesPanelView(
           ...current.map((row) => {
             const node = buildNoteRow(row, actions, true, true);
 
-            attachHandle(row, node);
+            attachDrag(row, node);
 
             return node;
           }),
