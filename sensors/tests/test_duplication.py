@@ -117,7 +117,7 @@ def test_a_duplicate_across_two_modules_lists_both(tmp_path):
     assert findings[0]["summary"] == "g in a.py is 100% similar to f in b.py"
 
 
-def test_a_kotlin_module_is_a_directory(tmp_path):
+def test_a_kotlin_module_is_a_file(tmp_path):
     function = (
         "fun {n}(items: List<Item>): Int {{\n    var total = 0\n    for (item in items) {{\n"
         "        total += item.price\n    }}\n    return total\n}}\n"
@@ -128,7 +128,7 @@ def test_a_kotlin_module_is_a_directory(tmp_path):
     )
     findings = find(root, min_nodes=1)
 
-    assert [f["id"] for f in findings] == ["duplication:pkg::one|pkg::two"]
+    assert [f["id"] for f in findings] == ["duplication:pkg/One.kt::one|pkg/Two.kt::two"]
 
 
 def test_three_similar_functions_give_one_family_finding(tmp_path):

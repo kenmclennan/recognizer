@@ -17,8 +17,8 @@ class Index:
 
             for decl in file.decls:
                 if decl.owner is None:
-                    names.setdefault(decl.name, set()).add(file.directory)
-                    self.top.setdefault((file.directory, decl.name), decl)
+                    names.setdefault(decl.name, set()).add(file.path)
+                    self.top.setdefault((file.path, decl.name), decl)
 
         self.prefixes = self.build_prefixes()
 
@@ -27,9 +27,7 @@ class Index:
 
         for file in self.files:
             if file.package:
-                by_build.setdefault(self.build_of[file.directory], []).append(
-                    file.package.split(".")
-                )
+                by_build.setdefault(self.build_of[file.path], []).append(file.package.split("."))
 
         found = []
 
@@ -44,16 +42,16 @@ class Index:
     def under_prefix(self, package: str) -> bool:
         return any(package == p or package.startswith(p + ".") for p in self.prefixes)
 
-    def dirs_for(self, package: str, name: str) -> set[str]:
+    def files_for(self, package: str, name: str) -> set[str]:
         return self.packages.get(package, {}).get(name, set())
 
-    def prefer(self, directories: Iterable[str], build: str) -> list[str]:
-        found = sorted(directories)
+    def prefer(self, paths: Iterable[str], build: str) -> list[str]:
+        found = sorted(paths)
         inside = [d for d in found if self.build_of[d] == build]
 
         return inside or found
 
-    def kind_of(self, directory: str, name: str) -> str | None:
-        decl = self.top.get((directory, name))
+    def kind_of(self, path: str, name: str) -> str | None:
+        decl = self.top.get((path, name))
 
         return decl.kind if decl else None

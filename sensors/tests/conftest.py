@@ -2,7 +2,7 @@ import json
 import shutil
 import subprocess
 import sys
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import pytest
 
@@ -36,14 +36,9 @@ def write_scans(root: Path, modified: bool | None = False) -> None:
     cache.mkdir(parents=True, exist_ok=True)
 
     for language, files in by_language.items():
-        ids = (
-            sorted({PurePosixPath(f).parent.as_posix() for f in files})
-            if language == "kotlin"
-            else files
-        )
         document = {
             "files": [{"path": f, "hash": "0" * 64} for f in files],
-            "modules": [{"id": i} for i in ids],
+            "modules": [{"id": f} for f in files],
             "modified": modified,
         }
 

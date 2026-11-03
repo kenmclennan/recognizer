@@ -87,7 +87,7 @@ class CallResolver:
                 if decl.node is None or decl.kind not in ("class", "interface"):
                     continue
 
-                key = (file.directory, decl.name)
+                key = (file.path, decl.name)
                 methods = {
                     m["name"]: m for m in methods_of(decl.node, decl.kind == "interface", False)
                 }
@@ -96,7 +96,7 @@ class CallResolver:
                 )
 
                 if decl.owner:
-                    self.companions.setdefault((file.directory, decl.owner), []).append(key)
+                    self.companions.setdefault((file.path, decl.owner), []).append(key)
 
         self.supers = {key: self.super_keys(info) for key, info in self.classes.items()}
 
@@ -152,27 +152,27 @@ class CallResolver:
     def call_through(
         self, file: SourceFile, segments: list[str], method: str, source: str, line: int
     ) -> None:
-        for directory, top in self.resolver.resolve_segments(file, segments):
-            owner = self.find_method((directory, top), method)
+        for path, top in self.resolver.resolve_segments(file, segments):
+            owner = self.find_method((path, top), method)
 
             if owner:
                 self.record(source, line, self.method_ref(owner, method), "call")
-            elif self.index.kind_of(directory, top) == "interface" and self.has_unscanned_super(
-                (directory, top)
+            elif self.index.kind_of(path, top) == "interface" and self.has_unscanned_super(
+                (path, top)
             ):
-                self.record(source, line, f"{directory}::{top}", "call")
+                self.record(source, line, f"{path}::{top}", "call")
 
     def call_on_name(
         self, file: SourceFile, name: str, method: str, source: str, line: int
     ) -> None:
-        for directory, top in self.resolver.resolve_name(file, name):
-            decl = self.index.top.get((directory, top))
+        for path, top in self.resolver.resolve_name(file, name):
+            decl = self.index.top.get((path, top))
 
             if decl is None:
                 continue
 
-            keys = [(directory, top)] if decl.is_object else []
-            keys += self.companions.get((directory, top), [])
+            keys = [(path, top)] if decl.is_object else []
+            keys += self.companions.get((path, top), [])
 
             for key in keys:
                 owner = self.find_method(key, method)
@@ -191,16 +191,16 @@ class CallResolver:
 
                 return
 
-        for directory, top in self.resolver.resolve_name(file, name):
-            decl = self.index.top.get((directory, top))
+        for path, top in self.resolver.resolve_name(file, name):
+            decl = self.index.top.get((path, top))
 
             if decl is None:
                 continue
 
             if decl.kind == "function":
-                self.record(source, line, f"{directory}::{top}", "call")
+                self.record(source, line, f"{path}::{top}", "call")
             elif decl.kind == "class" and not decl.is_object:
-                self.record(source, line, f"{directory}::{top}", "construct")
+                self.record(source, line, f"{path}::{top}", "construct")
 
     def calls_in(
         self, file: SourceFile, info: ClassInfo | None, function: Node, source: str
@@ -243,7 +243,7 @@ class CallResolver:
             if decl.node is None:
                 continue
 
-            module = file.directory
+            module = file.path
 
             if decl.kind == "function":
                 self.calls_in(file, None, decl.node, f"{module}::{decl.name}")

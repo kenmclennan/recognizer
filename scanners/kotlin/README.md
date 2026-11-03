@@ -10,17 +10,17 @@ recognizer-scan-kotlin ROOT [--commit SHA] [--modified true|false] [--output FIL
 
 ## Files and modules
 
-The scanner reads `.kt` files outside directories named `build` and dot directories. Test code is scanned. `.kts` scripts and `.java` files are not read. A module is a directory holding at least one read file, and its id is the directory's path (`.` for the repository root). The build module of a directory is its nearest ancestor-or-self folder holding `build.gradle`, `build.gradle.kts` or `pom.xml`, and is used to prefer a declaration in the importer's own build when a name is declared in several directories.
+The scanner reads `.kt` files outside directories named `build` and dot directories. Test code is not scanned: directories named `build`, `test`, `androidTest`, `integrationTest` and `testFixtures`, directories ending `Test`, and files `*Test.kt` and `*Tests.kt` are skipped. `.kts` scripts and `.java` files are not read. A module is one read file, and its id is the file's repository-relative path. A file with no declaration is a module with no members. Module ids changed from directories to files; a source build keeps a cached scan with directory ids until `recognizer scan --force`. The build module of a directory is its nearest ancestor-or-self folder holding `build.gradle`, `build.gradle.kts` or `pom.xml`, and is used to prefer a declaration in the importer's own build when a name is declared in several files.
 
 ## Edges
 
 Edges are by name resolution; an import makes an edge only when its name is used.
 
-- **Explicit import** (`import a.b.Name`) goes to the directory declaring `Name` in package `a.b`.
+- **Explicit import** (`import a.b.Name`) goes to the file declaring `Name` in package `a.b`.
 - **Aliased import** (`import a.b.Name as N`) counts uses of `N`; `names` holds `Name`.
-- **Nested-member import** (`import a.b.Outer.Inner`, `import a.b.Obj.func`) goes to the directory declaring `Outer`, with `names` `["Outer.Inner"]`.
+- **Nested-member import** (`import a.b.Outer.Inner`, `import a.b.Obj.func`) goes to the file declaring `Outer`, with `names` `["Outer.Inner"]`.
 - **Wildcard import** (`import a.b.*`) makes one edge per used name the package declares. A wildcard over a package no scanned file declares is foreign.
-- **Same package** needs no import: a used name another directory declares in the file's own package is an edge. Names in the file's own directory make none.
+- **Same package** needs no import: a used name another file declares in the file's own package is an edge, to each declaring file. Names the file declares itself make none.
 - **Fully-qualified use** (`a.b.Name` in code) resolves like an import.
 - **Foreign and unresolved.** A name declared in no scanned file is foreign, under its package. When its package is equal to or below an in-repo package prefix (for each build module, the longest common dotted prefix of the packages it declares), the import is also listed in `unresolved_imports`, used or not.
 - **Supertypes** resolved by the rules above add `inherits` or `implements` edges carrying `member` and `to_member`.

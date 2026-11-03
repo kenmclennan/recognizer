@@ -360,7 +360,7 @@
     ]
   },
   "fixtures/kotlin/expected-scan.json": {
-    "app/src/main/kotlin/shop/application": [
+    "app/src/main/kotlin/shop/application/PlaceOrder.kt": [
       {
         "name": "PlaceOrder",
         "signature": "class PlaceOrder",
@@ -370,7 +370,9 @@
         "methods": [
           "execute(order: Order)"
         ]
-      },
+      }
+    ],
+    "app/src/main/kotlin/shop/application/UseCase.kt": [
       {
         "name": "UseCase",
         "signature": "class UseCase",
@@ -378,7 +380,7 @@
         "methods": []
       }
     ],
-    "app/src/main/kotlin/shop/clients": [
+    "app/src/main/kotlin/shop/clients/PaymentClient.kt": [
       {
         "name": "PaymentClient",
         "signature": "interface PaymentClient abstract",
@@ -388,7 +390,7 @@
         ]
       }
     ],
-    "app/src/main/kotlin/shop/config": [
+    "app/src/main/kotlin/shop/config/Paths.kt": [
       {
         "name": "BASE",
         "signature": "BASE = \"/api\"",
@@ -396,7 +398,7 @@
         "methods": []
       }
     ],
-    "app/src/main/kotlin/shop/domain": [
+    "app/src/main/kotlin/shop/domain/Currency.kt": [
       {
         "name": "Currency",
         "signature": "class Currency",
@@ -408,7 +410,9 @@
         "signature": "class Currency.Companion",
         "fields": [],
         "methods": []
-      },
+      }
+    ],
+    "app/src/main/kotlin/shop/domain/Order.kt": [
       {
         "name": "Order",
         "signature": "class Order",
@@ -425,7 +429,7 @@
         "methods": []
       }
     ],
-    "app/src/main/kotlin/shop/persistence": [
+    "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt": [
       {
         "name": "JdbcOrderStore",
         "signature": "class JdbcOrderStore implements OrderStore",
@@ -436,7 +440,9 @@
           "save(order: Order)",
           "record(order: Order) → OrderRecord"
         ]
-      },
+      }
+    ],
+    "app/src/main/kotlin/shop/persistence/OrderRepository.kt": [
       {
         "name": "OrderRepository",
         "signature": "interface OrderRepository abstract extends CrudRepository<Order, Long>",
@@ -444,7 +450,7 @@
         "methods": []
       }
     ],
-    "app/src/main/kotlin/shop/ports": [
+    "app/src/main/kotlin/shop/ports/OrderStore.kt": [
       {
         "name": "OrderStore",
         "signature": "interface OrderStore abstract",
@@ -454,7 +460,7 @@
         ]
       }
     ],
-    "app/src/main/kotlin/shop/web": [
+    "app/src/main/kotlin/shop/web/OrderController.kt": [
       {
         "name": "OrderController",
         "signature": "class OrderController",

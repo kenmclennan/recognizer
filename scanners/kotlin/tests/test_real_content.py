@@ -33,14 +33,11 @@ def result(petclinic):
     return scan_with_stats(petclinic, None)
 
 
-def sources_by_directory(root: Path, document: dict) -> dict[str, list[str]]:
-    found: dict[str, list[str]] = {}
-
-    for item in document["files"]:
-        directory = Path(item["path"]).parent.as_posix()
-        found.setdefault(directory, []).append((root / item["path"]).read_text(errors="replace"))
-
-    return found
+def sources_by_file(root: Path, document: dict) -> dict[str, list[str]]:
+    return {
+        item["path"]: [(root / item["path"]).read_text(errors="replace")]
+        for item in document["files"]
+    }
 
 
 def is_used(sources: list[str], name: str) -> bool:
@@ -74,7 +71,7 @@ def test_the_petclinic_scan_is_schema_valid(result):
 
 def test_the_petclinic_file_and_module_counts_match_the_baseline(result):
     assert len(result.document["files"]) == BASELINE["files"] == 134
-    assert len(result.document["modules"]) == BASELINE["modules"] == 47
+    assert len(result.document["modules"]) == BASELINE["modules"] == BASELINE["files"]
 
 
 def test_the_petclinic_edge_and_damaged_counts_match_the_baseline(result):
@@ -83,7 +80,7 @@ def test_the_petclinic_edge_and_damaged_counts_match_the_baseline(result):
 
 
 def test_the_petclinic_edge_precision_holds_the_floor(petclinic, result):
-    sources = sources_by_directory(petclinic, result.document)
+    sources = sources_by_file(petclinic, result.document)
     edges = [
         e
         for e in result.document["edges"]

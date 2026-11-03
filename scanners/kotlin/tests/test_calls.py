@@ -11,7 +11,7 @@ def test_a_constructor_parameter_receiver_resolves_to_the_declared_method(run):
         }
     )
 
-    assert ("c::U.go", "a::Port.save", "call") in call_tuples(document)
+    assert ("c/U.kt::U.go", "a/Port.kt::Port.save", "call") in call_tuples(document)
 
 
 def test_a_property_receiver_resolves_to_the_declared_method(run):
@@ -22,7 +22,7 @@ def test_a_property_receiver_resolves_to_the_declared_method(run):
         }
     )
 
-    assert ("c::U.go", "a::Port.save", "call") in call_tuples(document)
+    assert ("c/U.kt::U.go", "a/Port.kt::Port.save", "call") in call_tuples(document)
 
 
 def test_a_call_to_a_top_level_function_resolves_by_name(run):
@@ -33,7 +33,7 @@ def test_a_call_to_a_top_level_function_resolves_by_name(run):
         }
     )
 
-    assert call_tuples(document) == [("c::go", "a::helper", "call")]
+    assert call_tuples(document) == [("c/U.kt::go", "a/F.kt::helper", "call")]
 
 
 def test_a_constructor_call_of_a_scanned_class_is_a_construct(run):
@@ -44,7 +44,7 @@ def test_a_constructor_call_of_a_scanned_class_is_a_construct(run):
         }
     )
 
-    assert call_tuples(document) == [("c::go", "a::X", "construct")]
+    assert call_tuples(document) == [("c/U.kt::go", "a/X.kt::X", "construct")]
 
 
 def test_an_object_member_is_called_through_the_object_name(run):
@@ -55,7 +55,7 @@ def test_an_object_member_is_called_through_the_object_name(run):
         }
     )
 
-    assert call_tuples(document) == [("c::go", "a::O.f", "call")]
+    assert call_tuples(document) == [("c/U.kt::go", "a/O.kt::O.f", "call")]
 
 
 def test_a_companion_member_is_called_through_the_class_name(run):
@@ -66,7 +66,7 @@ def test_a_companion_member_is_called_through_the_class_name(run):
         }
     )
 
-    assert call_tuples(document) == [("c::go", "a::X.Companion.make", "call")]
+    assert call_tuples(document) == [("c/U.kt::go", "a/X.kt::X.Companion.make", "call")]
 
 
 def test_an_inherited_method_resolves_to_the_supertype_that_declares_it(run):
@@ -77,7 +77,7 @@ def test_an_inherited_method_resolves_to_the_supertype_that_declares_it(run):
         }
     )
 
-    assert ("c::U.go", "a::Base.hello", "call") in call_tuples(document)
+    assert ("c/U.kt::U.go", "a/Base.kt::Base.hello", "call") in call_tuples(document)
 
 
 def test_an_interface_method_dispatches_to_each_implementation(run):
@@ -90,8 +90,8 @@ def test_an_interface_method_dispatches_to_each_implementation(run):
     )
 
     assert call_tuples(document) == [
-        ("a::Port.save", "b::One.save", "dispatch"),
-        ("a::Port.save", "c::Two.save", "dispatch"),
+        ("a/Port.kt::Port.save", "b/One.kt::One.save", "dispatch"),
+        ("a/Port.kt::Port.save", "c/Two.kt::Two.save", "dispatch"),
     ]
 
 
@@ -103,7 +103,7 @@ def test_a_method_a_data_repository_inherits_resolves_to_the_interface_itself(ru
         }
     )
 
-    assert call_tuples(document) == [("c::U.go", "a::Repo", "call")]
+    assert call_tuples(document) == [("c/U.kt::U.go", "a/Repo.kt::Repo", "call")]
 
 
 def test_a_call_in_a_class_body_outside_a_function_has_no_caller(run):
@@ -136,4 +136,4 @@ def test_a_call_whose_far_end_is_not_a_member_is_dropped(run):
     )
 
     assert document["calls"] == []
-    assert edges_of(document, "c")[0]["to"] == "foreign:z"
+    assert edges_of(document, "c/U.kt")[0]["to"] == "foreign:z"

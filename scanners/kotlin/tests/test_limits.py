@@ -13,7 +13,7 @@ def caller(body: str) -> str:
 def test_a_receiver_with_a_declared_type_resolves(run):
     document = run({"a/Repo.kt": REPO, "c/U.kt": caller("repo.save(1)")})
 
-    assert call_tuples(document) == [("c::U.go", "a::Repo.save", "call")]
+    assert call_tuples(document) == [("c/U.kt::U.go", "a/Repo.kt::Repo.save", "call")]
 
 
 def test_a_call_through_a_local_value_is_not_resolved(run):
@@ -25,7 +25,7 @@ def test_a_call_through_a_local_value_is_not_resolved(run):
 def test_a_call_through_a_chain_is_not_resolved(run):
     document = run({"a/Repo.kt": REPO, "c/U.kt": caller("repo.find().save(1)")})
 
-    assert call_tuples(document) == [("c::U.go", "a::Repo.find", "call")]
+    assert call_tuples(document) == [("c/U.kt::U.go", "a/Repo.kt::Repo.find", "call")]
 
 
 def test_a_local_named_like_an_imported_class_still_counts_as_a_use(run):
@@ -36,14 +36,14 @@ def test_a_local_named_like_an_imported_class_still_counts_as_a_use(run):
         }
     )
 
-    assert targets(document, "c") == {"a": ["X"]}
+    assert targets(document, "c/U.kt") == {"a/X.kt": ["X"]}
 
 
 def test_returns_is_present_with_a_declared_type_and_absent_for_an_expression_body(run):
     document = run({"a/F.kt": "package p\n\nfun declared(): Int = 1\n\nfun inferred() = 1\n"})
 
-    assert member(document, "a", "declared")["returns"] == "Int"
-    assert "returns" not in member(document, "a", "inferred")
+    assert member(document, "a/F.kt", "declared")["returns"] == "Int"
+    assert "returns" not in member(document, "a/F.kt", "inferred")
 
 
 def test_a_factory_made_bean_gives_the_consumer_no_edge_to_the_factory(run):
@@ -58,8 +58,8 @@ def test_a_factory_made_bean_gives_the_consumer_no_edge_to_the_factory(run):
         }
     )
 
-    assert "f" not in targets(document, "c")
-    assert "c" not in targets(document, "f")
+    assert "f/Factory.kt" not in targets(document, "c/U.kt")
+    assert "c/U.kt" not in targets(document, "f/Factory.kt")
 
 
 def test_two_implementations_of_one_port_are_both_dispatched_to(run):
@@ -71,7 +71,7 @@ def test_two_implementations_of_one_port_are_both_dispatched_to(run):
         }
     )
 
-    assert [c["to"] for c in document["calls"]] == ["b::One.go", "c::Two.go"]
+    assert [c["to"] for c in document["calls"]] == ["b/One.kt::One.go", "c/Two.kt::Two.go"]
 
 
 def test_a_java_declared_class_stays_foreign_and_the_java_file_is_not_read(run):
@@ -82,7 +82,7 @@ def test_a_java_declared_class_stays_foreign_and_the_java_file_is_not_read(run):
         }
     )
 
-    assert targets(document, "c") == {"foreign:p": []}
+    assert targets(document, "c/U.kt") == {"foreign:p": []}
     assert [f["path"] for f in document["files"]] == ["c/U.kt"]
 
 

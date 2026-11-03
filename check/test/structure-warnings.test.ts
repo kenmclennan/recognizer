@@ -1176,14 +1176,15 @@ describe("unused_exports", () => {
         "api/src/place.ts": ["place"],
       },
       kotlin: {
-        "app/src/main/kotlin/shop/application": ["UseCase"],
-        "app/src/main/kotlin/shop/clients": ["PaymentClient"],
-        "app/src/main/kotlin/shop/domain": ["Currency", "Currency.Companion"],
-        "app/src/main/kotlin/shop/persistence": [
-          "JdbcOrderStore",
-          "OrderRepository",
+        "app/src/main/kotlin/shop/clients/PaymentClient.kt": ["PaymentClient"],
+        "app/src/main/kotlin/shop/domain/Currency.kt": [
+          "Currency",
+          "Currency.Companion",
         ],
-        "app/src/main/kotlin/shop/web": ["OrderController"],
+        "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt": [
+          "JdbcOrderStore",
+        ],
+        "app/src/main/kotlin/shop/web/OrderController.kt": ["OrderController"],
       },
       rust: {},
     };
