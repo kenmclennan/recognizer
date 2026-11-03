@@ -12,6 +12,7 @@ import type { Registered } from "./rescanner";
 import type { ResponsibilitiesPort } from "./responsibilities-port";
 import type { Loaded } from "./scan-loading";
 import type { RowSensor } from "./scan-panel-model";
+import type { ViewComparisons } from "./view-comparisons";
 import type { ViewsPort } from "./views-port";
 import type { WindowPort } from "./window-port";
 
@@ -59,6 +60,7 @@ export type ExplorerOptions = {
   showMetrics?: (text: string | null) => void;
   withdraw?: (id: number) => void;
   reconcileMessages?: (foundKeys: readonly string[]) => void;
+  comparisons?: ViewComparisons;
 };
 
 export function mountExplorer(options: ExplorerOptions): Explorer {
@@ -79,5 +81,6 @@ export function mountExplorer(options: ExplorerOptions): Explorer {
     options.showMetrics,
     options.withdraw,
     options.reconcileMessages,
+    options.comparisons,
   );
 }

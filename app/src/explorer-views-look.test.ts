@@ -4,6 +4,8 @@ import { chrome, collectFacts, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
+import { createViewComparisons } from ${JSON.stringify(here("view-comparisons.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
@@ -53,24 +55,35 @@ const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: tr
 const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
 const typeInto = (input, value) => { input.value = value; input.dispatchEvent(new Event("input", { bubbles: true })); };
 
-function mount(files, options) {
+function mount(files, options, comparisons) {
+  const footerEl = document.createElement("footer");
+  footerEl.className = "footer";
+  document.body.append(footerEl);
+  const footer = buildFooter(footerEl);
   const host = document.createElement("div");
   host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
   document.body.append(host);
   const port = fakeViews(files, options);
   port.scansByCommit.set("old1234", [thenScan]);
+  const calls = { scans: [], renames: [] };
+  const scansAt = port.scansAt;
+  const renamesSince = port.renamesSince;
+  port.scansAt = (commit) => { calls.scans.push(commit); return scansAt(commit); };
+  port.renamesSince = (commit) => { calls.renames.push(commit); return renamesSince(commit); };
   const win = fakeWindow();
   const state = { count: "" };
   const notes = [];
-  mountExplorer({ container: host, loaded, title: "demo", onCount: (text) => { state.count = text; }, views: port, post: (input) => { notes.push(input.text); return null; }, windowPort: win });
+  mountExplorer({ container: host, loaded, title: "demo", onCount: (text) => { state.count = text; }, views: port, post: (input) => { notes.push(input.text); return footer.post(input); }, withdraw: footer.withdraw, reconcileMessages: footer.reconcile, windowPort: win, comparisons });
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const count = () => Number(/^(\\d+) of/.exec(state.count)[1]);
   const lastCurrent = () => win.last();
-  const panelRows = () => all(".stale-panel .row").map((row) => ({ name: row.querySelector(".name").textContent, checked: row.querySelector(".rcheck").getAttribute("aria-checked") === "true", disc: row.querySelectorAll(".disc").length }));
-  const panelRow = (name) => all(".stale-panel .row").find((row) => row.querySelector(".name").textContent === name);
+  const tray = () => [...footerEl.querySelectorAll(".message-list .msg")].map((row) => ({ text: row.querySelector(".msg-text").textContent, actions: [...row.querySelectorAll(".msg-act")].map((n) => n.textContent) }));
+  const update = () => click(footerEl.querySelector(".message-list .msg-act"));
+  const canvasKids = () => q(".canvas").children.length;
+  const badge = () => ({ hidden: footerEl.querySelector(".bell-badge").hidden, count: footerEl.querySelector(".bell-badge").textContent });
   const selected = () => all(".box.selected").map((n) => n.dataset.id);
-  return { host, port, win, state, notes, q, all, count, lastCurrent, panelRows, panelRow, selected };
+  return { host, port, win, state, notes, q, all, count, lastCurrent, tray, update, canvasKids, badge, calls, selected };
 }
 
 const facts = {};
@@ -81,7 +94,7 @@ const facts = {};
   const one = mount({});
   await tick();
   const shown = (selector) => { const node = one.q(selector); return node !== null && getComputedStyle(node).display !== "none"; };
-  facts.freshOverlays = { menu: shown(".view-menu"), dialog: shown(".view-dialog"), stale: shown(".stale-panel") };
+  facts.freshOverlays = { menu: shown(".view-menu"), dialog: shown(".view-dialog") };
   facts.emptyStart = { count: one.count(), view: one.q(".view-name").textContent, bar: one.all(".view-bar button").length, writes: one.win.published.length, spinnerDisplay: getComputedStyle(one.q(".canvas-busy")).display, menuEmpty: (click(one.q(".view-list")), one.q(".view-menu").textContent) };
   click(one.q(".view-list"));
   click(one.q('.tree .row[data-path="app"] .rcheck'));
@@ -110,7 +123,7 @@ const facts = {};
   facts.menu = one.all(".view-item").map((n) => n.textContent);
   click(one.q(".view-item"));
   await tick();
-  facts.reopened = { count: one.count(), footer: one.state.count, name: one.q(".view-name").textContent, panel: !one.q(".stale-panel").hidden };
+  facts.reopened = { count: one.count(), footer: one.state.count, name: one.q(".view-name").textContent };
 
   click(one.q(".box .box-body"));
   await tick();
@@ -158,71 +171,71 @@ const facts = {};
   facts.deleted = { count: one.count(), name: one.q(".view-name").textContent, notice: one.notes.join(" | ") };
 
   const staleFile = viewText([pick("app/hub.py"), pick("lib/c.py"), pick("lib/deleted.py")], "old1234");
-  const two = mount({ stale: staleFile, stale2: staleFile });
+  const comparisons = createViewComparisons();
+  const two = mount({ stale: staleFile, stale2: staleFile, current: viewText([pick("app/hub.py")], "cur1234") }, undefined, comparisons);
   two.port.renames = [{ from: "lib/deleted.py", to: "lib/e.py" }];
   await tick();
   click(two.q(".view-list"));
-  click(two.all(".view-item")[0]);
+  const kidsBefore = two.canvasKids();
+  click(two.all(".view-item")[1]);
   await tick();
-  const panel = two.q(".stale-panel");
-  facts.stale = {
-    hidden: panel.hidden,
-    text: panel.textContent,
-    count: two.count(),
-    rows: two.panelRows(),
-    sections: [...panel.querySelectorAll("h4")].map((n) => n.textContent),
-  };
-  const historyBefore = two.win.published.length;
-  click(two.panelRow("lib/d.py").querySelector(".rcheck"));
+  facts.stale = { panel: two.q(".stale-panel") !== null, kids: two.canvasKids() === kidsBefore, count: two.count(), tray: two.tray(), badge: two.badge() };
+  click(two.q(".view-list"));
+  click(two.all(".view-item")[1]);
   await tick();
-  facts.ticked = { count: two.count(), rows: two.panelRows(), writes: two.win.published.length - historyBefore };
-  click(two.q(".view-back"));
-  await tick();
-  facts.backUntick = { count: two.count(), rows: two.panelRows() };
-  click(two.q(".view-forward"));
-  await tick();
-  click(two.panelRow("lib/d.py").querySelector(".rcheck"));
-  await tick();
-  facts.unticked = { count: two.count(), rows: two.panelRows() };
-  click(two.panelRow("lib/d.py").querySelector(".rcheck"));
-  await tick();
-  click(two.q(".stale-update"));
+  facts.reopened2 = { tray: two.tray().length, scans: two.calls.scans.length, renames: two.calls.renames.length };
+  two.update();
   await tick();
   const updated = JSON.parse(two.port.files.get("stale"));
-  facts.updated = { steps: updated.steps, commit: updated.commit, panelHidden: two.q(".stale-panel").hidden, count: two.count(), valid: parseViewFile(two.port.files.get("stale")).ok };
+  facts.updated = { steps: updated.steps, commit: updated.commit, tray: two.tray(), badge: two.badge(), count: two.count(), valid: parseViewFile(two.port.files.get("stale")).ok };
 
   click(two.q(".view-list"));
-  click(two.all(".view-item")[1]);
+  click(two.all(".view-item")[2]);
   await tick();
-  click(two.panelRow("lib/e.py").querySelector(".rcheck"));
-  await tick();
-  facts.renameUnticked = { count: two.count(), rows: two.panelRows() };
-  click(two.q(".stale-update"));
+  facts.second = two.tray();
+  two.update();
   await tick();
   const dropped = JSON.parse(two.port.files.get("stale2"));
-  facts.droppedUpdate = { steps: dropped.steps, commit: dropped.commit };
+  facts.droppedUpdate = { steps: dropped.steps, commit: dropped.commit, tray: two.tray() };
 
   click(two.q(".view-list"));
-  click(two.all(".view-item")[1]);
+  click(two.all(".view-item")[0]);
   await tick();
-  facts.leaveBefore = !two.q(".stale-panel").hidden;
+  facts.currentView = two.tray();
+
+  const mixed = mount({ one: staleFile, two: viewText([pick("app/hub.py"), pick("lib/deleted.py")], "old1234"), now: viewText([pick("app/hub.py")], "cur1234") });
+  await tick();
+  for (const index of [1, 2, 0]) {
+    click(mixed.q(".view-list"));
+    click(mixed.all(".view-item")[index]);
+    await tick();
+  }
+  facts.mixed = mixed.tray();
 
   const three = mount({ late: staleFile }, { delayScans: true });
   await tick();
   click(three.q(".view-list"));
   click(three.q(".view-item"));
   await tick();
-  facts.late = { count: three.count(), text: three.q(".stale-panel").textContent, hidden: three.q(".stale-panel").hidden };
+  facts.late = { count: three.count(), tray: three.tray().length };
   await three.port.settle();
   await tick();
-  facts.lateDone = { text: three.q(".stale-panel").textContent, sections: [...three.q(".stale-panel").querySelectorAll("h4")].map((n) => n.textContent) };
+  facts.lateDone = three.tray();
+
+  const nowhere = mount({ gone: staleFile });
+  nowhere.port.scansByCommit.delete("old1234");
+  await tick();
+  click(nowhere.q(".view-list"));
+  click(nowhere.q(".view-item"));
+  await tick();
+  facts.unavailable = nowhere.tray();
 
   const four = mount({ plain: viewText([pick("app/hub.py")], "cur1234") });
   await tick();
   click(four.q(".view-list"));
   click(four.q(".view-item"));
   await tick();
-  facts.sameCommit = { hidden: four.q(".stale-panel").hidden, count: four.count() };
+  facts.sameCommit = { tray: four.tray().length, count: four.count() };
   click(four.q('.tree .row[data-path="lib"] .rcheck'));
   await tick();
   click(four.q(".view-save"));
@@ -451,11 +464,10 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.emptyStart.spinnerDisplay).toBe("none");
   });
 
-  it("shows no menu, dialog or stale panel in a fresh window", () => {
+  it("shows no menu or dialog in a fresh window", () => {
     expect(f.freshOverlays).toEqual({
       menu: false,
       dialog: false,
-      stale: false,
     });
   });
 
@@ -485,7 +497,6 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.reopened.count).toBe(2);
     expect(f.reopened.footer).toContain("2 of 5");
     expect(f.reopened.name).toBe("overview");
-    expect(f.reopened.panel).toBe(false);
   });
 
   it("publishes the window state after each change", () => {
@@ -528,67 +539,72 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.deleted.notice).toContain("overview was deleted");
   });
 
-  it("opens a stale view showing the rest with the missing path, its rename and the newly relevant modules", () => {
-    expect(f.stale.hidden).toBe(false);
-    expect(f.stale.text).toContain("lib/deleted.py");
-    expect(f.stale.text).toContain("renamed to");
-    expect(f.stale.sections).toEqual([
-      "Missing",
-      "Changed relations",
-      "Newly relevant",
-    ]);
-    expect(f.stale.text).toContain("+ app/hub.py -> lib/c.py");
+  it("opens a stale view drawing nothing on the canvas and posting one message with Update", () => {
+    expect(f.stale.panel).toBe(false);
+    expect(f.stale.kids).toBe(true);
     expect(f.stale.count).toBe(3);
-    expect(f.stale.rows).toEqual([
-      { name: "lib/e.py", checked: true, disc: 1 },
-      { name: "lib/d.py", checked: false, disc: 1 },
+    expect(f.stale.tray).toEqual([
+      {
+        text: "stale is out of date. Since old1234, deleted.py was renamed to e.py, 1 relation changed and d.py became relevant.",
+        actions: ["Update"],
+      },
     ]);
+    expect(f.stale.badge).toEqual({ hidden: false, count: "1" });
   });
 
-  it("draws a newly relevant module when its row is ticked and takes it off when unticked", () => {
-    expect(f.ticked.count).toBe(4);
-    expect(f.ticked.rows[1].checked).toBe(true);
-    expect(f.ticked.writes).toBeGreaterThan(0);
-    expect(f.backUntick.count).toBe(3);
-    expect(f.backUntick.rows[1].checked).toBe(false);
-    expect(f.unticked.count).toBe(3);
+  it("compares the same pair once and posts once when the view is opened again", () => {
+    expect(f.reopened2).toEqual({ tray: 1, scans: 1, renames: 1 });
   });
 
-  it("updates the file with the rename and the ticked module and moves the commit", () => {
+  it("updates the file with the rename followed and moves the commit, then withdraws the message", () => {
     expect(f.updated.valid).toBe(true);
     expect(f.updated.steps).toEqual([
       { kind: "pick", module: "app/hub.py" },
       { kind: "pick", module: "lib/c.py" },
       { kind: "pick", module: "lib/e.py" },
-      { kind: "pick", module: "lib/d.py" },
     ]);
     expect(f.updated.commit).toBe("cur1234");
-    expect(f.updated.panelHidden).toBe(true);
-    expect(f.updated.count).toBe(4);
+    expect(f.updated.count).toBe(3);
+    expect(f.updated.tray).toEqual([]);
+    expect(f.updated.badge.hidden).toBe(true);
   });
 
-  it("deletes the old pick and adds no new path when the rename row is unticked", () => {
-    expect(f.renameUnticked.count).toBe(2);
-    expect(f.renameUnticked.rows[0]).toEqual({
-      name: "lib/e.py",
-      checked: false,
-      disc: 1,
-    });
+  it("follows the rename on Update for a view opened from the menu", () => {
+    expect(f.second).toHaveLength(1);
     expect(f.droppedUpdate.steps).toEqual([
       { kind: "pick", module: "app/hub.py" },
       { kind: "pick", module: "lib/c.py" },
+      { kind: "pick", module: "lib/e.py" },
     ]);
     expect(f.droppedUpdate.commit).toBe("cur1234");
-    expect(f.leaveBefore).toBe(false);
+    expect(f.droppedUpdate.tray).toEqual([]);
   });
 
-  it("draws the canvas before the commit comparison arrives", () => {
-    expect(f.late.hidden).toBe(false);
+  it("posts nothing for a view at the scan commit", () => {
+    expect(f.currentView).toEqual([]);
+  });
+
+  it("gives two rows with different texts for two out-of-date views and none for the current one", () => {
+    expect(f.mixed.map((row: { text: string }) => row.text)).toEqual([
+      "two is out of date. Since old1234, deleted.py is missing and 2 modules became relevant.",
+      "one is out of date. Since old1234, deleted.py is missing, 1 relation changed and d.py became relevant.",
+    ]);
+  });
+
+  it("draws the canvas before the commit comparison arrives and posts after it", () => {
     expect(f.late.count).toBe(2);
-    expect(f.late.text).toContain("Comparing with the commit...");
-    expect(f.late.text).not.toContain("Changed relations");
-    expect(f.lateDone.text).not.toContain("Comparing with the commit...");
-    expect(f.lateDone.sections).toContain("Newly relevant");
+    expect(f.late.tray).toBe(0);
+    expect(f.lateDone).toHaveLength(1);
+    expect(f.lateDone[0].actions).toEqual(["Update"]);
+  });
+
+  it("says the view could not be compared, with no action, when the commit cannot be scanned", () => {
+    expect(f.unavailable).toEqual([
+      {
+        text: "Could not compare gone with old1234. That commit could not be scanned.",
+        actions: [],
+      },
+    ]);
   });
 
   it("draws the bar with 16px stroke icons labelled and titled, and a chevron after the name", () => {
@@ -724,7 +740,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
   });
 
   it("shows no warning for a view at the current commit and records only picks on save", () => {
-    expect(f.sameCommit.hidden).toBe(true);
+    expect(f.sameCommit.tray).toBe(0);
     expect(f.sameCommit.count).toBe(1);
     expect(f.resaved.description).toBe("d");
     expect(f.resaved.steps).toEqual([
