@@ -373,6 +373,40 @@ def test_same_package_a_name_declared_in_the_using_file_makes_no_edge_and_elsewh
     }
 
 
+def test_private_top_level_name_in_another_file_makes_no_same_package_edge(run):
+    document = run(
+        {
+            "a/Hidden.kt": declares("p", "private fun helper() = 1"),
+            "a/Public.kt": declares("p", "fun helper() = 1"),
+            "a/Use.kt": declares("p", "fun go() = helper()"),
+        }
+    )
+
+    assert targets(document, "a/Use.kt") == {"a/Public.kt": ["helper"]}
+
+
+def test_private_top_level_name_used_in_its_own_file_makes_no_edge(run):
+    document = run(
+        {
+            "a/Hidden.kt": declares("p", "private fun helper() = 1\n\nfun go() = helper()"),
+            "a/Public.kt": declares("p", "fun helper() = 1"),
+        }
+    )
+
+    assert edges_of(document, "a/Hidden.kt") == []
+
+
+def test_private_top_level_class_is_not_imported_from_another_file(run):
+    document = run(
+        {
+            "a/Hidden.kt": declares("p", "private class X"),
+            "c/U.kt": user("import p.X"),
+        }
+    )
+
+    assert "a/Hidden.kt" not in targets(document, "c/U.kt")
+
+
 def test_a_file_with_no_declaration_is_a_module_with_no_members(run):
     document = run({"a/Empty.kt": "package p\n"})
 

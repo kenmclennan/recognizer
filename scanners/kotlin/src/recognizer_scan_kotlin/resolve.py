@@ -76,6 +76,9 @@ class Resolver:
         build = self.index.build_of[file.path]
         own = self.index.files_for(file.package, name)
 
+        if (file.path, name) in self.index.top:
+            return [(file.path, name)]
+
         if own:
             if file.path in own:
                 return [(file.path, name)]
@@ -186,7 +189,12 @@ class Resolver:
                     continue
 
                 for name in sorted(file.uses):
-                    if name in bindings or name in own or name not in names:
+                    if (
+                        name in bindings
+                        or name in own
+                        or name not in names
+                        or (file.path, name) in self.index.top
+                    ):
                         continue
 
                     for target in self.index.prefer(names[name], build):
@@ -220,6 +228,9 @@ class Resolver:
 
         for name, line in sorted(file.uses.items()):
             if name in bindings or name not in names or file.path in names[name]:
+                continue
+
+            if (file.path, name) in self.index.top:
                 continue
 
             for target in self.index.prefer(names[name], build):
