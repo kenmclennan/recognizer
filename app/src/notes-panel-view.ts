@@ -46,8 +46,6 @@ export function buildNoteRow(
 
   node.dataset.path = row.path;
 
-  node.append(el("span", "note-number", String(row.number)));
-
   remove.setAttribute("aria-label", "Remove note");
   remove.title = "Remove note";
 

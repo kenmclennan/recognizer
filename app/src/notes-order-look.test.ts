@@ -38,7 +38,7 @@ async function mount(text) {
   m.saved = () => JSON.parse(port.files.get("order"));
   m.order = () => (m.saved().notes || []).map((n) => n.module);
   m.rows = () => all(".note-row").map((n) => n.dataset.path);
-  m.numbers = () => all(".note-row .note-number").map((n) => n.textContent);
+  m.numberCount = () => all(".note-row .note-number").length;
   m.bubble = () => q(".note-layer:not([hidden]) .note-bubble:not(.idle)");
   m.bubblePos = () => { const r = m.bubble().getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; };
   m.marks = () => all("[data-note-mark]").map((n) => [n.dataset.noteMark, n.querySelectorAll("svg.i path").length, n.textContent.trim(), n.classList.contains("active")]);
@@ -65,13 +65,13 @@ const facts = {};
   await m.open();
   facts.landing = { text: m.bubble() && m.bubble().querySelector(".note-text").textContent, position: m.bubble() && m.bubble().querySelector(".note-position").textContent };
   await m.notesPanel();
-  facts.panel = { rows: m.rows(), numbers: m.numbers(), draggable: m.all(".note-row.draggable").length, handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle") };
+  facts.panel = { rows: m.rows(), numbers: m.numberCount(), draggable: m.all(".note-row.draggable").length, handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle") };
   facts.marks = m.marks();
 
   const drag = await m.drag(0, 2, true);
   drag.fire("pointerup", drag.y);
   await tick(80);
-  facts.dragged = { rows: m.rows(), file: m.order(), numbers: m.numbers() };
+  facts.dragged = { rows: m.rows(), file: m.order(), numbers: m.numberCount() };
   m.lines.at(-1).onUndo();
   await tick(80);
   facts.undone = { rows: m.rows(), file: m.order() };
@@ -123,9 +123,9 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
     expect(f.landing).toEqual({ text: "First stop", position: "1 of 3" });
   });
 
-  it("numbers the panel rows in list order, each draggable as a whole with no handle strip and no order toggle", () => {
+  it("lists the panel rows in list order with no numbers, each draggable as a whole with no handle strip and no order toggle", () => {
     expect(f.panel.rows).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
-    expect(f.panel.numbers).toEqual(["1", "2", "3"]);
+    expect(f.panel.numbers).toBe(0);
     expect(f.panel.draggable).toBe(3);
     expect(f.panel.handles).toBe(0);
     expect(f.panel.toggle).toBeNull();
@@ -142,7 +142,7 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
   it("reorders by a real pointer drag and writes the file", () => {
     expect(f.dragged.rows).toEqual(["p/a.py", "p/b.py", "p/c.py"]);
     expect(f.dragged.file).toEqual(["p/a.py", "p/b.py", "p/c.py"]);
-    expect(f.dragged.numbers).toEqual(["1", "2", "3"]);
+    expect(f.dragged.numbers).toBe(0);
   });
 
   it("cancels on Escape and does nothing when dropped on its own place", () => {
