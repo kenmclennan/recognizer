@@ -6,7 +6,6 @@ import {
 } from "./canvas-graph";
 import type { Layout, Point, Rect } from "./canvas-layout";
 import { FRAME_TOP } from "./canvas-layout";
-import { planTrunks, type Trunk } from "./canvas-trunks";
 import type { Disc } from "./health";
 
 export const ARROW_LENGTH = 6;
@@ -44,7 +43,6 @@ export type SceneBox = {
 export type SceneLine = {
   id: string;
   points: Point[];
-  drawn: Point[][];
   style: EdgeStyle;
   dash: string | null;
   count: number;
@@ -57,7 +55,6 @@ export type Scene = {
   drawOrder: typeof DRAW_ORDER;
   frames: SceneFrame[];
   lines: SceneLine[];
-  trunks: Trunk[];
   arrows: SceneArrow[];
   boxes: SceneBox[];
   bounds: Rect;
@@ -155,7 +152,6 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
   }
 
   const lines: SceneLine[] = [];
-  const routed: { line: (typeof graph.lines)[number]; points: Point[] }[] = [];
   const arrows: SceneArrow[] = [];
 
   for (const line of graph.lines) {
@@ -165,11 +161,9 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
       continue;
     }
 
-    routed.push({ line, points });
     lines.push({
       id: line.id,
       points,
-      drawn: [points],
       style: line.style,
       dash: DASH[line.style],
       count: line.count,
@@ -182,25 +176,10 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
     });
   }
 
-  const plan = planTrunks(
-    routed.map(({ line, points }) => ({
-      id: line.id,
-      from: line.from,
-      to: line.to,
-      style: line.style,
-      points,
-    })),
-  );
-
-  for (const line of lines) {
-    line.drawn = plan.drawn.get(line.id) ?? [line.points];
-  }
-
   return {
     drawOrder: DRAW_ORDER,
     frames,
     lines,
-    trunks: plan.trunks,
     arrows,
     boxes,
     bounds: boundsOf(
