@@ -17,7 +17,9 @@ class Index:
 
             for decl in file.decls:
                 if decl.owner is None:
-                    names.setdefault(decl.name, set()).add(file.path)
+                    if decl.visibility != "private":
+                        names.setdefault(decl.name, set()).add(file.path)
+
                     self.top.setdefault((file.path, decl.name), decl)
 
         self.prefixes = self.build_prefixes()
