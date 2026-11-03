@@ -28,6 +28,7 @@ import {
   BAR_TRACK_HEIGHT,
   barRect,
   barTitle,
+  clipLabel,
   fraction,
   tone as metricTone,
   valueLabel,
@@ -762,7 +763,7 @@ export function buildCanvasView(
             x: box.rect.x + 12,
             y: track.y + BAR_TRACK_HEIGHT,
           },
-          shortMetric(metric),
+          clipLabel(shortMetric(metric)),
         ),
         svg("rect", {
           class: "metric-track",

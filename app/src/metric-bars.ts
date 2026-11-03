@@ -120,3 +120,9 @@ export const VALUE_WIDTH = 34;
 export function barWidth(width: number, barRows: number): number {
   return barRows > 0 ? Math.max(width, BAR_MIN_BOX_WIDTH) : width;
 }
+
+const LABEL_MAX = 4;
+
+export function clipLabel(label: string): string {
+  return label.length > LABEL_MAX ? `${label.slice(0, LABEL_MAX - 1)}…` : label;
+}
