@@ -381,8 +381,8 @@ describe("modules", () => {
   it("lists every module with total and count", () => {
     const document = rows([]);
 
-    expect(document.total).toBe(14);
-    expect(document.count).toBe(14);
+    expect(document.total).toBe(15);
+    expect(document.count).toBe(15);
     expect(document.modules.map((m: { id: string }) => m.id)).toEqual(
       [...document.modules.map((m: { id: string }) => m.id)].sort(),
     );
@@ -427,7 +427,7 @@ describe("modules", () => {
     const document = rows(["--folder", "shop/domain", "--min-uses", "99"]);
 
     expect(document.count).toBe(0);
-    expect(document.total).toBe(14);
+    expect(document.total).toBe(15);
     expect(document.modules).toEqual([]);
   });
 
@@ -490,7 +490,7 @@ describe("modules", () => {
     const document = rows(["--sort", "used-by", "--limit", "2"]);
 
     expect(document.count).toBe(2);
-    expect(document.total).toBe(14);
+    expect(document.total).toBe(15);
     expect(document.modules[0].id).toBe("shop/domain/customer.py");
   });
 
@@ -498,7 +498,7 @@ describe("modules", () => {
     const { out } = ask(python, ["modules", "--limit", "2"]);
     const lines = out.trimEnd().split("\n");
 
-    expect(lines[0]).toBe("2 of 14 modules");
+    expect(lines[0]).toBe("2 of 15 modules");
     expect(lines).toHaveLength(3);
     expect(lines[1]).toMatch(
       /^\S+ {2}\w+ {2}uses \d+ {2}used by \d+ {2}findings \d+$/,
@@ -533,7 +533,7 @@ describe("json on a triggered scan", () => {
     const code = run(["modules", "--json", "--repository", ROOT], fake.io);
 
     expect(code).toBe(0);
-    expect(JSON.parse(fake.out()).total).toBe(14);
+    expect(JSON.parse(fake.out()).total).toBe(15);
     expect(fake.err()).not.toBe("");
   });
 });

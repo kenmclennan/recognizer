@@ -6,8 +6,8 @@ describe("buildTree", () => {
   it("holds every python fixture module as a file", () => {
     const ids = expectedModuleIds("python");
 
-    expect(ids).toHaveLength(14);
-    expect(filesOf(buildTree(ids))).toHaveLength(14);
+    expect(ids).toHaveLength(15);
+    expect(filesOf(buildTree(ids))).toHaveLength(15);
   });
 
   it("holds every typescript fixture module as a file", () => {

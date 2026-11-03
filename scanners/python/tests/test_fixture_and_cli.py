@@ -36,7 +36,7 @@ def test_fixture_matches_expected_scan():
 def test_fixture_counts_and_calls():
     actual = scan(FIXTURE_ROOT, ["."], None)
 
-    assert len(actual["modules"]) == 14
+    assert len(actual["modules"]) == 15
     assert len(actual["edges"]) == 19
     assert [(c["from"], c["to"], c["how"]) for c in actual["calls"]] == [
         ("shop/application/place.py::place", "shop/domain/order.py::new_order", "call"),
@@ -83,7 +83,7 @@ def test_files_are_the_fixture_modules_with_their_sha256():
     actual = scan(FIXTURE_ROOT, ["."], None)
     paths = [f["path"] for f in actual["files"]]
 
-    assert len(paths) == 14
+    assert len(paths) == 15
     assert paths == sorted(paths)
     assert paths == [m["id"] for m in actual["modules"]]
 
@@ -98,6 +98,7 @@ def test_selection_is_the_discovery_constants():
         "extensions": [".py"],
         "skip_directory_names": [
             "__pycache__",
+            "test",
             "tests",
             "dist",
             "build",
@@ -107,7 +108,7 @@ def test_selection_is_the_discovery_constants():
         "skip_directory_prefixes": ["."],
         "skip_directory_suffixes": [".egg-info"],
         "skip_directories_containing": ["pyvenv.cfg"],
-        "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"],
+        "skip_file_globs": ["conftest.py"],
     }
 
 

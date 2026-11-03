@@ -254,7 +254,7 @@ The document is facts about the code only: no policy, layout, colours or violati
     "skip_directory_prefixes": ["."],
     "skip_directory_suffixes": [".egg-info"],
     "skip_directories_containing": ["pyvenv.cfg"],
-    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+    "skip_file_globs": ["conftest.py"]
   },
   "modules": [
     {

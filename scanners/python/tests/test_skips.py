@@ -16,6 +16,8 @@ def test_skipped_directories_and_files_are_left_out(tmp_path):
             "myenv/y.py": "",
             "__pycache__/c.py": "",
             "tests/d.py": "",
+            "test/e2.py": "",
+            "tests/test_d.py": "",
             "dist/e.py": "",
             "build/f.py": "",
             "node_modules/g.py": "",
@@ -25,11 +27,19 @@ def test_skipped_directories_and_files_are_left_out(tmp_path):
             "keep/a_test.py": "",
             "keep/a_tests.py": "",
             "keep/conftest.py": "",
+            "keep/test_helpers.py": "",
         },
     )
     document = scan(tmp_path, ["."], None)
 
-    assert [m["id"] for m in document["modules"]] == ["b.py", "keep/a.py"]
+    assert [m["id"] for m in document["modules"]] == [
+        "b.py",
+        "keep/a.py",
+        "keep/a_test.py",
+        "keep/a_tests.py",
+        "keep/test_a.py",
+        "keep/test_helpers.py",
+    ]
     validate(document)
 
 

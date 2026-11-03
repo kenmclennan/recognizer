@@ -163,7 +163,7 @@ describe("describe status", () => {
     expect(parsed.counts).toEqual({
       current: 0,
       outOfDate: 0,
-      missing: 14,
+      missing: 15,
       unreadable: 0,
     });
     expect(parsed.modules.every((m) => m.line === null)).toBe(true);
@@ -173,7 +173,7 @@ describe("describe status", () => {
     const root = ready();
 
     expect(exec(root, "describe").code).toBe(0);
-    expect(statuses(root).parsed.counts.current).toBe(14);
+    expect(statuses(root).parsed.counts.current).toBe(15);
 
     edit(root, ORDER);
 
@@ -183,7 +183,7 @@ describe("describe status", () => {
     expect(stale.map((m) => m.module)).toEqual([ORDER]);
     expect(stale[0]?.reasons).toEqual(["source"]);
     expect(stale[0]?.line).toBe(`describes ${ORDER}`);
-    expect(parsed.counts.current).toBe(13);
+    expect(parsed.counts.current).toBe(14);
 
     clearCalls(root);
     exec(root, "describe");
@@ -199,7 +199,7 @@ describe("describe status", () => {
 
     const { parsed } = statuses(root);
 
-    expect(parsed.counts.outOfDate).toBe(14);
+    expect(parsed.counts.outOfDate).toBe(15);
     expect(parsed.modules.every((m) => m.reasons.join() === "version")).toBe(
       true,
     );
@@ -207,7 +207,7 @@ describe("describe status", () => {
     clearCalls(root);
     exec(root, "describe");
 
-    expect(calls(root)).toHaveLength(14);
+    expect(calls(root)).toHaveLength(15);
   });
 
   it("makes every line out of date when the command changes", () => {
@@ -218,7 +218,7 @@ describe("describe status", () => {
 
     const { parsed } = statuses(root);
 
-    expect(parsed.counts.outOfDate).toBe(14);
+    expect(parsed.counts.outOfDate).toBe(15);
     expect(parsed.modules.every((m) => m.reasons.join() === "describer")).toBe(
       true,
     );
@@ -252,7 +252,7 @@ describe("describe selection", () => {
     const result = exec(root, "describe");
 
     expect(result.code).toBe(0);
-    expect(result.out).toContain("described 0, failed 0, already current 14");
+    expect(result.out).toContain("described 0, failed 0, already current 15");
     expect(calls(root)).toEqual([]);
     expect(readFileSync(file, "utf8")).toBe(before);
     expect(statSync(file).mtimeMs).toBe(mtime);
@@ -280,7 +280,7 @@ describe("describe selection", () => {
     clearCalls(root);
     exec(root, "describe", "--all");
 
-    expect(calls(root)).toHaveLength(14);
+    expect(calls(root)).toHaveLength(15);
   });
 
   it("exits 2 for an unknown module and runs nothing", () => {
@@ -361,9 +361,9 @@ describe("describe failures", () => {
     const file = responsibilities(root);
 
     expect(result.code).toBe(1);
-    expect(report.described).toHaveLength(13);
+    expect(report.described).toHaveLength(14);
     expect(report.failed).toHaveLength(1);
-    expect(Object.keys(file.modules)).toHaveLength(13);
+    expect(Object.keys(file.modules)).toHaveLength(14);
     expect(file.modules[ORDER]).toBeUndefined();
   });
 
@@ -381,8 +381,8 @@ describe("describe failures", () => {
     const file = responsibilities(root);
 
     expect(result.code).toBe(1);
-    expect(JSON.parse(result.out).described).toHaveLength(13);
-    expect(Object.keys(file.modules)).toHaveLength(14);
+    expect(JSON.parse(result.out).described).toHaveLength(14);
+    expect(Object.keys(file.modules)).toHaveLength(15);
     expect(file.modules[ORDER]).toEqual(old);
   });
 
@@ -416,7 +416,7 @@ describe("describe failures", () => {
     expect(report.failed.map((f: { module: string }) => f.module)).toEqual([
       ORDER,
     ]);
-    expect(report.described).toHaveLength(13);
+    expect(report.described).toHaveLength(14);
     expect(calls(root)).not.toContain(ORDER);
   });
 });
@@ -785,7 +785,7 @@ describe("describe --check", () => {
     );
     expect(rows).toContain(`${STORE}  current  describes ${STORE}`);
     expect(rows).toContain(`${PLACE}  missing`);
-    expect(rows).toContain("1 current, 1 out of date, 12 missing");
+    expect(rows).toContain("1 current, 1 out of date, 13 missing");
   });
 
   it("exits 0 only when every module is current", () => {

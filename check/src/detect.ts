@@ -28,6 +28,7 @@ const SKIP_RULES: Record<Language, SkipRules> = {
   python: {
     directoryNames: [
       "__pycache__",
+      "test",
       "tests",
       "dist",
       "build",
@@ -37,7 +38,7 @@ const SKIP_RULES: Record<Language, SkipRules> = {
     directoryPrefixes: ["."],
     directorySuffixes: [".egg-info"],
     directoryMarkers: ["pyvenv.cfg"],
-    fileGlobs: ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"],
+    fileGlobs: ["conftest.py"],
   },
   typescript: {
     directoryNames: [
