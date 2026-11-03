@@ -16,7 +16,6 @@ import {
   staleReasonText,
 } from "./view-staleness.js";
 import {
-  isOrdered,
   lastNotePerPath,
   migrateView,
   noteWarnings,
@@ -29,7 +28,6 @@ import {
   type ViewNote,
   type ViewStep,
   validateView,
-  viewKind,
   viewNotes,
 } from "./views.js";
 import { windowOrFail } from "./window-commands.js";
@@ -70,7 +68,6 @@ const OPTIONS = {
   remove: { type: "boolean" },
   after: { type: "string" },
   first: { type: "boolean" },
-  ordered: { type: "string" },
   change: { type: "string" },
 } as const;
 
@@ -85,7 +82,7 @@ const ALLOWED: Record<Subcommand, string[]> = {
   remove: ["fold", "focus", "rule", "within"],
   note: ["by", "remove", "after", "first"],
   reorder: [],
-  set: ["ordered", "change"],
+  set: ["change"],
   show: [],
   diff: [],
   list: [],
@@ -104,7 +101,7 @@ const USAGE: Record<Subcommand, string> = {
   note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>]) [--repository <dir>] [--json]",
   reorder:
     "recognizer views reorder <name> <module-or-folder>... [--repository <dir>] [--json]",
-  set: "recognizer views set <name> (--ordered true|false | --change <base>..<head>|none) [--repository <dir>] [--json]",
+  set: "recognizer views set <name> --change <base>..<head>|none [--repository <dir>] [--json]",
   show: "recognizer views show <name> [--repository <dir>] [--json]",
   diff: "recognizer views diff <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
@@ -741,18 +738,10 @@ function runReorder(argv: string[], io: Io): number {
 
 function runSet(argv: string[], io: Io): number {
   const probe = context("set", argv, io);
-  const ordered = probe.values.ordered;
   const changeFlag = probe.values.change;
 
-  if ((ordered === undefined) === (changeFlag === undefined)) {
+  if (changeFlag === undefined) {
     throw usageError("set");
-  }
-
-  if (ordered !== undefined && ordered !== "true" && ordered !== "false") {
-    throw new InputError([
-      "--ordered must be true or false",
-      `usage: ${USAGE.set}`,
-    ]);
   }
 
   const change =
@@ -767,34 +756,18 @@ function runSet(argv: string[], io: Io): number {
     (_c, view) => {
       const migrated = migrateView(view);
 
-      if (ordered === undefined) {
-        if (change === undefined) {
-          delete migrated.change;
-        } else {
-          migrated.change = change;
-        }
-
-        return {
-          view: migrated,
-          what:
-            change === undefined
-              ? "removed the range"
-              : `set the range to ${rangeText(change)}`,
-        };
-      }
-
-      if (ordered === "true") {
-        delete migrated.ordered;
+      if (change === undefined) {
+        delete migrated.change;
       } else {
-        migrated.ordered = false;
+        migrated.change = change;
       }
 
       return {
         view: migrated,
         what:
-          ordered === "true"
-            ? "set the notes in order"
-            : "set the notes in no order",
+          change === undefined
+            ? "removed the range"
+            : `set the range to ${rangeText(change)}`,
       };
     },
     (count) => count === 1,
@@ -919,13 +892,11 @@ function runShow(argv: string[], io: Io): number {
         name,
         description: view.description,
         commit: view.commit,
-        kind: viewKind(view),
         ...(view.change === undefined ? {} : { change: view.change }),
         steps: view.steps,
-        ordered: isOrdered(view),
         notes: viewNotes(view).map((note, index) => ({
           ...note,
-          number: isOrdered(view) ? index + 1 : null,
+          number: index + 1,
         })),
         resolved: resolvedJson(resolved),
         unresolved: resolved.unresolved,
@@ -955,13 +926,11 @@ function runShow(argv: string[], io: Io): number {
   const notes = viewNotes(view);
 
   if (notes.length > 0) {
-    const ordered = isOrdered(view);
-
     lines.push(
-      ordered ? "notes:" : "notes: no order",
+      "notes:",
       ...notes.map(
         (note, index) =>
-          `  ${ordered ? `${index + 1}. ` : ""}${note.module}: ${note.text} (${note.by})${notedOnView(note.module) ? "" : " (not on the view)"}`,
+          `  ${index + 1}. ${note.module}: ${note.text} (${note.by})${notedOnView(note.module) ? "" : " (not on the view)"}`,
       ),
     );
   }
@@ -1008,7 +977,6 @@ function runList(argv: string[], io: Io): number {
         description: view.description,
         commit: view.commit,
         steps: view.steps.length,
-        kind: viewKind(view),
         ...(view.change === undefined ? {} : { change: view.change }),
         stale: staleOf(io, c.root, view, scans),
       };
@@ -1025,7 +993,7 @@ function runList(argv: string[], io: Io): number {
         "error" in row
           ? `${row.name}  invalid: ${row.error}`
           : [
-              `${row.name}  ${row.change === undefined ? row.kind : rangeText(row.change)}  ${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
+              `${row.name}  ${row.change === undefined ? "" : `${rangeText(row.change)}  `}${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
               ...row.stale.map(
                 (reason) => `  stale: ${staleReasonText(reason)}`,
               ),

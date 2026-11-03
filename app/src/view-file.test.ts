@@ -77,10 +77,21 @@ describe("view files", () => {
   });
 
   it("writes the committed version 4 example back to the same bytes", () => {
-    const text = readFileSync(join(EXAMPLES, "version-4-lens.json"), "utf8");
+    const text = readFileSync(join(EXAMPLES, "version-4-notes.json"), "utf8");
     const parsed = parseViewFile(text);
 
     expect(parsed.ok && serialiseView(parsed.view)).toBe(text);
+  });
+
+  it("accepts an earlier ordered flag and drops it on the next write", () => {
+    const text = readFileSync(
+      join(EXAMPLES, "version-4-legacy-ordered-flag.json"),
+      "utf8",
+    );
+    const parsed = parseViewFile(text);
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok && serialiseView(parsed.view)).not.toContain("ordered");
   });
 
   it("writes a version 1 view at version 4", () => {
@@ -158,7 +169,6 @@ describe("parseViewFile warnings", () => {
   it("gives the app and the command byte-identical text for one view", () => {
     const view = {
       schema_version: 4 as const,
-      ordered: false,
       description: "d",
       commit: "abc",
       notes: [{ module: "b.py", text: "B", by: "Ken" }],
@@ -170,7 +180,6 @@ describe("parseViewFile warnings", () => {
       "schema_version",
       "description",
       "commit",
-      "ordered",
       "notes",
       "steps",
     ]);

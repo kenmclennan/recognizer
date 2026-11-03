@@ -12,7 +12,6 @@ import { arrowhead, type Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import type { Ghost } from "./finding-focus";
-import { icon } from "./icons";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
 import {
@@ -80,7 +79,7 @@ export type CanvasOrientation = {
 
 export type CanvasNotes = {
   marks: ReadonlySet<string>;
-  numbers: ReadonlyMap<string, number> | null;
+  numbers: ReadonlyMap<string, number>;
   active: string | null;
   bubbles: NoteBubble[];
   showAll: boolean;
@@ -783,37 +782,24 @@ export function buildCanvasView(
   }
 
   function noteMark(path: string, x: number, y: number): SVGElement {
-    const number = props?.notes?.numbers?.get(path);
+    const number = props?.notes?.numbers.get(path);
+    const disc = svg("g", { class: "note-mark numbered" });
 
-    if (number !== undefined) {
-      const disc = svg("g", { class: "note-mark numbered" });
-
-      disc.dataset.noteMark = path;
-      disc.append(
-        svg("circle", { cx: x + 7, cy: y + 7, r: 8 }),
-        svg("text", { x: x + 7, y: y + 7 }, String(number)),
-      );
-
-      if (props?.notes?.active === path) {
-        disc.classList.add("active");
-      }
-
-      return disc;
-    }
-
-    const mark = icon("notes", "note-mark");
-
-    mark.setAttribute("x", String(x));
-    mark.setAttribute("y", String(y));
-    mark.setAttribute("width", "14");
-    mark.setAttribute("height", "14");
-    mark.dataset.noteMark = path;
+    disc.dataset.noteMark = path;
+    disc.append(
+      svg("circle", { cx: x + 7, cy: y + 7, r: 8 }),
+      svg(
+        "text",
+        { x: x + 7, y: y + 7 },
+        number === undefined ? "" : String(number),
+      ),
+    );
 
     if (props?.notes?.active === path) {
-      mark.classList.add("active");
+      disc.classList.add("active");
     }
 
-    return mark;
+    return disc;
   }
 
   function bubbleAnchor(

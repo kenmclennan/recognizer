@@ -65,7 +65,7 @@ const facts = {};
   await m.open();
   facts.landing = { text: m.bubble() && m.bubble().querySelector(".note-text").textContent, position: m.bubble() && m.bubble().querySelector(".note-position").textContent };
   await m.notesPanel();
-  facts.panel = { rows: m.rows(), numbers: m.numbers(), draggable: m.all(".note-row.draggable").length, handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle").textContent, pressed: m.q(".notes-order-toggle").getAttribute("aria-pressed") };
+  facts.panel = { rows: m.rows(), numbers: m.numbers(), draggable: m.all(".note-row.draggable").length, handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle") };
   facts.marks = m.marks();
 
   const drag = await m.drag(0, 2, true);
@@ -87,13 +87,6 @@ const facts = {};
   await tick(80);
   facts.sameSpot = m.order();
 
-  click(m.q(".notes-order-toggle"));
-  await tick(80);
-  facts.lens = { ordered: m.saved().ordered, version: m.saved().schema_version, numbers: m.numbers(), draggable: m.all(".note-row.draggable").length, toggle: m.q(".notes-order-toggle").textContent, marks: m.marks(), buttons: m.all(".note-bubble .note-step").length };
-  click(m.q(".notes-order-toggle"));
-  await tick(80);
-  facts.restored = { ordered: m.saved().ordered === undefined, numbers: m.numbers() };
-
   const w = await mount(make({}));
   await w.open();
   facts.step = { first: w.bubble().querySelector(".note-position").textContent, prevDisabled: w.bubble().querySelector(".note-previous").disabled };
@@ -113,10 +106,6 @@ const facts = {};
   facts.step.back = w.bubble().querySelector(".note-position").textContent;
   facts.step.marks = w.marks();
 
-  const l = await mount(make({ ordered: false }));
-  await l.open();
-  facts.unordered = { bubble: l.bubble() === null, marks: l.marks(), numbered: l.all(".note-mark.numbered").length };
-
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack + " FACTS " + JSON.stringify(facts)); });
 `;
@@ -130,17 +119,16 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
     f = await collectFacts<Facts>(HARNESS, "notes-order");
   }, 240000);
 
-  it("lands on note 1 with its bubble open when an ordered view opens", () => {
+  it("lands on note 1 with its bubble open when a view with notes opens", () => {
     expect(f.landing).toEqual({ text: "First stop", position: "1 of 3" });
   });
 
-  it("numbers the panel rows in list order, each draggable as a whole with no handle strip, under an In order toggle", () => {
+  it("numbers the panel rows in list order, each draggable as a whole with no handle strip and no order toggle", () => {
     expect(f.panel.rows).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
     expect(f.panel.numbers).toEqual(["1", "2", "3"]);
     expect(f.panel.draggable).toBe(3);
     expect(f.panel.handles).toBe(0);
-    expect(f.panel.toggle).toBe("In order");
-    expect(f.panel.pressed).toBe("true");
+    expect(f.panel.toggle).toBeNull();
   });
 
   it("draws filled numbered circles, the open one highlighted", () => {
@@ -167,19 +155,6 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
     expect(f.undone.rows).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
   });
 
-  it("flips to No order: no numbers or draggable rows, bubble marks, no Previous or Next, file says ordered false", () => {
-    expect(f.lens.ordered).toBe(false);
-    expect(f.lens.version).toBe(4);
-    expect(f.lens.numbers).toEqual([]);
-    expect(f.lens.draggable).toBe(0);
-    expect(f.lens.toggle).toBe("No order");
-    expect(f.lens.marks.every((mark: unknown[]) => mark[2] === false)).toBe(
-      true,
-    );
-    expect(f.lens.buttons).toBe(0);
-    expect(f.restored).toEqual({ ordered: true, numbers: ["1", "2", "3"] });
-  });
-
   it("steps with Next and the arrows, keeps the bubble where it was and disables the ends", () => {
     expect(f.step.first).toBe("1 of 3");
     expect(f.step.prevDisabled).toBe(true);
@@ -189,10 +164,5 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
     expect(f.step.third).toBe("3 of 3");
     expect(f.step.nextDisabled).toBe(true);
     expect(f.step.back).toBe("2 of 3");
-  });
-
-  it("keeps the speech-bubble mark and a plain bubble on an unordered view", () => {
-    expect(f.unordered.bubble).toBe(true);
-    expect(f.unordered.numbered).toBe(0);
   });
 });

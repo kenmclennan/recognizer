@@ -1,8 +1,8 @@
 import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
-  chipOf,
   dropdownNames,
+  rangeOf,
   showsAllLink,
   viewsPanelModel,
 } from "./views-panel-model";
@@ -35,16 +35,16 @@ describe("viewsPanelModel", () => {
           text: text({ change: { base: "main", head: "old" } }),
         },
         { name: "broken", text: text({}, "gone.py") },
-        { name: "alpha", text: text({ ordered: false }) },
+        { name: "alpha", text: text({}) },
         { name: "bad", text: "{nope" },
       ],
       [scan],
       facts,
     );
 
-    expect(model.live.map((row) => [row.name, row.chip])).toEqual([
-      ["alpha", "lens"],
-      ["zeta", "walkthrough"],
+    expect(model.live.map((row) => [row.name, row.range])).toEqual([
+      ["alpha", null],
+      ["zeta", null],
     ]);
     expect(model.stale.map((row) => [row.name, row.reasons])).toEqual([
       ["broken", ["step 1 gone.py no longer resolves"]],
@@ -68,7 +68,7 @@ describe("viewsPanelModel", () => {
       new Map(),
     );
 
-    expect(model.live[0]).toMatchObject({ chip: "main..feat", notes: 1 });
+    expect(model.live[0]).toMatchObject({ range: "main..feat", notes: 1 });
     expect(model.stale).toEqual([]);
   });
 });
@@ -87,7 +87,7 @@ describe("dropdownNames", () => {
 
   it("names a change view by its range", () => {
     expect(
-      chipOf({
+      rangeOf({
         schema_version: 4,
         description: "d",
         commit: null,

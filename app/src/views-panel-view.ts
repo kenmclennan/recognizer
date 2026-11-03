@@ -11,8 +11,12 @@ export type ViewsPanelView = {
   render: (model: ViewsPanelModel | null, open: string | null) => void;
 };
 
-function chip(row: ViewRow): HTMLElement {
-  return el("span", `view-chip ${row.kind}`, row.chip);
+function description(row: ViewRow): HTMLElement {
+  return el(
+    "span",
+    "views-row-description",
+    row.range === null ? row.description : `${row.range} - ${row.description}`,
+  );
 }
 
 export function buildViewsPanelView(
@@ -45,8 +49,7 @@ export function buildViewsPanelView(
         item.dataset.view = row.name;
         item.append(
           el("span", "views-row-name", row.name),
-          chip(row),
-          el("span", "views-row-description", row.description),
+          description(row),
           el(
             "span",
             "views-row-notes",
@@ -87,8 +90,7 @@ export function buildViewsPanelView(
         remove.setAttribute("aria-label", `Delete ${row.name}`);
         item.append(
           el("span", "views-row-name", row.name),
-          chip(row),
-          el("span", "views-row-description", row.description),
+          description(row),
           ...row.reasons.map((reason) =>
             el("span", "views-row-reason", reason),
           ),

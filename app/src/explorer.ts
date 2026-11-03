@@ -5,7 +5,6 @@ import {
   type FindingRecord,
   folderUsedBy,
   folderUses,
-  isOrdered,
   type MarkedModule,
   type MarkScan,
   rangeText,
@@ -191,7 +190,7 @@ import {
   removeNote as withoutNote,
 } from "./view-notes";
 import { stepsFor } from "./view-steps";
-import { chipOf, dropdownNames, viewsPanelModel } from "./views-panel-model";
+import { dropdownNames, rangeOf, viewsPanelModel } from "./views-panel-model";
 import { buildViewsPanelView } from "./views-panel-view";
 import { inertViews, type ViewsPort } from "./views-port";
 import {
@@ -755,13 +754,6 @@ export function showExplorer(
     moveNote: (path, toIndex) =>
       reorderNotes(`reordered the notes`, (view) =>
         withNoteMoved(view, path, toIndex),
-      ),
-    setOrdered: (ordered) =>
-      reorderNotes(
-        ordered
-          ? "set the notes to read in order"
-          : "set the notes to read in no order",
-        (view) => withOrder(view, { ...orderOf(view), ordered }),
       ),
   });
   const scanView = buildScanPanelView({
@@ -1779,7 +1771,7 @@ export function showExplorer(
 
     const view = openViewValue();
 
-    if (view === null || openView !== name || !isOrdered(view)) {
+    if (view === null || openView !== name) {
       return;
     }
 
@@ -1827,11 +1819,7 @@ export function showExplorer(
     select(selectionOf(path));
     noteFocus = { path, editing: false };
 
-    if (isOrdered(view)) {
-      canvas.walkTo(path, { animate });
-    } else {
-      canvas.centerOn(boxFor(path.endsWith("/") ? path.slice(0, -1) : path));
-    }
+    canvas.walkTo(path, { animate });
 
     render();
   }
@@ -2334,7 +2322,7 @@ export function showExplorer(
         return {
           name,
           description: parsed.ok ? parsed.view.description : null,
-          chip: parsed.ok ? chipOf(parsed.view) : null,
+          chip: parsed.ok ? rangeOf(parsed.view) : null,
         };
       }),
       names: viewList.map((entry) => entry.name),
@@ -2450,8 +2438,7 @@ export function showExplorer(
     viewTexts.set(name, text);
     dismissed.delete(name);
     openView = name;
-    pendingLanding =
-      landing && isOrdered(view) && viewNotes(view).length > 0 ? name : null;
+    pendingLanding = landing && viewNotes(view).length > 0 ? name : null;
     changeInfo = null;
     setCanvas(
       [...resolved.modules, ...renamed],
@@ -2816,19 +2803,20 @@ export function showExplorer(
       view === null || focus === null ? null : noteAt(view, focus.path);
     const bubbles = bubbleSet(view, positions, focus, notesShown);
     const marks = view === null ? new Set<string>() : notedPaths(view);
-    const ordered = view !== null && isOrdered(view);
-    const numbers = ordered
-      ? new Map(viewNotes(view).map((note, index) => [note.module, index + 1]))
-      : null;
+    const numbers = new Map(
+      view === null
+        ? []
+        : viewNotes(view).map((note, index) => [note.module, index + 1]),
+    );
     const keys = {
       notesOpen: leftPanel === "notes",
       noteActive: held !== null,
       findingsOpen: leftPanel === "findings",
-      stepping: ordered && held !== null && focus?.editing === false,
+      stepping: held !== null && focus?.editing === false,
     };
     const key = JSON.stringify([
       [...marks].sort(),
-      numbers === null ? null : [...numbers],
+      [...numbers],
       focus,
       bubbles,
       notesShown,
@@ -2988,7 +2976,6 @@ export function showExplorer(
     notesPanel.render({
       hasView: noteView !== null,
       rows: noteRowsNow(),
-      ordered: noteView === null || isOrdered(noteView),
     });
     const contentOf = (index: number) => {
       const panel = trail.panels[index];

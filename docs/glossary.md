@@ -127,14 +127,12 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Rail | The thin strip of icons at the window's far left, one per left-hand panel; an icon opens its panel, or closes it when it is open. |
 | Files panel | The rail's panel holding the tree. |
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
-| Walkthrough | A view whose notes are read in order: numbered marks, a Notes panel that reorders by drag, and a bubble with Previous and Next that pans the canvas to each box. |
 | Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
-| Lens | A saved view whose notes have no order (`ordered: false`): plain marks, unnumbered rows, no Previous and Next. |
 | Stale view | A saved view the list shows under Stale with Delete: a change view whose head is merged or whose branch is gone, or any view with a pick that no longer resolves. |
 | Views panel | The left-column panel, behind the rail icon between Files and Notes, that lists every saved view: live ones, then stale ones with Delete; opened from the view bar's All views link. |
 | Note | The one text a person or an agent attaches to a module or folder in a saved view, with the name of who last wrote it; writing again replaces it. |
-| Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view, numbered and in reading order with a drag handle on each row when the view is ordered (an In order / No order toggle in its header flips that) or in canvas order when it is not, and focuses the selected note; the overview, with no composer. |
-| Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove, and on an ordered view its number, "n of N", and Previous and Next that pan the canvas to the next box with the bubble kept where it is; the place notes are read and written, opened from the mark, the bar's notes button or N. |
+| Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view, numbered and in reading order with a drag handle on each row, and focuses the selected note; the overview, with no composer. |
+| Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove, and its number, "n of N", and Previous and Next that pan the canvas to the next box with the bubble kept where it is; the place notes are read and written, opened from the mark, the bar's notes button or N. |
 | Note mark | The small outlined speech-bubble icon after a noted box's name or at a noted frame's corner; clicking it opens the bubble. |
 | Notes toggle | The canvas control after Metrics and before Legend that shows every note on the view as a bubble at once. |
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |

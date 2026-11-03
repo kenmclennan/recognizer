@@ -148,7 +148,7 @@ describe("history", () => {
 
   it("keeps an entry whose mark carries an order although the snapshot is equal", () => {
     const history = createHistory({ x: 1 });
-    const state = { paths: ["a"], ordered: true };
+    const state = { paths: ["a"] };
 
     expect(
       history.record(

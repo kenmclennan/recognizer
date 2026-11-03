@@ -5,7 +5,6 @@ import type { NoteRow } from "./note-focus";
 export type NotesPanelProps = {
   hasView: boolean;
   rows: readonly NoteRow[];
-  ordered: boolean;
 };
 
 export type NoteRowActions = {
@@ -16,7 +15,6 @@ export type NoteRowActions = {
 
 export type NotesPanelActions = NoteRowActions & {
   moveNote: (path: string, toIndex: number) => void;
-  setOrdered: (ordered: boolean) => void;
 };
 
 export type NotesPanelView = {
@@ -37,7 +35,6 @@ export function buildNoteRow(
   row: NoteRow,
   actions: NoteRowActions,
   named = false,
-  numbered = false,
 ): HTMLElement {
   const node = el(
     "div",
@@ -49,9 +46,7 @@ export function buildNoteRow(
 
   node.dataset.path = row.path;
 
-  if (numbered && row.number !== null) {
-    node.append(el("span", "note-number", String(row.number)));
-  }
+  node.append(el("span", "note-number", String(row.number)));
 
   remove.setAttribute("aria-label", "Remove note");
   remove.title = "Remove note";
@@ -89,9 +84,6 @@ export function buildNotesPanelView(
   const element = el("div", "notes-panel");
   const header = el("div", "notes-header");
   const title = el("span", "notes-title", "Notes");
-  const toggle = button("In order", "notes-order-toggle", () => {
-    actions.setOrdered(toggle.getAttribute("aria-pressed") !== "true");
-  });
   const prompt = el("p", "notes-hint", "Open or save a view to add notes");
   const list = el("div", "note-list");
   let current: readonly NoteRow[] = [];
@@ -108,7 +100,7 @@ export function buildNotesPanelView(
     }
   }
 
-  header.append(title, toggle);
+  header.append(title);
   element.append(header, prompt, list);
 
   function attachDrag(row: NoteRow, node: HTMLElement) {
@@ -263,9 +255,6 @@ export function buildNotesPanelView(
       }
 
       prompt.hidden = next.hasView;
-      toggle.hidden = !next.hasView;
-      toggle.textContent = next.ordered ? "In order" : "No order";
-      toggle.setAttribute("aria-pressed", String(next.ordered));
       current = next.rows;
 
       if (!next.hasView) {
@@ -274,37 +263,15 @@ export function buildNotesPanelView(
         return;
       }
 
-      if (next.ordered) {
-        list.replaceChildren(
-          ...current.map((row) => {
-            const node = buildNoteRow(row, actions, true, true);
+      list.replaceChildren(
+        ...current.map((row) => {
+          const node = buildNoteRow(row, actions, true);
 
-            attachDrag(row, node);
+          attachDrag(row, node);
 
-            return node;
-          }),
-        );
-
-        return;
-      }
-
-      const on = current.filter((row) => !row.off);
-      const off = current.filter((row) => row.off);
-      const parts: HTMLElement[] = on.map((row) =>
-        buildNoteRow(row, actions, true),
+          return node;
+        }),
       );
-
-      if (off.length > 0) {
-        const section = el("section", "note-off");
-
-        section.append(
-          el("h3", "note-group-title", "Not on the canvas"),
-          ...off.map((row) => buildNoteRow(row, actions, true)),
-        );
-        parts.push(section);
-      }
-
-      list.replaceChildren(...parts);
     },
   };
 

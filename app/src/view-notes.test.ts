@@ -153,19 +153,12 @@ describe("note order", () => {
     ]);
   });
 
-  it("sets and drops ordered false", () => {
-    const lens = withOrder(three, { paths: ["a", "b", "c"], ordered: false });
-
-    expect(lens.ordered).toBe(false);
-    expect(
-      "ordered" in withOrder(lens, { paths: ["a", "b", "c"], ordered: true }),
-    ).toBe(false);
-  });
-
   it("puts unnamed notes after the named ones and ignores unheld paths", () => {
-    expect(
-      orderOf(withOrder(three, { paths: ["c", "zzz"], ordered: true })).paths,
-    ).toEqual(["c", "a", "b"]);
+    expect(orderOf(withOrder(three, { paths: ["c", "zzz"] })).paths).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
   });
 
   it("applies two moves in turn", () => {

@@ -43,7 +43,7 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
   const five = mount(Object.fromEntries([1, 2, 3, 4, 5].map((n) => ["v" + n, make({})])));
   await tick();
   click(five.q(".view-list"));
-  facts.five = { items: five.all(".view-item").length, all: five.all(".view-all").length, chip: five.q(".view-item .view-item-chip").textContent };
+  facts.five = { items: five.all(".view-item").length, all: five.all(".view-all").length, chips: five.all(".view-item-chip").length };
 
   const six = mount(Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => ["v" + n, make({})])));
   await tick();
@@ -59,7 +59,7 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
 
   const panel = mount({
     alpha: make({}, [{ kind: "pick", module: "p/a.py" }]),
-    beta: make({ ordered: false }),
+    beta: make({}),
     live: make({ change: { base: "main", head: "feat" } }),
     merged: make({ change: { base: "main", head: "old" } }),
     ghost: make({ change: { base: "main", head: "ghost" } }),
@@ -77,7 +77,8 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
     live: panel.all(".views-row:not(.stale):not(.invalid)").map((r) => r.dataset.view),
     stale: panel.all(".views-row.stale").map((r) => [r.dataset.view, [...r.querySelectorAll(".views-row-reason")].map((n) => n.textContent)]),
     heading: panel.q(".views-stale-header").textContent,
-    chips: Object.fromEntries(["alpha", "beta", "live"].map((n) => [n, rowOf(n).querySelector(".view-chip").textContent])),
+    chips: panel.all(".view-chip").length,
+    ranges: Object.fromEntries(["alpha", "beta", "live"].map((n) => [n, rowOf(n).querySelector(".views-row-description").textContent])),
     notes: rowOf("noted").querySelector(".views-row-notes").textContent,
     liveHasDelete: rowOf("alpha").querySelector(".views-delete") !== null,
     files: panel.port.files.size,
@@ -187,7 +188,7 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
 `;
 
 type Facts = {
-  five: { items: number; all: number; chip: string };
+  five: { items: number; all: number; chips: number };
   six: { items: number; all: string };
   sixPanel: { open: boolean; rows: number; menuHidden: boolean };
   rail: string[];
@@ -195,7 +196,8 @@ type Facts = {
     live: string[];
     stale: [string, string[]][];
     heading: string;
-    chips: Record<string, string>;
+    chips: number;
+    ranges: Record<string, string>;
     notes: string;
     liveHasDelete: boolean;
     files: number;
@@ -240,8 +242,8 @@ describe.skipIf(chrome === undefined)("change views in a real browser", () => {
     f = await collectFacts<Facts>(HARNESS, "change-views-look");
   }, 180000);
 
-  it("drops down five views with a kind chip and offers All views only past five", () => {
-    expect(f.five).toEqual({ items: 5, all: 0, chip: "walkthrough" });
+  it("drops down five views with no chip and offers All views only past five", () => {
+    expect(f.five).toEqual({ items: 5, all: 0, chips: 0 });
     expect(f.six.items).toBe(5);
     expect(f.six.all).toBe("All views (6)");
   });
@@ -255,13 +257,12 @@ describe.skipIf(chrome === undefined)("change views in a real browser", () => {
     expect(f.panel.railIndex).toBe(1);
   });
 
-  it("lists live views first with chips and note counts, then a Stale heading", () => {
+  it("lists live views first with ranges and note counts, then a Stale heading", () => {
     expect(f.panel.live).toEqual(["alpha", "beta", "live", "noted"]);
-    expect(f.panel.chips).toEqual({
-      alpha: "walkthrough",
-      beta: "lens",
-      live: "main..feat",
-    });
+    expect(f.panel.chips).toBe(0);
+    expect(f.panel.ranges.alpha).toBe("d");
+    expect(f.panel.ranges.beta).toBe("d");
+    expect(f.panel.ranges.live).toContain("main..feat");
     expect(f.panel.notes).toBe("1 note");
     expect(f.panel.heading).toBe("Stale");
     expect(f.panel.liveHasDelete).toBe(false);
