@@ -12,15 +12,26 @@
       "keep/conftest.py",
       "keep/notes.txt",
       "keep/test_a.py",
+      "keep/test_helpers.py",
       "node_modules/g.py",
       "pkg/__init__.py",
       "site-packages/h.py",
+      "test/e.py",
       "tests/d.py",
+      "tests/test_d.py",
       "venv/lib.py",
       "venv/pyvenv.cfg",
       "x.egg-info/i.py"
     ],
-    "accepted": ["b.py", "keep/a.py", "pkg/__init__.py"]
+    "accepted": [
+      "b.py",
+      "keep/a.py",
+      "keep/a_test.py",
+      "keep/a_tests.py",
+      "keep/test_a.py",
+      "keep/test_helpers.py",
+      "pkg/__init__.py"
+    ]
   },
   "typescript": {
     "tree": [

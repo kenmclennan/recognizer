@@ -274,12 +274,12 @@ describe("edge styles", () => {
 describe("the python fixture", () => {
   const scan = expectedScan("python");
 
-  it("draws 14 boxes, 5 frames and 15 lines in the expected styles", () => {
+  it("draws 15 boxes, 5 frames and 15 lines in the expected styles", () => {
     const graph = graphOf(scan);
     const styles = (style: string) =>
       graph.lines.filter((line) => line.style === style);
 
-    expect(graph.boxes).toHaveLength(14);
+    expect(graph.boxes).toHaveLength(15);
     expect(graph.frames.map((frame) => frame.path)).toEqual([
       "shop",
       "shop/adapters",

@@ -608,8 +608,7 @@ mod tests {
 
         write(dir.path(), "app/tests/test_a.py", "x = 1\n");
         write(dir.path(), "app/conftest.py", "x = 1\n");
-        write(dir.path(), "app/test_b.py", "x = 1\n");
-        write(dir.path(), "app/b_test.py", "x = 1\n");
+        write(dir.path(), "app/test/b_test.py", "x = 1\n");
         write(dir.path(), "app/notes.txt", "x\n");
         write(dir.path(), "venv/pyvenv.cfg", "home = x\n");
         write(dir.path(), "venv/lib/m.py", "x = 1\n");
@@ -821,7 +820,7 @@ mod tests {
 
     #[test]
     fn the_python_fixture_scan_compares_clean_against_its_own_files() {
-        assert_fixture_scan_is_a_clean_baseline("python", 14);
+        assert_fixture_scan_is_a_clean_baseline("python", 15);
     }
 
     #[test]

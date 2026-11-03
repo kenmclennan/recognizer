@@ -4,13 +4,14 @@ from pathlib import Path
 
 SKIPPED_DIRECTORY_NAMES = (
     "__pycache__",
+    "test",
     "tests",
     "dist",
     "build",
     "node_modules",
     "site-packages",
 )
-SKIPPED_FILE_PATTERNS = ("test_*.py", "*_test.py", "*_tests.py", "conftest.py")
+SKIPPED_FILE_PATTERNS = ("conftest.py",)
 SOURCE_EXTENSIONS = (".py",)
 SKIPPED_DIRECTORY_PREFIXES = (".",)
 SKIPPED_DIRECTORY_SUFFIXES = (".egg-info",)

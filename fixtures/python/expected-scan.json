@@ -62,12 +62,17 @@
     {
       "path": "shop/ports/store.py",
       "hash": "1415441f35273ebb6dbfe7e861edb25f5461a9d9aff9de87bbd28866190d84b0"
+    },
+    {
+      "path": "shop/test_helpers.py",
+      "hash": "78ca3a8c998a1edc14fdec77056bbeed3beb97e433e60d23fb49ffaa106c020f"
     }
   ],
   "selection": {
     "extensions": [".py"],
     "skip_directory_names": [
       "__pycache__",
+      "test",
       "tests",
       "dist",
       "build",
@@ -77,7 +82,7 @@
     "skip_directory_prefixes": ["."],
     "skip_directory_suffixes": [".egg-info"],
     "skip_directories_containing": ["pyvenv.cfg"],
-    "skip_file_globs": ["test_*.py", "*_test.py", "*_tests.py", "conftest.py"]
+    "skip_file_globs": ["conftest.py"]
   },
   "modules": [
     {
@@ -381,6 +386,21 @@
               "private": false
             }
           ]
+        }
+      ]
+    },
+    {
+      "id": "shop/test_helpers.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "build_fixture",
+          "kind": "function",
+          "line": 1,
+          "exported": true,
+          "params": [],
+          "returns": "dict"
         }
       ]
     }
