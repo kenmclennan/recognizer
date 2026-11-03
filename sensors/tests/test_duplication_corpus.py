@@ -35,20 +35,29 @@ def reported_pairs(findings):
 def test_the_manifest_covers_every_language_and_label():
     counts = Counter((p["language"], p["label"]) for p in PAIRS)
 
-    assert len(PAIRS) == 40
+    assert len(PAIRS) == 48
 
     for language in LANGUAGES:
         for label in LABELS:
             assert counts[(language, label)] >= 3
-        assert counts[(language, "non-copy-accessors")] >= 1
+        assert counts[(language, "non-copy-accessors")] == 1
+        assert counts[(language, "non-copy-constructors")] == 1
+        assert counts[(language, "near-copy-not-accessor")] == 1
 
 
-def test_every_accessor_family_records_today_s_behaviour():
-    accessors = [p for p in PAIRS if p["label"] == "non-copy-accessors"]
+def test_every_skipped_family_is_not_reported_with_a_note():
+    skipped = [p for p in PAIRS if p["label"] in ("non-copy-accessors", "non-copy-constructors")]
 
-    assert len(accessors) == len(LANGUAGES)
-    assert all(len(p["members"]) == 4 for p in accessors)
-    assert all(p["expected"] == "reported" and p["note"] for p in accessors)
+    assert len(skipped) == 2 * len(LANGUAGES)
+    assert all(len(p["members"]) in (3, 4) for p in skipped)
+    assert all(p["expected"] == "not-reported" and p["note"] for p in skipped)
+
+
+def test_every_near_copy_of_an_accessor_is_still_reported():
+    guards = [p for p in PAIRS if p["label"] == "near-copy-not-accessor"]
+
+    assert len(guards) == len(LANGUAGES)
+    assert all(p["expected"] == "reported" and p["note"] for p in guards)
 
 
 @pytest.mark.parametrize("language", LANGUAGES)

@@ -4,6 +4,7 @@ from pathlib import Path
 from recognizer_sensors.duplication.fingerprint import fingerprints
 from recognizer_sensors.duplication.normalise import count_nodes, normalise
 from recognizer_sensors.duplication.score import pruned_pairs
+from recognizer_sensors.duplication.shapes import is_trivial_shape
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.parsing import grammar_for, parse
@@ -73,6 +74,9 @@ def units_in_file(module: str, path: str, source: bytes, settings: dict) -> list
             continue
 
         if count_nodes(node) < settings["min_nodes"]:
+            continue
+
+        if is_trivial_shape(node):
             continue
 
         tree = normalise(node, set())

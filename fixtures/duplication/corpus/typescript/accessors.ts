@@ -1,33 +1,29 @@
 export class Limits {
   retryLimit(): number {
-    const env = this.envInt("APP_RETRY_LIMIT", null);
-    if (env !== null) {
-      return env;
-    }
-    return this.requiredInt("retry-limit");
+    return this.settings.section("limits").entry(
+      "retry-limit",
+      null,
+    );
   }
 
   pageSize(): number {
-    const env = this.envInt("APP_PAGE_SIZE", null);
-    if (env !== null) {
-      return env;
-    }
-    return this.requiredInt("page-size");
+    return this.settings.section("limits").entry(
+      "page-size",
+      null,
+    );
   }
 
   queueDepth(): number {
-    const env = this.envInt("APP_QUEUE_DEPTH", null);
-    if (env !== null) {
-      return env;
-    }
-    return this.requiredInt("queue-depth");
+    return this.settings.section("limits").entry(
+      "queue-depth",
+      null,
+    );
   }
 
   idleTimeout(): number {
-    const env = this.envInt("APP_IDLE_TIMEOUT", null);
-    if (env !== null) {
-      return env;
-    }
-    return this.requiredInt("idle-timeout");
+    return this.settings.section("limits").entry(
+      "idle-timeout",
+      null,
+    );
   }
 }
