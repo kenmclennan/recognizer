@@ -3,8 +3,7 @@ import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 
 let layouts = 0;
 window.__fakeWorker = () => {
@@ -39,7 +38,7 @@ const scan = {
 const loaded = loadedOf({ modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }] });
 
 const app = document.getElementById("app");
-showExplorer(app, loaded, "demo", (text) => { document.getElementById("module-count").textContent = text; });
+mountExplorer({ container: app, loaded, title: "demo", onCount: (text) => { document.getElementById("module-count").textContent = text; } });
 
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));

@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 ${FAKE_WORKER}
 
 const edge = (from, to, name) => ({ from, to, kind: "depends", line: 1, names: [name] });
@@ -44,7 +43,7 @@ async function mount(width, widths) {
   wrap.style.cssText = "flex:none;height:800px;display:flex;flex-direction:column;width:" + width + "px";
   document.getElementById("content").append(wrap);
   const store = { getItem: () => JSON.stringify(widths), setItem() {} };
-  const explorer = showExplorer(wrap, loaded, "demo", () => {}, undefined, undefined, null, undefined, store);
+  const explorer = mountExplorer({ container: wrap, loaded, title: "demo", storage: store });
   current = { wrap, explorer };
   await tick();
   click(q('.tree .row[data-path="app"] .name'));

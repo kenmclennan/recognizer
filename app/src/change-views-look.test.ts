@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 Element.prototype.setPointerCapture = () => {};
@@ -30,7 +29,7 @@ function mount(files, options) {
   const lines = [];
   const post = (input) => { if (input.action && input.action.label === "Undo") lines.push({ text: input.text, onUndo: input.action.run }); return lines.length; };
   const withdraw = () => lines.push(null);
-  const explorer = showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, post, null, undefined, undefined, undefined, undefined, undefined, undefined, undefined, withdraw);
+  const explorer = mountExplorer({ container: host, loaded, title: "demo", onCount: (text) => { state.count = text; }, views: port, post, withdraw });
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   return { host, port, state, lines, q, all, explorer };
@@ -159,7 +158,7 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
   linked.explorer.dispose();
   linked.host.replaceChildren();
   linked.state.count = "";
-  showExplorer(linked.host, loaded, "demo", (text) => { linked.state.count = text; }, linked.port, () => {}, carried);
+  mountExplorer({ container: linked.host, loaded, title: "demo", onCount: (text) => { linked.state.count = text; }, views: linked.port, post: () => null, carried });
   await tick(120);
   facts.rebuilt = {
     marks: linked.all(".box").map((b) => [b.dataset.id, b.classList.contains("mark-added") ? "added" : b.classList.contains("mark-modified") ? "modified" : ""]),

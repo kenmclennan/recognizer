@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf, registeredOf, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, registeredOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
@@ -80,7 +79,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   });
   const build = (loaded, carried) => {
     wired.current = loaded;
-    return showExplorer(host, loaded, "demo", () => {}, fakeViews({}), (input) => { wired.posted.push(input); return null; }, carried, undefined, { getItem: () => null, setItem: () => {} }, editor, responsibilities, undefined, scanHost);
+    return mountExplorer({ container: host, loaded, title: "demo", views: fakeViews({}), post: (input) => { wired.posted.push(input); return null; }, carried, storage: { getItem: () => null, setItem: () => {} }, editor, responsibilities, scanHost });
   };
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({

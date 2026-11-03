@@ -3,8 +3,7 @@ import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 
 window.__fakeWorker = () => {
@@ -70,7 +69,7 @@ function mount(files, author) {
   const lines = [];
   const post = (input) => { if (input.action && input.action.label === "Undo") lines.push({ text: input.text, onUndo: input.action.run }); return lines.length; };
   const withdraw = () => lines.push(null);
-  showExplorer(host, loaded, "demo", () => {}, port, post, null, undefined, undefined, undefined, undefined, undefined, undefined, undefined, withdraw);
+  mountExplorer({ container: host, loaded, title: "demo", views: port, post, withdraw });
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const saved = (name) => JSON.parse(port.files.get(name));
@@ -291,7 +290,7 @@ function mount(files, author) {
   host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
   document.body.append(host);
   const legacyPort = fakeViews({ legacy: make(PICKS, [{ module: HUB, text: "first", by: "Ken" }, { module: HUB, text: "second", by: "Claude" }]) });
-  showExplorer(host, loaded, "demo", () => {}, legacyPort, (input) => { notified.push(input.text); return null; });
+  mountExplorer({ container: host, loaded, title: "demo", views: legacyPort, post: (input) => { notified.push(input.text); return null; } });
   await tick();
   click(host.querySelector(".view-list"));
   click(host.querySelector(".view-item"));

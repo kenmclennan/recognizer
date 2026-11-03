@@ -1,6 +1,17 @@
-import { describe, expect, it } from "vitest";
-import { inertScanHost } from "./explorer";
-import { loadedOf, registeredOf, scanHostOf } from "./look-support";
+import { describe, expect, it, vi } from "vitest";
+import { inertScanHost, showExplorer } from "./explorer";
+import {
+  loadedOf,
+  mountExplorer,
+  registeredOf,
+  scanHostOf,
+} from "./look-support";
+
+vi.mock("./explorer", async () => {
+  const actual =
+    await vi.importActual<typeof import("./explorer")>("./explorer");
+  return { ...actual, showExplorer: vi.fn() };
+});
 
 describe("look-support", () => {
   it("loadedOf carries every key of a Loaded", () => {
@@ -45,5 +56,52 @@ describe("look-support", () => {
         { name: "crap", display: "CRAP", title: "t", runsTests: true },
       ]),
     ).toEqual([{ name: "crap", runsTests: true }]);
+  });
+
+  it("mountExplorer forwards every option to showExplorer in positional order", () => {
+    const returned = { handle: true };
+    const mock = vi.mocked(showExplorer);
+    mock.mockReset();
+    mock.mockReturnValue(returned as never);
+    const keys = [
+      "container",
+      "loaded",
+      "title",
+      "onCount",
+      "views",
+      "post",
+      "carried",
+      "scheduler",
+      "storage",
+      "editor",
+      "responsibilities",
+      "windowPort",
+      "scanHost",
+      "showMetrics",
+      "withdraw",
+      "reconcileMessages",
+    ];
+    const options = Object.fromEntries(
+      keys.map((key) => [key, { sentinel: key }]),
+    );
+
+    const result = mountExplorer(options as never);
+
+    expect(result).toBe(returned);
+    expect(mock.mock.calls[0]).toEqual(keys.map((key) => ({ sentinel: key })));
+  });
+
+  it("mountExplorer leaves unset options undefined so defaults apply", () => {
+    const mock = vi.mocked(showExplorer);
+    mock.mockReset();
+    const container = { sentinel: "container" };
+    const loaded = { sentinel: "loaded" };
+
+    mountExplorer({ container, loaded, title: "demo" } as never);
+
+    const args = mock.mock.calls[0];
+    expect(args.slice(0, 3)).toEqual([container, loaded, "demo"]);
+    expect(args.length).toBe(16);
+    expect(args.slice(3)).toEqual(new Array(13).fill(undefined));
   });
 });

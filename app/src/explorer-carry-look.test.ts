@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -29,7 +28,7 @@ const port = fakeViews({});
 const facts = {};
 
 (async () => {
-  const first = showExplorer(host, loadedFor(before), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; });
+  const first = mountExplorer({ container: host, loaded: loadedFor(before), title: "demo", onCount: (t) => { counts.text = t; }, views: port, post: (input) => { notes.push(input.text); return null; } });
   await tick();
   click(q('.tree .row[data-path="app"] .rcheck'));
   await tick();
@@ -40,7 +39,7 @@ const facts = {};
   const carried = first.carry();
   first.dispose();
   host.replaceChildren();
-  showExplorer(host, loadedFor(after), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; }, carried);
+  mountExplorer({ container: host, loaded: loadedFor(after), title: "demo", onCount: (t) => { counts.text = t; }, views: port, post: (input) => { notes.push(input.text); return null; }, carried });
   await tick();
   facts.afterRescan = { count: counts.text, notes: [...notes], canBack: !q(".view-back").disabled, canForward: !q(".view-forward").disabled };
 
