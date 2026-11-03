@@ -1,0 +1,53 @@
+{
+  "settings": {
+    "distance_threshold": 0.3,
+    "warnings": {
+      "stable_abstractions": true
+    }
+  },
+  "modules": [
+    {
+      "id": "ux/api.ts",
+      "kind": "module",
+      "exports": [
+        "interface"
+      ]
+    },
+    {
+      "id": "uy/impl.ts",
+      "kind": "module",
+      "exports": [
+        "class"
+      ]
+    },
+    {
+      "id": "iso/a.ts",
+      "kind": "module",
+      "exports": [
+        "class"
+      ]
+    },
+    {
+      "id": "nx/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ny/a.ts",
+      "kind": "module",
+      "exports": [
+        "interface"
+      ]
+    }
+  ],
+  "edges": [
+    [
+      "ux/api.ts",
+      "uy/impl.ts"
+    ],
+    [
+      "nx/a.ts",
+      "ny/a.ts"
+    ]
+  ]
+}

@@ -1,0 +1,2386 @@
+{
+  "planted": [
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c09_under",
+      "complexity": 9,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c09_at",
+      "complexity": 9,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c09_over",
+      "complexity": 9,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c10_under",
+      "complexity": 10,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c10_at",
+      "complexity": 10,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c10_over",
+      "complexity": 10,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c11_under",
+      "complexity": 11,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c11_at",
+      "complexity": 11,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "c11_over",
+      "complexity": 11,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "python",
+      "module": "python/limits.py",
+      "function": "far",
+      "complexity": 25,
+      "k": 10,
+      "h": 1
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c09_under",
+      "complexity": 9,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c09_at",
+      "complexity": 9,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c09_over",
+      "complexity": 9,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c10_under",
+      "complexity": 10,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c10_at",
+      "complexity": 10,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c10_over",
+      "complexity": 10,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c11_under",
+      "complexity": 11,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c11_at",
+      "complexity": 11,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "c11_over",
+      "complexity": 11,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "typescript",
+      "module": "typescript/limits.ts",
+      "function": "far",
+      "complexity": 25,
+      "k": 10,
+      "h": 1
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c09_under",
+      "complexity": 9,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c09_at",
+      "complexity": 9,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c09_over",
+      "complexity": 9,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c10_under",
+      "complexity": 10,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c10_at",
+      "complexity": 10,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c10_over",
+      "complexity": 10,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c11_under",
+      "complexity": 11,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c11_at",
+      "complexity": 11,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "c11_over",
+      "complexity": 11,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "kotlin",
+      "module": "kotlin/limits",
+      "function": "far",
+      "complexity": 25,
+      "k": 10,
+      "h": 1
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c09_under",
+      "complexity": 9,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c09_at",
+      "complexity": 9,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c09_over",
+      "complexity": 9,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c10_under",
+      "complexity": 10,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c10_at",
+      "complexity": 10,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c10_over",
+      "complexity": 10,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c11_under",
+      "complexity": 11,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c11_at",
+      "complexity": 11,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "c11_over",
+      "complexity": 11,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "rust",
+      "module": "rust/src/limits.rs",
+      "function": "far",
+      "complexity": 25,
+      "k": 10,
+      "h": 1
+    }
+  ],
+  "cases": [
+    {
+      "id": "default/python/c09_under/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c09_under/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c09_under/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c09_under/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c09_at/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c09_at/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c09_at/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c09_at/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c09_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c09_over/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c09_over/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c09_over/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c09_over/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c10_under/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c10_under/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c10_under/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c10_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c10_under/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c10_at/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c10_at/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c10_at/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c10_at/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c10_over/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c10_over",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c10_over/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c10_over/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c10_over/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c11_under/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c11_under/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c11_under/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c11_under",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c11_under/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c11_at/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c11_at/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c11_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c11_at/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c11_at",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c11_at/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c11_over/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c11_over",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/c11_over/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c11_over/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::c11_over",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/c11_over/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:python/limits.py::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/far/complexity",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::far",
+      "severity": "warning",
+      "measures": {
+        "value": 25,
+        "line": 10
+      },
+      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/python/far/coverage",
+      "run": "default",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.6
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/far/complexity",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:python/limits.py::far",
+      "severity": "violation",
+      "measures": {
+        "value": 25,
+        "line": 11
+      },
+      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/python/far/coverage",
+      "run": "custom",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:python/limits.py::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.61
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c09_under/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c09_under/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c09_under/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c09_under/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c09_at/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c09_at/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c09_at/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c09_at/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c09_over/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c09_over/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c09_over/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c09_over/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c10_under/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c10_under/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c10_under/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c10_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c10_under/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c10_at/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c10_at/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c10_at/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c10_at/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c10_over/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c10_over",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c10_over/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c10_over/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c10_over/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c11_under/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c11_under/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c11_under/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c11_under",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c11_under/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c11_at/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c11_at/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c11_at/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c11_at",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c11_at/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c11_over/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c11_over",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/c11_over/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c11_over/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::c11_over",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/c11_over/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/far/complexity",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::far",
+      "severity": "warning",
+      "measures": {
+        "value": 25,
+        "line": 10
+      },
+      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/typescript/far/coverage",
+      "run": "default",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.6
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/far/complexity",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:typescript/limits.ts::far",
+      "severity": "violation",
+      "measures": {
+        "value": 25,
+        "line": 11
+      },
+      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/typescript/far/coverage",
+      "run": "custom",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:typescript/limits.ts::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.61
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c09_under/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c09_under/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c09_under/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c09_under/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c09_at/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c09_at/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c09_at/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c09_at/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c09_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c09_over/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c09_over/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c09_over/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c09_over/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c10_under/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c10_under/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c10_under/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c10_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c10_under/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c10_at/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c10_at/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c10_at/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c10_at/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c10_over/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c10_over",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c10_over/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c10_over/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c10_over/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c11_under/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c11_under/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c11_under/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c11_under",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c11_under/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c11_at/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c11_at/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c11_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c11_at/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c11_at",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c11_at/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c11_over/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c11_over",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/c11_over/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c11_over/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::c11_over",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/c11_over/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/far/complexity",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::far",
+      "severity": "warning",
+      "measures": {
+        "value": 25,
+        "line": 10
+      },
+      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/kotlin/far/coverage",
+      "run": "default",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.6
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/far/complexity",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:kotlin/limits::far",
+      "severity": "violation",
+      "measures": {
+        "value": 25,
+        "line": 11
+      },
+      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/kotlin/far/coverage",
+      "run": "custom",
+      "language": "kotlin",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:kotlin/limits::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.61
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c09_under/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c09_under/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c09_under/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c09_under/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c09_at/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c09_at/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c09_at/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c09_at/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c09_over/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c09_over/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c09_over/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c09_over/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c10_under/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c10_under/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c10_under/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c10_under/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c10_at/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c10_at/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c10_at/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c10_at/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c10_over/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_over",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c10_over/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c10_over/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c10_over/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c11_under/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c11_under/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c11_under/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_under",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c11_under/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c11_at/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c11_at/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c11_at/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_at",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c11_at/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c11_over/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_over",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/c11_over/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c11_over/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_over",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/c11_over/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/far/complexity",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::far",
+      "severity": "warning",
+      "measures": {
+        "value": 25,
+        "line": 10
+      },
+      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/rust/far/coverage",
+      "run": "default",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.6
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/far/complexity",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:rust/src/limits.rs::far",
+      "severity": "violation",
+      "measures": {
+        "value": 25,
+        "line": 11
+      },
+      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/rust/far/coverage",
+      "run": "custom",
+      "language": "rust",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:rust/src/limits.rs::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.61
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "known_defect": null
+    }
+  ],
+  "mixed": {
+    "overlay": "overlays/mixed.json",
+    "findings": [
+      {
+        "finding_id": "thresholds:complexity:python/limits.py::c10_at",
+        "measures": {
+          "value": 10,
+          "line": 10
+        },
+        "derivation": "value 10 >= 10"
+      },
+      {
+        "finding_id": "thresholds:coverage:python/limits.py::c10_under",
+        "measures": {
+          "value": 0.5,
+          "line": 0.6
+        },
+        "derivation": "value 0.5 < 0.6"
+      }
+    ],
+    "absent": [
+      "thresholds:complexity:python/limits.py::c09_at",
+      "thresholds:coverage:python/limits.py::c10_over"
+    ],
+    "unresolved": {
+      "complexity": 2,
+      "coverage": 1
+    },
+    "derivation": "c10_at and c10_under resolve to the scanned module python/limits.py and cross the default lines; c09_at (9) and c10_over (0.9) resolve and stay under; nowhere/ghost.py::f and python/gone.py::g (complexity) and nowhere/ghost.py::h (coverage) match no scanned module, so 2 and 1 ids are skipped and counted"
+  },
+  "stale": {
+    "overlay": "overlays/stale.json",
+    "findings": [],
+    "derivation": "the overlay's commit is not the repository's HEAD, so it is skipped whole although c10_at (10) would cross the line",
+    "skipped_commit": "0000000000000000000000000000000000000000"
+  }
+}

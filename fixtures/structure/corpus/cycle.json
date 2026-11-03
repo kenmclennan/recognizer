@@ -1,0 +1,110 @@
+{
+  "settings": {
+    "warnings": {
+      "cycle": true
+    }
+  },
+  "modules": [
+    {
+      "id": "c/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "c/b.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "r/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "r/y.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "r/z.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ch/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ch/b.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ch/c.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "s/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "f/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "f/b.ts",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [
+    [
+      "c/a.ts",
+      "c/b.ts"
+    ],
+    [
+      "c/b.ts",
+      "c/a.ts"
+    ],
+    [
+      "r/x.ts",
+      "r/y.ts"
+    ],
+    [
+      "r/y.ts",
+      "r/z.ts"
+    ],
+    [
+      "r/z.ts",
+      "r/x.ts"
+    ],
+    [
+      "ch/a.ts",
+      "ch/b.ts"
+    ],
+    [
+      "ch/b.ts",
+      "ch/c.ts"
+    ],
+    [
+      "s/a.ts",
+      "s/a.ts"
+    ],
+    [
+      "f/a.ts",
+      "f/b.ts"
+    ],
+    [
+      "f/a.ts",
+      "foreign:pkg"
+    ],
+    [
+      "f/b.ts",
+      "foreign:pkg"
+    ]
+  ]
+}

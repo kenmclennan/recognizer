@@ -1,0 +1,336 @@
+{
+  "cases": [
+    {
+      "id": "python/clamp",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "mutation:app/shop.py::clamp",
+      "measures": {
+        "killed": 0,
+        "survived": 2,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 2,
+          "operator": "<",
+          "replacement": "<=",
+          "reason": "equivalent mutant: when x equals the bound the original falls through and returns x, which is the bound, and the mutant returns the bound, the same value; no test can tell them apart"
+        },
+        {
+          "line": 4,
+          "operator": ">",
+          "replacement": ">=",
+          "reason": "equivalent mutant: when x equals the bound the original falls through and returns x, which is the bound, and the mutant returns the bound, the same value; no test can tell them apart"
+        }
+      ],
+      "derivation": "clamp has two comparison sites; both mutants change only the case x == bound, where both versions return the same value, so none can be killed: 0 killed, 2 survived",
+      "known_defect": null
+    },
+    {
+      "id": "python/is_adult",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "mutation:app/shop.py::is_adult",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 10,
+          "operator": ">=",
+          "replacement": ">",
+          "reason": "wrong boundary: no test passes age 18; assert is_adult(18) is True would kill it"
+        }
+      ],
+      "derivation": "one site, >=; the tests use ages 30 and 5, which both versions classify alike: 0 killed, 1 survived",
+      "known_defect": null
+    },
+    {
+      "id": "python/total",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "mutation:app/shop.py::total",
+      "measures": {
+        "killed": 1,
+        "survived": 0,
+        "uncovered": 0,
+        "score": 1.0
+      },
+      "survivors": [],
+      "derivation": "one site, *; total(3, 4) is 12 and the mutant gives 0.75: 1 killed",
+      "known_defect": null
+    },
+    {
+      "id": "python/both",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "mutation:app/shop.py::both",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 18,
+          "operator": "and",
+          "replacement": "or",
+          "reason": "no assertion for mixed inputs: assert both(True, False) is False would kill it"
+        }
+      ],
+      "derivation": "one site, and; the tests use (True, True) and (False, False), which and and or answer alike: 0 killed, 1 survived",
+      "known_defect": null
+    },
+    {
+      "id": "python/invert",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "mutation:app/shop.py::invert",
+      "measures": {
+        "killed": 1,
+        "survived": 0,
+        "uncovered": 0,
+        "score": 1.0
+      },
+      "survivors": [],
+      "derivation": "one site, not; invert(True) must be False and the mutant returns True: 1 killed",
+      "known_defect": null
+    },
+    {
+      "id": "python/default_enabled",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "mutation:app/shop.py::default_enabled",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 26,
+          "operator": "True",
+          "replacement": "False",
+          "reason": "no assertion: the test calls the function and checks nothing; assert default_enabled() is True would kill it"
+        }
+      ],
+      "derivation": "one site, True; the call result is discarded: 0 killed, 1 survived",
+      "known_defect": null
+    },
+    {
+      "id": "python/untested",
+      "language": "python",
+      "expect": "no-finding",
+      "finding_id": "mutation:app/shop.py::untested",
+      "measures": {
+        "killed": 0,
+        "survived": 0,
+        "uncovered": 1
+      },
+      "survivors": [],
+      "derivation": "one site, -, on a line whose coverage is 0: counted uncovered and never run: 0 killed, 0 survived, 1 uncovered",
+      "known_defect": null
+    },
+    {
+      "id": "python/tiered",
+      "language": "python",
+      "expect": "finding",
+      "finding_id": "mutation:app/shop.py::tiered",
+      "measures": {
+        "killed": 2,
+        "survived": 2,
+        "uncovered": 0,
+        "score": 0.5
+      },
+      "survivors": [
+        {
+          "line": 34,
+          "operator": ">",
+          "replacement": ">=",
+          "reason": "wrong boundary: no test passes n == 10; assert tiered(10, True) == 11 would kill it"
+        },
+        {
+          "line": 34,
+          "operator": "and",
+          "replacement": "or",
+          "reason": "no assertion for mixed inputs: assert tiered(11, False) == 12 would kill it"
+        }
+      ],
+      "derivation": "four sites: > and and survive (tests use (11, True) and (5, False) only), * is killed by tiered(11, True) == 22 and + by tiered(5, False) == 6: 2 killed, 2 survived",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/clamp",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "mutation:src/shop.ts::clamp",
+      "measures": {
+        "killed": 0,
+        "survived": 2,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 2,
+          "operator": "<",
+          "replacement": "<=",
+          "reason": "equivalent mutant: when x equals the bound the original falls through and returns x, which is the bound, and the mutant returns the bound, the same value; no test can tell them apart"
+        },
+        {
+          "line": 5,
+          "operator": ">",
+          "replacement": ">=",
+          "reason": "equivalent mutant: when x equals the bound the original falls through and returns x, which is the bound, and the mutant returns the bound, the same value; no test can tell them apart"
+        }
+      ],
+      "derivation": "two comparison sites, both equivalent as in the Python module: 0 killed, 2 survived",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/isAdult",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "mutation:src/shop.ts::isAdult",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 12,
+          "operator": ">=",
+          "replacement": ">",
+          "reason": "wrong boundary: no test passes age 18; assert.equal(isAdult(18), true) would kill it"
+        }
+      ],
+      "derivation": "0 killed, 1 survived, as is_adult",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/total",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "mutation:src/shop.ts::total",
+      "measures": {
+        "killed": 1,
+        "survived": 0,
+        "uncovered": 0,
+        "score": 1.0
+      },
+      "survivors": [],
+      "derivation": "1 killed, as total",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/both",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "mutation:src/shop.ts::both",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 20,
+          "operator": "&&",
+          "replacement": "||",
+          "reason": "no assertion for mixed inputs: assert.equal(both(true, false), false) would kill it"
+        }
+      ],
+      "derivation": "0 killed, 1 survived, as both",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/pick",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "mutation:src/shop.ts::pick",
+      "measures": {
+        "killed": 1,
+        "survived": 0,
+        "uncovered": 0,
+        "score": 1.0
+      },
+      "survivors": [],
+      "derivation": "one site, ??; pick(null, 5) is 5 and the mutant a && b gives null: 1 killed",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/defaultEnabled",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "mutation:src/shop.ts::defaultEnabled",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 28,
+          "operator": "true",
+          "replacement": "false",
+          "reason": "no assertion: the test calls the function and checks nothing; assert.equal(defaultEnabled(), true) would kill it"
+        }
+      ],
+      "derivation": "0 killed, 1 survived, as default_enabled",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/untested",
+      "language": "typescript",
+      "expect": "no-finding",
+      "finding_id": "mutation:src/shop.ts::untested",
+      "measures": {
+        "killed": 0,
+        "survived": 0,
+        "uncovered": 1
+      },
+      "survivors": [],
+      "derivation": "0 killed, 0 survived, 1 uncovered, as untested",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/tiered",
+      "language": "typescript",
+      "expect": "finding",
+      "finding_id": "mutation:src/shop.ts::tiered",
+      "measures": {
+        "killed": 2,
+        "survived": 2,
+        "uncovered": 0,
+        "score": 0.5
+      },
+      "survivors": [
+        {
+          "line": 36,
+          "operator": ">",
+          "replacement": ">=",
+          "reason": "wrong boundary: no test passes n == 10; assert.equal(tiered(10, true), 11) would kill it"
+        },
+        {
+          "line": 36,
+          "operator": "&&",
+          "replacement": "||",
+          "reason": "no assertion for mixed inputs: assert.equal(tiered(11, false), 12) would kill it"
+        }
+      ],
+      "derivation": "four sites, 2 killed and 2 survived, as tiered",
+      "known_defect": null
+    }
+  ]
+}

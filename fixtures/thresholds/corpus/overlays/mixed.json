@@ -1,0 +1,36 @@
+{
+  "overlay_version": 1,
+  "commit": "COMMIT",
+  "modified": false,
+  "producer": {
+    "name": "quality-tool",
+    "version": "1.0.0"
+  },
+  "metrics": [
+    {
+      "name": "complexity",
+      "type": "count",
+      "granularity": "member",
+      "bad": "high"
+    },
+    {
+      "name": "coverage",
+      "type": "ratio",
+      "granularity": "member",
+      "bad": "low"
+    }
+  ],
+  "values": {
+    "complexity": {
+      "python/limits.py::c10_at": 10,
+      "python/limits.py::c09_at": 9,
+      "nowhere/ghost.py::f": 30,
+      "python/gone.py::g": 12
+    },
+    "coverage": {
+      "python/limits.py::c10_under": 0.5,
+      "python/limits.py::c10_over": 0.9,
+      "nowhere/ghost.py::h": 0.1
+    }
+  }
+}

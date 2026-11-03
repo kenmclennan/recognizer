@@ -1,0 +1,53 @@
+{
+  "settings": {
+    "distance_threshold": 0.3,
+    "warnings": {
+      "stable_abstractions": true
+    }
+  },
+  "modules": [
+    {
+      "id": "app/main.ts",
+      "kind": "module",
+      "exports": [
+        "function"
+      ]
+    },
+    {
+      "id": "core/a.ts",
+      "kind": "module",
+      "exports": [
+        "class"
+      ]
+    },
+    {
+      "id": "core/b.ts",
+      "kind": "module",
+      "exports": [
+        "class"
+      ]
+    },
+    {
+      "id": "infra/db.ts",
+      "kind": "module",
+      "exports": [
+        "interface",
+        "class"
+      ]
+    }
+  ],
+  "edges": [
+    [
+      "app/main.ts",
+      "core/a.ts"
+    ],
+    [
+      "core/a.ts",
+      "infra/db.ts"
+    ],
+    [
+      "core/b.ts",
+      "infra/db.ts"
+    ]
+  ]
+}

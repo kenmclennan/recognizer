@@ -1,0 +1,669 @@
+{
+  "threshold": 30,
+  "cases": [
+    {
+      "id": "python/straight",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::straight",
+      "measures": {
+        "complexity": 1,
+        "coverage": 1.0,
+        "crap": 1.0
+      },
+      "derivation": "1 + branch points = 1; the first 3 lines of 1-3 are instrumented and 3 are hit, coverage 3/3; 1^2 * (1 - 3/3)^3 + 1 = 1.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/one_if",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::one_if",
+      "measures": {
+        "complexity": 2,
+        "coverage": 1.0,
+        "crap": 2.0
+      },
+      "derivation": "1 + branch points = 2; the first 4 lines of 6-9 are instrumented and 4 are hit, coverage 4/4; 2^2 * (1 - 4/4)^3 + 2 = 2.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/if_elif",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::if_elif",
+      "measures": {
+        "complexity": 3,
+        "coverage": 0.0,
+        "crap": 12.0
+      },
+      "derivation": "1 + branch points = 3; the first 5 lines of 12-17 are instrumented and 0 are hit, coverage 0/5; 3^2 * (1 - 0/5)^3 + 3 = 12.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/loops",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::loops",
+      "measures": {
+        "complexity": 4,
+        "coverage": 0.5,
+        "crap": 6.0
+      },
+      "derivation": "1 + branch points = 4; the first 6 lines of 20-28 are instrumented and 3 are hit, coverage 3/6; 4^2 * (1 - 3/6)^3 + 4 = 6.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/guarded",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::guarded",
+      "measures": {
+        "complexity": 5,
+        "coverage": 0.7143,
+        "crap": 5.583
+      },
+      "derivation": "1 + branch points = 5; the first 7 lines of 31-40 are instrumented and 5 are hit, coverage 5/7; 5^2 * (1 - 5/7)^3 + 5 = 5.5831 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/comprehensions",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::comprehensions",
+      "measures": {
+        "complexity": 6,
+        "coverage": 0.2857,
+        "crap": 19.12
+      },
+      "derivation": "1 + branch points = 6; the first 7 lines of 43-50 are instrumented and 2 are hit, coverage 2/7; 6^2 * (1 - 2/7)^3 + 6 = 19.1195 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/matching",
+      "language": "python",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:python/risk.py::matching",
+      "measures": {
+        "complexity": 7,
+        "coverage": 0.0,
+        "crap": 56.0
+      },
+      "derivation": "1 + branch points = 7; the first 7 lines of 53-65 are instrumented and 0 are hit, coverage 0/7; 7^2 * (1 - 0/7)^3 + 7 = 56.0000 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/booleans",
+      "language": "python",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:python/risk.py::booleans",
+      "measures": {
+        "complexity": 8,
+        "coverage": 0.1429,
+        "crap": 48.303
+      },
+      "derivation": "1 + branch points = 8; the first 7 lines of 68-76 are instrumented and 1 are hit, coverage 1/7; 8^2 * (1 - 1/7)^3 + 8 = 48.3032 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/mixed",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::mixed",
+      "measures": {
+        "complexity": 9
+      },
+      "derivation": "1 + branch points = 9; no instrumented line in lines 79-98, so coverage is unknown and only complexity is reported",
+      "known_defect": null
+    },
+    {
+      "id": "python/nested",
+      "language": "python",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:python/risk.py::nested",
+      "measures": {
+        "complexity": 10,
+        "coverage": 0.4286,
+        "crap": 28.659
+      },
+      "derivation": "1 + branch points = 10; the first 7 lines of 101-119 are instrumented and 3 are hit, coverage 3/7; 10^2 * (1 - 3/7)^3 + 10 = 28.6589 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/classify",
+      "language": "python",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:python/risk.py::classify",
+      "measures": {
+        "complexity": 11,
+        "coverage": 0.2857,
+        "crap": 55.096
+      },
+      "derivation": "1 + branch points = 11; the first 7 lines of 122-139 are instrumented and 2 are hit, coverage 2/7; 11^2 * (1 - 2/7)^3 + 11 = 55.0962 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "python/sprawl",
+      "language": "python",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:python/risk.py::sprawl",
+      "measures": {
+        "complexity": 12,
+        "coverage": 0.5,
+        "crap": 30.0
+      },
+      "derivation": "1 + branch points = 12; the first 6 lines of 142-162 are instrumented and 3 are hit, coverage 3/6; 12^2 * (1 - 3/6)^3 + 12 = 30.0000 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/straight",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::straight",
+      "measures": {
+        "complexity": 1,
+        "coverage": 1.0,
+        "crap": 1.0
+      },
+      "derivation": "1 + branch points = 1; the first 3 lines of 1-4 are instrumented and 3 are hit, coverage 3/3; 1^2 * (1 - 3/3)^3 + 1 = 1.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/oneIf",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::oneIf",
+      "measures": {
+        "complexity": 2,
+        "coverage": 1.0,
+        "crap": 2.0
+      },
+      "derivation": "1 + branch points = 2; the first 4 lines of 6-11 are instrumented and 4 are hit, coverage 4/4; 2^2 * (1 - 4/4)^3 + 2 = 2.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/ifElse",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::ifElse",
+      "measures": {
+        "complexity": 3,
+        "coverage": 0.0,
+        "crap": 12.0
+      },
+      "derivation": "1 + branch points = 3; the first 5 lines of 13-20 are instrumented and 0 are hit, coverage 0/5; 3^2 * (1 - 0/5)^3 + 3 = 12.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/loops",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::loops",
+      "measures": {
+        "complexity": 4,
+        "coverage": 0.5,
+        "crap": 6.0
+      },
+      "derivation": "1 + branch points = 4; the first 6 lines of 22-34 are instrumented and 3 are hit, coverage 3/6; 4^2 * (1 - 3/6)^3 + 4 = 6.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/doLoop",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::doLoop",
+      "measures": {
+        "complexity": 5,
+        "coverage": 0.7143,
+        "crap": 5.583
+      },
+      "derivation": "1 + branch points = 5; the first 7 lines of 36-50 are instrumented and 5 are hit, coverage 5/7; 5^2 * (1 - 5/7)^3 + 5 = 5.5831 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/switchy",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::switchy",
+      "measures": {
+        "complexity": 6,
+        "coverage": 0.2857,
+        "crap": 19.12
+      },
+      "derivation": "1 + branch points = 6; the first 7 lines of 52-74 are instrumented and 2 are hit, coverage 2/7; 6^2 * (1 - 2/7)^3 + 6 = 19.1195 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/optional",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:typescript/risk.ts::optional",
+      "measures": {
+        "complexity": 7,
+        "coverage": 0.0,
+        "crap": 56.0
+      },
+      "derivation": "1 + branch points = 7; the first 7 lines of 76-87 are instrumented and 0 are hit, coverage 0/7; 7^2 * (1 - 0/7)^3 + 7 = 56.0000 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/logic",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:typescript/risk.ts::logic",
+      "measures": {
+        "complexity": 8,
+        "coverage": 0.1429,
+        "crap": 48.303
+      },
+      "derivation": "1 + branch points = 8; the first 7 lines of 89-100 are instrumented and 1 are hit, coverage 1/7; 8^2 * (1 - 1/7)^3 + 8 = 48.3032 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/mixed",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::mixed",
+      "measures": {
+        "complexity": 9
+      },
+      "derivation": "1 + branch points = 9; no instrumented line in lines 102-125, so coverage is unknown and only complexity is reported",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/nested",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:typescript/risk.ts::nested",
+      "measures": {
+        "complexity": 10,
+        "coverage": 0.4286,
+        "crap": 28.659
+      },
+      "derivation": "1 + branch points = 10; the first 7 lines of 127-159 are instrumented and 3 are hit, coverage 3/7; 10^2 * (1 - 3/7)^3 + 10 = 28.6589 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/classify",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:typescript/risk.ts::classify",
+      "measures": {
+        "complexity": 11,
+        "coverage": 0.2857,
+        "crap": 55.096
+      },
+      "derivation": "1 + branch points = 11; the first 7 lines of 161-182 are instrumented and 2 are hit, coverage 2/7; 11^2 * (1 - 2/7)^3 + 11 = 55.0962 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "typescript/sprawl",
+      "language": "typescript",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:typescript/risk.ts::sprawl",
+      "measures": {
+        "complexity": 12,
+        "coverage": 0.5,
+        "crap": 30.0
+      },
+      "derivation": "1 + branch points = 12; the first 6 lines of 184-209 are instrumented and 3 are hit, coverage 3/6; 12^2 * (1 - 3/6)^3 + 12 = 30.0000 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/straight",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::straight",
+      "measures": {
+        "complexity": 1,
+        "coverage": 1.0,
+        "crap": 1.0
+      },
+      "derivation": "1 + branch points = 1; the first 3 lines of 3-6 are instrumented and 3 are hit, coverage 3/3; 1^2 * (1 - 3/3)^3 + 1 = 1.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/oneIf",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::oneIf",
+      "measures": {
+        "complexity": 2,
+        "coverage": 1.0,
+        "crap": 2.0
+      },
+      "derivation": "1 + branch points = 2; the first 4 lines of 8-13 are instrumented and 4 are hit, coverage 4/4; 2^2 * (1 - 4/4)^3 + 2 = 2.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/ifElse",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::ifElse",
+      "measures": {
+        "complexity": 3,
+        "coverage": 0.0,
+        "crap": 12.0
+      },
+      "derivation": "1 + branch points = 3; the first 5 lines of 15-22 are instrumented and 0 are hit, coverage 0/5; 3^2 * (1 - 0/5)^3 + 3 = 12.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/loops",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::loops",
+      "measures": {
+        "complexity": 4,
+        "coverage": 0.5,
+        "crap": 6.0
+      },
+      "derivation": "1 + branch points = 4; the first 6 lines of 24-37 are instrumented and 3 are hit, coverage 3/6; 4^2 * (1 - 3/6)^3 + 4 = 6.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/whenThree",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::whenThree",
+      "measures": {
+        "complexity": 5,
+        "coverage": 0.7143,
+        "crap": 5.583
+      },
+      "derivation": "1 + branch points = 5; the first 7 lines of 39-50 are instrumented and 5 are hit, coverage 5/7; 5^2 * (1 - 5/7)^3 + 5 = 5.5831 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/tryCatch",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::tryCatch",
+      "measures": {
+        "complexity": 6,
+        "coverage": 0.2857,
+        "crap": 19.12
+      },
+      "derivation": "1 + branch points = 6; the first 7 lines of 52-69 are instrumented and 2 are hit, coverage 2/7; 6^2 * (1 - 2/7)^3 + 6 = 19.1195 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/booleans",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "finding",
+      "finding_id": "crap:kotlin/corpus::booleans",
+      "measures": {
+        "complexity": 7,
+        "coverage": 0.0,
+        "crap": 56.0
+      },
+      "derivation": "1 + branch points = 7; the first 7 lines of 71-84 are instrumented and 0 are hit, coverage 0/7; 7^2 * (1 - 0/7)^3 + 7 = 56.0000 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/mixed",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "finding",
+      "finding_id": "crap:kotlin/corpus::mixed",
+      "measures": {
+        "complexity": 8,
+        "coverage": 0.1429,
+        "crap": 48.303
+      },
+      "derivation": "1 + branch points = 8; the first 7 lines of 86-103 are instrumented and 1 are hit, coverage 1/7; 8^2 * (1 - 1/7)^3 + 8 = 48.3032 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/nested",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::nested",
+      "measures": {
+        "complexity": 9
+      },
+      "derivation": "1 + branch points = 9; no instrumented line in lines 105-131, so coverage is unknown and only complexity is reported",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/classify",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "no-finding",
+      "finding_id": "crap:kotlin/corpus::classify",
+      "measures": {
+        "complexity": 10,
+        "coverage": 0.4286,
+        "crap": 28.659
+      },
+      "derivation": "1 + branch points = 10; the first 7 lines of 133-154 are instrumented and 3 are hit, coverage 3/7; 10^2 * (1 - 3/7)^3 + 10 = 28.6589 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/wide",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "finding",
+      "finding_id": "crap:kotlin/corpus::wide",
+      "measures": {
+        "complexity": 11,
+        "coverage": 0.2857,
+        "crap": 55.096
+      },
+      "derivation": "1 + branch points = 11; the first 7 lines of 156-180 are instrumented and 2 are hit, coverage 2/7; 11^2 * (1 - 2/7)^3 + 11 = 55.0962 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "kotlin/sprawl",
+      "language": "kotlin",
+      "run": "jacoco",
+      "expect": "finding",
+      "finding_id": "crap:kotlin/corpus::sprawl",
+      "measures": {
+        "complexity": 12,
+        "coverage": 0.5,
+        "crap": 30.0
+      },
+      "derivation": "1 + branch points = 12; the first 6 lines of 182-211 are instrumented and 3 are hit, coverage 3/6; 12^2 * (1 - 3/6)^3 + 12 = 30.0000 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/straight",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::straight",
+      "measures": {
+        "complexity": 1,
+        "coverage": 1.0,
+        "crap": 1.0
+      },
+      "derivation": "1 + branch points = 1; the first 3 lines of 1-4 are instrumented and 3 are hit, coverage 3/3; 1^2 * (1 - 3/3)^3 + 1 = 1.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/one_if",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::one_if",
+      "measures": {
+        "complexity": 2,
+        "coverage": 1.0,
+        "crap": 2.0
+      },
+      "derivation": "1 + branch points = 2; the first 4 lines of 6-11 are instrumented and 4 are hit, coverage 4/4; 2^2 * (1 - 4/4)^3 + 2 = 2.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/if_else_if",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::if_else_if",
+      "measures": {
+        "complexity": 3,
+        "coverage": 0.0,
+        "crap": 12.0
+      },
+      "derivation": "1 + branch points = 3; the first 5 lines of 13-20 are instrumented and 0 are hit, coverage 0/5; 3^2 * (1 - 0/5)^3 + 3 = 12.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/loops",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::loops",
+      "measures": {
+        "complexity": 4,
+        "coverage": 0.5,
+        "crap": 6.0
+      },
+      "derivation": "1 + branch points = 4; the first 6 lines of 22-35 are instrumented and 3 are hit, coverage 3/6; 4^2 * (1 - 3/6)^3 + 4 = 6.0000 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/match_three",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::match_three",
+      "measures": {
+        "complexity": 5,
+        "coverage": 0.7143,
+        "crap": 5.583
+      },
+      "derivation": "1 + branch points = 5; the first 7 lines of 37-47 are instrumented and 5 are hit, coverage 5/7; 5^2 * (1 - 5/7)^3 + 5 = 5.5831 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/if_let_match",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::if_let_match",
+      "measures": {
+        "complexity": 6,
+        "coverage": 0.2857,
+        "crap": 19.12
+      },
+      "derivation": "1 + branch points = 6; the first 7 lines of 49-63 are instrumented and 2 are hit, coverage 2/7; 6^2 * (1 - 2/7)^3 + 6 = 19.1195 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/closure",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:rust/src/risk.rs::closure",
+      "measures": {
+        "complexity": 7,
+        "coverage": 0.0,
+        "crap": 56.0
+      },
+      "derivation": "1 + branch points = 7; the first 7 lines of 65-89 are instrumented and 0 are hit, coverage 0/7; 7^2 * (1 - 0/7)^3 + 7 = 56.0000 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/booleans",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:rust/src/risk.rs::booleans",
+      "measures": {
+        "complexity": 8,
+        "coverage": 0.1429,
+        "crap": 48.303
+      },
+      "derivation": "1 + branch points = 8; the first 7 lines of 91-107 are instrumented and 1 are hit, coverage 1/7; 8^2 * (1 - 1/7)^3 + 8 = 48.3032 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/wide_match",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::wide_match",
+      "measures": {
+        "complexity": 9
+      },
+      "derivation": "1 + branch points = 9; no instrumented line in lines 109-128, so coverage is unknown and only complexity is reported",
+      "known_defect": null
+    },
+    {
+      "id": "rust/classify",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "no-finding",
+      "finding_id": "crap:rust/src/risk.rs::classify",
+      "measures": {
+        "complexity": 10,
+        "coverage": 0.4286,
+        "crap": 28.659
+      },
+      "derivation": "1 + branch points = 10; the first 7 lines of 130-150 are instrumented and 3 are hit, coverage 3/7; 10^2 * (1 - 3/7)^3 + 10 = 28.6589 (below 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/sprawl_match",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:rust/src/risk.rs::sprawl_match",
+      "measures": {
+        "complexity": 11,
+        "coverage": 0.2857,
+        "crap": 55.096
+      },
+      "derivation": "1 + branch points = 11; the first 7 lines of 152-169 are instrumented and 2 are hit, coverage 2/7; 11^2 * (1 - 2/7)^3 + 11 = 55.0962 (at or above 30)",
+      "known_defect": null
+    },
+    {
+      "id": "rust/sprawl",
+      "language": "rust",
+      "run": "lcov",
+      "expect": "finding",
+      "finding_id": "crap:rust/src/risk.rs::sprawl",
+      "measures": {
+        "complexity": 12,
+        "coverage": 0.5,
+        "crap": 30.0
+      },
+      "derivation": "1 + branch points = 12; the first 6 lines of 171-199 are instrumented and 3 are hit, coverage 3/6; 12^2 * (1 - 3/6)^3 + 12 = 30.0000 (at or above 30)",
+      "known_defect": null
+    }
+  ]
+}

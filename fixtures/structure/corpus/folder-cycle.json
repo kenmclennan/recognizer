@@ -1,0 +1,109 @@
+{
+  "settings": {
+    "warnings": {
+      "folder_cycle": true
+    }
+  },
+  "modules": [
+    {
+      "id": "fa/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "fa/y.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "fb/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "fb/y.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ow1/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ow2/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "nest/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "nest/b/y.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ra/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "ra/y.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "rb/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "rb/y.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "rc/x.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "rc/y.ts",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [
+    [
+      "fa/x.ts",
+      "fb/x.ts"
+    ],
+    [
+      "fb/y.ts",
+      "fa/y.ts"
+    ],
+    [
+      "ow1/x.ts",
+      "ow2/x.ts"
+    ],
+    [
+      "nest/x.ts",
+      "nest/b/y.ts"
+    ],
+    [
+      "ra/x.ts",
+      "rb/x.ts"
+    ],
+    [
+      "rb/y.ts",
+      "rc/x.ts"
+    ],
+    [
+      "rc/y.ts",
+      "ra/y.ts"
+    ]
+  ]
+}
