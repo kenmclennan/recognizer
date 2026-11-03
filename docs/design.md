@@ -100,13 +100,13 @@ No layout is stored: the canvas lays a view out as it lays out any set of module
 
 **Views are few, and nothing deletes one on its own.** The view bar's views button drops down the five most recently opened views, each with its description and kind, and, when the repository has more, an All views link at the bottom that opens the Views panel. The Views panel, behind a rail icon between Files and Notes, holds the full list: the live views first, each with its description, its kind and its note count, then the done ones under a Stale heading, each saying why: a change view whose head has merged into its base or whose branch no longer exists, or any view with a pick that no longer resolves. Each stale row has Delete, which removes the file as any other change to the repository, and `recognizer views check` names the same views for an agent, so the list stays short without curation and without anything disappearing by itself.
 
-**A view is never shown stale.** A rule cannot go stale: it re-evaluates, gaining new files and losing deleted ones. A pick can name a module that no longer exists. When a view opens, recognizer compares the scan at the view's commit with the current one around the view, and the canvas shows only what exists now, with a warning that lists what changed:
+**A view is never shown stale.** A rule cannot go stale: it re-evaluates, gaining new files and losing deleted ones. A pick can name a module that no longer exists. When a view opens, recognizer compares the scan at the view's commit with the current one around the view, and the canvas shows only what exists now, and one message in the message tray says what changed. Each pair of view commit and scan commit is compared once per window, so scanning again at the same commit never repeats the message:
 
 - **Missing**: a picked module that is gone, with its new path when git records a rename.
 - **Changed relations**: edges between the view's modules that were removed or added.
-- **Newly relevant**: modules that now use or are used by the view's modules and did not at its commit, listed with checkboxes as the Dependencies tab lists them, never added for the user.
+- **Newly relevant**: modules that now use or are used by the view's modules and did not at its commit, never added for the user.
 
-From the warning the user updates the view (drops what is missing, takes the renames, adds what they put on from the newly relevant list, and saves it at the current commit) or leaves it as it is. Nothing removed is drawn: the code as it is now is the only picture.
+The message carries one action, Update, which drops what is missing, takes the renames and saves the view at the current commit; ignoring or clearing the message leaves the view as it is. Nothing removed is drawn: the code as it is now is the only picture.
 
 `recognizer views check` lists every step in every view that names a path which no longer exists, and exits non-zero when there is one; a repository's CI runs it beside `recognizer check`, so a change that breaks a view says so in its own pull request. `recognizer views check --fix` rewrites picks whose files git records as renamed.
 

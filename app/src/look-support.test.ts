@@ -80,6 +80,7 @@ describe("look-support", () => {
       "showMetrics",
       "withdraw",
       "reconcileMessages",
+      "comparisons",
     ];
     const options = Object.fromEntries(
       keys.map((key) => [key, { sentinel: key }]),
@@ -101,7 +102,7 @@ describe("look-support", () => {
 
     const args = mock.mock.calls[0];
     expect(args.slice(0, 3)).toEqual([container, loaded, "demo"]);
-    expect(args.length).toBe(16);
-    expect(args.slice(3)).toEqual(new Array(13).fill(undefined));
+    expect(args.length).toBe(17);
+    expect(args.slice(3)).toEqual(new Array(14).fill(undefined));
   });
 });

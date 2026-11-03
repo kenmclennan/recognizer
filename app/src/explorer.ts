@@ -102,7 +102,6 @@ import {
   responsibilityStates,
 } from "./responsibility-model";
 import { nextCheck } from "./row-model";
-import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
@@ -122,13 +121,7 @@ import {
   scansCommit,
 } from "./sensor-run";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
-import { buildStalePanel, type StalePanelModel } from "./stale-panel-view";
-import {
-  currentCommit,
-  hasEntries,
-  type StaleReport,
-  staleReport,
-} from "./stale-report";
+import { currentCommit, hasEntries, staleReport } from "./stale-report";
 import {
   bringBack,
   CANVAS_FLOOR,
@@ -155,6 +148,10 @@ import { type FilterState, filterTree, isVisible } from "./tree-filter";
 import { buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
+import {
+  createViewComparisons,
+  type ViewComparisons,
+} from "./view-comparisons";
 import { parseViewFile, serialiseView } from "./view-file";
 import type { Heading } from "./view-heading";
 import {
@@ -263,6 +260,7 @@ export function showExplorer(
   showMetrics: (text: string | null) => void = () => {},
   withdraw: (id: number) => void = () => {},
   reconcileMessages: (foundKeys: readonly string[]) => void = () => {},
+  comparisons: ViewComparisons = createViewComparisons(),
 ): Explorer {
   const health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
@@ -330,11 +328,6 @@ export function showExplorer(
   let listProblem: string | null = null;
   let openToken = 0;
   const viewTexts = new Map<string, string>();
-  const reports = new Map<
-    string,
-    { report: StaleReport; comparing: boolean }
-  >();
-  const dismissed = new Set<string>();
   const history =
     carried?.history ??
     createHistory<Snapshot>({
@@ -742,15 +735,6 @@ export function showExplorer(
     copyLink: () => void copyLink(),
     hasOpenView: () => openView !== null,
   });
-  const stale = buildStalePanel({
-    update: () => void update(),
-    leave() {
-      if (openView !== null) {
-        dismissed.add(openView);
-        render();
-      }
-    },
-  });
   const viewsPanel = buildViewsPanelView({
     open: (name) => void openSaved(name),
     remove: (name) => void removeSavedView(name),
@@ -836,7 +820,7 @@ export function showExplorer(
     },
   );
 
-  canvas.element.append(bar.element, stale.element);
+  canvas.element.append(bar.element);
   tree.element.append(
     viewsPanel.element,
     notesPanel.element,
@@ -2285,49 +2269,10 @@ export function showExplorer(
     return view?.change === undefined ? null : rangeText(view.change);
   }
 
-  function rowFor(id: string): RowSpec {
-    const on = modules.isOpen(id);
-
-    return {
-      label: id,
-      state: on ? "checked" : "unchecked",
-      bold: on,
-      disc: context.disc(id),
-      discHover: described.get(id)?.hover,
-      onCheck: () => (on ? takeAllOff([id]) : putAllOn([id])),
-      onName: () => find(id),
-    };
-  }
-
-  function stalePanelModel(): StalePanelModel | null {
-    const entry = openView === null ? undefined : reports.get(openView);
-
-    if (
-      openView === null ||
-      entry === undefined ||
-      dismissed.has(openView) ||
-      (!entry.comparing && !hasEntries(entry.report))
-    ) {
-      return null;
-    }
-
-    const { report } = entry;
-
-    return {
-      missing: report.missing.map((missing) => ({
-        path: missing.path,
-        rename: missing.renamedTo === null ? null : rowFor(missing.renamedTo),
-      })),
-      removed: (report.changed?.removed ?? []).map(describeEdge),
-      added: (report.changed?.added ?? []).map(describeEdge),
-      newlyRelevant: (report.newlyRelevant ?? []).map(rowFor),
-      comparing: entry.comparing,
-      unavailable: report.unavailable,
-    };
-  }
-
-  function describeEdge(edge: { from: string; to: string }): string {
-    return `${edge.from} -> ${edge.to}`;
+  function renamesFor(name: string, commit: string) {
+    return comparisons.renames(name, commit, currentCommit(scans), () =>
+      views.renamesSince(commit).catch(() => []),
+    );
   }
 
   async function applyView(
@@ -2363,7 +2308,7 @@ export function showExplorer(
     );
     const renames =
       withRenames && view.commit !== null && missingPicks.length > 0
-        ? await views.renamesSince(view.commit).catch(() => [])
+        ? await renamesFor(name, view.commit)
         : [];
 
     if (token !== openToken) {
@@ -2382,7 +2327,6 @@ export function showExplorer(
     viewNotice = null;
     heldViewKeys.delete(`view-invalid:${name}`);
     viewTexts.set(name, text);
-    dismissed.delete(name);
     openView = name;
     pendingLanding = landing && viewNotes(view).length > 0 ? name : null;
     changeInfo = null;
@@ -2415,7 +2359,7 @@ export function showExplorer(
     );
     const renames =
       parsed.view.commit !== null && missingPicks.length > 0
-        ? await views.renamesSince(parsed.view.commit).catch(() => [])
+        ? await renamesFor(name, parsed.view.commit)
         : [];
 
     if (token !== openToken) {
@@ -2429,40 +2373,52 @@ export function showExplorer(
 
   async function compare(
     name: string,
-    view: Parameters<typeof staleReport>[0]["view"],
+    view: Parameters<typeof staleReport>[0]["view"] & { title?: string },
     renames: { from: string; to: string }[],
     token: number,
   ) {
-    const needsScan =
-      view.commit !== null && view.commit !== currentCommit(scans);
+    const viewCommit = view.commit;
+    const scanCommit = currentCommit(scans);
 
-    if (!needsScan) {
-      reports.set(name, {
-        report: staleReport({ view, now: scans, before: null, renames }),
-        comparing: false,
-      });
+    if (viewCommit !== null && viewCommit === scanCommit) {
+      return;
+    }
+
+    await comparisons.compare(
+      {
+        name,
+        title: view.title ?? name,
+        viewCommit,
+        scanCommit,
+        run: async () => {
+          const before =
+            viewCommit === null
+              ? null
+              : await views.scansAt(viewCommit).catch(() => null);
+
+          return staleReport({ view, now: scans, before, renames });
+        },
+      },
+      (message) => {
+        post({
+          kind: message.kind,
+          text: message.text,
+          key: message.key,
+          ...(message.update
+            ? {
+                action: {
+                  label: "Update" as const,
+                  run: () => comparisons.requestUpdate(name),
+                },
+              }
+            : {}),
+        });
+      },
+    );
+
+    if (token === openToken) {
       render();
-
-      return;
     }
-
-    reports.set(name, {
-      report: staleReport({ view, now: scans, before: null, renames }),
-      comparing: true,
-    });
-    render();
-
-    const before = await views.scansAt(view.commit as string).catch(() => null);
-
-    if (token !== openToken) {
-      return;
-    }
-
-    reports.set(name, {
-      report: staleReport({ view, now: scans, before, renames }),
-      comparing: false,
-    });
-    render();
   }
 
   async function openSaved(name: string) {
@@ -2517,9 +2473,7 @@ export function showExplorer(
       return;
     }
 
-    const entry = reports.get(name);
-    const clean =
-      entry === undefined || (!entry.comparing && !hasEntries(entry.report));
+    const clean = viewIsClean(name, parsed.view);
 
     if (
       (await writeView(name, {
@@ -2557,7 +2511,7 @@ export function showExplorer(
     });
 
     if (problem === null) {
-      reports.delete(name);
+      comparisons.drop(name);
       openView = name;
       record();
       noteOpened(name);
@@ -2577,21 +2531,13 @@ export function showExplorer(
     }
 
     const text = viewTexts.get(from);
-    const report = reports.get(from);
 
     viewTexts.delete(from);
-    reports.delete(from);
+    comparisons.drop(from);
+    postConditions();
 
     if (text !== undefined) {
       viewTexts.set(to, text);
-    }
-
-    if (report !== undefined) {
-      reports.set(to, report);
-    }
-
-    if (dismissed.delete(from)) {
-      dismissed.add(to);
     }
 
     if (openView === from) {
@@ -2678,7 +2624,7 @@ export function showExplorer(
       );
     }
 
-    found.push(...heldViewKeys);
+    found.push(...heldViewKeys, ...comparisons.heldKeys(currentCommit(scans)));
     if (!listKnown) {
       found.push("view-list");
     }
@@ -2686,18 +2632,37 @@ export function showExplorer(
     reconcileMessages(found);
   }
 
-  async function update() {
-    const name = openView;
-    const text = name === null ? undefined : viewTexts.get(name);
-    const parsed = text === undefined ? null : parseViewFile(text);
-    const entry = name === null ? undefined : reports.get(name);
+  function viewIsClean(name: string, view: View): boolean {
+    const scanCommit = currentCommit(scans);
 
-    if (name === null || parsed === null || !parsed.ok || entry === undefined) {
+    if (view.commit !== null && view.commit === scanCommit) {
+      return true;
+    }
+
+    const report = comparisons.settled(name, view.commit, scanCommit);
+
+    return report !== null && !hasEntries(report);
+  }
+
+  async function update(name: string) {
+    if (openView !== name) {
+      await openSaved(name);
+    }
+
+    const text = viewList.find((entry) => entry.name === name)?.text;
+    const parsed = text === undefined ? null : parseViewFile(text);
+
+    if (openView !== name || parsed === null || !parsed.ok) {
       return;
     }
 
     const { view } = parsed;
-    const { report } = entry;
+    const report = comparisons.settled(name, view.commit, currentCommit(scans));
+
+    if (report === null) {
+      return;
+    }
+
     const dropped = new Set(report.missing.map((missing) => missing.step));
     const replaced = new Map(
       report.missing.flatMap((missing) =>
@@ -2739,8 +2704,8 @@ export function showExplorer(
       return;
     }
 
-    reports.delete(name);
-    dismissed.delete(name);
+    comparisons.drop(name);
+    postConditions();
     openToken += 1;
 
     const resolved = resolveView(next, scans);
@@ -2761,7 +2726,8 @@ export function showExplorer(
     if (entry === undefined) {
       openView = null;
       viewTexts.delete(name);
-      reports.delete(name);
+      comparisons.drop(name);
+      postConditions();
       openToken += 1;
       viewNotice = `${name} was deleted from .recognizer/views`;
       post({ kind: "warning", text: viewNotice });
@@ -2775,7 +2741,6 @@ export function showExplorer(
       return;
     }
 
-    reports.delete(name);
     await applyView(name, entry.text, true);
   }
 
@@ -2986,7 +2951,6 @@ export function showExplorer(
       filter,
     });
     body.classList.toggle("inspector-open", inspectorOpen);
-    stale.render(stalePanelModel());
     renderCanvas();
     notesPanel.render({
       hasView: noteView !== null,
@@ -3119,6 +3083,7 @@ export function showExplorer(
 
   resizeObserver?.observe(body);
 
+  const stopUpdating = comparisons.onUpdate((name) => void update(name));
   const stopDriving = windowPort.onDrive(drive);
   const stopWatching = views.onChanged(() => void onViewsChanged());
   const stopWatchingResponsibilities = responsibilities.onChanged(
@@ -3166,6 +3131,7 @@ export function showExplorer(
       document.removeEventListener("keydown", onUndoKey);
       resizeObserver?.disconnect();
       stopWatching();
+      stopUpdating();
       stopDriving();
       agentLine.clear();
 

@@ -24,6 +24,7 @@ import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
 import { postToolsMessage, TOOLS_KEY, toolsNotice } from "./tools-notice";
 import { toolsSource } from "./tools-source";
+import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
 import { windowSource } from "./window-source";
 
@@ -69,6 +70,8 @@ const scanHost: ScanHost = {
   refresh: () => void rescanner.refresh(),
 };
 
+const comparisons = createViewComparisons();
+
 function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
   current = loaded;
 
@@ -92,6 +95,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
       explorerKeys = keys;
       reconcileKeys();
     },
+    comparisons,
   );
 }
 

@@ -1659,68 +1659,6 @@ svg.i.chevron {
   justify-content: flex-end;
 }
 
-.stale-panel {
-  position: absolute;
-  top: 44px;
-  left: 8px;
-  z-index: 5;
-  box-sizing: border-box;
-  width: 340px;
-  max-height: calc(100% - 60px);
-  overflow: auto;
-  padding: 8px 10px;
-  border: 1px solid var(--warn);
-  border-radius: 6px;
-  background: var(--panel);
-  font-size: 12px;
-}
-
-.stale-title {
-  margin: 0 0 6px;
-  color: var(--warn);
-  font-weight: 600;
-}
-
-.stale-section h4 {
-  margin: 8px 0 2px;
-  color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.stale-line {
-  margin: 2px 0;
-}
-
-.stale-line.removed {
-  color: var(--bad);
-}
-
-.stale-line.added {
-  color: var(--ok);
-}
-
-.stale-rename {
-  color: var(--muted);
-}
-
-.stale-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.stale-actions button {
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--code);
-  color: var(--fg);
-  font: inherit;
-  cursor: pointer;
-}
-
 .footer .scan-line {
   display: flex;
   gap: 8px;
