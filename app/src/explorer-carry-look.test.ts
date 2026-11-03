@@ -28,7 +28,7 @@ const port = fakeViews({});
 const facts = {};
 
 (async () => {
-  const first = showExplorer(host, loadedOf(before), "demo", (t) => { counts.text = t; }, port, (t) => notes.push(t));
+  const first = showExplorer(host, loadedOf(before), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; });
   await tick();
   click(q('.tree .row[data-path="app"] .rcheck'));
   await tick();
@@ -39,7 +39,7 @@ const facts = {};
   const carried = first.carry();
   first.dispose();
   host.replaceChildren();
-  showExplorer(host, loadedOf(after), "demo", (t) => { counts.text = t; }, port, (t) => notes.push(t), carried);
+  showExplorer(host, loadedOf(after), "demo", (t) => { counts.text = t; }, port, (input) => { notes.push(input.text); return null; }, carried);
   await tick();
   facts.afterRescan = { count: counts.text, notes: [...notes], canBack: !q(".view-back").disabled, canForward: !q(".view-forward").disabled };
 

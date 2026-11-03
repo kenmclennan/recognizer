@@ -68,7 +68,6 @@ function input(overrides: Partial<PanelInput> = {}): PanelInput {
     scanning: false,
     now: NOW,
     shipped: null,
-    editMessage: null,
     ...overrides,
   };
 }
@@ -606,12 +605,9 @@ describe("the Add a sensor block", () => {
     expect(rows.map((row) => row.removable)).toEqual([false, false, false]);
   });
 
-  it("is not editable while a scan runs and carries the edit message", () => {
+  it("is not editable while a scan runs", () => {
     expect(scanPanel(input()).sensors.editable).toBe(true);
     expect(scanPanel(input({ scanning: true })).sensors.editable).toBe(false);
-    expect(scanPanel(input({ editMessage: "read-only" })).sensors.message).toBe(
-      "read-only",
-    );
   });
 });
 

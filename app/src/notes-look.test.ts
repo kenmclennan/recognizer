@@ -104,7 +104,9 @@ function mount(files, author) {
   const port = fakeViews(files);
   if (author) port.authorName = author;
   const lines = [];
-  showExplorer(host, loaded, "demo", () => {}, port, () => {}, null, undefined, undefined, undefined, undefined, undefined, (line) => lines.push(line));
+  const post = (input) => { if (input.action && input.action.label === "Undo") lines.push({ text: input.text, onUndo: input.action.run }); return lines.length; };
+  const withdraw = () => lines.push(null);
+  showExplorer(host, loaded, "demo", () => {}, port, post, null, undefined, undefined, undefined, undefined, undefined, undefined, undefined, withdraw);
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const saved = (name) => JSON.parse(port.files.get(name));
@@ -325,7 +327,7 @@ function mount(files, author) {
   host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
   document.body.append(host);
   const legacyPort = fakeViews({ legacy: make(PICKS, [{ module: HUB, text: "first", by: "Ken" }, { module: HUB, text: "second", by: "Claude" }]) });
-  showExplorer(host, loaded, "demo", () => {}, legacyPort, (text) => notified.push(text));
+  showExplorer(host, loaded, "demo", () => {}, legacyPort, (input) => { notified.push(input.text); return null; });
   await tick();
   click(host.querySelector(".view-list"));
   click(host.querySelector(".view-item"));

@@ -30,8 +30,9 @@ const HIDEABLE = [
   "canvas-metrics",
   "inspector-rail",
   "inspector-panel",
-  "tools-notice",
-  "agent-line",
+  "message-tray",
+  "message-toast",
+  "bell-badge",
 ];
 
 function computedDisplays(css: string): string {

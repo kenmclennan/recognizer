@@ -1,4 +1,5 @@
 import type { ScanOrigin } from "./footer-scan";
+import type { MessageInput } from "./message-tray";
 import type { Loaded } from "./scan-loading";
 import {
   NO_RUN,
@@ -47,7 +48,8 @@ export type RescanPorts<Carried> = {
   progress: (update: ProgressUpdate) => void;
   settled: () => void;
   blocked: (text: string) => void;
-  notify: (text: string) => void;
+  post: (input: MessageInput) => number | null;
+  show: (target: ShowTarget) => void;
 };
 
 export type Rescanner = {
@@ -145,7 +147,6 @@ export function createRescanner<Carried>(
       const carried = ports.carry();
       const origin = await ports.adopt();
 
-      ports.notify("");
       run = { ...run, failures: {} };
       measureRun = { ...measureRun, failures: {} };
       ports.adopted(origin);
@@ -167,6 +168,49 @@ export function createRescanner<Carried>(
     if (loaded !== null) {
       ports.replace(loaded, ports.carry());
     }
+  }
+
+  function postFailure(
+    kind: "sensor" | "overlay",
+    name: string,
+    reason: string,
+  ) {
+    const target: ShowTarget = { kind, name, reason };
+
+    ports.post({
+      kind: "error",
+      text: `${name} failed: ${reason}`,
+      action: { label: "Show", run: () => ports.show(target) },
+    });
+  }
+
+  function postDescribed() {
+    const entries = progress.describe?.entries ?? [];
+
+    if (progress.describe === null) {
+      return;
+    }
+
+    const failed = entries.filter((entry) => entry.outcome === "failed");
+    const first = failed[0];
+
+    ports.post({
+      kind: "info",
+      text: `Describe wrote ${entries.length - failed.length} lines, ${failed.length} modules failed.`,
+      ...(first === undefined
+        ? {}
+        : {
+            action: {
+              label: "Show" as const,
+              run: () =>
+                ports.show({
+                  kind: "module",
+                  id: first.name,
+                  reason: first.reason ?? "failed",
+                }),
+            },
+          }),
+    });
   }
 
   async function handle(line: string, measure: string[], sense: string[]) {
@@ -193,6 +237,7 @@ export function createRescanner<Carried>(
         ranAt[event.name] = Date.now();
       } else {
         failures[event.name] = event.reason ?? "failed";
+        postFailure("overlay", event.name, failures[event.name] as string);
       }
 
       measureRun = {
@@ -215,6 +260,7 @@ export function createRescanner<Carried>(
         ranAt[event.name] = Date.now();
       } else {
         failures[event.name] = event.reason ?? "failed";
+        postFailure("sensor", event.name, failures[event.name] as string);
       }
 
       run = {
@@ -325,6 +371,7 @@ export function createRescanner<Carried>(
     }
 
     progress = { ...progress, done: true };
+    postDescribed();
     publish(result.status === "finished" ? result.log : null);
     ports.settled();
   }
@@ -381,7 +428,7 @@ export function createRescanner<Carried>(
       try {
         await reload();
       } catch (error) {
-        ports.notify(`Sensors failed: ${String(error)}`);
+        ports.post({ kind: "error", text: `Sensors failed: ${String(error)}` });
       } finally {
         busy = false;
       }

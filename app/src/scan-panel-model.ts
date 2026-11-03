@@ -72,7 +72,6 @@ export type PanelInput = {
   scanning: boolean;
   now: number;
   shipped: ShippedSensors | null;
-  editMessage: string | null;
 };
 
 export type ChipTone = "ok" | "amber" | "red" | "muted";
@@ -137,7 +136,6 @@ export type ScanPanelModel = {
     reports: ReportRow[];
     add: AddSensors;
     editable: boolean;
-    message: string | null;
   };
   button: {
     mode: "scan" | "stop";
@@ -559,7 +557,6 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       reports: reportRows(input.sensors, input.now),
       add: addBlock(input.shipped, names),
       editable: !input.scanning,
-      message: input.editMessage,
     },
     button: {
       mode: input.scanning ? "stop" : "scan",

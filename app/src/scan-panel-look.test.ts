@@ -52,7 +52,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   document.body.append(root);
   const editor = fakeEditor();
   const responsibilities = fakeResponsibilities(FILES);
-  const wired = { explorer: null, current: null, scanState: null, shown: { footer: null, target: null, log: null }, rescanner: null };
+  const wired = { posted: [], explorer: null, current: null, scanState: null, shown: { footer: null, target: null, log: null }, rescanner: null };
   const canShow = (update) => update.target !== null && (update.target.kind === "sensor" || update.target.kind === "overlay" || wired.current.modules.includes(update.target.id));
   const withProgress = (state) => ({ ...state, progress: wired.shown.footer, canShow: canShow(wired.shown), log: wired.shown.log });
   const footer = buildFooter(footerEl, {
@@ -75,7 +75,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   };
   const build = (loaded, carried) => {
     wired.current = loaded;
-    return showExplorer(host, loaded, "demo", () => {}, fakeViews({}), () => {}, carried, undefined, { getItem: () => null, setItem: () => {} }, editor, responsibilities, undefined, undefined, scanHost);
+    return showExplorer(host, loaded, "demo", () => {}, fakeViews({}), (input) => { wired.posted.push(input); return null; }, carried, undefined, { getItem: () => null, setItem: () => {} }, editor, responsibilities, undefined, scanHost);
   };
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({
@@ -91,8 +91,9 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
     describedLine: () => wired.explorer?.refreshResponsibilities(),
     progress: (update) => { wired.shown = update; if (wired.scanState !== null) setScan(withProgress(wired.scanState)); wired.explorer?.refreshPanel(); },
     settled: () => {},
-    blocked: (text) => { footer.notify("Rescan failed: " + text); },
-    notify: (text) => footer.notify(text),
+    blocked: (text) => { footer.post({ kind: "error", text: "Rescan failed: " + text }); },
+    post: (input) => footer.post(input),
+    show: () => {},
   });
   await wired.rescanner.loadTicks();
   wired.current = base;
@@ -239,7 +240,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   addSensors.failEdit = true;
   click(ad.q(".sensor-add-button"));
   await tick(); await tick();
-  facts.addFailed = { message: ad.text(".sensor-add-message"), names: names() };
+  facts.addFailed = { message: ad.wired.posted.at(-1)?.text ?? null, names: names() };
 
   const busyGate = gate();
   const busySensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);

@@ -62,7 +62,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 }));
 
 (async () => {
-  const mount = (overlay, carried) => showExplorer(host, loadedOf(overlay), "demo", () => {}, port, () => {}, carried, undefined, undefined, undefined, undefined, undefined, undefined, undefined, (text) => { footer.text = text; });
+  const mount = (overlay, carried) => showExplorer(host, loadedOf(overlay), "demo", () => {}, port, () => {}, carried, undefined, undefined, undefined, undefined, undefined, undefined, (text) => { footer.text = text; });
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
   for (const folder of ["app", "src", "lib"]) {
