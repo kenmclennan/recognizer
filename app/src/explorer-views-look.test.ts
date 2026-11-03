@@ -340,6 +340,50 @@ const facts = {};
   await tick();
   facts.untitledSaved = { files: [...untitled.port.files.keys()], name: untitled.q(".view-name").textContent };
 
+  const rowsFile = (extra, module = "app/a.py") => JSON.stringify({ schema_version: 4, description: "d", commit: "cur1234", ...extra, steps: [{ kind: "pick", module }] }, null, 2) + "\\n";
+  const long = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty ".repeat(6);
+  const rowsPanel = mount({
+    titled: rowsFile({ title: "Titled view", description: long, notes: [{ module: "app/a.py", text: "x", by: "Ken" }] }),
+    quiet: rowsFile({ title: "Quiet view" }),
+    plain: rowsFile({}),
+    changed: rowsFile({ title: "Changed view", change: { base: "a".repeat(40), head: "b".repeat(40) }, notes: [{ module: "app/a.py", text: "x", by: "Ken" }, { module: "app/hub.py", text: "y", by: "Ken" }] }),
+    broken: rowsFile({ title: "Broken view" }, "app/missing.py"),
+    bad: "{nope",
+  });
+  await tick();
+  click(rowsPanel.q(".rail-views"));
+  await tick();
+  click(rowsPanel.all(".views-row").find((r) => r.dataset.view === "titled"));
+  await tick();
+  const rowIn = (name) => rowsPanel.all(".views-row").find((r) => r.dataset.view === name);
+  const classesOf = (row) => [...row.children].map((c) => c.className);
+  const probe = (css) => { const n = document.createElement("i"); n.style.color = css; n.style.backgroundColor = css; n.style.borderColor = css; document.body.append(n); const c = getComputedStyle(n).color; n.remove(); return c; };
+  const open = rowIn("titled");
+  const openStyle = getComputedStyle(open);
+  const description = open.querySelector(".views-row-description");
+  const lineHeight = parseFloat(getComputedStyle(description).lineHeight);
+  const rowPair = rowsPanel.all(".views-row");
+  facts.rows = {
+    titledOrder: classesOf(open),
+    clamp: getComputedStyle(description).webkitLineClamp,
+    clampedLines: Math.round(description.getBoundingClientRect().height / lineHeight),
+    openBackground: openStyle.backgroundColor,
+    openBorder: openStyle.borderTopColor,
+    openTitle: getComputedStyle(open.querySelector(".views-row-title")).color,
+    openBefore: getComputedStyle(open, "::before").content,
+    selection: probe("var(--sel)"),
+    chips: rowsPanel.all(".views-panel [class*='chip']").length,
+    quietOrder: classesOf(rowIn("quiet")),
+    plainOrder: classesOf(rowIn("plain")),
+    plainTitle: rowIn("plain").querySelector(".views-row-title").textContent,
+    changedMeta: rowIn("changed").querySelector(".views-row-meta").textContent,
+    invalidTag: rowIn("bad").tagName,
+    invalidOrder: classesOf(rowIn("bad")),
+    staleOrder: classesOf(rowIn("broken")),
+    padding: openStyle.padding,
+    gap: Math.round(rowPair[1].getBoundingClientRect().top - rowPair[0].getBoundingClientRect().bottom),
+  };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -356,6 +400,45 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
   beforeAll(async () => {
     f = await collect();
   }, 180000);
+
+  it("leads each Views panel row with the title and marks the open row without a glyph", () => {
+    const r = f.rows;
+    expect(r.titledOrder).toEqual([
+      "views-row-title",
+      "views-row-name",
+      "views-row-description",
+      "views-row-meta",
+    ]);
+    expect(r.clamp).toBe("3");
+    expect(r.clampedLines).toBeLessThanOrEqual(3);
+    expect(r.openBefore === "none" || r.openBefore === "normal").toBe(true);
+    expect(r.openTitle).toBe(r.selection);
+    expect(r.openBorder).toBe(r.selection);
+    expect(r.openBackground).not.toBe("rgba(0, 0, 0, 0)");
+    expect(r.chips).toBe(0);
+    expect(r.quietOrder).toEqual([
+      "views-row-title",
+      "views-row-name",
+      "views-row-description",
+    ]);
+    expect(r.plainOrder).toEqual(["views-row-title", "views-row-description"]);
+    expect(r.plainTitle).toBe("plain");
+    expect(r.changedMeta).toBe("Changes aaaaaaa to bbbbbbb \u00b7 2 notes");
+    expect(r.invalidTag).toBe("DIV");
+    expect(r.invalidOrder).toEqual(["views-row-title", "views-row-reason"]);
+    expect(r.staleOrder).toEqual([
+      "views-row-title",
+      "views-row-name",
+      "views-row-description",
+      "views-row-reason",
+      "views-delete",
+    ]);
+  });
+
+  it("(non-gating) pads each Views panel row 8px 10px with a 4px gap", () => {
+    expect(f.rows.padding).toBe("8px 10px");
+    expect(f.rows.gap).toBe(4);
+  });
 
   it("opens on an empty canvas with an Untitled view and no saved views", () => {
     expect(f.emptyStart.count).toBe(0);

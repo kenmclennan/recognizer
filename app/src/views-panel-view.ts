@@ -11,12 +11,12 @@ export type ViewsPanelView = {
   render: (model: ViewsPanelModel | null, open: string | null) => void;
 };
 
-function description(row: ViewRow): HTMLElement {
-  return el(
-    "span",
-    "views-row-description",
-    row.range === null ? row.description : `${row.range} - ${row.description}`,
-  );
+function lead(row: ViewRow): HTMLElement[] {
+  return [
+    el("span", "views-row-title", row.title ?? row.name),
+    ...(row.title === null ? [] : [el("span", "views-row-name", row.name)]),
+    el("span", "views-row-description", row.description),
+  ];
 }
 
 export function buildViewsPanelView(
@@ -48,15 +48,10 @@ export function buildViewsPanelView(
 
         item.dataset.view = row.name;
         item.append(
-          el("span", "views-row-name", row.name),
-          description(row),
-          el(
-            "span",
-            "views-row-notes",
-            row.notes === 0
-              ? ""
-              : `${row.notes} ${row.notes === 1 ? "note" : "notes"}`,
-          ),
+          ...lead(row),
+          ...(row.meta === null
+            ? []
+            : [el("span", "views-row-meta", row.meta)]),
         );
         parts.push(item);
       }
@@ -66,12 +61,8 @@ export function buildViewsPanelView(
 
         item.dataset.view = entry.name;
         item.append(
-          el("span", "views-row-name", entry.name),
-          el(
-            "span",
-            "views-row-description",
-            `not a valid view: ${entry.problem}`,
-          ),
+          el("span", "views-row-title", entry.name),
+          el("span", "views-row-reason", `not a valid view: ${entry.problem}`),
         );
         parts.push(item);
       }
@@ -89,8 +80,7 @@ export function buildViewsPanelView(
         item.dataset.view = row.name;
         remove.setAttribute("aria-label", `Delete ${row.name}`);
         item.append(
-          el("span", "views-row-name", row.name),
-          description(row),
+          ...lead(row),
           ...row.reasons.map((reason) =>
             el("span", "views-row-reason", reason),
           ),
