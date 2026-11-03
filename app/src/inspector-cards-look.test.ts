@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 ${FAKE_WORKER}
 
 const members = [
@@ -53,7 +52,7 @@ const noop = () => {};
 
 async function open(storage) {
   host.replaceChildren();
-  const explorer = showExplorer(host, loaded, "demo", noop, undefined, noop, null, undefined, storage);
+  const explorer = mountExplorer({ container: host, loaded, title: "demo", onCount: noop, post: noop, storage });
   await tick();
   return explorer;
 }

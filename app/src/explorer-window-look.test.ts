@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -28,7 +27,7 @@ const facts = {};
   document.getElementById("content").append(wrap);
   const win = fakeWindow();
   const store = { getItem: () => JSON.stringify({ tree: 280, inspector: 340 }), setItem() {} };
-  showExplorer(wrap, loaded, "demo", () => {}, undefined, undefined, null, undefined, store, undefined, undefined, win);
+  mountExplorer({ container: wrap, loaded, title: "demo", storage: store, windowPort: win });
   const q = (selector) => wrap.querySelector(selector);
   await tick();
 

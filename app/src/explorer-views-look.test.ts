@@ -3,8 +3,7 @@ import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
@@ -63,7 +62,7 @@ function mount(files, options) {
   const win = fakeWindow();
   const state = { count: "" };
   const notes = [];
-  showExplorer(host, loaded, "demo", (text) => { state.count = text; }, port, (input) => { notes.push(input.text); return null; }, null, undefined, undefined, undefined, undefined, win);
+  mountExplorer({ container: host, loaded, title: "demo", onCount: (text) => { state.count = text; }, views: port, post: (input) => { notes.push(input.text); return null; }, windowPort: win });
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const count = () => Number(/^(\\d+) of/.exec(state.count)[1]);

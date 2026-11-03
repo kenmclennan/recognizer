@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeResponsibilities } from ${JSON.stringify(here("responsibilities-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -40,7 +39,7 @@ const cs = (node) => getComputedStyle(node);
 
 async function open(fake) {
   host.replaceChildren();
-  const explorer = showExplorer(host, loaded, "demo", () => {}, undefined, () => {}, null, undefined, undefined, undefined, fake);
+  const explorer = mountExplorer({ container: host, loaded, title: "demo", post: () => null, responsibilities: fake });
   await tick();
   return explorer;
 }

@@ -3,8 +3,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
@@ -56,7 +55,7 @@ async function mount(loaded, picks, status) {
   const editor = fakeEditor();
   const counts = [];
   const scanHost = scanHostOf({ port: fake });
-  showExplorer(host, { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, "demo", (text) => counts.push(text), port, () => {}, null, undefined, { getItem: () => null, setItem: () => {} }, editor, undefined, undefined, scanHost);
+  mountExplorer({ container: host, loaded: { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, title: "demo", onCount: (text) => counts.push(text), views: port, post: () => null, storage: { getItem: () => null, setItem: () => {} }, editor, scanHost });
   await tick();
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];

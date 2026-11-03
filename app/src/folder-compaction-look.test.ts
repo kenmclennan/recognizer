@@ -3,8 +3,7 @@ import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
@@ -56,7 +55,7 @@ function mount(files) {
   document.body.append(host);
   const port = fakeViews(files, {});
   const win = fakeWindow();
-  showExplorer(host, loaded, "demo", () => {}, port, () => {}, null, undefined, undefined, undefined, undefined, win);
+  mountExplorer({ container: host, loaded, title: "demo", views: port, post: () => null, windowPort: win });
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const lastCurrent = () => win.last();

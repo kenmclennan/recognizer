@@ -4,8 +4,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 window.__TAURI_INTERNALS__ = { invoke: async () => "0.0.0" };
-import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
-import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
@@ -38,7 +37,7 @@ function session(options = {}) {
     host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
     document.body.append(host);
     state.host = host;
-    state.explorer = showExplorer(host, loaded, "demo", () => {}, port, footer.post, null, undefined, undefined, undefined, undefined, win, undefined, undefined, footer.withdraw, footer.reconcile);
+    state.explorer = mountExplorer({ container: host, loaded, title: "demo", views: port, post: footer.post, windowPort: win, withdraw: footer.withdraw, reconcileMessages: footer.reconcile });
   };
   const hostQ = (selector) => state.host.querySelector(selector);
   const hostAll = (selector) => [...state.host.querySelectorAll(selector)];
