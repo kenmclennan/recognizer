@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**incomplete.** Everything that ran agrees with the sensor's own spec (REC-130) and every difference from a reference tool is definitional, so no defect was found and the lean is `trust`; but the Kotlin complexity and coverage references, the Rust coverage reference and the lightcycle complexity run did not run, so the verdict cannot be `trust` yet.
+**incomplete.** Everything that ran agrees with the sensor's own spec (REC-130) and every difference from a reference tool is definitional, so no defect was found and the lean is `trust`; but the Kotlin complexity and coverage references and the Rust coverage reference did not run, so the verdict cannot be `trust` yet. The lightcycle complexity run was done by the driver after merge: 3306 functions compared with radon, 3303 equal, the 3 others definitional (below).
 
 ## Method
 
@@ -23,9 +23,9 @@ Matched on file and start line, over the corpus, `fixtures/crap/sample`, `fixtur
 | TypeScript | eslint `complexity` | 24 | 24 | 0 | 3 |
 | Rust | rust-code-analysis | 20 | 19 | 1 | 1 |
 | Kotlin | detekt | not run | not run | not run | not run |
-| lightcycle (Python) | radon | not run | not run | not run | not run |
+| lightcycle (Python) | radon 6.0.1 | 3306 | 3303 | 3 | 0 |
 
-Kotlin is not run because there is no JVM here; the 21 Kotlin functions (12 in the corpus, 9 in `fixtures/kotlin`) are measured by the sensor only. lightcycle is not run because the spec leaves the lightcycle runs to the driver (`--repository <lightcycle checkout> --radon <radon>`).
+Kotlin is not run because there is no JVM here; the 21 Kotlin functions (12 in the corpus, 9 in `fixtures/kotlin`) are measured by the sensor only. lightcycle was run by the driver on 2026-11-03 at lightcycle commit `c1933e0` in a clean worktree, with `--repository <worktree> --prefix lightcycle --radon <radon>`: 3306 functions, 3303 equal.
 
 ### Coverage against the coverage tool's own report
 
@@ -72,6 +72,7 @@ Every non-matching function, classified.
 | python `matching` (`fixtures/crap/corpus/python/risk.py:53`) | 7 | radon 6 | definitional | The function has three `case` arms, one of them `case _`. REC-130 counts every `case_clause`, including `_`; radon counts the two refutable arms and not the wildcard (a minimal `match` with `case 1`, `case 2`, `case _` scores 3 in radon, 4 in the sensor). The sensor follows its own table. |
 | rust `closure` (`fixtures/crap/corpus/rust/src/risk.rs:65`) | 7 | rust-code-analysis 8 | definitional | The function contains a closure with one `if`. REC-130 does not make a closure a unit, so its branch point counts in the enclosing function. rust-code-analysis makes the closure its own space with base 1 and adds that 1 to the enclosing function. |
 | rust closure space (`risk.rs:66`) | no unit | rust-code-analysis 2 | reference | The reference reports the closure as a function of its own; the sensor does not treat closures as units, by design. |
+| lightcycle `SqliteStore.transaction` (`lightcycle/adapters/sqlite_store.py:374`), `Config.set_personal_origin` (`lightcycle/config.py:848`), `node_read_surface` (`lightcycle/application/work/node_read_surface.py:8`) | 4, 4, 28 | radon 5, 5, 29 | definitional | Each has an `else` clause on a `try` or a `for`. radon adds 1 for the `else` of a loop or a `try` (a bare `for` scores 2 in radon and `for ... else` 3; the same for `try/except` with and without `else`); REC-130's table has no row for it, so the sensor adds nothing. These are the only 3 of 3306 lightcycle functions that differ. |
 | typescript `base-store.ts:6`, `:7`, `:8` (`fixtures/typescript/sample/api/src/base-store.ts`) | no unit | eslint 1 each | reference | These are the class fields `ids`, `size` and `cursor`; eslint 9 reports a class field initializer as a code path of complexity 1. They are not functions. |
 
 No disagreement is a defect by REC-130's own rule.
@@ -80,4 +81,4 @@ Outside the compared set: radon adds 1 for each `assert` statement and the senso
 
 ## Defects to file
 
-None found. To close the `incomplete` verdict the driver runs, in this order: the Kotlin complexity (needs detekt and a JVM) and jacoco coverage, the Rust `cargo llvm-cov` coverage (needs a rustup toolchain where `llvm-tools-preview` installs), and the lightcycle complexity run with `--repository <lightcycle checkout> --radon <radon>`.
+None found. To close the `incomplete` verdict the driver runs, in this order: the Kotlin complexity (needs detekt and a JVM) and jacoco coverage, and the Rust `cargo llvm-cov` coverage (needs a rustup toolchain where `llvm-tools-preview` installs). The lightcycle complexity run is done.

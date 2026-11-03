@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**incomplete.** Every hand-computed metric (136 values over 17 folders) and 33 of the 34 labelled cases agree with the sensor, and the Python scanner's import graph matches grimp's once re-exports are accounted for; but one real defect was found (a ring of three or more folders is not reported), and the structure run over lightcycle's scan did not run. The sensor needs a `fix` for the ring before it is trusted for cycles.
+**fix.** Every hand-computed metric (136 values over 17 folders) and 33 of the 34 labelled cases agree with the sensor, and the Python scanner's import graph matches grimp's once re-exports are accounted for; and the structure sensor's cycle, hubs and orphans over lightcycle's scan agree with grimp's graph (run by the driver after merge); but one real defect was found (a ring of three or more folders is not reported, REC-185). The sensor needs that `fix` before it is trusted for cycles.
 
 ## Method
 
@@ -49,7 +49,7 @@ The hand column is `expected.json`; the sensor column is `measureFolders` output
 
 ### Import graph against grimp (lightcycle)
 
-The build ran this once so that the report has real figures; the driver re-runs it and takes over the classification (acceptance item 10). Scanner edges exclude `inferred` edges (a guess from method calls, not an import), as the structure sensor does.
+The build ran this once so that the report has real figures; the driver re-ran it on 2026-11-03 in a clean worktree at lightcycle `c1933e0` (1411 scanner edges, 1303 grimp, 1119 shared, 292 scanner-only, 184 grimp-only; the build's figures below differ by a few edges from its own checkout) and read the seven edges the build left unread. Scanner edges exclude `inferred` edges (a guess from method calls, not an import), as the structure sensor does.
 
 | set                         | edges |
 | --------------------------- | ----- |
@@ -65,23 +65,32 @@ Classification of the edges in only one set:
 | --- | --- | --- |
 | re-export through a package `__init__.py` | 282 scanner-only, 181 grimp-only | The scanner follows an imported name through `__init__.py` to the module that defines it (documented in the scanner README), so `from lightcycle.domain.work import State` is an edge to `domain/work/state.py`; grimp stops at `domain/work/__init__.py`. Each of the 282 scanner-only edges pairs, by importer and package, with a grimp-only edge to that package's `__init__.py`; one import of several names can fan out to several defining modules, which is why 282 pairs with 181. |
 | re-export through a module that is not an `__init__` | 4 scanner-only, 4 grimp-only | The same behaviour through `lightcycle/config.py` and `lightcycle/adapters/tui/hub.py`: `tick.py` imports `RELOAD_RELOADED` from `config.py`, grimp records `config.py` and the scanner records `config_reload.py`. The four grimp-only edges are to `hub.py` and `config.py`. |
-| not read | 7 scanner-only | `commands/setup.py` to `config_reload.py`, `application/feedback/hold_comment.py` to `domain/feedback/trust.py`, `application/feedback/retro_scope.py` to `domain/feedback/reflection.py`, `application/feedback/worklog.py` to `domain/feedback/worklog.py`, `application/pool/schedule_cadence.py` to `domain/schedule/state.py`, and `application/work/automation.py` to `domain/feedback/retro.py` and `domain/feedback/trust.py`. They fit the re-export pattern but were not opened, so a `TYPE_CHECKING`, relative or dynamic import among them is not ruled out. |
+| re-export through a chain of modules | 7 scanner-only | Read by the driver: each is the same behaviour through two hops. `commands/setup.py` imports `ConfigError` from `config.py`, which imports it from `config_reload.py`; `hold_comment.py` and `automation.py` import labels from `application/flow/engine_steps.py`, which re-exports them from `domain/feedback` (`retro.py`, `trust.py`); `retro_scope.py`, `worklog.py` and `schedule_cadence.py` reach `reflection.py`, `worklog.py` and `schedule/state.py` the same way. None is a `TYPE_CHECKING`, relative or dynamic import. |
 
-No one-sided edge was identified as a `TYPE_CHECKING`, dynamic or relative import. The driver reads the seven and re-runs the comparison.
+No one-sided edge is a `TYPE_CHECKING`, dynamic or relative import. Every one-sided edge is the scanner resolving an imported name to the module that defines it, through any number of re-exports, where grimp records the module named in the import.
 
 ### The structure sensor over lightcycle's scan
 
-Not run: the cycles, hubs and orphans of the structure sensor over lightcycle's scan, and whether grimp agrees with each, are left to the driver (acceptance item 10).
+Run by the driver on 2026-11-03 over the same clean worktree (`recognizer check`, defaults): 90 warnings, of which 1 cycle, 2 hubs, 4 orphans, 17 folder cycles, 33 unstable dependencies and 22 pain zone. Checked against grimp's graph (the shared edges plus grimp's own):
+
+| finding | sensor | grimp's graph | agrees |
+| --- | --- | --- | --- |
+| cycle `application/feedback/retro.py` with `retro_scope.py` | both edges | both edges | yes |
+| hub `adapters/tui/hub_render.py` | fan-in 11, fan-out 17 | fan-in 9, fan-out 13 | on the modules, not the numbers: grimp counts imports of `hub.py`, which re-exports `hub_render.py`, against `hub.py`; under grimp's graph no module reaches 10 and 10 except two package `__init__.py` files |
+| hub `application/flow/complete_step.py` | fan-in 10, fan-out 19 | fan-in 9, fan-out 18 | as above: one importer reaches it through a re-export |
+| orphans (4: `__main__.py`, `worker_main.py`, `application/pool/no_op_gates.py`, `mutation_ratchet.py`) | no importer | no importer | yes, all four |
+
+The hub counts differ only by the re-export rule already classified above; the sensor's edges name the defining module, so its fan-in is the number of modules that use something the module defines. A first pass with the scanner's `inferred` edges left in showed four importers of `no_op_gates.py`; those are method-call guesses, which the structure sensor and this comparison both exclude.
 
 ## Disagreements
 
 | item | classification | note |
 | --- | --- | --- |
-| ring of three folders `ra -> rb -> rc -> ra`, no two modules cyclic | defect | `folderCycleFindings` reports only pairs of folders that import each other, and `analyse` reports only cycles of modules, so a ring of three or more folders returns no finding (`folder-cycle/ring-of-three-folders`, `known_defect: pending-filing`) |
+| ring of three folders `ra -> rb -> rc -> ra`, no two modules cyclic | defect | `folderCycleFindings` reports only pairs of folders that import each other, and `analyse` reports only cycles of modules, so a ring of three or more folders returns no finding (`folder-cycle/ring-of-three-folders`, `known_defect` to be set to REC-185 by that fix) |
 | scanner and grimp differ on re-exported names | definitional | the scanner follows the name to its defining module by design; grimp reports the module imported |
-| `sensors/src/recognizer_sensors/mutation/record.py` imports `recognizer_sensors.mutation.test_files`; the scanner records an edge to `mutation/__init__.py`, grimp to `mutation/test_files.py` | defect (candidate) | found by running `grimp_compare.py` on the recognizer sensors package; `test_files.py` is a source module whose name matches the scanner's skipped test-file glob `test_*.py`, so it is absent from the scan and the import falls back to the package |
+| `sensors/src/recognizer_sensors/mutation/record.py` imports `recognizer_sensors.mutation.test_files`; the scanner records an edge to `mutation/__init__.py`, grimp to `mutation/test_files.py` | defect (candidate, filed as REC-195 for a decision) | found by running `grimp_compare.py` on the recognizer sensors package; `test_files.py` is a source module whose name matches the scanner's skipped test-file glob `test_*.py`, so it is absent from the scan and the import falls back to the package |
 
 ## Defects to file
 
-1. **Folder cycles through three or more folders are not reported.** Where: `folderCycleFindings` in `check/src/structure-warnings.ts` and `analyse` in `check/src/analyse.ts`. Evidence: the corpus case `folder-cycle/ring-of-three-folders` (six modules, edges `ra/x.ts -> rb/x.ts`, `rb/y.ts -> rc/x.ts`, `rc/y.ts -> ra/y.ts`), run at `1dbb09c`. Suggested size: small to medium (find strongly connected components of the folder graph, then clear the case's `known_defect`).
-2. **A source module named `test_*.py` is skipped by the Python scanner.** Where: the scan selection's `skip_file_globs` (`test_*.py`) as applied by `scanners/python`. Evidence: `sensors/src/recognizer_sensors/mutation/test_files.py` is not a test and is missing from the scan, so the import of it from `record.py` is attributed to the package `__init__.py`. Suggested size: small; the decision is whether to skip by name at all or only in test directories, which is a question for Ken.
+1. **Folder cycles through three or more folders are not reported.** Where: `folderCycleFindings` in `check/src/structure-warnings.ts` and `analyse` in `check/src/analyse.ts`. Evidence: the corpus case `folder-cycle/ring-of-three-folders` (six modules, edges `ra/x.ts -> rb/x.ts`, `rb/y.ts -> rc/x.ts`, `rc/y.ts -> ra/y.ts`), run at `1dbb09c`. Suggested size: small to medium (find strongly connected components of the folder graph, then clear the case's `known_defect`). Filed: REC-185.
+2. **A source module named `test_*.py` is skipped by the Python scanner.** Where: the scan selection's `skip_file_globs` (`test_*.py`) as applied by `scanners/python`. Evidence: `sensors/src/recognizer_sensors/mutation/test_files.py` is not a test and is missing from the scan, so the import of it from `record.py` is attributed to the package `__init__.py`. Suggested size: small; the decision is whether to skip by name at all or only in test directories, which is a question for Ken. Filed: REC-195.
