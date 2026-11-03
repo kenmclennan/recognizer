@@ -1,33 +1,14 @@
-import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { build } from "vite";
 import { describe, expect, it } from "vitest";
+import { chrome, collectFacts, here } from "./look-page";
 
-const CHROME_CANDIDATES = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter((path): path is string => typeof path === "string" && path !== "");
+const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-edge" style="width:340px;height:200px;display:flex;flex-direction:column"></div>`;
 
-const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
-const SRC = fileURLToPath(new URL(".", import.meta.url));
-
-const ENTRY = `
-import { buildInspectorView } from ${JSON.stringify(join(SRC, "inspector-view.ts"))};
-import { compactFolders } from ${JSON.stringify(join(SRC, "folder-compaction.ts"))};
-import { inspectorContent } from ${JSON.stringify(join(SRC, "inspector-model.ts"))};
+const HARNESS = `
+window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
+document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(HOSTS)});
+import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
+import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
+import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
 
 const scan = {
   modules: [
@@ -80,17 +61,6 @@ mount("a-panel", { kind: "module", id: "p/m.py" }, true);
 mount("a-long", { kind: "module", id: "deep/folder/" + "n".repeat(120) + ".py" }, true);
 mount("a-short", { kind: "module", id: "p/q.py" }, true);
 mount("a-edge", { kind: "edge", id: "p/m.py>p/q.py" }, true);
-`;
-
-const PAGE = (css: string) => `<!doctype html>
-<html><head><meta charset="utf-8"><style>${css}</style></head><body>
-<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div>
-<div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div>
-<div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
-<div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
-<div id="a-edge" style="width:340px;height:200px;display:flex;flex-direction:column"></div>
-<script src="look.js"></script>
-<script>
 const BOX = ["padding-top", "padding-right", "padding-bottom", "padding-left"];
 const BORDER_L = ["border-left-width", "border-left-color"];
 const ROW = ["display", "column-gap", "align-items", "color", "font-size", "font-weight", "border-top-left-radius", ...BOX];
@@ -166,10 +136,8 @@ const result = {
   linkText: [...panel.querySelectorAll(".card")].map((n) => n.textContent).filter((t) => /(called|built|used) by/.test(t)).length,
 };
 window.addEventListener("load", () => {
-  document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
-  document.getElementById("out").textContent = JSON.stringify(result);
-});
-</script></body></html>`;
+  document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(result))));
+});`;
 
 type Styles = Record<string, Record<string, string | boolean>>;
 type Report = {
@@ -333,66 +301,7 @@ const EXPECTED: Record<"light" | "dark", Styles> = {
 };
 
 async function prepare(scheme: "light" | "dark"): Promise<Report> {
-  const entryDir = mkdtempSync(join(tmpdir(), "inspector-entry-"));
-  const dir = mkdtempSync(join(tmpdir(), "inspector-look-"));
-
-  try {
-    writeFileSync(join(entryDir, "entry.ts"), ENTRY);
-
-    await build({
-      configFile: false,
-      logLevel: "silent",
-      root: fileURLToPath(new URL("..", import.meta.url)),
-      build: {
-        outDir: dir,
-        emptyOutDir: false,
-        minify: false,
-        lib: {
-          entry: join(entryDir, "entry.ts"),
-          name: "Look",
-          formats: ["iife"],
-          fileName: () => "look.js",
-        },
-      },
-    });
-
-    const css = readFileSync(join(SRC, "style.css"), "utf8");
-    writeFileSync(join(dir, "page.html"), PAGE(css));
-
-    const run = spawnSync(
-      chrome as string,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        `--user-data-dir=${join(dir, "profile")}`,
-        `--blink-settings=preferredColorScheme=${scheme === "dark" ? 0 : 1}`,
-        "--allow-file-access-from-files",
-        "--virtual-time-budget=10000",
-        "--dump-dom",
-        `file://${join(dir, "page.html")}`,
-      ],
-      { encoding: "utf8", timeout: 120000, maxBuffer: 16 * 1024 * 1024 },
-    );
-    const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(run.stdout);
-
-    if (!match) {
-      throw new Error(
-        `no report from the page: status=${run.status} signal=${run.signal} error=${run.error} stdout=${run.stdout.length} bytes stderr=${run.stderr.slice(0, 400)}`,
-      );
-    }
-
-    return JSON.parse(
-      (match[1] as string)
-        .replaceAll("&quot;", '"')
-        .replaceAll("&lt;", "<")
-        .replaceAll("&gt;", ">")
-        .replaceAll("&amp;", "&"),
-    ) as Report;
-  } finally {
-    rmSync(entryDir, { recursive: true, force: true, maxRetries: 10 });
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-  }
+  return collectFacts<Report>(HARNESS, "inspector-look", scheme, "bare");
 }
 
 describe("the inspector, in a real browser", () => {
