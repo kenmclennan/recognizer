@@ -21,6 +21,7 @@ export type ViewBarProps = {
   backLabel: string;
   forwardLabel: string;
   canCopy: boolean;
+  openTitle: string | null;
 };
 
 export type ViewBarActions = {
@@ -29,7 +30,12 @@ export type ViewBarActions = {
   openView: (name: string) => void;
   openViewsPanel: () => void;
   save: () => void;
-  saveNew: (name: string, description: string) => Promise<string | null>;
+  saveNew: (
+    name: string,
+    title: string,
+    description: string,
+  ) => Promise<string | null>;
+  retitle: (name: string, title: string | null) => Promise<void>;
   rename: (from: string, to: string) => Promise<string | null>;
   copyLink: () => void;
   hasOpenView: () => boolean;
@@ -68,6 +74,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   const rangeChip = el("span", "view-range-chip");
   const nameText = el("span", "view-name-text", "Untitled");
   const nameField = el("input", "view-name-field-inline");
+  const titleField = el("input", "view-title-field-inline");
   const nameProblemLine = el("p", "view-name-problem");
   const save = iconButton("Save the view", "save", "save", () => {
     if (actions.hasOpenView()) {
@@ -99,6 +106,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     backLabel: "Back",
     forwardLabel: "Forward",
     canCopy: false,
+    openTitle: null,
   };
   let menuOpen = false;
   let dialogOpen = false;
@@ -115,6 +123,9 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   nameField.hidden = true;
   nameField.setAttribute("aria-label", "View name");
   nameField.spellcheck = false;
+  titleField.hidden = true;
+  titleField.setAttribute("aria-label", "View title");
+  titleField.placeholder = "Title";
   nameProblemLine.hidden = true;
   menu.setAttribute("role", "menu");
   dialog.setAttribute("role", "dialog");
@@ -126,6 +137,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     name,
     rangeChip,
     nameField,
+    titleField,
     save,
     copy,
     nameProblemLine,
@@ -168,6 +180,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   function renderName() {
     name.hidden = editing;
     nameField.hidden = !editing;
+    titleField.hidden = !editing || props.open === null;
   }
 
   function startEditing() {
@@ -176,6 +189,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     editing = true;
     nameField.value = props.open ?? "";
     nameField.placeholder = "Untitled";
+    titleField.value = props.openTitle ?? "";
     nameProblemLine.hidden = true;
     renderName();
     renderOverlay();
@@ -189,43 +203,68 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     renderName();
   }
 
+  function titleChanged(): boolean {
+    return (
+      props.open !== null && titleField.value.trim() !== (props.openTitle ?? "")
+    );
+  }
+
+  function changed(): boolean {
+    return nameField.value !== (props.open ?? "") || titleChanged();
+  }
+
   async function commitName() {
     const next = nameField.value;
     const existing = props.names;
+    let current = props.open;
 
-    if (next === (props.open ?? "")) {
+    if (!changed()) {
       stopEditing();
 
       return;
     }
 
-    const problem = nameProblem(
-      next,
-      props.open === null ? existing : existing.filter((n) => n !== props.open),
-    );
+    if (next !== (props.open ?? "")) {
+      const problem = nameProblem(
+        next,
+        props.open === null
+          ? existing
+          : existing.filter((n) => n !== props.open),
+      );
 
-    if (problem !== null) {
-      refuse(problem);
+      if (problem !== null) {
+        refuse(problem);
 
-      return;
+        return;
+      }
+
+      if (props.open === null) {
+        stopEditing();
+        dialogName = next;
+        dialogOpen = true;
+        renderOverlay();
+
+        return;
+      }
+
+      const refused = await actions.rename(props.open, next);
+
+      if (refused !== null) {
+        refuse(refused);
+
+        return;
+      }
+
+      current = next;
     }
 
-    if (props.open === null) {
-      stopEditing();
-      dialogName = next;
-      dialogOpen = true;
-      renderOverlay();
+    if (current !== null && titleChanged()) {
+      const title = titleField.value.trim();
 
-      return;
+      await actions.retitle(current, title === "" ? null : title);
     }
 
-    const refused = await actions.rename(props.open, next);
-
-    if (refused === null) {
-      stopEditing();
-    } else {
-      refuse(refused);
-    }
+    stopEditing();
   }
 
   function refuse(reason: string) {
@@ -238,27 +277,33 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     nameProblemLine.hidden = true;
     nameField.removeAttribute("aria-invalid");
   });
-  nameField.addEventListener("keydown", (event) => {
-    event.stopPropagation();
+  for (const field of [nameField, titleField]) {
+    field.addEventListener("keydown", (event) => {
+      event.stopPropagation();
 
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void commitName();
-    } else if (event.key === "Escape") {
-      stopEditing();
-    }
-  });
-  nameField.addEventListener("blur", () => {
-    if (!editing) {
-      return;
-    }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void commitName();
+      } else if (event.key === "Escape") {
+        stopEditing();
+      }
+    });
+    field.addEventListener("blur", (event) => {
+      if (
+        !editing ||
+        event.relatedTarget === nameField ||
+        event.relatedTarget === titleField
+      ) {
+        return;
+      }
 
-    if (nameField.value === (props.open ?? "")) {
-      stopEditing();
-    } else {
-      void commitName();
-    }
-  });
+      if (changed()) {
+        void commitName();
+      } else {
+        stopEditing();
+      }
+    });
+  }
 
   function renderMenu() {
     menu.hidden = !menuOpen;
@@ -338,12 +383,17 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     }
 
     const nameInput = el("input", "view-field-name");
+    const titleInput = el("input", "view-field-title");
     const descriptionInput = el("textarea", "view-field-description");
     const problem = el("p", "view-problem");
     const confirm = button("Save", "view-confirm", () => {
       confirm.disabled = true;
       void actions
-        .saveNew(nameInput.value, descriptionInput.value.trim())
+        .saveNew(
+          nameInput.value,
+          titleInput.value.trim(),
+          descriptionInput.value.trim(),
+        )
         .then((failure) => {
           if (failure === null) {
             dialogOpen = false;
@@ -380,6 +430,8 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
 
     nameInput.id = "view-name-field";
     nameInput.value = dialogName;
+    titleInput.id = "view-title-field";
+    titleInput.placeholder = "Heading shown above the diagram";
     descriptionInput.id = "view-description-field";
     descriptionInput.placeholder = "What it shows";
     descriptionInput.rows = 3;
@@ -394,6 +446,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
 
     dialog.replaceChildren(
       labelled("Name", nameInput),
+      labelled("Title", titleInput),
       labelled("Description", descriptionInput),
       problem,
       el("div", "view-dialog-actions"),

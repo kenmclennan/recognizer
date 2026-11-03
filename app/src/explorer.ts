@@ -156,6 +156,7 @@ import { buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
 import { buildViewBar } from "./view-bar-view";
 import { parseViewFile, serialiseView } from "./view-file";
+import type { Heading } from "./view-heading";
 import {
   createHistory,
   type History,
@@ -752,7 +753,8 @@ export function showExplorer(
     openView: (name) => void openSaved(name),
     openViewsPanel: toggleViewsPanel,
     save: () => void saveOpen(),
-    saveNew: (name, description) => saveNew(name, description),
+    saveNew: (name, title, description) => saveNew(name, title, description),
+    retitle: (name, title) => retitleOpen(name, title),
     rename: (from, to) => renameOpen(from, to),
     copyLink: () => void copyLink(),
     hasOpenView: () => openView !== null,
@@ -2289,6 +2291,7 @@ export function showExplorer(
       backLabel: backLabel(history.markNow()),
       forwardLabel: forwardLabel(history.markNext()),
       canCopy: openView !== null,
+      openTitle: openViewValue()?.title ?? null,
     });
   }
 
@@ -2545,9 +2548,25 @@ export function showExplorer(
     }
   }
 
-  async function saveNew(name: string, description: string) {
+  async function retitleOpen(name: string, title: string | null) {
+    const view = openView === name ? openViewValue() : null;
+
+    if (view === null) {
+      return;
+    }
+
+    const { title: _previous, ...rest } = view;
+
+    await writeView(name, title === null ? rest : { ...rest, title });
+    renderBar();
+    render();
+  }
+
+  async function saveNew(name: string, title: string, description: string) {
+    const trimmed = title.trim();
     const problem = await writeView(name, {
       schema_version: 4,
+      ...(trimmed === "" ? {} : { title: trimmed }),
       description,
       commit: currentCommit(scans),
       steps: stepsFor([], canvasContent(), scans),
@@ -2558,6 +2577,8 @@ export function showExplorer(
       openView = name;
       record();
       noteOpened(name);
+      renderBar();
+      render();
       post({ kind: "done", text: `Saved ${name}` });
     }
 
@@ -2844,6 +2865,30 @@ export function showExplorer(
     };
   }
 
+  let lastHeading: Heading | null = null;
+
+  function headingNow(): Heading | null {
+    const view = openViewValue();
+
+    if (view === null) {
+      lastHeading = null;
+
+      return null;
+    }
+
+    const title = view.title ?? null;
+
+    if (
+      lastHeading === null ||
+      lastHeading.title !== title ||
+      lastHeading.description !== view.description
+    ) {
+      lastHeading = { title, description: view.description };
+    }
+
+    return lastHeading;
+  }
+
   function renderCanvas() {
     const notes = syncNotes();
 
@@ -2884,6 +2929,7 @@ export function showExplorer(
       orientation: syncOrientation(),
       metrics: canvasMetrics(),
       changes: changeOverlay(),
+      heading: headingNow(),
     });
   }
 

@@ -1510,7 +1510,8 @@ svg.i.chevron {
   height: 16px;
 }
 
-.view-name-field-inline {
+.view-name-field-inline,
+.view-title-field-inline {
   width: 180px;
   height: 24px;
   padding: 0 6px;
@@ -1521,6 +1522,11 @@ svg.i.chevron {
   color: var(--fg);
   font: inherit;
   font-weight: 600;
+}
+
+.view-title-field-inline {
+  width: 260px;
+  font-weight: 400;
 }
 
 .view-name-problem {
@@ -3017,4 +3023,13 @@ svg.i.chevron {
 .change-swatch.removed {
   border-color: var(--bad);
   border-style: dashed;
+}
+
+.surface .view-heading-title {
+  fill: var(--fg);
+  font-weight: 600;
+}
+
+.surface .view-heading-description {
+  fill: var(--muted);
 }

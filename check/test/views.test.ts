@@ -349,9 +349,30 @@ describe("view versions", () => {
     ]);
   });
 
+  it("round-trips a title before the description and omits it when absent", () => {
+    const titled = {
+      schema_version: 4,
+      title: "T",
+      description: "p",
+      commit: null,
+      steps: [],
+    } as View;
+    const text = serialiseView(titled);
+
+    expect(Object.keys(JSON.parse(text))).toEqual([
+      "schema_version",
+      "title",
+      "description",
+      "commit",
+      "steps",
+    ]);
+    expect(migrateView(validateView(JSON.parse(text))).title).toBe("T");
+    expect(serialiseView(at(4))).not.toContain("title");
+  });
+
   it("counts the examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(10);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(30);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(11);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(31);
   });
 });
 

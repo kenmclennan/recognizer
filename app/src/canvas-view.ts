@@ -38,6 +38,18 @@ import type { RemovedBox } from "./removed-boxes";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
+  DESCRIPTION_LINE,
+  DESCRIPTION_SIZE,
+  type Heading,
+  type HeadingLayout,
+  headingAnchor,
+  layoutHeading,
+  TITLE_LINE,
+  TITLE_SIZE,
+  TITLE_TO_DESCRIPTION,
+  withHeading,
+} from "./view-heading";
+import {
   atMax,
   atMin,
   centerOn,
@@ -67,6 +79,7 @@ export type CanvasProps = {
   orientation?: CanvasOrientation | null;
   metrics?: CanvasMetrics | null;
   changes?: ChangeOverlay | null;
+  heading?: Heading | null;
 };
 
 export type ChangeOverlay = {
@@ -152,12 +165,12 @@ function svg<K extends keyof SVGElementTagNameMap>(
   return node;
 }
 
-export function createMeasure(): (text: string) => number {
+export function createMeasure(font = "12px"): (text: string) => number {
   const context = document.createElement("canvas").getContext("2d");
   const cache = new Map<string, number>();
 
   if (context) {
-    context.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    context.font = `${font} ${getComputedStyle(document.body).fontFamily}`;
   }
 
   return (text) => {
@@ -232,6 +245,8 @@ export function buildCanvasView(
   const busy = spinner("Laying out");
   const noteLayer = el("div", "note-layer");
   const bubbleViews = new Map<string, NoteBubbleView>();
+  const measureTitle = createMeasure(`600 ${TITLE_SIZE}px`);
+  const measureDescription = createMeasure(`${DESCRIPTION_SIZE}px`);
 
   busy.classList.add("canvas-busy");
   busy.hidden = true;
@@ -360,9 +375,99 @@ export function buildCanvasView(
     applyViewport();
   }
 
+  function headingLayout(): HeadingLayout | null {
+    const scene = props?.scene;
+    const heading = props?.heading;
+
+    if (!scene || !heading) {
+      return null;
+    }
+
+    const anchor = headingAnchor(scene);
+
+    return anchor
+      ? layoutHeading(heading, anchor, measureTitle, measureDescription)
+      : null;
+  }
+
+  function drawHeading(): SVGElement | null {
+    const layout = headingLayout();
+
+    if (!layout) {
+      return null;
+    }
+
+    const { rect } = layout;
+    const group = svg("g", {
+      class: "view-heading",
+      "data-x": rect.x,
+      "data-y": rect.y,
+      "data-width": rect.width,
+      "data-height": rect.height,
+    });
+
+    group.style.pointerEvents = "none";
+
+    let baseline = rect.y;
+
+    if (layout.titleLines.length > 0) {
+      const title = svg("text", {
+        class: "view-heading-title",
+        "text-anchor": "middle",
+        "font-size": TITLE_SIZE,
+      });
+
+      layout.titleLines.forEach((line, index) => {
+        title.append(
+          svg(
+            "tspan",
+            {
+              x: layout.centre,
+              y: baseline + (index + 1) * TITLE_LINE - 6,
+            },
+            line,
+          ),
+        );
+      });
+      group.append(title);
+      baseline += layout.titleLines.length * TITLE_LINE;
+
+      if (layout.descriptionLines.length > 0) {
+        baseline += TITLE_TO_DESCRIPTION;
+      }
+    }
+
+    if (layout.descriptionLines.length > 0) {
+      const description = svg("text", {
+        class: "view-heading-description",
+        "text-anchor": "middle",
+        "font-size": DESCRIPTION_SIZE,
+      });
+
+      layout.descriptionLines.forEach((line, index) => {
+        description.append(
+          svg(
+            "tspan",
+            {
+              x: layout.centre,
+              y: baseline + (index + 1) * DESCRIPTION_LINE - 5,
+            },
+            line,
+          ),
+        );
+      });
+      group.append(description);
+    }
+
+    return group;
+  }
+
   function fitNow() {
     if (props?.scene) {
-      viewport = fitToBounds(props.scene.bounds, size());
+      viewport = fitToBounds(
+        withHeading(props.scene.bounds, headingLayout()?.rect ?? null),
+        size(),
+      );
       applyViewport();
     }
   }
@@ -429,6 +534,11 @@ export function buildCanvasView(
 
   function drawScene(scene: Scene) {
     const parts: SVGElement[] = [];
+    const heading = drawHeading();
+
+    if (heading) {
+      parts.push(heading);
+    }
 
     for (const layer of scene.drawOrder) {
       const group = svg("g", { class: layer });
@@ -1286,7 +1396,8 @@ export function buildCanvasView(
         next.titles !== previous?.titles ||
         next.notes !== previous?.notes ||
         next.orientation !== previous?.orientation ||
-        next.changes !== previous?.changes
+        next.changes !== previous?.changes ||
+        next.heading !== previous?.heading
       ) {
         if (scene) {
           drawScene(scene);

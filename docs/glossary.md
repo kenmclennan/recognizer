@@ -126,7 +126,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | History | The sequence of view states the user has moved through in a window; back and forward walk it. It is never saved. |
 | Rail | The thin strip of icons at the window's far left, one per left-hand panel; an icon opens its panel, or closes it when it is open. |
 | Files panel | The rail's panel holding the tree. |
-| Saved view | A named view committed at `.recognizer/views/<name>.json`: its description, the commit it was saved at, its steps and its notes. |
+| Saved view | A named view committed at `.recognizer/views/<name>.json`: its title, its description, the commit it was saved at, its steps and its notes. |
+| View title | The optional heading text of a saved view, separate from its name. |
+| View heading | The title and description of a saved view, drawn centred above the diagram and moving with it. |
 | Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
 | Stale view | A saved view the list shows under Stale with Delete: a change view whose head is merged or whose branch is gone, or any view with a pick that no longer resolves. |
 | Views panel | The left-column panel, behind the rail icon between Files and Notes, that lists every saved view: live ones, then stale ones with Delete; opened from the view bar's All views link. |

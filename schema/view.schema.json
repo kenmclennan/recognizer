@@ -9,6 +9,7 @@
     "schema_version": { "enum": [1, 2, 3, 4] },
     "ordered": { "type": "boolean" },
     "change": { "$ref": "#/$defs/change" },
+    "title": { "type": "string", "pattern": "\\S" },
     "description": { "type": "string", "pattern": "\\S" },
     "commit": { "type": ["string", "null"], "minLength": 1 },
     "note": { "$ref": "#/$defs/note" },
