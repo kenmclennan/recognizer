@@ -555,25 +555,6 @@ svg.i.chevron {
   color: var(--sel);
 }
 
-.note-mark.numbered circle {
-  fill: var(--muted);
-  stroke: var(--box);
-}
-
-.note-mark.numbered text {
-  fill: var(--box);
-  font-size: 10px;
-  font-weight: 600;
-  text-anchor: middle;
-  dominant-baseline: central;
-  pointer-events: none;
-}
-
-.note-mark.numbered.active circle,
-.note-mark.numbered:hover circle {
-  fill: var(--sel);
-}
-
 .box .halo {
   display: none;
   fill: none;

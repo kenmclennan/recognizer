@@ -2803,11 +2803,6 @@ export function showExplorer(
       view === null || focus === null ? null : noteAt(view, focus.path);
     const bubbles = bubbleSet(view, positions, focus, notesShown);
     const marks = view === null ? new Set<string>() : notedPaths(view);
-    const numbers = new Map(
-      view === null
-        ? []
-        : viewNotes(view).map((note, index) => [note.module, index + 1]),
-    );
     const keys = {
       notesOpen: leftPanel === "notes",
       noteActive: held !== null,
@@ -2816,7 +2811,6 @@ export function showExplorer(
     };
     const key = JSON.stringify([
       [...marks].sort(),
-      [...numbers],
       focus,
       bubbles,
       notesShown,
@@ -2827,7 +2821,6 @@ export function showExplorer(
       canvasNotesKey = key;
       canvasNotes = {
         marks,
-        numbers,
         active: focus?.path ?? null,
         bubbles,
         showAll: notesShown,
