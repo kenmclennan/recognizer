@@ -25,7 +25,7 @@
     },
     {
       "path": "shop/application/lookup.py",
-      "hash": "a3091f9af6e9e8eb70af964900fc2cf342b4763af6a45d332a8225a4c8bd58b4"
+      "hash": "6610b78aa495dc779fe83298e45904c238048d986bad3e0f278d6b4fe9744b03"
     },
     {
       "path": "shop/application/place.py",
@@ -143,8 +143,19 @@
         {
           "name": "lookup",
           "kind": "function",
-          "line": 1,
+          "line": 4,
           "exported": true,
+          "params": [
+            {
+              "name": "source"
+            }
+          ]
+        },
+        {
+          "name": "peek",
+          "kind": "function",
+          "line": 8,
+          "exported": false,
           "params": [
             {
               "name": "source"
