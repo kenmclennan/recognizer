@@ -797,6 +797,7 @@ export function showExplorer(
       render();
     },
     run: () => scanHost.run(),
+    stop: () => scanHost.stop(),
     clearReport: (name) => void clearReport(name),
   });
   const findingsView = buildFindingsPanelView({

@@ -1,5 +1,3 @@
-import type { ScanFooter } from "./scan-progress";
-
 export type FileChange = {
   path: string;
   kind: "modified" | "added" | "deleted";
@@ -16,20 +14,14 @@ export type ScanState = {
   origin: ScanOrigin;
   scannedAt: number;
   changes: Changes;
-  progress: ScanFooter | null;
-  canShow: boolean;
-  log: string | null;
+  scanning: string | null;
 };
 
 export type ScanLine = {
-  kind: "up-to-date" | "files" | "moved" | "scanning" | "result";
+  kind: "up-to-date" | "files" | "moved" | "scanning";
   text: string;
   tone: "muted" | "amber";
   files: FileChange[];
-  rescan: "none" | "enabled" | "disabled";
-  stop: boolean;
-  show: boolean;
-  openLog: boolean;
 };
 
 export const NO_CHANGES: Changes = { files: [], moved: null };
@@ -59,38 +51,16 @@ export function ageText(scannedAt: number, now: number): string {
 }
 
 export function scanLine(state: ScanState, now: number): ScanLine {
-  const idle = { stop: false, show: false, openLog: false };
-  const { progress } = state;
-
-  if (progress?.running) {
+  if (state.scanning !== null) {
     return {
       kind: "scanning",
-      text: progress.text,
+      text: state.scanning,
       tone: "muted",
       files: [],
-      rescan: "disabled",
-      stop: true,
-      show: false,
-      openLog: false,
     };
   }
 
   const { moved, files } = state.changes;
-
-  if (progress !== null && moved === null && files.length === 0) {
-    const failed = progress.failed > 0;
-
-    return {
-      kind: "result",
-      text: progress.text,
-      tone: progress.tone,
-      files: [],
-      rescan: "enabled",
-      stop: false,
-      show: failed && state.canShow,
-      openLog: failed && state.log !== null,
-    };
-  }
 
   if (moved !== null) {
     return {
@@ -101,8 +71,6 @@ export function scanLine(state: ScanState, now: number): ScanLine {
           : `Now on ${moved.branch} at ${moved.commit}`,
       tone: "amber",
       files: [],
-      rescan: "enabled",
-      ...idle,
     };
   }
 
@@ -112,8 +80,6 @@ export function scanLine(state: ScanState, now: number): ScanLine {
       text: `${plural(files.length, "file")} changed since`,
       tone: "amber",
       files,
-      rescan: "enabled",
-      ...idle,
     };
   }
 
@@ -127,7 +93,5 @@ export function scanLine(state: ScanState, now: number): ScanLine {
     text: `${head} ${ageText(state.scannedAt, now)}`,
     tone: "muted",
     files: [],
-    rescan: "none",
-    ...idle,
   };
 }

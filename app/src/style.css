@@ -1728,29 +1728,15 @@ svg.i.chevron {
   color: var(--warn);
 }
 
-.footer .scan-count,
-.footer .scan-stop,
-.footer .scan-show,
-.footer .scan-open-log,
-.footer .rescan-button {
+.footer .scan-count {
   color: inherit;
   background: none;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 4px;
-  padding: 1px 8px;
+  padding: 1px 0;
   font: inherit;
   cursor: pointer;
-}
-
-.footer .scan-count {
-  border-color: transparent;
-  padding: 1px 0;
   text-decoration: underline;
-}
-
-.footer .rescan-button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .footer {
@@ -2253,6 +2239,10 @@ svg.i.chevron {
   display: flex;
   align-items: center;
   margin-top: 10px;
+}
+
+.scan-panel .scan-buttons {
+  gap: 8px;
 }
 
 .scan-panel .scan-buttons button {

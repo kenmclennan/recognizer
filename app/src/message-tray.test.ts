@@ -309,6 +309,54 @@ describe("message tray", () => {
     });
   });
 
+  describe("extra action", () => {
+    it("attaches to a held message, notifies, and ignores an unknown id", () => {
+      const { tray } = harness();
+      const id = tray.post({ ...done, text: "x" }) as number;
+      let notified = 0;
+
+      tray.subscribe(() => {
+        notified += 1;
+      });
+      tray.attach(id, { label: "Open log", run: () => {} });
+      tray.attach(999, { label: "Open log", run: () => {} });
+
+      expect(tray.snapshot().rows[0]?.extra).toBe("Open log");
+      expect(notified).toBe(1);
+    });
+
+    it("runs the extra on request and leaves the main action on a plain act", () => {
+      const { tray } = harness();
+      const ran: string[] = [];
+      const id = tray.post({
+        ...done,
+        action: { label: "Show", run: () => ran.push("show") },
+      }) as number;
+
+      tray.attach(id, { label: "Open log", run: () => ran.push("log") });
+      tray.act(id, "extra");
+      tray.act(id);
+
+      expect(ran).toEqual(["log", "show"]);
+    });
+
+    it("stays when the main action is withdrawn", () => {
+      const { tray } = harness();
+      const id = tray.post({
+        ...done,
+        action: { label: "Show", run: () => {} },
+        extra: { label: "Open log", run: () => {} },
+      }) as number;
+
+      tray.withdraw(id);
+
+      expect(tray.snapshot().rows[0]).toMatchObject({
+        action: null,
+        extra: "Open log",
+      });
+    });
+  });
+
   describe("actions", () => {
     it("withdraws an action and keeps the text", () => {
       const { tray } = harness();

@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  failedCount,
   foldProgress,
-  footerText,
   NO_PROGRESS,
   parseScanLine,
   type ScanProgress,
+  scanningText,
   showTarget,
   stoppedProgress,
 } from "./scan-progress";
@@ -85,40 +84,41 @@ describe("parseScanLine", () => {
   });
 });
 
-describe("footerText while a scan runs", () => {
-  it("reads Extracting for a running extraction and Scans current for a current one", () => {
-    expect(footerText(fold([extractRun]))).toMatchObject({
-      text: "Extracting",
-      running: true,
-    });
-    expect(footerText(fold([extractCurrent]))).toMatchObject({
-      text: "Scans current",
-      running: true,
-    });
-  });
+describe("scanningText", () => {
+  const rows = [
+    { key: "crap", display: "C.R.A.P." },
+    { key: "duplication", display: "Duplication" },
+  ];
+  const led = [{ key: "describe", display: "Descriptions" }, ...rows];
+  const midRun = fold([extractCurrent, phase("sense", 2)]);
 
-  it("counts described modules and sensors as entries land", () => {
-    const describing = fold([
-      extractCurrent,
-      phase("describe", 2),
-      entry("a.py", "describe"),
-    ]);
-
-    expect(footerText(describing).text).toBe("Describing 1 of 2");
-
-    const sensing = fold(
-      [phase("sense", 2), entry("alpha", "sense")],
-      fold([extractCurrent, phase("describe", 1), entry("a.py", "describe")]),
+  it("names the running row and its place in the plan", () => {
+    expect(scanningText(rows, "crap", midRun)).toBe(
+      "Scanning\u2026 C.R.A.P., 1 of 2",
     );
-
-    expect(footerText(sensing).text).toBe("Sensors 1 of 2");
-    expect(footerText(sensing).running).toBe(true);
   });
 
-  it("ignores a phase line for a phase the app does not know", () => {
-    expect(
-      fold([extractRun, { event: "phase", phase: "other", total: 3 }]).describe,
-    ).toBeNull();
+  it("reaches the last row", () => {
+    expect(scanningText(rows, "duplication", midRun)).toBe(
+      "Scanning\u2026 Duplication, 2 of 2",
+    );
+  });
+
+  it("says Scanning alone before any row has started", () => {
+    expect(scanningText(rows, null, NO_PROGRESS)).toBe("Scanning\u2026");
+  });
+
+  it("counts the describe row first", () => {
+    expect(scanningText(led, "describe", NO_PROGRESS)).toBe(
+      "Scanning\u2026 Descriptions, 1 of 3",
+    );
+  });
+
+  it("is null once the scan is done or stopped", () => {
+    expect(scanningText(rows, "crap", fold([extractCurrent, summary]))).toBe(
+      null,
+    );
+    expect(scanningText(rows, "crap", stoppedProgress(midRun))).toBe(null);
   });
 });
 
@@ -134,109 +134,6 @@ describe("the extraction settle point", () => {
 
   it("is the summary when no later phase ran", () => {
     expect(fold([extractCurrent, summary]).extractSettled).toBe(true);
-  });
-});
-
-describe("footerText after a scan", () => {
-  it("says Scan done with what ran", () => {
-    expect(footerText(fold([extractCurrent, summary]))).toMatchObject({
-      text: "Scan done - scans current",
-      running: false,
-      failed: 0,
-    });
-    expect(
-      footerText(
-        fold([
-          extractRun,
-          phase("describe", 2),
-          entry("a", "describe"),
-          entry("b", "describe"),
-          phase("sense", 1),
-          entry("alpha", "sense"),
-          summary,
-        ]),
-      ).text,
-    ).toBe("Scan done - extracted, described 2, 1 sensor");
-  });
-
-  it("says Stopped with what had finished", () => {
-    expect(footerText(stoppedProgress(fold([extractRun]))).text).toBe(
-      "Stopped - extracted",
-    );
-    expect(footerText(stoppedProgress(NO_PROGRESS)).text).toBe("Stopped");
-  });
-});
-
-describe("the same-reason rule", () => {
-  const describeAll = (reasons: (string | undefined)[]) =>
-    fold([
-      extractCurrent,
-      phase("describe", reasons.length),
-      ...reasons.map((reason, index) =>
-        entry(`m${index}.py`, "describe", reason),
-      ),
-      summary,
-    ]);
-
-  it("says the reason once when every entry of the phase failed with it", () => {
-    const text = footerText(
-      describeAll([
-        "command not found",
-        "command not found",
-        "command not found",
-      ]),
-    );
-
-    expect(text.text).toBe("Describe failed: command not found");
-    expect(text.failed).toBe(3);
-  });
-
-  it("counts when only some entries failed", () => {
-    expect(footerText(describeAll(["x", "x", undefined])).text).toBe(
-      "2 failed",
-    );
-  });
-
-  it("says the reason on the bound of a single entry failed", () => {
-    expect(footerText(describeAll(["x"])).text).toBe("Describe failed: x");
-  });
-
-  it("counts when the reasons differ", () => {
-    expect(footerText(describeAll(["a", "a", "b"])).text).toBe("3 failed");
-  });
-
-  it("says the sensors reason once for an all-failed sensor phase", () => {
-    const state = fold([
-      extractCurrent,
-      phase("sense", 2),
-      entry("alpha", "sense", "boom"),
-      entry("beta", "sense", "boom"),
-      summary,
-    ]);
-
-    expect(footerText(state).text).toBe("Sensors failed: boom");
-  });
-
-  it("sums the failures across phases", () => {
-    const state = fold([
-      extractCurrent,
-      phase("describe", 1),
-      entry("a.py", "describe", "x"),
-      phase("sense", 1),
-      entry("alpha", "sense", "y"),
-      summary,
-    ]);
-
-    expect(footerText(state).text).toBe("2 failed");
-    expect(failedCount(state)).toBe(2);
-  });
-
-  it("counts an extract failure in the total", () => {
-    expect(
-      footerText(
-        fold([extractRun, entry("python", "extract", "boom"), summary]),
-      ).text,
-    ).toBe("1 failed");
   });
 });
 

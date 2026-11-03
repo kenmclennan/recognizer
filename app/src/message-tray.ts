@@ -1,7 +1,7 @@
 export type MessageKind = "warning" | "error" | "done" | "info";
 
 export type MessageAction = {
-  label: "Upgrade" | "Show" | "Undo";
+  label: "Upgrade" | "Show" | "Undo" | "Open log";
   run: () => void;
 };
 
@@ -11,6 +11,7 @@ export type MessageInput = {
   key?: string;
   onOpen?: boolean;
   action?: MessageAction;
+  extra?: MessageAction;
 };
 
 export type CancelTimer = () => void;
@@ -31,6 +32,7 @@ export type MessageRow = {
   text: string;
   when: string;
   action: string | null;
+  extra: string | null;
   unread: boolean;
 };
 
@@ -52,7 +54,8 @@ export type MessageTray = {
   withdraw: (id: number) => void;
   relabel: (id: number, label: string) => void;
   reconcile: (foundKeys: readonly string[]) => void;
-  act: (id: number) => void;
+  attach: (id: number, extra: MessageAction) => void;
+  act: (id: number, slot?: "extra") => void;
   open: () => void;
   close: () => void;
   clear: () => void;
@@ -67,6 +70,7 @@ type Held = {
   key: string | undefined;
   onOpen: boolean;
   action: { label: string; run: () => void } | null;
+  extra: MessageAction | null;
   postedAt: number;
   read: boolean;
 };
@@ -133,6 +137,7 @@ export function createMessageTray(
       text: message.text,
       when: message.onOpen ? "on open" : timeLabel(clock() - message.postedAt),
       action: message.action?.label ?? null,
+      extra: message.extra?.label ?? null,
       unread: trayOpen ? drawnUnread.has(message.id) : !message.read,
     };
   }
@@ -157,6 +162,7 @@ export function createMessageTray(
         key: input.key,
         onOpen: input.onOpen === true,
         action: input.action === undefined ? null : { ...input.action },
+        extra: input.extra === undefined ? null : { ...input.extra },
         postedAt: clock(),
         read: false,
       };
@@ -207,8 +213,17 @@ export function createMessageTray(
 
       changed();
     },
-    act(id) {
-      const action = find(id)?.action;
+    attach(id, extra) {
+      const message = find(id);
+
+      if (message !== undefined) {
+        message.extra = { ...extra };
+        changed();
+      }
+    },
+    act(id, slot) {
+      const message = find(id);
+      const action = slot === "extra" ? message?.extra : message?.action;
 
       if (action === null || action === undefined) {
         return;

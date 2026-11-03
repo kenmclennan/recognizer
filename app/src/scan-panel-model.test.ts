@@ -27,9 +27,7 @@ const SCAN: ScanState = {
   origin: { branch: "main", commit: "abc1234" },
   scannedAt: NOW - 27 * MINUTE,
   changes: NO_CHANGES,
-  progress: null,
-  canShow: false,
-  log: null,
+  scanning: null,
 };
 
 function shipped(

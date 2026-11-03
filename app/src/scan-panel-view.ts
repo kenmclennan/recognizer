@@ -4,6 +4,7 @@ import type { ReportRow, ScanPanelModel, ScanRow } from "./scan-panel-model";
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
   run: () => void;
+  stop: () => void;
   clearReport: (name: string) => void;
 };
 
@@ -113,6 +114,16 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       }
 
       run.append(model.button.label);
+
+      if (model.button.scanning) {
+        buttons.replaceChildren(
+          run,
+          button("Stop", "scan-stop", () => actions.stop()),
+        );
+
+        return;
+      }
+
       buttons.replaceChildren(run);
     },
   };

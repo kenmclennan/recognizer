@@ -88,7 +88,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Selection | A scanner's rule for choosing files, recorded in the scan as data: extensions, skipped directories and skipped file globs. A consumer applies it to a path the scan has not seen. |
 | Baseline | What the viewer holds of a scan's files: each file's recorded hash and the scan's selection, with the commit and branch taken just before the scan. Changed since compares the folder against it. |
 | Changed since | The viewer's report of what differs from the scan on screen: an edited, added or deleted file the scanners read, or a moved commit or branch. An edit undone again does not count. |
-| Rescan | Running the scan again on request, from the footer, File > Rescan or Cmd-R. It keeps the view state; nothing rescans on its own. |
+| Rescan | Running the scan again on request, from the Scan panel, File > Rescan or Cmd-R. It keeps the view state; nothing rescans on its own. |
 | Cache | A repository's gitignored `.recognizer/cache/`, where scans and overlays are written. |
 
 ## The viewer
