@@ -100,11 +100,9 @@ export function computeHealth(
   }));
   const byModule = findingsByModuleFrom(visible);
 
-  for (const document of current) {
-    for (const record of document.findings) {
-      for (const id of record.evidence.modules) {
-        measured.add(id);
-      }
+  if (current.some((document) => document.sensor.name !== "structure")) {
+    for (const id of known) {
+      measured.add(id);
     }
   }
 
