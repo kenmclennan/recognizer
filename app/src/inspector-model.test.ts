@@ -59,7 +59,6 @@ function inputsFor(
     evidence: null,
     edgeOnCanvas: true,
     counts: () => ({ uses: 0, usedBy: 0 }),
-    distanceThreshold: 0.3,
     filter: "",
     collapsed: new Set(),
     followed: null,
@@ -68,7 +67,6 @@ function inputsFor(
       busy: false,
       failure: null,
     }),
-    folderMetrics: () => null,
     metrics: [],
     ...extra,
   };
@@ -658,74 +656,7 @@ describe("folder contents", () => {
       muted: "4 files",
       target: { kind: "folder", id: "a" },
       responsibility: null,
-      metrics: null,
     });
-  });
-
-  it("shows a folder's metrics as one header line and a Metrics tab", () => {
-    const row = {
-      id: "a",
-      modules: 4,
-      afferent: 1,
-      efferent: 2,
-      instability: 0.42,
-      exported_members: 10,
-      abstract_members: 1,
-      abstractness: 0.1,
-      distance: 0.48,
-    };
-    const base = inputsFor([scan], { folderMetrics: () => row });
-    const shown = inspectorContent(folder("a"), base);
-    const tab = inspectorContent(folder("a"), { ...base, tab: "metrics" });
-
-    expect(shown.header.metrics).toBe(
-      "I 0.42 \u00b7 A 0.10 \u00b7 D 0.48 \u00b7 pain",
-    );
-    expect(shown.tabs?.map((one) => one.label)).toContain("Metrics");
-    expect(tab.rows).toContainEqual({
-      kind: "metric",
-      name: "Efferent coupling (Ce)",
-      value: "2",
-    });
-  });
-
-  it("leaves the zone off the header line for a folder within the threshold", () => {
-    const row = {
-      id: "a",
-      modules: 4,
-      afferent: 1,
-      efferent: 2,
-      instability: 0.8,
-      exported_members: 10,
-      abstract_members: 1,
-      abstractness: 0.1,
-      distance: 0.1,
-    };
-    const base = inputsFor([scan], { folderMetrics: () => row });
-    const shown = inspectorContent(folder("a"), base);
-    const tab = inspectorContent(folder("a"), { ...base, tab: "metrics" });
-
-    expect(shown.header.metrics).toBe("I 0.80 \u00b7 A 0.10 \u00b7 D 0.10");
-    expect(tab.rows).toContainEqual({
-      kind: "metric",
-      name: "Zone",
-      value: "main sequence",
-    });
-    expect(
-      inspectorContent(folder("a"), { ...base, distanceThreshold: 0.05 }).header
-        .metrics,
-    ).toBe("I 0.80 \u00b7 A 0.10 \u00b7 D 0.10 \u00b7 pain");
-  });
-
-  it("shows no Metrics tab for a folder without metrics and none for a module", () => {
-    const none = inspectorContent(folder("a"), inputsFor([scan]));
-
-    expect(none.header.metrics).toBeNull();
-    expect(
-      inspectorContent(module("pkg/m.py"), inputsFor([scan])).tabs?.map(
-        (one) => one.tab,
-      ),
-    ).not.toContain("metrics");
   });
 
   it("shows None for a folder with no known modules", () => {
@@ -760,7 +691,6 @@ describe("header and tabs", () => {
         busy: false,
         failure: null,
       },
-      metrics: null,
     });
   });
 

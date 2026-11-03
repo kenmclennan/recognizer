@@ -270,14 +270,6 @@ function rowNode(
     return el("p", "", row.text);
   }
 
-  if (row.kind === "metric") {
-    const node = el("div", "metric-row");
-
-    node.append(el("span", "muted", row.name), el("span", "", row.value));
-
-    return node;
-  }
-
   if (row.kind === "none") {
     return el("div", "none", "None");
   }
@@ -464,10 +456,6 @@ function buildPanelView(element: HTMLElement): PanelView {
 
       if (content.header.responsibility !== null) {
         parts.push(responsibilityNode(content.header.responsibility, actions));
-      }
-
-      if (content.header.metrics !== null) {
-        parts.push(el("div", "folder-metrics muted", content.header.metrics));
       }
 
       if (content.tabs) {

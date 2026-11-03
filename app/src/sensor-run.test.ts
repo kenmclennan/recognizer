@@ -336,8 +336,6 @@ describe("withSensors", () => {
         blocking: null,
         findings: [],
         sensors: [],
-        folderMetrics: [],
-        distanceThreshold: 0.7,
       },
       port,
     );

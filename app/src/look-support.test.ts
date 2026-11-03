@@ -8,9 +8,7 @@ describe("look-support", () => {
       [
         "baseline",
         "blocking",
-        "distanceThreshold",
         "findings",
-        "folderMetrics",
         "modules",
         "notices",
         "policy",

@@ -1,4 +1,3 @@
-import { DEFAULT_DISTANCE_THRESHOLD } from "recognizer";
 import { inertScanHost, type ScanHost } from "./explorer";
 import type { Registered } from "./rescanner";
 import type { Loaded } from "./scan-loading";
@@ -13,8 +12,6 @@ const BASE: Loaded = {
   blocking: null,
   findings: [],
   sensors: [],
-  folderMetrics: [],
-  distanceThreshold: DEFAULT_DISTANCE_THRESHOLD,
 };
 
 export function loadedOf(overrides: Partial<Loaded> = {}): Loaded {
