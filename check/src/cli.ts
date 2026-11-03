@@ -35,6 +35,7 @@ status=$?
 expired=0
 [ -s "$flag" ] && expired=1
 kill_tree "$watchdog_pid"
+wait "$watchdog_pid" 2>/dev/null
 rm -f "$flag"
 [ "$expired" = 1 ] && exit ${CEILING_EXIT}
 exit "$status"
