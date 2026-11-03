@@ -4,6 +4,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeResponsibilities } from ${JSON.stringify(here("responsibilities-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -14,7 +15,7 @@ const scan = {
   edges: [edge],
   foreign: [],
 };
-const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
+const loaded = loadedOf({ modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }] });
 
 const COMMAND = ["node", "d.js"];
 const HASH = "a".repeat(64);

@@ -4,6 +4,7 @@ import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 Element.prototype.setPointerCapture = () => {};
@@ -12,7 +13,7 @@ Element.prototype.releasePointerCapture = () => {};
 const IDS = ["p/a.py", "p/b.py", "p/c.py", "p/d.py"];
 const edge = { from: "p/a.py", to: "p/b.py", kind: "depends", line: 1, names: ["f"] };
 const scan = { commit: "cur1234", modules: IDS.map((id) => ({ id, kind: "module" })), edges: [edge], foreign: [] };
-const loaded = { modules: IDS, scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [] };
+const loaded = loadedOf({ modules: IDS, scans: [{ file: "scan.json", scan }] });
 
 const NOTES = [
   { module: "p/c.py", text: "First stop", by: "Ken" },

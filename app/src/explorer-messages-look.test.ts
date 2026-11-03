@@ -5,6 +5,7 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 window.__TAURI_INTERNALS__ = { invoke: async () => "0.0.0" };
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
@@ -13,7 +14,7 @@ ${FAKE_WORKER}
 const edge = (from, to) => ({ from, to, kind: "depends", line: 1, names: ["X"] });
 const ids = ["app/hub.py", "app/a.py", "lib/c.py"];
 const scan = { commit: "cur1234", modules: ids.map((id) => ({ id, kind: "module" })), edges: [edge("app/hub.py", "app/a.py"), edge("app/hub.py", "lib/c.py")], foreign: [], };
-const base = { modules: ids, scans: [{ file: "scan.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
+const base = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }] });
 const viewText = (steps, commit) => JSON.stringify({ schema_version: 1, description: "d", commit, steps }, null, 2) + "\\n";
 const pick = (module) => ({ kind: "pick", module });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 40));

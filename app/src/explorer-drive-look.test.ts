@@ -5,6 +5,7 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 window.__TAURI_INTERNALS__ = { invoke: async () => "0.0.0" };
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
@@ -17,7 +18,7 @@ const scan = {
   edges: [edge("app/hub.py", "lib/a.py", "A"), edge("app/hub.py", "lib/b.py", "B")],
   foreign: [],
 };
-const loaded = { modules: ids, scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
+const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }] });
 const viewText = JSON.stringify({ schema_version: 1, description: "d", commit: null, steps: [{ kind: "pick", module: "app/hub.py" }] }, null, 2) + "\\n";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));

@@ -41,6 +41,7 @@ const fakeWorker: Plugin = {
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { showExplorer } from ${JSON.stringify(here("explorer.ts"))};
+import { loadedOf } from ${JSON.stringify(here("look-support.ts"))};
 
 let layouts = 0;
 window.__fakeWorker = () => {
@@ -72,7 +73,7 @@ const scan = {
   edges: [edge("app/a.py", ["A"]), edge("lib/c.py", ["C"]), edge("lib/d.py", ["D"]), edge("lib/e.py", ["E"])],
   foreign: [],
 };
-const loaded = { modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }], policy: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
+const loaded = loadedOf({ modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }] });
 
 const app = document.getElementById("app");
 showExplorer(app, loaded, "demo", (text) => { document.getElementById("module-count").textContent = text; });
