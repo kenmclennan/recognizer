@@ -48,7 +48,7 @@ export interface Analysis {
 
 const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-function strongComponents(
+export function strongComponents(
   nodes: string[],
   successors: Map<string, string[]>,
 ): string[][] {

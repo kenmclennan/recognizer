@@ -1,3 +1,4 @@
+import { strongComponents } from "./analyse.js";
 import { isEntryPoint, isLiteralPath } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
 import type { FolderMeasures } from "./folder-metrics.js";
@@ -37,54 +38,67 @@ function moduleEdges(scan: Scan, policy: Policy | null) {
   return { ids, pairs };
 }
 
+function folderSummary(folders: string[], edgeCount: number): string {
+  if (folders.length === 2) {
+    return `folders ${folders[0]} and ${folders[1]} import each other (${edgeCount} edges)`;
+  }
+
+  return `folders ${folders.join(", ")} import each other in a cycle (${edgeCount} edges)`;
+}
+
 export function folderCycleFindings(
   scan: Scan,
   policy: Policy | null,
 ): FindingRecord[] {
   const { pairs } = moduleEdges(scan, policy);
-  const byFolders = new Map<string, { from: string; to: string }[]>();
+  const crossing = pairs.filter(
+    (pair) => folderOf(pair.from) !== folderOf(pair.to),
+  );
+  const successors = new Map<string, string[]>();
 
-  for (const pair of pairs) {
+  for (const pair of crossing) {
     const source = folderOf(pair.from);
     const target = folderOf(pair.to);
 
-    if (source === target) {
-      continue;
+    successors.set(source, [...(successors.get(source) ?? []), target]);
+
+    if (!successors.has(target)) {
+      successors.set(target, []);
     }
+  }
 
-    const key = `${source}\0${target}`;
-
-    byFolders.set(key, [...(byFolders.get(key) ?? []), pair]);
+  for (const [folder, targets] of successors) {
+    successors.set(folder, [...new Set(targets)].sort(compare));
   }
 
   const findings: FindingRecord[] = [];
 
-  for (const [key, forward] of byFolders) {
-    const [source, target] = key.split("\0") as [string, string];
-
-    if (source > target) {
+  for (const component of strongComponents(
+    [...successors.keys()].sort(compare),
+    successors,
+  )) {
+    if (component.length < 2) {
       continue;
     }
 
-    const backward = byFolders.get(`${target}\0${source}`);
-
-    if (backward === undefined) {
-      continue;
-    }
-
-    const edges = [...forward, ...backward].sort(
-      (a, b) => compare(a.from, b.from) || compare(a.to, b.to),
-    );
+    const folders = [...component].sort(compare);
+    const members = new Set(folders);
+    const edges = crossing
+      .filter(
+        (pair) =>
+          members.has(folderOf(pair.from)) && members.has(folderOf(pair.to)),
+      )
+      .sort((a, b) => compare(a.from, b.from) || compare(a.to, b.to));
     const modules = [
       ...new Set(edges.flatMap((edge) => [edge.from, edge.to])),
     ].sort(compare);
 
     findings.push({
-      id: `folder_cycle:${source},${target}`,
+      id: `folder_cycle:${folders.join(",")}`,
       kind: "folder_cycle",
       severity: "warning",
       principle: "no-cycles",
-      summary: `folders ${source} and ${target} import each other (${edges.length} edges)`,
+      summary: folderSummary(folders, edges.length),
       fix_pattern: "break-folder-cycle",
       evidence: { modules, edges },
     });

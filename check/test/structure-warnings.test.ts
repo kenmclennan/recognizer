@@ -98,14 +98,20 @@ describe("folder_cycle", () => {
     );
   });
 
-  it("reports nothing for a ring of three folders", () => {
+  it("reports a ring of three folders as one finding", () => {
     const ring = scanOf([
       ["a/x.py", "b/y.py"],
       ["b/y.py", "c/z.py"],
       ["c/z.py", "a/x.py"],
     ]);
+    const found = folderCycleFindings(ring, null);
 
-    expect(folderCycleFindings(ring, null)).toEqual([]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      id: "folder_cycle:a,b,c",
+      summary: "folders a, b, c import each other in a cycle (3 edges)",
+    });
+    expect(found[0]?.evidence.edges).toHaveLength(3);
   });
 
   it("pairs an ancestor and a descendant folder", () => {
@@ -380,7 +386,7 @@ describe("the config examples", () => {
 });
 
 describe("fixtures/check-warnings", () => {
-  it("yields exactly the four orphans and no folder cycle or drift", () => {
+  it("yields exactly the four orphans, the one three-folder cycle and no drift", () => {
     const dir = join(REPO, "fixtures/check-warnings");
     const scan = validateScan(
       JSON.parse(readFileSync(join(dir, "scan.json"), "utf8")),
@@ -402,6 +408,7 @@ describe("fixtures/check-warnings", () => {
     );
 
     expect(found).toEqual([
+      "folder_cycle:app/adapters,app/application,app/domain",
       "orphan:app/adapters/audit.py",
       "orphan:app/adapters/clock.py",
       "orphan:app/adapters/sql.py",
