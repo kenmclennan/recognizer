@@ -1,77 +1,365 @@
-import json
+import os
 import sys
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from recognizer_sensors.outcome import Outcome
+from recognizer_sensors.crap.lcov import function_coverage
+from recognizer_sensors.functions import find_functions
+from recognizer_sensors.identity import assign_identities
+from recognizer_sensors.mutation.record import (
+    body_hash,
+    build_record,
+    read_record,
+    recorded_verdicts,
+    stale_test_reason,
+)
+from recognizer_sensors.mutation.runner import (
+    Mutant,
+    copy_repository,
+    new_work_folder,
+    output_tail,
+    remove_stale_work_folders,
+    remove_work_folder,
+    run_function,
+    run_functions,
+    run_test_command,
+)
+from recognizer_sensors.mutation.sites import Site, find_sites
+from recognizer_sensors.outcome import Outcome, Overlay
+from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
-from recognizer_sensors.settings import SettingsError, relative_path
+from recognizer_sensors.settings import MeasurementError, SettingsError, relative_path
+from recognizer_sensors.testrun.profiles import mutant_command
+from recognizer_sensors.testrun.run import (
+    LOG,
+    collect_coverage,
+    parse_coverage,
+    parse_test_command,
+)
 
 DEFAULTS = {
-    "overlay": ".recognizer/cache/overlays/mutate.json",
+    "timeout_factor": 10,
+    "overlay": ".recognizer/cache/overlays/mutation.json",
     "survivors": ".recognizer/cache/mutation/survivors.json",
+    "record": ".recognizer/cache/mutation/record.json",
+    "incremental": True,
 }
+
+ALLOWED = {"test_command", "coverage", "max_workers", "max_minutes", *DEFAULTS}
+
+CLOCK = time.monotonic
+
+TIMEOUT_FLOOR = 2.0
+
+METRICS = [
+    {"name": "killed", "type": "count", "granularity": "member", "bad": "low"},
+    {"name": "survived", "type": "count", "granularity": "member", "bad": "high"},
+    {"name": "uncovered", "type": "count", "granularity": "member", "bad": "high"},
+    {"name": "score", "type": "ratio", "granularity": "member", "bad": "low"},
+]
+
+STALE_OVERLAY = Path(".recognizer") / "cache" / "overlays" / "mutate.json"
 
 PRINCIPLE = "Tests must catch changes"
 FIX_PATTERN = "strengthen-tests"
 
-METRIC_NAMES = ("killed", "survived", "uncovered", "score")
-OVERLAY_KEYS = {"overlay_version", "commit", "modified", "producer", "metrics", "values"}
+
+@dataclass
+class Target:
+    identity: str
+    module: str
+    file: str
+    qualified: str
+    start_line: int
+    end_line: int
+    sites: list[Site] = field(default_factory=list)
+    killed: int = 0
+    survived: int = 0
+    uncovered: int = 0
+    survivors: list[Site] = field(default_factory=list)
+    body: str = ""
+    language: str = ""
+    covered: list[bool] = field(default_factory=list)
+    timeouts: list[Site] = field(default_factory=list)
+    verdicts: list[str | None] = field(default_factory=list)
+    reused: bool = False
 
 
 def parse_settings(raw: dict) -> dict:
-    unknown = sorted(set(raw) - set(DEFAULTS))
+    unknown = sorted(set(raw) - ALLOWED)
 
     if unknown:
         raise SettingsError(f"unknown setting: {', '.join(unknown)}")
 
+    command = parse_test_command(raw)
+    coverage = parse_coverage(raw)
     settings = {**DEFAULTS, **raw}
+    factor = settings["timeout_factor"]
 
-    return {key: relative_path(key, settings[key]) for key in DEFAULTS}
+    if isinstance(factor, bool) or not isinstance(factor, int | float):
+        raise SettingsError("timeout_factor must be a number")
+
+    if not factor > 0:
+        raise SettingsError("timeout_factor must be above 0")
+
+    workers = settings.get("max_workers", os.cpu_count() or 1)
+
+    if isinstance(workers, bool) or not isinstance(workers, int):
+        raise SettingsError("max_workers must be an integer")
+
+    if workers < 1:
+        raise SettingsError("max_workers must be at least 1")
+
+    incremental = settings["incremental"]
+
+    if not isinstance(incremental, bool):
+        raise SettingsError("incremental must be true or false")
+
+    budget = settings.get("max_minutes")
+
+    if budget is not None:
+        if isinstance(budget, bool) or not isinstance(budget, int | float):
+            raise SettingsError("max_minutes must be a number")
+
+        if not budget > 0:
+            raise SettingsError("max_minutes must be above 0")
+
+    parsed = {
+        "max_minutes": float(budget) if budget is not None else None,
+        "incremental": incremental,
+        "record": relative_path("record", settings["record"]),
+        "timeout_factor": float(factor),
+        "max_workers": workers,
+        "overlay": relative_path("overlay", settings["overlay"]),
+        "survivors": relative_path("survivors", settings["survivors"]),
+    }
+
+    if command is not None:
+        parsed["test_command"] = command
+
+    if coverage is not None:
+        parsed["coverage"] = coverage
+
+    return parsed
 
 
-def read_json(path: Path) -> object:
+def innermost(sites: list[Site], spans: list[tuple[int, int]]) -> dict[int, list[Site]]:
+    owned: dict[int, list[Site]] = {}
+
+    for site in sites:
+        enclosing = [
+            index
+            for index, (start, end) in enumerate(spans)
+            if start <= site.start_byte and site.end_byte <= end
+        ]
+
+        if enclosing:
+            best = min(enclosing, key=lambda index: spans[index][1] - spans[index][0])
+            owned.setdefault(best, []).append(site)
+
+    return owned
+
+
+def collect_targets(repository: Path, scan: Scan) -> tuple[list[Target], dict[str, bytes]]:
+    pending: list[tuple[str, str, str, int, int, list[Site], str]] = []
+    sources: dict[str, bytes] = {}
+
+    for module in scan.modules:
+        for path in module.files:
+            grammar = grammar_for(path)
+
+            if grammar is None:
+                continue
+
+            try:
+                source = (repository / path).read_bytes()
+            except OSError:
+                continue
+
+            sources[path] = source
+            root = parse(grammar, source).root_node
+            found = [f for f in find_functions(root, grammar) if not f.node.has_error]
+            spans = [(f.node.start_byte, f.node.end_byte) for f in found]
+            owned = innermost(find_sites(root, grammar), spans)
+
+            for index, function in enumerate(found):
+                node = function.node
+                pending.append(
+                    (
+                        module.id,
+                        path,
+                        function.qualified,
+                        node.start_point[0] + 1,
+                        node.end_point[0] + 1,
+                        owned.get(index, []),
+                        body_hash(source[node.start_byte : node.end_byte]),
+                    )
+                )
+
+    identities = assign_identities([(m, q, start) for m, _, q, start, _, _, _ in pending])
+    targets = [
+        Target(
+            identity, module, path, qualified, start, end, sites, body=body, language=scan.language
+        )
+        for identity, (module, path, qualified, start, end, sites, body) in zip(
+            identities, pending, strict=True
+        )
+    ]
+
+    return targets, sources
+
+
+def site_is_covered(site: Site, target: Target, lines: dict[int, int] | None) -> bool:
+    if not lines:
+        return False
+
+    candidates = [n for n in lines if target.start_line <= n <= site.line]
+
+    return bool(candidates) and lines[max(candidates)] > 0
+
+
+def timeout_for(baseline_seconds: float, factor: float) -> float:
+    return max(TIMEOUT_FLOOR, factor * baseline_seconds)
+
+
+def run_baseline(repository: Path, work: Path, command: list[str], label: str | None) -> float:
+    copy = work / f"baseline-{label or 'all'}"
+    subject = f"the {label} test command" if label else "the test command"
+
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        copy_repository(repository, copy)
+        result = run_test_command(command, copy, None)
+    except OSError:
+        raise MeasurementError(f"{subject} did not start: {command[0]}") from None
+
+    if result.passed:
+        return result.seconds
+
+    log = repository / LOG
+    log.parent.mkdir(parents=True, exist_ok=True)
+
+    with log.open("a", encoding="utf-8") as stream:
+        stream.write(f"== baseline {label or 'test command'}\n{output_tail(result.output)}\n")
+
+    if result.exit_code is None:
+        raise MeasurementError(f"{subject} did not start: {command[0]}")
+
+    raise MeasurementError(f"{subject} exited {result.exit_code}")
+
+
+def site_entry(site: Site) -> dict:
+    return {"line": site.line, "operator": site.operator, "replacement": site.replacement}
+
+
+def survivors_document(commit: str, targets: list[Target], skipped: list[str], reused: int) -> dict:
+    functions = {
+        target.identity: {
+            "module": target.module,
+            "name": target.qualified,
+            "file": target.file,
+            "lines": [target.start_line, target.end_line],
+            "survivors": [site_entry(s) for s in target.survivors],
+            "timeouts": [site_entry(s) for s in target.timeouts],
+        }
+        for target in sorted(targets, key=lambda t: t.identity)
+        if target.survivors or target.timeouts
+    }
+
+    return {
+        "survivors_version": 1,
+        "commit": commit,
+        "complete": not skipped,
+        "reused": reused,
+        "skipped": [
+            {"identity": identity, "reason": "uncovered-by-budget"} for identity in sorted(skipped)
+        ],
+        "functions": functions,
+    }
+
+
+def overlay_values(targets: list[Target]) -> dict[str, dict[str, float]]:
+    values: dict[str, dict[str, float]] = {m["name"]: {} for m in METRICS}
+
+    for target in targets:
+        values["killed"][target.identity] = target.killed
+        values["survived"][target.identity] = target.survived
+        values["uncovered"][target.identity] = target.uncovered
+        ran = target.killed + target.survived
+
+        if ran > 0:
+            values["score"][target.identity] = round(target.killed / ran, 4)
+
+    return values
+
+
+def covered_sites(target: Target) -> list[tuple[int, Site]]:
+    return [(index, site) for index, site in enumerate(target.sites) if target.covered[index]]
+
+
+def apply_verdicts(target: Target, verdicts: list[str | None]) -> None:
+    target.verdicts = list(verdicts)
+
+    for site, verdict in zip(target.sites, verdicts, strict=True):
+        if verdict is None:
+            continue
+
+        if verdict == "survived":
+            target.survived += 1
+            target.survivors.append(site)
+        else:
+            target.killed += 1
+
+            if verdict == "timeout":
+                target.timeouts.append(site)
+
+
+def reusable(target: Target, record: dict | None) -> list[str | None] | None:
+    if record is None:
         return None
 
+    verdicts = recorded_verdicts(record, target.identity, target.body)
 
-def valid_overlay(document: object) -> bool:
-    if not isinstance(document, dict) or set(document) != OVERLAY_KEYS:
-        return False
+    if verdicts is None or len(verdicts) != len(target.sites):
+        return None
 
-    values = document["values"]
+    recorded = [verdict is not None for verdict in verdicts]
 
-    return (
-        document["overlay_version"] == 1
-        and isinstance(document["commit"], str)
-        and isinstance(values, dict)
-        and all(isinstance(values.get(name), dict) for name in METRIC_NAMES)
-    )
+    return verdicts if recorded == target.covered else None
 
 
-def counts_agree(overlay: dict, survivors: dict) -> bool:
-    functions = survivors.get("functions")
-
-    if survivors.get("commit") != overlay["commit"] or not isinstance(functions, dict):
-        return False
-
-    survived = overlay["values"]["survived"]
-
-    for identity in set(survived) | set(functions):
-        entry = functions.get(identity)
-        listed = entry.get("survivors") if isinstance(entry, dict) else []
-
-        if not isinstance(listed, list) or survived.get(identity, 0) != len(listed):
-            return False
-
-    return True
+def mutants_for(target: Target, sources: dict[str, bytes]) -> list[Mutant]:
+    return [
+        Mutant(
+            target.file,
+            sources[target.file],
+            site.start_byte,
+            site.end_byte,
+            site.replacement.encode("utf-8"),
+        )
+        for _, site in covered_sites(target)
+    ]
 
 
-def unknown(message: str) -> Outcome:
-    print(f"recognizer-sensors: mutation: {message}; survivors are unknown", file=sys.stderr)
+def queue_order(pending: list[Target], skipped: list[str]) -> list[Target]:
+    earlier = set(skipped)
 
-    return Outcome([])
+    return sorted(pending, key=lambda t: (t.identity not in earlier, t.identity))
+
+
+def commands_for(
+    repository: Path, scans: list[Scan], configured: list[str] | None
+) -> dict[str, list[str]]:
+    return {
+        scan.language: configured
+        if configured is not None
+        else mutant_command(repository, scan.language)
+        for scan in scans
+    }
+
+
+def record_key(configured: list[str] | None, commands: dict[str, list[str]]) -> object:
+    return configured if configured is not None else commands
 
 
 def describe(survivor: dict) -> str:
@@ -81,32 +369,32 @@ def describe(survivor: dict) -> str:
     return f"line {survivor['line']} {survivor['operator']} to {survivor['replacement']}"
 
 
-def finding_for(identity: str, entry: dict, values: dict) -> dict:
-    listed = entry["survivors"]
+def finding_for(target: Target, values: dict) -> dict:
+    listed = target.survivors
     noun = "mutation" if len(listed) == 1 else "mutations"
-    measures = {name: values[name][identity] for name in ("killed", "survived", "uncovered")}
+    measures = {name: values[name][target.identity] for name in ("killed", "survived", "uncovered")}
 
-    if identity in values["score"]:
-        measures["score"] = values["score"][identity]
+    if target.identity in values["score"]:
+        measures["score"] = values["score"][target.identity]
 
     return {
-        "id": f"mutation:{identity}",
+        "id": f"mutation:{target.identity}",
         "kind": "mutation",
         "severity": "warning",
         "principle": PRINCIPLE,
         "fix_pattern": FIX_PATTERN,
         "summary": (
-            f"{entry['name']} in {entry['module']} has {len(listed)} surviving {noun}: "
-            + ", ".join(describe(s) for s in listed)
+            f"{target.qualified} in {target.module} has {len(listed)} surviving {noun}: "
+            + ", ".join(describe(site_entry(s)) for s in listed)
         ),
         "evidence": {
-            "modules": [entry["module"]],
+            "modules": [target.module],
             "members": [
                 {
-                    "module": entry["module"],
-                    "name": entry["name"],
-                    "file": entry["file"],
-                    "lines": entry["lines"],
+                    "module": target.module,
+                    "name": target.qualified,
+                    "file": target.file,
+                    "lines": [target.start_line, target.end_line],
                 }
             ],
             "measures": measures,
@@ -115,36 +403,132 @@ def finding_for(identity: str, entry: dict, values: dict) -> dict:
 
 
 def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Outcome:
-    overlay = read_json(repository / settings["overlay"])
+    started = CLOCK()
+    configured = settings.get("test_command")
+    coverage = collect_coverage(repository, scans, None, settings.get("coverage"))
+    targets: list[Target] = []
+    sources: dict[str, bytes] = {}
 
-    if not valid_overlay(overlay):
-        return unknown(f"overlay {settings['overlay']} is missing or unreadable")
+    for scan in scans:
+        found, scan_sources = collect_targets(repository, scan)
+        sources.update(scan_sources)
 
-    if overlay["commit"] != commit:
-        return unknown(f"overlay is from commit {overlay['commit']}, not {commit}")
+        for target in found:
+            lines = coverage.get(target.file)
+            known = function_coverage(lines, target.start_line, target.end_line)
 
-    survivors = read_json(repository / settings["survivors"])
+            if known is None:
+                continue
 
-    if not isinstance(survivors, dict) or not counts_agree(overlay, survivors):
-        return unknown(
-            f"survivors file {settings['survivors']} is missing, unreadable, "
-            "or does not match the overlay"
-        )
+            targets.append(target)
+            target.covered = [
+                known > 0 and site_is_covered(site, target, lines) for site in target.sites
+            ]
+            target.uncovered = target.covered.count(False)
 
-    if survivors.get("complete") is False:
-        skipped = survivors.get("skipped")
-        count = len(skipped) if isinstance(skipped, list) else 0
-        print(
-            f"recognizer-sensors: mutation: {count} functions were not measured (budget); "
-            "their survivors are unknown",
-            file=sys.stderr,
-        )
+    commands = commands_for(repository, scans, configured)
+    key = record_key(configured, commands)
+    record = read_record(repository / settings["record"], key) if settings["incremental"] else None
+    earlier_skipped = record["skipped"] if record else []
+    reuse = record
 
-    values = overlay["values"]
-    findings = [
-        finding_for(identity, entry, values)
-        for identity, entry in survivors["functions"].items()
-        if values["survived"].get(identity, 0) > 0
+    if record is not None:
+        reason = stale_test_reason(repository, record["commit"])
+
+        if reason is not None:
+            print(f"recognizer-sensors: mutation: {reason}", file=sys.stderr)
+            reuse = None
+
+    pending: list[Target] = []
+
+    for target in targets:
+        verdicts = reusable(target, reuse)
+
+        if verdicts is not None:
+            target.reused = True
+            apply_verdicts(target, verdicts)
+        elif any(target.covered):
+            pending.append(target)
+        else:
+            apply_verdicts(target, [None] * len(target.sites))
+
+    queue = queue_order(pending, earlier_skipped)
+    skipped: list[Target] = []
+
+    if queue:
+        work = new_work_folder(repository)
+        remove_stale_work_folders(work)
+        labelled = len(commands) > 1
+
+        try:
+            timeouts = {
+                language: timeout_for(
+                    run_baseline(
+                        repository, work, commands[language], language if labelled else None
+                    ),
+                    settings["timeout_factor"],
+                )
+                for language in sorted({t.language for t in queue})
+            }
+            budget = settings["max_minutes"]
+            deadline = started + budget * 60 if budget is not None else None
+            results = run_functions(
+                queue,
+                lambda target: run_function(
+                    repository,
+                    work,
+                    mutants_for(target, sources),
+                    commands[target.language],
+                    timeouts[target.language],
+                ),
+                settings["max_workers"],
+                deadline,
+                CLOCK,
+            )
+            remove_stale_work_folders(work)
+        finally:
+            remove_work_folder(work)
+
+        for target, outcome in zip(queue, results, strict=True):
+            if outcome is None:
+                skipped.append(target)
+                continue
+
+            verdicts: list[str | None] = [None] * len(target.sites)
+
+            for (index, _), verdict in zip(covered_sites(target), outcome, strict=True):
+                verdicts[index] = verdict
+
+            apply_verdicts(target, verdicts)
+
+    skipped_ids = [target.identity for target in skipped]
+    skipped_set = set(skipped_ids)
+    measured = [target for target in targets if target.identity not in skipped_set]
+    reused = sum(1 for target in measured if target.reused)
+    mutated = len(measured) - reused
+
+    print(
+        f"recognizer-sensors: mutation: {reused} of {len(targets)} functions reused, "
+        f"{mutated} mutated, {len(skipped_ids)} skipped (uncovered-by-budget)",
+        file=sys.stderr,
+    )
+
+    values = overlay_values(measured)
+    overlay = Overlay(METRICS, values, repository / settings["overlay"])
+    record_document = build_record(
+        key,
+        commit,
+        {t.identity: {"body": t.body, "verdicts": t.verdicts} for t in measured},
+        sorted(skipped_ids),
+    )
+    documents = [
+        (
+            repository / settings["survivors"],
+            survivors_document(commit, measured, skipped_ids, reused),
+        ),
+        (repository / settings["record"], record_document),
     ]
+    findings = [finding_for(t, values) for t in measured if t.survived > 0]
+    (repository / STALE_OVERLAY).unlink(missing_ok=True)
 
-    return Outcome(findings)
+    return Outcome(findings, overlay, documents)

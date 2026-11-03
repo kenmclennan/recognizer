@@ -1,4 +1,4 @@
 overlays:
   mutate:
     test_command: [npm, test]
-    max_workers: 2
+    max_minutes: 5

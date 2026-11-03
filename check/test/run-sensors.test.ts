@@ -76,6 +76,38 @@ describe("runSensors ceiling", () => {
     ).toContain('"quick"');
   });
 
+  it("gives a runsTests selection no timeout and the others the ceiling", () => {
+    const { root, messages } = setup();
+    const timeouts: (number | undefined)[] = [];
+    const real = nodeIo();
+    const io = {
+      ...real,
+      stderr: (text: string) => messages.push(text),
+      run: (
+        command: string,
+        args: string[],
+        options?: { cwd?: string; timeoutMs?: number },
+      ) => {
+        timeouts.push(options?.timeoutMs);
+
+        return real.run(command, args, options);
+      },
+    };
+
+    runSensors({
+      io,
+      root,
+      commit: COMMIT,
+      selected: [
+        { name: "slow-one", command: ["true"], runsTests: true },
+        { name: "quick-one", command: ["true"], runsTests: false },
+        { name: "plain-one", command: ["true"] },
+      ],
+    });
+
+    expect(timeouts).toEqual([undefined, SENSOR_TIMEOUT_MS, SENSOR_TIMEOUT_MS]);
+  });
+
   it("leaves no sensor process behind when the scan's process group is killed", async () => {
     const marker = `47.${process.pid}`;
     const dist = pathToFileURL(resolve(__dirname, "../dist")).href;

@@ -1,6 +1,6 @@
 # recognizer-sensors
 
-Recognizer's shipped sensors. Each reads the repository's cached scans and its working tree and writes one findings file (`schema/findings.schema.json`); `crap` also writes an overlay (`schema/overlay.schema.json`). `mutate` is a measurer, not a sensor: it writes an overlay and a survivors file and no findings, and `mutation` reads them.
+Recognizer's shipped sensors. Each reads the repository's cached scans and its working tree and writes one findings file (`schema/findings.schema.json`); `crap` and `mutation` also write an overlay (`schema/overlay.schema.json`). A sensor is one complete run: `crap` and `mutation` run the repository's tests themselves, so they execute the repository's code in its working tree.
 
 ```sh
 recognizer-sensors NAME [--repository P] [--commit C] [--output F] [--settings JSON]
@@ -16,15 +16,33 @@ A sensor reports nothing for a file its grammars do not parse: a file with an ex
 
 ## crap
 
-Scores each function or method by change risk: `crap = cc^2 * (1 - coverage)^3 + cc`, as crap4j and unclebob/crapper do (references, never dependencies). `cc` is the cyclomatic complexity from the syntax tree: one plus each `if`, `elif`, loop, `case`/`when`/match arm, `catch`/`except`, conditional expression, `&&`/`||` (`and`/`or` in Python) and, in TypeScript, each `??` and `?.`. Coverage is the share of a function's LCOV-instrumented lines (`DA` records only, merged by path) that were hit.
+Scores each function or method by change risk: `crap = cc^2 * (1 - coverage)^3 + cc`, as crap4j and unclebob/crapper do (references, never dependencies). `cc` is the cyclomatic complexity from the syntax tree: one plus each `if`, `elif`, loop, `case`/`when`/match arm, `catch`/`except`, conditional expression, `&&`/`||` (`and`/`or` in Python) and, in TypeScript, each `??` and `?.`. Coverage is the share of a function's instrumented lines (merged by path) that were hit.
+
+It runs the repository's tests under the language's coverage tool in the same run (see Language profiles below), so it runs the repository's code in the working tree. `modified` is taken before the tests start.
 
 | setting | default | meaning |
 | --- | --- | --- |
 | `threshold` | `30` | a number above 0; a function at or above it is a warning |
-| `coverage` | `coverage/lcov.info` | relative path inside the repository to the LCOV file |
+| `test_command` | the language profile | non-empty array of non-empty strings; replaces the profile and runs once |
+| `coverage` | none | relative path to a coverage report the repository already produces; `.xml` is read as JaCoCo, anything else as LCOV |
 | `overlay` | `.recognizer/cache/overlays/crap.json` | relative path inside the repository the overlay is written to |
 
-A missing or unreadable LCOV file makes coverage unknown for every function: one line on stderr, exit `0`. Unknown is never zero: such a function has no `coverage` or `crap` overlay value and warns only when `cc` alone is at or above the threshold (summary `CRAP at least <cc>`). Findings are warnings with the id `crap:<module>::<function>` and the fix pattern `simplify-or-test`. The sensor also writes the overlay with the metrics `complexity`, `coverage` and `crap`, all at member granularity, keyed `module::function` or `module::Class.method`.
+Unknown is never zero: a function whose file has no entry in the report has no `coverage` or `crap` overlay value and warns only when `cc` alone is at or above the threshold (summary `CRAP at least <cc>`). Findings are warnings with the id `crap:<module>::<function>` and the fix pattern `simplify-or-test`. The sensor also writes the overlay with the metrics `complexity`, `coverage` and `crap`, all at member granularity, keyed `module::function` or `module::Class.method`.
+
+### Language profiles
+
+A repository's languages are the ones with a scan in the cache, taken in the order python, typescript, kotlin, rust. Each language runs its profile's command from the repository root, in turn, and the first failure stops the run. Reports are merged by repository-relative path.
+
+| language | command | report |
+| --- | --- | --- |
+| python | `<runner> coverage run -m pytest`, then `<runner> coverage lcov` | `.recognizer/cache/coverage/python.lcov` |
+| typescript | `npx --yes c8 --reporter=lcovonly --reports-dir .recognizer/cache/coverage/typescript npm test` | `.recognizer/cache/coverage/typescript/lcov.info` |
+| kotlin | `./gradlew test jacocoTestReport` | `**/build/reports/jacoco/test/jacocoTestReport.xml` (JaCoCo) |
+| rust | `cargo llvm-cov --lcov --output-path .recognizer/cache/coverage/rust.lcov` | `.recognizer/cache/coverage/rust.lcov` |
+
+The Python `<runner>` is `uv run` when `uv.lock` exists at the repository root, else `poetry run` when `poetry.lock` exists, else `python3 -m`. The sensor installs nothing: Python needs `coverage` and `pytest` in the runner's environment, TypeScript needs a `test` script, Kotlin needs a Gradle wrapper with the `jacoco` plugin applied, and Rust needs `cargo-llvm-cov`. `test_command` replaces the profiles and runs once, and the default report locations are then read unless `coverage` names a file. `coverage` alone runs no command and reads the file.
+
+When a command does not start, exits non-zero or leaves no report, the sensor writes nothing and exits `2` with one stderr line and no prefix: `the test command exited 1`, `the python test command exited 1` (more than one language), `the test command did not start: python3`, `the test command left no coverage report: <path>` or `the coverage file is missing: <path>`. The combined output of every command is in `.recognizer/cache/coverage/last-run.log`. The commands run in the sensor's own process group, so killing the group ends them.
 
 ## duplication
 
@@ -40,17 +58,17 @@ Each finding is a warning on both modules of the pair, with the fix pattern `ext
 
 Cost: scoring is quadratic in the number of functions per language, narrowed by a size filter and an inverted index on fingerprints; a very large repository may take minutes. The sensor runs only when asked (`recognizer scan --sense duplication`), never on open.
 
-## mutate
+## mutation
 
-The mutation measurer: it mutates each covered function and runs the repository's tests against every mutant, as unclebob/mutator and clj-mutate do (references, never dependencies). It is registered under `overlays`, not `sensors`: `overlays: {mutate: {test_command: [npm, test]}}`. Run it after `recognizer scan --sense crap`, whose overlay and the LCOV file say which functions and lines are covered.
+Mutates each covered function and runs the repository's tests against every mutant, as unclebob/mutator and clj-mutate do (references, never dependencies), then warns on each function with a surviving mutant, naming each mutation and its line (`line 2 >= to >`), with the fix pattern `strengthen-tests`. One run does it all: the coverage pass (the profile commands above, or `coverage`), a baseline run per language in a private copy, the mutants, and the writes.
 
 | setting | default | meaning |
 | --- | --- | --- |
-| `test_command` | required | non-empty array run as an argument vector in a private copy of the repository |
+| `test_command` | the language profile's plain test command | non-empty array run as an argument vector in a private copy of the repository; if set it is used for every language, and is never run for coverage |
 | `timeout_factor` | `10` | a mutant's timeout is `max(2, timeout_factor * baseline seconds)`; a timed-out run is killed |
 | `max_workers` | the core count | integer >= 1, mutants run at once |
-| `coverage` | `coverage/lcov.info` | relative path to the LCOV file |
-| `crap_overlay` | `.recognizer/cache/overlays/crap.json` | relative path to the CRAP overlay; it must be from the run's commit and hold `coverage` |
+| `coverage` | none | relative path to a coverage report the repository already produces, used instead of the coverage pass |
+| `overlay` | `.recognizer/cache/overlays/mutation.json` | relative path the overlay is written to |
 | `survivors` | `.recognizer/cache/mutation/survivors.json` | relative path the survivors file is written to |
 | `record` | `.recognizer/cache/mutation/record.json` | relative path the mutation record is written to |
 | `incremental` | `true` | `false` ignores the record and mutates every function; the record is still written |
@@ -58,24 +76,13 @@ The mutation measurer: it mutates each covered function and runs the repository'
 
 The operators, one replacement each: `true`/`false` (`True`/`False` in Python), `==`/`!=`, `<`/`<=`, `>`/`>=`, `+`/`-`, `*`/`/`, `&&`/`||` (`and`/`or` and removing `not` in Python), and in TypeScript `===`/`!==` and `??` to `&&`. Strings, comments, generics, unary minus and Rust dereference yield none, and neither does an uncovered line.
 
-The baseline run must pass, or the run exits `2` and writes nothing. A mutant is killed by a non-zero exit, a failure to start or a timeout, and survives on exit `0`. The overlay holds `killed`, `survived` and `uncovered` counts and `score = killed / (killed + survived)` (absent when nothing ran) per function, keyed `module::function`; a function with unknown CRAP coverage is absent. Copies live under `.recognizer/cache/mutation/work/` and are removed as each mutant finishes; a measurer killed with `SIGKILL` leaves its copies behind. The run takes the suite's duration times the covered-site count over `max_workers` on a first or full run.
+A failing coverage pass or baseline writes nothing and exits `2` with the one-line sentences listed under `crap` (the baseline's output tail goes to `last-run.log`). A mutant is killed by a non-zero exit, a failure to start or a timeout, and survives on exit `0`. The sensor writes the survivors file and the record, then the overlay, then the findings. The overlay holds `killed`, `survived` and `uncovered` counts and `score = killed / (killed + survived)` (absent when nothing ran) per function, keyed `module::function`; a function with unknown coverage is absent. It removes a stale `.recognizer/cache/overlays/mutate.json` when it writes its overlay. Copies live under `.recognizer/cache/mutation/work/` and are removed as each mutant finishes; a run killed with `SIGKILL` leaves its copies behind. The run takes the suite's duration times the covered-site count over `max_workers` on a first or full run.
 
 A timed-out mutant is a kill: it counts in `killed` and the score, is listed under `timeouts` in the survivors file and never under `survivors`.
 
-**Mutation record.** Beside the survivors file the run writes the record: per function, the sha256 of its body and one verdict per mutation site (`killed`, `survived`, `timeout`, or `null` for an uncovered site), plus the sha256 of `test_command`, the commit and the identities the last run skipped. A rerun reuses a function's verdicts when its body hash matches and the set of covered sites is the same; a function that only moved keeps its verdicts and reports its new lines. A missing, unreadable or other-version record, or a changed `test_command` (any argument, its order or its length), means a full run. Before reusing, the run asks git which paths differ between the record's commit and the working tree (tracked, staged, committed, untracked or deleted); if any is a test file by the `unused-exports` convention, or git cannot compare with that commit, every verdict is dropped and one stderr line says so. Known limit: a change to a callee or other production code, with the function's body and `test_command` unchanged, leaves a stale verdict the rule cannot see, as does a test file the convention does not recognise; set `incremental: false` for a full re-verdict.
+**Mutation record.** Beside the survivors file the run writes the record: per function, the sha256 of its body and one verdict per mutation site (`killed`, `survived`, `timeout`, or `null` for an uncovered site), plus the sha256 of the resolved test commands (the array itself when `test_command` is set, otherwise a mapping from language to command), the commit and the identities the last run skipped. A rerun reuses a function's verdicts when its body hash matches and the set of covered sites is the same; a function that only moved keeps its verdicts and reports its new lines. A missing, unreadable or other-version record, or a changed test command, means a full run. Before reusing, the run asks git which paths differ between the record's commit and the working tree (tracked, staged, committed, untracked or deleted); if any is a test file by the `unused-exports` convention, or git cannot compare with that commit, every verdict is dropped and one stderr line says so. Known limit: a change to a callee or other production code, with the function's body and test command unchanged, leaves a stale verdict the rule cannot see, as does a test file the convention does not recognise; set `incremental: false` for a full re-verdict.
 
-**Budget.** With `max_minutes` set, work is queued by function: the functions the last run skipped first, then the rest, each in identity order. A function is wholly reused, wholly mutated or skipped; one already running when the budget ends finishes, so a run can overshoot by up to one function per worker. A skipped function is absent from the overlay (unknown, never healthy), listed in the survivors file's `skipped` with reason `uncovered-by-budget`, and `complete` is `false`. The survivors file also carries `reused`, the number of reused functions. Every run prints `recognizer-sensors: mutate: <r> of <n> functions reused, <m> mutated, <k> skipped (uncovered-by-budget)` on stderr and exits `0`.
-
-## mutation
-
-Reads the `mutate` overlay and the survivors file and warns on each function with a surviving mutant, naming each mutation and its line (`line 2 >= to >`), with the fix pattern `strengthen-tests`.
-
-| setting | default | meaning |
-| --- | --- | --- |
-| `overlay` | `.recognizer/cache/overlays/mutate.json` | relative path to the `mutate` overlay |
-| `survivors` | `.recognizer/cache/mutation/survivors.json` | relative path to the survivors file |
-
-When the overlay or survivors file is missing, from another commit than the run's, or disagrees with the overlay's `survived` counts, the sensor reports nothing, prints one line on stderr and exits `0`: survivors are unknown, not healthy. When the survivors file has `complete: false` it prints `recognizer-sensors: mutation: <k> functions were not measured (budget); their survivors are unknown` and still reports the survivors it has.
+**Budget.** With `max_minutes` set, work is queued by function: the functions the last run skipped first, then the rest, each in identity order. A function is wholly reused, wholly mutated or skipped; one already running when the budget ends finishes, so a run can overshoot by up to one function per worker. A skipped function is absent from the overlay (unknown, never healthy), listed in the survivors file's `skipped` with reason `uncovered-by-budget`, and `complete` is `false`. The survivors file also carries `reused`, the number of reused functions. Every run prints `recognizer-sensors: mutation: <r> of <n> functions reused, <m> mutated, <k> skipped (uncovered-by-budget)` on stderr and exits `0`.
 
 ## unused-exports
 

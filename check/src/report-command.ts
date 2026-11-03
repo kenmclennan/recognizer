@@ -7,6 +7,7 @@ import { InputError } from "./errors.js";
 import { validateFindings } from "./findings-document.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
 import { isDirty, resolveCommit } from "./scan-command.js";
+import { shippedSensorNames } from "./shipped-sensors.js";
 
 const OPTIONS = {
   as: { type: "string" },
@@ -32,6 +33,7 @@ function requireName(io: Io, root: string, name: string | undefined): string {
   const taken = [
     "structure",
     ...registeredSensors(readConfig(io, root)).map((sensor) => sensor.name),
+    ...shippedSensorNames(),
   ];
 
   if (taken.includes(name)) {

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<report name="shop">
+  <package name="com/shop/orders">
+    <sourcefile name="Order.kt">
+      <line nr="3" mi="0" ci="2"/>
+      <line nr="4" mi="1" ci="0"/>
+      <line nr="5" mi="0" ci="0"/>
+      <line nr="6" mi="2" ci="1"/>
+    </sourcefile>
+    <sourcefile name="Item.kt">
+      <line nr="1" mi="1" ci="0"/>
+    </sourcefile>
+  </package>
+  <package name="com/shop/billing">
+    <sourcefile name="Item.kt">
+      <line nr="1" mi="0" ci="4"/>
+    </sourcefile>
+  </package>
+</report>

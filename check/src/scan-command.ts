@@ -44,6 +44,7 @@ import {
   SCANNERS,
   scannerFor,
 } from "./scanners.js";
+import { runsTests, shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
 
@@ -322,7 +323,11 @@ export function runScan(argv: string[], io: Io): number {
   const selected =
     options.sense === null
       ? []
-      : selectSensors(registeredSensors(config), options.sense);
+      : selectSensors(
+          registeredSensors(config),
+          options.sense,
+          shippedSensorNames(),
+        );
   const commit = resolveCommit(io, root);
 
   if ((options.sense !== null || options.measure !== null) && commit === null) {
@@ -540,7 +545,10 @@ export function runScan(argv: string[], io: Io): number {
     runSensors({
       io,
       root,
-      selected,
+      selected: selected.map((one) => ({
+        ...one,
+        runsTests: runsTests(one.command),
+      })),
       commit,
       onEntry: (entry) => {
         finishEntry(phase, entry);

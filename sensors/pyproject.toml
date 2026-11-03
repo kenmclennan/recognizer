@@ -20,7 +20,7 @@ dependencies = [
 recognizer-sensors = "recognizer_sensors.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "jsonschema"]
+dev = ["pytest", "ruff", "jsonschema", "coverage>=7.3"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/recognizer_sensors"]

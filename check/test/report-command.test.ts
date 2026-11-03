@@ -151,6 +151,13 @@ describe("recognizer report", () => {
     }
   });
 
+  it("refuses the name of a shipped sensor that is not registered", () => {
+    const result = reporting(["--as", "crap"], { stdin: document() });
+
+    expect(result.code).toBe(2);
+    expect(result.fake.writes).toEqual([]);
+  });
+
   it("needs --as", () => {
     const { code, fake } = reporting([], { stdin: document() });
 

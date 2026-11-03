@@ -11,7 +11,7 @@ from recognizer_sensors.findings import (
     render,
     write_atomically,
 )
-from recognizer_sensors.registry import MEASURERS, SHIPPED
+from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError, SettingsError
 
@@ -75,39 +75,9 @@ def is_dirty(root: Path) -> bool:
     return result.returncode != 0 or bool(result.stdout.strip())
 
 
-def measure(args, measurer, scans, settings: dict, commit: str) -> int:
-    modified = is_dirty(args.repository)
-
-    try:
-        measurement = measurer.run(args.repository, scans, settings, commit, modified)
-    except MeasurementError as error:
-        return fail(str(error))
-
-    package_version = version("recognizer-sensors")
-    overlay = build_overlay(args.name, package_version, commit, modified, measurement.overlay)
-    survivors_path = args.repository / settings["survivors"]
-    survivors_path.parent.mkdir(parents=True, exist_ok=True)
-    write_atomically(render(measurement.survivors), survivors_path)
-
-    if measurement.record is not None:
-        record_path = args.repository / settings["record"]
-        record_path.parent.mkdir(parents=True, exist_ok=True)
-        write_atomically(render(measurement.record), record_path)
-
-    text = render(overlay)
-
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        write_atomically(text, args.output)
-    else:
-        sys.stdout.write(text)
-
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    sensor = SHIPPED.get(args.name) or MEASURERS.get(args.name)
+    sensor = SHIPPED.get(args.name)
 
     if sensor is None:
         return fail(f"unknown sensor: {args.name}")
@@ -134,18 +104,30 @@ def main(argv: list[str] | None = None) -> int:
 
     scans = read_scans(args.repository)
 
-    if args.name in MEASURERS:
-        return measure(args, sensor, scans, settings, commit)
-
-    outcome = (
-        sensor.run(args.repository, scans, settings, commit)
-        if sensor.needs_commit
-        else sensor.run(args.repository, scans, settings)
+    modified = (
+        is_dirty(args.repository) if sensor.runs_tests else any(scan.modified for scan in scans)
     )
-    modified = any(scan.modified for scan in scans)
+
+    try:
+        outcome = (
+            sensor.run(args.repository, scans, settings, commit)
+            if sensor.needs_commit
+            else sensor.run(args.repository, scans, settings)
+        )
+    except MeasurementError as error:
+        print(str(error), file=sys.stderr)
+
+        return 2
+
+    package_version = version("recognizer-sensors")
+
+    for path, document in outcome.documents:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomically(render(document), path)
+
     document = build_document(
         args.name,
-        version("recognizer-sensors"),
+        package_version,
         commit,
         modified,
         settings,
@@ -154,9 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     text = render(document)
 
     if outcome.overlay is not None:
-        overlay = build_overlay(
-            args.name, version("recognizer-sensors"), commit, modified, outcome.overlay
-        )
+        overlay = build_overlay(args.name, package_version, commit, modified, outcome.overlay)
         outcome.overlay.path.parent.mkdir(parents=True, exist_ok=True)
         write_atomically(render(overlay), outcome.overlay.path)
 

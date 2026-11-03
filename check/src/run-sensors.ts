@@ -9,7 +9,7 @@ export const SENSOR_TIMEOUT_MS = 60_000;
 export interface RunSensorsInput {
   io: Io;
   root: string;
-  selected: { name: string; command: string[] }[];
+  selected: { name: string; command: string[]; runsTests?: boolean }[];
   commit: string;
   onEntry?: (entry: RunEntry) => void;
   timeoutMs?: number;
@@ -19,7 +19,7 @@ export function runSensors(input: RunSensorsInput): RunEntry[] {
   const { io, root, commit } = input;
   const entries: RunEntry[] = [];
 
-  for (const { name, command } of input.selected) {
+  for (const { name, command, runsTests } of input.selected) {
     const output = findingsFile(root, name);
     const began = io.now();
     const run = runRegistered(
@@ -32,7 +32,7 @@ export function runSensors(input: RunSensorsInput): RunEntry[] {
       (document) => {
         validateFindings(document, { name, commit });
       },
-      input.timeoutMs ?? SENSOR_TIMEOUT_MS,
+      runsTests === true ? undefined : (input.timeoutMs ?? SENSOR_TIMEOUT_MS),
     );
     const { reason } = run;
     const entry = entryFrom(name, {

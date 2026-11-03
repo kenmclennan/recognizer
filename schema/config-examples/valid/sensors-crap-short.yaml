@@ -1,4 +1,5 @@
 sensors:
   crap:
     threshold: 20
+    test_command: [npm, test]
     coverage: build/lcov.info

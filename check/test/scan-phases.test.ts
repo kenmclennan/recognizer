@@ -232,21 +232,56 @@ describe("parseScanArgs", () => {
 });
 
 describe("selectSensors", () => {
-  const registered = [{ name: "a" }, { name: "b" }];
+  const registered = [
+    { name: "a", command: ["run-a"] },
+    { name: "b", command: ["run-b"] },
+  ];
 
   it("selects in config order", () => {
     expect(selectSensors(registered, ["b", "a"])).toEqual(registered);
     expect(selectSensors(registered, "all")).toEqual(registered);
   });
 
-  it("names the unknown sensor and the registered ones, selecting none", () => {
-    expect(() => selectSensors(registered, ["a", "nope", "b"])).toThrow(
-      /no such sensor: nope[\s\S]*registered sensors: a, b/,
+  it("names the unknown sensor, the registered ones and the shipped ones, selecting none", () => {
+    expect(() =>
+      selectSensors(registered, ["a", "nope", "b"], ["crap"]),
+    ).toThrow(
+      /no such sensor: nope[\s\S]*registered sensors: a, b[\s\S]*shipped sensors: crap/,
     );
   });
 
-  it("refuses when no sensor is registered", () => {
-    expect(() => selectSensors([], "all")).toThrow(/no sensors are registered/);
+  it("accepts a shipped name that is not registered and runs it with no settings", () => {
+    const selected = selectSensors(registered, ["crap", "a"], ["crap"]);
+
+    expect(selected.map(({ name }) => name)).toEqual(["a", "crap"]);
+    expect(selected[1]?.command[0]).toBe("recognizer-sensors");
+    expect(selected[1]?.command[1]).toBe("crap");
+    expect(selected[1]?.command.at(-1)).toBe("{}");
+  });
+
+  it("does not list a shipped name as unknown when another name is", () => {
+    let message = "";
+
+    try {
+      selectSensors(registered, ["crap", "nope"], ["crap"]);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain("no such sensor: nope");
+    expect(message).not.toContain("no such sensor: crap");
+  });
+
+  it("makes all mean the registered sensors only", () => {
+    expect(selectSensors(registered, "all", ["crap", "mutation"])).toEqual(
+      registered,
+    );
+  });
+
+  it("refuses all when no sensor is registered", () => {
+    expect(() => selectSensors([], "all", ["crap"])).toThrow(
+      "no sensors are registered: name one, or add it to .recognizer/config.yaml",
+    );
   });
 });
 

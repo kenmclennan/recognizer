@@ -1,11 +1,7 @@
 import { parse } from "yaml";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
-import {
-  expandMeasurerShortForms,
-  expandShortForms,
-  SHIPPED_SENSORS,
-} from "./shipped-sensors.js";
+import { expandShortForms, SHIPPED_SENSORS } from "./shipped-sensors.js";
 
 export interface MetricDeclaration {
   name: string;
@@ -127,15 +123,22 @@ function expandConfig(document: unknown): unknown {
     ),
     SHIPPED_SENSORS,
   );
-  const overlays = expandMeasurerShortForms(
-    record.overlays as Record<string, unknown> | undefined,
-  );
 
   return {
     ...record,
     ...(sensors === undefined ? {} : { sensors }),
-    ...(overlays === undefined ? {} : { overlays }),
   };
+}
+
+function rejectRetiredMutate(document: unknown): void {
+  const overlays = isPlainObject(document) ? document.overlays : undefined;
+  const mutate = isPlainObject(overlays) ? overlays.mutate : undefined;
+
+  if (isPlainObject(mutate) && !("command" in mutate)) {
+    throw new InputError([
+      "config/overlays/mutate is retired: move test_command and max_minutes to sensors.mutation",
+    ]);
+  }
 }
 
 export function parseConfig(text: string): Config {
@@ -148,6 +151,8 @@ export function parseConfig(text: string): Config {
       `config is not valid YAML: ${(error as Error).message}`,
     ]);
   }
+
+  rejectRetiredMutate(document);
 
   if (validate(document)) {
     const config = expandConfig(document) as Config;

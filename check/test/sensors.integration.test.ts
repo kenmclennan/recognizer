@@ -226,7 +226,7 @@ describe.skipIf(!HAS_UV)(
     }
 
     it("finds the two planted risks and writes the overlay for crap", () => {
-      useCrapFixture("{}");
+      useCrapFixture("{coverage: coverage/lcov.info}");
 
       expect(run(["scan", repository, "--sense", "crap"], capture().io)).toBe(
         0,
@@ -257,18 +257,21 @@ describe.skipIf(!HAS_UV)(
       expect(overlay.values.coverage?.["src/other.ts::pick"]).toBeUndefined();
     }, 180_000);
 
-    it("leaves coverage unknown when the coverage file is missing", () => {
+    it("fails with one sentence and writes nothing when the coverage file is missing", () => {
       useCrapFixture("{coverage: missing/lcov.info}");
 
-      expect(run(["scan", repository, "--sense", "crap"], capture().io)).toBe(
-        0,
+      const captured = capture();
+
+      expect(run(["scan", repository, "--sense", "crap"], captured.io)).toBe(1);
+      expect(captured.err()).toContain(
+        "the coverage file is missing: missing/lcov.info",
       );
-
-      const overlay = crapOverlay();
-
-      expect(Object.keys(overlay.values.complexity ?? {})).toHaveLength(7);
-      expect(overlay.values.coverage).toEqual({});
-      expect(overlay.values.crap).toEqual({});
+      expect(
+        existsSync(join(repository, ".recognizer/cache/overlays/crap.json")),
+      ).toBe(false);
+      expect(
+        existsSync(join(repository, ".recognizer/cache/findings/crap.json")),
+      ).toBe(false);
     }, 180_000);
 
     describe("thresholds on the committed fixture", () => {

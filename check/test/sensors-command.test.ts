@@ -16,6 +16,37 @@ describe("recognizer sensors", () => {
     expect(JSON.parse(out())).toEqual(list);
   });
 
+  it("gives every entry the registry keys with crap and mutation running tests", () => {
+    const { io, out } = capture();
+
+    run(["sensors", "--json"], io);
+
+    const entries = JSON.parse(out());
+
+    for (const entry of entries) {
+      expect(Object.keys(entry).sort()).toEqual([
+        "defaults",
+        "display",
+        "line",
+        "listed",
+        "metrics",
+        "name",
+        "runs_tests",
+      ]);
+    }
+
+    expect(
+      entries
+        .filter((e: { runs_tests: boolean }) => e.runs_tests)
+        .map((e: { name: string }) => e.name),
+    ).toEqual(["crap", "mutation"]);
+    expect(
+      entries
+        .filter((e: { listed: boolean }) => !e.listed)
+        .map((e: { name: string }) => e.name),
+    ).toEqual(["unused-exports", "thresholds"]);
+  });
+
   it("prints a duplication line in text", () => {
     const { io, out } = capture();
 

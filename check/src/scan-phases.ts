@@ -1,5 +1,6 @@
 import { InputError } from "./errors.js";
 import type { PhaseName } from "./run-log.js";
+import { shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
   "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--measure <all|name[,name...]>] [--sense <all|name[,name...]>] [--by <name>] [--json]";
@@ -111,31 +112,41 @@ export function parseScanArgs(argv: string[]): ScanOptions {
   return options;
 }
 
-export function selectSensors<T extends { name: string }>(
-  registered: T[],
+export function selectSensors(
+  registered: { name: string; command: string[] }[],
   requested: "all" | string[],
-): T[] {
-  if (registered.length === 0) {
-    throw new InputError([
-      "no sensors are registered: add one to .recognizer/config.yaml",
-    ]);
-  }
-
+  shipped: readonly string[] = [],
+): { name: string; command: string[] }[] {
   if (requested === "all") {
+    if (registered.length === 0) {
+      throw new InputError([
+        "no sensors are registered: name one, or add it to .recognizer/config.yaml",
+      ]);
+    }
+
     return registered;
   }
 
   const names = registered.map((one) => one.name);
-  const unknown = requested.filter((name) => !names.includes(name));
+  const unknown = requested.filter(
+    (name) => !names.includes(name) && !shipped.includes(name),
+  );
 
   if (unknown.length > 0) {
     throw new InputError([
       ...unknown.map((name) => `no such sensor: ${name}`),
       `registered sensors: ${names.join(", ")}`,
+      `shipped sensors: ${shipped.join(", ")}`,
     ]);
   }
 
-  return registered.filter((one) => requested.includes(one.name));
+  return [
+    ...registered.filter((one) => requested.includes(one.name)),
+    ...requested
+      .filter((name, index) => requested.indexOf(name) === index)
+      .filter((name) => !names.includes(name))
+      .map((name) => ({ name, command: shippedCommand(name, {}) })),
+  ];
 }
 
 export function selectMeasurers<T extends { name: string }>(
