@@ -2135,33 +2135,74 @@ svg.i.chevron {
 
 .scan-header {
   font-size: 14px;
-}
-
-.scan-head {
-  color: var(--muted);
-}
-
-.scan-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line);
-}
-
-.scan-block-title {
-  display: flex;
-  gap: 6px;
-  align-items: center;
   font-weight: 600;
 }
 
-.scan-block-line.muted {
+.scan-sub {
+  margin-bottom: 8px;
   color: var(--muted);
+  line-height: 1.4;
 }
 
-.sensor-row,
-.measure-row {
+.scan-sub .warn {
+  color: var(--warn);
+}
+
+.scan-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.scan-row-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.scan-tick {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--sel);
+}
+
+.scan-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.scan-state.ok {
+  color: var(--ok);
+}
+
+.scan-state.warn {
+  color: var(--warn);
+}
+
+.scan-state.run {
+  color: var(--sel);
+}
+
+.scan-spin {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  animation: spinner-turn 1s linear infinite;
+}
+
+.sensor-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -2180,55 +2221,9 @@ svg.i.chevron {
   color: var(--muted);
 }
 
-.sensor-chip.ok {
-  color: #1e8449;
-  border-color: #1e8449;
-}
-
-.sensor-chip.red {
-  color: #c0392b;
-  border-color: #c0392b;
-}
-
 .sensor-chip.amber {
   color: #b9770e;
   border-color: #b9770e;
-}
-
-.scan-block .sensor-chip {
-  align-self: flex-start;
-}
-
-.scan-block .sensor-row .sensor-chip,
-.scan-block .measure-row .sensor-chip {
-  align-self: auto;
-}
-
-.measure-subline {
-  flex-basis: 100%;
-}
-
-.sensor-reason {
-  flex-basis: 100%;
-  color: #c0392b;
-}
-
-.sensor-add-title {
-  margin-top: 8px;
-}
-
-.sensor-add {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding: 4px 0;
-}
-
-.sensor-add-line {
-  flex-basis: 100%;
-  order: 3;
-  color: var(--muted);
 }
 
 .sensor-commit {
@@ -2236,32 +2231,21 @@ svg.i.chevron {
   font-family: ui-monospace, monospace;
 }
 
-.sensor-add-button,
-.sensor-remove,
 .sensor-clear {
   padding: 1px 8px;
 }
 
-.sensor-add-unavailable {
-  margin-top: 8px;
-  color: var(--muted);
-}
-
 .scan-buttons {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-}
-
-.scan-summary {
-  min-width: 0;
-  color: var(--muted);
-  font-size: 11px;
+  margin-top: 10px;
 }
 
 .scan-panel .scan-buttons button {
-  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 16px;
   white-space: nowrap;
 }
 
@@ -2269,6 +2253,10 @@ svg.i.chevron {
   border-color: var(--sel);
   background: var(--selbg);
   color: var(--sel);
+}
+
+.scan-panel .scan-buttons button:disabled {
+  opacity: 0.6;
 }
 
 .rail .ib::after {

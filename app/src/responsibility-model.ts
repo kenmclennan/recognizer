@@ -21,6 +21,7 @@ export type ResponsibilityFiles = {
   config: string | null;
   refused: string[];
   hashes: Record<string, string>;
+  responsibilitiesModifiedMs?: number | null;
 };
 
 export type DescribeResult = {
@@ -49,8 +50,11 @@ function messageOf(error: unknown): string {
     : (error as Error).message;
 }
 
+export type EffectiveDescriber = { command: string[]; version: string };
+
 export function responsibilityStates(
   files: ResponsibilityFiles,
+  fallback: EffectiveDescriber | null = null,
 ): (id: string) => ResponsibilityState {
   let responsibilities: Responsibilities | null = null;
   let config: Config | null = null;
@@ -85,7 +89,7 @@ export function responsibilityStates(
       return { kind: "missing" };
     }
 
-    const describer = config?.describer;
+    const describer = config?.describer ?? fallback ?? undefined;
 
     if (describer === undefined) {
       return {

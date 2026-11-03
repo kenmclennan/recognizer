@@ -17,12 +17,7 @@ import { repositorySource } from "./repository-source";
 import { createRescanner, type ProgressUpdate } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
-import {
-  describerOf,
-  registeredNames,
-  registeredOverlayNames,
-  registeredOverlays,
-} from "./scan-panel-model";
+import { rowSensors } from "./scan-panel-model";
 import { showTarget } from "./scan-progress";
 import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
@@ -64,9 +59,7 @@ function canShow(update: ProgressUpdate): boolean {
 
   return (
     target !== null &&
-    (target.kind === "sensor" ||
-      target.kind === "overlay" ||
-      current?.modules.includes(target.id) === true)
+    (target.kind === "sensor" || current?.modules.includes(target.id) === true)
   );
 }
 
@@ -117,7 +110,6 @@ const scanHost: ScanHost = {
   ticks: () => rescanner.ticks(),
   setTicks: (next) => rescanner.setTicks(next),
   runState: () => rescanner.runState(),
-  measureRunState: () => rescanner.measureRunState(),
   running: () => rescanner.running(),
   run: () => void rescanner.run(),
   stop: () => void rescanner.stop(),
@@ -178,15 +170,11 @@ const rescanner = createRescanner<Carried>({
   port: scanSource,
   registered: async () => {
     const { config } = await sensorsSource.readInputs();
+    const shipped = await sensorsSource
+      .shipped()
+      .catch(() => ({ status: "unavailable" as const, reason: "" }));
 
-    return {
-      names: registeredNames(config),
-      overlays: registeredOverlayNames(config),
-      testing: registeredOverlays(config)
-        .filter(({ runsTests }) => runsTests)
-        .map(({ name }) => name),
-      describer: describerOf(config) !== null,
-    };
+    return rowSensors(config, shipped);
   },
   load: loadScans,
   sense: sensed,

@@ -3,10 +3,12 @@ import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import {
+  type Describer,
   describeModules,
   describeSummaryText,
   readResponsibilities,
 } from "./describe-modules.js";
+import { describerInEffect } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
@@ -35,6 +37,7 @@ import {
   phaseLine,
   selectMeasurers,
   selectSensors,
+  startLine,
   summaryLine,
 } from "./scan-phases.js";
 import {
@@ -299,15 +302,12 @@ export function runScan(argv: string[], io: Io): number {
     options.measure !== null ||
     options.sense !== null;
   const config = wantsConfig ? readConfig(io, root) : null;
-  const describer = config?.describer;
+  let describer: Describer | undefined;
 
   if (options.describe !== false) {
-    if (describer === undefined) {
-      throw new InputError([
-        "no describer is registered: add one to .recognizer/config.yaml",
-      ]);
-    }
+    const { source: _source, ...found } = describerInEffect(io, root);
 
+    describer = found;
     readResponsibilities(io, root);
   }
 
@@ -550,6 +550,11 @@ export function runScan(argv: string[], io: Io): number {
         runsTests: runsTests(one.command),
       })),
       commit,
+      onStart: (name) => {
+        if (json) {
+          io.stdout(startLine("sense", name));
+        }
+      },
       onEntry: (entry) => {
         finishEntry(phase, entry);
 

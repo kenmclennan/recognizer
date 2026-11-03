@@ -26,6 +26,7 @@ fn main() {
         "run_scan",
         "scans_at",
         "shipped_sensors",
+        "shipped_describer",
         "stop_scan",
         "take_pending_view",
         "view_author",

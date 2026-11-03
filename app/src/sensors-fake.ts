@@ -1,3 +1,4 @@
+import { parseConfig, SHIPPED_DESCRIBER_COMMAND } from "recognizer";
 import type {
   FindingsFiles,
   OverlayFiles,
@@ -44,6 +45,8 @@ export type FakeSensors = SensorsPort & {
   failWrite: boolean;
   failEdit: boolean;
   list: ShippedSensors;
+  modified: Map<string, number>;
+  shippedVersion: string | null;
   edits: { name: string; add: boolean }[];
   editInputs(inputs: Partial<SensorInputs>): void;
 };
@@ -72,7 +75,38 @@ export function fakeSensors(
     failWrite: false,
     failEdit: false,
     list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
+    modified: new Map(),
+    shippedVersion: "prompt-0123456789ab",
     edits: [],
+    async describer() {
+      let configured: { command: string[]; version: string } | undefined;
+
+      try {
+        configured =
+          fake.inputs.config === null
+            ? undefined
+            : parseConfig(fake.inputs.config).describer;
+      } catch {
+        configured = undefined;
+      }
+
+      if (configured !== undefined) {
+        return { status: "ok", ...configured, source: "config" };
+      }
+
+      return fake.shippedVersion === null
+        ? {
+            status: "unavailable",
+            reason:
+              "no describer is registered and recognizer-describe-claude is not installed",
+          }
+        : {
+            status: "ok",
+            command: [...SHIPPED_DESCRIBER_COMMAND],
+            version: fake.shippedVersion,
+            source: "shipped",
+          };
+    },
     async shipped() {
       return fake.list;
     },
@@ -118,7 +152,11 @@ export function fakeSensors(
     },
     async readFindings(): Promise<FindingsFiles> {
       return {
-        files: [...fake.files].map(([name, text]) => ({ name, text })),
+        files: [...fake.files].map(([name, text]) => ({
+          name,
+          text,
+          modifiedMs: fake.modified.get(name) ?? null,
+        })),
         refused: fake.refused,
       };
     },

@@ -94,8 +94,6 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
       return (
         remembered ?? {
           ...fake.defaults,
-          measure: false,
-          overlays: null,
           ticked: null,
           remembered: false,
         }
@@ -103,7 +101,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     },
     async writeTicks(ticks) {
       fake.written.push(ticks);
-      remembered = { ...ticks, remembered: true };
+      remembered = { ...ticks, sensors: true, remembered: true };
     },
     onLine(handler) {
       handlers.add(handler);

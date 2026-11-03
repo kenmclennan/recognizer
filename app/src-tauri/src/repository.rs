@@ -60,8 +60,38 @@ pub enum ToolsReport {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShippedSensor {
     pub name: String,
+    #[serde(default)]
+    pub display: String,
     pub line: String,
     pub defaults: serde_json::Map<String, serde_json::Value>,
+    #[serde(default, rename = "runsTests", alias = "runs_tests")]
+    pub runs_tests: bool,
+    #[serde(default = "listed_by_default")]
+    pub listed: bool,
+}
+
+fn listed_by_default() -> bool {
+    true
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum ShippedDescriber {
+    Ok {
+        command: Vec<String>,
+        version: String,
+        source: String,
+    },
+    Unavailable {
+        reason: String,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+struct DescriberJson {
+    command: Vec<String>,
+    version: String,
+    source: String,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -169,6 +199,68 @@ pub fn sensors_invocation(shell: &str, command: &str) -> (String, Vec<String>) {
             command.to_string(),
         ],
     )
+}
+
+const DESCRIBER_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" describe --describer --json --repository "$1""#;
+
+pub fn describer_invocation(shell: &str, command: &str, folder: &Path) -> (String, Vec<String>) {
+    (
+        shell.to_string(),
+        vec![
+            "-ilc".to_string(),
+            DESCRIBER_SCRIPT.to_string(),
+            command.to_string(),
+            folder.display().to_string(),
+        ],
+    )
+}
+
+pub fn shipped_describer_for(exit: Option<i32>, stdout: &str, stderr: &str) -> ShippedDescriber {
+    let unavailable = |reason: String| ShippedDescriber::Unavailable { reason };
+    let stdout = clean_output(stdout);
+
+    match exit {
+        Some(127) => unavailable(missing_hint()),
+        Some(0) => match serde_json::from_str::<DescriberJson>(stdout.trim()) {
+            Ok(found) => ShippedDescriber::Ok {
+                command: found.command,
+                version: found.version,
+                source: found.source,
+            },
+            Err(_) => unavailable(
+                "recognizer describe --describer printed something that is not the describer"
+                    .to_string(),
+            ),
+        },
+        other => unavailable(format!(
+            "recognizer describe --describer exited {}: {}",
+            other.map_or("without a status".to_string(), |code| code.to_string()),
+            stderr.trim()
+        )),
+    }
+}
+
+pub fn shipped_describer(shell: &str, folder: &Path) -> ShippedDescriber {
+    shipped_describer_with(shell, RECOGNIZER_COMMAND, folder)
+}
+
+pub fn shipped_describer_with(shell: &str, command: &str, folder: &Path) -> ShippedDescriber {
+    let (program, args) = describer_invocation(shell, command, folder);
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .output();
+
+    match output {
+        Err(_) => ShippedDescriber::Unavailable {
+            reason: missing_hint(),
+        },
+        Ok(output) => shipped_describer_for(
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+        ),
+    }
 }
 
 pub const RECOGNIZER_COMMAND: &str = "recognizer";
@@ -828,6 +920,54 @@ mod tests {
             "0.1.77\n"
         );
         assert_eq!(clean_output("0.3.1\n"), "0.3.1\n");
+    }
+
+    #[test]
+    fn the_shipped_list_keeps_display_runs_tests_and_listed() {
+        let list = r#"[{"name":"crap","display":"C.R.A.P.","line":"l","defaults":{},"runs_tests":true,"listed":true,"metrics":[]},{"name":"thresholds","display":"T","line":"l","defaults":{},"runs_tests":false,"listed":false,"metrics":[]}]"#;
+
+        match shipped_sensors_for(Some(0), list, "") {
+            ShippedSensors::Ok { sensors } => {
+                assert_eq!(sensors[0].display, "C.R.A.P.");
+                assert!(sensors[0].runs_tests);
+                assert!(sensors[0].listed);
+                assert!(!sensors[1].listed);
+                assert_eq!(
+                    serde_json::to_value(&sensors[0]).unwrap()["runsTests"],
+                    serde_json::json!(true)
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_shipped_describer_is_read_from_the_json_and_a_failure_is_unavailable() {
+        let json = r#"{"command":["recognizer-describe-claude","{request}"],"version":"p1","source":"shipped"}"#;
+
+        assert_eq!(
+            shipped_describer_for(Some(0), json, ""),
+            ShippedDescriber::Ok {
+                command: vec![
+                    "recognizer-describe-claude".to_string(),
+                    "{request}".to_string()
+                ],
+                version: "p1".to_string(),
+                source: "shipped".to_string()
+            }
+        );
+        assert!(matches!(
+            shipped_describer_for(Some(2), "", "no describer"),
+            ShippedDescriber::Unavailable { reason } if reason.contains("exited 2: no describer")
+        ));
+        assert!(matches!(
+            shipped_describer_for(Some(0), "nope", ""),
+            ShippedDescriber::Unavailable { .. }
+        ));
+        assert!(matches!(
+            shipped_describer_with("/bin/sh", "/nonexistent/recognizer", Path::new("/tmp")),
+            ShippedDescriber::Unavailable { .. }
+        ));
     }
 
     #[test]

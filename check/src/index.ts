@@ -137,7 +137,8 @@ export {
   type ScanMethod,
   validateScan,
 } from "./scan.js";
-export { shippedSensorNames } from "./shipped-sensors.js";
+export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
+export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";
 export {
   DEFAULT_DISTANCE_THRESHOLD,
   measuredModules,

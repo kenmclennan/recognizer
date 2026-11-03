@@ -11,20 +11,18 @@ use crate::settings::Settings;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoredTicks {
     pub describe: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub measure: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub overlays: Vec<String>,
-    pub sensors: bool,
+    #[serde(default, skip_serializing)]
+    pub sensors: Option<bool>,
     pub ticked: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct ScanTicks {
     pub describe: bool,
-    pub measure: bool,
-    pub overlays: Option<Vec<String>>,
-    pub sensors: bool,
     pub ticked: Option<Vec<String>>,
     pub remembered: bool,
 }
@@ -44,18 +42,20 @@ pub fn read(path: &Path, folder: &Path, defaults: &Settings) -> ScanTicks {
     match read_all(path).remove(&folder.display().to_string()) {
         Some(stored) => ScanTicks {
             describe: stored.describe,
-            measure: stored.measure,
-            overlays: Some(stored.overlays),
-            sensors: stored.sensors,
-            ticked: Some(stored.ticked),
+            ticked: Some(if stored.sensors == Some(false) {
+                Vec::new()
+            } else {
+                stored.ticked
+            }),
             remembered: true,
         },
         None => ScanTicks {
             describe: defaults.scanning.describe,
-            measure: false,
-            overlays: None,
-            sensors: defaults.scanning.sensors,
-            ticked: None,
+            ticked: if defaults.scanning.sensors {
+                None
+            } else {
+                Some(Vec::new())
+            },
             remembered: false,
         },
     }
@@ -63,7 +63,6 @@ pub fn read(path: &Path, folder: &Path, defaults: &Settings) -> ScanTicks {
 
 pub fn write(path: &Path, folder: &Path, ticks: StoredTicks) -> Result<(), String> {
     check_names(&ticks.ticked)?;
-    check_names(&ticks.overlays)?;
 
     let mut all = read_all(path);
 
@@ -82,19 +81,23 @@ mod tests {
     use crate::settings::Scanning;
     use tempfile::TempDir;
 
-    fn defaults(describe: bool, sensors: bool) -> Settings {
+    fn defaults(describe: bool) -> Settings {
+        defaults_with(describe, false)
+    }
+
+    fn defaults_with(describe: bool, sensors: bool) -> Settings {
         Settings {
             scanning: Scanning { describe, sensors },
             ..Settings::default()
         }
     }
 
-    fn stored(describe: bool, sensors: bool, ticked: &[&str]) -> StoredTicks {
+    fn stored(describe: bool, ticked: &[&str]) -> StoredTicks {
         StoredTicks {
             describe,
             measure: false,
             overlays: vec![],
-            sensors,
+            sensors: None,
             ticked: ticked.iter().map(|name| name.to_string()).collect(),
         }
     }
@@ -108,20 +111,28 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_with_no_entry_takes_the_settings_defaults_and_measure_off() {
+    fn a_folder_with_no_entry_takes_the_describe_default_and_ticks_no_sensor() {
         let dir = TempDir::new().unwrap();
         let file = ticks_file_in(dir.path());
 
         assert_eq!(
-            read(&file, Path::new("/repo"), &defaults(true, false)),
+            read(&file, Path::new("/repo"), &defaults(true)),
             ScanTicks {
                 describe: true,
-                measure: false,
-                overlays: None,
-                sensors: false,
-                ticked: None,
+                ticked: Some(vec![]),
                 remembered: false
             }
+        );
+    }
+
+    #[test]
+    fn a_folder_with_no_entry_ticks_every_plain_sensor_when_the_default_is_on() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+
+        assert_eq!(
+            read(&file, Path::new("/repo"), &defaults_with(false, true)).ticked,
+            None
         );
     }
 
@@ -130,64 +141,74 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let file = ticks_file_in(dir.path());
 
-        write(&file, Path::new("/repo"), stored(true, true, &["a"])).unwrap();
+        write(&file, Path::new("/repo"), stored(true, &["a"])).unwrap();
 
         assert_eq!(
-            read(&file, Path::new("/repo"), &defaults(false, false)),
+            read(&file, Path::new("/repo"), &defaults(false)),
             ScanTicks {
                 describe: true,
-                measure: false,
-                overlays: Some(vec![]),
-                sensors: true,
                 ticked: Some(vec!["a".to_string()]),
                 remembered: true
             }
         );
-        assert!(!read(&file, Path::new("/other"), &defaults(false, false)).remembered);
+        assert!(!read(&file, Path::new("/other"), &defaults(false)).remembered);
     }
 
     #[test]
-    fn measure_and_overlays_round_trip() {
-        let dir = TempDir::new().unwrap();
-        let file = ticks_file_in(dir.path());
-        let mut ticks = stored(false, false, &[]);
-
-        ticks.measure = true;
-        ticks.overlays = vec!["mutate".to_string(), "coverage".to_string()];
-
-        write(&file, Path::new("/repo"), ticks).unwrap();
-
-        let read_back = read(&file, Path::new("/repo"), &defaults(false, false));
-
-        assert!(read_back.measure);
-        assert_eq!(
-            read_back.overlays,
-            Some(vec!["mutate".to_string(), "coverage".to_string()])
-        );
-    }
-
-    #[test]
-    fn a_file_written_before_measure_existed_reads_measure_off_with_no_overlays() {
+    fn an_old_entry_with_sensors_off_reads_no_sensors_ticked() {
         let dir = TempDir::new().unwrap();
         let file = ticks_file_in(dir.path());
 
         fs::write(
             &file,
-            r#"{"/repo":{"describe":true,"sensors":true,"ticked":["a"]}}"#,
+            r#"{"/repo":{"describe":true,"measure":true,"overlays":["m"],"sensors":false,"ticked":["a"]}}"#,
         )
         .unwrap();
 
         assert_eq!(
-            read(&file, Path::new("/repo"), &defaults(false, false)),
+            read(&file, Path::new("/repo"), &defaults(false)),
             ScanTicks {
                 describe: true,
-                measure: false,
-                overlays: Some(vec![]),
-                sensors: true,
-                ticked: Some(vec!["a".to_string()]),
+                ticked: Some(vec![]),
                 remembered: true
             }
         );
+    }
+
+    #[test]
+    fn an_old_entry_with_sensors_on_keeps_its_ticked_names() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+
+        fs::write(
+            &file,
+            r#"{"/repo":{"describe":false,"sensors":true,"ticked":["a"]}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            read(&file, Path::new("/repo"), &defaults(false)).ticked,
+            Some(vec!["a".to_string()])
+        );
+    }
+
+    #[test]
+    fn write_never_stores_the_retired_fields() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+        let mut ticks = stored(false, &["a"]);
+
+        ticks.measure = true;
+        ticks.overlays = vec!["mutate".to_string()];
+        ticks.sensors = Some(true);
+
+        write(&file, Path::new("/repo"), ticks).unwrap();
+
+        let text = fs::read_to_string(&file).unwrap();
+
+        assert!(!text.contains("measure"));
+        assert!(!text.contains("overlays"));
+        assert!(!text.contains("sensors"));
     }
 
     #[test]
@@ -195,11 +216,11 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let file = ticks_file_in(dir.path());
 
-        write(&file, Path::new("/a"), stored(true, false, &[])).unwrap();
-        write(&file, Path::new("/b"), stored(false, true, &[])).unwrap();
+        write(&file, Path::new("/a"), stored(true, &[])).unwrap();
+        write(&file, Path::new("/b"), stored(false, &[])).unwrap();
 
-        assert!(read(&file, Path::new("/a"), &defaults(false, false)).remembered);
-        assert!(read(&file, Path::new("/b"), &defaults(false, false)).remembered);
+        assert!(read(&file, Path::new("/a"), &defaults(false)).remembered);
+        assert!(read(&file, Path::new("/b"), &defaults(false)).remembered);
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
@@ -210,11 +231,11 @@ mod tests {
 
         fs::write(&file, "not json").unwrap();
 
-        assert!(!read(&file, Path::new("/repo"), &defaults(false, false)).remembered);
+        assert!(!read(&file, Path::new("/repo"), &defaults(false)).remembered);
 
-        write(&file, Path::new("/repo"), stored(false, false, &[])).unwrap();
+        write(&file, Path::new("/repo"), stored(false, &[])).unwrap();
 
-        assert!(read(&file, Path::new("/repo"), &defaults(false, false)).remembered);
+        assert!(read(&file, Path::new("/repo"), &defaults(false)).remembered);
     }
 
     #[test]
@@ -222,19 +243,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let file = ticks_file_in(dir.path());
 
-        assert!(write(&file, Path::new("/repo"), stored(false, false, &["$(x)"])).is_err());
-        assert!(!file.exists());
-    }
-
-    #[test]
-    fn an_overlay_name_that_is_not_a_name_is_refused_and_leaves_no_file() {
-        let dir = TempDir::new().unwrap();
-        let file = ticks_file_in(dir.path());
-        let mut ticks = stored(false, false, &[]);
-
-        ticks.overlays = vec!["$(x)".to_string()];
-
-        assert!(write(&file, Path::new("/repo"), ticks).is_err());
+        assert!(write(&file, Path::new("/repo"), stored(false, &["$(x)"])).is_err());
         assert!(!file.exists());
     }
 }

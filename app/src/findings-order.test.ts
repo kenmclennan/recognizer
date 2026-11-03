@@ -6,10 +6,10 @@ import {
   badge,
   findingRows,
   orderFindings,
+  type StaleRow,
   staleNote,
   walkFindings,
 } from "./findings-order";
-import type { SensorRow } from "./scan-panel-model";
 
 function record(
   id: string,
@@ -54,19 +54,9 @@ const rows = findingRows(docs);
 function sensorRow(
   name: string,
   chip: string,
-  kind: SensorRow["kind"] = "registered",
-): SensorRow {
-  return {
-    name,
-    kind,
-    tickable: kind === "registered",
-    ticked: false,
-    chip,
-    tone: "muted",
-    extra: null,
-    reason: null,
-    removable: false,
-  };
+  kind: StaleRow["kind"] = "registered",
+): StaleRow {
+  return { name, kind, chip };
 }
 
 describe("findingRows", () => {

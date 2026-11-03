@@ -62,24 +62,17 @@ describe("fakeScan", () => {
     expect(await fake.readTicks()).toEqual({
       describe: true,
       sensors: false,
-      measure: false,
-      overlays: null,
       ticked: null,
       remembered: false,
     });
 
     await fake.writeTicks({
       describe: false,
-      measure: false,
-      overlays: ["cov"],
-      sensors: true,
       ticked: ["alpha"],
     });
 
     expect(await fake.readTicks()).toEqual({
       describe: false,
-      measure: false,
-      overlays: ["cov"],
       sensors: true,
       ticked: ["alpha"],
       remembered: true,

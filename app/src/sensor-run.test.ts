@@ -113,7 +113,12 @@ describe("senseRepository", () => {
     const port = fakeSensors({ lint: JSON.stringify(stale) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
-    expect(statusOf(run, "lint")).toEqual({ name: "lint", status: "stale" });
+    expect(statusOf(run, "lint")).toEqual({
+      name: "lint",
+      status: "stale",
+      findings: 1,
+      modifiedMs: null,
+    });
     expect(run.documents.map((document) => document.sensor.name)).toContain(
       "lint",
     );
@@ -166,7 +171,12 @@ describe("senseRepository", () => {
     const port = fakeSensors({ lint: JSON.stringify(document) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
-    expect(statusOf(run, "lint")).toEqual({ name: "lint", status: "ran" });
+    expect(statusOf(run, "lint")).toEqual({
+      name: "lint",
+      status: "ran",
+      findings: 1,
+      modifiedMs: null,
+    });
     expect(run.documents.map((one) => one.sensor.name)).toEqual([
       "structure",
       "lint",
@@ -252,6 +262,8 @@ describe("senseRepository and reports", () => {
     expect(statusOf(run, "review")).toEqual({
       name: "review",
       status: "ran",
+      findings: 1,
+      modifiedMs: null,
       reported: { at: "2026-11-02T10:00:00.000Z", commit: CURRENT },
     });
     expect(statusOf(run, "older")).toMatchObject({

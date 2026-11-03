@@ -1,7 +1,6 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
-import { readConfig } from "./config.js";
 import {
   type Describer,
   describeModules,
@@ -9,6 +8,7 @@ import {
   readResponsibilities,
   subjectFor,
 } from "./describe-modules.js";
+import { describerInEffect } from "./describer-in-effect.js";
 import { InputError } from "./errors.js";
 import { freshScans } from "./freshness.js";
 import { moduleNames } from "./neighbours.js";
@@ -27,12 +27,13 @@ const OPTIONS = {
   repository: { type: "string" },
   json: { type: "boolean" },
   by: { type: "string" },
+  describer: { type: "boolean" },
 } as const;
 
 export const DESCRIBE_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
 
 const USAGE =
-  "recognizer describe [<module>... | --all | --check [<module>...]] [--repository <dir>] [--json]";
+  "recognizer describe [<module>... | --all | --check [<module>...]] [--repository <dir>] [--json]\n       recognizer describe --describer [--repository <dir>] [--json]";
 
 interface Loaded {
   root: string;
@@ -68,13 +69,7 @@ function load(argv: string[], io: Io): Loaded {
 
   const root = resolve(values.repository ?? ".");
   const { scans } = freshScans(io, root);
-  const describer = readConfig(io, root)?.describer;
-
-  if (describer === undefined) {
-    throw new InputError([
-      "no describer is registered: add one to .recognizer/config.yaml",
-    ]);
-  }
+  const { source: _source, ...describer } = describerInEffect(io, root);
 
   const entries = readResponsibilities(io, root).modules;
   const modules = moduleNames(scans);
@@ -220,7 +215,45 @@ function runDescribe(loaded: Loaded, io: Io): number {
   return result.failed.length > 0 ? 1 : 0;
 }
 
+function runDescriber(argv: string[], io: Io): number {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: OPTIONS,
+  });
+
+  if (
+    positionals.length > 0 ||
+    values.all === true ||
+    values.check === true ||
+    values.by !== undefined
+  ) {
+    throw new InputError([
+      `--describer takes no other option; usage: ${USAGE}`,
+    ]);
+  }
+
+  const found = describerInEffect(io, resolve(values.repository ?? "."));
+
+  if (values.json === true) {
+    io.stdout(
+      `${JSON.stringify({ command: found.command, version: found.version, source: found.source })}\n`,
+    );
+  } else {
+    io.stdout(
+      `${found.command.join(" ")}  ${found.version}  ${found.source}\n`,
+    );
+  }
+
+  return 0;
+}
+
 export function runDescribeCommand(argv: string[], io: Io): number {
+  if (argv.includes("--describer")) {
+    return runDescriber(argv, io);
+  }
+
   const loaded = load(argv, io);
 
   return loaded.check ? runCheck(loaded, io) : runDescribe(loaded, io);

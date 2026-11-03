@@ -741,6 +741,19 @@ async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
 }
 
 #[tauri::command]
+async fn shipped_describer(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<repository::ShippedDescriber, String> {
+    let folder = window_folder_path(&app, &window)?;
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+
+    tauri::async_runtime::spawn_blocking(move || repository::shipped_describer(&shell, &folder))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn edit_sensor(
     app: AppHandle,
     window: WebviewWindow,
@@ -837,9 +850,6 @@ fn write_scan_ticks(
     app: AppHandle,
     window: WebviewWindow,
     describe: bool,
-    measure: bool,
-    overlays: Vec<String>,
-    sensors: bool,
     ticked: Vec<String>,
 ) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
@@ -849,9 +859,9 @@ fn write_scan_ticks(
         &folder,
         scan_ticks::StoredTicks {
             describe,
-            measure,
-            overlays,
-            sensors,
+            measure: false,
+            overlays: Vec::new(),
+            sensors: None,
             ticked,
         },
     )
@@ -1392,6 +1402,7 @@ pub fn run() {
             record_recent_view,
             remove_findings,
             shipped_sensors,
+            shipped_describer,
             edit_sensor,
             remove_view,
             rename_view,

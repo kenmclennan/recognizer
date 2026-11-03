@@ -11,6 +11,7 @@ export interface RunSensorsInput {
   root: string;
   selected: { name: string; command: string[]; runsTests?: boolean }[];
   commit: string;
+  onStart?: (name: string) => void;
   onEntry?: (entry: RunEntry) => void;
   timeoutMs?: number;
 }
@@ -20,6 +21,8 @@ export function runSensors(input: RunSensorsInput): RunEntry[] {
   const entries: RunEntry[] = [];
 
   for (const { name, command, runsTests } of input.selected) {
+    input.onStart?.(name);
+
     const output = findingsFile(root, name);
     const began = io.now();
     const run = runRegistered(

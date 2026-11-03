@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shipped-describer"
+description = "Enables the shipped_describer command without any pre-configured scope."
+commands.allow = ["shipped_describer"]
+
+[[permission]]
+identifier = "deny-shipped-describer"
+description = "Denies the shipped_describer command without any pre-configured scope."
+commands.deny = ["shipped_describer"]

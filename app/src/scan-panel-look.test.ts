@@ -13,7 +13,7 @@ import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
-import { describerOf, registeredNames, registeredOverlayNames, registeredOverlays } from ${JSON.stringify(here("scan-panel-model.ts"))};
+import { rowSensors } from ${JSON.stringify(here("scan-panel-model.ts"))};
 import { showTarget } from ${JSON.stringify(here("scan-progress.ts"))};
 ${FAKE_WORKER}
 
@@ -25,13 +25,18 @@ const scan = {
   foreign: [],
 };
 const base = { modules: ids, scans: [{ file: "scan.python.json", scan }], policy: null, baseline: null, notices: [], blocking: null, findings: [], sensors: [], folderMetrics: [] };
-const CONFIG = "describer:\\n  command: [recognizer-describe-claude]\\n  version: v3\\noverlays:\\n  cov:\\n    command: [node, '{repository}/cov.mjs', '{commit}', '{output}']\\n    metrics:\\n      - { name: line_coverage, type: ratio, granularity: module, bad: low }\\n  mut:\\n    command: [recognizer-sensors, mutate]\\n    runs_tests: true\\n    metrics:\\n      - { name: score, type: ratio, granularity: member, bad: low }\\nsensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
+const SHIPPED = [
+  { name: "mutation", display: "Mutation", line: "Mutates and tests.", defaults: {}, runsTests: true, listed: true },
+  { name: "crap", display: "C.R.A.P.", line: "Runs the tests with coverage.", defaults: {}, runsTests: true, listed: true },
+  { name: "duplication", display: "Duplication", line: "Finds repeated structure.", defaults: {}, runsTests: false, listed: true },
+  { name: "thresholds", display: "Thresholds", line: "Limits.", defaults: {}, runsTests: false, listed: false },
+];
+const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
 const FILES = { responsibilities: null, config: CONFIG, refused: [], hashes: {} };
 const ORIGIN = { branch: "main", commit: "cur1234" };
 const json = (value) => JSON.stringify(value);
 const current = json({ event: "phase", phase: "extract", state: "current", commit: "cur1234" });
 const describing = (total) => json({ event: "phase", phase: "describe", total });
-const measuring = (total) => json({ event: "phase", phase: "measure", total });
 const sensing = (total) => json({ event: "phase", phase: "sense", total });
 const entry = (phase, name, reason) => json({ event: "entry", phase, name, outcome: reason === undefined ? "ok" : "failed", ...(reason === undefined ? {} : { reason }) });
 const summary = json({ event: "summary" });
@@ -40,7 +45,7 @@ const gate = () => { let release = () => {}; const promise = new Promise((resolv
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
+async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED), scanned = true) {
   for (const old of document.querySelectorAll(".mount-root")) old.remove();
   const root = document.createElement("div");
   root.className = "mount-root";
@@ -52,8 +57,8 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   document.body.append(root);
   const editor = fakeEditor();
   const responsibilities = fakeResponsibilities(FILES);
-  const wired = { posted: [], explorer: null, current: null, scanState: null, shown: { footer: null, target: null, log: null }, rescanner: null };
-  const canShow = (update) => update.target !== null && (update.target.kind === "sensor" || update.target.kind === "overlay" || wired.current.modules.includes(update.target.id));
+  const wired = { tray: [], posted: [], explorer: null, current: null, scanState: null, shown: { footer: null, target: null, log: null }, rescanner: null };
+  const canShow = (update) => update.target !== null && (update.target.kind === "sensor" || wired.current.modules.includes(update.target.id));
   const withProgress = (state) => ({ ...state, progress: wired.shown.footer, canShow: canShow(wired.shown), log: wired.shown.log });
   const footer = buildFooter(footerEl, {
     rescan: () => void wired.rescanner.run(),
@@ -67,7 +72,6 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
     ticks: () => wired.rescanner.ticks(),
     setTicks: (next) => wired.rescanner.setTicks(next),
     runState: () => wired.rescanner.runState(),
-    measureRunState: () => wired.rescanner.measureRunState(),
     running: () => wired.rescanner.running(),
     run: () => void wired.rescanner.run(),
     stop: () => void wired.rescanner.stop(),
@@ -80,7 +84,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({
     port: fake,
-    registered: async () => { const { config } = await sensors.readInputs(); return { names: registeredNames(config), overlays: registeredOverlayNames(config), testing: registeredOverlays(config).filter((o) => o.runsTests).map((o) => o.name), describer: describerOf(config) !== null }; },
+    registered: async () => { const { config } = await sensors.readInputs(); return rowSensors(config, await sensors.shipped()); },
     load: () => base,
     sense: (loaded) => withSensors(loaded, sensors),
     resense: async () => withSensors(wired.current, sensors),
@@ -92,74 +96,69 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
     progress: (update) => { wired.shown = update; if (wired.scanState !== null) setScan(withProgress(wired.scanState)); wired.explorer?.refreshPanel(); },
     settled: () => {},
     blocked: (text) => { footer.post({ kind: "error", text: "Rescan failed: " + text }); },
-    post: (input) => footer.post(input),
+    post: (input) => { wired.tray.push(input); return footer.post(input); },
     show: () => {},
   });
   await wired.rescanner.loadTicks();
   wired.current = base;
-  setScan(withProgress({ origin: ORIGIN, scannedAt: Date.now(), changes: NO_CHANGES }));
+  if (scanned) setScan(withProgress({ origin: ORIGIN, scannedAt: Date.now(), changes: NO_CHANGES }));
   wired.explorer = build(await withSensors(base, sensors), null);
   await tick();
 
   const q = (selector) => root.querySelector(selector);
   const all = (selector) => [...root.querySelectorAll(selector)];
   const visible = (selector) => { const n = q(selector); return n !== null && getComputedStyle(n).display !== "none"; };
-  const rows = () => all(".sensor-row").map((r) => ({ name: r.querySelector(".sensor-name").textContent, chip: r.querySelector(".sensor-chip").textContent, ticks: r.querySelectorAll(".sensor-tick").length }));
+  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state").textContent, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.title, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
   const text = (selector) => q(selector)?.textContent ?? "<missing " + selector + ">";
   const footerText = () => q(".scan-line").textContent;
-  const setTick = async (selector, checked) => { const box = q(selector); box.checked = checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
+  const setTick = async (key, checked) => { const box = q('.scan-row[data-sensor="' + key + '"] .scan-tick'); box.checked = checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
+  const panel = () => ({ header: q(".scan-sub").textContent, amber: q(".scan-sub .warn")?.textContent ?? null, amberColor: q(".scan-sub .warn") ? getComputedStyle(q(".scan-sub .warn")).color : null, rows: rows(), buttons: all(".scan-buttons button").map((b) => ({ text: b.textContent, disabled: b.disabled, spinner: b.querySelectorAll("svg").length })), strays: all(".scan-block, .scan-block-title, .sensor-add, .sensor-remove, .scan-summary, .scan-stop-button, .scan-panel h2, .scan-panel h3, .scan-extract, .scan-describe, .measure-row").length, subLines: all(".scan-row *").filter((n) => n.matches("div")).length });
 
-  return { host, q, all, visible, rows, text, footerText, setTick, fake, editor, wired, sensors };
+  return { host, q, all, visible, rows, text, footerText, setTick, panel, fake, editor, wired, sensors };
 }
 
 (async () => {
   const facts = {};
 
   const fake = fakeScan();
-  const a = await mount(fake);
+  const a = await mount(fake, undefined, false);
   click(a.q(".rail-scan"));
   await tick();
-
-  facts.idle = {
-    order: a.all(".rail button").map((b) => b.className.split(" ")[1]),
-    panel: a.visible(".scan-panel"),
-    files: a.visible(".tree-header"),
-    ran: fake.ran.length,
-    titleAttr: a.q(".rail-scan").title,
-    label: getComputedStyle(a.q(".rail-scan"), "::after").content,
-    head: a.text(".scan-head"),
-    extract: a.text(".scan-extract"),
-    extractTicks: a.all(".scan-extract input").length,
-    describe: a.text(".scan-describe"),
-    rows: a.rows(),
-    button: a.text(".scan-run"),
-    buttonTitle: (a.q(".scan-run")?.title ?? ""),
-    summary: a.text(".scan-summary"),
-  };
-
-  await a.setTick('.scan-describe .scan-tick', true);
-  await a.setTick('.scan-sensors .scan-tick', true);
-  facts.ticked = { button: a.text(".scan-run"), summary: a.text(".scan-summary"), buttonTitle: (a.q(".scan-run")?.title ?? ""), written: fake.written };
+  facts.fresh = { ...a.panel(), order: a.all(".rail button").map((b) => b.className.split(" ")[1]), railLabel: getComputedStyle(a.q(".rail-scan"), "::after").content, files: a.visible(".tree-header"), panelOpen: a.visible(".scan-panel"), ran: fake.ran.length, buttonTitle: a.q(".scan-run").title };
 
   const b = await mount(fake);
   click(b.q(".rail-scan"));
   await tick();
-  facts.reopened = { describeTick: b.q(".scan-describe .scan-tick").checked, sensorsTick: b.q(".scan-sensors .scan-tick").checked };
+  facts.scanned = b.panel();
+  await b.setTick("describe", true);
+  await b.setTick("duplication", true);
+  await b.setTick("crap", true);
+  facts.ticked = { rows: b.rows().filter((r) => r.ticked).map((r) => r.key), written: fake.written.at(-1) };
+
+  const c = await mount(fake);
+  click(c.q(".rail-scan"));
+  await tick();
+  facts.reopened = c.rows().filter((r) => r.ticked).map((r) => r.key);
 
   const g1 = gate(); const g2 = gate(); const g3 = gate();
-  fake.steps = [current, describing(2), entry("describe", "app/a.py"), g1.promise, entry("describe", "app/b.py"), sensing(2), g2.promise, entry("sense", "alpha"), g3.promise, entry("sense", "beta"), summary];
-  const footers = [];
-  fake.onStep = () => { const text = b.footerText(); const base = text.replace(/Stop|Rescan/g, ""); if (footers.at(-1) !== base) footers.push(base); };
-  click(b.q(".scan-run"));
+  const startLine = (name) => json({ event: "start", phase: "sense", name });
+  fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("duplication"), g2.promise, entry("sense", "duplication"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
+  const during = [];
+  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) during.push(c.panel()); if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, findings: [] })); };
+  await c.setTick("describe", true);
+  await c.setTick("crap", true);
+  click(c.q(".scan-run"));
   await tick();
-  facts.run = { plans: fake.ran, footers, during: { button: b.q(".scan-stop-button")?.textContent ?? "", rescanDisabled: b.q(".rescan-button")?.disabled ?? null }, stopButtons: b.all(".scan-line .scan-stop").length };
+  facts.run = { plans: fake.ran, first: during[0] ?? null, stopInPanel: c.all(".scan-panel .scan-stop, .scan-panel .scan-stop-button").length, footerStop: c.all(".scan-line .scan-stop").length };
   facts.run.second = await fake.run({ describe: false, sense: [] });
   g1.release(); await tick();
-  facts.run.rowDuring = b.rows().slice(1).map((r) => r.chip);
+  facts.run.afterDescribe = c.panel();
   g2.release(); await tick();
+  facts.run.afterDuplication = c.panel();
   g3.release(); await tick(); await tick();
-  facts.run.after = { footer: b.footerText(), button: b.text(".scan-run") };
-  facts.run.footers = footers.map((text) => text.replace(/^Scan done.*/, "")).filter((text) => text !== "");
+  facts.run.after = c.panel();
+  facts.run.written = fake.written.map((w) => w.ticked);
+  facts.run.crapTickAfter = c.rows().find((r) => r.key === "crap").ticked;
 
   const stopGate = gate();
   const sfake = fakeScan({ steps: [current, describing(2), stopGate.promise] });
@@ -168,20 +167,28 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   await tick();
   click(s.q(".scan-run"));
   await tick();
-  click(s.q(".scan-stop-button"));
+  click(s.q(".scan-stop"));
   await tick(); await tick();
-  facts.stop = { footer: s.footerText(), button: s.q(".scan-run")?.textContent ?? "" };
+  facts.stop = { footer: s.footerText(), button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
 
-  const sensorFake = fakeScan({
+  const changed = await mount(fakeScan());
+  changed.wired.scanState = { ...changed.wired.scanState, scannedAt: Date.now() - 2 * 3600000, changes: { files: ["app/a.py"], moved: null } };
+  click(changed.q(".rail-scan"));
+  await tick();
+  changed.wired.explorer.refreshPanel();
+  facts.changed = changed.panel();
+
+  const failFake = fakeScan({
     defaults: { describe: false, sensors: true },
-    steps: [current, sensing(2), entry("sense", "alpha", "broke"), entry("sense", "beta", "broke"), summary],
+    steps: [current, sensing(1), entry("sense", "duplication", "broke"), summary],
     result: { status: "finished", exitCode: 1, stderr: "", log: ".recognizer/cache/log/x-scan.json" },
   });
-  const t = await mount(sensorFake);
+  const t = await mount(failFake);
   click(t.q(".rail-scan"));
   await tick();
   click(t.q(".scan-run"));
   await tick(); await tick();
+  facts.failed = { ...t.panel(), posted: t.wired.tray.filter((p) => p.kind === "error" && p.text.includes("failed")).map((p) => p.text) };
   click(t.q(".rail-files"));
   await tick();
   const failedFooter = t.footerText();
@@ -195,7 +202,6 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
     footer: failedFooter,
     hiddenBefore,
     panelOpen: t.visible(".scan-panel"),
-    reason: t.q('[data-sensor="alpha"] .sensor-reason')?.textContent ?? "",
     dot: dot !== null && !dot.hidden && getComputedStyle(dot).display !== "none",
     opened: t.editor.files,
   };
@@ -222,40 +228,11 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   };
   facts.missing = { text: m.q(".responsibility")?.textContent ?? "", describe: m.all(".responsibility .describe").length };
 
-  const SHIPPED = [{ name: "duplication", line: "Finds repeated structure.", defaults: { threshold: 0.82 } }];
-  const addSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
-  const ad = await mount(fakeScan(), addSensors);
-  click(ad.q(".rail-scan"));
-  await tick();
-  const listed = () => ad.all(".sensor-add").map((r) => r.querySelector(".sensor-name").textContent + " | " + r.querySelector(".sensor-add-line").textContent);
-  const removes = () => ad.all(".sensor-row .sensor-remove").map((b) => b.getAttribute("aria-label"));
-  const names = () => ad.rows().map((r) => r.name);
-  facts.addRow = { listed: listed(), removes: removes(), title: ad.text(".sensor-add-title") };
-  click(ad.q(".sensor-add-button"));
-  await tick(); await tick();
-  facts.added = { edits: [...addSensors.edits], config: addSensors.inputs.config, names: names(), listed: listed(), removes: removes() };
-  click(ad.q('.sensor-row[data-sensor="duplication"] .sensor-remove'));
-  await tick(); await tick();
-  facts.removed = { edits: [...addSensors.edits], names: names(), listed: listed(), removes: removes() };
-  addSensors.failEdit = true;
-  click(ad.q(".sensor-add-button"));
-  await tick(); await tick();
-  facts.addFailed = { message: ad.wired.posted.at(-1)?.text ?? null, names: names() };
-
-  const busyGate = gate();
-  const busySensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
-  const busy = await mount(fakeScan({ steps: [current, busyGate.promise] }), busySensors);
-  click(busy.q(".rail-scan"));
-  await tick();
-  click(busy.q(".scan-run"));
-  await tick();
-  facts.addBusy = { add: busy.q(".sensor-add-button")?.disabled ?? null };
-
   const downSensors = fakeSensors({}, { config: CONFIG }, {}, { status: "unavailable", reason: "recognizer is not installed" });
   const down = await mount(fakeScan(), downSensors);
   click(down.q(".rail-scan"));
   await tick();
-  facts.addDown = { text: down.text(".sensor-add-unavailable"), buttons: down.all(".sensor-add-button").length };
+  facts.down = down.rows().map((r) => ({ name: r.name, disabled: r.disabled }));
 
   const REPORT = json({ findings_version: 1, sensor: { name: "review", version: "reported" }, commit: "feed123abc", modified: false, settings: {}, reported_at: new Date(Date.now() - 3 * 60000).toISOString(), findings: [] });
   const reportSensors = fakeSensors({ review: REPORT }, { config: CONFIG }, {}, SHIPPED);
@@ -264,59 +241,39 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG })) {
   await tick();
   const reportRow = () => rp.q('.sensor-row.reported[data-sensor="review"]');
   facts.report = {
-    names: rp.all(".sensor-row").map((r) => r.querySelector(".sensor-name").textContent),
+    names: rp.rows().map((r) => r.name),
+    listCount: rp.all(".scan-row").length,
     ticks: reportRow()?.querySelectorAll("input").length ?? null,
     chip: reportRow()?.querySelector(".sensor-chip").textContent ?? "",
     commit: reportRow()?.querySelector(".sensor-commit").textContent ?? "",
     clear: reportRow()?.querySelector(".sensor-clear")?.textContent ?? "",
-    beforeAdd: reportRow() !== null && reportRow().compareDocumentPosition(rp.q(".sensor-add-title")) === Node.DOCUMENT_POSITION_FOLLOWING,
+    afterList: reportRow() !== null && rp.all(".scan-row").at(-1).compareDocumentPosition(reportRow()) === Node.DOCUMENT_POSITION_FOLLOWING,
   };
   click(reportRow().querySelector(".sensor-clear"));
   await tick(); await tick();
-  facts.reportCleared = { removed: [...reportSensors.removed], present: reportRow() !== null, names: rp.all(".sensor-row").map((r) => r.querySelector(".sensor-name").textContent) };
-
-  const overlayFile = (commit) => JSON.stringify({ overlay_version: 1, commit, modified: false, producer: { name: "p", version: "1" }, metrics: [{ name: "line_coverage", type: "ratio", granularity: "module", bad: "low" }], values: { line_coverage: { "app/a.py": 0.5 } } });
-  const mGate = gate();
-  const mFake = fakeScan({
-    steps: [current, measuring(2), mGate.promise, entry("measure", "cov"), entry("measure", "mut", "no tests found"), summary],
-    result: { status: "finished", exitCode: 1, stderr: "", log: ".recognizer/cache/log/m-scan.json" },
-  });
-  const mSensors = fakeSensors({}, { config: CONFIG }, { cov: overlayFile("old0000") });
-  const ms = await mount(mFake, mSensors);
-  click(ms.q(".rail-scan"));
-  await tick();
-  const mrows = () => ms.all(".measure-row").map((r) => ({ name: r.dataset.overlay, chip: r.querySelector(".sensor-chip").textContent, sub: r.querySelector(".measure-subline").textContent, title: r.title }));
-  facts.measure = {
-    summary: ms.text(".scan-summary"),
-    order: ms.all(".scan-panel > .scan-block").map((b) => b.className.split(" ")[1]),
-    title: ms.text(".scan-measure .scan-block-title"),
-    rows: mrows(),
-    button: ms.text(".scan-run"),
-  };
-  await ms.setTick(".scan-measure .scan-tick", true);
-  facts.measure.ticked = { button: ms.text(".scan-run"), summary: ms.text(".scan-summary"), title: ms.q(".scan-run").title, written: mFake.written.at(-1) };
-  facts.measure.firstOpenTick = ms.q('.measure-row[data-overlay="mut"] .sensor-tick').checked;
-  await ms.setTick('.measure-row[data-overlay="mut"] .sensor-tick', true);
-  facts.measure.untick = { button: ms.text(".scan-run"), summary: ms.text(".scan-summary"), written: mFake.written.at(-1) };
-  const mFooters = [];
-  mFake.onStep = () => { const text = ms.footerText().replace(/Stop|Rescan/g, ""); if (mFooters.at(-1) !== text) mFooters.push(text); };
-  click(ms.q(".scan-run"));
-  await tick();
-  facts.measure.run = { plans: mFake.ran, rowsDuring: mrows().map((r) => r.chip), stop: ms.all(".scan-line .scan-stop").length };
-  mGate.release(); await tick(); await tick(); await tick();
-  facts.measure.run.footers = [...mFooters];
-  facts.measure.after = { footer: ms.footerText(), rows: mrows() };
-  click(ms.q(".rail-files"));
-  await tick();
-  click(ms.q(".scan-show"));
-  await tick();
-  facts.measure.show = { panelOpen: ms.visible(".scan-panel"), reason: ms.q('[data-overlay="mut"] .sensor-reason')?.textContent ?? "" };
+  facts.reportCleared = { removed: [...reportSensors.removed], present: reportRow() !== null };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
 
 type Facts = ReturnType<typeof JSON.parse>;
+
+const GREEN = "rgb(26, 127, 55)";
+const AMBER = "rgb(191, 135, 0)";
+const ACCENT = "rgb(9, 105, 218)";
+const MUTED = "rgb(89, 99, 110)";
+const NAMES = [
+  "Descriptions",
+  "C.R.A.P.",
+  "Duplication",
+  "Mutation",
+  "alpha",
+  "beta",
+];
+
+const names = (panel: Facts) => panel.rows.map((r: Facts) => r.name);
+const states = (panel: Facts) => panel.rows.map((r: Facts) => r.state);
 
 describe.skipIf(chrome === undefined)("the Scan panel", () => {
   let f = null as unknown as Facts;
@@ -326,137 +283,122 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   }, 180000);
 
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
-    expect(f.idle.order).toEqual([
+    expect(f.fresh.order).toEqual([
       "rail-files",
       "rail-views",
       "rail-notes",
       "rail-scan",
       "rail-findings",
     ]);
-    expect(f.idle.panel).toBe(true);
-    expect(f.idle.files).toBe(false);
-    expect(f.idle.ran).toBe(0);
-    expect(f.idle.titleAttr).toBe("");
-    expect(f.idle.label).toContain("Scan");
+    expect(f.fresh.panelOpen).toBe(true);
+    expect(f.fresh.files).toBe(false);
+    expect(f.fresh.ran).toBe(0);
+    expect(f.fresh.railLabel).toContain("Scan");
   });
 
-  it("shows the head, the Extract block with no tick, the Describe counts and the Sensors rows", () => {
-    expect(f.idle.head).toContain("cur1234");
-    expect(f.idle.extract).toContain("python");
-    expect(f.idle.extract).toContain("2 modules");
-    expect(f.idle.extractTicks).toBe(0);
-    expect(f.idle.describe).toContain("0 current");
-    expect(f.idle.describe).toContain("2 missing");
-    expect(f.idle.describe).toContain("recognizer-describe-claude v3");
-    expect(f.idle.rows).toEqual([
-      expect.objectContaining({
-        name: "structure",
-        chip: "every scan",
-        ticks: 0,
-      }),
-      expect.objectContaining({ name: "alpha", chip: "not run", ticks: 1 }),
-      expect.objectContaining({ name: "beta", chip: "not run", ticks: 1 }),
-    ]);
+  it("matches the mock's fresh repository: Not scanned yet, one list, nothing ticked, every row not yet run", () => {
+    expect(f.fresh.header).toBe("Not scanned yet");
+    expect(names(f.fresh)).toEqual(NAMES);
+    expect(states(f.fresh)).toEqual(Array(6).fill("not yet run"));
+    expect(f.fresh.rows.every((r: Facts) => !r.ticked)).toBe(true);
+    expect(f.fresh.rows.every((r: Facts) => r.color === MUTED)).toBe(true);
   });
 
-  it("labels the button Scan, summarises what it will run beside it and shows the command line as its tooltip", () => {
-    expect(f.idle.button).toBe("Scan");
-    expect(f.idle.summary).toBe("scans current");
-    expect(f.idle.buttonTitle).toBe("recognizer scan");
-    expect(f.ticked.button).toBe("Scan");
-    expect(f.ticked.summary).toBe("scans current, describe, 2 sensors");
-    expect(f.ticked.buttonTitle).toBe(
-      "recognizer scan --describe --sense alpha,beta",
+  it("has no heading, sub-line, Remove button, Add block, summary or disabled checkbox, and an accent-coloured checkbox", () => {
+    expect(f.fresh.strays).toBe(0);
+    expect(f.fresh.subLines).toBe(0);
+    expect(f.fresh.rows.every((r: Facts) => !r.disabled)).toBe(true);
+    expect(f.fresh.rows.every((r: Facts) => r.accent === ACCENT)).toBe(true);
+  });
+
+  it("titles each row with its one-sentence description and prints nothing under it", () => {
+    expect(f.fresh.rows[0].title).toBe(
+      "Writes one line per module saying what it is responsible for.",
     );
+    expect(f.fresh.rows[1].title).toBe("Runs the tests with coverage.");
+    expect(f.fresh.rows[2].title).toBe("Finds repeated structure.");
   });
 
-  it("remembers a tick through the port and a window reopened on the same port reads it back", () => {
-    expect(f.ticked.written.at(-1)).toEqual({
+  it("has one primary Scan button alone, with no text beside it", () => {
+    expect(f.fresh.buttons).toEqual([
+      { text: "Scan", disabled: false, spinner: 0 },
+    ]);
+    expect(f.fresh.buttonTitle).toBe("");
+  });
+
+  it("matches the mock after a scan: Scanned with an age and no sha or counts", () => {
+    expect(f.scanned.header).toBe("Scanned just now");
+    expect(f.scanned.amber).toBeNull();
+  });
+
+  it("matches the mock with files changed: the phrase after the dot in amber", () => {
+    expect(f.changed.header).toBe(
+      "Scanned 2 hours ago \u00b7 files changed since",
+    );
+    expect(f.changed.amber).toBe("files changed since");
+    expect(f.changed.amberColor).toBe(AMBER);
+  });
+
+  it("remembers a tick through the port, never a tests-running sensor, and a reopened window reads it back", () => {
+    expect(f.ticked.rows).toEqual(["describe", "crap", "duplication"]);
+    expect(f.ticked.written).toEqual({
       describe: true,
-      measure: false,
-      overlays: ["cov"],
-      sensors: true,
-      ticked: ["alpha", "beta"],
+      ticked: ["duplication"],
     });
-    expect(f.reopened.describeTick).toBe(true);
-    expect(f.reopened.sensorsTick).toBe(true);
+    expect(f.reopened).toEqual(["describe", "duplication"]);
   });
 
-  it("runs the ticked plan from the Scan button, which becomes Stop, and walks the footer through the phases", () => {
+  it("matches the mock while running: Scanning…, one running row with a spinner, the rest waiting, a disabled Scanning button and no Stop of its own", () => {
     expect(f.run.plans).toEqual([
-      { describe: true, measure: [], sense: ["alpha", "beta"] },
+      { describe: true, sense: ["duplication", "crap"] },
     ]);
-    expect(f.run.during.button).toBe("Stop");
-    expect(f.run.footers).toEqual([
-      "Scans current",
-      "Describing 0 of 2",
-      "Describing 1 of 2",
-      "Describing 2 of 2",
-      "Sensors 0 of 2",
-      "Sensors 1 of 2",
-      "Sensors 2 of 2",
+    expect(f.run.first.header).toBe("Scanning\u2026");
+    expect(
+      f.run.first.rows
+        .filter((r: Facts) => r.spinner > 0)
+        .map((r: Facts) => r.key),
+    ).toEqual(["describe"]);
+    expect(f.run.first.rows.map((r: Facts) => r.state).slice(0, 3)).toEqual([
+      "running",
+      "waiting",
+      "waiting",
     ]);
-    expect(f.run.stopButtons).toBe(1);
-    expect(f.run.during.rescanDisabled).toBe(true);
-    expect(f.run.rowDuring).toEqual(["running", "running"]);
-    expect(f.run.after.footer).toContain("Scan done");
-    expect(f.run.after.button).toBe("Scan");
+    expect(f.run.first.rows[0].color).toBe(ACCENT);
+    expect(f.run.first.rows[1].color).toBe(MUTED);
+    expect(f.run.first.buttons).toEqual([
+      { text: "Scanning", disabled: true, spinner: 1 },
+    ]);
+    expect(f.run.stopInPanel).toBe(0);
+    expect(f.run.footerStop).toBe(1);
+    expect(f.run.first.rows.every((r: Facts) => !r.disabled)).toBe(true);
   });
 
-  it("lists the Measure block between Describe and Sensors with a row, sub-line and chip per overlay", () => {
-    expect(f.measure.order).toEqual([
-      "scan-extract",
-      "scan-describe",
-      "scan-measure",
-      "scan-sensors",
-    ]);
-    expect(f.measure.title).toBe("Measure");
-    expect(f.measure.rows).toEqual([
-      { name: "cov", chip: "stale", sub: "node", title: "" },
-      {
-        name: "mut",
-        chip: "not run",
-        sub: "recognizer-sensors \u00b7 runs the tests \u00b7 ticked for one Scan only",
-        title: "",
-      },
+  it("moves running to the started sensor and leaves finished rows with their results", () => {
+    const row = (panel: Facts, key: string) =>
+      panel.rows.find((r: Facts) => r.key === key);
+
+    expect(row(f.run.afterDescribe, "duplication").state).toBe("running");
+    expect(row(f.run.afterDescribe, "crap").state).toBe("waiting");
+    expect(row(f.run.afterDuplication, "duplication").state).toBe(
+      "0 findings, just now",
+    );
+    expect(row(f.run.afterDuplication, "duplication").color).toBe(GREEN);
+    expect(row(f.run.afterDuplication, "crap").state).toBe("running");
+    expect(row(f.run.after, "describe").state).toMatch(
+      /modules? described|not yet run/,
+    );
+    expect(row(f.run.after, "duplication").state).toBe("0 findings, just now");
+    expect(f.run.after.header).toBe("Scanned just now");
+    expect(f.run.after.buttons).toEqual([
+      { text: "Scan", disabled: false, spinner: 0 },
     ]);
   });
 
-  it("counts measurers in the caption and remembers the block and row ticks", () => {
-    expect(f.measure.summary).toBe("scans current");
-    expect(f.measure.ticked.summary).toBe("scans current, 1 measurer");
-    expect(f.measure.ticked.title).toBe("recognizer scan --measure cov");
-    expect(f.measure.firstOpenTick).toBe(false);
-    expect(f.measure.ticked.written).toEqual({
-      describe: false,
-      measure: true,
-      overlays: ["cov"],
-      sensors: false,
-      ticked: ["alpha", "beta"],
-    });
-    expect(f.measure.untick.summary).toBe("scans current, 2 measurers");
-    expect(f.measure.untick.written.overlays).toEqual(["cov"]);
-  });
-
-  it("walks the footer through Measuring n of N with Stop, then holds the failure on its row", () => {
-    expect(f.measure.run.plans.at(-1)).toEqual({
-      describe: false,
-      measure: ["cov", "mut"],
-      sense: [],
-    });
-    expect(f.measure.run.footers).toContain("Measuring 0 of 2");
-    expect(f.measure.run.footers).toContain("Measuring 1 of 2");
-    expect(f.measure.run.stop).toBe(1);
-    expect(f.measure.run.rowsDuring).toEqual(["running", "running"]);
-    expect(f.measure.after.footer).toContain("1 failed");
-    expect(f.measure.after.rows[1]).toMatchObject({
-      chip: "failed",
-      title: "no tests found",
-    });
-    expect(f.measure.show).toEqual({
-      panelOpen: true,
-      reason: "no tests found",
-    });
+  it("clears a tests-running tick after the scan it ran in and never writes it", () => {
+    expect(f.run.crapTickAfter).toBe(false);
+    expect(
+      f.run.written.every((ticked: string[]) => !ticked.includes("crap")),
+    ).toBe(true);
   });
 
   it("refuses a second scan while one runs", () => {
@@ -467,17 +409,27 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.run.plans).toHaveLength(1);
   });
 
-  it("stops a running scan and says Stopped", () => {
+  it("stops a running scan from the footer and says Stopped", () => {
     expect(f.stop.footer).toContain("Stopped");
     expect(f.stop.button).toBe("Scan");
+    expect(f.stop.disabled).toBe(false);
   });
 
-  it("shows a failed sensor row from Show with its reason, and opens the log in the editor", () => {
+  it("leaves a failed sensor at failed with its age in amber and posts exactly one tray message", () => {
+    const row = f.failed.rows.find((r: Facts) => r.key === "duplication");
+
+    expect(row.state).toBe("failed, just now");
+    expect(row.color).toBe(AMBER);
+    expect(f.failed.posted).toEqual(["duplication failed: broke"]);
+    expect(f.failed.amber).toBeNull();
+  });
+
+  it("shows a failed sensor row from Show and opens the log in the editor", () => {
     expect(f.sensorFail.footer).toBe(
       "Sensors failed: brokeRescan\u00b7Show\u00b7Open log",
     );
+    expect(f.sensorFail.hiddenBefore).toBe(true);
     expect(f.sensorFail.panelOpen).toBe(true);
-    expect(f.sensorFail.reason).toBe("broke");
     expect(f.sensorFail.dot).toBe(true);
     expect(f.sensorFail.opened).toEqual([".recognizer/cache/log/x-scan.json"]);
   });
@@ -495,59 +447,23 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.missing.describe).toBe(1);
   });
 
-  it("lists an unregistered shipped sensor under Add a sensor with its line, and Remove only on a registered shipped one", () => {
-    expect(f.addRow.title).toBe("Add a sensor");
-    expect(f.addRow.listed).toEqual([
-      "duplication | Finds repeated structure.",
+  it("lists Descriptions and the third-party rows, none disabled, when the shipped list is unavailable", () => {
+    expect(f.down).toEqual([
+      { name: "Descriptions", disabled: false },
+      { name: "alpha", disabled: false },
+      { name: "beta", disabled: false },
     ]);
-    expect(f.addRow.removes).toEqual([]);
   });
 
-  it("writes the entry on Add, shows the registered row with Remove, and returns it to the list on Remove", () => {
-    expect(f.added.edits).toEqual([{ name: "duplication", add: true }]);
-    expect(f.added.config).toContain("duplication: {}");
-    expect(f.added.names).toEqual([
-      "structure",
-      "duplication",
-      "alpha",
-      "beta",
-    ]);
-    expect(f.added.listed).toEqual([]);
-    expect(f.added.removes).toEqual(["Remove duplication"]);
-    expect(f.removed.edits).toEqual([
-      { name: "duplication", add: true },
-      { name: "duplication", add: false },
-    ]);
-    expect(f.removed.names).toEqual(["structure", "alpha", "beta"]);
-    expect(f.removed.listed).toEqual([
-      "duplication | Finds repeated structure.",
-    ]);
-    expect(f.removed.removes).toEqual([]);
-  });
-
-  it("shows the message when the edit fails and leaves the rows as they were", () => {
-    expect(f.addFailed.message).toContain("config.yaml is read-only");
-    expect(f.addFailed.names).toEqual(["structure", "alpha", "beta"]);
-  });
-
-  it("disables Add while a scan runs", () => {
-    expect(f.addBusy.add).toBe(true);
-  });
-
-  it("says why the list is unavailable and offers no Add", () => {
-    expect(f.addDown.text).toContain("recognizer is not installed");
-    expect(f.addDown.buttons).toBe(0);
-  });
-
-  it("lists a report after the registered rows with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
-    expect(f.report.names).toEqual(["structure", "alpha", "beta", "review"]);
+  it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
+    expect(f.report.names).toEqual(NAMES);
+    expect(f.report.listCount).toBe(6);
     expect(f.report.ticks).toBe(0);
     expect(f.report.chip).toBe("reported 3 minutes ago");
     expect(f.report.commit).toBe("feed123");
     expect(f.report.clear).toBe("Clear");
-    expect(f.report.beforeAdd).toBe(true);
+    expect(f.report.afterList).toBe(true);
     expect(f.reportCleared.removed).toEqual(["review"]);
     expect(f.reportCleared.present).toBe(false);
-    expect(f.reportCleared.names).toEqual(["structure", "alpha", "beta"]);
   });
 });
