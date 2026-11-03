@@ -315,6 +315,9 @@ const facts = {};
   await tick();
   click(rename.q(".view-list"));
   facts.renamed = { field: !rename.q(".view-name-field-inline").hidden, name: rename.q(".view-name").textContent, port: rename.port.renamed, files: [...rename.port.files.keys()], menu: rename.all(".view-item").map((n) => n.querySelector(".view-item-name").textContent), current: rename.all(".view-item.current").map((n) => n.querySelector(".view-item-name").textContent), currentView: rename.lastCurrent().view, wrote: rename.win.published.length > before2, notice: rename.notes.join(" | ") };
+  const currentItem = rename.q(".view-item.current");
+  const itemProbe = (css) => { const n = document.createElement("i"); n.style.color = css; n.style.backgroundColor = css; document.body.append(n); const c = [getComputedStyle(n).color, getComputedStyle(n).backgroundColor]; n.remove(); return c; };
+  facts.currentItem = { before: getComputedStyle(currentItem.querySelector(".view-item-name"), "::before").content, background: getComputedStyle(currentItem).backgroundColor, name: getComputedStyle(currentItem.querySelector(".view-item-name")).color, selection: itemProbe("var(--sel)")[0], selectionBackground: itemProbe("var(--selbg)")[1] };
   click(rename.q(".view-back"));
   click(rename.q(".view-forward"));
   await tick();
@@ -638,6 +641,14 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
   it("cancels on Escape and on blur without change", () => {
     expect(f.escaped).toEqual({ field: false, name: "alpha", renamed: 0 });
     expect(f.blurred).toEqual({ field: false, renamed: 0 });
+  });
+
+  it("marks the open dropdown item by selection colours with no glyph", () => {
+    expect(
+      f.currentItem.before === "none" || f.currentItem.before === "normal",
+    ).toBe(true);
+    expect(f.currentItem.name).toBe(f.currentItem.selection);
+    expect(f.currentItem.background).toBe(f.currentItem.selectionBackground);
   });
 
   it("renames the open view on Enter and follows the new name everywhere", () => {
