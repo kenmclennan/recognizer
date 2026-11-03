@@ -10,9 +10,8 @@ from recognizer_scan_kotlin import scan_with_stats
 
 VARIABLE = "RECOGNIZER_KOTLIN_PETCLINIC"
 BASELINE = json.loads((REPOSITORY / "fixtures" / "kotlin" / "petclinic-baseline.json").read_text())
-DECLARATION = (
-    r"\b(?:class|interface|object|typealias|fun|val|var)\s+(?:<[^>]*>\s*)?(?:[\w.<>?]+\.)?"
-)
+DECLARATION = r"\b(?:class|interface|object|typealias|fun|val|var)\b[^=(\n]*"
+DECLARATION_END = r"\s*(?:[(<:={,]|$)|\s+(?:(?:@\w+(?:\([^)]*\))?|\w+)\s+)*constructor\b"
 
 
 @pytest.fixture(scope="module")
@@ -52,7 +51,7 @@ def is_used(sources: list[str], name: str) -> bool:
 
 
 def is_declared(sources: list[str], name: str) -> bool:
-    pattern = re.compile(DECLARATION + rf"{re.escape(name)}\b")
+    pattern = re.compile(DECLARATION + rf"\b{re.escape(name)}(?:{DECLARATION_END})", re.MULTILINE)
 
     return any(pattern.search(text) for text in sources)
 
@@ -90,3 +89,23 @@ def test_the_petclinic_edge_precision_holds_the_floor(petclinic, result):
 
     assert edges
     assert len(correct) / len(edges) >= BASELINE["precision_floor"]
+
+
+@pytest.mark.parametrize(
+    ("line", "name"),
+    [
+        ("fun <F : Enum<F>, L : ListFilters> monitorListQuery(", "monitorListQuery"),
+        ("fun Set<ConstraintViolation<*>>.throwIfNotEmpty(", "throwIfNotEmpty"),
+        ("inline fun <reified T : Any> HttpResponse<*>.getBodyAs()", "getBodyAs"),
+        ("class MonitorListFilters internal constructor(", "MonitorListFilters"),
+        ("class NiaViewModel @Inject constructor(", "NiaViewModel"),
+        ("class Repo internal @Inject constructor(", "Repo"),
+    ],
+)
+def test_is_declared_recognises_nested_generics_and_explicit_constructors(line, name):
+    assert is_declared([line], name)
+
+
+def test_is_declared_does_not_count_a_use_on_the_right_of_an_assignment():
+    assert not is_declared(["val x = foo.bar()"], "bar")
+    assert not is_declared(["val x = foo.bar()"], "foo")
