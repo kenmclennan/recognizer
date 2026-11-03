@@ -194,14 +194,10 @@ describe("the sensor config examples", () => {
   const example = (path: string) =>
     readFileSync(join(REPO, "schema/config-examples", path), "utf8");
 
-  it("reads runs_tests from the committed overlays example and rejects a string", () => {
-    const config = parseConfig(example("valid/overlays.yaml"));
-
-    expect(Object.keys(config.overlays ?? {})).toEqual(["coverage"]);
-    expect(config.overlays?.coverage?.runs_tests).toBe(true);
-    expect(() =>
-      parseConfig(example("invalid/overlays-runs-tests-not-boolean.yaml")),
-    ).toThrow();
+  it("retires the overlays key with a committed old registration", () => {
+    expect(() => parseConfig(example("invalid/overlays-retired.yaml"))).toThrow(
+      /config\/overlays is retired.*measurers are gone/,
+    );
   });
 
   it("accepts test_command and max_minutes under sensors.mutation", () => {
@@ -243,19 +239,21 @@ describe("the sensor config examples", () => {
     expect(command.at(-1)).toBe("{}");
   });
 
-  it("retires overlays.mutate when it has no command", () => {
+  it("retires the old mutate form with the same message", () => {
     expect(() =>
-      parseConfig(example("invalid/overlays-mutate-retired.yaml")),
-    ).toThrow(
-      "config/overlays/mutate is retired: move test_command and max_minutes to sensors.mutation",
-    );
+      parseConfig("overlays:\n  mutate:\n    test_command: [npm, test]\n"),
+    ).toThrow(/config\/overlays is retired.*measurers are gone/);
   });
 
-  it("keeps mutate an ordinary overlay name when it has a command", () => {
-    const config = parseConfig(
-      "overlays:\n  mutate:\n    command: [run]\n    metrics:\n      - {name: m, type: count, granularity: member, bad: high}\n",
-    );
+  it("retires an overlays key that holds a mutate command", () => {
+    expect(() =>
+      parseConfig(
+        "overlays:\n  mutate:\n    command: [run]\n    metrics:\n      - {name: m, type: count, granularity: member, bad: high}\n",
+      ),
+    ).toThrow(/config\/overlays is retired.*measurers are gone/);
+  });
 
-    expect(config.overlays?.mutate?.command).toEqual(["run"]);
+  it("still parses a config without overlays", () => {
+    expect(parseConfig("sensors:\n  crap: {}\n").sensors).toBeDefined();
   });
 });

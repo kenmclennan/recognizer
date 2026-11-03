@@ -3,19 +3,6 @@ import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
 import { expandShortForms, SHIPPED_SENSORS } from "./shipped-sensors.js";
 
-export interface MetricDeclaration {
-  name: string;
-  type: "ratio" | "count" | "number" | "boolean";
-  granularity: "module" | "member";
-  bad: "high" | "low";
-}
-
-export interface OverlayRegistration {
-  command: string[];
-  metrics: MetricDeclaration[];
-  runs_tests?: boolean;
-}
-
 export interface SensorRegistration {
   command: string[];
 }
@@ -39,7 +26,6 @@ export type SensorEntry = SensorRegistration | StructureSettingsInput | "off";
 
 export interface Config {
   describer?: { command: string[]; version: string };
-  overlays?: Record<string, OverlayRegistration>;
   sensors?: Record<string, SensorEntry>;
 }
 
@@ -51,28 +37,6 @@ export function registeredSensors(
       ? [{ name, command: entry.command }]
       : [],
   );
-}
-
-function rejectRepeatedMetrics(config: Config): void {
-  const messages: string[] = [];
-
-  for (const [name, registration] of Object.entries(config.overlays ?? {})) {
-    const seen = new Set<string>();
-
-    for (const metric of registration.metrics) {
-      if (seen.has(metric.name)) {
-        messages.push(
-          `config/overlays/${name} repeats metric name ${metric.name}`,
-        );
-      }
-
-      seen.add(metric.name);
-    }
-  }
-
-  if (messages.length > 0) {
-    throw new InputError(messages);
-  }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -100,13 +64,10 @@ function expandConfig(document: unknown): unknown {
   };
 }
 
-function rejectRetiredMutate(document: unknown): void {
-  const overlays = isPlainObject(document) ? document.overlays : undefined;
-  const mutate = isPlainObject(overlays) ? overlays.mutate : undefined;
-
-  if (isPlainObject(mutate) && !("command" in mutate)) {
+function rejectRetiredOverlays(document: unknown): void {
+  if (isPlainObject(document) && "overlays" in document) {
     throw new InputError([
-      "config/overlays/mutate is retired: move test_command and max_minutes to sensors.mutation",
+      "config/overlays is retired: measurers are gone, a sensor measures for itself; remove the overlays key and register the sensor under sensors",
     ]);
   }
 }
@@ -122,14 +83,10 @@ export function parseConfig(text: string): Config {
     ]);
   }
 
-  rejectRetiredMutate(document);
+  rejectRetiredOverlays(document);
 
   if (validate(document)) {
-    const config = expandConfig(document) as Config;
-
-    rejectRepeatedMetrics(config);
-
-    return config;
+    return expandConfig(document) as Config;
   }
 
   const messages = (validate.errors ?? []).map(

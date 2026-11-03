@@ -43,7 +43,7 @@ One repository, a directory per part:
 - Rust is the narrow boundary: dialogs, the editor, settings, git, the filesystem, child processes and the socket. Everything else is TypeScript.
 - `scan-ticks.json`, `recent.json`, `config.json` and `app.sock` live in the app's config folder, never inside a repository; the socket is mode 0600, one JSON line per request and per response.
 - `stop_scan` kills the scan's process group, and so does closing the window; nothing a scan spawns may leave that group. The one exception is a Mutation test run, which starts its own session so a timeout can kill the runner's children; the sensor's `SIGTERM` handler ends those sessions itself, so Stop still reaches them.
-- The app runs the structure sensor itself, and a registered sensor or overlay only as a phase of `run_scan`, each name positional and checked by `sensor_name_ok` before anything spawns.
+- The app runs the structure sensor itself, and a registered sensor only as a phase of `run_scan`, each name positional and checked by `sensor_name_ok` before anything spawns.
 - A `recognizer://` link never scans, describes or writes; a refused link shows a dialog.
 - Note bubbles are held per window in the explorer, not in the published window state.
 - A git ref reaches git only after `valid_ref` in `views.rs` accepts it, and `fixtures/views/refs.json` is the ref syntax shared with `check/src/git-range.ts`; a change view's staleness (`view-staleness.ts`) and marks (`change-marks.ts`) are pure and take git facts handed in; a stale view is deleted only on the user's click.
@@ -56,7 +56,7 @@ One repository, a directory per part:
 
 - **The scan document is the contract.** Every scanner emits exactly the schema; nothing language-specific leaks into the document, the policy or the viewer. Every scanner is tested against the shared fixtures.
 - **Recognizer knows no architecture.** Every architectural meaning - component names, which dependencies are permitted, any preset - lives in a repository's policy. A named architecture is a template under `policies/`, copied into a repository and edited there. Hexagonal vocabulary appears only in fixtures, examples and templates. Warnings are principle violations, reported by `recognizer check` as candidates with evidence, never verdicts; each names its principle, its evidence and a stable fix-pattern id, and the coaching text an agent reads lives outside recognizer.
-- **Recognizer never measures.** Metrics that need something run (tests, mutation, duplication, git history) arrive as overlays, produced by tools a repository registers in `.recognizer/config.yaml`; recognizer runs them and owns the overlay format and the registration, never a metric's meaning.
+- **Recognizer never measures.** Metrics that need something run (tests, mutation, duplication, git history) arrive as overlays, written by the sensors recognizer ships or by a sensor a repository registers; recognizer owns the overlay format, never a metric's meaning.
 - **Derived, never authored.** Nothing on the real diagram is drawn by hand. A proposed structure is a separate artifact, always labelled as not in the code.
 - **No allow list.** The policy cannot mark a violating edge as acceptable. Existing violations live in a baseline that may only shrink.
 - **Missing data is unknown, never healthy.**

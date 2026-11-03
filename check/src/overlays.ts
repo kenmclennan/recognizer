@@ -1,5 +1,11 @@
-import type { MetricDeclaration } from "./config.js";
 import validate from "./generated/overlay-validator.js";
+
+export interface MetricDeclaration {
+  name: string;
+  type: "ratio" | "count" | "number" | "boolean";
+  granularity: "module" | "member";
+  bad: "high" | "low";
+}
 
 export interface Overlay {
   overlay_version: 1;

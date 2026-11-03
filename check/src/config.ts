@@ -4,8 +4,6 @@ import { type Config, parseConfig } from "./config-parse.js";
 
 export type {
   Config,
-  MetricDeclaration,
-  OverlayRegistration,
   SensorEntry,
   SensorRegistration,
   StructureSettingsInput,

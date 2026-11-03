@@ -1,6 +1,5 @@
 overlays:
   coverage:
-    command: [node, coverage.mjs]
-    runs_tests: "yes"
+    command: [node, "{repository}/scripts/coverage.mjs", "{repository}", "{commit}", "{output}"]
     metrics:
       - { name: line_coverage, type: ratio, granularity: module, bad: low }

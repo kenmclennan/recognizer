@@ -4,7 +4,6 @@ import type { Io } from "./cli.js";
 import { runDescribeCommand } from "./describe-command.js";
 import { runHelp } from "./help.js";
 import { runLog } from "./log-command.js";
-import { runMeasure } from "./measure-command.js";
 import { runOpen } from "./open-command.js";
 import {
   runCallers,
@@ -139,9 +138,9 @@ export const COMMANDS: Command[] = [
   {
     name: "scan",
     summary:
-      "scan a repository in up to four phases: extract when the files changed, describe, measure, sense",
+      "scan a repository in up to three phases: extract when the files changed, describe, sense",
     usage:
-      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--measure <all|name[,name...]>] [--sense <all|name[,name...]>] [--by <name>] [--json]",
+      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--by <name>] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -161,11 +160,6 @@ export const COMMANDS: Command[] = [
           "describe every module whose line is missing or out of date, as recognizer describe does with no names; =all describes every module (the value only with =)",
       },
       {
-        flag: "--measure <all|name[,name...]>",
-        description:
-          "run every registered overlay, or the named ones, in config order, as recognizer measure does; an overlay may run the repository's tests, and it runs before the sensors so they read this scan's overlays",
-      },
-      {
         flag: "--sense <all|name[,name...]>",
         description:
           "run every registered sensor, or the named ones, in config order",
@@ -181,8 +175,8 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "a heading line per phase (extract, describe, measure, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
-      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe, measure and sense: total), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed)",
+      text: "a heading line per phase (extract, describe, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
+      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed)",
     },
     exitCodes: [
       {
@@ -192,12 +186,12 @@ export const COMMANDS: Command[] = [
       {
         code: 1,
         meaning:
-          "a language, a describer entry, an overlay or a sensor entry failed (the remaining entries still run)",
+          "a language, a describer entry or a sensor entry failed (the remaining entries still run)",
       },
       {
         code: 2,
         meaning:
-          "bad input - an unknown sensor or overlay name, --sense with no sensors registered, --measure with no overlays registered, --sense or --measure with no git commit, --describe with no describer registered, more than one repository, an empty --by or an unknown flag",
+          "bad input - an unknown sensor name, --sense with no sensors registered, --sense with no git commit, --describe with no describer registered, more than one repository, an empty --by or an unknown flag",
       },
     ],
     examples: [
@@ -900,61 +894,6 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runDescribeCommand,
-  },
-  {
-    name: "measure",
-    summary:
-      "run the overlays a repository registers and write each one's measurements to the cache",
-    usage:
-      "recognizer measure [<name>...] [--repository <dir>] [--by <name>] [--json]",
-    arguments: [
-      {
-        name: "<name>",
-        description:
-          "a registered overlay's name; without a name, measure runs every registered overlay in config order",
-      },
-    ],
-    options: [
-      {
-        flag: "--repository <dir>",
-        description:
-          "the repository to measure; defaults to the current directory",
-      },
-      { flag: "--json", description: "print JSON instead of text" },
-      {
-        flag: "--by <name>",
-        description:
-          "who asked, recorded in the run log; defaults to the login user",
-      },
-    ],
-    output: {
-      text: "`measured <name>` per success on stdout and `failed <name>: <reason>` per failure on stderr, then `measured N, failed M`",
-      json: "{ commit, modified, measured: string[], failed: [{ overlay, reason }] }",
-    },
-    exitCodes: [
-      { code: 0, meaning: "every selected overlay was measured" },
-      {
-        code: 1,
-        meaning:
-          "at least one selected overlay failed (the rest are still measured); a failed overlay leaves no file",
-      },
-      {
-        code: 2,
-        meaning:
-          "bad input - no overlays registered in .recognizer/config.yaml, an invalid config, an unknown overlay name, an unknown flag, or no git commit",
-      },
-    ],
-    examples: [
-      {
-        command: "recognizer measure",
-        note: "run every registered overlay",
-      },
-      {
-        command: "recognizer measure coverage --json",
-        note: "run one overlay and print the outcome as JSON",
-      },
-    ],
-    run: runMeasure,
   },
   {
     name: "report",
