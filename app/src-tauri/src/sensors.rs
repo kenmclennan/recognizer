@@ -243,9 +243,22 @@ pub fn snapshot(folder: &Path) -> Snapshot {
         .into_iter()
         .map(|name| format!("{OVERLAYS}/{name}.json"));
 
+    let mut findings: Vec<String> = fs::read_dir(folder.join(FINDINGS))
+        .map(|entries| {
+            entries
+                .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+                .filter(|file| file.ends_with(".json"))
+                .map(|file| format!("{FINDINGS}/{file}"))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    findings.sort();
+
     [POLICY.to_string(), CONFIG.to_string()]
         .into_iter()
         .chain(overlays)
+        .chain(findings)
         .filter_map(|relative| stamp(folder, &relative))
         .collect()
 }
@@ -505,6 +518,34 @@ mod tests {
         fs::remove_file(&path).unwrap();
 
         assert!(snapshot_changed(&rewritten, &snapshot(dir.path())));
+        assert_eq!(snapshot(dir.path()), empty);
+    }
+
+    #[test]
+    fn the_snapshot_changes_when_a_findings_file_is_added_replaced_or_removed() {
+        let dir = TempDir::new().unwrap();
+        let empty = snapshot(dir.path());
+
+        fs::create_dir_all(dir.path().join(FINDINGS)).unwrap();
+
+        let path = dir.path().join(FINDINGS).join("review.json");
+
+        fs::write(&path, "one").unwrap();
+
+        let added = snapshot(dir.path());
+
+        assert!(snapshot_changed(&empty, &added));
+        assert!(!snapshot_changed(&added, &snapshot(dir.path())));
+
+        fs::write(&path, "a longer report").unwrap();
+
+        let replaced = snapshot(dir.path());
+
+        assert!(snapshot_changed(&added, &replaced));
+
+        fs::remove_file(&path).unwrap();
+
+        assert!(snapshot_changed(&replaced, &snapshot(dir.path())));
         assert_eq!(snapshot(dir.path()), empty);
     }
 
