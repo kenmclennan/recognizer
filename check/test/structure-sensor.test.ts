@@ -50,6 +50,7 @@ function sense(name: string, hub = 10, cycle = true, hubOn = true) {
         policy_drift: cycle,
         stable_dependencies: false,
         stable_abstractions: false,
+        unused_exports: false,
       },
     },
     CONTEXT,
@@ -139,6 +140,7 @@ describe("structureSensor ids", () => {
         policy_drift: false,
         stable_dependencies: false,
         stable_abstractions: false,
+        unused_exports: false,
       },
     });
   });

@@ -18,6 +18,7 @@ import {
   policyDriftFindings,
   stableAbstractionsFindings,
   stableDependenciesFindings,
+  unusedExportsFindings,
 } from "../src/structure-warnings.js";
 import {
   scanOf as foldersOf,
@@ -317,14 +318,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"hub_threshold":10,"distance_threshold":0.3,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"stable_abstractions":true}}',
+      '{"hub_threshold":10,"distance_threshold":0.3,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"stable_abstractions":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("3");
+    expect(document.sensor.version).toBe("4");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on";
+      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on, unused_exports off";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -606,6 +607,7 @@ describe("switches for the package metric warnings", () => {
           policy_drift: false,
           stable_dependencies: deps,
           stable_abstractions: abstractions,
+          unused_exports: false,
         },
       },
       CONTEXT,
@@ -748,5 +750,455 @@ describe("real committed content", () => {
       "stable_dependencies:app/application->app/domain",
       "stable_dependencies:app/domain->app/adapters",
     ]);
+  });
+});
+
+interface UnusedModule {
+  id: string;
+  kind?: "module" | "package";
+  exports?: string[];
+  hidden?: string[];
+}
+
+interface UnusedEdge {
+  from: string;
+  to: string;
+  kind?: "depends" | "inherits" | "implements";
+  names?: string[];
+  to_member?: string;
+}
+
+function unusedScan(modules: UnusedModule[], edges: UnusedEdge[] = []) {
+  return validateScan({
+    schema_version: 5,
+    scanner: { name: "t", version: "0" },
+    commit: null,
+    modified: false,
+    files: [],
+    selection: {
+      extensions: [],
+      skip_directory_names: [],
+      skip_directory_prefixes: [],
+      skip_directory_suffixes: [],
+      skip_directories_containing: [],
+      skip_file_globs: [],
+    },
+    modules: modules.map((module) => ({
+      id: module.id,
+      language: "python",
+      kind: module.kind ?? "module",
+      members: [
+        ...(module.exports ?? []).map((name, index) => ({
+          name,
+          kind: "function",
+          exported: true,
+          line: 10 + index,
+        })),
+        ...(module.hidden ?? []).map((name) => ({
+          name,
+          kind: "function",
+          exported: false,
+          line: 1,
+        })),
+      ],
+    })),
+    edges: edges.map((edge, index) => ({
+      from: edge.from,
+      to: edge.to,
+      kind: edge.kind ?? "depends",
+      line: index + 1,
+      ...(edge.names === undefined ? {} : { names: edge.names }),
+      ...(edge.to_member === undefined
+        ? {}
+        : { member: "Sub", to_member: edge.to_member }),
+    })),
+    foreign: [],
+  });
+}
+
+function unusedOf(
+  modules: UnusedModule[],
+  edges: UnusedEdge[] = [],
+  entryPoints: string[] = [],
+  policyYaml: string | null = null,
+) {
+  const found = unusedExportsFindings(
+    unusedScan(modules, edges),
+    policyYaml === null ? null : parsePolicy(policyYaml),
+    entryPoints,
+  );
+
+  return Object.fromEntries(
+    found.map((finding) => [
+      finding.evidence.modules[0],
+      (finding.evidence.members ?? []).map((member) => member.name),
+    ]),
+  );
+}
+
+describe("unused_exports", () => {
+  it("lists only the unused name of a partly used module", () => {
+    const found = unusedExportsFindings(
+      unusedScan(
+        [
+          { id: "shop/a.py", exports: ["a", "b", "c"] },
+          { id: "shop/b.py", exports: ["x"] },
+        ],
+        [
+          { from: "shop/b.py", to: "shop/a.py", names: ["a"] },
+          { from: "shop/b.py", to: "shop/a.py", names: ["b"] },
+        ],
+      ),
+      null,
+      [],
+    );
+
+    expect(ids(found)).toEqual([
+      "unused_exports:shop/a.py",
+      "unused_exports:shop/b.py",
+    ]);
+    expect(found[0]?.summary).toBe(
+      "shop/a.py exports 1 name no other module imports: c",
+    );
+  });
+
+  it("yields nothing when all are used and lists every name when none is", () => {
+    expect(
+      unusedOf(
+        [
+          { id: "shop/a.py", exports: ["a", "b", "c"] },
+          { id: "shop/b.py", exports: ["x"] },
+        ],
+        [
+          { from: "shop/x.py", to: "shop/a.py", names: ["a", "b", "c"] },
+          { from: "shop/x.py", to: "shop/b.py", names: ["x"] },
+        ],
+      ),
+    ).toEqual({});
+
+    const [finding] = unusedExportsFindings(
+      unusedScan([{ id: "shop/a.py", exports: ["c", "a", "b"] }]),
+      null,
+      [],
+    );
+
+    expect(finding?.summary).toBe(
+      "shop/a.py exports 3 names no other module imports: a, b, c",
+    );
+    expect(finding?.evidence.members?.map((member) => member.name)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it.each([[undefined], [[]]])(
+    "treats a depends edge with names %j as using every export",
+    (names) => {
+      expect(
+        unusedOf(
+          [{ id: "shop/a.py", exports: ["a", "b"] }],
+          [{ from: "shop/b.py", to: "shop/a.py", names }],
+        ),
+      ).toEqual({});
+    },
+  );
+
+  it.each(["inherits", "implements"] as const)(
+    "treats an %s edge as using its to_member",
+    (kind) => {
+      expect(
+        unusedOf(
+          [{ id: "shop/a.py", exports: ["Base", "Other"] }],
+          [{ from: "shop/b.py", to: "shop/a.py", kind, to_member: "Base" }],
+        ),
+      ).toEqual({ "shop/a.py": ["Other"] });
+    },
+  );
+
+  it("uses a dotted member through its leading segment", () => {
+    expect(
+      unusedOf(
+        [
+          {
+            id: "app/domain",
+            kind: "package",
+            exports: ["Currency", "Currency.Companion", "Money"],
+          },
+        ],
+        [{ from: "app/other", to: "app/domain", names: ["Currency"] }],
+      ),
+    ).toEqual({ "app/domain": ["Money"] });
+  });
+
+  it("ignores self and foreign edges and non-exported members", () => {
+    expect(
+      unusedOf(
+        [
+          { id: "shop/a.py", exports: ["a"], hidden: ["h"] },
+          { id: "shop/b.py", hidden: ["g"] },
+        ],
+        [
+          { from: "shop/a.py", to: "shop/a.py", names: ["a"] },
+          { from: "shop/b.py", to: "foreign:os", names: ["a"] },
+        ],
+      ),
+    ).toEqual({ "shop/a.py": ["a"] });
+  });
+
+  it.each([
+    "shop/tests/helper.py",
+    "shop/test_x.py",
+    "api/src/x.spec.ts",
+    "app/FooTest.kt",
+    "api/src/index.ts",
+    "shop/src/lib.rs",
+    "src/main/App.kt",
+  ])("never reports the skipped module %s", (id) => {
+    expect(unusedOf([{ id, exports: ["a"] }], [], ["src/main/**"])).toEqual({});
+  });
+
+  it("matches an entry point glob exactly", () => {
+    expect(
+      unusedOf(
+        [
+          { id: "src/main/App.kt", exports: ["a"] },
+          { id: "src/mainline/App.kt", exports: ["b"] },
+        ],
+        [],
+        ["src/main/**"],
+      ),
+    ).toEqual({ "src/mainline/App.kt": ["b"] });
+  });
+
+  it("gives a module the file and lines, and a package neither", () => {
+    const [module] = unusedExportsFindings(
+      unusedScan([{ id: "shop/a.py", exports: ["a"] }]),
+      null,
+      [],
+    );
+    const [pkg] = unusedExportsFindings(
+      unusedScan([{ id: "app/domain", kind: "package", exports: ["Zed"] }]),
+      null,
+      [],
+    );
+
+    expect(module).toMatchObject({
+      id: "unused_exports:shop/a.py",
+      kind: "unused_exports",
+      severity: "warning",
+      principle: "export-only-what-is-used",
+      fix_pattern: "narrow-exports",
+    });
+    expect(module?.evidence.members).toEqual([
+      { module: "shop/a.py", name: "a", file: "shop/a.py", lines: [10, 10] },
+    ]);
+    expect(pkg?.evidence.members).toEqual([
+      { module: "app/domain", name: "Zed" },
+    ]);
+  });
+
+  it("sorts findings by id", () => {
+    const found = unusedExportsFindings(
+      unusedScan([
+        { id: "shop/z.py", exports: ["z"] },
+        { id: "shop/a.py", exports: ["a"] },
+      ]),
+      null,
+      [],
+    );
+
+    expect(ids(found)).toEqual([
+      "unused_exports:shop/a.py",
+      "unused_exports:shop/z.py",
+    ]);
+  });
+
+  it("skips a module the policy names by a literal path", () => {
+    expect(
+      unusedOf(
+        [{ id: "app/cli.py", exports: ["a"] }],
+        [],
+        [],
+        "components:\n  entry: [app/cli.py]\n",
+      ),
+    ).toEqual({});
+  });
+
+  it("drops an ignored module and its edges", () => {
+    expect(
+      unusedOf(
+        [
+          { id: "vendor/v.py", exports: ["v"] },
+          { id: "lib/x.py", exports: ["x"] },
+        ],
+        [{ from: "vendor/v.py", to: "lib/x.py", names: ["x"] }],
+        [],
+        "ignore: [vendor/**]\n",
+      ),
+    ).toEqual({ "lib/x.py": ["x"] });
+  });
+
+  it("reports exactly the partly used and the wholly unused modules", () => {
+    expect(
+      unusedOf(
+        [
+          { id: "m/one.py", exports: ["used", "spare"] },
+          { id: "m/two.py", exports: ["caller"] },
+          { id: "m/three.py", exports: ["p", "q"] },
+        ],
+        [{ from: "m/two.py", to: "m/one.py", names: ["used"] }],
+      ),
+    ).toEqual({
+      "m/one.py": ["spare"],
+      "m/two.py": ["caller"],
+      "m/three.py": ["p", "q"],
+    });
+  });
+
+  it("is off by default and on when switched", () => {
+    const scan = unusedScan([{ id: "shop/a.py", exports: ["a"] }]);
+    const off = structureSensor(
+      [scan],
+      null,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    );
+    const on = structureSensor(
+      [scan],
+      null,
+      {
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: {
+          ...DEFAULT_STRUCTURE_SETTINGS.warnings,
+          unused_exports: true,
+        },
+      },
+      CONTEXT,
+    );
+
+    expect(ids(off.document.findings)).not.toContain(
+      "unused_exports:shop/a.py",
+    );
+    expect(off.document.settings.warnings).toMatchObject({
+      unused_exports: false,
+    });
+    expect(ids(on.document.findings)).toContain("unused_exports:shop/a.py");
+  });
+
+  it("resolves absent, true and false", () => {
+    const resolve = (yaml: string) =>
+      resolveStructureSettings(parseConfig(yaml), undefined);
+    const switched = (value: string) =>
+      (
+        resolve(
+          `sensors:\n  structure:\n    warnings: { unused_exports: ${value} }\n`,
+        ) as StructureSettings
+      ).warnings.unused_exports;
+
+    expect(
+      (resolveStructureSettings(null) as StructureSettings).warnings
+        .unused_exports,
+    ).toBe(false);
+    expect(switched("true")).toBe(true);
+    expect(switched("false")).toBe(false);
+    expect(() =>
+      parseConfig(
+        'sensors:\n  structure:\n    warnings: { unused_exports: "yes" }\n',
+      ),
+    ).toThrow(InputError);
+  });
+
+  it("prints the switch after stable_abstractions", () => {
+    const base =
+      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on";
+
+    expect(
+      describeSettings({
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: {
+          ...DEFAULT_STRUCTURE_SETTINGS.warnings,
+          unused_exports: true,
+        },
+        entry_points: ["a"],
+      }),
+    ).toBe(`${base}, unused_exports on, entry_points 1`);
+  });
+
+  it("gives the known exports of the committed fixture scans", () => {
+    const expected: Record<string, Record<string, string[]>> = {
+      python: {
+        "shop/adapters/special_store.py": ["SpecialStore"],
+        "shop/application/lookup.py": ["lookup"],
+        "shop/application/place.py": ["place"],
+        "shop/application/refund.py": ["refund"],
+      },
+      typescript: {
+        "api/src/cache.ts": ["cached"],
+        "api/src/place.ts": ["place"],
+      },
+      kotlin: {
+        "app/src/main/kotlin/shop/application": ["UseCase"],
+        "app/src/main/kotlin/shop/clients": ["PaymentClient"],
+        "app/src/main/kotlin/shop/domain": ["Currency", "Currency.Companion"],
+        "app/src/main/kotlin/shop/persistence": [
+          "JdbcOrderStore",
+          "OrderRepository",
+        ],
+        "app/src/main/kotlin/shop/web": ["OrderController"],
+      },
+      rust: {},
+    };
+
+    for (const [language, names] of Object.entries(expected)) {
+      const scan = validateScan(
+        JSON.parse(
+          readFileSync(
+            join(REPO, "fixtures", language, "expected-scan.json"),
+            "utf8",
+          ),
+        ),
+      );
+      const found = unusedExportsFindings(scan, null, []);
+
+      expect(
+        Object.fromEntries(
+          found.map((finding) => [
+            finding.evidence.modules[0],
+            (finding.evidence.members ?? []).map((member) => member.name),
+          ]),
+        ),
+      ).toEqual(names);
+    }
+  });
+});
+
+describe("the former unused-exports short form", () => {
+  it.each([
+    "sensors:\n  unused-exports: {}\n",
+    'sensors:\n  unused-exports: { entry_points: ["a"] }\n',
+  ])("is rejected naming its path: %j", (yaml) => {
+    let thrown: unknown;
+
+    try {
+      parseConfig(yaml);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(InputError);
+    expect((thrown as InputError).messages.join("\n")).toContain(
+      "config/sensors/unused-exports",
+    );
+  });
+
+  it("still accepts the command form", () => {
+    const config = parseConfig(
+      "sensors:\n  unused-exports:\n    command: [node, run.mjs]\n",
+    );
+
+    expect(config.sensors?.["unused-exports"]).toEqual({
+      command: ["node", "run.mjs"],
+    });
   });
 });

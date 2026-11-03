@@ -14,9 +14,10 @@ import {
   policyDriftFindings,
   stableAbstractionsFindings,
   stableDependenciesFindings,
+  unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "3";
+export const STRUCTURE_SENSOR_VERSION = "4";
 export const DEFAULT_HUB_THRESHOLD = 10;
 export const DEFAULT_DISTANCE_THRESHOLD = 0.3;
 
@@ -32,6 +33,7 @@ export interface StructureSettings {
     policy_drift: boolean;
     stable_dependencies: boolean;
     stable_abstractions: boolean;
+    unused_exports: boolean;
   };
 }
 
@@ -59,6 +61,7 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
     policy_drift: true,
     stable_dependencies: true,
     stable_abstractions: true,
+    unused_exports: false,
   },
 };
 
@@ -95,6 +98,7 @@ export function resolveStructureSettings(
         given.warnings?.stable_dependencies ?? defaults.stable_dependencies,
       stable_abstractions:
         given.warnings?.stable_abstractions ?? defaults.stable_abstractions,
+      unused_exports: given.warnings?.unused_exports ?? defaults.unused_exports,
     },
   };
 }
@@ -123,7 +127,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  return `hub_threshold ${settings.hub_threshold}, distance_threshold ${settings.distance_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, stable_abstractions ${on(w.stable_abstractions)}${entries}`;
+  return `hub_threshold ${settings.hub_threshold}, distance_threshold ${settings.distance_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, stable_abstractions ${on(w.stable_abstractions)}, unused_exports ${on(w.unused_exports)}${entries}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -234,6 +238,9 @@ export function structureSensor(
       ...(settings.warnings.orphan
         ? orphanFindings(scan, policy, settings.entry_points)
         : []),
+      ...(settings.warnings.unused_exports
+        ? unusedExportsFindings(scan, policy, settings.entry_points)
+        : []),
     ];
 
     for (const finding of extra) {
@@ -282,6 +289,7 @@ export function structureSensor(
           policy_drift: settings.warnings.policy_drift,
           stable_dependencies: settings.warnings.stable_dependencies,
           stable_abstractions: settings.warnings.stable_abstractions,
+          unused_exports: settings.warnings.unused_exports,
         },
       },
       findings: [...findings, ...warnings],

@@ -6,7 +6,6 @@ from recognizer_sensors.duplication import sensor as duplication
 from recognizer_sensors.mutation import sensor as mutation
 from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.thresholds import sensor as thresholds
-from recognizer_sensors.unused_exports import sensor as unused_exports
 
 
 @dataclass(frozen=True)
@@ -24,6 +23,5 @@ SHIPPED = {
     ),
     "crap": Sensor(crap.parse_settings, crap.run, runs_tests=True),
     "mutation": Sensor(mutation.parse_settings, mutation.run, needs_commit=True, runs_tests=True),
-    "unused-exports": Sensor(unused_exports.parse_settings, unused_exports.run),
     "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }

@@ -3,7 +3,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from recognizer_sensors.unused_exports.entry_points import is_test_file
+from recognizer_sensors.mutation.test_files import is_test_file
 
 RECORD_VERSION = 1
 VERDICTS = ("killed", "survived", "timeout")

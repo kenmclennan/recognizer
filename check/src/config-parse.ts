@@ -30,6 +30,7 @@ export interface StructureSettingsInput {
     policy_drift?: boolean;
     stable_dependencies?: boolean;
     stable_abstractions?: boolean;
+    unused_exports?: boolean;
     orphan?: boolean | { entry_points: string[] };
   };
 }
@@ -78,35 +79,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function withOrphanEntryPoints(
-  sensors: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
-  const entry = sensors?.["unused-exports"];
-
-  if (
-    sensors === undefined ||
-    !isPlainObject(entry) ||
-    "command" in entry ||
-    "entry_points" in entry
-  ) {
-    return sensors;
-  }
-
-  const structure = sensors.structure;
-  const orphan = isPlainObject(structure)
-    ? (structure.warnings as Record<string, unknown> | undefined)?.orphan
-    : undefined;
-
-  if (!isPlainObject(orphan) || !Array.isArray(orphan.entry_points)) {
-    return sensors;
-  }
-
-  return {
-    ...sensors,
-    "unused-exports": { ...entry, entry_points: [...orphan.entry_points] },
-  };
-}
-
 function expandConfig(document: unknown): unknown {
   if (
     typeof document !== "object" ||
@@ -118,9 +90,7 @@ function expandConfig(document: unknown): unknown {
 
   const record = document as Record<string, unknown>;
   const sensors = expandShortForms(
-    withOrphanEntryPoints(
-      record.sensors as Record<string, unknown> | undefined,
-    ),
+    record.sensors as Record<string, unknown> | undefined,
     SHIPPED_SENSORS,
   );
 

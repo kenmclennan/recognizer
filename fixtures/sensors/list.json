@@ -77,15 +77,6 @@
     ]
   },
   {
-    "name": "unused-exports",
-    "display": "Unused exports",
-    "line": "Lists the exports of each module that no other module uses, so dead public surface can be trimmed.",
-    "defaults": {},
-    "runs_tests": false,
-    "listed": false,
-    "metrics": []
-  },
-  {
     "name": "thresholds",
     "display": "Thresholds",
     "line": "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
