@@ -329,12 +329,20 @@ describe("computeHealth from findings files", () => {
     ]);
   });
 
-  it("measures a module a second sensor names even without a structure file", () => {
+  it("marks a clean module green when a second sensor's current file covers it, without a structure file", () => {
     const { health } = healthFor("check", fixturePolicy("check"), [
       secondSensorDocument("shop/main.py"),
     ]);
 
     expect(health.disc("shop/main.py")).toBe("amber");
+    expect(health.disc("shop/ports/store.py")).toBe("green");
+  });
+
+  it("keeps a module grey when the only current file is a stale second sensor", () => {
+    const { health } = healthFor("check", fixturePolicy("check"), [
+      secondSensorDocument("shop/main.py", "x", "y", "old"),
+    ]);
+
     expect(health.disc("shop/ports/store.py")).toBe("grey");
   });
 
