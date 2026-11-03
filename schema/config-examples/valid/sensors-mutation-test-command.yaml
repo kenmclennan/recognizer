@@ -1,0 +1,4 @@
+sensors:
+  mutation:
+    test_command: [npm, test]
+    max_minutes: 5

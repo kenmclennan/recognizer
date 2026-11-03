@@ -91,7 +91,7 @@ describe("parseConfig", () => {
         file !== "sensors-mutation-short.yaml" &&
         file !== "sensors-unused-exports-short.yaml" &&
         file !== "sensors-thresholds-short.yaml" &&
-        file !== "overlays-mutate-short.yaml",
+        file !== "sensors-mutation-test-command.yaml",
     ),
   )("parses %s", (file) => {
     const text = readFileSync(join(CONFIGS, "valid", file), "utf8");
@@ -144,7 +144,7 @@ describe("parseConfig", () => {
         "--output",
         "{output}",
         "--settings",
-        '{"threshold":20,"coverage":"build/lcov.info"}',
+        '{"threshold":20,"test_command":["npm","test"],"coverage":"build/lcov.info"}',
       ],
     });
   });

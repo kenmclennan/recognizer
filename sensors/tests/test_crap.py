@@ -20,10 +20,7 @@ from recognizer_sensors.settings import SettingsError
 FIXTURE = REPOSITORY / "fixtures" / "crap" / "sample"
 FINDINGS_SCHEMA = REPOSITORY / "schema" / "findings.schema.json"
 OVERLAY_SCHEMA = REPOSITORY / "schema" / "overlay.schema.json"
-MISSING_LINE = (
-    "recognizer-sensors: crap: coverage file {} is missing or unreadable; "
-    "coverage is unknown for every function\n"
-)
+COVERAGE = "coverage/lcov.info"
 
 PYTHON = """def f(a, b, xs, v):
     if a and b or not a:
@@ -366,7 +363,6 @@ def test_bad_settings_exit_two(sample, tmp_path):
 def test_defaults_are_recorded_in_order():
     assert list(parse_settings({}).items()) == [
         ("threshold", 30.0),
-        ("coverage", "coverage/lcov.info"),
         ("overlay", ".recognizer/cache/overlays/crap.json"),
     ]
 
@@ -380,9 +376,30 @@ def sample(tmp_path) -> Path:
     return root
 
 
+def with_coverage(extra):
+    args = list(extra)
+
+    if "--settings" in args:
+        at = args.index("--settings") + 1
+        args[at] = json.dumps({"coverage": COVERAGE, **json.loads(args[at])})
+    else:
+        args += ["--settings", json.dumps({"coverage": COVERAGE})]
+
+    return args
+
+
 def run_crap(root, output, *extra):
     return main(
-        ["crap", "--repository", str(root), "--commit", "c1", "--output", str(output), *extra]
+        [
+            "crap",
+            "--repository",
+            str(root),
+            "--commit",
+            "c1",
+            "--output",
+            str(output),
+            *with_coverage(extra),
+        ]
     )
 
 
@@ -395,6 +412,7 @@ def produced(root, tmp_path, *extra):
 
 
 def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, capsys):
+    git_commit(sample)
     status, document, overlay = produced(sample, tmp_path)
 
     assert status == 0
@@ -450,9 +468,10 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
 def python_repository(tmp_path, body, lcov=None):
     root = make_repository(tmp_path / "r", {"app/m.py": body})
 
-    if lcov is not None:
-        (root / "coverage").mkdir()
-        (root / "coverage" / "lcov.info").write_text(lcov)
+    (root / "coverage").mkdir()
+    (root / "coverage" / "lcov.info").write_text(
+        lcov if lcov is not None else lcov_for("other.py", [1])
+    )
 
     return root
 
@@ -497,7 +516,7 @@ def test_a_high_complexity_function_with_unknown_coverage_reports_a_floor(tmp_pa
     assert document["findings"][0]["evidence"]["measures"] == {"complexity": 31}
     assert overlay["values"]["coverage"] == {}
     assert overlay["values"]["crap"] == {}
-    assert capsys.readouterr().err == MISSING_LINE.format("coverage/lcov.info")
+    assert capsys.readouterr().err == ""
 
 
 def test_a_lower_complexity_function_with_unknown_coverage_has_no_finding(tmp_path):
@@ -517,21 +536,31 @@ def test_a_file_with_a_record_but_no_line_in_range_is_unknown(tmp_path):
     assert overlay["values"]["coverage"] == {}
 
 
-@pytest.mark.parametrize("kind", ["missing", "directory", "binary"])
-def test_an_unreadable_coverage_file_says_so_once_and_exits_zero(tmp_path, capsys, kind):
+@pytest.mark.parametrize("kind", ["missing", "directory"])
+def test_an_unreadable_coverage_file_is_one_sentence_and_exit_two(tmp_path, capsys, kind):
     root = python_repository(tmp_path, branches(1))
     target = root / "coverage" / "lcov.info"
-    target.parent.mkdir()
+    target.unlink()
 
     if kind == "directory":
         target.mkdir()
-    elif kind == "binary":
-        target.write_bytes(b"\xff\xfe\x00")
+
+    output = tmp_path / "findings.json"
+
+    assert run_crap(root, output) == 2
+    assert capsys.readouterr().err == f"the coverage file is missing: {COVERAGE}\n"
+    assert not output.exists()
+    assert not (root / ".recognizer" / "cache" / "overlays" / "crap.json").exists()
+
+
+def test_a_binary_coverage_file_leaves_every_function_unknown(tmp_path, capsys):
+    root = python_repository(tmp_path, branches(1))
+    (root / "coverage" / "lcov.info").write_bytes(b"\xff\xfe\x00")
 
     status, _, overlay = produced(root, tmp_path)
 
     assert status == 0
-    assert capsys.readouterr().err == MISSING_LINE.format("coverage/lcov.info")
+    assert capsys.readouterr().err == ""
     assert overlay["values"]["complexity"] == {"app/m.py::f": 2}
     assert overlay["values"]["coverage"] == {}
 
@@ -539,10 +568,10 @@ def test_an_unreadable_coverage_file_says_so_once_and_exits_zero(tmp_path, capsy
 def test_the_coverage_setting_may_name_no_file(tmp_path, capsys):
     root = python_repository(tmp_path, branches(1))
 
-    status, _, _ = produced(root, tmp_path, "--settings", '{"coverage":"nothing/here.info"}')
+    status = run_crap(root, tmp_path / "o.json", "--settings", '{"coverage":"nothing/here.info"}')
 
-    assert status == 0
-    assert capsys.readouterr().err == MISSING_LINE.format("nothing/here.info")
+    assert status == 2
+    assert capsys.readouterr().err == "the coverage file is missing: nothing/here.info\n"
 
 
 def test_an_empty_coverage_file_is_not_an_error(tmp_path, capsys):
@@ -555,16 +584,18 @@ def test_an_empty_coverage_file_is_not_an_error(tmp_path, capsys):
     assert overlay["values"]["coverage"] == {}
 
 
-def test_the_duplication_fixture_without_coverage_has_only_complexity(tmp_path, capsys):
+def test_a_fixture_with_an_empty_report_has_only_complexity(tmp_path, capsys):
     root = tmp_path / "dup"
     shutil.copytree(REPOSITORY / "fixtures" / "duplication" / "sample", root)
     write_scans(root)
+    (root / "coverage").mkdir()
+    (root / "coverage" / "lcov.info").write_text("")
 
     status, document, overlay = produced(root, tmp_path)
 
     assert status == 0
     assert document["findings"] == []
-    assert capsys.readouterr().err == MISSING_LINE.format("coverage/lcov.info")
+    assert capsys.readouterr().err == ""
     assert len(overlay["values"]["complexity"]) == 6
     assert overlay["values"]["coverage"] == {}
     assert overlay["values"]["crap"] == {}
@@ -609,7 +640,8 @@ def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
     def run(seed, name):
         subprocess.run(
             [sys.executable, "-m", "recognizer_sensors", "crap", "--repository", str(sample)]
-            + ["--commit", "c1", "--output", str(tmp_path / name)],
+            + ["--commit", "c1", "--output", str(tmp_path / name)]
+            + ["--settings", json.dumps({"coverage": COVERAGE})],
             check=True,
             env={"PYTHONHASHSEED": seed, "PATH": ""},
         )
@@ -650,6 +682,9 @@ def test_duplication_writes_only_its_output(tmp_path):
 def test_a_committed_repository_keeps_the_commit(sample, tmp_path):
     sha = git_commit(sample)
 
-    main(["crap", "--repository", str(sample), "--output", str(tmp_path / "o.json")])
+    main(
+        ["crap", "--repository", str(sample), "--output", str(tmp_path / "o.json")]
+        + with_coverage([])
+    )
 
     assert json.loads((tmp_path / "o.json").read_text())["commit"] == sha

@@ -692,7 +692,7 @@ export const COMMANDS: Command[] = [
     options: [{ flag: "--json", description: "print JSON instead of text" }],
     output: {
       text: "one `<name>  <line>` line per shipped sensor",
-      json: "[{ name, line, defaults }], defaults being the settings the short form `<name>: {}` runs with",
+      json: "[{ name, display, line, defaults, runs_tests, listed, metrics }]: display is the panel name, line one sentence, defaults the settings the short form `<name>: {}` runs with, runs_tests whether the sensor runs the repository's tests, listed false for a sensor that is configuration only, metrics the overlay metrics it writes",
     },
     exitCodes: [
       { code: 0, meaning: "the list was printed" },

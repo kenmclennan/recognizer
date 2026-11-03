@@ -1,6 +1,6 @@
 import pytest
 
-from recognizer_sensors.mutate.sites import find_sites
+from recognizer_sensors.mutation.sites import find_sites
 from recognizer_sensors.parsing import parse
 
 

@@ -1,2 +1,8 @@
 sensors:
-  mutation: {}
+  mutation:
+    test_command: [npm, test]
+    max_minutes: 5
+    max_workers: 2
+    timeout_factor: 8
+    incremental: false
+    coverage: build/lcov.info

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -13,10 +13,4 @@ class Overlay:
 class Outcome:
     findings: list[dict]
     overlay: Overlay | None = None
-
-
-@dataclass(frozen=True)
-class Measurement:
-    overlay: Overlay
-    survivors: dict
-    record: dict | None = None
+    documents: list[tuple[Path, dict]] = field(default_factory=list)

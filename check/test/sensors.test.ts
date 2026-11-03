@@ -772,6 +772,53 @@ describe("a findings file for a sensor no longer registered", () => {
   });
 });
 
+describe("a findings file for a shipped sensor with no config entry", () => {
+  const CRAP = `${ROOT}/.recognizer/cache/findings/crap.json`;
+  const crapDocument = () =>
+    fakeDocument({ sensor: { name: "crap", version: "1" } });
+
+  it("is kept by check and read by show", () => {
+    const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n", {
+      files: { [CRAP]: crapDocument() },
+    });
+
+    const { err } = check(fake, "--json");
+
+    expect(err).not.toContain("removed unregistered crap");
+    expect(fake.files.has(CRAP)).toBe(true);
+
+    const code = run(
+      ["show", "shop/main.py", "--repository", ROOT, "--json"],
+      fake.io,
+    );
+
+    expect(code).toBe(0);
+    expect(fake.out()).toContain("the fake sensor objects");
+    expect(fake.err()).not.toContain("ignored unregistered crap");
+  });
+
+  it("is not reported missing when it never ran", () => {
+    const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n");
+    const { out } = check(fake, "--json");
+    const report = JSON.parse(out.slice(out.indexOf("{")));
+
+    expect(report.sensors.map((s: { name: string }) => s.name)).toEqual([
+      "structure",
+    ]);
+  });
+
+  it("still removes a third-party name that is neither registered nor shipped", () => {
+    const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n", {
+      files: { [FAKE]: fakeDocument() },
+    });
+
+    expect(check(fake, "--json").err).toContain(
+      "removed unregistered fake-sensor\n",
+    );
+    expect(fake.files.has(FAKE)).toBe(false);
+  });
+});
+
 describe("scan --sense leaves a running record while it works", () => {
   const TWO =
     'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';

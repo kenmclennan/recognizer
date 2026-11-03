@@ -234,3 +234,8 @@ def test_the_registry_and_defaults_agree_with_the_sensor_list():
 
     assert sorted(REGISTRY) == sorted(listed)
     assert listed["duplication"]["defaults"] == DEFAULTS
+
+
+def test_the_retired_mutate_name_is_an_unknown_sensor(sample, capsys):
+    assert main(["mutate", "--repository", str(sample), "--commit", "c1"]) == 2
+    assert "unknown sensor: mutate" in capsys.readouterr().err

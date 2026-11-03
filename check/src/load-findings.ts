@@ -13,6 +13,7 @@ import {
 } from "./findings-files.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import type { RecordedScan, Scan } from "./scan.js";
+import { shippedSensorNames } from "./shipped-sensors.js";
 import {
   resolveStructureSettings,
   type StructureSettings,
@@ -99,7 +100,10 @@ export function loadFindings(
     }
   }
 
-  const registered = registeredSensors(config).map(({ name }) => name);
+  const registered = [
+    ...registeredSensors(config).map(({ name }) => name),
+    ...shippedSensorNames(),
+  ];
 
   for (const outcome of readFindingsFiles(
     io,

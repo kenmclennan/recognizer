@@ -1,56 +1,135 @@
-export const SHIPPED_MEASURERS = {
-  mutate: [
-    { name: "killed", type: "count", granularity: "member", bad: "low" },
-    { name: "survived", type: "count", granularity: "member", bad: "high" },
-    { name: "uncovered", type: "count", granularity: "member", bad: "high" },
-    { name: "score", type: "ratio", granularity: "member", bad: "low" },
-  ],
-} as const;
+export interface ShippedMetric {
+  name: string;
+  type: "ratio" | "count" | "number" | "boolean";
+  granularity: "module" | "member";
+  bad: "high" | "low";
+}
 
 export interface ShippedSensorEntry {
   name: string;
+  display: string;
   line: string;
   defaults: Record<string, number | boolean | string>;
+  runs_tests: boolean;
+  listed: boolean;
+  metrics: readonly ShippedMetric[];
 }
 
 export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
   {
     name: "duplication",
+    display: "Duplication",
     line: "Finds functions whose structure repeats another's, so shared logic can be extracted once.",
-    defaults: { threshold: 0.82, min_lines: 4, min_nodes: 20 },
+    defaults: {
+      threshold: 0.82,
+      min_lines: 4,
+      min_nodes: 20,
+    },
+    runs_tests: false,
+    listed: true,
+    metrics: [],
   },
   {
     name: "crap",
-    line: "Flags functions that are complex and poorly covered by tests, where a change is most likely to break something.",
+    display: "C.R.A.P.",
+    line: "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",
     defaults: {
       threshold: 30,
-      coverage: "coverage/lcov.info",
-      overlay: ".recognizer/cache/overlays/crap.json",
     },
+    runs_tests: true,
+    listed: true,
+    metrics: [
+      {
+        name: "complexity",
+        type: "count",
+        granularity: "member",
+        bad: "high",
+      },
+      {
+        name: "coverage",
+        type: "ratio",
+        granularity: "member",
+        bad: "low",
+      },
+      {
+        name: "crap",
+        type: "number",
+        granularity: "member",
+        bad: "high",
+      },
+    ],
   },
   {
     name: "mutation",
-    line: "Warns on functions where a mutated copy still passes the tests, naming each surviving mutation.",
-    defaults: {
-      overlay: ".recognizer/cache/overlays/mutate.json",
-      survivors: ".recognizer/cache/mutation/survivors.json",
-    },
+    display: "Mutation",
+    line: "Mutates covered functions, reruns the tests, and warns where a mutated copy still passes, naming each surviving mutation.",
+    defaults: {},
+    runs_tests: true,
+    listed: true,
+    metrics: [
+      {
+        name: "killed",
+        type: "count",
+        granularity: "member",
+        bad: "low",
+      },
+      {
+        name: "survived",
+        type: "count",
+        granularity: "member",
+        bad: "high",
+      },
+      {
+        name: "uncovered",
+        type: "count",
+        granularity: "member",
+        bad: "high",
+      },
+      {
+        name: "score",
+        type: "ratio",
+        granularity: "member",
+        bad: "low",
+      },
+    ],
   },
   {
     name: "unused-exports",
+    display: "Unused exports",
     line: "Lists the exports of each module that no other module uses, so dead public surface can be trimmed.",
     defaults: {},
+    runs_tests: false,
+    listed: false,
+    metrics: [],
   },
   {
     name: "thresholds",
+    display: "Thresholds",
     line: "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
     defaults: {},
+    runs_tests: false,
+    listed: false,
+    metrics: [],
   },
 ];
 
 export const SHIPPED_SENSORS: readonly string[] = SHIPPED_SENSOR_LIST.map(
   ({ name }) => name,
 );
+
+export function shippedSensorNames(): string[] {
+  return [...SHIPPED_SENSORS];
+}
+
+export function runsTests(command: readonly string[]): boolean {
+  if (command[0] !== "recognizer-sensors") {
+    return false;
+  }
+
+  return SHIPPED_SENSOR_LIST.some(
+    (entry) => entry.runs_tests && entry.name === command[1],
+  );
+}
 
 function isSettingsMapping(value: unknown): value is Record<string, unknown> {
   return (
@@ -91,31 +170,6 @@ export function expandShortForms(
     Object.entries(entries).map(([name, entry]) =>
       shipped.includes(name) && isSettingsMapping(entry)
         ? [name, { command: shippedCommand(name, entry) }]
-        : [name, entry],
-    ),
-  );
-}
-
-export function expandMeasurerShortForms(
-  entries: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
-  if (entries === undefined) {
-    return entries;
-  }
-
-  return Object.fromEntries(
-    Object.entries(entries).map(([name, entry]) =>
-      name === "mutate" && isSettingsMapping(entry)
-        ? [
-            name,
-            {
-              command: shippedCommand(name, entry),
-              runs_tests: true,
-              metrics: SHIPPED_MEASURERS.mutate.map((metric) => ({
-                ...metric,
-              })),
-            },
-          ]
         : [name, entry],
     ),
   );

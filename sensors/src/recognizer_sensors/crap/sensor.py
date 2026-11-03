@@ -1,21 +1,22 @@
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
-from recognizer_sensors.crap.lcov import Coverage, function_coverage, read_lcov
+from recognizer_sensors.crap.lcov import Coverage, function_coverage
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import SettingsError, relative_path
+from recognizer_sensors.testrun.run import collect_coverage, parse_coverage, parse_test_command
 
 DEFAULTS = {
     "threshold": 30,
-    "coverage": "coverage/lcov.info",
     "overlay": ".recognizer/cache/overlays/crap.json",
 }
+
+OPTIONAL = {"test_command", "coverage"}
 
 PRINCIPLE = "Complex code needs tests"
 FIX_PATTERN = "simplify-or-test"
@@ -39,7 +40,7 @@ class Measured:
 
 
 def parse_settings(raw: dict) -> dict:
-    unknown = sorted(set(raw) - set(DEFAULTS))
+    unknown = sorted(set(raw) - set(DEFAULTS) - OPTIONAL)
 
     if unknown:
         raise SettingsError(f"unknown setting: {', '.join(unknown)}")
@@ -53,11 +54,20 @@ def parse_settings(raw: dict) -> dict:
     if not threshold > 0:
         raise SettingsError("threshold must be above 0")
 
-    return {
+    parsed = {
         "threshold": float(threshold),
-        "coverage": relative_path("coverage", settings["coverage"]),
         "overlay": relative_path("overlay", settings["overlay"]),
     }
+    command = parse_test_command(raw)
+    coverage = parse_coverage(raw)
+
+    if command is not None:
+        parsed["test_command"] = command
+
+    if coverage is not None:
+        parsed["coverage"] = coverage
+
+    return parsed
 
 
 def crap_score(complexity: int, coverage: float) -> float:
@@ -169,14 +179,9 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
 
 
 def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
-    coverage = read_lcov(repository / settings["coverage"], repository)
-
-    if coverage is None:
-        print(
-            f"recognizer-sensors: crap: coverage file {settings['coverage']} is missing or "
-            "unreadable; coverage is unknown for every function",
-            file=sys.stderr,
-        )
+    coverage = collect_coverage(
+        repository, scans, settings.get("test_command"), settings.get("coverage")
+    )
 
     findings = []
     values: dict[str, dict[str, float]] = {"complexity": {}, "coverage": {}, "crap": {}}

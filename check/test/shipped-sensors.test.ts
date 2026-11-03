@@ -3,10 +3,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import {
-  expandMeasurerShortForms,
   expandShortForms,
-  SHIPPED_MEASURERS,
+  runsTests,
+  SHIPPED_SENSOR_LIST,
   SHIPPED_SENSORS,
+  shippedSensorNames,
 } from "../src/shipped-sensors.js";
 import { REPO } from "./helpers.js";
 
@@ -103,50 +104,6 @@ describe("expandShortForms", () => {
   });
 });
 
-const measurers = JSON.parse(
-  readFileSync(join(REPO, "fixtures/sensors/measurers.json"), "utf8"),
-);
-
-describe("expandMeasurerShortForms", () => {
-  it("equals fixtures/sensors/measurers.json", () => {
-    expect(SHIPPED_MEASURERS).toEqual(measurers);
-  });
-
-  it("expands mutate to a command and its metrics", () => {
-    const expanded = expandMeasurerShortForms({
-      mutate: { test_command: ["npm", "test"] },
-    }) as { mutate: { command: string[]; metrics: unknown } };
-
-    expect(expanded.mutate.command).toEqual([
-      "recognizer-sensors",
-      "mutate",
-      "--repository",
-      "{repository}",
-      "--commit",
-      "{commit}",
-      "--output",
-      "{output}",
-      "--settings",
-      '{"test_command":["npm","test"]}',
-    ]);
-    expect(expanded.mutate.metrics).toEqual(measurers.mutate);
-  });
-
-  it("leaves an entry with a command untouched", () => {
-    const entries = { mutate: { command: ["mine"], metrics: [] } };
-
-    expect(expandMeasurerShortForms(entries)).toEqual(entries);
-  });
-
-  it("leaves another name untouched", () => {
-    expect(expandMeasurerShortForms({ other: {} })).toEqual({ other: {} });
-  });
-
-  it("passes undefined through", () => {
-    expect(expandMeasurerShortForms(undefined)).toBeUndefined();
-  });
-});
-
 describe("the thresholds config examples", () => {
   const example = (path: string) =>
     readFileSync(join(REPO, "schema/config-examples", path), "utf8");
@@ -177,17 +134,65 @@ describe("the thresholds config examples", () => {
   });
 });
 
-describe("the mutation config examples", () => {
+describe("the registry", () => {
+  const list = JSON.parse(
+    readFileSync(join(REPO, "fixtures/sensors/list.json"), "utf8"),
+  );
+
+  it("equals fixtures/sensors/list.json", () => {
+    expect(JSON.parse(JSON.stringify(SHIPPED_SENSOR_LIST))).toEqual(list);
+  });
+
+  it("gives every entry exactly the registry keys", () => {
+    for (const entry of SHIPPED_SENSOR_LIST) {
+      expect(Object.keys(entry).sort()).toEqual([
+        "defaults",
+        "display",
+        "line",
+        "listed",
+        "metrics",
+        "name",
+        "runs_tests",
+      ]);
+    }
+  });
+
+  it("lists crap, duplication and mutation and hides the configuration-only sensors", () => {
+    expect(
+      SHIPPED_SENSOR_LIST.filter(({ listed }) => listed)
+        .map(({ name }) => name)
+        .sort(),
+    ).toEqual(["crap", "duplication", "mutation"]);
+    expect(
+      SHIPPED_SENSOR_LIST.filter(({ listed }) => !listed).map(
+        ({ name }) => name,
+      ),
+    ).toEqual(["unused-exports", "thresholds"]);
+  });
+
+  it("marks only crap and mutation as running tests", () => {
+    expect(
+      SHIPPED_SENSOR_LIST.filter(({ runs_tests }) => runs_tests).map(
+        ({ name }) => name,
+      ),
+    ).toEqual(["crap", "mutation"]);
+  });
+
+  it("names the shipped sensors", () => {
+    expect(shippedSensorNames()).toEqual([...SHIPPED_SENSORS]);
+  });
+
+  it("tests the run command, not the name alone, for runs_tests", () => {
+    expect(runsTests(["recognizer-sensors", "crap"])).toBe(true);
+    expect(runsTests(["recognizer-sensors", "mutation"])).toBe(true);
+    expect(runsTests(["recognizer-sensors", "duplication"])).toBe(false);
+    expect(runsTests(["my-crap", "crap"])).toBe(false);
+  });
+});
+
+describe("the sensor config examples", () => {
   const example = (path: string) =>
     readFileSync(join(REPO, "schema/config-examples", path), "utf8");
-
-  it("parses the mutate short form to an ordinary registration", () => {
-    const config = parseConfig(example("valid/overlays-mutate-short.yaml"));
-
-    expect(config.overlays?.mutate?.metrics).toEqual(measurers.mutate);
-    expect(config.overlays?.mutate?.command[1]).toBe("mutate");
-    expect(config.overlays?.mutate?.runs_tests).toBe(true);
-  });
 
   it("reads runs_tests from the committed overlays example and rejects a string", () => {
     const config = parseConfig(example("valid/overlays.yaml"));
@@ -199,17 +204,58 @@ describe("the mutation config examples", () => {
     ).toThrow();
   });
 
-  it("parses the mutation sensor short form", () => {
-    const config = parseConfig(example("valid/sensors-mutation-short.yaml"));
+  it("accepts test_command and max_minutes under sensors.mutation", () => {
+    const config = parseConfig(
+      example("valid/sensors-mutation-test-command.yaml"),
+    );
+    const entry = config.sensors?.mutation as { command: string[] };
+    const command = entry.command;
 
-    expect(config.sensors?.mutation).toEqual({
-      command: expect.arrayContaining(["recognizer-sensors", "mutation"]),
+    expect(command[1]).toBe("mutation");
+    expect(JSON.parse(command.at(-1) ?? "")).toEqual({
+      test_command: ["npm", "test"],
+      max_minutes: 5,
     });
   });
 
-  it("rejects mutate without a test command", () => {
+  it("accepts the new mutation and crap keys", () => {
     expect(() =>
-      parseConfig(example("invalid/overlays-mutate-no-test-command.yaml")),
-    ).toThrow();
+      parseConfig(example("valid/sensors-mutation-short.yaml")),
+    ).not.toThrow();
+    expect(() =>
+      parseConfig(example("valid/sensors-crap-short.yaml")),
+    ).not.toThrow();
+  });
+
+  it("rejects the retired crap overlay setting under sensors.mutation", () => {
+    const retired = ["crap", "overlay"].join("_");
+
+    expect(() =>
+      parseConfig(`sensors:\n  mutation:\n    ${retired}: x.json\n`),
+    ).toThrow(/config\/sensors\/mutation/);
+  });
+
+  it("gives crap no default coverage", () => {
+    const config = parseConfig("sensors:\n  crap: {}\n");
+    const entry = config.sensors?.crap as { command: string[] };
+    const command = entry.command;
+
+    expect(command.at(-1)).toBe("{}");
+  });
+
+  it("retires overlays.mutate when it has no command", () => {
+    expect(() =>
+      parseConfig(example("invalid/overlays-mutate-retired.yaml")),
+    ).toThrow(
+      "config/overlays/mutate is retired: move test_command and max_minutes to sensors.mutation",
+    );
+  });
+
+  it("keeps mutate an ordinary overlay name when it has a command", () => {
+    const config = parseConfig(
+      "overlays:\n  mutate:\n    command: [run]\n    metrics:\n      - {name: m, type: count, granularity: member, bad: high}\n",
+    );
+
+    expect(config.overlays?.mutate?.command).toEqual(["run"]);
   });
 });

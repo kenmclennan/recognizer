@@ -102,8 +102,7 @@ def run_cli(root: Path, output: Path, *extra: str) -> int:
     )
 
 
-MUTATE_FIXTURE = REPOSITORY / "fixtures" / "mutate" / "sample"
-MEASURERS_FILE = REPOSITORY / "fixtures" / "sensors" / "measurers.json"
+MUTATE_FIXTURE = REPOSITORY / "fixtures" / "mutation" / "sample"
 OVERLAY_SCHEMA = REPOSITORY / "schema" / "overlay.schema.json"
 
 
@@ -112,20 +111,20 @@ def mutate_repository(tmp_path: Path) -> tuple[Path, str]:
     shutil.copytree(
         MUTATE_FIXTURE,
         root,
-        ignore=shutil.ignore_patterns("scan.python.json", "crap.json"),
+        ignore=shutil.ignore_patterns("scan.python.json"),
     )
     commit = git_commit(root)
     cache = root / ".recognizer" / "cache"
-    (cache / "overlays").mkdir(parents=True)
+    cache.mkdir(parents=True)
     shutil.copy(MUTATE_FIXTURE / "scan.python.json", cache / "scan.python.json")
-    crap = (MUTATE_FIXTURE / "crap.json").read_text().replace("@COMMIT@", commit)
-    (cache / "overlays" / "crap.json").write_text(crap)
 
     return root, commit
 
 
 def mutate_settings(script: str, **extra) -> str:
-    return json.dumps({"test_command": [sys.executable, script], **extra})
+    return json.dumps(
+        {"test_command": [sys.executable, script], "coverage": "coverage/lcov.info", **extra}
+    )
 
 
 def write_scan_document(

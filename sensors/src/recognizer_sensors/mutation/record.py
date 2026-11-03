@@ -10,8 +10,8 @@ VERDICTS = ("killed", "survived", "timeout")
 PATHSPEC = ["--", ".", ":!.recognizer"]
 
 
-def command_hash(command: list[str]) -> str:
-    text = json.dumps(command, separators=(",", ":"))
+def command_hash(command: object) -> str:
+    text = json.dumps(command, separators=(",", ":"), sort_keys=True)
 
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -20,7 +20,7 @@ def body_hash(source: bytes) -> str:
     return hashlib.sha256(source).hexdigest()
 
 
-def read_record(path: Path, command: list[str]) -> dict | None:
+def read_record(path: Path, command: object) -> dict | None:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -44,7 +44,7 @@ def read_record(path: Path, command: list[str]) -> dict | None:
 
 
 def build_record(
-    command: list[str], commit: str, functions: dict[str, dict], skipped: list[str]
+    command: object, commit: str, functions: dict[str, dict], skipped: list[str]
 ) -> dict:
     return {
         "record_version": RECORD_VERSION,

@@ -23,6 +23,7 @@ import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import type { Violation } from "./rules.js";
 import { type Scan, validateScan } from "./scan.js";
+import { shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
   DEFAULT_DISTANCE_THRESHOLD,
@@ -538,6 +539,7 @@ function gather(
     const allowed = [
       ...(resolved === "off" ? [] : ["structure"]),
       ...registeredSensors(config).map(({ name }) => name),
+      ...shippedSensorNames(),
     ];
 
     for (const outcome of readFindingsFiles(io, root, commit, [], allowed)) {
