@@ -2990,9 +2990,6 @@ export function showExplorer(
         filter: root ? pickerFilter : panel.filter,
         collapsed: root ? groupFlips : panel.groupFlips,
         followed: panel.followed,
-        folderMetrics: (folder) =>
-          loaded.folderMetrics.find((row) => row.id === folder) ?? null,
-        distanceThreshold: loaded.distanceThreshold,
         responsibility: (id) => ({
           state: responsibilityOf(id),
           busy: describing.busy(id),

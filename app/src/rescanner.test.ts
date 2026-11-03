@@ -19,8 +19,6 @@ const OK: Loaded = {
   blocking: null,
   findings: [],
   sensors: [],
-  folderMetrics: [],
-  distanceThreshold: 0.3,
 };
 
 const line = (value: object) => JSON.stringify(value);

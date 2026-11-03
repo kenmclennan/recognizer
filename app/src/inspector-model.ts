@@ -1,10 +1,7 @@
 import {
-  type FolderMetrics,
   fieldTokens,
   memberHeadTokens,
   methodTokens,
-  metricsLine,
-  metricsTable,
   type Scan,
   type ScanEdge,
   type ScanMember,
@@ -22,7 +19,7 @@ import { createPicker, type PickerSource } from "./picker-model";
 import type { ResponsibilityRow } from "./responsibility-model";
 import { type CheckState, checkState } from "./row-model";
 
-export type InspectorTab = "contents" | "findings" | "dependencies" | "metrics";
+export type InspectorTab = "contents" | "findings" | "dependencies";
 
 export type InspectorInputs = {
   scans: Scan[];
@@ -42,8 +39,6 @@ export type InspectorInputs = {
   collapsed: ReadonlySet<string>;
   followed: Followed | null;
   responsibility: (id: string) => ResponsibilityRow;
-  folderMetrics: (folder: string) => FolderMetrics | null;
-  distanceThreshold: number;
   metrics: readonly MetricDescriptor[];
 };
 
@@ -115,7 +110,6 @@ export type Row =
       followed: boolean;
     }
   | { kind: "group"; id: string; disc: Disc; path: string }
-  | { kind: "metric"; name: string; value: string }
   | { kind: "finding"; row: FindingRow }
   | { kind: "evidence"; section: EvidenceSection };
 
@@ -125,7 +119,6 @@ export type Header = {
   muted: string;
   target: { kind: "module" | "folder"; id: string } | null;
   responsibility: ResponsibilityLineRow | null;
-  metrics: string | null;
 };
 
 export type InspectorContent = {
@@ -721,18 +714,6 @@ export function findingsTone(
   };
 }
 
-function metricRows(row: FolderMetrics | null, threshold: number): Row[] {
-  if (row === null) {
-    return [{ kind: "note", text: "Not measured" }];
-  }
-
-  return metricsTable(row, threshold).map(([name, value]) => ({
-    kind: "metric",
-    name,
-    value,
-  }));
-}
-
 function parentOf(id: string): string {
   const parts = id.split("/").slice(0, -1).slice(-PARENT_SEGMENTS);
 
@@ -752,7 +733,6 @@ export function inspectorContent(
         muted: "",
         target: null,
         responsibility: null,
-        metrics: null,
       },
       tabs: null,
       rows: [
@@ -781,7 +761,6 @@ export function inspectorContent(
         muted: "",
         target: null,
         responsibility: null,
-        metrics: null,
       },
       tabs: null,
       rows,
@@ -808,9 +787,7 @@ export function inspectorContent(
     },
   ];
 
-  const contents =
-    inputs.tab === "contents" ||
-    (inputs.tab === "metrics" && selection.kind === "module");
+  const contents = inputs.tab === "contents";
   const listed = inputs.tab === "dependencies";
 
   if (selection.kind === "module") {
@@ -826,7 +803,6 @@ export function inspectorContent(
           id: selection.id,
           ...inputs.responsibility(selection.id),
         },
-        metrics: null,
       },
       tabs,
       rows: listed
@@ -837,12 +813,6 @@ export function inspectorContent(
     };
   }
 
-  const folderRow = inputs.folderMetrics(selection.id);
-  const metricsTab = {
-    tab: "metrics" as const,
-    label: "Metrics",
-    active: inputs.tab === "metrics",
-  };
   const known = inputs.modules.filter(
     (id) => id !== selection.id && under(id, selection.id),
   ).length;
@@ -855,20 +825,13 @@ export function inspectorContent(
       muted: `${known} files`,
       target: { kind: "folder", id: selection.id },
       responsibility: null,
-      metrics:
-        folderRow === null
-          ? null
-          : metricsLine(folderRow, inputs.distanceThreshold),
     },
-    tabs: folderRow === null ? tabs : [...tabs, metricsTab],
-    rows:
-      inputs.tab === "metrics"
-        ? metricRows(folderRow, inputs.distanceThreshold)
-        : listed
-          ? dependencyRows(selection, figures, inputs)
-          : contents
-            ? folderContents(selection.id, inputs)
-            : foldersGroups(selection.id, inputs),
+    tabs,
+    rows: listed
+      ? dependencyRows(selection, figures, inputs)
+      : contents
+        ? folderContents(selection.id, inputs)
+        : foldersGroups(selection.id, inputs),
   };
 }
 

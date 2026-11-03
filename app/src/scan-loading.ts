@@ -1,7 +1,5 @@
 import {
-  DEFAULT_DISTANCE_THRESHOLD,
   type FindingsDocument,
-  type FolderMetrics,
   SCAN_SCHEMA_VERSION,
   type Scan,
 } from "recognizer";
@@ -21,8 +19,6 @@ export type Loaded = {
   sensors: SensorStatus[];
   overlays?: { name: string; text: string }[];
   overlaysUnreadable?: string[];
-  folderMetrics: FolderMetrics[];
-  distanceThreshold: number;
 };
 
 const EMPTY: Loaded = {
@@ -34,8 +30,6 @@ const EMPTY: Loaded = {
   blocking: null,
   findings: [],
   sensors: [],
-  folderMetrics: [],
-  distanceThreshold: DEFAULT_DISTANCE_THRESHOLD,
 };
 
 function isList(value: unknown): boolean {
@@ -123,7 +117,5 @@ export function loadScans(report: ScanReport): Loaded {
     blocking: null,
     findings: [],
     sensors: [],
-    folderMetrics: [],
-    distanceThreshold: DEFAULT_DISTANCE_THRESHOLD,
   };
 }
