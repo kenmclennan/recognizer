@@ -148,3 +148,27 @@ fn version_flags_print_the_package_version() {
         );
     }
 }
+
+#[test]
+fn inline_test_code_in_the_fixture_is_absent_from_the_scan() {
+    let document = fixture_scan();
+    let pricing = module(&document, "pricing/src/lib.rs");
+    let names: Vec<&str> = pricing["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["name"].as_str().unwrap())
+        .collect();
+
+    assert!(names.contains(&"discount"));
+
+    for absent in [
+        "tests",
+        "free_standing_test",
+        "discount_is_fifteen_percent",
+        "helper",
+        "SAMPLE_TOTAL",
+    ] {
+        assert!(!names.contains(&absent), "{absent}");
+    }
+}

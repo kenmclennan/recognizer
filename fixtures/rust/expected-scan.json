@@ -9,7 +9,7 @@
   "files": [
     {
       "path": "pricing/src/lib.rs",
-      "hash": "5c06698dd15ffd8cdb6042ce8aaf4ccf4d21b2f688ed8714c81f564b4071c5a1"
+      "hash": "78b1634eb2ab90a538ce86875b4165b55b7ee8ef826395afba34c5428d6a10d2"
     },
     {
       "path": "shop/src/adapters.rs",
