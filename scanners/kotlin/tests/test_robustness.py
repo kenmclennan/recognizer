@@ -34,7 +34,7 @@ def test_a_misparsed_declaration_is_recovered_as_a_member_with_its_visibility(ru
             )
         }
     )
-    found = member(document, "a", "UseCase")
+    found = member(document, "a/UseCase.kt", "UseCase")
 
     assert (found["kind"], found["visibility"], found["exported"]) == ("class", "private", False)
 
@@ -50,7 +50,7 @@ def test_a_damaged_file_keeps_the_names_found_by_pattern(run):
             )
         }
     )
-    names = {m["name"]: (m["kind"], m["visibility"]) for m in module(document, "a")["members"]}
+    names = {m["name"]: (m["kind"], m["visibility"]) for m in module(document, "a/F.kt")["members"]}
 
     assert names == {
         "A": ("class", "public"),
@@ -58,7 +58,7 @@ def test_a_damaged_file_keeps_the_names_found_by_pattern(run):
         "B": ("interface", "internal"),
         "helper": ("function", "public"),
     }
-    assert "methods" not in member(document, "a", "A")
+    assert "methods" not in member(document, "a/F.kt", "A")
 
 
 def test_a_damaged_span_in_a_good_declaration_keeps_the_others_outlines(run):
@@ -72,7 +72,7 @@ def test_a_damaged_span_in_a_good_declaration_keeps_the_others_outlines(run):
         }
     )
 
-    assert [m["name"] for m in member(document, "a", "Good")["methods"]] == ["f"]
+    assert [m["name"] for m in member(document, "a/F.kt", "Good")["methods"]] == ["f"]
 
 
 def test_a_damaged_body_makes_no_calls(run):
@@ -123,4 +123,4 @@ def test_braces_in_strings_and_comments_do_not_split_a_declaration(run):
         }
     )
 
-    assert {m["name"] for m in module(document, "a")["members"]} == {"A", "A.Companion", "B"}
+    assert {m["name"] for m in module(document, "a/F.kt")["members"]} == {"A", "A.Companion", "B"}

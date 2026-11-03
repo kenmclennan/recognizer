@@ -338,7 +338,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::straight",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::straight",
       "measures": {
         "complexity": 1,
         "coverage": 1.0,
@@ -352,7 +352,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::oneIf",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::oneIf",
       "measures": {
         "complexity": 2,
         "coverage": 1.0,
@@ -366,7 +366,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::ifElse",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::ifElse",
       "measures": {
         "complexity": 3,
         "coverage": 0.0,
@@ -380,7 +380,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::loops",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::loops",
       "measures": {
         "complexity": 4,
         "coverage": 0.5,
@@ -394,7 +394,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::whenThree",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::whenThree",
       "measures": {
         "complexity": 5,
         "coverage": 0.7143,
@@ -408,7 +408,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::tryCatch",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::tryCatch",
       "measures": {
         "complexity": 6,
         "coverage": 0.2857,
@@ -422,7 +422,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "finding",
-      "finding_id": "crap:kotlin/corpus::booleans",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::booleans",
       "measures": {
         "complexity": 7,
         "coverage": 0.0,
@@ -436,7 +436,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "finding",
-      "finding_id": "crap:kotlin/corpus::mixed",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::mixed",
       "measures": {
         "complexity": 8,
         "coverage": 0.1429,
@@ -450,7 +450,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::nested",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::nested",
       "measures": {
         "complexity": 9
       },
@@ -462,7 +462,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "no-finding",
-      "finding_id": "crap:kotlin/corpus::classify",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::classify",
       "measures": {
         "complexity": 10,
         "coverage": 0.4286,
@@ -476,7 +476,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "finding",
-      "finding_id": "crap:kotlin/corpus::wide",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::wide",
       "measures": {
         "complexity": 11,
         "coverage": 0.2857,
@@ -490,7 +490,7 @@
       "language": "kotlin",
       "run": "jacoco",
       "expect": "finding",
-      "finding_id": "crap:kotlin/corpus::sprawl",
+      "finding_id": "crap:kotlin/corpus/Risk.kt::sprawl",
       "measures": {
         "complexity": 12,
         "coverage": 0.5,

@@ -38,7 +38,7 @@ def module_kind(members: list[dict]) -> str:
     if exported and all(m["kind"] == "interface" for m in exported):
         return "interface"
 
-    return "package"
+    return "module"
 
 
 def endpoints_of(module_id: str, members: list[dict]) -> set[str]:
@@ -69,8 +69,8 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
     root = Path(root)
     paths = discover(root)
     files, hashes = read_all(root, paths)
-    directories = sorted({f.directory for f in files})
-    index = Index(files, {d: build_module_of(root, d) for d in directories})
+    builds = {d: build_module_of(root, d) for d in sorted({f.directory for f in files})}
+    index = Index(files, {f.path: builds[f.directory] for f in files})
     resolver = Resolver(index)
     collected = Collected()
 
@@ -80,13 +80,12 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
     modules = []
     endpoints = set()
 
-    for directory in directories:
-        decls = [d for f in files if f.directory == directory for d in f.decls]
-        members = [member_of(d) for d in decls]
-        endpoints |= endpoints_of(directory, members)
+    for file in files:
+        members = [member_of(d) for d in file.decls]
+        endpoints |= endpoints_of(file.path, members)
         modules.append(
             {
-                "id": directory,
+                "id": file.path,
                 "language": "kotlin",
                 "kind": module_kind(members),
                 "members": members,

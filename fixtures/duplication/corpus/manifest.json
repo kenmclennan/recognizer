@@ -189,74 +189,74 @@
   },
   {
     "language": "kotlin",
-    "a": "src::orderTotal",
-    "b": "src::parcelWeight",
+    "a": "src/Planted.kt::orderTotal",
+    "b": "src/Planted.kt::parcelWeight",
     "label": "planted-copy",
     "expected": "reported"
   },
   {
     "language": "kotlin",
-    "a": "src::loadSettings",
-    "b": "src::loadSession",
+    "a": "src/Planted.kt::loadSettings",
+    "b": "src/Planted.kt::loadSession",
     "label": "planted-copy",
     "expected": "reported"
   },
   {
     "language": "kotlin",
-    "a": "src::storeReport",
-    "b": "src::storeLedger",
+    "a": "src/Planted.kt::storeReport",
+    "b": "src/Planted.kt::storeLedger",
     "label": "planted-copy",
     "expected": "reported"
   },
   {
     "language": "kotlin",
-    "a": "src::gatherNames",
-    "b": "src::gatherTags",
+    "a": "src/Near.kt::gatherNames",
+    "b": "src/Near.kt::gatherTags",
     "label": "planted-near-copy",
     "expected": "reported"
   },
   {
     "language": "kotlin",
-    "a": "src::fetchPages",
-    "b": "src::fetchEvents",
+    "a": "src/Near.kt::fetchPages",
+    "b": "src/Near.kt::fetchEvents",
     "label": "planted-near-copy",
     "expected": "reported"
   },
   {
     "language": "kotlin",
-    "a": "src::summariseOrders",
-    "b": "src::summariseVisits",
+    "a": "src/Near.kt::summariseOrders",
+    "b": "src/Near.kt::summariseVisits",
     "label": "planted-near-copy",
     "expected": "reported"
   },
   {
     "language": "kotlin",
-    "a": "src::readConfig",
-    "b": "src::renderTable",
+    "a": "src/Distinct.kt::readConfig",
+    "b": "src/Distinct.kt::renderTable",
     "label": "non-copy",
     "expected": "not-reported"
   },
   {
     "language": "kotlin",
-    "a": "src::walkTree",
-    "b": "src::clampRange",
+    "a": "src/Distinct.kt::walkTree",
+    "b": "src/Distinct.kt::clampRange",
     "label": "non-copy",
     "expected": "not-reported"
   },
   {
     "language": "kotlin",
-    "a": "src::parseFlags",
-    "b": "src::mergeSorted",
+    "a": "src/Distinct.kt::parseFlags",
+    "b": "src/Distinct.kt::mergeSorted",
     "label": "non-copy",
     "expected": "not-reported"
   },
   {
     "language": "kotlin",
     "members": [
-      "src::Limits.retryLimit",
-      "src::Limits.pageSize",
-      "src::Limits.queueDepth",
-      "src::Limits.idleTimeout"
+      "src/Accessors.kt::Limits.retryLimit",
+      "src/Accessors.kt::Limits.pageSize",
+      "src/Accessors.kt::Limits.queueDepth",
+      "src/Accessors.kt::Limits.idleTimeout"
     ],
     "label": "non-copy-accessors",
     "expected": "not-reported",
@@ -264,8 +264,8 @@
   },
   {
     "language": "kotlin",
-    "a": "src::Budgets.retryLimit",
-    "b": "src::Budgets.pageSize",
+    "a": "src/Branching.kt::Budgets.retryLimit",
+    "b": "src/Branching.kt::Budgets.pageSize",
     "label": "near-copy-not-accessor",
     "expected": "reported",
     "note": "a four-line function with a branch is not an accessor: the accessor shape must not skip it"
@@ -273,9 +273,9 @@
   {
     "language": "kotlin",
     "members": [
-      "src::Orders.assign",
-      "src::Parcels.assign",
-      "src::Visits.assign"
+      "src/Constructors.kt::Orders.assign",
+      "src/Constructors.kt::Parcels.assign",
+      "src/Constructors.kt::Visits.assign"
     ],
     "label": "non-copy-constructors",
     "expected": "not-reported",

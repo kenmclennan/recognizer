@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from recognizer_sensors.parsing import LANGUAGES
 
@@ -41,9 +41,6 @@ def scan_path(repository: Path, language: str) -> Path:
 
 
 def module_files(language: str, module_id: str, files: list[str]) -> tuple[str, ...]:
-    if language == "kotlin":
-        return tuple(sorted(f for f in files if PurePosixPath(f).parent.as_posix() == module_id))
-
     return (module_id,) if module_id in files else ()
 
 

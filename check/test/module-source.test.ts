@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { type Io, run } from "../src/cli.js";
 import { moduleSource } from "../src/module-source.js";
@@ -19,11 +19,8 @@ import { capture, REPO } from "./helpers.js";
 
 const FAKE = join(REPO, "check/test/fixtures/fake-describer.mjs");
 const DOMAIN = "app/src/main/kotlin/shop/domain";
-const WEB = "app/src/main/kotlin/shop/web";
-const CURRENCY = `${DOMAIN}/Currency.kt`;
 const ORDER = `${DOMAIN}/Order.kt`;
-const PINNED =
-  "8c5ccc8157d9f901a5f999662456b9559edddc914a4c9e5524ef731881cc2429";
+const CURRENCY = `${DOMAIN}/Currency.kt`;
 const roots: string[] = [];
 
 function git(root: string, ...args: string[]): string {
@@ -117,11 +114,10 @@ afterEach(() => {
 
 describe("moduleSource", () => {
   const scan = {
-    modules: [{ id: "shop" }, { id: "shop/sub" }, { id: "solo.py" }],
+    modules: [{ id: "shop/A.kt" }, { id: "solo.py" }, { id: "dir" }],
     files: [
-      { path: "shop/sub/C.kt", hash: "x" },
-      { path: "shop/B.kt", hash: "x" },
       { path: "shop/A.kt", hash: "x" },
+      { path: "shop/B.kt", hash: "x" },
       { path: "solo.py", hash: "x" },
     ],
   } as unknown as Scan;
@@ -145,21 +141,18 @@ describe("moduleSource", () => {
   const files = {
     "/r/shop/A.kt": "package shop\n\nclass A\n",
     "/r/shop/B.kt": "package shop\n\nclass B",
-    "/r/shop/sub/C.kt": "package sub\n",
     "/r/solo.py": "print(1)",
   };
 
-  it("pins the worked two-file hash", () => {
-    const found = moduleSource(io(files), "/r", [scan], "shop");
+  it("hashes a file module as the file's text with files as a one-element array", () => {
+    const found = moduleSource(io(files), "/r", [scan], "shop/A.kt");
 
-    expect(found?.files).toEqual(["shop/A.kt", "shop/B.kt"]);
-    expect(found?.source).toBe(
-      "==> shop/A.kt <==\npackage shop\n\nclass A\n==> shop/B.kt <==\npackage shop\n\nclass B\n",
-    );
-    expect(found?.hash).toBe(PINNED);
+    expect(found?.files).toEqual(["shop/A.kt"]);
+    expect(found?.source).toBe("package shop\n\nclass A\n");
+    expect(found?.hash).toBe(sha("package shop\n\nclass A\n"));
   });
 
-  it("hashes a file module as the file's text", () => {
+  it("hashes a Python file module as the file's text", () => {
     const found = moduleSource(io(files), "/r", [scan], "solo.py");
 
     expect(found?.files).toEqual(["solo.py"]);
@@ -180,107 +173,62 @@ describe("moduleSource", () => {
     expect(found?.hash).not.toBe(sha(bytes.toString("utf8")));
   });
 
-  it("leaves subdirectory files to their own module", () => {
-    expect(moduleSource(io(files), "/r", [scan], "shop/sub")?.files).toEqual([
-      "shop/sub/C.kt",
-    ]);
-  });
-
-  it("is unreadable when a listed file is missing or the module is unscanned", () => {
+  it("is unreadable when the file is missing or the id names no scanned file", () => {
     const { "/r/shop/A.kt": _, ...rest } = files;
 
-    expect(moduleSource(io(rest), "/r", [scan], "shop")).toBeNull();
+    expect(moduleSource(io(rest), "/r", [scan], "shop/A.kt")).toBeNull();
     expect(moduleSource(io(files), "/r", [scan], "nowhere")).toBeNull();
+    expect(moduleSource(io(files), "/r", [scan], "dir")).toBeNull();
   });
 });
 
-describe("describe over a Kotlin package module", () => {
-  it("sends both files, tracks edits to either and agrees with show", () => {
+describe("describe over a Kotlin file module", () => {
+  it("sends the one file, tracks edits to it and agrees with show", () => {
     const root = repository();
 
-    expect(exec(root, "describe", DOMAIN).code).toBe(0);
+    expect(exec(root, "describe", ORDER).code).toBe(0);
 
     const request = JSON.parse(
       readFileSync(join(root, ".recognizer/request.json"), "utf8"),
     );
-    const expected = [CURRENCY, ORDER]
-      .map((file) => {
-        const text = readFileSync(join(root, file), "utf8");
 
-        return `==> ${file} <==\n${text}${text.endsWith("\n") ? "" : "\n"}`;
-      })
-      .join("");
-
-    expect(request.files).toEqual([CURRENCY, ORDER]);
-    expect(request.source).toBe(expected);
-    expect(statusOf(root, DOMAIN)).toBe("current");
+    expect(request.files).toEqual([ORDER]);
+    expect(request.source).toBe(readFileSync(join(root, ORDER), "utf8"));
+    expect(statusOf(root, ORDER)).toBe("current");
 
     const shown = () =>
-      JSON.parse(exec(root, "show", DOMAIN, "--json").out).responsibility;
+      JSON.parse(exec(root, "show", ORDER, "--json").out).responsibility;
 
     expect(shown().status).toBe("current");
 
-    for (const file of [CURRENCY, ORDER]) {
-      const path = join(root, file);
-      const before = readFileSync(path, "utf8");
+    const path = join(root, ORDER);
+    const before = readFileSync(path, "utf8");
 
-      writeFileSync(path, `${before}\n// edited\n`);
-      commit(root);
+    writeFileSync(path, `${before}\n// edited\n`);
+    commit(root);
 
-      const stale = counts(root).modules.find((m) => m.module === DOMAIN);
+    const stale = counts(root).modules.find((m) => m.module === ORDER);
 
-      expect(stale?.status).toBe("out-of-date");
-      expect(stale?.reasons).toEqual(["source"]);
-      expect(shown().status).toBe("out-of-date");
+    expect(stale?.status).toBe("out-of-date");
+    expect(stale?.reasons).toEqual(["source"]);
+    expect(shown().status).toBe("out-of-date");
+    expect(statusOf(root, CURRENCY)).toBe("missing");
 
-      writeFileSync(path, before);
-      commit(root);
+    writeFileSync(path, before);
+    commit(root);
 
-      expect(statusOf(root, DOMAIN)).toBe("current");
-    }
+    expect(statusOf(root, ORDER)).toBe("current");
   });
 
-  it("reports 7 current and none unreadable after describe --all", () => {
+  it("reports 10 current and none unreadable after describe --all", () => {
     const root = repository();
 
     expect(exec(root, "describe", "--all").code).toBe(0);
     expect(counts(root).counts).toEqual({
-      current: 7,
+      current: 10,
       outOfDate: 0,
       missing: 0,
       unreadable: 0,
     });
-  });
-
-  it("does not take a subdirectory's files", () => {
-    const root = repository();
-    const nested = join(root, WEB, "sub/Extra.kt");
-
-    mkdirSync(dirname(nested), { recursive: true });
-    writeFileSync(nested, "package shop.web.sub\n");
-    commit(root);
-
-    const scan = JSON.parse(
-      readFileSync(join(root, ".recognizer/cache/scan.kotlin.json"), "utf8"),
-    );
-
-    scan.files.push({
-      path: `${WEB}/sub/Extra.kt`,
-      hash: sha("package shop.web.sub\n"),
-    });
-    writeFileSync(
-      join(root, ".recognizer/cache/scan.kotlin.json"),
-      JSON.stringify(scan),
-    );
-
-    exec(root, "describe", WEB);
-
-    const request = JSON.parse(
-      readFileSync(join(root, ".recognizer/request.json"), "utf8"),
-    );
-
-    expect(request.files.every((file: string) => !file.includes("/sub/"))).toBe(
-      true,
-    );
   });
 });

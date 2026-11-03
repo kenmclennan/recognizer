@@ -25,20 +25,20 @@ def one(run, body: str) -> dict:
     ],
 )
 def test_each_declaration_form_maps_to_its_kind(run, body, name, kind):
-    assert member(one(run, body), "a", name)["kind"] == kind
+    assert member(one(run, body), "a/F.kt", name)["kind"] == kind
 
 
 @pytest.mark.parametrize("visibility", ["public", "protected", "internal", "private"])
 def test_visibility_is_the_declared_modifier_and_exported_agrees(run, visibility):
     document = one(run, f"{visibility} class A")
-    found = member(document, "a", "A")
+    found = member(document, "a/F.kt", "A")
 
     assert found["visibility"] == visibility
     assert found["exported"] is (visibility != "private")
 
 
 def test_visibility_defaults_to_public(run):
-    found = member(one(run, "fun a() = 1"), "a", "a")
+    found = member(one(run, "fun a() = 1"), "a/F.kt", "a")
 
     assert (found["visibility"], found["exported"]) == ("public", True)
 
@@ -46,18 +46,18 @@ def test_visibility_defaults_to_public(run):
 def test_an_extension_function_is_named_without_its_receiver(run):
     document = one(run, "class Order\n\nfun Order.total(): Int = 1")
 
-    assert member(document, "a", "total")["kind"] == "function"
-    assert "Order.total" not in [m["name"] for m in module(document, "a")["members"]]
+    assert member(document, "a/F.kt", "total")["kind"] == "function"
+    assert "Order.total" not in [m["name"] for m in module(document, "a/F.kt")["members"]]
 
 
 def test_a_companion_object_is_a_member_with_its_functions_as_static_methods(run):
     document = one(run, "class A {\n    companion object {\n        fun make() = 1\n    }\n}")
-    companion = member(document, "a", "A.Companion")
+    companion = member(document, "a/F.kt", "A.Companion")
 
     assert companion["kind"] == "class"
     assert companion["methods"][0]["name"] == "make"
     assert companion["methods"][0]["tags"] == ["static"]
-    assert member(document, "a", "A")["methods"] == []
+    assert member(document, "a/F.kt", "A")["methods"] == []
 
 
 def test_a_named_companion_object_is_named_after_its_outer_class(run):
@@ -65,13 +65,13 @@ def test_a_named_companion_object_is_named_after_its_outer_class(run):
         run, "class A {\n    companion object Factory {\n        const val K = 1\n    }\n}"
     )
 
-    assert "A.Factory" in [m["name"] for m in module(document, "a")["members"]]
+    assert "A.Factory" in [m["name"] for m in module(document, "a/F.kt")["members"]]
 
 
 def test_nested_classes_are_not_members(run):
     document = one(run, "class A {\n    class Inner\n}")
 
-    assert [m["name"] for m in module(document, "a")["members"]] == ["A"]
+    assert [m["name"] for m in module(document, "a/F.kt")["members"]] == ["A"]
 
 
 def test_a_class_outline_has_bases_fields_and_methods(run):
@@ -83,7 +83,7 @@ def test_a_class_outline_has_bases_fields_and_methods(run):
         "    fun open() {}\n"
         "}",
     )
-    found = member(document, "a", "A")
+    found = member(document, "a/F.kt", "A")
 
     assert found["bases"] == ["Base", "Port"]
     assert [(f["name"], f.get("type"), f["private"]) for f in found["fields"]] == [
@@ -108,19 +108,22 @@ def test_abstract_and_interface_methods_are_tagged_abstract(run):
         "abstract class C {\n    abstract fun c()\n}",
     )
 
-    assert [m.get("tags") for m in member(document, "a", "P")["methods"]] == [["abstract"], None]
-    assert member(document, "a", "C")["methods"][0]["tags"] == ["abstract"]
+    assert [m.get("tags") for m in member(document, "a/F.kt", "P")["methods"]] == [
+        ["abstract"],
+        None,
+    ]
+    assert member(document, "a/F.kt", "C")["methods"][0]["tags"] == ["abstract"]
 
 
 def test_a_function_member_has_params_and_a_declared_return_type(run):
-    found = member(one(run, 'fun a(x: Int): String = ""'), "a", "a")
+    found = member(one(run, 'fun a(x: Int): String = ""'), "a/F.kt", "a")
 
     assert found["params"] == [{"name": "x", "type": "Int"}]
     assert found["returns"] == "String"
 
 
 def test_a_constant_keeps_a_short_value(run):
-    assert member(one(run, 'const val A = "x"'), "a", "A")["value"] == '"x"'
+    assert member(one(run, 'const val A = "x"'), "a/F.kt", "A")["value"] == '"x"'
 
 
 def test_a_module_of_only_interfaces_is_an_interface_module(run):
@@ -134,13 +137,14 @@ def test_a_module_of_only_interfaces_is_an_interface_module(run):
         }
     )
 
-    assert [m["kind"] for m in document["modules"]] == ["interface", "interface", "package"]
+    assert [m["kind"] for m in document["modules"]] == ["interface", "interface", "module"]
 
 
-def test_the_module_id_is_the_directory_and_the_root_is_a_dot(run):
+def test_the_module_id_is_the_file_path(run):
     document = run({"A.kt": "class A\n", "x/y/B.kt": "package x.y\n\nclass B\n"})
 
-    assert [m["id"] for m in document["modules"]] == [".", "x/y"]
+    assert [m["id"] for m in document["modules"]] == ["A.kt", "x/y/B.kt"]
+    assert {m["kind"] for m in document["modules"]} == {"module"}
 
 
 def test_files_list_every_read_file_with_its_hash_sorted_by_path(run):

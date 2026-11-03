@@ -421,14 +421,14 @@ describe("describe failures", () => {
   });
 });
 
-describe("describe a Kotlin package module", () => {
-  it("reports only the package with a deleted file unreadable", () => {
+describe("describe a Kotlin file module", () => {
+  it("reports only the module of a deleted file unreadable", () => {
     const root = repository("kotlin");
-    const gone = "app/src/main/kotlin/shop/domain";
+    const gone = "app/src/main/kotlin/shop/domain/Order.kt";
 
     configure(root);
     exec(root, "describe");
-    rmSync(join(root, gone, "Order.kt"));
+    rmSync(join(root, gone));
     git(root, "add", "-A", "--", ".", ":!.recognizer");
     git(root, "commit", "-q", "-m", "delete");
 
@@ -439,7 +439,7 @@ describe("describe a Kotlin package module", () => {
     writeFileSync(cache, JSON.stringify(scan));
 
     const recorded = scan.files.find(
-      (entry: { path: string }) => entry.path === `${gone}/Order.kt`,
+      (entry: { path: string }) => entry.path === gone,
     );
     const out = capture();
     const io: Io = {
@@ -455,7 +455,7 @@ describe("describe a Kotlin package module", () => {
 
     expect(code).toBe(1);
     expect(parsed.counts.unreadable).toBe(1);
-    expect(parsed.counts.current).toBe(6);
+    expect(parsed.counts.current).toBe(9);
     expect(
       parsed.modules
         .filter((m: { status: string }) => m.status === "unreadable")

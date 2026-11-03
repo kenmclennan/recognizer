@@ -9,23 +9,12 @@ export interface ModuleSource {
   hash: string;
 }
 
-function parentOf(path: string): string {
-  const cut = path.lastIndexOf("/");
-
-  return cut === -1 ? "" : path.slice(0, cut);
-}
-
 function sourceFiles(scans: Scan[], id: string): string[] {
   const listing = scans.find((scan) =>
     scan.modules.some((module) => module.id === id),
   ) as RecordedScan | undefined;
-  const paths = (listing?.files ?? []).map((file) => file.path);
 
-  if (paths.includes(id)) {
-    return [id];
-  }
-
-  return paths.filter((path) => parentOf(path) === id).sort();
+  return (listing?.files ?? []).some((file) => file.path === id) ? [id] : [];
 }
 
 export function moduleSource(
@@ -41,21 +30,7 @@ export function moduleSource(
   }
 
   try {
-    const contents = files.map((file) => io.readBytes(join(root, file)));
-    const raw =
-      files.length === 1
-        ? (contents[0] as Buffer)
-        : Buffer.concat(
-            files.flatMap((file, index) => {
-              const bytes = contents[index] as Buffer;
-
-              return [
-                Buffer.from(`==> ${file} <==\n`, "utf8"),
-                bytes,
-                Buffer.from(bytes.at(-1) === 0x0a ? "" : "\n", "utf8"),
-              ];
-            }),
-          );
+    const raw = io.readBytes(join(root, id));
     const source = raw.toString("utf8");
     const hash = createHash("sha256").update(raw).digest("hex");
 

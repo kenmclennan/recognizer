@@ -73,9 +73,9 @@
   },
   "modules": [
     {
-      "id": "app/src/main/kotlin/shop/application",
+      "id": "app/src/main/kotlin/shop/application/PlaceOrder.kt",
       "language": "kotlin",
-      "kind": "package",
+      "kind": "module",
       "members": [
         {
           "name": "PlaceOrder",
@@ -105,7 +105,14 @@
               "private": false
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/application/UseCase.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
         {
           "name": "UseCase",
           "kind": "class",
@@ -119,7 +126,7 @@
       ]
     },
     {
-      "id": "app/src/main/kotlin/shop/clients",
+      "id": "app/src/main/kotlin/shop/clients/PaymentClient.kt",
       "language": "kotlin",
       "kind": "interface",
       "members": [
@@ -152,9 +159,9 @@
       ]
     },
     {
-      "id": "app/src/main/kotlin/shop/config",
+      "id": "app/src/main/kotlin/shop/config/Paths.kt",
       "language": "kotlin",
-      "kind": "package",
+      "kind": "module",
       "members": [
         {
           "name": "BASE",
@@ -167,9 +174,9 @@
       ]
     },
     {
-      "id": "app/src/main/kotlin/shop/domain",
+      "id": "app/src/main/kotlin/shop/domain/Currency.kt",
       "language": "kotlin",
-      "kind": "package",
+      "kind": "module",
       "members": [
         {
           "name": "Currency",
@@ -184,7 +191,14 @@
           "line": 3,
           "exported": true,
           "visibility": "public"
-        },
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/domain/Order.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
         {
           "name": "Order",
           "kind": "class",
@@ -220,9 +234,9 @@
       ]
     },
     {
-      "id": "app/src/main/kotlin/shop/persistence",
+      "id": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
       "language": "kotlin",
-      "kind": "package",
+      "kind": "module",
       "members": [
         {
           "name": "JdbcOrderStore",
@@ -266,7 +280,14 @@
               "returns": "OrderRecord"
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "app/src/main/kotlin/shop/persistence/OrderRepository.kt",
+      "language": "kotlin",
+      "kind": "interface",
+      "members": [
         {
           "name": "OrderRepository",
           "kind": "interface",
@@ -282,7 +303,7 @@
       ]
     },
     {
-      "id": "app/src/main/kotlin/shop/ports",
+      "id": "app/src/main/kotlin/shop/ports/OrderStore.kt",
       "language": "kotlin",
       "kind": "interface",
       "members": [
@@ -314,9 +335,9 @@
       ]
     },
     {
-      "id": "app/src/main/kotlin/shop/web",
+      "id": "app/src/main/kotlin/shop/web/OrderController.kt",
       "language": "kotlin",
-      "kind": "package",
+      "kind": "module",
       "members": [
         {
           "name": "OrderController",
@@ -360,8 +381,8 @@
   ],
   "edges": [
     {
-      "from": "app/src/main/kotlin/shop/application",
-      "to": "app/src/main/kotlin/shop/domain",
+      "from": "app/src/main/kotlin/shop/application/PlaceOrder.kt",
+      "to": "app/src/main/kotlin/shop/domain/Order.kt",
       "kind": "depends",
       "line": 3,
       "names": [
@@ -369,14 +390,8 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/application",
-      "to": "foreign:jakarta.inject",
-      "kind": "depends",
-      "line": 3
-    },
-    {
-      "from": "app/src/main/kotlin/shop/application",
-      "to": "app/src/main/kotlin/shop/ports",
+      "from": "app/src/main/kotlin/shop/application/PlaceOrder.kt",
+      "to": "app/src/main/kotlin/shop/ports/OrderStore.kt",
       "kind": "depends",
       "line": 4,
       "names": [
@@ -384,20 +399,35 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/clients",
+      "from": "app/src/main/kotlin/shop/application/PlaceOrder.kt",
+      "to": "app/src/main/kotlin/shop/application/UseCase.kt",
+      "kind": "depends",
+      "line": 6,
+      "names": [
+        "UseCase"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/application/UseCase.kt",
+      "to": "foreign:jakarta.inject",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/src/main/kotlin/shop/clients/PaymentClient.kt",
       "to": "foreign:io.micronaut.http.annotation",
       "kind": "depends",
       "line": 3
     },
     {
-      "from": "app/src/main/kotlin/shop/clients",
+      "from": "app/src/main/kotlin/shop/clients/PaymentClient.kt",
       "to": "foreign:io.micronaut.http.client.annotation",
       "kind": "depends",
       "line": 4
     },
     {
-      "from": "app/src/main/kotlin/shop/clients",
-      "to": "app/src/main/kotlin/shop/domain",
+      "from": "app/src/main/kotlin/shop/clients/PaymentClient.kt",
+      "to": "app/src/main/kotlin/shop/domain/Order.kt",
       "kind": "depends",
       "line": 5,
       "names": [
@@ -405,8 +435,8 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/persistence",
-      "to": "app/src/main/kotlin/shop/domain",
+      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
+      "to": "app/src/main/kotlin/shop/domain/Order.kt",
       "kind": "depends",
       "line": 3,
       "names": [
@@ -414,26 +444,14 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/persistence",
-      "to": "foreign:io.micronaut.data.jdbc.annotation",
-      "kind": "depends",
-      "line": 3
-    },
-    {
-      "from": "app/src/main/kotlin/shop/persistence",
-      "to": "foreign:io.micronaut.data.repository",
-      "kind": "depends",
-      "line": 4
-    },
-    {
-      "from": "app/src/main/kotlin/shop/persistence",
+      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
       "to": "foreign:shop.generated",
       "kind": "depends",
       "line": 4
     },
     {
-      "from": "app/src/main/kotlin/shop/persistence",
-      "to": "app/src/main/kotlin/shop/ports",
+      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
+      "to": "app/src/main/kotlin/shop/ports/OrderStore.kt",
       "kind": "depends",
       "line": 5,
       "names": [
@@ -441,16 +459,46 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/persistence",
-      "to": "app/src/main/kotlin/shop/ports",
+      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
+      "to": "app/src/main/kotlin/shop/persistence/OrderRepository.kt",
+      "kind": "depends",
+      "line": 7,
+      "names": [
+        "OrderRepository"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
+      "to": "app/src/main/kotlin/shop/ports/OrderStore.kt",
       "kind": "implements",
       "line": 7,
       "member": "JdbcOrderStore",
       "to_member": "OrderStore"
     },
     {
-      "from": "app/src/main/kotlin/shop/ports",
-      "to": "app/src/main/kotlin/shop/domain",
+      "from": "app/src/main/kotlin/shop/persistence/OrderRepository.kt",
+      "to": "foreign:io.micronaut.data.jdbc.annotation",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence/OrderRepository.kt",
+      "to": "foreign:io.micronaut.data.repository",
+      "kind": "depends",
+      "line": 4
+    },
+    {
+      "from": "app/src/main/kotlin/shop/persistence/OrderRepository.kt",
+      "to": "app/src/main/kotlin/shop/domain/Order.kt",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "app/src/main/kotlin/shop/ports/OrderStore.kt",
+      "to": "app/src/main/kotlin/shop/domain/Order.kt",
       "kind": "depends",
       "line": 3,
       "names": [
@@ -458,14 +506,14 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/web",
+      "from": "app/src/main/kotlin/shop/web/OrderController.kt",
       "to": "foreign:io.micronaut.http.annotation",
       "kind": "depends",
       "line": 3
     },
     {
-      "from": "app/src/main/kotlin/shop/web",
-      "to": "app/src/main/kotlin/shop/application",
+      "from": "app/src/main/kotlin/shop/web/OrderController.kt",
+      "to": "app/src/main/kotlin/shop/application/PlaceOrder.kt",
       "kind": "depends",
       "line": 5,
       "names": [
@@ -473,8 +521,8 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/web",
-      "to": "app/src/main/kotlin/shop/config",
+      "from": "app/src/main/kotlin/shop/web/OrderController.kt",
+      "to": "app/src/main/kotlin/shop/config/Paths.kt",
       "kind": "depends",
       "line": 6,
       "names": [
@@ -482,8 +530,8 @@
       ]
     },
     {
-      "from": "app/src/main/kotlin/shop/web",
-      "to": "app/src/main/kotlin/shop/domain",
+      "from": "app/src/main/kotlin/shop/web/OrderController.kt",
+      "to": "app/src/main/kotlin/shop/domain/Order.kt",
       "kind": "depends",
       "line": 7,
       "names": [
@@ -520,33 +568,33 @@
   ],
   "calls": [
     {
-      "from": "app/src/main/kotlin/shop/application::PlaceOrder.execute",
-      "to": "app/src/main/kotlin/shop/ports::OrderStore.save",
+      "from": "app/src/main/kotlin/shop/application/PlaceOrder.kt::PlaceOrder.execute",
+      "to": "app/src/main/kotlin/shop/ports/OrderStore.kt::OrderStore.save",
       "line": 10,
       "how": "call"
     },
     {
-      "from": "app/src/main/kotlin/shop/persistence::JdbcOrderStore.save",
-      "to": "app/src/main/kotlin/shop/persistence::OrderRepository",
+      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt::JdbcOrderStore.save",
+      "to": "app/src/main/kotlin/shop/persistence/OrderRepository.kt::OrderRepository",
       "line": 10,
       "how": "call"
     },
     {
-      "from": "app/src/main/kotlin/shop/ports::OrderStore.save",
-      "to": "app/src/main/kotlin/shop/persistence::JdbcOrderStore.save",
+      "from": "app/src/main/kotlin/shop/ports/OrderStore.kt::OrderStore.save",
+      "to": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt::JdbcOrderStore.save",
       "line": 6,
       "how": "dispatch"
     },
     {
-      "from": "app/src/main/kotlin/shop/web::OrderController.place",
-      "to": "app/src/main/kotlin/shop/application::PlaceOrder.execute",
+      "from": "app/src/main/kotlin/shop/web/OrderController.kt::OrderController.place",
+      "to": "app/src/main/kotlin/shop/application/PlaceOrder.kt::PlaceOrder.execute",
       "line": 16,
       "how": "call"
     }
   ],
   "unresolved_imports": [
     {
-      "from": "app/src/main/kotlin/shop/persistence",
+      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
       "import": "shop.generated.OrderRecord",
       "line": 4
     }

@@ -59,12 +59,12 @@ class Resolver:
         if not rest:
             return []
 
-        directories = self.index.dirs_for(package, rest[0])
+        paths = self.index.files_for(package, rest[0])
 
-        if file.directory in directories:
-            return [file.directory]
+        if file.path in paths:
+            return [file.path]
 
-        return self.index.prefer(directories, self.index.build_of[file.directory])
+        return self.index.prefer(paths, self.index.build_of[file.path])
 
     def resolve_name(self, file: SourceFile, name: str) -> list[tuple[str, str]]:
         for imp in file.imports:
@@ -73,12 +73,12 @@ class Resolver:
 
                 return [(d, rest[0]) for d in self.import_targets(file, package, rest)]
 
-        build = self.index.build_of[file.directory]
-        own = self.index.dirs_for(file.package, name)
+        build = self.index.build_of[file.path]
+        own = self.index.files_for(file.package, name)
 
         if own:
-            if file.directory in own:
-                return [(file.directory, name)]
+            if file.path in own:
+                return [(file.path, name)]
 
             return [(d, name) for d in self.index.prefer(own, build)]
 
@@ -89,18 +89,18 @@ class Resolver:
             package, rest = split_import(imp.path, True)
 
             if not rest:
-                directories = self.index.dirs_for(package, name)
+                paths = self.index.files_for(package, name)
 
-                if directories:
-                    return [(d, name) for d in self.index.prefer(directories, build)]
+                if paths:
+                    return [(d, name) for d in self.index.prefer(paths, build)]
             else:
                 top = rest[0]
 
-                for directory in self.index.prefer(self.index.dirs_for(package, top), build):
-                    decl = self.index.top[(directory, top)]
+                for path in self.index.prefer(self.index.files_for(package, top), build):
+                    decl = self.index.top[(path, top)]
 
                     if name in decl.members:
-                        return [(directory, top)]
+                        return [(path, top)]
 
         return []
 
@@ -114,14 +114,12 @@ class Resolver:
             return []
 
         package, top = found
-        directories = self.index.dirs_for(package, top)
+        paths = self.index.files_for(package, top)
 
-        if not directories:
+        if not paths:
             return []
 
-        return [
-            (d, top) for d in self.index.prefer(directories, self.index.build_of[file.directory])
-        ]
+        return [(d, top) for d in self.index.prefer(paths, self.index.build_of[file.path])]
 
     def foreign_name(self, imp: Import) -> str:
         package, _ = split_import(imp.path, imp.wildcard)
@@ -131,15 +129,13 @@ class Resolver:
     def foreign(self, file: SourceFile, imp: Import, collected: Collected, order: int) -> None:
         package = self.foreign_name(imp)
         collected.foreign.add(package)
-        collected.depend(file.directory, f"foreign:{package}", imp.line, order)
+        collected.depend(file.path, f"foreign:{package}", imp.line, order)
 
     def note_unresolved(self, file: SourceFile, imp: Import, collected: Collected) -> None:
         package, _ = split_import(imp.path, imp.wildcard)
 
         if self.index.under_prefix(package):
-            collected.unresolved.append(
-                {"from": file.directory, "import": imp.text, "line": imp.line}
-            )
+            collected.unresolved.append({"from": file.path, "import": imp.text, "line": imp.line})
 
     def explicit_imports(self, file: SourceFile, collected: Collected, order: int) -> set[str]:
         bindings = set()
@@ -156,10 +152,8 @@ class Resolver:
             if targets:
                 if used:
                     for target in targets:
-                        if target != file.directory:
-                            collected.depend(
-                                file.directory, target, imp.line, order, [".".join(rest)]
-                            )
+                        if target != file.path:
+                            collected.depend(file.path, target, imp.line, order, [".".join(rest)])
 
                 continue
 
@@ -173,7 +167,7 @@ class Resolver:
     def wildcard_imports(
         self, file: SourceFile, bindings: set[str], collected: Collected, order: int
     ) -> None:
-        build = self.index.build_of[file.directory]
+        build = self.index.build_of[file.path]
         own = self.index.packages.get(file.package, {})
 
         for imp in file.imports:
@@ -196,40 +190,40 @@ class Resolver:
                         continue
 
                     for target in self.index.prefer(names[name], build):
-                        collected.depend(file.directory, target, imp.line, order, [name])
+                        collected.depend(file.path, target, imp.line, order, [name])
 
                 continue
 
-            directories = self.index.dirs_for(package, rest[0])
+            paths = self.index.files_for(package, rest[0])
 
-            if not directories:
+            if not paths:
                 self.foreign(file, imp, collected, order)
                 self.note_unresolved(file, imp, collected)
 
                 continue
 
-            for target in self.index.prefer(directories, build):
-                if target == file.directory:
+            for target in self.index.prefer(paths, build):
+                if target == file.path:
                     continue
 
                 members = self.index.top[(target, rest[0])].members
                 used = [f"{rest[0]}.{u}" for u in sorted(file.uses) if u in members]
 
                 if used:
-                    collected.depend(file.directory, target, imp.line, order, used)
+                    collected.depend(file.path, target, imp.line, order, used)
 
     def same_package(
         self, file: SourceFile, bindings: set[str], collected: Collected, order: int
     ) -> None:
         names = self.index.packages.get(file.package, {})
-        build = self.index.build_of[file.directory]
+        build = self.index.build_of[file.path]
 
         for name, line in sorted(file.uses.items()):
-            if name in bindings or name not in names or file.directory in names[name]:
+            if name in bindings or name not in names or file.path in names[name]:
                 continue
 
             for target in self.index.prefer(names[name], build):
-                collected.depend(file.directory, target, line, order, [name])
+                collected.depend(file.path, target, line, order, [name])
 
     def qualified_uses(self, file: SourceFile, collected: Collected, order: int) -> None:
         for line, segments in file.chains:
@@ -239,13 +233,13 @@ class Resolver:
                 continue
 
             package, top = found
-            directories = self.index.dirs_for(package, top)
+            paths = self.index.files_for(package, top)
 
-            if not directories or file.directory in directories:
+            if not paths or file.path in paths:
                 continue
 
-            for target in self.index.prefer(directories, self.index.build_of[file.directory]):
-                collected.depend(file.directory, target, line, order, [top])
+            for target in self.index.prefer(paths, self.index.build_of[file.path]):
+                collected.depend(file.path, target, line, order, [top])
 
     def supertype_edges(self, file: SourceFile, collected: Collected) -> None:
         for decl in file.decls:
@@ -257,10 +251,10 @@ class Resolver:
                 continue
 
             for segments in decl.supertypes:
-                for directory, top in self.resolve_segments(file, segments):
-                    target = self.index.kind_of(directory, top)
+                for path, top in self.resolve_segments(file, segments):
+                    target = self.index.kind_of(path, top)
 
-                    if directory == file.directory or target not in ("class", "interface"):
+                    if path == file.path or target not in ("class", "interface"):
                         continue
 
                     kind = (
@@ -269,14 +263,14 @@ class Resolver:
                         else "inherits"
                     )
                     edge = {
-                        "from": file.directory,
-                        "to": directory,
+                        "from": file.path,
+                        "to": path,
                         "kind": kind,
                         "line": decl.line,
                         "member": decl.name,
                         "to_member": top,
                     }
-                    collected.others[(file.directory, directory, kind, decl.name, top)] = edge
+                    collected.others[(file.path, path, kind, decl.name, top)] = edge
 
     def resolve_file(self, file: SourceFile, order: int, collected: Collected) -> None:
         bindings = self.explicit_imports(file, collected, order)
