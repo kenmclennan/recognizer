@@ -14,11 +14,10 @@ import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
-import { createRescanner, type ProgressUpdate } from "./rescanner";
+import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { type Loaded, loadScans } from "./scan-loading";
 import { rowSensors } from "./scan-panel-model";
-import { showTarget } from "./scan-progress";
 import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
@@ -31,18 +30,13 @@ import { windowSource } from "./window-source";
 const content = document.getElementById("content") as HTMLElement;
 const footer = document.getElementById("footer") as HTMLElement;
 
-const footerView = buildFooter(footer, {
-  rescan: () => void rescanner.run(),
-  stop: () => void rescanner.stop(),
-  show: showFailure,
-  openLog,
-});
+const footerView = buildFooter(footer);
 
 let explorer: Explorer | null = null;
 let folderName = "";
 let scanState: ScanState | null = null;
+let runningLine: string | null = null;
 let current: Loaded | null = null;
-let shownProgress: ProgressUpdate = { footer: null, target: null, log: null };
 let releaseFirstScan: () => void = () => {};
 let explorerKeys: readonly string[] = [];
 let toolsFound = false;
@@ -54,54 +48,13 @@ function setScanState(next: ScanState | null) {
   footerView.setScan(next);
 }
 
-function canShow(update: ProgressUpdate): boolean {
-  const { target } = update;
-
-  return (
-    target !== null &&
-    (target.kind === "sensor" || current?.modules.includes(target.id) === true)
-  );
-}
-
-function withProgress(
-  state: Omit<ScanState, "progress" | "canShow" | "log">,
-): ScanState {
-  return {
-    ...state,
-    progress: shownProgress.footer,
-    canShow: canShow(shownProgress),
-    log: shownProgress.log,
-  };
-}
-
 function adoptedOrigin(origin: ScanOrigin) {
-  setScanState(
-    withProgress({
-      origin,
-      scannedAt: Date.now(),
-      changes: NO_CHANGES,
-    }),
-  );
-}
-
-function showFailure() {
-  const target = showTarget(rescanner.progress());
-
-  if (target !== null) {
-    explorer?.show(target);
-  }
-}
-
-function openLog() {
-  const { log } = shownProgress;
-
-  if (log !== null) {
-    void editorSource
-      .openFile(log)
-      .catch((error: unknown) =>
-        footerView.post({ kind: "error", text: String(error) }),
-      );
-  }
+  setScanState({
+    origin,
+    scannedAt: Date.now(),
+    changes: NO_CHANGES,
+    scanning: runningLine,
+  });
 }
 
 const scanHost: ScanHost = {
@@ -189,10 +142,10 @@ const rescanner = createRescanner<Carried>({
   adopted: adoptedOrigin,
   describedLine: () => explorer?.refreshResponsibilities(),
   progress: (update) => {
-    shownProgress = update;
+    runningLine = update.scanning;
 
     if (scanState !== null) {
-      setScanState(withProgress(scanState));
+      setScanState({ ...scanState, scanning: runningLine });
     }
 
     explorer?.refreshPanel();
@@ -212,7 +165,15 @@ const rescanner = createRescanner<Carried>({
     }
   },
   post: (input) => footerView.post(input),
+  attach: (id, extra) => footerView.attach(id, extra),
   show: (target) => explorer?.show(target),
+  openLog: (log) => {
+    void editorSource
+      .openFile(log)
+      .catch((error: unknown) =>
+        footerView.post({ kind: "error", text: String(error) }),
+      );
+  },
 });
 
 async function start(): Promise<void> {
@@ -220,7 +181,7 @@ async function start(): Promise<void> {
   explorer?.dispose();
   explorer = null;
   current = null;
-  shownProgress = { footer: null, target: null, log: null };
+  runningLine = null;
   setScanState(null);
   footerView.setCount("");
 

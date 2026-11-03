@@ -50,12 +50,12 @@ describe("look-support", () => {
     expect(scanHostOf({ run }).stop).toBe(inertScanHost.stop);
   });
 
-  it("registeredOf drops display and title", () => {
+  it("registeredOf keeps the display and drops the title", () => {
     expect(
       registeredOf([
         { name: "crap", display: "CRAP", title: "t", runsTests: true },
       ]),
-    ).toEqual([{ name: "crap", runsTests: true }]);
+    ).toEqual([{ name: "crap", display: "CRAP", runsTests: true }]);
   });
 
   it("mountExplorer forwards every option to showExplorer in positional order", () => {

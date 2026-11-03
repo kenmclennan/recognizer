@@ -4,26 +4,15 @@ import { el } from "./dom";
 import { type ScanState, scanLine } from "./footer-scan";
 import {
   createMessageTray,
+  type MessageAction,
   type MessageInput,
   realTimer,
 } from "./message-tray";
 import { buildTrayView } from "./message-tray-view";
 
-function footerButton(
-  label: string,
-  className: string,
-  onClick: () => void,
-): HTMLElement {
-  const node = el("button", className, label);
-
-  node.type = "button";
-  node.addEventListener("click", () => onClick());
-
-  return node;
-}
-
 export type FooterView = {
   post: (input: MessageInput) => number | null;
+  attach: (id: number, extra: MessageAction) => void;
   withdraw: (id: number) => void;
   relabel: (id: number, label: string) => void;
   reconcile: (foundKeys: readonly string[]) => void;
@@ -34,25 +23,7 @@ export type FooterView = {
 
 const AGE_REFRESH_MS = 30000;
 
-export type FooterActions = {
-  rescan: () => void;
-  stop: () => void;
-  show: () => void;
-  openLog: () => void;
-};
-
-const NO_ACTIONS: FooterActions = {
-  rescan: () => {},
-  stop: () => {},
-  show: () => {},
-  openLog: () => {},
-};
-
-export function buildFooter(
-  container: HTMLElement,
-  actions: Partial<FooterActions> = {},
-): FooterView {
-  const { rescan, stop, show, openLog } = { ...NO_ACTIONS, ...actions };
+export function buildFooter(container: HTMLElement): FooterView {
   const identity = document.createElement("span");
   const count = document.createElement("span");
   const scan = el("span", "scan-line");
@@ -121,29 +92,6 @@ export function buildFooter(
       parts.push(el("span", "scan-text", line.text));
     }
 
-    if (line.rescan !== "none") {
-      const run = el("button", "rescan-button", "Rescan");
-
-      run.type = "button";
-      run.disabled = line.rescan === "disabled";
-      run.addEventListener("click", () => rescan());
-      parts.push(run);
-    }
-
-    if (line.stop) {
-      parts.push(footerButton("Stop", "scan-stop", stop));
-    }
-
-    if (line.show) {
-      parts.push(el("span", "scan-dot", "\u00b7"));
-      parts.push(footerButton("Show", "scan-show", show));
-    }
-
-    if (line.openLog) {
-      parts.push(el("span", "scan-dot", "\u00b7"));
-      parts.push(footerButton("Open log", "scan-open-log", openLog));
-    }
-
     scan.replaceChildren(...parts);
 
     if (line.kind !== "files") {
@@ -180,6 +128,7 @@ export function buildFooter(
 
   return {
     post: (input) => tray.post(input),
+    attach: (id, extra) => tray.attach(id, extra),
     withdraw: (id) => tray.withdraw(id),
     relabel: (id, label) => tray.relabel(id, label),
     reconcile: (foundKeys) => tray.reconcile(foundKeys),

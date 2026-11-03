@@ -36,13 +36,6 @@ export type ScanProgress = {
   stopped: boolean;
 };
 
-export type ScanFooter = {
-  text: string;
-  running: boolean;
-  failed: number;
-  tone: "muted" | "amber";
-};
-
 export type ShowTarget =
   | { kind: "sensor"; name: string; reason: string }
   | { kind: "module"; id: string; reason: string };
@@ -182,144 +175,25 @@ function failures(entries: EntryResult[]): EntryResult[] {
   return entries.filter((entry) => entry.outcome === "failed");
 }
 
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
+export type RunRow = { key: string; display: string };
 
-function sameReasonSentence(
-  label: string,
-  phase: PhaseProgress | null,
+export function scanningText(
+  rows: readonly RunRow[],
+  started: string | null,
+  progress: ScanProgress,
 ): string | null {
-  if (phase === null) {
+  if (progress.done || progress.stopped) {
     return null;
   }
 
-  const failed = failures(phase.entries);
+  const at = rows.findIndex((row) => row.key === started);
+  const row = rows[at];
 
-  if (failed.length === 0 || failed.length !== phase.total) {
-    return null;
+  if (row === undefined) {
+    return "Scanning\u2026";
   }
 
-  const reasons = new Set(failed.map((entry) => entry.reason));
-
-  if (reasons.size !== 1) {
-    return null;
-  }
-
-  const [reason] = [...reasons];
-
-  return `${label} failed: ${reason ?? "failed"}`;
-}
-
-function ranText(progress: ScanProgress): string[] {
-  const parts: string[] = [];
-
-  if (progress.extract === "current") {
-    parts.push("scans current");
-  } else if (progress.extract === "run") {
-    parts.push("extracted");
-  }
-
-  const described = progress.describe?.entries.length ?? 0;
-
-  if (progress.describe !== null) {
-    parts.push(`described ${described}`);
-  }
-
-  const sensed = progress.sense?.entries.length ?? 0;
-
-  if (progress.sense !== null) {
-    parts.push(plural(sensed, "sensor"));
-  }
-
-  return parts;
-}
-
-export function failedCount(progress: ScanProgress): number {
-  return (
-    failures(progress.extractEntries).length +
-    failures(progress.describe?.entries ?? []).length +
-    failures(progress.sense?.entries ?? []).length
-  );
-}
-
-function failureText(progress: ScanProgress): string {
-  const total = failedCount(progress);
-  const phasesInFailure = [
-    failures(progress.extractEntries).length,
-    failures(progress.describe?.entries ?? []).length,
-    failures(progress.sense?.entries ?? []).length,
-  ].filter((count) => count > 0).length;
-
-  if (phasesInFailure === 1) {
-    const sentence =
-      sameReasonSentence("Describe", progress.describe) ??
-      sameReasonSentence("Sensors", progress.sense);
-
-    if (sentence !== null) {
-      return sentence;
-    }
-  }
-
-  return `${total} failed`;
-}
-
-function runningText(progress: ScanProgress): string {
-  if (progress.sense !== null) {
-    return `Sensors ${progress.sense.entries.length} of ${progress.sense.total}`;
-  }
-
-  if (progress.describe !== null) {
-    return `Describing ${progress.describe.entries.length} of ${progress.describe.total}`;
-  }
-
-  if (progress.extract === "current") {
-    return "Scans current";
-  }
-
-  return "Extracting";
-}
-
-export function footerText(progress: ScanProgress): ScanFooter {
-  const failed = failedCount(progress);
-
-  if (progress.stopped) {
-    const parts = ranText(progress);
-
-    return {
-      text: parts.length === 0 ? "Stopped" : `Stopped - ${parts.join(", ")}`,
-      running: false,
-      failed,
-      tone: "amber",
-    };
-  }
-
-  if (!progress.done) {
-    return {
-      text: runningText(progress),
-      running: true,
-      failed: 0,
-      tone: "muted",
-    };
-  }
-
-  if (failed > 0) {
-    return {
-      text: failureText(progress),
-      running: false,
-      failed,
-      tone: "amber",
-    };
-  }
-
-  const parts = ranText(progress);
-
-  return {
-    text: parts.length === 0 ? "Scan done" : `Scan done - ${parts.join(", ")}`,
-    running: false,
-    failed: 0,
-    tone: "muted",
-  };
+  return `Scanning\u2026 ${row.display}, ${at + 1} of ${rows.length}`;
 }
 
 export function showTarget(progress: ScanProgress): ShowTarget | null {

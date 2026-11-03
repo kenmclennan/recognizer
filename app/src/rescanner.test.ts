@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScanOrigin } from "./footer-scan";
-import type { MessageInput } from "./message-tray";
+import type { MessageAction, MessageInput } from "./message-tray";
 import {
   createRescanner,
   type ProgressUpdate,
@@ -52,12 +52,13 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
   const log: string[] = [];
   const updates: ProgressUpdate[] = [];
   const posted: MessageInput[] = [];
+  const attached: { id: number; extra: MessageAction }[] = [];
   const ports: RescanPorts<string> = {
     port: scan,
     registered: async () => [
-      { name: "alpha", runsTests: false },
-      { name: "beta", runsTests: false },
-      { name: "mut", runsTests: true },
+      { name: "alpha", display: "Alpha", runsTests: false },
+      { name: "beta", display: "Beta", runsTests: false },
+      { name: "mut", display: "Mutation", runsTests: true },
     ],
     load: () => OK,
     sense: async (loaded) => {
@@ -92,17 +93,26 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
       posted.push(input);
       log.push(`post:${input.kind}:${input.text}`);
 
-      return null;
+      return posted.length;
     },
+    attach: (id, extra) => attached.push({ id, extra }),
+    openLog: (path) => log.push(`openLog:${path}`),
     show: (target) => log.push(`show:${target.kind}`),
     ...over,
   };
 
-  return { log, updates, posted, scan, rescanner: createRescanner(ports) };
+  return {
+    log,
+    updates,
+    posted,
+    attached,
+    scan,
+    rescanner: createRescanner(ports),
+  };
 }
 
 const texts = (updates: ProgressUpdate[]) =>
-  updates.map((update) => update.footer?.text ?? null);
+  updates.map((update) => update.scanning);
 
 describe("createRescanner", () => {
   it("builds the plan from the remembered ticks and remembers a repository's first ticks", async () => {
@@ -126,6 +136,7 @@ describe("createRescanner", () => {
 
   it("renders the canvas when extraction settles, before describe and sense run", async () => {
     const scan = fakeScan({
+      defaults: { describe: true, sensors: false },
       steps: [
         extract,
         entry("extract", "python"),
@@ -146,11 +157,9 @@ describe("createRescanner", () => {
     expect(log.indexOf("replace:carried")).toBeLessThan(log.indexOf("step:3"));
     expect(log).toContain("adopted:a1b2c3d");
     expect(log).toContain("described");
-    expect(texts(updates)).toContain("Extracting");
-    expect(texts(updates)).toContain("Describing 0 of 1");
-    expect(updates.at(-1)?.footer?.text).toBe(
-      "Scan done - extracted, described 1",
-    );
+    expect(texts(updates)).toContain("Scanning\u2026");
+    expect(texts(updates)).toContain("Scanning\u2026 Descriptions, 1 of 1");
+    expect(updates.at(-1)?.scanning).toBeNull();
   });
 
   it("re-reads findings and updates the running state as each sensor reports", async () => {
@@ -303,7 +312,7 @@ describe("createRescanner", () => {
     expect(seen[3]?.started).toBe("alpha");
   });
 
-  it("hands the log path to the final update and offers Show for a failed module", async () => {
+  it("attaches Open log to a failed describe message once the run ends with a log", async () => {
     const scan = fakeScan({
       steps: [current, describing(1), entry("describe", "a.py", "no"), summary],
       result: {
@@ -313,15 +322,83 @@ describe("createRescanner", () => {
         log: ".recognizer/cache/log/x-scan.json",
       },
     });
-    const { updates, rescanner } = harness(scan);
+    const { log, posted, attached, updates, rescanner } = harness(scan);
 
     await rescanner.run();
 
-    const last = updates.at(-1);
+    expect(posted.map((one) => one.text)).toEqual([
+      "Describe wrote 0 lines, 1 modules failed.",
+    ]);
+    expect(posted[0]?.action?.label).toBe("Show");
+    expect(attached.map((one) => one.id)).toEqual([1]);
+    expect(attached[0]?.extra.label).toBe("Open log");
 
-    expect(last?.footer?.text).toBe("Describe failed: no");
-    expect(last?.log).toBe(".recognizer/cache/log/x-scan.json");
-    expect(last?.target).toEqual({ kind: "module", id: "a.py", reason: "no" });
+    attached[0]?.extra.run();
+
+    expect(log).toContain("openLog:.recognizer/cache/log/x-scan.json");
+    expect(updates.at(-1)?.scanning).toBeNull();
+  });
+
+  it("attaches Open log once to a mixed run's only failure, and posts an extract failure", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [
+        current,
+        entry("extract", "python", "boom"),
+        sensing(2),
+        entry("sense", "alpha"),
+        entry("sense", "beta", "slow"),
+        summary,
+      ],
+      result: {
+        status: "finished",
+        exitCode: 0,
+        stderr: "",
+        log: ".recognizer/cache/log/x-scan.json",
+      },
+    });
+    const { posted, attached, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    expect(posted.map((one) => one.text)).toEqual([
+      "python failed: boom",
+      "beta failed: slow",
+    ]);
+    expect(posted[0]?.action).toBeUndefined();
+    expect(posted[1]?.action?.label).toBe("Show");
+    expect(attached.map((one) => one.id)).toEqual([1, 2]);
+  });
+
+  it("attaches nothing when the run has no log or was stopped", async () => {
+    const noLog = harness(
+      fakeScan({
+        defaults: { describe: false, sensors: true },
+        steps: [current, sensing(1), entry("sense", "alpha", "bad"), summary],
+        result: { status: "finished", exitCode: 0, stderr: "", log: null },
+      }),
+    );
+
+    await noLog.rescanner.run();
+
+    expect(noLog.posted).toHaveLength(1);
+    expect(noLog.attached).toEqual([]);
+
+    const gate = new Promise<void>(() => {});
+    const stopped = harness(
+      fakeScan({
+        defaults: { describe: false, sensors: true },
+        steps: [current, sensing(1), entry("sense", "alpha", "bad"), gate],
+      }),
+    );
+    const running = stopped.rescanner.run();
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await stopped.rescanner.stop();
+    await running;
+
+    expect(stopped.posted).toHaveLength(1);
+    expect(stopped.attached).toEqual([]);
   });
 
   it("says Stopped, keeps what was written and settles after a stop", async () => {
@@ -334,9 +411,7 @@ describe("createRescanner", () => {
     await rescanner.stop();
     await running;
 
-    expect(updates.at(-1)?.footer?.text).toBe(
-      "Stopped - scans current, described 0",
-    );
+    expect(updates.at(-1)?.scanning).toBeNull();
     expect(log).toContain("settled");
     expect(rescanner.running()).toBe(false);
   });
@@ -349,7 +424,7 @@ describe("createRescanner", () => {
     await missing.rescanner.run();
 
     expect(missing.log).toContain("blocked:install it");
-    expect(missing.updates.at(-1)?.footer).toBeNull();
+    expect(missing.updates.at(-1)?.scanning).toBeNull();
 
     const failed = harness(
       fakeScan({

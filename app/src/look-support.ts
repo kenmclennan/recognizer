@@ -35,8 +35,9 @@ export function scanHostOf(overrides: Partial<ScanHost> = {}): ScanHost {
 }
 
 export function registeredOf(rows: RowSensor[]): Registered {
-  return rows.map(({ name, runsTests }): Registered[number] => ({
+  return rows.map(({ name, display, runsTests }): Registered[number] => ({
     name,
+    display,
     runsTests,
   }));
 }

@@ -15,7 +15,7 @@ const rect = (node) => node.getBoundingClientRect();
 const facts = {};
 
 view.setCount("6 of 46 modules on the canvas");
-view.setScan({ origin: { branch: "main", commit: "a1b2c3d" }, scannedAt: Date.now(), changes: { files: [], moved: null }, progress: null, canShow: false, log: null });
+view.setScan({ origin: { branch: "main", commit: "a1b2c3d" }, scannedAt: Date.now(), changes: { files: [], moved: null }, scanning: null });
 
 facts.children = [...footer.children].slice(0, 6).map((node) => node.className.split(" ")[0]);
 facts.absent = [".notice", ".agent-line", ".tools-notice"].map((selector) => all(selector).length);

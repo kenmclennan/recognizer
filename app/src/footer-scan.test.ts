@@ -7,20 +7,23 @@ const state = (over: Partial<ScanState> = {}): ScanState => ({
   origin: { branch: "main", commit: "a1b2c3d" },
   scannedAt: NOW - 3 * 60000,
   changes: NO_CHANGES,
-  progress: null,
-  canShow: false,
-  log: null,
+  scanning: null,
   ...over,
 });
 
 describe("scanLine", () => {
-  it("says when the scan was taken, with the commit, and offers no button", () => {
+  it("says when the scan was taken, with the commit, and carries only its text, tone and files", () => {
     expect(scanLine(state(), NOW)).toMatchObject({
       kind: "up-to-date",
       text: "Scanned at a1b2c3d, 3 minutes ago",
       tone: "muted",
-      rescan: "none",
     });
+    expect(Object.keys(scanLine(state(), NOW)).sort()).toEqual([
+      "files",
+      "kind",
+      "text",
+      "tone",
+    ]);
   });
 
   it("leaves the commit out outside git", () => {
@@ -38,7 +41,7 @@ describe("scanLine", () => {
     );
   });
 
-  it("counts changed files in amber with the list and a Rescan button", () => {
+  it("counts changed files in amber with the list", () => {
     const files = [
       { path: "a.py", kind: "modified" as const },
       { path: "b.py", kind: "added" as const },
@@ -51,7 +54,6 @@ describe("scanLine", () => {
       text: "3 files changed since",
       tone: "amber",
       files,
-      rescan: "enabled",
     });
   });
 
@@ -82,7 +84,6 @@ describe("scanLine", () => {
       text: "Now on main at 9f8e7d6",
       tone: "amber",
       files: [],
-      rescan: "enabled",
     });
   });
 
@@ -97,82 +98,28 @@ describe("scanLine", () => {
     expect(line.text).toBe("Now at 9f8e7d6");
   });
 
-  it("shows the phase text with Stop and a disabled Rescan while a scan runs", () => {
+  it("shows the running text while a scan runs, ahead of any changes", () => {
     const line = scanLine(
       state({
-        progress: {
-          text: "Describing 1 of 2",
-          running: true,
-          failed: 0,
-          tone: "muted",
-        },
+        scanning: "Scanning\u2026 C.R.A.P., 1 of 2",
         changes: { files: [{ path: "a.py", kind: "added" }], moved: null },
       }),
       NOW,
     );
 
-    expect(line).toMatchObject({
+    expect(line).toEqual({
       kind: "scanning",
-      text: "Describing 1 of 2",
+      text: "Scanning\u2026 C.R.A.P., 1 of 2",
       tone: "muted",
-      rescan: "disabled",
-      stop: true,
-      show: false,
-      openLog: false,
+      files: [],
     });
   });
 
-  it("shows the result after a scan, with Show and Open log only for a failure", () => {
-    const done = {
-      text: "Scan done - extracted",
-      running: false,
-      failed: 0,
-      tone: "muted" as const,
-    };
-    const failed = {
-      text: "2 failed",
-      running: false,
-      failed: 2,
-      tone: "amber" as const,
-    };
-
-    expect(scanLine(state({ progress: done }), NOW)).toMatchObject({
-      kind: "result",
-      text: "Scan done - extracted",
-      rescan: "enabled",
-      stop: false,
-      show: false,
-      openLog: false,
+  it("reads Scanned once a scan has ended, whatever way it ended", () => {
+    expect(scanLine(state({ scanning: null }), NOW)).toMatchObject({
+      kind: "up-to-date",
+      text: "Scanned at a1b2c3d, 3 minutes ago",
     });
-    expect(
-      scanLine(state({ progress: failed, canShow: true, log: "l.json" }), NOW),
-    ).toMatchObject({
-      kind: "result",
-      tone: "amber",
-      show: true,
-      openLog: true,
-    });
-    expect(scanLine(state({ progress: failed }), NOW)).toMatchObject({
-      show: false,
-      openLog: false,
-    });
-  });
-
-  it("gives way to the changed-files line once the repository changes after a scan", () => {
-    const line = scanLine(
-      state({
-        progress: {
-          text: "Scan done - extracted",
-          running: false,
-          failed: 0,
-          tone: "muted",
-        },
-        changes: { files: [{ path: "a.py", kind: "added" }], moved: null },
-      }),
-      NOW,
-    );
-
-    expect(line.kind).toBe("files");
   });
 });
 

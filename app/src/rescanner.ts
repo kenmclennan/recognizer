@@ -1,6 +1,6 @@
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged } from "./loaded-unchanged";
-import type { MessageInput } from "./message-tray";
+import type { MessageAction, MessageInput } from "./message-tray";
 import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
@@ -13,24 +13,19 @@ import {
 import type { ScanPort, ScanRunResult } from "./scan-port";
 import {
   foldProgress,
-  footerText,
   NO_PROGRESS,
   parseScanLine,
-  type ScanFooter,
+  type RunRow,
   type ScanProgress,
   type ShowTarget,
-  showTarget,
+  scanningText,
   stoppedProgress,
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 
-export type Registered = Pick<RowSensor, "name" | "runsTests">[];
+export type Registered = Pick<RowSensor, "name" | "display" | "runsTests">[];
 
-export type ProgressUpdate = {
-  footer: ScanFooter | null;
-  target: ShowTarget | null;
-  log: string | null;
-};
+export type ProgressUpdate = { scanning: string | null };
 
 export type RescanPorts<Carried> = {
   port: ScanPort;
@@ -47,6 +42,8 @@ export type RescanPorts<Carried> = {
   settled: () => void;
   blocked: (text: string) => void;
   post: (input: MessageInput) => number | null;
+  attach: (id: number, extra: MessageAction) => void;
+  openLog: (log: string) => void;
   show: (target: ShowTarget) => void;
 };
 
@@ -95,19 +92,17 @@ export function createRescanner<Carried>(
   let progress: ScanProgress = NO_PROGRESS;
   let current: Promise<void> = Promise.resolve();
 
-  let lastUpdate: ProgressUpdate = { footer: null, target: null, log: null };
+  let rows: RunRow[] = [];
+  let failureIds: number[] = [];
+  let lastUpdate: ProgressUpdate = { scanning: null };
 
   function emit(update: ProgressUpdate) {
     lastUpdate = update;
     ports.progress(update);
   }
 
-  function publish(log: string | null) {
-    emit({
-      footer: footerText(progress),
-      target: showTarget(progress),
-      log,
-    });
+  function publish() {
+    emit({ scanning: scanningText(rows, run.started, progress) });
   }
 
   async function writeTicks(registered: Registered) {
@@ -164,11 +159,19 @@ export function createRescanner<Carried>(
   function postFailure(name: string, reason: string) {
     const target: ShowTarget = { kind: "sensor", name, reason };
 
-    ports.post({
-      kind: "error",
-      text: `${name} failed: ${reason}`,
-      action: { label: "Show", run: () => ports.show(target) },
-    });
+    remember(
+      ports.post({
+        kind: "error",
+        text: `${name} failed: ${reason}`,
+        action: { label: "Show", run: () => ports.show(target) },
+      }),
+    );
+  }
+
+  function remember(id: number | null) {
+    if (id !== null) {
+      failureIds.push(id);
+    }
   }
 
   function postDescribed() {
@@ -181,7 +184,7 @@ export function createRescanner<Carried>(
     const failed = entries.filter((entry) => entry.outcome === "failed");
     const first = failed[0];
 
-    ports.post({
+    const id = ports.post({
       kind: "info",
       text: `Describe wrote ${entries.length - failed.length} lines, ${failed.length} modules failed.`,
       ...(first === undefined
@@ -198,6 +201,10 @@ export function createRescanner<Carried>(
             },
           }),
     });
+
+    if (first !== undefined) {
+      remember(id);
+    }
   }
 
   function finished(name: string, ok: boolean, reason: string) {
@@ -284,15 +291,28 @@ export function createRescanner<Carried>(
       }
     }
 
+    if (
+      event.event === "entry" &&
+      event.phase === "extract" &&
+      event.outcome === "failed"
+    ) {
+      remember(
+        ports.post({
+          kind: "error",
+          text: `${event.name} failed: ${event.reason ?? "failed"}`,
+        }),
+      );
+    }
+
     if (event.event === "summary") {
       settleDescribe();
     }
 
-    publish(null);
+    publish();
 
     if (!before.extractSettled && progress.extractSettled) {
       await settle();
-      publish(null);
+      publish();
     }
 
     if (event.event === "entry" && event.phase === "describe") {
@@ -325,6 +345,17 @@ export function createRescanner<Carried>(
       await writeTicks(registered);
     }
 
+    failureIds = [];
+    rows = [
+      ...(plan.describe
+        ? [{ key: DESCRIBE_KEY, display: "Descriptions" }]
+        : []),
+      ...plan.sense.map((name) => ({
+        key: name,
+        display: registered.find((one) => one.name === name)?.display ?? name,
+      })),
+    ];
+
     run = {
       running: [...(plan.describe ? [DESCRIBE_KEY] : []), ...plan.sense],
       started: null,
@@ -333,7 +364,7 @@ export function createRescanner<Carried>(
     };
 
     progress = NO_PROGRESS;
-    publish(null);
+    publish();
 
     let queue: Promise<void> = Promise.resolve();
     const stopListening = ports.port.onLine((line) => {
@@ -355,7 +386,7 @@ export function createRescanner<Carried>(
 
     if (text !== null) {
       progress = NO_PROGRESS;
-      emit({ footer: null, target: null, log: null });
+      emit({ scanning: null });
       ports.blocked(text);
       ports.settled();
 
@@ -364,7 +395,7 @@ export function createRescanner<Carried>(
 
     if (result.status === "stopped") {
       progress = stoppedProgress(progress);
-      publish(null);
+      publish();
       ports.settled();
 
       return;
@@ -377,7 +408,20 @@ export function createRescanner<Carried>(
 
     progress = { ...progress, done: true };
     postDescribed();
-    publish(result.status === "finished" ? result.log : null);
+    publish();
+
+    if (result.status === "finished" && result.log !== null) {
+      const { log } = result;
+      const open: MessageAction = {
+        label: "Open log",
+        run: () => ports.openLog(log),
+      };
+
+      for (const id of failureIds) {
+        ports.attach(id, open);
+      }
+    }
+
     ports.settled();
   }
 

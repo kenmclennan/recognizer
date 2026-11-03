@@ -38,6 +38,17 @@ function card(row: MessageRow, tray: MessageTray, withWhen: boolean) {
     body.append(act);
   }
 
+  if (row.extra !== null) {
+    const extra = el("button", "msg-act", row.extra);
+
+    extra.type = "button";
+    extra.addEventListener("click", (event) => {
+      event.stopPropagation();
+      tray.act(row.id, "extra");
+    });
+    body.append(extra);
+  }
+
   if (withWhen) {
     body.append(el("div", "msg-when", row.when));
   }

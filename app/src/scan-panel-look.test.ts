@@ -14,7 +14,6 @@ import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
 import { rowSensors } from ${JSON.stringify(here("scan-panel-model.ts"))};
-import { showTarget } from ${JSON.stringify(here("scan-progress.ts"))};
 ${FAKE_WORKER}
 
 const ids = ["app/a.py", "app/b.py"];
@@ -57,15 +56,9 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   document.body.append(root);
   const editor = fakeEditor();
   const responsibilities = fakeResponsibilities(FILES);
-  const wired = { tray: [], posted: [], explorer: null, current: null, scanState: null, shown: { footer: null, target: null, log: null }, rescanner: null };
-  const canShow = (update) => update.target !== null && (update.target.kind === "sensor" || wired.current.modules.includes(update.target.id));
-  const withProgress = (state) => ({ ...state, progress: wired.shown.footer, canShow: canShow(wired.shown), log: wired.shown.log });
-  const footer = buildFooter(footerEl, {
-    rescan: () => void wired.rescanner.run(),
-    stop: () => void wired.rescanner.stop(),
-    show: () => { const target = showTarget(wired.rescanner.progress()); if (target !== null) wired.explorer.show(target); },
-    openLog: () => { if (wired.shown.log !== null) void editor.openFile(wired.shown.log); },
-  });
+  const wired = { tray: [], posted: [], explorer: null, current: null, scanState: null, scanning: null, rescanner: null };
+  const withProgress = (state) => ({ ...state, scanning: wired.scanning });
+  const footer = buildFooter(footerEl);
   const scanHost = scanHostOf({
     port: sensors,
     scan: () => wired.scanState,
@@ -93,11 +86,13 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     replace: (loaded, carried) => { wired.explorer?.dispose(); wired.explorer = build(loaded, carried); },
     adopted: (origin) => setScan(withProgress({ origin, scannedAt: Date.now(), changes: NO_CHANGES })),
     describedLine: () => wired.explorer?.refreshResponsibilities(),
-    progress: (update) => { wired.shown = update; if (wired.scanState !== null) setScan(withProgress(wired.scanState)); wired.explorer?.refreshPanel(); },
+    progress: (update) => { wired.scanning = update.scanning; if (wired.scanState !== null) setScan(withProgress(wired.scanState)); wired.explorer?.refreshPanel(); },
     settled: () => {},
     blocked: (text) => { footer.post({ kind: "error", text: "Rescan failed: " + text }); },
     post: (input) => { wired.tray.push(input); return footer.post(input); },
-    show: () => {},
+    attach: (id, extra) => footer.attach(id, extra),
+    openLog: (log) => { void editor.openFile(log); },
+    show: (target) => wired.explorer.show(target),
   });
   await wired.rescanner.loadTicks();
   wired.current = base;
@@ -111,10 +106,14 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state").textContent, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.title, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
   const text = (selector) => q(selector)?.textContent ?? "<missing " + selector + ">";
   const footerText = () => q(".scan-line").textContent;
+  const footerButtons = () => all(".footer button").filter((b) => !b.closest(".message-tray, .message-toast")).map((b) => b.className);
+  const messages = () => all(".message-list .msg").map((m) => ({ text: m.querySelector(".msg-text").textContent, actions: [...m.querySelectorAll(".msg-act")].map((b) => b.textContent) }));
+  const message = (contains) => all(".message-list .msg").find((m) => m.querySelector(".msg-text").textContent.includes(contains));
+  const act = (contains, label) => click([...message(contains).querySelectorAll(".msg-act")].find((b) => b.textContent === label));
   const setTick = async (key, checked) => { const box = q('.scan-row[data-sensor="' + key + '"] .scan-tick'); box.checked = checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
   const panel = () => ({ header: q(".scan-sub").textContent, amber: q(".scan-sub .warn")?.textContent ?? null, amberColor: q(".scan-sub .warn") ? getComputedStyle(q(".scan-sub .warn")).color : null, rows: rows(), buttons: all(".scan-buttons button").map((b) => ({ text: b.textContent, disabled: b.disabled, spinner: b.querySelectorAll("svg").length })), strays: all(".scan-block, .scan-block-title, .sensor-add, .sensor-remove, .scan-summary, .scan-stop-button, .scan-panel h2, .scan-panel h3, .scan-extract, .scan-describe, .measure-row").length, subLines: all(".scan-row *").filter((n) => n.matches("div")).length });
 
-  return { host, q, all, visible, rows, text, footerText, setTick, panel, fake, editor, wired, sensors };
+  return { host, q, all, visible, rows, text, footerText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors };
 }
 
 (async () => {
@@ -144,12 +143,13 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const startLine = (name) => json({ event: "start", phase: "sense", name });
   fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("duplication"), g2.promise, entry("sense", "duplication"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
   const during = [];
-  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) during.push(c.panel()); if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, findings: [] })); };
+  const duringFooter = [];
+  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.footerText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, findings: [] })); };
   await c.setTick("describe", true);
   await c.setTick("crap", true);
   click(c.q(".scan-run"));
   await tick();
-  facts.run = { plans: fake.ran, first: during[0] ?? null, stopInPanel: c.all(".scan-panel .scan-stop, .scan-panel .scan-stop-button").length, footerStop: c.all(".scan-line .scan-stop").length };
+  facts.run = { plans: fake.ran, first: during[0] ?? null, footer: duringFooter[0] ?? null };
   facts.run.second = await fake.run({ describe: false, sense: [] });
   g1.release(); await tick();
   facts.run.afterDescribe = c.panel();
@@ -157,6 +157,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.run.afterDuplication = c.panel();
   g3.release(); await tick(); await tick();
   facts.run.after = c.panel();
+  facts.run.footerAfter = { text: c.footerText(), buttons: c.footerButtons() };
   facts.run.written = fake.written.map((w) => w.ticked);
   facts.run.crapTickAfter = c.rows().find((r) => r.key === "crap").ticked;
 
@@ -167,9 +168,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   click(s.q(".scan-run"));
   await tick();
+  facts.stopWhileRunning = { count: s.all(".scan-buttons .scan-stop").length, buttons: s.panel().buttons, order: s.all(".scan-buttons button").map((b) => b.className.split(" ")[0]) };
   click(s.q(".scan-stop"));
   await tick(); await tick();
-  facts.stop = { footer: s.footerText(), button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
+  facts.stop = { footer: s.footerText(), footerButtons: s.footerButtons(), stopAfter: s.all(".scan-stop").length, button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
 
   const changed = await mount(fakeScan());
   changed.wired.scanState = { ...changed.wired.scanState, scannedAt: Date.now() - 2 * 3600000, changes: { files: ["app/a.py"], moved: null } };
@@ -191,20 +193,35 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.failed = { ...t.panel(), posted: t.wired.tray.filter((p) => p.kind === "error" && p.text.includes("failed")).map((p) => p.text) };
   click(t.q(".rail-files"));
   await tick();
-  const failedFooter = t.footerText();
+  const failedFooter = { text: t.footerText(), buttons: t.footerButtons() };
+  const messagesBefore = t.messages();
   const hiddenBefore = !t.visible(".scan-panel");
-  click(t.q(".scan-show"));
+  t.act("duplication failed", "Show");
   await tick();
   const dot = t.q(".rail-scan .rail-dot");
-  click(t.q(".scan-open-log"));
+  t.act("duplication failed", "Open log");
   await tick();
   facts.sensorFail = {
     footer: failedFooter,
+    messages: messagesBefore,
     hiddenBefore,
     panelOpen: t.visible(".scan-panel"),
     dot: dot !== null && !dot.hidden && getComputedStyle(dot).display !== "none",
     opened: t.editor.files,
+    reasonLines: t.all(".scan-row").map((r) => r.querySelectorAll("div").length).reduce((a, b) => a + b, 0),
   };
+
+  const bareFake = fakeScan({
+    defaults: { describe: false, sensors: true },
+    steps: [current, sensing(1), entry("sense", "duplication", "broke"), summary],
+    result: { status: "finished", exitCode: 1, stderr: "", log: null },
+  });
+  const bare = await mount(bareFake);
+  click(bare.q(".rail-scan"));
+  await tick();
+  click(bare.q(".scan-run"));
+  await tick(); await tick();
+  facts.noLog = bare.messages();
 
   const moduleFake = fakeScan({
     defaults: { describe: true, sensors: false },
@@ -218,11 +235,13 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick(); await tick();
   click(m.q(".rail-files"));
   await tick();
-  const moduleFooter = m.footerText();
-  click(m.q(".scan-show"));
+  const moduleFooter = { text: m.footerText(), buttons: m.footerButtons() };
+  const moduleMessages = m.messages();
+  m.act("Describe wrote", "Show");
   await tick();
   facts.moduleFail = {
     footer: moduleFooter,
+    messages: moduleMessages,
     header: m.q(".inspector")?.textContent ?? "",
     reason: m.q(".responsibility .finding.warning")?.textContent ?? "",
   };
@@ -360,7 +379,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.reopened).toEqual(["describe", "duplication"]);
   });
 
-  it("matches the mock while running: Scanning…, one running row with a spinner, the rest waiting, a disabled Scanning button and no Stop of its own", () => {
+  it("matches the mock while running: Scanning…, one running row with a spinner, the rest waiting, a disabled Scanning button and a Stop beside it", () => {
     expect(f.run.plans).toEqual([
       { describe: true, sense: ["duplication", "crap"] },
     ]);
@@ -379,9 +398,15 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.run.first.rows[1].color).toBe(MUTED);
     expect(f.run.first.buttons).toEqual([
       { text: "Scanning", disabled: true, spinner: 1 },
+      { text: "Stop", disabled: false, spinner: 0 },
     ]);
-    expect(f.run.stopInPanel).toBe(0);
-    expect(f.run.footerStop).toBe(1);
+    expect(f.run.footer.text).toBe("Scanning\u2026 Descriptions, 1 of 3");
+    expect(f.run.footer.buttons).toEqual(["bell"]);
+    expect(f.run.footerAfter.text).toBe("Scanned at cur1234, just now");
+    expect(f.run.footerAfter.buttons).toEqual(["bell"]);
+    expect(f.run.after.buttons).toEqual([
+      { text: "Scan", disabled: false, spinner: 0 },
+    ]);
     expect(f.run.first.rows.every((r: Facts) => !r.disabled)).toBe(true);
   });
 
@@ -421,8 +446,12 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.run.plans).toHaveLength(1);
   });
 
-  it("stops a running scan from the footer and says Stopped", () => {
-    expect(f.stop.footer).toContain("Stopped");
+  it("stops a running scan from the Scan panel and leaves the footer reading Scanned", () => {
+    expect(f.stopWhileRunning.order).toEqual(["scan-run", "scan-stop"]);
+    expect(f.stopWhileRunning.count).toBe(1);
+    expect(f.stop.footer).toContain("Scanned");
+    expect(f.stop.footerButtons).toEqual(["bell"]);
+    expect(f.stop.stopAfter).toBe(0);
     expect(f.stop.button).toBe("Scan");
     expect(f.stop.disabled).toBe(false);
   });
@@ -434,22 +463,38 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(row.color).toBe(AMBER);
     expect(f.failed.posted).toEqual(["duplication failed: broke"]);
     expect(f.failed.amber).toBeNull();
+    expect(f.sensorFail.reasonLines).toBe(0);
   });
 
-  it("shows a failed sensor row from Show and opens the log in the editor", () => {
-    expect(f.sensorFail.footer).toBe(
-      "Sensors failed: brokeRescan\u00b7Show\u00b7Open log",
-    );
+  it("shows a failed sensor row from the message's Show and opens the log from its Open log", () => {
+    expect(f.sensorFail.footer.text).toBe("Scanned at cur1234, just now");
+    expect(f.sensorFail.footer.buttons).toEqual(["bell"]);
+    expect(f.sensorFail.messages).toEqual([
+      {
+        text: "duplication failed: broke",
+        actions: ["Show", "Open log"],
+      },
+    ]);
     expect(f.sensorFail.hiddenBefore).toBe(true);
     expect(f.sensorFail.panelOpen).toBe(true);
     expect(f.sensorFail.dot).toBe(true);
     expect(f.sensorFail.opened).toEqual([".recognizer/cache/log/x-scan.json"]);
   });
 
-  it("shows a failed module from Show on the inspector with the reason under its header", () => {
-    expect(f.moduleFail.footer).toBe(
-      "Describe failed: no describerRescan\u00b7Show\u00b7Open log",
-    );
+  it("offers Show without Open log when the run left no log", () => {
+    expect(f.noLog).toEqual([
+      { text: "duplication failed: broke", actions: ["Show"] },
+    ]);
+  });
+
+  it("shows a failed module from the message's Show on the inspector with the reason under its header", () => {
+    expect(f.moduleFail.footer.buttons).toEqual(["bell"]);
+    expect(f.moduleFail.messages).toEqual([
+      {
+        text: "Describe wrote 0 lines, 2 modules failed.",
+        actions: ["Show", "Open log"],
+      },
+    ]);
     expect(f.moduleFail.header).toContain("a.py");
     expect(f.moduleFail.reason).toBe("no describer");
   });
