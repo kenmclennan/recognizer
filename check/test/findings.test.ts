@@ -56,6 +56,7 @@ describe("findingsByModuleFrom over the structure document", () => {
     expect(found.get("app/domain/money.py")?.map((f) => f.severity)).toEqual([
       "warning",
       "warning",
+      "warning",
     ]);
     expect(found.get("app/domain/order.py")?.map((f) => f.why)).toContain(
       "no-cycles",

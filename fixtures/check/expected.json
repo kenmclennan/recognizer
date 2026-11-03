@@ -177,11 +177,13 @@
       "id": "folder_cycle",
       "principle": "no-cycles",
       "fix_pattern": "break-folder-cycle",
-      "summary": "folders shop/application and shop/domain import each other (2 edges)",
+      "summary": "folders shop/application, shop/domain, shop/legacy import each other in a cycle (4 edges)",
       "evidence": {
         "modules": [
           "shop/application/place.py",
-          "shop/domain/order.py"
+          "shop/domain/money.py",
+          "shop/domain/order.py",
+          "shop/legacy/helpers.py"
         ],
         "edges": [
           {
@@ -189,27 +191,12 @@
             "to": "shop/domain/order.py"
           },
           {
-            "from": "shop/domain/order.py",
-            "to": "shop/application/place.py"
-          }
-        ]
-      }
-    },
-    {
-      "id": "folder_cycle",
-      "principle": "no-cycles",
-      "fix_pattern": "break-folder-cycle",
-      "summary": "folders shop/domain and shop/legacy import each other (2 edges)",
-      "evidence": {
-        "modules": [
-          "shop/domain/money.py",
-          "shop/domain/order.py",
-          "shop/legacy/helpers.py"
-        ],
-        "edges": [
-          {
             "from": "shop/domain/money.py",
             "to": "shop/legacy/helpers.py"
+          },
+          {
+            "from": "shop/domain/order.py",
+            "to": "shop/application/place.py"
           },
           {
             "from": "shop/legacy/helpers.py",

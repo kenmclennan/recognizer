@@ -136,13 +136,22 @@
       "id": "folder_cycle",
       "principle": "no-cycles",
       "fix_pattern": "break-folder-cycle",
-      "summary": "folders app/orders and app/shared import each other (2 edges)",
+      "summary": "folders app/billing, app/orders, app/shared import each other in a cycle (4 edges)",
       "evidence": {
         "modules": [
+          "app/billing/invoice.py",
           "app/orders/place.py",
           "app/shared/money.py"
         ],
         "edges": [
+          {
+            "from": "app/billing/invoice.py",
+            "to": "app/shared/money.py"
+          },
+          {
+            "from": "app/orders/place.py",
+            "to": "app/billing/invoice.py"
+          },
           {
             "from": "app/orders/place.py",
             "to": "app/shared/money.py"
