@@ -101,7 +101,13 @@ function folderCycle(record: FindingRecord): string | null {
 
   const through = record.evidence.edges?.length ?? 0;
 
-  return `${folders[0]} and ${folders[1]} import each other, through ${through} ${plural(through, "import", "imports")}.`;
+  const imports = `${through} ${plural(through, "import", "imports")}`;
+
+  if (folders.length === 2) {
+    return `${folders[0]} and ${folders[1]} import each other, through ${imports}.`;
+  }
+
+  return `${folders.slice(0, -1).join(", ")} and ${folders.at(-1)} import each other in a cycle, through ${imports}.`;
 }
 
 function unstable(record: FindingRecord): string | null {

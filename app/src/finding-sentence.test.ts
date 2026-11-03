@@ -88,6 +88,28 @@ describe("sentenceOf", () => {
     ).toBe("a.py, b.py and c.py form a cycle of 3.");
   });
 
+  it("names a three-folder cycle", () => {
+    expect(
+      sentence({
+        id: "folder_cycle:app/a,app/b,app/c",
+        kind: "folder_cycle",
+        evidence: { modules: [], edges: [{}, {}, {}] as never },
+      }),
+    ).toBe(
+      "app/a, app/b and app/c import each other in a cycle, through 3 imports.",
+    );
+  });
+
+  it("names a four-folder cycle", () => {
+    expect(
+      sentence({
+        id: "folder_cycle:a,b,c,d",
+        kind: "folder_cycle",
+        evidence: { modules: [], edges: [{}, {}, {}, {}] as never },
+      }),
+    ).toBe("a, b, c and d import each other in a cycle, through 4 imports.");
+  });
+
   it("says unknown coverage when the crap finding has none", () => {
     expect(
       sentence({
