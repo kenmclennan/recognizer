@@ -1,6 +1,6 @@
 import type { FindingRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { evidenceLines, litSet, offCanvasModules } from "./findings-card";
+import { litSet, offCanvasModules } from "./findings-card";
 
 const violation: FindingRecord = {
   id: "v",
@@ -29,41 +29,6 @@ const cycle: FindingRecord = {
     ],
   },
 };
-
-const hub: FindingRecord = {
-  id: "h",
-  kind: "hub",
-  severity: "warning",
-  principle: "narrow",
-  summary: "hub",
-  fix_pattern: "split-hub",
-  evidence: {
-    modules: ["a.py"],
-    members: [{ module: "a.py", name: "Thing" }],
-    measures: { fan_out: 3, fan_in: 3, threshold: 3 },
-  },
-};
-
-describe("evidenceLines", () => {
-  it("lists an edge with its lines, and both cycle edges", () => {
-    expect(evidenceLines(violation)).toEqual(["a.py -> b.py at line 4, 12"]);
-    expect(evidenceLines(cycle)).toEqual(["a.py -> b.py", "b.py -> a.py"]);
-  });
-
-  it("lists members then measures in key order for a hub", () => {
-    expect(evidenceLines(hub)).toEqual([
-      "a.py: Thing",
-      "fan_in: 3",
-      "fan_out: 3",
-      "threshold: 3",
-    ]);
-  });
-
-  it("adds the not on the canvas line only when ids are passed", () => {
-    expect(evidenceLines(cycle)).not.toContain("not on the canvas: b.py");
-    expect(evidenceLines(cycle, ["b.py"])).toContain("not on the canvas: b.py");
-  });
-});
 
 describe("litSet", () => {
   const same = (id: string) => id;

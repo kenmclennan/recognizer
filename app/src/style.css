@@ -1167,6 +1167,7 @@ svg.i.chevron {
     SFMono-Regular,
     Menlo,
     monospace;
+  line-height: 1.7;
   overflow-wrap: anywhere;
 }
 
@@ -2427,27 +2428,145 @@ svg.i.chevron {
 
 .findings-header {
   font-size: 14px;
+  font-weight: 600;
 }
 
-.findings-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.findings-chip {
-  padding: 1px 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
+.findings-line {
+  margin: -4px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
+}
+
+.finding-group {
+  border-top: 1px solid var(--line);
+}
+
+.finding-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.findings-chip.on {
-  border-color: var(--sel);
+.finding-chevron {
+  display: inline-block;
+  width: 10px;
+  color: var(--muted);
+  transition: transform 0.12s;
+}
+
+.finding-group.open > .finding-group-head .finding-chevron {
+  transform: rotate(90deg);
+}
+
+.finding-mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b9770e;
+}
+
+.finding-mark.violation {
+  background: #c0392b;
+}
+
+.finding-group-name {
+  overflow-wrap: anywhere;
+}
+
+.finding-group-count {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.finding-card {
+  box-sizing: border-box;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--framebg);
+}
+
+.finding-card-head {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finding-card.open {
+  border-color: var(--sel);
+}
+
+.finding-name {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.finding-folder {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.finding-sentence {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.finding-more {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.finding-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.finding-item-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.finding-item .finding-folder {
+  display: inline;
+  margin-left: 4px;
+}
+
+.finding-add {
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sel);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .findings-stale {
@@ -2464,78 +2583,6 @@ svg.i.chevron {
 .findings-empty {
   margin: 0;
   color: var(--muted);
-}
-
-.finding-severity-title {
-  margin: 12px 0 2px;
-  color: var(--fg);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.finding-group-title {
-  margin: 6px 0 4px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.finding-row {
-  display: grid;
-  grid-template-columns: 8px auto 1fr;
-  gap: 2px 6px;
-  align-items: baseline;
-  width: 100%;
-  padding: 6px 4px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.finding-row.active,
-.finding-row:hover {
-  background: var(--framebg);
-}
-
-.finding-mark {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #b9770e;
-}
-
-.finding-mark.violation {
-  background: #c0392b;
-}
-
-.finding-file {
-  font-weight: 600;
-}
-
-.finding-folder {
-  color: var(--muted);
-}
-
-.finding-summary,
-.finding-principle,
-.finding-sensor {
-  grid-column: 2 / 4;
-}
-
-.finding-principle {
-  color: var(--muted);
-}
-
-.finding-sensor {
-  justify-self: start;
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .rail .rail-count.amber {
@@ -2574,91 +2621,6 @@ svg.i.chevron {
 
 .bar-button.findings-red .bar-figure {
   color: #e5604d;
-}
-
-.finding-entry {
-  display: block;
-}
-
-.finding-detail {
-  margin: 0 4px 6px 14px;
-  padding: 6px 8px;
-  border-left: 2px solid #b9770e;
-  font-size: 12px;
-}
-
-.finding-detail.violation {
-  border-left-color: #c0392b;
-}
-
-.finding-evidence,
-.finding-fix {
-  color: var(--fg);
-  overflow-wrap: anywhere;
-}
-
-.finding-fix {
-  margin-top: 4px;
-  color: var(--muted);
-}
-
-.finding-detail-buttons {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.finding-detail-button {
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--framebg);
-  color: var(--fg);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.ghost .ghost-body {
-  fill: var(--panel);
-  stroke: var(--line);
-  stroke-width: 1.5;
-  stroke-dasharray: 5 4;
-}
-
-.ghost .ghost-name {
-  fill: var(--fg);
-  font-size: 12px;
-  pointer-events: none;
-}
-
-.ghost .ghost-edge {
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 1.5;
-  stroke-dasharray: 5 4;
-}
-
-.ghost .ghost-arrow {
-  fill: var(--line);
-}
-
-.ghost.lit-violation .ghost-body,
-.ghost.lit-violation .ghost-edge {
-  stroke: #c0392b;
-}
-
-.ghost.lit-violation .ghost-arrow {
-  fill: #c0392b;
-}
-
-.ghost.lit-warning .ghost-body,
-.ghost.lit-warning .ghost-edge {
-  stroke: #b9770e;
-}
-
-.ghost.lit-warning .ghost-arrow {
-  fill: #b9770e;
 }
 
 .note-layer {
@@ -2796,26 +2758,6 @@ svg.i.chevron {
   outline: none;
   border-color: var(--sel);
   box-shadow: 0 0 0 2px var(--selbg);
-}
-
-.add-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.ghost-add {
-  position: absolute;
-  pointer-events: auto;
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--framebg);
-  color: var(--fg);
-  font: inherit;
-  font-size: 11px;
-  white-space: nowrap;
-  cursor: pointer;
 }
 
 .note-bubble.idle {

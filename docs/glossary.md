@@ -139,9 +139,10 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Box tooltip | The small dark text beneath a module box after a short delay on hover: its responsibility line and, when it has a note, the note's first sixty characters in the muted colour; folders have none. |
 | Scan panel | The left-column panel, behind the Scan rail icon, that shows the four phases of a scan, Extract, Describe, Measure and Sensors, with the ticks a repository remembers, and runs them on request. |
 | Phase | One of the four parts of a scan: extraction (when the files changed), describing (when ticked), measuring (when ticked) and the registered sensors (when ticked). |
-| Findings panel | The left-column panel, behind the Findings rail icon, that lists every current finding grouped by severity and kind and focuses the selected one. |
-| Finding focus | A module selection with one finding in focus: the evidence lit, the rest dimmed, the row expanded with its evidence and actions. Cleared by Escape, by clicking the finding again, or by selecting a box outside the evidence. |
-| Ghost box | A dashed box the finding focus draws for an evidence module the view does not hold, beside its partner with the lit edge; Add to the view makes it a pick, clearing the focus removes it. |
+| Findings panel | The left-column panel, behind the Findings rail icon: a heading with one muted count line, then one collapsible group per finding kind, each holding cards. |
+| Finding group | One collapsible kind in the Findings panel, named by the kind, a report or an unknown kind: a chevron, a severity dot, the name and its count. Collapsed until clicked. |
+| Finding card | A finding in the panel or in the inspector's Findings tab: the subject in bold, its folder muted beneath it and one plain sentence; opened inline to a row per module, member or edge involved, with Add to view on a row whose module is off the view. |
+| Finding focus | One finding card open: the evidence lit on the canvas and the rest dimmed, with no selection and no box added. Cleared by Escape, by clicking the open card, or by selecting a box outside the evidence. |
 | Description | A saved view's required one- or two-sentence statement of what it shows. |
 | Step | One entry in a saved view, replayed on opening: a pick, a rule, a fold, a focus, or a module left out. |
 | Pick | A step naming one module by path. Everything the user adds in the app is recorded as picks. |

@@ -13,10 +13,9 @@ import {
   type Point,
   type Rect,
 } from "./canvas-layout";
-import { arrowhead, type Scene } from "./canvas-scene";
+import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
-import type { Ghost } from "./finding-focus";
 import { icon } from "./icons";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
@@ -68,7 +67,6 @@ export type CanvasProps = {
   notes?: CanvasNotes;
   tooltip?: (id: string) => TooltipLine[] | null;
   orientation?: CanvasOrientation | null;
-  ghosts?: Ghost[];
   metrics?: CanvasMetrics | null;
   changes?: ChangeOverlay | null;
 };
@@ -225,56 +223,6 @@ function drawRemoved(removed: RemovedBox): SVGElement {
   return node;
 }
 
-function drawGhost(
-  ghost: Ghost,
-  scene: Scene,
-  tone: "violation" | "warning" | null,
-): SVGElement {
-  const { rect } = ghost;
-  const middle = rect.y + rect.height / 2;
-  const node = svg("g", {
-    class: tone === null ? "ghost" : `ghost lit-${tone}`,
-    "data-ghost": ghost.id,
-  });
-  const partner = scene.boxes.find((box) => box.id === ghost.partner);
-
-  if (partner !== undefined) {
-    const from = {
-      x: partner.rect.x + partner.rect.width,
-      y: partner.rect.y + partner.rect.height / 2,
-    };
-    const to = { x: rect.x, y: middle };
-    const towardsGhost = ghost.edge === null || ghost.edge.to === ghost.id;
-    const path = towardsGhost ? [from, to] : [to, from];
-
-    node.append(
-      svg("polyline", { class: "ghost-edge", points: points([from, to]) }),
-      svg("polygon", {
-        class: "ghost-arrow",
-        points: points(arrowhead(path)),
-      }),
-    );
-  }
-
-  node.append(
-    svg("rect", {
-      class: "ghost-body",
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-      rx: 7,
-    }),
-    svg(
-      "text",
-      { class: "ghost-name", x: rect.x + 12, y: middle + 4 },
-      ghost.name,
-    ),
-  );
-
-  return node;
-}
-
 export function buildCanvasView(
   actions: CanvasActions,
   scheduler: Scheduler = timerScheduler,
@@ -287,7 +235,6 @@ export function buildCanvasView(
   const empty = el("p", "empty-canvas");
   const notice = el("p", "canvas-notice");
   const busy = spinner("Laying out");
-  const addLayer = el("div", "add-layer");
   const noteLayer = el("div", "note-layer");
   const bubbleViews = new Map<string, NoteBubbleView>();
   const tip = el("div", "box-tip");
@@ -372,7 +319,6 @@ export function buildCanvasView(
   tip.hidden = true;
   stage.append(
     surface,
-    addLayer,
     noteLayer,
     tip,
     empty,
@@ -422,36 +368,6 @@ export function buildCanvasView(
     zoomIn.disabled = atMax(viewport);
     noteLayer.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.k})`;
     positionBar();
-    positionGhostButtons();
-  }
-
-  function positionGhostButtons() {
-    for (const node of addLayer.querySelectorAll<HTMLElement>(".ghost-add")) {
-      const x = Number(node.dataset.x);
-      const y = Number(node.dataset.y);
-
-      node.style.left = `${viewport.x + x * viewport.k}px`;
-      node.style.top = `${viewport.y + y * viewport.k + 6}px`;
-    }
-  }
-
-  function drawGhostButtons() {
-    addLayer.replaceChildren(
-      ...(props?.ghosts ?? []).map((ghost) => {
-        const node = button(`Add ${ghost.name} to the view`, "ghost-add", () =>
-          actions.pickName(ghost.id),
-        );
-
-        node.dataset.x = String(ghost.rect.x);
-        node.dataset.y = String(ghost.rect.y + ghost.rect.height);
-        node.dataset.ghost = ghost.id;
-        node.addEventListener("pointerdown", (event) =>
-          event.stopPropagation(),
-        );
-
-        return node;
-      }),
-    );
   }
 
   function zoomBy(factor: number, at?: Point) {
@@ -717,12 +633,6 @@ export function buildCanvasView(
       }
 
       parts.push(group);
-    }
-
-    const tone = props?.orientation?.tone ?? null;
-
-    for (const ghost of props?.ghosts ?? []) {
-      parts.push(drawGhost(ghost, scene, tone));
     }
 
     for (const removed of props?.changes?.removed ?? []) {
@@ -1062,9 +972,7 @@ export function buildCanvasView(
     }
 
     for (const tone of ["lit-violation", "lit-warning"]) {
-      for (const node of world.querySelectorAll<SVGElement>(
-        `.${tone}:not(.ghost)`,
-      )) {
+      for (const node of world.querySelectorAll<SVGElement>(`.${tone}`)) {
         node.classList.remove(tone);
       }
     }
@@ -1456,7 +1364,6 @@ export function buildCanvasView(
         next.titles !== previous?.titles ||
         next.notes !== previous?.notes ||
         next.orientation !== previous?.orientation ||
-        next.ghosts !== previous?.ghosts ||
         next.changes !== previous?.changes
       ) {
         if (scene) {
@@ -1474,10 +1381,6 @@ export function buildCanvasView(
         }
 
         hadContent = has;
-      }
-
-      if (next.ghosts !== previous?.ghosts) {
-        drawGhostButtons();
       }
 
       if (pendingCenter !== null && centerNow(pendingCenter)) {

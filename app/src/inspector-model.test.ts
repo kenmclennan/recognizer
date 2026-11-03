@@ -846,6 +846,7 @@ describe("findings", () => {
     summary,
     principle,
     sensor: "structure",
+    reported: false,
     record: {
       id: `${severity}-${summary}`,
       kind: "rule",
