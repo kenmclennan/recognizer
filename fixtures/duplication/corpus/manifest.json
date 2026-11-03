@@ -71,8 +71,27 @@
       "accessors.py::Limits.idle_timeout"
     ],
     "label": "non-copy-accessors",
+    "expected": "not-reported",
+    "note": "a family of same-shaped accessors with different intent: each body is one return of a lookup chain with literal arguments, so the accessor shape skips every member before fingerprinting"
+  },
+  {
+    "language": "python",
+    "a": "branching.py::Limits.retry_limit",
+    "b": "branching.py::Limits.page_size",
+    "label": "near-copy-not-accessor",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
+    "note": "a four-line function with a branch is not an accessor: the accessor shape must not skip it"
+  },
+  {
+    "language": "python",
+    "members": [
+      "constructors.py::Orders.__init__",
+      "constructors.py::Parcels.__init__",
+      "constructors.py::Visits.__init__"
+    ],
+    "label": "non-copy-constructors",
+    "expected": "not-reported",
+    "note": "constructors that only store parameters in fields: the constructor shape skips every member before fingerprinting"
   },
   {
     "language": "typescript",
@@ -146,8 +165,27 @@
       "accessors.ts::Limits.idleTimeout"
     ],
     "label": "non-copy-accessors",
+    "expected": "not-reported",
+    "note": "a family of same-shaped accessors with different intent: each body is one return of a lookup chain with literal arguments, so the accessor shape skips every member before fingerprinting"
+  },
+  {
+    "language": "typescript",
+    "a": "branching.ts::Limits.retryLimit",
+    "b": "branching.ts::Limits.pageSize",
+    "label": "near-copy-not-accessor",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
+    "note": "a four-line function with a branch is not an accessor: the accessor shape must not skip it"
+  },
+  {
+    "language": "typescript",
+    "members": [
+      "constructors.ts::Orders.constructor",
+      "constructors.ts::Parcels.constructor",
+      "constructors.ts::Visits.constructor"
+    ],
+    "label": "non-copy-constructors",
+    "expected": "not-reported",
+    "note": "constructors that only store parameters in fields: the constructor shape skips every member before fingerprinting"
   },
   {
     "language": "kotlin",
@@ -221,8 +259,27 @@
       "src::Limits.idleTimeout"
     ],
     "label": "non-copy-accessors",
+    "expected": "not-reported",
+    "note": "a family of same-shaped accessors with different intent: each body is one return of a lookup chain with literal arguments, so the accessor shape skips every member before fingerprinting"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::Budgets.retryLimit",
+    "b": "src::Budgets.pageSize",
+    "label": "near-copy-not-accessor",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
+    "note": "a four-line function with a branch is not an accessor: the accessor shape must not skip it"
+  },
+  {
+    "language": "kotlin",
+    "members": [
+      "src::Orders.assign",
+      "src::Parcels.assign",
+      "src::Visits.assign"
+    ],
+    "label": "non-copy-constructors",
+    "expected": "not-reported",
+    "note": "constructors that only store parameters in fields: the constructor shape skips every member before fingerprinting"
   },
   {
     "language": "rust",
@@ -296,7 +353,26 @@
       "accessors.rs::Limits.idle_timeout"
     ],
     "label": "non-copy-accessors",
+    "expected": "not-reported",
+    "note": "a family of same-shaped accessors with different intent: each body is one return of a lookup chain with literal arguments, so the accessor shape skips every member before fingerprinting"
+  },
+  {
+    "language": "rust",
+    "a": "branching.rs::Limits.retry_limit",
+    "b": "branching.rs::Limits.page_size",
+    "label": "near-copy-not-accessor",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
+    "note": "a four-line function with a branch is not an accessor: the accessor shape must not skip it"
+  },
+  {
+    "language": "rust",
+    "members": [
+      "constructors.rs::Orders.new",
+      "constructors.rs::Parcels.new",
+      "constructors.rs::Visits.new"
+    ],
+    "label": "non-copy-constructors",
+    "expected": "not-reported",
+    "note": "constructors that only store parameters in fields: the constructor shape skips every member before fingerprinting"
   }
 ]
