@@ -277,7 +277,7 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
       "rail-scan",
       "rail-findings",
     ]);
-    expect(f.panel.badge).toBe("3");
+    expect(f.panel.badge).toBe("1");
     expect(f.panel.badgeClass).toContain("red");
     expect(f.panel.label).toContain("Findings");
     expect(f.panel.open).toBe(true);

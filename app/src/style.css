@@ -2581,6 +2581,14 @@ svg.i.chevron {
   background: #c0392b;
 }
 
+.rail .rail-count.amber:empty {
+  min-width: 0;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+}
+
 .box.lit-violation .box-body,
 .line-group.lit-violation .edge {
   stroke: #c0392b;

@@ -90,8 +90,22 @@ notesFacts.zeroText = countOf().textContent;
 notesTotal = 3;
 rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" } });
 
+const foundEl = () => rail.element.querySelector(".rail-findings .rail-count");
+const badgeFacts = (findings) => {
+  rail.render({ panel: "files", notes: 3, scanFailed: false, findings });
+  const box = foundEl().getBoundingClientRect();
+  return { text: foundEl().textContent, hidden: foundEl().hidden, width: box.width, height: box.height, radius: cs(foundEl()).borderTopLeftRadius, background: cs(foundEl()).backgroundColor };
+};
+const findingsFacts = {
+  red: badgeFacts({ count: 4, tone: "red" }),
+  amber: badgeFacts({ count: 0, tone: "amber" }),
+  none: badgeFacts({ count: 0, tone: "none" }),
+};
+rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" } });
+
 const rect = rail.element.getBoundingClientRect();
 const facts = {
+  findingsFacts,
   colours,
   tag: rail.element.tagName,
   buttons: rail.element.querySelectorAll("button").length,
@@ -140,6 +154,17 @@ type Facts = {
   rail: { left: number; top: number; width: number; height: number };
   treeLeft: number;
   gridHeight: number;
+  findingsFacts: Record<
+    "red" | "amber" | "none",
+    {
+      text: string;
+      hidden: boolean;
+      width: number;
+      height: number;
+      radius: string;
+      background: string;
+    }
+  >;
   notesFacts: {
     aria: string;
     count: string;
@@ -247,5 +272,18 @@ describe.skipIf(chrome === undefined)("the rail in a real browser", () => {
     expect(f.notesFacts.countHidden).toBe(false);
     expect(f.notesFacts.zeroHidden).toBe(true);
     expect(f.notesFacts.zeroText).toBe("");
+  });
+
+  it("shows the violation count in red, a bare amber dot for warnings only and nothing otherwise", () => {
+    expect(f.findingsFacts.red.text).toBe("4");
+    expect(f.findingsFacts.red.hidden).toBe(false);
+    expect(f.findingsFacts.red.background).toBe("rgb(192, 57, 43)");
+    expect(f.findingsFacts.amber.text).toBe("");
+    expect(f.findingsFacts.amber.hidden).toBe(false);
+    expect(f.findingsFacts.amber.background).toBe("rgb(185, 119, 14)");
+    expect(f.findingsFacts.amber.width).toBe(8);
+    expect(f.findingsFacts.amber.height).toBe(8);
+    expect(f.findingsFacts.amber.radius).toBe("50%");
+    expect(f.findingsFacts.none.hidden).toBe(true);
   });
 });

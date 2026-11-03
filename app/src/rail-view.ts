@@ -81,7 +81,7 @@ export function buildRailView(actions: RailActions): RailView {
       found.className =
         `rail-count ${badge.tone === "none" ? "" : badge.tone}`.trim();
       found.textContent = badge.count > 0 ? String(badge.count) : "";
-      found.hidden = badge.count === 0;
+      found.hidden = badge.tone === "none";
     },
   };
 }
