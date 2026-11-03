@@ -42,7 +42,7 @@ One repository, a directory per part:
 - A look test's `HARNESS` is a template string that `look-page.ts` bundles with esbuild and runs in Chrome, so tsc never reads it: the `Loaded` value (the `base` object in `scan-panel-look.test.ts` and its siblings), the `scanHost` literal and the `registered()` wiring there are plain JavaScript. A new required field on `Loaded`, `ScanHost` or `registered()`'s result must be added by hand to every harness that builds one, or the look tests fail at run time and only the full app gate shows it.
 - Rust is the narrow boundary: dialogs, the editor, settings, git, the filesystem, child processes and the socket. Everything else is TypeScript.
 - `scan-ticks.json`, `recent.json`, `config.json` and `app.sock` live in the app's config folder, never inside a repository; the socket is mode 0600, one JSON line per request and per response.
-- `stop_scan` kills the scan's process group, and so does closing the window; nothing a scan spawns may leave that group.
+- `stop_scan` kills the scan's process group, and so does closing the window; nothing a scan spawns may leave that group. The one exception is a Mutation test run, which starts its own session so a timeout can kill the runner's children; the sensor's `SIGTERM` handler ends those sessions itself, so Stop still reaches them.
 - The app runs the structure sensor itself, and a registered sensor or overlay only as a phase of `run_scan`, each name positional and checked by `sensor_name_ok` before anything spawns.
 - A `recognizer://` link never scans, describes or writes; a refused link shows a dialog.
 - Note bubbles are held per window in the explorer, not in the published window state.
