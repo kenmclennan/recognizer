@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -989,3 +990,102 @@ def test_is_test_file_follows_the_shared_convention(module_id, expected):
     from recognizer_sensors.mutation.test_files import is_test_file
 
     assert is_test_file(module_id) is expected
+
+
+SLEEP_WHEN_STOPPING = """
+import os, sys, time
+
+where, pid_file = sys.argv[1], sys.argv[2]
+here = os.getcwd()
+hang = "baseline" in here if where == "baseline" else "/work/" in here and "baseline" not in here
+
+if hang:
+    with open(pid_file, "w") as handle:
+        handle.write(str(os.getpid()))
+
+    time.sleep(60)
+"""
+
+
+def stop_the_sensor_while_hung(tmp_path, where):
+    root, _ = mutate_repository(tmp_path)
+    pid_file = tmp_path / "pid.txt"
+    script = tmp_path / "hang.py"
+    script.write_text(SLEEP_WHEN_STOPPING)
+    settings = mutate_settings(str(script), timeout_factor=100)
+    settings = json.dumps(
+        {
+            **json.loads(settings),
+            "test_command": [sys.executable, str(script), where, str(pid_file)],
+        }
+    )
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "recognizer_sensors",
+            "mutation",
+            "--repository",
+            str(root),
+            "--output",
+            str(tmp_path / "findings.json"),
+            "--settings",
+            settings,
+        ],
+        process_group=0,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.monotonic() + 30
+
+    while not pid_file.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+
+    pid = int(pid_file.read_text())
+    os.killpg(process.pid, signal.SIGTERM)
+    process.wait(timeout=30)
+    deadline = time.monotonic() + 10
+
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+
+        time.sleep(0.05)
+
+    return root, pid
+
+
+@pytest.mark.parametrize("where", ["mutant", "baseline"])
+def test_sigterm_to_the_sensors_group_ends_the_hung_test_process_and_removes_the_work_folder(
+    tmp_path, where
+):
+    root, pid = stop_the_sensor_while_hung(tmp_path, where)
+
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+
+    assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
+
+
+def test_the_live_session_registry_empties_after_a_normal_and_a_timed_out_run(tmp_path):
+    runner.run_test_command([sys.executable, "-c", "pass"], tmp_path, 30)
+    assert runner.LIVE == set()
+
+    result = runner.run_test_command(
+        [sys.executable, "-c", "import time; time.sleep(60)"], tmp_path, 0.3
+    )
+
+    assert result.timed_out
+    assert runner.LIVE == set()
+
+
+def test_a_run_with_nothing_to_mutate_leaves_the_sigterm_handler_alone(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    output = tmp_path / "overlay.json"
+    before = signal.getsignal(signal.SIGTERM)
+
+    assert run_mutate(root, output, mutate_settings("tests/strong.py")) == 0
+    assert run_mutate(root, output, mutate_settings("tests/strong.py")) == 0
+    assert signal.getsignal(signal.SIGTERM) == before

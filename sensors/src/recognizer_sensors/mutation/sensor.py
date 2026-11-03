@@ -17,6 +17,7 @@ from recognizer_sensors.mutation.record import (
 from recognizer_sensors.mutation.runner import (
     Mutant,
     copy_repository,
+    install_stop_handler,
     new_work_folder,
     output_tail,
     remove_stale_work_folders,
@@ -459,6 +460,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         work = new_work_folder(repository)
         remove_stale_work_folders(work)
         labelled = len(commands) > 1
+        restore_handler = install_stop_handler(work)
 
         try:
             timeouts = {
@@ -487,6 +489,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
             )
             remove_stale_work_folders(work)
         finally:
+            restore_handler()
             remove_work_folder(work)
 
         for target, outcome in zip(queue, results, strict=True):
