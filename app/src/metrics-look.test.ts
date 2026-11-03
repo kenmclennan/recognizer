@@ -144,8 +144,8 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
     f = await collectFacts<Facts>(HARNESS, "metrics-look");
   }, 180000);
 
-  it("puts Metrics before Notes and Legend and lists the metrics under the overlay's heading", () => {
-    expect(f.controls.slice(-3)).toEqual(["Metrics", "Notes", "Legend"]);
+  it("puts Metrics before Legend and lists the metrics under the overlay's heading", () => {
+    expect(f.controls.slice(-2)).toEqual(["Metrics", "Legend"]);
     expect(f.heading).toBe("crap - crap 0.1.0 - at 0123456");
     expect(f.rows.map((r: { key: string }) => r.key)).toEqual([
       "crap/complexity",

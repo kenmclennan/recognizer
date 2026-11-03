@@ -198,13 +198,11 @@ describe("bubbleSet", () => {
     ["pkg/", rect(0, 50)],
   ]);
 
-  it("holds only the focused bubble while the toggle is off", () => {
-    const set = bubbleSet(
-      viewOf("a.py", "b.py"),
-      positions,
-      { path: "a.py", editing: false },
-      false,
-    );
+  it("holds only the focused bubble", () => {
+    const set = bubbleSet(viewOf("a.py", "b.py"), positions, {
+      path: "a.py",
+      editing: false,
+    });
 
     expect(set).toEqual([
       {
@@ -218,49 +216,15 @@ describe("bubbleSet", () => {
     ]);
   });
 
-  it("holds nothing with no focus and the toggle off", () => {
-    expect(bubbleSet(viewOf("a.py"), positions, null, false)).toEqual([]);
-  });
-
-  it("holds every note on the canvas in list order when the toggle is on, read-only and unfocused", () => {
-    const set = bubbleSet(
-      viewOf("b.py", "pkg/", "a.py"),
-      positions,
-      null,
-      true,
-    );
-
-    expect(set.map((one) => one.path)).toEqual(["b.py", "pkg/", "a.py"]);
-    expect(set.every((one) => !one.focused && !one.editing)).toBe(true);
-  });
-
-  it("leaves out a note whose box is off the canvas", () => {
-    const set = bubbleSet(viewOf("a.py", "gone.py"), positions, null, true);
-
-    expect(set.map((one) => one.path)).toEqual(["a.py"]);
-  });
-
-  it("lists the focused bubble once, last, and keeps its editing flag", () => {
-    const set = bubbleSet(
-      viewOf("a.py", "b.py"),
-      positions,
-      { path: "a.py", editing: true },
-      true,
-    );
-
-    expect(set.map((one) => [one.path, one.focused, one.editing])).toEqual([
-      ["b.py", false, false],
-      ["a.py", true, true],
-    ]);
+  it("holds nothing with no focus", () => {
+    expect(bubbleSet(viewOf("a.py"), positions, null)).toEqual([]);
   });
 
   it("gives a focused box with no note an empty bubble ready to write", () => {
-    const set = bubbleSet(
-      viewOf("a.py"),
-      positions,
-      { path: "b.py", editing: true },
-      false,
-    );
+    const set = bubbleSet(viewOf("a.py"), positions, {
+      path: "b.py",
+      editing: true,
+    });
 
     expect(set).toEqual([
       {
@@ -275,7 +239,7 @@ describe("bubbleSet", () => {
   });
 
   it("holds nothing without a view", () => {
-    expect(bubbleSet(null, positions, null, true)).toEqual([]);
+    expect(bubbleSet(null, positions, null)).toEqual([]);
   });
 });
 
@@ -338,18 +302,11 @@ describe("note order", () => {
 
   it("gives only the focused, non-editing bubble a step", () => {
     const view = viewOf("a.py", "b.py");
-    const reading = bubbleSet(
-      view,
-      positions,
-      { path: "a.py", editing: false },
-      true,
-    );
-    const editing = bubbleSet(
-      view,
-      positions,
-      { path: "a.py", editing: true },
-      true,
-    );
+    const reading = bubbleSet(view, positions, {
+      path: "a.py",
+      editing: false,
+    });
+    const editing = bubbleSet(view, positions, { path: "a.py", editing: true });
 
     expect(reading.find((one) => one.focused)?.step).toMatchObject({
       number: 1,

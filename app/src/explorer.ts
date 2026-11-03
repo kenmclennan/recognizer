@@ -16,7 +16,6 @@ import {
 } from "recognizer";
 import { agentLineOf, backLabel, forwardLabel } from "./agent-line";
 import { type Scheduler, timerScheduler } from "./bar-hover";
-import { boxTooltip, type TooltipLine } from "./box-tooltip";
 import { createBusyGate } from "./busy-gate";
 import {
   buildCanvasGraph,
@@ -368,7 +367,6 @@ export function showExplorer(
   const authorName = views.author().catch(() => "Me");
   let author = "Me";
   let noteFocus: NoteFocus | null = null;
-  let notesShown = false;
   let canvasNotes: CanvasNotes | undefined;
   let canvasNotesKey = "";
   const allFindings = findingRows(health.documents);
@@ -469,10 +467,6 @@ export function showExplorer(
       },
       openInEditor: openSelectedInEditor,
       addNote: openBubbleForSelection,
-      toggleNotes() {
-        notesShown = !notesShown;
-        render();
-      },
       openNote(path) {
         if (noteFocus?.path === path) {
           noteFocus = null;
@@ -2811,7 +2805,7 @@ export function showExplorer(
     const focus = noteFocus;
     const held =
       view === null || focus === null ? null : noteAt(view, focus.path);
-    const bubbles = bubbleSet(view, positions, focus, notesShown);
+    const bubbles = bubbleSet(view, positions, focus);
     const marks = view === null ? new Set<string>() : notedPaths(view);
     const keys = {
       notesOpen: leftPanel === "notes",
@@ -2819,13 +2813,7 @@ export function showExplorer(
       findingsOpen: leftPanel === "findings",
       stepping: held !== null && focus?.editing === false,
     };
-    const key = JSON.stringify([
-      [...marks].sort(),
-      focus,
-      bubbles,
-      notesShown,
-      keys,
-    ]);
+    const key = JSON.stringify([[...marks].sort(), focus, bubbles, keys]);
 
     if (key !== canvasNotesKey || canvasNotes === undefined) {
       canvasNotesKey = key;
@@ -2833,19 +2821,11 @@ export function showExplorer(
         marks,
         active: focus?.path ?? null,
         bubbles,
-        showAll: notesShown,
         keys,
       };
     }
 
     return canvasNotes;
-  }
-
-  function tooltipOf(id: string): TooltipLine[] {
-    const view = openViewValue();
-    const held = view === null ? null : noteAt(view, id);
-
-    return boxTooltip(responsibilityOf(id), held?.text ?? null);
   }
 
   function tickedMetrics(): MetricDescriptor[] {
@@ -2903,7 +2883,6 @@ export function showExplorer(
       notice: layoutNotice,
       busy: layoutBusy,
       notes,
-      tooltip: tooltipOf,
       orientation: syncOrientation(),
       metrics: canvasMetrics(),
       changes: changeOverlay(),

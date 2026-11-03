@@ -2759,29 +2759,6 @@ svg.i.chevron {
   -webkit-line-clamp: 3;
 }
 
-.box-tip {
-  position: absolute;
-  z-index: 4;
-  max-width: 280px;
-  padding: 6px 9px;
-  border-radius: 7px;
-  background: var(--dark);
-  color: var(--darkfg);
-  font-size: 12px;
-  line-height: 1.4;
-  box-shadow: 0 4px 12px rgba(31, 35, 40, 0.25);
-  pointer-events: none;
-}
-
-.box-tip .tip-line.dim {
-  opacity: 0.7;
-  font-style: italic;
-}
-
-.box-tip .tip-line.muted {
-  opacity: 0.6;
-}
-
 .canvas-metrics {
   position: absolute;
   right: 12px;
