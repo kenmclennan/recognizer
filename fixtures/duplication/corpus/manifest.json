@@ -64,51 +64,15 @@
   },
   {
     "language": "python",
-    "a": "accessors.py::Limits.retry_limit",
-    "b": "accessors.py::Limits.page_size",
+    "members": [
+      "accessors.py::Limits.retry_limit",
+      "accessors.py::Limits.page_size",
+      "accessors.py::Limits.queue_depth",
+      "accessors.py::Limits.idle_timeout"
+    ],
     "label": "non-copy-accessors",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "python",
-    "a": "accessors.py::Limits.retry_limit",
-    "b": "accessors.py::Limits.queue_depth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "python",
-    "a": "accessors.py::Limits.retry_limit",
-    "b": "accessors.py::Limits.idle_timeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "python",
-    "a": "accessors.py::Limits.page_size",
-    "b": "accessors.py::Limits.queue_depth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "python",
-    "a": "accessors.py::Limits.page_size",
-    "b": "accessors.py::Limits.idle_timeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "python",
-    "a": "accessors.py::Limits.queue_depth",
-    "b": "accessors.py::Limits.idle_timeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
   },
   {
     "language": "typescript",
@@ -175,51 +139,15 @@
   },
   {
     "language": "typescript",
-    "a": "accessors.ts::Limits.retryLimit",
-    "b": "accessors.ts::Limits.pageSize",
+    "members": [
+      "accessors.ts::Limits.retryLimit",
+      "accessors.ts::Limits.pageSize",
+      "accessors.ts::Limits.queueDepth",
+      "accessors.ts::Limits.idleTimeout"
+    ],
     "label": "non-copy-accessors",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "typescript",
-    "a": "accessors.ts::Limits.retryLimit",
-    "b": "accessors.ts::Limits.queueDepth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "typescript",
-    "a": "accessors.ts::Limits.retryLimit",
-    "b": "accessors.ts::Limits.idleTimeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "typescript",
-    "a": "accessors.ts::Limits.pageSize",
-    "b": "accessors.ts::Limits.queueDepth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "typescript",
-    "a": "accessors.ts::Limits.pageSize",
-    "b": "accessors.ts::Limits.idleTimeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "typescript",
-    "a": "accessors.ts::Limits.queueDepth",
-    "b": "accessors.ts::Limits.idleTimeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
   },
   {
     "language": "kotlin",
@@ -286,51 +214,15 @@
   },
   {
     "language": "kotlin",
-    "a": "src::Limits.retryLimit",
-    "b": "src::Limits.pageSize",
+    "members": [
+      "src::Limits.retryLimit",
+      "src::Limits.pageSize",
+      "src::Limits.queueDepth",
+      "src::Limits.idleTimeout"
+    ],
     "label": "non-copy-accessors",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "kotlin",
-    "a": "src::Limits.retryLimit",
-    "b": "src::Limits.queueDepth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "kotlin",
-    "a": "src::Limits.retryLimit",
-    "b": "src::Limits.idleTimeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "kotlin",
-    "a": "src::Limits.pageSize",
-    "b": "src::Limits.queueDepth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "kotlin",
-    "a": "src::Limits.pageSize",
-    "b": "src::Limits.idleTimeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "kotlin",
-    "a": "src::Limits.queueDepth",
-    "b": "src::Limits.idleTimeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
   },
   {
     "language": "rust",
@@ -397,50 +289,14 @@
   },
   {
     "language": "rust",
-    "a": "accessors.rs::Limits.retry_limit",
-    "b": "accessors.rs::Limits.page_size",
+    "members": [
+      "accessors.rs::Limits.retry_limit",
+      "accessors.rs::Limits.page_size",
+      "accessors.rs::Limits.queue_depth",
+      "accessors.rs::Limits.idle_timeout"
+    ],
     "label": "non-copy-accessors",
     "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "rust",
-    "a": "accessors.rs::Limits.retry_limit",
-    "b": "accessors.rs::Limits.queue_depth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "rust",
-    "a": "accessors.rs::Limits.retry_limit",
-    "b": "accessors.rs::Limits.idle_timeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "rust",
-    "a": "accessors.rs::Limits.page_size",
-    "b": "accessors.rs::Limits.queue_depth",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "rust",
-    "a": "accessors.rs::Limits.page_size",
-    "b": "accessors.rs::Limits.idle_timeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
-  },
-  {
-    "language": "rust",
-    "a": "accessors.rs::Limits.queue_depth",
-    "b": "accessors.rs::Limits.idle_timeout",
-    "label": "non-copy-accessors",
-    "expected": "reported",
-    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported as one finding; the follow-up may flip this expectation"
   }
 ]

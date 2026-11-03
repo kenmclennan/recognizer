@@ -7,7 +7,7 @@ from conftest import make_repository
 
 from recognizer_sensors.duplication.normalise import count_nodes
 from recognizer_sensors.duplication.score import brute_force_pairs, pruned_pairs, reaches
-from recognizer_sensors.duplication.sensor import SettingsError, parse_settings, run
+from recognizer_sensors.duplication.sensor import SettingsError, families, parse_settings, run
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.parsing import parse
 from recognizer_sensors.scans import read_scans
@@ -129,6 +129,82 @@ def test_a_kotlin_module_is_a_directory(tmp_path):
     findings = find(root, min_nodes=1)
 
     assert [f["id"] for f in findings] == ["duplication:pkg::one|pkg::two"]
+
+
+def test_three_similar_functions_give_one_family_finding(tmp_path):
+    root = make_repository(
+        tmp_path,
+        {
+            "a.py": python_function("one"),
+            "b.py": python_function("two"),
+            "c.py": python_function("three"),
+        },
+    )
+    findings = find(root)
+
+    assert len(findings) == 1
+    assert findings[0]["id"] == "duplication:a.py::one|b.py::two#3"
+    assert findings[0]["summary"] == (
+        "3 functions share one structure: one in a.py, two in b.py, three in c.py"
+    )
+    assert [m["name"] for m in findings[0]["evidence"]["members"]] == ["one", "two", "three"]
+    assert findings[0]["evidence"]["modules"] == ["a.py", "b.py", "c.py"]
+    assert findings[0]["evidence"]["measures"] == {"similarity": 1.0}
+
+
+def test_two_similar_functions_keep_the_pair_finding(tmp_path):
+    root = make_repository(
+        tmp_path, {"a.py": python_function("one"), "b.py": python_function("two")}
+    )
+    findings = find(root)
+
+    assert [f["id"] for f in findings] == ["duplication:a.py::one|b.py::two"]
+    assert findings[0]["summary"] == "one in a.py is 100% similar to two in b.py"
+    assert len(findings[0]["evidence"]["members"]) == 2
+
+
+def test_a_fourth_similar_function_changes_the_family_id(tmp_path):
+    files = {f"{n}.py": python_function(f"f_{n}") for n in "abc"}
+    three = find(make_repository(tmp_path / "three", files))
+    four = find(make_repository(tmp_path / "four", {**files, "d.py": python_function("f_d")}))
+
+    assert three[0]["id"].endswith("#3")
+    assert four[0]["id"] == "duplication:a.py::f_a|b.py::f_b#4"
+
+
+def test_two_separate_families_in_one_file_give_two_findings(tmp_path):
+    other = "def {name}(rows):\n    out = []\n    for row in rows:\n        out.append(row.name.upper())\n    return out\n"
+    source = "\n\n".join(
+        [python_function("a1"), python_function("a2"), python_function("a3")]
+        + [other.format(name=n) for n in ("b1", "b2", "b3")]
+    )
+    root = make_repository(tmp_path, {"m.py": source})
+    findings = find(root, min_nodes=1)
+
+    assert sorted(f["id"] for f in findings) == [
+        "duplication:m.py::a1|m.py::a2#3",
+        "duplication:m.py::b1|m.py::b2#3",
+    ]
+
+
+def test_nested_functions_join_a_family_only_through_a_third_function(tmp_path):
+    source = (
+        "def outer(items):\n    total = 0\n    for item in items:\n        total += item\n"
+        "    def inner(items):\n        total = 0\n        for item in items:\n"
+        "            total += item\n        return total\n    return total\n"
+    )
+    root = make_repository(tmp_path, {"a.py": source, "b.py": python_function("other")})
+
+    findings = find(root, min_nodes=1, threshold=0.1)
+
+    assert [f["id"] for f in findings] == ["duplication:a.py::outer|a.py::outer.inner#3"]
+    assert findings[0]["evidence"]["modules"] == ["a.py", "b.py"]
+
+
+def test_a_chain_of_pairs_is_one_family_scored_by_its_weakest_edge():
+    result = families([(0, 1, 0.9), (1, 2, 0.85), (5, 6, 0.95)])
+
+    assert sorted(result) == [([0, 1, 2], 0.85), ([5, 6], 0.95)]
 
 
 def generated_sets(count: int, seed: int) -> list[frozenset[int]]:

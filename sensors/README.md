@@ -46,7 +46,7 @@ When a command does not start, exits non-zero or leaves no report, the sensor wr
 
 ## duplication
 
-Reports pairs of functions or methods in the same language whose structure is alike. A function is normalised (local names, parameter names, field names and literals become kind tokens; call names, operators and shape stay), every subtree down to depth 3 is hashed with SHA-1 and the set of hashes is the function's structural fingerprint. A pair is reported when the Jaccard similarity of the two sets is at or above `threshold`.
+Reports pairs and families of functions or methods in the same language whose structure is alike. A function is normalised (local names, parameter names, field names and literals become kind tokens; call names, operators and shape stay), every subtree down to depth 3 is hashed with SHA-1 and the set of hashes is the function's structural fingerprint. A pair is linked when the Jaccard similarity of the two sets is at or above `threshold`; each connected group of linked functions (a duplication family) is one finding, and a plain pair is a family of two.
 
 | setting | default | meaning |
 | --- | --- | --- |
@@ -54,7 +54,7 @@ Reports pairs of functions or methods in the same language whose structure is al
 | `min_lines` | `4` | functions with fewer lines are skipped (integer >= 1) |
 | `min_nodes` | `20` | functions with fewer syntax nodes are skipped (integer >= 1) |
 
-Each finding is a warning on both modules of the pair, with the fix pattern `extract-shared-function` and both functions as evidence members with `file` and `lines`. Written with unclebob/dryer (0BSD) as the reference, never a dependency.
+Each finding is a warning on every member's module, with the fix pattern `extract-shared-function` and every member function as an evidence member with `file` and `lines`. A pair keeps the id `duplication:<a>|<b>`; a family of three or more is `duplication:<a>|<b>#<n>` (its first two members and the member count), its summary names every member, and its similarity is the lowest linking pair's. Written with unclebob/dryer (0BSD) as the reference, never a dependency.
 
 Cost: scoring is quadratic in the number of functions per language, narrowed by a size filter and an inverted index on fingerprints; a very large repository may take minutes. The sensor runs only when asked (`recognizer scan --sense duplication`), never on open.
 

@@ -129,34 +129,69 @@ def collect_units(repository: Path, scan: Scan, settings: dict) -> list[Unit]:
     return with_identities(units)
 
 
-def finding_for(a: Unit, b: Unit, score: float) -> dict:
-    first, second = sorted((a, b), key=lambda unit: unit.identity)
-    percent = round(score * 100)
+def member_of(unit: Unit) -> dict:
+    return {
+        "module": unit.module,
+        "name": unit.qualified,
+        "file": unit.file,
+        "lines": [unit.start_line, unit.end_line],
+    }
+
+
+def finding_for(members: list[Unit], score: float) -> dict:
+    members = sorted(members, key=lambda unit: unit.identity)
+    first, second = members[0], members[1]
+
+    if len(members) == 2:
+        finding_id = f"duplication:{first.identity}|{second.identity}"
+        summary = (
+            f"{first.qualified} in {first.module} is {round(score * 100)}% similar to "
+            f"{second.qualified} in {second.module}"
+        )
+    else:
+        finding_id = f"duplication:{first.identity}|{second.identity}#{len(members)}"
+        names = ", ".join(f"{unit.qualified} in {unit.module}" for unit in members)
+        summary = f"{len(members)} functions share one structure: {names}"
 
     return {
-        "id": f"duplication:{first.identity}|{second.identity}",
+        "id": finding_id,
         "kind": "duplication",
         "severity": "warning",
         "principle": PRINCIPLE,
         "fix_pattern": FIX_PATTERN,
-        "summary": (
-            f"{first.qualified} in {first.module} is {percent}% similar to "
-            f"{second.qualified} in {second.module}"
-        ),
+        "summary": summary,
         "evidence": {
-            "modules": sorted({first.module, second.module}),
-            "members": [
-                {
-                    "module": unit.module,
-                    "name": unit.qualified,
-                    "file": unit.file,
-                    "lines": [unit.start_line, unit.end_line],
-                }
-                for unit in (first, second)
-            ],
+            "modules": sorted({unit.module for unit in members}),
+            "members": [member_of(unit) for unit in members],
             "measures": {"similarity": round(score, 3)},
         },
     }
+
+
+def families(edges: list[tuple[int, int, float]]) -> list[tuple[list[int], float]]:
+    parent: dict[int, int] = {}
+
+    def find(node: int) -> int:
+        parent.setdefault(node, node)
+
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+
+        return node
+
+    for i, j, _ in edges:
+        parent[find(i)] = find(j)
+
+    members: dict[int, set[int]] = {}
+    lowest: dict[int, float] = {}
+
+    for i, j, score in edges:
+        root = find(i)
+        members.setdefault(root, set()).update((i, j))
+        lowest[root] = min(lowest.get(root, score), score)
+
+    return [(sorted(nodes), lowest[root]) for root, nodes in members.items()]
 
 
 def run(repository: Path, scans: list[Scan], settings: dict) -> list[dict]:
@@ -169,9 +204,13 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> list[dict]:
 
     for units in by_language.values():
         sets = [unit.fingerprints for unit in units]
+        edges = [
+            (i, j, intersection / union)
+            for i, j, intersection, union in pruned_pairs(sets, settings["threshold"])
+            if not nested(units[i], units[j])
+        ]
 
-        for i, j, intersection, union in pruned_pairs(sets, settings["threshold"]):
-            if not nested(units[i], units[j]):
-                findings.append(finding_for(units[i], units[j], intersection / union))
+        for indices, score in families(edges):
+            findings.append(finding_for([units[i] for i in indices], score))
 
     return findings

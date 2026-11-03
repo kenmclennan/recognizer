@@ -216,3 +216,73 @@ describe("sentenceOf", () => {
     );
   });
 });
+
+describe("the duplication sentence", () => {
+  const member = (name: string, module: string, lines?: [number, number]) => ({
+    module,
+    name,
+    file: module,
+    ...(lines === undefined ? {} : { lines }),
+  });
+  const family = (members: ReturnType<typeof member>[]) =>
+    sentence({
+      kind: "duplication",
+      evidence: { modules: [], members },
+    });
+
+  it("keeps the pair sentence", () => {
+    expect(
+      family([
+        member("a", "src/x.py", [1, 5]),
+        member("b", "src/y.py", [1, 9]),
+      ]),
+    ).toBe("a in x.py repeats the structure of b in y.py (9 lines).");
+  });
+
+  it("names three members and the longest span", () => {
+    expect(
+      family([
+        member("a", "src/x.py", [1, 5]),
+        member("b", "src/y.py", [1, 9]),
+        member("c", "src/z.py", [1, 7]),
+      ]),
+    ).toBe(
+      "3 functions repeat one structure: a in x.py, b in y.py and c in z.py (9 lines).",
+    );
+  });
+
+  it("drops the tail when no member has lines", () => {
+    expect(
+      family([
+        member("a", "src/x.py"),
+        member("b", "src/y.py"),
+        member("c", "src/z.py"),
+      ]),
+    ).toBe(
+      "3 functions repeat one structure: a in x.py, b in y.py and c in z.py.",
+    );
+  });
+
+  it("counts one more member", () => {
+    expect(
+      family([
+        member("a", "src/x.py", [1, 5]),
+        member("b", "src/y.py", [1, 5]),
+        member("c", "src/z.py", [1, 5]),
+        member("d", "src/w.py", [1, 5]),
+      ]),
+    ).toBe(
+      "4 functions repeat one structure: a in x.py, b in y.py, c in z.py and 1 more (5 lines).",
+    );
+  });
+
+  it("names three of 22 members and takes the span from a later one", () => {
+    const members = Array.from({ length: 22 }, (_, index) =>
+      member(`m${index}`, `src/f${index}.py`, [1, index === 20 ? 30 : 5]),
+    );
+
+    expect(family(members)).toBe(
+      "22 functions repeat one structure: m0 in f0.py, m1 in f1.py, m2 in f2.py and 19 more (30 lines).",
+    );
+  });
+});
