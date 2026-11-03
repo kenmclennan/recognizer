@@ -1,9 +1,24 @@
+import shlex
 from pathlib import Path
+
+PLUGIN_DIRECTORY = Path(__file__).parent / "plugin"
+
+CONTEXTS_JSON = ".recognizer/cache/coverage/python.contexts.json"
+
+MAX_SELECTED_FILES = 50
 
 PYTHON_COVERAGE = (
     "export COVERAGE_FILE=.recognizer/cache/coverage/python.data"
     " && {runner} coverage run -m pytest"
     " && {runner} coverage lcov -o .recognizer/cache/coverage/python.lcov"
+)
+
+PYTHON_COVERAGE_CONTEXTS = (
+    "export COVERAGE_FILE=.recognizer/cache/coverage/python.data"
+    " && export PYTHONPATH={plugin}${{PYTHONPATH:+:$PYTHONPATH}}"
+    " && {{runner}} coverage run -m pytest -p recognizer_covctx"
+    " && {{runner}} coverage lcov -o .recognizer/cache/coverage/python.lcov"
+    " && {{runner}} coverage json --show-contexts -o " + CONTEXTS_JSON
 )
 
 PYTHON_RUNNERS = (
@@ -83,13 +98,41 @@ def fill(command: list[str], runner: list[str] | None, joined: bool) -> list[str
     return filled
 
 
-def coverage_command(repository: Path, language: str) -> list[str]:
+def coverage_command(repository: Path, language: str, contexts: bool = False) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
+    command = PROFILES[language]["coverage_command"]
 
-    return fill(PROFILES[language]["coverage_command"], runner, joined=True)
+    if contexts and language == "python":
+        script = PYTHON_COVERAGE_CONTEXTS.format(plugin=shlex.quote(str(PLUGIN_DIRECTORY)))
+        command = ["sh", "-c", script]
+
+    return fill(command, runner, joined=True)
+
+
+def by_file_command(file: str, number: int) -> list[str]:
+    command = list(PROFILES["typescript"]["coverage_command"])
+    command[command.index("--reports-dir") + 1] = (
+        f".recognizer/cache/coverage/typescript/by-file/{number}"
+    )
+
+    return [*command, "--", file]
 
 
 def mutant_command(repository: Path, language: str) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
 
     return fill(PROFILES[language]["test_command"], runner, joined=False)
+
+
+def selected_command(repository: Path, language: str, files: set[str] | frozenset[str]):
+    if language == "python":
+        prefix = [*python_runner(repository), "pytest"]
+    elif language == "typescript":
+        prefix = ["npm", "test", "--"]
+    else:
+        return None
+
+    if not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files):
+        return mutant_command(repository, language)
+
+    return [*prefix, *sorted(files)]

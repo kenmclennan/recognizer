@@ -1,6 +1,8 @@
 import os
 import sys
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +17,7 @@ from recognizer_sensors.mutation.record import (
     stale_test_reason,
 )
 from recognizer_sensors.mutation.runner import (
+    NUMBERS,
     Mutant,
     copy_repository,
     install_stop_handler,
@@ -31,10 +34,11 @@ from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import MeasurementError, SettingsError, relative_path
-from recognizer_sensors.testrun.profiles import mutant_command
+from recognizer_sensors.testrun.profiles import mutant_command, selected_command
 from recognizer_sensors.testrun.run import (
     LOG,
     collect_coverage,
+    collect_coverage_with_tests,
     parse_coverage,
     parse_test_command,
 )
@@ -83,6 +87,7 @@ class Target:
     language: str = ""
     covered: list[bool] = field(default_factory=list)
     timeouts: list[Site] = field(default_factory=list)
+    selections: list[frozenset[str] | None] = field(default_factory=list)
     verdicts: list[str | None] = field(default_factory=list)
     reused: bool = False
 
@@ -211,22 +216,30 @@ def collect_targets(repository: Path, scan: Scan) -> tuple[list[Target], dict[st
     return targets, sources
 
 
-def site_is_covered(site: Site, target: Target, lines: dict[int, int] | None) -> bool:
+def covering_line(site: Site, target: Target, lines: dict[int, int] | None) -> int | None:
     if not lines:
-        return False
+        return None
 
     candidates = [n for n in lines if target.start_line <= n <= site.line]
 
-    return bool(candidates) and lines[max(candidates)] > 0
+    return max(candidates) if candidates else None
+
+
+def site_is_covered(site: Site, target: Target, lines: dict[int, int] | None) -> bool:
+    line = covering_line(site, target, lines)
+
+    return line is not None and lines[line] > 0
 
 
 def timeout_for(baseline_seconds: float, factor: float) -> float:
     return max(TIMEOUT_FLOOR, factor * baseline_seconds)
 
 
-def run_baseline(repository: Path, work: Path, command: list[str], label: str | None) -> float:
-    copy = work / f"baseline-{label or 'all'}"
-    subject = f"the {label} test command" if label else "the test command"
+LOG_LOCK = threading.Lock()
+
+
+def run_baseline(repository: Path, work: Path, command: list[str], subject: str) -> float:
+    copy = work / f"baseline-{next(NUMBERS)}"
 
     try:
         copy_repository(repository, copy)
@@ -238,10 +251,12 @@ def run_baseline(repository: Path, work: Path, command: list[str], label: str | 
         return result.seconds
 
     log = repository / LOG
-    log.parent.mkdir(parents=True, exist_ok=True)
 
-    with log.open("a", encoding="utf-8") as stream:
-        stream.write(f"== baseline {label or 'test command'}\n{output_tail(result.output)}\n")
+    with LOG_LOCK:
+        log.parent.mkdir(parents=True, exist_ok=True)
+
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write(f"== baseline {' '.join(command)}\n{output_tail(result.output)}\n")
 
     if result.exit_code is None:
         raise MeasurementError(f"{subject} did not start: {command[0]}")
@@ -249,11 +264,62 @@ def run_baseline(repository: Path, work: Path, command: list[str], label: str | 
     raise MeasurementError(f"{subject} exited {result.exit_code}")
 
 
+class Baseline:
+    def __init__(self) -> None:
+        self.done = threading.Event()
+        self.seconds = 0.0
+        self.error: Exception | None = None
+
+
+class Baselines:
+    def __init__(self, repository: Path, work: Path) -> None:
+        self.repository = repository
+        self.work = work
+        self.lock = threading.Lock()
+        self.entries: dict[tuple[str, ...], Baseline] = {}
+
+    def seconds(self, command: list[str], subject: str, fallback: bool = False) -> float | None:
+        key = tuple(command)
+
+        with self.lock:
+            entry = self.entries.get(key)
+            owner = entry is None
+
+            if entry is None:
+                entry = self.entries[key] = Baseline()
+
+        if owner:
+            try:
+                entry.seconds = run_baseline(self.repository, self.work, command, subject)
+            except Exception as error:
+                entry.error = error
+
+                if fallback:
+                    print(
+                        f"recognizer-sensors: mutation: {error}; running the whole suite",
+                        file=sys.stderr,
+                    )
+            finally:
+                entry.done.set()
+        else:
+            entry.done.wait()
+
+        if entry.error is None:
+            return entry.seconds
+
+        if fallback:
+            return None
+
+        raise entry.error
+
+
 def site_entry(site: Site) -> dict:
     return {"line": site.line, "operator": site.operator, "replacement": site.replacement}
 
 
-def survivors_document(commit: str, targets: list[Target], skipped: list[str], reused: int) -> dict:
+def survivors_document(
+    commit: str, targets: list[Target], skipped: list[str], reused: int, no_covering_test: int
+) -> dict:
     functions = {
         target.identity: {
             "module": target.module,
@@ -275,6 +341,7 @@ def survivors_document(commit: str, targets: list[Target], skipped: list[str], r
         "skipped": [
             {"identity": identity, "reason": "uncovered-by-budget"} for identity in sorted(skipped)
         ],
+        "unmeasured": {"budget": len(skipped), "no-covering-test": no_covering_test},
         "functions": functions,
     }
 
@@ -360,7 +427,7 @@ def commands_for(
 
 
 def record_key(configured: list[str] | None, commands: dict[str, list[str]]) -> object:
-    return configured if configured is not None else commands
+    return configured if configured is not None else {"commands": commands, "selection": 1}
 
 
 def describe(survivor: dict) -> str:
@@ -404,11 +471,19 @@ def finding_for(target: Target, values: dict) -> dict:
 
 
 def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Outcome:
-    started = CLOCK()
     configured = settings.get("test_command")
-    coverage = collect_coverage(repository, scans, None, settings.get("coverage"))
+
+    if configured is None:
+        coverage, selection = collect_coverage_with_tests(
+            repository, scans, settings.get("coverage")
+        )
+    else:
+        coverage = collect_coverage(repository, scans, None, settings.get("coverage"))
+        selection = {}
+
     targets: list[Target] = []
     sources: dict[str, bytes] = {}
+    no_covering_test = 0
 
     for scan in scans:
         found, scan_sources = collect_targets(repository, scan)
@@ -426,6 +501,14 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
                 known > 0 and site_is_covered(site, target, lines) for site in target.sites
             ]
             target.uncovered = target.covered.count(False)
+            chosen = selection.get(target.file, {})
+            target.selections = [
+                chosen.get(covering_line(site, target, lines)) if covered else None
+                for site, covered in zip(target.sites, target.covered, strict=True)
+            ]
+
+            if target.sites and not any(target.covered):
+                no_covering_test += 1
 
     commands = commands_for(repository, scans, configured)
     key = record_key(configured, commands)
@@ -455,6 +538,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
 
     queue = queue_order(pending, earlier_skipped)
     skipped: list[Target] = []
+    ran = {"selection": 0, "whole": 0}
 
     if queue:
         work = new_work_folder(repository)
@@ -463,25 +547,51 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         restore_handler = install_stop_handler(work)
 
         try:
-            timeouts = {
-                language: timeout_for(
-                    run_baseline(
-                        repository, work, commands[language], language if labelled else None
-                    ),
-                    settings["timeout_factor"],
-                )
-                for language in sorted({t.language for t in queue})
-            }
+            baselines = Baselines(repository, work)
+            tally_lock = threading.Lock()
+
+            def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
+                whole = commands[target.language]
+                subject = f"the {target.language} test command" if labelled else "the test command"
+                chosen = [
+                    selections
+                    for selections, covered in zip(target.selections, target.covered, strict=True)
+                    if covered
+                ]
+
+                def lookup(index: int) -> tuple[list[str], float]:
+                    seconds = None
+                    command = whole
+                    files = chosen[index] if configured is None else None
+                    selected = (
+                        selected_command(repository, target.language, files) if files else None
+                    )
+
+                    if selected is not None and selected != whole:
+                        seconds = baselines.seconds(
+                            selected, "the selected test command", fallback=True
+                        )
+
+                        if seconds is not None:
+                            command = selected
+
+                    if seconds is None:
+                        seconds = baselines.seconds(whole, subject)
+
+                    with tally_lock:
+                        ran["selection" if command is not whole else "whole"] += 1
+
+                    return command, timeout_for(seconds, settings["timeout_factor"])
+
+                return lookup
+
             budget = settings["max_minutes"]
+            started = CLOCK()
             deadline = started + budget * 60 if budget is not None else None
             results = run_functions(
                 queue,
                 lambda target: run_function(
-                    repository,
-                    work,
-                    mutants_for(target, sources),
-                    commands[target.language],
-                    timeouts[target.language],
+                    repository, work, mutants_for(target, sources), plan_for(target)
                 ),
                 settings["max_workers"],
                 deadline,
@@ -515,6 +625,11 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         f"{mutated} mutated, {len(skipped_ids)} skipped (uncovered-by-budget)",
         file=sys.stderr,
     )
+    print(
+        f"recognizer-sensors: mutation: {no_covering_test} functions without a covering test; "
+        f"{ran['selection']} mutants ran a selection, {ran['whole']} ran the whole suite",
+        file=sys.stderr,
+    )
 
     values = overlay_values(measured)
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
@@ -527,7 +642,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
     documents = [
         (
             repository / settings["survivors"],
-            survivors_document(commit, measured, skipped_ids, reused),
+            survivors_document(commit, measured, skipped_ids, reused, no_covering_test),
         ),
         (repository / settings["record"], record_document),
     ]
