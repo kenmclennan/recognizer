@@ -105,3 +105,9 @@ No disagreement is a defect in the sensor by REC-131.
 ## Defects to file
 
 None found. To close the `incomplete` verdict the driver runs the mutmut comparison on three lightcycle modules with the commands above and updates the tables.
+
+## Selection spread
+
+`validation/mutation/selection_spread.py <python.contexts.json> <repository>` prints, from the contexts file a coverage pass wrote, the number of lines executed by each count of test files, the lines above the 50-file cap, the lines above half the suite, and the lines that cannot be selected (an empty or non-file context). It writes nothing. The sensor runs the whole suite, with no baseline of its own, for a selection of more than half the suite, and its baselines share at most `max_workers` copies of the repository.
+
+The before and after figures for lightcycle at `c1933e0` (`max_minutes: 5`, `max_workers: 4`, idle machine) are recorded in the REC-208 pull request by the driver.

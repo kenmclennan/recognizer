@@ -2,6 +2,8 @@ import hashlib
 import json
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from conftest import make_repository, mutate_repository, mutate_settings
@@ -195,7 +197,8 @@ def spy_commands(monkeypatch):
 
 
 A = frozenset({"tests/test_a.py"})
-SELECTED = {"app/rules.py": {2: A, 4: A, 5: A, 6: A}}
+B = frozenset({"tests/test_b.py"})
+SELECTED = {"app/rules.py": {2: A, 4: A, 5: A, 6: A, 13: B}}
 SELECTED_COMMAND = ["python3", "-m", "pytest", "tests/test_a.py"]
 WHOLE_COMMAND = ["python3", "-m", "pytest"]
 
@@ -399,3 +402,87 @@ def test_one_failing_per_file_run_drops_typescript_selection_for_the_run(
     assert selection == {}
     assert coverage == {"web/lib.ts": {1: 1, 2: 1, 3: 1}}
     assert "running the whole suite for typescript" in capsys.readouterr().err
+
+
+def sized_selection(*sizes):
+    names = [f"tests/test_{n}.py" for n in range(4)]
+    lines = [2, 4, 5, 6]
+
+    return {
+        "app/rules.py": {
+            line: frozenset(names[:size]) for line, size in zip(lines, sizes, strict=False)
+        }
+    }
+
+
+def test_a_selection_of_more_than_half_the_suite_runs_the_whole_suite_without_its_own_baseline(
+    tmp_path, monkeypatch, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, sized_selection(2, 3, 3, 4))
+    seen = spy_commands(monkeypatch)
+    settings = json.dumps({"incremental": False, "max_workers": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    commands = [tuple(command) for command, _ in seen]
+    half = ("python3", "-m", "pytest", "tests/test_0.py", "tests/test_1.py")
+
+    assert commands.count(half) == 2
+    assert {c for c in commands if c != half} == {tuple(WHOLE_COMMAND)}
+    assert (
+        capsys.readouterr()
+        .err.splitlines()[-1]
+        .endswith("1 mutants ran a selection, 2 ran the whole suite")
+    )
+
+
+def test_baseline_copies_are_shared_up_to_max_workers(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    copies = []
+    real = sensor.copy_repository
+
+    def counting(source, destination):
+        copies.append(destination)
+        real(source, destination)
+
+    monkeypatch.setattr(sensor, "copy_repository", counting)
+    ran = []
+    meeting = threading.Barrier(2, timeout=10)
+
+    def fake_run(command, cwd, timeout):
+        ran.append(command[-1])
+
+        if command[-1] in "ab":
+            meeting.wait()
+
+        return runner.TestRun(0, False, 0.1, "")
+
+    monkeypatch.setattr(sensor, "run_test_command", fake_run)
+    baselines = sensor.Baselines(root, work, 2)
+
+    with ThreadPoolExecutor(5) as pool:
+        seconds = list(pool.map(lambda n: baselines.seconds(["x", n], "the command"), "abcdeabc"))
+
+    assert seconds == [0.1] * 8
+    assert len(copies) == 2
+    assert sorted(ran) == list("abcde")
+
+
+def test_a_failing_baseline_in_a_reused_copy_falls_back_to_the_whole_suite(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+
+    def fake_run(command, cwd, timeout):
+        return runner.TestRun(1 if command[-1] == "bad" else 0, False, 0.1, "")
+
+    monkeypatch.setattr(sensor, "run_test_command", fake_run)
+    baselines = sensor.Baselines(root, work, 1)
+
+    assert baselines.seconds(["x", "ok"], "the command") == 0.1
+    assert baselines.seconds(["x", "bad"], "the command", fallback=True) is None
+    assert baselines.seconds(["x", "ok"], "the command") == 0.1
+    assert len(list(work.iterdir())) == 1
