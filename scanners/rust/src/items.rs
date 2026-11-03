@@ -142,6 +142,36 @@ fn path_attribute(attributes: &[syn::Attribute]) -> Option<String> {
     })
 }
 
+fn is_test_attribute(attribute: &syn::Attribute) -> bool {
+    if attribute.path().is_ident("test") {
+        return true;
+    }
+
+    match &attribute.meta {
+        Meta::List(list) => list.path.is_ident("cfg") && list.tokens.to_string() == "test",
+        _ => false,
+    }
+}
+
+fn attributes_of(item: &Item) -> &[syn::Attribute] {
+    match item {
+        Item::Use(found) => &found.attrs,
+        Item::Mod(found) => &found.attrs,
+        Item::Impl(found) => &found.attrs,
+        Item::Struct(found) => &found.attrs,
+        Item::Enum(found) => &found.attrs,
+        Item::Trait(found) => &found.attrs,
+        Item::Fn(found) => &found.attrs,
+        Item::Const(found) => &found.attrs,
+        Item::Static(found) => &found.attrs,
+        Item::Union(found) => &found.attrs,
+        Item::Type(found) => &found.attrs,
+        Item::TraitAlias(found) => &found.attrs,
+        Item::Macro(found) => &found.attrs,
+        _ => &[],
+    }
+}
+
 fn flatten(tree: &UseTree, prefix: &mut Vec<String>, found: &mut Vec<(Vec<String>, String, bool)>) {
     match tree {
         UseTree::Path(path) => {
@@ -351,7 +381,7 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
     };
     let mut methods: HashMap<String, Vec<Value>> = HashMap::new();
 
-    for item in &file.items {
+    for item in file.items.iter().filter(|item| !is_test_item(item)) {
         if let Item::Impl(block) = item {
             if let Some(name) = type_name(&block.self_ty) {
                 methods
@@ -366,6 +396,10 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
     collect(&file.items, &mut Vec::new(), &mut parsed, &text, &methods);
 
     Ok(parsed)
+}
+
+fn is_test_item(item: &Item) -> bool {
+    attributes_of(item).iter().any(is_test_attribute)
 }
 
 fn declare(parsed: &mut Parsed, scope: &[String], name: String) {
@@ -386,7 +420,7 @@ fn collect(
 ) {
     let top = scope.is_empty();
 
-    for item in items {
+    for item in items.iter().filter(|item| !is_test_item(item)) {
         match item {
             Item::Use(import) => {
                 let mut found = Vec::new();
