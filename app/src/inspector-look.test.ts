@@ -518,10 +518,10 @@ describe("the inspector, in a real browser", () => {
       expect(klass?.rows).toBe(2);
       expect(klass?.text).toEqual(["12", "50%", "-", "-"]);
       expect(klass?.titles).toEqual([
-        "complexity 12",
-        "coverage 50%",
-        "complexity: not measured",
-        "coverage: not measured",
+        "Cyclomatic complexity 12",
+        "Coverage 50%",
+        "Cyclomatic complexity: not measured",
+        "Coverage: not measured",
       ]);
       expect(klass?.align).toEqual(["right", "right", "right", "right"]);
       expect(klass?.mono.every(Boolean)).toBe(true);

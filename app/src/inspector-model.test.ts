@@ -1480,20 +1480,20 @@ describe("the metric table on a card", () => {
     );
 
     expect(card?.table?.head).toEqual([
-      { text: "cc", title: "complexity" },
-      { text: "cov", title: "coverage" },
+      { text: "cc", title: "Cyclomatic complexity" },
+      { text: "cov", title: "Coverage" },
     ]);
     expect(card?.table?.rows.map((row) => row.name)).toEqual(
       (cls.methods ?? []).map((method) => method.name),
     );
     expect(card?.table?.rows[0]?.cells).toEqual([
-      { text: "12", tone: "red", title: "complexity 12" },
-      { text: "50%", tone: "amber", title: "coverage 50%" },
+      { text: "12", tone: "red", title: "Cyclomatic complexity 12" },
+      { text: "50%", tone: "amber", title: "Coverage 50%" },
     ]);
     expect(card?.table?.rows[1]?.cells[0]).toEqual({
       text: "-",
       tone: null,
-      title: "complexity: not measured",
+      title: "Cyclomatic complexity: not measured",
     });
   });
 
@@ -1503,7 +1503,9 @@ describe("the metric table on a card", () => {
       [metric("crap", { "pkg/m.py::f": 3 })],
     );
 
-    expect(card?.table?.head).toEqual([{ text: "CRAP", title: "crap" }]);
+    expect(card?.table?.head).toEqual([
+      { text: "CRAP", title: "C.R.A.P. score" },
+    ]);
     expect(card?.table?.rows).toHaveLength(1);
     expect(card?.table?.rows[0]?.name).toBeNull();
     expect(card?.table?.rows[0]?.cells[0]?.tone).toBe("green");
@@ -1527,6 +1529,16 @@ describe("the metric table on a card", () => {
       "mut",
       "surv",
       "flaky",
+    ]);
+    expect(card?.table?.head.map((column) => column.title)).toEqual([
+      "Mutation score",
+      "Survived mutants",
+      "flaky",
+    ]);
+    expect(card?.table?.rows[0]?.cells.map((cell) => cell.title)).toEqual([
+      "Mutation score 100%",
+      "Survived mutants 1",
+      "flaky 1",
     ]);
   });
 
