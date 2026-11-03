@@ -26,6 +26,7 @@ export type SceneFrame = {
   path: string;
   rect: Rect;
   label: string;
+  parent: string | null;
   figure: string;
   disc: Disc;
   labelRect: Rect;
@@ -36,6 +37,7 @@ export type SceneBox = {
   kind: "module" | "folder";
   rect: Rect;
   label: string;
+  parent: string | null;
   subline: string;
   disc: Disc;
 };
@@ -122,6 +124,7 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
         path: frame.path,
         rect,
         label: frame.label,
+        parent: frame.parent,
         figure: frameFigure(frame),
         disc: frame.disc,
         labelRect: {
@@ -145,6 +148,7 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
         kind: box.kind,
         rect,
         label: box.label,
+        parent: box.parent,
         subline: boxSubline(box),
         disc: box.disc,
       });

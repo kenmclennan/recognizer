@@ -374,7 +374,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
   });
 
   it("saves a valid view file of picks at the scan's commit", () => {
-    expect(f.dialog.labels).toEqual(["Name", "Description"]);
+    expect(f.dialog.labels).toEqual(["Name", "Title", "Description"]);
     expect(f.dialog.hint).toBe("What it shows");
     expect(f.dialog.disabled).toBe(true);
     expect(f.stillDisabled).toBe(true);

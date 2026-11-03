@@ -1,0 +1,7 @@
+{
+  "schema_version": 4,
+  "title": "Placing an order, end to end",
+  "description": "How an order is placed.",
+  "commit": null,
+  "steps": [{ "kind": "pick", "module": "shop/application/place.py" }]
+}

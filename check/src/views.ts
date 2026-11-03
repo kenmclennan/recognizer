@@ -30,6 +30,7 @@ export interface ViewChange {
 export interface View {
   schema_version: 1 | 2 | 3 | 4;
   change?: ViewChange;
+  title?: string;
   description: string;
   commit: string | null;
   note?: Note;
@@ -139,6 +140,7 @@ export function migrateView(view: View): View {
 
   return {
     schema_version: 4,
+    ...(view.title === undefined ? {} : { title: view.title }),
     description: view.description,
     commit: view.commit,
     ...(view.change === undefined
@@ -155,6 +157,7 @@ export function serialiseView(view: View): string {
   return `${JSON.stringify(
     {
       schema_version: 4,
+      ...(migrated.title === undefined ? {} : { title: migrated.title }),
       description: migrated.description,
       commit: migrated.commit,
       ...(migrated.change === undefined ? {} : { change: migrated.change }),
