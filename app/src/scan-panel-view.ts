@@ -98,6 +98,12 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         ...model.reports.map((row) => reportNode(row, actions)),
       );
 
+      if (model.pending) {
+        buttons.replaceChildren();
+
+        return;
+      }
+
       const run = button("", "scan-run primary", () => actions.run());
 
       run.disabled = model.button.scanning;

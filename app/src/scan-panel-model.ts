@@ -78,6 +78,7 @@ export type ScanPanelModel = {
   rows: ScanRow[];
   reports: ReportRow[];
   button: { scanning: boolean; label: string };
+  pending: boolean;
   mark: boolean;
 };
 
@@ -302,6 +303,20 @@ function header(input: PanelInput): ScanPanelModel["header"] {
 }
 
 export function scanPanel(input: PanelInput): ScanPanelModel {
+  if (input.shipped === null) {
+    return {
+      header: header(input),
+      rows: [],
+      reports: [],
+      button: {
+        scanning: input.scanning,
+        label: input.scanning ? "Scanning" : "Scan",
+      },
+      pending: true,
+      mark: panelMark(input),
+    };
+  }
+
   const sensors = rowSensors(input.config, input.shipped);
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
@@ -335,8 +350,14 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       scanning: input.scanning,
       label: input.scanning ? "Scanning" : "Scan",
     },
-    mark:
-      input.sensors.some(({ status }) => status === "failed") ||
-      Object.keys(input.run.failures).length > 0,
+    pending: false,
+    mark: panelMark(input),
   };
+}
+
+function panelMark(input: PanelInput): boolean {
+  return (
+    input.sensors.some(({ status }) => status === "failed") ||
+    Object.keys(input.run.failures).length > 0
+  );
 }
