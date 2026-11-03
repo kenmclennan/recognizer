@@ -7,8 +7,6 @@ import {
   staleReasons,
   staleReasonText,
   type View,
-  type ViewKind,
-  viewKind,
   viewNotes,
 } from "recognizer";
 import { parseViewFile } from "./view-file";
@@ -18,8 +16,7 @@ export const RECENT_LIMIT = 5;
 export type ViewRow = {
   name: string;
   description: string;
-  kind: ViewKind;
-  chip: string;
+  range: string | null;
   notes: number;
   reasons: string[];
 };
@@ -34,8 +31,8 @@ export type ViewsPanelModel = {
 
 export type ViewEntry = { name: string; text: string };
 
-export function chipOf(view: View): string {
-  return view.change === undefined ? viewKind(view) : rangeText(view.change);
+export function rangeOf(view: View): string | null {
+  return view.change === undefined ? null : rangeText(view.change);
 }
 
 export function reasonsOf(
@@ -73,8 +70,7 @@ export function viewsPanelModel(
     const row: ViewRow = {
       name,
       description: view.description,
-      kind: viewKind(view),
-      chip: chipOf(view),
+      range: rangeOf(view),
       notes: viewNotes(view).length,
       reasons,
     };

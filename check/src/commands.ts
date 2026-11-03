@@ -487,7 +487,7 @@ export const COMMANDS: Command[] = [
       "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
       "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>])",
       "recognizer views reorder <name> <module-or-folder>...",
-      "recognizer views set <name> (--ordered true|false | --change <base>..<head>|none)",
+      "recognizer views set <name> --change <base>..<head>|none",
       "recognizer views show <name>",
       "recognizer views diff <name>",
       "recognizer views list",
@@ -554,7 +554,7 @@ export const COMMANDS: Command[] = [
       {
         name: "list",
         description:
-          "list every saved view with its kind (the range for a change view, walkthrough or lens) and, for a stale view, its reasons",
+          "list every saved view with its range when it has one and, for a stale view, its reasons",
       },
       {
         name: "check",
@@ -611,15 +611,15 @@ export const COMMANDS: Command[] = [
     output: {
       text: [
         "new, add, rule, fold, focus, remove, note: `<name>: <what changed>; N steps, resolves to M modules`",
-        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then `notes:` with one `<n>. <module-or-folder>: <text> (<by>)` line per note in reading order, or `notes: no order` and unnumbered lines when the view is a lens (marked `(not on the view)` when it is not), then a `warning:` line when the file holds several notes on one path, then unresolved, folded and focus lines when there are any",
-        "diff: `<name>: <range> (<base>..<head>)`, then one `<added|modified|removed> <module>` line per changed module (`(no box)` when a removed module is in no scan we hold) and a count of files that matched no module\n  list: one `<name>  <kind or range>  N steps  <commit>  <description>` line per view, then a `  stale: <reason>` line for each reason",
+        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then `notes:` with one `<n>. <module-or-folder>: <text> (<by>)` line per note in reading order (marked `(not on the view)` when it is not), then a `warning:` line when the file holds several notes on one path, then unresolved, folded and focus lines when there are any",
+        "diff: `<name>: <range> (<base>..<head>)`, then one `<added|modified|removed> <module>` line per changed module (`(no box)` when a removed module is in no scan we hold) and a count of files that matched no module\n  list: one `<name>  [<range>  ]N steps  <commit>  <description>` line per view, then a `  stale: <reason>` line for each reason",
         "check: `<name>: ok` or `<name>: N unresolved` with one `step N <kind> <path> - no such <module|folder>` line each, plus `(renamed to <path>)` when git records one",
         "rm: `<name>: removed`",
       ].join("\n"),
       json: [
         "new, add, rule, fold, focus, remove, note: { view, changed, steps, modules }",
-        "show: { name, description, commit, steps, ordered, notes: [{ module, text, by, number }], resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }], warnings: [string] }",
-        "diff: { view, range, baseCommit, headCommit, modules: [{ id, mark, box }], unmatched }\n  list: { views: [{ name, description, commit, steps, kind, change?, stale: [{ kind, ... }] } | { name, error }] }",
+        "show: { name, description, commit, steps, notes: [{ module, text, by, number }], resolved: { modules, folded, focus }, unresolved: [{ step, kind, path, what }], warnings: [string] }",
+        "diff: { view, range, baseCommit, headCommit, modules: [{ id, mark, box }], unmatched }\n  list: { views: [{ name, description, commit, steps, change?, stale: [{ kind, ... }] } | { name, error }] }",
         "check: { ok, views: [{ name, ok, error?, unresolved: [{ step, kind, path, what, renamedTo }], fixed: [{ step, from, to }], warnings: [string], stale: [{ kind, ... }] }] }",
         "rm: { view, removed }",
       ].join("\n"),
@@ -674,8 +674,8 @@ export const COMMANDS: Command[] = [
         note: "set the whole reading order; name every noted path once",
       },
       {
-        command: "recognizer views set order-placement --ordered false",
-        note: "make the notes a lens with no order (true restores the walkthrough)",
+        command: "recognizer views set order-placement --change main..feat",
+        note: "make the view a change view over a git range (none removes the range)",
       },
       {
         command: "recognizer views show order-placement --json",

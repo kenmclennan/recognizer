@@ -151,7 +151,6 @@ export {
   staleReasonText,
 } from "./view-staleness.js";
 export {
-  isOrdered,
   isValidRef,
   migrateView,
   type Note,
@@ -164,10 +163,8 @@ export {
   serialiseView,
   type View,
   type ViewChange,
-  type ViewKind,
   type ViewNote,
   type ViewStep,
   validateView,
-  viewKind,
   viewNotes,
 } from "./views.js";

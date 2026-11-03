@@ -555,10 +555,6 @@ svg.i.chevron {
   color: var(--sel);
 }
 
-.note-mark path {
-  fill: var(--box);
-}
-
 .note-mark.numbered circle {
   fill: var(--muted);
   stroke: var(--box);
@@ -2226,22 +2222,6 @@ svg.i.chevron {
   font-size: 14px;
 }
 
-.notes-order-toggle {
-  padding: 1px 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.notes-order-toggle[aria-pressed="true"] {
-  border-color: var(--sel);
-  color: var(--sel);
-}
-
 .note-list {
   position: relative;
 }
@@ -2285,16 +2265,6 @@ svg.i.chevron {
 
 .note-list {
   padding: 8px 12px 0;
-}
-
-.note-group-title {
-  margin: 0 0 4px;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .note-row {
@@ -2982,7 +2952,6 @@ svg.i.chevron {
   cursor: pointer;
 }
 
-.view-chip,
 .view-item-chip,
 .view-range-chip {
   padding: 0 6px;

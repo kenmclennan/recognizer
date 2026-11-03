@@ -84,7 +84,7 @@ const loaded = { modules: ids, scans: [{ file: "scan.json", scan: nowScan }], po
 const HUB = "app/hub.py";
 const A = "app/a.py";
 const GONE = "lib/gone.py";
-const make = (steps, notes) => JSON.stringify({ schema_version: notes ? 4 : 1, description: "d", commit: "cur1234", ...(notes ? { ordered: false, notes } : {}), steps }, null, 2) + "\\n";
+const make = (steps, notes) => JSON.stringify({ schema_version: notes ? 4 : 1, description: "d", commit: "cur1234", ...(notes ? { notes } : {}), steps }, null, 2) + "\\n";
 const pick = (module) => ({ kind: "pick", module });
 const PICKS = [pick(HUB), pick(A), pick("lib/c.py")];
 const NOTES = [
@@ -109,7 +109,7 @@ function mount(files, author) {
   const all = (selector) => [...host.querySelectorAll(selector)];
   const saved = (name) => JSON.parse(port.files.get(name));
   const shown = (selector) => { const node = q(selector); return node !== null && getComputedStyle(node).display !== "none"; };
-  const openView = async (index = 0) => { click(q(".view-list")); click(all(".view-item")[index]); await tick(); };
+  const openView = async (index = 0) => { click(q(".view-list")); click(all(".view-item")[index]); await tick(); press("Escape"); await tick(); };
   const clickBox = async (id) => { if (!q('.box[data-id="' + id + '"] .box-body')) throw new Error("no box " + id); click(q('.box[data-id="' + id + '"] .box-body')); await tick(); };
   const rect = (selector) => q(selector).getBoundingClientRect();
   const marks = () => all(".note-mark").map((n) => n.dataset.noteMark).sort();
@@ -190,7 +190,6 @@ function mount(files, author) {
     noFigureText: m.all(".box text.figure").length === 0,
     bubbles: m.bubbles().length,
     atRightEnd: (() => { const box = m.q('.box[data-id="' + HUB + '"] .box-body').getBoundingClientRect(); const mark = hubMark().getBoundingClientRect(); return mark.right <= box.right && box.right - mark.right < 12 && mark.left > box.left; })(),
-    sameIconAsRail: m.q(".rail-notes svg path").getAttribute("d") === hubMark().querySelector("path").getAttribute("d"),
   };
 
   click(hubMark());
@@ -331,8 +330,6 @@ function mount(files, author) {
   click(host.querySelector(".view-list"));
   click(host.querySelector(".view-item"));
   await tick();
-  click(host.querySelector('.box[data-id="' + HUB + '"] .note-mark'));
-  await tick();
   facts.legacy = {
     marks: host.querySelectorAll(".note-mark").length,
     text: (host.querySelector(".note-bubble .note-text") || {}).textContent,
@@ -352,7 +349,7 @@ function mount(files, author) {
   click(panelRows()[0]);
   await tick();
   facts.panelRow = { bubbles: m.bubbles().length, active: m.all(".notes-panel .note-row.active").length };
-  click(m.q(".notes-panel .note-off .note-row"));
+  click(m.q(".notes-panel .note-row.off"));
   await tick();
   facts.offRow = { bubbles: m.bubbles().length };
 
@@ -402,9 +399,9 @@ function mount(files, author) {
     marks: remover.marks(),
     count: remover.q(".rail-count").textContent,
   };
-  click(remover.q(".note-off .note-remove"));
+  click(remover.q(".note-row.off .note-remove"));
   await tick();
-  facts.removeOff = { after: (remover.saved("order").notes || []).length, off: remover.all(".note-off").length };
+  facts.removeOff = { after: (remover.saved("order").notes || []).length, off: remover.all(".note-row.off").length };
 
   const live = mount({ plain: make(PICKS, [{ module: A, text: "Old", by: "Ken" }]) }, "Ken");
   await tick();
@@ -500,7 +497,6 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
     expect(f.marks.noFigureText).toBe(true);
     expect(f.marks.bubbles).toBe(0);
     expect(f.marks.atRightEnd).toBe(true);
-    expect(f.marks.sameIconAsRail).toBe(true);
   });
 
   it("opens one bubble from the mark with the text, who wrote it, Edit and Remove, and closes it on a second click", () => {
@@ -508,7 +504,7 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
       bubbles: 1,
       text: "Hub note",
       by: "by Ken",
-      buttons: ["Edit", "Remove"],
+      buttons: ["Previous", "Next", "Edit", "Remove"],
       selected: true,
       barLit: true,
       barFigure: 0,
@@ -584,18 +580,18 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
     ]);
   });
 
-  it("lists one row per noted box or folder in canvas order, greys the off-canvas one and has no composer", () => {
+  it("lists one row per noted box or folder in list order, greys the off-canvas one and has no composer", () => {
     expect(f.panel.rows.map((r: [string, boolean]) => r[0])).toEqual([
       "app/",
-      "app/hub.py",
       "lib/gone.py",
+      "app/hub.py",
     ]);
     expect(f.panel.rows.map((r: [string, boolean]) => r[1])).toEqual([
       false,
-      false,
       true,
+      false,
     ]);
-    expect(f.panel.names).toEqual(["app/", "hub.py", "gone.py"]);
+    expect(f.panel.names).toEqual(["app/", "gone.py", "hub.py"]);
     expect(f.panel.textareas).toBe(0);
     expect(f.panel.composer).toBe(0);
     expect(f.panelRow).toEqual({ bubbles: 1, active: 1 });

@@ -449,8 +449,8 @@ describe("views list", () => {
     const { out } = go(fake, "list");
     const lines = out.trimEnd().split("\n");
 
-    expect(lines[0]).toBe("a  walkthrough  0 steps  abc123  p");
-    expect(lines[1]).toBe("b  walkthrough  1 step  abc123  p");
+    expect(lines[0]).toBe("a  0 steps  abc123  p");
+    expect(lines[1]).toBe("b  1 step  abc123  p");
     expect(lines[2]).toBe("  stale: step 1 x no longer resolves");
     expect(lines[3]).toMatch(/^c {2}invalid: /);
 
@@ -461,7 +461,6 @@ describe("views list", () => {
       description: "p",
       commit: COMMIT,
       steps: 0,
-      kind: "walkthrough",
       stale: [],
     });
     expect(document.views[2].error).toBeTruthy();
@@ -1170,43 +1169,25 @@ describe("views note ordering", () => {
     expect(result.err).toContain("no notes to reorder");
   });
 
-  it("sets ordered false then true, writing the key then dropping it", () => {
-    const fake = three();
-
-    go(fake, "set", "a", "--ordered", "false");
-    expect(saved(fake, "a").ordered).toBe(false);
-
-    go(fake, "set", "a", "--ordered", "true");
-    expect(saved(fake, "a")).not.toHaveProperty("ordered");
-  });
-
-  it("refuses set without the flag or with a bad value", () => {
+  it("refuses set without the flag and refuses the removed --ordered", () => {
     const fake = three();
 
     expect(go(fake, "set", "a").code).toBe(2);
-    expect(go(fake, "set", "a", "--ordered", "maybe").code).toBe(2);
+    expect(go(fake, "set", "a", "--ordered", "false").code).toBe(2);
   });
 
-  it("shows numbers when ordered and a no-order heading when not", () => {
+  it("shows every note numbered in reading order", () => {
     const fake = three();
 
     expect(go(fake, "show", "a").out).toContain(
       `notes:\n  1. ${PLACE}: P (Ken)`,
     );
     expect(JSON.parse(go(fake, "show", "a", "--json").out)).toMatchObject({
-      ordered: true,
       notes: [{ number: 1 }, { number: 2 }],
     });
-
-    go(fake, "set", "a", "--ordered", "false");
-
-    expect(go(fake, "show", "a").out).toContain(
-      `notes: no order\n  ${PLACE}: P (Ken)`,
+    expect(JSON.parse(go(fake, "show", "a", "--json").out)).not.toHaveProperty(
+      "ordered",
     );
-    expect(JSON.parse(go(fake, "show", "a", "--json").out)).toMatchObject({
-      ordered: false,
-      notes: [{ number: null }, { number: null }],
-    });
   });
 });
 
@@ -1339,13 +1320,10 @@ describe("change views", () => {
     expect(saved(fake, "a")).not.toHaveProperty("change");
   });
 
-  it("requires exactly one of --ordered and --change on set", () => {
+  it("requires --change on set", () => {
     const fake = repo(view("a"));
 
     expect(go(fake, "set", "a").code).toBe(2);
-    expect(
-      go(fake, "set", "a", "--ordered", "true", "--change", "main..feat").code,
-    ).toBe(2);
   });
 
   it("prints the marked modules and the unmatched count from diff", () => {
@@ -1389,7 +1367,7 @@ describe("change views", () => {
       ["0ld001"],
     );
     const list = JSON.parse(go(fake, "list", "--json").out) as {
-      views: { name: string; kind: string; stale: unknown[] }[];
+      views: { name: string; change?: unknown; stale: unknown[] }[];
     };
     const byName = Object.fromEntries(list.views.map((row) => [row.name, row]));
 
@@ -1400,7 +1378,7 @@ describe("change views", () => {
     expect(byName.gone?.stale).toEqual([
       { kind: "head-missing", head: "ghost" },
     ]);
-    expect(byName.live?.kind).toBe("change");
+    expect(byName.live?.change).toEqual({ base: "main", head: "feat" });
 
     const text = go(fake, "list").out;
 

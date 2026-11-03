@@ -2,7 +2,7 @@ export const HISTORY_LIMIT = 200;
 
 export type NoteMark = { view: string; path: string; text: string; by: string };
 
-export type OrderState = { paths: string[]; ordered: boolean };
+export type OrderState = { paths: string[] };
 
 export type OrderMark = {
   view: string;

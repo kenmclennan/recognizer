@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { InputError } from "../src/errors.js";
 import type { Scan } from "../src/scan.js";
 import {
-  isOrdered,
   migrateView,
   noteWarnings,
   resolveView,
@@ -12,7 +11,6 @@ import {
   type View,
   type ViewStep,
   validateView,
-  viewKind,
   viewNotes,
 } from "../src/views.js";
 import { REPO } from "./helpers.js";
@@ -321,7 +319,7 @@ describe("one note per path", () => {
   });
 });
 
-describe("ordered", () => {
+describe("view versions", () => {
   const at = (schema_version: View["schema_version"], extra = {}): View =>
     ({
       schema_version,
@@ -331,29 +329,22 @@ describe("ordered", () => {
       ...extra,
     }) as View;
 
-  it("reads every version as ordered unless version 4 says false", () => {
-    expect(isOrdered(at(1))).toBe(true);
-    expect(isOrdered(at(2))).toBe(true);
-    expect(isOrdered(at(3))).toBe(true);
-    expect(isOrdered(at(4))).toBe(true);
-    expect(isOrdered(at(4, { ordered: false }))).toBe(false);
-  });
-
   it("migrates versions 2 and 3 to 4 without an ordered key", () => {
     expect(migrateView(at(2))).not.toHaveProperty("ordered");
     expect(migrateView(at(3))).toMatchObject({ schema_version: 4 });
     expect(migrateView(at(3))).not.toHaveProperty("ordered");
   });
 
-  it("keeps ordered false and writes keys in the fixed order", () => {
+  it("drops a stored ordered flag and writes keys in the fixed order", () => {
     const text = serialiseView(at(4, { ordered: false }));
 
-    expect(migrateView(at(4, { ordered: false })).ordered).toBe(false);
+    expect(migrateView(at(4, { ordered: false }))).not.toHaveProperty(
+      "ordered",
+    );
     expect(Object.keys(JSON.parse(text))).toEqual([
       "schema_version",
       "description",
       "commit",
-      "ordered",
       "steps",
     ]);
   });
@@ -373,27 +364,18 @@ describe("change views", () => {
     steps: [],
   };
 
-  it("round-trips the range between commit and ordered", () => {
-    const text = serialiseView({ ...change, ordered: false });
+  it("round-trips the range between commit and steps", () => {
+    const text = serialiseView(change);
 
     expect(Object.keys(JSON.parse(text))).toEqual([
       "schema_version",
       "description",
       "commit",
       "change",
-      "ordered",
       "steps",
     ]);
     expect(migrateView(validateView(JSON.parse(text))).change).toEqual(
       change.change,
-    );
-  });
-
-  it("names the kind", () => {
-    expect(viewKind(change)).toBe("change");
-    expect(viewKind({ ...change, change: undefined })).toBe("walkthrough");
-    expect(viewKind({ ...change, change: undefined, ordered: false })).toBe(
-      "lens",
     );
   });
 });

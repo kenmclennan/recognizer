@@ -1,4 +1,4 @@
-import { isOrdered, type View, viewNotes } from "recognizer";
+import { type View, viewNotes } from "recognizer";
 import type { Rect } from "./canvas-layout";
 import type { Selection } from "./canvas-state";
 
@@ -11,7 +11,7 @@ export type NoteRow = {
   by: string;
   off: boolean;
   active: boolean;
-  number: number | null;
+  number: number;
 };
 
 export type BubblePlace = {
@@ -48,43 +48,20 @@ export function noteKind(path: string): "module" | "folder" {
   return path.endsWith("/") ? "folder" : "module";
 }
 
-function byPath(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 export function noteRows(
   view: View,
   positions: ReadonlyMap<string, Rect>,
   active: string | null,
 ): NoteRow[] {
-  const ordered = isOrdered(view);
-  const rows = viewNotes(view).map((note, index) => ({
+  return viewNotes(view).map((note, index) => ({
     path: note.module,
     kind: noteKind(note.module),
     text: note.text,
     by: note.by,
     off: !positions.has(note.module),
     active: note.module === active,
-    number: ordered ? index + 1 : null,
+    number: index + 1,
   }));
-
-  if (ordered) {
-    return rows;
-  }
-
-  const on = rows
-    .filter((row) => !row.off)
-    .sort((a, b) => {
-      const left = positions.get(a.path) as Rect;
-      const right = positions.get(b.path) as Rect;
-
-      return left.y - right.y || left.x - right.x || byPath(a.path, b.path);
-    });
-  const off = rows
-    .filter((row) => row.off)
-    .sort((a, b) => byPath(a.path, b.path));
-
-  return [...on, ...off];
 }
 
 export type StepModel = {
@@ -100,7 +77,7 @@ export function stepModel(
 ): StepModel | null {
   const row = rows.find((candidate) => candidate.path === active);
 
-  if (row === undefined || row.number === null) {
+  if (row === undefined) {
     return null;
   }
 
@@ -157,7 +134,7 @@ export function bubbleSet(
   if (focus !== null) {
     const note = held(focus.path);
     const step =
-      view !== null && !focus.editing && note !== null && isOrdered(view)
+      view !== null && !focus.editing && note !== null
         ? stepModel(noteRows(view, positions, focus.path), focus.path)
         : null;
 

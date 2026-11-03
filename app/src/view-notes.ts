@@ -1,6 +1,5 @@
 import {
   appendNote,
-  isOrdered,
   migrateView,
   moveNote,
   type View,
@@ -33,7 +32,6 @@ export function setNote(
 export function orderOf(view: View): OrderState {
   return {
     paths: viewNotes(view).map((note) => note.module),
-    ordered: isOrdered(view),
   };
 }
 
@@ -46,26 +44,23 @@ export function withOrder(view: View, state: OrderState): View {
   });
   const rest = notes.filter((note) => !state.paths.includes(note.module));
   const migrated = migrateView(view);
-  const { ordered: _ordered, ...plain } = migrated;
   const all = [...named, ...rest];
-  const next: View = state.ordered ? plain : { ...plain, ordered: false };
 
   if (all.length === 0) {
-    const { notes: _notes, ...bare } = next;
+    const { notes: _notes, ...bare } = migrated;
 
     return bare;
   }
 
-  return { ...next, notes: all };
+  return { ...migrated, notes: all };
 }
 
 export function withNoteMoved(view: View, path: string, toIndex: number): View {
-  const state = orderOf(view);
   const moved = moveNote(viewNotes(view), path, toIndex).map(
     (note) => note.module,
   );
 
-  return withOrder(view, { paths: moved, ordered: state.ordered });
+  return withOrder(view, { paths: moved });
 }
 
 export function removeNote(view: View, path: string): View {
