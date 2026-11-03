@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -486,3 +487,74 @@ def test_a_failing_baseline_in_a_reused_copy_falls_back_to_the_whole_suite(tmp_p
     assert baselines.seconds(["x", "bad"], "the command", fallback=True) is None
     assert baselines.seconds(["x", "ok"], "the command") == 0.1
     assert len(list(work.iterdir())) == 1
+
+
+def test_a_failed_copy_wakes_a_waiting_take_instead_of_hanging_it(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    started = threading.Event()
+    calls = []
+
+    def failing_first(source, destination):
+        calls.append(destination)
+
+        if len(calls) == 1:
+            started.set()
+            time.sleep(0.3)
+
+            raise OSError("disk full")
+
+        destination.mkdir()
+
+    monkeypatch.setattr(sensor, "copy_repository", failing_first)
+    copies = sensor.CopyPool(root, work, 1)
+    outcomes = []
+
+    def take():
+        try:
+            outcomes.append(copies.take())
+        except OSError as error:
+            outcomes.append(error)
+
+    first = threading.Thread(target=take)
+    first.start()
+    started.wait(10)
+    second = threading.Thread(target=take)
+    second.start()
+    first.join(10)
+    second.join(10)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert sum(isinstance(outcome, OSError) for outcome in outcomes) == 1
+    assert len(outcomes) == 2
+
+
+def test_a_failed_copy_with_no_waiter_does_not_break_a_later_take(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    root.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    calls = []
+
+    def failing_first(source, destination):
+        calls.append(destination)
+
+        if len(calls) == 1:
+            raise OSError("disk full")
+
+        destination.mkdir()
+
+    monkeypatch.setattr(sensor, "copy_repository", failing_first)
+    copies = sensor.CopyPool(root, work, 2)
+
+    with pytest.raises(OSError):
+        copies.take()
+
+    first = copies.take()
+    second = copies.take()
+
+    assert first != second
+    assert first.is_dir()
+    assert second.is_dir()

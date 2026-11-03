@@ -246,7 +246,7 @@ class CopyPool:
         self.work = work
         self.size = size
         self.lock = threading.Lock()
-        self.free: queue.Queue[Path] = queue.Queue()
+        self.free: queue.Queue[Path | None] = queue.Queue()
         self.made = 0
 
     @contextmanager
@@ -259,20 +259,36 @@ class CopyPool:
             self.free.put(copy)
 
     def take(self) -> Path:
-        with self.lock:
-            try:
-                return self.free.get_nowait()
-            except queue.Empty:
-                pass
+        while True:
+            create = False
 
-            create = self.made < self.size
+            with self.lock:
+                try:
+                    copy = self.free.get_nowait()
 
-            if create:
-                self.made += 1
+                    if copy is None:
+                        continue
+                except queue.Empty:
+                    copy = None
+                    create = self.made < self.size
 
-        if not create:
-            return self.free.get()
+                    if create:
+                        self.made += 1
 
+            if copy is not None:
+                return copy
+
+            if not create:
+                copy = self.free.get()
+
+                if copy is None:
+                    continue
+
+                return copy
+
+            return self.make()
+
+    def make(self) -> Path:
         copy = self.work / f"baseline-{next(NUMBERS)}"
 
         try:
@@ -280,6 +296,8 @@ class CopyPool:
         except BaseException:
             with self.lock:
                 self.made -= 1
+
+            self.free.put(None)
 
             raise
 
