@@ -62,10 +62,18 @@ window.__fakeWorker = () => {
 };
 `;
 
+const SHELLS = {
+  bare: "",
+  window:
+    '<div class="window" style="width:1400px;height:800px;display:flex;flex-direction:column"><div class="content" id="content" style="flex:1;display:flex;flex-direction:column"></div><footer class="footer" id="footer"></footer></div>',
+  app: '<span id="module-count"></span><div id="app" style="width:1400px;height:800px;display:flex;flex-direction:column"></div>',
+};
+
 export async function collectFacts<T>(
   harness: string,
   prefix: string,
   scheme: "light" | "dark" = "light",
+  shell: "window" | "app" | "bare" = "window",
 ): Promise<T> {
   const dir = mkdtempSync(join(tmpdir(), `${prefix}-`));
 
@@ -86,7 +94,7 @@ export async function collectFacts<T>(
 
     writeFileSync(
       page,
-      `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}</style></head><body><div id="out"></div><div class="window" style="width:1400px;height:800px;display:flex;flex-direction:column"><div class="content" id="content" style="flex:1;display:flex;flex-direction:column"></div><footer class="footer" id="footer"></footer></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
+      `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}</style></head><body><div id="out"></div>${SHELLS[shell]}<script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
     const run = spawnSync(

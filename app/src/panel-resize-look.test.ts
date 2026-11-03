@@ -1,31 +1,12 @@
-import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { build } from "vite";
 import { describe, expect, it } from "vitest";
+import { chrome, collectFacts, here } from "./look-page";
 
-const CHROME_CANDIDATES = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter((path): path is string => typeof path === "string" && path !== "");
+const HOSTS = `<div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="first"></div></div><div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="second"></div></div>`;
 
-const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
-const SRC = fileURLToPath(new URL(".", import.meta.url));
-
-const ENTRY = `
-import { mountPanelResizers } from ${JSON.stringify(join(SRC, "panel-resizer-view.ts"))};
+const HARNESS = `
+window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
+document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(HOSTS)});
+import { mountPanelResizers } from ${JSON.stringify(here("panel-resizer-view.ts"))};
 
 const memory = new Map();
 const storage = {
@@ -86,20 +67,8 @@ localStorage.setItem("recognizer.panel-widths", JSON.stringify({ tree: 222, insp
 report.realStorage = JSON.parse(localStorage.getItem("recognizer.panel-widths"));
 
 window.addEventListener("load", () => {
-  document.body.insertAdjacentHTML("beforeend", "<pre id='out'></pre>");
-  document.getElementById("out").textContent = JSON.stringify(report);
-});
-`;
-
-const PAGE = (css: string) => `<!doctype html>
-<html><head><meta charset="utf-8"><style>${css}</style></head><body>
-<div style="display:flex;flex-direction:column;width:1400px;height:500px">
-<div class="explorer" id="first"></div>
-</div>
-<div style="display:flex;flex-direction:column;width:1400px;height:500px">
-<div class="explorer" id="second"></div>
-</div>
-<script src="look.js"></script></body></html>`;
+  document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(report))));
+});`;
 
 type Report = {
   initial: { tree: number; inspector: number };
@@ -115,61 +84,7 @@ type Report = {
 };
 
 async function run(): Promise<Report> {
-  const entryDir = mkdtempSync(join(tmpdir(), "resize-entry-"));
-  const dir = mkdtempSync(join(tmpdir(), "resize-look-"));
-
-  try {
-    writeFileSync(join(entryDir, "entry.ts"), ENTRY);
-
-    await build({
-      configFile: false,
-      logLevel: "silent",
-      root: fileURLToPath(new URL("..", import.meta.url)),
-      build: {
-        outDir: dir,
-        emptyOutDir: false,
-        minify: false,
-        lib: {
-          entry: join(entryDir, "entry.ts"),
-          name: "Look",
-          formats: ["iife"],
-          fileName: () => "look.js",
-        },
-      },
-    });
-
-    writeFileSync(
-      join(dir, "page.html"),
-      PAGE(readFileSync(join(SRC, "style.css"), "utf8")),
-    );
-
-    const result = spawnSync(
-      chrome as string,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        `--user-data-dir=${join(dir, "profile")}`,
-        "--allow-file-access-from-files",
-        "--virtual-time-budget=10000",
-        "--dump-dom",
-        `file://${join(dir, "page.html")}`,
-      ],
-      { encoding: "utf8", timeout: 120000 },
-    );
-    const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(result.stdout);
-
-    if (!match) {
-      throw new Error(
-        `no report from the page: status=${result.status} signal=${result.signal} error=${result.error} stdout=${result.stdout.length} bytes stderr=${result.stderr.slice(0, 400)}`,
-      );
-    }
-
-    return JSON.parse((match[1] as string).replaceAll("&quot;", '"')) as Report;
-  } finally {
-    rmSync(entryDir, { recursive: true, force: true, maxRetries: 10 });
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-  }
+  return collectFacts<Report>(HARNESS, "resize-look", "light", "bare");
 }
 
 describe("resizing the side panels in a real browser", () => {

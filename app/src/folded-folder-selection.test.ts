@@ -1,42 +1,5 @@
-import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { build, type Plugin } from "esbuild";
 import { beforeAll, describe, expect, it } from "vitest";
-
-const CHROME_CANDIDATES = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter((path): path is string => typeof path === "string" && path !== "");
-
-const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
-
-const here = (name: string) => fileURLToPath(new URL(name, import.meta.url));
-
-const fakeWorker: Plugin = {
-  name: "fake-layout-worker",
-  setup(build) {
-    build.onLoad({ filter: /layout-source\.ts$/ }, (args) => ({
-      contents: readFileSync(args.path, "utf8").replace(
-        'new Worker(new URL("./layout.worker.ts", import.meta.url))',
-        "window.__fakeWorker()",
-      ),
-      loader: "ts",
-    }));
-  },
-};
+import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -122,58 +85,7 @@ type Facts = {
 };
 
 async function collect(): Promise<Facts> {
-  const dir = mkdtempSync(join(tmpdir(), "folded-folder-"));
-
-  try {
-    const bundle = (
-      await build({
-        stdin: { contents: HARNESS, resolveDir: here("."), loader: "ts" },
-        bundle: true,
-        write: false,
-        format: "iife",
-        platform: "browser",
-        plugins: [fakeWorker],
-      })
-    ).outputFiles[0].text;
-    const css = readFileSync(here("style.css"), "utf8");
-    const page = join(dir, "page.html");
-
-    writeFileSync(
-      page,
-      `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><span id="module-count"></span><div id="app" style="width:1400px;height:800px;display:flex;flex-direction:column"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
-    );
-
-    const run = spawnSync(
-      chrome as string,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--window-size=1500,900",
-        `--user-data-dir=${join(dir, "profile")}`,
-        "--dump-dom",
-        `file://${page}`,
-      ],
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-    );
-    const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
-
-    if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1])) {
-      throw new Error(
-        `no harness output: ${run.stderr.slice(0, 500)} ${run.error}`,
-      );
-    }
-
-    const text = Buffer.from(match[1], "base64").toString("utf8");
-
-    if (text.startsWith("ERR ")) {
-      throw new Error(text);
-    }
-
-    return JSON.parse(text);
-  } finally {
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-  }
+  return collectFacts<Facts>(HARNESS, "folded-folder", "light", "app");
 }
 
 describe.skipIf(chrome === undefined)("a folded folder's box", () => {
