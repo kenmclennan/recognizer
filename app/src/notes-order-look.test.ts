@@ -41,7 +41,7 @@ async function mount(text) {
   m.numbers = () => all(".note-row .note-number").map((n) => n.textContent);
   m.bubble = () => q(".note-layer:not([hidden]) .note-bubble:not(.idle)");
   m.bubblePos = () => { const r = m.bubble().getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; };
-  m.marks = () => all("[data-note-mark]").map((n) => [n.dataset.noteMark, n.textContent.trim(), n.classList.contains("numbered"), n.classList.contains("active")]);
+  m.marks = () => all("[data-note-mark]").map((n) => [n.dataset.noteMark, n.querySelectorAll("svg.i path").length, n.textContent.trim(), n.classList.contains("active")]);
   m.open = async () => { click(q(".view-list")); click(all(".view-item")[0]); await tick(); };
   m.notesPanel = async () => { click(q('[data-label="Notes"]') || all(".rail button").find((b) => b.getAttribute("data-label") === "Notes")); await tick(); };
   m.drag = async (from, toRow, below) => {
@@ -131,11 +131,11 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
     expect(f.panel.toggle).toBeNull();
   });
 
-  it("draws filled numbered circles, the open one highlighted", () => {
+  it("draws one plain sticky-note icon per box, the open one highlighted", () => {
     expect(f.marks).toEqual([
-      ["p/a.py", "2", true, false],
-      ["p/b.py", "3", true, false],
-      ["p/c.py", "1", true, true],
+      ["p/a.py", 2, "", false],
+      ["p/b.py", 2, "", false],
+      ["p/c.py", 2, "", true],
     ]);
   });
 

@@ -7,11 +7,17 @@ import {
   keyAction,
   type NoteKeyContext,
 } from "./canvas-keys";
-import type { Point, Rect } from "./canvas-layout";
+import {
+  NOTE_MARK_INSET,
+  NOTE_MARK_SIZE,
+  type Point,
+  type Rect,
+} from "./canvas-layout";
 import { arrowhead, type Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import type { Ghost } from "./finding-focus";
+import { icon } from "./icons";
 import type { InspectorTab } from "./inspector-model";
 import { buildLegendView } from "./legend-view";
 import {
@@ -79,7 +85,6 @@ export type CanvasOrientation = {
 
 export type CanvasNotes = {
   marks: ReadonlySet<string>;
-  numbers: ReadonlyMap<string, number>;
   active: string | null;
   bubbles: NoteBubble[];
   showAll: boolean;
@@ -782,24 +787,21 @@ export function buildCanvasView(
   }
 
   function noteMark(path: string, x: number, y: number): SVGElement {
-    const number = props?.notes?.numbers.get(path);
-    const disc = svg("g", { class: "note-mark numbered" });
+    const mark = svg("g", { class: "note-mark" });
+    const glyph = icon("sticky-note");
 
-    disc.dataset.noteMark = path;
-    disc.append(
-      svg("circle", { cx: x + 7, cy: y + 7, r: 8 }),
-      svg(
-        "text",
-        { x: x + 7, y: y + 7 },
-        number === undefined ? "" : String(number),
-      ),
-    );
+    glyph.setAttribute("x", String(x));
+    glyph.setAttribute("y", String(y));
+    glyph.setAttribute("width", String(NOTE_MARK_SIZE));
+    glyph.setAttribute("height", String(NOTE_MARK_SIZE));
+    mark.dataset.noteMark = path;
+    mark.append(glyph);
 
     if (props?.notes?.active === path) {
-      disc.classList.add("active");
+      mark.classList.add("active");
     }
 
-    return disc;
+    return mark;
   }
 
   function bubbleAnchor(
@@ -830,10 +832,10 @@ export function buildCanvasView(
 
   function frameMarkRect(rect: Rect): Rect {
     return {
-      x: rect.x + rect.width - 20,
-      y: rect.y + 6,
-      width: 14,
-      height: 14,
+      x: rect.x + rect.width - NOTE_MARK_SIZE - NOTE_MARK_INSET,
+      y: rect.y + NOTE_MARK_INSET,
+      width: NOTE_MARK_SIZE,
+      height: NOTE_MARK_SIZE,
     };
   }
 
