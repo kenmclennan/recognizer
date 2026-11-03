@@ -135,10 +135,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view, numbered and in reading order with a drag handle on each row, and focuses the selected note; the overview, with no composer. |
 | Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove, and its number, "n of N", and Previous and Next that pan the canvas to the next box with the bubble kept where it is; the place notes are read and written, opened from the mark, the bar's notes button or N. |
 | Note mark | The small outlined speech-bubble icon after a noted box's name or at a noted frame's corner; clicking it opens the bubble. |
-| Notes toggle | The canvas control after Metrics and before Legend that shows every note on the view as a bubble at once. |
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
-| Notes toggle | The Notes button before Legend in the canvas controls; on, every note on the view is drawn as a bubble at once, each read-only until clicked, which focuses it; held per window. |
-| Box tooltip | The small dark text beneath a module box after a short delay on hover: its responsibility line and, when it has a note, the note's first sixty characters in the muted colour; folders have none. |
 | Scan panel | The left-column panel, behind the Scan rail icon, that shows one list of Scan rows and one Scan button, with the ticks a repository remembers. |
 | Scan row | One entry of the Scan panel's list: a checkbox, a name and a state in words (not yet run, a count with an age, running, waiting, or failed). |
 | Phase | One of the parts of a scan: extraction (when the files changed), describing (when ticked), measuring (CLI only, when asked for) and the sensors (when ticked). |

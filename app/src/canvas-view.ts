@@ -1,6 +1,5 @@
 import type { Mark } from "recognizer";
 import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
-import type { TooltipLine } from "./box-tooltip";
 import {
   isEditable,
   type KeyAction,
@@ -65,7 +64,6 @@ export type CanvasProps = {
   notice: string | null;
   busy?: boolean;
   notes?: CanvasNotes;
-  tooltip?: (id: string) => TooltipLine[] | null;
   orientation?: CanvasOrientation | null;
   metrics?: CanvasMetrics | null;
   changes?: ChangeOverlay | null;
@@ -85,7 +83,6 @@ export type CanvasNotes = {
   marks: ReadonlySet<string>;
   active: string | null;
   bubbles: NoteBubble[];
-  showAll: boolean;
   keys: NoteKeyContext;
 };
 
@@ -103,7 +100,6 @@ export type CanvasActions = {
   openContents: () => void;
   openInEditor: () => void;
   addNote: () => void;
-  toggleNotes: () => void;
   openNote: (path: string) => void;
   editNote: (path: string) => void;
   cancelNote: (path: string) => void;
@@ -139,7 +135,6 @@ export const BUTTON_ZOOM_STEP = 1.25;
 export const DRAG_THRESHOLD = 4;
 
 const SVG = "http://www.w3.org/2000/svg";
-const TIP_DELAY = 400;
 
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
@@ -237,9 +232,6 @@ export function buildCanvasView(
   const busy = spinner("Laying out");
   const noteLayer = el("div", "note-layer");
   const bubbleViews = new Map<string, NoteBubbleView>();
-  const tip = el("div", "box-tip");
-  let tipTimer: ReturnType<typeof setTimeout> | null = null;
-  let tipFor: string | null = null;
 
   busy.classList.add("canvas-busy");
   busy.hidden = true;
@@ -301,9 +293,6 @@ export function buildCanvasView(
     legendOpen = false;
     refreshChrome();
   });
-  const notesButton = button("Notes", "control notes-toggle", () =>
-    actions.toggleNotes(),
-  );
 
   empty.append(
     "Open a file from the tree to start.",
@@ -316,16 +305,7 @@ export function buildCanvasView(
   zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
   noteLayer.hidden = true;
-  tip.hidden = true;
-  stage.append(
-    surface,
-    noteLayer,
-    tip,
-    empty,
-    notice,
-    busy,
-    selectionBar.element,
-  );
+  stage.append(surface, noteLayer, empty, notice, busy, selectionBar.element);
   controls.append(
     zoomOut,
     level,
@@ -333,7 +313,6 @@ export function buildCanvasView(
     fitButton,
     clearButton,
     metricsButton,
-    notesButton,
     legendButton,
   );
 
@@ -446,11 +425,6 @@ export function buildCanvasView(
     legendButton.classList.toggle("on", legendOpen);
     metricsView.render(metricsOpen, props?.metrics ?? null);
     metricsButton.classList.toggle("on", metricsOpen);
-    notesButton.classList.toggle("on", props?.notes?.showAll === true);
-    notesButton.setAttribute(
-      "aria-pressed",
-      String(props?.notes?.showAll === true),
-    );
   }
 
   function drawScene(scene: Scene) {
@@ -865,54 +839,6 @@ export function buildCanvasView(
     bubbleScreen = next;
   }
 
-  function hideTip() {
-    if (tipTimer !== null) {
-      clearTimeout(tipTimer);
-      tipTimer = null;
-    }
-
-    tipFor = null;
-    tip.hidden = true;
-  }
-
-  function showTip(id: string) {
-    const lines = props?.tooltip?.(id) ?? null;
-    const rect = rectOf(id);
-
-    if (lines === null || !rect) {
-      tip.hidden = true;
-
-      return;
-    }
-
-    tip.replaceChildren(
-      ...lines.map((line) => el("div", `tip-line ${line.tone}`, line.text)),
-    );
-    tip.style.left = `${viewport.x + rect.x * viewport.k}px`;
-    tip.style.top = `${viewport.y + (rect.y + rect.height) * viewport.k + 6}px`;
-    tip.hidden = false;
-  }
-
-  function hoverTip(over: { kind: string; id: string } | null) {
-    const id = over !== null && over.kind === "module" ? over.id : null;
-
-    if (id === tipFor) {
-      return;
-    }
-
-    hideTip();
-
-    if (id === null) {
-      return;
-    }
-
-    tipFor = id;
-    tipTimer = setTimeout(() => {
-      tipTimer = null;
-      showTip(id);
-    }, TIP_DELAY);
-  }
-
   function applySelection() {
     const selection = props?.selection ?? null;
     const highlight = props?.highlight ?? null;
@@ -1060,14 +986,11 @@ export function buildCanvasView(
 
   surface.addEventListener("pointerleave", () => {
     hover.leave();
-    hoverTip(null);
   });
 
   surface.addEventListener("pointermove", (event) => {
     const selection = props?.selection;
     const over = targetOf(event);
-
-    hoverTip(over);
 
     if (
       selection &&
@@ -1093,7 +1016,6 @@ export function buildCanvasView(
     }
 
     if (drag.moved) {
-      hideTip();
       viewport = { ...viewport, x: drag.origin.x + dx, y: drag.origin.y + dy };
       applyViewport();
     }
@@ -1414,9 +1336,6 @@ export function buildCanvasView(
       shownSelection = selected;
       applySelection();
       drawBubbles();
-      if (tipFor !== null && !tip.hidden) {
-        showTip(tipFor);
-      }
       selectionBar.render(next.bar);
       refreshChrome();
       applyViewport();

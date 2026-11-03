@@ -106,30 +106,12 @@ export function bubbleSet(
   view: View | null,
   positions: ReadonlyMap<string, Rect>,
   focus: NoteFocus | null,
-  showAll: boolean,
 ): BubbleModel[] {
   const held = (path: string) =>
     view === null
       ? null
       : (viewNotes(view).find((note) => note.module === path) ?? null);
   const bubbles: BubbleModel[] = [];
-
-  if (showAll && view !== null) {
-    for (const note of noteRows(view, positions, null)) {
-      if (note.off || note.path === focus?.path) {
-        continue;
-      }
-
-      bubbles.push({
-        path: note.path,
-        text: note.text,
-        by: note.by,
-        editing: false,
-        focused: false,
-        step: null,
-      });
-    }
-  }
 
   if (focus !== null) {
     const note = held(focus.path);
