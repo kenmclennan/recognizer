@@ -141,16 +141,6 @@ pub fn scan_args(
     args
 }
 
-pub fn describe_args(folder: &Path, module: &str) -> Vec<String> {
-    vec![
-        "describe".to_string(),
-        module.to_string(),
-        "--json".to_string(),
-        "--repository".to_string(),
-        folder.display().to_string(),
-    ]
-}
-
 pub fn version_args() -> Vec<String> {
     vec!["--version".to_string()]
 }
@@ -521,22 +511,6 @@ mod tests {
                 "$(rm -rf x)",
                 "--sense",
                 "a"
-            ]
-        );
-    }
-
-    #[test]
-    fn the_describe_module_is_its_own_argv_entry() {
-        let args = describe_args(Path::new("/tmp/repo"), "a/$(x).py");
-
-        assert_eq!(
-            args,
-            [
-                "describe",
-                "a/$(x).py",
-                "--json",
-                "--repository",
-                "/tmp/repo"
             ]
         );
     }

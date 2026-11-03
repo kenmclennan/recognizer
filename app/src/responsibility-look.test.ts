@@ -90,7 +90,6 @@ function snap(scope) {
   facts.missing = snap();
   await select("p/o.py");
   facts.outOfDate = snap();
-  facts.describedBefore = [...fake.described];
   await select("p/n.py");
   facts.other = snap();
   explorer.dispose();
@@ -111,7 +110,6 @@ function snap(scope) {
   watched.edit({ responsibilities: "not json", config: null, refused: [], hashes: {} });
   await tick();
   facts.invalid = snap();
-  facts.watchedDescribed = watched.described.length;
   explorer.dispose();
 
   explorer = await open(fakeResponsibilities(initial()));
@@ -146,13 +144,11 @@ type Facts = {
   current: Snap;
   missing: Snap;
   outOfDate: Snap;
-  describedBefore: string[];
   other: Snap;
   noControls: number;
   beforeEdit: string;
   afterEdit: Snap;
   invalid: Snap;
-  watchedDescribed: number;
   dependenciesTab: number;
   trail: { name: string; row: string | null }[];
 };
@@ -191,9 +187,7 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
   });
 
   it("offers nothing that describes", () => {
-    expect(facts.describedBefore).toEqual([]);
     expect(facts.noControls).toBe(0);
-    expect(facts.watchedDescribed).toBe(0);
   });
 
   it("updates when the files change and reports invalid files as unknown", () => {

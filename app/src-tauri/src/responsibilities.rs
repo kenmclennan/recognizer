@@ -3,12 +3,11 @@ use std::fs;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::fs_safe::checked_relative;
 use crate::repository;
-use crate::tool_runner::{runner, Captured, ToolRunner};
 
 const RESPONSIBILITIES: &str = ".recognizer/responsibilities.json";
 const CONFIG: &str = ".recognizer/config.yaml";
@@ -21,26 +20,6 @@ pub struct ResponsibilityFiles {
     pub hashes: BTreeMap<String, String>,
     #[serde(rename = "responsibilitiesModifiedMs")]
     pub responsibilities_modified_ms: Option<f64>,
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-#[serde(tag = "status", rename_all = "kebab-case")]
-pub enum DescribeResult {
-    Described,
-    Failed { reason: String },
-    CommandMissing { reason: String },
-    Refused { reason: String },
-}
-
-#[derive(Deserialize)]
-struct Failure {
-    module: String,
-    reason: String,
-}
-
-#[derive(Deserialize)]
-struct Report {
-    failed: Vec<Failure>,
 }
 
 pub type Snapshot = Vec<(String, u128, u64)>;
@@ -177,85 +156,6 @@ pub fn read_responsibilities(folder: &Path) -> ResponsibilityFiles {
         refused,
         hashes,
         responsibilities_modified_ms,
-    }
-}
-
-pub fn refuse_module(module: &str) -> Result<(), String> {
-    if module.is_empty() {
-        return Err("the module id is empty".to_string());
-    }
-
-    if module.starts_with('-') {
-        return Err(format!("{module:?} is not a module id"));
-    }
-
-    Ok(())
-}
-
-pub fn describe_result(
-    exit: Option<i32>,
-    stdout: &str,
-    stderr: &str,
-    module: &str,
-) -> DescribeResult {
-    let stdout = repository::clean_output(stdout);
-    let stdout = stdout.as_str();
-
-    match exit {
-        Some(0) => DescribeResult::Described,
-        Some(1) => {
-            let reason = serde_json::from_str::<Report>(stdout)
-                .ok()
-                .and_then(|report| {
-                    report
-                        .failed
-                        .into_iter()
-                        .find(|failure| failure.module == module)
-                        .map(|failure| failure.reason)
-                })
-                .unwrap_or_else(|| format!("describe failed for {module}"));
-
-            DescribeResult::Failed { reason }
-        }
-        Some(127) => DescribeResult::CommandMissing {
-            reason: repository::missing_hint(),
-        },
-        Some(2) => DescribeResult::Refused {
-            reason: stderr.trim().to_string(),
-        },
-        other => DescribeResult::Failed {
-            reason: format!(
-                "describe exited with {}: {}",
-                other.map_or("a signal".to_string(), |code| code.to_string()),
-                stderr.trim()
-            ),
-        },
-    }
-}
-
-pub fn describe(folder: &Path, module: &str) -> DescribeResult {
-    describe_with(runner(), folder, module, repository::RECOGNIZER_COMMAND)
-}
-
-pub fn describe_with(
-    runner: &ToolRunner,
-    folder: &Path,
-    module: &str,
-    command: &str,
-) -> DescribeResult {
-    if let Err(reason) = refuse_module(module) {
-        return DescribeResult::Refused { reason };
-    }
-
-    match runner.capture(command, &repository::describe_args(folder, module), true) {
-        None => DescribeResult::CommandMissing {
-            reason: repository::missing_hint(),
-        },
-        Some(Captured {
-            code,
-            stdout,
-            stderr,
-        }) => describe_result(code, &stdout, &stderr, module),
     }
 }
 
@@ -530,96 +430,6 @@ mod tests {
 
         assert_eq!(read.responsibilities.as_deref(), Some("not json"));
         assert!(read.hashes.is_empty());
-    }
-
-    #[test]
-    fn empty_and_dash_leading_ids_are_refused() {
-        assert!(refuse_module("").is_err());
-        assert!(refuse_module("--all").is_err());
-        assert!(refuse_module("-x").is_err());
-        assert!(refuse_module("src/a.py").is_ok());
-    }
-
-    #[test]
-    fn a_refused_id_runs_nothing() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let runner = crate::tool_runner::tests::working_runner(dir.path());
-        let result = describe_with(
-            &runner,
-            Path::new("/tmp"),
-            "--all",
-            "/nonexistent/recognizer",
-        );
-
-        assert!(matches!(result, DescribeResult::Refused { .. }));
-    }
-
-    #[test]
-    fn describe_without_recognizer_reports_it_missing() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let runner = crate::tool_runner::tests::working_runner(dir.path());
-        let result = describe_with(
-            &runner,
-            Path::new("/tmp"),
-            "a.py",
-            "/nonexistent/recognizer",
-        );
-
-        assert_eq!(
-            result,
-            DescribeResult::CommandMissing {
-                reason: repository::missing_hint()
-            }
-        );
-    }
-
-    #[test]
-    fn exit_codes_map_to_results() {
-        let failed = r#"{"described":[],"failed":[{"module":"a.py","reason":"model timed out"}],"current":[],"pruned":[]}"#;
-
-        assert_eq!(
-            describe_result(Some(0), "", "", "a.py"),
-            DescribeResult::Described
-        );
-        assert_eq!(
-            describe_result(Some(1), failed, "", "a.py"),
-            DescribeResult::Failed {
-                reason: "model timed out".to_string()
-            }
-        );
-        assert!(matches!(
-            describe_result(Some(1), "garbage", "", "a.py"),
-            DescribeResult::Failed { .. }
-        ));
-        assert_eq!(
-            describe_result(Some(2), "", "no describer registered\n", "a.py"),
-            DescribeResult::Refused {
-                reason: "no describer registered".to_string()
-            }
-        );
-        assert!(matches!(
-            describe_result(Some(127), "", "", "a.py"),
-            DescribeResult::CommandMissing { .. }
-        ));
-        assert!(matches!(
-            describe_result(None, "", "", "a.py"),
-            DescribeResult::Failed { .. }
-        ));
-    }
-
-    #[test]
-    fn the_result_serialises_to_the_webview_contract() {
-        assert_eq!(
-            serde_json::to_value(DescribeResult::Described).unwrap(),
-            serde_json::json!({ "status": "described" })
-        );
-        assert_eq!(
-            serde_json::to_value(DescribeResult::CommandMissing {
-                reason: "h".to_string()
-            })
-            .unwrap(),
-            serde_json::json!({ "status": "command-missing", "reason": "h" })
-        );
     }
 
     #[test]

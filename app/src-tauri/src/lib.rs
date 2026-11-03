@@ -971,19 +971,6 @@ fn read_responsibilities(
 }
 
 #[tauri::command]
-async fn describe_module(
-    app: AppHandle,
-    window: WebviewWindow,
-    module: String,
-) -> Result<responsibilities::DescribeResult, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || responsibilities::describe(&folder, &module))
-        .await
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1352,7 +1339,6 @@ pub fn run() {
             answer_window_drive,
             change_range,
             choose_folder,
-            describe_module,
             list_views,
             open_folder_in_editor,
             open_in_editor,
