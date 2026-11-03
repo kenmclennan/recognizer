@@ -35,18 +35,8 @@ export function parseNameStatus(stdout: string): ParsedChanges {
   return { changes, dropped };
 }
 
-type Located = { id: string; kind: string };
-
-function modulesOf(scans: MarkScan[]): Map<string, Located> {
-  const found = new Map<string, Located>();
-
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      found.set(module.id, { id: module.id, kind: module.kind });
-    }
-  }
-
-  return found;
+function modulesOf(scans: MarkScan[]): Set<string> {
+  return new Set(scans.flatMap((scan) => scan.modules.map((m) => m.id)));
 }
 
 function extensionsOf(scans: MarkScan[]): Set<string> {
@@ -58,27 +48,6 @@ function extensionOf(path: string): string {
   const dot = name.lastIndexOf(".");
 
   return dot < 0 ? "" : name.slice(dot);
-}
-
-function directoryOf(path: string): string {
-  const slash = path.lastIndexOf("/");
-
-  return slash < 0 ? "" : path.slice(0, slash);
-}
-
-function match(
-  path: string,
-  modules: Map<string, Located>,
-): Located | undefined {
-  const direct = modules.get(path);
-
-  if (direct !== undefined) {
-    return direct;
-  }
-
-  const parent = modules.get(directoryOf(path));
-
-  return parent?.kind === "package" ? parent : undefined;
 }
 
 export function changeMarks(
@@ -101,18 +70,14 @@ export function changeMarks(
       continue;
     }
 
-    const found = match(change.path, now);
-
-    if (found !== undefined) {
-      grouped.set(found.id, [...(grouped.get(found.id) ?? []), change]);
+    if (now.has(change.path)) {
+      grouped.set(change.path, [...(grouped.get(change.path) ?? []), change]);
     } else if (change.status === "D") {
-      const old = before === null ? undefined : match(change.path, before);
-
-      removed.push(
-        old === undefined
-          ? { id: change.path, mark: "removed", box: "none" }
-          : { id: old.id, mark: "removed", box: "base" },
-      );
+      removed.push({
+        id: change.path,
+        mark: "removed",
+        box: before?.has(change.path) ? "base" : "none",
+      });
     } else {
       unmatched += 1;
     }
@@ -121,11 +86,7 @@ export function changeMarks(
   const marked: MarkedModule[] = [];
 
   for (const [id, group] of grouped) {
-    const module = now.get(id) as Located;
-    const everyAdded = group.every((change) => change.status === "A");
-    const added =
-      everyAdded &&
-      (module.kind !== "package" || before === null || !before.has(id));
+    const added = group.every((change) => change.status === "A");
 
     marked.push({ id, mark: added ? "added" : "modified", box: "current" });
   }
