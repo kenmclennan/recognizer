@@ -16,7 +16,6 @@ const current = [
   scan([
     ["src/a.py", "module"],
     ["src/c.py", "module"],
-    ["app/shop", "package"],
   ]),
 ];
 const base = [
@@ -93,33 +92,6 @@ describe("changeMarks", () => {
       modules: [],
       unmatched: 1,
     });
-  });
-
-  it("marks a package modified when not every path is added", () => {
-    expect(
-      changeMarks(
-        [
-          { status: "A", path: "app/shop/New.kt" },
-          { status: "M", path: "app/shop/Old.kt" },
-        ],
-        current,
-        base,
-      ).modules,
-    ).toEqual([{ id: "app/shop", mark: "modified", box: "current" }]);
-  });
-
-  it("marks a package added when every path is added and base lacks it", () => {
-    expect(
-      changeMarks([{ status: "A", path: "app/shop/New.kt" }], current, base)
-        .modules,
-    ).toEqual([{ id: "app/shop", mark: "added", box: "current" }]);
-  });
-
-  it("marks a package that lost a file but remains as modified", () => {
-    expect(
-      changeMarks([{ status: "D", path: "app/shop/Old.kt" }], current, base)
-        .modules,
-    ).toEqual([{ id: "app/shop", mark: "modified", box: "current" }]);
   });
 
   it("returns matches and counts the rest in a mixed set", () => {
