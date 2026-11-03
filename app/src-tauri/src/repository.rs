@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::fs_safe::checked_relative;
 
-const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" scan "$1""#;
-const SCAN_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; folder="$1"; shift; exec "$0" scan "$folder" "$@""#;
-const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" describe "$2" --json --repository "$1""#;
-const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" --version"#;
-const SENSORS_SCRIPT: &str =
-    r#"command -v "$0" >/dev/null 2>&1 || exit 127; exec "$0" sensors --json"#;
+pub const OUTPUT_MARK: &str = "@@recognizer-output@@";
+const SHELL_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" scan "$1""#;
+const SCAN_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; folder="$1"; shift; printf '\n@@recognizer-output@@\n'; exec "$0" scan "$folder" "$@""#;
+const DESCRIBE_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" describe "$2" --json --repository "$1""#;
+const VERSION_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" --version"#;
+const SENSORS_SCRIPT: &str = r#"command -v "$0" >/dev/null 2>&1 || exit 127; printf '\n@@recognizer-output@@\n'; exec "$0" sensors --json"#;
 const CACHE: &str = ".recognizer/cache";
 const POLICY: &str = ".recognizer/policy.yaml";
 const BASELINE: &str = ".recognizer/baselines/violations.json";
@@ -260,7 +260,70 @@ pub fn report_for(
     }
 }
 
+pub fn strip_escapes(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{1b}' => match chars.peek().copied() {
+                Some('[') => {
+                    chars.next();
+
+                    for next in chars.by_ref() {
+                        if ('\u{40}'..='\u{7e}').contains(&next) {
+                            break;
+                        }
+                    }
+                }
+                Some(']') => {
+                    chars.next();
+
+                    while let Some(next) = chars.next() {
+                        if next == '\u{7}' {
+                            break;
+                        }
+
+                        if next == '\u{1b}' {
+                            if chars.peek() == Some(&'\\') {
+                                chars.next();
+                            }
+
+                            break;
+                        }
+                    }
+                }
+                Some(_) => {
+                    chars.next();
+                }
+                None => {}
+            },
+            '\n' | '\t' => out.push(c),
+            c if c.is_control() => {}
+            c => out.push(c),
+        }
+    }
+
+    out
+}
+
+pub fn clean_output(stdout: &str) -> String {
+    let body = match stdout.find(OUTPUT_MARK) {
+        Some(at) => {
+            let after = &stdout[at + OUTPUT_MARK.len()..];
+
+            after.split_once('\n').map_or("", |(_, rest)| rest)
+        }
+        None => stdout,
+    };
+
+    strip_escapes(body)
+}
+
 pub fn tools_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> ToolsReport {
+    let stdout = clean_output(stdout);
+    let stdout = stdout.as_str();
+
     match exit {
         Some(127) => ToolsReport::CommandMissing,
         Some(0) if !stdout.trim().is_empty() => ToolsReport::Version {
@@ -296,6 +359,8 @@ pub fn recognizer_version_with(shell: &str, command: &str) -> ToolsReport {
 
 pub fn shipped_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> ShippedSensors {
     let unavailable = |reason: String| ShippedSensors::Unavailable { reason };
+    let stdout = clean_output(stdout);
+    let stdout = stdout.as_str();
 
     match exit {
         Some(127) => unavailable(missing_hint()),
@@ -707,6 +772,62 @@ mod tests {
             shipped_sensors_for(Some(2), "", "bad"),
             ShippedSensors::Unavailable { reason } if reason.contains("exited 2: bad")
         ));
+    }
+
+    #[cfg(unix)]
+    fn fake_shell(dir: &Path) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = dir.join("fake-shell");
+
+        fs::write(
+            &path,
+            "#!/bin/sh\nprintf '\\033]1337;RemoteHost=ken@host\\007\\033]1337;CurrentDir=/tmp\\007\\033]1337;ShellIntegrationVersion=18;shell=zsh\\007'\nshift\nexec /bin/sh -c \"$@\"\n",
+        )
+        .unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        path
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_shell_that_prints_escape_sequences_first_still_yields_the_version_and_the_list() {
+        let dir = TempDir::new().unwrap();
+        let shell = fake_shell(dir.path()).display().to_string();
+        let other = TempDir::new().unwrap();
+        let version = fake_command(other.path(), "echo 0.1.77");
+        let third = TempDir::new().unwrap();
+        let sensors = fake_command(
+            third.path(),
+            r#"echo '[{"name":"duplication","line":"l","defaults":{"threshold":0.82}}]'"#,
+        );
+
+        assert_eq!(
+            recognizer_version_with(&shell, &version.display().to_string()),
+            ToolsReport::Version {
+                version: "0.1.77".to_string()
+            }
+        );
+        assert!(matches!(
+            shipped_sensors_with(&shell, &sensors.display().to_string()),
+            ShippedSensors::Ok { sensors } if sensors.len() == 1
+        ));
+    }
+
+    #[test]
+    fn escape_sequences_and_controls_are_stripped_and_the_mark_drops_what_precedes_it() {
+        assert_eq!(
+            strip_escapes(
+                "\u{1b}]1337;RemoteHost=a\u{7}\u{1b}[31mred\u{1b}[0m\u{1b}]0;t\u{1b}\\ok\u{8}\n"
+            ),
+            "redok\n"
+        );
+        assert_eq!(
+            clean_output(&format!("junk without newline\n{OUTPUT_MARK}\n0.1.77\n")),
+            "0.1.77\n"
+        );
+        assert_eq!(clean_output("0.3.1\n"), "0.3.1\n");
     }
 
     #[test]

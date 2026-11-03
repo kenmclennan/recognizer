@@ -191,6 +191,9 @@ pub fn describe_result(
     stderr: &str,
     module: &str,
 ) -> DescribeResult {
+    let stdout = repository::clean_output(stdout);
+    let stdout = stdout.as_str();
+
     match exit {
         Some(0) => DescribeResult::Described,
         Some(1) => {

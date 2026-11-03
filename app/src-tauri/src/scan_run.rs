@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 
-use crate::repository::{missing_hint, scan_invocation};
+use crate::repository::{missing_hint, scan_invocation, strip_escapes, OUTPUT_MARK};
 
 const LOG: &str = ".recognizer/cache/log";
 
@@ -226,7 +226,17 @@ fn spawn_and_stream(
         });
 
         if let Some(stdout) = stdout {
+            let mut marked = false;
+
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                if !marked {
+                    marked = line.contains(OUTPUT_MARK);
+
+                    continue;
+                }
+
+                let line = strip_escapes(&line);
+
                 if !line.trim().is_empty() {
                     if let Some(found) = summary_log(&line) {
                         log = Some(found);
@@ -340,6 +350,41 @@ mod tests {
             }),
             serde_json::json!({"status": "failed", "exitCode": 2, "stderr": "e"})
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn escape_sequences_a_shell_prints_first_never_reach_the_emitted_lines() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(dir.path(), r#"echo '{"event":"entry"}'"#);
+        let shell = dir.path().join("fake-shell");
+
+        fs::write(
+            &shell,
+            "#!/bin/sh\nprintf '\\033]1337;RemoteHost=ken@host\\007shell=zsh\\n'\nshift\nexec /bin/sh -c \"$@\"\n",
+        )
+        .unwrap();
+        fs::set_permissions(&shell, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let lines = Mutex::new(Vec::new());
+        let runs = ScanRuns::default();
+        let result = run_with(
+            &runs,
+            "w-1",
+            dir.path(),
+            &shell.display().to_string(),
+            &command.display().to_string(),
+            false,
+            &[],
+            &[],
+            || {},
+            &|line| lines.lock().unwrap().push(line),
+        );
+
+        assert!(matches!(result, ScanRun::Finished { exit_code: 0, .. }));
+        assert_eq!(lines.into_inner().unwrap(), vec![r#"{"event":"entry"}"#]);
     }
 
     #[cfg(unix)]
