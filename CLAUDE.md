@@ -34,6 +34,7 @@ One repository, a directory per part:
 - `describers/claude/` - the reference describer: `recognizer-describe-claude <request-file>` sends the request `recognizer describe` writes to `claude -p` with the fixed prompt in `prompt.md` and prints one line; its version is derived from the prompt file and registered in `.recognizer/config.yaml`
 - `app/` - the Tauri viewer, built from `kenmclennan/tauri-starter` ([app/README.md](app/README.md))
 - `fixtures/` - small sample codebases per language, each with its expected scan; `fixtures/window-socket/` holds the request and response pairs the Rust socket tests and the CLI tests share. `fixtures/links/syntax.json` is shared the same way by `check/src/link.ts` and `app/src-tauri/src/link.rs`.
+- `validation/` - one `report.md` per sensor (crap, mutation, thresholds, structure) with its verdict, and the scripts that compare the sensor with reference tools; the labelled corpora the reports rest on are `fixtures/<sensor>/corpus/`, each with an `expected.json` whose every value is derived by hand, checked in CI by `sensors/tests/test_corpus.py` and `check/test/structure-corpus.test.ts`. A case with a `known_defect` is expected to fail until its fix lands. `validation/**` is in no CI path filter because the reference tools are not CI dependencies
 
 `app/` is the npm workspace `@recognizer/app`: Vite, TypeScript and plain DOM in `app/src/`, and the Rust crate `recognizer_app` in `app/src-tauri/`. It imports `check` as a library (`recognizer`, built to `check/dist` by the `pre*` scripts). Its rules:
 

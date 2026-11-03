@@ -1,0 +1,50 @@
+{
+  "settings": {
+    "entry_points": ["o/cli/**"],
+    "warnings": { "orphan": true }
+  },
+  "policy": "components:\n  wired:\n    - o/policy-path.ts\n",
+  "modules": [
+    {
+      "id": "o/main.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "o/used.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "o/lonely.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "o/test_thing.py",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "o/__init__.py",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "o/policy-path.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "o/cli/run.ts",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [
+    [
+      "o/main.ts",
+      "o/used.ts"
+    ]
+  ]
+}

@@ -1,0 +1,548 @@
+{
+  "settings": {
+    "warnings": {
+      "hub": true
+    }
+  },
+  "modules": [
+    {
+      "id": "h10/hub.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in0.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in1.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in2.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in3.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in4.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in5.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in6.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in7.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in8.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/in9.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out0.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out1.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out2.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out3.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out4.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out5.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out6.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out7.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out8.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10/out9.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/hub.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in0.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in1.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in2.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in3.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in4.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in5.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in6.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in7.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in8.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/in9.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out0.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out1.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out2.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out3.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out4.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out5.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out6.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out7.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h10x9/out8.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/hub.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in0.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in1.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in2.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in3.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in4.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in5.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in6.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in7.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/in8.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out0.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out1.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out2.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out3.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out4.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out5.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out6.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out7.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out8.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "h9x10/out9.ts",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [
+    [
+      "h10/in0.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in1.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in2.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in3.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in4.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in5.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in6.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in7.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in8.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/in9.ts",
+      "h10/hub.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out0.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out1.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out2.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out3.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out4.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out5.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out6.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out7.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out8.ts"
+    ],
+    [
+      "h10/hub.ts",
+      "h10/out9.ts"
+    ],
+    [
+      "h10x9/in0.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in1.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in2.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in3.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in4.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in5.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in6.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in7.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in8.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/in9.ts",
+      "h10x9/hub.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out0.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out1.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out2.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out3.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out4.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out5.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out6.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out7.ts"
+    ],
+    [
+      "h10x9/hub.ts",
+      "h10x9/out8.ts"
+    ],
+    [
+      "h9x10/in0.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in1.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in2.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in3.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in4.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in5.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in6.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in7.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/in8.ts",
+      "h9x10/hub.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out0.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out1.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out2.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out3.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out4.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out5.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out6.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out7.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out8.ts"
+    ],
+    [
+      "h9x10/hub.ts",
+      "h9x10/out9.ts"
+    ]
+  ]
+}
