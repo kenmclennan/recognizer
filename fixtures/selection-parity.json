@@ -76,6 +76,6 @@
       "target/debug/gen.rs",
       "tests/it.rs"
     ],
-    "accepted": ["a.rs", "build.rs", "src/lib.rs", "tests/it.rs"]
+    "accepted": ["a.rs", "build.rs", "src/lib.rs"]
   }
 }

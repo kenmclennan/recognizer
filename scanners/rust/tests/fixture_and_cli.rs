@@ -172,3 +172,16 @@ fn inline_test_code_in_the_fixture_is_absent_from_the_scan() {
         assert!(!names.contains(&absent), "{absent}");
     }
 }
+
+#[test]
+fn integration_tests_in_the_fixture_are_absent_from_the_scan() {
+    let document = fixture_scan();
+    let ids: Vec<&str> = document["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["id"].as_str().unwrap())
+        .collect();
+
+    assert!(ids.iter().all(|id| !id.contains("tests/")));
+}

@@ -47,17 +47,17 @@ fn hyphens_become_underscores_in_package_and_dependency_names() {
 }
 
 #[test]
-fn a_package_can_use_its_own_library_by_name_from_a_binary_and_a_test() {
+fn a_package_can_use_its_own_library_by_name_from_a_binary_and_an_example() {
     let files = [
         ("Cargo.toml", "[package]\nname = \"my-app\"\n"),
         ("src/lib.rs", "pub struct Api;\n"),
         ("src/main.rs", "use my_app::Api;\n"),
-        ("tests/it.rs", "use my_app::Api;\n"),
+        ("examples/demo.rs", "use my_app::Api;\n"),
     ];
     let document = run(&files);
 
     assert_has(&document, "src/main.rs -> src/lib.rs [Api]");
-    assert_has(&document, "tests/it.rs -> src/lib.rs [Api]");
+    assert_has(&document, "examples/demo.rs -> src/lib.rs [Api]");
 }
 
 #[test]
@@ -88,8 +88,6 @@ fn every_target_root_starts_a_module_tree() {
         ("src/bin/multi/part.rs", ""),
         ("build.rs", "mod gen;\n"),
         ("gen.rs", ""),
-        ("tests/it.rs", "mod common;\n"),
-        ("tests/common/mod.rs", ""),
         ("examples/demo.rs", "mod extra;\n"),
         ("examples/extra.rs", ""),
         ("benches/speed.rs", "mod data;\n"),
@@ -105,12 +103,31 @@ fn every_target_root_starts_a_module_tree() {
         ("src/bin/tool.rs", "src/bin/helper.rs"),
         ("src/bin/multi/main.rs", "src/bin/multi/part.rs"),
         ("build.rs", "gen.rs"),
-        ("tests/it.rs", "tests/common/mod.rs"),
         ("examples/demo.rs", "examples/extra.rs"),
         ("benches/speed.rs", "benches/data.rs"),
     ] {
         assert_has(&scanned.document, &format!("{from} -> {to}"));
     }
+}
+
+#[test]
+fn integration_test_files_are_not_scanned() {
+    let files = [
+        ("Cargo.toml", "[package]\nname = \"my-app\"\n"),
+        ("src/lib.rs", "pub struct Api;\n"),
+        ("tests/it.rs", "use my_app::Api;\n"),
+        ("tests/common/mod.rs", ""),
+    ];
+    let document = run(&files);
+
+    let ids: Vec<&str> = document["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["id"].as_str().unwrap())
+        .collect();
+
+    assert_eq!(ids, ["src/lib.rs"]);
 }
 
 #[test]

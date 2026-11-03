@@ -10,11 +10,11 @@ recognizer-scan-rust ROOT [--commit SHA] [--modified true|false] [--output FILE]
 
 ## Files and modules
 
-The scanner reads `.rs` files outside directories named `target` or `node_modules` and dot directories. Test code (`tests/`, `benches/`, `examples/`) and `build.rs` are scanned. Symlinked directories are not followed. A module is one source file and its id is the file's repository-relative path. A file `syn` rejects fails the scan.
+The scanner reads `.rs` files outside directories named `target`, `node_modules` or `tests` and dot directories. Inline test code is left out too; `benches/`, `examples/` and `build.rs` are scanned. Symlinked directories are not followed. A module is one source file and its id is the file's repository-relative path. A file `syn` rejects fails the scan.
 
 ## Crates
 
-A crate is a Cargo package's library or binary target. Every `Cargo.toml` with a `[package]` table defines one: its roots are `src/lib.rs` or `[lib] path`, `src/main.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `[[bin]] path`, `build.rs` and each file directly in `tests/`, `examples/` and `benches/`. A path dependency (or a `workspace = true` dependency whose workspace entry has a `path`) to a package in the repository is in-repo and resolves to that package's library root; every other dependency, `std`, `core` and `alloc` are foreign. A package can use its own library by name from its binaries and tests.
+A crate is a Cargo package's library or binary target. Every `Cargo.toml` with a `[package]` table defines one: its roots are `src/lib.rs` or `[lib] path`, `src/main.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `[[bin]] path`, `build.rs` and each file directly in `examples/` and `benches/`. A path dependency (or a `workspace = true` dependency whose workspace entry has a `path`) to a package in the repository is in-repo and resolves to that package's library root; every other dependency, `std`, `core` and `alloc` are foreign. A package can use its own library by name from its binaries and examples.
 
 ## Edges
 
