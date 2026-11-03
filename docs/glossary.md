@@ -41,7 +41,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
 | Overlay | Measurements a sensor writes (coverage, churn, mutation), as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
 | Metrics list | The canvas control, before Legend, that lists every metric of the current overlays and ticks the ones shown as bars on the boxes; it controls the canvas only. |
-| Metric bar | A thin bar with its value on a box, one per ticked metric in the order ticked; a member-granularity metric shows the box's worst member; hover names it; a folder box and a module the overlay did not measure show a dashed empty bar. |
+| Metric bar | A row on a module box, one per ticked metric the module has a value for, in tick order: a short label, a track, a fill in the tone colour and the figure; a member-granularity metric shows the box's worst member; hover names it. A folder box and a module the overlay did not measure show no row. |
 | Thresholds sensor | The shipped sensor that turns any overlay metric over a configured line into a finding, a warning or a violation as `sensors.thresholds` says. |
 | Report | A findings file an agent hands to recognizer with `recognizer report --as <name>` after a review it ran itself; listed with the sensors but never run by a scan, stale once the scan passes its commit, replaced only by the next report under the same name. |
 | Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/responsibilities.json` and current while its source and describer are unchanged. |

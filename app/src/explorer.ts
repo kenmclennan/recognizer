@@ -1074,7 +1074,7 @@ export function showExplorer(
     );
     endLayoutBusy ??= layoutGate.begin();
     layoutNoted = notedKey();
-    layout.request(toElk(graph, measure, notedBoxes(), metricTicks.length));
+    layout.request(toElk(graph, measure, notedBoxes(), barRowCounts()));
     render();
   }
 
@@ -1085,7 +1085,31 @@ export function showExplorer(
   }
 
   function notedKey(): string {
-    return `${metricTicks.length}|${[...notedBoxes()].sort().join("\n")}`;
+    const rows = [...barRowCounts()]
+      .filter(([, count]) => count > 0)
+      .map(([id, count]) => `${id}:${count}`)
+      .sort()
+      .join("\n");
+
+    return `${rows}|${[...notedBoxes()].sort().join("\n")}`;
+  }
+
+  function barRowCounts(): ReadonlyMap<string, number> {
+    const ticked = tickedMetrics();
+    const counts = new Map<string, number>();
+
+    for (const box of graph.boxes) {
+      if (box.kind === "folder") {
+        continue;
+      }
+
+      counts.set(
+        box.id,
+        ticked.filter((metric) => moduleValue(metric, box.id) !== null).length,
+      );
+    }
+
+    return counts;
   }
 
   function reveal(selection: Selection) {
@@ -2787,9 +2811,7 @@ export function showExplorer(
         if (notedKey() !== layoutNoted) {
           layoutNoted = notedKey();
           endLayoutBusy ??= layoutGate.begin();
-          layout.request(
-            toElk(graph, measure, notedBoxes(), metricTicks.length),
-          );
+          layout.request(toElk(graph, measure, notedBoxes(), barRowCounts()));
         }
       });
     }

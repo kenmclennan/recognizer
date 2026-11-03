@@ -2837,14 +2837,6 @@ svg.i.chevron {
   opacity: 0.45;
 }
 
-.metric-track.unknown {
-  fill: none;
-  stroke: var(--faint);
-  stroke-width: 1;
-  stroke-dasharray: 3 2;
-  opacity: 1;
-}
-
 .metric-fill.green {
   fill: var(--ok);
 }
@@ -2860,6 +2852,11 @@ svg.i.chevron {
 .metric-value {
   font-size: 9px;
   fill: currentColor;
+}
+
+.metric-label {
+  font-size: 9px;
+  fill: var(--muted);
 }
 
 .views-panel {

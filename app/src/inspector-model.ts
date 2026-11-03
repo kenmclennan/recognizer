@@ -162,7 +162,7 @@ export function fullMetricName(metric: MetricDescriptor): string {
   return naming(metric)?.full ?? metric.label;
 }
 
-function shortMetric(metric: MetricDescriptor): string {
+export function shortMetric(metric: MetricDescriptor): string {
   return naming(metric)?.short ?? metric.label;
 }
 

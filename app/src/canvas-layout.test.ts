@@ -16,7 +16,7 @@ import {
   NOTE_MARK_SIZE,
   toElk,
 } from "./canvas-layout";
-import { BAR_MIN_BOX_WIDTH, BAR_ROW } from "./metric-bars";
+import { BAR_BOTTOM_PAD, BAR_MIN_BOX_WIDTH, BAR_ROW } from "./metric-bars";
 
 const elk = new ELK();
 const measure = (text: string) => text.length * 7;
@@ -178,32 +178,53 @@ describe("metric bar rows", () => {
       focus: null,
       showInferred: true,
     });
-  const boxes = (barRows: number, folded: string[] = []) =>
+  const boxes = (rows: Record<string, number>, folded: string[] = []) =>
     (
-      toElk(graphOf(folded), measure, new Set(), barRows).children ?? []
+      toElk(graphOf(folded), measure, new Set(), new Map(Object.entries(rows)))
+        .children ?? []
     ).flatMap((node) => [node, ...(node.children ?? [])]);
+  const byId = (rows: Record<string, number>, id: string, folded?: string[]) =>
+    boxes(rows, folded).find((node) => node.id === id);
 
-  it("adds one row per bar to a module box and a folder box", () => {
-    const module = boxes(2).find((node) => node.id === "a/x.py");
-    const folder = boxes(2, ["b"]).find((node) => node.id === "b");
+  it("gives a module box one row per measured metric and a folder box none", () => {
+    for (const n of [1, 2, 3]) {
+      const module = byId({ "a/x.py": n }, "a/x.py");
 
-    expect(module?.height).toBe(BOX_HEIGHT + 2 * BAR_ROW);
-    expect(folder?.height).toBe(FOLDER_BOX_HEIGHT + 2 * BAR_ROW);
+      expect(module?.height).toBe(BOX_HEIGHT + n * BAR_ROW + BAR_BOTTOM_PAD);
+      expect(module?.width).toBeGreaterThanOrEqual(BAR_MIN_BOX_WIDTH);
+    }
+
+    expect(byId({ "a/x.py": 1 }, "a/x.py")?.height).toBe(60);
+    expect(byId({ b: 2 }, "b", ["b"])?.height).toBe(FOLDER_BOX_HEIGHT);
   });
 
-  it("leaves heights alone with no bars", () => {
-    expect(boxes(0).find((node) => node.id === "a/x.py")?.height).toBe(
-      BOX_HEIGHT,
+  it("sizes each box by its own row count in one call", () => {
+    const rows = { "a/x.py": 3, "b/y.py": 1 };
+    const heights = ["a/x.py", "b/y.py"].map((id) => byId(rows, id)?.height);
+
+    expect(heights).toEqual([
+      BOX_HEIGHT + 3 * BAR_ROW + BAR_BOTTOM_PAD,
+      BOX_HEIGHT + BAR_ROW + BAR_BOTTOM_PAD,
+    ]);
+    expect(new Set(heights).size).toBe(2);
+  });
+
+  it("leaves a box with no measured metric at the plain height", () => {
+    expect(byId({}, "a/x.py")?.height).toBe(BOX_HEIGHT);
+    expect(byId({ "a/x.py": 0 }, "a/x.py")?.height).toBe(BOX_HEIGHT);
+    expect(byId({ "b/y.py": 2 }, "a/x.py")?.height).toBe(BOX_HEIGHT);
+    expect(byId({ "a/x.py": 0 }, "a/x.py")?.width).toBeLessThan(
+      BAR_MIN_BOX_WIDTH,
     );
   });
 
   it("widens a narrow box to the minimum and never narrows a wider one", () => {
-    expect(boxes(1).find((node) => node.id === "a/x.py")?.width).toBe(
-      BAR_MIN_BOX_WIDTH,
-    );
+    expect(byId({ "a/x.py": 1 }, "a/x.py")?.width).toBe(BAR_MIN_BOX_WIDTH);
 
     const wide = () => 300;
-    const node = (toElk(graphOf(), wide, new Set(), 1).children ?? [])
+    const node = (
+      toElk(graphOf(), wide, new Set(), new Map([["a/x.py", 1]])).children ?? []
+    )
       .flatMap((n) => [n, ...(n.children ?? [])])
       .find((n) => n.id === "a/x.py");
 

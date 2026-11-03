@@ -7,6 +7,8 @@ import {
   type NoteKeyContext,
 } from "./canvas-keys";
 import {
+  BOX_HEIGHT,
+  FOLDER_BOX_HEIGHT,
   NOTE_MARK_INSET,
   NOTE_MARK_SIZE,
   type Point,
@@ -16,10 +18,13 @@ import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import { icon } from "./icons";
-import { fullMetricName, type InspectorTab } from "./inspector-model";
+import {
+  fullMetricName,
+  type InspectorTab,
+  shortMetric,
+} from "./inspector-model";
 import { buildLegendView } from "./legend-view";
 import {
-  BAR_ROW,
   BAR_TRACK_HEIGHT,
   barRect,
   barTitle,
@@ -654,7 +659,7 @@ export function buildCanvasView(
             "data-id": box.id,
           });
 
-          const middle = rect.y + rect.height / 2;
+          const middle = rect.y + nameBase(box) / 2;
 
           node.append(
             svg("rect", {
@@ -726,58 +731,66 @@ export function buildCanvasView(
     world.replaceChildren(...parts);
   }
 
-  function metricBars(box: Scene["boxes"][number]): SVGElement[] {
-    const ticked = props?.metrics?.ticked ?? [];
-    const base = box.rect.height - ticked.length * BAR_ROW;
+  function nameBase(box: Scene["boxes"][number]): number {
+    return box.kind === "folder" ? FOLDER_BOX_HEIGHT : BOX_HEIGHT;
+  }
 
-    return ticked.map((metric, index) => {
-      const found =
-        box.kind === "folder"
-          ? null
-          : (props?.metrics?.valueOf(metric, box.id) ?? null);
-      const track = barRect(box.rect, base, index);
+  function metricBars(box: Scene["boxes"][number]): SVGElement[] {
+    if (box.kind === "folder") {
+      return [];
+    }
+
+    const measured = (props?.metrics?.ticked ?? []).flatMap((metric) => {
+      const found = props?.metrics?.valueOf(metric, box.id) ?? null;
+
+      return found === null ? [] : [{ metric, found }];
+    });
+
+    return measured.map(({ metric, found }, index) => {
+      const track = barRect(box.rect, BOX_HEIGHT, index);
       const group = svg("g", {
         class: "metric-bar",
         "data-metric": metric.key,
       });
-      const body = svg("rect", {
-        class: found === null ? "metric-track unknown" : "metric-track",
-        x: track.x,
-        y: track.y,
-        width: track.width,
-        height: BAR_TRACK_HEIGHT,
-        rx: 3,
-      });
-      const label = svg(
-        "text",
-        {
-          class: "metric-value",
-          x: box.rect.x + box.rect.width - 10,
-          y: track.y + BAR_TRACK_HEIGHT,
-          "text-anchor": "end",
-        },
-        found === null ? "-" : valueLabel(metric, found.value),
-      );
 
       group.append(
         svg("title", {}, barTitle(metric, found, fullMetricName(metric))),
-        body,
+        svg(
+          "text",
+          {
+            class: "metric-label",
+            x: box.rect.x + 12,
+            y: track.y + BAR_TRACK_HEIGHT,
+          },
+          shortMetric(metric),
+        ),
+        svg("rect", {
+          class: "metric-track",
+          x: track.x,
+          y: track.y,
+          width: track.width,
+          height: BAR_TRACK_HEIGHT,
+          rx: 3,
+        }),
+        svg("rect", {
+          class: `metric-fill ${metricTone(metric, found.value)}`,
+          x: track.x,
+          y: track.y,
+          width: track.width * fraction(metric, found.value),
+          height: BAR_TRACK_HEIGHT,
+          rx: 3,
+        }),
+        svg(
+          "text",
+          {
+            class: "metric-value",
+            x: box.rect.x + box.rect.width - 10,
+            y: track.y + BAR_TRACK_HEIGHT,
+            "text-anchor": "end",
+          },
+          valueLabel(metric, found.value),
+        ),
       );
-
-      if (found !== null) {
-        group.append(
-          svg("rect", {
-            class: `metric-fill ${metricTone(metric, found.value)}`,
-            x: track.x,
-            y: track.y,
-            width: track.width * fraction(metric, found.value),
-            height: BAR_TRACK_HEIGHT,
-            rx: 3,
-          }),
-        );
-      }
-
-      group.append(label);
 
       return group;
     });
@@ -839,7 +852,7 @@ export function buildCanvasView(
   function markRect(box: Scene["boxes"][number]): Rect {
     const mark = frameMarkRect(box.rect);
 
-    return { ...mark, y: box.rect.y + (box.rect.height - mark.height) / 2 };
+    return { ...mark, y: box.rect.y + nameBase(box) / 2 - mark.height / 2 };
   }
 
   function bubbleViewFor(path: string): NoteBubbleView {
