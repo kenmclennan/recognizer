@@ -4,10 +4,8 @@ use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
-use crate::config_edit::{add_sensor, remove_sensor, Scalar};
 use crate::fs_safe::{checked_relative, write_atomic};
 use crate::overlays::{overlay_names, OVERLAYS};
-use crate::repository::ShippedSensor;
 
 const FINDINGS: &str = ".recognizer/cache/findings";
 const POLICY: &str = ".recognizer/policy.yaml";
@@ -143,55 +141,6 @@ pub fn remove_findings(folder: &Path, names: &[String]) -> Result<(), String> {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("{name}: {error}")),
         }
-    }
-
-    Ok(())
-}
-
-pub fn edit_config(
-    folder: &Path,
-    shipped: &[ShippedSensor],
-    name: &str,
-    add: bool,
-) -> Result<(), String> {
-    if !sensor_name_ok(name) {
-        return Err(format!("{name} is not a sensor name"));
-    }
-
-    let entry = shipped
-        .iter()
-        .find(|entry| entry.name == name)
-        .ok_or_else(|| format!("{name} is not a shipped sensor"))?;
-    let target = folder.join(CONFIG);
-
-    let text = match fs::symlink_metadata(&target) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(format!("{CONFIG} is a symbolic link and is not edited"));
-        }
-        Ok(_) => Some(
-            checked_relative(folder, CONFIG)
-                .and_then(|path| fs::read_to_string(path).map_err(|error| error.to_string()))?,
-        ),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(format!("{CONFIG}: {error}")),
-    };
-
-    let edited = if add {
-        let settings = entry
-            .defaults
-            .iter()
-            .map(|(key, value)| Ok((key.clone(), Scalar::from_json(value)?)))
-            .collect::<Result<Vec<_>, String>>()?;
-
-        add_sensor(text.as_deref(), name, &settings)?
-    } else {
-        remove_sensor(text.as_deref().unwrap_or(""), name)?
-    };
-
-    write_atomic(&target, &edited).map_err(|error| format!("{CONFIG}: {error}"))?;
-
-    if !add {
-        remove_findings(folder, &[name.to_string()])?;
     }
 
     Ok(())
@@ -390,67 +339,6 @@ mod tests {
         }
 
         assert!(findings_path(&dir, "b").exists());
-    }
-
-    fn shipped() -> Vec<ShippedSensor> {
-        vec![ShippedSensor {
-            display: "Duplication".to_string(),
-            runs_tests: false,
-            listed: true,
-            name: "duplication".into(),
-            line: "l".into(),
-            defaults: serde_json::json!({"threshold": 0.82, "min_lines": 4})
-                .as_object()
-                .unwrap()
-                .clone(),
-        }]
-    }
-
-    #[test]
-    fn edit_config_creates_the_folder_adds_and_removes_with_findings() {
-        let dir = TempDir::new().unwrap();
-
-        edit_config(dir.path(), &shipped(), "duplication", true).unwrap();
-
-        assert_eq!(
-            fs::read_to_string(dir.path().join(CONFIG)).unwrap(),
-            "sensors:\n  duplication:\n    threshold: 0.82\n    min_lines: 4\n"
-        );
-
-        fs::create_dir_all(dir.path().join(FINDINGS)).unwrap();
-        fs::write(findings_path(&dir, "duplication"), "{}").unwrap();
-        fs::write(findings_path(&dir, "structure"), "{}").unwrap();
-        edit_config(dir.path(), &shipped(), "duplication", false).unwrap();
-
-        assert_eq!(fs::read_to_string(dir.path().join(CONFIG)).unwrap(), "");
-        assert!(!findings_path(&dir, "duplication").exists());
-        assert!(findings_path(&dir, "structure").exists());
-    }
-
-    #[test]
-    fn edit_config_refuses_a_name_off_the_list_or_malformed() {
-        let dir = TempDir::new().unwrap();
-
-        for bad in ["nonesuch", "../x", "A"] {
-            assert!(edit_config(dir.path(), &shipped(), bad, true).is_err());
-        }
-
-        assert!(!dir.path().join(CONFIG).exists());
-        assert!(edit_config(dir.path(), &shipped(), "duplication", false).is_err());
-    }
-
-    #[test]
-    fn edit_config_refuses_a_symlinked_config_and_leaves_its_target() {
-        let dir = TempDir::new().unwrap();
-        let outside = TempDir::new().unwrap();
-        let target = outside.path().join("c.yaml");
-
-        fs::write(&target, "keep: 1\n").unwrap();
-        fs::create_dir_all(dir.path().join(".recognizer")).unwrap();
-        std::os::unix::fs::symlink(&target, dir.path().join(CONFIG)).unwrap();
-
-        assert!(edit_config(dir.path(), &shipped(), "duplication", true).is_err());
-        assert_eq!(fs::read_to_string(&target).unwrap(), "keep: 1\n");
     }
 
     #[test]

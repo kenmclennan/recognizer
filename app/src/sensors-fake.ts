@@ -8,32 +8,6 @@ import type {
   ShippedSensors,
 } from "./sensor-run";
 
-export function withSensorEntry(
-  config: string | null,
-  name: string,
-  add: boolean,
-): string | null {
-  const lines = (config ?? "").split("\n").filter((line) => line !== "");
-  const entry = `  ${name}: {}`;
-
-  if (add) {
-    const at = lines.indexOf("sensors:");
-
-    return at === -1
-      ? [...lines, "sensors:", entry, ""].join("\n")
-      : [...lines.slice(0, at + 1), entry, ...lines.slice(at + 1), ""].join(
-          "\n",
-        );
-  }
-
-  const kept = lines.filter((line) => line !== entry);
-  const empty = !kept.some((line, at) => at > 0 && line.startsWith("  "));
-
-  return (empty ? kept.filter((line) => line !== "sensors:") : kept)
-    .concat("")
-    .join("\n");
-}
-
 export type FakeSensors = SensorsPort & {
   files: Map<string, string>;
   inputs: SensorInputs;
@@ -43,11 +17,9 @@ export type FakeSensors = SensorsPort & {
   removed: string[];
   written: (string | null)[];
   failWrite: boolean;
-  failEdit: boolean;
   list: ShippedSensors;
   modified: Map<string, number>;
   shippedVersion: string | null;
-  edits: { name: string; add: boolean }[];
   editInputs(inputs: Partial<SensorInputs>): void;
 };
 
@@ -73,11 +45,9 @@ export function fakeSensors(
     removed: [],
     written: [],
     failWrite: false,
-    failEdit: false,
     list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
     modified: new Map(),
     shippedVersion: "prompt-0123456789ab",
-    edits: [],
     async describer() {
       let configured: { command: string[]; version: string } | undefined;
 
@@ -109,33 +79,6 @@ export function fakeSensors(
     },
     async shipped() {
       return fake.list;
-    },
-    async edit(name, add) {
-      fake.edits.push({ name, add });
-
-      if (fake.failEdit) {
-        throw new Error("config.yaml is read-only");
-      }
-
-      if (
-        fake.list.status !== "ok" ||
-        !fake.list.sensors.some((one) => one.name === name)
-      ) {
-        throw new Error(`${name} is not a shipped sensor`);
-      }
-
-      fake.inputs = {
-        ...fake.inputs,
-        config: withSensorEntry(fake.inputs.config, name, add),
-      };
-
-      if (!add) {
-        fake.files.delete(name);
-      }
-
-      for (const run of listeners) {
-        run();
-      }
     },
     async writeStructure(document) {
       if (fake.failWrite) {

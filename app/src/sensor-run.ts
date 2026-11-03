@@ -72,7 +72,6 @@ export type SensorsPort = {
   onInputsChanged(run: () => void): () => void;
   shipped(): Promise<ShippedSensors>;
   describer(): Promise<DescriberInEffect>;
-  edit(name: string, add: boolean): Promise<void>;
 };
 
 export const inertSensors: SensorsPort = {
@@ -95,7 +94,6 @@ export const inertSensors: SensorsPort = {
     status: "unavailable",
     reason: "the describer is not available",
   }),
-  edit: async () => {},
 };
 
 export type SensorRun = {

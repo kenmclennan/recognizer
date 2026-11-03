@@ -4,7 +4,6 @@ fn main() {
         "answer_window_drive",
         "change_range",
         "choose_folder",
-        "edit_sensor",
         "list_views",
         "open_folder_in_editor",
         "open_in_editor",
