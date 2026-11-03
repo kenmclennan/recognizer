@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  DescriberInEffect,
   FindingsFiles,
   OverlayFiles,
   SensorInputs,
@@ -15,6 +16,7 @@ export const sensorsSource: SensorsPort = {
   removeFindings: (names) => invoke<void>("remove_findings", { names }),
   readInputs: () => invoke<SensorInputs>("read_sensor_inputs"),
   shipped: () => invoke<ShippedSensors>("shipped_sensors"),
+  describer: () => invoke<DescriberInEffect>("shipped_describer"),
   edit: (name, add) => invoke<void>("edit_sensor", { name, add }),
   onInputsChanged(run) {
     void invoke<void>("watch_sensor_inputs");

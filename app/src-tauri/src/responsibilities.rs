@@ -19,6 +19,8 @@ pub struct ResponsibilityFiles {
     pub config: Option<String>,
     pub refused: Vec<String>,
     pub hashes: BTreeMap<String, String>,
+    #[serde(rename = "responsibilitiesModifiedMs")]
+    pub responsibilities_modified_ms: Option<f64>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -165,11 +167,16 @@ pub fn read_responsibilities(folder: &Path) -> ResponsibilityFiles {
         }
     }
 
+    let responsibilities_modified_ms = checked_relative(folder, RESPONSIBILITIES)
+        .ok()
+        .and_then(|path| crate::sensors::modified_ms(&path));
+
     ResponsibilityFiles {
         responsibilities,
         config,
         refused,
         hashes,
+        responsibilities_modified_ms,
     }
 }
 
@@ -355,6 +362,7 @@ mod tests {
         let read = read_responsibilities(dir.path());
 
         assert!(read.responsibilities.is_some());
+        assert!(read.responsibilities_modified_ms.is_some());
         assert_eq!(read.config.as_deref(), Some("describer: {}"));
         assert_eq!(read.hashes.get("a.py"), Some(&sha_of_a()));
         assert!(read.refused.is_empty());
@@ -372,6 +380,7 @@ mod tests {
 
         let read = read_responsibilities(dir.path());
 
+        assert!(read.responsibilities_modified_ms.is_some());
         assert!(read.config.is_none());
         assert!(read.refused.is_empty());
         let empty = TempDir::new().unwrap();
@@ -380,6 +389,9 @@ mod tests {
             read_responsibilities(empty.path()),
             ResponsibilityFiles::default()
         );
+        assert!(read_responsibilities(empty.path())
+            .responsibilities_modified_ms
+            .is_none());
     }
 
     #[test]

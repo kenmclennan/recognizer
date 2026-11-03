@@ -271,6 +271,10 @@ export function phaseLine(
   return `${JSON.stringify({ event: "phase", phase, ...detail })}\n`;
 }
 
+export function startLine(phase: PhaseName, name: string): string {
+  return `${JSON.stringify({ event: "start", phase, name })}\n`;
+}
+
 export function entryLine(phase: PhaseName, entry: EventEntry): string {
   return `${JSON.stringify({ event: "entry", phase, ...entry })}\n`;
 }

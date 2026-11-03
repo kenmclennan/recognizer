@@ -44,11 +44,12 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Metric bar | A thin bar with its value on a box, one per ticked metric in the order ticked; a member-granularity metric shows the box's worst member; hover names it; a folder box and a module the overlay did not measure show a dashed empty bar. |
 | Thresholds sensor | The shipped sensor that turns any overlay metric over a configured line into a finding, a warning or a violation as `sensors.thresholds` says. |
 | Report | A findings file an agent hands to recognizer with `recognizer report --as <name>` after a review it ran itself; listed with the sensors but never run by a scan, stale once the scan passes its commit, replaced only by the next report under the same name. |
-| Measure phase | The third of the four phases of a scan, between Describe and Sensors, run when ticked: the registered overlays, before the sensors. |
+| Measure phase | The CLI-only phase of `recognizer scan --measure` that runs the registered overlays before the sensors; the app no longer runs it. |
 | Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/responsibilities.json` and current while its source and describer are unchanged. |
 | Describer | The command a repository registers in its config to write responsibilities. |
-| Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}` and `{request}` filled in, and a version naming its prompt. |
-| Current line | A Responsibility whose source hash, describer and version all match the module and the registration today. |
+| Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}` and `{request}` filled in, and a version naming its prompt. A Config without one falls back to the Describer in effect. |
+| Describer in effect | The Config's describer when it has one, otherwise the shipped `recognizer-describe-claude` with its prompt version, as `recognizer describe --describer` reports. |
+| Current line | A Responsibility whose source hash, describer and version all match the module and the Describer in effect today. |
 | Out of date | A Responsibility that is not a Current line: its module's source (the files the scan recorded for it), the describer command or the version has changed since it was written. |
 | Unchecked | The status of a Responsibility that exists but whose Current line test cannot run, because no Describer registration exists or the module's source cannot be read. |
 | Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, its Metric declarations and, optionally, `runs_tests: true` when it runs the repository's tests. |
@@ -137,8 +138,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
 | Notes toggle | The Notes button before Legend in the canvas controls; on, every note on the view is drawn as a bubble at once, each read-only until clicked, which focuses it; held per window. |
 | Box tooltip | The small dark text beneath a module box after a short delay on hover: its responsibility line and, when it has a note, the note's first sixty characters in the muted colour; folders have none. |
-| Scan panel | The left-column panel, behind the Scan rail icon, that shows the four phases of a scan, Extract, Describe, Measure and Sensors, with the ticks a repository remembers, and runs them on request. |
-| Phase | One of the four parts of a scan: extraction (when the files changed), describing (when ticked), measuring (when ticked) and the registered sensors (when ticked). |
+| Scan panel | The left-column panel, behind the Scan rail icon, that shows one list of Scan rows and one Scan button, with the ticks a repository remembers. |
+| Scan row | One entry of the Scan panel's list: a checkbox, a name and a state in words (not yet run, a count with an age, running, waiting, or failed). |
+| Phase | One of the parts of a scan: extraction (when the files changed), describing (when ticked), measuring (CLI only, when asked for) and the sensors (when ticked). |
 | Findings panel | The left-column panel, behind the Findings rail icon: a heading with one muted count line, then one collapsible group per finding kind, each holding cards. |
 | Finding group | One collapsible kind in the Findings panel, named by the kind, a report or an unknown kind: a chevron, a severity dot, the name and its count. Collapsed until clicked. |
 | Finding card | A finding in the panel or in the inspector's Findings tab: the subject in bold, its folder muted beneath it and one plain sentence; opened inline to a row per module, member or edge involved, with Add to view on a row whose module is off the view. |

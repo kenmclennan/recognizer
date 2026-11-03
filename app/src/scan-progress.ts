@@ -13,6 +13,7 @@ export type ScanEvent =
       outcome: "ok" | "failed";
       reason?: string;
     }
+  | { event: "start"; phase: "sense"; name: string }
   | { event: "summary" };
 
 export type PhaseName = "extract" | "describe" | "measure" | "sense";
@@ -45,8 +46,7 @@ export type ScanFooter = {
 
 export type ShowTarget =
   | { kind: "sensor"; name: string; reason: string }
-  | { kind: "module"; id: string; reason: string }
-  | { kind: "overlay"; name: string; reason: string };
+  | { kind: "module"; id: string; reason: string };
 
 export const NO_PROGRESS: ScanProgress = {
   extract: "pending",
@@ -83,6 +83,10 @@ export function parseScanLine(text: string): ScanEvent | null {
       return phaseEvent(line);
     case "entry":
       return entryEvent(line);
+    case "start":
+      return line.phase === "sense" && typeof line.name === "string"
+        ? { event: "start", phase: "sense", name: line.name }
+        : null;
     default:
       return null;
   }
@@ -136,6 +140,8 @@ export function foldProgress(
   event: ScanEvent,
 ): ScanProgress {
   switch (event.event) {
+    case "start":
+      return state;
     case "summary":
       return { ...state, extractSettled: true, done: true };
     case "phase":
@@ -341,16 +347,6 @@ export function showTarget(progress: ScanProgress): ShowTarget | null {
       kind: "module",
       id: module.name,
       reason: module.reason ?? "describe failed",
-    };
-  }
-
-  const overlay = failures(progress.measure?.entries ?? [])[0];
-
-  if (overlay !== undefined) {
-    return {
-      kind: "overlay",
-      name: overlay.name,
-      reason: overlay.reason ?? "failed",
     };
   }
 

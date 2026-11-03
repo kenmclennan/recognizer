@@ -196,3 +196,26 @@ describe("createDescribing", () => {
     expect(describing.failure("a.py")).toBeNull();
   });
 });
+
+describe("responsibilityStates with the describer in effect", () => {
+  const fallback = {
+    command: ["recognizer-describe-claude", "{request}"],
+    version: "p1",
+  };
+  const written = files(
+    { "a.py": entry(HASH, fallback.command, "p1") },
+    { config: null },
+  );
+
+  it("treats a line written by the fallback as current when no config describer exists", () => {
+    expect(responsibilityStates(written, fallback)("a.py").kind).toBe(
+      "current",
+    );
+  });
+
+  it("treats it as out of date when no describer is in effect", () => {
+    expect(responsibilityStates(written, null)("a.py").kind).toBe(
+      "out-of-date",
+    );
+  });
+});

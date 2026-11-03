@@ -72,4 +72,17 @@ describe("recognizer sensors", () => {
     expect(run(["help", "sensors"], io)).toBe(0);
     expect(out()).toContain("recognizer sensors");
   });
+
+  it("lists C.R.A.P., Duplication and Mutation, in the order the Scan panel shows them", () => {
+    const { io, out } = capture();
+
+    run(["sensors", "--json"], io);
+
+    const shown = JSON.parse(out())
+      .filter((e: { listed: boolean }) => e.listed)
+      .map((e: { display: string }) => e.display)
+      .sort((a: string, b: string) => a.localeCompare(b));
+
+    expect(shown).toEqual(["C.R.A.P.", "Duplication", "Mutation"]);
+  });
 });

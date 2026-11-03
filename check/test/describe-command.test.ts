@@ -9,11 +9,12 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Io, run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
 import { DESCRIBE_FLAGS } from "../src/describe-command.js";
@@ -596,9 +597,139 @@ describe("describe prune", () => {
   });
 });
 
+const SHIPPED_VERSION = "prompt-0123456789ab";
+const originalPath = process.env.PATH;
+const binDirs: string[] = [];
+
+function withoutShippedDescriber(): void {
+  const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
+
+  binDirs.push(dir);
+  symlinkSync(
+    execFileSync("which", ["git"], { encoding: "utf8" }).trim(),
+    join(dir, "git"),
+  );
+  process.env.PATH = dir;
+}
+
+function installShippedDescriber(): void {
+  const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
+
+  binDirs.push(dir);
+
+  const script = join(dir, "recognizer-describe-claude");
+
+  writeFileSync(
+    script,
+    [
+      "#!/usr/bin/env node",
+      `if (process.argv[2] === "--prompt-version") { process.stdout.write("${SHIPPED_VERSION}\\n"); process.exit(0); }`,
+      'import { readFileSync } from "node:fs";',
+      'const { module } = JSON.parse(readFileSync(process.argv[2], "utf8"));',
+      'process.stdout.write("shipped " + module + "\\n");',
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+  process.env.PATH = `${dir}:${process.env.PATH}`;
+}
+
+beforeEach(() => {
+  process.env.PATH = originalPath;
+});
+
+afterEach(() => {
+  process.env.PATH = originalPath;
+
+  for (const dir of binDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("describer in effect", () => {
+  it("reports the configured describer with source config", () => {
+    const root = ready("v7");
+    const result = exec(root, "describe", "--describer", "--json");
+
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.out)).toEqual({
+      command: ["node", FAKE, "{repository}", "{request}"],
+      version: "v7",
+      source: "config",
+    });
+  });
+
+  it("reports the shipped describer when none is configured", () => {
+    installShippedDescriber();
+
+    const result = exec(repository(), "describe", "--describer", "--json");
+
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.out)).toEqual({
+      command: ["recognizer-describe-claude", "{request}"],
+      version: SHIPPED_VERSION,
+      source: "shipped",
+    });
+  });
+
+  it("prints one plain line without --json", () => {
+    installShippedDescriber();
+
+    const result = exec(repository(), "describe", "--describer");
+
+    expect(result.out).toBe(
+      `recognizer-describe-claude {request}  ${SHIPPED_VERSION}  shipped\n`,
+    );
+  });
+
+  it("exits 2 naming the missing describer when neither exists", () => {
+    const root = repository();
+
+    withoutShippedDescriber();
+
+    const result = exec(root, "describe", "--describer");
+
+    expect(result.code).toBe(2);
+    expect(result.err).toContain("no describer is registered");
+    expect(result.err).toContain("recognizer-describe-claude is not installed");
+  });
+
+  it("prefers a configured describer over an installed fallback", () => {
+    installShippedDescriber();
+
+    const root = ready("v3");
+
+    expect(
+      JSON.parse(exec(root, "describe", "--describer", "--json").out).source,
+    ).toBe("config");
+    expect(exec(root, "describe", "--all").code).toBe(0);
+    expect(responsibilities(root).modules[ORDER].describer[0]).toBe("node");
+  });
+
+  it("describes with the fallback and records its command and version", () => {
+    installShippedDescriber();
+
+    const root = repository();
+
+    expect(exec(root, "describe", "--all").code).toBe(0);
+
+    const entry = responsibilities(root).modules[ORDER];
+
+    expect(entry.describer).toEqual([
+      "recognizer-describe-claude",
+      "{request}",
+    ]);
+    expect(entry.version).toBe(SHIPPED_VERSION);
+    expect(entry.line).toBe(`shipped ${ORDER}`);
+    expect(statuses(root).parsed.ok).toBe(true);
+  });
+});
+
 describe("describe config", () => {
   it("exits 2 with a config message when there is no describer", () => {
     const root = repository();
+
+    withoutShippedDescriber();
 
     expect(exec(root, "describe").err).toContain("config");
 

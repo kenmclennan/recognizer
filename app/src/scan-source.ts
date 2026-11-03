@@ -7,7 +7,7 @@ export const scanSource: ScanPort = {
   run: (plan) =>
     invoke<ScanRunResult>("run_scan", {
       describe: plan.describe,
-      measure: plan.measure,
+      measure: [],
       sense: plan.sense,
     }),
   stop: () => invoke<void>("stop_scan"),
@@ -16,9 +16,6 @@ export const scanSource: ScanPort = {
   writeTicks: (ticks) =>
     invoke<void>("write_scan_ticks", {
       describe: ticks.describe,
-      measure: ticks.measure,
-      overlays: ticks.overlays,
-      sensors: ticks.sensors,
       ticked: ticks.ticked,
     }),
   onLine(handler) {

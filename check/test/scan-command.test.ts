@@ -811,13 +811,54 @@ describe("recognizer scan: phases", () => {
 
   it.each([
     ["--sense with no sensors registered", ["--sense", "all"], ""],
-    ["--describe with no describer registered", ["--describe"], ""],
+    [
+      "--describe with no describer registered and no recognizer-describe-claude to start",
+      ["--describe"],
+      "",
+    ],
   ])("is exit 2 for %s", (_, args, config) => {
     const { code, fake } = scan(setup({}, { [CONFIG]: config }), ...args);
 
     expect(code).toBe(2);
     expect(extractCalls(fake)).toEqual([]);
     expect(records(fake)).toEqual([]);
+  });
+
+  it("describes with the shipped fallback when no describer is registered", () => {
+    const base = setup({}, { [CONFIG]: "" });
+    const { code, fake } = scan(
+      {
+        ...base,
+        programs: {
+          ...base.programs,
+          "recognizer-describe-claude": (args) =>
+            args[0] === "--prompt-version"
+              ? { stdout: "prompt-0123456789ab\n" }
+              : { stdout: "a shipped line\n" },
+        },
+      },
+      "--describe",
+    );
+    const written = JSON.parse(
+      fake.files.get(`${ROOT}/.recognizer/responsibilities.json`) as string,
+    );
+    const entry = Object.values(written.modules)[0] as {
+      describer: string[];
+      version: string;
+    };
+
+    expect(code).toBe(0);
+    expect(entry.describer).toEqual([
+      "recognizer-describe-claude",
+      "{request}",
+    ]);
+    expect(entry.version).toBe("prompt-0123456789ab");
+  });
+
+  it("emits no start line without --json", () => {
+    const { out } = scan(setup({}, { [CONFIG]: SENSORS }), "--sense", "first");
+
+    expect(out).not.toContain('"event":"start"');
   });
 
   it("is exit 2 for --sense with no commit", () => {
@@ -1049,6 +1090,7 @@ describe("recognizer scan: phases", () => {
       ["entry", "describe"],
       ["entry", "describe"],
       ["phase", "sense"],
+      ["start", "sense"],
       ["entry", "sense"],
       ["summary", null],
     ]);
@@ -1060,6 +1102,11 @@ describe("recognizer scan: phases", () => {
     });
     expect(events[1]).toEqual({ event: "phase", phase: "describe", total: 2 });
     expect(events[5]).toEqual({
+      event: "start",
+      phase: "sense",
+      name: "first",
+    });
+    expect(events[6]).toEqual({
       event: "entry",
       phase: "sense",
       name: "first",

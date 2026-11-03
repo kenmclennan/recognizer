@@ -20,6 +20,8 @@ pub type Snapshot = Vec<(String, u128, u64)>;
 pub struct FindingsFile {
     pub name: String,
     pub text: String,
+    #[serde(rename = "modifiedMs")]
+    pub modified_ms: Option<f64>,
 }
 
 #[derive(Debug, Default, PartialEq, Serialize)]
@@ -85,6 +87,14 @@ pub fn write_structure(folder: &Path, document: Option<&str>) -> Result<(), Stri
     }
 }
 
+pub fn modified_ms(path: &Path) -> Option<f64> {
+    fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|elapsed| elapsed.as_millis() as f64)
+}
+
 pub fn read_findings(folder: &Path) -> FindingsRead {
     let mut read = FindingsRead::default();
     let mut names: Vec<String> = fs::read_dir(folder.join(FINDINGS))
@@ -102,9 +112,17 @@ pub fn read_findings(folder: &Path) -> FindingsRead {
         let relative = findings_relative(&name);
 
         match checked_relative(folder, &relative).and_then(|path| {
-            fs::read_to_string(path).map_err(|error| format!("{relative}: {error}"))
+            let modified_ms = modified_ms(&path);
+
+            fs::read_to_string(path)
+                .map(|text| (text, modified_ms))
+                .map_err(|error| format!("{relative}: {error}"))
         }) {
-            Ok(text) => read.files.push(FindingsFile { name, text }),
+            Ok((text, modified_ms)) => read.files.push(FindingsFile {
+                name,
+                text,
+                modified_ms,
+            }),
             Err(_) => read.refused.push(name),
         }
     }
@@ -314,16 +332,20 @@ mod tests {
 
         let read = read_findings(dir.path());
 
+        assert!(read.files.iter().all(|file| file.modified_ms.is_some()));
+
         assert_eq!(
             read.files,
             vec![
                 FindingsFile {
                     name: "lint".into(),
-                    text: "two".into()
+                    text: "two".into(),
+                    modified_ms: read.files[0].modified_ms,
                 },
                 FindingsFile {
                     name: "structure".into(),
-                    text: "one".into()
+                    text: "one".into(),
+                    modified_ms: read.files[1].modified_ms,
                 },
             ]
         );
@@ -359,6 +381,9 @@ mod tests {
 
     fn shipped() -> Vec<ShippedSensor> {
         vec![ShippedSensor {
+            display: "Duplication".to_string(),
+            runs_tests: false,
+            listed: true,
             name: "duplication".into(),
             line: "l".into(),
             defaults: serde_json::json!({"threshold": 0.82, "min_lines": 4})

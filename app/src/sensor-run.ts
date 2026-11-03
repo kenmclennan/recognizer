@@ -19,11 +19,13 @@ export type SensorStatus = {
   name: string;
   status: "ran" | "failed" | "off" | "stale" | "not run";
   reason?: string;
+  findings?: number;
+  modifiedMs?: number | null;
   reported?: { at: string; commit: string };
 };
 
 export type FindingsFiles = {
-  files: { name: string; text: string }[];
+  files: { name: string; text: string; modifiedMs: number | null }[];
   refused: string[];
 };
 
@@ -41,9 +43,21 @@ export type SensorInputs = {
 
 export type ShippedSensor = {
   name: string;
+  display: string;
   line: string;
   defaults: Record<string, number | boolean | string>;
+  runsTests: boolean;
+  listed: boolean;
 };
+
+export type DescriberInEffect =
+  | {
+      status: "ok";
+      command: string[];
+      version: string;
+      source: "config" | "shipped";
+    }
+  | { status: "unavailable"; reason: string };
 
 export type ShippedSensors =
   | { status: "ok"; sensors: ShippedSensor[] }
@@ -57,6 +71,7 @@ export type SensorsPort = {
   readInputs(): Promise<SensorInputs>;
   onInputsChanged(run: () => void): () => void;
   shipped(): Promise<ShippedSensors>;
+  describer(): Promise<DescriberInEffect>;
   edit(name: string, add: boolean): Promise<void>;
 };
 
@@ -75,6 +90,10 @@ export const inertSensors: SensorsPort = {
   shipped: async () => ({
     status: "unavailable",
     reason: "the shipped sensors are not available",
+  }),
+  describer: async () => ({
+    status: "unavailable",
+    reason: "the describer is not available",
   }),
   edit: async () => {},
 };
@@ -228,6 +247,8 @@ export async function senseRepository(
       statuses.push({
         name: file.name,
         status: document.commit === commit ? "ran" : "stale",
+        findings: document.findings.length,
+        modifiedMs: file.modifiedMs ?? null,
         ...(document.reported_at !== undefined &&
         !registered.includes(file.name)
           ? { reported: { at: document.reported_at, commit: document.commit } }

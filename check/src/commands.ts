@@ -818,10 +818,11 @@ export const COMMANDS: Command[] = [
   {
     name: "describe",
     summary:
-      "write each module's one-line responsibility with the repository's registered describer",
+      "write each module's one-line responsibility with the repository's registered describer, or the shipped recognizer-describe-claude when none is registered",
     usage: [
       "recognizer describe [<module>... | --all] [--repository <dir>] [--json]",
       "recognizer describe --check [<module>...] [--repository <dir>] [--json]",
+      "recognizer describe --describer [--repository <dir>] [--json]",
     ].join("\n"),
     arguments: [
       {
@@ -839,6 +840,11 @@ export const COMMANDS: Command[] = [
         flag: "--check",
         description:
           "run no describer and write nothing: print each module's status and line",
+      },
+      {
+        flag: "--describer",
+        description:
+          "print the describer in effect (command, version, and whether it comes from config or is the shipped recognizer-describe-claude) and exit; reads only config.yaml",
       },
       {
         flag: "--repository <dir>",
@@ -876,7 +882,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - no describer registered in .recognizer/config.yaml, an invalid config or responsibilities file, an unknown module, --all with a module or with --check, an unknown flag or a scan that could not be made",
+          "bad input - no describer registered in .recognizer/config.yaml and recognizer-describe-claude not installed, an invalid config or responsibilities file, an unknown module, --all with a module or with --check, an unknown flag or a scan that could not be made",
       },
     ],
     examples: [

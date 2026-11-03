@@ -285,6 +285,27 @@ describe("showTarget", () => {
   });
 });
 
+describe("the start event", () => {
+  it("parses a sense start line and ignores any other phase's", () => {
+    expect(
+      parseScanLine('{"event":"start","phase":"sense","name":"crap"}'),
+    ).toEqual({ event: "start", phase: "sense", name: "crap" });
+    expect(
+      parseScanLine('{"event":"start","phase":"describe","name":"x"}'),
+    ).toBeNull();
+  });
+
+  it("leaves the folded progress unchanged", () => {
+    expect(
+      foldProgress(NO_PROGRESS, {
+        event: "start",
+        phase: "sense",
+        name: "crap",
+      }),
+    ).toBe(NO_PROGRESS);
+  });
+});
+
 describe("the measure phase", () => {
   it("folds the phase and its entries", () => {
     const state = fold([
@@ -342,7 +363,7 @@ describe("the measure phase", () => {
     expect(footerText(other).text).toBe("2 failed");
   });
 
-  it("targets a failed overlay after a failed module and before a failed sensor", () => {
+  it("targets a failed module before a failed sensor and never an overlay", () => {
     const lines = [
       extractCurrent,
       phase("measure", 1),
@@ -352,9 +373,9 @@ describe("the measure phase", () => {
     ];
 
     expect(showTarget(fold(lines))).toEqual({
-      kind: "overlay",
-      name: "cov",
-      reason: "boom",
+      kind: "sensor",
+      name: "s",
+      reason: "bad",
     });
     expect(
       showTarget(

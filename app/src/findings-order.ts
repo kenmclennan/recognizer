@@ -1,5 +1,11 @@
 import type { FindingRecord, FindingsDocument } from "recognizer";
-import type { ReportRow, SensorRow } from "./scan-panel-model";
+import type { ReportRow } from "./scan-panel-model";
+
+export type StaleRow = {
+  name: string;
+  kind: "structure" | "registered";
+  chip: string;
+};
 
 export type FindingRow = {
   id: string;
@@ -82,7 +88,7 @@ export function badge(rows: FindingRow[]): { count: number; tone: BadgeTone } {
 }
 
 export function staleNote(
-  sensors: SensorRow[],
+  sensors: StaleRow[],
   reports: ReportRow[] = [],
 ): string | null {
   const named = sensors

@@ -58,10 +58,9 @@ async function mount(loaded, picks, status) {
   const scanHost = {
     port: fake,
     scan: () => null,
-    ticks: () => ({ describe: false, measure: false, overlays: null, sensors: false, ticked: null }),
+    ticks: () => ({ describe: false, ticked: null, once: [] }),
     setTicks: () => {},
     runState: () => NO_RUN,
-    measureRunState: () => NO_RUN,
     running: () => false,
     run: () => {},
     stop: () => {},

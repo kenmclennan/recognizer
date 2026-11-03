@@ -97,6 +97,7 @@ import {
 } from "./responsibilities-port";
 import {
   createDescribing,
+  type EffectiveDescriber,
   NO_FILES,
   type ResponsibilityState,
   responsibilityStates,
@@ -105,11 +106,10 @@ import { nextCheck } from "./row-model";
 import type { RowSpec } from "./row-view";
 import type { Loaded } from "./scan-loading";
 import {
+  DESCRIBE_KEY,
   NO_RUN,
   type RunState,
-  registeredNames,
-  registeredOverlayNames,
-  registeredOverlays,
+  rowSensors,
   type ScanTicks,
   scanPanel,
 } from "./scan-panel-model";
@@ -199,7 +199,6 @@ export type ScanHost = {
   ticks: () => ScanTicks;
   setTicks: (next: ScanTicks) => void;
   runState: () => RunState;
-  measureRunState: () => RunState;
   running: () => boolean;
   run: () => void;
   stop: () => void;
@@ -209,17 +208,9 @@ export type ScanHost = {
 export const inertScanHost: ScanHost = {
   port: inertSensors,
   scan: () => null,
-  ticks: () => ({
-    describe: false,
-    measure: false,
-    overlays: null,
-    sensors: false,
-    ticked: null,
-    once: [],
-  }),
+  ticks: () => ({ describe: false, ticked: null, once: [] }),
   setTicks: () => {},
   runState: () => NO_RUN,
-  measureRunState: () => NO_RUN,
   running: () => false,
   run: () => {},
   stop: () => {},
@@ -309,6 +300,11 @@ export function showExplorer(
   const deletionUndos = new Set<number>();
   let scanConfig: string | null = null;
   let shippedSensors: ShippedSensors | null = null;
+  let describedAt: number | null = null;
+  let describerSeen: {
+    config: string | null;
+    found: EffectiveDescriber | null;
+  } | null = null;
   let scrollTarget: string | null = null;
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
@@ -536,7 +532,13 @@ export function showExplorer(
 
   async function readResponsibilities() {
     try {
-      responsibilityOf = responsibilityStates(await responsibilities.read());
+      const files = await responsibilities.read();
+
+      describedAt = files.responsibilitiesModifiedMs ?? null;
+      responsibilityOf = responsibilityStates(
+        files,
+        await describerFallback(files.config),
+      );
     } catch (error) {
       const reason = String(error);
 
@@ -545,6 +547,29 @@ export function showExplorer(
 
     describing.read(responsibilityOf);
     render();
+  }
+
+  async function describerFallback(
+    config: string | null,
+  ): Promise<EffectiveDescriber | null> {
+    if (describerSeen === null || describerSeen.config !== config) {
+      let found: EffectiveDescriber | null = null;
+
+      try {
+        const answer = await scanHost.port.describer();
+
+        found =
+          answer.status === "ok"
+            ? { command: answer.command, version: answer.version }
+            : null;
+      } catch {
+        found = null;
+      }
+
+      describerSeen = { config, found };
+    }
+
+    return describerSeen.found;
   }
 
   async function describeModule(id: string) {
@@ -760,60 +785,39 @@ export function showExplorer(
       ),
   });
   const scanView = buildScanPanelView({
-    tickDescribe(ticked) {
-      scanHost.setTicks({ ...scanHost.ticks(), describe: ticked });
-      render();
-    },
-    tickMeasure(ticked) {
-      scanHost.setTicks({ ...scanHost.ticks(), measure: ticked });
-      render();
-    },
-    tickOverlay(name, ticked) {
-      const runsTests = registeredOverlays(scanConfig).some(
-        (overlay) => overlay.name === name && overlay.runsTests,
-      );
+    tick(key, ticked) {
+      const ticks = scanHost.ticks();
 
-      if (runsTests) {
-        const once = scanHost.ticks().once.filter((one) => one !== name);
-
-        scanHost.setTicks({
-          ...scanHost.ticks(),
-          once: ticked ? [...once, name] : once,
-        });
+      if (key === DESCRIBE_KEY) {
+        scanHost.setTicks({ ...ticks, describe: ticked });
         render();
 
         return;
       }
 
-      const names = registeredOverlayNames(scanConfig);
-      const held = scanHost.ticks().overlays ?? names;
-      const rest = held.filter((one) => one !== name);
+      const rows = rowSensors(scanConfig, shippedSensors);
+      const plain = rows
+        .filter(({ runsTests }) => !runsTests)
+        .map(({ name }) => name);
+
+      if (rows.some(({ name, runsTests }) => name === key && runsTests)) {
+        const once = ticks.once.filter((one) => one !== key);
+
+        scanHost.setTicks({ ...ticks, once: ticked ? [...once, key] : once });
+        render();
+
+        return;
+      }
+
+      const rest = (ticks.ticked ?? plain).filter((one) => one !== key);
 
       scanHost.setTicks({
-        ...scanHost.ticks(),
-        overlays: ticked ? [...rest, name] : rest,
-      });
-      render();
-    },
-    tickSensors(ticked) {
-      scanHost.setTicks({ ...scanHost.ticks(), sensors: ticked });
-      render();
-    },
-    tickSensor(name, ticked) {
-      const names = registeredNames(scanConfig);
-      const held = scanHost.ticks().ticked ?? names;
-      const rest = held.filter((one) => one !== name);
-
-      scanHost.setTicks({
-        ...scanHost.ticks(),
-        ticked: ticked ? [...rest, name] : rest,
+        ...ticks,
+        ticked: ticked ? [...rest, key] : rest,
       });
       render();
     },
     run: () => scanHost.run(),
-    stop: () => scanHost.stop(),
-    addSensor: (name) => void editSensor(name, true),
-    removeSensor: (name) => void editSensor(name, false),
     clearReport: (name) => void clearReport(name),
   });
   const findingsView = buildFindingsPanelView({
@@ -1605,16 +1609,6 @@ export function showExplorer(
     render();
   }
 
-  async function editSensor(name: string, add: boolean) {
-    try {
-      await scanHost.port.edit(name, add);
-    } catch (error) {
-      fail(error instanceof Error ? error.message : String(error));
-    }
-
-    await loadScanConfig();
-  }
-
   async function clearReport(name: string) {
     try {
       await scanHost.port.removeFindings([name]);
@@ -1626,31 +1620,15 @@ export function showExplorer(
     await loadScanConfig();
   }
 
-  function structureCounts() {
-    const rows = allFindings.filter((row) => row.sensor === "structure");
-
-    return {
-      violations: rows.filter((row) => row.severity === "violation").length,
-      warnings: rows.filter((row) => row.severity === "warning").length,
-    };
-  }
-
   function scanModel() {
     return scanPanel({
       scan: scanHost.scan(),
-      scanFiles: loaded.scans.map(({ file }) => file),
-      counts: {
-        modules: loaded.modules.length,
-        edges: scans.reduce((total, scan) => total + scan.edges.length, 0),
-      },
       config: scanConfig,
       sensors: loaded.sensors,
-      structure: structureCounts(),
       lines: { modules: loaded.modules, of: responsibilityOf },
+      describedAt,
       ticks: scanHost.ticks(),
       run: scanHost.runState(),
-      overlays: loaded.overlays ?? [],
-      measureRun: scanHost.measureRunState(),
       scanning: scanHost.running(),
       now: Date.now(),
       shipped: shippedSensors,
@@ -1658,10 +1636,10 @@ export function showExplorer(
   }
 
   function showTarget(target: ShowTarget) {
-    if (target.kind === "sensor" || target.kind === "overlay") {
+    if (target.kind === "sensor") {
       leftPanel = "scan";
       render();
-      scanView.reveal(target.name, target.kind);
+      scanView.reveal(target.name);
       void loadScanConfig();
 
       return;
@@ -2960,7 +2938,20 @@ export function showExplorer(
 
     findingsView.render({
       header: headerLine(allFindings),
-      stale: staleNote(scanModelNow.sensors.rows, scanModelNow.sensors.reports),
+      stale: staleNote(
+        loaded.sensors
+          .filter(
+            (one) =>
+              one.reported === undefined &&
+              !["structure", "config.yaml", "policy.yaml"].includes(one.name),
+          )
+          .map((one) => ({
+            name: one.name,
+            kind: "registered" as const,
+            chip: one.status,
+          })),
+        scanModelNow.reports,
+      ),
       groups: groups.map((group) => ({
         group,
         open: openGroups.has(group.key),
