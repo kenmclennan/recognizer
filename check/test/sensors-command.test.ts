@@ -44,7 +44,7 @@ describe("recognizer sensors", () => {
       entries
         .filter((e: { listed: boolean }) => !e.listed)
         .map((e: { name: string }) => e.name),
-    ).toEqual(["unused-exports", "thresholds"]);
+    ).toEqual(["thresholds"]);
   });
 
   it("prints a duplication line in text", () => {

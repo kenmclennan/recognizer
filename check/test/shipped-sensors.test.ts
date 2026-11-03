@@ -167,7 +167,7 @@ describe("the registry", () => {
       SHIPPED_SENSOR_LIST.filter(({ listed }) => !listed).map(
         ({ name }) => name,
       ),
-    ).toEqual(["unused-exports", "thresholds"]);
+    ).toEqual(["thresholds"]);
   });
 
   it("marks only crap and mutation as running tests", () => {

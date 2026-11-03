@@ -1,2 +1,2 @@
 sensors:
-  unused-exports: off
+  unused: off

@@ -1,6 +1,6 @@
 {
   "findings_version": 1,
-  "sensor": { "name": "structure", "version": "3" },
+  "sensor": { "name": "structure", "version": "4" },
   "commit": "0123456789abcdef0123456789abcdef01234567",
   "modified": false,
   "settings": {
@@ -14,7 +14,8 @@
       "orphan": true,
       "policy_drift": true,
       "stable_dependencies": true,
-      "stable_abstractions": true
+      "stable_abstractions": true,
+      "unused_exports": false
     }
   },
   "findings": [

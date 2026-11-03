@@ -4,7 +4,7 @@ import type { FolderMeasures } from "./folder-metrics.js";
 import { compileGlob, matchesAny } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
-import type { Scan } from "./scan.js";
+import type { Scan, ScanEdge, ScanMember } from "./scan.js";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -93,13 +93,7 @@ export function folderCycleFindings(
   return findings.sort((a, b) => compare(a.id, b.id));
 }
 
-export function orphanFindings(
-  scan: Scan,
-  policy: Policy | null,
-  entryPoints: string[],
-): FindingRecord[] {
-  const { ids, pairs } = moduleEdges(scan, policy);
-  const imported = new Set(pairs.map((pair) => pair.to));
+function policyLiteralPaths(policy: Policy | null): Set<string> {
   const literalPaths = new Set<string>();
 
   for (const globs of policy?.componentGlobs.values() ?? []) {
@@ -109,6 +103,18 @@ export function orphanFindings(
       }
     }
   }
+
+  return literalPaths;
+}
+
+export function orphanFindings(
+  scan: Scan,
+  policy: Policy | null,
+  entryPoints: string[],
+): FindingRecord[] {
+  const { ids, pairs } = moduleEdges(scan, policy);
+  const imported = new Set(pairs.map((pair) => pair.to));
+  const literalPaths = policyLiteralPaths(policy);
 
   return [...ids]
     .filter((id) => !imported.has(id))
@@ -123,6 +129,105 @@ export function orphanFindings(
       fix_pattern: "remove-or-wire-orphan",
       evidence: { modules: [id] },
     }));
+}
+
+function usedNames(edges: ScanEdge[]) {
+  const named = new Map<string, Set<string>>();
+  const whole = new Set<string>();
+
+  for (const edge of edges) {
+    if (isForeign(edge.to) || edge.from === edge.to) {
+      continue;
+    }
+
+    if (edge.kind === "depends") {
+      if (edge.names !== undefined && edge.names.length > 0) {
+        const held = named.get(edge.to) ?? new Set<string>();
+
+        for (const name of edge.names) {
+          held.add(name);
+        }
+
+        named.set(edge.to, held);
+      } else {
+        whole.add(edge.to);
+      }
+    } else if (edge.to_member !== undefined) {
+      const held = named.get(edge.to) ?? new Set<string>();
+
+      held.add(edge.to_member);
+      named.set(edge.to, held);
+    }
+  }
+
+  return { named, whole };
+}
+
+function isUsed(name: string, used: Set<string>): boolean {
+  return used.has(name) || used.has(name.split(".", 1)[0] as string);
+}
+
+export function unusedExportsFindings(
+  scan: Scan,
+  policy: Policy | null,
+  entryPoints: string[],
+): FindingRecord[] {
+  const { edges, ids } = keptGraph(scan, policy?.ignore ?? []);
+  const { named, whole } = usedNames(edges);
+  const literalPaths = policyLiteralPaths(policy);
+  const findings: FindingRecord[] = [];
+
+  for (const module of scan.modules) {
+    if (
+      !ids.has(module.id) ||
+      whole.has(module.id) ||
+      isEntryPoint(module.id, literalPaths, entryPoints)
+    ) {
+      continue;
+    }
+
+    const first = new Map<string, ScanMember>();
+
+    for (const member of module.members ?? []) {
+      if (member.exported && !first.has(member.name)) {
+        first.set(member.name, member);
+      }
+    }
+
+    const used = named.get(module.id) ?? new Set<string>();
+    const unused = [...first.keys()]
+      .sort(compare)
+      .filter((name) => !isUsed(name, used))
+      .map((name) => first.get(name) as ScanMember);
+
+    if (unused.length === 0) {
+      continue;
+    }
+
+    const noun = unused.length === 1 ? "name" : "names";
+    const names = unused.map((member) => member.name).join(", ");
+
+    findings.push({
+      id: `unused_exports:${module.id}`,
+      kind: "unused_exports",
+      severity: "warning",
+      principle: "export-only-what-is-used",
+      summary: `${module.id} exports ${unused.length} ${noun} no other module imports: ${names}`,
+      fix_pattern: "narrow-exports",
+      evidence: {
+        modules: [module.id],
+        members: unused.map((member) => ({
+          module: module.id,
+          name: member.name,
+          ...(module.kind === "module" && member.line !== undefined
+            ? { file: module.id, lines: [member.line, member.line] }
+            : {}),
+        })),
+      },
+    });
+  }
+
+  return findings.sort((a, b) => compare(a.id, b.id));
 }
 
 export function policyDriftFindings(

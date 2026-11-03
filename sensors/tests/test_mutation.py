@@ -970,3 +970,22 @@ def test_each_language_runs_its_own_mutant_command(tmp_path, monkeypatch):
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
     assert ["npm", "test"] in seen
     assert any(command[-1] == "pytest" for command in seen)
+
+
+@pytest.mark.parametrize(
+    ("module_id", "expected"),
+    [
+        ("shop/test_place.py", True),
+        ("shop/place_test.py", True),
+        ("shop/conftest.py", True),
+        ("api/src/place.spec.ts", True),
+        ("app/src/main/kotlin/shop/FooTest.kt", True),
+        ("tests/helper.py", True),
+        ("shop/place.py", False),
+        ("api/src/contest.ts", False),
+    ],
+)
+def test_is_test_file_follows_the_shared_convention(module_id, expected):
+    from recognizer_sensors.mutation.test_files import is_test_file
+
+    assert is_test_file(module_id) is expected

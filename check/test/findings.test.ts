@@ -39,6 +39,7 @@ function findingsByModule(
         policy_drift: true,
         stable_dependencies: true,
         stable_abstractions: true,
+        unused_exports: false,
       },
     },
     { commit: "abc", modified: false },
