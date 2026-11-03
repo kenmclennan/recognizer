@@ -1,0 +1,446 @@
+[
+  {
+    "language": "python",
+    "a": "planted.py::order_total",
+    "b": "planted.py::parcel_weight",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "python",
+    "a": "planted.py::load_settings",
+    "b": "planted.py::load_session",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "python",
+    "a": "planted.py::store_report",
+    "b": "planted.py::store_ledger",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "python",
+    "a": "near.py::gather_names",
+    "b": "near.py::gather_tags",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "python",
+    "a": "near.py::fetch_pages",
+    "b": "near.py::fetch_events",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "python",
+    "a": "near.py::summarise_orders",
+    "b": "near.py::summarise_visits",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "python",
+    "a": "distinct.py::read_config",
+    "b": "distinct.py::render_table",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "python",
+    "a": "distinct.py::walk_tree",
+    "b": "distinct.py::clamp_range",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "python",
+    "a": "distinct.py::parse_flags",
+    "b": "distinct.py::merge_sorted",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "python",
+    "a": "accessors.py::Limits.retry_limit",
+    "b": "accessors.py::Limits.page_size",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "python",
+    "a": "accessors.py::Limits.retry_limit",
+    "b": "accessors.py::Limits.queue_depth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "python",
+    "a": "accessors.py::Limits.retry_limit",
+    "b": "accessors.py::Limits.idle_timeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "python",
+    "a": "accessors.py::Limits.page_size",
+    "b": "accessors.py::Limits.queue_depth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "python",
+    "a": "accessors.py::Limits.page_size",
+    "b": "accessors.py::Limits.idle_timeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "python",
+    "a": "accessors.py::Limits.queue_depth",
+    "b": "accessors.py::Limits.idle_timeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "typescript",
+    "a": "planted.ts::orderTotal",
+    "b": "planted.ts::parcelWeight",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "typescript",
+    "a": "planted.ts::loadSettings",
+    "b": "planted.ts::loadSession",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "typescript",
+    "a": "planted.ts::storeReport",
+    "b": "planted.ts::storeLedger",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "typescript",
+    "a": "near.ts::gatherNames",
+    "b": "near.ts::gatherTags",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "typescript",
+    "a": "near.ts::fetchPages",
+    "b": "near.ts::fetchEvents",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "typescript",
+    "a": "near.ts::summariseOrders",
+    "b": "near.ts::summariseVisits",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "typescript",
+    "a": "distinct.ts::readConfig",
+    "b": "distinct.ts::renderTable",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "typescript",
+    "a": "distinct.ts::walkTree",
+    "b": "distinct.ts::clampRange",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "typescript",
+    "a": "distinct.ts::parseFlags",
+    "b": "distinct.ts::mergeSorted",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "typescript",
+    "a": "accessors.ts::Limits.retryLimit",
+    "b": "accessors.ts::Limits.pageSize",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "typescript",
+    "a": "accessors.ts::Limits.retryLimit",
+    "b": "accessors.ts::Limits.queueDepth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "typescript",
+    "a": "accessors.ts::Limits.retryLimit",
+    "b": "accessors.ts::Limits.idleTimeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "typescript",
+    "a": "accessors.ts::Limits.pageSize",
+    "b": "accessors.ts::Limits.queueDepth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "typescript",
+    "a": "accessors.ts::Limits.pageSize",
+    "b": "accessors.ts::Limits.idleTimeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "typescript",
+    "a": "accessors.ts::Limits.queueDepth",
+    "b": "accessors.ts::Limits.idleTimeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::orderTotal",
+    "b": "src::parcelWeight",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::loadSettings",
+    "b": "src::loadSession",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::storeReport",
+    "b": "src::storeLedger",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::gatherNames",
+    "b": "src::gatherTags",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::fetchPages",
+    "b": "src::fetchEvents",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::summariseOrders",
+    "b": "src::summariseVisits",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::readConfig",
+    "b": "src::renderTable",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::walkTree",
+    "b": "src::clampRange",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::parseFlags",
+    "b": "src::mergeSorted",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::Limits.retryLimit",
+    "b": "src::Limits.pageSize",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::Limits.retryLimit",
+    "b": "src::Limits.queueDepth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::Limits.retryLimit",
+    "b": "src::Limits.idleTimeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::Limits.pageSize",
+    "b": "src::Limits.queueDepth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::Limits.pageSize",
+    "b": "src::Limits.idleTimeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "kotlin",
+    "a": "src::Limits.queueDepth",
+    "b": "src::Limits.idleTimeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "rust",
+    "a": "planted.rs::order_total",
+    "b": "planted.rs::parcel_weight",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "rust",
+    "a": "planted.rs::load_settings",
+    "b": "planted.rs::load_session",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "rust",
+    "a": "planted.rs::store_report",
+    "b": "planted.rs::store_ledger",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "rust",
+    "a": "near.rs::gather_names",
+    "b": "near.rs::gather_tags",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "rust",
+    "a": "near.rs::fetch_pages",
+    "b": "near.rs::fetch_events",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "rust",
+    "a": "near.rs::summarise_orders",
+    "b": "near.rs::summarise_visits",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "rust",
+    "a": "distinct.rs::read_config",
+    "b": "distinct.rs::render_table",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "rust",
+    "a": "distinct.rs::walk_tree",
+    "b": "distinct.rs::clamp_range",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "rust",
+    "a": "distinct.rs::parse_flags",
+    "b": "distinct.rs::merge_sorted",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "rust",
+    "a": "accessors.rs::Limits.retry_limit",
+    "b": "accessors.rs::Limits.page_size",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "rust",
+    "a": "accessors.rs::Limits.retry_limit",
+    "b": "accessors.rs::Limits.queue_depth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "rust",
+    "a": "accessors.rs::Limits.retry_limit",
+    "b": "accessors.rs::Limits.idle_timeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "rust",
+    "a": "accessors.rs::Limits.page_size",
+    "b": "accessors.rs::Limits.queue_depth",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "rust",
+    "a": "accessors.rs::Limits.page_size",
+    "b": "accessors.rs::Limits.idle_timeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  },
+  {
+    "language": "rust",
+    "a": "accessors.rs::Limits.queue_depth",
+    "b": "accessors.rs::Limits.idle_timeout",
+    "label": "non-copy-accessors",
+    "expected": "reported",
+    "note": "records today's behaviour: a family of same-shaped accessors with different intent is reported pairwise; the follow-up may flip this expectation"
+  }
+]
