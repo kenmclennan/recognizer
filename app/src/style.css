@@ -1589,8 +1589,11 @@ svg.i.chevron {
   text-align: left;
 }
 
-.view-item.current .view-item-name::before {
-  content: "\2713 ";
+.view-item.current {
+  background: var(--selbg);
+}
+
+.view-item.current .view-item-name {
   color: var(--sel);
 }
 
