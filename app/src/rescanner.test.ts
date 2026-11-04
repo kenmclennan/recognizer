@@ -158,7 +158,7 @@ describe("createRescanner", () => {
     expect(log).toContain("adopted:a1b2c3d");
     expect(log).toContain("described");
     expect(texts(updates)).toContain("Scanning\u2026");
-    expect(texts(updates)).toContain("Scanning\u2026 Descriptions, 1 of 1");
+    expect(texts(updates)).toContain("Describing\u2026 0 of 1 modules");
     expect(updates.at(-1)?.scanning).toBeNull();
   });
 

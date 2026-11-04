@@ -51,6 +51,8 @@ export type PanelInput = {
   ticks: ScanTicks;
   run: RunState;
   scanning: boolean;
+  progressText?: string | null;
+  describeProgress?: { entries: number; total: number } | null;
   now: number;
   shipped: ShippedSensors | null;
 };
@@ -193,6 +195,14 @@ function withAge(text: string, at: number | null | undefined, now: number) {
     : `${text}, ${ageText(at, now)}`;
 }
 
+function runningText(key: string, input: PanelInput): string {
+  const describe = input.describeProgress ?? null;
+
+  return key === DESCRIBE_KEY && describe !== null
+    ? `${describe.entries} of ${describe.total}`
+    : "running";
+}
+
 function liveState(
   key: string,
   input: PanelInput,
@@ -202,7 +212,7 @@ function liveState(
   }
 
   return input.run.started === key
-    ? { text: "running", tone: "run" }
+    ? { text: runningText(key, input), tone: "run" }
     : { text: "waiting", tone: "muted" };
 }
 
@@ -223,6 +233,11 @@ function describeState(input: PanelInput): ScanRow["state"] {
   }
 
   const counts = lineCounts(input.lines);
+  const stale = counts.outOfDate + counts.missing;
+
+  if (stale > 0) {
+    return { text: `${stale} to describe`, tone: "muted" };
+  }
 
   if (counts.current + counts.outOfDate > 0) {
     return {
@@ -296,7 +311,7 @@ function reportRows(sensors: SensorStatus[], now: number): ReportRow[] {
 
 function header(input: PanelInput): ScanPanelModel["header"] {
   if (input.scanning) {
-    return { text: "Scanning…", changed: null };
+    return { text: input.progressText ?? "Scanning…", changed: null };
   }
 
   if (input.scan === null) {
@@ -307,7 +322,7 @@ function header(input: PanelInput): ScanPanelModel["header"] {
   const changed = files.length > 0 || moved !== null;
 
   return {
-    text: `Scanned ${ageText(input.scan.scannedAt, input.now)}`,
+    text: `Ran ${ageText(input.scan.scannedAt, input.now)}`,
     changed: changed ? "files changed since" : null,
   };
 }
@@ -320,7 +335,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       reports: [],
       button: {
         scanning: input.scanning,
-        label: input.scanning ? "Scanning" : "Scan",
+        label: input.scanning ? "Running" : "Run",
       },
       pending: true,
       mark: panelMark(input),
@@ -358,7 +373,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     reports: reportRows(input.sensors, input.now),
     button: {
       scanning: input.scanning,
-      label: input.scanning ? "Scanning" : "Scan",
+      label: input.scanning ? "Running" : "Run",
     },
     pending: false,
     mark: panelMark(input),

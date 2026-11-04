@@ -330,7 +330,10 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   it("matches the mock's fresh repository: Not scanned yet, one list, nothing ticked, every row not yet run", () => {
     expect(f.fresh.header).toBe("Not scanned yet");
     expect(names(f.fresh)).toEqual(NAMES);
-    expect(states(f.fresh)).toEqual(Array(6).fill("not yet run"));
+    expect(states(f.fresh)).toEqual([
+      "2 to describe",
+      ...Array(5).fill("not yet run"),
+    ]);
     expect(f.fresh.rows.every((r: Facts) => !r.ticked)).toBe(true);
     expect(f.fresh.rows.every((r: Facts) => r.color === MUTED)).toBe(true);
   });
@@ -354,20 +357,18 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
 
   it("has one primary Scan button alone, with no text beside it", () => {
     expect(f.fresh.buttons).toEqual([
-      { text: "Scan", disabled: false, spinner: 0 },
+      { text: "Run", disabled: false, spinner: 0 },
     ]);
     expect(f.fresh.buttonTitle).toBe("");
   });
 
   it("matches the mock after a scan: Scanned with an age and no sha or counts", () => {
-    expect(f.scanned.header).toBe("Scanned just now");
+    expect(f.scanned.header).toBe("Ran just now");
     expect(f.scanned.amber).toBeNull();
   });
 
   it("matches the mock with files changed: the phrase after the dot in amber", () => {
-    expect(f.changed.header).toBe(
-      "Scanned 2 hours ago \u00b7 files changed since",
-    );
+    expect(f.changed.header).toBe("Ran 2 hours ago \u00b7 files changed since");
     expect(f.changed.amber).toBe("files changed since");
     expect(f.changed.amberColor).toBe(AMBER);
   });
@@ -399,15 +400,15 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.run.first.rows[0].color).toBe(ACCENT);
     expect(f.run.first.rows[1].color).toBe(MUTED);
     expect(f.run.first.buttons).toEqual([
-      { text: "Scanning", disabled: true, spinner: 1 },
+      { text: "Running", disabled: true, spinner: 1 },
       { text: "Stop", disabled: false, spinner: 0 },
     ]);
-    expect(f.run.footer.text).toBe("Scanning\u2026 Descriptions, 1 of 3");
+    expect(f.run.footer.text).toBe("Describing\u2026 0 of 1 modules");
     expect(f.run.footer.buttons).toEqual(["bell"]);
     expect(f.run.footerAfter.text).toBe("Scanned at cur1234, just now");
     expect(f.run.footerAfter.buttons).toEqual(["bell"]);
     expect(f.run.after.buttons).toEqual([
-      { text: "Scan", disabled: false, spinner: 0 },
+      { text: "Run", disabled: false, spinner: 0 },
     ]);
     expect(f.run.first.rows.every((r: Facts) => !r.disabled)).toBe(true);
   });
@@ -424,12 +425,12 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(row(f.run.afterDuplication, "duplication").color).toBe(GREEN);
     expect(row(f.run.afterDuplication, "crap").state).toBe("running");
     expect(row(f.run.after, "describe").state).toMatch(
-      /modules? described|not yet run/,
+      /modules? described|to describe|not yet run/,
     );
     expect(row(f.run.after, "duplication").state).toBe("0 findings, just now");
-    expect(f.run.after.header).toBe("Scanned just now");
+    expect(f.run.after.header).toBe("Ran just now");
     expect(f.run.after.buttons).toEqual([
-      { text: "Scan", disabled: false, spinner: 0 },
+      { text: "Run", disabled: false, spinner: 0 },
     ]);
   });
 
@@ -454,7 +455,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.stop.footer).toContain("Scanned");
     expect(f.stop.footerButtons).toEqual(["bell"]);
     expect(f.stop.stopAfter).toBe(0);
-    expect(f.stop.button).toBe("Scan");
+    expect(f.stop.button).toBe("Run");
     expect(f.stop.disabled).toBe(false);
   });
 
@@ -516,7 +517,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
 
   it("renders only the header while the shipped list is being read, then every row at once", () => {
     expect(f.pending).toEqual({
-      header: "Scanned just now",
+      header: "Ran just now",
       rows: 0,
       buttons: 0,
       list: 0,

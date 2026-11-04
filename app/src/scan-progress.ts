@@ -175,6 +175,8 @@ function failures(entries: EntryResult[]): EntryResult[] {
   return entries.filter((entry) => entry.outcome === "failed");
 }
 
+const DESCRIBE_PHASE_KEY = "describe";
+
 export type RunRow = { key: string; display: string };
 
 export function scanningText(
@@ -186,14 +188,23 @@ export function scanningText(
     return null;
   }
 
-  const at = rows.findIndex((row) => row.key === started);
-  const row = rows[at];
+  if (started === DESCRIBE_PHASE_KEY) {
+    const describe = progress.describe;
+
+    return describe === null
+      ? "Scanning\u2026"
+      : `Describing\u2026 ${describe.entries.length} of ${describe.total} modules`;
+  }
+
+  const sensors = rows.filter((row) => row.key !== DESCRIBE_PHASE_KEY);
+  const at = sensors.findIndex((row) => row.key === started);
+  const row = sensors[at];
 
   if (row === undefined) {
     return "Scanning\u2026";
   }
 
-  return `Scanning\u2026 ${row.display}, ${at + 1} of ${rows.length}`;
+  return `Running ${row.display}\u2026 ${at + 1} of ${sensors.length}`;
 }
 
 export function showTarget(progress: ScanProgress): ShowTarget | null {
