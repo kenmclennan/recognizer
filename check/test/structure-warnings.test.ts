@@ -28,7 +28,11 @@ import {
 } from "./folder-fixtures.js";
 import { REPO } from "./helpers.js";
 
-function scanOf(edges: [string, string][], modules: string[] = []) {
+function scanOf(
+  edges: [string, string][],
+  modules: string[] = [],
+  entryPoints: string[] = [],
+) {
   const ids = new Set([...modules, ...edges.flat()]);
 
   return validateScan({
@@ -47,7 +51,13 @@ function scanOf(edges: [string, string][], modules: string[] = []) {
     },
     modules: [...ids]
       .filter((id) => !id.startsWith("foreign:"))
-      .map((id) => ({ id, language: "python", kind: "module", members: [] })),
+      .map((id) => ({
+        id,
+        language: "python",
+        kind: "module",
+        members: [],
+        ...(entryPoints.includes(id) ? { entry_point: true } : {}),
+      })),
     edges: edges.map(([from, to], index) => ({
       from,
       to,
@@ -153,6 +163,28 @@ describe("orphan", () => {
 
   it("reports a plain module nothing imports", () => {
     expect(orphans(["app/plain.py"])).toEqual(["orphan:app/plain.py"]);
+  });
+
+  it("skips a module the scan flags as an entry point", () => {
+    const flagged = orphanFindings(
+      scanOf([], ["app/run.py", "app/plain.py"], ["app/run.py"]),
+      null,
+      [],
+    );
+    const unflagged = orphanFindings(scanOf([], ["app/run.py"]), null, []);
+
+    expect(ids(flagged)).toEqual(["orphan:app/plain.py"]);
+    expect(ids(unflagged)).toEqual(["orphan:app/run.py"]);
+  });
+
+  it("still exempts configured globs and policy literals beside a flag", () => {
+    expect(
+      orphans(
+        ["app/run.py", "cli/x.py", "app/lit.py"],
+        ["cli/**"],
+        "components:\n  wired:\n    - app/lit.py\n",
+      ),
+    ).toEqual(["orphan:app/run.py"]);
   });
 
   it("describes the finding", () => {
@@ -326,7 +358,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"hub_threshold":10,"distance_threshold":0.3,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"stable_abstractions":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("4");
+    expect(document.sensor.version).toBe("5");
   });
 
   it("describes the settings with and without entry points", () => {
@@ -765,6 +797,7 @@ interface UnusedModule {
   kind?: "module" | "package";
   exports?: string[];
   hidden?: string[];
+  entry_point?: true;
 }
 
 interface UnusedEdge {
@@ -794,6 +827,7 @@ function unusedScan(modules: UnusedModule[], edges: UnusedEdge[] = []) {
       id: module.id,
       language: "python",
       kind: module.kind ?? "module",
+      ...(module.entry_point === true ? { entry_point: true } : {}),
       members: [
         ...(module.exports ?? []).map((name, index) => ({
           name,
@@ -844,6 +878,15 @@ function unusedOf(
 }
 
 describe("unused_exports", () => {
+  it("skips a flagged module and still lists an unflagged one", () => {
+    expect(
+      unusedOf([
+        { id: "shop/run.py", exports: ["go"], entry_point: true },
+        { id: "shop/lib2.py", exports: ["go"] },
+      ]),
+    ).toEqual({ "shop/lib2.py": ["go"] });
+  });
+
   it("lists only the unused name of a partly used module", () => {
     const found = unusedExportsFindings(
       unusedScan(

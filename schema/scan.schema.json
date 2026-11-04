@@ -97,7 +97,8 @@
         "id": { "$ref": "#/$defs/moduleId" },
         "language": { "enum": ["python", "typescript", "kotlin", "rust"] },
         "kind": { "enum": ["module", "package", "interface"] },
-        "members": { "type": "array", "items": { "$ref": "#/$defs/member" } }
+        "members": { "type": "array", "items": { "$ref": "#/$defs/member" } },
+        "entry_point": { "type": "boolean", "const": true }
       }
     },
     "member": {

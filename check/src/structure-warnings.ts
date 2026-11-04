@@ -129,10 +129,17 @@ export function orphanFindings(
   const { ids, pairs } = moduleEdges(scan, policy);
   const imported = new Set(pairs.map((pair) => pair.to));
   const literalPaths = policyLiteralPaths(policy);
+  const scanned = new Set(
+    scan.modules
+      .filter((module) => module.entry_point === true)
+      .map((module) => module.id),
+  );
 
   return [...ids]
     .filter((id) => !imported.has(id))
-    .filter((id) => !isEntryPoint(id, literalPaths, entryPoints))
+    .filter(
+      (id) => !isEntryPoint(id, literalPaths, entryPoints, scanned.has(id)),
+    )
     .sort(compare)
     .map((id) => ({
       id: `orphan:${id}`,
@@ -195,7 +202,12 @@ export function unusedExportsFindings(
     if (
       !ids.has(module.id) ||
       whole.has(module.id) ||
-      isEntryPoint(module.id, literalPaths, entryPoints)
+      isEntryPoint(
+        module.id,
+        literalPaths,
+        entryPoints,
+        module.entry_point === true,
+      )
     ) {
       continue;
     }

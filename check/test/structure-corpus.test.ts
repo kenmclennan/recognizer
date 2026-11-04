@@ -43,7 +43,12 @@ interface ScanDescription {
     warnings?: Record<string, boolean>;
   };
   policy?: string;
-  modules: { id: string; kind: string; exports: string[] }[];
+  modules: {
+    id: string;
+    kind: string;
+    exports: string[];
+    entry_point?: true;
+  }[];
   edges: [string, string][];
 }
 
@@ -84,6 +89,7 @@ function scanFrom(description: ScanDescription): Scan {
       id: module.id,
       language: "typescript",
       kind: module.kind,
+      ...(module.entry_point === true ? { entry_point: true } : {}),
       members: module.exports.map((kind, index) =>
         kind === "abstract"
           ? {
@@ -146,8 +152,8 @@ function label(one: Case): string {
 }
 
 describe("structure corpus", () => {
-  it("holds 34 labelled cases and 17 folder metric rows", () => {
-    expect(expected.cases).toHaveLength(34);
+  it("holds 36 labelled cases and 17 folder metric rows", () => {
+    expect(expected.cases).toHaveLength(36);
     expect(expected.folder_metrics).toHaveLength(17);
   });
 
