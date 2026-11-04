@@ -1,5 +1,12 @@
+import {
+  checkDescribing,
+  type DescribingValues,
+  MAX_BATCH_SIZE,
+} from "./settings-model";
+
 export type SettingsValues = {
   editor: string;
+  describing: DescribingValues;
 };
 
 export type SettingsActions = {
@@ -25,6 +32,9 @@ function field(label: string, control: HTMLElement): HTMLLabelElement {
   return node;
 }
 
+export const DESCRIBING_HINT =
+  "The model every description uses, and how many modules are described at once. Applies to scans started from the app and from a terminal.";
+
 function textInput(placeholder: string, name: string): HTMLInputElement {
   const node = document.createElement("input");
 
@@ -33,6 +43,18 @@ function textInput(placeholder: string, name: string): HTMLInputElement {
   node.placeholder = placeholder;
   node.spellcheck = false;
   node.autocomplete = "off";
+
+  return node;
+}
+
+function numberInput(name: string): HTMLInputElement {
+  const node = document.createElement("input");
+
+  node.type = "number";
+  node.name = name;
+  node.min = "1";
+  node.max = String(MAX_BATCH_SIZE);
+  node.step = "1";
 
   return node;
 }
@@ -52,11 +74,21 @@ export function buildSettings(
 ): SettingsView {
   const form = document.createElement("form");
   const editor = textInput("System default", "editor");
+  const describing = document.createElement("fieldset");
+  const describingLegend = document.createElement("legend");
+  const describingRow = document.createElement("div");
+  const model = textInput("sonnet", "model");
+  const batchSize = numberInput("batch_size");
   const error = document.createElement("p");
   const buttons = document.createElement("div");
   const saveButton = document.createElement("button");
   const cancelButton = document.createElement("button");
 
+  describing.className = "describing";
+  describingLegend.textContent = "Describing";
+  describingRow.className = "row";
+  describingRow.append(field("Model", model), field("Batch size", batchSize));
+  describing.append(describingLegend, describingRow, hintNode(DESCRIBING_HINT));
   error.className = "error";
   error.setAttribute("role", "alert");
   buttons.className = "buttons";
@@ -69,15 +101,33 @@ export function buildSettings(
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    actions.save({ editor: editor.value.trim() });
+
+    const checked = checkDescribing(model.value, batchSize.value);
+
+    if (!checked.ok) {
+      error.textContent = checked.error;
+
+      return;
+    }
+
+    error.textContent = "";
+    actions.save({ editor: editor.value.trim(), describing: checked.value });
   });
 
-  form.append(field("Editor", editor), hintNode(EDITOR_HINT), error, buttons);
+  form.append(
+    field("Editor", editor),
+    hintNode(EDITOR_HINT),
+    describing,
+    error,
+    buttons,
+  );
   container.replaceChildren(form);
 
   return {
     fill(values) {
       editor.value = values.editor;
+      model.value = values.describing.model;
+      batchSize.value = String(values.describing.batchSize);
     },
     showError(text) {
       error.textContent = text;

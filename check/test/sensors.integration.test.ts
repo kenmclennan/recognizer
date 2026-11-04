@@ -152,14 +152,17 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "finds exactly the two planted duplicates",
-      () => {
+      async () => {
         configure("{}");
         commit();
 
         const captured = capture();
 
         expect(
-          run(["scan", repository, "--sense", "duplication"], captured.io),
+          await run(
+            ["scan", repository, "--sense", "duplication"],
+            captured.io,
+          ),
         ).toBe(0);
 
         expect(findings().map((finding) => finding.id)).toEqual([
@@ -187,7 +190,7 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "stops naming a copy that was only on disk during a dirty run",
-      () => {
+      async () => {
         configure("{}");
         commit();
 
@@ -196,7 +199,10 @@ describe.skipIf(!HAS_UV)(
         cpSync(join(repository, "app/pricing.py"), copy);
 
         expect(
-          run(["scan", repository, "--sense", "duplication"], capture().io),
+          await run(
+            ["scan", repository, "--sense", "duplication"],
+            capture().io,
+          ),
         ).toBe(0);
         expect(JSON.stringify(findings())).toContain("pricing_copy.py");
 
@@ -205,7 +211,10 @@ describe.skipIf(!HAS_UV)(
         const captured = capture();
 
         expect(
-          run(["check", "--repository", repository, "--json"], captured.io),
+          await run(
+            ["check", "--repository", repository, "--json"],
+            captured.io,
+          ),
         ).toBeLessThan(2);
         expect(captured.out()).not.toContain("pricing_copy.py");
         expect(captured.err()).toContain("stale duplication");
@@ -215,12 +224,15 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "passes the settings to the sensor",
-      () => {
+      async () => {
         configure("{threshold: 0.99}");
         commit();
 
         expect(
-          run(["scan", repository, "--sense", "duplication"], capture().io),
+          await run(
+            ["scan", repository, "--sense", "duplication"],
+            capture().io,
+          ),
         ).toBe(0);
         expect(findings()).toHaveLength(2);
       },
@@ -229,14 +241,17 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "refuses a threshold above 1 when the config is read",
-      () => {
+      async () => {
         configure("{threshold: 1.01}");
         commit();
 
         const captured = capture();
 
         expect(
-          run(["scan", repository, "--sense", "duplication"], captured.io),
+          await run(
+            ["scan", repository, "--sense", "duplication"],
+            captured.io,
+          ),
         ).not.toBe(0);
         expect(captured.err()).toContain("config/sensors/duplication");
       },
@@ -268,12 +283,12 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "finds the two planted risks and writes the overlay for crap",
-      () => {
+      async () => {
         useCrapFixture("{coverage: coverage/lcov.info}");
 
-        expect(run(["scan", repository, "--sense", "crap"], capture().io)).toBe(
-          0,
-        );
+        expect(
+          await run(["scan", repository, "--sense", "crap"], capture().io),
+        ).toBe(0);
 
         const document = JSON.parse(
           readFileSync(
@@ -304,14 +319,14 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "fails with one sentence and writes nothing when the coverage file is missing",
-      () => {
+      async () => {
         useCrapFixture("{coverage: missing/lcov.info}");
 
         const captured = capture();
 
-        expect(run(["scan", repository, "--sense", "crap"], captured.io)).toBe(
-          1,
-        );
+        expect(
+          await run(["scan", repository, "--sense", "crap"], captured.io),
+        ).toBe(1);
         expect(captured.err()).toContain(
           "the coverage file is missing: missing/lcov.info",
         );
@@ -397,11 +412,14 @@ describe.skipIf(!HAS_UV)(
 
       it(
         "finds the seven planted crossings",
-        () => {
+        async () => {
           useThresholdsFixture("{churn: {above: 20, severity: violation}}");
 
           expect(
-            run(["scan", repository, "--sense", "thresholds"], capture().io),
+            await run(
+              ["scan", repository, "--sense", "thresholds"],
+              capture().io,
+            ),
           ).toBe(0);
           expect(thresholdIds()).toEqual([
             "thresholds:churn:app/billing.py",
@@ -418,11 +436,14 @@ describe.skipIf(!HAS_UV)(
 
       it.each(["{complexity: {above: 15}}", "{complexity: off}"])(
         "drops the complexity findings for %s",
-        (settings) => {
+        async (settings) => {
           useThresholdsFixture(settings);
 
           expect(
-            run(["scan", repository, "--sense", "thresholds"], capture().io),
+            await run(
+              ["scan", repository, "--sense", "thresholds"],
+              capture().io,
+            ),
           ).toBe(0);
 
           const ids = thresholdIds();

@@ -1,4 +1,14 @@
 #!/usr/bin/env node
-import { run } from "./cli.js";
+import { run, stopEverything } from "./cli.js";
 
-process.exitCode = run(process.argv.slice(2));
+for (const [signal, code] of [
+  ["SIGINT", 130],
+  ["SIGTERM", 143],
+] as const) {
+  process.on(signal, () => {
+    stopEverything();
+    process.exit(code);
+  });
+}
+
+process.exitCode = await run(process.argv.slice(2));

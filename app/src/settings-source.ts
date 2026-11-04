@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type Settings = {
   editor: string;
+  describing: { model: string; batchSize: number };
 };
 
 export const settingsSource = {

@@ -27,7 +27,7 @@ export interface Command {
   output: { text: string; json: string };
   exitCodes: { code: number; meaning: string }[];
   examples: { command: string; note: string }[];
-  run(argv: string[], io: Io): number;
+  run(argv: string[], io: Io): number | Promise<number>;
 }
 
 const REPOSITORY_OPTIONS = [
@@ -157,7 +157,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--describe[=all]",
         description:
-          "describe every module whose line is missing or out of date, as recognizer describe does with no names; =all describes every module (the value only with =)",
+          "describe every module whose line is missing or out of date, as recognizer describe does with no names, up to the batch size at once; =all describes every module (the value only with =)",
       },
       {
         flag: "--sense <all|name[,name...]>",
@@ -817,7 +817,7 @@ export const COMMANDS: Command[] = [
   {
     name: "describe",
     summary:
-      "write each module's one-line responsibility with the repository's registered describer, or the shipped recognizer-describe-claude when none is registered",
+      "write each module's one-line responsibility with the repository's registered describer, or the shipped recognizer-describe-claude when none is registered, running up to the batch size of describers at once",
     usage: [
       "recognizer describe [<module>... | --all] [--repository <dir>] [--json]",
       "recognizer describe --check [<module>...] [--repository <dir>] [--json]",

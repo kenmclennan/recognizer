@@ -32,7 +32,11 @@ const files = (
 
 describe("responsibilityStates", () => {
   it("is current while source, describer and version match", () => {
-    const state = responsibilityStates(files({ "a.py": entry() }))("a.py");
+    const state = responsibilityStates(
+      files({ "a.py": entry() }),
+      null,
+      "sonnet",
+    )("a.py");
 
     expect(state).toEqual({ kind: "current", line: "Places orders." });
   });
@@ -47,9 +51,11 @@ describe("responsibilityStates", () => {
       ["source", "describer", "version"],
     ],
   ])("is out of date when the %s differs", (_, extra, reasons) => {
-    const state = responsibilityStates(files({ "a.py": entry() }, extra))(
-      "a.py",
-    );
+    const state = responsibilityStates(
+      files({ "a.py": entry() }, extra),
+      null,
+      "sonnet",
+    )("a.py");
 
     expect(state).toEqual({
       kind: "out-of-date",
@@ -59,27 +65,39 @@ describe("responsibilityStates", () => {
   });
 
   it("is missing for a module without an entry, and with no file at all", () => {
-    expect(responsibilityStates(files({}))("a.py")).toEqual({
+    expect(responsibilityStates(files({}), null, "sonnet")("a.py")).toEqual({
       kind: "missing",
     });
-    expect(responsibilityStates(NO_FILES)("a.py")).toEqual({
+    expect(responsibilityStates(NO_FILES, null, "sonnet")("a.py")).toEqual({
       kind: "missing",
     });
   });
 
   it("is unknown for every module when a file is invalid", () => {
-    const badJson = responsibilityStates({
-      ...files({ "a.py": entry() }),
-      responsibilities: "not json",
-    });
-    const badShape = responsibilityStates({
-      ...files({ "a.py": entry() }),
-      responsibilities: '{"schema_version":2,"modules":{}}',
-    });
-    const badConfig = responsibilityStates({
-      ...files({ "a.py": entry() }),
-      config: "describer: 4",
-    });
+    const badJson = responsibilityStates(
+      {
+        ...files({ "a.py": entry() }),
+        responsibilities: "not json",
+      },
+      null,
+      "sonnet",
+    );
+    const badShape = responsibilityStates(
+      {
+        ...files({ "a.py": entry() }),
+        responsibilities: '{"schema_version":2,"modules":{}}',
+      },
+      null,
+      "sonnet",
+    );
+    const badConfig = responsibilityStates(
+      {
+        ...files({ "a.py": entry() }),
+        config: "describer: 4",
+      },
+      null,
+      "sonnet",
+    );
 
     for (const states of [badJson, badShape, badConfig]) {
       expect(states("a.py").kind).toBe("unknown");
@@ -90,9 +108,13 @@ describe("responsibilityStates", () => {
   it("is out of date, never current, with no hash or no registered describer", () => {
     const noHash = responsibilityStates(
       files({ "a.py": entry() }, { hashes: {} }),
+      null,
+      "sonnet",
     )("a.py");
     const noDescriber = responsibilityStates(
       files({ "a.py": entry() }, { config: null }),
+      null,
+      "sonnet",
     )("a.py");
 
     expect(noHash).toEqual({
@@ -113,6 +135,8 @@ describe("responsibilityStates", () => {
         { "a.py": entry(), "b.py": entry(OTHER), "gone.py": entry() },
         { hashes: { "a.py": HASH, "b.py": HASH, "gone.py": HASH } },
       ),
+      null,
+      "sonnet",
     );
 
     expect(states("a.py").kind).toBe("current");
@@ -130,11 +154,15 @@ describe("the repository's own examples", () => {
     );
 
   it.each(read(EXAMPLES, "valid"))("reads valid %s", (_, text) => {
-    const states = responsibilityStates({
-      ...NO_FILES,
-      responsibilities: text,
-      config: readFileSync(join(CONFIGS, "valid/describer.yaml"), "utf8"),
-    });
+    const states = responsibilityStates(
+      {
+        ...NO_FILES,
+        responsibilities: text,
+        config: readFileSync(join(CONFIGS, "valid/describer.yaml"), "utf8"),
+      },
+      null,
+      "sonnet",
+    );
     const modules = Object.keys(JSON.parse(text).modules);
 
     for (const id of ["unlisted.py", ...modules]) {
@@ -145,10 +173,14 @@ describe("the repository's own examples", () => {
   it.each(read(EXAMPLES, "invalid"))(
     "reports invalid %s as unknown",
     (_, text) => {
-      const states = responsibilityStates({
-        ...NO_FILES,
-        responsibilities: text,
-      });
+      const states = responsibilityStates(
+        {
+          ...NO_FILES,
+          responsibilities: text,
+        },
+        null,
+        "sonnet",
+      );
 
       expect(states("a.py").kind).toBe("unknown");
     },
@@ -157,11 +189,65 @@ describe("the repository's own examples", () => {
   it.each(read(CONFIGS, "invalid"))(
     "reports invalid config %s as unknown",
     (_, text) => {
-      const states = responsibilityStates({ ...NO_FILES, config: text });
+      const states = responsibilityStates(
+        { ...NO_FILES, config: text },
+        null,
+        "sonnet",
+      );
 
       expect(states("a.py").kind).toBe("unknown");
     },
   );
+});
+
+describe("responsibilityStates and the model", () => {
+  const withModel = (model: string) =>
+    responsibilityStates(
+      files(
+        { "a.py": entry(HASH, ["d", "--model", "{model}"], "v1+sonnet") },
+        { config: config(["d", "--model", "{model}"], "v1") },
+      ),
+      null,
+      model,
+    )("a.py");
+
+  it("is current under the model that wrote the line", () => {
+    expect(withModel("sonnet")).toEqual({
+      kind: "current",
+      line: "Places orders.",
+    });
+  });
+
+  it("is out of date for version under another model", () => {
+    expect(withModel("opus")).toEqual({
+      kind: "out-of-date",
+      line: "Places orders.",
+      reasons: ["version"],
+    });
+  });
+
+  it("ignores the model for a describer whose command has no {model}", () => {
+    const states = responsibilityStates(
+      files({ "a.py": entry() }),
+      null,
+      "opus",
+    );
+
+    expect(states("a.py").kind).toBe("current");
+  });
+
+  it("takes the fallback's version as already effective", () => {
+    const states = responsibilityStates(
+      files(
+        { "a.py": entry(HASH, ["d", "{model}"], "v1+opus") },
+        { config: null },
+      ),
+      { command: ["d", "{model}"], version: "v1+opus" },
+      "opus",
+    );
+
+    expect(states("a.py").kind).toBe("current");
+  });
 });
 
 describe("createDescribing", () => {
@@ -184,22 +270,22 @@ describe("createDescribing", () => {
 
 describe("responsibilityStates with the describer in effect", () => {
   const fallback = {
-    command: ["recognizer-describe-claude", "{request}"],
-    version: "p1",
+    command: ["recognizer-describe-claude", "--model", "{model}", "{request}"],
+    version: "p1+sonnet",
   };
   const written = files(
-    { "a.py": entry(HASH, fallback.command, "p1") },
+    { "a.py": entry(HASH, fallback.command, "p1+sonnet") },
     { config: null },
   );
 
   it("treats a line written by the fallback as current when no config describer exists", () => {
-    expect(responsibilityStates(written, fallback)("a.py").kind).toBe(
+    expect(responsibilityStates(written, fallback, "sonnet")("a.py").kind).toBe(
       "current",
     );
   });
 
   it("treats it as out of date when no describer is in effect", () => {
-    expect(responsibilityStates(written, null)("a.py").kind).toBe(
+    expect(responsibilityStates(written, null, "sonnet")("a.py").kind).toBe(
       "out-of-date",
     );
   });

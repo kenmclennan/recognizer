@@ -35,7 +35,7 @@ recognizer help                 # every command
 A repository configures Recognizer in `.recognizer/`, which is committed:
 
 - `policy.yaml` declares the architecture: named components by path and the dependencies each may have. An edge that breaks it is a violation, and `recognizer check` refuses growth beyond the committed baseline. Start from a policy in [`policies/`](policies).
-- `config.yaml` registers the sensors to run (`sensors: {duplication: {}, crap: {}}` for the shipped ones) and a describer that writes each module's one-line responsibility.
+- `config.yaml` registers the sensors to run (`sensors: {duplication: {}, crap: {}}` for the shipped ones) and a describer that writes each module's one-line responsibility. The describer's model and how many modules it describes at once are user settings (`describing` in the app's `config.json`, edited in Settings), not part of the repository.
 
 Agents use the command line only: `recognizer agents install` adds the Claude Code skill and permission rule, and `recognizer help agents` prints the guide they follow.
 

@@ -77,6 +77,7 @@ const scanHost: ScanHost = {
   run: () => void rescanner.run(),
   stop: () => void rescanner.stop(),
   refresh: () => void rescanner.refresh(),
+  model: async () => (await scanSource.readDescribing()).model,
 };
 
 const comparisons = createViewComparisons();
@@ -258,6 +259,9 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+void getCurrentWebviewWindow().listen("settings-changed", () =>
+  explorer?.refreshResponsibilities(),
+);
 void getCurrentWebviewWindow().listen("open-in-editor", () =>
   explorer?.openSelectedInEditor(),
 );

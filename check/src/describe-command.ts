@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import {
   type Describer,
@@ -163,14 +164,18 @@ function runCheck(loaded: Loaded, io: Io): number {
   return ok ? 0 : 1;
 }
 
-function runDescribe(loaded: Loaded, io: Io): number {
+async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
   const startedAt = io.now();
   const recorded: RunEntry[] = [];
   let runLog: OpenRunLog | null = null;
 
-  const result = describeModules({
+  const { model, batch_size: batchSize } = readDescribing(io);
+
+  const result = await describeModules({
     io,
     root: loaded.root,
+    model,
+    batchSize,
     scans: loaded.scans,
     describer: loaded.describer,
     selection: loaded.all
@@ -249,7 +254,10 @@ function runDescriber(argv: string[], io: Io): number {
   return 0;
 }
 
-export function runDescribeCommand(argv: string[], io: Io): number {
+export function runDescribeCommand(
+  argv: string[],
+  io: Io,
+): number | Promise<number> {
   if (argv.includes("--describer")) {
     return runDescriber(argv, io);
   }

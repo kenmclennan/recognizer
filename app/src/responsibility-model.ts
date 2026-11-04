@@ -1,5 +1,6 @@
 import {
   type Config,
+  describerVersion,
   lineStatus,
   parseConfig,
   type Responsibilities,
@@ -53,7 +54,8 @@ export type EffectiveDescriber = { command: string[]; version: string };
 
 export function responsibilityStates(
   files: ResponsibilityFiles,
-  fallback: EffectiveDescriber | null = null,
+  fallback: EffectiveDescriber | null,
+  model: string,
 ): (id: string) => ResponsibilityState {
   let responsibilities: Responsibilities | null = null;
   let config: Config | null = null;
@@ -88,7 +90,13 @@ export function responsibilityStates(
       return { kind: "missing" };
     }
 
-    const describer = config?.describer ?? fallback ?? undefined;
+    const describer =
+      config?.describer === undefined
+        ? (fallback ?? undefined)
+        : {
+            ...config.describer,
+            version: describerVersion(config.describer, model),
+          };
 
     if (describer === undefined) {
       return {

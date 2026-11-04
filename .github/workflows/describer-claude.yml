@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - describers/claude/**
+      - check/**
       - schema/**
       - fixtures/**
       - package.json
@@ -14,6 +15,7 @@ on:
     branches: [main]
     paths:
       - describers/claude/**
+      - check/**
       - schema/**
       - fixtures/**
       - package.json
@@ -33,5 +35,6 @@ jobs:
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run lint -w describers/claude
+      - run: npm run build -w recognizer
       - run: npm run build -w describers/claude
       - run: node scripts/assert-clean-tmpdir.mjs npm test -w describers/claude

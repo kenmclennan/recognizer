@@ -15,21 +15,21 @@ import {
 
 const DIRECTORY = `${ROOT}/.recognizer/cache/log`;
 
-function scanning(options: FakeOptions = {}, ...args: string[]) {
+async function scanning(options: FakeOptions = {}, ...args: string[]) {
   const fake = fakeIo({
     files: { [`${ROOT}/a.py`]: "" },
     scanners: { [PYTHON]: { output: scanJson(2, 1) } },
     ...options,
   });
-  const code = run(["scan", ROOT, ...args], fake.io);
+  const code = await run(["scan", ROOT, ...args], fake.io);
 
   return { fake, code, out: fake.out(), err: fake.err() };
 }
 
-function log(fake: Fake, ...args: string[]) {
+async function log(fake: Fake, ...args: string[]) {
   const before = fake.out();
   const beforeErr = fake.err();
-  const code = run(["log", "--repository", ROOT, ...args], fake.io);
+  const code = await run(["log", "--repository", ROOT, ...args], fake.io);
 
   return {
     code,
@@ -45,8 +45,8 @@ function records(fake: Fake): string[] {
 }
 
 describe("scan leaves a run record", () => {
-  it("records a written and a failed language as two entries", () => {
-    const { fake, code } = scanning({
+  it("records a written and a failed language as two entries", async () => {
+    const { fake, code } = await scanning({
       files: { [`${ROOT}/a.py`]: "", [`${ROOT}/b.ts`]: "" },
       scanners: {
         [PYTHON]: { output: scanJson(2, 1) },
@@ -81,29 +81,29 @@ describe("scan leaves a run record", () => {
     });
   });
 
-  it("records --by", () => {
-    const { fake } = scanning({}, "--by", "Claude");
+  it("records --by", async () => {
+    const { fake } = await scanning({}, "--by", "Claude");
 
     expect(
       JSON.parse(fake.files.get(records(fake)[0] as string) as string).by,
     ).toBe("Claude");
   });
 
-  it("writes nothing when no language is detected", () => {
-    const { fake } = scanning({ files: { [`${ROOT}/readme.md`]: "" } });
+  it("writes nothing when no language is detected", async () => {
+    const { fake } = await scanning({ files: { [`${ROOT}/readme.md`]: "" } });
 
     expect(records(fake)).toEqual([]);
   });
 
-  it("writes nothing and creates no directory on a usage error", () => {
-    const { fake, code } = scanning({}, "--by", " ");
+  it("writes nothing and creates no directory on a usage error", async () => {
+    const { fake, code } = await scanning({}, "--by", " ");
 
     expect(code).toBe(2);
     expect(records(fake)).toEqual([]);
   });
 
-  it("warns on stderr and keeps stdout and the exit code when the record cannot be written", () => {
-    const plain = scanning();
+  it("warns on stderr and keeps stdout and the exit code when the record cannot be written", async () => {
+    const plain = await scanning();
     const fake = fakeIo({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { output: scanJson(2, 1) } },
@@ -118,20 +118,20 @@ describe("scan leaves a run record", () => {
         fake.io.writeFile(path, content);
       },
     };
-    const code = run(["scan", ROOT], broken);
+    const code = await run(["scan", ROOT], broken);
 
     expect(code).toBe(plain.code);
     expect(fake.out()).toBe(plain.out);
     expect(fake.err()).toBe(`could not write run log: disk full\n`);
   });
 
-  it("leaves one scan record when a stale cache is rescanned by another command", () => {
+  it("leaves one scan record when a stale cache is rescanned by another command", async () => {
     const fake = fakeIo({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { output: scanJson(2, 1) } },
     });
 
-    run(["modules", "--repository", ROOT], fake.io);
+    await run(["modules", "--repository", ROOT], fake.io);
 
     expect(records(fake)).toHaveLength(1);
     expect(records(fake)[0]).toMatch(/-scan\.json$/);
@@ -139,7 +139,7 @@ describe("scan leaves a run record", () => {
 });
 
 describe("recognizer log", () => {
-  function twoRuns() {
+  async function twoRuns() {
     const fake = fakeIo({
       files: { [`${ROOT}/a.py`]: "", [`${ROOT}/b.ts`]: "" },
       scanners: {
@@ -148,15 +148,15 @@ describe("recognizer log", () => {
       },
     });
 
-    run(["scan", ROOT], fake.io);
-    run(["scan", ROOT, "--by", "Claude"], fake.io);
+    await run(["scan", ROOT], fake.io);
+    await run(["scan", ROOT, "--by", "Claude"], fake.io);
 
     return fake;
   }
 
-  it("lists runs newest first, one per line", () => {
-    const fake = twoRuns();
-    const result = log(fake);
+  it("lists runs newest first, one per line", async () => {
+    const fake = await twoRuns();
+    const result = await log(fake);
     const lines = result.out.trimEnd().split("\n");
 
     expect(result.code).toBe(0);
@@ -167,9 +167,9 @@ describe("recognizer log", () => {
     expect((lines[0] as string) > (lines[1] as string)).toBe(true);
   });
 
-  it("prints the newest run in full with --last and one run by id", () => {
-    const fake = twoRuns();
-    const last = log(fake, "--last");
+  it("prints the newest run in full with --last and one run by id", async () => {
+    const fake = await twoRuns();
+    const last = await log(fake, "--last");
     const id = (
       last.out.match(/^id: (\S+)$/m) as RegExpMatchArray
     )[1] as string;
@@ -178,18 +178,18 @@ describe("recognizer log", () => {
     expect(last.out).toContain("typescript  failed  exit 3");
     expect(last.out).toContain("  reason: scanner-failed - exit 3: boom");
     expect(last.out).toContain("    boom");
-    expect(log(fake, id).out).toBe(last.out);
+    expect((await log(fake, id)).out).toBe(last.out);
   });
 
-  it("prints one heading per phase for a phased record and none for a legacy one", () => {
+  it("prints one heading per phase for a phased record and none for a legacy one", async () => {
     const fake = fakeIo({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { output: scanJson(2, 1) } },
     });
 
-    run(["scan", ROOT], fake.io);
+    await run(["scan", ROOT], fake.io);
 
-    const phased = log(fake, "--last").out;
+    const phased = (await log(fake, "--last")).out;
 
     expect(phased).toMatch(/^extract$/m);
     expect(phased).toContain("python  ok  exit 0");
@@ -207,7 +207,7 @@ describe("recognizer log", () => {
       JSON.stringify(legacy),
     );
 
-    const flat = log(fake, "20990101T000000000Z-scan").out;
+    const flat = (await log(fake, "20990101T000000000Z-scan")).out;
 
     expect(flat).toContain("python  ok  exit 0");
     expect(flat).not.toMatch(/^extract$/m);
@@ -220,17 +220,17 @@ describe("recognizer log", () => {
       ),
     );
 
-    const measured = log(fake, "20990102T000000000Z-scan").out;
+    const measured = (await log(fake, "20990102T000000000Z-scan")).out;
 
     expect(measured).toMatch(/^measure$/m);
     expect(measured).toContain("coverage  ok  exit 0");
   });
 
-  it("prints json for the list, --last and an id", () => {
-    const fake = twoRuns();
-    const listed = JSON.parse(log(fake, "--json").out);
-    const last = JSON.parse(log(fake, "--last", "--json").out);
-    const one = JSON.parse(log(fake, listed.runs[1].id, "--json").out);
+  it("prints json for the list, --last and an id", async () => {
+    const fake = await twoRuns();
+    const listed = JSON.parse((await log(fake, "--json")).out);
+    const last = JSON.parse((await log(fake, "--last", "--json")).out);
+    const one = JSON.parse((await log(fake, listed.runs[1].id, "--json")).out);
 
     expect(listed.runs).toHaveLength(2);
     expect(listed.runs[0]).toMatchObject({
@@ -243,71 +243,80 @@ describe("recognizer log", () => {
     expect(last.phases[0].entries).toHaveLength(2);
   });
 
-  it("filters by kind", () => {
-    const fake = twoRuns();
+  it("filters by kind", async () => {
+    const fake = await twoRuns();
 
-    expect(log(fake, "--kind", "describe").out).toBe("no runs recorded\n");
+    expect((await log(fake, "--kind", "describe")).out).toBe(
+      "no runs recorded\n",
+    );
     expect(
-      JSON.parse(log(fake, "--kind", "scan", "--json").out).runs,
+      JSON.parse((await log(fake, "--kind", "scan", "--json")).out).runs,
     ).toHaveLength(2);
   });
 
-  it("answers an empty list with exit 0 and --last with exit 2", () => {
+  it("answers an empty list with exit 0 and --last with exit 2", async () => {
     const fake = fakeIo();
 
-    expect(log(fake)).toMatchObject({ code: 0, out: "no runs recorded\n" });
-    expect(log(fake, "--last")).toMatchObject({
+    expect(await log(fake)).toMatchObject({
+      code: 0,
+      out: "no runs recorded\n",
+    });
+    expect(await log(fake, "--last")).toMatchObject({
       code: 2,
       err: "no runs recorded\n",
     });
   });
 
-  it("refuses bad ids, conflicting options and an unknown kind", () => {
-    const fake = twoRuns();
+  it("refuses bad ids, conflicting options and an unknown kind", async () => {
+    const fake = await twoRuns();
 
-    expect(log(fake, "../x").code).toBe(2);
-    expect(log(fake, "20200101T000000000Z-scan").err).toContain("no such run");
-    expect(log(fake, "--last", "20200101T000000000Z-scan").code).toBe(2);
-    expect(log(fake, "a", "b").code).toBe(2);
-    expect(log(fake, "--kind", "scan", "20200101T000000000Z-scan").code).toBe(
+    expect((await log(fake, "../x")).code).toBe(2);
+    expect((await log(fake, "20200101T000000000Z-scan")).err).toContain(
+      "no such run",
+    );
+    expect((await log(fake, "--last", "20200101T000000000Z-scan")).code).toBe(
       2,
     );
-    expect(log(fake, "--kind", "audit").code).toBe(2);
+    expect((await log(fake, "a", "b")).code).toBe(2);
+    expect(
+      (await log(fake, "--kind", "scan", "20200101T000000000Z-scan")).code,
+    ).toBe(2);
+    expect((await log(fake, "--kind", "audit")).code).toBe(2);
   });
 
-  it("names a skipped file on stderr and still lists the rest", () => {
-    const fake = twoRuns();
+  it("names a skipped file on stderr and still lists the rest", async () => {
+    const fake = await twoRuns();
 
     fake.files.set(`${DIRECTORY}/20990101T000000000Z-sense.json`, "nope");
 
-    const result = log(fake);
+    const result = await log(fake);
 
     expect(result.code).toBe(0);
     expect(result.err).toContain("skipped 20990101T000000000Z-sense:");
     expect(result.out.trimEnd().split("\n")).toHaveLength(2);
   });
 
-  it("writes no record and never scans", () => {
-    const fake = twoRuns();
+  it("writes no record and never scans", async () => {
+    const fake = await twoRuns();
     const before = records(fake).length;
     const calls = fake.calls.length;
 
-    log(fake);
-    log(fake, "--last");
+    await log(fake);
+    await log(fake, "--last");
 
     expect(records(fake)).toHaveLength(before);
     expect(fake.calls).toHaveLength(calls);
   });
 
-  it("marks a truncated stderr", () => {
+  it("marks a truncated stderr", async () => {
     const fake = fakeIo({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { status: 1, stderr: "e".repeat(9000) } },
     });
 
-    run(["scan", ROOT], fake.io);
+    await run(["scan", ROOT], fake.io);
 
-    const out = log(fake, "--last").out;
+    const out = (await log(fake, "--last")).out;
 
     expect(out).toContain("(stderr cut to the last 8192 characters)");
   });
@@ -331,7 +340,7 @@ describe("sense and measure", () => {
     });
   }
 
-  function sensing(content: string, ...args: string[]) {
+  async function sensing(content: string, ...args: string[]) {
     const fake = fakeIo({
       commit: COMMIT,
       files: { [`${ROOT}/.recognizer/config.yaml`]: REGISTER },
@@ -348,13 +357,13 @@ describe("sense and measure", () => {
         },
       },
     });
-    const code = run(["scan", ROOT, "--sense", ...args], fake.io);
+    const code = await run(["scan", ROOT, "--sense", ...args], fake.io);
 
     return { fake, code };
   }
 
-  it("records a sensor that exits 0 with invalid findings as failed", () => {
-    const { fake, code } = sensing(
+  it("records a sensor that exits 0 with invalid findings as failed", async () => {
+    const { fake, code } = await sensing(
       document({ commit: "zzz" }),
       "fake-sensor",
       "--by",
@@ -388,8 +397,8 @@ describe("sense and measure", () => {
     expect(sensed[0].reason).toContain("findings commit zzz");
   });
 
-  it("selects the named sensors and records one entry per sensor", () => {
-    const { fake } = sensing(document(), "other", "--json");
+  it("selects the named sensors and records one entry per sensor", async () => {
+    const { fake } = await sensing(document(), "other", "--json");
     const saved = JSON.parse(
       fake.files.get(records(fake)[0] as string) as string,
     );
@@ -399,17 +408,17 @@ describe("sense and measure", () => {
     expect(sensed[0].stderr).toBe("chatty");
   });
 
-  it("writes nothing on bad input", () => {
-    const { fake, code } = sensing(document(), "nope");
+  it("writes nothing on bad input", async () => {
+    const { fake, code } = await sensing(document(), "nope");
 
     expect(code).toBe(2);
     expect(records(fake)).toEqual([]);
-    expect(sensing(document(), "--by", "").code).toBe(2);
+    expect((await sensing(document(), "--by", "")).code).toBe(2);
   });
 });
 
 describe("a scan record from the real run", () => {
-  it("is read back by log --json after a stubbed scan of the python sample", () => {
+  it("is read back by log --json after a stubbed scan of the python sample", async () => {
     const root = makeTempDir("recognizer-log-");
 
     cpSync(join(REPO, "fixtures/python/sample"), root, { recursive: true });
@@ -432,8 +441,8 @@ describe("a scan record from the real run", () => {
       },
     };
 
-    expect(run(["scan", root], io)).toBe(0);
-    expect(run(["log", "--json", "--repository", root], io)).toBe(0);
+    expect(await run(["scan", root], io)).toBe(0);
+    expect(await run(["log", "--json", "--repository", root], io)).toBe(0);
 
     const listed = JSON.parse(
       out.out().slice(out.out().indexOf('{\n  "runs"')),

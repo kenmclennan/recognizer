@@ -13,9 +13,9 @@ import {
 const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const TS_CACHE = `${ROOT}/.recognizer/cache/scan.typescript.json`;
 
-function scan(options: FakeOptions, ...args: string[]) {
+async function scan(options: FakeOptions, ...args: string[]) {
   const fake = fakeIo(options);
-  const code = run(["scan", ROOT, ...args], fake.io);
+  const code = await run(["scan", ROOT, ...args], fake.io);
 
   return { code, fake, out: fake.out(), err: fake.err() };
 }
@@ -35,8 +35,8 @@ const okPython = { output: scanJson(2, 1) };
 const okTypescript = { output: scanJson(3, 2) };
 
 describe("recognizer scan: command building", () => {
-  it("passes the exact argv with a commit", () => {
-    const { fake } = scan({
+  it("passes the exact argv with a commit", async () => {
+    const { fake } = await scan({
       files: both(),
       commit: "abc123",
       scanners: { [PYTHON]: okPython, [TYPESCRIPT]: okTypescript },
@@ -75,8 +75,8 @@ describe("recognizer scan: command building", () => {
     ]);
   });
 
-  it("scans a repository holding only .js files with the typescript scanner", () => {
-    const { fake, code } = scan({
+  it("scans a repository holding only .js files with the typescript scanner", async () => {
+    const { fake, code } = await scan({
       files: { [`${ROOT}/index.js`]: "" },
       scanners: { [TYPESCRIPT]: okTypescript },
     });
@@ -86,8 +86,8 @@ describe("recognizer scan: command building", () => {
     expect(fake.calls.map((call) => call.command)).not.toContain(PYTHON);
   });
 
-  it("passes --modified true when the tree has uncommitted changes", () => {
-    const { fake } = scan({
+  it("passes --modified true when the tree has uncommitted changes", async () => {
+    const { fake } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       commit: "abc123",
       status: " M a.py\n",
@@ -99,8 +99,8 @@ describe("recognizer scan: command building", () => {
     expect(args?.slice(-2)).toEqual(["--modified", "true"]);
   });
 
-  it("omits --commit and --modified outside git", () => {
-    const { fake } = scan({
+  it("omits --commit and --modified outside git", async () => {
+    const { fake } = await scan({
       files: both(),
       scanners: { [PYTHON]: okPython, [TYPESCRIPT]: okTypescript },
     });
@@ -111,8 +111,8 @@ describe("recognizer scan: command building", () => {
     ]);
   });
 
-  it("uses an absolute override in place of the scanner name", () => {
-    const { fake, code } = scan({
+  it("uses an absolute override in place of the scanner name", async () => {
+    const { fake, code } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       env: { RECOGNIZER_SCAN_PYTHON: "/opt/py-launcher" },
       scanners: { "/opt/py-launcher": okPython },
@@ -125,8 +125,8 @@ describe("recognizer scan: command building", () => {
     ]);
   });
 
-  it("rejects a relative override without running anything", () => {
-    const { fake, code, err } = scan({
+  it("rejects a relative override without running anything", async () => {
+    const { fake, code, err } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       env: { RECOGNIZER_SCAN_PYTHON: "bin/launcher" },
       scanners: { [PYTHON]: okPython },
@@ -138,8 +138,8 @@ describe("recognizer scan: command building", () => {
     expect(fake.files.has(PY_CACHE)).toBe(false);
   });
 
-  it("treats an empty override as unset", () => {
-    const { fake, code } = scan({
+  it("treats an empty override as unset", async () => {
+    const { fake, code } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       env: { RECOGNIZER_SCAN_PYTHON: "" },
       scanners: { [PYTHON]: okPython },
@@ -151,8 +151,8 @@ describe("recognizer scan: command building", () => {
 });
 
 describe("recognizer scan: kotlin", () => {
-  it("fails a detected kotlin language whose scanner is missing", () => {
-    const { code, err } = scan({ files: { [`${ROOT}/A.kt`]: "" } });
+  it("fails a detected kotlin language whose scanner is missing", async () => {
+    const { code, err } = await scan({ files: { [`${ROOT}/A.kt`]: "" } });
 
     expect(code).toBe(1);
     expect(err).toContain("recognizer-scan-kotlin is not installed");
@@ -165,8 +165,8 @@ describe("recognizer scan: kotlin", () => {
 });
 
 describe("recognizer scan: rust", () => {
-  it("fails a detected rust language whose scanner is missing", () => {
-    const { code, err } = scan({ files: { [`${ROOT}/src/lib.rs`]: "" } });
+  it("fails a detected rust language whose scanner is missing", async () => {
+    const { code, err } = await scan({ files: { [`${ROOT}/src/lib.rs`]: "" } });
 
     expect(code).toBe(1);
     expect(err).toContain("recognizer-scan-rust is not installed");
@@ -177,8 +177,8 @@ describe("recognizer scan: rust", () => {
     expect(scannerFor("rust").name).toBe("recognizer-scan-rust");
   });
 
-  it("uses an absolute override in place of the scanner name", () => {
-    const { fake, code } = scan({
+  it("uses an absolute override in place of the scanner name", async () => {
+    const { fake, code } = await scan({
       files: { [`${ROOT}/src/lib.rs`]: "" },
       env: { RECOGNIZER_SCAN_RUST: "/opt/rust-launcher" },
       scanners: { "/opt/rust-launcher": { output: scanJson(1, 0) } },
@@ -220,8 +220,8 @@ describe("recognizer scan: outcomes", () => {
 
   it.each(cases)(
     "%s writes nothing, removes the old file and still runs the other language",
-    (_, scanners, reason) => {
-      const { fake, code, err } = scan({
+    async (_, scanners, reason) => {
+      const { fake, code, err } = await scan({
         files: both({ [PY_CACHE]: "old" }),
         scanners: {
           [TYPESCRIPT]: okTypescript,
@@ -237,8 +237,8 @@ describe("recognizer scan: outcomes", () => {
     },
   );
 
-  it("names the version found and the version accepted", () => {
-    const { err } = scan({
+  it("names the version found and the version accepted", async () => {
+    const { err } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { output: scanJson(1, 0, { schema_version: 1 }) } },
     });
@@ -247,8 +247,8 @@ describe("recognizer scan: outcomes", () => {
     expect(err).toContain("accepts 5");
   });
 
-  it("refuses a version-2 scan naming both versions", () => {
-    const { err } = scan({
+  it("refuses a version-2 scan naming both versions", async () => {
+    const { err } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { output: scanJson(1, 0, { schema_version: 2 }) } },
     });
@@ -257,8 +257,8 @@ describe("recognizer scan: outcomes", () => {
     expect(err).toContain("accepts 5");
   });
 
-  it("carries the scanner's stderr", () => {
-    const { err } = scan({
+  it("carries the scanner's stderr", async () => {
+    const { err } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { status: 2, stderr: "bad root" } },
     });
@@ -266,8 +266,8 @@ describe("recognizer scan: outcomes", () => {
     expect(err).toContain("bad root");
   });
 
-  it("removes the temporary directories on every path", () => {
-    const { fake } = scan({
+  it("removes the temporary directories on every path", async () => {
+    const { fake } = await scan({
       files: both(),
       scanners: { [PYTHON]: { status: 1 } },
     });
@@ -278,8 +278,8 @@ describe("recognizer scan: outcomes", () => {
     expect(fake.tempDirs()).toHaveLength(2);
   });
 
-  it("reports one written and one failed language in --json, exit 1", () => {
-    const { code, out, fake } = scan(
+  it("reports one written and one failed language in --json, exit 1", async () => {
+    const { code, out, fake } = await scan(
       { files: both(), scanners: { [PYTHON]: okPython } },
       "--json",
     );
@@ -307,8 +307,8 @@ describe("recognizer scan: outcomes", () => {
     expect(fake.files.has(TS_CACHE)).toBe(false);
   });
 
-  it("handles the reverse mix", () => {
-    const { code, fake } = scan({
+  it("handles the reverse mix", async () => {
+    const { code, fake } = await scan({
       files: both(),
       scanners: { [TYPESCRIPT]: okTypescript },
     });
@@ -318,9 +318,9 @@ describe("recognizer scan: outcomes", () => {
     expect(fake.files.has(PY_CACHE)).toBe(false);
   });
 
-  it("writes the scanner's bytes exactly", () => {
+  it("writes the scanner's bytes exactly", async () => {
     const odd = scanJson(1, 0, {}, "\t   ");
-    const { fake } = scan({
+    const { fake } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
       scanners: { [PYTHON]: { output: odd } },
     });
@@ -330,8 +330,8 @@ describe("recognizer scan: outcomes", () => {
 });
 
 describe("recognizer scan: stale files", () => {
-  it("removes a stale file for an undetected language and lists it", () => {
-    const { fake, out, code, err } = scan(
+  it("removes a stale file for an undetected language and lists it", async () => {
+    const { fake, out, code, err } = await scan(
       {
         files: {
           [`${ROOT}/a.py`]: "",
@@ -354,8 +354,8 @@ describe("recognizer scan: stale files", () => {
     );
   });
 
-  it("exits 0 with no languages, creates no directory and still removes stale files", () => {
-    const { fake, code, err } = scan({
+  it("exits 0 with no languages, creates no directory and still removes stale files", async () => {
+    const { fake, code, err } = await scan({
       files: { [`${ROOT}/readme.md`]: "", [PY_CACHE]: "old" },
     });
 
@@ -366,14 +366,17 @@ describe("recognizer scan: stale files", () => {
     expect(fake.calls.map((call) => call.command)).toEqual(["git"]);
   });
 
-  it("reports log null in the summary when no record was written", () => {
-    const { out } = scan({ files: { [`${ROOT}/readme.md`]: "" } }, "--json");
+  it("reports log null in the summary when no record was written", async () => {
+    const { out } = await scan(
+      { files: { [`${ROOT}/readme.md`]: "" } },
+      "--json",
+    );
 
     expect(lines(out).at(-1)?.log).toBeNull();
   });
 
-  it("creates no cache directory when nothing is detected", () => {
-    const { fake } = scan({ files: { [`${ROOT}/readme.md`]: "" } });
+  it("creates no cache directory when nothing is detected", async () => {
+    const { fake } = await scan({ files: { [`${ROOT}/readme.md`]: "" } });
 
     expect(
       [...fake.files.keys()].some((key) => key.includes(".recognizer")),
@@ -388,8 +391,8 @@ describe("recognizer scan: summary", () => {
     scanners: { [PYTHON]: okPython, [TYPESCRIPT]: okTypescript },
   };
 
-  it("prints one human line per written language", () => {
-    const { out, err, code } = scan(options);
+  it("prints one human line per written language", async () => {
+    const { out, err, code } = await scan(options);
 
     expect(code).toBe(0);
     expect(out).toBe(
@@ -398,8 +401,8 @@ describe("recognizer scan: summary", () => {
     expect(err).toBe("");
   });
 
-  it("prints one line per event, ending in the summary", () => {
-    const { out } = scan(options, "--json");
+  it("prints one line per event, ending in the summary", async () => {
+    const { out } = await scan(options, "--json");
 
     expect(lines(out)).toEqual([
       {
@@ -446,19 +449,19 @@ describe("recognizer scan: summary", () => {
     ]);
   });
 
-  it("reports commit null outside git", () => {
-    const { out } = scan({ ...options, commit: undefined }, "--json");
+  it("reports commit null outside git", async () => {
+    const { out } = await scan({ ...options, commit: undefined }, "--json");
 
     expect(lines(out).at(-1)?.commit).toBeNull();
   });
 
-  it("leaves stderr lines unchanged under --json", () => {
+  it("leaves stderr lines unchanged under --json", async () => {
     const failing: FakeOptions = {
       files: both(),
       scanners: { [PYTHON]: okPython },
     };
 
-    expect(scan(failing, "--json").err).toBe(scan(failing).err);
+    expect((await scan(failing, "--json")).err).toBe((await scan(failing)).err);
   });
 });
 
@@ -472,18 +475,18 @@ describe("recognizer scan: usage", () => {
     ["check with --json", ["check", "--scan", "x.json", "--json"]],
   ];
 
-  it.each(cases)("%s is exit 2 and writes nothing", (_, argv) => {
+  it.each(cases)("%s is exit 2 and writes nothing", async (_, argv) => {
     const fake = fakeIo({ files: { [`${ROOT}/a.py`]: "" } });
 
-    expect(run(argv, fake.io)).toBe(2);
+    expect(await run(argv, fake.io)).toBe(2);
     expect(fake.writes).toEqual([]);
     expect(fake.calls).toEqual([]);
   });
 
-  it("names every command in the usage line", () => {
+  it("names every command in the usage line", async () => {
     const fake = fakeIo();
 
-    run([], fake.io);
+    await run([], fake.io);
 
     expect(fake.err()).toContain(
       "usage: recognizer <check|scan|open|uses|used-by|callers|path|find|show|modules|views|sensors|windows|window|describe|report|log|agents|help> ...",
@@ -566,8 +569,8 @@ describe("recognizer scan: phases", () => {
       .map((call) => call.args);
   }
 
-  it("skips extraction on current scans, probing only the scanner version", () => {
-    const { out, fake, code } = scan(setup());
+  it("skips extraction on current scans, probing only the scanner version", async () => {
+    const { out, fake, code } = await scan(setup());
 
     expect(code).toBe(0);
     expect(out).toBe(`extract\nscans current at ${COMMIT}\n`);
@@ -575,8 +578,8 @@ describe("recognizer scan: phases", () => {
     expect(fake.tempDirs()).toEqual([]);
   });
 
-  it("runs the structure sensor on current scans and writes its findings", () => {
-    const { fake } = scan(setup());
+  it("runs the structure sensor on current scans and writes its findings", async () => {
+    const { fake } = await scan(setup());
 
     expect(fake.files.has(STRUCTURE)).toBe(true);
     expect(records(fake)[0].phases).toEqual([
@@ -584,16 +587,16 @@ describe("recognizer scan: phases", () => {
     ]);
   });
 
-  it("writes the structure findings after extracting too", () => {
-    const { fake } = scan(
+  it("writes the structure findings after extracting too", async () => {
+    const { fake } = await scan(
       setup({}, { [PY_CACHE]: current({ commit: "old" }) }),
     );
 
     expect(fake.files.has(STRUCTURE)).toBe(true);
   });
 
-  it("removes the structure findings when the sensor is off", () => {
-    const { fake } = scan(
+  it("removes the structure findings when the sensor is off", async () => {
+    const { fake } = await scan(
       setup(
         {},
         {
@@ -634,7 +637,7 @@ describe("recognizer scan: phases", () => {
       "scanner-version:python",
       ["--version"],
     ],
-  ])("extracts for %s", (_, options, files, reason, probes) => {
+  ])("extracts for %s", async (_, options, files, reason, probes) => {
     const merged = {
       ...options,
       files: { ...options.files, ...files },
@@ -644,7 +647,7 @@ describe("recognizer scan: phases", () => {
       delete merged.files[PY_CACHE];
     }
 
-    const { out, fake } = scan(merged, "--json");
+    const { out, fake } = await scan(merged, "--json");
     const first = lines(out)[0];
 
     expect(first).toMatchObject({ state: "run", reason });
@@ -656,16 +659,16 @@ describe("recognizer scan: phases", () => {
     );
   });
 
-  it("extracts with --extract on a current tree", () => {
-    const { out, fake } = scan(setup(), "--extract", "--json");
+  it("extracts with --extract on a current tree", async () => {
+    const { out, fake } = await scan(setup(), "--extract", "--json");
 
     expect(lines(out)[0]).toMatchObject({ state: "run", reason: "forced" });
     expect(extractCalls(fake)).toHaveLength(1);
     expect(extractCalls(fake)[0]).toContain("--output");
   });
 
-  it("runs extract, describe and sense in that order and records them", () => {
-    const { out, fake, code } = scan(
+  it("runs extract, describe and sense in that order and records them", async () => {
+    const { out, fake, code } = await scan(
       setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
       "--describe",
       "--sense",
@@ -692,8 +695,8 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)).toHaveLength(1);
   });
 
-  it("leaves absent phases out of the output and the record", () => {
-    const { fake, out } = scan(
+  it("leaves absent phases out of the output and the record", async () => {
+    const { fake, out } = await scan(
       setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
     );
 
@@ -702,27 +705,27 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)[0].phases).toHaveLength(1);
   });
 
-  it("describes everything with --describe=all and only stale lines without", () => {
+  it("describes everything with --describe=all and only stale lines without", async () => {
     const files = { [CONFIG]: DESCRIBER };
-    const first = scan(setup({}, files), "--describe");
+    const first = await scan(setup({}, files), "--describe");
 
     expect(first.out).toContain("described 2, failed 0, already current 0");
 
     const again = fakeIo(setup({}, files));
 
-    run(["scan", ROOT, "--describe"], again.io);
-    run(["scan", ROOT, "--describe"], again.io);
+    await run(["scan", ROOT, "--describe"], again.io);
+    await run(["scan", ROOT, "--describe"], again.io);
 
     expect(again.out()).toContain("described 0, failed 0, already current 2");
 
-    run(["scan", ROOT, "--describe=all"], again.io);
+    await run(["scan", ROOT, "--describe=all"], again.io);
 
     expect(again.out()).toContain("described 2, failed 0, already current 0");
   });
 
-  it("fails the run after the remaining entries when a describer entry fails", () => {
+  it("fails the run after the remaining entries when a describer entry fails", async () => {
     const calls: string[] = [];
-    const { code, fake, err } = scan(
+    const { code, fake, err } = await scan(
       setup(
         {
           programs: {
@@ -746,8 +749,8 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)[0].outcome).toBe("failed");
   });
 
-  it("fails the run after the remaining entries when a sensor entry fails", () => {
-    const { code, fake, out } = scan(
+  it("fails the run after the remaining entries when a sensor entry fails", async () => {
+    const { code, fake, out } = await scan(
       setup(
         {
           programs: {
@@ -768,8 +771,8 @@ describe("recognizer scan: phases", () => {
     ).toBe(true);
   });
 
-  it("still runs the sense phase when extraction failed", () => {
-    const { code, out } = scan(
+  it("still runs the sense phase when extraction failed", async () => {
+    const { code, out } = await scan(
       {
         ...setup(
           {},
@@ -785,8 +788,8 @@ describe("recognizer scan: phases", () => {
     expect(out).toContain("sense\nran first\n");
   });
 
-  it("selects the named sensors in config order", () => {
-    const { out } = scan(
+  it("selects the named sensors in config order", async () => {
+    const { out } = await scan(
       setup({}, { [CONFIG]: SENSORS }),
       "--sense",
       "second,first",
@@ -795,8 +798,8 @@ describe("recognizer scan: phases", () => {
     expect(out.indexOf("ran first")).toBeLessThan(out.indexOf("ran second"));
   });
 
-  it("is exit 2 before anything runs for an unknown sensor, naming the registered ones", () => {
-    const { code, err, fake } = scan(
+  it("is exit 2 before anything runs for an unknown sensor, naming the registered ones", async () => {
+    const { code, err, fake } = await scan(
       setup({}, { [CONFIG]: SENSORS }),
       "--sense",
       "first,nope,second",
@@ -816,17 +819,17 @@ describe("recognizer scan: phases", () => {
       ["--describe"],
       "",
     ],
-  ])("is exit 2 for %s", (_, args, config) => {
-    const { code, fake } = scan(setup({}, { [CONFIG]: config }), ...args);
+  ])("is exit 2 for %s", async (_, args, config) => {
+    const { code, fake } = await scan(setup({}, { [CONFIG]: config }), ...args);
 
     expect(code).toBe(2);
     expect(extractCalls(fake)).toEqual([]);
     expect(records(fake)).toEqual([]);
   });
 
-  it("describes with the shipped fallback when no describer is registered", () => {
+  it("describes with the shipped fallback when no describer is registered", async () => {
     const base = setup({}, { [CONFIG]: "" });
-    const { code, fake } = scan(
+    const { code, fake } = await scan(
       {
         ...base,
         programs: {
@@ -850,19 +853,25 @@ describe("recognizer scan: phases", () => {
     expect(code).toBe(0);
     expect(entry.describer).toEqual([
       "recognizer-describe-claude",
+      "--model",
+      "{model}",
       "{request}",
     ]);
-    expect(entry.version).toBe("prompt-0123456789ab");
+    expect(entry.version).toBe("prompt-0123456789ab+sonnet");
   });
 
-  it("emits no start line without --json", () => {
-    const { out } = scan(setup({}, { [CONFIG]: SENSORS }), "--sense", "first");
+  it("emits no start line without --json", async () => {
+    const { out } = await scan(
+      setup({}, { [CONFIG]: SENSORS }),
+      "--sense",
+      "first",
+    );
 
     expect(out).not.toContain('"event":"start"');
   });
 
-  it("is exit 2 for --sense with no commit", () => {
-    const { code, err } = scan(
+  it("is exit 2 for --sense with no commit", async () => {
+    const { code, err } = await scan(
       { ...setup({}, { [CONFIG]: SENSORS }), commit: undefined },
       "--sense",
       "all",
@@ -885,8 +894,8 @@ describe("recognizer scan: phases", () => {
     );
   }
 
-  it("runs extract, describe and sense in that order and records them", () => {
-    const { out, fake, code } = scan(
+  it("runs extract, describe and sense in that order and records them", async () => {
+    const { out, fake, code } = await scan(
       describing(),
       "--describe",
       "--sense",
@@ -903,8 +912,8 @@ describe("recognizer scan: phases", () => {
     ).toEqual(["extract", "describe", "sense"]);
   });
 
-  it("is exit 2 for --measure as an unknown option, running nothing", () => {
-    const { code, err, fake } = scan(describing(), "--measure", "all");
+  it("is exit 2 for --measure as an unknown option, running nothing", async () => {
+    const { code, err, fake } = await scan(describing(), "--measure", "all");
 
     expect(code).toBe(2);
     expect(err).toContain("unknown option: --measure");
@@ -912,8 +921,8 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)).toEqual([]);
   });
 
-  it("is exit 2 with the retired message when the config still holds overlays", () => {
-    const { code, err, fake } = scan(
+  it("is exit 2 with the retired message when the config still holds overlays", async () => {
+    const { code, err, fake } = await scan(
       setup(
         {},
         {
@@ -931,8 +940,8 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)).toEqual([]);
   });
 
-  it("streams phase, entry and summary lines under --json", () => {
-    const { out } = scan(
+  it("streams phase, entry and summary lines under --json", async () => {
+    const { out } = await scan(
       setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
       "--describe",
       "--sense",
@@ -976,7 +985,7 @@ describe("recognizer scan: phases", () => {
     });
   });
 
-  it("writes the record when it opens, after every entry and when it finishes", () => {
+  it("writes the record when it opens, after every entry and when it finishes", async () => {
     const fake = fakeIo(setup({}, { [CONFIG]: SENSORS }));
     const snapshots: string[] = [];
     const watching = {
@@ -990,7 +999,7 @@ describe("recognizer scan: phases", () => {
       },
     };
 
-    run(["scan", ROOT, "--sense", "all"], watching);
+    await run(["scan", ROOT, "--sense", "all"], watching);
 
     const outcomes = snapshots.map((text) => JSON.parse(text).outcome);
 

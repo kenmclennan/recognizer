@@ -346,18 +346,20 @@ describer:
   version: "2026-10-a"
 ```
 
-`command` is run directly with no shell. In each item `{repository}` (the absolute repository path), `{module}` (the module id) and `{request}` (the path of a JSON request file) are replaced. `version` names the prompt; bump it to redo every line. The request is `{ module, kind, files, source, members, uses, used_by }`: the module's members from the scan, what it uses and what uses it (inferred rows flagged), the files the scan recorded for it and its source. `files` is that one file and `source` its text. The describer prints one line on stdout.
+`command` is run directly with no shell. In each item `{repository}` (the absolute repository path), `{module}` (the module id), `{model}` (the describing model, below) and `{request}` (the path of a JSON request file) are replaced. `version` names the prompt; bump it to redo every line. A describer whose command contains `{model}` records its version as `<version>+<model>`, so changing the model marks every line it wrote out of date (reason `version`); a describer that ignores `{model}` keeps its version. The request is `{ module, kind, files, source, members, uses, used_by }`: the module's members from the scan, what it uses and what uses it (inferred rows flagged), the files the scan recorded for it and its source. `files` is that one file and `source` its text. The describer prints one line on stdout.
 
 `responsibilities.json` is `{ schema_version: 1, modules }`, described by [`schema/responsibilities.schema.json`](../schema/responsibilities.schema.json) with examples in `schema/responsibilities-examples/`. Each module id maps to its `line`, the SHA-256 `source_hash` of the source it was written from, and the `describer` command (placeholders unfilled) and `version`. A line is current while all three match; another module's change does not outdate it. `validateResponsibilities`, `lineStatus` and `parseConfig` (which reads the describer from `config.yaml` text) are exported from the library.
 
 | Form | What it does |
 | --- | --- |
-| `describe` | describe every module whose line is missing or out of date, one at a time in id order |
+| `describe` | describe every module whose line is missing or out of date, up to the batch size at once; entries and `described` lines stream in finish order |
 | `describe <module>...` | describe exactly the named modules, whatever their status |
 | `describe --all` | describe every module |
 | `describe --check [<module>...]` | run no describer and write nothing: print each module's status and line; exit 1 unless every module is current |
 
 Each success is written at once, so a later failure keeps the lines already paid for. A describer that does not start, exits non-zero, prints nothing or prints more than one line leaves that module's entry as it was and is reported; the run exits 1 and the other modules are still processed. Entries for modules no longer in the scan are pruned by `describe` and listed under `gone` by `--check`. Bad input (no describer registered, an invalid config or file, an unknown module, `--all` with a module or with `--check`) is exit 2 and runs nothing. One run at a time is assumed: there is no lock.
+
+The model and the batch size are global settings, not a repository's: `describing` in the app's `config.json` (`~/Library/Application Support/com.kenmclennan.recognizer/config.json`, overridable with `RECOGNIZER_APP_CONFIG_DIR`), `{ "describing": { "model": "sonnet", "batch_size": 4 } }`. The app writes the seed at startup and the CLI writes it on first need, keeping every other key; the Settings window edits it. `model` is a name with no whitespace and no leading `-`; `batch_size` is a whole number from 1 to 16; a bad value is exit 2 naming the key. `recognizer-describe-claude --model <name> <request-file>` passes the model to `claude`, requires the flag with a request file and has no default. The describe phase keeps up to `batch_size` describers running at once, and a `SIGTERM` or `SIGINT` to the CLI ends them all.
 
 ## recognizer report
 

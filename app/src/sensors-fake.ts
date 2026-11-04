@@ -1,4 +1,8 @@
-import { parseConfig, SHIPPED_DESCRIBER_COMMAND } from "recognizer";
+import {
+  describerVersion,
+  parseConfig,
+  SHIPPED_DESCRIBER_COMMAND,
+} from "recognizer";
 import type {
   FindingsFiles,
   OverlayFiles,
@@ -21,6 +25,7 @@ export type FakeSensors = SensorsPort & {
   list: ShippedSensors;
   modified: Map<string, number>;
   shippedVersion: string | null;
+  model: string;
   editInputs(inputs: Partial<SensorInputs>): void;
 };
 
@@ -50,6 +55,7 @@ export function fakeSensors(
     list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
     modified: new Map(),
     shippedVersion: "prompt-0123456789ab",
+    model: "sonnet",
     async describer() {
       let configured: { command: string[]; version: string } | undefined;
 
@@ -63,7 +69,12 @@ export function fakeSensors(
       }
 
       if (configured !== undefined) {
-        return { status: "ok", ...configured, source: "config" };
+        return {
+          status: "ok",
+          ...configured,
+          version: describerVersion(configured, fake.model),
+          source: "config",
+        };
       }
 
       return fake.shippedVersion === null
@@ -75,7 +86,13 @@ export function fakeSensors(
         : {
             status: "ok",
             command: [...SHIPPED_DESCRIBER_COMMAND],
-            version: fake.shippedVersion,
+            version: describerVersion(
+              {
+                command: [...SHIPPED_DESCRIBER_COMMAND],
+                version: fake.shippedVersion,
+              },
+              fake.model,
+            ),
             source: "shipped",
           };
     },

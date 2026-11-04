@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { Io } from "./cli.js";
+import type { Io, RunResult } from "./cli.js";
 import { InputError } from "./errors.js";
 import { moduleSource } from "./module-source.js";
 import {
@@ -142,20 +142,20 @@ function fill(
   root: string,
   module: string,
   request: string,
+  model: string,
 ): string {
   return item
     .split("{repository}")
     .join(root)
+    .split("{model}")
+    .join(model)
     .split("{module}")
     .join(module)
     .split("{request}")
     .join(request);
 }
 
-function failureReason(
-  result: ReturnType<Io["run"]>,
-  program: string,
-): string | null {
+function failureReason(result: RunResult, program: string): string | null {
   const stderr = result.stderr.trim();
 
   if (!result.started) {
@@ -217,11 +217,15 @@ export interface DescribeInput {
   scans: Scan[];
   describer: Describer;
   selection: DescribeSelection;
+  model: string;
+  batchSize: number;
   onStart?: (total: number) => void;
   onEntry?: (entry: RunEntry) => void;
 }
 
-export function describeModules(input: DescribeInput): DescribeResult {
+export async function describeModules(
+  input: DescribeInput,
+): Promise<DescribeResult> {
   const { io, root, scans, describer, selection } = input;
   const entries = { ...readResponsibilities(io, root).modules };
   const modules = moduleNames(scans);
@@ -255,68 +259,96 @@ export function describeModules(input: DescribeInput): DescribeResult {
     io.stderr(`failed ${module}: ${reason}\n`);
   };
 
-  try {
-    for (const [index, subject] of selected.entries()) {
-      if (subject.hash === null) {
-        fail(subject.id, "source could not be read");
-        input.onEntry?.(
-          entryFrom(subject.id, {
-            command: [],
-            status: null,
-            stderr: "",
-            duration_ms: 0,
-            reason: "source could not be read",
-          }),
-        );
+  const complete = (
+    subject: Subject & { hash: string },
+    filled: string[],
+    began: number,
+    result: RunResult,
+  ) => {
+    const reason = failureReason(result, filled[0] as string);
 
-        continue;
-      }
-
-      temp ??= io.makeTempDir();
-
-      const requestFile = join(temp, `request-${index}.json`);
-
-      io.writeFile(
-        requestFile,
-        `${JSON.stringify(buildRequest(scans, modules, subject), null, 2)}\n`,
-      );
-
-      const filled = describer.command.map((item) =>
-        fill(item, root, subject.id, requestFile),
-      );
-      const [program, ...rest] = filled as [string, ...string[]];
-      const began = io.now();
-      const result = io.run(program, rest);
-      const reason = failureReason(result, program);
-
-      if (reason === null) {
-        entries[subject.id] = {
-          line: result.stdout.trim(),
-          source_hash: subject.hash,
-          describer: describer.command,
-          version: describer.version,
-        };
-        writeResponsibilities(io, root, entries);
-        described.push(subject.id);
-      } else {
-        fail(subject.id, reason);
-      }
-
-      input.onEntry?.(
-        entryFrom(subject.id, {
-          command: filled,
-          status: result.started ? result.status : null,
-          stderr: result.stderr,
-          duration_ms: io.now() - began,
-          ...(reason === null ? {} : { reason }),
-        }),
-      );
+    if (reason === null) {
+      entries[subject.id] = {
+        line: result.stdout.trim(),
+        source_hash: subject.hash,
+        describer: describer.command,
+        version: describer.version,
+      };
+      writeResponsibilities(io, root, entries);
+      described.push(subject.id);
+    } else {
+      fail(subject.id, reason);
     }
+
+    input.onEntry?.(
+      entryFrom(subject.id, {
+        command: filled,
+        status: result.started ? result.status : null,
+        stderr: result.stderr,
+        duration_ms: io.now() - began,
+        ...(reason === null ? {} : { reason }),
+      }),
+    );
+  };
+
+  const launch = (subject: Subject & { hash: string }, index: number) => {
+    temp ??= io.makeTempDir();
+
+    const requestFile = join(temp, `request-${index}.json`);
+
+    io.writeFile(
+      requestFile,
+      `${JSON.stringify(buildRequest(scans, modules, subject), null, 2)}\n`,
+    );
+
+    const filled = describer.command.map((item) =>
+      fill(item, root, subject.id, requestFile, input.model),
+    );
+    const [program, ...rest] = filled as [string, ...string[]];
+    const began = io.now();
+
+    return io
+      .runAsync(program, rest)
+      .result.then((result) => complete(subject, filled, began, result));
+  };
+
+  try {
+    const queue = selected.entries();
+    const lanes = Array.from(
+      { length: Math.max(1, Math.min(input.batchSize, selected.length)) },
+      async () => {
+        for (const [index, subject] of queue) {
+          if (subject.hash === null) {
+            fail(subject.id, "source could not be read");
+            input.onEntry?.(
+              entryFrom(subject.id, {
+                command: [],
+                status: null,
+                stderr: "",
+                duration_ms: 0,
+                reason: "source could not be read",
+              }),
+            );
+
+            continue;
+          }
+
+          await launch({ ...subject, hash: subject.hash }, index);
+        }
+      },
+    );
+
+    await Promise.all(lanes);
   } finally {
     if (temp !== null) {
       io.removeDir(temp);
     }
   }
+
+  described.sort();
+  failed.sort((left, right) =>
+    left.module < right.module ? -1 : left.module > right.module ? 1 : 0,
+  );
 
   const pruned = Object.keys(entries)
     .filter((id) => !modules.includes(id))

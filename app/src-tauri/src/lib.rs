@@ -368,7 +368,7 @@ fn focused_label(app: &AppHandle) -> Option<String> {
 }
 
 const SETTINGS_WIDTH: f64 = 480.0;
-const SETTINGS_HEIGHT: f64 = 340.0;
+const SETTINGS_HEIGHT: f64 = 440.0;
 
 fn open_settings(app: &AppHandle) {
     if app.get_webview_window(SETTINGS_LABEL).is_some() {
@@ -825,7 +825,16 @@ fn read_settings(app: AppHandle) -> Result<settings::Settings, String> {
 
 #[tauri::command]
 fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), String> {
-    settings::save(&config_file(&app)?, &settings)
+    settings::save(&config_file(&app)?, &settings)?;
+
+    let _ = app.emit("settings-changed", ());
+
+    Ok(())
+}
+
+#[tauri::command]
+fn read_describing(app: AppHandle) -> Result<settings::Describing, String> {
+    Ok(settings::read(&config_file(&app)?)?.describing)
 }
 
 #[tauri::command]
@@ -1285,6 +1294,7 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
+            settings::seed(&config_file(&handle)?)?;
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
             std::thread::spawn(views::sweep_stale_temp_dirs);
@@ -1330,6 +1340,7 @@ pub fn run() {
             read_overlays,
             read_responsibilities,
             read_sensor_inputs,
+            read_describing,
             read_settings,
             recognizer_version,
             record_recent_view,

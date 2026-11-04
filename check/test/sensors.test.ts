@@ -84,14 +84,14 @@ function setup(yaml: string | null, options: FakeOptions = {}): Fake {
 const REGISTER =
   'sensors:\n  fake-sensor:\n    command: [fake-sensor, "{commit}", "{output}"]\n';
 
-function check(fake: Fake, ...argv: string[]) {
-  const code = run(["check", "--repository", ROOT, ...argv], fake.io);
+async function check(fake: Fake, ...argv: string[]) {
+  const code = await run(["check", "--repository", ROOT, ...argv], fake.io);
 
   return { code, out: fake.out(), err: fake.err() };
 }
 
-function sense(fake: Fake, names = "all", ...argv: string[]) {
-  const code = run(["scan", ROOT, "--sense", names, ...argv], fake.io);
+async function sense(fake: Fake, names = "all", ...argv: string[]) {
+  const code = await run(["scan", ROOT, "--sense", names, ...argv], fake.io);
 
   return { code, out: fake.out(), err: fake.err() };
 }
@@ -117,12 +117,12 @@ function senseReport(out: string) {
 }
 
 describe("scan --sense running a registered sensor", () => {
-  it("writes the sensor's findings file and check then puts its violation through the baseline", () => {
+  it("writes the sensor's findings file and check then puts its violation through the baseline", async () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
 
-    const sensed = sense(fake);
+    const sensed = await sense(fake);
 
     expect(sensed.code).toBe(0);
     expect(sensed.out).toBe(
@@ -130,7 +130,7 @@ describe("scan --sense running a registered sensor", () => {
     );
     expect(fake.files.has(FAKE)).toBe(true);
 
-    const { code, out } = check(fake, "--json");
+    const { code, out } = await check(fake, "--json");
     const report = JSON.parse(out.slice(sensed.out.length));
 
     expect(code).toBe(1);
@@ -150,11 +150,11 @@ describe("scan --sense running a registered sensor", () => {
     ]);
   });
 
-  it("prints the outcome as JSON", () => {
+  it("prints the outcome as JSON", async () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
-    const report = senseReport(sense(fake, "all", "--json").out);
+    const report = senseReport((await sense(fake, "all", "--json")).out);
 
     expect(report).toMatchObject({
       commit: COMMIT,
@@ -162,26 +162,26 @@ describe("scan --sense running a registered sensor", () => {
     });
   });
 
-  it("runs only the named sensors and refuses an unknown name with the registered ones", () => {
+  it("runs only the named sensors and refuses an unknown name with the registered ones", async () => {
     const two = `${REGISTER}  other:\n    command: [other-sensor, "{output}"]\n`;
     const fake = setup(two, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
 
-    expect(sense(fake, "fake-sensor").code).toBe(0);
+    expect((await sense(fake, "fake-sensor")).code).toBe(0);
     expect(fake.calls.some((call) => call.command === "other-sensor")).toBe(
       false,
     );
 
-    const refused = sense(fake, "nope");
+    const refused = await sense(fake, "nope");
 
     expect(refused.code).toBe(2);
     expect(refused.err).toContain("no such sensor: nope");
     expect(refused.err).toContain("registered sensors: fake-sensor, other");
   });
 
-  it("refuses a repository with no sensor registered", () => {
-    const refused = sense(setup(null));
+  it("refuses a repository with no sensor registered", async () => {
+    const refused = await sense(setup(null));
 
     expect(refused.code).toBe(2);
     expect(refused.err).toContain("no sensors are registered");
@@ -210,12 +210,12 @@ describe("scan --sense running a registered sensor", () => {
     ],
   ])(
     "reports a sensor that %s by name, leaves no file and exits 1",
-    (_, program) => {
+    async (_, program) => {
       const fake = setup(REGISTER, {
         programs: { "fake-sensor": program },
         files: { [FAKE]: fakeDocument() },
       });
-      const { code, err, out } = sense(fake, "all", "--json");
+      const { code, err, out } = await sense(fake, "all", "--json");
 
       expect(code).toBe(1);
       expect(err).toContain("failed fake-sensor:");
@@ -227,8 +227,8 @@ describe("scan --sense running a registered sensor", () => {
     },
   );
 
-  it("fails the run for a missing program", () => {
-    const { code, err } = sense(setup(REGISTER));
+  it("fails the run for a missing program", async () => {
+    const { code, err } = await sense(setup(REGISTER));
 
     expect(code).toBe(1);
     expect(err).toContain("failed fake-sensor:");
@@ -236,11 +236,11 @@ describe("scan --sense running a registered sensor", () => {
 });
 
 describe("check reading registered sensors", () => {
-  it("never runs a registered sensor and reports one with no file as missing", () => {
+  it("never runs a registered sensor and reports one with no file as missing", async () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
-    const report = JSON.parse(check(fake, "--json").out);
+    const report = JSON.parse((await check(fake, "--json")).out);
 
     expect(fake.calls.some((call) => call.command === "fake-sensor")).toBe(
       false,
@@ -253,7 +253,7 @@ describe("check reading registered sensors", () => {
     expect(report.violations).toHaveLength(5);
   });
 
-  it("accepts the sensor's violation once the baseline lists it by id", () => {
+  it("accepts the sensor's violation once the baseline lists it by id", async () => {
     const yaml = `${REGISTER}  structure:\n    hub_threshold: 10\n`;
     const baseline = JSON.stringify({
       schema_version: 1,
@@ -262,18 +262,18 @@ describe("check reading registered sensors", () => {
     const fake = setup(yaml, {
       files: { [BASELINE]: `${baseline}\n`, [FAKE]: fakeDocument() },
     });
-    const report = JSON.parse(check(fake, "--json").out);
+    const report = JSON.parse((await check(fake, "--json")).out);
 
     expect(
       report.new.map((v: { finding_id?: string }) => v.finding_id),
     ).not.toContain("fake-violation:shop/main.py");
   });
 
-  it("ignores a leftover file from another commit and reports it stale", () => {
+  it("ignores a leftover file from another commit and reports it stale", async () => {
     const fake = setup(REGISTER, {
       files: { [FAKE]: fakeDocument({ commit: "old" }) },
     });
-    const { code, err, out } = check(fake, "--json");
+    const { code, err, out } = await check(fake, "--json");
     const report = JSON.parse(out);
 
     expect(err).toContain("stale fake-sensor");
@@ -285,7 +285,7 @@ describe("check reading registered sensors", () => {
     expect(code).toBe(1);
   });
 
-  it("does not let a stale file change the exit code", () => {
+  it("does not let a stale file change the exit code", async () => {
     const fake = setup(REGISTER, {
       files: {
         [FAKE]: fakeDocument({ commit: "old" }),
@@ -320,10 +320,10 @@ describe("check reading registered sensors", () => {
       },
     });
 
-    expect(check(fake).code).toBe(0);
+    expect((await check(fake)).code).toBe(0);
   });
 
-  it("reads a baseline mixing an identity entry and an id entry", () => {
+  it("reads a baseline mixing an identity entry and an id entry", async () => {
     const baseline = JSON.stringify({
       schema_version: 1,
       violations: [
@@ -338,7 +338,7 @@ describe("check reading registered sensors", () => {
     const fake = setup(REGISTER, {
       files: { [BASELINE]: `${baseline}\n`, [FAKE]: fakeDocument() },
     });
-    const report = JSON.parse(check(fake, "--json").out);
+    const report = JSON.parse((await check(fake, "--json")).out);
 
     expect(report.fixed).toEqual([{ id: "fake-violation:gone" }]);
     expect(report.new).toHaveLength(5);
@@ -393,9 +393,9 @@ describe("check ratcheting a thresholds violation", () => {
   const findingIds = (list: { finding_id?: string }[]) =>
     list.map((v) => v.finding_id);
 
-  it("reports the violation as new, writes it by id, then reports it baselined", () => {
+  it("reports the violation as new, writes it by id, then reports it baselined", async () => {
     const fake = setup(YAML, { files: { [THRESHOLDS]: thresholdsDocument() } });
-    const first = JSON.parse(check(fake, "--json").out);
+    const first = JSON.parse((await check(fake, "--json")).out);
 
     expect(findingIds(first.new)).toContain(ID);
     expect(findingIds(first.new)).not.toContain(
@@ -403,23 +403,23 @@ describe("check ratcheting a thresholds violation", () => {
     );
 
     fake.files.delete(BASELINE);
-    check(fake, "--init-baseline");
+    await check(fake, "--init-baseline");
 
     const baseline = JSON.parse(fake.files.get(BASELINE) as string);
 
     expect(baseline.violations).toContainEqual({ id: ID });
 
     const printed = fake.out().length;
-    const second = JSON.parse(check(fake, "--json").out.slice(printed));
+    const second = JSON.parse((await check(fake, "--json")).out.slice(printed));
 
     expect(findingIds(second.new)).not.toContain(ID);
   });
 });
 
 describe("check running the structure sensor", () => {
-  it("writes structure.json through a temp file and a rename, recording the settings", () => {
+  it("writes structure.json through a temp file and a rename, recording the settings", async () => {
     const fake = setup(null);
-    const { err, out } = check(fake);
+    const { err, out } = await check(fake);
     const document = JSON.parse(fake.files.get(STRUCTURE) as string);
 
     expect(fake.renames).toContainEqual({
@@ -449,11 +449,11 @@ describe("check running the structure sensor", () => {
     expect(err).toBe("");
   });
 
-  it("writes no file and removes an old one when structure is off", () => {
+  it("writes no file and removes an old one when structure is off", async () => {
     const fake = setup("sensors:\n  structure: off\n", {
       files: { [STRUCTURE]: "{}" },
     });
-    const { out } = check(fake, "--json");
+    const { out } = await check(fake, "--json");
     const report = JSON.parse(out);
 
     expect(fake.files.has(STRUCTURE)).toBe(false);
@@ -462,33 +462,37 @@ describe("check running the structure sensor", () => {
     expect(report.thresholds).toBeUndefined();
   });
 
-  it("produces no hub warning when the hub switch is off", () => {
+  it("produces no hub warning when the hub switch is off", async () => {
     const fake = setup(
       "sensors:\n  structure:\n    hub_threshold: 1\n    warnings:\n      hub: false\n",
     );
-    const report = JSON.parse(check(fake, "--json").out);
+    const report = JSON.parse((await check(fake, "--json")).out);
 
     expect(report.warnings.some((w: { id: string }) => w.id === "hub")).toBe(
       false,
     );
   });
 
-  it("reads hub_threshold from the config as --hub-threshold does", () => {
+  it("reads hub_threshold from the config as --hub-threshold does", async () => {
     const fromConfig = JSON.parse(
-      check(setup("sensors:\n  structure:\n    hub_threshold: 2\n"), "--json")
-        .out,
+      (
+        await check(
+          setup("sensors:\n  structure:\n    hub_threshold: 2\n"),
+          "--json",
+        )
+      ).out,
     );
     const fromFlag = JSON.parse(
-      check(setup(null), "--hub-threshold", "2", "--json").out,
+      (await check(setup(null), "--hub-threshold", "2", "--json")).out,
     );
 
     expect(fromConfig.warnings).toEqual(fromFlag.warnings);
     expect(fromConfig.thresholds).toEqual({ hub: 2 });
   });
 
-  it("lets the flag beat the config and records the flag's value", () => {
+  it("lets the flag beat the config and records the flag's value", async () => {
     const fake = setup("sensors:\n  structure:\n    hub_threshold: 2\n");
-    const { out } = check(fake, "--hub-threshold", "5");
+    const { out } = await check(fake, "--hub-threshold", "5");
 
     expect(
       JSON.parse(fake.files.get(STRUCTURE) as string).settings.hub_threshold,
@@ -496,7 +500,7 @@ describe("check running the structure sensor", () => {
     expect(out.split("\n")[0]).toContain("hub_threshold 5");
   });
 
-  it("leaves no structure.json and exits 1 when the rename fails", () => {
+  it("leaves no structure.json and exits 1 when the rename fails", async () => {
     const fake = setup(null);
     const original = fake.io.rename;
 
@@ -508,7 +512,7 @@ describe("check running the structure sensor", () => {
       original(from, to);
     };
 
-    const { code, err } = check(fake);
+    const { code, err } = await check(fake);
 
     expect(code).toBe(1);
     expect(err).toContain("failed structure: disk full");
@@ -516,10 +520,10 @@ describe("check running the structure sensor", () => {
     expect(fake.files.has(`${STRUCTURE}.tmp`)).toBe(false);
   });
 
-  it("writes nothing in --scan replay", () => {
+  it("writes nothing in --scan replay", async () => {
     const fake = fakeIo({ files: { "x.json": JSON.stringify(checkScan) } });
 
-    run(["check", "--scan", "x.json"], fake.io);
+    await run(["check", "--scan", "x.json"], fake.io);
 
     expect(fake.writes).toEqual([]);
   });
@@ -528,8 +532,8 @@ describe("check running the structure sensor", () => {
 describe("show and modules read the findings files", () => {
   const MODULE = "shop/domain/order.py";
 
-  function show(fake: Fake, ...extra: string[]) {
-    const code = run(
+  async function show(fake: Fake, ...extra: string[]) {
+    const code = await run(
       ["show", MODULE, "--repository", ROOT, "--json", ...extra],
       fake.io,
     );
@@ -537,27 +541,27 @@ describe("show and modules read the findings files", () => {
     return { code, out: fake.out(), err: fake.err() };
   }
 
-  it("writes structure.json when it is missing", () => {
+  it("writes structure.json when it is missing", async () => {
     const fake = setup(null);
 
-    show(fake);
+    await show(fake);
 
     expect(fake.files.has(STRUCTURE)).toBe(true);
   });
 
-  it("writes nothing when a fresh file already exists", () => {
+  it("writes nothing when a fresh file already exists", async () => {
     const fake = setup(null);
 
-    show(fake);
+    await show(fake);
 
     const before = fake.writes.length;
 
-    show(fake);
+    await show(fake);
 
     expect(fake.writes.length).toBe(before);
   });
 
-  it("regenerates a file for another commit", () => {
+  it("regenerates a file for another commit", async () => {
     const stale = JSON.stringify({
       findings_version: 1,
       sensor: { name: "structure", version: "1" },
@@ -581,12 +585,12 @@ describe("show and modules read the findings files", () => {
     });
     const fake = setup(null, { files: { [STRUCTURE]: stale } });
 
-    show(fake);
+    await show(fake);
 
     expect(JSON.parse(fake.files.get(STRUCTURE) as string).commit).toBe(COMMIT);
   });
 
-  it("regenerates a current file that records the settings from before the new warnings", () => {
+  it("regenerates a current file that records the settings from before the new warnings", async () => {
     const old = JSON.stringify({
       findings_version: 1,
       sensor: { name: "structure", version: "1" },
@@ -597,7 +601,7 @@ describe("show and modules read the findings files", () => {
     });
     const fake = setup(null, { files: { [STRUCTURE]: old } });
 
-    show(fake);
+    await show(fake);
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
@@ -605,7 +609,7 @@ describe("show and modules read the findings files", () => {
     expect(written.settings.entry_points).toEqual([]);
   });
 
-  it("regenerates a current file that records the previous settings shape", () => {
+  it("regenerates a current file that records the previous settings shape", async () => {
     const previous = JSON.stringify({
       findings_version: 1,
       sensor: { name: "structure", version: "2" },
@@ -626,7 +630,7 @@ describe("show and modules read the findings files", () => {
     });
     const fake = setup(null, { files: { [STRUCTURE]: previous } });
 
-    show(fake);
+    await show(fake);
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
@@ -634,16 +638,16 @@ describe("show and modules read the findings files", () => {
     expect(written.settings.distance_threshold).toBe(0.3);
   });
 
-  it("regenerates when the config's settings differ from the file's", () => {
+  it("regenerates when the config's settings differ from the file's", async () => {
     const fake = setup(null);
 
-    show(fake);
+    await show(fake);
 
     const withConfig = setup("sensors:\n  structure:\n    hub_threshold: 4\n", {
       files: { [STRUCTURE]: fake.files.get(STRUCTURE) as string },
     });
 
-    show(withConfig);
+    await show(withConfig);
 
     expect(
       JSON.parse(withConfig.files.get(STRUCTURE) as string).settings
@@ -651,7 +655,7 @@ describe("show and modules read the findings files", () => {
     ).toBe(4);
   });
 
-  it("regenerates every time on a modified tree", () => {
+  it("regenerates every time on a modified tree", async () => {
     const fake = setup(null, {
       status: " M shop/a.py\n",
       scanners: {
@@ -666,42 +670,42 @@ describe("show and modules read the findings files", () => {
       },
     });
 
-    show(fake);
-    show(fake);
+    await show(fake);
+    await show(fake);
 
     expect(
       fake.writes.filter((path) => path.endsWith("structure.json.tmp")).length,
     ).toBe(4);
   });
 
-  it("does not write under --hub-threshold", () => {
+  it("does not write under --hub-threshold", async () => {
     const fake = setup(null);
 
-    show(fake, "--hub-threshold", "2");
+    await show(fake, "--hub-threshold", "2");
 
     expect(fake.files.has(STRUCTURE)).toBe(false);
   });
 
-  it("reads nothing for structure when it is off", () => {
+  it("reads nothing for structure when it is off", async () => {
     const fake = setup("sensors:\n  structure: off\n", {
       files: { [STRUCTURE]: "{}" },
     });
-    const { out } = show(fake);
+    const { out } = await show(fake);
 
     expect(JSON.parse(out).findings ?? []).toEqual([]);
     expect(fake.files.get(STRUCTURE)).toBe("{}");
   });
 
-  it("ignores a registered sensor's file from another commit with a stale line", () => {
+  it("ignores a registered sensor's file from another commit with a stale line", async () => {
     const fake = setup(REGISTER, {
       files: { [FAKE]: fakeDocument({ commit: "old" }) },
     });
-    const { err } = show(fake);
+    const { err } = await show(fake);
 
     expect(err).toContain("stale fake-sensor");
   });
 
-  it("includes a registered sensor's current findings and never runs it", () => {
+  it("includes a registered sensor's current findings and never runs it", async () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
       files: {
@@ -719,7 +723,7 @@ describe("show and modules read the findings files", () => {
         }),
       },
     });
-    const { out } = show(fake);
+    const { out } = await show(fake);
 
     expect(out).toContain("from the file");
     expect(fake.calls.some((call) => call.command === "fake-sensor")).toBe(
@@ -727,25 +731,25 @@ describe("show and modules read the findings files", () => {
     );
   });
 
-  it("reports an invalid registered file as invalid", () => {
+  it("reports an invalid registered file as invalid", async () => {
     const fake = setup(REGISTER, { files: { [FAKE]: "{}" } });
 
-    expect(show(fake).err).toContain("invalid fake-sensor:");
+    expect((await show(fake)).err).toContain("invalid fake-sensor:");
   });
 });
 
 describe("a findings file for a sensor no longer registered", () => {
-  it("is removed by check with one stderr line and contributes nothing", () => {
+  it("is removed by check with one stderr line and contributes nothing", async () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
 
-    sense(fake);
+    await sense(fake);
     expect(fake.files.has(FAKE)).toBe(true);
 
     fake.files.set(CONFIG, "sensors:\n  structure:\n    hub_threshold: 10\n");
 
-    const { err, out } = check(fake, "--json");
+    const { err, out } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
 
     expect(err).toContain("removed unregistered fake-sensor\n");
@@ -758,9 +762,9 @@ describe("a findings file for a sensor no longer registered", () => {
     ]);
   });
 
-  it("is ignored by show and left in place", () => {
+  it("is ignored by show and left in place", async () => {
     const fake = setup(null, { files: { [FAKE]: fakeDocument() } });
-    const code = run(
+    const code = await run(
       ["show", "shop/main.py", "--repository", ROOT, "--json"],
       fake.io,
     );
@@ -779,17 +783,17 @@ describe("a findings file for a shipped sensor with no config entry", () => {
   const crapDocument = () =>
     fakeDocument({ sensor: { name: "crap", version: "1" } });
 
-  it("is kept by check and read by show", () => {
+  it("is kept by check and read by show", async () => {
     const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n", {
       files: { [CRAP]: crapDocument() },
     });
 
-    const { err } = check(fake, "--json");
+    const { err } = await check(fake, "--json");
 
     expect(err).not.toContain("removed unregistered crap");
     expect(fake.files.has(CRAP)).toBe(true);
 
-    const code = run(
+    const code = await run(
       ["show", "shop/main.py", "--repository", ROOT, "--json"],
       fake.io,
     );
@@ -799,9 +803,9 @@ describe("a findings file for a shipped sensor with no config entry", () => {
     expect(fake.err()).not.toContain("ignored unregistered crap");
   });
 
-  it("is not reported missing when it never ran", () => {
+  it("is not reported missing when it never ran", async () => {
     const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n");
-    const { out } = check(fake, "--json");
+    const { out } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
 
     expect(report.sensors.map((s: { name: string }) => s.name)).toEqual([
@@ -809,12 +813,12 @@ describe("a findings file for a shipped sensor with no config entry", () => {
     ]);
   });
 
-  it("still removes a third-party name that is neither registered nor shipped", () => {
+  it("still removes a third-party name that is neither registered nor shipped", async () => {
     const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n", {
       files: { [FAKE]: fakeDocument() },
     });
 
-    expect(check(fake, "--json").err).toContain(
+    expect((await check(fake, "--json")).err).toContain(
       "removed unregistered fake-sensor\n",
     );
     expect(fake.files.has(FAKE)).toBe(false);
@@ -834,7 +838,7 @@ describe("scan --sense leaves a running record while it works", () => {
     return names.map((name) => JSON.parse(fake.files.get(name) as string));
   }
 
-  it("holds one entry after the first child returns and a running outcome when the second throws", () => {
+  it("holds one entry after the first child returns and a running outcome when the second throws", async () => {
     let snapshot: unknown[] = [];
     const fake = setup(TWO, {
       programs: {
@@ -856,7 +860,7 @@ describe("scan --sense leaves a running record while it works", () => {
       },
     });
 
-    expect(run(["scan", ROOT, "--sense", "all"], fake.io)).not.toBe(0);
+    expect(await run(["scan", ROOT, "--sense", "all"], fake.io)).not.toBe(0);
     expect(fake.err()).toContain("killed");
 
     expect(snapshot).toHaveLength(1);
@@ -877,13 +881,13 @@ describe("scan --sense leaves a running record while it works", () => {
       record.phases[1].entries.map((one: { name: string }) => one.name),
     ).toEqual(["first"]);
 
-    const listed = run(["log", "--repository", ROOT], fake.io);
+    const listed = await run(["log", "--repository", ROOT], fake.io);
 
     expect(listed).toBe(0);
     expect(fake.out()).toContain("stopped");
   });
 
-  it("starts with an empty running record before the first child runs", () => {
+  it("starts with an empty running record before the first child runs", async () => {
     let atStart: unknown[] = [];
     const fake = setup(REGISTER, {
       programs: {
@@ -897,7 +901,7 @@ describe("scan --sense leaves a running record while it works", () => {
       },
     });
 
-    run(["scan", ROOT, "--sense", "all"], fake.io);
+    await run(["scan", ROOT, "--sense", "all"], fake.io);
 
     expect(atStart).toMatchObject([{ outcome: "running", phases: [] }]);
     expect(saved(fake)).toMatchObject([{ outcome: "failed" }]);
@@ -905,7 +909,7 @@ describe("scan --sense leaves a running record while it works", () => {
 });
 
 describe("scan --sense running a registered sensor as a real process", () => {
-  it("writes the sensor's findings file with the commit it was given", () => {
+  it("writes the sensor's findings file with the commit it was given", async () => {
     const root = makeTempDir("recognizer-sensor-");
 
     cpSync(join(REPO, "fixtures/python/sample"), root, { recursive: true });
@@ -940,7 +944,7 @@ describe("scan --sense running a registered sensor as a real process", () => {
     process.env.RECOGNIZER_SCAN_PYTHON = versionProbe;
 
     try {
-      expect(run(["scan", root, "--sense", "all"], sensed.io)).toBe(0);
+      expect(await run(["scan", root, "--sense", "all"], sensed.io)).toBe(0);
     } finally {
       if (saved === undefined) {
         delete process.env.RECOGNIZER_SCAN_PYTHON;
@@ -950,7 +954,7 @@ describe("scan --sense running a registered sensor as a real process", () => {
     }
 
     const out = capture();
-    const code = run(["check", "--repository", root, "--json"], out.io);
+    const code = await run(["check", "--repository", root, "--json"], out.io);
     const file = join(root, ".recognizer/cache/findings/fake-sensor.json");
     const document = JSON.parse(readFileSync(file, "utf8"));
 
@@ -1000,13 +1004,13 @@ describe("a report in the findings folder", () => {
     });
   }
 
-  it("is read by check at the scan's commit and listed ran with reported", () => {
+  it("is read by check at the scan's commit and listed ran with reported", async () => {
     const fake = setup(null, {
       files: {
         [REVIEW]: reportDocument("review", COMMIT, "current report finding"),
       },
     });
-    const { out, err } = check(fake, "--json");
+    const { out, err } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
 
     expect(JSON.stringify(report)).toContain("current report finding");
@@ -1019,7 +1023,7 @@ describe("a report in the findings folder", () => {
     expect(fake.files.has(REVIEW)).toBe(true);
   });
 
-  it("from another commit is ignored, named as reported at its short commit and kept", () => {
+  it("from another commit is ignored, named as reported at its short commit and kept", async () => {
     const fake = setup(null, {
       files: {
         [OLD]: reportDocument(
@@ -1029,7 +1033,7 @@ describe("a report in the findings folder", () => {
         ),
       },
     });
-    const { out, err } = check(fake, "--json");
+    const { out, err } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
 
     expect(err).toContain("stale old-review (reported at def4567)\n");
@@ -1042,9 +1046,9 @@ describe("a report in the findings folder", () => {
     expect(fake.files.has(OLD)).toBe(true);
   });
 
-  it("is not a report when the file is a registered sensor's or carries no mark", () => {
+  it("is not a report when the file is a registered sensor's or carries no mark", async () => {
     const fake = mixed();
-    const { err } = check(fake, "--json");
+    const { err } = await check(fake, "--json");
 
     expect(err).toContain("removed unregistered stray\n");
     expect(fake.files.has(STRAY)).toBe(false);
@@ -1052,9 +1056,9 @@ describe("a report in the findings folder", () => {
     expect(fake.files.has(OLD)).toBe(true);
   });
 
-  it("with a current, a stale and a stray file names only the stale one as not current", () => {
+  it("with a current, a stale and a stray file names only the stale one as not current", async () => {
     const fake = mixed();
-    const { out, err } = check(fake, "--json");
+    const { out, err } = await check(fake, "--json");
 
     expect(err).toContain("stale old-review (reported at def4567)");
     expect(err).not.toContain("stale review");
@@ -1062,9 +1066,12 @@ describe("a report in the findings folder", () => {
     expect(out).not.toContain("stale report finding");
   });
 
-  it("is included by show when current and named on stderr when stale", () => {
+  it("is included by show when current and named on stderr when stale", async () => {
     const fake = mixed();
-    const code = run(["show", MODULE, "--repository", ROOT, "--json"], fake.io);
+    const code = await run(
+      ["show", MODULE, "--repository", ROOT, "--json"],
+      fake.io,
+    );
 
     expect(code).toBe(0);
     expect(fake.out()).toContain("current report finding");
