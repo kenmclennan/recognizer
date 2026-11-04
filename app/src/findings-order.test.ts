@@ -6,8 +6,6 @@ import {
   badge,
   findingRows,
   orderFindings,
-  type StaleRow,
-  staleNote,
   walkFindings,
 } from "./findings-order";
 
@@ -50,14 +48,6 @@ const docs = [
 ];
 
 const rows = findingRows(docs);
-
-function sensorRow(
-  name: string,
-  chip: string,
-  kind: StaleRow["kind"] = "registered",
-): StaleRow {
-  return { name, kind, chip };
-}
 
 describe("findingRows", () => {
   it("makes one row per record with the first evidence module and the sensor name", () => {
@@ -149,62 +139,5 @@ describe("badge", () => {
       count: rows.filter((row) => row.severity === "violation").length,
       tone: "red",
     });
-  });
-});
-
-describe("staleNote", () => {
-  it("names stale, failed and not run registered sensors in config order", () => {
-    expect(
-      staleNote([
-        sensorRow("structure", "runs with every scan", "structure"),
-        sensorRow("a", "stale"),
-        sensorRow("b", "failed"),
-        sensorRow("c", "ran 2m ago"),
-        sensorRow("d", "not run"),
-        sensorRow("e", "running"),
-      ]),
-    ).toBe("Not current: a (stale), b (failed), d (not run)");
-  });
-
-  it("appends a report whose commit is not the scan's and omits a current one", () => {
-    expect(
-      staleNote(
-        [sensorRow("a", "stale")],
-        [
-          {
-            name: "review",
-            chip: "reported 1 minute ago",
-            commit: "abc1234",
-            stale: true,
-          },
-          {
-            name: "fresh",
-            chip: "reported just now",
-            commit: "def5678",
-            stale: false,
-          },
-        ],
-      ),
-    ).toBe("Not current: a (stale), review (reported at abc1234)");
-    expect(
-      staleNote(
-        [],
-        [
-          {
-            name: "fresh",
-            chip: "reported just now",
-            commit: "def5678",
-            stale: false,
-          },
-        ],
-      ),
-    ).toBeNull();
-  });
-
-  it("is null when every sensor ran", () => {
-    expect(
-      staleNote([sensorRow("a", "ran"), sensorRow("b", "ran 1m ago")]),
-    ).toBeNull();
-    expect(staleNote([])).toBeNull();
   });
 });
