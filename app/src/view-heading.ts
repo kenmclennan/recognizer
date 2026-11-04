@@ -1,24 +1,43 @@
 import type { Rect } from "./canvas-layout";
 import type { Scene } from "./canvas-scene";
 
-export const HEADING_GAP = 16;
-export const HEADING_WIDTH = 720;
-export const TITLE_SIZE = 20;
-export const TITLE_LINE = 24;
-export const TITLE_TO_DESCRIPTION = 4;
-export const DESCRIPTION_SIZE = 14;
-export const DESCRIPTION_LINE = 20.3;
 export const DESCRIPTION_MAX_LINES = 3;
+
+export type HeadingMetrics = {
+  titleSize: number;
+  titleLine: number;
+  descriptionSize: number;
+  descriptionLine: number;
+  titleToDescription: number;
+  gap: number;
+  wrapWidth: number;
+};
+
+export function headingMetrics(width: number): HeadingMetrics {
+  const titleSize = Math.min(64, Math.max(17, width * 0.022));
+  const descriptionSize = Math.max(12, titleSize * 0.62);
+
+  return {
+    titleSize,
+    titleLine: titleSize * 1.2,
+    descriptionSize,
+    descriptionLine: descriptionSize * 1.45,
+    titleToDescription: titleSize * 0.25,
+    gap: Math.max(16, titleSize * 0.8),
+    wrapWidth: Math.max(720, width * 0.8),
+  };
+}
 
 export type Heading = { title: string | null; description: string };
 
-export type HeadingAnchor = { centre: number; top: number };
+export type HeadingAnchor = { centre: number; top: number; width: number };
 
 export type HeadingLayout = {
   titleLines: string[];
   descriptionLines: string[];
   rect: Rect;
   centre: number;
+  metrics: HeadingMetrics;
 };
 
 export function headingAnchor(
@@ -42,6 +61,7 @@ export function headingAnchor(
 
   return {
     centre: (left + right) / 2,
+    width: right - left,
     top: Math.min(...rects.map((rect) => rect.y)),
   };
 }
@@ -126,16 +146,24 @@ export function wrapLines(
 export function layoutHeading(
   heading: Heading,
   anchor: HeadingAnchor,
-  measureTitle: (text: string) => number,
-  measureDescription: (text: string) => number,
+  measureTitle: (size: number) => (text: string) => number,
+  measureDescription: (size: number) => (text: string) => number,
 ): HeadingLayout | null {
+  const metrics = headingMetrics(anchor.width);
   const title = heading.title?.trim() ?? "";
   const titleLines =
-    title === "" ? [] : wrapLines(title, HEADING_WIDTH, measureTitle, null);
+    title === ""
+      ? []
+      : wrapLines(
+          title,
+          metrics.wrapWidth,
+          measureTitle(metrics.titleSize),
+          null,
+        );
   const descriptionLines = wrapLines(
     heading.description,
-    HEADING_WIDTH,
-    measureDescription,
+    metrics.wrapWidth,
+    measureDescription(metrics.descriptionSize),
     DESCRIPTION_MAX_LINES,
   );
 
@@ -144,20 +172,21 @@ export function layoutHeading(
   }
 
   const height =
-    titleLines.length * TITLE_LINE +
+    titleLines.length * metrics.titleLine +
     (titleLines.length > 0 && descriptionLines.length > 0
-      ? TITLE_TO_DESCRIPTION
+      ? metrics.titleToDescription
       : 0) +
-    descriptionLines.length * DESCRIPTION_LINE;
+    descriptionLines.length * metrics.descriptionLine;
 
   return {
     titleLines,
     descriptionLines,
     centre: anchor.centre,
+    metrics,
     rect: {
-      x: anchor.centre - HEADING_WIDTH / 2,
-      y: anchor.top - height - HEADING_GAP,
-      width: HEADING_WIDTH,
+      x: anchor.centre - metrics.wrapWidth / 2,
+      y: anchor.top - height - metrics.gap,
+      width: metrics.wrapWidth,
       height,
     },
   };
