@@ -27,7 +27,7 @@ const state = (node) => {
 };
 
 const actions = {
-  find() {}, select() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7,
+  camera() {}, find() {}, select() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7,
   takeOff() {}, toggleFold() {}, openContents() {}, openInEditor() {}, toggleFocus() {}, openTab() {},
 };
 const canvas = buildCanvasView(actions);

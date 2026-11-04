@@ -112,7 +112,7 @@ const TOKENS = ${JSON.stringify(TOKENS)};
 const calls = [];
 let selectHook = null;
 const actions = {
-  find() {}, select: (selection) => selectHook && selectHook(selection), clear: () => calls.push("clear"), setShowInferred() {},
+  camera() {}, find() {}, select: (selection) => selectHook && selectHook(selection), clear: () => calls.push("clear"), setShowInferred() {},
   measure: (t) => t.length * 7,
   takeOff: () => calls.push("takeOff"), toggleFold: () => calls.push("fold"), openContents: () => calls.push("contents"), openInEditor: () => calls.push("openInEditor"),
   toggleFocus: () => calls.push("focus"), openTab: (t) => calls.push("tab:" + t),

@@ -30,6 +30,7 @@ export type IconName =
   | "circle-x"
   | "check"
   | "info"
+  | "rotate-ccw"
   | "x";
 
 type Shape = [string, Record<string, string>];
@@ -39,6 +40,10 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPES: Record<IconName, Shape[]> = {
   "chevron-right": [["path", { d: "M9 6l6 6-6 6" }]],
   "chevron-left": [["path", { d: "M15 6l-6 6 6 6" }]],
+  "rotate-ccw": [
+    ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
+    ["path", { d: "M3 3v5h5" }],
+  ],
   "chevron-down": [["path", { d: "M6 9l6 6 6-6" }]],
   save: [
     [

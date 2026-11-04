@@ -23,6 +23,9 @@ export type ViewBarProps = {
   canCopy: boolean;
   openTitle: string | null;
   openDescription: string | null;
+  modified: boolean;
+  canRevert: boolean;
+  revertLabel: string;
 };
 
 export type ViewBarActions = {
@@ -31,6 +34,7 @@ export type ViewBarActions = {
   openView: (name: string) => void;
   openViewsPanel: () => void;
   save: () => void;
+  revert: () => void;
   saveNew: (
     name: string,
     title: string,
@@ -104,6 +108,10 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       renderOverlay();
     }
   });
+  const revert = iconButton("Revert to saved", "revert", "rotate-ccw", () =>
+    actions.revert(),
+  );
+  const modifiedMark = el("span", "view-modified", "modified");
   const copy = iconButton("Copy the view's link", "copy", "link", () =>
     actions.copyLink(),
   );
@@ -127,6 +135,9 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     canCopy: false,
     openTitle: null,
     openDescription: null,
+    modified: false,
+    canRevert: false,
+    revertLabel: "Revert to saved",
   };
   let menuOpen = false;
   let dialogOpen = false;
@@ -140,6 +151,9 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   list.setAttribute("aria-expanded", "false");
   name.append(nameText);
   name.title = "Rename the view";
+  modifiedMark.hidden = true;
+  revert.hidden = true;
+  revert.disabled = true;
   card.hidden = true;
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "View details");
@@ -168,8 +182,10 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     forward,
     list,
     name,
+    modifiedMark,
     rangeChip,
     save,
+    revert,
     copy,
     card,
     menu,
@@ -529,6 +545,11 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
         cancelEditing();
       }
 
+      modifiedMark.hidden = next.open === null || !next.modified;
+      save.disabled = next.open !== null && !next.modified;
+      revert.hidden = next.open === null;
+      revert.disabled = !next.canRevert;
+      relabel(revert, next.revertLabel);
       copy.disabled = !next.canCopy;
       renderMenu();
     },

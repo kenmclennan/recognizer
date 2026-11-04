@@ -186,7 +186,7 @@ const states = { src: describeRow("src").check.aria, lib: describeRow("lib").che
 tree.render(props({ filtered: filterTree(root, { ...filter, text: "zzz" }, context), filter: { ...filter, text: "zzz" } }));
 const empty = tree.element.querySelector(".empty").textContent;
 
-const canvasActions = { find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, openInEditor() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7 };
+const canvasActions = { camera() {}, find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, openInEditor() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7 };
 const canvas = buildCanvasView(canvasActions);
 document.body.append(canvas.element);
 const canvasProps = () => ({ scene: null, selection: null, highlight: null, bar: null, titles: new Map(), open: 0, total: 4, showInferred: true, notice: null });
