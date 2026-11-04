@@ -6,6 +6,17 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 ${FAKE_WORKER}
+const plainWorker = window.__fakeWorker;
+window.__fakeWorker = () => {
+  const worker = plainWorker();
+  const listen = worker.addEventListener.bind(worker);
+  const routed = (node) => {
+    for (const line of node.edges || []) line.sections = [{ startPoint: { x: 20, y: 20 }, endPoint: { x: 120, y: 90 } }];
+    for (const child of node.children || []) routed(child);
+  };
+  worker.addEventListener = (type, listener) => listen(type, (event) => { routed(event.data.data); listener(event); });
+  return worker;
+};
 
 const edge = (from, to, name) => ({ from, to, kind: "depends", line: 1, names: [name] });
 const scan = {
@@ -42,6 +53,10 @@ const facts = {};
   await tick();
   key("z");
   await tick();
+  facts.closedBeforeEdge = win.last();
+  click(q('.line-hit[data-kind="edge"]'));
+  await tick();
+  facts.closedAfterEdge = win.last();
   click(q('.box[data-id="app/hub.py"] .box-body'));
   await tick();
   click(q('.selection-bar [aria-label^="Dependencies"]'));
@@ -61,6 +76,11 @@ const facts = {};
   click(q('.selection-bar [aria-label^="Contents"]'));
   await tick();
   facts.afterTab = { added: win.published.length - beforeTab, state: win.last() };
+
+  facts.openBeforeEdge = win.last();
+  click(q('.line-hit[data-kind="edge"]'));
+  await tick();
+  facts.openAfterEdge = win.last();
 
   facts.neverTwiceInARow = win.published.every((text, index) => index === 0 || text !== win.published[index - 1]);
 
@@ -92,6 +112,10 @@ type Facts = {
   unchanged: number;
   afterTab: { added: number; state: State };
   neverTwiceInARow: boolean;
+  closedBeforeEdge: State;
+  closedAfterEdge: State;
+  openBeforeEdge: State;
+  openAfterEdge: State;
 };
 
 describe.skipIf(chrome === undefined)("the window's published state", () => {
@@ -100,6 +124,24 @@ describe.skipIf(chrome === undefined)("the window's published state", () => {
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "window");
   }, 120000);
+
+  it("selecting an edge with the inspector closed leaves it closed", () => {
+    expect(f.closedBeforeEdge.inspector.open).toBe(false);
+    expect(f.closedAfterEdge.selection?.kind).toBe("edge");
+    expect(f.closedAfterEdge.inspector).toEqual(f.closedBeforeEdge.inspector);
+    expect(f.closedAfterEdge.trail).toEqual(f.closedBeforeEdge.trail);
+  });
+
+  it("selecting an edge with the inspector open on a module keeps that module showing", () => {
+    expect(f.openBeforeEdge.inspector.open).toBe(true);
+    expect(f.openBeforeEdge.trail[0].selection).toEqual({
+      kind: "module",
+      id: "app/hub.py",
+    });
+    expect(f.openAfterEdge.selection?.kind).toBe("edge");
+    expect(f.openAfterEdge.inspector).toEqual(f.openBeforeEdge.inspector);
+    expect(f.openAfterEdge.trail).toEqual(f.openBeforeEdge.trail);
+  });
 
   it("publishes once the window has rendered, with nothing on the canvas", () => {
     expect(f.opening.modules).toEqual([]);
