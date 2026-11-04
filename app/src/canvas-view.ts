@@ -1,5 +1,6 @@
 import type { Mark } from "recognizer";
 import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
+import { createDescriptionHover, placeDescription } from "./box-description";
 import {
   isEditable,
   type KeyAction,
@@ -82,6 +83,7 @@ export type CanvasProps = {
   metrics?: CanvasMetrics | null;
   changes?: ChangeOverlay | null;
   heading?: Heading | null;
+  describe?: (id: string) => string | null;
 };
 
 export type ChangeOverlay = {
@@ -295,6 +297,55 @@ export function buildCanvasView(
     selectionBar.element.classList.toggle("away", !visible),
   );
 
+  const descriptionPanel = el("div", "box-description");
+
+  function showDescription(id: string | null) {
+    descriptionPanel.classList.remove("shown");
+
+    if (id === null) {
+      return;
+    }
+
+    const text = props?.describe?.(id) ?? null;
+    const body = surface
+      .querySelector(`[data-id="${CSS.escape(id)}"] .box-body`)
+      ?.getBoundingClientRect();
+
+    if (!text || !body) {
+      return;
+    }
+
+    const area = stage.getBoundingClientRect();
+    const selected = props?.selection;
+    const barRect =
+      selected &&
+      selected.kind !== "edge" &&
+      selected.id === id &&
+      !selectionBar.element.classList.contains("away")
+        ? selectionBar.element.getBoundingClientRect()
+        : null;
+
+    descriptionPanel.textContent = text;
+    descriptionPanel.style.width = `${body.width}px`;
+
+    const place = placeDescription(
+      body,
+      descriptionPanel.offsetHeight,
+      area,
+      barRect,
+    );
+
+    if (place === null) {
+      return;
+    }
+
+    descriptionPanel.style.left = `${place.left - area.left}px`;
+    descriptionPanel.style.top = `${place.top - area.top}px`;
+    descriptionPanel.classList.add("shown");
+  }
+
+  const descriptions = createDescriptionHover(scheduler, showDescription);
+
   selectionBar.element.classList.add("away");
   selectionBar.element.addEventListener("pointerenter", () => hover.enter());
   selectionBar.element.addEventListener("pointerleave", () => hover.leave());
@@ -352,7 +403,15 @@ export function buildCanvasView(
   zoomIn.setAttribute("aria-label", "Zoom in");
   surface.append(world);
   noteLayer.hidden = true;
-  stage.append(surface, noteLayer, empty, notice, busy, selectionBar.element);
+  stage.append(
+    surface,
+    descriptionPanel,
+    noteLayer,
+    empty,
+    notice,
+    busy,
+    selectionBar.element,
+  );
   controls.append(
     zoomOut,
     level,
@@ -385,6 +444,7 @@ export function buildCanvasView(
   }
 
   function applyViewport() {
+    descriptions.reset();
     world.setAttribute(
       "transform",
       `translate(${viewport.x} ${viewport.y}) scale(${viewport.k})`,
@@ -1151,6 +1211,7 @@ export function buildCanvasView(
   }
 
   surface.addEventListener("pointerdown", (event) => {
+    descriptions.reset();
     cancelPan();
 
     if (
@@ -1172,12 +1233,19 @@ export function buildCanvasView(
   });
 
   surface.addEventListener("pointerleave", () => {
+    descriptions.reset();
     hover.leave();
   });
 
   surface.addEventListener("pointermove", (event) => {
     const selection = props?.selection;
     const over = targetOf(event);
+
+    if (over && over.kind !== "edge") {
+      descriptions.enter(over.id);
+    } else {
+      descriptions.leave();
+    }
 
     if (
       selection &&
@@ -1256,6 +1324,7 @@ export function buildCanvasView(
     "wheel",
     (event) => {
       event.preventDefault();
+      descriptions.reset();
       cancelPan();
 
       const at = localPoint(event);
@@ -1469,6 +1538,7 @@ export function buildCanvasView(
     render(next) {
       const previous = props;
 
+      descriptions.reset();
       props = next;
       empty.hidden = next.open > 0;
       notice.textContent = next.notice ?? "";

@@ -127,6 +127,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Focus | Narrowing the canvas to one folder's files. |
 | Legend | The panel on the canvas, opened from its bottom-right controls, that names every edge style, every disc and what a frame's figure counts, and holds the inferred-edges switch. |
 | Box | What the canvas draws for a module, or for a folded folder: its disc, its name and, when it has a note, its note mark. |
+| Box description | The small panel that fades in directly under a hovered canvas box, as wide as the box, showing the module's one-line description from the describer; a box with no description shows none. |
 | Private-name import | An import of a name the target module does not export. Drawn dashed. |
 | Evidence | Why an edge exists: the quoted source line, the names, the route, or what an inferred edge was inferred from. |
 | View state | Everything that decides what the user sees, as one record. Each change makes a new one; it lasts only as long as the window. |
