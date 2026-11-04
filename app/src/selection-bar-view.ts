@@ -108,7 +108,7 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
       parts.push(dependencies);
 
       if (model.notes !== null) {
-        const notes = iconButton("notes", `Notes (N)`, () =>
+        const notes = iconButton("sticky-note", `Notes (N)`, () =>
           actions.openNote(),
         );
 
