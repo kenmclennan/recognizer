@@ -181,6 +181,19 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   click(bar.q('.box[data-id="lib/c.py"] .box-body'));
   await tick();
   facts.barWarn = findingsButton().className;
+  const tree = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
+  const folderBox = tree.q('.frame-label[data-kind="folder"][data-id="app"]');
+  facts.folderBoxFound = folderBox !== null;
+  if (folderBox) {
+    click(folderBox);
+    await tick();
+    click(tree.q('.selection-bar .bar-button[title="Findings (W)"]'));
+    await tick();
+    facts.folderTab = { groups: texts(tree, ".inspector-panel .finding-group-name"), headings: tree.all(".inspector-panel .lnk").length };
+    for (const head of tree.all(".inspector-panel .finding-group-head")) click(head);
+    await tick();
+    facts.folderCards = { names: texts(tree, ".inspector-panel .finding-card .finding-name"), groupsOpen: tree.all(".inspector-panel .finding-group.open").length };
+  }
   const quiet = await mount({ findings: [doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
   click(quiet.q('.box[data-id="app/a.py"] .box-body'));
   await tick();
@@ -403,6 +416,17 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.barOpened.name).toBe("a.py");
     expect(f.barOpened.folder).toBe("app");
     expect(f.barOpened.panelGroupsOpen).toBe(0);
+  });
+
+  it("groups a folder's findings by kind once each, not under per-module headings", () => {
+    expect(f.folderBoxFound).toBe(true);
+    expect(f.folderTab.groups).toEqual([
+      "Policy violation",
+      "Cyclic dependency",
+    ]);
+    expect(f.folderTab.headings).toBe(0);
+    expect(f.folderCards.groupsOpen).toBe(2);
+    expect(f.folderCards.names.sort()).toEqual(["a.py", "a.py"]);
   });
 
   it("focuses a finding from the inspector's tab exactly as the panel does", () => {

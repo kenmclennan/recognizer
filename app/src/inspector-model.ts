@@ -107,8 +107,6 @@ export type Row =
       follow: Direction | null;
       followed: boolean;
     }
-  | { kind: "group"; id: string; disc: Disc; path: string }
-  | { kind: "finding"; row: FindingRow }
   | {
       kind: "finding-group";
       key: string;
@@ -640,29 +638,24 @@ function dependencyRows(
   return rows;
 }
 
-function findingRows(rows: FindingRow[]): Row[] {
-  const ordered = [
-    ...rows.filter((row) => row.severity === "violation"),
-    ...rows.filter((row) => row.severity === "warning"),
-  ];
+function groupRows(rows: FindingRow[], inputs: InspectorInputs): Row[] {
+  return groupsOf(rows).map((group) => {
+    const key = `findings:${group.key}`;
 
-  return ordered.map((row) => ({ kind: "finding", row }));
+    return {
+      kind: "finding-group",
+      key,
+      group,
+      open: inputs.expanded.has(key),
+    };
+  });
 }
 
 function moduleFindings(id: string, inputs: InspectorInputs): Row[] {
-  const groups = groupsOf(inputs.findingRows(id));
+  const groups = groupRows(inputs.findingRows(id), inputs);
 
   if (groups.length > 0) {
-    return groups.map((group) => {
-      const key = `findings:${group.key}`;
-
-      return {
-        kind: "finding-group",
-        key,
-        group,
-        open: inputs.expanded.has(key),
-      };
-    });
+    return groups;
   }
 
   return [
@@ -675,29 +668,19 @@ function moduleFindings(id: string, inputs: InspectorInputs): Row[] {
 
 function foldersGroups(folder: string, inputs: InspectorInputs): Row[] {
   const grey = inputs.disc(folder) === "grey";
-  const groups = inputs.modules
+  const rows = inputs.modules
     .filter((id) => id !== folder && under(id, folder))
-    .map((id) => ({ id, findings: findingRows(inputs.findingRows(id)) }))
-    .filter((group) => group.findings.length > 0)
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort((a, b) => a.localeCompare(b))
+    .flatMap((id) => inputs.findingRows(id))
+    .filter((row, at, all) => all.findIndex((one) => one.id === row.id) === at);
+  const groups = groupRows(rows, inputs);
   const note = grey ? "Some modules are not measured" : "No findings";
 
   if (groups.length === 0) {
     return [{ kind: "note", text: note }];
   }
 
-  return [
-    ...groups.flatMap((group): Row[] => [
-      {
-        kind: "group",
-        id: group.id,
-        disc: inputs.disc(group.id),
-        path: group.id.slice(folder.length + 1),
-      },
-      ...group.findings,
-    ]),
-    ...(grey ? [{ kind: "note", text: note } as Row] : []),
-  ];
+  return [...groups, ...(grey ? [{ kind: "note", text: note } as Row] : [])];
 }
 
 type FindingInputs = Pick<InspectorInputs, "findings" | "modules">;

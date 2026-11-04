@@ -2,7 +2,7 @@ import type { Token } from "recognizer";
 import { isEditable } from "./canvas-keys";
 import { el } from "./dom";
 import { cardOf } from "./finding-card";
-import { buildFindingCard, buildFindingGroup } from "./findings-panel-view";
+import { buildFindingGroup } from "./findings-panel-view";
 import { icon, iconButton } from "./icons";
 import type {
   CardRow,
@@ -301,38 +301,16 @@ function rowNode(
     return node;
   }
 
-  if (row.kind === "group") {
-    const node = el("div", "lnk");
-
-    node.title = "Click to select it";
-    node.append(disc(row.disc), el("span", "", row.path));
-    node.addEventListener("click", () => actions.openFile(row.id));
-
-    return node;
-  }
-
-  if (row.kind === "finding-group") {
-    return buildFindingGroup(
-      row.group,
-      row.open,
-      row.group.rows.map(cardOf),
-      { active: actions.focusedFinding(), absent: actions.moduleAbsent },
-      {
-        toggle: actions.focusFinding,
-        addToView: actions.addToView,
-        toggleGroup: () => actions.toggleFold(row.key),
-      },
-    );
-  }
-
-  return buildFindingCard(
-    cardOf(row.row),
-    row.row.severity,
+  return buildFindingGroup(
+    row.group,
+    row.open,
+    row.group.rows.map(cardOf),
+    { active: actions.focusedFinding(), absent: actions.moduleAbsent },
     {
-      open: actions.focusedFinding() === row.row.id,
-      absent: actions.moduleAbsent,
+      toggle: actions.focusFinding,
+      addToView: actions.addToView,
+      toggleGroup: () => actions.toggleFold(row.key),
     },
-    { toggle: actions.focusFinding, addToView: actions.addToView },
   );
 }
 
