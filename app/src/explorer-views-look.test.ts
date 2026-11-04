@@ -83,7 +83,7 @@ function mount(files, options, comparisons) {
   const canvasKids = () => q(".canvas").children.length;
   const badge = () => ({ hidden: footerEl.querySelector(".bell-badge").hidden, count: footerEl.querySelector(".bell-badge").textContent });
   const selected = () => all(".box.selected").map((n) => n.dataset.id);
-  return { host, port, win, state, notes, q, all, count, lastCurrent, tray, update, canvasKids, badge, calls, selected };
+  return { footerEl, host, port, win, state, notes, q, all, count, lastCurrent, tray, update, canvasKids, badge, calls, selected };
 }
 
 const facts = {};
@@ -450,6 +450,92 @@ const facts = {};
     padding: openStyle.padding,
     gap: Math.round(rowPair[1].getBoundingClientRect().top - rowPair[0].getBoundingClientRect().bottom),
   };
+
+
+  const openFirst = async (ctx) => {
+    click(ctx.q(".view-list"));
+    click(ctx.q(".view-item"));
+    await tick();
+  };
+  const bar = (ctx) => {
+    const mark = ctx.q(".view-modified");
+    const revert = ctx.q(".view-revert");
+    return { marker: mark !== null && !mark.hidden && getComputedStyle(mark).display !== "none", save: !ctx.q(".view-save").disabled, revertShown: revert !== null && !revert.hidden, revertEnabled: revert !== null && !revert.disabled, label: revert && revert.title, aria: revert && revert.getAttribute("aria-label") };
+  };
+  const camera = (ctx) => ctx.q(".canvas .world").getAttribute("transform");
+  const zoomIn = (ctx) => click(ctx.all(".canvas .control").find((n) => n.textContent === "+"));
+  const toggleLib = (ctx) => click(ctx.q('.tree .row[data-path="lib"] .rcheck'));
+  const revertRows = (ctx) => ctx.tray().filter((row) => row.text.startsWith("Reverted"));
+
+  const rv = mount({ v: viewText([pick("app/hub.py")], "cur1234"), w: viewText([pick("app/a.py")], "cur1234") });
+  await tick();
+  await openFirst(rv);
+  const fitted0 = camera(rv);
+  facts.revert = { fresh: bar(rv), freshCount: rv.count(), icon: { width: rv.q(".view-revert svg").getBoundingClientRect().width, paths: [...rv.q(".view-revert svg").querySelectorAll("path")].map((n) => n.getAttribute("d")) }, afterSave: rv.q(".view-save").nextElementSibling === rv.q(".view-revert") };
+  toggleLib(rv);
+  await tick();
+  facts.revert.modified = { bar: bar(rv), count: rv.count() };
+  toggleLib(rv);
+  await tick();
+  facts.revert.clearedByHand = { bar: bar(rv), count: rv.count() };
+  toggleLib(rv);
+  await tick();
+  zoomIn(rv);
+  const moved = camera(rv);
+  facts.revert.beforeRevert = { moved: moved !== fitted0, count: rv.count() };
+  click(rv.q(".view-revert"));
+  await tick();
+  facts.revert.reverted = { bar: bar(rv), count: rv.count(), fitted: camera(rv) === fitted0, rows: revertRows(rv), tray: rv.tray().length };
+  click(rv.footerEl.querySelector(".message-list .msg-act"));
+  await tick();
+  facts.revert.undone = { bar: bar(rv), count: rv.count(), camera: camera(rv) === moved, rowsAfter: revertRows(rv).length };
+  click(rv.q(".view-revert"));
+  await tick();
+  facts.revert.second = { count: rv.count() };
+  click(rv.q(".view-list"));
+  click(rv.all(".view-item").find((n) => n.textContent.startsWith("w")));
+  await tick();
+  const wCount = rv.count();
+  const guardRow = rv.footerEl.querySelector(".message-list .msg-act");
+  if (guardRow) click(guardRow);
+  await tick();
+  facts.revert.guard = { wCount, after: rv.count(), name: rv.q(".view-name").textContent.trim() };
+
+  const cam = mount({ v: viewText([pick("app/hub.py")], "cur1234") });
+  await tick();
+  await openFirst(cam);
+  const camFitted = camera(cam);
+  zoomIn(cam);
+  facts.revert.cameraOnly = { bar: bar(cam), moved: camera(cam) !== camFitted };
+  click(cam.q(".view-revert"));
+  await tick();
+  facts.revert.cameraRestored = { fitted: camera(cam) === camFitted, tray: cam.tray().length, bar: bar(cam) };
+
+  const unsaved = mount({});
+  await tick();
+  click(unsaved.q('.tree .row[data-path="app"] .rcheck'));
+  await tick();
+  facts.revert.unsaved = bar(unsaved);
+  click(unsaved.q(".view-save"));
+  facts.revert.unsavedDialog = !unsaved.q(".view-dialog").hidden;
+
+  const saveIt = mount({ v: viewText([pick("app/hub.py")], "cur1234") });
+  await tick();
+  await openFirst(saveIt);
+  toggleLib(saveIt);
+  await tick();
+  click(saveIt.q(".view-save"));
+  await tick();
+  facts.revert.savedClears = { bar: bar(saveIt), steps: JSON.parse(saveIt.port.files.get("v")).steps.length };
+
+  const renamedPick = mount({ r: viewText([pick("app/hub.py"), pick("lib/deleted.py")], "old1234") });
+  renamedPick.port.renames = [{ from: "lib/deleted.py", to: "lib/e.py" }];
+  await tick();
+  await openFirst(renamedPick);
+  const renamedOpen = { bar: bar(renamedPick), count: renamedPick.count() };
+  click(renamedPick.q(".view-revert"));
+  await tick();
+  facts.revert.renamedPick = { opened: renamedOpen, reverted: { bar: bar(renamedPick), count: renamedPick.count() } };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -854,5 +940,94 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
       { kind: "pick", module: "lib/d.py" },
       { kind: "pick", module: "lib/e.py" },
     ]);
+  });
+  it("shows a muted modified marker and enables Save only while the canvas differs from the saved file", () => {
+    expect(f.revert.fresh).toMatchObject({ marker: false, save: false });
+    expect(f.revert.modified.bar).toMatchObject({ marker: true, save: true });
+    expect(f.revert.clearedByHand.bar).toMatchObject({
+      marker: false,
+      save: false,
+    });
+    expect(f.revert.clearedByHand.count).toBe(f.revert.freshCount);
+  });
+
+  it("puts a 16px rotate-ccw Revert beside Save, disabled when nothing differs", () => {
+    expect(f.revert.afterSave).toBe(true);
+    expect(f.revert.icon.width).toBe(16);
+    expect(f.revert.icon.paths).toEqual([
+      "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+      "M3 3v5h5",
+    ]);
+    expect(f.revert.fresh).toMatchObject({
+      revertShown: true,
+      revertEnabled: false,
+    });
+  });
+
+  it("reverts a modified view to its saved modules and fitted framing and offers Undo", () => {
+    expect(f.revert.modified.bar).toMatchObject({
+      revertEnabled: true,
+      label: "Revert to saved",
+      aria: "Revert to saved",
+    });
+    expect(f.revert.beforeRevert.moved).toBe(true);
+    expect(f.revert.reverted.count).toBe(1);
+    expect(f.revert.reverted.fitted).toBe(true);
+    expect(f.revert.reverted.bar).toMatchObject({
+      marker: false,
+      save: false,
+      revertEnabled: false,
+    });
+    expect(f.revert.reverted.rows).toEqual([
+      { text: "Reverted v to its saved version.", actions: ["Undo"] },
+    ]);
+  });
+
+  it("undoes a revert to the modules and camera from just before it", () => {
+    expect(f.revert.undone.count).toBe(f.revert.beforeRevert.count);
+    expect(f.revert.undone.camera).toBe(true);
+    expect(f.revert.undone.bar.marker).toBe(true);
+  });
+
+  it("does nothing on Undo once another view is open", () => {
+    expect(f.revert.guard.name).toBe("w");
+    expect(f.revert.guard.after).toBe(f.revert.guard.wCount);
+  });
+
+  it("restores only the camera, without a message, when the view was only panned or zoomed", () => {
+    expect(f.revert.cameraOnly.moved).toBe(true);
+    expect(f.revert.cameraOnly.bar).toMatchObject({
+      marker: false,
+      save: false,
+      revertEnabled: true,
+      label: "Back to the saved position",
+    });
+    expect(f.revert.cameraRestored.fitted).toBe(true);
+    expect(f.revert.cameraRestored.tray).toBe(0);
+    expect(f.revert.cameraRestored.bar.revertEnabled).toBe(false);
+  });
+
+  it("gives an unsaved view no Revert and a Save that opens the naming dialog", () => {
+    expect(f.revert.unsaved).toMatchObject({
+      revertShown: false,
+      marker: false,
+      save: true,
+    });
+    expect(f.revert.unsavedDialog).toBe(true);
+  });
+
+  it("clears the marker when a modified view is saved", () => {
+    expect(f.revert.savedClears.bar).toMatchObject({
+      marker: false,
+      save: false,
+    });
+    expect(f.revert.savedClears.steps).toBe(4);
+  });
+
+  it("reads a view with a renamed pick as modified on opening and clears it on Revert", () => {
+    expect(f.revert.renamedPick.opened.bar.marker).toBe(true);
+    expect(f.revert.renamedPick.opened.count).toBe(2);
+    expect(f.revert.renamedPick.reverted.bar.marker).toBe(false);
+    expect(f.revert.renamedPick.reverted.count).toBe(1);
   });
 });

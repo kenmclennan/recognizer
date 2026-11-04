@@ -49,6 +49,17 @@ export function fitToBounds(bounds: Rect, size: Size): Viewport {
   };
 }
 
+export const FIT_TOLERANCE_PX = 0.5;
+export const FIT_TOLERANCE_K = 0.001;
+
+export function sameFraming(a: Viewport, b: Viewport): boolean {
+  return (
+    Math.abs(a.x - b.x) <= FIT_TOLERANCE_PX &&
+    Math.abs(a.y - b.y) <= FIT_TOLERANCE_PX &&
+    Math.abs(a.k - b.k) <= FIT_TOLERANCE_K
+  );
+}
+
 export function centerOn(viewport: Viewport, rect: Rect, size: Size): Viewport {
   return {
     k: viewport.k,

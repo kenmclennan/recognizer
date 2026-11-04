@@ -56,6 +56,7 @@ import {
   centerOn,
   fitToBounds,
   panBy,
+  sameFraming,
   type Viewport,
   zoomAt,
   zoomLabel,
@@ -124,6 +125,7 @@ export type CanvasActions = {
   stepNote: (path: string) => void;
   walkFindings: (delta: 1 | -1) => void;
   pickName: (id: string) => void;
+  camera: () => void;
 };
 
 export type CanvasView = {
@@ -131,6 +133,9 @@ export type CanvasView = {
   render: (props: CanvasProps) => void;
   centerOn: (id: string) => void;
   walkTo: (path: string, options: { animate: boolean }) => void;
+  fitted: () => boolean;
+  camera: () => Viewport;
+  setCamera: (target: Viewport | "fit", afterNextScene?: boolean) => void;
 };
 
 type BubbleScreen = {
@@ -298,6 +303,8 @@ export function buildCanvasView(
   let shownSelection: string | null = null;
   let viewport: Viewport = { x: 0, y: 0, k: 1 };
   let hadContent = false;
+  let pendingCamera: Viewport | "fit" | null = null;
+  let wasFitted = true;
   let legendOpen = false;
   let metricsOpen = false;
   let pointerAnchor: Point | null = null;
@@ -385,6 +392,35 @@ export function buildCanvasView(
     zoomIn.disabled = atMax(viewport);
     noteLayer.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.k})`;
     positionBar();
+
+    const nowFitted = fittedNow();
+
+    if (nowFitted !== wasFitted) {
+      wasFitted = nowFitted;
+      actions.camera();
+    }
+  }
+
+  function fittedNow(): boolean {
+    return props?.scene
+      ? sameFraming(viewport, fitViewport(props.scene.bounds))
+      : true;
+  }
+
+  function fitViewport(bounds: Rect): Viewport {
+    return fitToBounds(
+      withHeading(bounds, headingLayout()?.rect ?? null),
+      size(),
+    );
+  }
+
+  function applyCamera(target: Viewport | "fit") {
+    if (target === "fit") {
+      fitNow();
+    } else {
+      viewport = target;
+      applyViewport();
+    }
   }
 
   function zoomBy(factor: number, at?: Point) {
@@ -493,10 +529,7 @@ export function buildCanvasView(
 
   function fitNow() {
     if (props?.scene) {
-      viewport = fitToBounds(
-        withHeading(props.scene.bounds, headingLayout()?.rect ?? null),
-        size(),
-      );
+      viewport = fitViewport(props.scene.bounds);
       applyViewport();
     }
   }
@@ -1414,6 +1447,16 @@ export function buildCanvasView(
         pendingWalk = { path, animate: options.animate };
       }
     },
+    fitted: fittedNow,
+    camera: () => viewport,
+    setCamera(target, afterNextScene = false) {
+      if (afterNextScene) {
+        pendingCamera = target;
+      } else {
+        pendingCamera = null;
+        applyCamera(target);
+      }
+    },
     centerOn(id) {
       if (!centerNow(id)) {
         pendingCenter = id;
@@ -1454,6 +1497,11 @@ export function buildCanvasView(
         }
 
         hadContent = has;
+
+        if (pendingCamera !== null && scene) {
+          applyCamera(pendingCamera);
+          pendingCamera = null;
+        }
       }
 
       if (pendingCenter !== null && centerNow(pendingCenter)) {

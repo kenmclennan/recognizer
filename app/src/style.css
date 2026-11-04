@@ -2929,6 +2929,14 @@ svg.i.chevron {
   margin-left: 4px;
 }
 
+.view-modified {
+  align-self: center;
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .view-all {
   margin-top: 4px;
   padding: 6px 8px;

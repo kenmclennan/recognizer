@@ -157,6 +157,7 @@ import {
   type OrderState,
 } from "./view-history";
 import { resolveLinkedView } from "./view-link";
+import { viewModified } from "./view-modified";
 import {
   noteAt,
   notedPaths,
@@ -508,6 +509,7 @@ export function showExplorer(
         }
       },
       pickName,
+      camera: () => renderBar(),
       measure,
       openTab,
     },
@@ -734,6 +736,7 @@ export function showExplorer(
     openView: (name) => void openSaved(name),
     openViewsPanel: toggleViewsPanel,
     save: () => void saveOpen(),
+    revert,
     saveNew: (name, title, description) => saveNew(name, title, description),
     saveDetails: (name, title, description) =>
       saveDetails(name, title, description),
@@ -2244,6 +2247,64 @@ export function showExplorer(
     render();
   }
 
+  function modified(): boolean {
+    const text =
+      openView === null
+        ? undefined
+        : viewList.find((entry) => entry.name === openView)?.text;
+    const parsed = text === undefined ? null : parseViewFile(text);
+
+    return parsed?.ok === true
+      ? viewModified(parsed.view, canvasContent(), scans)
+      : false;
+  }
+
+  let revertMessage: number | null = null;
+
+  function revert() {
+    const name = openView;
+    const text =
+      name === null ? undefined : viewList.find((e) => e.name === name)?.text;
+    const parsed = text === undefined ? null : parseViewFile(text);
+
+    if (name === null || parsed === null || !parsed.ok) {
+      return;
+    }
+
+    if (!viewModified(parsed.view, canvasContent(), scans)) {
+      canvas.setCamera("fit");
+      renderBar();
+
+      return;
+    }
+
+    const before = { ...canvasContent(), camera: canvas.camera() };
+    const resolved = resolveView(parsed.view, scans);
+
+    if (revertMessage !== null) {
+      withdraw(revertMessage);
+      revertMessage = null;
+    }
+
+    setCanvas(resolved.modules, resolved.folded, resolved.focus);
+    canvas.setCamera("fit", endLayoutBusy !== null);
+    revertMessage = post({
+      kind: "done",
+      text: `Reverted ${name} to its saved version.`,
+      action: {
+        label: "Undo",
+        run() {
+          if (openView !== name) {
+            return;
+          }
+
+          setCanvas(before.modules, before.folded, before.focus);
+          canvas.setCamera(before.camera, endLayoutBusy !== null);
+        },
+      },
+    });
+  }
+
   function renderBar() {
     bar.render({
       open: openView,
@@ -2271,6 +2332,11 @@ export function showExplorer(
       backLabel: backLabel(history.markNow()),
       forwardLabel: forwardLabel(history.markNext()),
       canCopy: openView !== null,
+      modified: modified(),
+      canRevert: modified() || !canvas.fitted(),
+      revertLabel: modified()
+        ? "Revert to saved"
+        : "Back to the saved position",
       openTitle: openViewValue()?.title ?? null,
       openDescription: openViewValue()?.description ?? null,
     });

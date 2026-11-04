@@ -6,6 +6,7 @@ import {
   fitToBounds,
   MAX_ZOOM,
   MIN_ZOOM,
+  sameFraming,
   zoomAt,
   zoomLabel,
 } from "./viewport";
@@ -70,5 +71,15 @@ describe("viewport", () => {
 
   it("shows the zoom as a percentage", () => {
     expect(zoomLabel({ x: 0, y: 0, k: 1.234 })).toBe("123%");
+  });
+
+  it("treats a framing within 0.5px and 0.001 zoom as the same, and nothing further", () => {
+    const fit = { x: 10, y: 20, k: 0.5 };
+
+    expect(sameFraming(fit, fit)).toBe(true);
+    expect(sameFraming(fit, { x: 10.5, y: 19.5, k: 0.5009 })).toBe(true);
+    expect(sameFraming(fit, { x: 10.6, y: 20, k: 0.5 })).toBe(false);
+    expect(sameFraming(fit, { x: 11, y: 20, k: 0.5 })).toBe(false);
+    expect(sameFraming(fit, { x: 10, y: 20, k: 0.502 })).toBe(false);
   });
 });
