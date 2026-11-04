@@ -93,11 +93,12 @@ def test_members_keep_their_lines_after_the_repair(run):
 
 
 def test_a_file_the_repair_cannot_fix_is_chunked_on_the_original_text(run, tmp_path):
-    source = "package p\n\nclass A { val x = 1 }\n\n@Singleton\nannotation class U\n"
+    source = "package p\n\nclass A { val x = 1 }\n\n@Singleton\nconst val U = 1\n"
     document = run({"a/F.kt": source})
     parsed = parse_file(source.encode())
 
     assert scan_with_stats(tmp_path, None).damaged == 1
+    assert is_damaged(PARSER.parse(source.encode()).root_node)
     assert parsed.damaged
     assert is_damaged(PARSER.parse(repair_closing_braces(source).encode()).root_node)
     assert {"A", "U"} <= set(outline(document, "a/F.kt"))
