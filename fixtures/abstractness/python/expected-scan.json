@@ -155,10 +155,9 @@
         },
         {
           "name": "Alias",
-          "kind": "constant",
+          "kind": "type",
           "line": 12,
-          "exported": true,
-          "value": "\"dict[str, int]\""
+          "exported": true
         },
         {
           "name": "build",

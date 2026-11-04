@@ -266,6 +266,23 @@ def constant_names(statement: ast.stmt) -> list[str]:
 TYPE_ALIAS = getattr(ast, "TypeAlias", None)
 
 
+def is_annotated_type_alias(statement: ast.stmt) -> bool:
+    if not isinstance(statement, ast.AnnAssign):
+        return False
+
+    annotation = statement.annotation
+
+    if isinstance(annotation, ast.Name):
+        return annotation.id == "TypeAlias"
+
+    return (
+        isinstance(annotation, ast.Attribute)
+        and annotation.attr == "TypeAlias"
+        and isinstance(annotation.value, ast.Name)
+        and annotation.value.id == "typing"
+    )
+
+
 def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> list[dict]:
     exports = declared_exports(tree)
     members = []
@@ -286,7 +303,9 @@ def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> lis
             detail = class_member(statement, bindings)
         elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
             detail = {"kind": "function"} | callable_outline(statement, False, False)
-        elif TYPE_ALIAS is not None and isinstance(statement, TYPE_ALIAS):
+        elif (
+            TYPE_ALIAS is not None and isinstance(statement, TYPE_ALIAS)
+        ) or is_annotated_type_alias(statement):
             detail = {"kind": "type"}
         else:
             detail = {"kind": "constant", "value": shorten(source_text(source, statement.value))}
