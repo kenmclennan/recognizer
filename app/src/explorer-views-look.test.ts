@@ -304,30 +304,83 @@ const facts = {};
   click(rename.q(".view-list"));
   click(rename.all(".view-item")[0]);
   await tick();
-  const edit = (value, k) => {
-    const field = rename.q(".view-name-field-inline");
-    typeInto(field, value);
-    field.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
-  };
+  const card = () => rename.q(".view-details");
+  const field = (kind) => rename.q(".view-details-" + kind);
+  const press = (node, k, extra) => node.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...extra }));
+  const headingNow = () => ({ title: rename.all(".view-heading-title tspan").map((t) => t.textContent).join(" "), description: rename.all(".view-heading-description tspan").map((t) => t.textContent).join(" ") });
+  const cardShown = () => !card().hidden;
+  const file = (n) => JSON.parse(rename.port.files.get(n));
   click(rename.q(".view-name"));
-  facts.editing = { field: !rename.q(".view-name-field-inline").hidden, value: rename.q(".view-name-field-inline").value, nameHidden: rename.q(".view-name").hidden, weight: getComputedStyle(rename.q(".view-name-field-inline")).fontWeight, border: getComputedStyle(rename.q(".view-name-field-inline")).borderColor, selection: (() => { const probe = document.createElement("i"); probe.style.color = "var(--sel)"; document.body.append(probe); return getComputedStyle(probe).color; })() };
-  edit("beta", "Enter");
+  facts.editing = { card: cardShown(), name: field("name").value, title: field("title").value, description: field("description").value, saveDisabled: field("save").disabled, nameVisible: !rename.q(".view-name").hidden, inlineFields: rename.all(".view-name-field-inline, .view-title-field-inline").length, descriptionTag: field("description").tagName, focused: document.activeElement === field("title") };
+  facts.headingBefore = headingNow();
+  typeInto(field("title"), "Draft title");
+  typeInto(field("description"), "Draft description");
   await tick();
-  facts.taken = { field: !rename.q(".view-name-field-inline").hidden, problem: rename.q(".view-name-problem").hidden ? "" : rename.q(".view-name-problem").textContent, renamed: rename.port.renamed.length, files: [...rename.port.files.keys()] };
-  edit("../x", "Enter");
+  facts.preview = { heading: headingNow(), saveDisabled: field("save").disabled };
+  press(field("title"), "Escape");
   await tick();
-  facts.badName = { field: !rename.q(".view-name-field-inline").hidden, problem: rename.q(".view-name-problem").textContent, renamed: rename.port.renamed.length };
-  edit("alpha", "Escape");
-  facts.escaped = { field: !rename.q(".view-name-field-inline").hidden, name: rename.q(".view-name").textContent, renamed: rename.port.renamed.length };
+  facts.escaped = { card: cardShown(), heading: headingNow(), name: rename.q(".view-name").textContent, renamed: rename.port.renamed.length };
   click(rename.q(".view-name"));
-  rename.q(".view-name-field-inline").dispatchEvent(new Event("blur"));
-  facts.blurred = { field: !rename.q(".view-name-field-inline").hidden, renamed: rename.port.renamed.length };
+  typeInto(field("title"), "Draft again");
+  await tick();
+  document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  await tick();
+  facts.outside = { card: cardShown(), heading: headingNow() };
   click(rename.q(".view-name"));
+  typeInto(field("title"), "Draft cancel");
+  await tick();
+  click(field("cancel"));
+  await tick();
+  facts.cancelled = { card: cardShown(), heading: headingNow(), written: rename.port.files.get("alpha") };
+  click(rename.q(".view-name"));
+  typeInto(field("name"), "beta");
+  facts.taken = { problem: field("problem").hidden ? "" : field("problem").textContent, invalid: field("name").getAttribute("aria-invalid"), saveDisabled: field("save").disabled, renamed: rename.port.renamed.length, files: [...rename.port.files.keys()] };
+  typeInto(field("name"), "");
+  facts.emptyName = { problem: field("problem").textContent, saveDisabled: field("save").disabled };
+  typeInto(field("name"), "bad name!");
+  facts.badName = { problem: field("problem").textContent, saveDisabled: field("save").disabled, renamed: rename.port.renamed.length };
+  typeInto(field("name"), "alpha");
+  typeInto(field("title"), "Own name");
+  facts.ownName = { problem: field("problem").hidden ? "" : field("problem").textContent, saveDisabled: field("save").disabled };
+  typeInto(field("description"), "   ");
+  facts.blankDescription = { saveDisabled: field("save").disabled };
+  typeInto(field("description"), "d");
+  field("title").dispatchEvent(new FocusEvent("blur", { relatedTarget: null }));
+  await tick();
+  facts.blurred = { card: cardShown(), renamed: rename.port.renamed.length, title: file("alpha").title ?? null };
+  press(field("title"), "Escape");
+  await tick();
+  click(rename.q(".view-name"));
+  typeInto(field("name"), "gamma");
+  typeInto(field("title"), "T3");
+  typeInto(field("description"), "D3");
+  press(field("description"), "Enter");
+  facts.plainEnter = { card: cardShown(), renamed: rename.port.renamed.length };
   const before2 = rename.win.published.length;
-  edit("gamma", "Enter");
+  press(field("description"), "Enter", { metaKey: true });
+  await tick();
   await tick();
   click(rename.q(".view-list"));
-  facts.renamed = { field: !rename.q(".view-name-field-inline").hidden, name: rename.q(".view-name").textContent, port: rename.port.renamed, files: [...rename.port.files.keys()], menu: rename.all(".view-item").map((n) => n.querySelector(".view-item-name").textContent), current: rename.all(".view-item.current").map((n) => n.querySelector(".view-item-name").textContent), currentView: rename.lastCurrent().view, wrote: rename.win.published.length > before2, notice: rename.notes.join(" | ") };
+  facts.renamed = { card: cardShown(), name: rename.q(".view-name").textContent, port: rename.port.renamed, files: [...rename.port.files.keys()], saved: file("gamma"), menu: rename.all(".view-item").map((n) => n.querySelector(".view-item-name").textContent), current: rename.all(".view-item.current").map((n) => n.querySelector(".view-item-name").textContent), currentView: rename.lastCurrent().view, wrote: rename.win.published.length > before2, notice: rename.notes.join(" | "), heading: headingNow() };
+  click(rename.q(".view-list"));
+  click(rename.q(".view-name"));
+  typeInto(field("title"), "T4");
+  press(field("title"), "Enter");
+  await tick();
+  await tick();
+  facts.enterTitle = { card: cardShown(), title: file("gamma").title };
+  click(rename.q(".view-name"));
+  typeInto(field("description"), "D5");
+  press(field("name"), "Enter");
+  await tick();
+  await tick();
+  facts.enterName = { card: cardShown(), description: file("gamma").description, renamed: rename.port.renamed.length };
+  click(rename.q(".view-name"));
+  typeInto(field("title"), "   ");
+  press(field("title"), "Enter");
+  await tick();
+  await tick();
+  facts.clearedTitle = { hasTitle: "title" in file("gamma") };
   const currentItem = rename.q(".view-item.current");
   const itemProbe = (css) => { const n = document.createElement("i"); n.style.color = css; n.style.backgroundColor = css; document.body.append(n); const c = [getComputedStyle(n).color, getComputedStyle(n).backgroundColor]; n.remove(); return c; };
   facts.currentItem = { before: getComputedStyle(currentItem.querySelector(".view-item-name"), "::before").content, background: getComputedStyle(currentItem).backgroundColor, name: getComputedStyle(currentItem.querySelector(".view-item-name")).color, selection: itemProbe("var(--sel)")[0], selectionBackground: itemProbe("var(--selbg)")[1] };
@@ -341,20 +394,18 @@ const facts = {};
   click(untitled.q('.tree .row[data-path="app"] .rcheck'));
   await tick();
   click(untitled.q(".view-name"));
-  facts.untitledField = untitled.q(".view-name-field-inline").value;
-  const untitledEdit = (value) => {
-    const field = untitled.q(".view-name-field-inline");
-    typeInto(field, value);
-    field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-  };
-  untitledEdit("taken");
-  facts.untitledTaken = { problem: untitled.q(".view-name-problem").textContent, dialog: !untitled.q(".view-dialog").hidden };
-  untitledEdit("fresh");
-  facts.untitledNamed = { field: !untitled.q(".view-name-field-inline").hidden, dialog: !untitled.q(".view-dialog").hidden, name: untitled.q(".view-dialog .view-field-name").value, focused: document.activeElement === untitled.q(".view-dialog .view-field-description"), written: [...untitled.port.files.keys()] };
-  typeInto(untitled.q(".view-dialog .view-field-description"), "shows fresh");
-  click(untitled.q(".view-confirm"));
+  const uf = (kind) => untitled.q(".view-details-" + kind);
+  facts.untitledField = uf("name").value;
+  facts.untitledFocus = document.activeElement === uf("name");
+  typeInto(uf("name"), "taken");
+  typeInto(uf("description"), "shows fresh");
+  facts.untitledTaken = { problem: uf("problem").textContent, saveDisabled: uf("save").disabled, dialog: !untitled.q(".view-dialog").hidden };
+  typeInto(uf("name"), "fresh");
+  facts.untitledNamed = { saveDisabled: uf("save").disabled, dialog: !untitled.q(".view-dialog").hidden, written: [...untitled.port.files.keys()] };
+  click(uf("save"));
   await tick();
-  facts.untitledSaved = { files: [...untitled.port.files.keys()], name: untitled.q(".view-name").textContent };
+  await tick();
+  facts.untitledSaved = { files: [...untitled.port.files.keys()], name: untitled.q(".view-name").textContent, card: !untitled.q(".view-details").hidden, file: JSON.parse(untitled.port.files.get("fresh")) };
 
   const rowsFile = (extra, module = "app/a.py") => JSON.stringify({ schema_version: 4, description: "d", commit: "cur1234", ...extra, steps: [{ kind: "pick", module }] }, null, 2) + "\\n";
   const long = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty ".repeat(6);
@@ -636,27 +687,82 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.barLook.nameChevron).toBe(false);
   });
 
-  it("turns the name into a bold text field with the selection colour focus ring", () => {
-    expect(f.editing.field).toBe(true);
-    expect(f.editing.nameHidden).toBe(true);
-    expect(f.editing.value).toBe("alpha");
-    expect(Number(f.editing.weight)).toBeGreaterThanOrEqual(600);
-    expect(f.editing.border).toBe(f.editing.selection);
+  it("opens one card with the three fields filled from the open view and Save disabled", () => {
+    expect(f.editing).toEqual({
+      card: true,
+      name: "alpha",
+      title: "",
+      description: "d",
+      saveDisabled: true,
+      nameVisible: true,
+      inlineFields: 0,
+      descriptionTag: "TEXTAREA",
+      focused: true,
+    });
   });
 
-  it("refuses a taken or malformed name in place and writes nothing", () => {
-    expect(f.taken.field).toBe(true);
-    expect(f.taken.problem).toContain("beta already exists");
+  it("shows the draft title and description in the heading while typing", () => {
+    expect(f.headingBefore.title).toBe("");
+    expect(f.preview.heading).toEqual({
+      title: "Draft title",
+      description: "Draft description",
+    });
+    expect(f.preview.saveDisabled).toBe(false);
+  });
+
+  it("restores the heading on Escape, on a click outside and on Cancel", () => {
+    expect(f.escaped).toEqual({
+      card: false,
+      heading: f.headingBefore,
+      name: "alpha",
+      renamed: 0,
+    });
+    expect(f.outside).toEqual({ card: false, heading: f.headingBefore });
+    expect(f.cancelled.card).toBe(false);
+    expect(f.cancelled.heading).toEqual(f.headingBefore);
+    expect(JSON.parse(f.cancelled.written).title).toBeUndefined();
+  });
+
+  it("refuses a taken, empty or malformed name under the field and disables Save", () => {
+    expect(f.taken.problem).toBe("beta already exists");
+    expect(f.taken.invalid).toBe("true");
+    expect(f.taken.saveDisabled).toBe(true);
     expect(f.taken.renamed).toBe(0);
     expect(f.taken.files).toEqual(["alpha", "beta"]);
-    expect(f.badName.field).toBe(true);
+    expect(f.emptyName).toEqual({
+      problem: "A view needs a name",
+      saveDisabled: true,
+    });
     expect(f.badName.problem).toContain("Use letters");
+    expect(f.badName.saveDisabled).toBe(true);
     expect(f.badName.renamed).toBe(0);
   });
 
-  it("cancels on Escape and on blur without change", () => {
-    expect(f.escaped).toEqual({ field: false, name: "alpha", renamed: 0 });
-    expect(f.blurred).toEqual({ field: false, renamed: 0 });
+  it("does not call the view's own name a clash and disables Save for a blank description", () => {
+    expect(f.ownName).toEqual({ problem: "", saveDisabled: false });
+    expect(f.blankDescription.saveDisabled).toBe(true);
+  });
+
+  it("does not commit on blur", () => {
+    expect(f.blurred).toEqual({ card: true, renamed: 0, title: null });
+  });
+
+  it("saves the name, title and description in one action on Cmd+Enter in the description", () => {
+    expect(f.plainEnter).toEqual({ card: true, renamed: 0 });
+    expect(f.renamed.card).toBe(false);
+    expect(f.renamed.name).toBe("gamma");
+    expect(f.renamed.port).toEqual([{ from: "alpha", to: "gamma" }]);
+    expect(f.renamed.saved.title).toBe("T3");
+    expect(f.renamed.saved.description).toBe("D3");
+    expect(f.renamed.notice).toContain("Renamed alpha to gamma");
+    expect(f.renamed.notice).toContain("Saved gamma");
+    expect(f.renamed.heading).toEqual({ title: "T3", description: "D3" });
+  });
+
+  it("saves on Enter in Title and in Name, and a blank title removes the title", () => {
+    expect(f.enterTitle).toEqual({ card: false, title: "T4" });
+    expect(f.enterName).toEqual({ card: false, description: "D5", renamed: 1 });
+    expect(f.clearedTitle.hasTitle).toBe(false);
   });
 
   it("marks the open dropdown item by selection colours with no glyph", () => {
@@ -667,10 +773,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.currentItem.background).toBe(f.currentItem.selectionBackground);
   });
 
-  it("renames the open view on Enter and follows the new name everywhere", () => {
-    expect(f.renamed.field).toBe(false);
-    expect(f.renamed.name).toBe("gamma");
-    expect(f.renamed.port).toEqual([{ from: "alpha", to: "gamma" }]);
+  it("follows the rename everywhere", () => {
     expect(f.renamed.files).toEqual(["beta", "gamma"]);
     expect(f.renamed.menu).toEqual(["beta", "gamma"]);
     expect(f.renamed.current).toEqual(["gamma"]);
@@ -680,19 +783,21 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
     expect(f.afterRenameBack).toBe("gamma");
   });
 
-  it("opens the save dialog with the name filled and the description focused when naming an Untitled view", () => {
+  it("opens the card with Name empty for an Untitled view and saves through saveNew", () => {
     expect(f.untitledField).toBe("");
+    expect(f.untitledFocus).toBe(true);
     expect(f.untitledTaken.problem).toContain("taken already exists");
+    expect(f.untitledTaken.saveDisabled).toBe(true);
     expect(f.untitledTaken.dialog).toBe(false);
     expect(f.untitledNamed).toEqual({
-      field: false,
-      dialog: true,
-      name: "fresh",
-      focused: true,
+      saveDisabled: false,
+      dialog: false,
       written: ["taken"],
     });
     expect([...f.untitledSaved.files].sort()).toEqual(["fresh", "taken"]);
     expect(f.untitledSaved.name).toBe("fresh");
+    expect(f.untitledSaved.card).toBe(false);
+    expect(f.untitledSaved.file.description).toBe("shows fresh");
   });
 
   it("lists the saved views the port holds at startup in the menu", () => {

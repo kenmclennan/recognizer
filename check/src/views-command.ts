@@ -55,6 +55,7 @@ const OPTIONS = {
   repository: { type: "string" },
   json: { type: "boolean" },
   description: { type: "string" },
+  title: { type: "string" },
   folder: { type: "string" },
   uses: { type: "string" },
   "used-by": { type: "string" },
@@ -82,7 +83,7 @@ const ALLOWED: Record<Subcommand, string[]> = {
   remove: ["fold", "focus", "rule", "within"],
   note: ["by", "remove", "after", "first"],
   reorder: [],
-  set: ["change"],
+  set: ["change", "title", "description"],
   show: [],
   diff: [],
   list: [],
@@ -101,7 +102,7 @@ const USAGE: Record<Subcommand, string> = {
   note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>]) [--repository <dir>] [--json]",
   reorder:
     "recognizer views reorder <name> <module-or-folder>... [--repository <dir>] [--json]",
-  set: "recognizer views set <name> --change <base>..<head>|none [--repository <dir>] [--json]",
+  set: "recognizer views set <name> [--change <base>..<head>|none] [--title <text>] [--description <text>] [--repository <dir>] [--json]",
   show: "recognizer views show <name> [--repository <dir>] [--json]",
   diff: "recognizer views diff <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
@@ -739,9 +740,19 @@ function runReorder(argv: string[], io: Io): number {
 function runSet(argv: string[], io: Io): number {
   const probe = context("set", argv, io);
   const changeFlag = probe.values.change;
+  const titleFlag = probe.values.title;
+  const descriptionFlag = probe.values.description;
 
-  if (changeFlag === undefined) {
+  if (
+    changeFlag === undefined &&
+    titleFlag === undefined &&
+    descriptionFlag === undefined
+  ) {
     throw usageError("set");
+  }
+
+  if (typeof descriptionFlag === "string" && descriptionFlag.trim() === "") {
+    throw new InputError(["--description must not be blank"]);
   }
 
   const change =
@@ -755,20 +766,36 @@ function runSet(argv: string[], io: Io): number {
     io,
     (_c, view) => {
       const migrated = migrateView(view);
+      const what: string[] = [];
 
-      if (change === undefined) {
-        delete migrated.change;
-      } else {
-        migrated.change = change;
+      if (typeof titleFlag === "string") {
+        const title = titleFlag.trim();
+
+        if (title === "") {
+          delete migrated.title;
+          what.push("removed the title");
+        } else {
+          migrated.title = title;
+          what.push("set the title");
+        }
       }
 
-      return {
-        view: migrated,
-        what:
-          change === undefined
-            ? "removed the range"
-            : `set the range to ${rangeText(change)}`,
-      };
+      if (typeof descriptionFlag === "string") {
+        migrated.description = descriptionFlag;
+        what.push("set the description");
+      }
+
+      if (changeFlag !== undefined) {
+        if (change === undefined) {
+          delete migrated.change;
+          what.push("removed the range");
+        } else {
+          migrated.change = change;
+          what.push(`set the range to ${rangeText(change)}`);
+        }
+      }
+
+      return { view: migrated, what: what.join(", ") };
     },
     (count) => count === 1,
   );

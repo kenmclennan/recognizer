@@ -736,8 +736,12 @@ export function showExplorer(
     openViewsPanel: toggleViewsPanel,
     save: () => void saveOpen(),
     saveNew: (name, title, description) => saveNew(name, title, description),
-    retitle: (name, title) => retitleOpen(name, title),
-    rename: (from, to) => renameOpen(from, to),
+    saveDetails: (name, title, description) =>
+      saveDetails(name, title, description),
+    preview: (draft) => {
+      headingDraft = draft;
+      render();
+    },
     copyLink: () => void copyLink(),
     hasOpenView: () => openView !== null,
   });
@@ -2296,6 +2300,7 @@ export function showExplorer(
       forwardLabel: forwardLabel(history.markNext()),
       canCopy: openView !== null,
       openTitle: openViewValue()?.title ?? null,
+      openDescription: openViewValue()?.description ?? null,
     });
   }
 
@@ -2522,18 +2527,52 @@ export function showExplorer(
     }
   }
 
-  async function retitleOpen(name: string, title: string | null) {
-    const view = openView === name ? openViewValue() : null;
+  async function saveDetails(
+    name: string,
+    title: string | null,
+    description: string,
+  ): Promise<string | null> {
+    const from = openView;
+
+    if (from === null) {
+      return null;
+    }
+
+    let current: string = from;
+
+    if (name !== from) {
+      const refused = await renameOpen(from, name);
+
+      if (refused !== null) {
+        return refused;
+      }
+
+      current = name;
+    }
+
+    const view = viewNamed(current);
 
     if (view === null) {
-      return;
+      return null;
     }
 
     const { title: _previous, ...rest } = view;
+    const problem = await writeView(current, {
+      ...rest,
+      ...(title === null ? {} : { title }),
+      description,
+    });
 
-    await writeView(name, title === null ? rest : { ...rest, title });
+    if (problem !== null) {
+      return problem;
+    }
+
+    headingDraft = null;
     renderBar();
     render();
+    post({ kind: "done", text: `Saved ${current}` });
+
+    return null;
   }
 
   async function saveNew(name: string, title: string, description: string) {
@@ -2849,6 +2888,7 @@ export function showExplorer(
   }
 
   let lastHeading: Heading | null = null;
+  let headingDraft: { title: string | null; description: string } | null = null;
 
   function headingNow(): Heading | null {
     const view = openViewValue();
@@ -2859,14 +2899,17 @@ export function showExplorer(
       return null;
     }
 
-    const title = view.title ?? null;
+    const title =
+      headingDraft === null ? (view.title ?? null) : headingDraft.title;
+    const description =
+      headingDraft === null ? view.description : headingDraft.description;
 
     if (
       lastHeading === null ||
       lastHeading.title !== title ||
-      lastHeading.description !== view.description
+      lastHeading.description !== description
     ) {
-      lastHeading = { title, description: view.description };
+      lastHeading = { title, description };
     }
 
     return lastHeading;

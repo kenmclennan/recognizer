@@ -481,7 +481,7 @@ export const COMMANDS: Command[] = [
       "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
       "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>])",
       "recognizer views reorder <name> <module-or-folder>...",
-      "recognizer views set <name> --change <base>..<head>|none",
+      "recognizer views set <name> [--change <base>..<head>|none] [--title <text>] [--description <text>]",
       "recognizer views show <name>",
       "recognizer views diff <name>",
       "recognizer views list",
@@ -670,6 +670,11 @@ export const COMMANDS: Command[] = [
       {
         command: "recognizer views set order-placement --change main..feat",
         note: "make the view a change view over a git range (none removes the range)",
+      },
+      {
+        command:
+          'recognizer views set order-placement --title "Placing an order" --description "How an order is placed"',
+        note: "set the heading title and description; an empty --title removes the title",
       },
       {
         command: "recognizer views show order-placement --json",

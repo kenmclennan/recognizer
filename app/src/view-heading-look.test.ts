@@ -146,32 +146,32 @@ const facts = {};
   facts.external = page.q(".view-heading-title") && page.q(".view-heading-title").textContent;
 
   click(page.q(".view-name"));
-  const nameField = page.q(".view-name-field-inline");
-  const titleField = page.q(".view-title-field-inline");
-  facts.inline = { titleShown: !titleField.hidden, value: titleField.value, label: titleField.getAttribute("aria-label") };
-  typeInto(titleField, "Retitled with Enter");
-  press(titleField, "Enter");
+  const fld = (kind) => page.q(".view-details-" + kind);
+  facts.inline = { titleShown: !fld("title").hidden, value: fld("title").value, label: fld("title").labels[0].textContent };
+  typeInto(fld("title"), "Retitled with Enter");
+  press(fld("title"), "Enter");
   await tick();
   await tick();
   facts.retitledEnter = { text: JSON.parse(page.port.files.get("one")), heading: page.q(".view-heading-title").textContent, pill: page.q(".view-name").textContent };
 
   click(page.q(".view-name"));
-  typeInto(page.q(".view-title-field-inline"), "Retitled on blur");
-  page.q(".view-title-field-inline").dispatchEvent(new FocusEvent("blur", { relatedTarget: null }));
+  typeInto(fld("title"), "Retitled on blur");
+  fld("title").dispatchEvent(new FocusEvent("blur", { relatedTarget: null }));
   await tick();
   await tick();
   facts.retitledBlur = JSON.parse(page.port.files.get("one")).title;
+  press(fld("title"), "Escape");
 
   click(page.q(".view-name"));
-  typeInto(page.q(".view-title-field-inline"), "   ");
-  press(page.q(".view-title-field-inline"), "Enter");
+  typeInto(fld("title"), "   ");
+  press(fld("title"), "Enter");
   await tick();
   await tick();
   facts.cleared = { hasTitle: "title" in JSON.parse(page.port.files.get("one")), heading: headingOf(page).title };
 
   click(page.q(".view-name"));
-  typeInto(page.q(".view-name-field-inline"), "renamed");
-  press(page.q(".view-name-field-inline"), "Enter");
+  typeInto(fld("name"), "renamed");
+  press(fld("name"), "Enter");
   await tick();
   await tick();
   facts.nameOnly = { has: page.port.files.has("renamed"), title: "title" in JSON.parse(page.port.files.get("renamed")) };
@@ -268,16 +268,16 @@ describe.skipIf(chrome === undefined)("the view heading", () => {
     expect(f.external).toBe("Edited outside");
   });
 
-  it("edits the title in the pill with Enter and with blur, and clears it when blank", () => {
+  it("edits the title in the card with Enter, ignores blur, and clears it when blank", () => {
     expect(f.inline.titleShown).toBe(true);
     expect(f.inline.value).toBe("Edited outside");
-    expect(f.inline.label).toBe("View title");
+    expect(f.inline.label).toBe("Title");
     expect(f.retitledEnter.text.title).toBe("Retitled with Enter");
     expect(f.retitledEnter.text.commit).toBe("cur1234");
     expect(f.retitledEnter.text.steps).toHaveLength(2);
     expect(f.retitledEnter.heading).toBe("Retitled with Enter");
     expect(f.retitledEnter.pill).toBe("one");
-    expect(f.retitledBlur).toBe("Retitled on blur");
+    expect(f.retitledBlur).toBe("Retitled with Enter");
     expect(f.cleared.hasTitle).toBe(false);
     expect(f.cleared.heading).toEqual([]);
   });
