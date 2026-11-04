@@ -72,6 +72,10 @@ const snap = () => ({
   strips: qa(".inspector-strip").map((s) => s.title),
   widths: panels().map((p) => Math.round(p.getBoundingClientRect().width)),
   crumbs: qa(".inspector-crumbs .crumb").map((c) => c.textContent),
+  seps: qa(".inspector-crumbs .crumb-sep").map((c) => c.textContent),
+  dots: qa(".inspector-crumbs .crumb .disc").length,
+  chevron: (() => { const c = q(".inspector-crumbs .crumb-chevron"); return c ? Math.round(c.getBoundingClientRect().width) : null; })(),
+  overflows: q(".crumb-steps") ? q(".crumb-steps").scrollWidth > q(".crumb-steps").clientWidth : null,
   active: panels().map((p) => p.classList.contains("active")),
   followed: panels().map((p) => [...p.querySelectorAll(".row.followed")].map((r) => r.dataset.id)),
   kbd: panels().map((p) => [...p.querySelectorAll(".row.kbd")].map((r) => r.dataset.id + ":" + r.dataset.follow)),
@@ -146,6 +150,16 @@ const facts = {};
   facts.followA = snap();
   await follow(1, "lib/c.py");
   facts.followC = snap();
+  facts.lastCrumb = (() => {
+    const last = qa(".inspector-crumbs .crumb").at(-1);
+    const before = snap().active;
+    click(last);
+    return { weight: getComputedStyle(last).fontWeight, disabled: last.disabled, unchanged: JSON.stringify(before) === JSON.stringify(snap().active) };
+  })();
+  facts.earlierCrumb = (() => {
+    const first = qa(".inspector-crumbs .crumb")[0];
+    return { weight: getComputedStyle(first).fontWeight, disabled: first.disabled };
+  })();
   await follow(2, "lib/d.py");
   facts.four = snap();
   const stripEl = q(".inspector-strip");
@@ -219,6 +233,30 @@ const facts = {};
   await follow(0, "lib/a.py");
   facts.roomy640 = snap();
 
+  await mount(1800, { tree: 280, inspector: 340 });
+  await follow(0, "lib/a.py");
+  await followActive("lib/c.py");
+  await followActive("lib/d.py");
+  facts.longWide = snap();
+
+  await mount(1800, { tree: 280, inspector: 340 });
+  const host = q(".inspector-crumbs-host");
+  host.style.width = "300px";
+  host.style.overflow = "hidden";
+  await follow(0, "lib/a.py");
+  await followActive("lib/c.py");
+  await followActive("lib/d.py");
+  const more = q(".inspector-crumbs .crumb-more");
+  facts.longNarrow = {
+    ...snap(),
+    more: more ? { title: more.title, text: more.textContent } : null,
+  };
+  if (more) {
+    click(more);
+    await tick();
+    facts.moreClick = snap();
+  }
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -228,6 +266,10 @@ type Snap = {
   strips: string[];
   widths: number[];
   crumbs: string[];
+  seps: string[];
+  dots: number;
+  chevron: number | null;
+  overflows: boolean | null;
   active: boolean[];
   followed: string[][];
   kbd: string[][];
@@ -272,6 +314,11 @@ type Facts = {
   stripLook: { writing: string; width: number };
   broughtBack: Snap;
   viaCrumb: Snap;
+  lastCrumb: { weight: string; disabled: boolean; unchanged: boolean };
+  earlierCrumb: { weight: string; disabled: boolean };
+  longWide: Snap;
+  longNarrow: Snap & { more: { title: string; text: string } | null };
+  moreClick: Snap;
   routeEnabled: boolean;
   afterRoute: Snap;
   outline: { trail: string; plain: string };
@@ -317,8 +364,41 @@ describe.skipIf(chrome === undefined)("the trail", () => {
   });
 
   it("names each module and each step's relationship in the breadcrumbs", () => {
-    expect(f.followC.crumbs).toEqual(["hub.py", "uses a.py", "uses c.py"]);
+    expect(f.followC.crumbs).toEqual(["hub.py", "a.py", "c.py"]);
+    expect(f.followC.seps).toEqual(["uses", "uses"]);
     expect(f.followC.routeTitle).toBe("Put the trail on the canvas (P)");
+  });
+
+  it("draws each crumb as a button with a health dot and a chevron after the relation", () => {
+    expect(f.followA.crumbs).toEqual(["hub.py", "a.py"]);
+    expect(f.followA.dots).toBe(2);
+    expect(f.followA.seps).toEqual(["uses"]);
+    expect(f.followA.chevron).toBe(14);
+  });
+
+  it("makes the current crumb bold and inert and an earlier crumb a live button", () => {
+    expect(f.lastCrumb.disabled).toBe(true);
+    expect(Number(f.lastCrumb.weight)).toBeGreaterThanOrEqual(600);
+    expect(f.lastCrumb.unchanged).toBe(true);
+    expect(f.earlierCrumb.disabled).toBe(false);
+    expect(Number(f.earlierCrumb.weight)).toBeLessThan(600);
+  });
+
+  it("collapses the earliest crumbs into an ellipsis when the strip is too narrow, without overflowing", () => {
+    expect(f.longWide.overflows).toBe(false);
+    expect(f.longWide.crumbs).toEqual(["hub.py", "a.py", "c.py", "d.py"]);
+    expect(f.longNarrow.overflows).toBe(false);
+    expect(f.longNarrow.more?.text).toBe("\u2026");
+    expect(f.longNarrow.more?.title).toContain("hub.py");
+    expect(f.longNarrow.crumbs.slice(-2)).toEqual(["c.py", "d.py"]);
+    expect(f.longNarrow.crumbs.length).toBeLessThan(5);
+  });
+
+  it("goes to the latest hidden panel from the ellipsis", () => {
+    expect(f.moreClick.active.filter(Boolean).length).toBe(1);
+    expect(f.moreClick.active.indexOf(true)).toBeLessThan(
+      f.longNarrow.active.indexOf(true),
+    );
   });
 
   it("shows at most three panels and folds the earlier ones into vertical strips", () => {
@@ -366,7 +446,7 @@ describe.skipIf(chrome === undefined)("the trail", () => {
   });
 
   it("replaces the rest of the trail when an earlier panel follows a different row", () => {
-    expect(f.replaced.crumbs).toEqual(["hub.py", "uses b.py"]);
+    expect(f.replaced.crumbs).toEqual(["hub.py", "b.py"]);
     expect(f.replaced.followed[0]).toEqual(["lib/b.py"]);
   });
 

@@ -18,6 +18,7 @@ import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 import {
   type Crumb,
+  foldCrumbs,
   rowKey,
   STRIP_WIDTH,
   type TrailKeyAction,
@@ -457,28 +458,87 @@ function stripNode(
   return node;
 }
 
+function crumbButton(
+  crumb: Crumb,
+  current: boolean,
+  actions: InspectorActions,
+) {
+  const button = el("button", `crumb${current ? " on" : ""}`);
+
+  button.type = "button";
+  button.append(el("span", `disc disc-${crumb.disc}`), crumb.label);
+
+  if (current) {
+    button.disabled = true;
+    button.setAttribute("aria-current", "step");
+
+    return button;
+  }
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    actions.bringBack(crumb.index);
+  });
+
+  return button;
+}
+
+function crumbSeparator(relation: Crumb["relation"]) {
+  const node = el("span", "crumb-sep");
+
+  if (relation !== null) {
+    node.append(el("span", "crumb-rel", relation));
+  }
+
+  node.append(icon("chevron-right", "crumb-chevron"));
+
+  return node;
+}
+
 function crumbsNode(trail: TrailRender, actions: InspectorActions) {
   const node = el("div", "inspector-crumbs");
+  const steps = el("div", "crumb-steps");
 
-  for (const crumb of trail.crumbs) {
-    const button = el(
-      "button",
-      `crumb${crumb.index === trail.active ? " on" : ""}`,
-    );
+  const fill = (hiding: number) => {
+    const { hidden, visible } = foldCrumbs(trail.crumbs, hiding);
+    const nodes: Node[] = [];
 
-    button.type = "button";
+    if (hidden.length > 0) {
+      const more = el("button", "crumb crumb-more", "\u2026");
+      const target = hidden[hidden.length - 1];
 
-    if (crumb.relation !== null) {
-      button.append(el("span", "crumb-rel", crumb.relation), " ");
+      more.type = "button";
+      more.title = hidden.map((crumb) => crumb.label).join(", ");
+      more.addEventListener("click", (event) => {
+        event.stopPropagation();
+        actions.bringBack(target.index);
+      });
+      nodes.push(more);
     }
 
-    button.append(crumb.label);
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      actions.bringBack(crumb.index);
+    visible.forEach((crumb, at) => {
+      if (at > 0 || hidden.length > 0) {
+        nodes.push(crumbSeparator(crumb.relation));
+      }
+
+      nodes.push(crumbButton(crumb, crumb.index === trail.active, actions));
     });
-    node.append(button);
-  }
+    steps.replaceChildren(...nodes);
+  };
+
+  const fit = () => {
+    let hiding = 0;
+
+    fill(hiding);
+
+    while (
+      steps.scrollWidth > steps.clientWidth &&
+      hiding < trail.crumbs.length - 2
+    ) {
+      hiding += 1;
+      fill(hiding);
+    }
+  };
 
   const route = iconButton(
     "route",
@@ -488,9 +548,10 @@ function crumbsNode(trail: TrailRender, actions: InspectorActions) {
   );
 
   route.disabled = !trail.canPut;
-  node.append(route);
+  node.append(steps, route);
+  fill(0);
 
-  return node;
+  return { node, fit };
 }
 
 export function buildInspectorView(
@@ -524,6 +585,12 @@ export function buildInspectorView(
   });
   rail.append(opener);
   crumbsHost.hidden = true;
+
+  let refit: () => void = () => {};
+
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => refit()).observe(crumbsHost);
+  }
   row.hidden = true;
   element.append(rail, first, crumbsHost, row);
 
@@ -618,7 +685,11 @@ export function buildInspectorView(
         first.remove();
       }
 
-      crumbsHost.replaceChildren(crumbsNode(trail, forPanel(0)));
+      const built = crumbsNode(trail, forPanel(0));
+
+      crumbsHost.replaceChildren(built.node);
+      built.fit();
+      refit = built.fit;
       row.replaceChildren(...nodes);
 
       if (hadFocus) {

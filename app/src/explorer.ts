@@ -3148,7 +3148,11 @@ export function showExplorer(
       contents: lastContents,
       layout: placed,
       active: trail.active,
-      crumbs: crumbs(trail, compaction),
+      crumbs: crumbs(
+        trail,
+        compaction,
+        (id) => described.get(id)?.disc ?? "grey",
+      ),
       focused: trail.panels.map((panel) => panel.focusedRow),
       canPut: missingFromCanvas(trail, modules.isOpen).length > 0,
     });

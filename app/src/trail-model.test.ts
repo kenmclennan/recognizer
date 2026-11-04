@@ -4,6 +4,7 @@ import {
   bringBack,
   close,
   crumbs,
+  foldCrumbs,
   follow,
   layout,
   missingFromCanvas,
@@ -248,10 +249,10 @@ describe("crumbs", () => {
   it("names each module and the relationship of each step", () => {
     const trail = chain(["lib/a.py", "lib/b.py"]);
 
-    expect(crumbs(trail, none)).toEqual([
-      { index: 0, label: "root.py", relation: null },
-      { index: 1, label: "a.py", relation: "uses" },
-      { index: 2, label: "b.py", relation: "used by" },
+    expect(crumbs(trail, none, () => "green")).toEqual([
+      { index: 0, label: "root.py", relation: null, disc: "green" },
+      { index: 1, label: "a.py", relation: "uses", disc: "green" },
+      { index: 2, label: "b.py", relation: "used by", disc: "green" },
     ]);
   });
 
@@ -259,9 +260,33 @@ describe("crumbs", () => {
     const trail = startTrail({ kind: "folder", id: "app/core" }, "contents");
 
     expect(
-      crumbs(trail, compactFolders(["app/core/x.py", "app/other/y.py"]))[0]
-        .label,
+      crumbs(
+        trail,
+        compactFolders(["app/core/x.py", "app/other/y.py"]),
+        () => "grey",
+      )[0].label,
     ).toBe("core/");
+  });
+});
+
+describe("foldCrumbs", () => {
+  const all = [0, 1, 2, 3].map((index) => ({
+    index,
+    label: `m${index}`,
+    relation: null,
+    disc: "grey" as const,
+  }));
+
+  it("hides the earliest crumbs and keeps the rest", () => {
+    const folded = foldCrumbs(all, 1);
+
+    expect(folded.hidden.map((c) => c.index)).toEqual([0]);
+    expect(folded.visible.map((c) => c.index)).toEqual([1, 2, 3]);
+  });
+
+  it("always keeps the last two crumbs", () => {
+    expect(foldCrumbs(all, 9).visible.map((c) => c.index)).toEqual([2, 3]);
+    expect(foldCrumbs(all.slice(0, 2), 1).hidden).toEqual([]);
   });
 });
 
