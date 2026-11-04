@@ -199,16 +199,18 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   return node;
 }
 
-function responsibilityNode(row: ResponsibilityLineRow): HTMLElement {
+function responsibilityNode(row: ResponsibilityLineRow): HTMLElement | null {
+  if (row.state.kind === "missing" && row.failure === null) {
+    return null;
+  }
+
   const node = el("div", `responsibility ${row.state.kind}`);
 
-  if (row.state.kind === "missing") {
-    node.append(el("span", "muted", "No responsibility line yet"));
-  } else if (row.state.kind === "unknown") {
+  if (row.state.kind === "unknown") {
     node.append(
       el("span", "muted", `Responsibility unknown: ${row.state.reason}`),
     );
-  } else {
+  } else if (row.state.kind !== "missing") {
     node.append(el("span", "line", row.state.line));
   }
 
@@ -412,8 +414,13 @@ function buildPanelView(element: HTMLElement): PanelView {
 
       const parts: HTMLElement[] = [head];
 
-      if (content.header.responsibility !== null) {
-        parts.push(responsibilityNode(content.header.responsibility));
+      const responsibility =
+        content.header.responsibility === null
+          ? null
+          : responsibilityNode(content.header.responsibility);
+
+      if (responsibility !== null) {
+        parts.push(responsibility);
       }
 
       if (content.tabs) {

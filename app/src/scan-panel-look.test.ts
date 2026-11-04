@@ -245,7 +245,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     header: m.q(".inspector")?.textContent ?? "",
     reason: m.q(".responsibility .finding.warning")?.textContent ?? "",
   };
-  facts.missing = { text: m.q(".responsibility")?.textContent ?? "", describe: m.all(".responsibility .describe").length };
+  facts.missing = { text: m.q(".responsibility .muted, .responsibility .line")?.textContent ?? "", describe: m.all(".responsibility .describe").length };
 
   const downSensors = fakeSensors({}, { config: CONFIG }, {}, { status: "unavailable", reason: "recognizer is not installed" });
   const down = await mount(fakeScan(), downSensors);
@@ -501,8 +501,8 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.moduleFail.reason).toBe("no describer");
   });
 
-  it("shows the missing line with no Describe button", () => {
-    expect(f.missing.text).toContain("No responsibility line yet");
+  it("shows no text and no Describe button when a module has no line", () => {
+    expect(f.missing.text).toBe("");
     expect(f.missing.describe).toBe(0);
   });
 

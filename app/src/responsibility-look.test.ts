@@ -103,7 +103,7 @@ function snap(scope) {
   const watched = fakeResponsibilities(initial());
   explorer = await open(watched);
   await select("p/q.py");
-  facts.beforeEdit = snap().kind;
+  facts.beforeEdit = snap().present;
   watched.edit(filesOf({ "p/q.py": entry("Written elsewhere.") }, { "p/q.py": HASH }));
   await tick();
   facts.afterEdit = snap();
@@ -146,7 +146,7 @@ type Facts = {
   outOfDate: Snap;
   other: Snap;
   noControls: number;
-  beforeEdit: string;
+  beforeEdit: boolean;
   afterEdit: Snap;
   invalid: Snap;
   dependenciesTab: number;
@@ -180,10 +180,10 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
     expect(facts.other.text).toBe("Other stale.");
   });
 
-  it("says so when a module has no line, with no button", () => {
-    expect(facts.missing.text).toBe("No responsibility line yet");
+  it("shows no text and no button when a module has no line", () => {
+    expect(facts.missing.present).toBe(false);
+    expect(facts.missing.text).toBeNull();
     expect(facts.missing.buttons).toBe(0);
-    expect(facts.missing.beforeSwitch).toBe(true);
   });
 
   it("offers nothing that describes", () => {
@@ -191,7 +191,7 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
   });
 
   it("updates when the files change and reports invalid files as unknown", () => {
-    expect(facts.beforeEdit).toBe("missing");
+    expect(facts.beforeEdit).toBe(false);
     expect(facts.afterEdit.kind).toBe("current");
     expect(facts.afterEdit.text).toBe("Written elsewhere.");
     expect(facts.invalid.kind).toBe("unknown");
