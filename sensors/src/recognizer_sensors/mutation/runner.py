@@ -28,6 +28,10 @@ class Stopped(Exception):
     pass
 
 
+class StoppedBeforeMutation(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class TestRun:
     exit_code: int | None
@@ -294,5 +298,22 @@ def install_stop_handler(work: Path) -> Callable[[], None]:
     def restore() -> None:
         if not STOP.is_set():
             signal.signal(signal.SIGTERM, previous)
+
+    return restore
+
+
+def install_coverage_stop_handler() -> Callable[[], None]:
+    def on_signal(_signum: int, _frame: object) -> None:
+        if STOP.is_set():
+            return
+
+        STOP.set()
+
+        raise StoppedBeforeMutation
+
+    previous = signal.signal(signal.SIGTERM, on_signal)
+
+    def restore() -> None:
+        signal.signal(signal.SIGTERM, previous)
 
     return restore

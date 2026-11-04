@@ -1025,7 +1025,7 @@ if hang:
 """
 
 
-def start_sensor(root, tmp_path, settings):
+def start_sensor(root, tmp_path, settings, env=None):
     return subprocess.Popen(
         [
             sys.executable,
@@ -1040,6 +1040,7 @@ def start_sensor(root, tmp_path, settings):
             settings,
         ],
         process_group=0,
+        env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -1097,6 +1098,36 @@ def test_sigterm_to_the_sensors_group_ends_the_hung_test_process_and_removes_the
     assert findings["findings"] == []
     assert read(root / RECORD)["skipped"] == ["app/rules.py::both", "app/rules.py::grade"]
     assert set(read(root / RECORD)["functions"]) == {"app/rules.py::total"}
+
+
+def test_sigterm_during_the_coverage_pass_writes_a_stopped_document_with_nothing_measured(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    marker = tmp_path / "hung.txt"
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    runner_stub = fake / "python3"
+    runner_stub.write_text(f"#!/bin/sh\necho hung > {marker}\nexec sleep 60\n")
+    runner_stub.chmod(0o755)
+    env = {**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"}
+    settings = json.dumps({"test_command": [sys.executable, "-c", "pass"]})
+    process = start_sensor(root, tmp_path, settings, env)
+    deadline = time.monotonic() + 30
+
+    while not marker.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+
+    assert marker.exists()
+
+    os.killpg(process.pid, signal.SIGTERM)
+
+    assert process.wait(timeout=60) == 143
+
+    findings = read(tmp_path / "findings.json")
+
+    assert findings["stopped"] == {"measured": 0, "total": 0}
+    assert findings["findings"] == []
+    assert not (root / RECORD).exists()
+    assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
 
 
 def test_the_live_session_registry_empties_after_a_normal_and_a_timed_out_run(tmp_path):

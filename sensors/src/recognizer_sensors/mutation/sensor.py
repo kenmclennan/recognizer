@@ -24,7 +24,9 @@ from recognizer_sensors.mutation.runner import (
     STOP,
     Mutant,
     Stopped,
+    StoppedBeforeMutation,
     copy_repository,
+    install_coverage_stop_handler,
     install_stop_handler,
     new_work_folder,
     output_tail,
@@ -567,13 +569,23 @@ def write_checkpoint(path: Path, record: dict) -> None:
 def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Outcome:
     configured = settings.get("test_command")
 
-    if configured is None:
-        coverage, selection = collect_coverage_with_tests(
-            repository, scans, settings.get("coverage")
-        )
-    else:
-        coverage = collect_coverage(repository, scans, None, settings.get("coverage"))
-        selection = {}
+    restore_coverage_handler = install_coverage_stop_handler()
+
+    try:
+        if configured is None:
+            coverage, selection = collect_coverage_with_tests(
+                repository, scans, settings.get("coverage")
+            )
+        else:
+            coverage = collect_coverage(repository, scans, None, settings.get("coverage"))
+            selection = {}
+    except (StoppedBeforeMutation, MeasurementError):
+        if not STOP.is_set():
+            raise
+
+        return Outcome([], None, [], True, 0, 0)
+    finally:
+        restore_coverage_handler()
 
     suite_size = len({f for lines in selection.values() for files in lines.values() for f in files})
     targets: list[Target] = []
