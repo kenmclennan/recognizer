@@ -82,6 +82,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
       return "carried";
     },
     replace: (_loaded, carried) => log.push(`replace:${carried}`),
+    update: () => false,
     adopted: (origin) => log.push(`adopted:${origin.commit}`),
     describedLine: () => log.push("described"),
     progress: (update) => {
@@ -541,6 +542,87 @@ describe("createRescanner", () => {
     expect(log.filter((entry) => entry.startsWith("replace"))).toHaveLength(
       before,
     );
+  });
+
+  it("updates in place when only sensor results change, never replacing after the first scan", async () => {
+    let turn = 0;
+    const updated: Loaded[] = [];
+    const { log, rescanner } = harness(fakeScan(), {
+      resense: async () => ({ ...OK, policy: `p${turn++}` }),
+      update: (loaded) => {
+        updated.push(loaded);
+
+        return true;
+      },
+    });
+
+    await rescanner.refresh();
+    await rescanner.refresh();
+    await rescanner.refresh();
+
+    expect(log.filter((entry) => entry.startsWith("replace"))).toHaveLength(1);
+    expect(log.filter((entry) => entry === "carry")).toHaveLength(1);
+    expect(updated.map((loaded) => loaded.policy)).toEqual(["p1", "p2"]);
+  });
+
+  it("updates in place from a sensor-only scan run after the first scan", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: false },
+      steps: [current, summary],
+    });
+    let updates = 0;
+    const { log, rescanner } = harness(scan, {
+      update: () => {
+        updates++;
+
+        return true;
+      },
+    });
+
+    await rescanner.refresh();
+    await rescanner.run();
+
+    expect(log.filter((entry) => entry.startsWith("replace"))).toHaveLength(1);
+    expect(log.filter((entry) => entry === "carry")).toHaveLength(1);
+    expect(updates).toBe(1);
+  });
+
+  it("replaces with the carried value when the loaded structure changes", async () => {
+    let turn = 0;
+    const { log, rescanner } = harness(fakeScan(), {
+      resense: async () => {
+        const next = turn++;
+
+        return { ...OK, policy: `p${next}`, modules: [`m${next}.py`] };
+      },
+      update: () => true,
+    });
+
+    await rescanner.refresh();
+    await rescanner.refresh();
+
+    expect(log.filter((entry) => entry === "replace:carried")).toHaveLength(2);
+  });
+
+  it("falls back to replace when update returns false", async () => {
+    let turn = 0;
+    const { log, rescanner } = harness(fakeScan(), {
+      resense: async () => ({ ...OK, policy: `p${turn++}` }),
+      update: () => false,
+    });
+
+    await rescanner.refresh();
+    await rescanner.refresh();
+
+    expect(log.filter((entry) => entry === "replace:carried")).toHaveLength(2);
+  });
+
+  it("replaces on the first run, with nothing applied yet", async () => {
+    const { log, rescanner } = harness(fakeScan(), { update: () => true });
+
+    await rescanner.refresh();
+
+    expect(log).toEqual(["resense", "carry", "replace:carried"]);
   });
 
   it("refreshes nothing when there is nothing loaded", async () => {

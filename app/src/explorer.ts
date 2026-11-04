@@ -168,6 +168,7 @@ import {
   removeNote as withoutNote,
 } from "./view-notes";
 import { stepsFor } from "./view-steps";
+import type { Viewport } from "./viewport";
 import { dropdownNames, rangeOf, viewsPanelModel } from "./views-panel-model";
 import { buildViewsPanelView } from "./views-panel-view";
 import { inertViews, type ViewsPort } from "./views-port";
@@ -185,6 +186,7 @@ export type Carried = {
   snapshot: Snapshot;
   leftPanel: LeftPanel;
   metricTicks?: string[];
+  camera?: Viewport | null;
 };
 
 export type ScanHost = {
@@ -218,6 +220,7 @@ export const inertScanHost: ScanHost = {
 export type Explorer = {
   toggleTree: () => void;
   carry: () => Carried;
+  update: (loaded: Loaded) => void;
   openSelectedInEditor: () => void;
   openLinkedView: () => void;
   refreshResponsibilities: () => void;
@@ -243,7 +246,7 @@ type ChangeInfo =
 
 export function showExplorer(
   container: HTMLElement,
-  loaded: Loaded,
+  initial: Loaded,
   title: string,
   onCount: (text: string) => void = () => {},
   views: ViewsPort = inertViews,
@@ -263,11 +266,12 @@ export function showExplorer(
   reconcileMessages: (foundKeys: readonly string[]) => void = () => {},
   comparisons: ViewComparisons = createViewComparisons(),
 ): Explorer {
-  const health = computeHealth(loaded);
+  let loaded = initial;
+  let health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
   const compaction = compactFolders(loaded.modules);
   const root = buildTree(loaded.modules, compaction);
-  const described = describeTree(root, health);
+  let described = describeTree(root, health);
   const modules = createOpenModules(loaded.modules);
   const state = createCanvasState(modules);
   const measure = createMeasure();
@@ -278,7 +282,7 @@ export function showExplorer(
     onCanvas: false,
     needsAttention: false,
   };
-  const overlayModel = buildOverlayModel(
+  let overlayModel = buildOverlayModel(
     loaded.overlays ?? [],
     scansCommit(scans),
   );
@@ -363,7 +367,7 @@ export function showExplorer(
   let noteFocus: NoteFocus | null = null;
   let canvasNotes: CanvasNotes | undefined;
   let canvasNotesKey = "";
-  const allFindings = findingRows(health.documents);
+  let allFindings = findingRows(health.documents);
   let orientedFinding: string | null = null;
   const openGroups = new Set<string>();
   let findingsOnlyView = false;
@@ -514,6 +518,7 @@ export function showExplorer(
       openTab,
     },
     scheduler,
+    carried?.camera ?? null,
   );
 
   const describing = createDescribing();
@@ -3250,7 +3255,26 @@ export function showExplorer(
     refreshResponsibilities: () => void readResponsibilities(),
     refreshPanel: () => render(),
     show: showTarget,
-    carry: () => ({ history, snapshot: snapshot(), leftPanel, metricTicks }),
+    carry: () => ({
+      history,
+      snapshot: snapshot(),
+      leftPanel,
+      metricTicks,
+      camera: canvas.camera(),
+    }),
+    update(next) {
+      loaded = next;
+      health = computeHealth(loaded);
+      described = describeTree(root, health);
+      overlayModel = buildOverlayModel(
+        loaded.overlays ?? [],
+        scansCommit(scans),
+      );
+      allFindings = findingRows(health.documents);
+      metricTicks = pruneTicks(metricTicks, overlayModel.metrics);
+      postConditions();
+      render();
+    },
     dispose() {
       document.removeEventListener("keydown", onUndoKey);
       resizeObserver?.disconnect();

@@ -240,6 +240,7 @@ function drawRemoved(removed: RemovedBox): SVGElement {
 export function buildCanvasView(
   actions: CanvasActions,
   scheduler: Scheduler = timerScheduler,
+  initial: Viewport | null = null,
 ): CanvasView {
   const element = el("main", "canvas");
   const stage = el("div", "stage");
@@ -302,6 +303,7 @@ export function buildCanvasView(
   let choosing = false;
   let shownSelection: string | null = null;
   let viewport: Viewport = { x: 0, y: 0, k: 1 };
+  let restoring: Viewport | null = initial;
   let hadContent = false;
   let pendingCamera: Viewport | "fit" | null = null;
   let wasFitted = true;
@@ -1491,7 +1493,13 @@ export function buildCanvasView(
         }
 
         if (has && !hadContent) {
-          fitNow();
+          if (restoring === null) {
+            fitNow();
+          } else {
+            viewport = restoring;
+            restoring = null;
+            applyViewport();
+          }
         }
 
         if (!has) {

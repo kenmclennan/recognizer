@@ -84,6 +84,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     adopt: async () => ORIGIN,
     carry: () => wired.explorer?.carry() ?? null,
     replace: (loaded, carried) => { wired.explorer?.dispose(); wired.explorer = build(loaded, carried); },
+    update: (loaded) => { if (wired.explorer === null) return false; wired.current = loaded; wired.explorer.update(loaded); return true; },
     adopted: (origin) => setScan(withProgress({ origin, scannedAt: Date.now(), changes: NO_CHANGES })),
     describedLine: () => wired.explorer?.refreshResponsibilities(),
     progress: (update) => { wired.scanning = update.scanning; if (wired.scanState !== null) setScan(withProgress(wired.scanState)); wired.explorer?.refreshPanel(); },

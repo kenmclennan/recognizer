@@ -1,5 +1,5 @@
 import type { ScanOrigin } from "./footer-scan";
-import { loadedUnchanged } from "./loaded-unchanged";
+import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
 import type { Loaded } from "./scan-loading";
 import {
@@ -36,6 +36,7 @@ export type RescanPorts<Carried> = {
   adopt: () => Promise<ScanOrigin>;
   carry: () => Carried | null;
   replace: (loaded: Loaded, carried: Carried | null) => void;
+  update: (loaded: Loaded) => boolean;
   adopted: (origin: ScanOrigin) => void;
   describedLine: () => void;
   progress: (update: ProgressUpdate) => void;
@@ -84,7 +85,7 @@ export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
   let busy = false;
-  let replaced: Loaded | null = null;
+  let applied: Loaded | null = null;
   let ticks: ScanTicks = DEFAULT_TICKS;
   let remembered = false;
   let ticksLoaded = false;
@@ -117,6 +118,18 @@ export function createRescanner<Carried>(
     remembered = true;
   }
 
+  function apply(loaded: Loaded) {
+    const previous = applied;
+
+    applied = loaded;
+
+    if (sameStructure(previous, loaded) && ports.update(loaded)) {
+      return;
+    }
+
+    ports.replace(loaded, ports.carry());
+  }
+
   async function settle(): Promise<boolean> {
     try {
       const scanned = ports.load(await ports.port.readCache());
@@ -128,12 +141,10 @@ export function createRescanner<Carried>(
       }
 
       const loaded = await ports.sense(scanned);
-      const carried = ports.carry();
       const origin = await ports.adopt();
 
       ports.adopted(origin);
-      replaced = loaded;
-      ports.replace(loaded, carried);
+      apply(loaded);
 
       return true;
     } catch (error) {
@@ -148,12 +159,11 @@ export function createRescanner<Carried>(
   async function reload() {
     const loaded = await ports.resense();
 
-    if (loaded === null || loadedUnchanged(replaced, loaded)) {
+    if (loaded === null || loadedUnchanged(applied, loaded)) {
       return;
     }
 
-    replaced = loaded;
-    ports.replace(loaded, ports.carry());
+    apply(loaded);
   }
 
   function postFailure(name: string, reason: string) {
