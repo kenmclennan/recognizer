@@ -1,0 +1,1154 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-csharp",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "src/Shop.Application/Damaged.cs",
+      "hash": "4df5303134753b3d0c9fb658c88f9b00e4ed4785a4e170d31216908d3584410b"
+    },
+    {
+      "path": "src/Shop.Application/GlobalUsings.cs",
+      "hash": "f646aa3575e9d59ebfaac3cf2e5f1b586ae80fddd930fe0f9f807b779202d89f"
+    },
+    {
+      "path": "src/Shop.Application/OrderPrinter.cs",
+      "hash": "0e7370ec0d9bb11dce980fec8455ee98dca8d05d9c8b0e9ffcf2a931bead2483"
+    },
+    {
+      "path": "src/Shop.Application/OrderService.cs",
+      "hash": "8e305c0b96c44c0058138febe4587c7067354ec0d000031892310e16aa2d7e2f"
+    },
+    {
+      "path": "src/Shop.Application/PlaceOrder.cs",
+      "hash": "1fb51912e99f8f761b4396e1af2a8f4af6531784d9872dea91eb77317363e09c"
+    },
+    {
+      "path": "src/Shop.Application/PlaceOrderHandler.cs",
+      "hash": "b130de726b463aadde198fbb81f61f0d557f055025ced23390ee37c177dbd895"
+    },
+    {
+      "path": "src/Shop.Domain/Extensions/OrderExtensions.cs",
+      "hash": "69d125f729d9e09e9a009bc206898e8dd09e93089b097b5031faa67163c2703b"
+    },
+    {
+      "path": "src/Shop.Domain/Extensions/StringExtensions.cs",
+      "hash": "4f47438e9634e598d8a079f8994f74104d5bd2b649fa6705b59dfb083b380481"
+    },
+    {
+      "path": "src/Shop.Domain/IHandler.cs",
+      "hash": "873f8264b8339a536e9a0b73c94b86b55248e58c2851dd3ee26a122e2daf199f"
+    },
+    {
+      "path": "src/Shop.Domain/IOrderStore.cs",
+      "hash": "b10a9c8378ca436077f1d06bedd2cb5e473f958edcf00ba703d5f19d41f116cb"
+    },
+    {
+      "path": "src/Shop.Domain/Internal/Clock.cs",
+      "hash": "60957969fadeab6861a5299b5d1b20cfb1ddc0706064148286e436c6080654d1"
+    },
+    {
+      "path": "src/Shop.Domain/Order.Parts.cs",
+      "hash": "9f230b0c757bf9b35b973a0924026fa1324c0da878700a17c4b96a2be31e60fd"
+    },
+    {
+      "path": "src/Shop.Domain/Order.cs",
+      "hash": "51404fac6cfcfffad78893fc922c70dce39a16bb0ef6e664b0e21b4fff4aac7a"
+    },
+    {
+      "path": "src/Shop.Domain/OrderLine.cs",
+      "hash": "a53b06e480c40354ae5ac105314a0fc541a2b107834caf5e72d4ae2c28acc9d3"
+    },
+    {
+      "path": "src/Shop.Domain/Pricing.cs",
+      "hash": "31d12bcbc6f421f1d57ce025a1fa5439409a5a0771878d7ab3231a7b690726cf"
+    },
+    {
+      "path": "src/Shop.Domain/Product.cs",
+      "hash": "7e2650d1c1b91421e12327cb263bd576f4f3e434343b47abefc046767c00e363"
+    },
+    {
+      "path": "src/Shop.Infrastructure/Migrations/InitialCreate.cs",
+      "hash": "c7b97492728c1c2c07bf46ca5f857a2a8d24cac44e85977d028aa4fb7db2b2a3"
+    },
+    {
+      "path": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "hash": "b538513dc77e8c72f8e878f510ca3930664157cf852051a99c2bdbd2ecabb774"
+    },
+    {
+      "path": "src/Shop.Tools/Banner.cs",
+      "hash": "be8f99bc3839bd97fc35262e748ac0901483c31ea99b6924a5f395f5a8e1c0f6"
+    },
+    {
+      "path": "src/Shop.Web/CompositionRoot.cs",
+      "hash": "1f237df6081b93ce0957a9026df0f80b26e2fde814440940d4a397d7873c3b24"
+    },
+    {
+      "path": "src/Shop.Web/Extensions/ShopServiceCollectionExtensions.cs",
+      "hash": "ef53777448463aa7f2eb27f7bed91f85b93a521c450ee3248cb363c42bdca785"
+    },
+    {
+      "path": "src/Shop.Web/OrderWorker.cs",
+      "hash": "e83ec0465652e432ed6ce96f8b9541060b2f3a964d275f27fb98f76dd5e5d927"
+    },
+    {
+      "path": "src/Shop.Web/OrdersController.cs",
+      "hash": "f20d1ec196d711004b060a725b5ffb1637674b1af12a812a097c0363188e54d6"
+    },
+    {
+      "path": "src/Shop.Web/Program.cs",
+      "hash": "7c99274291ee5bf05160e8c0e34dab3752bd3125b29ceea0ca2cc034c26e6feb"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".cs"
+    ],
+    "skip_directory_names": [
+      "bin",
+      "obj"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": [
+      "*.g.cs",
+      "*.g.i.cs",
+      "*.Designer.cs"
+    ],
+    "skip_paths": [
+      "tests/Shop.Checks.Flag",
+      "tests/Shop.Checks.MSTest",
+      "tests/Shop.Checks.Mvc",
+      "tests/Shop.Checks.Sdk",
+      "tests/Shop.Checks.UnitTests",
+      "tests/Shop.Checks.Xunit"
+    ]
+  },
+  "modules": [
+    {
+      "id": "src/Shop.Application/Damaged.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Survivor",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "Broken",
+          "kind": "class",
+          "line": 7,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Run",
+              "line": 9,
+              "params": [
+                {
+                  "name": "async",
+                  "type": "int"
+                }
+              ],
+              "private": false,
+              "returns": "int"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Application/GlobalUsings.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "src/Shop.Application/OrderPrinter.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "OrderPrinter",
+          "kind": "class",
+          "line": 6,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "line",
+              "line": 8,
+              "private": true,
+              "type": "Lines?"
+            }
+          ],
+          "methods": [
+            {
+              "name": "Total",
+              "line": 10,
+              "params": [],
+              "private": false,
+              "returns": "int"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Application/OrderService.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "OrderService",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "store",
+              "line": 3,
+              "private": true,
+              "type": "IOrderStore"
+            }
+          ],
+          "methods": [
+            {
+              "name": "Place",
+              "line": 5,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false,
+              "returns": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Application/PlaceOrder.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "PlaceOrder",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "Order",
+              "line": 3,
+              "private": false,
+              "type": "Order"
+            }
+          ],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Application/PlaceOrderHandler.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "PlaceOrderHandler",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "IHandler<PlaceOrder>"
+          ],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Handle",
+              "line": 5,
+              "params": [
+                {
+                  "name": "message",
+                  "type": "PlaceOrder"
+                }
+              ],
+              "private": false,
+              "returns": "void"
+            }
+          ]
+        }
+      ],
+      "entry_point": true
+    },
+    {
+      "id": "src/Shop.Domain/Extensions/OrderExtensions.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "OrderExtensions",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/Extensions/StringExtensions.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "StringExtensions",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Shout",
+              "line": 5,
+              "params": [
+                {
+                  "name": "text",
+                  "type": "string"
+                }
+              ],
+              "private": false,
+              "returns": "string",
+              "tags": [
+                "static"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/IHandler.cs",
+      "language": "csharp",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "IHandler",
+          "kind": "interface",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Handle",
+              "line": 5,
+              "params": [
+                {
+                  "name": "message",
+                  "type": "T"
+                }
+              ],
+              "private": false,
+              "returns": "void",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/IOrderStore.cs",
+      "language": "csharp",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "IOrderStore",
+          "kind": "interface",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Save",
+              "line": 5,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false,
+              "returns": "void",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/Internal/Clock.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Clock",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "internal",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Now",
+              "line": 5,
+              "params": [],
+              "private": false,
+              "returns": "int",
+              "tags": [
+                "static"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/Order.Parts.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "Main",
+              "line": 5,
+              "private": false,
+              "type": "Product"
+            }
+          ],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/Order.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Order",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "Lines",
+              "line": 5,
+              "private": false,
+              "type": "OrderLine[]"
+            }
+          ],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/OrderLine.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "OrderLine",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "Product",
+              "line": 3,
+              "private": false,
+              "type": "Product"
+            },
+            {
+              "name": "Quantity",
+              "line": 3,
+              "private": false,
+              "type": "int"
+            }
+          ],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/Pricing.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Pricing",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "Tax",
+              "line": 5,
+              "private": false,
+              "type": "int"
+            }
+          ],
+          "methods": [
+            {
+              "name": "Round",
+              "line": 7,
+              "params": [
+                {
+                  "name": "amount",
+                  "type": "int"
+                }
+              ],
+              "private": false,
+              "returns": "int",
+              "tags": [
+                "static"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Domain/Product.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Product",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "Name",
+              "line": 5,
+              "private": false,
+              "type": "string"
+            }
+          ],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Infrastructure/Migrations/InitialCreate.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "InitialCreate",
+          "kind": "class",
+          "line": 5,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "Migration"
+          ],
+          "fields": [],
+          "methods": []
+        }
+      ],
+      "entry_point": true
+    },
+    {
+      "id": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "SqlOrderStore",
+          "kind": "class",
+          "line": 5,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "IOrderStore"
+          ],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Save",
+              "line": 7,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false,
+              "returns": "void"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Tools/Banner.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Banner",
+          "kind": "class",
+          "line": 5,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Run",
+              "line": 7,
+              "params": [],
+              "private": false,
+              "returns": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Web/CompositionRoot.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "CompositionRoot",
+          "kind": "class",
+          "line": 7,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "Compose",
+              "line": 9,
+              "params": [
+                {
+                  "name": "container",
+                  "type": "Container"
+                },
+                {
+                  "name": "assemblies",
+                  "type": "Assembly[]"
+                }
+              ],
+              "private": false,
+              "returns": "void",
+              "tags": [
+                "static"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Web/Extensions/ShopServiceCollectionExtensions.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "ShopServiceCollectionExtensions",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "AddShop",
+              "line": 5,
+              "params": [
+                {
+                  "name": "services",
+                  "type": "IServiceCollection"
+                }
+              ],
+              "private": false,
+              "returns": "IServiceCollection",
+              "tags": [
+                "static"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/Shop.Web/OrderWorker.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "OrderWorker",
+          "kind": "class",
+          "line": 5,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "BackgroundService"
+          ],
+          "fields": [],
+          "methods": [
+            {
+              "name": "ExecuteAsync",
+              "line": 7,
+              "params": [
+                {
+                  "name": "stoppingToken",
+                  "type": "CancellationToken"
+                }
+              ],
+              "private": false,
+              "returns": "Task"
+            }
+          ]
+        }
+      ],
+      "entry_point": true
+    },
+    {
+      "id": "src/Shop.Web/OrdersController.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "OrdersController",
+          "kind": "class",
+          "line": 8,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "ControllerBase"
+          ],
+          "fields": [
+            {
+              "name": "service",
+              "line": 8,
+              "private": true,
+              "type": "OrderService"
+            }
+          ],
+          "methods": [
+            {
+              "name": "Show",
+              "line": 10,
+              "params": [
+                {
+                  "name": "order",
+                  "type": "Order"
+                }
+              ],
+              "private": false,
+              "returns": "string"
+            }
+          ]
+        }
+      ],
+      "entry_point": true
+    },
+    {
+      "id": "src/Shop.Web/Program.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [],
+      "entry_point": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "src/Shop.Application/OrderPrinter.cs",
+      "to": "src/Shop.Domain/OrderLine.cs",
+      "kind": "depends",
+      "line": 8,
+      "names": [
+        "OrderLine"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/OrderPrinter.cs",
+      "to": "src/Shop.Domain/Pricing.cs",
+      "kind": "depends",
+      "line": 10,
+      "names": [
+        "Round",
+        "Tax"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/OrderService.cs",
+      "to": "src/Shop.Domain/IOrderStore.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "IOrderStore"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/OrderService.cs",
+      "to": "src/Shop.Domain/Order.Parts.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/OrderService.cs",
+      "to": "src/Shop.Domain/Order.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/OrderService.cs",
+      "to": "src/Shop.Domain/Extensions/OrderExtensions.cs",
+      "kind": "depends",
+      "line": 9,
+      "names": [
+        "ItemCount"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/OrderService.cs",
+      "to": "src/Shop.Domain/Extensions/StringExtensions.cs",
+      "kind": "depends",
+      "line": 9,
+      "names": [
+        "Shout"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/PlaceOrder.cs",
+      "to": "src/Shop.Domain/Order.Parts.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/PlaceOrder.cs",
+      "to": "src/Shop.Domain/Order.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/PlaceOrderHandler.cs",
+      "to": "src/Shop.Application/PlaceOrder.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "PlaceOrder"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/PlaceOrderHandler.cs",
+      "to": "src/Shop.Domain/IHandler.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "IHandler"
+      ]
+    },
+    {
+      "from": "src/Shop.Application/PlaceOrderHandler.cs",
+      "to": "src/Shop.Domain/IHandler.cs",
+      "kind": "implements",
+      "line": 3,
+      "member": "PlaceOrderHandler",
+      "to_member": "IHandler"
+    },
+    {
+      "from": "src/Shop.Domain/Extensions/OrderExtensions.cs",
+      "to": "src/Shop.Domain/Order.Parts.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Domain/Extensions/OrderExtensions.cs",
+      "to": "src/Shop.Domain/Order.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Domain/IOrderStore.cs",
+      "to": "src/Shop.Domain/Order.Parts.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Domain/IOrderStore.cs",
+      "to": "src/Shop.Domain/Order.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Domain/Order.Parts.cs",
+      "to": "src/Shop.Domain/Product.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "Product"
+      ]
+    },
+    {
+      "from": "src/Shop.Domain/Order.cs",
+      "to": "src/Shop.Domain/OrderLine.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "OrderLine"
+      ]
+    },
+    {
+      "from": "src/Shop.Domain/OrderLine.cs",
+      "to": "src/Shop.Domain/Product.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Product"
+      ]
+    },
+    {
+      "from": "src/Shop.Infrastructure/Migrations/InitialCreate.cs",
+      "to": "foreign:Microsoft.EntityFrameworkCore.Migrations",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "to": "src/Shop.Domain/IOrderStore.cs",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "IOrderStore"
+      ]
+    },
+    {
+      "from": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "to": "src/Shop.Domain/IOrderStore.cs",
+      "kind": "implements",
+      "line": 5,
+      "member": "SqlOrderStore",
+      "to_member": "IOrderStore"
+    },
+    {
+      "from": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "to": "src/Shop.Domain/Order.Parts.cs",
+      "kind": "depends",
+      "line": 7,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "to": "src/Shop.Domain/Order.cs",
+      "kind": "depends",
+      "line": 7,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "to": "src/Shop.Domain/Internal/Clock.cs",
+      "kind": "depends",
+      "line": 9,
+      "names": [
+        "Clock"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/CompositionRoot.cs",
+      "to": "foreign:SimpleInjector",
+      "kind": "depends",
+      "line": 3
+    },
+    {
+      "from": "src/Shop.Web/CompositionRoot.cs",
+      "to": "src/Shop.Domain/IOrderStore.cs",
+      "kind": "depends",
+      "line": 11,
+      "names": [
+        "IOrderStore"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/CompositionRoot.cs",
+      "to": "src/Shop.Infrastructure/SqlOrderStore.cs",
+      "kind": "depends",
+      "line": 11,
+      "names": [
+        "SqlOrderStore"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/CompositionRoot.cs",
+      "to": "src/Shop.Domain/IHandler.cs",
+      "kind": "depends",
+      "line": 12,
+      "names": [
+        "IHandler"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/OrderWorker.cs",
+      "to": "foreign:Microsoft.Extensions.Hosting",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "src/Shop.Web/OrdersController.cs",
+      "to": "foreign:Microsoft.AspNetCore.Mvc",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "src/Shop.Web/OrdersController.cs",
+      "to": "src/Shop.Application/OrderService.cs",
+      "kind": "depends",
+      "line": 8,
+      "names": [
+        "OrderService"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/OrdersController.cs",
+      "to": "src/Shop.Domain/Order.Parts.cs",
+      "kind": "depends",
+      "line": 10,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/OrdersController.cs",
+      "to": "src/Shop.Domain/Order.cs",
+      "kind": "depends",
+      "line": 10,
+      "names": [
+        "Order"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/OrdersController.cs",
+      "to": "src/Shop.Domain/Extensions/StringExtensions.cs",
+      "kind": "depends",
+      "line": 14,
+      "names": [
+        "Shout"
+      ]
+    },
+    {
+      "from": "src/Shop.Web/Program.cs",
+      "to": "src/Shop.Web/Extensions/ShopServiceCollectionExtensions.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "AddShop"
+      ]
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:Microsoft.AspNetCore.Mvc",
+      "name": "Microsoft.AspNetCore.Mvc"
+    },
+    {
+      "id": "foreign:Microsoft.EntityFrameworkCore.Migrations",
+      "name": "Microsoft.EntityFrameworkCore.Migrations"
+    },
+    {
+      "id": "foreign:Microsoft.Extensions.Hosting",
+      "name": "Microsoft.Extensions.Hosting"
+    },
+    {
+      "id": "foreign:SimpleInjector",
+      "name": "SimpleInjector"
+    }
+  ],
+  "calls": [],
+  "unresolved_imports": []
+}

@@ -34,6 +34,12 @@ export const SCANNERS: ScannerSpec[] = [
     variable: "RECOGNIZER_SCAN_RUST",
     install: "brew install kenmclennan/tap/recognizer",
   },
+  {
+    language: "csharp",
+    name: "recognizer-scan-csharp",
+    variable: "RECOGNIZER_SCAN_CSHARP",
+    install: "brew install kenmclennan/tap/recognizer",
+  },
 ];
 
 export function scannerFor(language: Language): ScannerSpec {

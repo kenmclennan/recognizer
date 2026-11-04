@@ -119,9 +119,10 @@ jobs:
           uv pip install --python "$smoke/venv/bin/python" --no-index --find-links "$smoke/wheelhouse" \
             "$smoke/recognizer_scan_python-$VERSION-py3-none-any.whl" \
             "$smoke/recognizer_scan_kotlin-$VERSION-py3-none-any.whl" \
+            "$smoke/recognizer_scan_csharp-$VERSION-py3-none-any.whl" \
             "$smoke/recognizer_sensors-$VERSION-py3-none-any.whl"
           export PATH="$smoke/bin:$smoke/venv/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
-          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-rust recognizer-sensors; do
+          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sensors; do
             got=$("$tool" --version)
             if [ "$got" != "$VERSION" ]; then
               echo "$tool --version printed $got, expected $VERSION" >&2
@@ -143,8 +144,9 @@ jobs:
           mixed=$(mktemp -d)
           cp -R "$repo/fixtures/kotlin/sample/." "$mixed/"
           cp -R "$repo/fixtures/rust/sample/." "$mixed/"
+          cp -R "$repo/fixtures/csharp/sample/." "$mixed/"
           recognizer scan "$mixed"
-          for language in kotlin rust; do
+          for language in kotlin rust csharp; do
             file="$mixed/.recognizer/cache/scan.$language.json"
             if [ ! -f "$file" ]; then
               echo "recognizer scan wrote no $file" >&2

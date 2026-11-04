@@ -1,0 +1,10 @@
+{
+  "repository": "dotnet/eShop",
+  "commit": "913acea66708a59595351174cee9b29f37179d29",
+  "files": 489,
+  "modules": 489,
+  "edges": 1406,
+  "damaged": 2,
+  "orphans": 60,
+  "precision_floor": 1.0
+}

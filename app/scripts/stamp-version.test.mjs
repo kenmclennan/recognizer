@@ -21,6 +21,8 @@ const FILES = {
     '[project]\nname = "recognizer-scan-python"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
   "scanners/kotlin/pyproject.toml":
     '[project]\nname = "recognizer-scan-kotlin"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
+  "scanners/csharp/pyproject.toml":
+    '[project]\nname = "recognizer-scan-csharp"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
   "sensors/pyproject.toml":
     '[project]\nname = "recognizer-sensors"\nversion = "0.1.0"\ndependencies = []\n\n[tool.x]\nversion = "1"\n',
   "describers/claude/package.json":
@@ -39,6 +41,7 @@ function fixture() {
   mkdirSync(join(root, "scanners/typescript"), { recursive: true });
   mkdirSync(join(root, "scanners/python"), { recursive: true });
   mkdirSync(join(root, "scanners/kotlin"), { recursive: true });
+  mkdirSync(join(root, "scanners/csharp"), { recursive: true });
   mkdirSync(join(root, "scanners/rust"), { recursive: true });
   mkdirSync(join(root, "sensors"), { recursive: true });
   mkdirSync(join(root, "describers/claude"), { recursive: true });
@@ -95,6 +98,7 @@ describe("stampVersion on the real manifests", () => {
       "app/src-tauri/Cargo.toml",
       "scanners/python/pyproject.toml",
       "scanners/kotlin/pyproject.toml",
+      "scanners/csharp/pyproject.toml",
       "sensors/pyproject.toml",
       "describers/claude/package.json",
       "scanners/rust/Cargo.toml",
@@ -127,6 +131,9 @@ describe("stampVersion on the real manifests", () => {
     ).toMatch(/^version = "7\.8\.9"$/m);
     expect(
       readFileSync(join(root, "scanners/kotlin/pyproject.toml"), "utf8"),
+    ).toMatch(/^version = "7\.8\.9"$/m);
+    expect(
+      readFileSync(join(root, "scanners/csharp/pyproject.toml"), "utf8"),
     ).toMatch(/^version = "7\.8\.9"$/m);
     expect(readFileSync(join(root, "sensors/pyproject.toml"), "utf8")).toMatch(
       /^version = "7\.8\.9"$/m,

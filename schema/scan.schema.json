@@ -80,7 +80,12 @@
         "skip_directory_prefixes": { "$ref": "#/$defs/stringList" },
         "skip_directory_suffixes": { "$ref": "#/$defs/stringList" },
         "skip_directories_containing": { "$ref": "#/$defs/stringList" },
-        "skip_file_globs": { "$ref": "#/$defs/stringList" }
+        "skip_file_globs": { "$ref": "#/$defs/stringList" },
+        "skip_paths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/moduleId" },
+          "uniqueItems": true
+        }
       }
     },
     "moduleId": {
@@ -95,7 +100,7 @@
       "required": ["id", "language", "kind", "members"],
       "properties": {
         "id": { "$ref": "#/$defs/moduleId" },
-        "language": { "enum": ["python", "typescript", "kotlin", "rust"] },
+        "language": { "enum": ["python", "typescript", "kotlin", "rust", "csharp"] },
         "kind": { "enum": ["module", "package", "interface"] },
         "members": { "type": "array", "items": { "$ref": "#/$defs/member" } },
         "entry_point": { "type": "boolean", "const": true }
