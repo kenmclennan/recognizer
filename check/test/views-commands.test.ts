@@ -1320,10 +1320,75 @@ describe("change views", () => {
     expect(saved(fake, "a")).not.toHaveProperty("change");
   });
 
-  it("requires --change on set", () => {
+  it("refuses set with none of --change, --title and --description", () => {
     const fake = repo(view("a"));
 
     expect(go(fake, "set", "a").code).toBe(2);
+  });
+
+  it("sets the description with set --description", () => {
+    const fake = repo(view("a"));
+    const result = go(fake, "set", "a", "--description", "Shows the flow");
+
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("set the description");
+    expect(saved(fake, "a").description).toBe("Shows the flow");
+  });
+
+  it("sets the trimmed title and removes it with an empty --title", () => {
+    const fake = repo(view("a"));
+
+    go(fake, "set", "a", "--title", "  Placing an order  ");
+    expect(saved(fake, "a").title).toBe("Placing an order");
+
+    const removed = go(fake, "set", "a", "--title", "");
+
+    expect(removed.out).toContain("removed the title");
+    expect(saved(fake, "a")).not.toHaveProperty("title");
+  });
+
+  it("refuses a blank --description on set", () => {
+    const fake = repo(view("a"));
+    const result = go(fake, "set", "a", "--description", "  ");
+
+    expect(result.code).toBe(2);
+    expect(result.err).toContain("--description");
+  });
+
+  it("writes title, description and range once when set gets all three", () => {
+    const fake = repo(view("a"));
+    const result = go(
+      fake,
+      "set",
+      "a",
+      "--title",
+      "T",
+      "--description",
+      "D",
+      "--change",
+      "main..feat",
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.out).toContain(
+      "set the title, set the description, set the range to",
+    );
+    expect(saved(fake, "a")).toMatchObject({
+      title: "T",
+      description: "D",
+      change: { base: "main", head: "feat" },
+    });
+  });
+
+  it("prints no change when set repeats the stored values", () => {
+    const fake = repo(view("a"));
+
+    go(fake, "set", "a", "--title", "T", "--description", "D");
+
+    const again = go(fake, "set", "a", "--title", "T", "--description", "D");
+
+    expect(again.code).toBe(0);
+    expect(again.out).toContain("no change");
   });
 
   it("prints the marked modules and the unmatched count from diff", () => {

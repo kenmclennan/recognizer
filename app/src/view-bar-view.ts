@@ -22,6 +22,7 @@ export type ViewBarProps = {
   forwardLabel: string;
   canCopy: boolean;
   openTitle: string | null;
+  openDescription: string | null;
 };
 
 export type ViewBarActions = {
@@ -35,8 +36,14 @@ export type ViewBarActions = {
     title: string,
     description: string,
   ) => Promise<string | null>;
-  retitle: (name: string, title: string | null) => Promise<void>;
-  rename: (from: string, to: string) => Promise<string | null>;
+  saveDetails: (
+    name: string,
+    title: string | null,
+    description: string,
+  ) => Promise<string | null>;
+  preview: (
+    draft: { title: string | null; description: string } | null,
+  ) => void;
   copyLink: () => void;
   hasOpenView: () => boolean;
 };
@@ -48,6 +55,10 @@ export type ViewBar = {
 };
 
 export function nameProblem(name: string, existing: string[]): string | null {
+  if (name === "") {
+    return "A view needs a name";
+  }
+
   if (!VIEW_NAME.test(name)) {
     return "Use letters, digits, - and _, starting with a letter or digit (64 at most)";
   }
@@ -70,12 +81,20 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     actions.forward(),
   );
   const list = button("", "view-list", () => toggleMenu());
-  const name = button("", "view-name", () => startEditing());
+  const name = button("", "view-name", () =>
+    editing ? cancelEditing() : startEditing(),
+  );
   const rangeChip = el("span", "view-range-chip");
   const nameText = el("span", "view-name-text", "Untitled");
-  const nameField = el("input", "view-name-field-inline");
-  const titleField = el("input", "view-title-field-inline");
-  const nameProblemLine = el("p", "view-name-problem");
+  const card = el("div", "view-details");
+  const nameField = el("input", "view-details-name");
+  const titleField = el("input", "view-details-title");
+  const descriptionField = el("textarea", "view-details-description");
+  const nameProblemLine = el("p", "view-details-problem");
+  const cardCancel = button("Cancel", "view-details-cancel", () =>
+    cancelEditing(),
+  );
+  const cardSave = button("Save", "view-details-save", () => void commit());
   const save = iconButton("Save the view", "save", "save", () => {
     if (actions.hasOpenView()) {
       actions.save();
@@ -107,6 +126,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     forwardLabel: "Forward",
     canCopy: false,
     openTitle: null,
+    openDescription: null,
   };
   let menuOpen = false;
   let dialogOpen = false;
@@ -120,13 +140,26 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   list.setAttribute("aria-expanded", "false");
   name.append(nameText);
   name.title = "Rename the view";
-  nameField.hidden = true;
-  nameField.setAttribute("aria-label", "View name");
+  card.hidden = true;
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-label", "View details");
+  nameField.id = "view-details-name-field";
   nameField.spellcheck = false;
-  titleField.hidden = true;
-  titleField.setAttribute("aria-label", "View title");
-  titleField.placeholder = "Title";
+  nameField.placeholder = "Untitled";
+  titleField.id = "view-details-title-field";
+  titleField.placeholder = "Heading shown above the diagram";
+  descriptionField.id = "view-details-description-field";
+  descriptionField.placeholder = "What it shows";
+  descriptionField.rows = 3;
   nameProblemLine.hidden = true;
+  card.append(
+    labelled("Name", nameField),
+    nameProblemLine,
+    labelled("Title", titleField),
+    labelled("Description", descriptionField),
+    el("div", "view-details-actions"),
+  );
+  card.lastElementChild?.append(cardCancel, cardSave);
   menu.setAttribute("role", "menu");
   dialog.setAttribute("role", "dialog");
   dialog.setAttribute("aria-label", "Save view");
@@ -136,26 +169,31 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     list,
     name,
     rangeChip,
-    nameField,
-    titleField,
     save,
     copy,
-    nameProblemLine,
+    card,
     menu,
     dialog,
   );
   element.addEventListener("pointerdown", (event) => event.stopPropagation());
 
   const closeOnEscape = (event: KeyboardEvent) => {
-    if (event.key === "Escape" && (menuOpen || dialogOpen)) {
+    if (event.key === "Escape" && editing) {
+      cancelEditing();
+    } else if (event.key === "Escape" && (menuOpen || dialogOpen)) {
       closeOverlay();
     }
   };
   const closeOnOutside = (event: Event) => {
-    if (
-      (menuOpen || dialogOpen) &&
-      !(event.target instanceof Node && element.contains(event.target))
-    ) {
+    if (event.target instanceof Node && element.contains(event.target)) {
+      return;
+    }
+
+    if (editing) {
+      cancelEditing();
+    }
+
+    if (menuOpen || dialogOpen) {
       closeOverlay();
     }
   };
@@ -173,14 +211,56 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   function toggleMenu() {
     menuOpen = !menuOpen;
     dialogOpen = false;
-    stopEditing();
+    cancelEditing();
     renderOverlay();
   }
 
-  function renderName() {
-    name.hidden = editing;
-    nameField.hidden = !editing;
-    titleField.hidden = !editing || props.open === null;
+  function otherNames(): string[] {
+    return props.names.filter((n) => n !== props.open);
+  }
+
+  function draftNameProblem(): string | null {
+    return nameProblem(nameField.value, otherNames());
+  }
+
+  function differs(): boolean {
+    return (
+      props.open === null ||
+      nameField.value !== props.open ||
+      titleField.value.trim() !== (props.openTitle ?? "") ||
+      descriptionField.value.trim() !== (props.openDescription ?? "")
+    );
+  }
+
+  function refreshCard(showName = false) {
+    const problem = draftNameProblem();
+
+    if (showName) {
+      nameProblemLine.textContent = problem ?? "";
+      nameProblemLine.hidden = problem === null;
+
+      if (problem === null) {
+        nameField.removeAttribute("aria-invalid");
+      } else {
+        nameField.setAttribute("aria-invalid", "true");
+      }
+    }
+
+    cardSave.disabled =
+      problem !== null || descriptionField.value.trim() === "" || !differs();
+  }
+
+  function previewDraft() {
+    if (props.open === null) {
+      return;
+    }
+
+    const title = titleField.value.trim();
+
+    actions.preview({
+      title: title === "" ? null : title,
+      description: descriptionField.value.trim(),
+    });
   }
 
   function startEditing() {
@@ -188,119 +268,88 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     dialogOpen = false;
     editing = true;
     nameField.value = props.open ?? "";
-    nameField.placeholder = "Untitled";
     titleField.value = props.openTitle ?? "";
+    descriptionField.value = props.openDescription ?? "";
     nameProblemLine.hidden = true;
-    renderName();
+    nameField.removeAttribute("aria-invalid");
+    card.hidden = false;
+    refreshCard();
     renderOverlay();
-    nameField.focus();
-    nameField.select();
+
+    if (props.open === null) {
+      nameField.focus();
+    } else {
+      titleField.focus();
+      titleField.select();
+    }
   }
 
-  function stopEditing() {
+  function cancelEditing() {
+    if (!editing) {
+      return;
+    }
+
     editing = false;
-    nameProblemLine.hidden = true;
-    renderName();
+    card.hidden = true;
+    actions.preview(null);
   }
 
-  function titleChanged(): boolean {
-    return (
-      props.open !== null && titleField.value.trim() !== (props.openTitle ?? "")
-    );
-  }
+  async function commit() {
+    if (cardSave.disabled) {
+      return;
+    }
 
-  function changed(): boolean {
-    return nameField.value !== (props.open ?? "") || titleChanged();
-  }
+    const title = titleField.value.trim();
+    const description = descriptionField.value.trim();
 
-  async function commitName() {
-    const next = nameField.value;
-    const existing = props.names;
-    let current = props.open;
+    cardSave.disabled = true;
 
-    if (!changed()) {
-      stopEditing();
+    const refused =
+      props.open === null
+        ? await actions.saveNew(nameField.value, title, description)
+        : await actions.saveDetails(
+            nameField.value,
+            title === "" ? null : title,
+            description,
+          );
+
+    if (refused === null) {
+      editing = false;
+      card.hidden = true;
+      actions.preview(null);
 
       return;
     }
 
-    if (next !== (props.open ?? "")) {
-      const problem = nameProblem(
-        next,
-        props.open === null
-          ? existing
-          : existing.filter((n) => n !== props.open),
-      );
-
-      if (problem !== null) {
-        refuse(problem);
-
-        return;
-      }
-
-      if (props.open === null) {
-        stopEditing();
-        dialogName = next;
-        dialogOpen = true;
-        renderOverlay();
-
-        return;
-      }
-
-      const refused = await actions.rename(props.open, next);
-
-      if (refused !== null) {
-        refuse(refused);
-
-        return;
-      }
-
-      current = next;
-    }
-
-    if (current !== null && titleChanged()) {
-      const title = titleField.value.trim();
-
-      await actions.retitle(current, title === "" ? null : title);
-    }
-
-    stopEditing();
-  }
-
-  function refuse(reason: string) {
-    nameProblemLine.textContent = reason;
+    nameProblemLine.textContent = refused;
     nameProblemLine.hidden = false;
     nameField.setAttribute("aria-invalid", "true");
+    cardSave.disabled = false;
   }
 
-  nameField.addEventListener("input", () => {
-    nameProblemLine.hidden = true;
-    nameField.removeAttribute("aria-invalid");
+  nameField.addEventListener("input", () => refreshCard(true));
+  titleField.addEventListener("input", () => {
+    refreshCard();
+    previewDraft();
   });
-  for (const field of [nameField, titleField]) {
+  descriptionField.addEventListener("input", () => {
+    refreshCard();
+    previewDraft();
+  });
+  const cardFields: HTMLElement[] = [nameField, titleField, descriptionField];
+
+  for (const field of cardFields) {
     field.addEventListener("keydown", (event) => {
       event.stopPropagation();
 
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void commitName();
-      } else if (event.key === "Escape") {
-        stopEditing();
-      }
-    });
-    field.addEventListener("blur", (event) => {
-      if (
-        !editing ||
-        event.relatedTarget === nameField ||
-        event.relatedTarget === titleField
+      if (event.key === "Escape") {
+        cancelEditing();
+      } else if (
+        event.key === "Enter" &&
+        (field !== descriptionField || event.metaKey || event.ctrlKey)
       ) {
-        return;
-      }
-
-      if (changed()) {
-        void commitName();
-      } else {
-        stopEditing();
+        event.preventDefault();
+        void commit();
       }
     });
   }
@@ -466,6 +515,8 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   return {
     element,
     render(next) {
+      const previousOpen = props.open;
+
       props = next;
       back.disabled = !next.canBack;
       forward.disabled = !next.canForward;
@@ -474,7 +525,10 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       nameText.textContent = next.open ?? "Untitled";
       rangeChip.hidden = next.openChip === null;
       rangeChip.textContent = next.openChip ?? "";
-      renderName();
+      if (editing && next.open !== previousOpen) {
+        cancelEditing();
+      }
+
       copy.disabled = !next.canCopy;
       renderMenu();
     },

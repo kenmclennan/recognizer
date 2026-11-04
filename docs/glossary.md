@@ -129,6 +129,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Files panel | The rail's panel holding the tree. |
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its title, its description, the commit it was saved at, its steps and its notes. |
 | View title | The optional heading text of a saved view, separate from its name. |
+| View details card | The card under the view bar that edits a view's name, title and description together, with Cancel and Save. |
 | View heading | The title and description of a saved view, drawn centred above the diagram and moving with it. |
 | Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
 | Stale view | A saved view the list shows under Stale with Delete: a change view whose head is merged or whose branch is gone, or any view with a pick that no longer resolves. |
