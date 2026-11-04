@@ -1,6 +1,7 @@
 import { button, el } from "./dom";
 import type { NodeHealth } from "./health";
 import { iconButton } from "./icons";
+import { attachModuleTip } from "./module-tip";
 import { checkState, nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 import type { Filtered, FilterState } from "./tree-filter";
@@ -11,6 +12,7 @@ export type TreeProps = {
   moduleCount: number;
   filtered: Filtered;
   described: Map<string, NodeHealth>;
+  description: (id: string) => string | null;
   expanded: Set<string>;
   selected: string | null;
   isOpen: (id: string) => boolean;
@@ -143,6 +145,10 @@ export function buildTreeView(actions: TreeActions): TreeView {
       onName: () => actions.find(node.path),
     });
 
+    attachModuleTip(line, {
+      path: node.path,
+      description: props.description(node.path),
+    });
     line.classList.add("file");
     line.classList.toggle("selected", props.selected === node.path);
     line.dataset.path = node.path;

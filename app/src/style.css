@@ -2061,6 +2061,31 @@ svg.i.chevron {
   pointer-events: none;
 }
 
+.module-tip {
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  max-width: 340px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.module-tip-path {
+  font-family: ui-monospace, monospace;
+}
+
+.module-tip-description {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
 .scan-state.ok {
   color: var(--ok);
 }
