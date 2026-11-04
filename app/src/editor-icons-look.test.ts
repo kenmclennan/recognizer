@@ -69,7 +69,7 @@ const tree = buildTreeView({
   putFolderOnCanvas() {}, takeFolderOff() {}, find() {}, openFolderInEditor: () => calls.push("tree"),
 });
 document.body.append(tree.element);
-tree.render({ title: "shop", moduleCount: 2, filtered: filterTree(root, filter, context), described: new Map(), expanded: new Set(), selected: null, isOpen: context.isOpen, filter });
+tree.render({ title: "shop", moduleCount: 2, filtered: filterTree(root, filter, context), described: new Map(), description: () => null, expanded: new Set(), selected: null, isOpen: context.isOpen, filter });
 const treeButton = tree.element.querySelector(".tree-header button");
 facts.tree = describe(treeButton);
 const header = tree.element.querySelector(".tree-header");

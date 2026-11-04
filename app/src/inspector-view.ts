@@ -13,6 +13,7 @@ import type {
   ResponsibilityLineRow,
   Row,
 } from "./inspector-model";
+import { attachModuleTip } from "./module-tip";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 import {
@@ -267,7 +268,12 @@ function rowNode(
 
     node.classList.add(row.folder ? "folder" : "file");
     node.classList.toggle("indent", row.indent);
-    node.title = row.title;
+    if (row.folder) {
+      node.title = row.title;
+    } else {
+      attachModuleTip(node, { path: row.title, description: row.description });
+    }
+
     node.dataset.id = row.id;
 
     const direction = row.follow;

@@ -65,6 +65,7 @@ import {
 } from "./layout-source";
 import type { MessageInput, MessageKind } from "./message-tray";
 import type { CanvasMetrics } from "./metrics-view";
+import { descriptionOf } from "./module-tip";
 import {
   bubbleSet,
   keepsFocus as keepsNoteFocus,
@@ -3089,6 +3090,7 @@ export function showExplorer(
       moduleCount: loaded.modules.length,
       filtered,
       described,
+      description: (id) => descriptionOf(responsibilityOf(id)),
       expanded,
       selected:
         selection === null || selection.kind === "edge" ? null : selection.id,

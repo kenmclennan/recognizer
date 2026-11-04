@@ -59,6 +59,7 @@ function props(over) {
     moduleCount: 4,
     filtered: filterTree(root, filter, context),
     described: new Map(),
+    description: () => null,
     expanded: new Set(["src", "src/deep"]),
     selected: "src/deep/d.ts",
     isOpen: context.isOpen,

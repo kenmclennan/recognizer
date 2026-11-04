@@ -14,6 +14,7 @@ import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
 import type { Disc, Finding } from "./health";
 import { barTitle, type Tone, tone, valueLabel } from "./metric-bars";
+import { descriptionOf } from "./module-tip";
 import type { MetricDescriptor } from "./overlay-model";
 import { createPicker, type PickerSource } from "./picker-model";
 import type { ResponsibilityRow } from "./responsibility-model";
@@ -103,6 +104,7 @@ export type Row =
       chevron: { key: string; open: boolean } | null;
       detail: { text: string; tone?: "private" | "inferred" } | null;
       title: string;
+      description: string | null;
       follow: Direction | null;
       followed: boolean;
     }
@@ -466,6 +468,7 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
           chevron: null,
           detail: { text: `${count} ${count === 1 ? "file" : "files"}` },
           title: path,
+          description: null,
           follow: null,
           followed: false,
         };
@@ -489,6 +492,7 @@ function folderContents(folder: string, inputs: InspectorInputs): Row[] {
           chevron: null,
           detail: summary === "" ? null : { text: summary },
           title: id,
+          description: descriptionOf(inputs.responsibility(id).state),
           follow: null,
           followed: false,
         };
@@ -551,6 +555,7 @@ function pickerRows(
       chevron: null,
       detail: { text: String(group.count) },
       title: group.label,
+      description: null,
       follow: null,
       followed: false,
     });
@@ -569,6 +574,7 @@ function pickerRows(
         chevron: null,
         detail: null,
         title: row.id,
+        description: descriptionOf(inputs.responsibility(row.id).state),
         follow: direction,
         followed:
           inputs.followed?.id === row.id &&
