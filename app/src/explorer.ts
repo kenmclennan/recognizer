@@ -3119,7 +3119,6 @@ export function showExplorer(
         tab: root ? inspectorTab : panel.tab,
         counts: graph.counts,
         filter: root ? pickerFilter : panel.filter,
-        collapsed: root ? groupFlips : panel.groupFlips,
         followed: panel.followed,
         responsibility: (id) => ({
           state: responsibilityOf(id),
