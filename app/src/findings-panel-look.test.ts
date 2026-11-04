@@ -169,7 +169,12 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   facts.bar = { present: findingsButton() !== null, text: findingsButton().textContent, cls: findingsButton().className, order: bar.all(".selection-bar .bar-button").map((b) => b.title).slice(0, 3) };
   click(findingsButton());
   await tick();
-  facts.barTab = { tab: texts(bar, ".itabs button.on"), rows: bar.all(".inspector-panel .finding-card").map((r) => r.dataset.id), on: findingsButton().className };
+  facts.barTab = { tab: texts(bar, ".itabs button.on"), groups: texts(bar, ".inspector-panel .finding-group-name"), counts: texts(bar, ".inspector-panel .finding-group-count"), closed: bar.all(".inspector-panel .finding-card").length, on: findingsButton().className };
+  click(bar.q(".inspector-panel .finding-group-head"));
+  await tick();
+  facts.barOpened = { groups: bar.all(".inspector-panel .finding-group.open").length, cards: bar.all(".inspector-panel .finding-card").map((r) => r.dataset.id), name: bar.q(".inspector-panel .finding-card .finding-name").textContent, folder: bar.q(".inspector-panel .finding-card .finding-folder").textContent, panelGroupsOpen: bar.all(".findings-panel .finding-group.open").length };
+  click(bar.all(".inspector-panel .finding-group-head")[1]);
+  await tick();
   click(bar.q('.inspector-panel .finding-card[data-id="cycle:a,b"] .finding-card-head'));
   await tick();
   facts.tabFocus = { open: bar.all(".inspector-panel .finding-card.open").length, lit: bar.all(".box.lit-warning").map((n) => n.dataset.id).sort(), rows: texts(bar, ".inspector-panel .finding-card.open .finding-item"), selected: bar.all(".box.selected").map((n) => n.dataset.id) };
@@ -366,11 +371,21 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
       "Findings (W)",
     ]);
     expect(f.barTab.tab[0]).toMatch(/^Findings/);
-    expect(f.barTab.rows).toEqual(["rule-violation:a", "cycle:a,b"]);
+    expect(f.barTab.groups).toEqual(["Policy violation", "Cyclic dependency"]);
+    expect(f.barTab.counts).toEqual(["1", "1"]);
+    expect(f.barTab.closed).toBe(0);
     expect(f.barTab.on).toContain("on");
     expect(f.barWarn).toContain("findings-amber");
     expect(f.barQuiet.present).toBe(false);
     expect(f.keyW[0]).toMatch(/^Findings/);
+  });
+
+  it("opens one inspector group on its own and heads its cards like the panel's", () => {
+    expect(f.barOpened.groups).toBe(1);
+    expect(f.barOpened.cards).toEqual(["rule-violation:a"]);
+    expect(f.barOpened.name).toBe("a.py");
+    expect(f.barOpened.folder).toBe("app");
+    expect(f.barOpened.panelGroupsOpen).toBe(0);
   });
 
   it("focuses a finding from the inspector's tab exactly as the panel does", () => {

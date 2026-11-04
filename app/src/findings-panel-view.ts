@@ -99,6 +99,44 @@ export function buildFindingCard(
   return node;
 }
 
+export function buildFindingGroup(
+  group: FindingGroupModel,
+  open: boolean,
+  cards: CardModel[],
+  state: { active: string | null; absent: (module: string) => boolean },
+  actions: FindingRowActions & { toggleGroup: (key: string) => void },
+): HTMLElement {
+  const block = el("div", open ? "finding-group open" : "finding-group");
+  const head = button("", "finding-group-head", () =>
+    actions.toggleGroup(group.key),
+  );
+
+  block.dataset.group = group.key;
+  head.setAttribute("aria-expanded", String(open));
+  head.append(
+    el("span", "finding-chevron", "›"),
+    el("span", `finding-mark ${group.severity}`),
+    el("span", "finding-group-name", group.name),
+    el("span", "finding-group-count", String(group.rows.length)),
+  );
+  block.append(head);
+
+  if (open) {
+    group.rows.forEach((row, index) => {
+      block.append(
+        buildFindingCard(
+          cards[index] as CardModel,
+          row.severity,
+          { open: row.id === state.active, absent: state.absent },
+          actions,
+        ),
+      );
+    });
+  }
+
+  return block;
+}
+
 export function buildFindingsPanelView(
   actions: FindingsPanelActions,
 ): FindingsPanelView {
@@ -121,40 +159,15 @@ export function buildFindingsPanelView(
       empty.textContent = model.empty ?? "";
       empty.hidden = model.empty === null;
       list.replaceChildren(
-        ...model.groups.map(({ group, open, cards }) => {
-          const block = el(
-            "div",
-            open ? "finding-group open" : "finding-group",
-          );
-          const head = button("", "finding-group-head", () =>
-            actions.toggleGroup(group.key),
-          );
-
-          block.dataset.group = group.key;
-          head.setAttribute("aria-expanded", String(open));
-          head.append(
-            el("span", "finding-chevron", "›"),
-            el("span", `finding-mark ${group.severity}`),
-            el("span", "finding-group-name", group.name),
-            el("span", "finding-group-count", String(group.rows.length)),
-          );
-          block.append(head);
-
-          if (open) {
-            group.rows.forEach((row, index) => {
-              block.append(
-                buildFindingCard(
-                  cards[index] as CardModel,
-                  row.severity,
-                  { open: row.id === model.active, absent: model.absent },
-                  actions,
-                ),
-              );
-            });
-          }
-
-          return block;
-        }),
+        ...model.groups.map(({ group, open, cards }) =>
+          buildFindingGroup(
+            group,
+            open,
+            cards,
+            { active: model.active, absent: model.absent },
+            actions,
+          ),
+        ),
       );
     },
   };
