@@ -52,7 +52,7 @@ jobs:
       - run: node scripts/assert-clean-tmpdir.mjs npm test -w check
 
   toolchain:
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
