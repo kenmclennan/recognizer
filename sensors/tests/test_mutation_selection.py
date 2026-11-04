@@ -245,7 +245,10 @@ def test_a_selected_command_whose_baseline_fails_runs_its_mutants_under_the_whol
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
-    assert "the selected test command exited 1; running the whole suite" in capsys.readouterr().err
+    assert (
+        "the selected test command exited 1 (see .recognizer/cache/coverage/last-run.log);"
+        " running the whole suite"
+    ) in capsys.readouterr().err
     assert seen.count(SELECTED_COMMAND) == 1
     assert seen.count(WHOLE_COMMAND) == 4
 
@@ -262,7 +265,9 @@ def test_a_failing_whole_suite_baseline_still_ends_the_run(tmp_path, monkeypatch
     settings = json.dumps({"incremental": False, "max_workers": 1})
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
-    assert capsys.readouterr().err.strip() == "the test command exited 1"
+    assert capsys.readouterr().err.strip() == (
+        "the test command exited 1 (see .recognizer/cache/coverage/last-run.log)"
+    )
 
 
 def test_a_configured_command_replaces_selection_and_keeps_its_record_key(tmp_path, monkeypatch):

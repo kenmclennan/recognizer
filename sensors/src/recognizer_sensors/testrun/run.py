@@ -116,7 +116,11 @@ def last_meaningful_line(text: str) -> str | None:
 
 
 def failure_reason(step: Step, returncode: int, output: str) -> str:
-    reason = sentence(step, f"exited {returncode}")
+    return exit_reason(sentence(step, ""), returncode, output)
+
+
+def exit_reason(subject: str, returncode: int, output: str) -> str:
+    reason = f"{subject.strip()} exited {returncode}"
     last = last_meaningful_line(output)
 
     if last:

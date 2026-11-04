@@ -263,12 +263,27 @@ def test_a_failing_or_unstartable_baseline_is_exit_two_and_writes_nothing(
 
     assert run_mutate(root, output, settings) == 2
     assert capsys.readouterr().err.strip() in {
-        "the test command exited 1",
+        "the test command exited 1 (see .recognizer/cache/coverage/last-run.log)",
         "the test command did not start: /no/such/program",
     }
     assert not output.exists()
     assert not (root / SURVIVORS).exists()
     assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
+
+
+def test_a_failing_baseline_names_the_summary_line_and_the_log(tmp_path, capsys):
+    root, _ = mutate_repository(tmp_path)
+    script = (
+        "import sys; print('FAILED tests/test_a.py::test_x - assert 1 == 2');"
+        "print('=== 1 failed, 4 passed in 0.31s ==='); sys.exit(2)"
+    )
+    settings = json.dumps({"test_command": ["python3", "-c", script], "coverage": COVERAGE})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+    assert capsys.readouterr().err == (
+        "the test command exited 2: 1 failed, 4 passed in 0.31s"
+        " (see .recognizer/cache/coverage/last-run.log)\n"
+    )
 
 
 def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_path, capsys):
@@ -277,7 +292,9 @@ def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_p
     settings = json.dumps({"test_command": ["python3", "-c", script], "coverage": COVERAGE})
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
-    assert capsys.readouterr().err == "the test command exited 3\n"
+    assert capsys.readouterr().err == (
+        "the test command exited 3: 39 (see .recognizer/cache/coverage/last-run.log)\n"
+    )
 
     log = (root / ".recognizer" / "cache" / "coverage" / "last-run.log").read_text()
 
