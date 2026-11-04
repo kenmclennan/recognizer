@@ -58,7 +58,6 @@ function inputsFor(
     tab: "contents",
     counts: () => ({ uses: 0, usedBy: 0 }),
     filter: "",
-    collapsed: new Set(),
     followed: null,
     responsibility: () => ({
       state: { kind: "missing" },
@@ -1146,7 +1145,7 @@ describe("dependencies tab", () => {
       [false, "z.py"],
     ]);
     expect(list[0]).toMatchObject({
-      chevron: { key: "a", open: true },
+      chevron: null,
       detail: { text: "2" },
     });
     expect(list[1]).toMatchObject({ indent: true, detail: null });
@@ -1208,13 +1207,19 @@ describe("dependencies tab", () => {
     expect(section(list, "Uses 0")).toEqual([{ kind: "none" }]);
   });
 
-  it("collapses a group whose override flips the default", () => {
-    const list = moduleRows(
-      section(rows({ collapsed: new Set(["a"]) }), "Uses 3"),
-    );
+  it("gives folder rows no chevron and lists their modules whatever expanded holds", () => {
+    const labels = (expanded: Set<string>) =>
+      moduleRows(section(rows({ expanded }), "Uses 3")).map((row) => [
+        row.label,
+        row.chevron,
+      ]);
 
-    expect(list.map((row) => row.label)).toEqual(["a/", "b/", "z.py"]);
-    expect(list[0]).toMatchObject({ chevron: { key: "a", open: false } });
+    expect(labels(new Set())).toEqual(
+      labels(new Set(["a", "b", "dependencies:uses", "dependencies:usedBy"])),
+    );
+    expect(labels(new Set()).every(([, chevron]) => chevron === null)).toBe(
+      true,
+    );
   });
 
   it("always lists the full Used by set", () => {
@@ -1302,18 +1307,12 @@ describe("following dependency rows", () => {
     expect(moduleRows(dependencies()).some((row) => row.followed)).toBe(false);
   });
 
-  it("lists followable rows in displayed order and skips collapsed groups", () => {
+  it("lists followable rows in displayed order ", () => {
     expect(followableRows(dependencies())).toEqual([
       { id: "partner.py", relation: "uses" },
       { id: "a/x.py", relation: "uses" },
       { id: "partner.py", relation: "usedBy" },
     ]);
-    expect(followableRows(dependencies({ collapsed: new Set(["a"]) }))).toEqual(
-      [
-        { id: "partner.py", relation: "uses" },
-        { id: "partner.py", relation: "usedBy" },
-      ],
-    );
   });
 });
 

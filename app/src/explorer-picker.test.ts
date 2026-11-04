@@ -77,11 +77,10 @@ facts.afterU = document.querySelector(".inspector-panel .itabs button.on").textC
 facts.sections = heads().map((h) => h.textContent);
 facts.openRows = sectionRows();
 click(heads()[0]);
+const panelChevrons = () => document.querySelectorAll(".inspector-panel svg.chevron").length;
 facts.afterHeadClick = { heads: heads().map((h) => h.textContent), rows: sectionRows(), chevrons: heads().filter((h) => h.querySelector("svg")).length };
 click(document.querySelector(".inspector-panel .row.folder .name"));
-facts.afterGroupFold = sectionRows();
-click(document.querySelector(".inspector-panel .row.folder .name"));
-facts.afterGroupUnfold = sectionRows();
+facts.afterGroupClick = { rows: sectionRows(), chevrons: panelChevrons() };
 facts.iconTitles = [...document.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title || b.getAttribute("data-label") || "");
 facts.barText = [...document.querySelectorAll(".selection-bar button")].map((b) => b.textContent);
 
@@ -167,8 +166,7 @@ type Facts = {
   sections: string[];
   openRows: number;
   afterHeadClick: { heads: string[]; rows: number; chevrons: number };
-  afterGroupFold: number;
-  afterGroupUnfold: number;
+  afterGroupClick: { rows: number; chevrons: number };
   iconTitles: string[];
   barText: string[];
   afterU: string;
@@ -242,7 +240,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
     expect(f.afterU).toBe("Dependencies 4");
   });
 
-  it("lists a Uses and a Used by heading with their counts, always open, and still folds a folder group inside", () => {
+  it("lists a Uses and a Used by heading with their counts, always open, with folder groups that never fold", () => {
     expect(f.sections).toEqual(["Uses 4", "Used by 0"]);
     expect(f.openRows).toBe(4);
     expect(f.afterHeadClick).toEqual({
@@ -250,8 +248,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
       rows: 4,
       chevrons: 0,
     });
-    expect(f.afterGroupFold).toBeLessThan(4);
-    expect(f.afterGroupUnfold).toBe(4);
+    expect(f.afterGroupClick).toEqual({ rows: 4, chevrons: 0 });
   });
 
   it("gives every icon button a tooltip and no bar button a word", () => {

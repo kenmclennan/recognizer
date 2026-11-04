@@ -40,7 +40,6 @@ const inputs = {
   noteRows: () => [],
   canAddNote: false,
   filter: "",
-  collapsed: new Set(),
   responsibility: () => ({ state: { kind: "missing" }, failure: null }),
   metrics: [
     { key: "t/complexity", label: "complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },

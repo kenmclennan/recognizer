@@ -44,7 +44,6 @@ const inputs = {
   noteRows: () => [],
   canAddNote: false,
   filter: "",
-  collapsed: new Set(),
   responsibility: () => ({ state: { kind: "missing" }, failure: null }),
  
 };

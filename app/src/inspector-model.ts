@@ -34,7 +34,6 @@ export type InspectorInputs = {
   tab: InspectorTab;
   counts: (selection: NonNullable<Selection>) => Counts;
   filter: string;
-  collapsed: ReadonlySet<string>;
   followed: Followed | null;
   responsibility: (id: string) => ResponsibilityRow;
   metrics: readonly MetricDescriptor[];
@@ -516,7 +515,7 @@ function pickerFor(
       onCanvas: inputs.onCanvas,
       source,
       filter: inputs.filter,
-      collapsed: inputs.collapsed,
+      collapsed: new Set(),
     }),
   };
 }
@@ -549,34 +548,32 @@ function pickerRows(
       disc: inputs.disc(group.key),
       folder: true,
       indent: false,
-      chevron: { key: group.key, open: !group.collapsed },
+      chevron: null,
       detail: { text: String(group.count) },
       title: group.label,
       follow: null,
       followed: false,
     });
 
-    if (!group.collapsed) {
-      for (const row of group.rows) {
-        rows.push({
-          kind: "module",
-          id: row.id,
-          ids: [row.id],
-          label: row.label,
-          state: row.onCanvas ? "checked" : "unchecked",
-          bold: row.onCanvas,
-          disc: inputs.disc(row.id),
-          folder: false,
-          indent: true,
-          chevron: null,
-          detail: null,
-          title: row.id,
-          follow: direction,
-          followed:
-            inputs.followed?.id === row.id &&
-            inputs.followed.relation === direction,
-        });
-      }
+    for (const row of group.rows) {
+      rows.push({
+        kind: "module",
+        id: row.id,
+        ids: [row.id],
+        label: row.label,
+        state: row.onCanvas ? "checked" : "unchecked",
+        bold: row.onCanvas,
+        disc: inputs.disc(row.id),
+        folder: false,
+        indent: true,
+        chevron: null,
+        detail: null,
+        title: row.id,
+        follow: direction,
+        followed:
+          inputs.followed?.id === row.id &&
+          inputs.followed.relation === direction,
+      });
     }
   }
 
