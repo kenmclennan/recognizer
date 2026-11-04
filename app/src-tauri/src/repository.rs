@@ -63,6 +63,17 @@ pub struct ShippedSensor {
     pub runs_tests: bool,
     #[serde(default = "listed_by_default")]
     pub listed: bool,
+    #[serde(default)]
+    pub metrics: Vec<ShippedMetric>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShippedMetric {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub granularity: String,
+    pub bad: String,
 }
 
 fn listed_by_default() -> bool {
@@ -829,7 +840,7 @@ mod tests {
 
     #[test]
     fn the_shipped_list_keeps_display_runs_tests_and_listed() {
-        let list = r#"[{"name":"crap","display":"C.R.A.P.","line":"l","defaults":{},"runs_tests":true,"listed":true,"metrics":[]},{"name":"thresholds","display":"T","line":"l","defaults":{},"runs_tests":false,"listed":false,"metrics":[]}]"#;
+        let list = r#"[{"name":"crap","display":"C.R.A.P.","line":"l","defaults":{},"runs_tests":true,"listed":true,"metrics":[{"name":"crap","type":"number","granularity":"member","bad":"high"}]},{"name":"thresholds","display":"T","line":"l","defaults":{},"runs_tests":false,"listed":false,"metrics":[]}]"#;
 
         match shipped_sensors_for(Some(0), list, "") {
             ShippedSensors::Ok { sensors } => {
@@ -837,6 +848,10 @@ mod tests {
                 assert!(sensors[0].runs_tests);
                 assert!(sensors[0].listed);
                 assert!(!sensors[1].listed);
+                assert_eq!(
+                    serde_json::to_value(&sensors[0]).unwrap()["metrics"],
+                    serde_json::json!([{"name":"crap","type":"number","granularity":"member","bad":"high"}])
+                );
                 assert_eq!(
                     serde_json::to_value(&sensors[0]).unwrap()["runsTests"],
                     serde_json::json!(true)

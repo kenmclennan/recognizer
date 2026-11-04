@@ -118,6 +118,7 @@ describe("senseRepository", () => {
       status: "stale",
       findings: 1,
       modifiedMs: null,
+      commit: "old",
     });
     expect(run.documents.map((document) => document.sensor.name)).toContain(
       "lint",
@@ -166,6 +167,21 @@ describe("senseRepository", () => {
     ]);
   });
 
+  it("carries a findings document's stopped and partial keys onto its status", async () => {
+    const document = {
+      ...secondSensorDocument("shop/main.py"),
+      stopped: { measured: 1, total: 3 },
+      partial: { measured: 1, total: 3 },
+    };
+    const port = fakeSensors({ lint: JSON.stringify(document) });
+    const run = await senseRepository(scans, { policy, config: null }, port);
+
+    expect(statusOf(run, "lint")).toMatchObject({
+      stopped: { measured: 1, total: 3 },
+      partial: { measured: 1, total: 3 },
+    });
+  });
+
   it("reads a current file from a second sensor", async () => {
     const document = secondSensorDocument("shop/main.py");
     const port = fakeSensors({ lint: JSON.stringify(document) });
@@ -176,6 +192,7 @@ describe("senseRepository", () => {
       status: "ran",
       findings: 1,
       modifiedMs: null,
+      commit: "abc1234",
     });
     expect(run.documents.map((one) => one.sensor.name)).toEqual([
       "structure",
@@ -264,6 +281,7 @@ describe("senseRepository and reports", () => {
       status: "ran",
       findings: 1,
       modifiedMs: null,
+      commit: CURRENT,
       reported: { at: "2026-11-02T10:00:00.000Z", commit: CURRENT },
     });
     expect(statusOf(run, "older")).toMatchObject({
@@ -325,6 +343,7 @@ describe("withSensors", () => {
     const port = fakeSensors({}, {}, { crap: "{}", other: "{}" });
 
     port.overlaysRefused.push("evil");
+    port.modifiedOverlays.set("crap", 1234);
 
     const next = await withSensors(
       {
@@ -341,8 +360,8 @@ describe("withSensors", () => {
     );
 
     expect(next.overlays).toEqual([
-      { name: "crap", text: "{}" },
-      { name: "other", text: "{}" },
+      { name: "crap", text: "{}", modifiedMs: 1234 },
+      { name: "other", text: "{}", modifiedMs: null },
     ]);
     expect(next.overlaysUnreadable).toEqual(["evil"]);
   });

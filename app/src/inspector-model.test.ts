@@ -1449,6 +1449,7 @@ describe("the metric table on a card", () => {
   ): MetricDescriptor => ({
     key: `t/${label}`,
     label,
+    title: label,
     granularity: "member",
     type: "count",
     bad: "high",

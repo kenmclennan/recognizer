@@ -15,7 +15,9 @@ const stale = JSON.stringify({
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
+import { SHIPPED_SENSOR_LIST } from "recognizer";
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -32,6 +34,12 @@ const loadedFor = (overlay) => loadedOf({
   scans: [{ file: "scan.json", scan: scanOf() }],
   overlays: overlay === null ? [] : [{ name: "crap", text: overlay }],
 });
+
+const SHIPPED = SHIPPED_SENSOR_LIST.filter((sensor) => sensor.metrics.length > 0).map((sensor) => ({ name: sensor.name, display: sensor.display, line: sensor.line, defaults: {}, runsTests: sensor.runs_tests, listed: sensor.listed, metrics: [...sensor.metrics] }));
+const DAY = 86400000;
+const crapOverlay = (commit) => JSON.stringify({ overlay_version: 1, commit, modified: false, producer: { name: "crap", version: "0.1.72" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }], values: { complexity: { "app/risk.py::classify": 8 }, coverage: { "app/risk.py::classify": 0.18 }, crap: { "app/risk.py::classify": 40 } } });
+const mutationOverlay = () => JSON.stringify({ overlay_version: 1, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, producer: { name: "mutation", version: "0.1.0" }, metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({ name, type: "count", granularity: "member", bad: name === "killed" || name === "score" ? "low" : "high" })), values: { killed: { "app/risk.py::classify": 2 }, survived: { "app/risk.py::classify": 3 }, uncovered: {}, score: {} } });
+const status = (name, over) => ({ name, status: "ran", commit: ${JSON.stringify(SCAN_COMMIT)}, findings: 0, ...over });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -93,7 +101,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 
   click(q(".metrics-toggle"));
   await tick();
-  facts.heading = q(".canvas-metrics h4").textContent;
+  facts.heading = q(".canvas-metrics h4 .metric-group-title").textContent;
   facts.rows = qa(".metric-row").map((r) => ({ key: r.dataset.metric, text: r.textContent }));
 
   click(q('.metric-row[data-metric="crap/complexity"]'));
@@ -142,14 +150,46 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   facts.afterStale = { bars: barsOf("app/risk.py").length, footer: footer.text };
   click(q(".metrics-toggle"));
   await tick();
-  facts.stale = {
-    heading: q(".canvas-metrics h4").textContent,
+  facts.afterStaleGroup = {
+    header: q(".canvas-metrics h4").textContent,
+    notes: qa(".metric-note").map((n) => ({ text: n.textContent, cls: n.className })),
     disabled: qa(".metric-row.disabled").length,
-    chips: qa(".metric-chip").map((c) => c.textContent),
+    chips: qa(".metric-chip").length,
+    perMember: q(".canvas-metrics").textContent.includes("per member"),
   };
   click(q('.metric-row[data-metric="crap/complexity"]'));
   await tick();
   facts.staleClick = barsOf("app/risk.py").length;
+
+  const stateOf = async (overlays, sensors, shippedList = SHIPPED) => {
+    explorer.dispose();
+    host.replaceChildren();
+    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, showMetrics: () => {}, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, shippedList) }) });
+    await tick();
+    for (const folder of ["app", "src", "lib"]) {
+      click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+      await tick();
+    }
+    click(q(".metrics-toggle"));
+    await tick();
+    const groups = qa(".canvas-metrics h4");
+    const before = qa(".metric-bar").length;
+    click(q('.metric-row[data-metric="mutation/survived"]') ?? q(".metric-row"));
+    await tick();
+    return {
+      headers: groups.map((g) => ({ title: g.querySelector(".metric-group-title").textContent, age: g.querySelector(".metric-group-age").textContent, tooltip: g.title })),
+      notes: qa(".metric-note").map((n) => ({ text: n.textContent, cls: n.className })),
+      rows: qa(".metric-row").map((r) => ({ key: r.dataset.metric, text: r.textContent, disabled: r.classList.contains("disabled"), aria: r.querySelector("[aria-disabled]") !== null })),
+      chips: qa(".metric-chip").length,
+      perMember: q(".canvas-metrics").textContent.includes("per member"),
+      clickAdded: qa(".metric-bar").length - before,
+    };
+  };
+  facts.currentState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")]);
+  facts.outOfDateState = await stateOf([{ name: "crap", text: crapOverlay("ffffffffffffffffffffffffffffffffffffffff"), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff" })]);
+  facts.partialState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
+  facts.stoppedNothingState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
+  facts.neverRunState = await stateOf([], []);
 
   explorer.dispose();
   host.replaceChildren();
@@ -218,14 +258,14 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
 
   it("puts Metrics before Legend and lists the metrics under the overlay's heading", () => {
     expect(f.controls.slice(-2)).toEqual(["Metrics", "Legend"]);
-    expect(f.heading).toBe("crap - crap 0.1.0 - at 0123456");
+    expect(f.heading).toBe("crap");
     expect(f.rows.map((r: { key: string }) => r.key)).toEqual([
       "crap/complexity",
       "crap/coverage",
       "crap/crap",
     ]);
-    expect(f.rows[0].text).toContain("Cyclomatic complexity of a function");
-    expect(f.rows[0].text).toContain("per member");
+    expect(f.rows[0].text).toContain("Cyclomatic complexity of each function");
+    expect(f.rows[0].text).not.toContain("per member");
   });
 
   it("draws a row per measured metric in tick order and grows the box by each row plus 6px", () => {
@@ -349,13 +389,107 @@ describe.skipIf(chrome === undefined)("metric bars on the canvas", () => {
     expect(f.empty).toBe("No overlays were found.");
   });
 
-  it("disables and chips a stale overlay's rows and drops its ticks", () => {
-    expect(f.afterStale).toEqual({ bars: 0, footer: null });
-    expect(f.stale.heading).toBe(
-      "crap - crap 0.1.0 - from fffffff, not the scan's",
+  it("shows a current group with its age, no note and tickable rows", () => {
+    const state = f.currentState;
+
+    expect(state.headers[0].title).toBe("C.R.A.P.");
+    expect(state.headers[0].age).toBe("measured 2 days ago");
+    expect(state.headers[0].tooltip).toContain("crap 0.1.72 - at 0123456");
+    expect(
+      state.notes.filter((n: { text: string }) =>
+        n.text.startsWith("Out of date"),
+      ),
+    ).toEqual([]);
+    expect(state.rows.slice(0, 3).map((r: { text: string }) => r.text)).toEqual(
+      [
+        expect.stringContaining("Complexity"),
+        expect.stringContaining("Coverage"),
+        expect.stringContaining("C.R.A.P."),
+      ],
     );
-    expect(f.stale.disabled).toBe(3);
-    expect(f.stale.chips).toEqual(["stale", "stale", "stale"]);
-    expect(f.staleClick).toBe(0);
+    expect(state.rows[0].disabled).toBe(false);
+    expect(state.perMember).toBe(false);
+    expect(state.chips).toBe(0);
+  });
+
+  it("warns amber on an out-of-date group and still lets a row be ticked", () => {
+    const state = f.outOfDateState;
+
+    expect(state.headers[0].title).toBe("C.R.A.P.");
+    expect(state.notes[0]).toEqual({
+      text: "Out of date: measured before your latest commit. Run C.R.A.P. to refresh.",
+      cls: "metric-note warn",
+    });
+    expect(state.rows[0].disabled).toBe(false);
+    expect(state.headers[0].tooltip).toContain("from fffffff, not the scan's");
+    expect(state.perMember).toBe(false);
+    expect(state.chips).toBe(0);
+    expect(f.afterStaleGroup.notes[0].cls).toBe("metric-note warn");
+    expect(f.afterStale).toEqual({
+      bars: 1,
+      footer: "Showing complexity from crap",
+    });
+    expect(f.afterStaleGroup.disabled).toBe(0);
+    expect(f.afterStaleGroup.chips).toBe(0);
+  });
+
+  it("says partial in amber for a stopped run that kept functions", () => {
+    const state = f.partialState;
+    const mutation = state.headers.find(
+      (h: { title: string }) => h.title === "Mutation",
+    );
+
+    expect(mutation.age).toBe("stopped 5 minutes ago");
+    expect(state.notes).toContainEqual({
+      text: "Partial: 245 of 1,545 functions measured. The rest are uncoloured.",
+      cls: "metric-note warn",
+    });
+    expect(state.clickAdded).toBe(1);
+    expect(state.perMember).toBe(false);
+    expect(state.chips).toBe(0);
+  });
+
+  it("disables a group stopped with nothing and explains it in muted text", () => {
+    const state = f.stoppedNothingState;
+    const mutationRows = state.rows.filter((r: { key: string }) =>
+      r.key.startsWith("mutation/"),
+    );
+
+    expect(state.notes).toContainEqual({
+      text: "Stopped before any function finished, so there is nothing to show.",
+      cls: "metric-note muted",
+    });
+    expect(mutationRows).toHaveLength(4);
+    expect(
+      mutationRows.every(
+        (r: { disabled: boolean; aria: boolean }) => r.disabled && r.aria,
+      ),
+    ).toBe(true);
+    expect(state.clickAdded).toBe(0);
+    expect(state.perMember).toBe(false);
+  });
+
+  it("shows a sensor that never ran as disabled with a muted note", () => {
+    const state = f.neverRunState;
+
+    expect(state.headers.map((h: { title: string }) => h.title)).toEqual([
+      "C.R.A.P.",
+      "Mutation",
+    ]);
+    expect(state.headers.every((h: { age: string }) => h.age === "")).toBe(
+      true,
+    );
+    expect(state.notes.map((n: { text: string }) => n.text)).toEqual([
+      "Not run yet. Run C.R.A.P. from the Scan panel.",
+      "Not run yet. Run Mutation from the Scan panel.",
+    ]);
+    expect(
+      state.notes.every((n: { cls: string }) => n.cls === "metric-note muted"),
+    ).toBe(true);
+    expect(state.rows.every((r: { disabled: boolean }) => r.disabled)).toBe(
+      true,
+    );
+    expect(state.clickAdded).toBe(0);
+    expect(state.chips).toBe(0);
   });
 });

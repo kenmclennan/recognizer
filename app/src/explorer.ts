@@ -285,6 +285,7 @@ export function showExplorer(
   let overlayModel = buildOverlayModel(
     loaded.overlays ?? [],
     scansCommit(scans),
+    { sensors: loaded.sensors, shipped: null },
   );
   let metricTicks = pruneTicks(
     carried?.metricTicks ?? [],
@@ -1588,6 +1589,12 @@ export function showExplorer(
     } catch (error) {
       shippedSensors = { status: "unavailable", reason: String(error) };
     }
+
+    overlayModel = buildOverlayModel(
+      loaded.overlays ?? [],
+      scansCommit(scans),
+      { sensors: loaded.sensors, shipped: shippedSensors },
+    );
 
     render();
   }
@@ -2925,6 +2932,7 @@ export function showExplorer(
 
     return {
       groups: overlayModel.groups,
+      now: Date.now(),
       ticked,
       valueOf: (metric, boxId) => moduleValue(metric, boxId),
     };

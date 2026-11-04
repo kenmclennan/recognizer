@@ -1,15 +1,17 @@
 import { el } from "./dom";
 import { fullMetricName } from "./inspector-model";
 import { rangeLabel } from "./metric-bars";
-import type {
-  MetricDescriptor,
-  ModuleValue,
-  OverlayGroup,
+import {
+  groupHeader,
+  type MetricDescriptor,
+  type ModuleValue,
+  type OverlayGroup,
 } from "./overlay-model";
 import { buildCheckbox, setCheckState } from "./row-view";
 
 export type CanvasMetrics = {
   groups: readonly OverlayGroup[];
+  now: number;
   ticked: readonly MetricDescriptor[];
   valueOf: (metric: MetricDescriptor, boxId: string) => ModuleValue | null;
 };
@@ -22,15 +24,16 @@ export type MetricsView = {
 function row(
   metric: MetricDescriptor,
   position: number,
+  enabled: boolean,
   toggle: (key: string) => void,
 ): HTMLElement {
   const node = el("div", "metric-row");
   const ticked = position >= 0;
   const checkbox = buildCheckbox(
-    metric.label,
+    metric.title,
     ticked ? "checked" : "unchecked",
     () => {
-      if (!metric.stale) {
+      if (enabled) {
         toggle(metric.key);
       }
     },
@@ -39,35 +42,28 @@ function row(
   const head = el("div", "metric-head");
 
   node.dataset.metric = metric.key;
-  node.classList.toggle("stale", metric.stale);
   setCheckState(checkbox, ticked ? "checked" : "unchecked");
 
-  if (metric.stale) {
+  if (!enabled) {
     checkbox.setAttribute("aria-disabled", "true");
     checkbox.tabIndex = -1;
     node.classList.add("disabled");
   }
 
-  const label = el("span", "metric-label", metric.label);
+  const label = el("span", "metric-label", metric.title);
   const full = fullMetricName(metric);
 
-  if (full !== metric.label) {
+  if (full !== metric.title) {
     label.title = full;
   }
 
   head.append(label);
-
-  if (metric.stale) {
-    head.append(el("span", "metric-chip", "stale"));
-  }
 
   text.append(head);
 
   if (metric.description !== undefined) {
     text.append(el("div", "metric-description", metric.description));
   }
-
-  text.append(el("div", "metric-granularity", `per ${metric.granularity}`));
 
   if (ticked) {
     text.append(
@@ -76,7 +72,7 @@ function row(
   }
 
   node.addEventListener("click", (event) => {
-    if (event.target !== checkbox && !metric.stale) {
+    if (event.target !== checkbox && enabled) {
       event.stopPropagation();
       toggle(metric.key);
     }
@@ -84,6 +80,20 @@ function row(
   node.append(checkbox, text);
 
   return node;
+}
+
+function groupHead(group: OverlayGroup, now: number): HTMLElement {
+  const head = el("h4", "metric-group");
+  const title = el("span", "metric-group-title", group.title);
+  const age = el("span", "metric-group-age", groupHeader(group, now));
+
+  if (group.tooltip !== "") {
+    head.title = group.tooltip;
+  }
+
+  head.append(title, age);
+
+  return head;
 }
 
 export function buildMetricsView(toggle: (key: string) => void): MetricsView {
@@ -116,9 +126,12 @@ export function buildMetricsView(toggle: (key: string) => void): MetricsView {
 
       element.replaceChildren(
         ...groups.flatMap((group) => [
-          el("h4", "metric-group", group.heading),
+          groupHead(group, metrics?.now ?? Date.now()),
+          ...group.notes.map((note) =>
+            el("div", `metric-note ${note.tone}`, note.text),
+          ),
           ...group.metrics.map((metric) =>
-            row(metric, ticks.indexOf(metric.key), toggle),
+            row(metric, ticks.indexOf(metric.key), group.enabled, toggle),
           ),
         ]),
       );

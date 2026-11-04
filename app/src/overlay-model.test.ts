@@ -1,13 +1,17 @@
+import { SHIPPED_SENSOR_LIST } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   buildOverlayModel,
   currentMetricNamed,
   DESCRIPTIONS,
   footerText,
+  groupHeader,
   type MetricDescriptor,
   moduleValue,
   pruneTicks,
+  TITLES,
 } from "./overlay-model";
+import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 
@@ -45,7 +49,7 @@ function only(text: string, scan: string | null = COMMIT): MetricDescriptor {
   return model.metrics[0] as MetricDescriptor;
 }
 
-describe("freshness and headings", () => {
+describe("freshness and tooltips", () => {
   const text = overlay([{ name: "complexity" }], {});
 
   it("is fresh when the commit equals the scan's", () => {
@@ -54,7 +58,7 @@ describe("freshness and headings", () => {
     });
 
     expect(model.groups[0]?.stale).toBe(false);
-    expect(model.groups[0]?.heading).toBe("crap - crap 0.1.0 - at 0123456");
+    expect(model.groups[0]?.tooltip).toBe("crap 0.1.0 - at 0123456");
   });
 
   it("appends the modified tree", () => {
@@ -63,8 +67,8 @@ describe("freshness and headings", () => {
       commit: COMMIT,
     });
 
-    expect(model.groups[0]?.heading).toBe(
-      "crap - crap 0.1.0 - at 0123456, modified tree",
+    expect(model.groups[0]?.tooltip).toBe(
+      "crap 0.1.0 - at 0123456, modified tree",
     );
   });
 
@@ -75,11 +79,238 @@ describe("freshness and headings", () => {
       });
 
       expect(model.groups[0]?.stale).toBe(true);
-      expect(model.groups[0]?.heading).toBe(
-        "crap - crap 0.1.0 - from 0123456, not the scan's",
+      expect(model.groups[0]?.tooltip).toBe(
+        "crap 0.1.0 - from 0123456, not the scan's",
       );
       expect(model.metrics[0]?.stale).toBe(true);
     }
+  });
+});
+
+const SHIPPED: ShippedSensors = {
+  status: "ok",
+  sensors: SHIPPED_SENSOR_LIST.filter(
+    (sensor) => sensor.metrics.length > 0,
+  ).map((sensor) => ({
+    name: sensor.name,
+    display: sensor.display,
+    line: sensor.line,
+    defaults: {},
+    runsTests: sensor.runs_tests,
+    listed: sensor.listed,
+    metrics: [...sensor.metrics],
+  })),
+};
+
+function ran(name: string, over: Partial<SensorStatus> = {}): SensorStatus {
+  return { name, status: "ran", commit: COMMIT, findings: 0, ...over };
+}
+
+function groupOf(
+  name: string,
+  statuses: SensorStatus[],
+  scan: string | null = COMMIT,
+  modifiedMs: number | null = 1000,
+) {
+  const model = buildOverlayModel(
+    [
+      {
+        name,
+        text: overlay([{ name: "survived" }], {}),
+        modifiedMs,
+      },
+    ],
+    { commit: scan },
+    { sensors: statuses, shipped: SHIPPED },
+  );
+
+  return model.groups.find((group) => group.name === name);
+}
+
+describe("the group header model", () => {
+  it("is current with no note and says measured", () => {
+    const group = groupOf("mutation", [ran("mutation")]);
+
+    expect(group?.title).toBe("Mutation");
+    expect(group?.notes).toEqual([]);
+    expect(group?.verb).toBe("measured");
+    expect(group?.enabled).toBe(true);
+  });
+
+  it("warns when out of date and names the sensor's display name", () => {
+    const group = groupOf("crap", [ran("crap")], "ffffffffffff");
+
+    expect(group?.title).toBe("C.R.A.P.");
+    expect(group?.notes).toEqual([
+      {
+        text: "Out of date: measured before your latest commit. Run C.R.A.P. to refresh.",
+        tone: "warn",
+      },
+    ]);
+    expect(group?.enabled).toBe(true);
+  });
+
+  it("warns of a budgeted partial result and still says measured", () => {
+    const group = groupOf("mutation", [
+      ran("mutation", { partial: { measured: 245, total: 1545 } }),
+    ]);
+
+    expect(group?.notes).toEqual([
+      {
+        text: "Partial: 245 of 1,545 functions measured. The rest are uncoloured.",
+        tone: "warn",
+      },
+    ]);
+    expect(group?.verb).toBe("measured");
+  });
+
+  it("says stopped for a stopped run that kept some functions", () => {
+    const group = groupOf("mutation", [
+      ran("mutation", {
+        stopped: { measured: 1, total: 3 },
+        partial: { measured: 1, total: 3 },
+      }),
+    ]);
+
+    expect(group?.verb).toBe("stopped");
+    expect(group?.notes[0]?.text).toBe(
+      "Partial: 1 of 3 functions measured. The rest are uncoloured.",
+    );
+    expect(group?.enabled).toBe(true);
+  });
+
+  it("disables a run stopped with nothing and says so", () => {
+    const group = groupOf("mutation", [
+      ran("mutation", {
+        stopped: { measured: 0, total: 3 },
+        partial: { measured: 0, total: 3 },
+      }),
+    ]);
+
+    expect(group?.verb).toBe("stopped");
+    expect(group?.enabled).toBe(false);
+    expect(group?.notes).toEqual([
+      {
+        text: "Stopped before any function finished, so there is nothing to show.",
+        tone: "muted",
+      },
+    ]);
+  });
+
+  it("shows no Partial line for a stopped run that measured every function", () => {
+    const group = groupOf("mutation", [
+      ran("mutation", { stopped: { measured: 3, total: 3 } }),
+    ]);
+
+    expect(group?.verb).toBe("stopped");
+    expect(group?.notes).toEqual([]);
+  });
+
+  it("puts out of date before partial when both apply", () => {
+    const group = groupOf(
+      "mutation",
+      [ran("mutation", { partial: { measured: 1, total: 3 } })],
+      "ffffffffffff",
+    );
+
+    expect(group?.notes.map((note) => note.text)).toEqual([
+      "Out of date: measured before your latest commit. Run Mutation to refresh.",
+      "Partial: 1 of 3 functions measured. The rest are uncoloured.",
+    ]);
+  });
+
+  it("ignores findings from a different commit than the overlay", () => {
+    const group = groupOf("mutation", [
+      ran("mutation", {
+        commit: "ffffffffffff",
+        stopped: { measured: 0, total: 3 },
+        partial: { measured: 0, total: 3 },
+      }),
+    ]);
+
+    expect(group?.notes).toEqual([]);
+    expect(group?.verb).toBe("measured");
+    expect(group?.enabled).toBe(true);
+  });
+
+  it("shows a sensor that never ran as a disabled group built from the shipped list", () => {
+    const model = buildOverlayModel(
+      [],
+      { commit: COMMIT },
+      { sensors: [], shipped: SHIPPED },
+    );
+    const mutation = model.groups.find((group) => group.name === "mutation");
+
+    expect(mutation?.enabled).toBe(false);
+    expect(mutation?.measuredAt).toBeNull();
+    expect(mutation?.notes).toEqual([
+      {
+        text: "Not run yet. Run Mutation from the Scan panel.",
+        tone: "muted",
+      },
+    ]);
+    expect(model.metrics).toEqual([]);
+  });
+
+  it("builds the never-run groups from the real committed list", () => {
+    const model = buildOverlayModel(
+      [],
+      { commit: COMMIT },
+      { sensors: [], shipped: SHIPPED },
+    );
+
+    expect(model.groups.map((group) => group.title)).toEqual([
+      "C.R.A.P.",
+      "Mutation",
+    ]);
+    expect(model.groups.map((group) => group.metrics.length)).toEqual([3, 4]);
+  });
+
+  it("marks only the group without findings or overlay as never run", () => {
+    const model = buildOverlayModel(
+      [
+        {
+          name: "crap",
+          text: overlay([{ name: "crap" }], {}),
+          modifiedMs: 1000,
+        },
+      ],
+      { commit: COMMIT },
+      { sensors: [ran("crap")], shipped: SHIPPED },
+    );
+    const [crap, mutation] = model.groups;
+
+    expect(crap?.notes).toEqual([]);
+    expect(crap?.enabled).toBe(true);
+    expect(mutation?.notes[0]?.text).toBe(
+      "Not run yet. Run Mutation from the Scan panel.",
+    );
+  });
+
+  it("formats the age from the overlay's time at the 59 second and 1 minute boundary", () => {
+    const group = groupOf("mutation", [ran("mutation")]);
+
+    expect(group && groupHeader(group, 1000 + 59_000)).toBe(
+      "measured just now",
+    );
+    expect(group && groupHeader(group, 1000 + 60_000)).toBe(
+      "measured 1 minute ago",
+    );
+  });
+
+  it("says stopped in the header of a stopped run and nothing without a time", () => {
+    const stopped = groupOf(
+      "mutation",
+      [ran("mutation", { stopped: { measured: 1, total: 3 } })],
+      COMMIT,
+      1000,
+    );
+    const untimed = groupOf("mutation", [ran("mutation")], COMMIT, null);
+
+    expect(stopped && groupHeader(stopped, 1000 + 5 * 60_000)).toBe(
+      "stopped 5 minutes ago",
+    );
+    expect(untimed && groupHeader(untimed, 5000)).toBe("");
   });
 });
 
@@ -100,10 +331,16 @@ describe("descriptors", () => {
       "coverage",
       "line_coverage",
       "crap",
-      "mutation_survived",
+      "survived",
+      "killed",
+      "uncovered",
+      "score",
     ]) {
       expect(DESCRIPTIONS[name]).toBeTruthy();
+      expect(TITLES[name]).toBeTruthy();
     }
+
+    expect(DESCRIPTIONS.mutation_survived).toBeUndefined();
 
     expect(only(overlay([{ name: "other" }], {})).description).toBeUndefined();
     expect(only(overlay([{ name: "complexity" }], {})).max).toBe(0);
@@ -224,7 +461,7 @@ describe("per-module values", () => {
 });
 
 describe("pruneTicks", () => {
-  it("drops stale and removed ticks and keeps the order of the rest", () => {
+  it("drops removed ticks, keeps an out-of-date group's and drops a disabled group's", () => {
     const fresh = buildOverlayModel(
       [
         {
@@ -243,7 +480,21 @@ describe("pruneTicks", () => {
       "a/m2",
       "a/m1",
     ]);
-    expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([]);
+    expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([
+      "a/m2",
+      "a/m1",
+    ]);
+
+    const disabled = buildOverlayModel(
+      [],
+      { commit: COMMIT },
+      {
+        sensors: [],
+        shipped: SHIPPED,
+      },
+    );
+
+    expect(pruneTicks(["mutation/survived"], disabled.metrics)).toEqual([]);
   });
 });
 
@@ -256,8 +507,11 @@ describe("currentMetricNamed", () => {
     expect(currentMetricNamed("m1", fresh.metrics)?.key).toBe("a/m1");
   });
 
-  it("finds nothing for a stale, unknown or absent name", () => {
-    expect(currentMetricNamed("m1", stale.metrics)).toBeNull();
+  it("finds a metric of an out-of-date group", () => {
+    expect(currentMetricNamed("m1", stale.metrics)?.key).toBe("a/m1");
+  });
+
+  it("finds nothing for an unknown or absent name", () => {
     expect(currentMetricNamed("m2", fresh.metrics)).toBeNull();
     expect(currentMetricNamed(undefined, fresh.metrics)).toBeNull();
   });

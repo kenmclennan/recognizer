@@ -14,6 +14,7 @@ def build_document(
     settings: dict,
     findings: list[dict],
     stopped: dict | None = None,
+    partial: dict | None = None,
 ) -> dict:
     document = {
         "findings_version": 1,
@@ -26,6 +27,9 @@ def build_document(
 
     if stopped is not None:
         document["stopped"] = stopped
+
+    if partial is not None:
+        document["partial"] = partial
 
     return document
 
