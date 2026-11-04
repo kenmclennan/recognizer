@@ -1103,9 +1103,11 @@ describe("dependencies tab", () => {
     list.filter((row) => row.kind === "module");
   const section = (list: Row[], text: string) => {
     const start = list.findIndex(
-      (row) => row.kind === "fold" && row.text === text,
+      (row) => row.kind === "heading" && row.text === text,
     );
-    const after = list.slice(start + 1).findIndex((row) => row.kind === "fold");
+    const after = list
+      .slice(start + 1)
+      .findIndex((row) => row.kind === "heading");
 
     return list.slice(start + 1, after < 0 ? undefined : start + 1 + after);
   };
@@ -1128,14 +1130,9 @@ describe("dependencies tab", () => {
 
     expect(list[0]).toMatchObject({ kind: "filter" });
     expect(
-      list
-        .filter((row) => row.kind === "fold")
-        .map((row) => [row.text, row.open, row.key]),
-    ).toEqual([
-      ["Uses 3", true, "dependencies:uses"],
-      ["Used by 1", true, "dependencies:usedBy"],
-    ]);
-    expect(list[1]).toMatchObject({ kind: "fold", text: "Uses 3" });
+      list.filter((row) => row.kind === "heading").map((row) => row.text),
+    ).toEqual(["Uses 3", "Used by 1"]);
+    expect(list[1]).toEqual({ kind: "heading", text: "Uses 3" });
   });
 
   it("lists the modules a module uses under folder headings with their full path, then the module rows", () => {
@@ -1173,14 +1170,13 @@ describe("dependencies tab", () => {
     expect(moduleRows(list)[1]).toMatchObject({ state: "checked", bold: true });
   });
 
-  it("collapses a section whose key is in expanded", () => {
-    const list = rows({ expanded: new Set(["dependencies:uses"]) });
-
-    expect(list.filter((row) => row.kind === "fold")[0]).toMatchObject({
-      text: "Uses 3",
-      open: false,
+  it("keeps both sections open whatever expanded holds", () => {
+    const list = rows({
+      expanded: new Set(["dependencies:uses", "dependencies:usedBy"]),
     });
-    expect(section(list, "Uses 3")).toEqual([]);
+
+    expect(list.filter((row) => row.kind === "heading").length).toBe(2);
+    expect(moduleRows(section(list, "Uses 3")).length).toBe(5);
     expect(moduleRows(section(list, "Used by 1")).length).toBe(2);
   });
 

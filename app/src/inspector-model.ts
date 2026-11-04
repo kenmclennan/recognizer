@@ -89,7 +89,7 @@ export type Row =
   | { kind: "none" }
   | CardRow
   | SwitchRow
-  | { kind: "fold"; key: string; text: string; open: boolean; top: boolean }
+  | { kind: "heading"; text: string }
   | { kind: "filter"; value: string; placeholder: string }
   | {
       kind: "module";
@@ -619,20 +619,10 @@ function dependencyRows(
   ];
 
   for (const item of built) {
-    const key = `dependencies:${item.direction}`;
-    const open = !inputs.expanded.has(key);
-
-    rows.push({
-      kind: "fold",
-      key,
-      text: `${item.label} ${item.count}`,
-      open,
-      top: true,
-    });
-
-    if (open) {
-      rows.push(...pickerRows(item.picker, item.direction, inputs));
-    }
+    rows.push(
+      { kind: "heading", text: `${item.label} ${item.count}` },
+      ...pickerRows(item.picker, item.direction, inputs),
+    );
   }
 
   return rows;

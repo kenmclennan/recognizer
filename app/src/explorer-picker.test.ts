@@ -51,7 +51,7 @@ const centre = (node) => { const r = node.getBoundingClientRect(); return { x: r
 const off = (id) => { const c = centre(document.querySelector('.box[data-id="' + id + '"]')); const s = centre(document.querySelector(".stage")); return Math.hypot(c.x - s.x, c.y - s.y); };
 const selected = () => [...document.querySelectorAll(".box.selected")].map((n) => n.dataset.id);
 const bar = (label) => document.querySelector('.selection-bar [aria-label^="' + label + '"]');
-const heads = () => [...document.querySelectorAll(".inspector-panel .ofold")];
+const heads = () => [...document.querySelectorAll(".inspector-panel .ohead")];
 const sectionRows = () => document.querySelectorAll(".inspector-panel .row.file").length;
 const look = (node) => { const c = cs(node.querySelector(".rcheck")); return [c.width, c.height, c.borderTopLeftRadius, c.borderTopWidth, c.borderTopColor, c.backgroundColor].join("|"); };
 const tabs = () => [...document.querySelectorAll(".inspector-panel .itabs button")];
@@ -77,9 +77,11 @@ facts.afterU = document.querySelector(".inspector-panel .itabs button.on").textC
 facts.sections = heads().map((h) => h.textContent);
 facts.openRows = sectionRows();
 click(heads()[0]);
-facts.afterCollapse = { heads: heads().map((h) => h.textContent), rows: sectionRows(), chevron: heads()[0].querySelector("svg path").getAttribute("d") };
-click(heads()[0]);
-facts.afterExpand = sectionRows();
+facts.afterHeadClick = { heads: heads().map((h) => h.textContent), rows: sectionRows(), chevrons: heads().filter((h) => h.querySelector("svg")).length };
+click(document.querySelector(".inspector-panel .row.folder .name"));
+facts.afterGroupFold = sectionRows();
+click(document.querySelector(".inspector-panel .row.folder .name"));
+facts.afterGroupUnfold = sectionRows();
 facts.iconTitles = [...document.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title || b.getAttribute("data-label") || "");
 facts.barText = [...document.querySelectorAll(".selection-bar button")].map((b) => b.textContent);
 
@@ -164,8 +166,9 @@ type Facts = {
   barFigure: string;
   sections: string[];
   openRows: number;
-  afterCollapse: { heads: string[]; rows: number; chevron: string };
-  afterExpand: number;
+  afterHeadClick: { heads: string[]; rows: number; chevrons: number };
+  afterGroupFold: number;
+  afterGroupUnfold: number;
   iconTitles: string[];
   barText: string[];
   afterU: string;
@@ -239,13 +242,16 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
     expect(f.afterU).toBe("Dependencies 4");
   });
 
-  it("lists a Uses and a Used by section with their counts, and collapses one without touching the other", () => {
+  it("lists a Uses and a Used by heading with their counts, always open, and still folds a folder group inside", () => {
     expect(f.sections).toEqual(["Uses 4", "Used by 0"]);
     expect(f.openRows).toBe(4);
-    expect(f.afterCollapse.heads).toEqual(["Uses 4", "Used by 0"]);
-    expect(f.afterCollapse.rows).toBe(0);
-    expect(f.afterCollapse.chevron).toBe("M9 6l6 6-6 6");
-    expect(f.afterExpand).toBe(4);
+    expect(f.afterHeadClick).toEqual({
+      heads: ["Uses 4", "Used by 0"],
+      rows: 4,
+      chevrons: 0,
+    });
+    expect(f.afterGroupFold).toBeLessThan(4);
+    expect(f.afterGroupUnfold).toBe(4);
   });
 
   it("gives every icon button a tooltip and no bar button a word", () => {
