@@ -32,9 +32,13 @@ Classes, records, structs and enums are `class`; interfaces are `interface`; del
 
 A file is an entry point when it has top-level statements, a `static Main`, a controller, a hosted service, a framework-loaded type (`[Migration]`, `[DbContext]`, analyzers, generators, cmdlets), code-behind (`*.xaml.cs`, `*.razor.cs`, `*.cshtml.cs`), or a type the repository registers by convention (`typeof(I).IsAssignableFrom`, `GetTypesToRegister`, an open-generic `Register`, `Collection.Register`, `Collection.Append` or `RegisterDecorator` with an assembly argument, MediatR handlers where `AddMediatR` appears, FluentValidation validators where `AddValidatorsFromAssembly` appears).
 
+## Markup
+
+The scanner reads `.razor`, `.cshtml` and `.xaml` files outside test projects and adds `depends` edges for the types they name: `@inject`, `@model` and `@inherits`, `@using` as scope, Razor component tags in `.razor` files, and XAML elements, `x:Class` and `x:DataType` through `xmlns:` CLR-namespace mappings. A markup file is not a module; its edges come from its code-behind module, else the nearest module in the project that declares a type, and the edge `line` is a line in the markup file. Names that resolve to nothing add no edge and no foreign name.
+
 ## Limits
 
-The grammar fails on `async` used as an identifier in an expression and on preprocessor directives inside comma lists, initializers, base lists and method chains; a damaged file is reported and keeps the declarations that survive. Reflection and convention registration beyond the patterns above, types used only from `.razor`, `.cshtml` or `.xaml` markup, wildcard `<Compile Include>`, `InternalsVisibleTo`, MSBuild conditions, `var` locals and source-generated types make no edge. C# calling F#, VB.NET or native code is not an edge.
+The grammar fails on `async` used as an identifier in an expression and on preprocessor directives inside comma lists, initializers, base lists and method chains; a damaged file is reported and keeps the declarations that survive. Reflection and convention registration beyond the patterns above, type names inside Razor `@code` and `@{ }` blocks, `@implements`, `@layout`, `@typeparam`, `@attribute` and `@namespace`, XAML type names in attribute values and markup extensions, Razor components declared only in `.razor` files, wildcard `<Compile Include>`, `InternalsVisibleTo`, MSBuild conditions, `var` locals and source-generated types make no edge. C# calling F#, VB.NET or native code is not an edge.
 
 ## Tests
 

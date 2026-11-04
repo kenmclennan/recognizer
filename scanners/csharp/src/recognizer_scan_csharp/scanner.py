@@ -8,6 +8,7 @@ from recognizer_scan_csharp.discovery import directory_of, discover, selection
 from recognizer_scan_csharp.entry_points import convention_roots, is_entry_point
 from recognizer_scan_csharp.extensions import extension_edges
 from recognizer_scan_csharp.index import Index
+from recognizer_scan_csharp.markup import read_markup
 from recognizer_scan_csharp.outline import member_of
 from recognizer_scan_csharp.parse import parse_file
 from recognizer_scan_csharp.projects import Project, load_projects, owner_of, reach_of
@@ -131,6 +132,21 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
         resolver.resolve_file(file, order, collected)
         extension_edges(file, resolver, order, collected)
 
+    scanned = {f.path for f in files}
+    imports: dict = {}
+    markup_paths = [
+        p
+        for p in found.markup
+        if (owner := owner_of(projects, p)) is None or not projects[owner].test
+    ]
+
+    for number, path in enumerate(markup_paths):
+        data = read_markup(
+            root, path, projects, files, scanned, resolver, imports, len(files) + number, collected
+        )
+        hashes.append({"path": path, "hash": hashlib.sha256(data).hexdigest()})
+
+    hashes.sort(key=lambda item: item["path"])
     modules = []
 
     for file in files:
@@ -149,7 +165,7 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
 
     unresolved = sorted(collected.unresolved, key=lambda u: (u["from"], u["line"], u["import"]))
     document = {
-        "schema_version": 5,
+        "schema_version": 6,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modified": modified,

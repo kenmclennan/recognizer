@@ -22,8 +22,8 @@ def test_invalid_example_fails(path):
     assert not Draft202012Validator(load_schema()).is_valid(json.loads(path.read_text()))
 
 
-def test_schema_version_is_still_five():
-    assert load_schema()["properties"]["schema_version"] == {"const": 5}
+def test_schema_version_is_still_six():
+    assert load_schema()["properties"]["schema_version"] == {"const": 6}
 
 
 def test_the_csharp_skip_paths_example_lists_two_directories():

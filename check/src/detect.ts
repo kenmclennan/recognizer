@@ -106,6 +106,7 @@ function skipsDirectoryName(rules: SkipRules, name: string): boolean {
   );
 }
 
+const CSHARP_EXTENSIONS = [".cs", ".razor", ".cshtml", ".xaml"];
 const TYPESCRIPT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 
 function languageOf(fileName: string): Language | null {
@@ -128,7 +129,7 @@ function languageOf(fileName: string): Language | null {
     return "rust";
   }
 
-  if (fileName.endsWith(".cs")) {
+  if (CSHARP_EXTENSIONS.some((extension) => fileName.endsWith(extension))) {
     return "csharp";
   }
 

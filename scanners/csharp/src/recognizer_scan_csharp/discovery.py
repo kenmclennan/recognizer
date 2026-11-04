@@ -3,6 +3,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 SOURCE_EXTENSIONS = (".cs",)
+MARKUP_EXTENSIONS = (".razor", ".cshtml", ".xaml")
 LEFT_OUT_EXTENSIONS = (".fs", ".vb")
 SKIPPED_DIRECTORY_NAMES = ("bin", "obj")
 SKIPPED_DIRECTORY_PREFIXES = (".",)
@@ -12,7 +13,7 @@ SOLUTION_EXTENSIONS = (".sln", ".slnx")
 
 def selection(skip_paths: list[str] | None = None) -> dict:
     return {
-        "extensions": list(SOURCE_EXTENSIONS),
+        "extensions": [*SOURCE_EXTENSIONS, *MARKUP_EXTENSIONS],
         "skip_directory_names": list(SKIPPED_DIRECTORY_NAMES),
         "skip_directory_prefixes": list(SKIPPED_DIRECTORY_PREFIXES),
         "skip_directory_suffixes": [],
@@ -33,6 +34,7 @@ def is_skipped_file(name: str) -> bool:
 class Discovered:
     def __init__(self) -> None:
         self.sources: list[str] = []
+        self.markup: list[str] = []
         self.projects: list[str] = []
         self.solutions: list[str] = []
         self.left_out: dict[str, int] = {extension: 0 for extension in LEFT_OUT_EXTENSIONS}
@@ -51,6 +53,8 @@ def discover(root: Path) -> Discovered:
             if name.endswith(SOURCE_EXTENSIONS):
                 if not is_skipped_file(name):
                     found.sources.append(relative)
+            elif name.endswith(MARKUP_EXTENSIONS):
+                found.markup.append(relative)
             elif name.endswith(".csproj"):
                 found.projects.append(relative)
             elif name.endswith(SOLUTION_EXTENSIONS):
@@ -59,6 +63,7 @@ def discover(root: Path) -> Discovered:
                 found.left_out[Path(name).suffix] += 1
 
     found.sources.sort()
+    found.markup.sort()
     found.projects.sort()
     found.solutions.sort()
 

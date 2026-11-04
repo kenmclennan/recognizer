@@ -1,0 +1,5 @@
+<ContentPage xmlns:vm="clr-namespace:Shop.Models;assembly=Shop"
+             x:Class="Shop.Views.Main"
+             x:DataType="vm:Receipt">
+  <vm:Basket />
+</ContentPage>

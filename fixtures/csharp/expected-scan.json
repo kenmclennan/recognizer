@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": {
     "name": "recognizer-scan-csharp",
     "version": "0.1.0"
@@ -105,9 +105,7 @@
     }
   ],
   "selection": {
-    "extensions": [
-      ".cs"
-    ],
+    "extensions": [".cs", ".razor", ".cshtml", ".xaml"],
     "skip_directory_names": [
       "bin",
       "obj"
