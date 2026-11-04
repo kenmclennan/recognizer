@@ -48,6 +48,7 @@ import { buildFindingsPanelView } from "./findings-panel-view";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
+import { limitsFromText } from "./function-limits";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
@@ -637,7 +638,8 @@ export function showExplorer(
       pickerFilter = text;
       render();
     },
-    openInEditor: (target) => void openInEditor(target, editor, fail),
+    openInEditor: (target, line) =>
+      void openInEditor(target, editor, fail, line),
     follow: (relation, id) => followFrom(0, relation, id),
     bringBack(index) {
       trail = bringBack(trail, index);
@@ -3134,6 +3136,8 @@ export function showExplorer(
           failure: describing.failure(id),
         }),
         metrics: overlayModel.metrics.filter((metric) => !metric.stale),
+        metricsOn: tickedMetrics().length > 0,
+        limits: limitsFromText(scanConfig),
       });
     };
 

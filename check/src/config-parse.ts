@@ -39,6 +39,35 @@ export function registeredSensors(
   );
 }
 
+export function shippedSensorSettings(
+  config: Config | null,
+  name: string,
+): Record<string, unknown> | null {
+  const registered = registeredSensors(config).find(
+    (sensor) => sensor.name === name,
+  );
+  const command = registered?.command;
+
+  if (command === undefined || command[0] !== "recognizer-sensors") {
+    return null;
+  }
+
+  const at = command.indexOf("--settings");
+  const text = at === -1 ? undefined : command[at + 1];
+
+  if (text === undefined) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    return isPlainObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

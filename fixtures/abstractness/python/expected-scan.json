@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": {
     "name": "recognizer-scan-python",
     "version": "0.1.0"
@@ -71,6 +71,7 @@
             {
               "name": "save",
               "line": 6,
+              "end_line": 6,
               "params": [],
               "private": false,
               "returns": "None",
@@ -111,6 +112,7 @@
             {
               "name": "run",
               "line": 19,
+              "end_line": 19,
               "params": [],
               "private": false,
               "returns": "None",
@@ -164,6 +166,7 @@
           "kind": "function",
           "line": 15,
           "exported": true,
+          "end_line": 16,
           "params": [],
           "returns": "Row"
         },
@@ -172,6 +175,7 @@
           "kind": "function",
           "line": 19,
           "exported": false,
+          "end_line": 19,
           "params": [],
           "returns": "None"
         }

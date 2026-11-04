@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": {
     "name": "recognizer-scan-typescript",
     "version": "0.1.0"
@@ -125,6 +125,7 @@
             {
               "name": "grow",
               "line": 10,
+              "end_line": 12,
               "params": [],
               "private": true,
               "returns": "number"
@@ -132,6 +133,7 @@
             {
               "name": "count",
               "line": 14,
+              "end_line": 16,
               "params": [],
               "private": false,
               "returns": "number"
@@ -143,6 +145,7 @@
           "kind": "function",
           "line": 19,
           "exported": true,
+          "end_line": 21,
           "params": [],
           "returns": "BaseStore"
         }
@@ -158,6 +161,7 @@
           "kind": "function",
           "line": 1,
           "exported": true,
+          "end_line": 3,
           "params": [
             {
               "name": "source"
@@ -188,6 +192,7 @@
             {
               "name": "save",
               "line": 6,
+              "end_line": 6,
               "params": [],
               "private": false,
               "returns": "void"
@@ -199,6 +204,7 @@
           "kind": "function",
           "line": 9,
           "exported": true,
+          "end_line": 9,
           "params": [
             {
               "name": "p",
@@ -211,6 +217,7 @@
           "kind": "function",
           "line": 11,
           "exported": true,
+          "end_line": 11,
           "params": [],
           "returns": "BaseStore"
         },
@@ -270,6 +277,7 @@
           "kind": "function",
           "line": 1,
           "exported": true,
+          "end_line": 3,
           "params": [
             {
               "name": "store"
@@ -298,6 +306,7 @@
             {
               "name": "save",
               "line": 2,
+              "end_line": 2,
               "params": [
                 {
                   "name": "id",
@@ -328,6 +337,7 @@
           "kind": "function",
           "line": 7,
           "exported": true,
+          "end_line": 11,
           "params": []
         }
       ]
@@ -342,6 +352,7 @@
           "kind": "function",
           "line": 1,
           "exported": true,
+          "end_line": 1,
           "params": []
         }
       ]
@@ -370,6 +381,7 @@
           "kind": "function",
           "line": 4,
           "exported": false,
+          "end_line": 4,
           "params": []
         }
       ]

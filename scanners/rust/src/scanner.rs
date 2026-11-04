@@ -345,7 +345,7 @@ pub fn scan(
     edges.sort_by_key(Edge::order);
 
     let document = json!({
-        "schema_version": 5,
+        "schema_version": 6,
         "scanner": {"name": SCANNER_NAME, "version": env!("CARGO_PKG_VERSION")},
         "commit": commit,
         "modified": modified,

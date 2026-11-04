@@ -111,7 +111,7 @@ function snap() {
     switchOn: q(".inspector-panel .pswitch")?.getAttribute("aria-checked"),
     switchBeforeCards: q(".inspector-panel .pswitch")?.compareDocumentPosition(q(".inspector-panel .card")) === Node.DOCUMENT_POSITION_FOLLOWING,
     labels: cards.map((card) => card.querySelector(".card-kind").textContent),
-    lines: cards.map((card) => card.querySelector(".card-label .card-line").textContent),
+    lines: cards.map((card) => card.querySelector(".card-label .card-line")?.textContent ?? null),
     edges: cards.map((card) => cs(card).borderLeftColor),
     kinds: cards.map((card) => cs(card.querySelector(".card-kind")).color),
     memberLines: classCard ? [...classCard.querySelectorAll(".card-member .card-line")].map((n) => n.textContent) : [],
@@ -215,7 +215,7 @@ type Snap = {
   switchOn: string;
   switchBeforeCards: boolean;
   labels: string[];
-  lines: string[];
+  lines: (string | null)[];
   edges: string[];
   kinds: string[];
   memberLines: string[];
@@ -260,7 +260,7 @@ describe.skipIf(chrome === undefined)("the Contents cards", () => {
         "Type",
         "Interface",
       ]);
-      expect(off.lines).toEqual(["2", "3", "11", "13", "16"]);
+      expect(off.lines).toEqual(["2", "3", null, "13", "16"]);
       expect(off.edges).toEqual(
         [pin.constant, pin.class, pin.function, pin.type, pin.interface].map(
           rgb,

@@ -11,6 +11,8 @@ import {
   secondSensorDocument,
 } from "./fixtures";
 import { compactFolders } from "./folder-compaction";
+import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
+import { DEFAULT_LIMITS } from "./function-limits";
 import { computeHealth } from "./health";
 import {
   emphasisedLines,
@@ -64,6 +66,8 @@ function inputsFor(
       failure: null,
     }),
     metrics: [],
+    metricsOn: false,
+    limits: DEFAULT_LIMITS,
     ...extra,
   };
 }
@@ -1492,31 +1496,27 @@ describe("the metric table on a card", () => {
     });
   });
 
-  it("gives a function card one row with no name", () => {
+  it("gives a function card no table, since its metrics are a row", () => {
     const [card] = tableRows(
       [fn("f", true)],
       [metric("crap", { "pkg/m.py::f": 3 })],
     );
 
-    expect(card?.table?.head).toEqual([
-      { text: "CRAP", title: "C.R.A.P. (Change Risk Anti-Patterns) score" },
-    ]);
-    expect(card?.table?.rows).toHaveLength(1);
-    expect(card?.table?.rows[0]?.name).toBeNull();
-    expect(card?.table?.rows[0]?.cells[0]?.tone).toBe("green");
+    expect(card?.table).toBeNull();
+    expect(card?.metricsRow).toBeNull();
   });
 
   it("names the mutation columns short and any other metric by its name", () => {
     const [card] = tableRows(
-      [fn("f", true)],
+      [cls],
       [
         metric(
           "score",
-          { "pkg/m.py::f": 1 },
+          { "pkg/m.py::C.go": 1 },
           { overlay: "mutate", type: "ratio", bad: "low", max: 1 },
         ),
-        metric("survived", { "pkg/m.py::f": 1 }, { overlay: "mutate" }),
-        metric("flaky", { "pkg/m.py::f": 1 }),
+        metric("survived", { "pkg/m.py::C.go": 1 }, { overlay: "mutate" }),
+        metric("flaky", { "pkg/m.py::C.go": 1 }),
       ],
     );
 
@@ -1555,5 +1555,173 @@ describe("the metric table on a card", () => {
       tableRows([constant], [metric("complexity", { "pkg/m.py::K": 1 })])[0]
         ?.table ?? null,
     ).toBeNull();
+  });
+});
+
+describe("function length on a card", () => {
+  const spanning = (name: string, line: number, lines: number): ScanMember =>
+    fn(name, true, { line, end_line: line + lines - 1 });
+  const cards = (members: ScanMember[], extra: Partial<InspectorInputs> = {}) =>
+    cardsOf(rowsOf(scanOf(members), extra));
+
+  it("bands a function card at the edges and drops the start line from its label", () => {
+    const found = cards([
+      spanning("at_long", 1, LONG_FUNCTION),
+      spanning("over_long", 30, LONG_FUNCTION + 1),
+      spanning("at_huge", 60, HUGE_FUNCTION),
+      spanning("over_huge", 120, HUGE_FUNCTION + 1),
+    ]);
+
+    expect(found.map((card) => card.size?.band)).toEqual([
+      "neutral",
+      "long",
+      "long",
+      "huge",
+    ]);
+    expect(found.map((card) => card.size?.text)).toEqual([
+      "20 lines",
+      "21 lines",
+      "50 lines",
+      "51 lines",
+    ]);
+    expect(found.every((card) => !card.showsLine)).toBe(true);
+    expect(found[0]?.line).toBe(1);
+    expect(found[0]?.module).toBe("pkg/m.py");
+  });
+
+  it("scales the bar against the module's largest function or method, shown or not", () => {
+    const klassWithMethod = klass({
+      methods: [
+        {
+          name: "_big",
+          line: 100,
+          end_line: 199,
+          private: true,
+          params: [],
+        },
+      ],
+    });
+    const found = cards([spanning("half", 1, 50), klassWithMethod]);
+
+    expect(found[0]?.size?.width).toBe(50);
+  });
+
+  it("shows no size for a constant, a class or a function without an end line", () => {
+    const found = cards([
+      { name: "K", kind: "constant", exported: true, line: 1, value: "1" },
+      klass(),
+      fn("bare", true, { line: 9 }),
+    ]);
+
+    expect(found.map((card) => card.size)).toEqual([null, null, null]);
+    expect(found[0]?.showsLine).toBe(true);
+    expect(found[1]?.showsLine).toBe(true);
+  });
+
+  it("gives a method row its own size and a one-line function the singular", () => {
+    const withSpan = klass({
+      methods: [
+        { name: "go", line: 6, end_line: 30, private: false, params: [] },
+        { name: "plain", line: 40, private: false, params: [] },
+      ],
+    });
+    const [card, one] = cards([withSpan, spanning("one", 90, 1)]);
+
+    expect(card?.lines.map((line) => line.size?.text ?? null)).toEqual([
+      null,
+      "25 lines",
+      null,
+    ]);
+    expect(card?.size).toBeNull();
+    expect(one?.size?.text).toBe("1 line");
+  });
+});
+
+describe("the metrics row on a function card", () => {
+  const metric = (
+    label: string,
+    value: number | undefined,
+    extra: Partial<MetricDescriptor> = {},
+  ): MetricDescriptor => ({
+    key: `t/${label}`,
+    label,
+    title: label,
+    granularity: "member",
+    type: "count",
+    bad: "high",
+    overlay: "t",
+    stale: false,
+    max: 100,
+    values: value === undefined ? {} : { "pkg/m.py::f": value },
+    ...extra,
+  });
+  const row = (
+    values: { cc?: number; crap?: number; cov?: number },
+    extra: Partial<InspectorInputs> = {},
+  ) =>
+    cardsOf(
+      rowsOf(scanOf([fn("f", true)]), {
+        metricsOn: true,
+        metrics: [
+          metric("complexity", values.cc),
+          metric("crap", values.crap, { type: "number" }),
+          metric("coverage", values.cov, {
+            type: "ratio",
+            bad: "low",
+            max: 1,
+          }),
+        ],
+        ...extra,
+      }),
+    )[0]?.metricsRow;
+
+  it("is absent when no metric is ticked", () => {
+    const [card] = cardsOf(
+      rowsOf(scanOf([fn("f", true)]), {
+        metricsOn: false,
+        metrics: [metric("complexity", 3)],
+      }),
+    );
+
+    expect(card?.metricsRow).toBeNull();
+  });
+
+  it("colours each value by its limit, on both sides of every edge", () => {
+    expect(row({ cc: 10, crap: 29, cov: 0.6 })?.map((c) => c.tone)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    expect(row({ cc: 11, crap: 30, cov: 0.59 })?.map((c) => c.tone)).toEqual([
+      "amber",
+      "red",
+      "amber",
+    ]);
+  });
+
+  it("shows a dash with no tone for a value the overlay lacks", () => {
+    expect(row({})?.map((c) => [c.text, c.tone])).toEqual([
+      ["-", null],
+      ["-", null],
+      ["-", null],
+    ]);
+  });
+
+  it("reads the configured limits and an off limit never colours", () => {
+    const limits = { complexityAbove: null, coverageBelow: 0.8, crapAt: 20 };
+
+    expect(
+      row({ cc: 99, crap: 20, cov: 0.7 }, { limits })?.map((c) => c.tone),
+    ).toEqual([null, "red", "amber"]);
+  });
+
+  it("names and formats the three cells", () => {
+    expect(
+      row({ cc: 4, crap: 7, cov: 0.5 })?.map((c) => [c.name, c.text]),
+    ).toEqual([
+      ["cc", "4"],
+      ["CRAP", "7"],
+      ["cov", "50%"],
+    ]);
   });
 });

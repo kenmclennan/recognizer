@@ -112,6 +112,10 @@ fn line_of(span: Span) -> usize {
     span.start().line
 }
 
+fn end_line_of(span: Span) -> usize {
+    span.end().line
+}
+
 fn is_public(visibility: &Visibility) -> bool {
     match visibility {
         Visibility::Public(_) => true,
@@ -271,11 +275,18 @@ fn tags(signature: &Signature, is_static: bool, is_abstract: bool) -> Vec<&'stat
     found
 }
 
-fn method(signature: &Signature, private: bool, is_abstract: bool, text: &Text) -> Value {
+fn method(
+    signature: &Signature,
+    end_line: usize,
+    private: bool,
+    is_abstract: bool,
+    text: &Text,
+) -> Value {
     let mut found = Map::new();
 
     found.insert("name".into(), json!(name_of(&signature.ident)));
     found.insert("line".into(), json!(line_of(signature.ident.span())));
+    found.insert("end_line".into(), json!(end_line));
     found.insert("params".into(), json!(parameters(signature, text)));
     found.insert("private".into(), json!(private));
 
@@ -301,6 +312,7 @@ fn impl_methods(block: &ItemImpl, text: &Text) -> Vec<Value> {
         .filter_map(|item| match item {
             syn::ImplItem::Fn(function) => Some(method(
                 &function.sig,
+                end_line_of(function.span()),
                 !in_trait && !is_public(&function.vis),
                 false,
                 text,
@@ -317,6 +329,7 @@ fn trait_methods(block: &ItemTrait, text: &Text) -> Vec<Value> {
         .filter_map(|item| match item {
             TraitItem::Fn(function) => Some(method(
                 &function.sig,
+                end_line_of(function.span()),
                 false,
                 function.default.is_none(),
                 text,
@@ -560,6 +573,7 @@ fn collect(
                         is_public(&found.vis),
                     );
 
+                    value.insert("end_line".into(), json!(end_line_of(found.span())));
                     value.insert("params".into(), json!(parameters(&found.sig, text)));
 
                     if let Some(output) = returns(&found.sig, text) {

@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": {
     "name": "recognizer-scan-kotlin",
     "version": "0.1.0"
@@ -96,6 +96,7 @@
             {
               "name": "execute",
               "line": 9,
+              "end_line": 11,
               "params": [
                 {
                   "name": "order",
@@ -142,6 +143,7 @@
             {
               "name": "charge",
               "line": 11,
+              "end_line": 11,
               "params": [
                 {
                   "name": "order",
@@ -240,6 +242,7 @@
           "line": 5,
           "exported": true,
           "visibility": "public",
+          "end_line": 5,
           "params": [],
           "returns": "Int"
         }
@@ -271,6 +274,7 @@
             {
               "name": "save",
               "line": 9,
+              "end_line": 11,
               "params": [
                 {
                   "name": "order",
@@ -282,6 +286,7 @@
             {
               "name": "record",
               "line": 13,
+              "end_line": 13,
               "params": [
                 {
                   "name": "order",
@@ -331,6 +336,7 @@
             {
               "name": "save",
               "line": 6,
+              "end_line": 6,
               "params": [
                 {
                   "name": "order",
@@ -370,6 +376,7 @@
             {
               "name": "list",
               "line": 13,
+              "end_line": 13,
               "params": [],
               "private": false,
               "returns": "String"
@@ -377,6 +384,7 @@
             {
               "name": "place",
               "line": 15,
+              "end_line": 19,
               "params": [
                 {
                   "name": "order",

@@ -142,3 +142,55 @@ def test_constants_are_module_body_single_name_assignments(run):
         ("A", "constant"),
         ("B", "constant"),
     ]
+
+
+def test_end_line_for_function_method_decorated_function_and_one_liner(run):
+    document = run(
+        {
+            "m.py": (
+                "def plain(a):\n"
+                "    b = a\n"
+                "    return b\n"
+                "\n"
+                "@staticmethod\n"
+                "def decorated():\n"
+                "    return 1\n"
+                "\n"
+                "def one(): ...\n"
+                "\n"
+                "class C:\n"
+                "    def method(self):\n"
+                "        x = 1\n"
+                "        return x\n"
+            )
+        }
+    )
+
+    by_name = {m["name"]: m for m in module(document, "m.py")["members"]}
+
+    assert (by_name["plain"]["line"], by_name["plain"]["end_line"]) == (1, 3)
+    assert (by_name["decorated"]["line"], by_name["decorated"]["end_line"]) == (6, 7)
+    assert (by_name["one"]["line"], by_name["one"]["end_line"]) == (9, 9)
+
+    method = by_name["C"]["methods"][0]
+
+    assert (method["line"], method["end_line"]) == (12, 14)
+    assert "end_line" not in by_name["C"]
+
+
+def test_every_function_and_method_in_the_sample_ends_at_or_after_its_start():
+    from conftest import FIXTURE_ROOT
+
+    from recognizer_scan_python import scan
+
+    document = scan(FIXTURE_ROOT, ["."], None)
+    checked = 0
+
+    for mod in document["modules"]:
+        for member in mod["members"]:
+            for item in [member, *member.get("methods", [])]:
+                if member["kind"] == "function" or item is not member:
+                    assert item["end_line"] >= item["line"]
+                    checked += 1
+
+    assert checked > 0

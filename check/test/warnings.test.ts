@@ -35,7 +35,7 @@ function scanOf(
   }
 
   return {
-    schema_version: 5,
+    schema_version: 6,
     scanner: { name: "t", version: "0" },
     commit: null,
     modified: false,

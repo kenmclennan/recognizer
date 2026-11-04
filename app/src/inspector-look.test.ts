@@ -492,7 +492,7 @@ describe("the inspector, in a real browser", () => {
   );
 
   it.skipIf(chrome === undefined)(
-    "shows a metric table at the foot of the class and function cards and none in the header",
+    "shows a metric table at the foot of the class card, none on a function card and none in the header",
     async () => {
       const { tables } = await prepare("light");
       const klass = tables.find((table) => table?.kind === "Class");
@@ -512,9 +512,7 @@ describe("the inspector, in a real browser", () => {
       expect(klass?.mono.every(Boolean)).toBe(true);
       expect(klass?.colors[0]).not.toBe(klass?.colors[2]);
       expect(klass?.header).toBe(0);
-      expect(func?.names).toEqual([]);
-      expect(func?.rows).toBe(1);
-      expect(func?.text).toEqual(["1", "-"]);
+      expect(func).toBeUndefined();
     },
     scaledTimeout(180000),
   );

@@ -6,6 +6,7 @@ import { buildFindingGroup } from "./findings-panel-view";
 import { icon, iconButton } from "./icons";
 import type {
   CardRow,
+  CardSize,
   Direction,
   InspectorContent,
   InspectorTab,
@@ -37,7 +38,10 @@ export type InspectorActions = {
   takeOff: (ids: string[]) => void;
   pickName: (id: string) => void;
   setFilter: (text: string) => void;
-  openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
+  openInEditor: (
+    target: { kind: "module" | "folder"; id: string },
+    line?: number,
+  ) => void;
   setShowPrivate: (on: boolean) => void;
   follow: (relation: Direction, id: string) => void;
   bringBack: (index: number) => void;
@@ -128,6 +132,36 @@ function metricTableNode(table: MetricTable): HTMLElement {
   return node;
 }
 
+function sizeNode(size: CardSize): HTMLElement {
+  const node = el("span", `fn-size ${size.band}`, size.text);
+  const bar = el("span", "fn-bar");
+  const fill = el("i");
+
+  fill.style.width = `${size.width}%`;
+  bar.append(fill);
+  node.append(bar);
+
+  return node;
+}
+
+function openAt(
+  node: HTMLElement,
+  module: string,
+  line: number | null,
+  actions: InspectorActions,
+) {
+  if (line === null) {
+    return;
+  }
+
+  node.title = `Line ${line} · click to open in the editor`;
+  node.classList.add("openable");
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    actions.openInEditor({ kind: "module", id: module }, line);
+  });
+}
+
 function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   const node = el(
     "div",
@@ -142,9 +176,34 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
     label.append(privateMark());
   }
 
-  label.append(el("span", "card-line", row.line === null ? "" : `${row.line}`));
+  if (row.size !== null) {
+    label.append(sizeNode(row.size));
+  } else if (row.showsLine) {
+    label.append(
+      el("span", "card-line", row.line === null ? "" : `${row.line}`),
+    );
+  }
+
   head.append(...tokenNodes(row.head));
   node.append(label, head);
+
+  if (row.metricsRow !== null) {
+    const metrics = el("div", "fn-metrics");
+
+    for (const cell of row.metricsRow) {
+      const item = el(
+        "span",
+        `fn-metric${cell.tone === null ? "" : ` ${cell.tone}`}`,
+        cell.name,
+      );
+
+      item.title = cell.title;
+      item.append(el("b", "", cell.text));
+      metrics.append(item);
+    }
+
+    node.append(metrics);
+  }
 
   for (const line of row.lines) {
     const part = el("div", `card-member${line.private ? " priv" : ""}`);
@@ -160,6 +219,12 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
       el("span", "card-line", line.line === null ? "" : `${line.line}`),
       code,
     );
+
+    if (line.size !== null) {
+      part.append(sizeNode(line.size));
+    }
+
+    openAt(part, row.module, line.line, actions);
     node.append(part);
   }
 
@@ -172,6 +237,7 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   }
 
   hoverable(node, row.hover, actions);
+  openAt(node, row.module, row.line, actions);
 
   return node;
 }

@@ -216,6 +216,11 @@ describe("recognizer scan: outcomes", () => {
       { [PYTHON]: { output: scanJson(1, 0, { schema_version: 1 }) } },
       "unknown-schema-version",
     ],
+    [
+      "unknown-schema-version (a version-5 scan)",
+      { [PYTHON]: { output: scanJson(1, 0, { schema_version: 5 }) } },
+      "unknown-schema-version",
+    ],
   ];
 
   it.each(cases)(
@@ -244,7 +249,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 1");
-    expect(err).toContain("accepts 5");
+    expect(err).toContain("accepts 6");
   });
 
   it("refuses a version-2 scan naming both versions", async () => {
@@ -254,7 +259,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 2");
-    expect(err).toContain("accepts 5");
+    expect(err).toContain("accepts 6");
   });
 
   it("carries the scanner's stderr", async () => {

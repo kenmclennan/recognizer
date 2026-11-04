@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": {
     "name": "recognizer-scan-typescript",
     "version": "0.1.0"
@@ -65,6 +65,7 @@
             {
               "name": "save",
               "line": 2,
+              "end_line": 2,
               "params": [
                 {
                   "name": "id",
@@ -149,6 +150,7 @@
             {
               "name": "run",
               "line": 2,
+              "end_line": 2,
               "params": [],
               "private": false,
               "returns": "void",
@@ -175,6 +177,7 @@
           "kind": "function",
           "line": 7,
           "exported": true,
+          "end_line": 9,
           "params": [],
           "returns": "Impl"
         },

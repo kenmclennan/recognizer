@@ -120,6 +120,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Fold | Drawing an open folder as one box, which keeps its health disc and takes the edges to anything inside it. |
 | Contents | A module's members as cards in file order, or a folder's files. |
 | Card | A member shown in Contents with its label, line and code. |
+| Function length | The span from a function or method's first line to its last, shown on its inspector card as `N lines` with a bar scaled to the module's largest, banded neutral at 20 lines or fewer, long (amber) from 21 to 50 and red over 50. An indicator, not a finding: each codebase's own linters own code-quality rules. |
 | Show private | The remembered switch that adds non-exported members and private fields and methods to Contents. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
 | Finding | A violation or warning a sensor wrote for the current scan: a stable id, a kind, a principle, a one-line summary, its evidence by scan id and, where one is named, a fix pattern. Attached to the modules in its evidence; a health disc shows the summary. |

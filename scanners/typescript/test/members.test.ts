@@ -145,4 +145,43 @@ describe("module kind", () => {
   it("is module for a data type alias", () => {
     expect(members("export type T = string;\n").kind).toBe("module");
   });
+
+  it("records the last line of a function, a method, an arrow, a decorated function and a one-liner", () => {
+    const doc = scanTree({
+      "a.ts": [
+        "export function plain(a: number) {",
+        "  const b = a;",
+        "  return b;",
+        "}",
+        "",
+        "@decorate",
+        "export class D {",
+        "  method() {",
+        "    return 1;",
+        "  }",
+        "}",
+        "",
+        "export const arrow = () => {",
+        "  return 1;",
+        "};",
+        "",
+        "export function one() {}",
+        "",
+      ].join("\n"),
+    });
+    const found = new Map(doc.modules[0]?.members.map((m) => [m.name, m]));
+    const spans = (name: string) => [
+      found.get(name)?.line,
+      found.get(name)?.end_line,
+    ];
+
+    expect(spans("plain")).toEqual([1, 4]);
+    expect(spans("arrow")).toEqual([13, 15]);
+    expect(spans("one")).toEqual([17, 17]);
+    expect(found.get("D")?.methods?.[0]).toMatchObject({
+      line: 8,
+      end_line: 10,
+    });
+    expect(found.get("D")?.end_line).toBeUndefined();
+  });
 });

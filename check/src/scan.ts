@@ -49,6 +49,7 @@ export interface ScanField {
 export interface ScanMethod {
   name: string;
   line?: number;
+  end_line?: number;
   params?: ScanParam[];
   returns?: string;
   private?: boolean;
@@ -61,6 +62,7 @@ export interface ScanMember {
   visibility?: "public" | "protected" | "internal" | "private";
   kind?: "class" | "function" | "interface" | "type" | "constant" | "enum";
   line?: number;
+  end_line?: number;
   bases?: string[];
   fields?: ScanField[];
   methods?: ScanMethod[];
