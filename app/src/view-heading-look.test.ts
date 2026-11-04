@@ -22,6 +22,9 @@ window.__fakeWorker = () => {
           row += 1;
           place(child, depth + 1);
         }
+        if (depth === 0 && window.__frameWidth) {
+          for (const child of node.children || []) child.width = window.__frameWidth;
+        }
       };
       const graph = JSON.parse(JSON.stringify(request.graph));
       place(graph, 0);
@@ -70,7 +73,7 @@ function mount(files) {
 
 async function open(page, name) {
   click(page.q(".view-list"));
-  click(page.all(".view-item").find((n) => n.querySelector(".view-item-name").textContent === name));
+  const item = page.all(".view-item").find((n) => n.querySelector(".view-item-name").textContent === name); if (!item) throw new Error("no item " + name + " in " + page.all(".view-item").map((n) => n.textContent).join("|")); click(item);
   await tick();
 }
 
@@ -91,7 +94,7 @@ const facts = {};
     one: viewJson(appOnly, { title: "One folder", description: "Shows the app." }),
     two: viewJson(both, { title: "Two folders", description: "Shows both." }),
     untitled: viewJson(appOnly, { description: "Only a description." }),
-    plain: viewJson(appOnly, { title: undefined, description: "Plain." }),
+    wide: viewJson([pick("lib/d.py"), pick("lib/e.py")], { title: "Wide", description: "Shows the app." }),
     long: viewJson(appOnly, { title: "Long", description: REPEATED }),
   });
   await tick();
@@ -112,6 +115,19 @@ const facts = {};
   await tick();
   const screen = page.q(".view-heading").getBoundingClientRect();
   facts.fit = { insideSurface: screen.top >= surface.top && screen.bottom <= surface.bottom && screen.left >= surface.left && screen.right <= surface.right };
+
+  window.__frameWidth = 2810;
+  await open(page, "wide");
+  await tick();
+  await tick();
+  const wideFrames = frameRects(page);
+  const wideTitle = page.q(".view-heading-title");
+  const wideSurface = page.q(".surface").getBoundingClientRect();
+  click([...page.all(".controls button")].find((b) => b.textContent === "Fit"));
+  await tick();
+  const wideScreen = page.q(".view-heading").getBoundingClientRect();
+  facts.wide = { width: Math.max(...wideFrames.map((r) => r.x + r.width)) - Math.min(...wideFrames.map((r) => r.x)), heading: headingOf(page), top: top(wideFrames), fontSize: Number(wideTitle.getAttribute("font-size")), fitIncludes: wideScreen.top >= wideSurface.top && wideScreen.left >= wideSurface.left && wideScreen.right <= wideSurface.right };
+  window.__frameWidth = 0;
 
   await open(page, "two");
   const twoFrames = frameRects(page);
@@ -213,6 +229,13 @@ describe.skipIf(chrome === undefined)("the view heading", () => {
     expect(f.one.heading.pointerEvents).toBe("none");
     expect(f.one.title).toBe("One folder");
     expect(f.one.pill).toBe("one");
+  });
+
+  it("sizes the title from the diagram width and keeps the heading above it inside Fit", () => {
+    expect(Math.round(f.wide.width)).toBe(2810);
+    expect(Math.round(f.wide.fontSize)).toBe(62);
+    expect(f.wide.heading.bottom).toBeLessThanOrEqual(f.wide.top);
+    expect(f.wide.fitIncludes).toBe(true);
   });
 
   it("centres on the combined extent of two top-level frames", () => {

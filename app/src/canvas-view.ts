@@ -44,15 +44,10 @@ import type { RemovedBox } from "./removed-boxes";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
-  DESCRIPTION_LINE,
-  DESCRIPTION_SIZE,
   type Heading,
   type HeadingLayout,
   headingAnchor,
   layoutHeading,
-  TITLE_LINE,
-  TITLE_SIZE,
-  TITLE_TO_DESCRIPTION,
   withHeading,
 } from "./view-heading";
 import {
@@ -251,8 +246,30 @@ export function buildCanvasView(
   const busy = spinner("Laying out");
   const noteLayer = el("div", "note-layer");
   const bubbleViews = new Map<string, NoteBubbleView>();
-  const measureTitle = createMeasure(`600 ${TITLE_SIZE}px`);
-  const measureDescription = createMeasure(`${DESCRIPTION_SIZE}px`);
+  const titleMeasures = new Map<number, (text: string) => number>();
+  const descriptionMeasures = new Map<number, (text: string) => number>();
+
+  function measureTitle(size: number): (text: string) => number {
+    let measure = titleMeasures.get(size);
+
+    if (!measure) {
+      measure = createMeasure(`600 ${size}px`);
+      titleMeasures.set(size, measure);
+    }
+
+    return measure;
+  }
+
+  function measureDescription(size: number): (text: string) => number {
+    let measure = descriptionMeasures.get(size);
+
+    if (!measure) {
+      measure = createMeasure(`${size}px`);
+      descriptionMeasures.set(size, measure);
+    }
+
+    return measure;
+  }
 
   busy.classList.add("canvas-busy");
   busy.hidden = true;
@@ -403,7 +420,7 @@ export function buildCanvasView(
       return null;
     }
 
-    const { rect } = layout;
+    const { rect, metrics } = layout;
     const group = svg("g", {
       class: "view-heading",
       "data-x": rect.x,
@@ -420,7 +437,7 @@ export function buildCanvasView(
       const title = svg("text", {
         class: "view-heading-title",
         "text-anchor": "middle",
-        "font-size": TITLE_SIZE,
+        "font-size": metrics.titleSize,
       });
 
       layout.titleLines.forEach((line, index) => {
@@ -429,17 +446,20 @@ export function buildCanvasView(
             "tspan",
             {
               x: layout.centre,
-              y: baseline + (index + 1) * TITLE_LINE - 6,
+              y:
+                baseline +
+                (index + 1) * metrics.titleLine -
+                metrics.titleSize * 0.3,
             },
             line,
           ),
         );
       });
       group.append(title);
-      baseline += layout.titleLines.length * TITLE_LINE;
+      baseline += layout.titleLines.length * metrics.titleLine;
 
       if (layout.descriptionLines.length > 0) {
-        baseline += TITLE_TO_DESCRIPTION;
+        baseline += metrics.titleToDescription;
       }
     }
 
@@ -447,7 +467,7 @@ export function buildCanvasView(
       const description = svg("text", {
         class: "view-heading-description",
         "text-anchor": "middle",
-        "font-size": DESCRIPTION_SIZE,
+        "font-size": metrics.descriptionSize,
       });
 
       layout.descriptionLines.forEach((line, index) => {
@@ -456,7 +476,10 @@ export function buildCanvasView(
             "tspan",
             {
               x: layout.centre,
-              y: baseline + (index + 1) * DESCRIPTION_LINE - 5,
+              y:
+                baseline +
+                (index + 1) * metrics.descriptionLine -
+                metrics.descriptionSize * 0.35,
             },
             line,
           ),
