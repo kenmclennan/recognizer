@@ -39,7 +39,12 @@ export function buildRailView(actions: RailActions): RailView {
     actions.toggleFiles,
   );
   const views = iconButton("views", "Views", "rail-views", actions.toggleViews);
-  const notes = iconButton("notes", "Notes", "rail-notes", actions.toggleNotes);
+  const notes = iconButton(
+    "sticky-note",
+    "Notes",
+    "rail-notes",
+    actions.toggleNotes,
+  );
   const scan = iconButton("scan", "Scan", "rail-scan", actions.toggleScan);
   const findings = iconButton(
     "findings",
