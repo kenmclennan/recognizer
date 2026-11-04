@@ -1,24 +1,9 @@
-import { folderSubject } from "./finding-card";
 import type { FindingRow } from "./findings-order";
 
-export type ViewScope = { modules: Set<string>; folders: Set<string> };
+export type ViewScope = { modules: Set<string> };
 
 export function scopeOf(opened: Iterable<string>): ViewScope {
-  const modules = new Set<string>();
-  const folders = new Set<string>();
-
-  for (const id of opened) {
-    modules.add(id);
-
-    let at = id.lastIndexOf("/");
-
-    while (at > 0) {
-      folders.add(id.slice(0, at));
-      at = id.lastIndexOf("/", at - 1);
-    }
-  }
-
-  return { modules, folders };
+  return { modules: new Set(opened) };
 }
 
 function subjectIds(row: FindingRow): string[] {
@@ -33,19 +18,11 @@ function subjectIds(row: FindingRow): string[] {
     ids.push(edge.from, edge.to);
   }
 
-  const folder = folderSubject(record);
-
-  if (folder !== null && folder !== "") {
-    ids.push(folder);
-  }
-
   return ids;
 }
 
 export function inScope(row: FindingRow, scope: ViewScope): boolean {
-  return subjectIds(row).some(
-    (id) => scope.modules.has(id) || scope.folders.has(id),
-  );
+  return subjectIds(row).some((id) => scope.modules.has(id));
 }
 
 export function scopedRows(rows: FindingRow[], scope: ViewScope): FindingRow[] {

@@ -2,7 +2,7 @@ import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { groupsOf, headerLine, staleNote } from "./findings-groups";
 import { findingRows } from "./findings-order";
-import { inScope, scopeCaption, scopedRows, scopeOf } from "./findings-scope";
+import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 
 function record(
   id: string,
@@ -41,8 +41,11 @@ describe("which findings a view of three modules shows", () => {
     record("orphan:z", "orphan", ["other/z.py"]),
     record("cycle:a,z", "cycle", ["other/y.py", "app/b.py"]),
     record("cycle:y,z", "cycle", ["other/y.py", "other/z.py"]),
-    record("folder_cycle:app,other", "folder_cycle", ["app", "other"]),
-    record("folder_cycle:lib,other", "folder_cycle", []),
+    record("folder_cycle:app,other", "folder_cycle", [
+      "app/a.py",
+      "other/z.py",
+    ]),
+    record("folder_cycle:lib,other", "folder_cycle", ["other/z.py"]),
     record("folder_cycle:none,other", "folder_cycle", []),
   ]);
 
@@ -63,19 +66,17 @@ describe("which findings a view of three modules shows", () => {
     expect(ids).not.toContain("cycle:y,z");
   });
 
-  it("keeps a folder finding when any module in the folder is on the canvas", () => {
+  it("keeps a folder finding when one of its modules is on the canvas", () => {
     const ids = scopedRows(rows, view).map((row) => row.id);
 
     expect(ids).toContain("folder_cycle:app,other");
-    expect(ids).toContain("folder_cycle:lib,other");
-    expect(ids).not.toContain("folder_cycle:none,other");
   });
 
-  it("counts a nested folder through its ancestors", () => {
-    const deep = scopeOf(["a/b/c.py"]);
-    const row = rowsOf([record("folder_cycle:a,x", "folder_cycle", [])])[0];
+  it("drops a folder finding whose modules are all off the canvas while its folder is on it", () => {
+    const ids = scopedRows(rows, view).map((row) => row.id);
 
-    expect(row && inScope(row, deep)).toBe(true);
+    expect(ids).not.toContain("folder_cycle:lib,other");
+    expect(ids).not.toContain("folder_cycle:none,other");
   });
 
   it("shows nothing when no module is on the canvas", () => {
