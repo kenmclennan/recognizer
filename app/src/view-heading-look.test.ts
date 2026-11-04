@@ -7,6 +7,7 @@ import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts")
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
+import { headingMetrics } from ${JSON.stringify(here("view-heading.ts"))};
 
 window.__fakeWorker = () => {
   const listeners = [];
@@ -103,7 +104,10 @@ const facts = {};
 
   await open(page, "one");
   const oneFrames = frameRects(page);
+  const drawnSizes = (width) => { const m = headingMetrics(width); const t = page.q(".view-heading-title"); const d = page.q(".view-heading-description"); return { expectedTitle: m.titleSize, expectedDescription: m.descriptionSize, title: parseFloat(getComputedStyle(t).fontSize), description: parseFloat(getComputedStyle(d).fontSize) }; };
+  const extent = (rects) => Math.max(...rects.map((r) => r.x + r.width)) - Math.min(...rects.map((r) => r.x));
   facts.one = { frames: oneFrames.length, heading: headingOf(page), centre: midpoint(oneFrames), top: top(oneFrames), title: page.q(".view-heading-title").textContent, pill: page.q(".view-name").textContent };
+  facts.oneSizes = drawnSizes(extent(oneFrames));
 
   const level = () => page.q(".level").textContent;
   const before = { level: level(), heading: headingOf(page) };
@@ -127,6 +131,7 @@ const facts = {};
   await tick();
   const wideScreen = page.q(".view-heading").getBoundingClientRect();
   facts.wide = { width: Math.max(...wideFrames.map((r) => r.x + r.width)) - Math.min(...wideFrames.map((r) => r.x)), heading: headingOf(page), top: top(wideFrames), fontSize: Number(wideTitle.getAttribute("font-size")), fitIncludes: wideScreen.top >= wideSurface.top && wideScreen.left >= wideSurface.left && wideScreen.right <= wideSurface.right };
+  facts.wideSizes = drawnSizes(extent(wideFrames));
   window.__frameWidth = 0;
 
   await open(page, "two");
@@ -137,7 +142,7 @@ const facts = {};
   facts.untitledView = headingOf(page);
 
   await open(page, "long");
-  facts.long = { heading: headingOf(page), file: page.port.files.get("long") };
+  facts.long = { heading: headingOf(page), file: page.port.files.get("long"), wrap: (() => { const g = page.q(".view-heading"); const d = g.querySelector(".view-heading-description"); const box = d.getBBox(); const x = Number(g.dataset.x); const w = Number(g.dataset.width); return { lines: d.querySelectorAll("tspan").length, within: box.x >= x - 0.5 && box.x + box.width <= x + w + 0.5 }; })() };
 
   await open(page, "one");
   page.port.edit("one", viewJson(appOnly, { title: "Edited outside", description: "Shows the app." }));
@@ -262,6 +267,24 @@ describe.skipIf(chrome === undefined)("the view heading", () => {
     expect(JSON.parse(f.long.file).description).toContain(
       Array.from({ length: 200 }, () => "word").join(" "),
     );
+  });
+
+  it("draws the title and description at the sizes the layout used", () => {
+    expect(f.oneSizes.title).toBeCloseTo(f.oneSizes.expectedTitle, 1);
+    expect(f.oneSizes.description).toBeCloseTo(
+      f.oneSizes.expectedDescription,
+      1,
+    );
+    expect(f.wideSizes.title).toBeCloseTo(f.wideSizes.expectedTitle, 1);
+    expect(f.wideSizes.description).toBeCloseTo(
+      f.wideSizes.expectedDescription,
+      1,
+    );
+  });
+
+  it("wraps a long description onto several lines within the heading rect", () => {
+    expect(f.long.wrap.lines).toBeGreaterThan(1);
+    expect(f.long.wrap.within).toBe(true);
   });
 
   it("redraws when the file text changes from outside", () => {
