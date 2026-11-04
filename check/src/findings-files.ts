@@ -4,6 +4,7 @@ import {
   type FindingsDocument,
   validateFindings,
 } from "./findings-document.js";
+import type { Scan } from "./scan.js";
 
 export function findingsFolder(root: string): string {
   return join(root, ".recognizer", "cache", "findings");
@@ -62,10 +63,15 @@ function listed(io: Io, root: string): string[] {
     .sort();
 }
 
+export interface ScanState {
+  commit: string | null;
+  modified: boolean;
+}
+
 export function readFindingsFiles(
   io: Io,
   root: string,
-  commit: string | null,
+  state: ScanState,
   skip: string[] = [],
   allowed: string[] | null = null,
 ): ReadOutcome[] {
@@ -95,8 +101,37 @@ export function readFindingsFiles(
 
       const reported = outside ? { reported: true as const } : {};
 
-      return document.commit === commit
+      const current =
+        document.commit === state.commit &&
+        !(
+          document.modified &&
+          document.reported_at === undefined &&
+          !state.modified
+        );
+
+      return current
         ? { name, status: "read", document, ...reported }
         : { name, status: "stale", document, ...reported };
     });
+}
+
+export function withoutAbsentModules(
+  document: FindingsDocument,
+  scans: Scan[],
+): { document: FindingsDocument; dropped: number } {
+  if (!document.modified || document.reported_at !== undefined) {
+    return { document, dropped: 0 };
+  }
+
+  const present = new Set(
+    scans.flatMap((scan) => scan.modules.map((m) => m.id)),
+  );
+  const findings = document.findings.filter((finding) =>
+    finding.evidence.modules.every((id) => present.has(id)),
+  );
+
+  return {
+    document: { ...document, findings },
+    dropped: document.findings.length - findings.length,
+  };
 }

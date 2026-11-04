@@ -9,6 +9,7 @@ import {
 import {
   findingsFile,
   readFindingsFiles,
+  withoutAbsentModules,
   writeFindings,
 } from "./findings-files.js";
 import { type Policy, parsePolicy } from "./policy.js";
@@ -108,14 +109,25 @@ export function loadFindings(
   for (const outcome of readFindingsFiles(
     io,
     root,
-    commit,
+    { commit, modified },
     ["structure"],
     registered,
   )) {
     if (outcome.status === "unregistered") {
       io.stderr(`ignored unregistered ${outcome.name}\n`);
     } else if (outcome.status === "read") {
-      documents.push(outcome.document);
+      const { document, dropped } = withoutAbsentModules(
+        outcome.document,
+        scans,
+      );
+
+      if (dropped > 0) {
+        io.stderr(
+          `dropped ${dropped} ${outcome.name} findings naming modules not in the scan\n`,
+        );
+      }
+
+      documents.push(document);
     } else if (outcome.status === "stale") {
       io.stderr(
         outcome.reported

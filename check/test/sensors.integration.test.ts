@@ -180,6 +180,30 @@ describe.skipIf(!HAS_UV)(
       ]);
     }, 180_000);
 
+    it("stops naming a copy that was only on disk during a dirty run", () => {
+      configure("{}");
+      commit();
+
+      const copy = join(repository, "app/pricing_copy.py");
+
+      cpSync(join(repository, "app/pricing.py"), copy);
+
+      expect(
+        run(["scan", repository, "--sense", "duplication"], capture().io),
+      ).toBe(0);
+      expect(JSON.stringify(findings())).toContain("pricing_copy.py");
+
+      rmSync(copy);
+
+      const captured = capture();
+
+      expect(
+        run(["check", "--repository", repository, "--json"], captured.io),
+      ).toBeLessThan(2);
+      expect(captured.out()).not.toContain("pricing_copy.py");
+      expect(captured.err()).toContain("stale duplication");
+    }, 180_000);
+
     it("passes the settings to the sensor", () => {
       configure("{threshold: 0.99}");
       commit();
