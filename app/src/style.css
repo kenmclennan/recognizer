@@ -2064,7 +2064,7 @@ svg.i.chevron {
 
 .scan-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 6px 0;
   font-size: 13px;
@@ -2072,7 +2072,7 @@ svg.i.chevron {
 
 .scan-row-label {
   display: flex;
-  flex: 1;
+  flex: none;
   align-items: center;
   gap: 10px;
   cursor: pointer;
@@ -2089,8 +2089,24 @@ svg.i.chevron {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+  margin-left: auto;
   color: var(--muted);
-  white-space: nowrap;
+  text-align: right;
+}
+
+.scan-tip {
+  position: fixed;
+  z-index: 100;
+  max-width: 260px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
 }
 
 .scan-state.ok {
