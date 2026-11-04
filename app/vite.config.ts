@@ -1,12 +1,6 @@
-import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
-
-const agents = Number(process.env.LC_MAX_AGENTS);
-const sized = Number.isFinite(agents) && agents > 0;
-const maxWorkers = sized
-  ? Math.max(1, Math.floor(availableParallelism() / agents))
-  : undefined;
+import { poolTestOptions } from "../scripts/pool-scale.mjs";
 
 export default defineConfig({
   clearScreen: false,
@@ -19,7 +13,7 @@ export default defineConfig({
       },
     },
   },
-  test: {
+  test: poolTestOptions({
     environment: "node",
     include: [
       "src/**/*.test.ts",
@@ -27,6 +21,5 @@ export default defineConfig({
       "../scripts/**/*.test.mjs",
     ],
     setupFiles: ["../scripts/vitest-remove-temp-dirs.mjs"],
-    ...(maxWorkers ? { maxWorkers } : {}),
-  },
+  }),
 });

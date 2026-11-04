@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
@@ -103,7 +104,7 @@ describe.skipIf(chrome === undefined)("an explorer updated in place", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "explorer-update");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("keeps the canvas, its camera, the selection and the left panel", () => {
     expect(f.inPlace.sameCanvas).toBe(true);

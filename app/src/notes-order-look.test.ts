@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -119,7 +120,7 @@ describe.skipIf(chrome === undefined)("notes in order", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "notes-order");
-  }, 240000);
+  }, scaledTimeout(240000));
 
   it("lands on note 1 with its bubble open when a view with notes opens", () => {
     expect(f.landing).toEqual({ text: "First stop", position: "1 of 3" });

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -71,7 +72,7 @@ describe.skipIf(chrome === undefined)("the spinner, in a real browser", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "spinner-look");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("appears over the canvas during a slow layout and goes when it ends", () => {
     expect(f.layoutIdle.hidden).toBe(true);

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -396,7 +397,7 @@ describe.skipIf(chrome === undefined)("notes in the explorer", () => {
 
   beforeAll(async () => {
     f = await collect();
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("draws one untinted speech-bubble mark after a noted box's name and at a noted frame's corner, without growing the box", () => {
     expect(f.marks.paths).toEqual(["app/", "app/hub.py"]);

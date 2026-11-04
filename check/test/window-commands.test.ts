@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { nodeIo, run } from "../src/cli.js";
 import { REPO } from "./helpers.js";
@@ -549,17 +550,21 @@ describe("nodeIo.request against a real socket", () => {
     expect(reply.message).not.toBe("");
   });
 
-  it("gives up on a server that never replies", async () => {
-    const { socket, child, ready } = serve(SILENT);
+  it(
+    "gives up on a server that never replies",
+    async () => {
+      const { socket, child, ready } = serve(SILENT);
 
-    await ready;
+      await ready;
 
-    try {
-      const reply = nodeIo().request(socket, "{}");
+      try {
+        const reply = nodeIo().request(socket, "{}");
 
-      expect(reply.connected).toBe(false);
-    } finally {
-      child.kill();
-    }
-  }, 20000);
+        expect(reply.connected).toBe(false);
+      } finally {
+        child.kill();
+      }
+    },
+    scaledTimeout(20000),
+  );
 });

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -72,7 +73,7 @@ describe.skipIf(chrome === undefined)("the settings window", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "settings-look");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("shows only the editor field with its placeholder, hint and buttons and no Scanning section", () => {
     expect(f.empty.labels).toEqual(["Editor"]);

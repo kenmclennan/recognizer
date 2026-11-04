@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -90,7 +91,7 @@ describe.skipIf(chrome === undefined)("the Open in Editor icons", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "editor-icons-look");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("is in the selection bar for a module and a folder, after the folder-only buttons", () => {
     for (const icon of [f.barModule, f.barFolder]) {

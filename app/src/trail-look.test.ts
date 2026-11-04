@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -339,7 +340,7 @@ describe.skipIf(chrome === undefined)("the trail", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "trail");
-  }, 120000);
+  }, scaledTimeout(120000));
 
   it("shows the follow arrow only on hover", () => {
     expect(f.arrow.visibility).toBe("hidden");

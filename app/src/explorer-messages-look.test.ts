@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -149,7 +150,7 @@ describe.skipIf(chrome === undefined)("explorer messages in the tray", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "explorer-messages-look");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("posts an unreadable baseline once with a toast and an amber badge", () => {
     expect(f.baselineOnce.rows).toHaveLength(1);

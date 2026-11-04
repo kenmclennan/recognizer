@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_BIN,
@@ -106,6 +107,6 @@ describe("the inspector's layout in a real browser", () => {
         rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
       }
     },
-    90000,
+    scaledTimeout(90000),
   );
 });

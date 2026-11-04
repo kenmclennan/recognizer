@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -120,7 +121,7 @@ describe.skipIf(chrome === undefined)(
 
     beforeAll(async () => {
       f = await collect();
-    }, 180000);
+    }, scaledTimeout(180000));
 
     it("draws one frame per compacted chain, labelled with the joined path", () => {
       expect(f.drawn.frames).toEqual([

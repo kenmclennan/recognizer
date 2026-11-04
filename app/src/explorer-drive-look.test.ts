@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -179,7 +180,7 @@ describe.skipIf(chrome === undefined)("driving a window", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "drive");
-  }, 120000);
+  }, scaledTimeout(120000));
 
   it("add answers done and puts the modules on the canvas", () => {
     expect(f.addDone).toEqual({

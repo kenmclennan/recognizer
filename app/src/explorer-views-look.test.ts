@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -552,7 +553,7 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
 
   beforeAll(async () => {
     f = await collect();
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("leads each Views panel row with the title and marks the open row without a glyph", () => {
     const r = f.rows;

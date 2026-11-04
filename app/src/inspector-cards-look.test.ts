@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -244,7 +245,7 @@ describe.skipIf(chrome === undefined)("the Contents cards", () => {
   beforeAll(async () => {
     facts.light = await collectFacts<Facts>(HARNESS, "cards-light", "light");
     facts.dark = await collectFacts<Facts>(HARNESS, "cards-dark", "dark");
-  }, 240000);
+  }, scaledTimeout(240000));
 
   for (const scheme of ["light", "dark"] as const) {
     const pin = PINNED[scheme];

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-tabs" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-top" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-narrow" style="width:200px;height:300px;display:flex;flex-direction:column"></div><div id="a-fit" style="width:340px;height:300px;display:flex;flex-direction:column"></div>`;
@@ -394,7 +395,7 @@ describe("the inspector, in a real browser", () => {
           });
         }
       },
-      120000,
+      scaledTimeout(120000),
     );
   }
 
@@ -421,7 +422,7 @@ describe("the inspector, in a real browser", () => {
       );
       expect(short.nameScroll).toBe(short.nameClient);
     },
-    180000,
+    scaledTimeout(180000),
   );
 
   it.skipIf(chrome === undefined)(
@@ -451,7 +452,7 @@ describe("the inspector, in a real browser", () => {
         tabsRow.fit.clientWidth,
       );
     },
-    180000,
+    scaledTimeout(180000),
   );
 
   it.skipIf(chrome === undefined)(
@@ -476,7 +477,7 @@ describe("the inspector, in a real browser", () => {
       expect(shapes.folder.muted).toBe("1 files · deep/");
       expect(shapes.top.muted).toBe("3 files");
     },
-    180000,
+    scaledTimeout(180000),
   );
 
   it.skipIf(chrome === undefined)(
@@ -487,7 +488,7 @@ describe("the inspector, in a real browser", () => {
       expect(report.links).toBe(0);
       expect(report.linkText).toBe(0);
     },
-    180000,
+    scaledTimeout(180000),
   );
 
   it.skipIf(chrome === undefined)(
@@ -515,7 +516,7 @@ describe("the inspector, in a real browser", () => {
       expect(func?.rows).toBe(1);
       expect(func?.text).toEqual(["1", "-"]);
     },
-    180000,
+    scaledTimeout(180000),
   );
 
   it.skipIf(chrome === undefined)(
@@ -528,6 +529,6 @@ describe("the inspector, in a real browser", () => {
       expect(structure.railSvgs).toBe(1);
       expect(structure.railPath).toContain("M15 4v16");
     },
-    180000,
+    scaledTimeout(180000),
   );
 });

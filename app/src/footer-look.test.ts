@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -82,7 +83,7 @@ describe.skipIf(chrome === undefined)("the footer's scan line", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "footer-look");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("shows the metrics line while a metric is ticked and clears it when none is", () => {
     expect(f.metricsOff.hidden).toBe(true);

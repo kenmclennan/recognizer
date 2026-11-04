@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -301,7 +302,7 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "findings-panel");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("shows the header line and collapsed groups in the fixed order with counts and dots", () => {
     expect(f.panel.order).toEqual([

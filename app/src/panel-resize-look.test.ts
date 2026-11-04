@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HOSTS = `<div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="first"></div></div><div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="second"></div></div>`;
@@ -104,6 +105,6 @@ describe("resizing the side panels in a real browser", () => {
       expect(report.reopened).toEqual({ tree: 480, inspector: 370 });
       expect(report.realStorage).toEqual({ tree: 222, inspector: 333 });
     },
-    180000,
+    scaledTimeout(180000),
   );
 });

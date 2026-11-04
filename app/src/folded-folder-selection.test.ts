@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -92,7 +93,7 @@ describe.skipIf(chrome === undefined)("a folded folder's box", () => {
 
   beforeAll(async () => {
     f = await collect();
-  }, 120000);
+  }, scaledTimeout(120000));
 
   it("selects the folder, not a module", () => {
     expect(f.foldedKind).toBe("folder");

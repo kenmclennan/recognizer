@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { BOX_HEIGHT, FOLDER_BOX_HEIGHT, FRAME_TOP } from "./canvas-layout";
 import { HIDE_SCROLLBARS } from "./look-page";
 
@@ -555,7 +556,7 @@ describe("the canvas, in a real browser", () => {
           expect(r().window.body["background-color"]).toBe(r().tokens.bg);
           expect(r().window.body.color).toBe(r().tokens.fg);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -586,7 +587,7 @@ describe("the canvas, in a real browser", () => {
           expect(edges.countText).toBe("2");
           expect(edges.countLabels).toBe(1);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -599,7 +600,7 @@ describe("the canvas, in a real browser", () => {
           expect(c.treeToggle).toBe(false);
           expect(c.panelIcon).toBe(false);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -637,7 +638,7 @@ describe("the canvas, in a real browser", () => {
           });
           expect(frames.labelHover).toEqual(frames.label);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -684,7 +685,7 @@ describe("the canvas, in a real browser", () => {
           expect(folder.body["stroke-opacity"]).toBe("0.5");
           expect(folder.texts[1]?.[1]).toBe("10px");
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -782,7 +783,7 @@ describe("the canvas, in a real browser", () => {
             ["Unfold (Z)", "Unfold (Z)"],
           ]);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -794,7 +795,7 @@ describe("the canvas, in a real browser", () => {
           expect(barZero.text).toBe("0");
           expect(barZero.calls).toEqual([]);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -818,7 +819,7 @@ describe("the canvas, in a real browser", () => {
           expect(hover.rightClicked[2]).toBeCloseTo(hover.rightClicked[3], 0);
           expect(hover.rightClickedThenLeft).toBe(true);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -833,7 +834,7 @@ describe("the canvas, in a real browser", () => {
             expect(text).toMatch(/^(\d+(\/\d+)?)?$/);
           }
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -851,7 +852,7 @@ describe("the canvas, in a real browser", () => {
           expect(hint.style.color).toBe(r().tokens.muted);
           expect(hint.style["line-height"]).toBe("20.8px");
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -908,7 +909,7 @@ describe("the canvas, in a real browser", () => {
           expect(zoom.afterIn[2]).toBe(false);
           expect(zoom.clear).toEqual(["clear"]);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -922,7 +923,7 @@ describe("the canvas, in a real browser", () => {
           expect(dimming.relatedFrame?.opacity).toBe("1");
           expect(dimming.nothingSelected?.opacity).toBe("1");
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -935,7 +936,7 @@ describe("the canvas, in a real browser", () => {
           expect(afterPan.offset.dx).toBeCloseTo(beforePan.offset.dx, 1);
           expect(afterPan.offset.dy).toBeCloseTo(beforePan.offset.dy, 1);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -949,7 +950,7 @@ describe("the canvas, in a real browser", () => {
             Math.abs(afterZoom.offset.dy - beforePan.offset.dy),
           ).toBeLessThan(3);
         },
-        120000,
+        scaledTimeout(120000),
       );
 
       it.skipIf(chrome === undefined)(
@@ -960,7 +961,7 @@ describe("the canvas, in a real browser", () => {
           expect(rightAfter.x - rightBefore.x).toBeCloseTo(-70, 1);
           expect(rightAfter.y - rightBefore.y).toBeCloseTo(45, 1);
         },
-        120000,
+        scaledTimeout(120000),
       );
     });
   }
