@@ -865,7 +865,12 @@ describe("findings", () => {
     expect(grey).toEqual([{ kind: "note", text: "Not measured" }]);
   });
 
-  it("groups a folder's findings by file path relative to the folder", () => {
+  it("groups a folder's findings by kind across its modules, not per module", () => {
+    const rowFor = (id: string): FindingRow => ({
+      ...violationRow,
+      id: `v-${id}`,
+      module: id,
+    });
     const findings = (id: string) =>
       id === "d/sub/b.py" || id === "d/a.py" ? [violation] : [];
     const content = inspectorContent(
@@ -873,20 +878,35 @@ describe("findings", () => {
       inputsFor([scan], {
         tab: "findings",
         findings,
-        findingRows: (id) => (findings(id).length > 0 ? [violationRow] : []),
+        findingRows: (id) => (findings(id).length > 0 ? [rowFor(id)] : []),
       }),
     );
 
-    expect(content.rows.map((row) => row.kind)).toEqual([
-      "group",
-      "finding",
-      "group",
-      "finding",
-    ]);
+    expect(content.rows).toHaveLength(1);
+    expect(content.rows[0]).toMatchObject({
+      kind: "finding-group",
+      key: "findings:kind:rule",
+      open: false,
+    });
     expect(
-      content.rows.filter((row) => row.kind === "group").map((row) => row.path),
-    ).toEqual(["a.py", "sub/b.py"]);
+      (content.rows[0] as { group: { rows: FindingRow[] } }).group.rows.map(
+        (row) => row.module,
+      ),
+    ).toEqual(["d/a.py", "d/sub/b.py"]);
     expect(content.tabs?.[2]?.label).toBe("Findings 2");
+  });
+
+  it("lists a finding once in a folder though several of its modules report it", () => {
+    const content = inspectorContent(
+      folder("d"),
+      inputsFor([scan], {
+        tab: "findings",
+        findingRows: (id) => (id.startsWith("d/") ? [violationRow] : []),
+      }),
+    );
+    const group = content.rows[0] as { group: { rows: FindingRow[] } };
+
+    expect(group.group.rows).toHaveLength(1);
   });
 
   it("notes unmeasured modules in a folder with no findings and after groups", () => {
