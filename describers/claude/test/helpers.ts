@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -92,3 +92,68 @@ export const REQUEST = {
   uses: [{ id: "shop/domain/money.py", names: ["Money"] }],
   used_by: [{ id: "shop/application/place.py", names: ["Order"] }],
 };
+
+export interface Interrupted {
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  childPid: number;
+}
+
+export async function interrupt(
+  box: Sandbox,
+  signal: NodeJS.Signals,
+  waitMs: number,
+): Promise<Interrupted> {
+  const request = writeRequest(box, REQUEST);
+  const describer = spawn(process.execPath, [BIN, "--model", "opus", request], {
+    cwd: box.directory,
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      PATH: [box.bin, dirname(process.execPath)].join(delimiter),
+      FAKE_CLAUDE_RECORD: box.record,
+      FAKE_CLAUDE_MODE: "sleep",
+    },
+  });
+  const exited = new Promise<[number | null, NodeJS.Signals | null]>((done) =>
+    describer.on("close", (status, by) => done([status, by])),
+  );
+  const pidFile = `${box.record}.pid`;
+  const deadline = Date.now() + waitMs;
+
+  while (!existsSync(pidFile) || readFileSync(pidFile, "utf8") === "") {
+    if (Date.now() > deadline) {
+      describer.kill("SIGKILL");
+      throw new Error("the stand-in claude never started");
+    }
+
+    await new Promise((done) => setTimeout(done, 20));
+  }
+
+  const childPid = Number(readFileSync(pidFile, "utf8"));
+
+  describer.kill(signal);
+
+  const [status, by] = await exited;
+
+  while (alive(childPid)) {
+    if (Date.now() > deadline) {
+      process.kill(childPid, "SIGKILL");
+      throw new Error("the stand-in claude outlived the describer");
+    }
+
+    await new Promise((done) => setTimeout(done, 20));
+  }
+
+  return { status, signal: by, childPid };
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+
+    return true;
+  } catch {
+    return false;
+  }
+}

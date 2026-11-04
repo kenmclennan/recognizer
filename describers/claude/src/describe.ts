@@ -7,7 +7,7 @@ export interface DescribeRequest {
   used_by: unknown[];
 }
 
-export type RunClaude = (input: string) => string;
+export type RunClaude = (input: string) => Promise<string>;
 
 export class DescribeError extends Error {}
 
@@ -71,12 +71,12 @@ export function buildInput(request: DescribeRequest, prompt: string): string {
   ].join("\n");
 }
 
-export function describeModule(
+export async function describeModule(
   request: DescribeRequest,
   prompt: string,
   runClaude: RunClaude,
-): string {
-  const line = runClaude(buildInput(request, prompt)).trim();
+): Promise<string> {
+  const line = (await runClaude(buildInput(request, prompt))).trim();
 
   if (line === "") {
     throw new DescribeError("claude returned an empty reply");
