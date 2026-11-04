@@ -34,14 +34,14 @@ def resolve_commit(root: Path) -> str | None:
     return sha if result.returncode == 0 and sha else None
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="recognizer-sensors")
     parser.add_argument("name")
     parser.add_argument("--repository", type=Path, default=Path("."))
     parser.add_argument("--commit")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--settings", default="{}")
-    parser.add_argument("--version", action="version", version=version("recognizer-sensors"))
+    parser.add_argument("--version", action="version", version=package_version)
 
     return parser
 
@@ -76,7 +76,8 @@ def is_dirty(root: Path) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    package_version = version("recognizer-sensors")
+    args = build_parser(package_version).parse_args(argv)
     sensor = SHIPPED.get(args.name)
 
     if sensor is None:
@@ -118,8 +119,6 @@ def main(argv: list[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
 
         return 2
-
-    package_version = version("recognizer-sensors")
 
     for path, document in outcome.documents:
         path.parent.mkdir(parents=True, exist_ok=True)
