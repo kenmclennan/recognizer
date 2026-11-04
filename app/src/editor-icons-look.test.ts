@@ -43,7 +43,7 @@ const inputs = {
   scans: [scan], modules: scan.modules.map((m) => m.id), compaction: compactFolders(scan.modules.map((m) => m.id)), disc: () => "green", findings: () => [], onCanvas: () => true,
   expanded: new Set(), tab: "contents", counts: () => ({ uses: 0, usedBy: 0 }), noteRows: () => [], canAddNote: false, filter: "", responsibility: () => ({ state: { kind: "missing" }, failure: null }),
 };
-const inspectorActions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor: (target) => calls.push("inspector:" + target.kind + ":" + target.id) };
+const inspectorActions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, setFilter() {}, openInEditor: (target) => calls.push("inspector:" + target.kind + ":" + target.id) };
 const inspect = (selection) => {
   const view = buildInspectorView(inspectorActions);
   const host = document.createElement("div");

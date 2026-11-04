@@ -46,7 +46,7 @@ const inputs = {
     { key: "t/coverage", label: "coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },
   ],
 };
-const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {} };
+const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {} };
 const mount = (id, selection, open) => {
   const view = buildInspectorView(actions);
   view.render(inspectorContent(selection, inputs), open);

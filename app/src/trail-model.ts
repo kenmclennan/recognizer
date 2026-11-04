@@ -17,7 +17,6 @@ export type TrailPanel = {
   tab: InspectorTab;
   filter: string;
   folds: ReadonlySet<string>;
-  groupFlips: ReadonlySet<string>;
   focusedRow: string | null;
 };
 
@@ -71,7 +70,6 @@ function freshPanel(
     tab,
     filter: "",
     folds: new Set(),
-    groupFlips: new Set(),
     focusedRow: null,
   };
 }

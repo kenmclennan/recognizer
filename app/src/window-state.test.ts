@@ -12,7 +12,6 @@ const panel = (
   tab,
   filter: "",
   folds: new Set<string>(),
-  groupFlips: new Set<string>(),
   focusedRow: null,
 });
 

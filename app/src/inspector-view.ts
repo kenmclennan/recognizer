@@ -36,7 +36,6 @@ export type InspectorActions = {
   putOnCanvas: (ids: string[]) => void;
   takeOff: (ids: string[]) => void;
   pickName: (id: string) => void;
-  toggleGroup: (key: string) => void;
   setFilter: (text: string) => void;
   openInEditor: (target: { kind: "module" | "folder"; id: string }) => void;
   setShowPrivate: (on: boolean) => void;
@@ -250,7 +249,6 @@ function rowNode(
 
   if (row.kind === "module") {
     const chevron = row.chevron;
-    const toggle = chevron ? () => actions.toggleGroup(chevron.key) : null;
     const node = buildRow({
       label: row.label,
       state: row.state,
@@ -262,9 +260,7 @@ function rowNode(
         nextCheck(row.state) === "takeOff"
           ? actions.takeOff(row.ids)
           : actions.putOnCanvas(row.ids),
-      onName:
-        toggle ?? (row.folder ? () => {} : () => actions.pickName(row.id)),
-      onChevron: toggle ?? undefined,
+      onName: row.folder ? () => {} : () => actions.pickName(row.id),
     });
 
     node.classList.add(row.folder ? "folder" : "file");
