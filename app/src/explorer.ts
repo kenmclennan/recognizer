@@ -324,7 +324,6 @@ export function showExplorer(
   let layoutNotice: string | null = null;
   let layoutBusy = false;
   let pickerFilter = "";
-  const groupFlips = new Set<string>();
   let openView: string | null = null;
   let viewList: { name: string; text: string }[] = [];
   let viewNotice: string | null = null;
@@ -624,13 +623,6 @@ export function showExplorer(
     focusedFinding: () => orientedFinding,
     addToView,
     moduleAbsent: (module) => !boxPresent(module),
-    toggleGroup(key) {
-      if (!groupFlips.delete(key)) {
-        groupFlips.add(key);
-      }
-
-      render();
-    },
     setFilter(text) {
       pickerFilter = text;
       render();
@@ -670,10 +662,7 @@ export function showExplorer(
         render();
       },
       setTab(tab) {
-        const reset =
-          tab !== panel().tab
-            ? { filter: "", groupFlips: new Set<string>() }
-            : {};
+        const reset = tab !== panel().tab ? { filter: "" } : {};
 
         trail = updatePanel(trail, index, { tab, ...reset });
         render();
@@ -681,12 +670,6 @@ export function showExplorer(
       toggleFold(key) {
         trail = updatePanel(trail, index, {
           folds: toggled(panel().folds, key),
-        });
-        render();
-      },
-      toggleGroup(key) {
-        trail = updatePanel(trail, index, {
-          groupFlips: toggled(panel().groupFlips, key),
         });
         render();
       },
@@ -1033,7 +1016,6 @@ export function showExplorer(
 
   function resetFilter() {
     pickerFilter = "";
-    groupFlips.clear();
   }
 
   function resetList() {

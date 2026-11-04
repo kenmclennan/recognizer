@@ -29,7 +29,7 @@ const inputs = {
   expanded: new Set(), showPrivate: true, tab: "dependencies", counts: () => ({ uses: 2, usedBy: 0 }), filter: "", followed: null, metrics: [],
   responsibility: (id) => ({ state: lineOf(id), failure: null }),
 };
-const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {}, follow() {}, focusedFinding: () => null, moduleAbsent: () => false };
+const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {}, follow() {}, focusedFinding: () => null, moduleAbsent: () => false };
 
 const enter = (node) => node.dispatchEvent(new MouseEvent("mouseenter"));
 const leave = (node) => node.dispatchEvent(new MouseEvent("mouseleave"));
