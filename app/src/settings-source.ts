@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type Settings = {
   editor: string;
-  scanning: { describe: boolean; sensors: boolean };
 };
 
 export const settingsSource = {

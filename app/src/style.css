@@ -1769,33 +1769,6 @@ svg.i.chevron {
   font-weight: 400;
 }
 
-.settings .scanning {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.settings .scanning legend {
-  padding: 0;
-  margin-bottom: 4px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.settings label.switch {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  font-weight: 400;
-}
-
-.settings label.switch input {
-  padding: 0;
-}
-
 .settings .hint {
   margin: 0 0 8px;
   font-size: 12px;
