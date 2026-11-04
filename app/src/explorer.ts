@@ -2998,6 +2998,7 @@ export function showExplorer(
       trail: outlined,
       bar: barOf(selection),
       titles,
+      describe: (id) => descriptionOf(responsibilityOf(id)),
       open: modules.count(),
       total: modules.total(),
       showInferred: state.showInferred(),

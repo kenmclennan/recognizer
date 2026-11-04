@@ -2634,6 +2634,26 @@ svg.i.chevron {
   pointer-events: auto;
 }
 
+.box-description {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+  color: var(--fg);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.box-description.shown {
+  opacity: 1;
+}
+
 .note-bubble::before,
 .note-bubble::after {
   position: absolute;
