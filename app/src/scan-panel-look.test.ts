@@ -183,8 +183,13 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(s.q(".scan-run"));
   await tick();
   facts.stopWhileRunning = { count: s.all(".scan-buttons .scan-stop").length, buttons: s.panel().buttons, order: s.all(".scan-buttons button").map((b) => b.className.split(" ")[0]) };
+  const tickedBefore = s.rows().map((r) => r.ticked);
+  s.all(".scan-row-label").forEach((label) => click(label));
+  await tick();
+  facts.ticksWhileRunning = { disabled: s.rows().map((r) => r.disabled), unchanged: s.rows().map((r) => r.ticked).join() === tickedBefore.join(), stopEnabled: s.q(".scan-stop").disabled === false };
   click(s.q(".scan-stop"));
   await tick(); await tick();
+  facts.ticksAfterStop = s.rows().map((r) => r.disabled);
   facts.stop = { footer: s.footerText(), footerButtons: s.footerButtons(), stopAfter: s.all(".scan-stop").length, button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
 
   const changed = await mount(fakeScan());
@@ -434,7 +439,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.run.after.buttons).toEqual([
       { text: "Run", disabled: false, spinner: 0 },
     ]);
-    expect(f.run.first.rows.every((r: Facts) => !r.disabled)).toBe(true);
+    expect(f.run.first.rows.every((r: Facts) => r.disabled)).toBe(true);
   });
 
   it("moves running to the started sensor and leaves finished rows with their results", () => {
@@ -481,6 +486,15 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.stop.stopAfter).toBe(0);
     expect(f.stop.button).toBe("Run");
     expect(f.stop.disabled).toBe(false);
+  });
+
+  it("disables every row's checkbox while a run is in progress, ignores a label click, and re-enables them on Stop", () => {
+    expect(f.ticksWhileRunning.disabled.length).toBeGreaterThan(0);
+    expect(f.ticksWhileRunning.disabled.every(Boolean)).toBe(true);
+    expect(f.ticksWhileRunning.unchanged).toBe(true);
+    expect(f.ticksWhileRunning.stopEnabled).toBe(true);
+    expect(f.ticksAfterStop.length).toBeGreaterThan(0);
+    expect(f.ticksAfterStop.some(Boolean)).toBe(false);
   });
 
   it("leaves a failed sensor at failed with its age in amber and posts exactly one tray message", () => {

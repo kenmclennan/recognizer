@@ -64,6 +64,7 @@ export type ScanRow = {
   name: string;
   tickable: true;
   ticked: boolean;
+  disabled: boolean;
   state: { text: string; tone: StateTone };
   title: string;
 };
@@ -352,6 +353,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       name: "Descriptions",
       tickable: true,
       ticked: input.ticks.describe,
+      disabled: input.scanning,
       state: describeState(input),
       title: DESCRIBE_TITLE,
     },
@@ -359,6 +361,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       key: one.name,
       name: one.display,
       tickable: true as const,
+      disabled: input.scanning,
       ticked: one.runsTests
         ? input.ticks.once.includes(one.name)
         : (input.ticks.ticked ?? plain).includes(one.name),
