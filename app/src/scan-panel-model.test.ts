@@ -62,6 +62,10 @@ const CURRENT: Record<string, ResponsibilityState> = {
   "c.py": { kind: "missing" },
 };
 
+function allCurrent(modules: string[]): PanelInput["lines"] {
+  return { modules, of: () => ({ kind: "current", line: "x" }) };
+}
+
 function input(over: Partial<PanelInput> = {}): PanelInput {
   return {
     scan: SCAN,
@@ -159,9 +163,9 @@ describe("scanPanel header", () => {
     });
   });
 
-  it("reads Scanned with an age and no sha", () => {
+  it("reads Ran with an age and no sha", () => {
     expect(scanPanel(input()).header).toEqual({
-      text: "Scanned 27 minutes ago",
+      text: "Ran 27 minutes ago",
       changed: null,
     });
   });
@@ -185,15 +189,26 @@ describe("scanPanel header", () => {
     expect(moved.header.changed).toBe("files changed since");
   });
 
-  it("reads Scanning… while a scan runs", () => {
+  it("reads Scanning… while a scan runs with no progress text", () => {
     expect(scanPanel(input({ scanning: true })).header.text).toBe("Scanning…");
+  });
+
+  it("shows the progress text while a scan runs", () => {
+    expect(
+      scanPanel(
+        input({
+          scanning: true,
+          progressText: "Running C.R.A.P.\u2026 2 of 3",
+        }),
+      ).header.text,
+    ).toBe("Running C.R.A.P.\u2026 2 of 3");
   });
 });
 
 describe("scanPanel row states", () => {
   it("reads not yet run on a fresh repository", () => {
     expect(states(scanPanel(fresh))).toEqual([
-      "Descriptions: not yet run",
+      "Descriptions: 1 to describe",
       "C.R.A.P.: not yet run",
       "Duplication: not yet run",
       "Mutation: not yet run",
@@ -206,7 +221,12 @@ describe("scanPanel row states", () => {
   });
 
   it("counts current lines and the age from the responsibilities file", () => {
-    const model = scanPanel(input({ describedAt: NOW - 2 * 24 * 60 * MINUTE }));
+    const model = scanPanel(
+      input({
+        describedAt: NOW - 2 * 24 * 60 * MINUTE,
+        lines: allCurrent(["a.py", "b.py"]),
+      }),
+    );
 
     expect(model.rows[0]?.state).toEqual({
       text: "2 modules described, 2 days ago",
@@ -217,14 +237,54 @@ describe("scanPanel row states", () => {
   it("says 1 module described and drops the age when none is known", () => {
     const model = scanPanel(
       input({
-        lines: {
-          modules: ["a.py", "c.py"],
-          of: (id) => CURRENT[id] as ResponsibilityState,
-        },
+        lines: allCurrent(["a.py"]),
       }),
     );
 
     expect(model.rows[0]?.state.text).toBe("1 module described");
+  });
+
+  it("counts every missing or out-of-date module as to describe", () => {
+    const modules = Array.from({ length: 40 }, (_, at) => `m${at}.py`);
+    const model = scanPanel(
+      input({
+        lines: {
+          modules,
+          of: (id) =>
+            id === "m0.py"
+              ? { kind: "out-of-date", line: "x", reasons: ["source"] }
+              : { kind: "missing" },
+        },
+      }),
+    );
+
+    expect(model.rows[0]?.state).toEqual({
+      text: "40 to describe",
+      tone: "muted",
+    });
+  });
+
+  it("keeps the last-run text when no module is stale", () => {
+    const model = scanPanel(
+      input({
+        describedAt: NOW - MINUTE,
+        lines: allCurrent(["a.py", "b.py"]),
+      }),
+    );
+
+    expect(model.rows[0]?.state.text).toBe("2 modules described, 1 minute ago");
+  });
+
+  it("reads the finished of total count for Descriptions while it runs", () => {
+    const model = scanPanel(
+      input({
+        scanning: true,
+        run: run({ running: ["describe"], started: "describe" }),
+        describeProgress: { entries: 12, total: 40 },
+      }),
+    );
+
+    expect(model.rows[0]?.state).toEqual({ text: "12 of 40", tone: "run" });
   });
 
   it("counts findings with the age from the findings file and says 1 finding", () => {
@@ -348,14 +408,14 @@ describe("scanPanel row states", () => {
     );
   });
 
-  it("shows the Scan button, and a disabled Scanning one during a scan", () => {
+  it("shows the Run button, and a disabled Running one during a scan", () => {
     expect(scanPanel(input()).button).toEqual({
       scanning: false,
-      label: "Scan",
+      label: "Run",
     });
     expect(scanPanel(input({ scanning: true })).button).toEqual({
       scanning: true,
-      label: "Scanning",
+      label: "Running",
     });
   });
 });

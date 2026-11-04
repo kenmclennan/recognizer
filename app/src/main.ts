@@ -65,6 +65,14 @@ const scanHost: ScanHost = {
   setTicks: (next) => rescanner.setTicks(next),
   runState: () => rescanner.runState(),
   running: () => rescanner.running(),
+  progressText: () => runningLine,
+  describeProgress: () => {
+    const describe = rescanner.progress().describe;
+
+    return describe === null
+      ? null
+      : { entries: describe.entries.length, total: describe.total };
+  },
   run: () => void rescanner.run(),
   stop: () => void rescanner.stop(),
   refresh: () => void rescanner.refresh(),

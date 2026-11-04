@@ -197,6 +197,8 @@ export type ScanHost = {
   setTicks: (next: ScanTicks) => void;
   runState: () => RunState;
   running: () => boolean;
+  progressText: () => string | null;
+  describeProgress: () => { entries: number; total: number } | null;
   run: () => void;
   stop: () => void;
   refresh: () => void;
@@ -209,6 +211,8 @@ export const inertScanHost: ScanHost = {
   setTicks: () => {},
   runState: () => NO_RUN,
   running: () => false,
+  progressText: () => null,
+  describeProgress: () => null,
   run: () => {},
   stop: () => {},
   refresh: () => {},
@@ -1616,6 +1620,8 @@ export function showExplorer(
       ticks: scanHost.ticks(),
       run: scanHost.runState(),
       scanning: scanHost.running(),
+      progressText: scanHost.progressText(),
+      describeProgress: scanHost.describeProgress(),
       now: Date.now(),
       shipped: shippedSensors,
     });

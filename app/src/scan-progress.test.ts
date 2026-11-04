@@ -92,15 +92,21 @@ describe("scanningText", () => {
   const led = [{ key: "describe", display: "Descriptions" }, ...rows];
   const midRun = fold([extractCurrent, phase("sense", 2)]);
 
-  it("names the running row and its place in the plan", () => {
+  it("names the running sensor and its place among the sensors", () => {
     expect(scanningText(rows, "crap", midRun)).toBe(
-      "Scanning\u2026 C.R.A.P., 1 of 2",
+      "Running C.R.A.P.\u2026 1 of 2",
     );
   });
 
-  it("reaches the last row", () => {
+  it("reaches the last sensor", () => {
     expect(scanningText(rows, "duplication", midRun)).toBe(
-      "Scanning\u2026 Duplication, 2 of 2",
+      "Running Duplication\u2026 2 of 2",
+    );
+  });
+
+  it("leaves the describe row out of the sensor count", () => {
+    expect(scanningText(led, "duplication", midRun)).toBe(
+      "Running Duplication\u2026 2 of 2",
     );
   });
 
@@ -108,10 +114,28 @@ describe("scanningText", () => {
     expect(scanningText(rows, null, NO_PROGRESS)).toBe("Scanning\u2026");
   });
 
-  it("counts the describe row first", () => {
-    expect(scanningText(led, "describe", NO_PROGRESS)).toBe(
-      "Scanning\u2026 Descriptions, 1 of 3",
+  it("counts modules at zero right after the describe phase line", () => {
+    expect(
+      scanningText(
+        led,
+        "describe",
+        fold([extractCurrent, phase("describe", 40)]),
+      ),
+    ).toBe("Describing\u2026 0 of 40 modules");
+  });
+
+  it("counts finished modules as entries arrive", () => {
+    const entries = Array.from({ length: 12 }, (_, at) =>
+      entry(`m${at}`, "describe"),
     );
+
+    expect(
+      scanningText(
+        led,
+        "describe",
+        fold([extractCurrent, phase("describe", 40), ...entries]),
+      ),
+    ).toBe("Describing\u2026 12 of 40 modules");
   });
 
   it("is null once the scan is done or stopped", () => {
