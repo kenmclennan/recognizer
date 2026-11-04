@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -219,7 +220,7 @@ describe.skipIf(chrome === undefined)("the view heading", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "view-heading", "light", "app");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("draws no heading on an empty canvas", () => {
     expect(f.emptyCanvas).toBe(true);

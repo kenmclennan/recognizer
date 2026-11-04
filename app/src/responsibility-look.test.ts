@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -158,7 +159,7 @@ describe.skipIf(chrome === undefined)("the responsibility row", () => {
 
   beforeAll(async () => {
     facts = await collectFacts<Facts>(HARNESS, "responsibility");
-  }, 240000);
+  }, scaledTimeout(240000));
 
   it("shows a current line alone under the name and above the tabs", () => {
     expect(facts.current.kind).toBe("current");

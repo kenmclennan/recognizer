@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -244,7 +245,7 @@ describe.skipIf(chrome === undefined)("change views in a real browser", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "change-views-look");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("drops down five views with no chip and offers All views only past five", () => {
     expect(f.five).toEqual({ items: 5, all: 0, chips: 0 });

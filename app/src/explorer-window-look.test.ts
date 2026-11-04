@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -123,7 +124,7 @@ describe.skipIf(chrome === undefined)("the window's published state", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "window");
-  }, 120000);
+  }, scaledTimeout(120000));
 
   it("selecting an edge with the inspector closed leaves it closed", () => {
     expect(f.closedBeforeEdge.inspector.open).toBe(false);

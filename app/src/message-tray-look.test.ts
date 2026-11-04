@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -108,7 +109,7 @@ describe.skipIf(chrome === undefined)(
 
     beforeAll(async () => {
       f = await collectFacts<Facts>(HARNESS, "message-tray-look");
-    }, 180000);
+    }, scaledTimeout(180000));
 
     it("keeps identity, count, scan line, gap and bell in order and no notice spans", () => {
       expect(f.children).toEqual([

@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import type { ElkNode } from "elkjs/lib/elk-api";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { lightcycleShapedGraph } from "./lightcycle-shaped-graph";
 
 const CHROME_CANDIDATES = [
@@ -167,7 +168,7 @@ async function answerInChrome(graph: ElkNode): Promise<string> {
         { stdio: "ignore", detached: true },
       );
       const silence = new Promise<string>((resolve) =>
-        setTimeout(() => resolve("TIMEOUT"), 150000),
+        setTimeout(() => resolve("TIMEOUT"), scaledTimeout(150000)),
       );
 
       try {
@@ -195,7 +196,7 @@ describe("built layout worker in a real browser", () => {
     async () => {
       expect(await answerInChrome(SMALL_GRAPH as ElkNode)).toBe("ANSWERED 2");
     },
-    120000,
+    scaledTimeout(120000),
   );
 
   it.skipIf(chrome === undefined)(
@@ -203,6 +204,6 @@ describe("built layout worker in a real browser", () => {
     async () => {
       expect(await answerInChrome(lightcycleShapedGraph())).toBe("ANSWERED 4");
     },
-    180000,
+    scaledTimeout(180000),
   );
 });

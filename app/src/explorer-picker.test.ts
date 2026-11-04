@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, here } from "./look-page";
 
 const HARNESS = `
@@ -225,7 +226,7 @@ describe.skipIf(chrome === undefined)("the picker as inspector tabs", () => {
 
   beforeAll(async () => {
     f = await collect();
-  }, 120000);
+  }, scaledTimeout(120000));
 
   it("opens Dependencies as the third inspector tab, lit on the bar with the total, and stays on a second press", () => {
     expect(f.tabs).toEqual(["Contents", "Dependencies 4", "Findings"]);

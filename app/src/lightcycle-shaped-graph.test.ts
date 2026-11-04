@@ -1,5 +1,6 @@
 import type { ElkNode } from "elkjs/lib/elk-api";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { layoutOnMainThread } from "./layout-source";
 import { lightcycleShapedGraph, SHAPE } from "./lightcycle-shaped-graph";
 
@@ -20,9 +21,13 @@ describe("a graph of lightcycle's shape", () => {
     expect(count(graph, "f:")).toBe(SHAPE.frames);
   });
 
-  it("lays out whole on the main thread", async () => {
-    const result = await layoutOnMainThread(lightcycleShapedGraph());
+  it(
+    "lays out whole on the main thread",
+    async () => {
+      const result = await layoutOnMainThread(lightcycleShapedGraph());
 
-    expect(count(result, "m")).toBe(SHAPE.boxes);
-  }, 60000);
+      expect(count(result, "m")).toBe(SHAPE.boxes);
+    },
+    scaledTimeout(60000),
+  );
 });

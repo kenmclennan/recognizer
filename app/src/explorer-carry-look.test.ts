@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -101,7 +102,7 @@ describe.skipIf(chrome === undefined)(
 
     beforeAll(async () => {
       f = await collectFacts<Facts>(HARNESS, "explorer-carry");
-    }, 180000);
+    }, scaledTimeout(180000));
 
     it("keeps the surviving modules on the canvas and says how many are gone", () => {
       expect(f.before).toBe("5 of 5 modules on the canvas");

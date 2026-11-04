@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
 
 const HARNESS = `
@@ -331,7 +332,7 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
 
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "scan-panel");
-  }, 180000);
+  }, scaledTimeout(180000));
 
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
     expect(f.fresh.order).toEqual([
