@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { promptVersion } from "../src/prompt.js";
@@ -13,6 +13,14 @@ const config = parse(
 ) as { describer: { command: string[]; version: string } };
 
 describe("the committed registration", () => {
+  beforeAll(() => {
+    if (!existsSync(join(REPO, "check/dist/bin.js"))) {
+      throw new Error(
+        "check/dist/bin.js is missing: run npm run build -w recognizer",
+      );
+    }
+  });
+
   it("validates against the config schema", () => {
     const schema = JSON.parse(
       readFileSync(join(REPO, "schema/config.schema.json"), "utf8"),
