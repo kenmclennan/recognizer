@@ -39,6 +39,7 @@ export interface FindingsDocument {
   settings: Record<string, unknown>;
   reported_at?: string;
   stopped?: { measured: number; total: number };
+  partial?: { measured: number; total: number };
   findings: FindingRecord[];
 }
 

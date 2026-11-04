@@ -755,6 +755,11 @@ def test_a_budgeted_run_skips_what_it_could_not_start_and_the_next_run_resumes(
         "0 of 3 functions reused, 2 mutated, 1 skipped (uncovered-by-budget)"
     )
 
+    budgeted = read(tmp_path / "findings-overlay.json")
+
+    assert budgeted["partial"] == {"measured": 2, "total": 3}
+    assert "stopped" not in budgeted
+
     overlay = read(output)
 
     for name in ("killed", "survived", "uncovered", "score"):
@@ -1208,6 +1213,7 @@ def test_a_stopped_run_keeps_the_function_it_finished_and_the_next_run_resumes(t
     overlay = read(root / OVERLAY)
 
     assert findings["stopped"] == {"measured": 1, "total": 3}
+    assert findings["partial"] == {"measured": 1, "total": 3}
     assert list(overlay["values"]["killed"]) == [ALPHA]
     assert list(read(root / SURVIVORS)["skipped"]) == [
         {"identity": BETA, "reason": "uncovered-by-budget"},
@@ -1220,6 +1226,7 @@ def test_a_stopped_run_keeps_the_function_it_finished_and_the_next_run_resumes(t
     assert sorted(read(root / RECORD)["functions"]) == [ALPHA, BETA, GAMMA]
     assert read(root / RECORD)["skipped"] == []
     assert "stopped" not in read(tmp_path / "findings-overlay.json")
+    assert "partial" not in read(tmp_path / "findings-overlay.json")
 
 
 def test_a_run_stopped_before_its_first_function_finishes_reports_nothing_measured(tmp_path):
@@ -1245,6 +1252,7 @@ def test_a_run_stopped_before_its_first_function_finishes_reports_nothing_measur
     findings = read(tmp_path / "findings.json")
 
     assert findings["stopped"] == {"measured": 0, "total": 3}
+    assert findings["partial"] == {"measured": 0, "total": 3}
     assert findings["findings"] == []
     assert read(root / RECORD)["functions"] == {}
     assert read(root / RECORD)["skipped"] == [ALPHA, BETA, GAMMA]
@@ -1318,6 +1326,7 @@ def test_a_completed_run_writes_no_stopped_key(tmp_path):
 
     assert run_mutate(root, output, mutate_settings("tests/strong.py")) == 0
     assert "stopped" not in read(tmp_path / "findings-overlay.json")
+    assert "partial" not in read(tmp_path / "findings-overlay.json")
 
 
 def record_after_each_function(tmp_path, monkeypatch, gaps):

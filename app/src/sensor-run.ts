@@ -20,7 +20,9 @@ export type SensorStatus = {
   findings?: number;
   modifiedMs?: number | null;
   reported?: { at: string; commit: string };
+  commit?: string;
   stopped?: { measured: number; total: number };
+  partial?: { measured: number; total: number };
 };
 
 export type FindingsFiles = {
@@ -29,7 +31,7 @@ export type FindingsFiles = {
 };
 
 export type OverlayFiles = {
-  files: { name: string; text: string }[];
+  files: { name: string; text: string; modifiedMs: number | null }[];
   refused: string[];
 };
 
@@ -47,6 +49,14 @@ export type ShippedSensor = {
   defaults: Record<string, number | boolean | string>;
   runsTests: boolean;
   listed: boolean;
+  metrics?: ShippedMetric[];
+};
+
+export type ShippedMetric = {
+  name: string;
+  type: "ratio" | "count" | "number" | "boolean";
+  granularity: "module" | "member";
+  bad: "high" | "low";
 };
 
 export type DescriberInEffect =
@@ -241,8 +251,12 @@ export async function senseRepository(
         status: document.commit === commit ? "ran" : "stale",
         findings: document.findings.length,
         modifiedMs: file.modifiedMs ?? null,
+        commit: document.commit,
         ...(document.stopped !== undefined
           ? { stopped: document.stopped }
+          : {}),
+        ...(document.partial !== undefined
+          ? { partial: document.partial }
           : {}),
         ...(document.reported_at !== undefined &&
         !registered.includes(file.name)

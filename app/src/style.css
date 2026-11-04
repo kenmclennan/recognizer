@@ -2730,9 +2730,31 @@ svg.i.chevron {
 }
 
 .canvas-metrics h4 {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
   margin: 8px 0 4px;
+  font-size: 12px;
+}
+
+.metric-group-age {
   font-size: 11px;
-  opacity: 0.7;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.metric-note {
+  margin: 0 0 4px;
+  font-size: 11px;
+}
+
+.metric-note.warn {
+  color: var(--warn);
+}
+
+.metric-note.muted {
+  color: var(--muted);
 }
 
 .canvas-metrics .metrics-empty {
@@ -2759,16 +2781,7 @@ svg.i.chevron {
   font-weight: 600;
 }
 
-.metric-chip {
-  padding: 0 6px;
-  font-size: 10px;
-  font-weight: 400;
-  border: 1px solid var(--faint);
-  border-radius: 8px;
-}
-
 .metric-description,
-.metric-granularity,
 .metric-detail {
   opacity: 0.7;
 }

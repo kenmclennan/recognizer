@@ -1,0 +1,49 @@
+{
+  "findings_version": 1,
+  "sensor": {
+    "name": "mutation",
+    "version": "0.1.0"
+  },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": {
+    "overlay": ".recognizer/cache/overlays/mutate.json",
+    "survivors": ".recognizer/cache/mutation/survivors.json"
+  },
+  "findings": [
+    {
+      "id": "mutation:app/rules.py::grade",
+      "kind": "mutation",
+      "severity": "warning",
+      "principle": "Tests must catch changes",
+      "fix_pattern": "strengthen-tests",
+      "summary": "grade in app/rules.py has 2 surviving mutations: line 2 >= to >, line 4 >= to >",
+      "evidence": {
+        "modules": [
+          "app/rules.py"
+        ],
+        "members": [
+          {
+            "module": "app/rules.py",
+            "name": "grade",
+            "file": "app/rules.py",
+            "lines": [
+              1,
+              6
+            ]
+          }
+        ],
+        "measures": {
+          "killed": 0,
+          "survived": 2,
+          "uncovered": 0,
+          "score": 0.0
+        }
+      }
+    }
+  ],
+  "partial": {
+    "measured": -1,
+    "total": 3
+  }
+}

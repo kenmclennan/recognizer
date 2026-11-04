@@ -133,6 +133,9 @@ def main(argv: list[str] | None = None) -> int:
         settings,
         outcome.findings,
         {"measured": outcome.measured, "total": outcome.total} if outcome.stopped else None,
+        {"measured": outcome.measured, "total": outcome.total}
+        if outcome.total > outcome.measured
+        else None,
     )
     text = render(document)
 

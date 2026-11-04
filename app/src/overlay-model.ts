@@ -1,6 +1,19 @@
 import { type Overlay, validateOverlay } from "recognizer";
+import { ageText } from "./footer-scan";
+import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
-export type OverlayFileInput = { name: string; text: string };
+export type OverlayFileInput = {
+  name: string;
+  text: string;
+  modifiedMs?: number | null;
+};
+
+export type OverlayContext = {
+  sensors: readonly SensorStatus[];
+  shipped: ShippedSensors | null;
+};
+
+export type GroupNote = { text: string; tone: "warn" | "muted" };
 
 export type MetricType = "ratio" | "count" | "number" | "boolean";
 export type MetricValue = number | boolean;
@@ -8,6 +21,7 @@ export type MetricValue = number | boolean;
 export type MetricDescriptor = {
   key: string;
   label: string;
+  title: string;
   description?: string;
   granularity: "module" | "member";
   type: MetricType;
@@ -20,7 +34,12 @@ export type MetricDescriptor = {
 
 export type OverlayGroup = {
   name: string;
-  heading: string;
+  title: string;
+  measuredAt: number | null;
+  verb: "measured" | "stopped";
+  notes: GroupNote[];
+  enabled: boolean;
+  tooltip: string;
   stale: boolean;
   metrics: MetricDescriptor[];
 };
@@ -33,24 +52,38 @@ export type OverlayModel = {
 
 export type ModuleValue = { value: MetricValue; member: string | null };
 
+export const TITLES: Record<string, string> = {
+  complexity: "Complexity",
+  coverage: "Coverage",
+  line_coverage: "Line coverage",
+  crap: "C.R.A.P.",
+  survived: "Survived mutants",
+  killed: "Killed mutants",
+  uncovered: "Uncovered mutants",
+  score: "Mutation score",
+};
+
 export const DESCRIPTIONS: Record<string, string> = {
-  complexity: "Cyclomatic complexity of a function",
-  coverage: "Share of a function's lines the tests ran",
+  complexity: "Cyclomatic complexity of each function",
+  coverage: "Share of each function's lines the tests ran",
   line_coverage: "Share of a module's lines the tests ran",
   crap: "Change risk: complexity weighted by missing coverage",
-  mutation_survived: "Mutations of a function the tests did not catch",
+  survived: "Changes to each function the tests did not catch",
+  killed: "Changes to each function the tests caught",
+  uncovered: "Changes to each function no test reaches",
+  score: "Share of tested changes the tests caught",
 };
 
 const SHORT = 7;
 
-function headingOf(name: string, overlay: Overlay, stale: boolean): string {
+function tooltipOf(overlay: Overlay, stale: boolean): string {
   const commit = overlay.commit.slice(0, SHORT);
   const producer = `${overlay.producer.name} ${overlay.producer.version}`;
   const freshness = stale
     ? `from ${commit}, not the scan's`
     : `at ${commit}${overlay.modified ? ", modified tree" : ""}`;
 
-  return `${name} - ${producer} - ${freshness}`;
+  return `${producer} - ${freshness}`;
 }
 
 function largest(values: Record<string, MetricValue>): number {
@@ -65,12 +98,58 @@ function largest(values: Record<string, MetricValue>): number {
   return max;
 }
 
+type MetricSpec = {
+  name: string;
+  type: MetricType;
+  granularity: "module" | "member";
+  bad: "high" | "low";
+};
+
+function describe(
+  group: string,
+  metric: MetricSpec,
+  stale: boolean,
+  values: Record<string, MetricValue>,
+): MetricDescriptor {
+  const description = DESCRIPTIONS[metric.name];
+
+  return {
+    key: `${group}/${metric.name}`,
+    label: metric.name,
+    title: TITLES[metric.name] ?? metric.name,
+    ...(description === undefined ? {} : { description }),
+    granularity: metric.granularity,
+    type: metric.type,
+    bad: metric.bad,
+    overlay: group,
+    stale,
+    max: largest(values),
+    values,
+  };
+}
+
+function plural(count: number): string {
+  return count.toLocaleString("en-US");
+}
+
+export function groupHeader(group: OverlayGroup, now: number): string {
+  return group.measuredAt === null
+    ? ""
+    : `${group.verb} ${ageText(group.measuredAt, now)}`;
+}
+
 export function buildOverlayModel(
   files: readonly OverlayFileInput[],
   scan: { commit: string | null },
+  context: OverlayContext = { sensors: [], shipped: null },
 ): OverlayModel {
-  const groups: OverlayGroup[] = [];
+  const built = new Map<string, OverlayGroup>();
   const unreadable: string[] = [];
+  const shipped =
+    context.shipped?.status === "ok" ? context.shipped.sensors : [];
+  const display = new Map(
+    shipped.map((sensor) => [sensor.name, sensor.display]),
+  );
   const sorted = [...files].sort((a, b) => compare(a.name, b.name));
 
   for (const file of sorted) {
@@ -90,35 +169,111 @@ export function buildOverlayModel(
       continue;
     }
 
+    const title = display.get(file.name) || file.name;
     const stale = scan.commit === null || overlay.commit !== scan.commit;
+    const found = context.sensors.find((status) => status.name === file.name);
+    const facts = found?.commit === overlay.commit ? found : undefined;
+    const stopped = facts?.stopped;
+    const nothing = stopped !== undefined && stopped.measured === 0;
+    const notes: GroupNote[] = [];
 
-    groups.push({
+    if (nothing) {
+      notes.push({
+        text: "Stopped before any function finished, so there is nothing to show.",
+        tone: "muted",
+      });
+    } else {
+      if (stale) {
+        notes.push({
+          text: `Out of date: measured before your latest commit. Run ${title} to refresh.`,
+          tone: "warn",
+        });
+      }
+
+      if (facts?.partial !== undefined) {
+        notes.push({
+          text: `Partial: ${plural(facts.partial.measured)} of ${plural(facts.partial.total)} functions measured. The rest are uncoloured.`,
+          tone: "warn",
+        });
+      }
+    }
+
+    built.set(file.name, {
       name: file.name,
-      heading: headingOf(file.name, overlay, stale),
+      title,
+      measuredAt: file.modifiedMs ?? null,
+      verb: stopped === undefined ? "measured" : "stopped",
+      notes,
+      enabled: !nothing,
+      tooltip: tooltipOf(overlay, stale),
       stale,
-      metrics: overlay.metrics.map((metric) => {
-        const values = overlay.values[metric.name] ?? {};
-        const description = DESCRIPTIONS[metric.name];
-
-        return {
-          key: `${file.name}/${metric.name}`,
-          label: metric.name,
-          ...(description === undefined ? {} : { description }),
-          granularity: metric.granularity,
-          type: metric.type,
-          bad: metric.bad,
-          overlay: file.name,
-          stale,
-          max: largest(values),
-          values,
-        };
-      }),
+      metrics: overlay.metrics.map((metric) =>
+        describe(file.name, metric, stale, overlay.values[metric.name] ?? {}),
+      ),
     });
   }
 
+  const groups: OverlayGroup[] = [];
+  const present = new Set(files.map((file) => file.name));
+
+  for (const sensor of shipped) {
+    if (sensor.metrics === undefined || sensor.metrics.length === 0) {
+      continue;
+    }
+
+    const have = built.get(sensor.name);
+
+    if (have !== undefined) {
+      groups.push(have);
+      built.delete(sensor.name);
+
+      continue;
+    }
+
+    if (present.has(sensor.name)) {
+      continue;
+    }
+
+    const status = context.sensors.find((entry) => entry.name === sensor.name);
+    const read = status !== undefined && status.status !== "not run";
+    const nothing = status?.stopped?.measured === 0;
+
+    if (read && !nothing) {
+      continue;
+    }
+
+    groups.push({
+      name: sensor.name,
+      title: sensor.display,
+      measuredAt: nothing ? (status?.modifiedMs ?? null) : null,
+      verb: nothing ? "stopped" : "measured",
+      notes: [
+        nothing
+          ? {
+              text: "Stopped before any function finished, so there is nothing to show.",
+              tone: "muted",
+            }
+          : {
+              text: `Not run yet. Run ${sensor.display} from the Scan panel.`,
+              tone: "muted",
+            },
+      ],
+      enabled: false,
+      tooltip: "",
+      stale: false,
+      metrics: sensor.metrics.map((metric) =>
+        describe(sensor.name, metric, false, {}),
+      ),
+    });
+  }
+
+  groups.push(...built.values());
+
   return {
     groups,
-    metrics: groups.flatMap((group) => group.metrics),
+    metrics: groups
+      .filter((group) => group.enabled)
+      .flatMap((group) => group.metrics),
     unreadable,
   };
 }
@@ -169,9 +324,7 @@ export function pruneTicks(
   ticks: readonly string[],
   metrics: readonly MetricDescriptor[],
 ): string[] {
-  const live = new Set(
-    metrics.filter((metric) => !metric.stale).map((metric) => metric.key),
-  );
+  const live = new Set(metrics.map((metric) => metric.key));
 
   return ticks.filter((key) => live.has(key));
 }
@@ -184,9 +337,7 @@ export function currentMetricNamed(
     return null;
   }
 
-  return (
-    metrics.find((metric) => !metric.stale && metric.label === name) ?? null
-  );
+  return metrics.find((metric) => metric.label === name) ?? null;
 }
 
 export function footerText(ticked: readonly MetricDescriptor[]): string | null {

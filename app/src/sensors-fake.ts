@@ -13,6 +13,7 @@ export type FakeSensors = SensorsPort & {
   inputs: SensorInputs;
   refused: string[];
   overlays: Map<string, string>;
+  modifiedOverlays: Map<string, number>;
   overlaysRefused: string[];
   removed: string[];
   written: (string | null)[];
@@ -41,6 +42,7 @@ export function fakeSensors(
     },
     refused: [],
     overlays: new Map(Object.entries(overlays)),
+    modifiedOverlays: new Map(),
     overlaysRefused: [],
     removed: [],
     written: [],
@@ -105,7 +107,11 @@ export function fakeSensors(
     },
     async readOverlays(): Promise<OverlayFiles> {
       return {
-        files: [...fake.overlays].map(([name, text]) => ({ name, text })),
+        files: [...fake.overlays].map(([name, text]) => ({
+          name,
+          text,
+          modifiedMs: fake.modifiedOverlays.get(name) ?? null,
+        })),
         refused: fake.overlaysRefused,
       };
     },

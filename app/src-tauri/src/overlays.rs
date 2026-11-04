@@ -4,6 +4,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::fs_safe::checked_relative;
+use crate::sensors::modified_ms;
 
 pub const OVERLAYS: &str = ".recognizer/cache/overlays";
 
@@ -11,6 +12,8 @@ pub const OVERLAYS: &str = ".recognizer/cache/overlays";
 pub struct OverlayFile {
     pub name: String,
     pub text: String,
+    #[serde(rename = "modifiedMs")]
+    pub modified_ms: Option<f64>,
 }
 
 #[derive(Debug, Default, PartialEq, Serialize)]
@@ -41,9 +44,17 @@ pub fn read_overlays(folder: &Path) -> OverlaysRead {
         let relative = format!("{OVERLAYS}/{name}.json");
 
         match checked_relative(folder, &relative).and_then(|path| {
-            fs::read_to_string(path).map_err(|error| format!("{relative}: {error}"))
+            let modified_ms = modified_ms(&path);
+
+            fs::read_to_string(path)
+                .map(|text| (text, modified_ms))
+                .map_err(|error| format!("{relative}: {error}"))
         }) {
-            Ok(text) => read.files.push(OverlayFile { name, text }),
+            Ok((text, modified_ms)) => read.files.push(OverlayFile {
+                name,
+                text,
+                modified_ms,
+            }),
             Err(_) => read.refused.push(name),
         }
     }
@@ -75,16 +86,19 @@ mod tests {
 
         let read = read_overlays(dir.path());
 
+        assert!(read.files.iter().all(|file| file.modified_ms.is_some()));
         assert_eq!(
             read.files,
             vec![
                 OverlayFile {
                     name: "coverage".into(),
-                    text: "two".into()
+                    text: "two".into(),
+                    modified_ms: read.files[0].modified_ms,
                 },
                 OverlayFile {
                     name: "crap".into(),
-                    text: "one".into()
+                    text: "one".into(),
+                    modified_ms: read.files[1].modified_ms,
                 },
             ]
         );
