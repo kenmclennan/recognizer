@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 import sys
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 import pytest
 from conftest import (
@@ -40,6 +40,28 @@ def test_a_produced_file_validates_against_the_findings_schema(sample, tmp_path)
     assert document["modified"] is False
     assert document["settings"] == {"threshold": 0.82, "min_lines": 4, "min_nodes": 20}
     assert len(document["findings"]) == 2
+
+
+def test_the_version_is_read_before_the_sensor_runs_so_a_vanished_package_cannot_lose_the_document(
+    sample, tmp_path, monkeypatch
+):
+    calls = []
+
+    def version_that_vanishes(name):
+        calls.append(name)
+
+        if len(calls) > 1:
+            raise PackageNotFoundError(name)
+
+        return "9.9.9"
+
+    monkeypatch.setattr("recognizer_sensors.cli.version", version_that_vanishes)
+    output = tmp_path / "out.json"
+
+    assert run_cli(sample, output) == 0
+
+    assert json.loads(output.read_text())["sensor"]["version"] == "9.9.9"
+    assert len(calls) == 1
 
 
 def test_settings_reach_the_sensor_and_are_recorded(sample, tmp_path):
