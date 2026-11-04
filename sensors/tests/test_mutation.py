@@ -1124,7 +1124,7 @@ def test_a_run_with_nothing_to_mutate_leaves_the_sigterm_handler_alone(tmp_path)
 STOP_AFTER_THE_FIRST_FUNCTION = """
 import os, runpy, signal, sys, time
 
-counter, test = sys.argv[1], sys.argv[2]
+counter, test, stop_at = sys.argv[1], sys.argv[2], int(sys.argv[3])
 here = os.getcwd()
 
 if "/work/" in here and "baseline" not in here:
@@ -1134,7 +1134,7 @@ if "/work/" in here and "baseline" not in here:
     with open(counter) as handle:
         count = len(handle.read().splitlines())
 
-    if count == 2:
+    if count == stop_at:
         os.killpg(os.getpgid(os.getppid()), signal.SIGTERM)
         time.sleep(60)
 
@@ -1157,6 +1157,7 @@ def test_a_stopped_run_keeps_the_function_it_finished_and_the_next_run_resumes(t
                 str(script),
                 str(tmp_path / "counter.txt"),
                 "strong.py",
+                "2",
             ],
             "coverage": COVERAGE,
             "max_workers": 1,
@@ -1188,6 +1189,96 @@ def test_a_stopped_run_keeps_the_function_it_finished_and_the_next_run_resumes(t
     assert sorted(read(root / RECORD)["functions"]) == [ALPHA, BETA, GAMMA]
     assert read(root / RECORD)["skipped"] == []
     assert "stopped" not in read(tmp_path / "findings-overlay.json")
+
+
+def test_a_run_stopped_before_its_first_function_finishes_reports_nothing_measured(tmp_path):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+    script = tmp_path / "stop_in_the_first.py"
+    script.write_text(STOP_AFTER_THE_FIRST_FUNCTION)
+    settings = json.dumps(
+        {
+            "test_command": [
+                sys.executable,
+                str(script),
+                str(tmp_path / "counter.txt"),
+                "strong.py",
+                "1",
+            ],
+            "coverage": COVERAGE,
+            "max_workers": 1,
+        }
+    )
+
+    assert start_sensor(root, tmp_path, settings).wait(timeout=60) == 143
+
+    findings = read(tmp_path / "findings.json")
+
+    assert findings["stopped"] == {"measured": 0, "total": 3}
+    assert findings["findings"] == []
+    assert read(root / RECORD)["functions"] == {}
+    assert read(root / RECORD)["skipped"] == [ALPHA, BETA, GAMMA]
+    assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
+
+
+HOLD_THE_PIPE_WHEN_STOPPING = """
+import os, subprocess, sys, time
+
+pid_file = sys.argv[1]
+here = os.getcwd()
+
+if "/work/" in here and "baseline" not in here:
+    holder = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True
+    )
+
+    with open(pid_file, "w") as handle:
+        handle.write(str(holder.pid))
+
+    time.sleep(60)
+"""
+
+
+def test_a_second_sigterm_during_a_stalled_wind_down_exits_at_once(tmp_path):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+    pid_file = tmp_path / "holder.txt"
+    script = tmp_path / "hold.py"
+    script.write_text(HOLD_THE_PIPE_WHEN_STOPPING)
+    settings = json.dumps(
+        {
+            "test_command": [sys.executable, str(script), str(pid_file)],
+            "coverage": COVERAGE,
+            "max_workers": 1,
+        }
+    )
+    process = start_sensor(root, tmp_path, settings)
+    holder = None
+
+    try:
+        deadline = time.monotonic() + 30
+
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+
+        holder = int(pid_file.read_text())
+        os.kill(process.pid, signal.SIGTERM)
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            process.wait(timeout=2)
+
+        os.kill(process.pid, signal.SIGTERM)
+        started = time.monotonic()
+
+        assert process.wait(timeout=10) == 143
+        assert time.monotonic() - started < runner.STOP_GRACE_SECONDS
+    finally:
+        if process.poll() is None:
+            process.kill()
+
+        if holder is not None:
+            try:
+                os.kill(holder, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
 
 def test_a_completed_run_writes_no_stopped_key(tmp_path):
