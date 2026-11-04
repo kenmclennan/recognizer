@@ -278,6 +278,7 @@ result.hint = {
 };
 canvas.render(props({ open: 0, scene: null }));
 result.hint.shownWhenEmpty = getComputedStyle(hint).display !== "none";
+result.hint.fittedWhenEmpty = canvas.fitted();
 
 canvas.render(props());
 const controls = q(".controls");
@@ -456,6 +457,7 @@ type Report = {
     textContent: string;
     shown: boolean;
     shownWhenEmpty: boolean;
+    fittedWhenEmpty: boolean;
     style: Props;
   };
   zoom: {
@@ -844,6 +846,7 @@ describe("the canvas, in a real browser", () => {
           );
           expect(hint.shown).toBe(false);
           expect(hint.shownWhenEmpty).toBe(true);
+          expect(hint.fittedWhenEmpty).toBe(true);
           expect(hint.style["text-align"]).toBe("center");
           expect(hint.style.color).toBe(r().tokens.muted);
           expect(hint.style["line-height"]).toBe("20.8px");
