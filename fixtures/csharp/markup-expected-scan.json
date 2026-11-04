@@ -1,0 +1,263 @@
+{
+  "schema_version": 6,
+  "scanner": {
+    "name": "recognizer-scan-csharp",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "Shop/Models/Basket.cs",
+      "hash": "1d4796229722e34313af8852dd4739053b7aded2a073d57ad58c2fd85afab574"
+    },
+    {
+      "path": "Shop/Models/Receipt.cs",
+      "hash": "c6d88e0cca72b37310e892c82cd88b97ce46b97d364f519c9e8698ff06cd62c5"
+    },
+    {
+      "path": "Shop/Pages/Cart.razor",
+      "hash": "0070aa00939e09db02efb40dd4aad265408531396b4ff09eeeb3e68e07a9755c"
+    },
+    {
+      "path": "Shop/Pages/Cart.razor.cs",
+      "hash": "84113d223923a8b44ee81313e64bb7760d889522cfb9ef05880ee8b69df57fe7"
+    },
+    {
+      "path": "Shop/Pages/Totals.cs",
+      "hash": "f4d1f75446878590fbf2ae17b5c3136638800517cd98928415c48ecc5df5ee7b"
+    },
+    {
+      "path": "Shop/Pages/_Imports.razor",
+      "hash": "bf8809fa3ef47a388e687356b7507d41338302cc1a2e97e211e098156890bae7"
+    },
+    {
+      "path": "Shop/Services/CartService.cs",
+      "hash": "f927692fcc66bfcf442b3a39cbed8dd14a195d55d7872b6d268547c4ea246088"
+    },
+    {
+      "path": "Shop/Views/GlobalUsings.cs",
+      "hash": "289eb2de81a79e6b6f14449a3d29a055a97b0b497cb8718011bab97b98c37eb3"
+    },
+    {
+      "path": "Shop/Views/Helper.cs",
+      "hash": "ad5e937d53e2b021061af3471d8d19f9222b04d5d7b2341570271042ee4fa388"
+    },
+    {
+      "path": "Shop/Views/Index.cshtml",
+      "hash": "be49a05d5fa668f35298a0cf60cad8defeecbcf8b44d4776139168adc6c00240"
+    },
+    {
+      "path": "Shop/Views/Main.xaml",
+      "hash": "80d7f8ff738734036478ab0ac046a7977a35a2a7d34df5427df9f2318eb7b34b"
+    },
+    {
+      "path": "Shop/Views/Main.xaml.cs",
+      "hash": "82e10fa1dba7db56b38c874ab6bb07d3eaaa95d1db27030046f714f4ad704840"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".cs",
+      ".razor",
+      ".cshtml",
+      ".xaml"
+    ],
+    "skip_directory_names": [
+      "bin",
+      "obj"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": [
+      "*.g.cs",
+      "*.g.i.cs",
+      "*.Designer.cs"
+    ],
+    "skip_paths": [
+      "Shop.Tests"
+    ]
+  },
+  "modules": [
+    {
+      "id": "Shop/Models/Basket.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Basket",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "Shop/Models/Receipt.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Receipt",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "Shop/Pages/Cart.razor.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Cart",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ],
+      "entry_point": true
+    },
+    {
+      "id": "Shop/Pages/Totals.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Totals",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "Shop/Services/CartService.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "CartService",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "Shop/Views/GlobalUsings.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "Shop/Views/Helper.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Helper",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "Shop/Views/Main.xaml.cs",
+      "language": "csharp",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Main",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ],
+      "entry_point": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "Shop/Pages/Cart.razor.cs",
+      "to": "Shop/Services/CartService.cs",
+      "kind": "depends",
+      "line": 2,
+      "names": [
+        "CartService"
+      ]
+    },
+    {
+      "from": "Shop/Pages/Cart.razor.cs",
+      "to": "Shop/Pages/Totals.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Totals"
+      ]
+    },
+    {
+      "from": "Shop/Views/Helper.cs",
+      "to": "Shop/Models/Basket.cs",
+      "kind": "depends",
+      "line": 1,
+      "names": [
+        "Basket"
+      ]
+    },
+    {
+      "from": "Shop/Views/Main.xaml.cs",
+      "to": "Shop/Models/Receipt.cs",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Receipt"
+      ]
+    },
+    {
+      "from": "Shop/Views/Main.xaml.cs",
+      "to": "Shop/Models/Basket.cs",
+      "kind": "depends",
+      "line": 4,
+      "names": [
+        "Basket"
+      ]
+    }
+  ],
+  "foreign": [],
+  "calls": [],
+  "unresolved_imports": []
+}

@@ -12,6 +12,18 @@ VARIABLE = "RECOGNIZER_CSHARP_ESHOP"
 BASELINE = json.loads((REPOSITORY / "fixtures" / "csharp" / "eshop-baseline.json").read_text())
 SAMPLE_SIZE = 30
 MODIFIERS = r"\b(?:public|internal|private|protected|static)\b"
+FREED = (
+    "src/ClientApp/Animations/FadeToAnimation.cs",
+    "src/ClientApp/Animations/StoryBoard.cs",
+    "src/ClientApp/Controls/ToggleButton.cs",
+    "src/ClientApp/Converters/DoesNotHaveCountConverter.cs",
+    "src/ClientApp/Converters/HasCountConverter.cs",
+    "src/ClientApp/Converters/ItemsToHeightConverter.cs",
+    "src/ClientApp/Triggers/BeginAnimation.cs",
+    "src/ClientApp/Views/BadgeView.cs",
+    "src/ClientApp/Views/ContentPageBase.cs",
+    "src/Identity.API/Models/ErrorViewModel.cs",
+)
 TYPE_KEYWORDS = r"\b(?:class|interface|struct|enum|record|delegate)\b[^;{=(]*"
 
 
@@ -69,10 +81,39 @@ def is_declared(text: str, name: str) -> bool:
     return bool(pattern.search(text))
 
 
-def edge_is_correct(edge: dict, sources: dict[str, str]) -> bool:
+MARKUP_SUFFIXES = (".razor", ".cshtml", ".xaml")
+
+
+def project_directory_of(root: Path, path: str) -> str:
+    directory = Path(path).parent
+
+    while True:
+        if any((root / directory).glob("*.csproj")):
+            return directory.as_posix()
+
+        if directory == directory.parent:
+            return "."
+
+        directory = directory.parent
+
+
+def used_text(root: Path, edge: dict, sources: dict[str, str]) -> str:
+    base = project_directory_of(root, edge["from"])
+    prefix = "" if base == "." else base + "/"
+    markup = [
+        text
+        for path, text in sources.items()
+        if path.endswith(MARKUP_SUFFIXES) and path.startswith(prefix)
+    ]
+
+    return "\n".join([sources[edge["from"]], *markup])
+
+
+def edge_is_correct(root: Path, edge: dict, sources: dict[str, str]) -> bool:
+    used = used_text(root, edge, sources)
+
     return all(
-        is_used(sources[edge["from"]], name) and is_declared(sources[edge["to"]], name)
-        for name in edge["names"]
+        is_used(used, name) and is_declared(sources[edge["to"]], name) for name in edge["names"]
     )
 
 
@@ -81,8 +122,10 @@ def test_the_eshop_scan_is_schema_valid(result):
 
 
 def test_the_eshop_file_and_module_counts_match_the_baseline(result):
-    assert len(result.document["files"]) == BASELINE["files"] == 489
-    assert len(result.document["modules"]) == BASELINE["modules"] == BASELINE["files"]
+    assert len(result.document["files"]) == BASELINE["files"] == 572
+    assert BASELINE["markup_files"] == 83
+    assert len(result.document["modules"]) == BASELINE["modules"] == 489
+    assert BASELINE["modules"] == BASELINE["files"] - BASELINE["markup_files"]
 
 
 def test_the_eshop_damaged_count_matches_the_baseline(result):
@@ -94,7 +137,7 @@ def test_the_eshop_edge_count_matches_the_baseline(result):
 
 
 def test_the_eshop_orphan_count_matches_the_baseline(result):
-    assert len(orphans_of(result.document)) == BASELINE["orphans"]
+    assert len(orphans_of(result.document)) == BASELINE["orphans"] == 50
 
 
 def test_the_eshop_edge_precision_holds_the_floor_on_a_sample_of_thirty(eshop, result):
@@ -106,10 +149,16 @@ def test_the_eshop_edge_precision_holds_the_floor_on_a_sample_of_thirty(eshop, r
     ]
     step = max(1, len(edges) // SAMPLE_SIZE)
     sample = edges[::step][:SAMPLE_SIZE]
-    correct = [e for e in sample if edge_is_correct(e, sources)]
+    correct = [e for e in sample if edge_is_correct(eshop, e, sources)]
 
     assert len(sample) == SAMPLE_SIZE
     assert len(correct) / len(sample) >= BASELINE["precision_floor"]
+
+
+def test_the_ten_freed_files_are_no_longer_orphans(result):
+    orphans = set(orphans_of(result.document))
+
+    assert not orphans & set(FREED)
 
 
 def test_is_declared_recognises_types_and_methods():

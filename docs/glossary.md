@@ -8,6 +8,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | --- | --- |
 | Repository | The codebase being scanned: one git repository, possibly in several languages. |
 | Module | One box: a source file. Identified by its repository-relative path. |
+| Markup file | A `.razor`, `.cshtml` or `.xaml` file the C# scanner reads. It is not a module and has no box; the types it names become `depends` edges from its code-behind module, or from the nearest module that declares a type. |
 | Crate | A Cargo package's library or binary target. The Rust scanner finds crates from `Cargo.toml` files, starts each module tree at the crate's root file and treats a crate in the repository, reached by a path dependency, as in-repo and any other as foreign. |
 | Folder | A directory of the repository, as the tree shows it. Not a component: a folder is where files are, not what they are for. |
 | Member | A class, function, interface, type or constant defined in a module. |
