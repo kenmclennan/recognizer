@@ -1,6 +1,7 @@
 import { lastSegment } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
 import type { Compaction } from "./folder-compaction";
+import type { Disc } from "./health";
 import type { Direction, Followed, InspectorTab } from "./inspector-model";
 import { PANEL_LIMITS } from "./panel-widths";
 
@@ -37,7 +38,10 @@ export type Crumb = {
   index: number;
   label: string;
   relation: "uses" | "used by" | null;
+  disc: Disc;
 };
+
+export type CrumbFold = { hidden: Crumb[]; visible: Crumb[] };
 
 export type TrailKeyAction =
   | "up"
@@ -250,10 +254,24 @@ export function labelOf(selection: Selection, compaction: Compaction): string {
     : lastSegment(selection.id);
 }
 
-export function crumbs(trail: Trail, compaction: Compaction): Crumb[] {
+export function foldCrumbs(all: Crumb[], hiding: number): CrumbFold {
+  const count = Math.max(0, Math.min(hiding, all.length - 2));
+
+  return { hidden: all.slice(0, count), visible: all.slice(count) };
+}
+
+export function crumbs(
+  trail: Trail,
+  compaction: Compaction,
+  disc: (id: string) => Disc,
+): Crumb[] {
   return trail.panels.map((panel, index) => ({
     index,
     label: labelOf(panel.selection, compaction),
+    disc:
+      panel.selection === null || panel.selection.kind === "edge"
+        ? "grey"
+        : disc(panel.selection.id),
     relation:
       panel.relation === null
         ? null

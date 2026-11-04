@@ -1756,17 +1756,31 @@ svg.i.chevron {
 .inspector-crumbs {
   display: flex;
   flex: none;
-  flex-wrap: wrap;
-  gap: 2px;
+  gap: 8px;
   align-items: center;
   box-sizing: border-box;
+  min-width: 0;
   padding: 6px 8px;
   background: var(--panel);
   border-left: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
 
+.inspector-crumbs .crumb-steps {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .inspector-crumbs .crumb {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
   padding: 2px 6px;
   border: 0;
   border-radius: 4px;
@@ -1777,18 +1791,33 @@ svg.i.chevron {
   cursor: pointer;
 }
 
-.inspector-crumbs .crumb:hover {
+.inspector-crumbs .crumb:hover:not(:disabled) {
   background: var(--line);
 }
 
-.inspector-crumbs .crumb.on {
+.inspector-crumbs .crumb.on,
+.inspector-crumbs .crumb:disabled {
   color: var(--fg);
   font-weight: 600;
+  cursor: default;
+}
+
+.inspector-crumbs .crumb-sep {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  color: var(--faint);
 }
 
 .inspector-crumbs .crumb-rel {
-  font-weight: 400;
-  opacity: 0.8;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.inspector-crumbs svg.crumb-chevron {
+  width: 14px;
+  height: 14px;
 }
 
 .inspector-crumbs .crumb-route {
