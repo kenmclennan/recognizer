@@ -39,7 +39,7 @@ permissions:
 jobs:
   check:
     name: check (typecheck, tests, lint, build)
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 20
     steps:
       - name: Checkout
