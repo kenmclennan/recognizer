@@ -15,7 +15,11 @@ import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
-import { findingsFile, readFindingsFiles } from "./findings-files.js";
+import {
+  findingsFile,
+  readFindingsFiles,
+  withoutAbsentModules,
+} from "./findings-files.js";
 import type { FolderMetrics } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
 import { scansCommit } from "./load-findings.js";
@@ -498,7 +502,7 @@ function gather(
   override: number | undefined,
 ): Gathered {
   const config = readConfig(io, root);
-  const { commit } = scansCommit(scans);
+  const { commit, modified } = scansCommit(scans);
   const sensors: SensorStatus[] = [];
   const documents: FindingsDocument[] = [];
   const resolved = resolveStructureSettings(config, override);
@@ -543,12 +547,29 @@ function gather(
       ...shippedSensorNames(),
     ];
 
-    for (const outcome of readFindingsFiles(io, root, commit, [], allowed)) {
+    for (const outcome of readFindingsFiles(
+      io,
+      root,
+      { commit, modified },
+      [],
+      allowed,
+    )) {
       if (outcome.status === "unregistered") {
         io.remove(findingsFile(root, outcome.name));
         io.stderr(`removed unregistered ${outcome.name}\n`);
       } else if (outcome.status === "read") {
-        documents.push(outcome.document);
+        const { document, dropped } = withoutAbsentModules(
+          outcome.document,
+          scans,
+        );
+
+        if (dropped > 0) {
+          io.stderr(
+            `dropped ${dropped} ${outcome.name} findings naming modules not in the scan\n`,
+          );
+        }
+
+        documents.push(document);
 
         if (!sensors.some((one) => one.name === outcome.name)) {
           sensors.push({
