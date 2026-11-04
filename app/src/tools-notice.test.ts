@@ -53,9 +53,24 @@ describe("toolsNotice", () => {
 
 describe("toolsNotice command", () => {
   it.each<[string, string, string, string | null]>([
-    ["older tools", "0.3.0", "0.2.0", "brew upgrade recognizer"],
-    ["older app", "0.3.0", "0.4.0", "brew upgrade --cask recognizer"],
-    ["incomparable", "0.3.0", "dev", "brew upgrade recognizer"],
+    [
+      "older tools",
+      "0.3.0",
+      "0.2.0",
+      "brew upgrade --formula kenmclennan/tap/recognizer",
+    ],
+    [
+      "older app",
+      "0.3.0",
+      "0.4.0",
+      "brew upgrade --cask kenmclennan/tap/recognizer",
+    ],
+    [
+      "incomparable",
+      "0.3.0",
+      "dev",
+      "brew upgrade --formula kenmclennan/tap/recognizer && brew upgrade --cask kenmclennan/tap/recognizer",
+    ],
     ["same", "0.3.0", "0.3.0", null],
   ])("%s", (_name, appVersion, tools, command) => {
     expect(toolsNotice(appVersion, version(tools))?.command ?? null).toBe(
@@ -82,8 +97,12 @@ describe("postToolsMessage", () => {
   }
 
   it.each([
-    ["older tools", "0.2.0", "brew upgrade recognizer"],
-    ["older app", "0.4.0", "brew upgrade --cask recognizer"],
+    [
+      "older tools",
+      "0.2.0",
+      "brew upgrade --formula kenmclennan/tap/recognizer",
+    ],
+    ["older app", "0.4.0", "brew upgrade --cask kenmclennan/tap/recognizer"],
   ])(
     "posts a keyed warning that copies the right command for %s",
     async (_name, tools, command) => {

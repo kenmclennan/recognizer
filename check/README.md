@@ -256,7 +256,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 
 ### Installing the command
 
-`brew install kenmclennan/tap/recognizer` installs `recognizer` and the Python and TypeScript scanners; `recognizer --version` and each scanner's `--version` print the toolchain version. From a checkout, `npm run build -w recognizer`, then `npm install --global ./check` puts a `recognizer` executable on the npm prefix's `bin`.
+`brew install --cask kenmclennan/tap/recognizer` installs the app and, as a dependency, `recognizer` and the Python and TypeScript scanners (`brew install kenmclennan/tap/recognizer` installs the command alone); `recognizer --version` and each scanner's `--version` print the toolchain version. From a checkout, `npm run build -w recognizer`, then `npm install --global ./check` puts a `recognizer` executable on the npm prefix's `bin`.
 
 ## The command table
 
