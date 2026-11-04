@@ -430,7 +430,9 @@ export function extract(sf: ts.SourceFile): FileInfo {
         kind,
         line,
         exported: isExported(statement),
-        abstraction: false,
+        abstraction:
+          ts.isClassDeclaration(statement) &&
+          hasModifier(statement, ts.SyntaxKind.AbstractKeyword),
         outline: ts.isClassDeclaration(statement)
           ? typeOutline(statement, sf)
           : callableOutline(statement, sf),

@@ -106,6 +106,19 @@ describe("which type aliases carry the abstract tag", () => {
     expect(kind).toBe("interface");
   });
 
+  it("makes a file of only abstract classes an interface", () => {
+    expect(
+      memberOf("export abstract class X {}\nexport abstract class Y {}", "X")
+        .kind,
+    ).toBe("interface");
+  });
+
+  it("keeps a file mixing an abstract and a concrete class a module", () => {
+    expect(
+      memberOf("export abstract class X {}\nexport class Y {}", "X").kind,
+    ).toBe("module");
+  });
+
   it("makes a file of only concrete aliases a module", () => {
     expect(memberOf("export type X = string;", "X").kind).toBe("module");
   });
