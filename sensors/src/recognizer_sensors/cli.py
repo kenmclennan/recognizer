@@ -11,6 +11,7 @@ from recognizer_sensors.findings import (
     render,
     write_atomically,
 )
+from recognizer_sensors.mutation.runner import STOPPED_STATUS
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError, SettingsError
@@ -131,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         modified,
         settings,
         outcome.findings,
+        {"measured": outcome.measured, "total": outcome.total} if outcome.stopped else None,
     )
     text = render(document)
 
@@ -144,4 +146,4 @@ def main(argv: list[str] | None = None) -> int:
     else:
         sys.stdout.write(text)
 
-    return 0
+    return STOPPED_STATUS if outcome.stopped else 0

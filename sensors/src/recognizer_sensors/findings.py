@@ -13,8 +13,9 @@ def build_document(
     modified: bool,
     settings: dict,
     findings: list[dict],
+    stopped: dict | None = None,
 ) -> dict:
-    return {
+    document = {
         "findings_version": 1,
         "sensor": {"name": name, "version": version},
         "commit": commit,
@@ -22,6 +23,11 @@ def build_document(
         "settings": settings,
         "findings": sorted(findings, key=lambda finding: finding["id"]),
     }
+
+    if stopped is not None:
+        document["stopped"] = stopped
+
+    return document
 
 
 def build_overlay(name: str, version: str, commit: str, modified: bool, overlay: Overlay) -> dict:

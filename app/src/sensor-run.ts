@@ -20,6 +20,7 @@ export type SensorStatus = {
   findings?: number;
   modifiedMs?: number | null;
   reported?: { at: string; commit: string };
+  stopped?: { measured: number; total: number };
 };
 
 export type FindingsFiles = {
@@ -240,6 +241,9 @@ export async function senseRepository(
         status: document.commit === commit ? "ran" : "stale",
         findings: document.findings.length,
         modifiedMs: file.modifiedMs ?? null,
+        ...(document.stopped !== undefined
+          ? { stopped: document.stopped }
+          : {}),
         ...(document.reported_at !== undefined &&
         !registered.includes(file.name)
           ? { reported: { at: document.reported_at, commit: document.commit } }

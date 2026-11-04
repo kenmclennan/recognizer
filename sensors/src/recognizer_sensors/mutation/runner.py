@@ -16,9 +16,16 @@ TAIL_LINES = 20
 PID_FILE = "pid"
 PID_GRACE_SECONDS = 60
 STOPPED_STATUS = 143
+STOP_GRACE_SECONDS = 30
+
+STOP = threading.Event()
 
 LIVE_LOCK = threading.Lock()
 LIVE: set[subprocess.Popen] = set()
+
+
+class Stopped(Exception):
+    pass
 
 
 @dataclass(frozen=True)
@@ -75,6 +82,9 @@ def run_test_command(command: list[str], cwd: Path, timeout: float | None) -> Te
 
     try:
         with LIVE_LOCK:
+            if STOP.is_set():
+                return TestRun(None, False, 0.0, "")
+
             process = subprocess.Popen(
                 command,
                 cwd=cwd,
@@ -140,32 +150,51 @@ def run_function(
     work: Path,
     mutants: list[Mutant],
     plan_for: Callable[[int], tuple[list[str], float]],
-) -> list[str]:
+) -> list[str] | None:
     verdicts = []
 
     for index, mutant in enumerate(mutants):
+        if STOP.is_set():
+            return None
+
         command, timeout = plan_for(index)
-        verdicts.append(run_mutant(repository, work, next(NUMBERS), mutant, command, timeout))
+        verdict = run_mutant(repository, work, next(NUMBERS), mutant, command, timeout)
+
+        if STOP.is_set():
+            return None
+
+        verdicts.append(verdict)
 
     return verdicts
 
 
 def run_functions(
     items: list,
-    run_item: Callable[[object], list[str]],
+    run_item: Callable[[object], list[str] | None],
     max_workers: int,
     deadline: float | None,
     clock: Callable[[], float],
+    on_done: Callable[[object, list[str]], None] | None = None,
 ) -> list[list[str] | None]:
     spent = threading.Event()
+    done_lock = threading.Lock()
 
     def take(item: object) -> list[str] | None:
-        if spent.is_set() or (deadline is not None and clock() >= deadline):
+        if spent.is_set() or STOP.is_set() or (deadline is not None and clock() >= deadline):
             spent.set()
 
             return None
 
-        return run_item(item)
+        try:
+            verdicts = run_item(item)
+        except Stopped:
+            return None
+
+        if verdicts is not None and on_done is not None:
+            with done_lock:
+                on_done(item, verdicts)
+
+        return verdicts
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [pool.submit(take, item) for item in items]
@@ -228,27 +257,42 @@ def remove_work_folder(folder: Path) -> None:
         return
 
 
-def stop_all(work: Path) -> None:
+def stop_all() -> None:
     with LIVE_LOCK:
         for process in list(LIVE):
             if process.returncode is None:
                 kill_group(process)
 
-        remove_work_folder(work)
-
 
 def install_stop_handler(work: Path) -> Callable[[], None]:
     requested = threading.Event()
 
-    def stop() -> None:
-        requested.wait()
-        stop_all(work)
+    def leave() -> None:
+        stop_all()
+        remove_work_folder(work)
         os._exit(STOPPED_STATUS)
 
+    def watchdog() -> None:
+        time.sleep(STOP_GRACE_SECONDS)
+        leave()
+
+    def stop() -> None:
+        requested.wait()
+        STOP.set()
+        stop_all()
+        threading.Thread(target=watchdog, daemon=True).start()
+
+    def on_signal(_signum: int, _frame: object) -> None:
+        if requested.is_set():
+            leave()
+
+        requested.set()
+
     threading.Thread(target=stop, daemon=True).start()
-    previous = signal.signal(signal.SIGTERM, lambda _signum, _frame: requested.set())
+    previous = signal.signal(signal.SIGTERM, on_signal)
 
     def restore() -> None:
-        signal.signal(signal.SIGTERM, previous)
+        if not STOP.is_set():
+            signal.signal(signal.SIGTERM, previous)
 
     return restore

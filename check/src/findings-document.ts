@@ -38,6 +38,7 @@ export interface FindingsDocument {
   modified: boolean;
   settings: Record<string, unknown>;
   reported_at?: string;
+  stopped?: { measured: number; total: number };
   findings: FindingRecord[];
 }
 

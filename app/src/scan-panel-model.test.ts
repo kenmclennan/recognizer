@@ -346,6 +346,45 @@ describe("scanPanel row states", () => {
     expect(states(model)).toContain("alpha: 2 findings, 2 minutes ago");
   });
 
+  it.each([
+    { measured: 0, total: 5, text: "stopped, nothing measured", tone: "muted" },
+    {
+      measured: 2,
+      total: 5,
+      text: "stopped, 2 of 5 functions measured",
+      tone: "ok",
+    },
+    {
+      measured: 5,
+      total: 5,
+      text: "stopped, 5 of 5 functions measured",
+      tone: "ok",
+    },
+  ])(
+    "reads $text for a stopped document of $measured of $total, ran or stale",
+    ({ measured, total, text, tone }) => {
+      for (const status of ["ran", "stale"] as const) {
+        const model = scanPanel(
+          input({
+            sensors: [
+              {
+                name: "mutation",
+                status,
+                findings: 0,
+                modifiedMs: NOW - 3 * MINUTE,
+                stopped: { measured, total },
+              },
+            ],
+          }),
+        );
+
+        expect(model.rows.find((row) => row.key === "mutation")?.state).toEqual(
+          { text: `${text}, 3 minutes ago`, tone },
+        );
+      }
+    },
+  );
+
   it("reads failed with the age from the held failure, in the warn tone", () => {
     const model = scanPanel(
       input({

@@ -276,6 +276,28 @@ function sensorState(name: string, input: PanelInput): ScanRow["state"] {
 
   if (
     (status?.status === "ran" || status?.status === "stale") &&
+    status.stopped !== undefined
+  ) {
+    const at = input.run.ranAt[name] ?? status.modifiedMs;
+    const { measured, total } = status.stopped;
+
+    return measured > 0
+      ? {
+          text: withAge(
+            `stopped, ${measured} of ${total} functions measured`,
+            at,
+            input.now,
+          ),
+          tone: "ok",
+        }
+      : {
+          text: withAge("stopped, nothing measured", at, input.now),
+          tone: "muted",
+        };
+  }
+
+  if (
+    (status?.status === "ran" || status?.status === "stale") &&
     status.findings !== undefined
   ) {
     return {

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from recognizer_sensors.crap.lcov import function_coverage
+from recognizer_sensors.findings import render, write_atomically
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.record import (
@@ -20,7 +21,9 @@ from recognizer_sensors.mutation.record import (
 )
 from recognizer_sensors.mutation.runner import (
     NUMBERS,
+    STOP,
     Mutant,
+    Stopped,
     copy_repository,
     install_stop_handler,
     new_work_folder,
@@ -57,6 +60,8 @@ DEFAULTS = {
 ALLOWED = {"test_command", "coverage", "max_workers", "max_minutes", *DEFAULTS}
 
 CLOCK = time.monotonic
+
+CHECKPOINT_SECONDS = 30
 
 TIMEOUT_FLOOR = 2.0
 
@@ -312,6 +317,9 @@ def run_baseline(repository: Path, copies: CopyPool, command: list[str], subject
     except OSError:
         raise MeasurementError(f"{subject} did not start: {command[0]}") from None
 
+    if STOP.is_set():
+        raise Stopped
+
     if result.passed:
         return result.seconds
 
@@ -359,7 +367,7 @@ class Baselines:
             except Exception as error:
                 entry.error = error
 
-                if fallback:
+                if fallback and not isinstance(error, Stopped):
                     print(
                         f"recognizer-sensors: mutation: {error}; running the whole suite",
                         file=sys.stderr,
@@ -372,7 +380,7 @@ class Baselines:
         if entry.error is None:
             return entry.seconds
 
-        if fallback:
+        if fallback and not isinstance(entry.error, Stopped):
             return None
 
         raise entry.error
@@ -535,6 +543,27 @@ def finding_for(target: Target, values: dict) -> dict:
     }
 
 
+def record_for(
+    key: object, commit: str, targets: list[Target], queued: set[str], done: set[str]
+) -> dict:
+    finished = [t for t in targets if t.identity not in queued or t.identity in done]
+
+    return build_record(
+        key,
+        commit,
+        {t.identity: {"body": t.body, "verdicts": t.verdicts} for t in finished},
+        sorted(queued - done),
+    )
+
+
+def write_checkpoint(path: Path, record: dict) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomically(render(record), path)
+    except OSError:
+        return
+
+
 def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Outcome:
     configured = settings.get("test_command")
 
@@ -605,6 +634,9 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
     queue = queue_order(pending, earlier_skipped)
     skipped: list[Target] = []
     ran = {"selection": 0, "whole": 0}
+    done: set[str] = set()
+    queued = {target.identity for target in queue}
+    stopped = False
 
     if queue:
         work = new_work_folder(repository)
@@ -656,7 +688,26 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
             budget = settings["max_minutes"]
             started = CLOCK()
             deadline = started + budget * 60 if budget is not None else None
-            results = run_functions(
+            checkpoint = {"at": started}
+
+            def finish(target: Target, outcome: list[str]) -> None:
+                verdicts: list[str | None] = [None] * len(target.sites)
+
+                for (index, _), verdict in zip(covered_sites(target), outcome, strict=True):
+                    verdicts[index] = verdict
+
+                apply_verdicts(target, verdicts)
+                done.add(target.identity)
+                now = CLOCK()
+
+                if now - checkpoint["at"] >= CHECKPOINT_SECONDS:
+                    checkpoint["at"] = now
+                    write_checkpoint(
+                        repository / settings["record"],
+                        record_for(key, commit, targets, queued, done),
+                    )
+
+            run_functions(
                 queue,
                 lambda target: run_function(
                     repository, work, mutants_for(target, sources), plan_for(target)
@@ -664,23 +715,15 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
                 settings["max_workers"],
                 deadline,
                 CLOCK,
+                finish,
             )
+            stopped = STOP.is_set()
             remove_stale_work_folders(work)
         finally:
             restore_handler()
             remove_work_folder(work)
 
-        for target, outcome in zip(queue, results, strict=True):
-            if outcome is None:
-                skipped.append(target)
-                continue
-
-            verdicts: list[str | None] = [None] * len(target.sites)
-
-            for (index, _), verdict in zip(covered_sites(target), outcome, strict=True):
-                verdicts[index] = verdict
-
-            apply_verdicts(target, verdicts)
+        skipped = [target for target in queue if target.identity not in done]
 
     skipped_ids = [target.identity for target in skipped]
     skipped_set = set(skipped_ids)
@@ -701,12 +744,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
 
     values = overlay_values(measured)
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
-    record_document = build_record(
-        key,
-        commit,
-        {t.identity: {"body": t.body, "verdicts": t.verdicts} for t in measured},
-        sorted(skipped_ids),
-    )
+    record_document = record_for(key, commit, targets, queued, done)
     documents = [
         (
             repository / settings["survivors"],
@@ -717,4 +755,4 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
     findings = [finding_for(t, values) for t in measured if t.survived > 0]
     (repository / STALE_OVERLAY).unlink(missing_ok=True)
 
-    return Outcome(findings, overlay, documents)
+    return Outcome(findings, overlay, documents, stopped, len(measured), len(targets))
