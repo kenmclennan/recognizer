@@ -33,6 +33,13 @@ print("ran")
 
 FAIL = "import sys; print('boom'); sys.exit(int(sys.argv[1]))"
 
+SUMMARY = (
+    "print('collecting ...'); print('!!!! Interrupted: 2 errors during collection !!!!'); "
+    "print('=' * 20); import sys; sys.exit(2)"
+)
+
+SILENT = "import sys; sys.exit(2)"
+
 NOTHING = "print('wrote nothing')"
 
 SLEEP = """
@@ -192,10 +199,43 @@ def test_a_failing_command_is_one_sentence_and_writes_nothing(tmp_path, capsys):
     status, output = crap(root, tmp_path, {"test_command": [sys.executable, failing, "1"]})
 
     assert status == 2
-    assert sentence(capsys) == "the test command exited 1\n"
+    assert sentence(capsys) == f"the test command exited 1: boom (see {LOG})\n"
     assert not output.exists()
     assert not (root / OVERLAY).exists()
     assert "boom" in (root / LOG).read_text()
+
+
+def test_a_failing_command_reports_its_summary_line_and_the_log_path(tmp_path, capsys):
+    root = repository(tmp_path)
+    failing = script(root, "f.py", SUMMARY)
+
+    status, _ = crap(root, tmp_path, {"test_command": [sys.executable, failing]})
+
+    assert status == 2
+    assert sentence(capsys) == (
+        f"the test command exited 2: Interrupted: 2 errors during collection (see {LOG})\n"
+    )
+
+
+def test_a_failing_command_with_no_output_reports_the_bare_sentence_and_the_log_path(
+    tmp_path, capsys
+):
+    root = repository(tmp_path)
+    failing = script(root, "f.py", SILENT)
+
+    status, _ = crap(root, tmp_path, {"test_command": [sys.executable, failing]})
+
+    assert status == 2
+    assert sentence(capsys) == f"the test command exited 2 (see {LOG})\n"
+
+
+def test_a_long_last_line_is_capped_to_one_line(tmp_path, capsys):
+    root = repository(tmp_path)
+    failing = script(root, "f.py", "import sys; print('x' * 500); sys.exit(2)")
+
+    crap(root, tmp_path, {"test_command": [sys.executable, failing]})
+
+    assert sentence(capsys) == f"the test command exited 2: {'x' * 200} (see {LOG})\n"
 
 
 def test_a_failing_run_leaves_a_prior_overlay_untouched(tmp_path):
@@ -275,7 +315,7 @@ def test_two_languages_run_in_order_and_stop_at_the_first_failure(tmp_path, caps
 
     assert calls == ["sh", "npx"]
     assert status == 2
-    assert sentence(capsys) == "the typescript test command exited 3\n"
+    assert sentence(capsys) == f"the typescript test command exited 3: out (see {LOG})\n"
     assert not output.exists()
     assert not (root / OVERLAY).exists()
 

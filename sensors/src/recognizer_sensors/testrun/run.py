@@ -27,6 +27,10 @@ BY_FILE_DIRECTORY = ".recognizer/cache/coverage/typescript/by-file"
 
 BY_FILE_REPORT = ".recognizer/cache/coverage/typescript/by-file/{number}/lcov.info"
 
+REASON_LIMIT = 200
+
+DECORATION = re.compile(r"^[=!\-\s]*$")
+
 Selection = dict[str, dict[int, frozenset[str]]]
 
 
@@ -103,6 +107,24 @@ def sentence(step: Step, what: str) -> str:
     return f"{subject} {what}"
 
 
+def last_meaningful_line(text: str) -> str | None:
+    for line in reversed(text.splitlines()):
+        if not DECORATION.match(line):
+            return " ".join(line.strip("=!- \t").split())
+
+    return None
+
+
+def failure_reason(step: Step, returncode: int, output: str) -> str:
+    reason = sentence(step, f"exited {returncode}")
+    last = last_meaningful_line(output)
+
+    if last:
+        reason = f"{reason}: {last[:REASON_LIMIT]}"
+
+    return f"{reason} (see {LOG.as_posix()})"
+
+
 def clear_cached_reports(repository: Path, sources: list[Source]) -> None:
     for source in sources:
         if source.path.startswith(CACHE_PREFIX) and "*" not in source.path:
@@ -120,6 +142,7 @@ def run_steps(repository: Path, steps: list[Step], mode: str = "w") -> None:
         for step in steps:
             stream.write(f"== {step.label or 'test command'}: {' '.join(step.command)}\n")
             stream.flush()
+            offset = stream.tell()
 
             try:
                 result = subprocess.run(
@@ -136,7 +159,13 @@ def run_steps(repository: Path, steps: list[Step], mode: str = "w") -> None:
                 ) from None
 
             if result.returncode != 0:
-                raise MeasurementError(sentence(step, f"exited {result.returncode}"))
+                stream.flush()
+
+                with log.open("rb") as written:
+                    written.seek(offset)
+                    output = written.read().decode("utf-8", errors="replace")
+
+                raise MeasurementError(failure_reason(step, result.returncode, output))
 
 
 def read_source(repository: Path, source: Source, files: list[str]) -> Coverage | None:
