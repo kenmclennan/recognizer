@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import {
   expandShortForms,
+  isScoped,
   runsTests,
   SHIPPED_SENSOR_LIST,
   SHIPPED_SENSORS,
@@ -153,6 +154,7 @@ describe("the registry", () => {
         "metrics",
         "name",
         "runs_tests",
+        "scoped",
       ]);
     }
   });
@@ -180,6 +182,21 @@ describe("the registry", () => {
 
   it("names the shipped sensors", () => {
     expect(shippedSensorNames()).toEqual([...SHIPPED_SENSORS]);
+  });
+
+  it("marks only mutation as taking a module scope, read from the committed list", () => {
+    expect(
+      list
+        .filter((entry: { scoped: boolean }) => entry.scoped)
+        .map((entry: { name: string }) => entry.name),
+    ).toEqual(["mutation"]);
+    expect(isScoped(["recognizer-sensors", "mutation"])).toBe(true);
+
+    for (const name of ["duplication", "crap", "thresholds"]) {
+      expect(isScoped(["recognizer-sensors", name])).toBe(false);
+    }
+
+    expect(isScoped(["my-mutation", "mutation"])).toBe(false);
   });
 
   it("tests the run command, not the name alone, for runs_tests", () => {

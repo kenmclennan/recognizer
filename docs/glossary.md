@@ -149,6 +149,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Note focus | A module selection with its note bubble open; kept while the noted box stays selected, cleared by any other selection or Escape. |
 | Scan panel | The left-column panel, behind the Scan rail icon, that shows one list of Scan rows and one Scan button, with the ticks a repository remembers. |
 | Scan row | One entry of the Scan panel's list: a checkbox, a name and a state in words (not yet run, a count with an age, running, waiting, or failed). |
+| Scope (Only this view) | The Scan panel's switch, shown only while a view is open and remembered with the row ticks. When it is on, a run describes only the view's stale modules and mutates only the functions of the view's modules; C.R.A.P. and Duplication still cover the whole repository. `recognizer scan --modules <file>` takes the module ids as a JSON array and applies the same scope. |
 | Phase | One of the parts of a scan: extraction (when the files changed), describing (when ticked), measuring (CLI only, when asked for) and the sensors (when ticked). |
 | Findings panel | The left-column panel, behind the Findings rail icon: a heading with one muted count line, then one collapsible group per finding kind, each holding cards. |
 | Finding group | One collapsible kind in the Findings panel, named by the kind, a report or an unknown kind: a chevron, a severity dot, the name and its count. Collapsed until clicked. |

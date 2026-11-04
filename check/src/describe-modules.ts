@@ -200,8 +200,8 @@ function buildRequest(
 }
 
 export type DescribeSelection =
-  | { kind: "stale" }
-  | { kind: "all" }
+  | { kind: "stale"; within?: string[] }
+  | { kind: "all"; within?: string[] }
   | { kind: "names"; names: string[] };
 
 export interface DescribeResult {
@@ -229,9 +229,18 @@ export async function describeModules(
   const { io, root, scans, describer, selection } = input;
   const entries = { ...readResponsibilities(io, root).modules };
   const modules = moduleNames(scans);
+  const within = selection.kind === "names" ? undefined : selection.within;
+
+  for (const id of within ?? []) {
+    if (!modules.includes(id)) {
+      io.stderr(`skipped: no such module ${id}\n`);
+    }
+  }
+
   const subjects = modules
     .slice()
     .sort()
+    .filter((id) => within === undefined || within.includes(id))
     .map((id) => subjectFor(io, root, scans, id, entries, describer));
   const selected = subjects.filter((subject) => {
     if (selection.kind === "all") {

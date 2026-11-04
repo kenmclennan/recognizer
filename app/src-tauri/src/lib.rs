@@ -739,6 +739,7 @@ async fn run_scan(
     describe: bool,
     measure: Vec<String>,
     sense: Vec<String>,
+    modules: Option<Vec<String>>,
 ) -> Result<ScanRun, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -759,6 +760,7 @@ async fn run_scan(
             describe,
             &measure,
             &sense,
+            modules.as_deref(),
             || {
                 let origin = changes::take_origin(&folder);
 
@@ -802,6 +804,7 @@ fn write_scan_ticks(
     window: WebviewWindow,
     describe: bool,
     ticked: Vec<String>,
+    only_view: bool,
 ) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
 
@@ -814,6 +817,7 @@ fn write_scan_ticks(
             overlays: Vec::new(),
             sensors: None,
             ticked,
+            only_view,
         },
     )
 }

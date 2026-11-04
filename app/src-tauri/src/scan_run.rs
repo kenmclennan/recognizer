@@ -1,15 +1,45 @@
 use std::collections::HashMap;
+use std::fs;
 use std::io::{BufRead, BufReader, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 
 use serde::Serialize;
 
+use crate::fs_safe::write_atomic;
 use crate::repository::{missing_hint, scan_args, strip_escapes};
 use crate::tool_runner::ToolRunner;
 
 const LOG: &str = ".recognizer/cache/log";
+const MODULES_DIR: &str = ".recognizer/cache";
+
+pub fn check_modules(modules: &[String]) -> Result<(), String> {
+    if modules.is_empty() {
+        return Err("the module scope is empty".to_string());
+    }
+
+    if modules.iter().any(|id| id.is_empty()) {
+        return Err("a module id in the scope is empty".to_string());
+    }
+
+    if modules.iter().any(|id| id.contains('\0')) {
+        return Err("a module id in the scope holds a NUL".to_string());
+    }
+
+    Ok(())
+}
+
+fn modules_file(folder: &Path, label: &str) -> PathBuf {
+    let safe: String = label
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
+
+    folder
+        .join(MODULES_DIR)
+        .join(format!("scan-modules-{safe}.json"))
+}
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(
@@ -150,18 +180,61 @@ pub fn run_with(
     describe: bool,
     measure: &[String],
     sense: &[String],
+    modules: Option<&[String]>,
     prepare: impl FnOnce(),
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
+    if let Some(ids) = modules {
+        if let Err(reason) = check_modules(ids) {
+            return ScanRun::Refused { reason };
+        }
+    }
+
     if let Err(reason) = runs.begin(label) {
         return ScanRun::Refused { reason };
     }
 
     prepare();
 
+    let file = modules.map(|_| modules_file(folder, label));
+
+    if let (Some(path), Some(ids)) = (&file, modules) {
+        let text = match serde_json::to_string(ids) {
+            Ok(text) => text,
+            Err(error) => {
+                runs.finish(label);
+
+                return ScanRun::Refused {
+                    reason: error.to_string(),
+                };
+            }
+        };
+
+        if let Err(error) = write_atomic(path, &text) {
+            runs.finish(label);
+
+            return ScanRun::Refused {
+                reason: format!("{}: {error}", path.display()),
+            };
+        }
+    }
+
     let result = spawn_and_stream(
-        runs, label, folder, runner, command, describe, measure, sense, emit,
+        runs,
+        label,
+        folder,
+        runner,
+        command,
+        describe,
+        measure,
+        sense,
+        file.as_deref(),
+        emit,
     );
+
+    if let Some(path) = &file {
+        let _ = fs::remove_file(path);
+    }
 
     runs.finish(label);
 
@@ -178,6 +251,7 @@ fn spawn_and_stream(
     describe: bool,
     measure: &[String],
     sense: &[String],
+    modules_file: Option<&Path>,
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
     let Some(mut process) = runner.command(command) else {
@@ -188,6 +262,11 @@ fn spawn_and_stream(
 
     process
         .args(scan_args(folder, describe, measure, sense))
+        .args(
+            modules_file
+                .map(|path| vec!["--modules".to_string(), path.display().to_string()])
+                .unwrap_or_default(),
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -302,6 +381,7 @@ mod tests {
             describe,
             measure,
             sense,
+            None,
             || {},
             &|line| lines.lock().unwrap().push(line),
         );
@@ -381,6 +461,7 @@ mod tests {
             false,
             &[],
             &[],
+            None,
             || {},
             &|line| lines.lock().unwrap().push(line),
         );
@@ -434,6 +515,87 @@ mod tests {
                 dir.path().display()
             )]
         );
+    }
+
+    #[cfg(unix)]
+    fn collect_scoped(folder: &Path, command: &Path, modules: &[String]) -> (ScanRun, Vec<String>) {
+        let lines = Mutex::new(Vec::new());
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let result = run_with(
+            &ScanRuns::default(),
+            "w-1",
+            folder,
+            &runner,
+            &command.display().to_string(),
+            true,
+            &[],
+            &[],
+            Some(modules),
+            || {},
+            &|line| lines.lock().unwrap().push(line),
+        );
+
+        (result, lines.into_inner().unwrap())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_module_ids_reach_the_command_as_a_file_that_is_removed_after_the_run() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(
+            dir.path(),
+            r#"for last; do :; done; echo "$@"; cat "$last""#,
+        );
+        let (result, lines) = collect_scoped(dir.path(), &command, &names(&["a.py", "b/c.py"]));
+        let file = dir.path().join(".recognizer/cache/scan-modules-w-1.json");
+
+        assert!(matches!(result, ScanRun::Finished { exit_code: 0, .. }));
+        assert_eq!(
+            lines,
+            vec![
+                format!(
+                    "scan {} --json --describe --modules {}",
+                    dir.path().display(),
+                    file.display()
+                ),
+                r#"["a.py","b/c.py"]"#.to_string(),
+            ]
+        );
+        assert!(!file.exists());
+        assert!(!dir
+            .path()
+            .join(".recognizer/cache/scan-modules-w-1.json.tmp")
+            .exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_scoped_run_removes_the_module_file() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(dir.path(), "exit 3");
+        let (_, _) = collect_scoped(dir.path(), &command, &names(&["a.py"]));
+
+        assert!(!dir
+            .path()
+            .join(".recognizer/cache/scan-modules-w-1.json")
+            .exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_empty_list_an_empty_id_or_a_nul_is_refused_before_anything_is_written() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(dir.path(), "echo ran");
+
+        for bad in [names(&[]), names(&["a.py", ""]), vec!["a\0b".to_string()]] {
+            let (result, lines) = collect_scoped(dir.path(), &command, &bad);
+
+            assert!(matches!(result, ScanRun::Refused { .. }));
+            assert!(lines.is_empty());
+        }
+
+        assert!(!dir.path().join(".recognizer").exists());
     }
 
     #[cfg(unix)]
@@ -507,6 +669,7 @@ mod tests {
                     false,
                     &[],
                     &[],
+                    None,
                     || {},
                     &|line| {
                         let _ = sender.send(line);

@@ -32,6 +32,7 @@ describe("recognizer sensors", () => {
         "metrics",
         "name",
         "runs_tests",
+        "scoped",
       ]);
     }
 

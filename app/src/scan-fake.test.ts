@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fakeScan } from "./scan-fake";
 
-const PLAN = { describe: true, measure: [], sense: ["alpha"] };
+const PLAN = { describe: true, sense: ["alpha"], modules: null };
 
 describe("fakeScan", () => {
   it("delivers the scripted lines in order before the run resolves", async () => {
@@ -69,12 +69,14 @@ describe("fakeScan", () => {
     await fake.writeTicks({
       describe: false,
       ticked: ["alpha"],
+      onlyView: false,
     });
 
     expect(await fake.readTicks()).toEqual({
       describe: false,
       sensors: true,
       ticked: ["alpha"],
+      onlyView: false,
       remembered: true,
     });
   });

@@ -100,6 +100,7 @@ class Target:
     selections: list[frozenset[str] | None] = field(default_factory=list)
     verdicts: list[str | None] = field(default_factory=list)
     reused: bool = False
+    carried: bool = False
 
 
 def parse_settings(raw: dict) -> dict:
@@ -471,6 +472,15 @@ def reusable(target: Target, record: dict | None) -> list[str | None] | None:
     return verdicts if recorded == target.covered else None
 
 
+def carried_verdicts(target: Target, record: dict | None) -> list[str | None] | None:
+    if record is None:
+        return None
+
+    verdicts = recorded_verdicts(record, target.identity, target.body)
+
+    return verdicts if verdicts is not None and len(verdicts) == len(target.sites) else None
+
+
 def mutants_for(target: Target, sources: dict[str, bytes]) -> list[Mutant]:
     return [
         Mutant(
@@ -546,15 +556,26 @@ def finding_for(target: Target, values: dict) -> dict:
 
 
 def record_for(
-    key: object, commit: str, targets: list[Target], queued: set[str], done: set[str]
+    key: object,
+    commit: str,
+    targets: list[Target],
+    queued: set[str],
+    done: set[str],
+    unmeasured: dict[str, bool] | None = None,
 ) -> dict:
-    finished = [t for t in targets if t.identity not in queued or t.identity in done]
+    absent = unmeasured or {}
+    finished = [
+        t
+        for t in targets
+        if t.identity not in absent and (t.identity not in queued or t.identity in done)
+    ]
+    previously_skipped = [identity for identity, was_skipped in absent.items() if was_skipped]
 
     return build_record(
         key,
         commit,
         {t.identity: {"body": t.body, "verdicts": t.verdicts} for t in finished},
-        sorted(queued - done),
+        sorted((queued - done) | set(previously_skipped)),
     )
 
 
@@ -566,7 +587,13 @@ def write_checkpoint(path: Path, record: dict) -> None:
         return
 
 
-def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Outcome:
+def run(
+    repository: Path,
+    scans: list[Scan],
+    settings: dict,
+    commit: str,
+    modules: set[str] | None = None,
+) -> Outcome:
     configured = settings.get("test_command")
 
     restore_coverage_handler = install_coverage_stop_handler()
@@ -622,6 +649,9 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
     record = read_record(repository / settings["record"], key) if settings["incremental"] else None
     earlier_skipped = record["skipped"] if record else []
     reuse = record
+    carry_record = (
+        read_record(repository / settings["record"], key) if modules is not None else None
+    )
 
     if record is not None:
         reason = stale_test_reason(repository, record["commit"])
@@ -631,8 +661,22 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
             reuse = None
 
     pending: list[Target] = []
+    unmeasured: dict[str, bool] = {}
+    carry_skipped = set(carry_record["skipped"]) if carry_record else set()
 
     for target in targets:
+        if modules is not None and target.module not in modules:
+            carried = carried_verdicts(target, carry_record)
+
+            if carried is None:
+                unmeasured[target.identity] = target.identity in carry_skipped
+            else:
+                target.reused = True
+                target.carried = True
+                apply_verdicts(target, carried)
+
+            continue
+
         verdicts = reusable(target, reuse)
 
         if verdicts is not None:
@@ -643,6 +687,8 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         else:
             apply_verdicts(target, [None] * len(target.sites))
 
+    carried_any = any(target.carried for target in targets)
+    record_commit = carry_record["commit"] if carried_any and carry_record else commit
     queue = queue_order(pending, earlier_skipped)
     skipped: list[Target] = []
     ran = {"selection": 0, "whole": 0}
@@ -716,7 +762,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
                     checkpoint["at"] = now
                     write_checkpoint(
                         repository / settings["record"],
-                        record_for(key, commit, targets, queued, done),
+                        record_for(key, record_commit, targets, queued, done, unmeasured),
                     )
 
             run_functions(
@@ -739,7 +785,11 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
 
     skipped_ids = [target.identity for target in skipped]
     skipped_set = set(skipped_ids)
-    measured = [target for target in targets if target.identity not in skipped_set]
+    measured = [
+        target
+        for target in targets
+        if target.identity not in skipped_set and target.identity not in unmeasured
+    ]
     reused = sum(1 for target in measured if target.reused)
     mutated = len(measured) - reused
 
@@ -748,6 +798,15 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         f"{mutated} mutated, {len(skipped_ids)} skipped (uncovered-by-budget)",
         file=sys.stderr,
     )
+    if modules is not None:
+        carried_count = sum(1 for target in targets if target.carried)
+        print(
+            f"recognizer-sensors: mutation: scoped to {len(modules)} modules; "
+            f"{carried_count} functions carried from the record, "
+            f"{len(unmeasured)} outside the scope have no result",
+            file=sys.stderr,
+        )
+
     print(
         f"recognizer-sensors: mutation: {no_covering_test} functions without a covering test; "
         f"{ran['selection']} mutants ran a selection, {ran['whole']} ran the whole suite",
@@ -756,7 +815,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
 
     values = overlay_values(measured)
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
-    record_document = record_for(key, commit, targets, queued, done)
+    record_document = record_for(key, record_commit, targets, queued, done, unmeasured)
     documents = [
         (
             repository / settings["survivors"],

@@ -35,6 +35,7 @@ import {
   entryLine,
   extractionNeeded,
   extractionPrecheck,
+  parseModuleScope,
   parseScanArgs,
   phaseLine,
   selectSensors,
@@ -48,7 +49,7 @@ import {
   SCANNERS,
   scannerFor,
 } from "./scanners.js";
-import { runsTests, shippedSensorNames } from "./shipped-sensors.js";
+import { isScoped, runsTests, shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
 
@@ -284,6 +285,16 @@ function eventEntry(entry: RunEntry): EventEntry {
   };
 }
 
+function readModulesFile(io: Io, file: string): string {
+  try {
+    return io.readFile(resolve(file));
+  } catch (error) {
+    throw new InputError([
+      `cannot read --modules file ${file}: ${(error as Error).message}`,
+    ]);
+  }
+}
+
 function* scanFlow(
   argv: string[],
   io: Io,
@@ -292,6 +303,10 @@ function* scanFlow(
 
   requireBy(options.by);
 
+  const scope =
+    options.modules === undefined
+      ? undefined
+      : parseModuleScope(readModulesFile(io, options.modules));
   const startedAt = io.now();
   const root = resolve(options.positionals[0] ?? ".");
 
@@ -485,7 +500,10 @@ function* scanFlow(
       describer,
       model,
       batchSize,
-      selection: { kind: options.describe === "all" ? "all" : "stale" },
+      selection: {
+        kind: options.describe === "all" ? "all" : "stale",
+        ...(scope === undefined ? {} : { within: scope }),
+      },
       onStart: (total) => {
         if (json) {
           io.stdout(phaseLine("describe", { total }));
@@ -517,6 +535,10 @@ function* scanFlow(
       root,
       selected: selected.map((one) => ({
         ...one,
+        command:
+          options.modules !== undefined && isScoped(one.command)
+            ? [...one.command, "--modules", resolve(options.modules)]
+            : one.command,
         runsTests: runsTests(one.command),
       })),
       commit,

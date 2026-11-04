@@ -74,7 +74,7 @@ const scanHost: ScanHost = {
       ? null
       : { entries: describe.entries.length, total: describe.total };
   },
-  run: () => void rescanner.run(),
+  run: (modules) => void rescanner.run(modules),
   stop: () => void rescanner.stop(),
   refresh: () => void rescanner.refresh(),
   model: async () => (await scanSource.readDescribing()).model,

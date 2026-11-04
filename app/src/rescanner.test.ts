@@ -122,11 +122,14 @@ describe("createRescanner", () => {
 
     await rescanner.run();
 
-    expect(scan.ran).toEqual([{ describe: true, sense: ["alpha", "beta"] }]);
+    expect(scan.ran).toEqual([
+      { describe: true, sense: ["alpha", "beta"], modules: null },
+    ]);
     expect(scan.written).toEqual([
       {
         describe: true,
         ticked: ["alpha", "beta"],
+        onlyView: false,
       },
     ]);
 
@@ -661,7 +664,11 @@ describe("createRescanner", () => {
       const { rescanner } = harness(scan);
 
       await rescanner.loadTicks();
-      rescanner.setTicks({ ...rescanner.ticks(), once: ["mut"] });
+      rescanner.setTicks({
+        ...rescanner.ticks(),
+        once: ["mut"],
+        onlyView: false,
+      });
       await new Promise((resolve) => setTimeout(resolve, 10));
       await rescanner.run();
 
@@ -692,11 +699,56 @@ describe("createRescanner", () => {
       const { rescanner } = harness(scan);
 
       await rescanner.loadTicks();
-      rescanner.setTicks({ ...rescanner.ticks(), once: ["mut"] });
+      rescanner.setTicks({
+        ...rescanner.ticks(),
+        once: ["mut"],
+        onlyView: false,
+      });
       await rescanner.run();
 
       expect(rescanner.ticks().once).toEqual([]);
     }
+  });
+
+  it("sends the module scope in the plan and remembers the switch", async () => {
+    const scan = fakeScan({
+      defaults: { describe: true, sensors: true },
+    });
+    const { rescanner } = harness(scan);
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({ ...rescanner.ticks(), onlyView: true });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await rescanner.run(["a.py", "b.py"]);
+
+    expect(scan.written.at(-1)?.onlyView).toBe(true);
+    expect(scan.ran[0]?.modules).toEqual(["a.py", "b.py"]);
+  });
+
+  it("sends no scope when none is given or nothing but extraction would run", async () => {
+    const scan = fakeScan();
+    const { rescanner } = harness(scan);
+
+    await rescanner.loadTicks();
+    await rescanner.run();
+    await rescanner.run(["a.py"]);
+
+    expect(scan.ran.map((plan) => plan.modules)).toEqual([null, null]);
+  });
+
+  it("reads the remembered switch back from the port", async () => {
+    const scan = fakeScan();
+    const { rescanner } = harness(scan);
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({ ...rescanner.ticks(), onlyView: true });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const again = harness(scan).rescanner;
+
+    await again.loadTicks();
+
+    expect(again.ticks().onlyView).toBe(true);
   });
 
   it("writes the ticks through the port when they change", async () => {
@@ -704,16 +756,22 @@ describe("createRescanner", () => {
     const { rescanner } = harness(scan);
 
     await rescanner.loadTicks();
-    rescanner.setTicks({ describe: true, ticked: null, once: [] });
+    rescanner.setTicks({
+      describe: true,
+      ticked: null,
+      once: [],
+      onlyView: false,
+    });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(scan.written).toEqual([
-      { describe: true, ticked: ["alpha", "beta"] },
+      { describe: true, ticked: ["alpha", "beta"], onlyView: false },
     ]);
     expect(rescanner.ticks()).toEqual({
       describe: true,
       ticked: null,
       once: [],
+      onlyView: false,
     });
   });
 

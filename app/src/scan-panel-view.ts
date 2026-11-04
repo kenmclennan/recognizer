@@ -4,6 +4,7 @@ import { placeTip } from "./tip-placement";
 
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
+  setOnlyView: (on: boolean) => void;
   run: () => void;
   stop: () => void;
   clearReport: (name: string) => void;
@@ -91,6 +92,26 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   return node;
 }
 
+function scopeNode(
+  scope: NonNullable<ScanPanelModel["scope"]>,
+  actions: ScanPanelActions,
+): HTMLElement {
+  const node = el("div", "scan-scope");
+  const text = el("div", "scan-scope-text", "Only this view");
+  const toggle = el("button", "scan-switch") as HTMLButtonElement;
+
+  text.append(el("small", "scan-scope-caption", scope.caption));
+  toggle.type = "button";
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-checked", String(scope.on));
+  toggle.setAttribute("aria-label", "Only this view");
+  toggle.disabled = scope.disabled;
+  toggle.addEventListener("click", () => actions.setOnlyView(!scope.on));
+  node.append(text, toggle);
+
+  return node;
+}
+
 function reportNode(row: ReportRow, actions: ScanPanelActions): HTMLElement {
   const node = el("div", "sensor-row reported");
   const clear = button("Clear", "sensor-clear", () =>
@@ -133,6 +154,7 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       }
 
       list.replaceChildren(
+        ...(model.scope === null ? [] : [scopeNode(model.scope, actions)]),
         ...model.rows.map((row) => rowNode(row, actions)),
         ...model.reports.map((row) => reportNode(row, actions)),
       );

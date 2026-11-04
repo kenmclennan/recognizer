@@ -17,12 +17,16 @@ pub struct StoredTicks {
     #[serde(default, skip_serializing)]
     pub sensors: Option<bool>,
     pub ticked: Vec<String>,
+    #[serde(default)]
+    pub only_view: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct ScanTicks {
     pub describe: bool,
     pub ticked: Option<Vec<String>>,
+    #[serde(rename = "onlyView")]
+    pub only_view: bool,
     pub remembered: bool,
 }
 
@@ -46,11 +50,13 @@ pub fn read(path: &Path, folder: &Path) -> ScanTicks {
             } else {
                 stored.ticked
             }),
+            only_view: stored.only_view,
             remembered: true,
         },
         None => ScanTicks {
             describe: false,
             ticked: Some(Vec::new()),
+            only_view: false,
             remembered: false,
         },
     }
@@ -82,6 +88,7 @@ mod tests {
             overlays: vec![],
             sensors: None,
             ticked: ticked.iter().map(|name| name.to_string()).collect(),
+            only_view: false,
         }
     }
 
@@ -103,6 +110,7 @@ mod tests {
             ScanTicks {
                 describe: false,
                 ticked: Some(vec![]),
+                only_view: false,
                 remembered: false
             }
         );
@@ -120,6 +128,7 @@ mod tests {
             ScanTicks {
                 describe: true,
                 ticked: Some(vec!["a".to_string()]),
+                only_view: false,
                 remembered: true
             }
         );
@@ -142,6 +151,7 @@ mod tests {
             ScanTicks {
                 describe: true,
                 ticked: Some(vec![]),
+                only_view: false,
                 remembered: true
             }
         );
@@ -161,6 +171,28 @@ mod tests {
         assert_eq!(
             read(&file, Path::new("/repo")).ticked,
             Some(vec!["a".to_string()])
+        );
+    }
+
+    #[test]
+    fn an_old_entry_without_only_view_reads_false_and_a_written_one_reads_back() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+
+        fs::write(&file, r#"{"/repo":{"describe":true,"ticked":["a"]}}"#).unwrap();
+
+        assert!(!read(&file, Path::new("/repo")).only_view);
+
+        let mut ticks = stored(true, &["a"]);
+
+        ticks.only_view = true;
+        write(&file, Path::new("/repo"), ticks).unwrap();
+
+        assert!(read(&file, Path::new("/repo")).only_view);
+        assert!(
+            serde_json::to_value(read(&file, Path::new("/repo"))).unwrap()["onlyView"]
+                .as_bool()
+                .unwrap()
         );
     }
 

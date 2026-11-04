@@ -140,7 +140,7 @@ export const COMMANDS: Command[] = [
     summary:
       "scan a repository in up to three phases: extract when the files changed, describe, sense",
     usage:
-      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--by <name>] [--json]",
+      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--by <name>] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -163,6 +163,11 @@ export const COMMANDS: Command[] = [
         flag: "--sense <all|name[,name...]>",
         description:
           "run every registered sensor, or the named ones, in config order",
+      },
+      {
+        flag: "--modules <file>",
+        description:
+          "a JSON array of module ids that limits --describe to those modules (the stale ones among them, or all of them with =all) and passes the file to the mutation sensor, which mutates only those modules' functions; needs --describe or --sense, and no other sensor takes it",
       },
       {
         flag: "--by <name>",
@@ -191,7 +196,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown sensor name, --sense with no sensors registered, --sense with no git commit, --describe with no describer registered, more than one repository, an empty --by or an unknown flag",
+          "bad input - an unknown sensor name, --sense with no sensors registered, --sense with no git commit, --describe with no describer registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, or an unknown flag",
       },
     ],
     examples: [
