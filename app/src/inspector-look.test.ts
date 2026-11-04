@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chrome, collectFacts, here } from "./look-page";
 
-const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-edge" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-tabs" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-top" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-narrow" style="width:200px;height:300px;display:flex;flex-direction:column"></div><div id="a-fit" style="width:340px;height:300px;display:flex;flex-direction:column"></div>`;
+const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-tabs" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-top" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-narrow" style="width:200px;height:300px;display:flex;flex-direction:column"></div><div id="a-fit" style="width:340px;height:300px;display:flex;flex-direction:column"></div>`;
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -36,8 +36,6 @@ const inputs = {
   expanded: new Set(),
   showPrivate: true,
   tab: "contents",
-  evidence: null,
-  edgeOnCanvas: true,
   counts: () => ({ uses: 0, usedBy: 0 }),
   noteRows: () => [],
   canAddNote: false,
@@ -60,7 +58,6 @@ mount("a-rail", { kind: "module", id: "p/m.py" }, false);
 mount("a-panel", { kind: "module", id: "p/m.py" }, true);
 mount("a-long", { kind: "module", id: "deep/folder/" + "n".repeat(120) + ".py" }, true);
 mount("a-short", { kind: "module", id: "p/q.py" }, true);
-mount("a-edge", { kind: "edge", id: "p/m.py>p/q.py" }, true);
 const counted = { ...inputs, counts: () => ({ uses: 1000, usedBy: 114 }), findings: () => Array.from({ length: 49 }, () => ({ severity: "warning" })), responsibility: () => ({ state: { kind: "out-of-date", line: "Does the thing.", reasons: ["source"] }, failure: null }) };
 const mountCounted = (id, selection) => {
   const view = buildInspectorView(actions);
@@ -168,7 +165,6 @@ const result = {
   heads: { long: measureHead("a-long"), short: measureHead("a-short") },
   tabsRow: { default: measureTabs("a-tabs"), narrow: measureTabs("a-narrow"), fit: measureFit(), folder: measureTabs("a-folder") },
   shapes: { module: measureShape("a-tabs"), folder: measureShape("a-folder"), top: measureShape("a-top") },
-  edgeLines: document.querySelectorAll("#a-edge .ih-text > *").length,
   links: document.querySelectorAll("#a-panel .cb").length,
   tables: [...panel.querySelectorAll(".card")].map((card) => {
     const table = card.querySelector(".card-metrics");
@@ -230,7 +226,6 @@ type Report = {
   heads: Record<string, Record<string, number | string | null>>;
   tabsRow: Record<string, TabsFacts>;
   shapes: Record<string, ShapeFacts>;
-  edgeLines: number;
   links: number;
   linkText: number;
   tables: ({
@@ -481,16 +476,6 @@ describe("the inspector, in a real browser", () => {
       expect(shapes.module.muted).toBe("p/");
       expect(shapes.folder.muted).toBe("1 files · deep/");
       expect(shapes.top.muted).toBe("3 files");
-    },
-    180000,
-  );
-
-  it.skipIf(chrome === undefined)(
-    "renders one line when the folder line is empty",
-    async () => {
-      const report = await prepare("light");
-
-      expect(report.edgeLines).toBe(1);
     },
     180000,
   );

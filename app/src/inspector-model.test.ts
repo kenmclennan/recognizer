@@ -56,8 +56,6 @@ function inputsFor(
     expanded: new Set(),
     showPrivate: false,
     tab: "contents",
-    evidence: null,
-    edgeOnCanvas: true,
     counts: () => ({ uses: 0, usedBy: 0 }),
     filter: "",
     collapsed: new Set(),
@@ -312,18 +310,13 @@ describe("module contents as cards", () => {
     ]);
   });
 
-  it("produces no switch for a folder or an edge", () => {
+  it("produces no switch for a folder", () => {
     const folderRows = inspectorContent(
       folder("pkg"),
       inputsFor([scanOf([fn("f", true)])]),
     ).rows;
-    const edgeRows = inspectorContent(
-      { kind: "edge", id: "pkg/m.py>pkg/o.py" },
-      inputsFor([scanOf([fn("f", true)])]),
-    ).rows;
 
     expect(folderRows.some((row) => row.kind === "switch")).toBe(false);
-    expect(edgeRows.some((row) => row.kind === "switch")).toBe(false);
   });
 });
 
@@ -348,11 +341,8 @@ describe("the responsibility line in the header", () => {
     }
   });
 
-  it("is absent for a folder and an edge", () => {
+  it("is absent for a folder", () => {
     expect(headerOf(folder("pkg")).responsibility).toBeNull();
-    expect(
-      headerOf({ kind: "edge", id: "pkg/m.py>pkg/o.py" }).responsibility,
-    ).toBeNull();
   });
 });
 
@@ -740,15 +730,6 @@ describe("header and tabs", () => {
     ]);
   });
 
-  it("has no tabs for an edge whatever tab was last chosen", () => {
-    const content = inspectorContent(
-      { kind: "edge", id: "e" },
-      inputsFor([scan], { tab: "dependencies" }),
-    );
-
-    expect(content.tabs).toBeNull();
-  });
-
   it("explains an empty selection", () => {
     const content = inspectorContent(null, inputsFor([scan]));
 
@@ -934,34 +915,6 @@ describe("findings", () => {
       inspectorContent(folder("d"), inputsFor([scan], { tab: "findings" }))
         .rows,
     ).toEqual([{ kind: "note", text: "No findings" }]);
-  });
-});
-
-describe("edge", () => {
-  const scan = scanOf([]);
-  const sections = [
-    { where: "a:1", quoted: "q", names: null, route: null, inferred: [] },
-    { where: "a:2", quoted: "q", names: null, route: null, inferred: [] },
-  ];
-  const edge = { kind: "edge", id: "e" } as const;
-
-  it("has no tabs and a plain header", () => {
-    const content = inspectorContent(edge, inputsFor([scan]));
-
-    expect(content.tabs).toBeNull();
-    expect(content.header.title).toBe("Edge");
-  });
-
-  it("shows loading, then every section, or not on the canvas", () => {
-    expect(inspectorContent(edge, inputsFor([scan])).rows).toEqual([
-      { kind: "note", text: "Loading evidence" },
-    ]);
-    expect(
-      inspectorContent(edge, inputsFor([scan], { evidence: sections })).rows,
-    ).toHaveLength(2);
-    expect(
-      inspectorContent(edge, inputsFor([scan], { edgeOnCanvas: false })).rows,
-    ).toEqual([{ kind: "note", text: "Not on the canvas." }]);
   });
 });
 

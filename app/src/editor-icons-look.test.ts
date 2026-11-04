@@ -41,7 +41,7 @@ click(barFolder);
 const scan = { modules: [{ id: "p/m.py", kind: "module" }, { id: "p/q.py", kind: "module" }], edges: [], foreign: [], calls: [] };
 const inputs = {
   scans: [scan], modules: scan.modules.map((m) => m.id), compaction: compactFolders(scan.modules.map((m) => m.id)), disc: () => "green", findings: () => [], onCanvas: () => true,
-  expanded: new Set(), tab: "contents", evidence: null, edgeOnCanvas: true, counts: () => ({ uses: 0, usedBy: 0 }), noteRows: () => [], canAddNote: false, filter: "", collapsed: new Set(), responsibility: () => ({ state: { kind: "missing" }, failure: null }),
+  expanded: new Set(), tab: "contents", counts: () => ({ uses: 0, usedBy: 0 }), noteRows: () => [], canAddNote: false, filter: "", collapsed: new Set(), responsibility: () => ({ state: { kind: "missing" }, failure: null }),
 };
 const inspectorActions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor: (target) => calls.push("inspector:" + target.kind + ":" + target.id) };
 const inspect = (selection) => {
@@ -60,7 +60,6 @@ click(moduleHead.querySelector('[aria-label="' + EDITOR + '"]'));
 const folderHead = inspect({ kind: "folder", id: "p" });
 facts.inspectorFolder = describe(folderHead.querySelector('[aria-label="' + EDITOR + '"]'));
 click(folderHead.querySelector('[aria-label="' + EDITOR + '"]'));
-facts.inspectorEdge = inspect({ kind: "edge", id: "p/m.py>p/q.py" }).querySelectorAll('[aria-label="' + EDITOR + '"]').length;
 
 const root = buildTree(["p/m.py", "p/q.py"]);
 const filter = { text: "", onCanvas: false, needsAttention: false };
@@ -109,12 +108,11 @@ describe.skipIf(chrome === undefined)("the Open in Editor icons", () => {
     ]);
   });
 
-  it("is in the inspector header for a module and a folder, before the close button, and absent on an edge", () => {
+  it("is in the inspector header for a module and a folder, before the close button", () => {
     expect(f.inspectorModule.title).toBe(EDITOR);
     expect(f.inspectorModule.svgs).toBe(1);
     expect(f.inspectorFolder.title).toBe(EDITOR);
     expect(f.inspectorOrder).toEqual([EDITOR, "Close the inspector"]);
-    expect(f.inspectorEdge).toBe(0);
   });
 
   it("is in the tree header as Open Folder in Editor, at the right edge", () => {

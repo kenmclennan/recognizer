@@ -77,30 +77,6 @@ function hoverable(node: HTMLElement, name: string, actions: InspectorActions) {
   node.addEventListener("mouseleave", () => actions.hover(null));
 }
 
-function evidenceNode(row: Extract<Row, { kind: "evidence" }>) {
-  const { section } = row;
-  const block = el("div", "evidence");
-
-  block.append(
-    el("div", "where", section.where),
-    el("code", "quoted", section.quoted),
-  );
-
-  if (section.names) {
-    block.append(el("div", "", `names: ${section.names}`));
-  }
-
-  if (section.route) {
-    block.append(el("div", "", `via: ${section.route}`));
-  }
-
-  for (const part of section.inferred) {
-    block.append(el("div", "", part));
-  }
-
-  return block;
-}
-
 function tokenNodes(tokens: Token[]): HTMLElement[] {
   return tokens.map((token) => el("span", `tk-${token.role}`, token.text));
 }
@@ -349,19 +325,15 @@ function rowNode(
     );
   }
 
-  if (row.kind === "finding") {
-    return buildFindingCard(
-      cardOf(row.row),
-      row.row.severity,
-      {
-        open: actions.focusedFinding() === row.row.id,
-        absent: actions.moduleAbsent,
-      },
-      { toggle: actions.focusFinding, addToView: actions.addToView },
-    );
-  }
-
-  return evidenceNode(row);
+  return buildFindingCard(
+    cardOf(row.row),
+    row.row.severity,
+    {
+      open: actions.focusedFinding() === row.row.id,
+      absent: actions.moduleAbsent,
+    },
+    { toggle: actions.focusFinding, addToView: actions.addToView },
+  );
 }
 
 type PanelView = {

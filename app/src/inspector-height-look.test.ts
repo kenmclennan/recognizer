@@ -39,8 +39,6 @@ const inputs = {
   expanded: new Set(),
   showPrivate: true,
   tab: "contents",
-  evidence: null,
-  edgeOnCanvas: true,
   counts: () => ({ uses: 0, usedBy: 0 }),
   noteRows: () => [],
   canAddNote: false,

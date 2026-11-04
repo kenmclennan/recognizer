@@ -36,11 +36,7 @@ import {
   createMeasure,
 } from "./canvas-view";
 import { el } from "./dom";
-import {
-  describeLine,
-  type EvidenceSection,
-  evidenceOf,
-} from "./edge-evidence";
+import { describeLine } from "./edge-evidence";
 import { openFolderInEditor, openInEditor } from "./editor-open";
 import { type EditorPort, inertEditor } from "./editor-port";
 import { cardOf } from "./finding-card";
@@ -89,7 +85,6 @@ import {
 import { mountPanelResizers } from "./panel-resizer-view";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import { removedPlacement } from "./removed-boxes";
-import { repositorySource } from "./repository-source";
 import {
   inertResponsibilities,
   type ResponsibilitiesPort,
@@ -311,7 +306,6 @@ export function showExplorer(
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
   let titles = new Map<string, string>();
-  let evidence: { id: string; sections: EvidenceSection[] } | null = null;
   let inspectorOpen = false;
   let inspectorTab: InspectorTab = "contents";
   let hovered: { module: string; name: string } | null = null;
@@ -573,7 +567,12 @@ export function showExplorer(
       inspectorOpen = false;
       hovered = null;
       resetList();
-      trail = startTrail(state.selection(), inspectorTab);
+      const selected = state.selection();
+
+      trail = startTrail(
+        selected?.kind === "edge" ? trail.panels[0].selection : selected,
+        inspectorTab,
+      );
       render();
     },
     setTab(tab) {
@@ -982,6 +981,10 @@ export function showExplorer(
   }
 
   function syncTrail(selection: Selection) {
+    if (selection?.kind === "edge") {
+      return;
+    }
+
     const first = trail.panels[0].selection;
 
     if (first?.kind !== selection?.kind || first?.id !== selection?.id) {
@@ -1129,42 +1132,15 @@ export function showExplorer(
     }
 
     state.select(selection);
-    trail = startTrail(selection, inspectorTab);
-    evidence = null;
+
+    if (selection?.kind !== "edge") {
+      trail = startTrail(selection, inspectorTab);
+    }
+
     hovered = null;
     reveal(selection);
-
-    if (selection?.kind === "edge") {
-      inspectorOpen = true;
-      void loadEvidence(selection.id);
-    }
-
     render();
     record();
-  }
-
-  async function loadEvidence(id: string) {
-    const line = graph.lines.find((candidate) => candidate.id === id);
-
-    if (!line) {
-      return;
-    }
-
-    const sections = await Promise.all(
-      line.edges.map(async (edge) =>
-        evidenceOf(
-          edge,
-          await repositorySource
-            .sourceLine(edge.from, edge.line)
-            .catch(() => null),
-        ),
-      ),
-    );
-
-    if (state.selection()?.id === id) {
-      evidence = { id, sections };
-      render();
-    }
   }
 
   function boxFor(id: string): string {
@@ -1223,7 +1199,6 @@ export function showExplorer(
     }
 
     state.select({ kind: "module", id });
-    evidence = null;
     hovered = null;
     reveal({ kind: "module", id });
     render();
@@ -2014,7 +1989,6 @@ export function showExplorer(
 
     restoreCanvas(folded, focus);
     state.clearSelection();
-    evidence = null;
     hovered = null;
     resetList();
     rebuild();
@@ -2038,7 +2012,6 @@ export function showExplorer(
 
     restoreCanvas(snap.folded, snap.focus);
     openView = snap.view;
-    evidence = null;
     hovered = null;
     resetList();
     rebuild();
@@ -2149,7 +2122,6 @@ export function showExplorer(
           state.clearSelection();
         }
 
-        evidence = null;
         hovered = null;
         changed();
 
@@ -3001,14 +2973,6 @@ export function showExplorer(
         expanded: root ? folds : panel.folds,
         showPrivate,
         tab: root ? inspectorTab : panel.tab,
-        evidence:
-          root && selection?.kind === "edge" && evidence?.id === selection.id
-            ? evidence.sections
-            : null,
-        edgeOnCanvas:
-          root &&
-          selection?.kind === "edge" &&
-          graph.lines.some((line) => line.id === selection.id),
         counts: graph.counts,
         filter: root ? pickerFilter : panel.filter,
         collapsed: root ? groupFlips : panel.groupFlips,

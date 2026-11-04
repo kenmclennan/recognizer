@@ -9,7 +9,6 @@ import {
 } from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
-import type { EvidenceSection } from "./edge-evidence";
 import { type FindingGroupModel, groupsOf } from "./findings-groups";
 import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
@@ -33,8 +32,6 @@ export type InspectorInputs = {
   expanded: ReadonlySet<string>;
   showPrivate: boolean;
   tab: InspectorTab;
-  evidence: EvidenceSection[] | null;
-  edgeOnCanvas: boolean;
   counts: (selection: NonNullable<Selection>) => Counts;
   filter: string;
   collapsed: ReadonlySet<string>;
@@ -117,8 +114,7 @@ export type Row =
       key: string;
       group: FindingGroupModel;
       open: boolean;
-    }
-  | { kind: "evidence"; section: EvidenceSection };
+    };
 
 export type Header = {
   disc: Disc | null;
@@ -752,7 +748,7 @@ export function inspectorContent(
   selection: Selection,
   inputs: InspectorInputs,
 ): InspectorContent {
-  if (selection === null) {
+  if (selection === null || selection.kind === "edge") {
     return {
       key: "none",
       header: {
@@ -773,27 +769,6 @@ export function inspectorContent(
   }
 
   const key = `${selection.kind}:${selection.id}`;
-
-  if (selection.kind === "edge") {
-    const rows: Row[] = !inputs.edgeOnCanvas
-      ? [{ kind: "note", text: "Not on the canvas." }]
-      : inputs.evidence === null
-        ? [{ kind: "note", text: "Loading evidence" }]
-        : inputs.evidence.map((section) => ({ kind: "evidence", section }));
-
-    return {
-      key,
-      header: {
-        disc: null,
-        title: "Edge",
-        muted: "",
-        target: null,
-        responsibility: null,
-      },
-      tabs: null,
-      rows,
-    };
-  }
 
   const count = countFindings(selection, inputs);
   const figures = inputs.counts(selection);

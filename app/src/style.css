@@ -1329,31 +1329,6 @@ svg.i.chevron {
   margin: 4px 0;
 }
 
-.inspector-panel .evidence + .evidence {
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-}
-
-.inspector-panel .where {
-  color: var(--muted);
-}
-
-.inspector-panel .quoted {
-  display: block;
-  margin: 6px 0;
-  padding: 6px 8px;
-  border-radius: 5px;
-  background: var(--code);
-  font:
-    11.5px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
 .canvas-legend {
   position: absolute;
   right: 12px;
