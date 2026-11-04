@@ -22,7 +22,8 @@ import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
-import { postToolsMessage, TOOLS_KEY, toolsNotice } from "./tools-notice";
+import { postToolsMessage, TOOLS_KEY } from "./tools-notice";
+import { createToolsRecheck } from "./tools-recheck";
 import { toolsSource } from "./tools-source";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
@@ -111,25 +112,30 @@ function reconcileKeys() {
   footerView.reconcile([...explorerKeys, ...(toolsFound ? [TOOLS_KEY] : [])]);
 }
 
-async function checkTools(): Promise<void> {
-  try {
+const toolsRecheck = createToolsRecheck({
+  now: () => Date.now(),
+  read: async () => {
     const [appVersion, report] = await Promise.all([
       getVersion(),
       toolsSource.recognizerVersion(),
     ]);
-    const notice = toolsNotice(appVersion, report);
 
+    return { appVersion, report };
+  },
+  show: (notice, fresh) => {
     toolsFound = notice !== null;
 
-    if (notice !== null) {
+    if (notice !== null && fresh) {
       postToolsMessage(notice, footerView, (text) => viewsSource.copy(text));
     }
-  } catch {
-    toolsFound = false;
-  }
 
-  reconcileKeys();
-}
+    reconcileKeys();
+  },
+});
+
+window.addEventListener("focus", () => {
+  void toolsRecheck.onFocus();
+});
 
 const rescanner = createRescanner<Carried>({
   port: scanSource,
@@ -149,7 +155,7 @@ const rescanner = createRescanner<Carried>({
   replace: (loaded, carried) => {
     explorer?.dispose();
     explorer = buildExplorer(loaded, carried);
-    void checkTools();
+    void toolsRecheck.onOpen();
   },
   adopted: adoptedOrigin,
   describedLine: () => explorer?.refreshResponsibilities(),
