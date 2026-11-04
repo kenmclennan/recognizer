@@ -255,7 +255,7 @@ clickBar("Pick files in it (I)");
 clickBar("Open in Editor (⌘⇧E)");
 result.barClicks = [...calls];
 canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ folded: true, focused: true }) }));
-result.barFolded = kids(q(".selection-bar")).slice(-6).map((k) => [k.aria, k.title]);
+result.barFolded = kids(q(".selection-bar")).slice(-5).map((k) => [k.aria, k.title]);
 canvas.render(props({ selection: { kind: "folder", id: "f" }, bar: bar({ dependencies: 0 }) }));
 calls.length = 0;
 const zeroDependencies = q('.selection-bar [aria-label="Dependencies (D)"]');
@@ -690,9 +690,9 @@ describe("the canvas, in a real browser", () => {
           const { barModule, barFolder, barClicks, barFolded } = r();
 
           expect(labelsOf(barModule.kids)).toEqual([
+            "Contents (I)",
             "Dependencies (D)",
             "|",
-            "Contents (I)",
             "Open in Editor (⌘⇧E)",
             "|",
             "Take off the canvas (Backspace)",
@@ -700,11 +700,11 @@ describe("the canvas, in a real browser", () => {
           expect(labelsOf(barFolder.kids)).toEqual([
             "Pick files in it (I)",
             "|",
+            "Contents (I)",
             "Dependencies (D)",
             "|",
             "Only this folder (F)",
             "Fold into one box (Z)",
-            "Contents (I)",
             "Open in Editor (⌘⇧E)",
             "|",
             "Take off the canvas (Backspace)",
@@ -729,11 +729,11 @@ describe("the canvas, in a real browser", () => {
           const [
             files,
             ,
+            contents,
             dependencies,
             ,
             focus,
             fold,
-            contents,
             editor,
             ,
             takeOff,

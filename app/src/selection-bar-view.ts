@@ -94,6 +94,13 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         parts.push(files, separator());
       }
 
+      const contents = iconButton("list", "Contents (I)", () =>
+        actions.openContents(),
+      );
+
+      contents.classList.toggle("on", contentsShown);
+      parts.push(contents);
+
       const dependencies = iconButton(
         "dependencies",
         "Dependencies (D)",
@@ -106,16 +113,6 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         model.inspectorTab === "dependencies",
       );
       parts.push(dependencies);
-
-      if (model.notes !== null) {
-        const notes = iconButton("sticky-note", `Notes (N)`, () =>
-          actions.openNote(),
-        );
-
-        notes.classList.add("bar-notes");
-        notes.classList.toggle("on", model.notes.noted);
-        parts.push(notes);
-      }
 
       if (model.findings !== null) {
         const findings = iconButton(
@@ -132,6 +129,16 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
 
       parts.push(separator());
 
+      if (model.notes !== null) {
+        const notes = iconButton("sticky-note", `Notes (N)`, () =>
+          actions.openNote(),
+        );
+
+        notes.classList.add("bar-notes");
+        notes.classList.toggle("on", model.notes.noted);
+        parts.push(notes);
+      }
+
       if (model.kind === "folder") {
         parts.push(
           iconButton(
@@ -147,13 +154,7 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         );
       }
 
-      const contents = iconButton("list", "Contents (I)", () =>
-        actions.openContents(),
-      );
-
-      contents.classList.toggle("on", contentsShown);
       parts.push(
-        contents,
         iconButton("external-link", "Open in Editor (⌘⇧E)", () =>
           actions.openInEditor(),
         ),

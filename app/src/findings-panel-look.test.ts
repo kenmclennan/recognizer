@@ -383,8 +383,8 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     expect(f.bar.text).toBe("2");
     expect(f.bar.cls).toContain("findings-red");
     expect(f.bar.order).toEqual([
+      "Contents (I)",
       "Dependencies (D)",
-      "Notes (N)",
       "Findings (W)",
     ]);
     expect(f.barTab.tab[0]).toMatch(/^Findings/);
