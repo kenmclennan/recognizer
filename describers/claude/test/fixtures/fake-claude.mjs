@@ -38,4 +38,9 @@ if (mode === "blank") {
   process.exit(0);
 }
 
-process.stdout.write(`${reply}\n`);
+if (mode === "sleep") {
+  writeFileSync(`${record}.pid`, String(process.pid));
+  setInterval(() => {}, 1000);
+} else {
+  process.stdout.write(`${reply}\n`);
+}

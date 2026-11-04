@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
 import { promptVersion, versionOf } from "../src/prompt.js";
 import {
   claudeRan,
+  interrupt,
   PROMPT_FILE,
   REPO,
   REQUEST,
@@ -86,6 +88,24 @@ describe("failure prints nothing", () => {
     expect(result.stdout).toBe("");
     expect(result.stderr).not.toBe("");
   });
+});
+
+describe("a signal sent to the describer alone", () => {
+  const signals: [NodeJS.Signals, number][] = [
+    ["SIGTERM", 143],
+    ["SIGINT", 130],
+  ];
+
+  it.each(signals)(
+    "%s ends the claude child and exits %i",
+    async (signal, code) => {
+      const box = sandbox();
+      const result = await interrupt(box, signal, scaledTimeout(5000));
+
+      expect(result.status).toBe(code);
+    },
+    scaledTimeout(10_000),
+  );
 });
 
 describe("usage errors", () => {
