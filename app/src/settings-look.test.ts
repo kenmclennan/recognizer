@@ -19,19 +19,22 @@ const q = (selector) => host.querySelector(selector);
 const cs = (node) => getComputedStyle(node);
 const facts = {};
 
-view.fill({ editor: "" });
+view.fill({ editor: "", describing: { model: "sonnet", batchSize: 4 } });
 facts.empty = {
   labels: [...host.querySelectorAll("label > span")].map((n) => n.textContent),
   placeholders: [...host.querySelectorAll('input[type="text"]')].map((n) => n.placeholder),
   values: [...host.querySelectorAll('input[type="text"]')].map((n) => n.value),
-  scanning: host.querySelector("fieldset, legend, input[type=checkbox]") !== null,
+  batch: { value: q('input[name="batch_size"]').value, min: q('input[name="batch_size"]').min, max: q('input[name="batch_size"]').max, step: q('input[name="batch_size"]').step },
+  describingLegend: q(".describing legend").textContent,
+  scanning: host.querySelector(".scanning, input[type=checkbox]") !== null,
   hints: [...host.querySelectorAll(".hint")].map((n) => n.textContent),
   buttons: [...host.querySelectorAll(".buttons button")].map((n) => n.textContent),
   error: q(".error").textContent,
 };
 
-view.fill({ editor: "Sublime Text" });
+view.fill({ editor: "Sublime Text", describing: { model: "opus", batchSize: 8 } });
 facts.filled = [...host.querySelectorAll('input[type="text"]')].map((n) => n.value);
+facts.filledDescribing = { model: q('input[name="model"]').value, batch: q('input[name="batch_size"]').value };
 
 view.showError("the editor must be a single line");
 facts.errorShown = {
@@ -43,6 +46,11 @@ facts.errorShown = {
 };
 
 host.querySelector('input[name="editor"]').value = "  code --goto  ";
+q('input[name="batch_size"]').value = "17";
+q("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+facts.invalidError = q(".error").textContent;
+facts.savedAfterInvalid = saved.length;
+q('input[name="batch_size"]').value = "6";
 q("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 facts.saved = saved;
 q('.buttons button[type="button"]').click();
@@ -75,20 +83,32 @@ describe.skipIf(chrome === undefined)("the settings window", () => {
     f = await collectFacts<Facts>(HARNESS, "settings-look");
   }, scaledTimeout(180000));
 
-  it("shows only the editor field with its placeholder, hint and buttons and no Scanning section", () => {
-    expect(f.empty.labels).toEqual(["Editor"]);
+  it("shows the editor field and a Describing section with its placeholders, hints and buttons and no Scanning section", () => {
+    expect(f.empty.labels).toEqual(["Editor", "Model", "Batch size"]);
     expect(f.empty.scanning).toBe(false);
-    expect(f.empty.placeholders).toEqual(["System default"]);
-    expect(f.empty.values).toEqual([""]);
+    expect(f.empty.placeholders).toEqual(["System default", "sonnet"]);
+    expect(f.empty.values).toEqual(["", "sonnet"]);
+    expect(f.empty.batch).toEqual({
+      value: "4",
+      min: "1",
+      max: "16",
+      step: "1",
+    });
+    expect(f.empty.describingLegend).toBe("Describing");
     expect(f.empty.hints[0]).toContain("Sublime Text");
     expect(f.empty.hints[0]).toContain("Terminal editors are not supported");
-    expect(f.empty.hints).toHaveLength(1);
+    expect(f.empty.hints).toHaveLength(2);
+    expect(f.empty.hints[1]).toContain(
+      "how many modules are described at once",
+    );
+    expect(f.empty.hints[1]).toContain("from a terminal");
     expect(f.empty.buttons).toEqual(["Cancel", "Save"]);
     expect(f.empty.error).toBe("");
   });
 
   it("fills the fields from the loaded settings", () => {
-    expect(f.filled).toEqual(["Sublime Text"]);
+    expect(f.filled).toEqual(["Sublime Text", "opus"]);
+    expect(f.filledDescribing).toEqual({ model: "opus", batch: "8" });
   });
 
   it("shows an error line as an alert in the error colour", () => {
@@ -98,7 +118,11 @@ describe.skipIf(chrome === undefined)("the settings window", () => {
   });
 
   it("saves the trimmed values and cancels without saving", () => {
-    expect(f.saved).toEqual([{ editor: "code --goto" }]);
+    expect(f.saved).toEqual([
+      { editor: "code --goto", describing: { model: "opus", batchSize: 6 } },
+    ]);
+    expect(f.invalidError).toContain("Batch size");
+    expect(f.savedAfterInvalid).toBe(0);
     expect(f.cancels).toBe(1);
   });
 

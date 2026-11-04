@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-describing"
+description = "Enables the read_describing command without any pre-configured scope."
+commands.allow = ["read_describing"]
+
+[[permission]]
+identifier = "deny-read-describing"
+description = "Denies the read_describing command without any pre-configured scope."
+commands.deny = ["read_describing"]

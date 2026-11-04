@@ -86,23 +86,26 @@ function commit(root: string): void {
   writeScan(root);
 }
 
-function exec(root: string, ...args: string[]) {
+async function exec(root: string, ...args: string[]) {
   const out = capture();
-  const code = run([...args, "--repository", root], out.io);
+  const code = await run([...args, "--repository", root], out.io);
 
   return { code, out: out.out(), err: out.err() };
 }
 
-function counts(root: string) {
-  return JSON.parse(exec(root, "describe", "--check", "--json").out) as {
+async function counts(root: string) {
+  return JSON.parse(
+    (await exec(root, "describe", "--check", "--json")).out,
+  ) as {
     counts: Record<string, number>;
     modules: { module: string; status: string; reasons: string[] }[];
   };
 }
 
-function statusOf(root: string, id: string): string {
+async function statusOf(root: string, id: string): Promise<string> {
   return (
-    counts(root).modules.find((entry) => entry.module === id)?.status ?? ""
+    (await counts(root)).modules.find((entry) => entry.module === id)?.status ??
+    ""
   );
 }
 
@@ -183,10 +186,10 @@ describe("moduleSource", () => {
 });
 
 describe("describe over a Kotlin file module", () => {
-  it("sends the one file, tracks edits to it and agrees with show", () => {
+  it("sends the one file, tracks edits to it and agrees with show", async () => {
     const root = repository();
 
-    expect(exec(root, "describe", ORDER).code).toBe(0);
+    expect((await exec(root, "describe", ORDER)).code).toBe(0);
 
     const request = JSON.parse(
       readFileSync(join(root, ".recognizer/request.json"), "utf8"),
@@ -194,12 +197,13 @@ describe("describe over a Kotlin file module", () => {
 
     expect(request.files).toEqual([ORDER]);
     expect(request.source).toBe(readFileSync(join(root, ORDER), "utf8"));
-    expect(statusOf(root, ORDER)).toBe("current");
+    expect(await statusOf(root, ORDER)).toBe("current");
 
-    const shown = () =>
-      JSON.parse(exec(root, "show", ORDER, "--json").out).responsibility;
+    const shown = async () =>
+      JSON.parse((await exec(root, "show", ORDER, "--json")).out)
+        .responsibility;
 
-    expect(shown().status).toBe("current");
+    expect((await shown()).status).toBe("current");
 
     const path = join(root, ORDER);
     const before = readFileSync(path, "utf8");
@@ -207,24 +211,24 @@ describe("describe over a Kotlin file module", () => {
     writeFileSync(path, `${before}\n// edited\n`);
     commit(root);
 
-    const stale = counts(root).modules.find((m) => m.module === ORDER);
+    const stale = (await counts(root)).modules.find((m) => m.module === ORDER);
 
     expect(stale?.status).toBe("out-of-date");
     expect(stale?.reasons).toEqual(["source"]);
-    expect(shown().status).toBe("out-of-date");
-    expect(statusOf(root, CURRENCY)).toBe("missing");
+    expect((await shown()).status).toBe("out-of-date");
+    expect(await statusOf(root, CURRENCY)).toBe("missing");
 
     writeFileSync(path, before);
     commit(root);
 
-    expect(statusOf(root, ORDER)).toBe("current");
+    expect(await statusOf(root, ORDER)).toBe("current");
   });
 
-  it("reports 10 current and none unreadable after describe --all", () => {
+  it("reports 10 current and none unreadable after describe --all", async () => {
     const root = repository();
 
-    expect(exec(root, "describe", "--all").code).toBe(0);
-    expect(counts(root).counts).toEqual({
+    expect((await exec(root, "describe", "--all")).code).toBe(0);
+    expect((await counts(root)).counts).toEqual({
       current: 10,
       outOfDate: 0,
       missing: 0,

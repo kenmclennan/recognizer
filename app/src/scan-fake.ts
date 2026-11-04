@@ -1,5 +1,6 @@
 import type { ScanPlan } from "./scan-panel-model";
 import type {
+  DescribingSettings,
   ScanPort,
   ScanRunResult,
   StoredTicks,
@@ -14,6 +15,7 @@ export type FakeScan = ScanPort & {
   result: ScanRunResult;
   cache: ScanReport;
   defaults: { describe: boolean; sensors: boolean };
+  describing: DescribingSettings;
   ran: ScanPlan[];
   stopped: number;
   written: WrittenTicks[];
@@ -35,6 +37,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
       policy: null,
     },
     defaults: { describe: false, sensors: false },
+    describing: { model: "sonnet", batchSize: 4 },
     ran: [],
     stopped: 0,
     written: [],
@@ -102,6 +105,9 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     async writeTicks(ticks) {
       fake.written.push(ticks);
       remembered = { ...ticks, sensors: true, remembered: true };
+    },
+    async readDescribing() {
+      return fake.describing;
     },
     onLine(handler) {
       handlers.add(handler);

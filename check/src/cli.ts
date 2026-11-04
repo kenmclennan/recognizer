@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -59,6 +59,11 @@ export interface RunOptions {
   timeoutMs?: number;
 }
 
+export interface Running {
+  result: Promise<RunResult>;
+  kill(): void;
+}
+
 export interface LaunchResult {
   started: boolean;
   message: string;
@@ -83,6 +88,7 @@ export interface Io {
   makeTempDir(): string;
   removeDir(path: string): void;
   run(command: string, args: string[], options?: RunOptions): RunResult;
+  runAsync(command: string, args: string[], options?: RunOptions): Running;
   launch(command: string, args: string[]): LaunchResult;
   request(socket: string, text: string): RequestResult;
   env(name: string): string | undefined;
@@ -110,6 +116,95 @@ const REQUEST_SCRIPT = [
   "});",
   'connection.on("end", () => process.exit(1));',
 ].join("\n");
+
+const liveChildren = new Set<ChildProcess>();
+
+const liveTempDirs = new Set<string>();
+
+export function stopEverything(): void {
+  for (const child of liveChildren) {
+    child.kill("SIGTERM");
+  }
+
+  for (const directory of liveTempDirs) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+
+  liveTempDirs.clear();
+}
+
+function spawnAsync(
+  command: string,
+  args: string[],
+  options?: RunOptions,
+): Running {
+  let child: ChildProcess;
+  let timer: NodeJS.Timeout | undefined;
+
+  const result = new Promise<RunResult>((resolve) => {
+    child = spawn(command, args, {
+      cwd: options?.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    liveChildren.add(child);
+
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let settled = false;
+
+    const settle = (value: RunResult) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timer);
+      liveChildren.delete(child);
+      resolve(value);
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error: NodeJS.ErrnoException) => {
+      settle({
+        started: error.code !== "ENOENT",
+        status: null,
+        stdout,
+        stderr: error.message,
+      });
+    });
+    child.on("close", (status, signal) => {
+      settle({
+        started: true,
+        status: status ?? (signal === null ? null : 128),
+        stdout,
+        stderr,
+        ...(timedOut ? { timedOut } : {}),
+      });
+    });
+
+    if (options?.timeoutMs !== undefined) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGKILL");
+      }, options.timeoutMs);
+    }
+  });
+
+  return {
+    result,
+    kill: () => {
+      child.kill("SIGTERM");
+    },
+  };
+}
 
 export function nodeIo(): Io {
   return {
@@ -139,8 +234,17 @@ export function nodeIo(): Io {
             : "other",
       })),
     remove: (path) => rmSync(path, { force: true }),
-    makeTempDir: () => mkdtempSync(join(tmpdir(), "recognizer-scan-")),
-    removeDir: (path) => rmSync(path, { recursive: true, force: true }),
+    makeTempDir: () => {
+      const directory = mkdtempSync(join(tmpdir(), "recognizer-scan-"));
+
+      liveTempDirs.add(directory);
+
+      return directory;
+    },
+    removeDir: (path) => {
+      liveTempDirs.delete(path);
+      rmSync(path, { recursive: true, force: true });
+    },
     run: (command, args, options) => {
       const timeoutMs = options?.timeoutMs;
       const result =
@@ -178,6 +282,7 @@ export function nodeIo(): Io {
         ...(timedOut ? { timedOut } : {}),
       };
     },
+    runAsync: (command, args, options) => spawnAsync(command, args, options),
     launch: (command, args) => {
       try {
         const child = spawn(command, args, { detached: true, stdio: "ignore" });
@@ -225,7 +330,7 @@ export function packageVersion(): string {
   return manifest.version;
 }
 
-function execute(argv: string[], io: Io): number {
+function execute(argv: string[], io: Io): number | Promise<number> {
   const [first, ...rest] = argv;
 
   if (first === undefined) {
@@ -261,16 +366,27 @@ function execute(argv: string[], io: Io): number {
   return command.run(rest, io);
 }
 
-export function run(argv: string[], io: Io = nodeIo()): number {
-  try {
-    return execute(argv, io);
-  } catch (error) {
-    if (error instanceof InputError) {
-      io.stderr(`${error.messages.join("\n")}\n`);
-    } else {
-      io.stderr(`${(error as Error).message}\n`);
-    }
+function failed(error: unknown, io: Io): number {
+  if (error instanceof InputError) {
+    io.stderr(`${error.messages.join("\n")}\n`);
+  } else {
+    io.stderr(`${(error as Error).message}\n`);
+  }
 
-    return 2;
+  return 2;
+}
+
+export function run(
+  argv: string[],
+  io: Io = nodeIo(),
+): number | Promise<number> {
+  try {
+    const outcome = execute(argv, io);
+
+    return outcome instanceof Promise
+      ? outcome.catch((error: unknown) => failed(error, io))
+      : outcome;
+  } catch (error) {
+    return failed(error, io);
   }
 }

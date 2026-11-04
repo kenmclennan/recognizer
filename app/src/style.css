@@ -1716,6 +1716,35 @@ svg.i.chevron {
   font-weight: 400;
 }
 
+.settings .describing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings .describing legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings .describing .row {
+  display: flex;
+  gap: 12px;
+}
+
+.settings .describing .row label:first-child {
+  flex: 1;
+}
+
+.settings .describing .row label:last-child {
+  width: 110px;
+}
+
 .settings .hint {
   margin: 0 0 8px;
   font-size: 12px;

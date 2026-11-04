@@ -57,6 +57,17 @@ function repository(language = "python"): string {
   return root;
 }
 
+function useDescribing(model: string, batchSize: number): void {
+  writeFileSync(
+    join(process.env.RECOGNIZER_APP_CONFIG_DIR as string, "config.json"),
+    JSON.stringify({ describing: { model, batch_size: batchSize } }),
+  );
+}
+
+beforeEach(() => {
+  useDescribing("sonnet", 4);
+});
+
 function configure(root: string, version = "v1", ...flags: string[]): void {
   const command = ["node", FAKE, "{repository}", ...flags, "{request}"];
 
@@ -74,9 +85,9 @@ function ready(version = "v1", ...flags: string[]): string {
   return root;
 }
 
-function exec(root: string, ...args: string[]) {
+async function exec(root: string, ...args: string[]) {
   const out = capture();
-  const code = run([...args, "--repository", root], out.io);
+  const code = await run([...args, "--repository", root], out.io);
 
   return { code, out: out.out(), err: out.err() };
 }
@@ -99,8 +110,8 @@ function responsibilities(root: string) {
   );
 }
 
-function statuses(root: string) {
-  const result = exec(root, "describe", "--check", "--json");
+async function statuses(root: string) {
+  const result = await exec(root, "describe", "--check", "--json");
 
   return {
     code: result.code,
@@ -154,9 +165,9 @@ afterEach(() => {
 });
 
 describe("describe status", () => {
-  it("reports every module missing with no file", () => {
+  it("reports every module missing with no file", async () => {
     const root = ready();
-    const { code, parsed } = statuses(root);
+    const { code, parsed } = await statuses(root);
 
     expect(code).toBe(1);
     expect(parsed.ok).toBe(false);
@@ -169,15 +180,15 @@ describe("describe status", () => {
     expect(parsed.modules.every((m) => m.line === null)).toBe(true);
   });
 
-  it("makes only an edited module out of date and redescribes only it", () => {
+  it("makes only an edited module out of date and redescribes only it", async () => {
     const root = ready();
 
-    expect(exec(root, "describe").code).toBe(0);
-    expect(statuses(root).parsed.counts.current).toBe(15);
+    expect((await exec(root, "describe")).code).toBe(0);
+    expect((await statuses(root)).parsed.counts.current).toBe(15);
 
     edit(root, ORDER);
 
-    const { parsed } = statuses(root);
+    const { parsed } = await statuses(root);
     const stale = parsed.modules.filter((m) => m.status === "out-of-date");
 
     expect(stale.map((m) => m.module)).toEqual([ORDER]);
@@ -186,18 +197,18 @@ describe("describe status", () => {
     expect(parsed.counts.current).toBe(14);
 
     clearCalls(root);
-    exec(root, "describe");
+    await exec(root, "describe");
 
     expect(calls(root)).toEqual([ORDER]);
   });
 
-  it("makes every line out of date when the version changes", () => {
+  it("makes every line out of date when the version changes", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
     configure(root, "v2");
 
-    const { parsed } = statuses(root);
+    const { parsed } = await statuses(root);
 
     expect(parsed.counts.outOfDate).toBe(15);
     expect(parsed.modules.every((m) => m.reasons.join() === "version")).toBe(
@@ -205,18 +216,18 @@ describe("describe status", () => {
     );
 
     clearCalls(root);
-    exec(root, "describe");
+    await exec(root, "describe");
 
     expect(calls(root)).toHaveLength(15);
   });
 
-  it("makes every line out of date when the command changes", () => {
+  it("makes every line out of date when the command changes", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
     configure(root, "v1", "--fail", "nothing");
 
-    const { parsed } = statuses(root);
+    const { parsed } = await statuses(root);
 
     expect(parsed.counts.outOfDate).toBe(15);
     expect(parsed.modules.every((m) => m.reasons.join() === "describer")).toBe(
@@ -224,24 +235,26 @@ describe("describe status", () => {
     );
   });
 
-  it("lists source and version reasons in order", () => {
+  it("lists source and version reasons in order", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
     edit(root, ORDER);
     configure(root, "v2");
 
-    const order = statuses(root).parsed.modules.find((m) => m.module === ORDER);
+    const order = (await statuses(root)).parsed.modules.find(
+      (m) => m.module === ORDER,
+    );
 
     expect(order?.reasons).toEqual(["source", "version"]);
   });
 });
 
 describe("describe selection", () => {
-  it("calls nothing and writes nothing when every line is current", () => {
+  it("calls nothing and writes nothing when every line is current", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
 
     const file = join(root, ".recognizer/responsibilities.json");
     const before = readFileSync(file, "utf8");
@@ -249,7 +262,7 @@ describe("describe selection", () => {
 
     clearCalls(root);
 
-    const result = exec(root, "describe");
+    const result = await exec(root, "describe");
 
     expect(result.code).toBe(0);
     expect(result.out).toContain("described 0, failed 0, already current 15");
@@ -258,34 +271,34 @@ describe("describe selection", () => {
     expect(statSync(file).mtimeMs).toBe(mtime);
   });
 
-  it("redoes a named current module and only the named ones", () => {
+  it("redoes a named current module and only the named ones", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
     clearCalls(root);
-    exec(root, "describe", ORDER);
+    await exec(root, "describe", ORDER);
 
     expect(calls(root)).toEqual([ORDER]);
 
     clearCalls(root);
-    exec(root, "describe", STORE, ORDER);
+    await exec(root, "describe", STORE, ORDER);
 
-    expect(calls(root)).toEqual([ORDER, STORE]);
+    expect([...calls(root)].sort()).toEqual([ORDER, STORE].sort());
   });
 
-  it("redoes everything with --all", () => {
+  it("redoes everything with --all", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
     clearCalls(root);
-    exec(root, "describe", "--all");
+    await exec(root, "describe", "--all");
 
     expect(calls(root)).toHaveLength(15);
   });
 
-  it("exits 2 for an unknown module and runs nothing", () => {
+  it("exits 2 for an unknown module and runs nothing", async () => {
     const root = ready();
-    const result = exec(root, "describe", "nope.py", ORDER);
+    const result = await exec(root, "describe", "nope.py", ORDER);
 
     expect(result.code).toBe(2);
     expect(result.err).toContain("no such module: nope.py");
@@ -295,17 +308,17 @@ describe("describe selection", () => {
     );
   });
 
-  it("exits 2 for --all with a name and for --check with --all", () => {
+  it("exits 2 for --all with a name and for --check with --all", async () => {
     const root = ready();
 
-    expect(exec(root, "describe", "--all", ORDER).code).toBe(2);
-    expect(exec(root, "describe", "--check", "--all").code).toBe(2);
+    expect((await exec(root, "describe", "--all", ORDER)).code).toBe(2);
+    expect((await exec(root, "describe", "--check", "--all")).code).toBe(2);
     expect(calls(root)).toEqual([]);
   });
 
-  it("prints JSON for a run", () => {
+  it("prints JSON for a run", async () => {
     const root = ready();
-    const result = exec(root, "describe", ORDER, "--json");
+    const result = await exec(root, "describe", ORDER, "--json");
 
     expect(JSON.parse(result.out)).toEqual({
       described: [ORDER],
@@ -321,10 +334,10 @@ describe("describe failures", () => {
     ["exits non-zero", "--fail"],
     ["prints nothing", "--empty"],
     ["prints two lines", "--two-lines"],
-  ])("leaves a line unchanged when the describer %s", (_, flag) => {
+  ])("leaves a line unchanged when the describer %s", async (_, flag) => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
 
     const before = readFileSync(
       join(root, ".recognizer/responsibilities.json"),
@@ -333,7 +346,7 @@ describe("describe failures", () => {
 
     configure(root, "v1", flag, ORDER);
 
-    const result = exec(root, "describe", ORDER, "--json");
+    const result = await exec(root, "describe", ORDER, "--json");
     const report = JSON.parse(result.out);
 
     expect(result.code).toBe(1);
@@ -347,16 +360,18 @@ describe("describe failures", () => {
     expect(JSON.stringify(after)).toBe(JSON.stringify(JSON.parse(before)));
   });
 
-  it("reports the describer's stderr as the reason", () => {
+  it("reports the describer's stderr as the reason", async () => {
     const root = ready("v1", "--fail", ORDER);
-    const report = JSON.parse(exec(root, "describe", ORDER, "--json").out);
+    const report = JSON.parse(
+      (await exec(root, "describe", ORDER, "--json")).out,
+    );
 
     expect(report.failed[0].reason).toBe(`cannot describe ${ORDER}`);
   });
 
-  it("leaves an absent entry absent and still writes the others", () => {
+  it("leaves an absent entry absent and still writes the others", async () => {
     const root = ready("v1", "--fail", ORDER);
-    const result = exec(root, "describe", "--all", "--json");
+    const result = await exec(root, "describe", "--all", "--json");
     const report = JSON.parse(result.out);
     const file = responsibilities(root);
 
@@ -367,17 +382,17 @@ describe("describe failures", () => {
     expect(file.modules[ORDER]).toBeUndefined();
   });
 
-  it("keeps the old entry in a mixed --all run", () => {
+  it("keeps the old entry in a mixed --all run", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
 
     const old = responsibilities(root).modules[ORDER];
 
     configure(root, "v1", "--fail", ORDER);
     configure(root, "v1", "--fail", ORDER);
 
-    const result = exec(root, "describe", "--all", "--json");
+    const result = await exec(root, "describe", "--all", "--json");
     const file = responsibilities(root);
 
     expect(result.code).toBe(1);
@@ -386,7 +401,7 @@ describe("describe failures", () => {
     expect(file.modules[ORDER]).toEqual(old);
   });
 
-  it("reports a program that does not exist as failed", () => {
+  it("reports a program that does not exist as failed", async () => {
     const root = repository();
 
     writeFileSync(
@@ -394,7 +409,7 @@ describe("describe failures", () => {
       'describer:\n  command: ["/no/such/describer", "{request}"]\n  version: "v1"\n',
     );
 
-    const result = exec(root, "describe", ORDER, "--json");
+    const result = await exec(root, "describe", ORDER, "--json");
 
     expect(result.code).toBe(1);
     expect(JSON.parse(result.out).failed[0].module).toBe(ORDER);
@@ -403,13 +418,13 @@ describe("describe failures", () => {
     );
   });
 
-  it("reports an unreadable source as failed", () => {
+  it("reports an unreadable source as failed", async () => {
     const root = ready();
 
     rmSync(join(root, ORDER));
     commitAll(root);
 
-    const result = exec(root, "describe", "--json");
+    const result = await exec(root, "describe", "--json");
     const report = JSON.parse(result.out);
 
     expect(result.code).toBe(1);
@@ -422,12 +437,12 @@ describe("describe failures", () => {
 });
 
 describe("describe a Kotlin file module", () => {
-  it("reports only the module of a deleted file unreadable", () => {
+  it("reports only the module of a deleted file unreadable", async () => {
     const root = repository("kotlin");
     const gone = "app/src/main/kotlin/shop/domain/Order.kt";
 
     configure(root);
-    exec(root, "describe");
+    await exec(root, "describe");
     rmSync(join(root, gone));
     git(root, "add", "-A", "--", ".", ":!.recognizer");
     git(root, "commit", "-q", "-m", "delete");
@@ -447,7 +462,7 @@ describe("describe a Kotlin file module", () => {
       hashFile: (path) =>
         path.endsWith(recorded.path) ? recorded.hash : out.io.hashFile(path),
     };
-    const code = run(
+    const code = await run(
       ["describe", "--check", "--json", "--repository", root],
       io,
     );
@@ -465,10 +480,10 @@ describe("describe a Kotlin file module", () => {
 });
 
 describe("describe write path", () => {
-  it("writes each success before the next module and leaves no temp file", () => {
+  it("writes each success before the next module and leaves no temp file", async () => {
     const root = ready("v1", "--fail", STORE);
 
-    exec(root, "describe", ORDER, STORE);
+    await exec(root, "describe", ORDER, STORE);
 
     expect(Object.keys(responsibilities(root).modules)).toEqual([ORDER]);
     expect(readdirSync(join(root, ".recognizer"))).not.toContain(
@@ -476,10 +491,10 @@ describe("describe write path", () => {
     );
   });
 
-  it("writes sorted, indented, key-ordered JSON with a trailing newline", () => {
+  it("writes sorted, indented, key-ordered JSON with a trailing newline", async () => {
     const root = ready();
 
-    exec(root, "describe", STORE, ORDER);
+    await exec(root, "describe", STORE, ORDER);
 
     const text = readFileSync(
       join(root, ".recognizer/responsibilities.json"),
@@ -504,7 +519,7 @@ describe("describe write path", () => {
     ]);
   });
 
-  it("removes the temp directory it made", () => {
+  it("removes the temp directory it made", async () => {
     const root = ready("v1", "--fail", STORE);
     const out = capture();
     const made: string[] = [];
@@ -524,7 +539,7 @@ describe("describe write path", () => {
       },
     };
 
-    run(["describe", ORDER, STORE, "--repository", root], io);
+    await run(["describe", ORDER, STORE, "--repository", root], io);
 
     expect(made).toHaveLength(1);
     expect(removed).toEqual(made);
@@ -533,12 +548,12 @@ describe("describe write path", () => {
 });
 
 describe("describe request", () => {
-  it("gives the describer the module's source, members and neighbours", () => {
+  it("gives the describer the module's source, members and neighbours", async () => {
     const root = ready();
     const copy = join(root, ".recognizer/cache/request.json");
 
     configure(root, "v1", "--copy", copy);
-    exec(root, "describe", PLACE);
+    await exec(root, "describe", PLACE);
 
     const request = JSON.parse(readFileSync(copy, "utf8"));
     const scan = JSON.parse(
@@ -571,10 +586,10 @@ describe("describe request", () => {
 });
 
 describe("describe prune", () => {
-  it("removes an entry for a module no longer in the scan and reports it", () => {
+  it("removes an entry for a module no longer in the scan and reports it", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
 
     const file = responsibilities(root);
 
@@ -584,13 +599,13 @@ describe("describe prune", () => {
       JSON.stringify(file),
     );
 
-    const check = statuses(root);
+    const check = await statuses(root);
 
     expect(check.parsed.gone).toEqual(["gone.py"]);
     expect(check.parsed.ok).toBe(true);
     expect(check.code).toBe(0);
 
-    const result = exec(root, "describe", "--json");
+    const result = await exec(root, "describe", "--json");
 
     expect(JSON.parse(result.out).pruned).toEqual(["gone.py"]);
     expect(responsibilities(root).modules["gone.py"]).toBeUndefined();
@@ -625,7 +640,7 @@ function installShippedDescriber(): void {
       "#!/usr/bin/env node",
       `if (process.argv[2] === "--prompt-version") { process.stdout.write("${SHIPPED_VERSION}\\n"); process.exit(0); }`,
       'import { readFileSync } from "node:fs";',
-      'const { module } = JSON.parse(readFileSync(process.argv[2], "utf8"));',
+      'const { module } = JSON.parse(readFileSync(process.argv[process.argv.length - 1], "utf8"));',
       'process.stdout.write("shipped " + module + "\\n");',
       "",
     ].join("\n"),
@@ -647,9 +662,9 @@ afterEach(() => {
 });
 
 describe("describer in effect", () => {
-  it("reports the configured describer with source config", () => {
+  it("reports the configured describer with source config", async () => {
     const root = ready("v7");
-    const result = exec(root, "describe", "--describer", "--json");
+    const result = await exec(root, "describe", "--describer", "--json");
 
     expect(result.code).toBe(0);
     expect(JSON.parse(result.out)).toEqual({
@@ -659,83 +674,96 @@ describe("describer in effect", () => {
     });
   });
 
-  it("reports the shipped describer when none is configured", () => {
+  it("reports the shipped describer when none is configured", async () => {
     installShippedDescriber();
 
-    const result = exec(repository(), "describe", "--describer", "--json");
+    const result = await exec(
+      repository(),
+      "describe",
+      "--describer",
+      "--json",
+    );
 
     expect(result.code).toBe(0);
     expect(JSON.parse(result.out)).toEqual({
-      command: ["recognizer-describe-claude", "{request}"],
-      version: SHIPPED_VERSION,
+      command: [
+        "recognizer-describe-claude",
+        "--model",
+        "{model}",
+        "{request}",
+      ],
+      version: `${SHIPPED_VERSION}+sonnet`,
       source: "shipped",
     });
   });
 
-  it("prints one plain line without --json", () => {
+  it("prints one plain line without --json", async () => {
     installShippedDescriber();
 
-    const result = exec(repository(), "describe", "--describer");
+    const result = await exec(repository(), "describe", "--describer");
 
     expect(result.out).toBe(
-      `recognizer-describe-claude {request}  ${SHIPPED_VERSION}  shipped\n`,
+      `recognizer-describe-claude --model {model} {request}  ${SHIPPED_VERSION}+sonnet  shipped\n`,
     );
   });
 
-  it("exits 2 naming the missing describer when neither exists", () => {
+  it("exits 2 naming the missing describer when neither exists", async () => {
     const root = repository();
 
     withoutShippedDescriber();
 
-    const result = exec(root, "describe", "--describer");
+    const result = await exec(root, "describe", "--describer");
 
     expect(result.code).toBe(2);
     expect(result.err).toContain("no describer is registered");
     expect(result.err).toContain("recognizer-describe-claude is not installed");
   });
 
-  it("prefers a configured describer over an installed fallback", () => {
+  it("prefers a configured describer over an installed fallback", async () => {
     installShippedDescriber();
 
     const root = ready("v3");
 
     expect(
-      JSON.parse(exec(root, "describe", "--describer", "--json").out).source,
+      JSON.parse((await exec(root, "describe", "--describer", "--json")).out)
+        .source,
     ).toBe("config");
-    expect(exec(root, "describe", "--all").code).toBe(0);
+    expect((await exec(root, "describe", "--all")).code).toBe(0);
     expect(responsibilities(root).modules[ORDER].describer[0]).toBe("node");
   });
 
-  it("describes with the fallback and records its command and version", () => {
+  it("describes with the fallback and records its command and version", async () => {
     installShippedDescriber();
 
     const root = repository();
 
-    expect(exec(root, "describe", "--all").code).toBe(0);
+    expect((await exec(root, "describe", "--all")).code).toBe(0);
 
     const entry = responsibilities(root).modules[ORDER];
 
     expect(entry.describer).toEqual([
       "recognizer-describe-claude",
+      "--model",
+      "{model}",
       "{request}",
     ]);
-    expect(entry.version).toBe(SHIPPED_VERSION);
+    expect(entry.version).toBe(`${SHIPPED_VERSION}+sonnet`);
     expect(entry.line).toBe(`shipped ${ORDER}`);
-    expect(statuses(root).parsed.ok).toBe(true);
+    expect((await statuses(root)).parsed.ok).toBe(true);
   });
 });
 
 describe("describe config", () => {
-  it("exits 2 with a config message when there is no describer", () => {
+  it("exits 2 with a config message when there is no describer", async () => {
     const root = repository();
 
     withoutShippedDescriber();
 
-    expect(exec(root, "describe").err).toContain("config");
+    expect((await exec(root, "describe")).err).toContain("config");
 
     writeFileSync(join(root, ".recognizer/config.yaml"), "{}\n");
 
-    const result = exec(root, "describe");
+    const result = await exec(root, "describe");
 
     expect(result.code).toBe(2);
     expect(result.err).toContain("config");
@@ -745,24 +773,24 @@ describe("describe config", () => {
     ["an unknown key", "describer:\n  command: [x]\n  version: v\nother: 1\n"],
     ["an empty command", "describer:\n  command: []\n  version: v\n"],
     ["invalid YAML", "describer: [unclosed\n"],
-  ])("exits 2 with a config message for %s", (_, text) => {
+  ])("exits 2 with a config message for %s", async (_, text) => {
     const root = repository();
 
     writeFileSync(join(root, ".recognizer/config.yaml"), text);
 
-    const result = exec(root, "describe");
+    const result = await exec(root, "describe");
 
     expect(result.code).toBe(2);
     expect(result.err).toContain("config");
     expect(calls(root)).toEqual([]);
   });
 
-  it("exits 2 for an invalid responsibilities file", () => {
+  it("exits 2 for an invalid responsibilities file", async () => {
     const root = ready();
 
     writeFileSync(join(root, ".recognizer/responsibilities.json"), "{}");
 
-    const result = exec(root, "describe");
+    const result = await exec(root, "describe");
 
     expect(result.code).toBe(2);
     expect(result.err).toContain("responsibilities");
@@ -770,13 +798,13 @@ describe("describe config", () => {
 });
 
 describe("describe --check", () => {
-  it("prints text rows for current, out-of-date and missing modules", () => {
+  it("prints text rows for current, out-of-date and missing modules", async () => {
     const root = ready();
 
-    exec(root, "describe", ORDER, STORE);
+    await exec(root, "describe", ORDER, STORE);
     edit(root, ORDER);
 
-    const result = exec(root, "describe", "--check");
+    const result = await exec(root, "describe", "--check");
     const rows = result.out.split("\n");
 
     expect(result.code).toBe(1);
@@ -788,27 +816,27 @@ describe("describe --check", () => {
     expect(rows).toContain("1 current, 1 out of date, 13 missing");
   });
 
-  it("exits 0 only when every module is current", () => {
+  it("exits 0 only when every module is current", async () => {
     const root = ready();
 
-    exec(root, "describe");
+    await exec(root, "describe");
 
-    expect(exec(root, "describe", "--check").code).toBe(0);
+    expect((await exec(root, "describe", "--check")).code).toBe(0);
   });
 
-  it("restricts output to the named modules", () => {
+  it("restricts output to the named modules", async () => {
     const root = ready();
-    const result = exec(root, "describe", "--check", "--json", ORDER);
+    const result = await exec(root, "describe", "--check", "--json", ORDER);
 
     expect(
       JSON.parse(result.out).modules.map((m: { module: string }) => m.module),
     ).toEqual([ORDER]);
   });
 
-  it("runs no describer and writes nothing", () => {
+  it("runs no describer and writes nothing", async () => {
     const root = ready();
 
-    exec(root, "describe", "--check");
+    await exec(root, "describe", "--check");
 
     expect(
       existsSync(join(root, ".recognizer/cache/describer-calls.log")),
@@ -820,7 +848,7 @@ describe("describe --check", () => {
 });
 
 describe("no describing as a side effect", () => {
-  it("never runs the describer from describe --check", () => {
+  it("never runs the describer from describe --check", async () => {
     const root = ready();
     const out = capture();
     const programs: string[] = [];
@@ -831,12 +859,19 @@ describe("no describing as a side effect", () => {
 
         return out.io.run(command, args);
       },
+      runAsync: (command, args) => {
+        programs.push(command);
+
+        return out.io.runAsync(command, args);
+      },
     };
 
-    run(["describe", "--check", "--repository", root], io);
+    await run(["describe", "--check", "--repository", root], io);
 
     expect(programs).not.toContain("node");
-    expect(exec(root, "scan", root).code === 0 || existsSync(root)).toBe(true);
+    expect(
+      (await exec(root, "scan", root)).code === 0 || existsSync(root),
+    ).toBe(true);
     expect(calls(root)).toEqual([]);
     expect(existsSync(join(root, ".recognizer/responsibilities.json"))).toBe(
       false,
@@ -859,10 +894,10 @@ describe("describe help", () => {
     );
   });
 
-  it("is named in the short help", () => {
+  it("is named in the short help", async () => {
     const out = capture();
 
-    run(["--help"], out.io);
+    await run(["--help"], out.io);
 
     expect(out.out()).toContain("describe");
   });
@@ -879,9 +914,16 @@ describe("describe leaves a run record", () => {
       : [];
   }
 
-  it("records a failing describer's stderr, command and who asked", () => {
+  it("records a failing describer's stderr, command and who asked", async () => {
     const root = ready("v1", "--fail", ORDER);
-    const result = exec(root, "describe", ORDER, "--by", "Claude", "--json");
+    const result = await exec(
+      root,
+      "describe",
+      ORDER,
+      "--by",
+      "Claude",
+      "--json",
+    );
     const [saved] = recorded(root);
 
     expect(result.code).toBe(1);
@@ -903,13 +945,13 @@ describe("describe leaves a run record", () => {
     expect(saved.entries[0].command.slice(0, 2)).toEqual(["node", FAKE]);
   });
 
-  it("leaves a running record with the finished entries when killed between children", () => {
+  it("leaves a running record with the finished entries when killed between children", async () => {
     const root = ready();
     const out = capture();
     let children = 0;
     const killing: Io = {
       ...out.io,
-      run: (command, args, options) => {
+      runAsync: (command, args, options) => {
         if (command === "node") {
           children += 1;
         }
@@ -918,11 +960,16 @@ describe("describe leaves a run record", () => {
           throw new Error("killed");
         }
 
-        return out.io.run(command, args, options);
+        return out.io.runAsync(command, args, options);
       },
     };
 
-    const code = run(["describe", ORDER, STORE, "--repository", root], killing);
+    useDescribing("sonnet", 1);
+
+    const code = await run(
+      ["describe", ORDER, STORE, "--repository", root],
+      killing,
+    );
 
     expect(code).not.toBe(0);
     expect(out.err()).toContain("killed");
@@ -938,22 +985,22 @@ describe("describe leaves a run record", () => {
     expect(saved.entries).toHaveLength(1);
     expect(saved.entries[0]).toMatchObject({ name: ORDER, outcome: "ok" });
 
-    const listed = exec(root, "log");
-    const printed = exec(root, "log", "--last");
+    const listed = await exec(root, "log");
+    const printed = await exec(root, "log", "--last");
 
     expect(listed.out).toContain("stopped");
     expect(printed.out).toContain("stopped: no finish recorded");
     expect(printed.out).toContain(ORDER);
   });
 
-  it("records an unreadable program as a failed entry with no status", () => {
+  it("records an unreadable program as a failed entry with no status", async () => {
     const root = repository();
 
     writeFileSync(
       join(root, ".recognizer/config.yaml"),
       'describer:\n  command: ["/no/such/describer", "{request}"]\n  version: "v1"\n',
     );
-    exec(root, "describe", ORDER);
+    await exec(root, "describe", ORDER);
 
     expect(recorded(root)[0].entries[0]).toMatchObject({
       status: null,
@@ -961,12 +1008,12 @@ describe("describe leaves a run record", () => {
     });
   });
 
-  it("records an unreadable module with an empty command", () => {
+  it("records an unreadable module with an empty command", async () => {
     const root = ready();
 
     rmSync(join(root, ORDER));
     commitAll(root);
-    exec(root, "describe");
+    await exec(root, "describe");
 
     const saved = recorded(root).find((one) => one.kind === "describe");
 
@@ -981,17 +1028,17 @@ describe("describe leaves a run record", () => {
     });
   });
 
-  it("writes nothing for --check, for nothing to do, and for a blank --by", () => {
+  it("writes nothing for --check, for nothing to do, and for a blank --by", async () => {
     const root = ready();
 
-    exec(root, "describe", "--check");
+    await exec(root, "describe", "--check");
     expect(recorded(root)).toEqual([]);
 
-    exec(root, "describe");
-    exec(root, "describe");
+    await exec(root, "describe");
+    await exec(root, "describe");
     expect(recorded(root)).toHaveLength(1);
 
-    expect(exec(ready(), "describe", "--by", "  ").code).toBe(2);
+    expect((await exec(ready(), "describe", "--by", "  ")).code).toBe(2);
     expect(recorded(root)).toHaveLength(1);
   });
 });

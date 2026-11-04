@@ -7,7 +7,7 @@ import {
   isDirty,
   readCachedScan,
   resolveCommit,
-  runScan,
+  runScanSync,
 } from "./scan-command.js";
 
 export interface FreshScans {
@@ -63,7 +63,7 @@ export function freshScans(io: Io, root: string): FreshScans {
     }
   }
 
-  const status = runScan([directory, "--extract"], {
+  const status = runScanSync([directory, "--extract"], {
     ...io,
     stdout: io.stderr,
   });

@@ -1,3 +1,8 @@
 describer:
-  command: [node, "{repository}/describers/claude/dist/bin.js", "{request}"]
+  command:
+    - node
+    - "{repository}/describers/claude/dist/bin.js"
+    - --model
+    - "{model}"
+    - "{request}"
   version: "prompt-b450a986f729"

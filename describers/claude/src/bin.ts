@@ -12,13 +12,17 @@ import {
 import { promptVersion, readPrompt } from "./prompt.js";
 
 const TIMEOUT_MS = 120_000;
-const CLAUDE_ARGS = ["-p", "--tools", "", "--no-session-persistence"];
+const USAGE = "usage: recognizer-describe-claude --model <name> <request-file>";
 
-function runClaude(input: string): string {
+function claudeArgs(model: string): string[] {
+  return ["-p", "--model", model, "--tools", "", "--no-session-persistence"];
+}
+
+function runClaude(model: string, input: string): string {
   const directory = mkdtempSync(join(tmpdir(), "recognizer-describe-"));
 
   try {
-    const result = spawnSync("claude", CLAUDE_ARGS, {
+    const result = spawnSync("claude", claudeArgs(model), {
       input,
       cwd: directory,
       encoding: "utf8",
@@ -51,6 +55,26 @@ function runClaude(input: string): string {
   }
 }
 
+function parseArguments(args: string[]): { model: string; file: string } {
+  const positionals: string[] = [];
+  let model: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === "--model") {
+      model = args[index + 1];
+      index += 1;
+    } else {
+      positionals.push(args[index] as string);
+    }
+  }
+
+  if (model === undefined || model === "" || positionals.length !== 1) {
+    throw new UsageError(USAGE);
+  }
+
+  return { model, file: positionals[0] as string };
+}
+
 function main(args: string[]): number {
   if (args.length === 1 && args[0] === "--prompt-version") {
     process.stdout.write(`${promptVersion()}\n`);
@@ -59,14 +83,12 @@ function main(args: string[]): number {
   }
 
   try {
-    if (args.length !== 1) {
-      throw new UsageError("usage: recognizer-describe-claude <request-file>");
-    }
+    const { model, file } = parseArguments(args);
 
     let text: string;
 
     try {
-      text = readFileSync(args[0] as string, "utf8");
+      text = readFileSync(file, "utf8");
     } catch (error) {
       throw new UsageError(
         `cannot read the request: ${(error as Error).message}`,
@@ -74,7 +96,9 @@ function main(args: string[]): number {
     }
 
     const request = parseRequest(text);
-    const line = describeModule(request, readPrompt(), runClaude);
+    const line = describeModule(request, readPrompt(), (input) =>
+      runClaude(model, input),
+    );
 
     process.stdout.write(`${line}\n`);
 

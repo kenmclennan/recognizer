@@ -1,8 +1,11 @@
 import { join, relative, resolve } from "node:path";
+import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import {
+  type DescribeInput,
+  type DescribeResult,
   type Describer,
   describeModules,
   describeSummaryText,
@@ -281,7 +284,10 @@ function eventEntry(entry: RunEntry): EventEntry {
   };
 }
 
-export function runScan(argv: string[], io: Io): number {
+function* scanFlow(
+  argv: string[],
+  io: Io,
+): Generator<DescribeInput, number, DescribeResult> {
   const options = parseScanArgs(argv);
 
   requireBy(options.by);
@@ -471,11 +477,14 @@ export function runScan(argv: string[], io: Io): number {
       }
     }
 
-    const result = describeModules({
+    const { model, batch_size: batchSize } = readDescribing(io);
+    const result = yield {
       io,
       root,
       scans,
       describer,
+      model,
+      batchSize,
       selection: { kind: options.describe === "all" ? "all" : "stale" },
       onStart: (total) => {
         if (json) {
@@ -489,7 +498,7 @@ export function runScan(argv: string[], io: Io): number {
           io.stdout(`described ${entry.name}\n`);
         }
       },
-    });
+    };
 
     if (!json) {
       io.stdout(describeSummaryText(result));
@@ -550,6 +559,28 @@ export function runScan(argv: string[], io: Io): number {
   }
 
   return exit;
+}
+
+export function runScanSync(argv: string[], io: Io): number {
+  const flow = scanFlow(argv, io);
+  const step = flow.next();
+
+  if (!step.done) {
+    throw new Error("a synchronous scan cannot describe");
+  }
+
+  return step.value;
+}
+
+export async function runScan(argv: string[], io: Io): Promise<number> {
+  const flow = scanFlow(argv, io);
+  let step = flow.next();
+
+  while (!step.done) {
+    step = flow.next(await describeModules(step.value));
+  }
+
+  return step.value;
 }
 
 function runStructure(io: Io, root: string, scans: Scan[]): boolean {

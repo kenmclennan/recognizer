@@ -1,6 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { ScanPort, ScanRunResult, StoredTicks } from "./scan-port";
+import type {
+  DescribingSettings,
+  ScanPort,
+  ScanRunResult,
+  StoredTicks,
+} from "./scan-port";
 import type { ScanReport } from "./scan-report";
 
 export const scanSource: ScanPort = {
@@ -18,6 +23,7 @@ export const scanSource: ScanPort = {
       describe: ticks.describe,
       ticked: ticks.ticked,
     }),
+  readDescribing: () => invoke<DescribingSettings>("read_describing"),
   onLine(handler) {
     const pending = listen<string>("scan-event", (event) =>
       handler(event.payload),

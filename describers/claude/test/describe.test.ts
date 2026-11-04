@@ -14,10 +14,12 @@ import {
   writeRequest,
 } from "./helpers.js";
 
+const MODEL = ["--model", "opus"];
+
 describe("prompt reaches claude", () => {
-  it("sends the prompt, outline and source on stdin with fixed arguments", () => {
+  it("sends the prompt, outline and source on stdin with the configured model", () => {
     const box = sandbox();
-    const result = run(box, [writeRequest(box, REQUEST)]);
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)]);
     const stdin = recorded(box, "stdin");
 
     expect(result.status).toBe(0);
@@ -29,6 +31,8 @@ describe("prompt reaches claude", () => {
     expect(stdin.endsWith(`Source:\n${REQUEST.source}`)).toBe(true);
     expect(JSON.parse(recorded(box, "argv"))).toEqual([
       "-p",
+      "--model",
+      "opus",
       "--tools",
       "",
       "--no-session-persistence",
@@ -40,7 +44,7 @@ describe("prompt reaches claude", () => {
 describe("one line, trimmed", () => {
   it("prints the trimmed reply and a newline", () => {
     const box = sandbox();
-    const result = run(box, [writeRequest(box, REQUEST)], {
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)], {
       FAKE_CLAUDE_MODE: "padded",
     });
 
@@ -54,7 +58,7 @@ describe("failure prints nothing", () => {
 
   it.each(modes)("exits 1 with empty stdout for %s", (mode) => {
     const box = sandbox();
-    const result = run(box, [writeRequest(box, REQUEST)], {
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)], {
       FAKE_CLAUDE_MODE: mode,
     });
 
@@ -65,7 +69,7 @@ describe("failure prints nothing", () => {
 
   it("carries claude's stderr in the reason", () => {
     const box = sandbox();
-    const result = run(box, [writeRequest(box, REQUEST)], {
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)], {
       FAKE_CLAUDE_MODE: "fail",
     });
 
@@ -74,7 +78,7 @@ describe("failure prints nothing", () => {
 
   it("exits 1 when no claude is on PATH", () => {
     const box = sandbox();
-    const result = run(box, [writeRequest(box, REQUEST)], {}, [
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)], {}, [
       dirname(process.execPath),
     ]);
 
@@ -87,12 +91,15 @@ describe("failure prints nothing", () => {
 describe("usage errors", () => {
   const cases: [string, (file: string) => string[], unknown][] = [
     ["no argument", () => [], REQUEST],
-    ["two arguments", (file) => [file, file], REQUEST],
-    ["a missing file", (file) => [`${file}.missing`], REQUEST],
-    ["invalid JSON", (file) => [file], "{not json"],
+    ["no model", (file) => [file], REQUEST],
+    ["an empty model", (file) => ["--model", "", file], REQUEST],
+    ["a model with no file", () => ["--model", "opus"], REQUEST],
+    ["two files", (file) => [...MODEL, file, file], REQUEST],
+    ["a missing file", (file) => [...MODEL, `${file}.missing`], REQUEST],
+    ["invalid JSON", (file) => [...MODEL, file], "{not json"],
     [
       "a request without source",
-      (file) => [file],
+      (file) => [...MODEL, file],
       { ...REQUEST, source: undefined },
     ],
   ];

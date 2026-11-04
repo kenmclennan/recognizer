@@ -1,18 +1,27 @@
+import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import type { Describer } from "./describe-modules.js";
+import { describerVersion } from "./describer-version.js";
 import { InputError } from "./errors.js";
 import { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
+
+export { describerVersion };
 
 export interface DescriberInEffect extends Describer {
   source: "config" | "shipped";
 }
 
 export function describerInEffect(io: Io, root: string): DescriberInEffect {
+  const { model } = readDescribing(io);
   const configured = readConfig(io, root)?.describer;
 
   if (configured !== undefined) {
-    return { ...configured, source: "config" };
+    return {
+      ...configured,
+      version: describerVersion(configured, model),
+      source: "config",
+    };
   }
 
   const run = io.run(SHIPPED_DESCRIBER_COMMAND[0] as string, [
@@ -26,9 +35,11 @@ export function describerInEffect(io: Io, root: string): DescriberInEffect {
     ]);
   }
 
+  const shipped = { command: [...SHIPPED_DESCRIBER_COMMAND], version };
+
   return {
-    command: [...SHIPPED_DESCRIBER_COMMAND],
-    version,
+    ...shipped,
+    version: describerVersion(shipped, model),
     source: "shipped",
   };
 }

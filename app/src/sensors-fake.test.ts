@@ -19,10 +19,31 @@ describe("fakeSensors describer", () => {
   it("falls back to the shipped describer when the config has none", async () => {
     expect(await fakeSensors().describer()).toEqual({
       status: "ok",
-      command: ["recognizer-describe-claude", "{request}"],
-      version: "prompt-0123456789ab",
+      command: [
+        "recognizer-describe-claude",
+        "--model",
+        "{model}",
+        "{request}",
+      ],
+      version: "prompt-0123456789ab+sonnet",
       source: "shipped",
     });
+  });
+
+  it("records the model in the version of a configured describer that names {model}", async () => {
+    const fake = fakeSensors(
+      {},
+      {
+        config:
+          "describer:\n  command: [d, '--model', '{model}', '{request}']\n  version: v9\n",
+      },
+    );
+
+    fake.model = "opus";
+
+    expect(((await fake.describer()) as { version: string }).version).toBe(
+      "v9+opus",
+    );
   });
 
   it("is unavailable when none is configured and the shipped one is not installed", async () => {

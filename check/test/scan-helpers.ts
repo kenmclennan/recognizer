@@ -51,6 +51,7 @@ export interface Fake {
 }
 
 export const ROOT = "/repo";
+export const APP_CONFIG = "/app-config";
 export const PYTHON = "recognizer-scan-python";
 export const TYPESCRIPT = "recognizer-scan-typescript";
 
@@ -94,7 +95,12 @@ export function scanJson(
 }
 
 export function fakeIo(options: FakeOptions = {}): Fake {
-  const files = new Map(Object.entries(options.files ?? {}));
+  const files = new Map(
+    Object.entries({
+      [`${APP_CONFIG}/config.json`]: `${JSON.stringify({ describing: { model: "sonnet", batch_size: 4 } })}\n`,
+      ...options.files,
+    }),
+  );
   const symlinks = new Set(options.symlinks ?? []);
   const calls: { command: string; args: string[]; cwd?: string }[] = [];
   const launches: { command: string; args: string[] }[] = [];
@@ -134,6 +140,88 @@ export function fakeIo(options: FakeOptions = {}): Fake {
 
   function isDirectory(path: string): boolean {
     return path === ROOT || children(path).length > 0;
+  }
+
+  function runNow(
+    command: string,
+    args: string[],
+    runOptions?: { cwd?: string },
+  ): RunResult {
+    calls.push(
+      runOptions?.cwd === undefined
+        ? { command, args }
+        : { command, args, cwd: runOptions.cwd },
+    );
+
+    const program = options.programs?.[command];
+
+    if (program) {
+      const effect = program(args, files) ?? {};
+
+      return {
+        started: effect.started ?? true,
+        status: effect.started === false ? null : (effect.status ?? 0),
+        stdout: effect.stdout ?? "",
+        stderr: effect.stderr ?? "",
+      };
+    }
+
+    if (command === "git") {
+      if (options.commit && args.includes("status")) {
+        return {
+          started: true,
+          status: 0,
+          stdout: options.status ?? "",
+          stderr: "",
+        };
+      }
+
+      if (options.commit && args.includes("diff")) {
+        return {
+          started: true,
+          status: 0,
+          stdout: options.diff ?? "",
+          stderr: "",
+        };
+      }
+
+      return options.commit
+        ? {
+            started: true,
+            status: 0,
+            stdout: `${options.commit}\n`,
+            stderr: "",
+          }
+        : { started: true, status: 128, stdout: "", stderr: "not a repo" };
+    }
+
+    const behaviour = options.scanners?.[command];
+
+    if (!behaviour) {
+      return { started: false, status: null, stdout: "", stderr: "" };
+    }
+
+    if (args[0] === "--version") {
+      return {
+        started: true,
+        status: 0,
+        stdout: `${behaviour.version ?? "0.0.0"}\n`,
+        stderr: "",
+      };
+    }
+
+    const output = args[args.indexOf("--output") + 1] as string;
+
+    if (behaviour.output !== undefined) {
+      files.set(output, behaviour.output);
+    }
+
+    return {
+      started: true,
+      status: behaviour.status ?? 0,
+      stdout: "",
+      stderr: behaviour.stderr ?? "",
+    };
   }
 
   const io: Io = {
@@ -211,83 +299,12 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         }
       }
     },
-    run: (command, args, runOptions): RunResult => {
-      calls.push(
-        runOptions?.cwd === undefined
-          ? { command, args }
-          : { command, args, cwd: runOptions.cwd },
-      );
-
-      const program = options.programs?.[command];
-
-      if (program) {
-        const effect = program(args, files) ?? {};
-
-        return {
-          started: effect.started ?? true,
-          status: effect.started === false ? null : (effect.status ?? 0),
-          stdout: effect.stdout ?? "",
-          stderr: effect.stderr ?? "",
-        };
-      }
-
-      if (command === "git") {
-        if (options.commit && args.includes("status")) {
-          return {
-            started: true,
-            status: 0,
-            stdout: options.status ?? "",
-            stderr: "",
-          };
-        }
-
-        if (options.commit && args.includes("diff")) {
-          return {
-            started: true,
-            status: 0,
-            stdout: options.diff ?? "",
-            stderr: "",
-          };
-        }
-
-        return options.commit
-          ? {
-              started: true,
-              status: 0,
-              stdout: `${options.commit}\n`,
-              stderr: "",
-            }
-          : { started: true, status: 128, stdout: "", stderr: "not a repo" };
-      }
-
-      const behaviour = options.scanners?.[command];
-
-      if (!behaviour) {
-        return { started: false, status: null, stdout: "", stderr: "" };
-      }
-
-      if (args[0] === "--version") {
-        return {
-          started: true,
-          status: 0,
-          stdout: `${behaviour.version ?? "0.0.0"}\n`,
-          stderr: "",
-        };
-      }
-
-      const output = args[args.indexOf("--output") + 1] as string;
-
-      if (behaviour.output !== undefined) {
-        files.set(output, behaviour.output);
-      }
-
-      return {
-        started: true,
-        status: behaviour.status ?? 0,
-        stdout: "",
-        stderr: behaviour.stderr ?? "",
-      };
-    },
+    run: (command, args, runOptions): RunResult =>
+      runNow(command, args, runOptions),
+    runAsync: (command, args, runOptions) => ({
+      result: Promise.resolve(runNow(command, args, runOptions)),
+      kill: () => {},
+    }),
     launch: (command, args) => {
       launches.push({ command, args });
 
@@ -304,7 +321,10 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         ? { connected: false, response: "", message: "connection refused" }
         : { connected: true, response, message: "" };
     },
-    env: (name) => options.env?.[name],
+    env: (name) =>
+      name === "RECOGNIZER_APP_CONFIG_DIR"
+        ? (options.env?.[name] ?? APP_CONFIG)
+        : options.env?.[name],
     now: () => {
       if (options.now) {
         return options.now();

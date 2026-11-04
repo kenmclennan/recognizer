@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { promptVersion } from "../src/prompt.js";
 import { REPO, REQUEST, sandbox, writeRequest } from "./helpers.js";
 
@@ -25,8 +26,37 @@ describe("the committed registration", () => {
     expect(config.describer.command).toEqual([
       "node",
       "{repository}/describers/claude/dist/bin.js",
+      "--model",
+      "{model}",
       "{request}",
     ]);
+  });
+
+  it("passes the model to the describer", () => {
+    expect(config.describer.command).toContain("--model");
+    expect(config.describer.command).toContain("{model}");
+  });
+
+  it("reports the prompt version with the seeded model from the CLI", () => {
+    const settings = makeTempDir("registration-settings-");
+    const result = spawnSync(
+      process.execPath,
+      [
+        join(REPO, "check/dist/bin.js"),
+        "describe",
+        "--describer",
+        "--json",
+        "--repository",
+        REPO,
+      ],
+      {
+        encoding: "utf8",
+        env: { ...process.env, RECOGNIZER_APP_CONFIG_DIR: settings },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout).version).toBe(`${promptVersion()}+sonnet`);
   });
 
   it("names the current prompt version", () => {
@@ -53,7 +83,10 @@ describe("the committed registration", () => {
       ),
     });
     const [program, ...args] = config.describer.command.map((item) =>
-      item.replace("{repository}", REPO).replace("{request}", request),
+      item
+        .replace("{repository}", REPO)
+        .replace("{model}", "sonnet")
+        .replace("{request}", request),
     );
     const result = spawnSync(program as string, args, {
       encoding: "utf8",

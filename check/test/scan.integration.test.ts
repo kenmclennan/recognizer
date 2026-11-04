@@ -111,10 +111,10 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "writes both scans, matches the expected scans, then removes a stale one",
-      () => {
+      async () => {
         const first = capture();
 
-        expect(run(["scan", repository], first.io)).toBe(0);
+        expect(await run(["scan", repository], first.io)).toBe(0);
 
         const python = join(repository, ".recognizer/cache/scan.python.json");
         const typescript = join(
@@ -135,7 +135,7 @@ describe.skipIf(!HAS_UV)(
 
         const second = capture();
 
-        expect(run(["scan", repository], second.io)).toBe(0);
+        expect(await run(["scan", repository], second.io)).toBe(0);
         expect(existsSync(python)).toBe(false);
         expect(existsSync(typescript)).toBe(true);
       },
@@ -144,7 +144,7 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "says scans current on a second scan of an unchanged committed repository",
-      () => {
+      async () => {
         const git = (...args: string[]) =>
           spawnSync("git", ["-C", repository, ...args], {
             encoding: "utf8",
@@ -165,9 +165,9 @@ describe.skipIf(!HAS_UV)(
         const first = capture();
         const second = capture();
 
-        expect(run(["scan", repository], first.io)).toBe(0);
+        expect(await run(["scan", repository], first.io)).toBe(0);
         expect(first.out()).not.toContain("scans current");
-        expect(run(["scan", repository], second.io)).toBe(0);
+        expect(await run(["scan", repository], second.io)).toBe(0);
         expect(second.out()).toContain(`scans current at ${head}`);
       },
       scaledTimeout(120_000),
@@ -175,7 +175,7 @@ describe.skipIf(!HAS_UV)(
 
     it(
       "records the repository HEAD in both scans",
-      () => {
+      async () => {
         const git = (...args: string[]) =>
           spawnSync("git", ["-C", repository, ...args], {
             encoding: "utf8",
@@ -195,7 +195,7 @@ describe.skipIf(!HAS_UV)(
         const head = git("rev-parse", "HEAD").stdout.trim();
         const captured = capture();
 
-        expect(run(["scan", repository], captured.io)).toBe(0);
+        expect(await run(["scan", repository], captured.io)).toBe(0);
 
         for (const language of ["python", "typescript"]) {
           const path = join(
@@ -213,10 +213,10 @@ describe.skipIf(!HAS_UV)(
 );
 
 describe("this repository's own registration", () => {
-  it("registers a describer and no sensors, so --sense all is exit 2", () => {
+  it("registers a describer and no sensors, so --sense all is exit 2", async () => {
     const captured = capture();
 
-    expect(run(["scan", REPO, "--sense", "all"], captured.io)).toBe(2);
+    expect(await run(["scan", REPO, "--sense", "all"], captured.io)).toBe(2);
     expect(captured.err()).toContain("no sensors are registered");
   });
 });
