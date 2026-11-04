@@ -11,9 +11,11 @@ export type FindingRowActions = {
 export type FindingsPanelActions = FindingRowActions & {
   toggleGroup: (key: string) => void;
   openSensors: () => void;
+  setOnlyThisView: (on: boolean) => void;
 };
 
 export type FindingsPanelModel = {
+  scope: { caption: string; on: boolean } | null;
   header: string | null;
   stale: string | null;
   groups: { group: FindingGroupModel; open: boolean; cards: CardModel[] }[];
@@ -142,16 +144,31 @@ export function buildFindingsPanelView(
 ): FindingsPanelView {
   const element = el("div", "findings-panel");
   const header = el("div", "findings-header", "Findings");
+  const scope = el("div", "findings-scope");
+  const scopeText = el("div", "findings-scope-text");
+  const scopeCaption = el("small", "findings-scope-caption");
+  const toggle = button("", "findings-switch", () => undefined);
   const line = el("p", "findings-line");
   const stale = button("", "findings-stale", () => actions.openSensors());
   const list = el("div", "finding-groups");
   const empty = el("p", "findings-empty");
 
-  element.append(header, line, stale, list, empty);
+  let scopeOn = false;
+
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-label", "Only this view");
+  toggle.addEventListener("click", () => actions.setOnlyThisView(!scopeOn));
+  scopeText.append("Only this view", scopeCaption);
+  scope.append(scopeText, toggle);
+  element.append(header, scope, line, stale, list, empty);
 
   return {
     element,
     render(model) {
+      scopeOn = model.scope?.on ?? false;
+      scope.hidden = model.scope === null;
+      scopeCaption.textContent = model.scope?.caption ?? "";
+      toggle.setAttribute("aria-checked", String(scopeOn));
       line.textContent = model.header ?? "";
       line.hidden = model.header === null;
       stale.textContent = model.stale ?? "";

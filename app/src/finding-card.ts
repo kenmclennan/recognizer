@@ -42,7 +42,7 @@ function isMemberFinding(record: FindingRecord): boolean {
   );
 }
 
-function folderSubject(record: FindingRecord): string | null {
+export function folderSubject(record: FindingRecord): string | null {
   if (record.kind === "folder_cycle") {
     return record.id.slice("folder_cycle:".length).split(",")[0] ?? null;
   }
