@@ -797,7 +797,7 @@ describe("findings", () => {
     why: "level 1 -> 2",
   } as const;
 
-  it("lists violations before warnings with the why", () => {
+  it("groups findings by kind in the panel's order, closed until its fold is flipped", () => {
     const rows = inspectorContent(
       module("d/a.py"),
       inputsFor([scan], {
@@ -806,13 +806,29 @@ describe("findings", () => {
       }),
     ).rows;
 
-    expect(rows.map((row) => (row as { row: FindingRow }).row.summary)).toEqual(
-      ["v", "w"],
-    );
+    expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      kind: "finding",
-      row: { principle: "level 1 -> 2", severity: "violation" },
+      kind: "finding-group",
+      key: "findings:kind:rule",
+      open: false,
+      group: { severity: "violation" },
     });
+    expect(
+      (rows[0] as { group: { rows: FindingRow[] } }).group.rows.map(
+        (row) => row.summary,
+      ),
+    ).toEqual(["v", "w"]);
+
+    const flipped = inspectorContent(
+      module("d/a.py"),
+      inputsFor([scan], {
+        tab: "findings",
+        findingRows: () => [warningRow, violationRow],
+        expanded: new Set(["findings:kind:rule"]),
+      }),
+    ).rows;
+
+    expect(flipped[0]).toMatchObject({ open: true });
   });
 
   it("shows a finding a second sensor wrote, with its summary and principle", () => {
@@ -839,10 +855,17 @@ describe("findings", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      row: {
-        summary: "too many magic numbers",
-        principle: "name-your-constants",
-        severity: "warning",
+      kind: "finding-group",
+      open: false,
+      group: {
+        name: "Magic numbers",
+        rows: [
+          {
+            summary: "too many magic numbers",
+            principle: "name-your-constants",
+            severity: "warning",
+          },
+        ],
       },
     });
   });

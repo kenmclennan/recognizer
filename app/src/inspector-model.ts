@@ -10,6 +10,7 @@ import {
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
 import type { EvidenceSection } from "./edge-evidence";
+import { type FindingGroupModel, groupsOf } from "./findings-groups";
 import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
 import type { Disc, Finding } from "./health";
@@ -111,6 +112,12 @@ export type Row =
     }
   | { kind: "group"; id: string; disc: Disc; path: string }
   | { kind: "finding"; row: FindingRow }
+  | {
+      kind: "finding-group";
+      key: string;
+      group: FindingGroupModel;
+      open: boolean;
+    }
   | { kind: "evidence"; section: EvidenceSection };
 
 export type Header = {
@@ -647,10 +654,19 @@ function findingRows(rows: FindingRow[]): Row[] {
 }
 
 function moduleFindings(id: string, inputs: InspectorInputs): Row[] {
-  const rows = findingRows(inputs.findingRows(id));
+  const groups = groupsOf(inputs.findingRows(id));
 
-  if (rows.length > 0) {
-    return rows;
+  if (groups.length > 0) {
+    return groups.map((group) => {
+      const key = `findings:${group.key}`;
+
+      return {
+        kind: "finding-group",
+        key,
+        group,
+        open: inputs.expanded.has(key),
+      };
+    });
   }
 
   return [
