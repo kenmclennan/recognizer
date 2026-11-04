@@ -46,8 +46,8 @@ import { type EditorPort, inertEditor } from "./editor-port";
 import { cardOf } from "./finding-card";
 import { keepsFocus } from "./finding-focus";
 import { litSet } from "./findings-card";
-import { groupsOf, headerLine } from "./findings-groups";
-import { badge, findingRows, staleNote, walkFindings } from "./findings-order";
+import { groupsOf, headerLine, staleNote } from "./findings-groups";
+import { badge, findingRows, walkFindings } from "./findings-order";
 import { buildFindingsPanelView } from "./findings-panel-view";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
@@ -2933,6 +2933,7 @@ export function showExplorer(
     findingsView.render({
       header: headerLine(allFindings),
       stale: staleNote(
+        allFindings,
         loaded.sensors
           .filter(
             (one) =>

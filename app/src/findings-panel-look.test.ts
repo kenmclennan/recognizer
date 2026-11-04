@@ -242,7 +242,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.otherCommit = { rows: other.all(".finding-card").length, hidden: other.q(".rail-findings .rail-count").hidden };
 
-  const stale = await mount({ findings: [doc("structure", [violation])] }, null, [{ name: "alpha", status: "stale" }]);
+  const stale = await mount({ findings: [doc("structure", [violation]), doc("alpha", [style])] }, null, [{ name: "alpha", status: "stale" }]);
   click(stale.q(".rail-findings"));
   await tick();
   facts.stale = { text: stale.q(".findings-stale").textContent, shown: stale.shown(".findings-stale") };
@@ -444,7 +444,7 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
   });
 
   it("names a stale sensor and links to the Sensors panel; none when all ran", () => {
-    expect(f.stale.text).toBe("Not current: alpha (stale)");
+    expect(f.stale.text).toBe("Style findings are out of date.");
     expect(f.staleClick).toEqual({ sensors: true, findings: false });
     expect(f.fresh.shown).toBe(false);
   });

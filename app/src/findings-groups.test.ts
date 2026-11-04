@@ -1,7 +1,7 @@
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { groupsOf, headerLine } from "./findings-groups";
-import { findingRows } from "./findings-order";
+import { groupsOf, headerLine, staleNote } from "./findings-groups";
+import { findingRows, type StaleRow } from "./findings-order";
 
 function record(
   id: string,
@@ -159,5 +159,87 @@ describe("headerLine", () => {
     expect(headerLine(rows(1, 0))).toBe("1 violation");
     expect(headerLine(rows(0, 1))).toBe("1 warning");
     expect(headerLine([])).toBeNull();
+  });
+});
+
+function sensorRow(name: string, chip: string): StaleRow {
+  return { name, kind: "registered", chip };
+}
+
+const fresh = { commit: "abc1234", stale: false };
+
+describe("staleNote", () => {
+  const rows = findingRows([
+    document("structure", [record("hu", "hub")]),
+    document("a", [
+      record("pa", "stable_abstractions", "warning", {
+        abstractness: 0,
+        instability: 0.23,
+      }),
+      record("sd", "stable_dependencies"),
+      record("du", "duplication"),
+    ]),
+    document("b", [record("mu", "mutation")]),
+  ]);
+
+  it("names the groups of a stale sensor in panel order, joined with and", () => {
+    expect(staleNote(rows, [sensorRow("a", "stale")])).toBe(
+      "Unstable dependency, Pain zone and Duplication findings are out of date.",
+    );
+    expect(staleNote(rows, [sensorRow("b", "stale")])).toBe(
+      "Mutation findings are out of date.",
+    );
+    expect(
+      staleNote(rows, [sensorRow("a", "failed"), sensorRow("b", "stale")]),
+    ).toBe(
+      "Unstable dependency, Pain zone, Duplication and Mutation findings are out of date.",
+    );
+  });
+
+  it("joins two names with and alone", () => {
+    expect(
+      staleNote(
+        findingRows([
+          document("a", [record("hu", "hub"), record("or", "orphan")]),
+        ]),
+        [sensorRow("a", "stale")],
+      ),
+    ).toBe("Hub and Orphan findings are out of date.");
+  });
+
+  it("ignores a sensor that never ran, one with no findings shown and a current one", () => {
+    expect(
+      staleNote(rows, [
+        sensorRow("a", "not run"),
+        sensorRow("c", "stale"),
+        sensorRow("b", "ran 2m ago"),
+        sensorRow("structure", "runs with every scan"),
+      ]),
+    ).toBeNull();
+    expect(staleNote(rows, [])).toBeNull();
+    expect(staleNote([], [sensorRow("a", "stale")])).toBeNull();
+  });
+
+  it("names a stale report group and omits a current one", () => {
+    const reported = findingRows([
+      document("review", [record("n1", "note")], true),
+      document("fresh", [record("n2", "note")], true),
+    ]);
+
+    expect(
+      staleNote(
+        reported,
+        [],
+        [
+          {
+            name: "review",
+            chip: "reported 1 minute ago",
+            ...fresh,
+            stale: true,
+          },
+          { name: "fresh", chip: "reported just now", ...fresh },
+        ],
+      ),
+    ).toBe("review findings are out of date.");
   });
 });

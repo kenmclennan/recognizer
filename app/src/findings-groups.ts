@@ -1,5 +1,10 @@
 import { isPainZone } from "./finding-sentence";
-import { type FindingRow, orderFindings } from "./findings-order";
+import {
+  type FindingRow,
+  orderFindings,
+  type StaleRow,
+} from "./findings-order";
+import type { ReportRow } from "./scan-panel-model";
 
 export type FindingGroupModel = {
   key: string;
@@ -104,4 +109,37 @@ export function headerLine(rows: FindingRow[]): string | null {
   }
 
   return parts.join(", ");
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 2) {
+    return names.join(" and ");
+  }
+
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+export function staleNote(
+  rows: FindingRow[],
+  sensors: StaleRow[],
+  reports: ReportRow[] = [],
+): string | null {
+  const stale = new Set([
+    ...sensors
+      .filter(
+        (row) =>
+          row.kind === "registered" &&
+          (row.chip === "stale" || row.chip === "failed"),
+      )
+      .map((row) => row.name),
+    ...reports.filter((row) => row.stale).map((row) => row.name),
+  ]);
+
+  const names = groupsOf(rows)
+    .filter((group) => group.rows.some((row) => stale.has(row.sensor)))
+    .map((group) => group.name);
+
+  return names.length === 0
+    ? null
+    : `${joinNames(names)} findings are out of date.`;
 }
