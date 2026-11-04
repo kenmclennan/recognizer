@@ -49,6 +49,7 @@ import { litSet } from "./findings-card";
 import { groupsOf, headerLine, staleNote } from "./findings-groups";
 import { badge, findingRows, walkFindings } from "./findings-order";
 import { buildFindingsPanelView } from "./findings-panel-view";
+import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
 import { computeHealth, describeTree } from "./health";
@@ -370,6 +371,7 @@ export function showExplorer(
   const allFindings = findingRows(health.documents);
   let orientedFinding: string | null = null;
   const openGroups = new Set<string>();
+  let findingsOnlyView = false;
   let canvasOrientation: CanvasOrientation | null = null;
   let canvasOrientationKey = "";
 
@@ -802,6 +804,10 @@ export function showExplorer(
       leftPanel = "scan";
       render();
       void loadScanConfig();
+    },
+    setOnlyThisView(on) {
+      findingsOnlyView = on;
+      render();
     },
   });
   const rail = buildRailView({
@@ -2934,12 +2940,23 @@ export function showExplorer(
       openView,
     );
 
-    const groups = groupsOf(allFindings);
+    const scoped = openView !== null && findingsOnlyView;
+    const shownFindings = scoped
+      ? scopedRows(allFindings, scopeOf(modules.opened()))
+      : allFindings;
+    const groups = groupsOf(shownFindings);
 
     findingsView.render({
-      header: headerLine(allFindings),
+      scope:
+        openView === null
+          ? null
+          : {
+              caption: scopeCaption(openView, modules.count()),
+              on: findingsOnlyView,
+            },
+      header: headerLine(shownFindings),
       stale: staleNote(
-        allFindings,
+        shownFindings,
         loaded.sensors
           .filter(
             (one) =>
@@ -2960,7 +2977,12 @@ export function showExplorer(
       })),
       active: orientedFinding,
       absent: (module) => !boxPresent(module),
-      empty: allFindings.length === 0 ? "No findings for this scan." : null,
+      empty:
+        allFindings.length === 0
+          ? "No findings for this scan."
+          : shownFindings.length === 0
+            ? "No findings on this view's modules."
+            : null,
     });
     rail.render({
       panel: leftPanel,

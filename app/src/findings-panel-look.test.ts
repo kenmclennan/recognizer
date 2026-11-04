@@ -235,6 +235,23 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.mixed = mixed.all(".finding-card.open .finding-item").map((row) => ({ text: row.textContent, add: row.querySelector(".finding-add") !== null }));
 
+  const only = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py"]);
+  click(only.q(".rail-findings"));
+  await tick();
+  const snap = () => ({ line: only.q(".findings-line").textContent, groups: texts(only, ".finding-group-name"), counts: texts(only, ".finding-group-count"), checked: only.q(".findings-switch").getAttribute("aria-checked") });
+  facts.only = { shown: only.shown(".findings-scope"), caption: only.q(".findings-scope-text small").textContent, before: snap() };
+  click(only.q(".findings-switch"));
+  await tick();
+  facts.only.on = snap();
+  facts.only.marks = only.all(".box .finding-mark, .box.finding").length;
+  click(only.q(".findings-switch"));
+  await tick();
+  facts.only.off = snap();
+  const noView = await mount({ findings: [doc("structure", [cycle])] }, null);
+  click(noView.q(".rail-findings"));
+  await tick();
+  facts.noView = { shown: noView.shown(".findings-scope") };
+
   const warn = await mount({ findings: [doc("lint", [style])] }, null);
   facts.warnings = { class: warn.q(".rail-findings .rail-count").className, hidden: warn.q(".rail-findings .rail-count").hidden };
   const none = await mount({ findings: [] }, null);
@@ -445,6 +462,28 @@ describe.skipIf(chrome === undefined)("the Findings panel", () => {
     for (const node of f.wrap.sentences) {
       expect(node.height).toBeGreaterThan(f.wrap.lineHeight * 1.5);
     }
+  });
+
+  it("limits the panel to the open view's findings when Only this view is on", () => {
+    expect(f.only.shown).toBe(true);
+    expect(f.only.caption).toBe("order, 1 module");
+    expect(f.only.before).toEqual({
+      line: "1 violation, 2 warnings",
+      groups: ["Policy violation", "Cyclic dependency", "Style"],
+      counts: ["1", "1", "1"],
+      checked: "false",
+    });
+    expect(f.only.on).toEqual({
+      line: "1 violation, 1 warning",
+      groups: ["Policy violation", "Cyclic dependency"],
+      counts: ["1", "1"],
+      checked: "true",
+    });
+    expect(f.only.off).toEqual(f.only.before);
+  });
+
+  it("hides the switch while no view is open", () => {
+    expect(f.noView.shown).toBe(false);
   });
 
   it("shows amber for warnings only, hides the badge at zero and ignores another commit", () => {
