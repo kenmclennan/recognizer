@@ -263,6 +263,9 @@ def constant_names(statement: ast.stmt) -> list[str]:
     return []
 
 
+TYPE_ALIAS = getattr(ast, "TypeAlias", None)
+
+
 def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> list[dict]:
     exports = declared_exports(tree)
     members = []
@@ -270,6 +273,8 @@ def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> lis
     for statement in tree.body:
         if isinstance(statement, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
             name = statement.name
+        elif TYPE_ALIAS is not None and isinstance(statement, TYPE_ALIAS):
+            name = statement.name.id
         else:
             names = constant_names(statement)
             name = names[0] if names else None
@@ -281,6 +286,8 @@ def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> lis
             detail = class_member(statement, bindings)
         elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
             detail = {"kind": "function"} | callable_outline(statement, False, False)
+        elif TYPE_ALIAS is not None and isinstance(statement, TYPE_ALIAS):
+            detail = {"kind": "type"}
         else:
             detail = {"kind": "constant", "value": shorten(source_text(source, statement.value))}
 
