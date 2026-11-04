@@ -22,6 +22,9 @@ const CHROME_CANDIDATES = [
 
 export const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
 
+export const HIDE_SCROLLBARS =
+  "* { scrollbar-width: none } ::-webkit-scrollbar { display: none }";
+
 export const here = (name: string) =>
   fileURLToPath(new URL(name, import.meta.url));
 
@@ -94,7 +97,7 @@ export async function collectFacts<T>(
 
     writeFileSync(
       page,
-      `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}</style></head><body><div id="out"></div>${SHELLS[shell]}<script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
+      `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}${HIDE_SCROLLBARS}</style></head><body><div id="out"></div>${SHELLS[shell]}<script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
     const run = spawnSync(

@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
+import { HIDE_SCROLLBARS } from "./look-page";
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_BIN,
@@ -115,7 +116,7 @@ function collect(): { closed: Measure; open: Measure } {
 
     writeFileSync(
       page,
-      `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
+      `<!doctype html><html><head><style>${css}${HIDE_SCROLLBARS}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
     const run = spawnSync(
