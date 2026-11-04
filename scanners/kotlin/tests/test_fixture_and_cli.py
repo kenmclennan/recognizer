@@ -216,7 +216,7 @@ def test_cli_end_to_end(tmp_path):
 
     assert result.returncode == 0
     assert document == wanted
-    assert result.stderr == "recognizer-scan-kotlin: 1 of 10 files had damaged spans\n"
+    assert result.stderr == ""
     validate(document)
 
     output = tmp_path / "scan.json"

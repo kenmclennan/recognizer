@@ -33,6 +33,7 @@ HIT = re.compile(
     rf"(?P<mods>(?:(?:{MODIFIERS}|fun(?=\s+interface))\s+)*)"
     r"(?P<keyword>class|interface|object|typealias|fun|val|var)\s+(?P<rest>.*)"
 )
+BARE_MODIFIER_CLASS = re.compile(r"^(\s*)(?:annotation|enum)\s+class\b")
 FUNCTION_NAME = re.compile(r"^(?:<[^>]*>\s*)?(?:[\w<>?,.\s]*?\.)?(\w+)\s*\(")
 PROPERTY_NAME = re.compile(r"^(?:<[^>]*>\s*)?(?:[\w<>?.]+\.)?(\w+)")
 PLAIN_NAME = re.compile(r"^(\w+)")
@@ -160,6 +161,20 @@ def repair_closing_braces(text: str) -> str:
     return "".join(pieces)
 
 
+def repair_annotated_modifier_classes(text: str) -> str:
+    states = line_states(text)
+    lines = text.split("\n")
+
+    for number in range(1, len(lines)):
+        depth, inside = states[number] if number < len(states) else (0, False)
+        found = BARE_MODIFIER_CLASS.match(lines[number])
+
+        if depth == 0 and not inside and found:
+            lines[number] = f"{found[1]}public {lines[number][found.end(1) :]}"
+
+    return "\n".join(lines)
+
+
 def chunk_starts(lines: list[str], text: str) -> list[int]:
     states = line_states(text)
     starts = [0]
@@ -241,7 +256,7 @@ def parse_file(data: bytes) -> Parsed:
         return parsed
 
     text = data.decode("utf-8", errors="replace")
-    repaired = parse_whole(repair_closing_braces(text).encode())
+    repaired = parse_whole(repair_annotated_modifier_classes(repair_closing_braces(text)).encode())
 
     if not repaired.damaged:
         return repaired
