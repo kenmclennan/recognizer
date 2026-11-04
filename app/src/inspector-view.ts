@@ -229,16 +229,8 @@ function rowNode(
     return cardNode(row, actions);
   }
 
-  if (row.kind === "fold") {
-    const node = el("div", `ofold${row.top ? " top" : ""}`);
-
-    node.append(icon(row.open ? "chevron-down" : "chevron-right"), row.text);
-    node.addEventListener("click", (event) => {
-      event.stopPropagation();
-      actions.toggleFold(row.key);
-    });
-
-    return node;
+  if (row.kind === "heading") {
+    return el("div", "ohead", row.text);
   }
 
   if (row.kind === "filter") {

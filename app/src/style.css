@@ -1284,24 +1284,13 @@ svg.i.chevron {
   color: var(--tk-punct);
 }
 
-.ofold {
+.ohead {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 4px 2px 18px;
+  padding: 2px 4px;
   color: var(--muted);
   font-size: 12px;
-  cursor: pointer;
-}
-
-.ofold.top {
-  padding-left: 4px;
-}
-
-.ofold svg.i {
-  width: 11px;
-  height: 11px;
-  stroke-width: 3;
 }
 
 .none {
