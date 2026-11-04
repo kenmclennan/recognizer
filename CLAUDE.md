@@ -78,6 +78,7 @@ A fresh worktree has no `node_modules`. Run `npm ci` at the repository root befo
 - The full `npm run check:app` takes about 5-6 minutes. Run it once, at the end, from the repo root, with the longest timeout; a timeout is not a failure, so do not re-run it. Other workers run it at the same time, so write its output to a log named for your worktree (`/tmp/check-app-$(basename "$PWD").log`), never a shared fixed path.
 - Before pushing, run lint and typecheck for every workspace you touched, even when you skip the full `npm run check:app`. For a TypeScript workspace, run `npm run lint -w <workspace>`, then `npm run typecheck -w @recognizer/app` for the app, or `npm run build -w <workspace>` (its `tsc` step) for any other workspace. For a Python package (`scanners/python`, `scanners/kotlin`, `sensors`), run `uv run ruff check .`, `uv run ruff format --check .` and `uv run --python 3.11 pytest`, so fixtures and code are proven on the minimum Python CI runs.
 - A test that fails on its own vitest test or hook timeout under load is re-run once on its own, and the closing note reports both results. A gate step the run never reached is never reported as passed.
+- A test or hook that passes its own timeout, or waits on its own `setTimeout`, wraps the value in `scaledTimeout` from `scripts/pool-scale.mjs`, so it scales with the pool's load like vitest's defaults do.
 
 ## CI
 
