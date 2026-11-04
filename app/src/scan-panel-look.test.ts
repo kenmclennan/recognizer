@@ -103,7 +103,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const q = (selector) => root.querySelector(selector);
   const all = (selector) => [...root.querySelectorAll(selector)];
   const visible = (selector) => { const n = q(selector); return n !== null && getComputedStyle(n).display !== "none"; };
-  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state").textContent, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.title, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
+  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state").textContent, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
   const text = (selector) => q(selector)?.textContent ?? "<missing " + selector + ">";
   const footerText = () => q(".scan-line").textContent;
   const footerButtons = () => all(".footer button").filter((b) => !b.closest(".message-tray, .message-toast")).map((b) => b.className);
@@ -124,6 +124,20 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(a.q(".rail-scan"));
   await tick();
   facts.fresh = { ...a.panel(), order: a.all(".rail button").map((b) => b.className.split(" ")[1]), railLabel: getComputedStyle(a.q(".rail-scan"), "::after").content, files: a.visible(".tree-header"), panelOpen: a.visible(".scan-panel"), ran: fake.ran.length, buttonTitle: a.q(".scan-run").title };
+
+  const rowEls = a.all(".scan-row");
+  const first = rowEls[0].querySelector(".scan-state");
+  first.textContent = "155 modules described, 34 minutes ago";
+  const paneBox = a.q(".scan-panel").getBoundingClientRect();
+  const paneStyle = getComputedStyle(a.q(".scan-panel"));
+  const contentRight = paneBox.right - parseFloat(paneStyle.paddingRight);
+  const stateBox = first.getBoundingClientRect();
+  const lineHeight = parseFloat(getComputedStyle(first).lineHeight) || 16;
+  const lastRow = rowEls[rowEls.length - 1];
+  lastRow.dispatchEvent(new MouseEvent("mouseenter"));
+  const tipBox = document.querySelector(".scan-tip").getBoundingClientRect();
+  facts.long = { stateRight: stateBox.right, contentRight, lines: Math.round(stateBox.height / lineHeight), nameOverflow: rowEls[0].querySelector(".scan-row-label").scrollWidth > rowEls[0].querySelector(".scan-row-label").clientWidth, tip: { left: tipBox.left, top: tipBox.top, right: tipBox.right, bottom: tipBox.bottom }, viewport: { w: window.innerWidth, h: window.innerHeight } };
+  lastRow.dispatchEvent(new MouseEvent("mouseleave"));
 
   const b = await mount(fake);
   click(b.q(".rail-scan"));
@@ -353,6 +367,16 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
       "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
     );
     expect(f.fresh.rows[2].title).toBe("Finds repeated structure.");
+  });
+
+  it("wraps a long status inside the panel's content box and keeps the tip inside the window", () => {
+    expect(f.long.stateRight).toBeLessThanOrEqual(f.long.contentRight + 0.5);
+    expect(f.long.lines).toBeGreaterThanOrEqual(2);
+    expect(f.long.nameOverflow).toBe(false);
+    expect(f.long.tip.left).toBeGreaterThanOrEqual(0);
+    expect(f.long.tip.top).toBeGreaterThanOrEqual(0);
+    expect(f.long.tip.right).toBeLessThanOrEqual(f.long.viewport.w);
+    expect(f.long.tip.bottom).toBeLessThanOrEqual(f.long.viewport.h);
   });
 
   it("has one primary Scan button alone, with no text beside it", () => {
