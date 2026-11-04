@@ -36,8 +36,9 @@ export function isEntryPoint(
   id: string,
   literalPaths: Set<string>,
   entryGlobs: string[],
+  scanned: boolean,
 ): boolean {
-  if (literalPaths.has(id) || isTestFile(id)) {
+  if (scanned || literalPaths.has(id) || isTestFile(id)) {
     return true;
   }
 

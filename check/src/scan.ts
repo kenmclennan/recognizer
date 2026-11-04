@@ -97,6 +97,7 @@ export interface Scan {
     id: string;
     kind: "module" | "package" | "interface";
     members?: ScanMember[];
+    entry_point?: boolean;
   }[];
   edges: ScanEdge[];
   calls?: ScanCall[];

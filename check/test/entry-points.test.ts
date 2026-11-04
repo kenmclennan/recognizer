@@ -10,7 +10,7 @@ const CASES = JSON.parse(
 
 describe("isEntryPoint against the shared sensor fixture", () => {
   it.each(CASES)("$id with $entry_points", (item) => {
-    expect(isEntryPoint(item.id, new Set(), item.entry_points)).toBe(
+    expect(isEntryPoint(item.id, new Set(), item.entry_points, false)).toBe(
       item.expected,
     );
   });

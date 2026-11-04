@@ -1,0 +1,19 @@
+{
+  "settings": {
+    "warnings": { "orphan": true }
+  },
+  "modules": [
+    {
+      "id": "e/run.py",
+      "kind": "module",
+      "exports": [],
+      "entry_point": true
+    },
+    {
+      "id": "e/plain.py",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": []
+}

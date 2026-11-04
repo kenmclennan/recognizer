@@ -17,7 +17,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "4";
+export const STRUCTURE_SENSOR_VERSION = "5";
 export const DEFAULT_HUB_THRESHOLD = 10;
 export const DEFAULT_DISTANCE_THRESHOLD = 0.3;
 

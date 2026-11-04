@@ -16,6 +16,7 @@ from recognizer_scan_python.analysis import (
 )
 from recognizer_scan_python.calls import CallResolver
 from recognizer_scan_python.discovery import discover, selection
+from recognizer_scan_python.entry_point import is_entry_point
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
 from recognizer_scan_python.outline import read_members
@@ -153,14 +154,17 @@ def scan(
         item = parsed[module_id]
         members = read_members(item.tree, item.imports.bindings, item.source)
         outlines[module_id] = members
-        modules.append(
-            {
-                "id": module_id,
-                "language": "python",
-                "kind": module_kind(module_id, members),
-                "members": members,
-            }
-        )
+        module = {
+            "id": module_id,
+            "language": "python",
+            "kind": module_kind(module_id, members),
+            "members": members,
+        }
+
+        if is_entry_point(module_id, item.tree):
+            module["entry_point"] = True
+
+        modules.append(module)
 
         own = import_edges(module_id, item.imports, router)
         imported = {edge["to"] for edge in own}
