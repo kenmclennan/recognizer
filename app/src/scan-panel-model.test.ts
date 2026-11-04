@@ -116,6 +116,13 @@ describe("scanPanel rows", () => {
     expect(rows.every((row) => row.tickable)).toBe(true);
   });
 
+  it("disables every row while scanning and none otherwise", () => {
+    expect(scanPanel(input()).rows.some((row) => row.disabled)).toBe(false);
+    expect(
+      scanPanel(input({ scanning: true })).rows.every((row) => row.disabled),
+    ).toBe(true);
+  });
+
   it("titles a shipped row with the registry's sentence and Descriptions with the mock's wording", () => {
     const rows = scanPanel(input()).rows;
 

@@ -76,6 +76,7 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   node.addEventListener("pointerdown", close);
   tick.type = "checkbox";
   tick.checked = row.ticked;
+  tick.disabled = row.disabled;
   tick.setAttribute("aria-label", row.name);
   tick.addEventListener("change", () => actions.tick(row.key, tick.checked));
   label.append(tick, row.name);

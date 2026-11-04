@@ -2043,6 +2043,11 @@ svg.i.chevron {
   accent-color: var(--sel);
 }
 
+.scan-row-label:has(.scan-tick:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .scan-state {
   display: inline-flex;
   align-items: center;
