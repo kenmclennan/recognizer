@@ -5,9 +5,12 @@ export type ToolsReport =
   | { status: "command-missing" }
   | { status: "failed"; exitCode: number; stderr: string };
 
-export const UPGRADE_TOOLS = "brew upgrade recognizer";
+export const UPGRADE_TOOLS =
+  "brew upgrade --formula kenmclennan/tap/recognizer";
 
-export const UPGRADE_APP = "brew upgrade --cask recognizer";
+export const UPGRADE_APP = "brew upgrade --cask kenmclennan/tap/recognizer";
+
+export const UPGRADE_BOTH = `${UPGRADE_TOOLS} && ${UPGRADE_APP}`;
 
 const DOTTED = /^(\d+)\.(\d+)\.(\d+)$/;
 
@@ -44,7 +47,7 @@ export function toolsNotice(
   if (toolsParts === null || appParts === null) {
     return {
       text: `The app (${appVersion}) and the recognizer command (${tools}) are out of step`,
-      command: UPGRADE_TOOLS,
+      command: UPGRADE_BOTH,
     };
   }
 

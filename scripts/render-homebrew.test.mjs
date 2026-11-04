@@ -35,6 +35,10 @@ describe("renderAll on the committed templates", () => {
     expect(cask).toContain(APP);
   });
 
+  it("makes the cask depend on the formula", () => {
+    expect(cask).toContain('depends_on formula: "kenmclennan/tap/recognizer"');
+  });
+
   it("leaves no placeholder behind", () => {
     expect(formula).not.toContain("@@");
     expect(cask).not.toContain("@@");
