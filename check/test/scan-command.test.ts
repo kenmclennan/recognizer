@@ -192,6 +192,20 @@ describe("recognizer scan: rust", () => {
   });
 });
 
+describe("recognizer scan: csharp", () => {
+  it("fails a detected csharp language whose scanner is missing", async () => {
+    const { code, err } = await scan({ files: { [`${ROOT}/src/A.cs`]: "" } });
+
+    expect(code).toBe(1);
+    expect(err).toContain("recognizer-scan-csharp is not installed");
+    expect(err).toContain("RECOGNIZER_SCAN_CSHARP");
+  });
+
+  it("runs recognizer-scan-csharp for csharp", () => {
+    expect(scannerFor("csharp").name).toBe("recognizer-scan-csharp");
+  });
+});
+
 describe("recognizer scan: outcomes", () => {
   const cases: [string, Record<string, unknown>, string][] = [
     ["not-installed", {}, "not-installed"],

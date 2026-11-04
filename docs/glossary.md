@@ -15,8 +15,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Outline | What a member contains, read from its declaration: a class's bases, fields, methods and tags, a function's parameters and return type, a constant's value. |
 | Class tag | One of `dataclass`, `frozen`, `final`, `runtime_checkable` or `abstract` on a class or interface, read from its decorators or modifiers and shown in Contents beside the class name. `abstract` is also set on a Kotlin `abstract class` and on a TypeScript type alias that can be implemented. |
 | Abstract member | An exported member that can stand in for an implementation: an interface, an abstract class, or a type alias that can be implemented (a function or constructor type, or an object type declaring a method or call signature), as each scanner records it. Data shapes, literal and union types, mapped and utility types, constants, enums and ordinary classes are not. |
-| Visibility | A Kotlin member's declared access modifier: `public`, `protected`, `internal` or `private`. A member is exported unless it is private. |
-| Unresolved import | A Kotlin import whose name is declared in no scanned file but whose package is under an in-repo package prefix, such as generated code. Recorded in the scan so it is never dropped silently. |
+| Visibility | A Kotlin or C# member's declared access modifier: `public`, `protected`, `internal` or `private` (a C# `file` type is recorded as `private`). A member is exported unless it is private. |
+| Unresolved import | A Kotlin import, or a C# `using`, whose name is declared in no scanned file but whose package or namespace is under an in-repo prefix, such as generated code. Recorded in the scan so it is never dropped silently. |
+| Skip paths | The optional `selection` list of repository-relative directories a scanner skipped for a reason a glob cannot express, such as a C# test project found by reading its `.csproj`. The change view treats files under them as unscanned, not added. |
 | Dispatch | A call from an abstract or interface method to each concrete method that implements it, so a caller that reaches a port also reaches its adapter. |
 | Trace | The calls followed from one member, which is how an agent finds what a feature touches. Never drawn on the canvas. |
 | Name | A member's name as another module imports it. |

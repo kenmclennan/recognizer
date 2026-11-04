@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "recognizer-scan-csharp"
+version = "0.1.0"
+license = "MIT"
+description = "Scans a C# source tree into a Recognizer scan document"
+requires-python = ">=3.11"
+dependencies = ["tree-sitter==0.26.0", "tree-sitter-c-sharp==0.23.5"]
+
+[project.scripts]
+recognizer-scan-csharp = "recognizer_scan_csharp.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "ruff", "jsonschema"]
+
+[tool.uv.sources]
+tree-sitter-c-sharp = { git = "https://github.com/tree-sitter/tree-sitter-c-sharp", rev = "f1c7c1ee21f56a33412c12efb8abe0c483f05f0d" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/recognizer_scan_csharp"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+tmp_path_retention_policy = "none"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]

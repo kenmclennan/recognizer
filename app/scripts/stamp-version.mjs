@@ -39,6 +39,11 @@ export function stampVersion(root, version) {
     version,
   );
   rewrite(
+    join(root, "scanners/csharp/pyproject.toml"),
+    /^(version = ")[^"]*(")/m,
+    version,
+  );
+  rewrite(
     join(root, "sensors/pyproject.toml"),
     /^(version = ")[^"]*(")/m,
     version,

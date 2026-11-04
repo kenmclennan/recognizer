@@ -59,6 +59,8 @@ struct Selection {
     skip_directory_suffixes: Vec<String>,
     skip_directories_containing: Vec<String>,
     skip_file_globs: Vec<String>,
+    #[serde(default)]
+    skip_paths: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,10 +110,21 @@ fn glob_matches(pattern: &str, name: &str) -> bool {
 }
 
 impl Selection {
+    fn under_skip_path(&self, relative: &str) -> bool {
+        self.skip_paths.iter().any(|skipped| {
+            skipped == "."
+                || relative == skipped
+                || relative
+                    .strip_prefix(skipped.as_str())
+                    .is_some_and(|rest| rest.starts_with('/'))
+        })
+    }
+
     fn skips_directory(&self, relative_directory: &str, folder: &Path) -> bool {
         let name = relative_directory.rsplit('/').next().unwrap_or("");
 
         name == RECOGNIZER_FOLDER
+            || self.under_skip_path(relative_directory)
             || self
                 .skip_directory_names
                 .iter()
@@ -159,7 +172,7 @@ impl Selection {
             }
         }
 
-        self.accepts_file(name)
+        !self.under_skip_path(relative) && self.accepts_file(name)
     }
 }
 
@@ -838,6 +851,24 @@ mod tests {
         assert_fixture_scan_is_a_clean_baseline("rust", 7);
     }
 
+    #[test]
+    fn the_csharp_fixture_scan_compares_clean_against_its_own_files() {
+        let scan = expected_scan("csharp");
+        let skipped = scan["selection"]["skip_paths"].as_array().unwrap();
+
+        assert_eq!(skipped.len(), 6);
+
+        for directory in skipped {
+            let check = fixture("csharp")
+                .join(directory.as_str().unwrap())
+                .join("Check.cs");
+
+            assert!(check.exists());
+        }
+
+        assert_fixture_scan_is_a_clean_baseline("csharp", 24);
+    }
+
     fn assert_selection_matches_the_scanner_parity_tree(language: &str) {
         let text = fs::read_to_string(
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/selection-parity.json"),
@@ -883,6 +914,59 @@ mod tests {
     #[test]
     fn the_rust_selection_accepts_exactly_the_files_the_rust_scanner_reads() {
         assert_selection_matches_the_scanner_parity_tree("rust");
+    }
+
+    #[test]
+    fn the_csharp_selection_accepts_exactly_the_files_the_csharp_scanner_reads() {
+        assert_selection_matches_the_scanner_parity_tree("csharp");
+    }
+
+    fn selection_skipping(paths: &[&str]) -> Selection {
+        Selection {
+            extensions: vec![".cs".to_string()],
+            skip_paths: paths.iter().map(|path| path.to_string()).collect(),
+            ..Selection::default()
+        }
+    }
+
+    #[test]
+    fn a_file_under_a_listed_skip_path_is_not_accepted() {
+        let selection = selection_skipping(&["src/Foo.Tests"]);
+        let folder = Path::new("/nowhere");
+
+        assert!(!selection.accepts("src/Foo.Tests/A.cs", folder));
+        assert!(!selection.accepts("src/Foo.Tests/Deep/B.cs", folder));
+        assert!(selection.skips_directory("src/Foo.Tests", folder));
+        assert!(selection.skips_directory("src/Foo.Tests/Deep", folder));
+        assert!(!selection.skips_directory("src", folder));
+    }
+
+    #[test]
+    fn a_sibling_that_only_shares_a_string_prefix_with_a_skip_path_is_accepted() {
+        let selection = selection_skipping(&["src/Foo.Tests"]);
+        let folder = Path::new("/nowhere");
+
+        assert!(selection.accepts("src/Foo.Tests2/A.cs", folder));
+        assert!(selection.accepts("src/Foo/A.cs", folder));
+        assert!(!selection.skips_directory("src/Foo.Tests2", folder));
+    }
+
+    #[test]
+    fn a_dot_skip_path_skips_every_file() {
+        let selection = selection_skipping(&["."]);
+        let folder = Path::new("/nowhere");
+
+        assert!(!selection.accepts("A.cs", folder));
+        assert!(!selection.accepts("src/A.cs", folder));
+    }
+
+    #[test]
+    fn a_selection_with_no_skip_paths_accepts_what_it_always_did() {
+        let selection = selection_skipping(&[]);
+        let folder = Path::new("/nowhere");
+
+        assert!(selection.accepts("A.cs", folder));
+        assert!(selection.accepts("src/Foo.Tests/A.cs", folder));
     }
 
     #[test]

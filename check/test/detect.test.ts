@@ -18,11 +18,11 @@ describe("selection parity", () => {
   const parity = JSON.parse(
     readFileSync(join(REPO, "fixtures/selection-parity.json"), "utf8"),
   ) as Record<
-    "python" | "typescript" | "kotlin" | "rust",
+    "python" | "typescript" | "kotlin" | "rust" | "csharp",
     { tree: string[]; accepted: string[] }
   >;
 
-  it.each(["python", "typescript", "kotlin", "rust"] as const)(
+  it.each(["python", "typescript", "kotlin", "rust", "csharp"] as const)(
     "detects %s exactly when its scanner accepts a file of the shared tree",
     (language) => {
       const { tree, accepted } = parity[language];
@@ -33,7 +33,7 @@ describe("selection parity", () => {
     },
   );
 
-  it.each(["python", "typescript", "kotlin", "rust"] as const)(
+  it.each(["python", "typescript", "kotlin", "rust", "csharp"] as const)(
     "detects %s from no rejected file of the shared tree",
     (language) => {
       const { tree, accepted } = parity[language];
@@ -43,7 +43,7 @@ describe("selection parity", () => {
     },
   );
 
-  it.each(["python", "typescript", "kotlin", "rust"] as const)(
+  it.each(["python", "typescript", "kotlin", "rust", "csharp"] as const)(
     "detects %s from each accepted file alone",
     (language) => {
       for (const path of parity[language].accepted) {
@@ -154,11 +154,18 @@ describe("detectLanguages", () => {
       "b.ts",
       "c.kt",
       "d.rs",
+      "e.cs",
       "z/deep/one.txt",
       "z/other/two.txt",
     ]);
 
-    expect(languages).toEqual(["python", "typescript", "kotlin", "rust"]);
+    expect(languages).toEqual([
+      "python",
+      "typescript",
+      "kotlin",
+      "rust",
+      "csharp",
+    ]);
     expect(fake.readDirCalls()).toBe(1);
   });
 });

@@ -63,6 +63,10 @@ describe("renderAll on the committed templates", () => {
     expect(formula).toContain(
       'bin.install_symlink libexec/"venv/bin/recognizer-scan-kotlin"',
     );
+    expect(formula).toContain(
+      'bin.install_symlink libexec/"venv/bin/recognizer-scan-csharp"',
+    );
+    expect(formula).toContain("recognizer_scan_csharp-1.2.3-py3-none-any.whl");
     expect(formula).toContain('bin.install "recognizer-scan-rust"');
     expect(formula).toContain('"--no-index", "--find-links", "wheelhouse"');
     expect(formula).toContain("recognizer_scan_kotlin-1.2.3-py3-none-any.whl");
@@ -76,6 +80,9 @@ describe("renderAll on the committed templates", () => {
   it("tests the two scanner versions and the describer prompt version", () => {
     expect(formula).toContain(
       'shell_output("#{bin}/recognizer-scan-kotlin --version")',
+    );
+    expect(formula).toContain(
+      'shell_output("#{bin}/recognizer-scan-csharp --version")',
     );
     expect(formula).toContain(
       'shell_output("#{bin}/recognizer-scan-rust --version")',

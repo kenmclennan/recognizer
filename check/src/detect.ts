@@ -1,9 +1,15 @@
 import { join } from "node:path";
 import type { Io } from "./cli.js";
 
-export type Language = "python" | "typescript" | "kotlin" | "rust";
+export type Language = "python" | "typescript" | "kotlin" | "rust" | "csharp";
 
-const LANGUAGES: Language[] = ["python", "typescript", "kotlin", "rust"];
+const LANGUAGES: Language[] = [
+  "python",
+  "typescript",
+  "kotlin",
+  "rust",
+  "csharp",
+];
 
 interface SkipRules {
   directoryNames: string[];
@@ -74,6 +80,13 @@ const SKIP_RULES: Record<Language, SkipRules> = {
     directoryMarkers: [],
     fileGlobs: [],
   },
+  csharp: {
+    directoryNames: ["bin", "obj"],
+    directoryPrefixes: ["."],
+    directorySuffixes: [],
+    directoryMarkers: [],
+    fileGlobs: ["*.g.cs", "*.g.i.cs", "*.Designer.cs"],
+  },
 };
 
 function matchesGlob(name: string, glob: string): boolean {
@@ -113,6 +126,10 @@ function languageOf(fileName: string): Language | null {
 
   if (fileName.endsWith(".rs")) {
     return "rust";
+  }
+
+  if (fileName.endsWith(".cs")) {
+    return "csharp";
   }
 
   return null;

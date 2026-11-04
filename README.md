@@ -23,7 +23,7 @@ cd my-repo
 recognizer open
 ```
 
-The first open scans the repository (Python, TypeScript, Kotlin and Rust are read) and shows the file tree; tick files or folders to put them on the canvas. The same scan drives the command line:
+The first open scans the repository (Python, TypeScript, Kotlin, C# and Rust are read) and shows the file tree; tick files or folders to put them on the canvas. The same scan drives the command line:
 
 ```sh
 recognizer scan                 # extract when the files changed, describe, run sensors
@@ -41,7 +41,7 @@ Agents use the command line only: `recognizer agents install` adds the Claude Co
 
 ## Parts
 
-- **Scanners.** One standalone command per language (Python, TypeScript, Kotlin, Rust) that reads a source tree and prints the same JSON scan document.
+- **Scanners.** One standalone command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
 - **Check.** Reads the scan and the policy, reports violations against a baseline that may only shrink, and the structure sensor's warnings: hubs, cycles, orphans, package metrics.
 - **Sensors.** Shipped judgements beyond structure: duplication and CRAP today, mutation and thresholds following; a repository can register its own command that writes findings.
 - **Viewer.** A native app (Tauri) that draws the modules and their dependencies, colours findings and health, opens a module to show its members, and keeps saved views and notes an agent can build and link to.

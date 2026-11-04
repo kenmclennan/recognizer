@@ -1,0 +1,47 @@
+name: scanner-csharp
+
+on:
+  pull_request:
+    paths:
+      - scanners/csharp/**
+      - schema/**
+      - fixtures/**
+      - scripts/assert-clean-tmpdir.mjs
+      - .github/workflows/scanner-csharp.yml
+  push:
+    branches: [main]
+    paths:
+      - scanners/csharp/**
+      - schema/**
+      - fixtures/**
+      - scripts/assert-clean-tmpdir.mjs
+      - .github/workflows/scanner-csharp.yml
+
+env:
+  RECOGNIZER_REQUIRE_REAL_CONTENT: "1"
+  RECOGNIZER_CSHARP_ESHOP: ${{ github.workspace }}/eshop
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: scanners/csharp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dotnet/eShop
+          ref: 913acea66708a59595351174cee9b29f37179d29
+          path: eshop
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: node "$GITHUB_WORKSPACE/scripts/assert-clean-tmpdir.mjs" uv run pytest

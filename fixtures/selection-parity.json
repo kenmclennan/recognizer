@@ -88,5 +88,23 @@
       "tests/it.rs"
     ],
     "accepted": ["a.rs", "build.rs", "src/lib.rs"]
+  },
+  "csharp": {
+    "tree": [
+      ".vs/Hidden.cs",
+      "A.fs",
+      "A.vb",
+      "Designer.cs",
+      "Models/Order.Designer.cs",
+      "Models/Order.cs",
+      "Models/Order.g.cs",
+      "Models/Order.g.i.cs",
+      "Models/notes.md",
+      "bin/Debug/Gen.cs",
+      "g.cs",
+      "obj/Debug/Gen.cs",
+      "src/Keep.cs"
+    ],
+    "accepted": ["Designer.cs", "Models/Order.cs", "g.cs", "src/Keep.cs"]
   }
 }

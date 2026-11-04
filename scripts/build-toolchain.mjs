@@ -28,6 +28,9 @@ const OWN_PACKAGES = [
 ];
 const RUST_BINARY = "recognizer-scan-rust";
 const WHEELHOUSE = "wheelhouse";
+const GRAMMAR_PACKAGE = "tree-sitter-c-sharp";
+const GRAMMAR_WHEEL_PREFIX = `${WHEELHOUSE}/tree_sitter_c_sharp-`;
+const GRAMMAR_PROJECT = "scanners/csharp";
 
 export function archiveEntries(version, closurePaths, wheelhouseFiles = []) {
   return [
@@ -35,6 +38,7 @@ export function archiveEntries(version, closurePaths, wheelhouseFiles = []) {
     ...closurePaths.map((path) => `${path}/package.json`),
     `recognizer_scan_python-${version}-py3-none-any.whl`,
     `recognizer_scan_kotlin-${version}-py3-none-any.whl`,
+    `recognizer_scan_csharp-${version}-py3-none-any.whl`,
     `recognizer_sensors-${version}-py3-none-any.whl`,
     ...wheelhouseFiles.map((name) => `${WHEELHOUSE}/${name}`),
     RUST_BINARY,
@@ -73,6 +77,60 @@ export function mergeRequirements(exports) {
   return `${[...blocks.values()].flat().join("\n")}\n`;
 }
 
+export function exportArguments() {
+  return [
+    "export",
+    "--frozen",
+    "--no-dev",
+    "--no-emit-project",
+    "--no-emit-package",
+    GRAMMAR_PACKAGE,
+    "--format",
+    "requirements-txt",
+  ];
+}
+
+export function grammarSource(pyproject) {
+  const entry = new RegExp(`^${GRAMMAR_PACKAGE}\\s*=\\s*\\{[^}]*\\}`, "m").exec(
+    pyproject,
+  );
+  const git = /git\s*=\s*"([^"]+)"/.exec(entry?.[0] ?? "");
+  const rev = /rev\s*=\s*"([0-9a-f]{40})"/.exec(entry?.[0] ?? "");
+
+  if (!git || !rev) {
+    throw new Error(
+      `${GRAMMAR_PROJECT}/pyproject.toml has no pinned git source for ${GRAMMAR_PACKAGE}`,
+    );
+  }
+
+  return { url: git[1], rev: rev[1] };
+}
+
+export function buildGrammarWheel(source, outDir, exec = run) {
+  const checkout = mkdtempSync(join(tmpdir(), "grammar-"));
+
+  try {
+    exec("git", ["init", "--quiet"], { cwd: checkout });
+    exec("git", ["remote", "add", "origin", source.url], { cwd: checkout });
+    exec("git", ["fetch", "--quiet", "--depth", "1", "origin", source.rev], {
+      cwd: checkout,
+    });
+    exec("git", ["checkout", "--quiet", "FETCH_HEAD"], { cwd: checkout });
+
+    const head = exec("git", ["rev-parse", "HEAD"], { cwd: checkout }).trim();
+
+    if (head !== source.rev) {
+      throw new Error(
+        `grammar checkout is ${head}, not the pinned ${source.rev}`,
+      );
+    }
+
+    exec("uv", ["build", "--wheel", "--out-dir", outDir, checkout]);
+  } finally {
+    rmSync(checkout, { recursive: true, force: true });
+  }
+}
+
 export function verifyArchive(
   listing,
   version,
@@ -88,6 +146,10 @@ export function verifyArchive(
   const missing = archiveEntries(version, closurePaths, wheelhouseFiles).filter(
     (name) => !present.has(name),
   );
+
+  if (![...present].some((name) => name.startsWith(GRAMMAR_WHEEL_PREFIX))) {
+    missing.push(`${GRAMMAR_WHEEL_PREFIX}*`);
+  }
 
   if (missing.length > 0) {
     throw new Error(`toolchain archive is missing: ${missing.join(", ")}`);
@@ -172,6 +234,9 @@ export function buildToolchain(root, outDir) {
     run("uv", ["build", "--wheel", "--out-dir", staging, "scanners/kotlin"], {
       cwd: root,
     });
+    run("uv", ["build", "--wheel", "--out-dir", staging, GRAMMAR_PROJECT], {
+      cwd: root,
+    });
 
     run("uv", ["build", "--wheel", "--out-dir", staging, "sensors"], {
       cwd: root,
@@ -179,19 +244,8 @@ export function buildToolchain(root, outDir) {
 
     const wheelhouse = join(staging, WHEELHOUSE);
     const requirements = join(packed, "wheelhouse-requirements.txt");
-    const exported = ["scanners/kotlin", "sensors"].map((project) =>
-      run(
-        "uv",
-        [
-          "export",
-          "--frozen",
-          "--no-dev",
-          "--no-emit-project",
-          "--format",
-          "requirements-txt",
-        ],
-        { cwd: join(root, project) },
-      ),
+    const exported = ["scanners/kotlin", GRAMMAR_PROJECT, "sensors"].map(
+      (project) => run("uv", exportArguments(), { cwd: join(root, project) }),
     );
 
     writeFileSync(requirements, mergeRequirements(exported));
@@ -215,6 +269,13 @@ export function buildToolchain(root, outDir) {
       "-d",
       wheelhouse,
     ]);
+
+    buildGrammarWheel(
+      grammarSource(
+        readFileSync(join(root, GRAMMAR_PROJECT, "pyproject.toml"), "utf8"),
+      ),
+      wheelhouse,
+    );
 
     const wheelhouseFiles = readdirSync(wheelhouse).sort();
 
