@@ -1,12 +1,13 @@
 from functools import cache
 
+import tree_sitter_c_sharp
 import tree_sitter_kotlin
 import tree_sitter_python
 import tree_sitter_rust
 import tree_sitter_typescript
 from tree_sitter import Language, Parser, Tree
 
-LANGUAGES = ("python", "typescript", "kotlin", "rust")
+LANGUAGES = ("python", "typescript", "kotlin", "rust", "csharp")
 
 EXTENSION_GRAMMARS = {
     ".py": "python",
@@ -20,6 +21,7 @@ EXTENSION_GRAMMARS = {
     ".cjs": "tsx",
     ".kt": "kotlin",
     ".rs": "rust",
+    ".cs": "csharp",
 }
 
 LOADERS = {
@@ -28,6 +30,7 @@ LOADERS = {
     "tsx": tree_sitter_typescript.language_tsx,
     "kotlin": tree_sitter_kotlin.language,
     "rust": tree_sitter_rust.language,
+    "csharp": tree_sitter_c_sharp.language,
 }
 
 

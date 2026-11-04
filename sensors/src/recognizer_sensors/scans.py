@@ -34,6 +34,7 @@ class Scan:
     modules: tuple[ScanModule, ...]
     modified: bool
     edges: tuple[ScanEdge, ...] = ()
+    skip_paths: tuple[str, ...] = ()
 
 
 def scan_path(repository: Path, language: str) -> Path:
@@ -91,6 +92,16 @@ def read_edges(raw: object) -> tuple[ScanEdge, ...]:
     return tuple(edges)
 
 
+def read_skip_paths(document: dict) -> tuple[str, ...]:
+    selection = document.get("selection")
+    raw = selection.get("skip_paths") if isinstance(selection, dict) else None
+
+    if not isinstance(raw, list):
+        return ()
+
+    return tuple(path for path in raw if isinstance(path, str))
+
+
 def read_scan(repository: Path, language: str) -> Scan | None:
     try:
         document = json.loads(scan_path(repository, language).read_text(encoding="utf-8"))
@@ -115,7 +126,13 @@ def read_scan(repository: Path, language: str) -> Scan | None:
         for entry in module_entries
     )
 
-    return Scan(language, modules, modified, read_edges(document.get("edges")))
+    return Scan(
+        language,
+        modules,
+        modified,
+        read_edges(document.get("edges")),
+        read_skip_paths(document),
+    )
 
 
 def read_scans(repository: Path) -> list[Scan]:

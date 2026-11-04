@@ -4,15 +4,31 @@ from recognizer_sensors.duplication.normalise import is_comment, is_literal
 
 RETURN_TYPES = {"return_statement", "return_expression"}
 ASSIGNMENT_TYPES = {"assignment", "assignment_expression"}
-MEMBER_TYPES = {"attribute", "member_expression", "field_expression", "navigation_expression"}
-SUBSCRIPT_TYPES = {"subscript", "subscript_expression", "index_expression", "indexing_expression"}
-CALL_TYPES = {"call", "call_expression"}
+MEMBER_TYPES = {
+    "attribute",
+    "member_expression",
+    "field_expression",
+    "navigation_expression",
+    "member_access_expression",
+}
+SUBSCRIPT_TYPES = {
+    "subscript",
+    "subscript_expression",
+    "index_expression",
+    "indexing_expression",
+    "element_access_expression",
+}
+CALL_TYPES = {"call", "call_expression", "invocation_expression"}
 SELF_TYPES = {"self", "this", "this_expression"}
 INITIALISER_TYPES = {"shorthand_field_initializer", "field_initializer"}
 
 
 def statements_of(function: Node) -> list[Node]:
     body = function.child_by_field_name("body")
+
+    if body is None and function.type in {"property_declaration", "indexer_declaration"}:
+        value = function.child_by_field_name("value")
+        body = value if value is not None and value.type == "arrow_expression_clause" else None
 
     if body is None:
         body = next((c for c in function.children if c.type == "function_body"), None)
@@ -72,6 +88,13 @@ def is_atom(node: Node) -> bool:
     return is_literal(node.type) or is_self(node)
 
 
+def unwrap_argument(node: Node) -> Node:
+    if node.type in {"value_argument", "argument"} and node.named_children:
+        return node.named_children[0]
+
+    return node
+
+
 def call_arguments(call: Node) -> list[Node]:
     arguments = call.child_by_field_name("arguments")
 
@@ -81,11 +104,14 @@ def call_arguments(call: Node) -> list[Node]:
     if arguments is None:
         return []
 
-    return [
-        c.named_children[0] if c.type == "value_argument" and c.named_children else c
-        for c in arguments.named_children
-        if not is_comment(c.type)
-    ]
+    return [unwrap_argument(c) for c in arguments.named_children if not is_comment(c.type)]
+
+
+def subscript_atoms(node: Node) -> list[Node]:
+    if node.type == "bracketed_argument_list":
+        return [unwrap_argument(c) for c in node.named_children if not is_comment(c.type)]
+
+    return [node]
 
 
 def lookup_chain(node: Node) -> bool:
@@ -104,7 +130,7 @@ def lookup_chain(node: Node) -> bool:
             return False
 
         if node.type in SUBSCRIPT_TYPES:
-            return all(is_atom(c) for c in children[1:])
+            return all(is_atom(a) for c in children[1:] for a in subscript_atoms(c))
 
         return True
 

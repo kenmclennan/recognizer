@@ -16,11 +16,12 @@ LITERAL_TYPES = {
     "regex",
 }
 
-CALL_TYPES = {"call", "call_expression"}
+CALL_TYPES = {"call", "call_expression", "invocation_expression"}
 
 MEMBER_FIELDS = {
     "attribute": "attribute",
     "member_expression": "property",
+    "member_access_expression": "name",
     "field_expression": "field",
     "scoped_identifier": "name",
     "scoped_expression": "name",

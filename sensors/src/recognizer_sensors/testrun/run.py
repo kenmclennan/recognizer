@@ -70,6 +70,53 @@ def format_of(path: str) -> str:
     return "jacoco" if path.endswith(".xml") else "lcov"
 
 
+COVERLET = "coverlet.collector"
+
+BUILD_PROPERTY_FILES = (
+    "Directory.Build.props",
+    "Directory.Build.targets",
+    "Directory.Packages.props",
+)
+
+
+def names_coverlet(path: Path) -> bool:
+    try:
+        return COVERLET in path.read_text(encoding="utf-8", errors="replace").lower()
+    except OSError:
+        return False
+
+
+def project_has_coverlet(repository: Path, directory: Path) -> bool:
+    if any(names_coverlet(project) for project in directory.glob("*.csproj")):
+        return True
+
+    current = directory
+
+    while True:
+        if any(names_coverlet(current / name) for name in BUILD_PROPERTY_FILES):
+            return True
+
+        if current == repository or repository not in current.parents:
+            return False
+
+        current = current.parent
+
+
+def check_coverlet(repository: Path, scans: list[Scan]) -> None:
+    for scan in scans:
+        if scan.language != "csharp":
+            continue
+
+        for skipped in scan.skip_paths:
+            directory = repository / skipped
+
+            if directory.is_dir() and any(directory.glob("*.csproj")):
+                if not project_has_coverlet(repository, directory):
+                    raise MeasurementError(
+                        f"the csharp test project {skipped} does not reference {COVERLET}"
+                    )
+
+
 def plan(
     repository: Path,
     scans: list[Scan],
@@ -89,6 +136,8 @@ def plan(
 
     if coverage is not None:
         return [], sources
+
+    check_coverlet(repository, scans)
 
     steps = [
         Step(
@@ -131,7 +180,14 @@ def exit_reason(subject: str, returncode: int, output: str) -> str:
 
 def clear_cached_reports(repository: Path, sources: list[Source]) -> None:
     for source in sources:
-        if source.path.startswith(CACHE_PREFIX) and "*" not in source.path:
+        if not source.path.startswith(CACHE_PREFIX):
+            continue
+
+        if "*" in source.path:
+            for match in repository.glob(source.path):
+                if match.is_file():
+                    match.unlink(missing_ok=True)
+        else:
             (repository / source.path).unlink(missing_ok=True)
 
 

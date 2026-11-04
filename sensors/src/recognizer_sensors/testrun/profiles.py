@@ -70,6 +70,18 @@ PROFILES = {
         "format": "lcov",
         "test_command": ["cargo", "test"],
     },
+    "csharp": {
+        "coverage_command": [
+            "dotnet",
+            "test",
+            "--collect:XPlat Code Coverage;Format=lcov",
+            "--results-directory",
+            ".recognizer/cache/coverage/csharp",
+        ],
+        "report": ".recognizer/cache/coverage/csharp/*/coverage.info",
+        "format": "lcov",
+        "test_command": ["dotnet", "test"],
+    },
 }
 
 

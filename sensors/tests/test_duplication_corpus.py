@@ -10,7 +10,7 @@ from recognizer_sensors.scans import read_scans
 
 CORPUS = REPOSITORY / "fixtures" / "duplication" / "corpus"
 PAIRS = json.loads((CORPUS / "manifest.json").read_text())
-LANGUAGES = ("python", "typescript", "kotlin", "rust")
+LANGUAGES = ("python", "typescript", "kotlin", "rust", "csharp")
 LABELS = ("planted-copy", "planted-near-copy", "non-copy")
 
 
@@ -35,7 +35,7 @@ def reported_pairs(findings):
 def test_the_manifest_covers_every_language_and_label():
     counts = Counter((p["language"], p["label"]) for p in PAIRS)
 
-    assert len(PAIRS) == 48
+    assert len(PAIRS) == 60
 
     for language in LANGUAGES:
         for label in LABELS:

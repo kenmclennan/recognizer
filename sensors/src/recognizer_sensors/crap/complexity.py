@@ -32,6 +32,18 @@ NODE_TYPES = {
         "catch_block",
     },
     "rust": {"if_expression", "for_expression", "while_expression", "match_arm"},
+    "csharp": {
+        "if_statement",
+        "for_statement",
+        "foreach_statement",
+        "while_statement",
+        "do_statement",
+        "switch_section",
+        "switch_expression_arm",
+        "catch_clause",
+        "conditional_expression",
+        "conditional_access_expression",
+    },
 }
 
 NODE_TYPES["tsx"] = NODE_TYPES["typescript"]
@@ -43,6 +55,7 @@ OPERATORS = {
     "typescript": {"&&", "||", "??"},
     "kotlin": {"&&", "||"},
     "rust": {"&&", "||"},
+    "csharp": {"&&", "||", "??"},
 }
 
 OPERATORS["tsx"] = OPERATORS["typescript"]
