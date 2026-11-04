@@ -44,7 +44,7 @@ def test_a_damaged_file_keeps_the_names_found_by_pattern(run):
         {
             "a/F.kt": (
                 "package p\n\n"
-                "class A { companion object { const val K = 1 } }\n\n"
+                "@Singleton\nannotation class A { companion object { const val K = 1 } }\n\n"
                 "internal interface B\n\n"
                 "fun helper(x: Int) = x\n"
             )
@@ -67,7 +67,7 @@ def test_a_damaged_span_in_a_good_declaration_keeps_the_others_outlines(run):
             "a/F.kt": (
                 "package p\n\n"
                 "class Good(val x: Int) {\n    fun f() = 1\n}\n\n"
-                "class A { companion object { const val K = 1 } }\n"
+                "@Singleton\nannotation class A { companion object { const val K = 1 } }\n"
             )
         }
     )
@@ -81,7 +81,7 @@ def test_a_damaged_body_makes_no_calls(run):
             "a/F.kt": (
                 "package p\n\n"
                 "fun target() = 1\n\n"
-                "class A { companion object { fun f() { target() } } }\n"
+                "@Singleton\nannotation class A { companion object { fun f() { target() } } }\n"
             )
         }
     )
@@ -92,13 +92,13 @@ def test_a_damaged_body_makes_no_calls(run):
 def test_the_damaged_count_is_reported_for_the_fixture():
     result = scan_with_stats(FIXTURE_ROOT, None)
 
-    assert (result.damaged, result.total) == (2, 10)
+    assert (result.damaged, result.total) == (1, 10)
 
 
 def test_the_cli_prints_one_stderr_line_when_files_are_damaged(tmp_path, capsys):
     build_tree(
         tmp_path,
-        {"A.kt": "class A { companion object { const val K = 1 } }\n", "B.kt": "class B\n"},
+        {"A.kt": "@Singleton\nannotation class A\n", "B.kt": "class B\n"},
     )
 
     assert main([str(tmp_path), "--output", str(tmp_path / "out.json")]) == 0

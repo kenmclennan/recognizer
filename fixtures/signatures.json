@@ -408,7 +408,9 @@
       {
         "name": "Currency.Companion",
         "signature": "class Currency.Companion",
-        "fields": [],
+        "fields": [
+          "DEFAULT"
+        ],
         "methods": []
       }
     ],

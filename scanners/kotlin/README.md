@@ -35,7 +35,7 @@ A call is recorded when both ends are members: a top-level function or object me
 
 ## Robustness and limits
 
-A file is damaged when its tree has an error, or a top-level node that is not a declaration (several stacked annotations on an `annotation class` come back as an expression). A damaged file is re-parsed in chunks at each top-level declaration, and a name index read by pattern adds any declaration the parse lost, without an outline. Short string templates (`"$NAME"`) are read from the text.
+A file is damaged when its tree has an error, or a top-level node that is not a declaration (several stacked annotations on an `annotation class` come back as an expression). The grammar (tree-sitter-kotlin) needs a newline or `;` before the `}` that closes a body, so a one-line body such as `interface Store { fun save() }` is repaired by inserting `;` before its closing `}` and parsed again; a file the repair cannot fix is chunked as before. A damaged file is re-parsed in chunks at each top-level declaration, and a name index read by pattern adds any declaration the parse lost, without an outline. Short string templates (`"$NAME"`) are read from the text.
 
 Damaged spans keep their names but not their bodies. Local shadowing is not modelled. A function whose body is an expression has no `returns` unless declared. Calls through local values and chains are not resolved. A bean made by a `@Factory`, a runtime choice among implementations and test clients bound to controllers by URL emit nothing. A Kotlin to Java import is foreign, never an edge to a Java file.
 
