@@ -245,3 +245,27 @@ def test_a_file_declaring_no_type_has_no_members(run):
 
     assert module_ids(document) == ["App/GlobalUsings.cs"]
     assert module(document, "App/GlobalUsings.cs")["members"] == []
+
+
+def test_end_line_for_method_constructor_and_expression_bodied_member(run):
+    document = one(
+        run,
+        "namespace N;\n"
+        "public class C {\n"
+        "    public C(int a) {\n"
+        "        var b = a;\n"
+        "    }\n"
+        "\n"
+        "    public int Plain(int a)\n"
+        "    {\n"
+        "        return a;\n"
+        "    }\n"
+        "\n"
+        "    public int One() => 1;\n"
+        "}\n",
+    )
+    spans = {
+        m["name"]: (m["line"], m["end_line"]) for m in member(document, "App/A.cs", "C")["methods"]
+    }
+
+    assert spans == {"C": (3, 5), "Plain": (7, 10), "One": (12, 12)}
