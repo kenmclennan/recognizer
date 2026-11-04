@@ -99,6 +99,9 @@ jobs:
             exit 1
           fi
           tar -czf dist-release/recognizer.app.tar.gz -C "$dir" Recognizer.app
+          lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+          "$lsregister" -u "$dir/Recognizer.app" || true
+          rm -rf "$dir/Recognizer.app"
 
       - name: Smoke-test the toolchain archive
         if: steps.released.outputs.skip != 'true'
@@ -210,4 +213,15 @@ jobs:
             git add README.md
             git commit -m "docs: update README"
             git push
+          fi
+
+      - name: Remove the built app bundle
+        if: always()
+        run: |
+          lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+          if [ -d app/src-tauri/target ]; then
+            find app/src-tauri/target -name 'Recognizer.app' -type d -prune | while read -r bundle; do
+              "$lsregister" -u "$bundle" || true
+              rm -rf "$bundle"
+            done
           fi
