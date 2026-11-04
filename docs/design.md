@@ -246,7 +246,7 @@ The document is facts about the code only: no policy, layout, colours or violati
 
 ```json
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": { "name": "recognizer-scan-python", "version": "0.1.0" },
   "commit": "a1b2c3d",
   "modified": false,

@@ -62,7 +62,7 @@ export function scanJson(
   spacing = "\t",
 ): string {
   const scan = {
-    schema_version: 5,
+    schema_version: 6,
     scanner: { name: "fake", version: "0.0.0" },
     commit: null,
     modified: false,

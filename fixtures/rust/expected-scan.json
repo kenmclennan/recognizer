@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": {
     "name": "recognizer-scan-rust",
     "version": "0.1.0"
@@ -62,6 +62,7 @@
           "kind": "function",
           "line": 3,
           "exported": true,
+          "end_line": 5,
           "params": [
             {
               "name": "total",
@@ -75,6 +76,7 @@
           "kind": "function",
           "line": 7,
           "exported": false,
+          "end_line": 9,
           "params": [
             {
               "name": "value",
@@ -113,6 +115,7 @@
             {
               "name": "save",
               "line": 10,
+              "end_line": 12,
               "params": [
                 {
                   "name": "order",
@@ -149,6 +152,7 @@
           "kind": "function",
           "line": 11,
           "exported": true,
+          "end_line": 13,
           "params": [],
           "returns": "Order"
         }
@@ -182,6 +186,7 @@
             {
               "name": "new",
               "line": 12,
+              "end_line": 14,
               "params": [
                 {
                   "name": "id",
@@ -199,6 +204,7 @@
             {
               "name": "subtotal",
               "line": 16,
+              "end_line": 18,
               "params": [],
               "private": true,
               "returns": "u64"
@@ -229,6 +235,7 @@
             {
               "name": "save",
               "line": 7,
+              "end_line": 9,
               "params": [
                 {
                   "name": "order",
@@ -256,6 +263,7 @@
             {
               "name": "save",
               "line": 4,
+              "end_line": 4,
               "params": [
                 {
                   "name": "order",
@@ -268,6 +276,7 @@
             {
               "name": "name",
               "line": 6,
+              "end_line": 8,
               "params": [],
               "private": false,
               "returns": "String"

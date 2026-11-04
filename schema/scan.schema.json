@@ -16,7 +16,7 @@
     "foreign"
   ],
   "properties": {
-    "schema_version": { "const": 5 },
+    "schema_version": { "const": 6 },
     "scanner": {
       "type": "object",
       "additionalProperties": false,
@@ -116,6 +116,7 @@
           "enum": ["class", "function", "interface", "type", "constant", "enum"]
         },
         "line": { "$ref": "#/$defs/line" },
+        "end_line": { "$ref": "#/$defs/line" },
         "exported": { "type": "boolean" },
         "visibility": {
           "enum": ["public", "protected", "internal", "private"]
@@ -173,7 +174,8 @@
             "not": {
               "anyOf": [
                 { "required": ["params"] },
-                { "required": ["returns"] }
+                { "required": ["returns"] },
+                { "required": ["end_line"] }
               ]
             }
           }
@@ -301,6 +303,7 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "line": { "$ref": "#/$defs/line" },
+        "end_line": { "$ref": "#/$defs/line" },
         "params": { "type": "array", "items": { "$ref": "#/$defs/param" } },
         "returns": { "type": "string", "minLength": 1 },
         "private": { "type": "boolean" },

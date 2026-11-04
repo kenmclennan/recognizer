@@ -19,6 +19,7 @@ export interface FieldOutline {
 export interface MethodOutline {
   name: string;
   line: number;
+  end_line: number;
   params: ParamOutline[];
   returns?: string;
   private: boolean;
@@ -26,6 +27,7 @@ export interface MethodOutline {
 }
 
 export interface MemberOutline {
+  end_line?: number;
   bases?: string[];
   fields?: FieldOutline[];
   methods?: MethodOutline[];
@@ -72,6 +74,10 @@ export function propertyLabel(name: ts.PropertyName, sf: ts.SourceFile) {
 
 function lineOf(sf: ts.SourceFile, node: ts.Node): number {
   return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+}
+
+function endLineOf(sf: ts.SourceFile, node: ts.Node): number {
+  return sf.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
 }
 
 function parameterName(
@@ -124,6 +130,7 @@ export function callableOutline(
   sf: ts.SourceFile,
 ): MemberOutline {
   const outline: MemberOutline = {
+    end_line: endLineOf(sf, node),
     params: parameters(node.parameters, sf),
   };
 
@@ -166,6 +173,7 @@ function methodOutline(
   const method: MethodOutline = {
     name: propertyLabel(node.name, sf),
     line: lineOf(sf, node.name),
+    end_line: endLineOf(sf, node),
     params: parameters(node.parameters, sf),
     private: isPrivate(node, node.name),
   };
@@ -188,6 +196,7 @@ function constructorOutline(
   return {
     name: "constructor",
     line: lineOf(sf, node),
+    end_line: endLineOf(sf, node),
     params: parameters(node.parameters, sf),
     private: isPrivate(node, undefined),
   };

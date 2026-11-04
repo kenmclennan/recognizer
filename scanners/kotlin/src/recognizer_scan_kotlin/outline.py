@@ -104,6 +104,7 @@ def method_of(node: Node, interface: bool, static: bool) -> dict:
     method = {
         "name": name_of(node) or "",
         "line": line_of(identifier or node),
+        "end_line": node.end_point[0] + 1,
         "params": parameters(node),
         "private": visibility_of(node) == "private",
     }
@@ -153,7 +154,7 @@ def class_outline(decl: Decl) -> dict:
 
 
 def function_outline(node: Node) -> dict:
-    found = {"params": parameters(node)}
+    found = {"end_line": node.end_point[0] + 1, "params": parameters(node)}
     returns = type_text(node)
 
     if returns:

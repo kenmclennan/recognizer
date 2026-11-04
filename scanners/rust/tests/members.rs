@@ -271,3 +271,37 @@ fn a_module_is_an_interface_only_when_every_exported_member_is() {
     assert_eq!(module(&document, "src/hidden.rs")["kind"], json!("module"));
     assert_eq!(module(&document, "src/ports.rs")["language"], json!("rust"));
 }
+
+#[test]
+fn functions_and_methods_record_the_last_line_of_the_declaration() {
+    let source = "pub fn plain(a: u32) -> u32 {\n    let b = a;\n    b\n}\n\n#[inline]\npub fn attributed() {\n    println!();\n}\n\npub fn one() {}\n\npub struct C;\n\nimpl C {\n    pub fn method(&self) {\n        println!();\n    }\n}\n";
+    let document = krate(&[("src/lib.rs", source)]);
+    let members = module(&document, "src/lib.rs")["members"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let span = |name: &str| {
+        let found = members.iter().find(|m| m["name"] == name).unwrap();
+
+        (
+            found["line"].as_u64().unwrap(),
+            found["end_line"].as_u64().unwrap(),
+        )
+    };
+
+    assert_eq!(span("plain"), (1, 4));
+    assert_eq!(span("attributed"), (7, 9));
+    assert_eq!(span("one"), (11, 11));
+
+    let class = members.iter().find(|m| m["name"] == "C").unwrap();
+    let method = &class["methods"][0];
+
+    assert_eq!(
+        (
+            method["line"].as_u64().unwrap(),
+            method["end_line"].as_u64().unwrap()
+        ),
+        (16, 18)
+    );
+    assert!(class.get("end_line").is_none());
+}

@@ -94,6 +94,7 @@ def test_a_class_outline_has_bases_fields_and_methods(run):
     assert found["methods"][0] == {
         "name": "hidden",
         "line": 5,
+        "end_line": 5,
         "params": [{"name": "a", "type": "Int"}, {"name": "b", "type": "String"}],
         "private": True,
         "returns": "Boolean",
@@ -156,3 +157,37 @@ def test_files_list_every_read_file_with_its_hash_sorted_by_path(run):
         {"path": "a/A.kt", "hash": hashlib.sha256(b"class A\n").hexdigest()},
         {"path": "b/B.kt", "hash": hashlib.sha256(b"class B\n").hexdigest()},
     ]
+
+
+def test_end_line_for_function_method_annotated_function_and_one_liner(run):
+    document = one(
+        run,
+        "fun plain(a: Int): Int {\n"
+        "    val b = a\n"
+        "    return b\n"
+        "}\n\n"
+        '@Deprecated("x")\n'
+        "fun annotated() {\n"
+        "    println()\n"
+        "}\n\n"
+        "fun one() = 1\n\n"
+        "class C {\n"
+        "    fun method() {\n"
+        "        println()\n"
+        "    }\n"
+        "}",
+    )
+
+    def span(name):
+        found = member(document, "a/F.kt", name)
+
+        return found["line"], found["end_line"]
+
+    assert span("plain") == (3, 6)
+    assert span("annotated") == (9, 11)
+    assert span("one") == (13, 13)
+
+    method = member(document, "a/F.kt", "C")["methods"][0]
+
+    assert (method["line"], method["end_line"]) == (16, 18)
+    assert "end_line" not in member(document, "a/F.kt", "C")

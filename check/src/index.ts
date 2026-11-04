@@ -34,6 +34,7 @@ export {
   type Config,
   parseConfig,
   registeredSensors,
+  shippedSensorSettings,
 } from "./config-parse.js";
 export { describerVersion } from "./describer-version.js";
 export { InputError } from "./errors.js";

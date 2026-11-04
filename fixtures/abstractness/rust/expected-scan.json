@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "scanner": {
     "name": "recognizer-scan-rust",
     "version": "0.1.0"
@@ -52,6 +52,7 @@
             {
               "name": "save",
               "line": 2,
+              "end_line": 2,
               "params": [],
               "private": false,
               "tags": [
@@ -72,6 +73,7 @@
             {
               "name": "name",
               "line": 6,
+              "end_line": 6,
               "params": [],
               "private": false,
               "returns": "String",
@@ -129,6 +131,7 @@
           "kind": "function",
           "line": 15,
           "exported": true,
+          "end_line": 17,
           "params": [],
           "returns": "Impl"
         },

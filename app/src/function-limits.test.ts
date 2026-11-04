@@ -1,0 +1,58 @@
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseConfig, SHIPPED_SENSOR_LIST } from "recognizer";
+import { describe, expect, it } from "vitest";
+import {
+  COMPLEXITY_ABOVE,
+  COVERAGE_BELOW,
+  CRAP_AT,
+  DEFAULT_LIMITS,
+  functionLimits,
+  limitsFromText,
+} from "./function-limits";
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
+const limitsOf = (yaml: string) => functionLimits(parseConfig(yaml));
+
+describe("functionLimits", () => {
+  it("falls back to the named defaults when nothing is registered", () => {
+    expect(functionLimits(null)).toEqual(DEFAULT_LIMITS);
+    expect(limitsOf("sensors: {}\n")).toEqual(DEFAULT_LIMITS);
+  });
+
+  it("reads the thresholds settings", () => {
+    expect(
+      limitsOf(
+        "sensors:\n  thresholds:\n    complexity:\n      above: 12\n    coverage: 'off'\n",
+      ),
+    ).toEqual({ complexityAbove: 12, coverageBelow: null, crapAt: 30 });
+  });
+
+  it("reads the crap threshold", () => {
+    expect(limitsOf("sensors:\n  crap:\n    threshold: 25\n").crapAt).toBe(25);
+  });
+
+  it("falls back for unparseable settings and for config text that is not valid", () => {
+    const broken = parseConfig(
+      "sensors:\n  crap:\n    command: [recognizer-sensors, crap, --settings, '{nope']\n",
+    );
+
+    expect(functionLimits(broken)).toEqual(DEFAULT_LIMITS);
+    expect(limitsFromText("sensors: [")).toEqual(DEFAULT_LIMITS);
+    expect(limitsFromText(null)).toEqual(DEFAULT_LIMITS);
+  });
+
+  it("has the defaults the shipped sensors use", () => {
+    const crap = SHIPPED_SENSOR_LIST.find((entry) => entry.name === "crap");
+    const python = readFileSync(
+      join(REPO, "sensors/src/recognizer_sensors/thresholds/sensor.py"),
+      "utf8",
+    );
+
+    expect(crap?.defaults).toEqual({ threshold: CRAP_AT });
+    expect(python).toContain(`"above": ${COMPLEXITY_ABOVE},`);
+    expect(python).toContain(`"below": ${COVERAGE_BELOW},`);
+  });
+});

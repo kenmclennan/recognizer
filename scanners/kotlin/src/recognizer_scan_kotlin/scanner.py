@@ -95,7 +95,7 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
     calls = CallResolver(files, index, resolver, endpoints).scan_calls()
     unresolved = sorted(collected.unresolved, key=lambda u: (u["from"], u["line"], u["import"]))
     document = {
-        "schema_version": 5,
+        "schema_version": 6,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modified": modified,

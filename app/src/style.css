@@ -1169,6 +1169,82 @@ svg.i.chevron {
   text-align: right;
 }
 
+.openable {
+  cursor: pointer;
+}
+
+.fn-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.fn-size.long {
+  color: var(--warn);
+}
+
+.fn-size.huge {
+  color: var(--bad);
+}
+
+.fn-bar {
+  width: 56px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--card-border);
+}
+
+.fn-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--faint);
+}
+
+.fn-size.long .fn-bar i {
+  background: var(--warn);
+}
+
+.fn-size.huge .fn-bar i {
+  background: var(--bad);
+}
+
+.card-member .fn-size {
+  order: 1;
+  flex-shrink: 0;
+}
+
+.fn-metrics {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fn-metric b {
+  margin-left: 4px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.fn-metric.amber b {
+  color: var(--warn);
+}
+
+.fn-metric.red b {
+  color: var(--bad);
+}
+
 .card-code {
   font:
     11.5px ui-monospace,

@@ -12,6 +12,14 @@ import type { Selection } from "./canvas-state";
 import { type FindingGroupModel, groupsOf } from "./findings-groups";
 import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
+import {
+  barPercent,
+  functionLength,
+  type LengthBand,
+  lengthBand,
+  lengthText,
+} from "./function-length";
+import type { FunctionLimits } from "./function-limits";
 import type { Disc, Finding } from "./health";
 import { barTitle, type Tone, tone, valueLabel } from "./metric-bars";
 import { descriptionOf } from "./module-tip";
@@ -38,6 +46,8 @@ export type InspectorInputs = {
   followed: Followed | null;
   responsibility: (id: string) => ResponsibilityRow;
   metrics: readonly MetricDescriptor[];
+  metricsOn: boolean;
+  limits: FunctionLimits;
 };
 
 export type Direction = "uses" | "usedBy";
@@ -52,10 +62,13 @@ export type CardLabel =
   | "Function"
   | "Constant";
 
+export type CardSize = { text: string; band: LengthBand; width: number };
+
 export type CardLine = {
   line: number | null;
   tokens: Token[];
   private: boolean;
+  size: CardSize | null;
 };
 
 export type MetricCell = { text: string; tone: Tone | null; title: string };
@@ -65,10 +78,21 @@ export type MetricTable = {
   rows: { name: string | null; cells: MetricCell[] }[];
 };
 
+export type FunctionMetricCell = {
+  name: string;
+  text: string;
+  tone: "amber" | "red" | null;
+  title: string;
+};
+
 export type CardRow = {
   kind: "card";
   label: CardLabel;
+  module: string;
   line: number | null;
+  showsLine: boolean;
+  size: CardSize | null;
+  metricsRow: FunctionMetricCell[] | null;
   head: Token[];
   lines: CardLine[];
   hidden: string;
@@ -253,12 +277,47 @@ function hiddenText(fields: number, methods: number): string {
   return parts.length === 0 ? "" : `${parts.join(", ")} hidden`;
 }
 
+function sizeOf(
+  line: number | null | undefined,
+  endLine: number | null | undefined,
+  largest: number,
+): CardSize | null {
+  const lines = functionLength(line, endLine);
+
+  if (lines === null) {
+    return null;
+  }
+
+  return {
+    text: lengthText(lines),
+    band: lengthBand(lines),
+    width: barPercent(lines, largest),
+  };
+}
+
+function lengthsOf(members: readonly ScanMember[]): number[] {
+  return members.flatMap((member) => {
+    if (member.kind === "function") {
+      const lines = functionLength(member.line, member.end_line);
+
+      return lines === null ? [] : [lines];
+    }
+
+    return (member.methods ?? []).flatMap((method) => {
+      const lines = functionLength(method.line, method.end_line);
+
+      return lines === null ? [] : [lines];
+    });
+  });
+}
+
 function classCard(
   member: ScanMember,
   edges: ScanEdge[],
   showPrivate: boolean,
   module: string,
   metrics: readonly MetricDescriptor[],
+  largest: number,
 ): CardRow {
   const label = member.kind === "interface" ? "Interface" : "Class";
   const outline =
@@ -268,7 +327,11 @@ function classCard(
   const base: CardRow = {
     kind: "card",
     label,
+    module,
     line: member.line ?? null,
+    showsLine: true,
+    size: null,
+    metricsRow: null,
     head: memberHeadTokens(member, edges) ?? [],
     lines: [],
     hidden: "",
@@ -285,6 +348,7 @@ function classCard(
           line: null,
           tokens: [{ text: "outline not known", role: "plain" }],
           private: false,
+          size: null,
         },
       ],
     };
@@ -297,6 +361,7 @@ function classCard(
         line: field.line,
         tokens: fieldTokens(field),
         private: field.private === true,
+        size: null,
       },
     }),
   );
@@ -307,6 +372,7 @@ function classCard(
         line: method.line ?? null,
         tokens: methodTokens(method),
         private: method.private === true,
+        size: sizeOf(method.line, method.end_line, largest),
       },
     }),
   );
@@ -332,10 +398,67 @@ function classCard(
   };
 }
 
-function plainCard(
+function metricOf(
+  metrics: readonly MetricDescriptor[],
+  label: string,
+): MetricDescriptor | undefined {
+  return metrics.find(
+    (metric) => metric.label === label && metric.granularity === "member",
+  );
+}
+
+function functionMetricsRow(
   member: ScanMember,
   module: string,
   metrics: readonly MetricDescriptor[],
+  limits: FunctionLimits,
+): FunctionMetricCell[] {
+  const cell = (
+    label: string,
+    short: string,
+    warn: (value: number) => "amber" | "red" | null,
+  ): FunctionMetricCell => {
+    const metric = metricOf(metrics, label);
+    const value = metric?.values[`${module}::${member.name}`];
+    const name = metric === undefined ? label : fullMetricName(metric);
+
+    if (metric === undefined || typeof value !== "number") {
+      return {
+        name: short,
+        text: "-",
+        tone: null,
+        title: `${name}: not measured`,
+      };
+    }
+
+    return {
+      name: short,
+      text: valueLabel(metric, value),
+      tone: warn(value),
+      title: barTitle(metric, { value, member: null }, name),
+    };
+  };
+
+  return [
+    cell("complexity", "cc", (value) =>
+      limits.complexityAbove !== null && value > limits.complexityAbove
+        ? "amber"
+        : null,
+    ),
+    cell("crap", "CRAP", (value) => (value >= limits.crapAt ? "red" : null)),
+    cell("coverage", "cov", (value) =>
+      limits.coverageBelow !== null && value < limits.coverageBelow
+        ? "amber"
+        : null,
+    ),
+  ];
+}
+
+function plainCard(
+  member: ScanMember,
+  module: string,
+  largest: number,
+  inputs: InspectorInputs,
 ): CardRow | null {
   const head = memberHeadTokens(member, []);
   const label = PLAIN_LABELS[member.kind ?? ""];
@@ -344,19 +467,25 @@ function plainCard(
     return null;
   }
 
+  const isFunction = member.kind === "function";
+
   return {
     kind: "card",
     label,
+    module,
     line: member.line ?? null,
+    showsLine: !isFunction,
+    size: isFunction ? sizeOf(member.line, member.end_line, largest) : null,
+    metricsRow:
+      isFunction && inputs.metricsOn
+        ? functionMetricsRow(member, module, inputs.metrics, inputs.limits)
+        : null,
     head,
     lines: [],
     hidden: "",
     private: !member.exported,
     hover: member.name,
-    table:
-      member.kind === "function"
-        ? metricTable(metrics, module, [{ name: null, id: member.name }])
-        : null,
+    table: null,
   };
 }
 
@@ -378,12 +507,20 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   const shown = found.members.filter(
     (member) => inputs.showPrivate || member.exported,
   );
+  const largest = Math.max(0, ...lengthsOf(found.members));
   const cards = inFileOrder(
     shown.flatMap((member): Placed<CardRow>[] => {
       const card =
         member.kind === "class" || member.kind === "interface"
-          ? classCard(member, edges, inputs.showPrivate, module, inputs.metrics)
-          : plainCard(member, module, inputs.metrics);
+          ? classCard(
+              member,
+              edges,
+              inputs.showPrivate,
+              module,
+              inputs.metrics,
+              largest,
+            )
+          : plainCard(member, module, largest, inputs);
 
       return card === null ? [] : [{ line: member.line ?? null, item: card }];
     }),

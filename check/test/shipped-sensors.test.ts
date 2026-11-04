@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseConfig } from "../src/config-parse.js";
+import { parseConfig, shippedSensorSettings } from "../src/config-parse.js";
+import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import {
   expandShortForms,
   isScoped,
@@ -272,5 +273,41 @@ describe("the sensor config examples", () => {
 
   it("still parses a config without overlays", () => {
     expect(parseConfig("sensors:\n  crap: {}\n").sensors).toBeDefined();
+  });
+});
+
+describe("shippedSensorSettings", () => {
+  it("returns the settings a short-form entry was expanded with", () => {
+    const config = parseConfig(
+      "sensors:\n  crap:\n    threshold: 25\n  thresholds:\n    complexity:\n      above: 12\n",
+    );
+
+    expect(shippedSensorSettings(config, "crap")).toEqual({ threshold: 25 });
+    expect(shippedSensorSettings(config, "thresholds")).toEqual({
+      complexity: { above: 12 },
+    });
+  });
+
+  it("returns null when the sensor is not registered or there is no config", () => {
+    const config = parseConfig("sensors:\n  crap:\n    threshold: 25\n");
+
+    expect(shippedSensorSettings(config, "thresholds")).toBeNull();
+    expect(shippedSensorSettings(null, "crap")).toBeNull();
+  });
+
+  it("returns null for a custom command and for settings that do not parse", () => {
+    const custom = parseConfig(
+      "sensors:\n  crap:\n    command: [my-tool, --settings, '{\"threshold\": 1}']\n",
+    );
+    const broken = parseConfig(
+      "sensors:\n  crap:\n    command: [recognizer-sensors, crap, --settings, '{nope']\n",
+    );
+
+    expect(shippedSensorSettings(custom, "crap")).toBeNull();
+    expect(shippedSensorSettings(broken, "crap")).toBeNull();
+  });
+
+  it("reads scan schema version 6", () => {
+    expect(SCAN_SCHEMA_VERSION).toBe(6);
   });
 });
