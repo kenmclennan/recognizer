@@ -18,7 +18,6 @@ pub mod scan_ticks;
 pub mod sensors;
 pub mod settings;
 pub mod socket;
-pub mod source_line;
 pub mod tool_runner;
 pub mod views;
 pub mod windows;
@@ -708,21 +707,6 @@ async fn choose_folder(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
 }
 
 #[tauri::command]
-fn read_source_line(
-    app: AppHandle,
-    window: WebviewWindow,
-    relative: String,
-    line: u32,
-) -> Result<Option<String>, String> {
-    let folder = app
-        .state::<WindowState>()
-        .folder_of(&window_label(&window))
-        .ok_or_else(|| "this window holds no folder".to_string())?;
-
-    source_line::read_line(&folder, &relative, line)
-}
-
-#[tauri::command]
 async fn recognizer_version() -> Result<repository::ToolsReport, String> {
     tauri::async_runtime::spawn_blocking(repository::recognizer_version)
         .await
@@ -1347,7 +1331,6 @@ pub fn run() {
             read_responsibilities,
             read_sensor_inputs,
             read_settings,
-            read_source_line,
             recognizer_version,
             record_recent_view,
             remove_findings,

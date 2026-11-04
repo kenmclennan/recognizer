@@ -13,7 +13,6 @@ fn main() {
         "read_recent_views",
         "read_sensor_inputs",
         "read_settings",
-        "read_source_line",
         "recognizer_version",
         "record_recent_view",
         "remove_findings",

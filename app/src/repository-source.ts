@@ -6,8 +6,6 @@ export const repositorySource = {
   windowFolder: () => invoke<string | null>("window_folder"),
   adoptScan: () => invoke<ScanOrigin>("adopt_scan"),
   watchChanges: () => invoke<void>("watch_changes"),
-  sourceLine: (relative: string, line: number) =>
-    invoke<string | null>("read_source_line", { relative, line }),
   chooseFolder: () => invoke<void>("choose_folder"),
   onFolderAssigned: (run: () => void) => listen("folder-assigned", () => run()),
   onRescan: (run: () => void) => listen("rescan", () => run()),
