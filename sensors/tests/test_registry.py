@@ -23,3 +23,15 @@ def test_the_registry_marks_which_sensors_run_tests():
 
     for entry in json.loads(SENSOR_LIST.read_text()):
         assert SHIPPED[entry["name"]].runs_tests is entry["runs_tests"]
+
+
+def test_the_registry_marks_which_sensors_take_a_module_scope():
+    from recognizer_sensors.registry import SHIPPED
+
+    for entry in json.loads(SENSOR_LIST.read_text()):
+        assert SHIPPED[entry["name"]].scoped is entry["scoped"]
+
+    assert listed("mutation")["scoped"] is True
+
+    for name in ("duplication", "crap", "thresholds"):
+        assert listed(name)["scoped"] is False

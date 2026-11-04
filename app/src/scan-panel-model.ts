@@ -2,6 +2,7 @@ import {
   type Config,
   parseConfig,
   registeredSensors,
+  type Scan,
   shippedSensorNames,
 } from "recognizer";
 import { ageText, type ScanState } from "./footer-scan";
@@ -28,12 +29,18 @@ export type ScanTicks = {
   describe: boolean;
   ticked: string[] | null;
   once: string[];
+  onlyView: boolean;
 };
 
 export type ScanPlan = {
   describe: boolean;
   sense: string[];
+  modules: string[] | null;
 };
+
+export const MUTATION_KEY = "mutation";
+
+export type PanelView = { name: string; modules: string[] };
 
 export type RowSensor = {
   name: string;
@@ -49,6 +56,8 @@ export type PanelInput = {
   lines: { modules: string[]; of: (id: string) => ResponsibilityState };
   describedAt: number | null;
   ticks: ScanTicks;
+  view?: PanelView | null;
+  scans?: Scan[];
   run: RunState;
   scanning: boolean;
   progressText?: string | null;
@@ -57,7 +66,7 @@ export type PanelInput = {
   shipped: ShippedSensors | null;
 };
 
-export type StateTone = "muted" | "ok" | "warn" | "run";
+export type StateTone = "muted" | "ok" | "warn" | "run" | "size";
 
 export type ScanRow = {
   key: string;
@@ -78,6 +87,7 @@ export type ReportRow = {
 
 export type ScanPanelModel = {
   header: { text: string; changed: string | null };
+  scope: { caption: string; on: boolean; disabled: boolean } | null;
   rows: ScanRow[];
   reports: ReportRow[];
   button: { scanning: boolean; label: string };
@@ -163,7 +173,7 @@ export function phasesFor(
   ];
 
   return {
-    plan: { describe: ticks.describe, sense },
+    plan: { describe: ticks.describe, sense, modules: null },
     dropped: wanted.filter((name) => !known.includes(name)),
   };
 }
@@ -184,6 +194,33 @@ export function lineCounts(lines: PanelInput["lines"]) {
   }
 
   return counts;
+}
+
+export function functionCount(scans: Scan[], ids: string[] | null): number {
+  const wanted = ids === null ? null : new Set(ids);
+  let count = 0;
+
+  for (const scan of scans) {
+    for (const module of scan.modules) {
+      if (wanted !== null && !wanted.has(module.id)) {
+        continue;
+      }
+
+      for (const member of module.members ?? []) {
+        if (member.kind === "function") {
+          count += 1;
+        } else if (member.kind === "class") {
+          count += member.methods?.length ?? 0;
+        }
+      }
+    }
+  }
+
+  return count;
+}
+
+function scopedIds(input: PanelInput): string[] | null {
+  return input.ticks.onlyView && input.view ? input.view.modules : null;
 }
 
 function plural(count: number, noun: string): string {
@@ -233,7 +270,10 @@ function describeState(input: PanelInput): ScanRow["state"] {
     };
   }
 
-  const counts = lineCounts(input.lines);
+  const counts = lineCounts({
+    modules: scopedIds(input) ?? input.lines.modules,
+    of: input.lines.of,
+  });
   const stale = counts.outOfDate + counts.missing;
 
   if (stale > 0) {
@@ -254,11 +294,29 @@ function describeState(input: PanelInput): ScanRow["state"] {
   return { text: "not yet run", tone: "muted" };
 }
 
+function mutationSize(input: PanelInput): ScanRow["state"] | null {
+  if (input.scanning || !input.ticks.once.includes(MUTATION_KEY)) {
+    return null;
+  }
+
+  const count = functionCount(input.scans ?? [], scopedIds(input));
+
+  return count > 0 ? { text: plural(count, "function"), tone: "size" } : null;
+}
+
 function sensorState(name: string, input: PanelInput): ScanRow["state"] {
   const live = liveState(name, input);
 
   if (live !== null) {
     return live;
+  }
+
+  if (name === MUTATION_KEY) {
+    const size = mutationSize(input);
+
+    if (size !== null) {
+      return size;
+    }
   }
 
   const status = input.sensors.find((one) => one.name === name);
@@ -354,6 +412,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   if (input.shipped === null) {
     return {
       header: header(input),
+      scope: null,
       rows: [],
       reports: [],
       button: {
@@ -394,6 +453,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
 
   return {
     header: header(input),
+    scope: scopeOf(input),
     rows,
     reports: reportRows(input.sensors, input.now),
     button: {
@@ -402,6 +462,18 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     },
     pending: false,
     mark: panelMark(input),
+  };
+}
+
+function scopeOf(input: PanelInput): ScanPanelModel["scope"] {
+  if (!input.view) {
+    return null;
+  }
+
+  return {
+    caption: `${input.view.name}, ${plural(input.view.modules.length, "module")}`,
+    on: input.ticks.onlyView,
+    disabled: input.scanning,
   };
 }
 

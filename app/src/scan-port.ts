@@ -12,6 +12,7 @@ export type StoredTicks = {
   describe: boolean;
   sensors: boolean;
   ticked: string[] | null;
+  onlyView?: boolean;
   remembered: boolean;
 };
 

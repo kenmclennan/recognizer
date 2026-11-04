@@ -49,7 +49,7 @@ export type RescanPorts<Carried> = {
 };
 
 export type Rescanner = {
-  run: () => Promise<void>;
+  run: (modules?: string[] | null) => Promise<void>;
   stop: () => Promise<void>;
   refresh: () => Promise<void>;
   loadTicks: () => Promise<void>;
@@ -64,6 +64,7 @@ const DEFAULT_TICKS: ScanTicks = {
   describe: false,
   ticked: [],
   once: [],
+  onlyView: false,
 };
 
 function failureText(result: ScanRunResult): string | null {
@@ -114,6 +115,7 @@ export function createRescanner<Carried>(
     await ports.port.writeTicks({
       describe: ticks.describe,
       ticked: (ticks.ticked ?? plain).filter((name) => plain.includes(name)),
+      onlyView: ticks.onlyView,
     });
     remembered = true;
   }
@@ -334,22 +336,29 @@ export function createRescanner<Carried>(
     }
   }
 
-  async function execute() {
+  async function execute(modules: string[] | null) {
     try {
-      await executeScan();
+      await executeScan(modules);
     } finally {
       ticks = { ...ticks, once: [] };
     }
   }
 
-  async function executeScan() {
+  async function executeScan(modules: string[] | null) {
     const registered = await ports.registered();
 
     if (!ticksLoaded) {
       await loadTicks();
     }
 
-    const { plan } = phasesFor(ticks, registered);
+    const { plan: base } = phasesFor(ticks, registered);
+    const plan = {
+      ...base,
+      modules:
+        modules !== null && (base.describe || base.sense.length > 0)
+          ? modules
+          : null,
+    };
 
     if (!remembered) {
       await writeTicks(registered);
@@ -449,19 +458,20 @@ export function createRescanner<Carried>(
       describe: stored.describe,
       ticked: stored.ticked ?? (stored.sensors ? null : []),
       once: ticks.once,
+      onlyView: stored.onlyView === true,
     };
     remembered = stored.remembered;
     ticksLoaded = true;
   }
 
   return {
-    run() {
+    run(modules = null) {
       if (busy) {
         return Promise.resolve();
       }
 
       busy = true;
-      current = execute()
+      current = execute(modules)
         .catch((error: unknown) => {
           ports.blocked(String(error));
           ports.settled();

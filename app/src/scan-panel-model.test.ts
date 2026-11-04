@@ -1,8 +1,10 @@
+import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
+  functionCount,
   NO_RUN,
   type PanelInput,
   phasesFor,
@@ -76,7 +78,7 @@ function input(over: Partial<PanelInput> = {}): PanelInput {
       of: (id) => CURRENT[id] as ResponsibilityState,
     },
     describedAt: null,
-    ticks: { describe: false, ticked: [], once: [] },
+    ticks: { describe: false, ticked: [], once: [], onlyView: false },
     run: NO_RUN,
     scanning: false,
     now: NOW,
@@ -474,7 +476,12 @@ describe("scanPanel ticks", () => {
   it("ticks a plain sensor from the stored names and a tests-running one from once", () => {
     const model = scanPanel(
       input({
-        ticks: { describe: true, ticked: ["duplication"], once: ["crap"] },
+        ticks: {
+          describe: true,
+          ticked: ["duplication"],
+          once: ["crap"],
+          onlyView: false,
+        },
       }),
     );
     const ticked = model.rows.filter((row) => row.ticked).map((row) => row.key);
@@ -484,7 +491,9 @@ describe("scanPanel ticks", () => {
 
   it("ticks every plain sensor but no tests-running one when never stored and defaulting on", () => {
     const model = scanPanel(
-      input({ ticks: { describe: false, ticked: null, once: [] } }),
+      input({
+        ticks: { describe: false, ticked: null, once: [], onlyView: false },
+      }),
     );
 
     expect(
@@ -493,7 +502,9 @@ describe("scanPanel ticks", () => {
   });
   it("ticks nothing when a fresh repository defaults to no sensors", () => {
     const model = scanPanel(
-      input({ ticks: { describe: false, ticked: [], once: [] } }),
+      input({
+        ticks: { describe: false, ticked: [], once: [], onlyView: false },
+      }),
     );
 
     expect(model.rows.filter((row) => row.ticked)).toEqual([]);
@@ -509,28 +520,187 @@ describe("phasesFor", () => {
 
   it("plans a shipped, a registered and reports an unknown sensor as dropped", () => {
     const { plan, dropped } = phasesFor(
-      { describe: true, ticked: ["duplication", "alpha", "ghost"], once: [] },
+      {
+        describe: true,
+        ticked: ["duplication", "alpha", "ghost"],
+        once: [],
+        onlyView: false,
+      },
       rows,
     );
 
-    expect(plan).toEqual({ describe: true, sense: ["duplication", "alpha"] });
+    expect(plan).toEqual({
+      describe: true,
+      sense: ["duplication", "alpha"],
+      modules: null,
+    });
     expect(dropped).toEqual(["ghost"]);
   });
 
   it("adds a tests-running sensor only when it is in once", () => {
     expect(
-      phasesFor({ describe: false, ticked: [], once: ["crap"] }, rows).plan
-        .sense,
+      phasesFor(
+        { describe: false, ticked: [], once: ["crap"], onlyView: false },
+        rows,
+      ).plan.sense,
     ).toEqual(["crap"]);
     expect(
-      phasesFor({ describe: false, ticked: ["crap"], once: [] }, rows).plan
-        .sense,
+      phasesFor(
+        { describe: false, ticked: ["crap"], once: [], onlyView: false },
+        rows,
+      ).plan.sense,
     ).toEqual([]);
   });
 
   it("runs every plain sensor when never stored", () => {
     expect(
-      phasesFor({ describe: false, ticked: null, once: [] }, rows).plan.sense,
+      phasesFor(
+        { describe: false, ticked: null, once: [], onlyView: false },
+        rows,
+      ).plan.sense,
     ).toEqual(["duplication", "alpha"]);
+  });
+});
+
+const SCANS: Scan[] = [
+  {
+    modules: [
+      {
+        id: "a.py",
+        kind: "module",
+        members: [
+          { name: "f", exported: true, kind: "function" },
+          { name: "g", exported: true, kind: "function" },
+          { name: "K", exported: true, kind: "constant" },
+        ],
+      },
+      {
+        id: "b.py",
+        kind: "module",
+        members: [
+          {
+            name: "C",
+            exported: true,
+            kind: "class",
+            methods: [
+              { name: "m", visibility: "public", params: [] },
+              { name: "n", visibility: "public", params: [] },
+            ],
+          },
+        ],
+      },
+      { id: "c.py", kind: "module" },
+    ],
+    edges: [],
+    foreign: [],
+  } as unknown as Scan,
+];
+
+describe("functionCount", () => {
+  it("counts function members and the methods of classes, over every module with no scope", () => {
+    expect(functionCount(SCANS, null)).toBe(4);
+  });
+
+  it("counts only the scoped modules", () => {
+    expect(functionCount(SCANS, ["a.py"])).toBe(2);
+    expect(functionCount(SCANS, ["b.py", "c.py"])).toBe(2);
+    expect(functionCount(SCANS, ["gone.py"])).toBe(0);
+  });
+});
+
+describe("scanPanel only this view", () => {
+  const view = { name: "engine-loop", modules: ["a.py"] };
+  const ticked = (onlyView: boolean) => ({
+    describe: true,
+    ticked: [],
+    once: ["mutation"],
+    onlyView,
+  });
+  const row = (model: ReturnType<typeof scanPanel>, key: string) =>
+    model.rows.find((one) => one.key === key);
+
+  it("shows the switch only while a view is open, captioned with its name and module count", () => {
+    expect(scanPanel(input()).scope).toBeNull();
+    expect(scanPanel(input({ view })).scope).toEqual({
+      caption: "engine-loop, 1 module",
+      on: false,
+      disabled: false,
+    });
+    expect(
+      scanPanel(input({ view: { name: "v", modules: ["a.py", "b.py"] } })).scope
+        ?.caption,
+    ).toBe("v, 2 modules");
+  });
+
+  it("locks the switch while scanning and reflects the stored value", () => {
+    const model = scanPanel(
+      input({ view, scanning: true, ticks: ticked(true) }),
+    );
+
+    expect(model.scope).toEqual({
+      caption: "engine-loop, 1 module",
+      on: true,
+      disabled: true,
+    });
+  });
+
+  it("counts stale modules among the view's with the switch on and all of them with it off", () => {
+    const off = scanPanel(input({ view, ticks: ticked(false) }));
+    const on = scanPanel(input({ view, ticks: ticked(true) }));
+    const other = scanPanel(
+      input({ view: { name: "v", modules: ["c.py"] }, ticks: ticked(true) }),
+    );
+
+    expect(row(off, "describe")?.state.text).toBe("1 to describe");
+    expect(row(on, "describe")?.state.text).toBe("1 module described");
+    expect(row(other, "describe")?.state.text).toBe("1 to describe");
+  });
+
+  it("keeps the last-run text when the view has no stale module", () => {
+    const model = scanPanel(
+      input({ view, ticks: ticked(true), describedAt: NOW - MINUTE }),
+    );
+
+    expect(row(model, "describe")?.state.text).toBe(
+      "1 module described, 1 minute ago",
+    );
+  });
+
+  it("sizes a ticked Mutation row by the scope and leaves C.R.A.P. and Duplication alone", () => {
+    const off = scanPanel(input({ scans: SCANS, ticks: ticked(false) }));
+    const whole = scanPanel(
+      input({ view, scans: SCANS, ticks: ticked(false) }),
+    );
+    const on = scanPanel(input({ view, scans: SCANS, ticks: ticked(true) }));
+
+    expect(row(off, "mutation")?.state).toEqual({
+      text: "4 functions",
+      tone: "size",
+    });
+    expect(row(whole, "mutation")?.state.text).toBe("4 functions");
+    expect(row(on, "mutation")?.state.text).toBe("2 functions");
+    expect(row(on, "crap")?.state).toEqual(row(off, "crap")?.state);
+    expect(row(on, "duplication")?.state).toEqual(
+      row(off, "duplication")?.state,
+    );
+  });
+
+  it("ignores the stored switch when no view is open", () => {
+    const model = scanPanel(input({ scans: SCANS, ticks: ticked(true) }));
+
+    expect(row(model, "mutation")?.state.text).toBe("4 functions");
+    expect(model.scope).toBeNull();
+  });
+
+  it("shows no size for an unticked Mutation row or while scanning", () => {
+    const unticked = scanPanel(
+      input({ scans: SCANS, ticks: { ...ticked(false), once: [] } }),
+    );
+    const busy = scanPanel(
+      input({ scans: SCANS, scanning: true, ticks: ticked(false) }),
+    );
+
+    expect(row(unticked, "mutation")?.state.text).toBe("not yet run");
+    expect(row(busy, "mutation")?.state.text).not.toContain("function");
   });
 });

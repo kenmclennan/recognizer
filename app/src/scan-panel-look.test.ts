@@ -20,7 +20,7 @@ ${FAKE_WORKER}
 const ids = ["app/a.py", "app/b.py"];
 const scan = {
   commit: "cur1234",
-  modules: ids.map((id) => ({ id, kind: "module" })),
+  modules: ids.map((id) => ({ id, kind: "module", members: id === "app/a.py" ? [{ name: "f", exported: true, kind: "function" }, { name: "g", exported: true, kind: "function" }] : [{ name: "h", exported: true, kind: "function" }] })),
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
 };
@@ -45,7 +45,7 @@ const gate = () => { let release = () => {}; const promise = new Promise((resolv
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED), scanned = true) {
+async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED), scanned = true, viewFiles = {}) {
   for (const old of document.querySelectorAll(".mount-root")) old.remove();
   const root = document.createElement("div");
   root.className = "mount-root";
@@ -67,13 +67,13 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     setTicks: (next) => wired.rescanner.setTicks(next),
     runState: () => wired.rescanner.runState(),
     running: () => wired.rescanner.running(),
-    run: () => void wired.rescanner.run(),
+    run: (modules) => void wired.rescanner.run(modules),
     stop: () => void wired.rescanner.stop(),
     refresh: () => void wired.rescanner.refresh(),
   });
   const build = (loaded, carried) => {
     wired.current = loaded;
-    return mountExplorer({ container: host, loaded, title: "demo", views: fakeViews({}), post: (input) => { wired.posted.push(input); return null; }, carried, storage: { getItem: () => null, setItem: () => {} }, editor, responsibilities, scanHost });
+    return mountExplorer({ container: host, loaded, title: "demo", views: fakeViews(viewFiles), post: (input) => { wired.posted.push(input); return null; }, carried, storage: { getItem: () => null, setItem: () => {} }, editor, responsibilities, scanHost });
   };
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({
@@ -305,6 +305,40 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick(); await tick();
   facts.reportCleared = { removed: [...reportSensors.removed], present: reportRow() !== null };
 
+  const viewJson = (steps) => JSON.stringify({ schema_version: 4, description: "Shows a.", commit: "cur1234", steps }, null, 2) + "\\n";
+  const scopeFake = fakeScan();
+  const sc = await mount(scopeFake, undefined, true, { demo: viewJson([{ kind: "pick", module: "app/a.py" }]) });
+  click(sc.q(".rail-scan"));
+  await tick();
+  const scopeOf = () => ({ switches: sc.all(".scan-switch").length, caption: sc.q(".scan-scope-caption")?.textContent ?? null, on: sc.q(".scan-switch")?.getAttribute("aria-checked") ?? null, disabled: sc.q(".scan-switch")?.disabled ?? null });
+  const stateOf = (key) => sc.rows().find((r) => r.key === key)?.state;
+  facts.scopeNone = { scope: scopeOf(), describe: stateOf("describe") };
+  click(sc.q(".view-list"));
+  await tick();
+  const item = sc.all(".view-item").find((n) => n.querySelector(".view-item-name").textContent === "demo");
+  click(item);
+  await tick(); await tick();
+  click(sc.q(".rail-scan"));
+  await tick();
+  await sc.setTick("mutation", true);
+  facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication") };
+  click(sc.q(".scan-switch"));
+  await tick();
+  facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication"), written: scopeFake.written.at(-1) };
+  const hold = gate();
+  scopeFake.steps = [hold.promise];
+  click(sc.q(".scan-run"));
+  await tick();
+  facts.scopeRunning = scopeOf();
+  hold.release();
+  await tick(); await tick();
+  facts.scopeRan = { modules: scopeFake.ran.map((plan) => plan.modules), after: scopeOf() };
+  click(sc.q(".scan-switch"));
+  await tick();
+  click(sc.q(".scan-run"));
+  await tick(); await tick();
+  facts.scopeOffRan = scopeFake.ran.map((plan) => plan.modules);
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -333,6 +367,34 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "scan-panel");
   }, scaledTimeout(180000));
+
+  it("shows the Only this view switch only with a view open, captioned and locked during a run", () => {
+    expect(f.scopeNone.scope.switches).toBe(0);
+    expect(f.scopeOff.scope).toEqual({
+      switches: 1,
+      caption: "demo, 1 module",
+      on: "false",
+      disabled: false,
+    });
+    expect(f.scopeOn.scope.on).toBe("true");
+    expect(f.scopeRunning.disabled).toBe(true);
+    expect(f.scopeRan.after.disabled).toBe(false);
+  });
+
+  it("sizes Descriptions and a ticked Mutation row by the switch and leaves the other rows alone", () => {
+    expect(f.scopeOff.describe).toBe("2 to describe");
+    expect(f.scopeOff.mutation).toBe("3 functions");
+    expect(f.scopeOn.describe).toBe("1 to describe");
+    expect(f.scopeOn.mutation).toBe("2 functions");
+    expect(f.scopeOn.crap).toBe(f.scopeOff.crap);
+    expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
+  });
+
+  it("remembers the switch through the port and sends the view's module ids only when it is on", () => {
+    expect(f.scopeOn.written.onlyView).toBe(true);
+    expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
+    expect(f.scopeOffRan).toEqual([["app/a.py"], null]);
+  });
 
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
     expect(f.fresh.order).toEqual([
@@ -409,13 +471,18 @@ describe.skipIf(chrome === undefined)("the Scan panel", () => {
     expect(f.ticked.written).toEqual({
       describe: true,
       ticked: ["duplication"],
+      onlyView: false,
     });
     expect(f.reopened).toEqual(["describe", "duplication"]);
   });
 
   it("matches the mock while running: Scanning…, one running row with a spinner, the rest waiting, a disabled Scanning button and a Stop beside it", () => {
     expect(f.run.plans).toEqual([
-      { describe: true, sense: ["duplication", "crap"] },
+      {
+        describe: true,
+        sense: ["duplication", "crap"],
+        modules: null,
+      },
     ]);
     expect(f.run.first.header).toBe("Scanning\u2026");
     expect(

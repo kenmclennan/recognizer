@@ -12,6 +12,7 @@ export interface ShippedSensorEntry {
   defaults: Record<string, number | boolean | string>;
   runs_tests: boolean;
   listed: boolean;
+  scoped: boolean;
   metrics: readonly ShippedMetric[];
 }
 
@@ -27,6 +28,7 @@ export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
     },
     runs_tests: false,
     listed: true,
+    scoped: false,
     metrics: [],
   },
   {
@@ -38,6 +40,7 @@ export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
     },
     runs_tests: true,
     listed: true,
+    scoped: false,
     metrics: [
       {
         name: "complexity",
@@ -66,6 +69,7 @@ export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
     defaults: {},
     runs_tests: true,
     listed: true,
+    scoped: true,
     metrics: [
       {
         name: "killed",
@@ -100,6 +104,7 @@ export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
     defaults: {},
     runs_tests: false,
     listed: false,
+    scoped: false,
     metrics: [],
   },
 ];
@@ -119,6 +124,16 @@ export function runsTests(command: readonly string[]): boolean {
 
   return SHIPPED_SENSOR_LIST.some(
     (entry) => entry.runs_tests && entry.name === command[1],
+  );
+}
+
+export function isScoped(command: readonly string[]): boolean {
+  if (command[0] !== "recognizer-sensors") {
+    return false;
+  }
+
+  return SHIPPED_SENSOR_LIST.some(
+    (entry) => entry.scoped && entry.name === command[1],
   );
 }
 

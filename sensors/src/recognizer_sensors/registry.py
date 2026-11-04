@@ -14,6 +14,7 @@ class Sensor:
     run: Callable[..., Outcome]
     needs_commit: bool = False
     runs_tests: bool = False
+    scoped: bool = False
 
 
 SHIPPED = {
@@ -22,6 +23,8 @@ SHIPPED = {
         lambda repository, scans, settings: Outcome(duplication.run(repository, scans, settings)),
     ),
     "crap": Sensor(crap.parse_settings, crap.run, runs_tests=True),
-    "mutation": Sensor(mutation.parse_settings, mutation.run, needs_commit=True, runs_tests=True),
+    "mutation": Sensor(
+        mutation.parse_settings, mutation.run, needs_commit=True, runs_tests=True, scoped=True
+    ),
     "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }

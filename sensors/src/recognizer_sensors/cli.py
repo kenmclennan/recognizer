@@ -42,6 +42,7 @@ def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser.add_argument("--commit")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--settings", default="{}")
+    parser.add_argument("--modules", type=Path)
     parser.add_argument("--version", action="version", version=package_version)
 
     return parser
@@ -60,6 +61,18 @@ def parse_raw_settings(text: str) -> dict | None:
         return None
 
     return value if isinstance(value, dict) else None
+
+
+def read_scope(path: Path) -> set[str] | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+        return None
+
+    return set(value)
 
 
 def is_dirty(root: Path) -> bool:
@@ -83,6 +96,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if sensor is None:
         return fail(f"unknown sensor: {args.name}")
+
+    if args.modules is not None and not sensor.scoped:
+        return fail(f"{args.name} takes no module scope")
+
+    scope = None
+
+    if args.modules is not None:
+        scope = read_scope(args.modules)
+
+        if scope is None:
+            return fail("--modules must name a JSON file holding an array of module ids")
 
     raw = parse_raw_settings(args.settings)
 
@@ -111,10 +135,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
+        extra = {"modules": scope} if sensor.scoped else {}
         outcome = (
-            sensor.run(args.repository, scans, settings, commit)
+            sensor.run(args.repository, scans, settings, commit, **extra)
             if sensor.needs_commit
-            else sensor.run(args.repository, scans, settings)
+            else sensor.run(args.repository, scans, settings, **extra)
         )
     except MeasurementError as error:
         print(str(error), file=sys.stderr)

@@ -14,6 +14,7 @@ export const scanSource: ScanPort = {
       describe: plan.describe,
       measure: [],
       sense: plan.sense,
+      modules: plan.modules,
     }),
   stop: () => invoke<void>("stop_scan"),
   readCache: () => invoke<ScanReport>("read_scan_cache"),
@@ -22,6 +23,7 @@ export const scanSource: ScanPort = {
     invoke<void>("write_scan_ticks", {
       describe: ticks.describe,
       ticked: ticks.ticked,
+      onlyView: ticks.onlyView,
     }),
   readDescribing: () => invoke<DescribingSettings>("read_describing"),
   onLine(handler) {

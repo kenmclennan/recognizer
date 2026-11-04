@@ -3,7 +3,7 @@ import type { PhaseName } from "./run-log.js";
 import { shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
-  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--by <name>] [--json]";
+  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--by <name>] [--json]";
 
 export interface ScanOptions {
   positionals: string[];
@@ -12,6 +12,7 @@ export interface ScanOptions {
   sense: null | "all" | string[];
   json: boolean;
   by: string | undefined;
+  modules: string | undefined;
 }
 
 function usageError(message: string): InputError {
@@ -40,6 +41,7 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     sense: null,
     json: false,
     by: undefined,
+    modules: undefined,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -70,6 +72,19 @@ export function parseScanArgs(argv: string[]): ScanOptions {
       }
 
       options.sense = phaseNames("--sense", value);
+    } else if (arg === "--modules" || arg.startsWith("--modules=")) {
+      const inline = arg.startsWith("--modules=");
+      const value = inline ? arg.slice(10) : argv[index + 1];
+
+      if (value === undefined || value === "" || value.startsWith("--")) {
+        throw usageError("--modules needs a file");
+      }
+
+      if (!inline) {
+        index += 1;
+      }
+
+      options.modules = value;
     } else if (arg === "--by" || arg.startsWith("--by=")) {
       const inline = arg.startsWith("--by=");
       const value = inline ? arg.slice(5) : argv[index + 1];
@@ -94,7 +109,38 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     throw usageError("scan takes at most one repository");
   }
 
+  if (
+    options.modules !== undefined &&
+    options.describe === false &&
+    options.sense === null
+  ) {
+    throw usageError("--modules needs --describe or --sense");
+  }
+
   return options;
+}
+
+export function parseModuleScope(text: string): string[] {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new InputError([
+      `--modules file is not valid JSON: ${(error as Error).message}`,
+    ]);
+  }
+
+  if (
+    !Array.isArray(parsed) ||
+    parsed.some((id) => typeof id !== "string" || id === "")
+  ) {
+    throw new InputError([
+      "--modules file must be a JSON array of non-empty module ids",
+    ]);
+  }
+
+  return [...new Set(parsed as string[])];
 }
 
 export function selectSensors(

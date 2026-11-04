@@ -199,7 +199,7 @@ export type ScanHost = {
   running: () => boolean;
   progressText: () => string | null;
   describeProgress: () => { entries: number; total: number } | null;
-  run: () => void;
+  run: (modules: string[] | null) => void;
   stop: () => void;
   refresh: () => void;
   model: () => Promise<string>;
@@ -208,7 +208,7 @@ export type ScanHost = {
 export const inertScanHost: ScanHost = {
   port: inertSensors,
   scan: () => null,
-  ticks: () => ({ describe: false, ticked: null, once: [] }),
+  ticks: () => ({ describe: false, ticked: null, once: [], onlyView: false }),
   setTicks: () => {},
   runState: () => NO_RUN,
   running: () => false,
@@ -792,7 +792,16 @@ export function showExplorer(
       });
       render();
     },
-    run: () => scanHost.run(),
+    setOnlyView(on) {
+      scanHost.setTicks({ ...scanHost.ticks(), onlyView: on });
+      render();
+    },
+    run: () =>
+      scanHost.run(
+        scanHost.ticks().onlyView && openView !== null
+          ? modules.opened()
+          : null,
+      ),
     stop: () => scanHost.stop(),
     clearReport: (name) => void clearReport(name),
   });
@@ -1611,6 +1620,11 @@ export function showExplorer(
       lines: { modules: loaded.modules, of: responsibilityOf },
       describedAt,
       ticks: scanHost.ticks(),
+      view:
+        openView === null
+          ? null
+          : { name: openView, modules: modules.opened() },
+      scans,
       run: scanHost.runState(),
       scanning: scanHost.running(),
       progressText: scanHost.progressText(),
