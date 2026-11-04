@@ -591,6 +591,16 @@ describe("createRescanner", () => {
     }
   });
 
+  it("re-reads the sensor findings after a stopped Scan", async () => {
+    const scan = fakeScan({ result: { status: "stopped" } });
+    const { log, rescanner } = harness(scan);
+
+    await rescanner.loadTicks();
+    await rescanner.run();
+
+    expect(log).toContain("resense");
+  });
+
   it("clears once when the Scan fails or is stopped", async () => {
     for (const result of [
       { status: "failed" as const, exitCode: 1, stderr: "boom" },

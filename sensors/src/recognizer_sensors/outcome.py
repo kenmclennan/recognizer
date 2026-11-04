@@ -14,3 +14,6 @@ class Outcome:
     findings: list[dict]
     overlay: Overlay | None = None
     documents: list[tuple[Path, dict]] = field(default_factory=list)
+    stopped: bool = False
+    measured: int = 0
+    total: int = 0

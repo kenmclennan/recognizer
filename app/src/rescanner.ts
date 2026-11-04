@@ -396,6 +396,13 @@ export function createRescanner<Carried>(
     if (result.status === "stopped") {
       progress = stoppedProgress(progress);
       publish();
+
+      try {
+        await reload();
+      } catch (error) {
+        ports.post({ kind: "error", text: `Sensors failed: ${String(error)}` });
+      }
+
       ports.settled();
 
       return;

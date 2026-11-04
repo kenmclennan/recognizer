@@ -98,20 +98,21 @@ def run_cli(root: Path, output: Path, *extra: str) -> int:
 
 
 MUTATE_FIXTURE = REPOSITORY / "fixtures" / "mutation" / "sample"
+STOP_FIXTURE = REPOSITORY / "fixtures" / "mutation" / "stop"
 OVERLAY_SCHEMA = REPOSITORY / "schema" / "overlay.schema.json"
 
 
-def mutate_repository(tmp_path: Path) -> tuple[Path, str]:
+def mutate_repository(tmp_path: Path, fixture: Path = MUTATE_FIXTURE) -> tuple[Path, str]:
     root = tmp_path / "sample"
     shutil.copytree(
-        MUTATE_FIXTURE,
+        fixture,
         root,
         ignore=shutil.ignore_patterns("scan.python.json"),
     )
     commit = git_commit(root)
     cache = root / ".recognizer" / "cache"
     cache.mkdir(parents=True)
-    shutil.copy(MUTATE_FIXTURE / "scan.python.json", cache / "scan.python.json")
+    shutil.copy(fixture / "scan.python.json", cache / "scan.python.json")
 
     return root, commit
 

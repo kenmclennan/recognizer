@@ -11,6 +11,7 @@ from conftest import (
     FINDINGS_SCHEMA,
     OVERLAY_SCHEMA,
     SENSOR_LIST,
+    STOP_FIXTURE,
     mutate_repository,
     mutate_settings,
 )
@@ -1024,19 +1025,8 @@ if hang:
 """
 
 
-def stop_the_sensor_while_hung(tmp_path, where):
-    root, _ = mutate_repository(tmp_path)
-    pid_file = tmp_path / "pid.txt"
-    script = tmp_path / "hang.py"
-    script.write_text(SLEEP_WHEN_STOPPING)
-    settings = mutate_settings(str(script), timeout_factor=100)
-    settings = json.dumps(
-        {
-            **json.loads(settings),
-            "test_command": [sys.executable, str(script), where, str(pid_file)],
-        }
-    )
-    process = subprocess.Popen(
+def start_sensor(root, tmp_path, settings):
+    return subprocess.Popen(
         [
             sys.executable,
             "-m",
@@ -1053,6 +1043,21 @@ def stop_the_sensor_while_hung(tmp_path, where):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def stop_the_sensor_while_hung(tmp_path, where):
+    root, _ = mutate_repository(tmp_path)
+    pid_file = tmp_path / "pid.txt"
+    script = tmp_path / "hang.py"
+    script.write_text(SLEEP_WHEN_STOPPING)
+    settings = mutate_settings(str(script), timeout_factor=100)
+    settings = json.dumps(
+        {
+            **json.loads(settings),
+            "test_command": [sys.executable, str(script), where, str(pid_file)],
+        }
+    )
+    process = start_sensor(root, tmp_path, settings)
     deadline = time.monotonic() + 30
 
     while not pid_file.exists() and time.monotonic() < deadline:
@@ -1060,7 +1065,7 @@ def stop_the_sensor_while_hung(tmp_path, where):
 
     pid = int(pid_file.read_text())
     os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=30)
+    status = process.wait(timeout=60)
     deadline = time.monotonic() + 10
 
     while time.monotonic() < deadline:
@@ -1071,19 +1076,27 @@ def stop_the_sensor_while_hung(tmp_path, where):
 
         time.sleep(0.05)
 
-    return root, pid
+    return root, pid, status
 
 
 @pytest.mark.parametrize("where", ["mutant", "baseline"])
 def test_sigterm_to_the_sensors_group_ends_the_hung_test_process_and_removes_the_work_folder(
     tmp_path, where
 ):
-    root, pid = stop_the_sensor_while_hung(tmp_path, where)
+    root, pid, status = stop_the_sensor_while_hung(tmp_path, where)
 
     with pytest.raises(ProcessLookupError):
         os.kill(pid, 0)
 
+    assert status == 143
     assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
+
+    findings = read(tmp_path / "findings.json")
+
+    assert findings["stopped"] == {"measured": 1, "total": 3}
+    assert findings["findings"] == []
+    assert read(root / RECORD)["skipped"] == ["app/rules.py::both", "app/rules.py::grade"]
+    assert set(read(root / RECORD)["functions"]) == {"app/rules.py::total"}
 
 
 def test_the_live_session_registry_empties_after_a_normal_and_a_timed_out_run(tmp_path):
@@ -1106,3 +1119,110 @@ def test_a_run_with_nothing_to_mutate_leaves_the_sigterm_handler_alone(tmp_path)
     assert run_mutate(root, output, mutate_settings("tests/strong.py")) == 0
     assert run_mutate(root, output, mutate_settings("tests/strong.py")) == 0
     assert signal.getsignal(signal.SIGTERM) == before
+
+
+STOP_AFTER_THE_FIRST_FUNCTION = """
+import os, runpy, signal, sys, time
+
+counter, test = sys.argv[1], sys.argv[2]
+here = os.getcwd()
+
+if "/work/" in here and "baseline" not in here:
+    with open(counter, "a") as handle:
+        handle.write("mutant\\n")
+
+    with open(counter) as handle:
+        count = len(handle.read().splitlines())
+
+    if count == 2:
+        os.killpg(os.getpgid(os.getppid()), signal.SIGTERM)
+        time.sleep(60)
+
+runpy.run_path(os.path.join(here, "tests", test), run_name="__main__")
+"""
+
+ALPHA = "app/rules.py::alpha"
+BETA = "app/rules.py::beta"
+GAMMA = "app/rules.py::gamma"
+
+
+def test_a_stopped_run_keeps_the_function_it_finished_and_the_next_run_resumes(tmp_path, capsys):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+    script = tmp_path / "stop_after_first.py"
+    script.write_text(STOP_AFTER_THE_FIRST_FUNCTION)
+    settings = json.dumps(
+        {
+            "test_command": [
+                sys.executable,
+                str(script),
+                str(tmp_path / "counter.txt"),
+                "strong.py",
+            ],
+            "coverage": COVERAGE,
+            "max_workers": 1,
+        }
+    )
+
+    assert start_sensor(root, tmp_path, settings).wait(timeout=60) == 143
+
+    record = read(root / RECORD)
+
+    assert list(record["functions"]) == [ALPHA]
+    assert record["functions"][ALPHA]["verdicts"] == ["killed"]
+    assert len(record["functions"][ALPHA]["body"]) == 64
+    assert record["skipped"] == [BETA, GAMMA]
+
+    findings = read(tmp_path / "findings.json")
+    overlay = read(root / OVERLAY)
+
+    assert findings["stopped"] == {"measured": 1, "total": 3}
+    assert list(overlay["values"]["killed"]) == [ALPHA]
+    assert list(read(root / SURVIVORS)["skipped"]) == [
+        {"identity": BETA, "reason": "uncovered-by-budget"},
+        {"identity": GAMMA, "reason": "uncovered-by-budget"},
+    ]
+    assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert summary(capsys) == "1 of 3 functions reused, 2 mutated, 0 skipped (uncovered-by-budget)"
+    assert sorted(read(root / RECORD)["functions"]) == [ALPHA, BETA, GAMMA]
+    assert read(root / RECORD)["skipped"] == []
+    assert "stopped" not in read(tmp_path / "findings-overlay.json")
+
+
+def test_a_completed_run_writes_no_stopped_key(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    output = tmp_path / "overlay.json"
+
+    assert run_mutate(root, output, mutate_settings("tests/strong.py")) == 0
+    assert "stopped" not in read(tmp_path / "findings-overlay.json")
+
+
+def record_after_each_function(tmp_path, monkeypatch, gaps):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+    ticker = Ticker()
+    records = []
+    path = root / RECORD
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    gaps = iter(gaps)
+    real = runner.run_function
+
+    def run_function(*args):
+        ticker.now += next(gaps)
+        records.append(sorted(read(path)["functions"]) if path.exists() else None)
+
+        return real(*args)
+
+    monkeypatch.setattr(sensor, "run_function", run_function)
+    settings = mutate_settings("tests/strong.py", max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    return records
+
+
+def test_a_long_run_checkpoints_its_record_only_once_the_interval_has_passed(tmp_path, monkeypatch):
+    interval = sensor.CHECKPOINT_SECONDS
+    records = record_after_each_function(tmp_path, monkeypatch, [0, interval, 0])
+
+    assert records == [None, None, [ALPHA, BETA]]
