@@ -7,7 +7,7 @@ from recognizer_scan_kotlin import scan, scan_with_stats
 from recognizer_scan_kotlin.cli import main
 from recognizer_scan_kotlin.parse import (
     parse_file,
-    repair_annotated_modifier_classes,
+    repair_annotated_bare_modifiers,
 )
 
 PARSER = Parser(Language(tree_sitter_kotlin.language()))
@@ -20,7 +20,7 @@ def top_level_types(path) -> list[str]:
 
 
 DAMAGED_COMPANION = "class A {\n companion object { const val K = 1 }\n val = \n}\n"
-DAMAGED_PROPERTY = "@Singleton\nconst val K = 1\n"
+DAMAGED_ANNOTATED_OBJECT = "@Singleton\ndata object K\n"
 
 
 def test_precondition_a_whole_file_parse_of_stacked_annotations_is_an_annotated_expression():
@@ -32,7 +32,7 @@ def test_precondition_a_whole_file_parse_of_stacked_annotations_is_an_annotated_
 
 
 def test_precondition_the_retargeted_triggers_are_damaged():
-    for source in (DAMAGED_COMPANION, DAMAGED_PROPERTY):
+    for source in (DAMAGED_COMPANION, DAMAGED_ANNOTATED_OBJECT):
         assert parse_file(source.encode()).damaged
 
 
@@ -111,7 +111,7 @@ def test_the_fixture_scans_without_damage():
 
 
 def test_the_damaged_count_is_reported_for_a_damaged_file(tmp_path):
-    build_tree(tmp_path, {"A.kt": DAMAGED_PROPERTY, "B.kt": "class B\n"})
+    build_tree(tmp_path, {"A.kt": DAMAGED_ANNOTATED_OBJECT, "B.kt": "class B\n"})
 
     assert (scan_with_stats(tmp_path, None).damaged, scan_with_stats(tmp_path, None).total) == (
         1,
@@ -122,7 +122,7 @@ def test_the_damaged_count_is_reported_for_a_damaged_file(tmp_path):
 def test_the_cli_prints_one_stderr_line_when_files_are_damaged(tmp_path, capsys):
     build_tree(
         tmp_path,
-        {"A.kt": DAMAGED_PROPERTY, "B.kt": "class B\n"},
+        {"A.kt": DAMAGED_ANNOTATED_OBJECT, "B.kt": "class B\n"},
     )
 
     assert main([str(tmp_path), "--output", str(tmp_path / "out.json")]) == 0
@@ -159,14 +159,19 @@ REPAIRABLE = [
 ]
 
 
-def test_the_repair_inserts_public_before_a_bare_modifier_class():
+def test_the_repair_inserts_public_before_a_bare_modifier_declaration():
     assert (
-        repair_annotated_modifier_classes("@A\nannotation class U\n")
+        repair_annotated_bare_modifiers("@A\nconst val K = 1\n") == "@A\npublic const val K = 1\n"
+    )
+    assert (
+        repair_annotated_bare_modifiers("@A\n  const var K = 1\n")
+        == "@A\n  public const var K = 1\n"
+    )
+    assert (
+        repair_annotated_bare_modifiers("@A\nannotation class U\n")
         == "@A\npublic annotation class U\n"
     )
-    assert (
-        repair_annotated_modifier_classes("@A\n  enum class E\n") == "@A\n  public enum class E\n"
-    )
+    assert repair_annotated_bare_modifiers("@A\n  enum class E\n") == "@A\n  public enum class E\n"
 
 
 def test_the_repair_leaves_other_text_unchanged():
@@ -177,14 +182,19 @@ def test_the_repair_leaves_other_text_unchanged():
         "// x\n// annotation class U\n",
         'val s = """\nannotation class U\n"""\n',
         "annotation class U\n",
+        "@A\nprivate const val K = 1\n",
+        "@A\nclass X {\n    const val K = 1\n}\n",
+        "/*\nconst val K = 1\n*/\n",
+        "// x\n// const val K = 1\n",
+        'val s = """\nconst val K = 1\n"""\n',
     ):
-        assert repair_annotated_modifier_classes(source) == source
+        assert repair_annotated_bare_modifiers(source) == source
 
 
 def test_the_repair_keeps_the_newline_count():
-    source = "@A\n@B\nannotation class U\nenum class E\n"
+    source = "@A\n@B\nannotation class U\nenum class E\n@C\nconst val K = 1\n"
 
-    assert repair_annotated_modifier_classes(source).count("\n") == source.count("\n")
+    assert repair_annotated_bare_modifiers(source).count("\n") == source.count("\n")
 
 
 @pytest.mark.parametrize("source", REPAIRABLE)
@@ -218,8 +228,50 @@ def test_a_declaration_on_the_second_line_scans_undamaged(tmp_path):
     assert scan_with_stats(tmp_path, None).damaged == 0
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "@A\nconst val K = 1\n",
+        '@A\n@B("x")\nconst val K = 1\n',
+        "@A\n\nconst val K = 1\n",
+        "@A\n// c\nconst val K = 1\n",
+        "@A\nconst var K = 1\n",
+        "@A\r\nconst val K = 1\r\n",
+    ],
+)
+def test_an_annotated_const_scans_undamaged(tmp_path, source):
+    build_tree(tmp_path, {"A.kt": source})
+
+    assert scan_with_stats(tmp_path, None).damaged == 0
+    assert not parse_file(source.encode()).damaged
+
+
+def test_an_annotated_const_matches_its_public_twin(tmp_path):
+    def found(source):
+        root = tmp_path / str(len(source))
+        build_tree(root, {"A.kt": source})
+        document = scan(root, None)
+        return [
+            (m["name"], m["kind"], m["visibility"], m["line"])
+            for mod in document["modules"]
+            for m in mod["members"]
+        ]
+
+    assert found("@A\nconst val K = 1\n") == found("@A\npublic const val K = 1\n")
+    assert found("@A\nconst val K = 1\n")[0][:3] == ("K", "constant", "public")
+
+
+def test_a_repairable_const_does_not_hide_other_damage(run, tmp_path):
+    source = "@A\nconst val K = 1\n\n" + DAMAGED_ANNOTATED_OBJECT.replace("K", "O")
+    document = run({"a/F.kt": source})
+    names = {m["name"] for m in module(document, "a/F.kt")["members"]}
+
+    assert scan_with_stats(tmp_path, None).damaged == 1
+    assert {"K", "O"} <= names
+
+
 def test_unrelated_damage_is_not_hidden_by_the_repair(run, tmp_path):
-    source = "@A\nannotation class U\n\n" + DAMAGED_PROPERTY
+    source = "@A\nannotation class U\n\n" + DAMAGED_ANNOTATED_OBJECT
     document = run({"a/F.kt": source})
     names = {m["name"] for m in module(document, "a/F.kt")["members"]}
 

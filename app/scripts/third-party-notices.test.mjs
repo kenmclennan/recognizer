@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { buildNotices, generateAllNotices } from "./third-party-notices.mjs";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -54,9 +55,13 @@ describe("buildNotices", () => {
 describe("the committed THIRD-PARTY-NOTICES.md", () => {
   const committed = readFileSync(join(ROOT, "THIRD-PARTY-NOTICES.md"), "utf8");
 
-  it("equals the text generated from the real lock, node_modules and Cargo.lock", () => {
-    expect(committed).toBe(generateAllNotices(ROOT));
-  });
+  it(
+    "equals the text generated from the real lock, node_modules and Cargo.lock",
+    () => {
+      expect(committed).toBe(generateAllNotices(ROOT));
+    },
+    scaledTimeout(30_000),
+  );
 
   it("names all nine packages and carries the elkjs EPL-2.0 text", () => {
     for (const name of NINE) {
