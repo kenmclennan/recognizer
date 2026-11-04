@@ -808,9 +808,8 @@ fn read_scan_cache(app: AppHandle, window: WebviewWindow) -> Result<ScanReport, 
 #[tauri::command]
 fn read_scan_ticks(app: AppHandle, window: WebviewWindow) -> Result<scan_ticks::ScanTicks, String> {
     let folder = window_folder_path(&app, &window)?;
-    let defaults = settings::read(&config_file(&app)?)?;
 
-    Ok(scan_ticks::read(&ticks_file(&app)?, &folder, &defaults))
+    Ok(scan_ticks::read(&ticks_file(&app)?, &folder))
 }
 
 #[tauri::command]

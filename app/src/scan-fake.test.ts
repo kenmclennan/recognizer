@@ -56,13 +56,13 @@ describe("fakeScan", () => {
     expect(fake.stopped).toBe(1);
   });
 
-  it("reads the defaults as not remembered until ticks are written", async () => {
-    const fake = fakeScan({ defaults: { describe: true, sensors: false } });
+  it("reads nothing ticked as not remembered until ticks are written", async () => {
+    const fake = fakeScan();
 
     expect(await fake.readTicks()).toEqual({
-      describe: true,
+      describe: false,
       sensors: false,
-      ticked: null,
+      ticked: [],
       remembered: false,
     });
 

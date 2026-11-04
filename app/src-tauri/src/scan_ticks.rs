@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::fs_safe::write_atomic;
 use crate::sensors::check_names;
-use crate::settings::Settings;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoredTicks {
@@ -38,7 +37,7 @@ fn read_all(path: &Path) -> BTreeMap<String, StoredTicks> {
         .unwrap_or_default()
 }
 
-pub fn read(path: &Path, folder: &Path, defaults: &Settings) -> ScanTicks {
+pub fn read(path: &Path, folder: &Path) -> ScanTicks {
     match read_all(path).remove(&folder.display().to_string()) {
         Some(stored) => ScanTicks {
             describe: stored.describe,
@@ -50,12 +49,8 @@ pub fn read(path: &Path, folder: &Path, defaults: &Settings) -> ScanTicks {
             remembered: true,
         },
         None => ScanTicks {
-            describe: defaults.scanning.describe,
-            ticked: if defaults.scanning.sensors {
-                None
-            } else {
-                Some(Vec::new())
-            },
+            describe: false,
+            ticked: Some(Vec::new()),
             remembered: false,
         },
     }
@@ -78,19 +73,7 @@ pub fn write(path: &Path, folder: &Path, ticks: StoredTicks) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::settings::Scanning;
     use tempfile::TempDir;
-
-    fn defaults(describe: bool) -> Settings {
-        defaults_with(describe, false)
-    }
-
-    fn defaults_with(describe: bool, sensors: bool) -> Settings {
-        Settings {
-            scanning: Scanning { describe, sensors },
-            ..Settings::default()
-        }
-    }
 
     fn stored(describe: bool, ticked: &[&str]) -> StoredTicks {
         StoredTicks {
@@ -111,28 +94,17 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_with_no_entry_takes_the_describe_default_and_ticks_no_sensor() {
+    fn a_folder_with_no_entry_ticks_nothing() {
         let dir = TempDir::new().unwrap();
         let file = ticks_file_in(dir.path());
 
         assert_eq!(
-            read(&file, Path::new("/repo"), &defaults(true)),
+            read(&file, Path::new("/repo")),
             ScanTicks {
-                describe: true,
+                describe: false,
                 ticked: Some(vec![]),
                 remembered: false
             }
-        );
-    }
-
-    #[test]
-    fn a_folder_with_no_entry_ticks_every_plain_sensor_when_the_default_is_on() {
-        let dir = TempDir::new().unwrap();
-        let file = ticks_file_in(dir.path());
-
-        assert_eq!(
-            read(&file, Path::new("/repo"), &defaults_with(false, true)).ticked,
-            None
         );
     }
 
@@ -144,14 +116,14 @@ mod tests {
         write(&file, Path::new("/repo"), stored(true, &["a"])).unwrap();
 
         assert_eq!(
-            read(&file, Path::new("/repo"), &defaults(false)),
+            read(&file, Path::new("/repo")),
             ScanTicks {
                 describe: true,
                 ticked: Some(vec!["a".to_string()]),
                 remembered: true
             }
         );
-        assert!(!read(&file, Path::new("/other"), &defaults(false)).remembered);
+        assert!(!read(&file, Path::new("/other")).remembered);
     }
 
     #[test]
@@ -166,7 +138,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            read(&file, Path::new("/repo"), &defaults(false)),
+            read(&file, Path::new("/repo")),
             ScanTicks {
                 describe: true,
                 ticked: Some(vec![]),
@@ -187,7 +159,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            read(&file, Path::new("/repo"), &defaults(false)).ticked,
+            read(&file, Path::new("/repo")).ticked,
             Some(vec!["a".to_string()])
         );
     }
@@ -219,8 +191,8 @@ mod tests {
         write(&file, Path::new("/a"), stored(true, &[])).unwrap();
         write(&file, Path::new("/b"), stored(false, &[])).unwrap();
 
-        assert!(read(&file, Path::new("/a"), &defaults(false)).remembered);
-        assert!(read(&file, Path::new("/b"), &defaults(false)).remembered);
+        assert!(read(&file, Path::new("/a")).remembered);
+        assert!(read(&file, Path::new("/b")).remembered);
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
@@ -231,11 +203,11 @@ mod tests {
 
         fs::write(&file, "not json").unwrap();
 
-        assert!(!read(&file, Path::new("/repo"), &defaults(false)).remembered);
+        assert!(!read(&file, Path::new("/repo")).remembered);
 
         write(&file, Path::new("/repo"), stored(false, &[])).unwrap();
 
-        assert!(read(&file, Path::new("/repo"), &defaults(false)).remembered);
+        assert!(read(&file, Path::new("/repo")).remembered);
     }
 
     #[test]
