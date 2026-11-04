@@ -2,19 +2,28 @@ import { type Scan, validateScan } from "../src/index.js";
 
 export interface Spec {
   id: string;
-  exports?: ("class" | "interface" | "type" | "function" | "abstract")[];
+  exports?: (
+    | "class"
+    | "interface"
+    | "type"
+    | "function"
+    | "abstract"
+    | "abstract-type"
+  )[];
 }
 
 function member(kind: NonNullable<Spec["exports"]>[number], index: number) {
-  return kind === "abstract"
-    ? {
-        name: `m${index}`,
-        exported: true,
-        kind: "class",
-        line: index + 1,
-        tags: ["abstract"],
-      }
-    : { name: `m${index}`, exported: true, kind, line: index + 1 };
+  if (kind === "abstract" || kind === "abstract-type") {
+    return {
+      name: `m${index}`,
+      exported: true,
+      kind: kind === "abstract" ? "class" : "type",
+      line: index + 1,
+      tags: ["abstract"],
+    };
+  }
+
+  return { name: `m${index}`, exported: true, kind, line: index + 1 };
 }
 
 export function scanOf(
@@ -69,7 +78,7 @@ export function scanOf(
 export const WORKED: Spec[] = [
   { id: "app/domain/order.ts", exports: ["class"] },
   { id: "app/domain/money.ts", exports: ["class"] },
-  { id: "app/ports/store.ts", exports: ["interface", "type"] },
+  { id: "app/ports/store.ts", exports: ["interface", "abstract-type"] },
   { id: "app/application/place.ts", exports: ["function"] },
   { id: "app/adapters/sql.ts", exports: ["class"] },
   { id: "app/util/fmt.ts", exports: ["function"] },

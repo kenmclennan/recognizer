@@ -140,11 +140,16 @@ def class_outline(decl: Decl) -> dict:
     node = decl.node
     companion = node.type == "companion_object"
 
-    return {
+    found = {
         "bases": [] if companion else bases_of(node),
         "fields": fields_of(node),
         "methods": methods_of(node, decl.kind == "interface", companion),
     }
+
+    if decl.kind == "class" and "abstract" in modifier_words(node):
+        found["tags"] = ["abstract"]
+
+    return found
 
 
 def function_outline(node: Node) -> dict:

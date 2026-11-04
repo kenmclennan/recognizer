@@ -285,7 +285,7 @@
     {
       "id": "api/src/types.ts",
       "language": "typescript",
-      "kind": "interface",
+      "kind": "module",
       "members": [
         {
           "name": "Store",

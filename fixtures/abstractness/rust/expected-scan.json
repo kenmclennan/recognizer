@@ -1,0 +1,168 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-rust",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "src/contracts.rs",
+      "hash": "5da1c380675c74cfc78161119ff8c74d60382d22483f8aeef9fade4caf5ca212"
+    },
+    {
+      "path": "src/lib.rs",
+      "hash": "6b86d187810def410b5ee0be9a249b9680ad6cc6a4028e5fec0758c9486bc03e"
+    },
+    {
+      "path": "src/shapes.rs",
+      "hash": "a632c5c875149525df570e0f9ed20a126f1332bde37d2d752ac20005f9c25f53"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".rs"
+    ],
+    "skip_directory_names": [
+      "target",
+      "node_modules",
+      "tests"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": []
+  },
+  "modules": [
+    {
+      "id": "src/contracts.rs",
+      "language": "rust",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 2,
+              "params": [],
+              "private": false,
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Named",
+          "kind": "interface",
+          "line": 5,
+          "exported": true,
+          "bases": [
+            "Store"
+          ],
+          "methods": [
+            {
+              "name": "name",
+              "line": 6,
+              "params": [],
+              "private": false,
+              "returns": "String",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/lib.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "src/shapes.rs",
+      "language": "rust",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Row",
+          "kind": "class",
+          "line": 5,
+          "exported": true,
+          "fields": [
+            {
+              "name": "id",
+              "line": 6,
+              "private": false,
+              "type": "Id"
+            }
+          ],
+          "methods": []
+        },
+        {
+          "name": "Impl",
+          "kind": "class",
+          "line": 9,
+          "exported": true,
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "Color",
+          "kind": "class",
+          "line": 11,
+          "exported": true,
+          "methods": []
+        },
+        {
+          "name": "build",
+          "kind": "function",
+          "line": 15,
+          "exported": true,
+          "params": [],
+          "returns": "Impl"
+        },
+        {
+          "name": "LIMIT",
+          "kind": "constant",
+          "line": 19,
+          "exported": true,
+          "value": "3"
+        },
+        {
+          "name": "Hidden",
+          "kind": "class",
+          "line": 21,
+          "exported": false,
+          "fields": [],
+          "methods": []
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "src/lib.rs",
+      "to": "src/contracts.rs",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "src/lib.rs",
+      "to": "src/shapes.rs",
+      "kind": "depends",
+      "line": 2
+    }
+  ],
+  "foreign": []
+}

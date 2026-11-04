@@ -175,7 +175,9 @@
         },
         {
           "if": {
-            "properties": { "kind": { "enum": ["class", "interface", "enum"] } }
+            "properties": {
+              "kind": { "enum": ["class", "interface", "enum", "type"] }
+            }
           },
           "then": { "properties": { "tags": { "$ref": "#/$defs/classTags" } } },
           "else": {

@@ -104,6 +104,69 @@ describe("measureFolders", () => {
     });
   });
 
+  it("treats a plain type as concrete and counts only tagged types and classes", () => {
+    const { rows } = measureFolders(
+      [scanOf([{ id: "a/x.ts", exports: ["type"] }], [])],
+      null,
+    );
+
+    expect(row(rows, "a")).toMatchObject({
+      exported_members: 1,
+      abstract_members: 0,
+      abstractness: 0,
+    });
+  });
+
+  it("counts a tagged type and a tagged class, and ignores other tags and unexported ones", () => {
+    const base = scanOf(
+      [{ id: "a/x.ts", exports: ["abstract-type", "abstract", "interface"] }],
+      [],
+    );
+    const members = base.modules[0]?.members ?? [];
+
+    members.push(
+      { name: "s", exported: true, kind: "type", line: 9, tags: ["static"] },
+      { name: "h", exported: false, kind: "type", line: 9, tags: ["abstract"] },
+    );
+
+    expect(row(measureFolders([base], null).rows, "a")).toMatchObject({
+      exported_members: 4,
+      abstract_members: 3,
+    });
+  });
+
+  it("does not count a class without the abstract tag", () => {
+    const { rows } = measureFolders(
+      [scanOf([{ id: "a/x.ts", exports: ["class"] }], [])],
+      null,
+    );
+
+    expect(row(rows, "a")).toMatchObject({ abstract_members: 0 });
+  });
+
+  it("measures a mixed folder as two abstract members of four", () => {
+    const { rows } = measureFolders(
+      [
+        scanOf(
+          [
+            {
+              id: "a/x.ts",
+              exports: ["interface", "abstract-type", "type", "class"],
+            },
+          ],
+          [],
+        ),
+      ],
+      null,
+    );
+
+    expect(row(rows, "a")).toMatchObject({
+      exported_members: 4,
+      abstract_members: 2,
+      abstractness: 0.5,
+    });
+  });
+
   it("leaves abstractness and distance null with no exported member", () => {
     const { rows } = measureFolders(
       [scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]])],

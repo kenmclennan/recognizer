@@ -116,7 +116,7 @@ describe("members", () => {
 describe("module kind", () => {
   it("is interface for only interface and type exports", () => {
     expect(
-      members("export interface I {}\nexport type T = string;\n").kind,
+      members("export interface I {}\nexport type T = () => void;\n").kind,
     ).toBe("interface");
   });
 
@@ -138,7 +138,11 @@ describe("module kind", () => {
     expect(members('export * from "./x";\n').kind).toBe("module");
   });
 
-  it("is interface for exactly one exported type alias", () => {
-    expect(members("export type T = string;\n").kind).toBe("interface");
+  it("is interface for exactly one exported callable type alias", () => {
+    expect(members("export type T = () => void;\n").kind).toBe("interface");
+  });
+
+  it("is module for a data type alias", () => {
+    expect(members("export type T = string;\n").kind).toBe("module");
   });
 });

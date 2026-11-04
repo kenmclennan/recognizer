@@ -81,13 +81,13 @@ function round(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
-function isAbstract(member: ScanMember): boolean {
-  if (member.kind === "interface" || member.kind === "type") {
+export function isAbstract(member: ScanMember): boolean {
+  if (member.kind === "interface") {
     return true;
   }
 
   return (
-    member.kind === "class" &&
+    (member.kind === "class" || member.kind === "type") &&
     ((member.tags ?? []) as string[]).includes("abstract")
   );
 }

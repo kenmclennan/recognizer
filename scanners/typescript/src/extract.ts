@@ -92,6 +92,37 @@ function startLine(sf: ts.SourceFile, node: ts.Node): number {
   return lineOf(sf, node.getStart(sf));
 }
 
+function unwrapParens(node: ts.TypeNode): ts.TypeNode {
+  return ts.isParenthesizedTypeNode(node) ? unwrapParens(node.type) : node;
+}
+
+function isFunctionLike(node: ts.TypeNode): boolean {
+  const inner = unwrapParens(node);
+
+  return ts.isFunctionTypeNode(inner) || ts.isConstructorTypeNode(inner);
+}
+
+function isCallableType(node: ts.TypeNode): boolean {
+  const inner = unwrapParens(node);
+
+  if (isFunctionLike(inner)) {
+    return true;
+  }
+
+  return (
+    ts.isTypeLiteralNode(inner) &&
+    inner.members.some(
+      (member) =>
+        ts.isMethodSignature(member) ||
+        ts.isCallSignatureDeclaration(member) ||
+        ts.isConstructSignatureDeclaration(member) ||
+        (ts.isPropertySignature(member) &&
+          member.type !== undefined &&
+          isFunctionLike(member.type)),
+    )
+  );
+}
+
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
   return (
     ts.canHaveModifiers(node) &&
@@ -416,15 +447,20 @@ export function extract(sf: ts.SourceFile): FileInfo {
       ts.isInterfaceDeclaration(statement) ||
       ts.isTypeAliasDeclaration(statement)
     ) {
+      const callable =
+        ts.isTypeAliasDeclaration(statement) && isCallableType(statement.type);
+
       add({
         name: statement.name.text,
         kind: ts.isInterfaceDeclaration(statement) ? "interface" : "type",
         line: startLine(sf, statement.name),
         exported: isExported(statement),
-        abstraction: true,
+        abstraction: ts.isInterfaceDeclaration(statement) || callable,
         outline: ts.isInterfaceDeclaration(statement)
           ? typeOutline(statement, sf)
-          : {},
+          : callable
+            ? { tags: ["abstract"] }
+            : {},
       });
 
       if (isDefault(statement)) {
