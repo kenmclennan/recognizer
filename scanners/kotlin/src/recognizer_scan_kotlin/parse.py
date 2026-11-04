@@ -71,7 +71,12 @@ def is_damaged(root: Node) -> bool:
 
 
 def line_states(text: str) -> list[tuple[int, bool]]:
+    return scan_code(text)[0]
+
+
+def scan_code(text: str) -> tuple[list[tuple[int, bool]], list[int]]:
     states = [(0, False)]
+    closers: list[int] = []
     depth = 0
     mode = "code"
     nesting = 0
@@ -101,6 +106,9 @@ def line_states(text: str) -> list[tuple[int, bool]]:
                 depth += 1
             elif char in "})]":
                 depth = max(0, depth - 1)
+
+                if char == "}":
+                    closers.append(index)
         elif mode == "line":
             if char == "\n":
                 mode = "code"
@@ -132,7 +140,24 @@ def line_states(text: str) -> list[tuple[int, bool]]:
 
         index += 1
 
-    return states
+    return states, closers
+
+
+def repair_closing_braces(text: str) -> str:
+    pieces: list[str] = []
+    last = 0
+
+    for position in scan_code(text)[1]:
+        before = text[text.rfind("\n", 0, position) + 1 : position].rstrip()
+
+        if before and not before.endswith((";", "{")):
+            pieces.append(text[last:position])
+            pieces.append(";")
+            last = position
+
+    pieces.append(text[last:])
+
+    return "".join(pieces)
 
 
 def chunk_starts(lines: list[str], text: str) -> list[int]:
@@ -215,4 +240,10 @@ def parse_file(data: bytes) -> Parsed:
     if not parsed.damaged:
         return parsed
 
-    return parse_chunks(data.decode("utf-8", errors="replace"))
+    text = data.decode("utf-8", errors="replace")
+    repaired = parse_whole(repair_closing_braces(text).encode())
+
+    if not repaired.damaged:
+        return repaired
+
+    return parse_chunks(text)

@@ -183,14 +183,26 @@
           "kind": "class",
           "line": 3,
           "exported": true,
-          "visibility": "public"
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
         },
         {
           "name": "Currency.Companion",
           "kind": "class",
           "line": 3,
           "exported": true,
-          "visibility": "public"
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "DEFAULT",
+              "line": 3,
+              "private": false
+            }
+          ],
+          "methods": []
         }
       ]
     },
