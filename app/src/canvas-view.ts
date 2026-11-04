@@ -439,6 +439,7 @@ export function buildCanvasView(
         "text-anchor": "middle",
         "font-size": metrics.titleSize,
       });
+      title.style.fontSize = `${metrics.titleSize}px`;
 
       layout.titleLines.forEach((line, index) => {
         title.append(
@@ -469,6 +470,7 @@ export function buildCanvasView(
         "text-anchor": "middle",
         "font-size": metrics.descriptionSize,
       });
+      description.style.fontSize = `${metrics.descriptionSize}px`;
 
       layout.descriptionLines.forEach((line, index) => {
         description.append(
