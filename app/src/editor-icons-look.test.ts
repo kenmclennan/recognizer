@@ -92,7 +92,7 @@ describe.skipIf(chrome === undefined)("the Open in Editor icons", () => {
     f = await collectFacts<Facts>(HARNESS, "editor-icons-look");
   }, 180000);
 
-  it("is in the selection bar for a module and a folder, after Contents", () => {
+  it("is in the selection bar for a module and a folder, after the folder-only buttons", () => {
     for (const icon of [f.barModule, f.barFolder]) {
       expect(icon.title).toBe(EDITOR);
       expect(icon.aria).toBe(EDITOR);
@@ -100,8 +100,7 @@ describe.skipIf(chrome === undefined)("the Open in Editor icons", () => {
       expect(icon.text).toBe("");
     }
 
-    expect(f.barOrder.slice(-4)).toEqual([
-      "Contents (I)",
+    expect(f.barOrder.slice(-3)).toEqual([
       EDITOR,
       "|",
       "Take off the canvas (Backspace)",
