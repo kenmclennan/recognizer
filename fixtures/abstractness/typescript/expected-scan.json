@@ -1,0 +1,259 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-typescript",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "src/contracts.ts",
+      "hash": "1772606c3f54453ab2716917c1c181878985910907518ec73812e9888119afe6"
+    },
+    {
+      "path": "src/impl.ts",
+      "hash": "789a20750abffd92a8a6ff92fb1269e853f8957f65a612a962ee3f78d3a44e0a"
+    },
+    {
+      "path": "src/shapes.ts",
+      "hash": "6fc90146e85453955304372745ba1a4264119f08ea6c23874dc7e32a67bb859b"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs"
+    ],
+    "skip_directory_names": [
+      "node_modules",
+      "dist",
+      "build",
+      "test",
+      "tests",
+      "__tests__"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": [
+      "*.d.ts",
+      "*.test.*",
+      "*.spec.*"
+    ]
+  },
+  "modules": [
+    {
+      "id": "src/contracts.ts",
+      "language": "typescript",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 2,
+              "params": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "private": false,
+              "returns": "void",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Plain",
+          "kind": "interface",
+          "line": 5,
+          "exported": true,
+          "bases": [],
+          "fields": [
+            {
+              "name": "id",
+              "type": "string",
+              "line": 6,
+              "private": false
+            }
+          ],
+          "methods": []
+        },
+        {
+          "name": "Handler",
+          "kind": "type",
+          "line": 9,
+          "exported": true,
+          "tags": [
+            "abstract"
+          ]
+        },
+        {
+          "name": "Repo",
+          "kind": "type",
+          "line": 11,
+          "exported": true,
+          "tags": [
+            "abstract"
+          ]
+        },
+        {
+          "name": "Callback",
+          "kind": "type",
+          "line": 13,
+          "exported": true,
+          "tags": [
+            "abstract"
+          ]
+        },
+        {
+          "name": "Make",
+          "kind": "type",
+          "line": 15,
+          "exported": true,
+          "tags": [
+            "abstract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/impl.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Base",
+          "kind": "class",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "run",
+              "line": 2,
+              "params": [],
+              "private": false,
+              "returns": "void",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ],
+          "tags": [
+            "abstract"
+          ]
+        },
+        {
+          "name": "Impl",
+          "kind": "class",
+          "line": 5,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "build",
+          "kind": "function",
+          "line": 7,
+          "exported": true,
+          "params": [],
+          "returns": "Impl"
+        },
+        {
+          "name": "LIMIT",
+          "kind": "constant",
+          "line": 11,
+          "exported": true,
+          "value": "3"
+        },
+        {
+          "name": "Color",
+          "kind": "enum",
+          "line": 13,
+          "exported": true
+        },
+        {
+          "name": "Hidden",
+          "kind": "type",
+          "line": 17,
+          "exported": false,
+          "tags": [
+            "abstract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/shapes.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Row",
+          "kind": "type",
+          "line": 1,
+          "exported": true
+        },
+        {
+          "name": "Mode",
+          "kind": "type",
+          "line": 3,
+          "exported": true
+        },
+        {
+          "name": "Id",
+          "kind": "type",
+          "line": 5,
+          "exported": true
+        },
+        {
+          "name": "Maybe",
+          "kind": "type",
+          "line": 7,
+          "exported": true
+        },
+        {
+          "name": "Counts",
+          "kind": "type",
+          "line": 9,
+          "exported": true
+        },
+        {
+          "name": "Mixed",
+          "kind": "type",
+          "line": 11,
+          "exported": true
+        }
+      ]
+    }
+  ],
+  "edges": [],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "src/impl.ts::build",
+      "to": "src/impl.ts::Impl",
+      "line": 8,
+      "how": "construct"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "typescript": {
+    "folder": "src",
+    "exported_members": 17,
+    "abstract_members": 7,
+    "abstractness": 0.4118,
+    "distance": null,
+    "members": {
+      "Store": true,
+      "Plain": true,
+      "Handler": true,
+      "Repo": true,
+      "Callback": true,
+      "Make": true,
+      "Base": true,
+      "Row": false,
+      "Mode": false,
+      "Id": false,
+      "Maybe": false,
+      "Counts": false,
+      "Mixed": false,
+      "Impl": false,
+      "build": false,
+      "LIMIT": false,
+      "Color": false
+    }
+  },
+  "python": {
+    "folder": "pkg",
+    "exported_members": 8,
+    "abstract_members": 3,
+    "abstractness": 0.375,
+    "distance": 0.375,
+    "members": {
+      "Store": true,
+      "Base": true,
+      "Meta": true,
+      "Template": false,
+      "Row": false,
+      "Id": false,
+      "Alias": false,
+      "build": false
+    }
+  },
+  "kotlin": {
+    "folder": "src/main/kotlin/p",
+    "exported_members": 11,
+    "abstract_members": 3,
+    "abstractness": 0.2727,
+    "distance": null,
+    "members": {
+      "Store": true,
+      "Handler": true,
+      "Base": true,
+      "Id": false,
+      "Ids": false,
+      "Row": false,
+      "Shape": false,
+      "Impl": false,
+      "build": false,
+      "LIMIT": false,
+      "Color": false
+    }
+  },
+  "rust": {
+    "folder": "src",
+    "exported_members": 7,
+    "abstract_members": 2,
+    "abstractness": 0.2857,
+    "distance": null,
+    "members": {
+      "Store": true,
+      "Named": true,
+      "Row": false,
+      "Impl": false,
+      "Color": false,
+      "build": false,
+      "LIMIT": false
+    }
+  }
+}

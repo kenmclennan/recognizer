@@ -1,0 +1,230 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "pkg/__init__.py",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "pkg/contracts.py",
+      "hash": "396662f3a2bc7768206d96a54f2a752243e7a6e89fa0b61505aaa872951fc2a1"
+    },
+    {
+      "path": "pkg/shapes.py",
+      "hash": "be6bd859125e6f8ffaf118a2d51560b2b00094dfaac3264ad708a44579058054"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".py"
+    ],
+    "skip_directory_names": [
+      "__pycache__",
+      "test",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      ".egg-info"
+    ],
+    "skip_directories_containing": [
+      "pyvenv.cfg"
+    ],
+    "skip_file_globs": [
+      "conftest.py"
+    ]
+  },
+  "modules": [
+    {
+      "id": "pkg/__init__.py",
+      "language": "python",
+      "kind": "package",
+      "members": []
+    },
+    {
+      "id": "pkg/contracts.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 5,
+          "exported": true,
+          "bases": [
+            "Protocol"
+          ],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 6,
+              "params": [],
+              "private": false,
+              "returns": "None",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Base",
+          "kind": "interface",
+          "line": 9,
+          "exported": true,
+          "bases": [
+            "ABC"
+          ],
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "Meta",
+          "kind": "interface",
+          "line": 13,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "Template",
+          "kind": "class",
+          "line": 17,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "run",
+              "line": 19,
+              "params": [],
+              "private": false,
+              "returns": "None",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pkg/shapes.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Row",
+          "kind": "class",
+          "line": 6,
+          "exported": true,
+          "bases": [],
+          "fields": [
+            {
+              "name": "id",
+              "line": 7,
+              "private": false,
+              "type": "int"
+            }
+          ],
+          "methods": [],
+          "tags": [
+            "dataclass"
+          ]
+        },
+        {
+          "name": "Id",
+          "kind": "constant",
+          "line": 10,
+          "exported": true,
+          "value": "int"
+        },
+        {
+          "name": "Alias",
+          "kind": "constant",
+          "line": 12,
+          "exported": true,
+          "value": "\"dict[str, int]\""
+        },
+        {
+          "name": "build",
+          "kind": "function",
+          "line": 15,
+          "exported": true,
+          "params": [],
+          "returns": "Row"
+        },
+        {
+          "name": "_hidden",
+          "kind": "function",
+          "line": 19,
+          "exported": false,
+          "params": [],
+          "returns": "None"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "pkg/contracts.py",
+      "to": "foreign:abc",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "pkg/contracts.py",
+      "to": "foreign:typing",
+      "kind": "depends",
+      "line": 2
+    },
+    {
+      "from": "pkg/shapes.py",
+      "to": "foreign:dataclasses",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "pkg/shapes.py",
+      "to": "foreign:typing",
+      "kind": "depends",
+      "line": 2
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:abc",
+      "name": "abc"
+    },
+    {
+      "id": "foreign:dataclasses",
+      "name": "dataclasses"
+    },
+    {
+      "id": "foreign:typing",
+      "name": "typing"
+    }
+  ],
+  "calls": [
+    {
+      "from": "pkg/shapes.py::build",
+      "to": "pkg/shapes.py::Row",
+      "line": 16,
+      "how": "construct"
+    }
+  ]
+}

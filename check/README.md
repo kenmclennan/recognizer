@@ -180,7 +180,7 @@ Folder metrics are written beside them as `folder_metrics`, one row per folder (
 - `afferent` (Ca): distinct modules outside the folder with an edge to a module inside.
 - `efferent` (Ce): distinct modules inside the folder with an edge to a module outside or to a foreign node.
 - `instability`: `efferent / (afferent + efferent)` rounded to four decimals, `null` when both are 0.
-- `exported_members` and `abstract_members`: the exported members of the folder's modules, and those among them of kind `interface` or `type` or a `class` tagged `abstract`.
+- `exported_members` and `abstract_members`: the exported members of the folder's modules, and those among them that are abstract members: kind `interface`, kind `class` tagged `abstract`, or kind `type` tagged `abstract`.
 - `abstractness`: `abstract_members / exported_members` rounded to four decimals, `null` when no member is exported (a scan that records no members leaves it unknown).
 - `distance`: `abs(abstractness + instability - 1)` from the unrounded values, rounded to four decimals, `null` when either is `null`.
 

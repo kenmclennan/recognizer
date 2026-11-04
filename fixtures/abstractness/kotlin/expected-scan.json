@@ -1,0 +1,253 @@
+{
+  "schema_version": 5,
+  "scanner": {
+    "name": "recognizer-scan-kotlin",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "src/main/kotlin/p/Contracts.kt",
+      "hash": "23f57e68827eff69b027b77a168ba49b77775fb1e580b9e063955967a26c32e4"
+    },
+    {
+      "path": "src/main/kotlin/p/Shapes.kt",
+      "hash": "08e1340831e8101c1ce3ec1b1d2663dee7abd1f10b35c28f92a6aaf7a93fa293"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".kt"
+    ],
+    "skip_directory_names": [
+      "build",
+      "test",
+      "androidTest",
+      "integrationTest",
+      "testFixtures"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      "Test"
+    ],
+    "skip_directories_containing": [],
+    "skip_file_globs": [
+      "*Test.kt",
+      "*Tests.kt"
+    ]
+  },
+  "modules": [
+    {
+      "id": "src/main/kotlin/p/Contracts.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Store",
+          "kind": "interface",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 4,
+              "params": [],
+              "private": false,
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Handler",
+          "kind": "interface",
+          "line": 7,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "handle",
+              "line": 8,
+              "params": [],
+              "private": false,
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Base",
+          "kind": "class",
+          "line": 11,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "run",
+              "line": 12,
+              "params": [],
+              "private": false,
+              "tags": [
+                "abstract"
+              ]
+            }
+          ],
+          "tags": [
+            "abstract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/main/kotlin/p/Shapes.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Id",
+          "kind": "type",
+          "line": 3,
+          "exported": true,
+          "visibility": "public"
+        },
+        {
+          "name": "Ids",
+          "kind": "type",
+          "line": 5,
+          "exported": true,
+          "visibility": "public"
+        },
+        {
+          "name": "Row",
+          "kind": "class",
+          "line": 7,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "id",
+              "line": 7,
+              "private": false,
+              "type": "String"
+            }
+          ],
+          "methods": []
+        },
+        {
+          "name": "Shape",
+          "kind": "class",
+          "line": 9,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "Impl",
+          "kind": "class",
+          "line": 11,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "Store"
+          ],
+          "fields": [],
+          "methods": [
+            {
+              "name": "save",
+              "line": 12,
+              "params": [],
+              "private": false
+            }
+          ]
+        },
+        {
+          "name": "build",
+          "kind": "function",
+          "line": 15,
+          "exported": true,
+          "visibility": "public",
+          "params": [],
+          "returns": "Impl"
+        },
+        {
+          "name": "LIMIT",
+          "kind": "constant",
+          "line": 17,
+          "exported": true,
+          "visibility": "public",
+          "value": "3"
+        },
+        {
+          "name": "Color",
+          "kind": "enum",
+          "line": 19,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "Hidden",
+          "kind": "class",
+          "line": 21,
+          "exported": false,
+          "visibility": "private",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "src/main/kotlin/p/Shapes.kt",
+      "to": "src/main/kotlin/p/Contracts.kt",
+      "kind": "depends",
+      "line": 11,
+      "names": [
+        "Store"
+      ]
+    },
+    {
+      "from": "src/main/kotlin/p/Shapes.kt",
+      "to": "src/main/kotlin/p/Contracts.kt",
+      "kind": "implements",
+      "line": 11,
+      "member": "Impl",
+      "to_member": "Store"
+    }
+  ],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "src/main/kotlin/p/Contracts.kt::Store.save",
+      "to": "src/main/kotlin/p/Shapes.kt::Impl.save",
+      "line": 4,
+      "how": "dispatch"
+    },
+    {
+      "from": "src/main/kotlin/p/Shapes.kt::build",
+      "to": "src/main/kotlin/p/Shapes.kt::Impl",
+      "line": 15,
+      "how": "construct"
+    }
+  ],
+  "unresolved_imports": []
+}

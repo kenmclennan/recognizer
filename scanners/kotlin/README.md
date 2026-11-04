@@ -29,6 +29,8 @@ Edges are by name resolution; an import makes an edge only when its name is used
 
 Classes, objects, companion objects (`Outer.Companion`), data, sealed, enum, annotation and value classes are `class`; interfaces are `interface`; type aliases are `type`; top-level properties are `constant`; functions, extension functions included, are `function` and are named without their receiver. Each member records its `visibility`; `exported` is false only for `private`.
 
+An `abstract class` member carries the tag `abstract`; no other class, interface or `typealias` is tagged.
+
 A call is recorded when both ends are members: a top-level function or object member by name, a constructor, a method on a receiver whose type is declared (a constructor property, a property, a parameter), and dispatch from an abstract or interface method to each implementation. A method a scanned interface does not declare, when the interface has a supertype declared in no scanned file, resolves to the interface itself.
 
 ## Robustness and limits
