@@ -31,6 +31,18 @@ def validate(document: dict) -> None:
         assert edge["from"] in ids
         assert edge["to"] in ids or edge["to"] in foreign_ids
 
+    members = set()
+
+    for item in document["modules"]:
+        for entry in item["members"]:
+            members.add(f"{item['id']}::{entry['name']}")
+            members.update(f"{item['id']}::{entry['name']}.{m['name']}" for m in entry["methods"])
+
+    for call in document["calls"]:
+        assert call["from"] in members
+        assert call["to"] in members
+        assert call["from"] != call["to"]
+
     for item in document.get("unresolved_imports", []):
         assert item["from"] in ids
 
@@ -93,6 +105,14 @@ def targets(document: dict, source: str, kind: str = "depends") -> dict[str, lis
 
 def local_targets(document: dict, source: str) -> dict[str, list[str]]:
     return {t: n for t, n in targets(document, source).items() if not t.startswith("foreign:")}
+
+
+def calls_of(document: dict, source: str | None = None, how: str | None = None) -> list[tuple]:
+    return [
+        (c["from"], c["to"], c["line"], c["how"])
+        for c in document["calls"]
+        if (source is None or c["from"] == source) and (how is None or c["how"] == how)
+    ]
 
 
 def module(document: dict, module_id: str) -> dict:

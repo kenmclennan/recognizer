@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 
+from recognizer_scan_csharp.calls import resolve_calls
 from recognizer_scan_csharp.declarations import SourceFile, read_source
 from recognizer_scan_csharp.discovery import directory_of, discover, selection
 from recognizer_scan_csharp.entry_points import convention_roots, is_entry_point
@@ -174,7 +175,7 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
         "modules": modules,
         "edges": sorted(collected.edges(), key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(collected.foreign)],
-        "calls": [],
+        "calls": resolve_calls(files, index, resolver),
         "unresolved_imports": unresolved,
     }
 
