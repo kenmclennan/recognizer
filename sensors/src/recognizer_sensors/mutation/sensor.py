@@ -41,6 +41,7 @@ from recognizer_sensors.testrun.run import (
     LOG,
     collect_coverage,
     collect_coverage_with_tests,
+    exit_reason,
     parse_coverage,
     parse_test_command,
 )
@@ -325,7 +326,7 @@ def run_baseline(repository: Path, copies: CopyPool, command: list[str], subject
     if result.exit_code is None:
         raise MeasurementError(f"{subject} did not start: {command[0]}")
 
-    raise MeasurementError(f"{subject} exited {result.exit_code}")
+    raise MeasurementError(exit_reason(subject, result.exit_code, result.output))
 
 
 class Baseline:
