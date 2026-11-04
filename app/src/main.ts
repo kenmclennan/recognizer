@@ -157,6 +157,16 @@ const rescanner = createRescanner<Carried>({
     explorer = buildExplorer(loaded, carried);
     void toolsRecheck.onOpen();
   },
+  update: (loaded) => {
+    if (explorer === null) {
+      return false;
+    }
+
+    current = loaded;
+    explorer.update(loaded);
+
+    return true;
+  },
   adopted: adoptedOrigin,
   describedLine: () => explorer?.refreshResponsibilities(),
   progress: (update) => {
