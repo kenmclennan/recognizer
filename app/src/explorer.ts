@@ -3309,6 +3309,7 @@ export function showExplorer(
       overlayModel = buildOverlayModel(
         loaded.overlays ?? [],
         freshnessOf(loaded),
+        { sensors: loaded.sensors, shipped: shippedSensors },
       );
       allFindings = findingRows(health.documents);
       hiddenRows = findingRows(health.hidden);
