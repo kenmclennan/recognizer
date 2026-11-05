@@ -136,6 +136,47 @@ def test_the_eshop_edge_count_matches_the_baseline(result):
     assert len(result.document["edges"]) == BASELINE["edges"]
 
 
+def test_the_eshop_call_count_matches_the_baseline(result):
+    assert len(result.document["calls"]) == BASELINE["calls"]
+
+
+def test_the_eshop_calls_end_at_members_and_never_at_their_source(result):
+    members = set()
+
+    for item in result.document["modules"]:
+        for entry in item["members"]:
+            members.add(f"{item['id']}::{entry['name']}")
+            members.update(f"{item['id']}::{entry['name']}.{m['name']}" for m in entry["methods"])
+
+    for call in result.document["calls"]:
+        assert call["from"] in members
+        assert call["to"] in members
+        assert call["from"] != call["to"]
+
+
+def test_the_eshop_call_precision_on_a_sample_of_thirty_is_non_gating(
+    eshop, result, record_property
+):
+    sources = sources_by_file(eshop, result.document)
+    calls = [c for c in result.document["calls"] if c["how"] == "call"]
+    step = max(1, len(calls) // SAMPLE_SIZE)
+    sample = calls[::step][:SAMPLE_SIZE]
+
+    def method_of(ref: str) -> str:
+        return ref.split("::")[1].split(".")[-1]
+
+    correct = [
+        c
+        for c in sample
+        if is_used(sources[c["from"].split("::")[0]], method_of(c["to"]))
+        and is_declared(sources[c["to"].split("::")[0]], method_of(c["to"]))
+    ]
+
+    record_property("precision", len(correct) / len(sample))
+
+    assert len(sample) == SAMPLE_SIZE
+
+
 def test_the_eshop_orphan_count_matches_the_baseline(result):
     assert len(orphans_of(result.document)) == BASELINE["orphans"] == 50
 

@@ -5,6 +5,7 @@
   "markup_files": 83,
   "modules": 489,
   "edges": 1475,
+  "calls": 420,
   "damaged": 2,
   "orphans": 50,
   "precision_floor": 1.0
