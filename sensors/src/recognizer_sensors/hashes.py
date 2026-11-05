@@ -1,6 +1,7 @@
 import hashlib
+import json
 import subprocess
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
 
 from recognizer_sensors.mutation.test_files import is_test_entry, is_test_file
@@ -55,11 +56,55 @@ def scan_hashes(scans: Iterable[Scan]) -> dict[str, str]:
     return hashes
 
 
-def test_hashes(repository: Path, scans: Iterable[Scan]) -> dict[str, str]:
+def rust_test_entries(repository: Path, listed: Collection[str] | None = None) -> set[str]:
+    paths = listed_files(repository) if listed is None else listed
+
+    if not any(path.split("/")[-1] == "Cargo.toml" for path in paths):
+        return set()
+
+    try:
+        result = subprocess.run(
+            ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+            cwd=repository,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return set()
+
+    if result.returncode != 0:
+        return set()
+
+    root = repository.resolve()
+    entries: set[str] = set()
+
+    try:
+        for package in json.loads(result.stdout)["packages"]:
+            for target in package["targets"]:
+                if "test" not in target["kind"]:
+                    continue
+
+                try:
+                    entries.add(Path(target["src_path"]).resolve().relative_to(root).as_posix())
+                except ValueError:
+                    continue
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return set()
+
+    return entries
+
+
+def test_hashes(
+    repository: Path, scans: Iterable[Scan], entries: Collection[str] | None = None
+) -> dict[str, str]:
     known = scan_hashes(scans)
     hashes: dict[str, str] = {}
+    listed = listed_files(repository)
+    rust = rust_test_entries(repository, listed) if entries is None else entries
 
-    for path in sorted({p for p in listed_files(repository) if is_test_file(p)}):
+    for path in sorted({p for p in listed if is_test_file(p) or p in rust}):
         digest = known.get(path) or file_sha256(repository / path)
 
         if digest is not None:
@@ -74,12 +119,14 @@ def digest_of(hashes: Mapping[str, str]) -> str:
     return hashlib.sha256("".join(lines).encode("utf-8", errors="surrogateescape")).hexdigest()
 
 
-def support_hash(hashes: Mapping[str, str]) -> str:
+def support_hash(hashes: Mapping[str, str], entries: Collection[str] = frozenset()) -> str:
     return digest_of(
         {
             path: digest
             for path, digest in hashes.items()
-            if not is_test_entry(path) and path.split("/")[-1] != "conftest.py"
+            if not is_test_entry(path)
+            and path not in entries
+            and path.split("/")[-1] != "conftest.py"
         }
     )
 
