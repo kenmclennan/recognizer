@@ -507,6 +507,42 @@ describe("check judging a registered sensor's findings per module", () => {
     });
   });
 
+  it("refuses --init-baseline naming a sensor with a hidden finding, and writes nothing", async () => {
+    const fake = setup(REGISTER, { files: { [FAKE]: twoFindings() } });
+
+    fake.files.delete(BASELINE);
+
+    const { code, err } = await check(fake, "--init-baseline");
+
+    expect(code).toBe(2);
+    expect(err).toContain("fake-sensor has out of date results");
+    expect(err).toContain("recognizer scan --sense fake-sensor");
+    expect(fake.files.has(BASELINE)).toBe(false);
+  });
+
+  it("refuses --init-baseline for a sensor whose file is invalid", async () => {
+    const fake = setup(REGISTER, { files: { [FAKE]: "{" } });
+
+    fake.files.delete(BASELINE);
+
+    const { code, err } = await check(fake, "--init-baseline");
+
+    expect(code).toBe(2);
+    expect(err).toContain("recognizer scan --sense fake-sensor");
+    expect(fake.files.has(BASELINE)).toBe(false);
+  });
+
+  it("writes the baseline with --init-baseline when every sensor is current", async () => {
+    const fake = setup(REGISTER, { files: { [FAKE]: fakeDocument() } });
+
+    fake.files.delete(BASELINE);
+
+    const { code } = await check(fake, "--init-baseline");
+
+    expect(code).toBe(0);
+    expect(fake.files.has(BASELINE)).toBe(true);
+  });
+
   it("reads a file from another commit whose inputs all match", async () => {
     const fake = setup(REGISTER, {
       files: { [FAKE]: fakeDocument({ commit: "old" }) },
