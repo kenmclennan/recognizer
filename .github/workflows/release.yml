@@ -172,7 +172,7 @@ jobs:
             git log -n 1 --format=%s "$HEAD_SHA" > dist-release/notes.txt
           fi
           {
-            echo "From this release one cask installs the app and its tools, and the recognizer formula is retired. An existing machine runs \`brew uninstall --formula recognizer && brew upgrade --cask recognizer\` once."
+            echo "From this release one cask installs the app and its tools, and the recognizer formula is retired. An existing machine runs \`brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer\` once."
             echo
             cat dist-release/notes.txt
           } > dist-release/notes-final.txt
@@ -188,9 +188,11 @@ jobs:
 
       - name: Tag the source
         if: steps.released.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           git tag "v$VERSION" "$HEAD_SHA"
-          git push origin "v$VERSION"
+          git -c http.https://github.com/.extraheader= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "v$VERSION"
 
       - name: Update the Homebrew tap
         if: steps.released.outputs.skip != 'true'
