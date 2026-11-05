@@ -111,3 +111,7 @@ None found. To close the `incomplete` verdict the driver runs the mutmut compari
 `validation/mutation/selection_spread.py <python.contexts.json> <repository>` prints, from the contexts file a coverage pass wrote, the number of lines executed by each count of test files, the lines above the 50-file cap, the lines above half the suite, and the lines that cannot be selected (an empty or non-file context). It writes nothing. The sensor runs the whole suite, with no baseline of its own, for a selection of more than half the suite, and its baselines share at most `max_workers` copies of the repository.
 
 The before and after figures for lightcycle at `c1933e0` (`max_minutes: 5`, `max_workers: 4`, idle machine) are recorded in the REC-208 pull request by the driver.
+
+## C-sharp
+
+C# is measured against hand counts only: `fixtures/mutation/corpus/csharp/` holds 8 hand-labelled functions (one with a `#if A == B` condition that yields no site and a statement under `#if` that yields one) run through a Python runner script that reads the mutated `.cs` text, and `sensors/tests/test_corpus.py` checks them in CI. No reference tool ran for C# and no .NET SDK was available on the machine that wrote the labels.

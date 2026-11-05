@@ -83,7 +83,7 @@ def crap(root, tmp_path, settings):
 
 
 def test_the_profile_table_names_every_language_in_order():
-    assert list(PROFILES) == ["python", "typescript", "kotlin", "rust"]
+    assert list(PROFILES) == ["python", "typescript", "kotlin", "rust", "csharp"]
     assert PROFILES["typescript"]["coverage_command"][:3] == ["npx", "--yes", "c8"]
     assert PROFILES["kotlin"]["coverage_command"] == ["./gradlew", "test", "jacocoTestReport"]
     assert PROFILES["kotlin"]["format"] == "jacoco"

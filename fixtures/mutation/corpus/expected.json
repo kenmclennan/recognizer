@@ -331,6 +331,153 @@
       ],
       "derivation": "four sites, 2 killed and 2 survived, as tiered",
       "known_defect": null
+    },
+    {
+      "id": "csharp/IsAdult",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.IsAdult",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 5,
+          "operator": ">=",
+          "replacement": ">",
+          "reason": "wrong boundary: no test passes age 18; Assert IsAdult(18) would kill it"
+        }
+      ],
+      "derivation": "one site, >=; the tests use ages 30 and 5, which both versions classify alike: 0 killed, 1 survived",
+      "known_defect": null
+    },
+    {
+      "id": "csharp/Total",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.Total",
+      "measures": {
+        "killed": 1,
+        "survived": 0,
+        "uncovered": 0,
+        "score": 1.0
+      },
+      "survivors": [],
+      "derivation": "one site, *; Total(3, 4) is 12 and the mutant gives 0.75: 1 killed",
+      "known_defect": null
+    },
+    {
+      "id": "csharp/Both",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.Both",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 15,
+          "operator": "&&",
+          "replacement": "||",
+          "reason": "no assertion for mixed inputs: Both(true, false) is false would kill it"
+        }
+      ],
+      "derivation": "one site, &&; the tests use (true, true) and (false, false), which && and || answer alike: 0 killed, 1 survived",
+      "known_defect": null
+    },
+    {
+      "id": "csharp/DefaultEnabled",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.DefaultEnabled",
+      "measures": {
+        "killed": 0,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.0
+      },
+      "survivors": [
+        {
+          "line": 20,
+          "operator": "true",
+          "replacement": "false",
+          "reason": "no assertion: the test calls the function and checks nothing; DefaultEnabled() is true would kill it"
+        }
+      ],
+      "derivation": "one site, true; the call result is discarded: 0 killed, 1 survived",
+      "known_defect": null
+    },
+    {
+      "id": "csharp/Gate",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.Gate",
+      "measures": {
+        "killed": 2,
+        "survived": 0,
+        "uncovered": 0,
+        "score": 1.0
+      },
+      "survivors": [],
+      "derivation": "two sites, || and false; Gate(true) is true and Gate(false) is false, and the mutants give false and true: 2 killed",
+      "known_defect": null
+    },
+    {
+      "id": "csharp/Windowed",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.Windowed",
+      "measures": {
+        "killed": 3,
+        "survived": 1,
+        "uncovered": 0,
+        "score": 0.75
+      },
+      "survivors": [
+        {
+          "line": 30,
+          "operator": "<",
+          "replacement": "<=",
+          "reason": "wrong boundary: no test passes a sum of 100; Windowed(50, 50) is false would kill it"
+        }
+      ],
+      "derivation": "four sites; the tests (1, 2) and (60, 50) kill +, && and != and no test reaches a sum of exactly 100, so < survives: 3 killed, 1 survived",
+      "known_defect": null
+    },
+    {
+      "id": "csharp/Flagged",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.Flagged",
+      "measures": {
+        "killed": 1,
+        "survived": 0,
+        "uncovered": 0,
+        "score": 1.0
+      },
+      "survivors": [],
+      "derivation": "one site, the + under #if; the == in the #if condition is not a site; Flagged(5) is 6 and the mutant gives 4: 1 killed",
+      "known_defect": null
+    },
+    {
+      "id": "csharp/Untested",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "mutation:csharp/Shop.cs::Shop.Untested",
+      "measures": {
+        "killed": 0,
+        "survived": 0,
+        "uncovered": 1
+      },
+      "survivors": [],
+      "derivation": "one site, -, on a line whose coverage is 0: counted uncovered and never run: 0 killed, 0 survived, 1 uncovered",
+      "known_defect": null
     }
   ]
 }

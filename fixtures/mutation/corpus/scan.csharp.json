@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "path": "csharp/Shop.cs",
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "modules": [
+    {
+      "id": "csharp/Shop.cs"
+    }
+  ],
+  "modified": false
+}

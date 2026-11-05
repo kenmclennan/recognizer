@@ -231,6 +231,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "tree-sitter" },
+    { name = "tree-sitter-c-sharp" },
     { name = "tree-sitter-kotlin" },
     { name = "tree-sitter-python" },
     { name = "tree-sitter-rust" },
@@ -248,6 +249,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "tree-sitter", specifier = "==0.26.0" },
+    { name = "tree-sitter-c-sharp", git = "https://github.com/tree-sitter/tree-sitter-c-sharp?rev=f1c7c1ee21f56a33412c12efb8abe0c483f05f0d" },
     { name = "tree-sitter-kotlin", specifier = "==1.1.0" },
     { name = "tree-sitter-python", specifier = "==0.25.0" },
     { name = "tree-sitter-rust", specifier = "==0.24.2" },
@@ -475,6 +477,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/1b/0b36fe2a984ecedc4ce6aefd5d56447a6626a8e9b595c4e48658510ce8f8/tree_sitter-0.26.0-cp314-cp314-win_amd64.whl", hash = "sha256:a4033fecc8f606c7f2e8b8014d0057b74668a7f0152763606f7bc25c5f9ec64c", size = 132688, upload-time = "2026-06-30T12:14:26.106Z" },
     { url = "https://files.pythonhosted.org/packages/4d/74/ebc041a13fbf40144afdb0d4b447e48e0b4012ca866c63de8b48f801f0c1/tree_sitter-0.26.0-cp314-cp314-win_arm64.whl", hash = "sha256:823251c4b6725a7c03ed497a339135ede7ae4bdde75bb8be7ef5e305aeb4ff52", size = 120287, upload-time = "2026-06-30T12:14:26.991Z" },
 ]
+
+[[package]]
+name = "tree-sitter-c-sharp"
+version = "0.23.5"
+source = { git = "https://github.com/tree-sitter/tree-sitter-c-sharp?rev=f1c7c1ee21f56a33412c12efb8abe0c483f05f0d#f1c7c1ee21f56a33412c12efb8abe0c483f05f0d" }
 
 [[package]]
 name = "tree-sitter-kotlin"

@@ -2,13 +2,13 @@
 
 ## Verdict
 
-**trust.** Over 40 planted functions at, just over and just under each line, two sets of lines, a mixed-resolution overlay and a stale overlay, the sensor's finding set equals the labelled set exactly, with the same value, line and severity in every finding.
+**trust.** Over 50 planted functions at, just over and just under each line, two sets of lines, a mixed-resolution overlay and a stale overlay, the sensor's finding set equals the labelled set exactly, with the same value, line and severity in every finding.
 
 ## Method
 
 - Recognizer commit `1dbb09c`.
 - Reference tool: none. The sensor reads overlay values and a line and never opens a source file (`thresholds/sensor.py`), so no independent measure of its own can exist; the labelled corpus is the comparison. The labels follow REC-142 decision 2: `above` fires when `value >= line`, `below` fires when `value < line`.
-- Corpus: `fixtures/thresholds/corpus/`, ten planted functions in each of Python, TypeScript, Kotlin and Rust, written by the corpus build as source in each language, with a hand-chosen `coverage/lcov.info`. `sensors/tests/test_corpus.py` runs the C.R.A.P. sensor to write the overlay (with the CRAP line set above every planted score so it competes with nothing), then thresholds, and compares to `expected.json`. Every label is derived from the planted complexity and the planted hit counts, not from a sensor run.
+- Corpus: `fixtures/thresholds/corpus/`, ten planted functions in each of Python, TypeScript, Kotlin, Rust and C#, written by the corpus build as source in each language, with a hand-chosen `coverage/lcov.info`. `sensors/tests/test_corpus.py` runs the C.R.A.P. sensor to write the overlay (with the CRAP line set above every planted score so it competes with nothing), then thresholds, and compares to `expected.json`. Every label is derived from the planted complexity and the planted hit counts, not from a sensor run.
 - No script is kept in `validation/thresholds/`: the CI test is the comparison and has no reference tool to run.
 
 ## Comparisons
@@ -19,9 +19,9 @@ Per language the planted functions are complexity 9, 10 and 11, each at three co
 
 | result | count |
 | --- | --- |
-| planted functions | 40 (10 per language) |
-| labelled function-metric cases per run | 80 |
-| findings expected and produced | 44 (6 complexity and 3 coverage per language plus 2 for the far function) |
+| planted functions | 50 (10 per language) |
+| labelled function-metric cases per run | 100 |
+| findings expected and produced | 55 (6 complexity and 3 coverage per language plus 2 for the far function) |
 | missing findings | 0 |
 | extra findings | 0 |
 | findings with the wrong value or line | 0 |
@@ -30,7 +30,7 @@ Complexity 9 never fires, 10 and 11 always fire; coverage 0.5882 fires, 0.6 and 
 
 ### Non-default lines and severity (complexity at or above 11 as a violation, coverage below 0.61)
 
-The same 80 cases against moved lines. Expected and produced: 44 findings (4 complexity and 7 coverage per language, the far function included in both), 0 missing, 0 extra, every complexity finding `violation` and every coverage finding `warning`. Complexity 10 stops firing and 11 still fires; coverage 0.6111 stays out and 0.6 now fires.
+The same 100 cases against moved lines. Expected and produced: 55 findings (4 complexity and 7 coverage per language, the far function included in both), 0 missing, 0 extra, every complexity finding `violation` and every coverage finding `warning`. Complexity 10 stops firing and 11 still fires; coverage 0.6111 stays out and 0.6 now fires.
 
 ### Mixed resolution
 
@@ -39,6 +39,8 @@ An overlay naming four ids that resolve and three that do not: the two resolving
 ### Overlay from another commit
 
 An overlay whose commit is not the repository's HEAD produces no finding although a value in it would cross the line, and prints `overlay stale.json is from commit 0000000000000000000000000000000000000000, not <HEAD>; skipped`. Agrees.
+
+C# is measured against hand counts only: no .NET SDK was available, so no reference tool ran for it, and the sensor reads overlay values rather than C# source either way.
 
 ## Disagreements
 

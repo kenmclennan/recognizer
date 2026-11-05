@@ -319,6 +319,86 @@
       "complexity": 25,
       "k": 10,
       "h": 1
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c09_under",
+      "complexity": 9,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c09_at",
+      "complexity": 9,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c09_over",
+      "complexity": 9,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c10_under",
+      "complexity": 10,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c10_at",
+      "complexity": 10,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c10_over",
+      "complexity": 10,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c11_under",
+      "complexity": 11,
+      "k": 17,
+      "h": 10
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c11_at",
+      "complexity": 11,
+      "k": 5,
+      "h": 3
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "c11_over",
+      "complexity": 11,
+      "k": 18,
+      "h": 11
+    },
+    {
+      "language": "csharp",
+      "module": "csharp/Limits.cs",
+      "function": "far",
+      "complexity": 25,
+      "k": 10,
+      "h": 1
     }
   ],
   "cases": [
@@ -2338,6 +2418,512 @@
       "language": "rust",
       "expect": "finding",
       "finding_id": "thresholds:coverage:rust/src/limits.rs::far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.61
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c09_under/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c09_under/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c09_under/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c09_under/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c09_at/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c09_at/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c09_at/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c09_at/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c09_over/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c09_over/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c09_over/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c09_over/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c10_under/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c10_under/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c10_under/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_under",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c10_under/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c10_at/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c10_at/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c10_at/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c10_at/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c10_over/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_over",
+      "severity": "warning",
+      "measures": {
+        "value": 10,
+        "line": 10
+      },
+      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c10_over/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c10_over/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c10_over/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c11_under/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c11_under/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.6
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c11_under/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_under",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c11_under/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_under",
+      "severity": "warning",
+      "measures": {
+        "value": 0.5882,
+        "line": 0.61
+      },
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c11_at/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c11_at/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_at",
+      "severity": null,
+      "measures": {},
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c11_at/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_at",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c11_at/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_at",
+      "severity": "warning",
+      "measures": {
+        "value": 0.6,
+        "line": 0.61
+      },
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c11_over/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_over",
+      "severity": "warning",
+      "measures": {
+        "value": 11,
+        "line": 10
+      },
+      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/c11_over/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c11_over/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_over",
+      "severity": "violation",
+      "measures": {
+        "value": 11,
+        "line": 11
+      },
+      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/c11_over/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "no-finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_over",
+      "severity": null,
+      "measures": {},
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/far/complexity",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.far",
+      "severity": "warning",
+      "measures": {
+        "value": 25,
+        "line": 10
+      },
+      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "known_defect": null
+    },
+    {
+      "id": "default/csharp/far/coverage",
+      "run": "default",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.far",
+      "severity": "warning",
+      "measures": {
+        "value": 0.1,
+        "line": 0.6
+      },
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/far/complexity",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.far",
+      "severity": "violation",
+      "measures": {
+        "value": 25,
+        "line": 11
+      },
+      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "known_defect": null
+    },
+    {
+      "id": "custom/csharp/far/coverage",
+      "run": "custom",
+      "language": "csharp",
+      "expect": "finding",
+      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.far",
       "severity": "warning",
       "measures": {
         "value": 0.1,

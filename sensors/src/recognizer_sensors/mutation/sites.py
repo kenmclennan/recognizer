@@ -60,12 +60,27 @@ def operators_for(grammar: str, parent: str) -> set[str]:
     return allowed
 
 
+def is_directive_condition(ancestor: Node, child: Node) -> bool:
+    if not ancestor.type.startswith("preproc"):
+        return False
+
+    condition = ancestor.child_by_field_name("condition")
+
+    return condition is not None and condition.id == child.id
+
+
 def is_inside_text(node: Node) -> bool:
+    child = node
     ancestor = node.parent
 
     while ancestor is not None:
         if "string" in ancestor.type or "comment" in ancestor.type:
             return True
+
+        if is_directive_condition(ancestor, child):
+            return True
+
+        child = ancestor
 
         ancestor = ancestor.parent
 
@@ -80,7 +95,7 @@ def boolean_site(node: Node, grammar: str) -> Site | None:
 
     if grammar == "python":
         valid = node.type in ("true", "false") and node.is_named
-    elif grammar == "rust":
+    elif grammar in ("rust", "csharp"):
         valid = node.parent is not None and node.parent.type == "boolean_literal"
     elif grammar == "kotlin":
         valid = node.type == "identifier" and text in ("true", "false")

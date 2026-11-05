@@ -20,6 +20,7 @@ LANGUAGE_BY_SUFFIX = {
     ".tsx": "typescript",
     ".kt": "kotlin",
     ".rs": "rust",
+    ".cs": "csharp",
 }
 
 

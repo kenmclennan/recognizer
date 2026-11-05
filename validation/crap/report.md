@@ -7,7 +7,7 @@
 ## Method
 
 - Recognizer commit `1dbb09c` (base of this change); lightcycle commit `c1933e0` (not used, see below).
-- Corpus: `fixtures/crap/corpus/`, 12 functions per language (Python, TypeScript, Kotlin, Rust) with complexity 1 to 12, every node type in `NODE_TYPES` and every operator in `OPERATORS` used at least once, hand-chosen coverage in `coverage/lcov.info` and `coverage/jacoco.xml`, and `expected.json` derived by hand from REC-130's node table. `sensors/tests/test_corpus.py` checks all 48 in CI.
+- Corpus: `fixtures/crap/corpus/`, 12 functions per language (Python, TypeScript, Kotlin, Rust, C#) with complexity 1 to 12, every node type in `NODE_TYPES` and every operator in `OPERATORS` used at least once, hand-chosen coverage in `coverage/lcov.info` and `coverage/jacoco.xml`, and `expected.json` derived by hand from REC-130's node table. `sensors/tests/test_corpus.py` checks all 60 in CI.
 - Reference tools, versions pinned: radon 6.0.1 (Python), eslint 9.39.5 with `typescript-eslint` and `complexity: max 0` (TypeScript), rust-code-analysis-cli 0.0.25 (Rust), coverage.py 7.17.1 and c8 12.0.0 on node 24.13.0 (native coverage), installed into throwaway folders outside the repository. Not available: a JVM, so no detekt and no jacoco; `llvm-tools-preview` could not be added to the rustup toolchain (component conflict on `lib/rustlib/aarch64-apple-darwin/bin/llc`), so `cargo llvm-cov 0.9.1` installed but could not run.
 - Scripts: `validation/crap/complexity.py` and `validation/crap/coverage.py`, both taking `--repository` or tool paths; run them from `sensors/` with `uv run python ../validation/crap/<script>.py`.
 
@@ -25,7 +25,7 @@ Matched on file and start line, over the corpus, `fixtures/crap/sample`, `fixtur
 | Kotlin | detekt | not run | not run | not run | not run |
 | lightcycle (Python) | radon 6.0.1 | 3306 | 3303 | 3 | 0 |
 
-Kotlin is not run because there is no JVM here; the 21 Kotlin functions (12 in the corpus, 9 in `fixtures/kotlin`) are measured by the sensor only. lightcycle was run by the driver on 2026-11-03 at lightcycle commit `c1933e0` in a clean worktree, with `--repository <worktree> --prefix lightcycle --radon <radon>`: 3306 functions, 3303 equal.
+C# is measured against hand counts only: no .NET SDK was available, so no reference tool ran for it. Kotlin is not run because there is no JVM here; the 21 Kotlin functions (12 in the corpus, 9 in `fixtures/kotlin`) are measured by the sensor only. lightcycle was run by the driver on 2026-11-03 at lightcycle commit `c1933e0` in a clean worktree, with `--repository <worktree> --prefix lightcycle --radon <radon>`: 3306 functions, 3303 equal.
 
 ### Coverage against the coverage tool's own report
 
@@ -61,7 +61,7 @@ All ten agree. `typescript sprawl` sits exactly on the default threshold of 30 a
 
 ### Corpus against the sensor
 
-All 48 labelled functions agree with the sensor: complexity, coverage, score and finding or no finding (16 findings, 32 without). No case carries a `known_defect`.
+All 60 labelled functions agree with the sensor: complexity, coverage, score and finding or no finding (16 findings, 32 without). No case carries a `known_defect`.
 
 ## Disagreements
 

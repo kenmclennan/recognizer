@@ -374,5 +374,99 @@
     "label": "non-copy-constructors",
     "expected": "not-reported",
     "note": "constructors that only store parameters in fields: the constructor shape skips every member before fingerprinting"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Planted.cs::Planted.OrderTotal",
+    "b": "src/Planted.cs::Planted.ParcelWeight",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Planted.cs::Planted.LoadSettings",
+    "b": "src/Planted.cs::Planted.LoadSession",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Planted.cs::Planted.StoreReport",
+    "b": "src/Planted.cs::Planted.StoreLedger",
+    "label": "planted-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Near.cs::Near.GatherNames",
+    "b": "src/Near.cs::Near.GatherTags",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Near.cs::Near.FetchPages",
+    "b": "src/Near.cs::Near.FetchEvents",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Near.cs::Near.SummariseOrders",
+    "b": "src/Near.cs::Near.SummariseVisits",
+    "label": "planted-near-copy",
+    "expected": "reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Distinct.cs::Distinct.ReadConfig",
+    "b": "src/Distinct.cs::Distinct.RenderTable",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Distinct.cs::Distinct.WalkTree",
+    "b": "src/Distinct.cs::Distinct.ClampRange",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Distinct.cs::Distinct.ParseFlags",
+    "b": "src/Distinct.cs::Distinct.MergeSorted",
+    "label": "non-copy",
+    "expected": "not-reported"
+  },
+  {
+    "language": "csharp",
+    "members": [
+      "src/Accessors.cs::Limits.RetryLimit",
+      "src/Accessors.cs::Limits.PageSize",
+      "src/Accessors.cs::Limits.QueueDepth",
+      "src/Accessors.cs::Limits.IdleTimeout"
+    ],
+    "label": "non-copy-accessors",
+    "expected": "not-reported",
+    "note": "a family of same-shaped accessors with different intent, block-bodied and expression-bodied: each body is one lookup chain with literal arguments, so the accessor shape skips every member before fingerprinting"
+  },
+  {
+    "language": "csharp",
+    "a": "src/Branching.cs::Budgets.RetryLimit",
+    "b": "src/Branching.cs::Budgets.PageSize",
+    "label": "near-copy-not-accessor",
+    "expected": "reported",
+    "note": "a four-line function with a branch is not an accessor: the accessor shape must not skip it"
+  },
+  {
+    "language": "csharp",
+    "members": [
+      "src/Constructors.cs::Orders.Orders",
+      "src/Constructors.cs::Parcels.Parcels",
+      "src/Constructors.cs::Visits.Visits"
+    ],
+    "label": "non-copy-constructors",
+    "expected": "not-reported",
+    "note": "constructors that only store parameters in fields: the constructor shape skips every member before fingerprinting"
   }
 ]

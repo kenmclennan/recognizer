@@ -96,13 +96,22 @@ def crap_runs(work):
     return runs
 
 
-def test_the_crap_corpus_labels_48_functions_12_in_each_language():
+def test_the_crap_corpus_labels_60_functions_12_in_each_language():
     cases = load("crap")["cases"]
 
-    assert len(cases) == 48
-    assert {c["language"] for c in cases} == {"python", "typescript", "kotlin", "rust"}
+    assert len(cases) == 60
+    assert {c["language"] for c in cases} == {
+        "python",
+        "typescript",
+        "kotlin",
+        "rust",
+        "csharp",
+    }
     assert [sum(1 for c in cases if c["language"] == lang) for lang in ("python",)] == [12]
     assert sorted(c["measures"]["complexity"] for c in cases if c["language"] == "rust") == list(
+        range(1, 13)
+    )
+    assert sorted(c["measures"]["complexity"] for c in cases if c["language"] == "csharp") == list(
         range(1, 13)
     )
 
@@ -165,15 +174,14 @@ def thresholds_runs(thresholds_repository, work):
     }
 
 
-def test_the_thresholds_corpus_plants_40_functions_10_in_each_language():
+def test_the_thresholds_corpus_plants_50_functions_10_in_each_language():
     planted = load("thresholds")["planted"]
 
-    assert len(planted) == 40
-    assert [sum(1 for p in planted if p["language"] == lang) for lang in ("python", "kotlin")] == [
-        10,
-        10,
-    ]
-    assert len(load("thresholds")["cases"]) == 160
+    assert len(planted) == 50
+    assert [
+        sum(1 for p in planted if p["language"] == lang) for lang in ("python", "kotlin", "csharp")
+    ] == [10, 10, 10]
+    assert len(load("thresholds")["cases"]) == 200
 
 
 @pytest.mark.parametrize("run", ["default", "custom"])
@@ -266,6 +274,7 @@ def node_strips_types() -> bool:
 MUTATION_COMMANDS = {
     "python": [sys.executable, "tests/run.py"],
     "typescript": ["node", "--experimental-strip-types", "--no-warnings", "tests/run.ts"],
+    "csharp": [sys.executable, "tests/run_csharp.py"],
 }
 
 
@@ -298,16 +307,17 @@ def mutation_runs(work):
     return runs
 
 
-def test_the_mutation_corpus_labels_16_functions_8_in_each_language():
+def test_the_mutation_corpus_labels_24_functions_8_in_each_language():
     cases = load("mutation")["cases"]
 
-    assert len(cases) == 16
+    assert len(cases) == 24
     assert sum(1 for c in cases if c["language"] == "python") == 8
+    assert sum(1 for c in cases if c["language"] == "csharp") == 8
     assert all(c["derivation"].strip() for c in cases)
     assert all(c["survivors"] and c["survivors"][0]["reason"] for c in cases if c["survivors"])
 
 
-@pytest.mark.parametrize("language", ["python", "typescript"])
+@pytest.mark.parametrize("language", ["python", "typescript", "csharp"])
 def test_the_mutation_findings_are_exactly_the_labelled_ones(mutation_runs, language):
     if language not in mutation_runs:
         pytest.skip("node cannot strip TypeScript types here")
