@@ -1,5 +1,5 @@
 name: cancel-on-failure
-description: Cancel every unfinished workflow run for this commit, so a failure stops the rest of CI.
+description: Cancel every other unfinished workflow run for this commit, so a failure stops the rest of CI while this run still reports the failure.
 runs:
   using: composite
   steps:
@@ -9,7 +9,7 @@ runs:
         SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
         gh run list --repo "$GITHUB_REPOSITORY" --commit "$SHA" --limit 50 --json databaseId,status \
-          --jq '.[] | select(.status != "completed") | .databaseId' |
+          --jq ".[] | select(.status != \"completed\" and .databaseId != $GITHUB_RUN_ID) | .databaseId" |
           while read -r id; do
             gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
           done
