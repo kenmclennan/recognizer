@@ -32,9 +32,12 @@ def is_test_file(module_id: str) -> bool:
 
 
 def is_test_entry(module_id: str) -> bool:
-    basename = module_id.split("/")[-1]
+    *directories, basename = module_id.split("/")
 
     if ENTRY_BASENAME.match(basename):
+        return True
+
+    if basename.endswith(".kt") and any(segment in TEST_DIRECTORIES for segment in directories):
         return True
 
     stem = stem_of(basename)
