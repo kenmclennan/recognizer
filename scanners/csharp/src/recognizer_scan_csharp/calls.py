@@ -12,10 +12,9 @@ from recognizer_scan_csharp.declarations import (
 )
 from recognizer_scan_csharp.extensions import visible_namespaces
 from recognizer_scan_csharp.index import Index
-from recognizer_scan_csharp.outline import body_items, fields_of, method_of
+from recognizer_scan_csharp.outline import fields_of, method_items, method_of
 from recognizer_scan_csharp.resolve import Resolver, accessible, reaches
 
-METHOD_NODES = ("method_declaration", "constructor_declaration")
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 GENERIC_ARGUMENTS = re.compile(r"<[^<>]*>")
 MAX_BASE_DEPTH = 8
@@ -137,13 +136,12 @@ class Calls:
     def index_decl(self, decl: Decl) -> None:
         table: dict[str, list[dict]] = {}
 
-        for item in body_items(decl):
-            if item.type in METHOD_NODES:
-                method = method_of(item, decl)
-                table.setdefault(method["name"], []).append(method)
+        for item in method_items(decl):
+            method = method_of(item, decl)
+            table.setdefault(method["name"], []).append(method)
 
-                if not decl.outer:
-                    self.endpoints.add(ref(decl, method["name"]))
+            if not decl.outer:
+                self.endpoints.add(ref(decl, method["name"]))
 
         self.methods[decl] = table
         self.fields[decl] = fields_of(decl)
@@ -274,10 +272,7 @@ class Calls:
         return self.extension_targets(file, name)
 
     def calls_in(self, file: SourceFile, decl: Decl) -> None:
-        for item in body_items(decl):
-            if item.type not in METHOD_NODES:
-                continue
-
+        for item in method_items(decl):
             method = method_of(item, decl)
             source = ref(decl, method["name"])
 

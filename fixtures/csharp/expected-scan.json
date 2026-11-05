@@ -319,7 +319,16 @@
           "visibility": "public",
           "bases": [],
           "fields": [],
-          "methods": []
+          "methods": [
+            {
+              "name": "ItemCount",
+              "line": 7,
+              "end_line": 7,
+              "params": [],
+              "private": false,
+              "returns": "int"
+            }
+          ]
         }
       ]
     },
@@ -1167,6 +1176,12 @@
       "from": "src/Shop.Application/OrderService.cs::OrderService.Place",
       "to": "src/Shop.Domain/IOrderStore.cs::IOrderStore.Save",
       "line": 7,
+      "how": "call"
+    },
+    {
+      "from": "src/Shop.Application/OrderService.cs::OrderService.Place",
+      "to": "src/Shop.Domain/Extensions/OrderExtensions.cs::OrderExtensions.ItemCount",
+      "line": 9,
       "how": "call"
     },
     {

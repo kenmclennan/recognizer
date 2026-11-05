@@ -269,3 +269,35 @@ def test_end_line_for_method_constructor_and_expression_bodied_member(run):
     }
 
     assert spans == {"C": (3, 5), "Plain": (7, 10), "One": (12, 12)}
+
+
+EXTENSION_BLOCKS = (
+    "namespace N;\n"
+    "public static class Ext\n{\n"
+    "    extension(string s)\n    {\n"
+    "        public int Size() => s.Length;\n"
+    '        public static string Blank() => "";\n'
+    "        public int Length => s.Length;\n"
+    "    }\n"
+    "    extension<T>(List<T> items)\n    {\n"
+    "        public int Count2() => items.Count;\n"
+    "        public static List<T> None() => new();\n"
+    "        private bool Hidden => true;\n"
+    "        public bool IsEmpty => items.Count == 0;\n"
+    "    }\n}\n"
+)
+
+
+def test_extension_block_members_are_methods_of_the_enclosing_class(run):
+    methods = member(one(run, EXTENSION_BLOCKS), "App/A.cs", "Ext")["methods"]
+    by_name = {m["name"]: m for m in methods}
+
+    assert list(by_name) == ["Size", "Blank", "Length", "Count2", "None", "Hidden", "IsEmpty"]
+    assert [m["line"] for m in methods] == [6, 7, 8, 12, 13, 14, 15]
+    assert by_name["Size"]["private"] is False
+    assert by_name["Hidden"]["private"] is True
+    assert by_name["Blank"]["tags"] == ["static"]
+    assert by_name["None"]["tags"] == ["static"]
+    assert "tags" not in by_name["Length"]
+    assert by_name["Length"]["returns"] == "int"
+    assert by_name["Size"]["params"] == []
