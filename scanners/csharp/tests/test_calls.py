@@ -280,7 +280,7 @@ def test_a_declared_in_repo_receiver_with_the_method_is_an_instance_call_only(ru
     one(document, 5, "App/Own.cs::Own.Shout")
 
 
-def test_an_extension_block_member_gives_no_call(run):
+def test_a_call_to_an_extension_block_member_targets_it(run):
     document = run(
         app(
             {
@@ -290,7 +290,7 @@ def test_an_extension_block_member_gives_no_call(run):
         )
     )
 
-    assert calls(document) == []
+    one(document, 4, "App/Block.cs::Block.Size")
 
 
 def dispatches(document: dict) -> list[tuple]:

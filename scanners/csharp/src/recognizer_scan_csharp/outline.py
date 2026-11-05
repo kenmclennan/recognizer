@@ -110,7 +110,7 @@ def method_of(node: Node, decl: Decl) -> dict:
         "params": parameters(node),
         "private": is_private(words, interface),
     }
-    returns = type_text(node, "returns")
+    returns = type_text(node, "type" if node.type == "property_declaration" else "returns")
 
     if returns:
         method["returns"] = returns
@@ -136,12 +136,30 @@ def method_of(node: Node, decl: Decl) -> dict:
     return method
 
 
-def methods_of(decl: Decl) -> list[dict]:
+def extension_members(item: Node) -> list[Node]:
+    body = child(item, "extension_body")
+
     return [
-        method_of(item, decl)
-        for item in body_items(decl)
-        if item.type in ("method_declaration", "constructor_declaration")
+        inner
+        for inner in flatten(body.children if body else [])
+        if inner.type in ("method_declaration", "property_declaration")
     ]
+
+
+def method_items(decl: Decl) -> list[Node]:
+    found = []
+
+    for item in body_items(decl):
+        if item.type in ("method_declaration", "constructor_declaration"):
+            found.append(item)
+        elif item.type == "extension_declaration":
+            found.extend(extension_members(item))
+
+    return found
+
+
+def methods_of(decl: Decl) -> list[dict]:
+    return [method_of(item, decl) for item in method_items(decl)]
 
 
 def class_outline(decl: Decl) -> dict:
