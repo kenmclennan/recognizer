@@ -84,10 +84,9 @@ A fresh worktree has no `node_modules`. Run `npm ci` at the repository root befo
 ## CI
 
 - Every pull-request and push workflow runs on a GitHub-hosted runner; the repository is public, so those minutes are free.
-- `app` and the `toolchain` job of `check` (which builds the macOS arm64 archive) run on `macos-15`. `check`'s `test` job, `markdown`, `describer-claude`, `sensors` and the four `scanner-*` workflows run on `ubuntu-latest`, so a test in them must not assume a Mac path or tool.
+- `app` (its `check` and `layout` jobs), the `toolchain` job of `check` (which builds the macOS arm64 archive) and `release.yml` run on the self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), which has the local toolchain and a TMPDIR shared between runs. `check`'s `test` job, `markdown`, `describer-claude`, `sensors` and the four `scanner-*` workflows run on `ubuntu-latest`, so a test in them must not assume a Mac path or tool.
 - A hosted runner has only what the image and the workflow's own setup steps provide (Node from `actions/setup-node`, `uv` from `astral-sh/setup-uv`): no `recognizer-scan-*` binary is on the PATH, so a test that runs a real scan must build or install the scanner it needs inside the workflow, or it fails only on CI.
 - A failing `schema-behind` check means the branch is on an older scan schema than main: rebase onto main.
-- Only `release.yml` runs on the self-hosted runner on Ken's Mac (`runs-on: [self-hosted, macOS, ARM64]`), which has the local toolchain.
 - No workflow uses `Swatinem/rust-cache`: on the self-hosted runner its cleanup prunes `~/.cargo/bin` and deletes `rustup`, which takes `cargo` and `rustc` with it.
 
 ## Code style
