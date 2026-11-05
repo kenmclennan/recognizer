@@ -57,7 +57,6 @@ export type ExplorerOptions = {
   responsibilities?: ResponsibilitiesPort;
   windowPort?: WindowPort;
   scanHost?: ScanHost;
-  showMetrics?: (text: string | null) => void;
   withdraw?: (id: number) => void;
   reconcileMessages?: (foundKeys: readonly string[]) => void;
   comparisons?: ViewComparisons;
@@ -78,7 +77,6 @@ export function mountExplorer(options: ExplorerOptions): Explorer {
     options.responsibilities,
     options.windowPort,
     options.scanHost,
-    options.showMetrics,
     options.withdraw,
     options.reconcileMessages,
     options.comparisons,

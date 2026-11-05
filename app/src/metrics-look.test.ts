@@ -48,7 +48,6 @@ const host = document.getElementById("content");
 const q = (selector) => host.querySelector(selector);
 const qa = (selector) => [...host.querySelectorAll(selector)];
 const port = fakeViews({});
-const footer = { text: null };
 const facts = {};
 
 const boxOf = (id) => q('.box[data-id="' + id + '"]');
@@ -88,7 +87,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 }));
 
 (async () => {
-  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, showMetrics: (text) => { footer.text = text; } });
+  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried });
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
   for (const folder of ["app", "src", "lib"]) {
@@ -110,7 +109,6 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   click(q('.metric-row[data-metric="crap/coverage"]'));
   await tick();
   facts.detail = qa(".metric-row .metric-detail").map((d) => d.textContent);
-  facts.footer = footer.text;
   facts.heightTwo = heightOf("app/risk.py");
   facts.risk = barsOf("app/risk.py");
   facts.other = barsOf("src/other.ts");
@@ -135,20 +133,20 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   host.replaceChildren();
   explorer = mount(${JSON.stringify(fresh)}, carried);
   await tick();
-  facts.afterRebuild = { bars: barsOf("app/risk.py").length, footer: footer.text };
+  facts.afterRebuild = { bars: barsOf("app/risk.py").length };
 
   click(q(".metrics-toggle"));
   await tick();
   click(q('.metric-row[data-metric="crap/coverage"]'));
   await tick();
-  facts.afterUntick = { bars: barsOf("app/risk.py").length, height: heightOf("app/risk.py"), footer: footer.text };
+  facts.afterUntick = { bars: barsOf("app/risk.py").length, height: heightOf("app/risk.py") };
 
   const staleCarried = explorer.carry();
   explorer.dispose();
   host.replaceChildren();
   explorer = mount(${JSON.stringify(stale)}, staleCarried);
   await tick();
-  facts.afterStale = { bars: barsOf("app/risk.py").length, footer: footer.text };
+  facts.afterStale = { bars: barsOf("app/risk.py").length };
   click(q(".metrics-toggle"));
   await tick();
   facts.afterStaleGroup = {
@@ -165,7 +163,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   const stateOf = async (overlays, sensors, shippedList = SHIPPED) => {
     explorer.dispose();
     host.replaceChildren();
-    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, showMetrics: () => {}, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, shippedList) }) });
+    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, shippedList) }) });
     await tick();
     for (const folder of ["app", "src", "lib"]) {
       click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
@@ -210,7 +208,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     metrics: [{ name: "a-very-long-metric", type: "count", granularity: "member", bad: "high" }],
     values: { "a-very-long-metric": { "app/risk.py::classify": 3 } },
   });
-  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "long", text: longOverlay }] }), title: "demo", views: port, post: () => null, carried: null, showMetrics: () => {} });
+  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "long", text: longOverlay }] }), title: "demo", views: port, post: () => null, carried: null });
   await tick();
   for (const folder of ["app", "src", "lib"]) {
     click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
@@ -237,7 +235,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   const sourcesOf = async (overlay, keys) => {
     explorer.dispose();
     host.replaceChildren();
-    explorer = mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried: null, showMetrics: () => {} });
+    explorer = mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried: null });
     await tick();
     for (const folder of ["app", "src", "lib"]) {
       click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
@@ -280,7 +278,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   explorer.dispose();
   host.replaceChildren();
   const notedPort = fakeViews({ order: viewFile });
-  explorer = mountExplorer({ container: host, loaded: loadedFor(${JSON.stringify(fresh)}), title: "demo", views: notedPort, post: () => null, carried: facts.carriedTicks, showMetrics: () => {} });
+  explorer = mountExplorer({ container: host, loaded: loadedFor(${JSON.stringify(fresh)}), title: "demo", views: notedPort, post: () => null, carried: facts.carriedTicks });
   await tick();
   click(q(".view-list"));
   click(qa(".view-item")[0]);
@@ -323,7 +321,6 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     ]);
     expect(f.detail[0]).toBe("bar 1 - 0 to 8, high is bad");
     expect(f.detail[1]).toBe("bar 2 - 0 to 100%, low is bad");
-    expect(f.footer).toBe("Showing complexity, coverage from crap");
   });
 
   it("colours and sizes the bars by the worst member and titles them", () => {
@@ -436,12 +433,8 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
 
   it("keeps the ticks across a rebuild and drops one when unticked", () => {
     expect(f.afterRebuild.bars).toBe(2);
-    expect(f.afterRebuild.footer).toBe(
-      "Showing complexity, coverage from crap",
-    );
     expect(f.afterUntick.bars).toBe(1);
     expect(f.afterUntick.height).toBe(40 + 14 + 6);
-    expect(f.afterUntick.footer).toBe("Showing complexity from crap");
   });
 
   it("says no overlays were found when there are none", () => {
@@ -484,7 +477,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(state.perMember).toBe(false);
     expect(state.chips).toBe(0);
     expect(f.afterStaleGroup.notes[0].cls).toBe("metric-note warn");
-    expect(f.afterStale).toEqual({ bars: 0, footer: null });
+    expect(f.afterStale).toEqual({ bars: 0 });
     expect(f.staleClick).toBe(0);
     expect(f.afterStaleGroup.disabled).toBe(3);
     expect(f.afterStaleGroup.chips).toBe(0);

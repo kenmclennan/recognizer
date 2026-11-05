@@ -51,7 +51,7 @@ const shown = () => ({
 });
 
 (async () => {
-  const explorer = mountExplorer({ container: host, loaded: loadedFor(ids, [], []), title: "demo", views: port, post: () => null, carried: null, showMetrics: () => {} });
+  const explorer = mountExplorer({ container: host, loaded: loadedFor(ids, [], []), title: "demo", views: port, post: () => null, carried: null });
   await tick();
   for (const folder of ["app", "src", "lib"]) {
     click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
@@ -88,7 +88,7 @@ const shown = () => ({
   const camera = explorer.carry().camera;
   explorer.dispose();
   host.replaceChildren();
-  const rebuilt = mountExplorer({ container: host, loaded: loadedFor(ids.slice(0, 2), [], []), title: "demo", views: port, post: () => null, carried: { ...afterCarry, camera }, showMetrics: () => {} });
+  const rebuilt = mountExplorer({ container: host, loaded: loadedFor(ids.slice(0, 2), [], []), title: "demo", views: port, post: () => null, carried: { ...afterCarry, camera } });
   await tick();
   facts.rebuilt = { transform: q(".world").getAttribute("transform"), wanted: afterCarry.camera === null ? null : "translate(" + afterCarry.camera.x + " " + afterCarry.camera.y + ") scale(" + afterCarry.camera.k + ")" };
   rebuilt.dispose();

@@ -82,7 +82,6 @@ import { buildNotesPanelView } from "./notes-panel-view";
 import { createOpenModules } from "./open-modules";
 import {
   buildOverlayModel,
-  footerText,
   type MetricDescriptor,
   moduleValue,
   pruneTicks,
@@ -267,7 +266,6 @@ export function showExplorer(
   responsibilities: ResponsibilitiesPort = inertResponsibilities,
   windowPort: WindowPort = inertWindow,
   scanHost: ScanHost = inertScanHost,
-  showMetrics: (text: string | null) => void = () => {},
   withdraw: (id: number) => void = () => {},
   reconcileMessages: (foundKeys: readonly string[]) => void = () => {},
   comparisons: ViewComparisons = createViewComparisons(),
@@ -2946,8 +2944,6 @@ export function showExplorer(
 
   function canvasMetrics(): CanvasMetrics {
     const ticked = tickedMetrics();
-
-    showMetrics(footerText(ticked));
 
     return {
       groups: overlayModel.groups,

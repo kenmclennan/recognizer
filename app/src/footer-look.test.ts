@@ -66,13 +66,6 @@ facts.afterEnd = shape();
 view.setScan({ ...base, origin: { branch: null, commit: null } });
 facts.noGit = shape().text;
 
-const metricsLine = () => { const node = q(".metrics-line"); return { text: node.textContent, hidden: node.hidden }; };
-facts.metricsOff = metricsLine();
-view.setMetrics("Showing complexity, coverage from crap");
-facts.metricsOn = metricsLine();
-view.setMetrics(null);
-facts.metricsCleared = metricsLine();
-
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
 
@@ -84,15 +77,6 @@ describe.skipIf(webkit === undefined)("the footer's scan line", () => {
   beforeAll(async () => {
     f = await collectFacts<Facts>(HARNESS, "footer-look");
   }, scaledTimeout(180000));
-
-  it("shows the metrics line while a metric is ticked and clears it when none is", () => {
-    expect(f.metricsOff.hidden).toBe(true);
-    expect(f.metricsOn).toEqual({
-      text: "Showing complexity, coverage from crap",
-      hidden: false,
-    });
-    expect(f.metricsCleared).toEqual({ text: "", hidden: true });
-  });
 
   it("is muted with only the bell as a button when the scan is up to date", () => {
     expect(f.upToDate.text).toBe("Scanned at a1b2c3d, 3 minutes ago");
