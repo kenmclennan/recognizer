@@ -17,10 +17,19 @@ def stem_of(basename: str) -> str:
     return basename[:dot] if dot > 0 else basename
 
 
+def in_dotnet_test_project(directories: list[str], basename: str) -> bool:
+    return basename.endswith(".cs") and any(
+        segment.endswith("Test") or segment.endswith("Tests") for segment in directories
+    )
+
+
 def is_test_file(module_id: str) -> bool:
     *directories, basename = module_id.split("/")
 
     if any(segment in TEST_DIRECTORIES for segment in directories):
+        return True
+
+    if in_dotnet_test_project(directories, basename):
         return True
 
     if TEST_BASENAME.match(basename):
@@ -38,6 +47,9 @@ def is_test_entry(module_id: str) -> bool:
         return True
 
     if basename.endswith(".kt") and any(segment in TEST_DIRECTORIES for segment in directories):
+        return True
+
+    if in_dotnet_test_project(directories, basename):
         return True
 
     stem = stem_of(basename)

@@ -78,5 +78,33 @@
   {
     "path": "deep/conftest.py",
     "test": true
+  },
+  {
+    "path": "Shop.Tests/Cart.cs",
+    "test": true
+  },
+  {
+    "path": "Shop.UnitTests/Cart.cs",
+    "test": true
+  },
+  {
+    "path": "Shop.Test/Cart.cs",
+    "test": true
+  },
+  {
+    "path": "IntegrationTests/Cart.cs",
+    "test": true
+  },
+  {
+    "path": "tests/CartTests.cs",
+    "test": true
+  },
+  {
+    "path": "Shop/Cart.cs",
+    "test": false
+  },
+  {
+    "path": "Shop.Tests/Cart.kt",
+    "test": false
   }
 ]
