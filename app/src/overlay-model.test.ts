@@ -1,6 +1,5 @@
-import { type Scan, SHIPPED_SENSOR_LIST } from "recognizer";
+import { buildFreshness, type Scan, SHIPPED_SENSOR_LIST } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { buildFreshness } from "./freshness";
 import {
   buildOverlayModel,
   currentMetricNamed,

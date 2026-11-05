@@ -1,6 +1,6 @@
 import {
+  buildFreshness,
   type Finding,
-  type FindingRecord,
   type FindingsDocument,
   findingsByModuleFrom,
   InputError,
@@ -10,10 +10,10 @@ import {
   parseBaseline,
   parsePolicy,
   ruleText,
+  splitFindings,
   type Violation,
   violationText,
 } from "recognizer";
-import { buildFreshness } from "./freshness";
 import type { Loaded } from "./scan-loading";
 import type { FolderNode, TreeNode } from "./tree-model";
 
@@ -83,28 +83,12 @@ export function computeHealth(
   const accepted = readBaseline(loaded.baseline ?? null, notices);
   const scans = loaded.scans.map(({ scan }) => scan);
   const freshness = buildFreshness(scans, loaded.tests ?? null);
-  const namedBy = (record: FindingRecord) => [
-    ...record.evidence.modules,
-    ...(record.evidence.members ?? []).map((member) => member.module),
-  ];
-  const currentRecord = (document: FindingsDocument, record: FindingRecord) => {
-    const named = namedBy(record);
-
-    return named.length === 0
-      ? freshness.valid(document)
-      : named.every((module) => freshness.current(document, module));
-  };
   const measured = new Set<string>();
   const shown: FindingsDocument[] = [];
   const hidden: FindingsDocument[] = [];
 
   for (const document of loaded.findings) {
-    const keep = document.findings.filter((record) =>
-      currentRecord(document, record),
-    );
-    const drop = document.findings.filter(
-      (record) => !currentRecord(document, record),
-    );
+    const { current: keep, hidden: drop } = splitFindings(document, freshness);
 
     shown.push({ ...document, findings: keep });
 

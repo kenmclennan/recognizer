@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Io } from "../src/cli.js";
 import type { FindingsDocument } from "../src/findings-document.js";
-import {
-  findingsFile,
-  readFindingsFiles,
-  withoutAbsentModules,
-} from "../src/findings-files.js";
+import { findingsFile, readFindingsFiles } from "../src/findings-files.js";
+import { buildFreshness } from "../src/result-freshness.js";
 import type { Scan } from "../src/scan.js";
 
 const ROOT = "/repo";
@@ -48,112 +45,129 @@ function ioHolding(value: FindingsDocument): Io {
   } as unknown as Io;
 }
 
-function statusOf(
+const H0 = "0".repeat(64);
+const H1 = "1".repeat(64);
+const H2 = "2".repeat(64);
+
+const SCAN = {
+  modules: [
+    { id: "pkg/a.py", kind: "module" },
+    { id: "pkg/b.py", kind: "module" },
+  ],
+  edges: [],
+  foreign: [],
+  files: [
+    { path: "pkg/a.py", hash: H1 },
+    { path: "pkg/b.py", hash: H2 },
+  ],
+} as unknown as Scan;
+
+function read(
   value: FindingsDocument,
-  state: { commit: string | null; modified: boolean },
   allowed: string[] | null = null,
-): string | undefined {
-  return readFindingsFiles(ioHolding(value), ROOT, state, [], allowed)[0]
-    ?.status;
+  tests: string | null = null,
+) {
+  return readFindingsFiles(
+    ioHolding(value),
+    ROOT,
+    () => buildFreshness([SCAN], tests),
+    [],
+    allowed,
+  )[0];
 }
 
-function scanOf(...ids: string[]): Scan {
-  return {
-    modules: ids.map((id) => ({ id, kind: "module" as const })),
-    edges: [],
-    foreign: [],
-  };
-}
-
-describe("readFindingsFiles against the current scan state", () => {
-  it("marks a dirty-run document stale once the tree is clean at the same commit", () => {
-    expect(
-      statusOf(document({ modified: true }), {
-        commit: "abc",
-        modified: false,
-      }),
-    ).toBe("stale");
-  });
-
-  it("reads a dirty-run document while the tree is still modified", () => {
-    expect(
-      statusOf(document({ modified: true }), { commit: "abc", modified: true }),
-    ).toBe("read");
-  });
-
-  it("reads a clean-run document at the current commit whatever the tree state", () => {
-    expect(statusOf(document(), { commit: "abc", modified: false })).toBe(
-      "read",
-    );
-    expect(statusOf(document(), { commit: "abc", modified: true })).toBe(
-      "read",
-    );
-  });
-
-  it("reads a reported document at the current commit even when it was recorded dirty", () => {
-    expect(
-      statusOf(
-        document({ modified: true, reported_at: "2026-11-04T00:00:00Z" }),
-        { commit: "abc", modified: false },
-        [],
-      ),
-    ).toBe("read");
-  });
-
-  it("marks a document at another commit stale", () => {
-    expect(statusOf(document(), { commit: "def", modified: false })).toBe(
-      "stale",
-    );
-  });
-});
-
-describe("withoutAbsentModules", () => {
+describe("readFindingsFiles judges per module", () => {
   const mixed = document({
-    modified: true,
-    findings: [
-      finding("present", ["pkg/a.py", "pkg/b.py"]),
-      finding("absent", ["pkg/a.py", "pkg/d.py"]),
-    ],
+    inputs: { "pkg/a.py": H1, "pkg/b.py": H0 },
+    findings: [finding("on-a", ["pkg/a.py"]), finding("on-b", ["pkg/b.py"])],
   });
 
-  it("drops the finding naming a module the scans lack and counts it", () => {
-    const result = withoutAbsentModules(mixed, [
-      scanOf("pkg/a.py", "pkg/b.py"),
-    ]);
+  it("reads a dirty-run document whose modules are all current", () => {
+    const outcome = read(
+      document({
+        modified: true,
+        inputs: { "pkg/a.py": H1 },
+        findings: [finding("on-a", ["pkg/a.py"])],
+      }),
+    );
 
-    expect(result.document.findings.map((f) => f.id)).toEqual(["present"]);
-    expect(result.dropped).toBe(1);
+    expect(outcome).toMatchObject({ status: "read", valid: true, hidden: [] });
   });
 
-  it("keeps every finding when all modules are present", () => {
-    const result = withoutAbsentModules(mixed, [
-      scanOf("pkg/a.py", "pkg/b.py"),
-      scanOf("pkg/d.py"),
-    ]);
+  it("reads a document from another commit when every module hash matches", () => {
+    const outcome = read(
+      document({
+        commit: "def",
+        inputs: { "pkg/a.py": H1, "pkg/b.py": H2 },
+        findings: mixed.findings,
+      }),
+    );
 
-    expect(result.document.findings).toHaveLength(2);
-    expect(result.dropped).toBe(0);
+    expect(outcome).toMatchObject({ status: "read", valid: true, hidden: [] });
+    expect(
+      outcome?.status === "read" && outcome.document.findings,
+    ).toHaveLength(2);
   });
 
-  it("returns a clean-run document unchanged", () => {
-    const clean = document({ findings: mixed.findings });
+  it("reads a reported document whose modules are current and keeps its reported mark", () => {
+    const outcome = read(
+      document({
+        modified: true,
+        reported_at: "2026-11-04T00:00:00Z",
+        inputs: { "pkg/a.py": H1 },
+        findings: [finding("on-a", ["pkg/a.py"])],
+      }),
+      [],
+    );
 
-    expect(withoutAbsentModules(clean, [scanOf("pkg/a.py")])).toEqual({
-      document: clean,
-      dropped: 0,
+    expect(outcome).toMatchObject({ status: "read", reported: true });
+  });
+
+  it("marks a document with no inputs stale", () => {
+    const outcome = read(document({ findings: mixed.findings }));
+
+    expect(outcome).toMatchObject({ status: "read", valid: false });
+    expect(
+      outcome?.status === "read" && outcome.document.findings,
+    ).toHaveLength(0);
+    expect(outcome?.status === "read" && outcome.hidden).toHaveLength(2);
+  });
+
+  it("keeps the current findings and lists the hidden ones in a valid document", () => {
+    const outcome = read(mixed);
+
+    expect(outcome?.status === "read" && outcome.valid).toBe(true);
+    expect(
+      outcome?.status === "read" && outcome.document.findings.map((f) => f.id),
+    ).toEqual(["on-a"]);
+    expect(
+      outcome?.status === "read" && outcome.hidden.map((f) => f.id),
+    ).toEqual(["on-b"]);
+  });
+
+  it("hides a finding naming a module the scans lack", () => {
+    const outcome = read(
+      document({
+        inputs: { "pkg/a.py": H1, "pkg/d.py": H1 },
+        findings: [finding("gone", ["pkg/a.py", "pkg/d.py"])],
+      }),
+    );
+
+    expect(outcome?.status === "read" && outcome.hidden).toHaveLength(1);
+  });
+
+  it("hides every finding when tests differ from the current tests hash", () => {
+    const value = document({
+      inputs: { "pkg/a.py": H1 },
+      tests: "a".repeat(64),
+      findings: [finding("on-a", ["pkg/a.py"])],
     });
-  });
 
-  it("returns a reported document unchanged", () => {
-    const reported = document({
-      modified: true,
-      reported_at: "2026-11-04T00:00:00Z",
-      findings: mixed.findings,
+    expect(read(value, null, "a".repeat(64))).toMatchObject({
+      valid: true,
+      hidden: [],
     });
-
-    expect(withoutAbsentModules(reported, [scanOf("pkg/a.py")])).toEqual({
-      document: reported,
-      dropped: 0,
-    });
+    expect(read(value, null, "b".repeat(64))).toMatchObject({ valid: false });
+    expect(read(value, null, null)).toMatchObject({ valid: false });
   });
 });

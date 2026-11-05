@@ -1,9 +1,13 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { buildFreshness, moduleOf } from "./freshness";
+import {
+  buildFreshness,
+  moduleOf,
+  splitFindings,
+} from "../src/result-freshness.js";
+import type { Scan } from "../src/scan.js";
 
 const H0 = "0".repeat(64);
 const H1 = "1".repeat(64);
@@ -146,5 +150,76 @@ describe("the committed sample scan", () => {
     expect(
       freshness.current({ inputs: { "app/rules.py": H1 } }, "app/rules.py"),
     ).toBe(false);
+  });
+});
+
+describe("splitFindings", () => {
+  function record(id: string, modules: string[]) {
+    return {
+      id,
+      kind: "x",
+      severity: "warning" as const,
+      principle: "p",
+      summary: id,
+      evidence: { modules },
+    };
+  }
+
+  const findings = [
+    record("a", ["a.py"]),
+    record("b", ["b.py"]),
+    record("ab", ["a.py", "b.py"]),
+    record("none", []),
+  ];
+
+  function documentOf(overrides: Record<string, unknown>) {
+    return {
+      findings_version: 2,
+      sensor: { name: "s", version: "1" },
+      commit: "c",
+      modified: false,
+      settings: {},
+      findings,
+      ...overrides,
+    } as unknown as import("../src/findings-document.js").FindingsDocument;
+  }
+
+  const ids = (records: { id: string }[]) => records.map((one) => one.id);
+
+  it("splits current from hidden by the modules each finding names", () => {
+    const split = splitFindings(
+      documentOf({ inputs: { "a.py": H1, "b.py": H0 }, tests: T }),
+      buildFreshness([SCAN], T),
+    );
+
+    expect(ids(split.current)).toEqual(["a", "none"]);
+    expect(ids(split.hidden)).toEqual(["b", "ab"]);
+  });
+
+  it("hides every finding when the tests hash differs", () => {
+    const split = splitFindings(
+      documentOf({ inputs: { "a.py": H1, "b.py": H0 }, tests: T }),
+      buildFreshness([SCAN], T2),
+    );
+
+    expect(split.current).toEqual([]);
+    expect(split.hidden).toHaveLength(4);
+  });
+
+  it("hides every finding when the document has no inputs", () => {
+    const split = splitFindings(documentOf({}), buildFreshness([SCAN], T));
+
+    expect(split.current).toEqual([]);
+    expect(split.hidden).toHaveLength(4);
+  });
+
+  it("hides nothing when every input matches", () => {
+    const split = splitFindings(
+      documentOf({ inputs: { "a.py": H1, "b.py": H2 }, tests: T }),
+      buildFreshness([SCAN], T),
+    );
+
+    expect(split.hidden).toEqual([]);
+    expect(split.current).toHaveLength(4);
   });
 });

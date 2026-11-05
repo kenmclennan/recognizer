@@ -1,6 +1,5 @@
-import { type Overlay, validateOverlay } from "recognizer";
+import { type Freshness, type Overlay, validateOverlay } from "recognizer";
 import { ageText } from "./footer-scan";
-import type { Freshness } from "./freshness";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type OverlayFileInput = {

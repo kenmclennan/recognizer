@@ -362,3 +362,34 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     requests,
   };
 }
+
+export const EMPTY_HASH = createHash("sha256").update("").digest("hex");
+
+export function hashedScan(
+  scan: Record<string, unknown>,
+  commit: string,
+): Record<string, unknown> {
+  const modules = scan.modules as { id: string }[];
+
+  return {
+    ...scan,
+    commit,
+    modified: false,
+    files: modules.map((module) => ({ path: module.id, hash: EMPTY_HASH })),
+  };
+}
+
+export function mountedModules(scan: Record<string, unknown>) {
+  return Object.fromEntries(
+    (scan.modules as { id: string }[]).map((module) => [
+      `${ROOT}/${module.id}`,
+      "",
+    ]),
+  );
+}
+
+export function inputsOf(scan: Record<string, unknown>) {
+  return Object.fromEntries(
+    (scan.modules as { id: string }[]).map((module) => [module.id, EMPTY_HASH]),
+  );
+}

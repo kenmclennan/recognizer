@@ -8,8 +8,8 @@ import {
 } from "./findings-document.js";
 import {
   findingsFile,
+  type ReadOutcome,
   readFindingsFiles,
-  withoutAbsentModules,
   writeFindings,
 } from "./findings-files.js";
 import { type Policy, parsePolicy } from "./policy.js";
@@ -20,6 +20,7 @@ import {
   type StructureSettings,
   structureSensor,
 } from "./structure-sensor.js";
+import { freshnessFor } from "./tests-hash.js";
 
 export function readPolicy(io: Io, root: string): Policy | null {
   const file = join(root, ".recognizer", "policy.yaml");
@@ -61,6 +62,23 @@ function storedStructure(
       : null;
   } catch {
     return null;
+  }
+}
+
+function noteOutOfDate(
+  io: Io,
+  outcome: Extract<ReadOutcome, { status: "read" }>,
+): void {
+  if (!outcome.valid) {
+    io.stderr(
+      outcome.reported
+        ? `stale ${outcome.name} (reported at ${outcome.document.commit.slice(0, 7)})\n`
+        : `stale ${outcome.name}\n`,
+    );
+  } else if (outcome.hidden.length > 0) {
+    io.stderr(
+      `out of date ${outcome.name}: ${outcome.hidden.length} findings\n`,
+    );
   }
 }
 
@@ -109,31 +127,15 @@ export function loadFindings(
   for (const outcome of readFindingsFiles(
     io,
     root,
-    { commit, modified },
+    freshnessFor(io, root, scans),
     ["structure"],
     registered,
   )) {
     if (outcome.status === "unregistered") {
       io.stderr(`ignored unregistered ${outcome.name}\n`);
     } else if (outcome.status === "read") {
-      const { document, dropped } = withoutAbsentModules(
-        outcome.document,
-        scans,
-      );
-
-      if (dropped > 0) {
-        io.stderr(
-          `dropped ${dropped} ${outcome.name} findings naming modules not in the scan\n`,
-        );
-      }
-
-      documents.push(document);
-    } else if (outcome.status === "stale") {
-      io.stderr(
-        outcome.reported
-          ? `stale ${outcome.name} (reported at ${outcome.document.commit.slice(0, 7)})\n`
-          : `stale ${outcome.name}\n`,
-      );
+      documents.push(outcome.document);
+      noteOutOfDate(io, outcome);
     } else {
       io.stderr(`invalid ${outcome.name}: ${outcome.reason}\n`);
     }

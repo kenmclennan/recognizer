@@ -23,6 +23,15 @@ export function isTestFile(id: string): boolean {
     return true;
   }
 
+  if (
+    basename.endsWith(".cs") &&
+    segments
+      .slice(0, -1)
+      .some((segment) => segment.endsWith("Test") || segment.endsWith("Tests"))
+  ) {
+    return true;
+  }
+
   if (TEST_BASENAME.test(basename)) {
     return true;
   }

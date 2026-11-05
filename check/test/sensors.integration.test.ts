@@ -243,7 +243,7 @@ describe.skipIf(!HAS_UV)(
           ),
         ).toBeLessThan(2);
         expect(captured.out()).not.toContain("pricing_copy.py");
-        expect(captured.err()).toContain("stale duplication");
+        expect(captured.err()).toContain("out of date duplication");
       },
       scaledTimeout(180_000),
     );
