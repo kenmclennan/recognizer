@@ -213,42 +213,35 @@ def test_incremental_false_still_carries(two_modules, tmp_path):
     assert read(root, OVERLAY)["values"]["killed"].keys() == full["values"]["killed"].keys()
 
 
-def test_a_test_change_voids_in_scope_reuse_but_not_carried_entries(two_modules, tmp_path, capsys):
+def test_a_test_change_reruns_only_the_affected_sites_in_and_out_of_scope(
+    two_modules, tmp_path, capsys
+):
     root, commit, script, _ = two_modules
     settings = settings_for(script)
 
     assert mutate(root, tmp_path, settings) == 0
 
     full = read(root, OVERLAY)
-    strong = root / "tests" / "strong.py"
-    strong.write_text(strong.read_text() + "\n")
+    (root / "conftest.py").write_text("x = 1\n")
     capsys.readouterr()
 
     assert mutate(root, tmp_path, settings, ["app/second.py"]) == 0
 
     err = capsys.readouterr().err
+    scoped = read(root, OVERLAY)
 
-    assert "test files changed" in err
-    assert "3 functions carried" in err
-    assert read(root, OVERLAY)["values"]["killed"].keys() == full["values"]["killed"].keys()
+    assert "test files changed" not in err
+    assert "1 functions carried from the record, 2 outside the scope have no result" in err
+    assert set(scoped["values"]["killed"]) == {
+        "app/rules.py::total",
+        "app/second.py::double",
+        "app/second.py::offset",
+    }
+    assert (
+        scoped["values"]["killed"]["app/second.py::double"]
+        == (full["values"]["killed"]["app/second.py::double"])
+    )
     assert read(root, RECORD)["commit"] == commit
-
-
-def test_the_record_keeps_the_older_commit_after_a_carry(two_modules, tmp_path):
-    root, commit, script, _ = two_modules
-    settings = settings_for(script)
-
-    assert mutate(root, tmp_path, settings) == 0
-
-    (root / "notes.txt").write_text("x")
-    git_run(root, "add", "notes.txt")
-    git_run(root, "commit", "-q", "-m", "y")
-
-    assert mutate(root, tmp_path, settings, ["app/second.py"]) == 0
-    assert read(root, RECORD)["commit"] == commit
-
-    assert mutate(root, tmp_path, settings) == 0
-    assert read(root, RECORD)["commit"] != commit
 
 
 def test_a_scope_given_to_another_sensor_is_exit_2(two_modules, tmp_path, capsys):
@@ -294,7 +287,7 @@ def test_a_malformed_scope_file_is_exit_2(two_modules, tmp_path, text):
     assert code == 2
 
 
-def test_a_scoped_run_leaves_a_fully_carried_module_out_of_inputs(two_modules, tmp_path):
+def test_a_scoped_run_keeps_a_carried_module_in_inputs(two_modules, tmp_path):
     root, _, script, _ = two_modules
     settings = settings_for(script)
 
@@ -310,5 +303,5 @@ def test_a_scoped_run_leaves_a_fully_carried_module_out_of_inputs(two_modules, t
 
     scoped = read(root, OVERLAY)
 
-    assert sorted(scoped["inputs"]) == ["app/second.py"]
+    assert sorted(scoped["inputs"]) == ["app/rules.py", "app/second.py"]
     assert scoped["tests"] == full["tests"]

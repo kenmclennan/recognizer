@@ -35,7 +35,7 @@ PROFILES = {
         "coverage_command": ["sh", "-c", PYTHON_COVERAGE],
         "report": ".recognizer/cache/coverage/python.lcov",
         "format": "lcov",
-        "test_command": ["{runner}", "pytest"],
+        "test_command": ["{runner}", "pytest", "-rfE"],
     },
     "typescript": {
         "coverage_command": [
@@ -138,7 +138,7 @@ def mutant_command(repository: Path, language: str) -> list[str]:
 
 def selected_command(repository: Path, language: str, files: set[str] | frozenset[str]):
     if language == "python":
-        prefix = [*python_runner(repository), "pytest"]
+        prefix = [*python_runner(repository), "pytest", "-rfE"]
     elif language == "typescript":
         prefix = ["npm", "test", "--"]
     else:
