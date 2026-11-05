@@ -11,6 +11,7 @@ from recognizer_sensors.findings import (
     render,
     write_atomically,
 )
+from recognizer_sensors.hashes import inputs_map, scan_hashes
 from recognizer_sensors.mutation.runner import STOPPED_STATUS
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
@@ -150,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         write_atomically(render(document), path)
 
+    inputs = inputs_map(outcome.inputs, scan_hashes(scans))
+
     document = build_document(
         args.name,
         package_version,
@@ -161,11 +164,15 @@ def main(argv: list[str] | None = None) -> int:
         {"measured": outcome.measured, "total": outcome.total}
         if outcome.total > outcome.measured
         else None,
+        inputs,
+        outcome.tests,
     )
     text = render(document)
 
     if outcome.overlay is not None:
-        overlay = build_overlay(args.name, package_version, commit, modified, outcome.overlay)
+        overlay = build_overlay(
+            args.name, package_version, commit, modified, outcome.overlay, inputs, outcome.tests
+        )
         outcome.overlay.path.parent.mkdir(parents=True, exist_ok=True)
         write_atomically(render(overlay), outcome.overlay.path)
 

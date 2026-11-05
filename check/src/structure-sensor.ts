@@ -7,7 +7,7 @@ import { type FolderMetrics, measureFolders } from "./folder-metrics.js";
 import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { collectViolations } from "./rules.js";
-import type { Scan } from "./scan.js";
+import type { RecordedScan, Scan } from "./scan.js";
 import {
   folderCycleFindings,
   orphanFindings,
@@ -164,6 +164,31 @@ function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
   };
 }
 
+export function measuredInputs(scans: Scan[]): Record<string, string> {
+  const inputs: Record<string, string> = {};
+
+  for (const scan of scans) {
+    const hashes = new Map(
+      ((scan as Partial<RecordedScan>).files ?? []).map((file) => [
+        file.path,
+        file.hash,
+      ]),
+    );
+
+    for (const module of scan.modules) {
+      const hash = hashes.get(module.id);
+
+      if (hash !== undefined) {
+        inputs[module.id] = hash;
+      }
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(inputs).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
+}
+
 export function structureSensor(
   scans: Scan[],
   policy: Policy | null,
@@ -273,7 +298,7 @@ export function structureSensor(
 
   return {
     document: {
-      findings_version: 1,
+      findings_version: 2,
       sensor: { name: "structure", version: STRUCTURE_SENSOR_VERSION },
       commit: context.commit,
       modified: context.modified,
@@ -293,6 +318,7 @@ export function structureSensor(
         },
       },
       findings: [...findings, ...warnings],
+      inputs: measuredInputs(scans),
     },
     metrics,
     folder_metrics: folders.rows,

@@ -224,7 +224,7 @@ def test_a_boolean_value_is_skipped(tmp_path):
 def test_unreadable_and_wrong_shape_overlays_are_skipped(tmp_path, capsys):
     root, commit = repository(tmp_path)
     install(root, "a-bad.json", "not json")
-    install(root, "b-shape.json", {"overlay_version": 2})
+    install(root, "b-shape.json", {"overlay_version": 3})
     install(root, "c-good.json", overlay(commit, {"complexity": {"a.py": 12}}))
 
     code, document = sense(root, tmp_path)
@@ -372,3 +372,84 @@ def test_a_function_absent_from_the_overlay_is_not_judged(tmp_path):
     _, document = sense(root, tmp_path)
 
     assert [f["id"] for f in document["findings"]] == ["thresholds:complexity:b.py"]
+
+
+def thresholds_repo(tmp_path, **extra):
+    root, commit = repository(tmp_path)
+    (root / "tests").mkdir()
+    (root / "tests" / "test_a.py").write_text("def test_a():\n    pass\n")
+    install(
+        root,
+        "tool.json",
+        overlay(commit, {"complexity": {"a.py::f": 99, "ghost.py::g": 99}}, **extra),
+    )
+
+    return root
+
+
+def current_tests(root):
+    from recognizer_sensors.hashes import tests_hash
+
+    return tests_hash(root, [])
+
+
+def test_inputs_hold_only_the_modules_that_resolved(tmp_path, capsys):
+    root = thresholds_repo(tmp_path)
+
+    code, document = sense(root, tmp_path)
+
+    assert code == 0
+    assert document["findings_version"] == 2
+    assert list(document["inputs"]) == ["a.py"]
+    assert "tests" not in document
+
+
+def test_an_overlay_with_matching_tests_is_kept_and_its_tests_hash_is_written(tmp_path):
+    root = thresholds_repo(tmp_path)
+    tests = current_tests(root)
+    commit = json.loads((root / OVERLAYS / "tool.json").read_text())["commit"]
+    install(
+        root,
+        "tool.json",
+        overlay(commit, {"complexity": {"a.py::f": 99}}, inputs={}, tests=tests),
+    )
+
+    code, document = sense(root, tmp_path)
+
+    assert code == 0
+    assert len(document["findings"]) == 1
+    assert document["tests"] == tests
+
+
+def test_an_overlay_with_different_tests_is_skipped_and_named_on_stderr(tmp_path, capsys):
+    root = thresholds_repo(tmp_path, inputs={}, tests="e" * 64)
+
+    code, document = sense(root, tmp_path)
+
+    assert code == 0
+    assert document["findings"] == []
+    assert "tool.json" in capsys.readouterr().err
+    assert "tests" not in document
+
+
+def test_an_overlay_with_no_tests_is_never_skipped_on_that_ground(tmp_path):
+    root = thresholds_repo(tmp_path)
+
+    code, document = sense(root, tmp_path)
+
+    assert code == 0
+    assert len(document["findings"]) == 1
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_a_version_one_and_a_version_two_overlay_both_produce_findings(tmp_path, version):
+    root = thresholds_repo(tmp_path, inputs={})
+    path = root / OVERLAYS / "tool.json"
+    document = json.loads(path.read_text())
+    document["overlay_version"] = version
+    path.write_text(json.dumps(document))
+
+    code, result = sense(root, tmp_path)
+
+    assert code == 0
+    assert len(result["findings"]) == 1

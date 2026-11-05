@@ -32,7 +32,7 @@ export interface FindingRecord {
 }
 
 export interface FindingsDocument {
-  findings_version: 1;
+  findings_version: 1 | 2;
   sensor: { name: string; version: string };
   commit: string;
   modified: boolean;
@@ -41,6 +41,8 @@ export interface FindingsDocument {
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
   findings: FindingRecord[];
+  inputs?: Record<string, string>;
+  tests?: string;
 }
 
 export interface ExpectedSensor {

@@ -8,12 +8,14 @@ export interface MetricDeclaration {
 }
 
 export interface Overlay {
-  overlay_version: 1;
+  overlay_version: 1 | 2;
   commit: string;
   modified: boolean;
   producer: { name: string; version: string };
   metrics: MetricDeclaration[];
   values: Record<string, Record<string, number | boolean>>;
+  inputs?: Record<string, string>;
+  tests?: string;
 }
 
 export interface Expected {

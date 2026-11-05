@@ -15,15 +15,21 @@ def build_document(
     findings: list[dict],
     stopped: dict | None = None,
     partial: dict | None = None,
+    inputs: dict[str, str] | None = None,
+    tests: str | None = None,
 ) -> dict:
     document = {
-        "findings_version": 1,
+        "findings_version": 2,
         "sensor": {"name": name, "version": version},
         "commit": commit,
         "modified": modified,
         "settings": settings,
         "findings": sorted(findings, key=lambda finding: finding["id"]),
+        "inputs": inputs or {},
     }
+
+    if tests is not None:
+        document["tests"] = tests
 
     if stopped is not None:
         document["stopped"] = stopped
@@ -34,9 +40,17 @@ def build_document(
     return document
 
 
-def build_overlay(name: str, version: str, commit: str, modified: bool, overlay: Overlay) -> dict:
-    return {
-        "overlay_version": 1,
+def build_overlay(
+    name: str,
+    version: str,
+    commit: str,
+    modified: bool,
+    overlay: Overlay,
+    inputs: dict[str, str] | None = None,
+    tests: str | None = None,
+) -> dict:
+    document = {
+        "overlay_version": 2,
         "commit": commit,
         "modified": modified,
         "producer": {"name": name, "version": version},
@@ -44,7 +58,13 @@ def build_overlay(name: str, version: str, commit: str, modified: bool, overlay:
         "values": {
             metric: dict(sorted(entries.items())) for metric, entries in overlay.values.items()
         },
+        "inputs": inputs or {},
     }
+
+    if tests is not None:
+        document["tests"] = tests
+
+    return document
 
 
 def render(document: dict) -> str:
