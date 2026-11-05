@@ -1,5 +1,6 @@
 import { InputError } from "./errors.js";
 import type { PhaseName } from "./run-log.js";
+import type { SensorProgress } from "./sensor-progress.js";
 import { shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
@@ -277,6 +278,14 @@ export function phaseLine(
 
 export function startLine(phase: PhaseName, name: string): string {
   return `${JSON.stringify({ event: "start", phase, name })}\n`;
+}
+
+export function progressLine(
+  phase: PhaseName,
+  name: string,
+  progress: SensorProgress,
+): string {
+  return `${JSON.stringify({ event: "progress", phase, name, ...progress })}\n`;
 }
 
 export function entryLine(phase: PhaseName, entry: EventEntry): string {

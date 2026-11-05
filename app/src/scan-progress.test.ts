@@ -226,3 +226,90 @@ describe("the start event", () => {
     ).toBe(NO_PROGRESS);
   });
 });
+
+describe("sensor progress", () => {
+  const rows = [
+    { key: "crap", display: "Crap" },
+    { key: "mutation", display: "Mutation" },
+  ];
+  const coverage = {
+    event: "progress",
+    phase: "sense",
+    name: "mutation",
+    step: "coverage",
+  };
+  const mutants = (done: number, total: number) => ({
+    event: "progress",
+    phase: "sense",
+    name: "mutation",
+    step: "mutants",
+    done,
+    total,
+  });
+  const start = (name: string) => ({ event: "start", phase: "sense", name });
+  const running = fold([
+    extractCurrent,
+    phase("sense", 2),
+    entry("crap", "sense"),
+    start("mutation"),
+  ]);
+
+  it("parses both shapes", () => {
+    expect(parseScanLine(JSON.stringify(coverage))).toEqual(coverage);
+    expect(parseScanLine(JSON.stringify(mutants(153, 229)))).toEqual(
+      mutants(153, 229),
+    );
+    expect(parseScanLine(JSON.stringify(mutants(0, 0)))).toEqual(mutants(0, 0));
+  });
+
+  it("rejects done above total, a negative or fractional count and a missing done", () => {
+    expect(parseScanLine(JSON.stringify(mutants(3, 2)))).toBeNull();
+    expect(parseScanLine(JSON.stringify(mutants(-1, 2)))).toBeNull();
+    expect(parseScanLine(JSON.stringify(mutants(1.5, 2)))).toBeNull();
+    expect(
+      parseScanLine(JSON.stringify({ ...coverage, step: "mutants" })),
+    ).toBeNull();
+    expect(
+      parseScanLine(JSON.stringify({ ...coverage, step: "later" })),
+    ).toBeNull();
+    expect(
+      parseScanLine(JSON.stringify({ ...coverage, phase: "describe" })),
+    ).toBeNull();
+  });
+
+  it("is stored on a progress line and cleared on the next start and on a sense entry", () => {
+    const stored = fold([mutants(1, 2)], running);
+
+    expect(stored.sensorProgress).toEqual({
+      name: "mutation",
+      step: "mutants",
+      done: 1,
+      total: 2,
+    });
+    expect(fold([start("other")], stored).sensorProgress).toBeNull();
+    expect(
+      fold([entry("mutation", "sense")], stored).sensorProgress,
+    ).toBeNull();
+  });
+
+  it("shows measuring coverage, then the function count, with no estimate", () => {
+    expect(scanningText(rows, "mutation", running)).toBe(
+      "Running Mutation\u2026 2 of 2",
+    );
+    expect(scanningText(rows, "mutation", fold([coverage], running))).toBe(
+      "Mutation: measuring coverage",
+    );
+    expect(
+      scanningText(rows, "mutation", fold([mutants(153, 229)], running)),
+    ).toBe("Mutation: 153 of 229 functions");
+    expect(
+      scanningText(rows, "mutation", fold([mutants(229, 229)], running)),
+    ).toBe("Mutation: 229 of 229 functions");
+  });
+
+  it("ignores another sensor's stored progress", () => {
+    expect(scanningText(rows, "crap", fold([coverage], running))).toBe(
+      "Running Crap\u2026 1 of 2",
+    );
+  });
+});

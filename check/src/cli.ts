@@ -57,6 +57,8 @@ export interface RunResult {
 export interface RunOptions {
   cwd?: string;
   timeoutMs?: number;
+  env?: Record<string, string>;
+  onStderrLine?: (line: string) => void;
 }
 
 export interface Running {
@@ -145,13 +147,33 @@ function spawnAsync(
     child = spawn(command, args, {
       cwd: options?.cwd,
       stdio: ["ignore", "pipe", "pipe"],
+      ...(options?.env === undefined
+        ? {}
+        : { env: { ...process.env, ...options.env } }),
     });
     liveChildren.add(child);
 
     let stdout = "";
     let stderr = "";
+    let pending = "";
     let timedOut = false;
     let settled = false;
+
+    const deliver = (chunk: string) => {
+      if (options?.onStderrLine === undefined) {
+        return;
+      }
+
+      pending += chunk;
+
+      const lines = pending.split("\n");
+
+      pending = lines.pop() ?? "";
+
+      for (const line of lines) {
+        options.onStderrLine(line);
+      }
+    };
 
     const settle = (value: RunResult) => {
       if (settled) {
@@ -171,6 +193,7 @@ function spawnAsync(
     });
     child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
+      deliver(chunk);
     });
     child.on("error", (error: NodeJS.ErrnoException) => {
       settle({
@@ -181,6 +204,11 @@ function spawnAsync(
       });
     });
     child.on("close", (status, signal) => {
+      if (pending !== "") {
+        options?.onStderrLine?.(pending);
+        pending = "";
+      }
+
       settle({
         started: true,
         status: status ?? (signal === null ? null : 128),

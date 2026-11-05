@@ -1356,3 +1356,98 @@ def test_a_long_run_checkpoints_its_record_only_once_the_interval_has_passed(tmp
     records = record_after_each_function(tmp_path, monkeypatch, [0, interval, 0])
 
     assert records == [None, None, [ALPHA, BETA]]
+
+
+def progress_lines(capsys):
+    return [
+        json.loads(line.removeprefix("recognizer-progress "))
+        for line in capsys.readouterr().err.splitlines()
+        if line.startswith("recognizer-progress ")
+    ]
+
+
+def test_progress_is_quiet_unless_the_switch_is_one(tmp_path, counting, capsys, monkeypatch):
+    settings, _ = counting
+    root, _ = mutate_repository(tmp_path)
+
+    monkeypatch.delenv("RECOGNIZER_PROGRESS", raising=False)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1)) == 0
+    assert "recognizer-progress" not in capsys.readouterr().err
+
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "0")
+
+    assert (
+        run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1, incremental=False)) == 0
+    )
+    assert "recognizer-progress" not in capsys.readouterr().err
+
+
+def test_progress_reports_coverage_then_functions_rising_to_the_total(
+    tmp_path, counting, capsys, monkeypatch
+):
+    settings, _ = counting
+    root, _ = mutate_repository(tmp_path)
+
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1)) == 0
+
+    lines = progress_lines(capsys)
+    mutants = lines[1:]
+
+    assert lines[0] == {"step": "coverage"}
+    assert [line["step"] for line in mutants] == ["mutants"] * len(mutants)
+    assert mutants[0]["done"] == 0
+    assert mutants[-1]["done"] == mutants[-1]["total"]
+    assert [line["done"] for line in mutants] == sorted(line["done"] for line in mutants)
+    assert {line["total"] for line in mutants} == {mutants[0]["total"]}
+
+
+def test_an_unchanged_rerun_prints_one_mutants_line_with_every_function_done(
+    tmp_path, counting, capsys, monkeypatch
+):
+    settings, _ = counting
+    root, _, output, _ = first_run(tmp_path, counting, capsys)
+
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+
+    assert run_mutate(root, output, settings(max_workers=1)) == 0
+    assert progress_lines(capsys) == [
+        {"step": "coverage"},
+        {"step": "mutants", "done": 3, "total": 3},
+    ]
+
+
+def test_reused_functions_count_as_done_from_the_first_line(
+    tmp_path, counting, capsys, monkeypatch
+):
+    settings, _ = counting
+    root, _, output, _ = first_run(tmp_path, counting, capsys)
+    rules = root / "app" / "rules.py"
+    rules.write_text(rules.read_text().replace("return a and b", "return b and a"))
+
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+
+    assert run_mutate(root, output, settings(max_workers=1)) == 0
+    assert progress_lines(capsys) == [
+        {"step": "coverage"},
+        {"step": "mutants", "done": 2, "total": 3},
+        {"step": "mutants", "done": 3, "total": 3},
+    ]
+
+
+def test_a_run_cut_by_the_budget_ends_short_of_the_total(tmp_path, counting, capsys, monkeypatch):
+    settings, _ = counting
+    root, _ = mutate_repository(tmp_path)
+    ticks = iter([0.0, 0.0])
+
+    monkeypatch.setattr(sensor, "CLOCK", lambda: next(ticks, 1000.0))
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1, max_minutes=1)) == 0
+
+    mutants = progress_lines(capsys)[1:]
+
+    assert mutants[0]["done"] == 0
+    assert mutants[-1]["done"] < mutants[-1]["total"]

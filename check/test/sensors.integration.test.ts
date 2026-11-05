@@ -516,3 +516,123 @@ describe.skipIf(!HAS_UV)(
     });
   },
 );
+
+describe.skipIf(!HAS_UV)(
+  "recognizer scan --json --sense mutation reports progress (needs uv)",
+  () => {
+    const saved: Record<string, string | undefined> = {};
+    let savedPath: string | undefined;
+    let repository: string;
+
+    beforeEach(() => {
+      saved.RECOGNIZER_SCAN_PYTHON = process.env.RECOGNIZER_SCAN_PYTHON;
+      savedPath = process.env.PATH;
+
+      const launchers = makeTempDir("recognizer-launchers-");
+
+      repository = makeTempDir("recognizer-mutation-repo-");
+      cpSync(join(REPO, "fixtures/mutation/sample"), repository, {
+        recursive: true,
+      });
+      rmSync(join(repository, "scan.python.json"), { force: true });
+      mkdirSync(join(repository, ".recognizer"), { recursive: true });
+      writeFileSync(
+        join(repository, ".recognizer/config.yaml"),
+        "sensors:\n  mutation: {test_command: [python3, tests/strong.py], coverage: coverage/lcov.info, max_workers: 1}\n",
+      );
+      process.env.RECOGNIZER_SCAN_PYTHON = launcher(
+        launchers,
+        "python.sh",
+        `exec uv run --quiet --project ${REPO}/scanners/python recognizer-scan-python "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sensors",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
+      );
+      process.env.PATH = `${launchers}:${savedPath}`;
+
+      const git = (...args: string[]) =>
+        spawnSync("git", ["-C", repository, ...args], {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            GIT_AUTHOR_NAME: "t",
+            GIT_AUTHOR_EMAIL: "t@example.com",
+            GIT_COMMITTER_NAME: "t",
+            GIT_COMMITTER_EMAIL: "t@example.com",
+          },
+        });
+
+      git("init", "-q");
+      git("add", "-A");
+      git("commit", "-q", "-m", "init");
+    });
+
+    afterEach(() => {
+      if (saved.RECOGNIZER_SCAN_PYTHON === undefined) {
+        delete process.env.RECOGNIZER_SCAN_PYTHON;
+      } else {
+        process.env.RECOGNIZER_SCAN_PYTHON = saved.RECOGNIZER_SCAN_PYTHON;
+      }
+
+      process.env.PATH = savedPath;
+    });
+
+    it(
+      "writes a coverage line then mutants lines ending with every function done",
+      async () => {
+        const captured = capture();
+
+        expect(
+          await run(
+            ["scan", repository, "--sense", "mutation", "--json"],
+            captured.io,
+          ),
+        ).toBe(0);
+
+        const events = captured
+          .out()
+          .split("\n")
+          .filter((line) => line !== "")
+          .map((line) => JSON.parse(line));
+        const names = events.map((event) => event.event);
+        const progress = events.filter((event) => event.event === "progress");
+
+        expect(names.indexOf("start")).toBeLessThan(names.indexOf("progress"));
+        expect(names.lastIndexOf("progress")).toBeLessThan(
+          names.indexOf("entry", names.indexOf("start")),
+        );
+        expect(progress[0]).toEqual({
+          event: "progress",
+          phase: "sense",
+          name: "mutation",
+          step: "coverage",
+        });
+
+        const mutants = progress.slice(1);
+        const overlay = JSON.parse(
+          readFileSync(
+            join(repository, ".recognizer/cache/overlays/mutation.json"),
+            "utf8",
+          ),
+        );
+        const mutated = Object.keys(overlay.values.killed).filter(
+          (identity) =>
+            overlay.values.killed[identity] +
+              (overlay.values.survived[identity] ?? 0) >
+            0,
+        ).length;
+
+        expect(mutants.length).toBeGreaterThan(0);
+        expect(mutants.every((event) => event.step === "mutants")).toBe(true);
+        expect(mutants.at(-1)).toMatchObject({
+          done: mutated,
+          total: mutated,
+        });
+        expect(captured.out()).not.toContain("recognizer-progress");
+      },
+      scaledTimeout(240_000),
+    );
+  },
+);

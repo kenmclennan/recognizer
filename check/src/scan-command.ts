@@ -23,7 +23,7 @@ import {
   type RunPhase,
   requireBy,
 } from "./run-log.js";
-import { runSensors } from "./run-sensors.js";
+import { type RunSensorsInput, runSensors } from "./run-sensors.js";
 import {
   type RecordedScan,
   SCAN_SCHEMA_VERSION,
@@ -38,6 +38,7 @@ import {
   parseModuleScope,
   parseScanArgs,
   phaseLine,
+  progressLine,
   selectSensors,
   startLine,
   summaryLine,
@@ -49,6 +50,7 @@ import {
   SCANNERS,
   scannerFor,
 } from "./scanners.js";
+import type { SensorProgress } from "./sensor-progress.js";
 import { isScoped, runsTests, shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
@@ -295,10 +297,14 @@ function readModulesFile(io: Io, file: string): string {
   }
 }
 
+type ScanStep =
+  | { kind: "describe"; input: DescribeInput }
+  | { kind: "sense"; input: RunSensorsInput };
+
 function* scanFlow(
   argv: string[],
   io: Io,
-): Generator<DescribeInput, number, DescribeResult> {
+): Generator<ScanStep, number, DescribeResult | undefined> {
   const options = parseScanArgs(argv);
 
   requireBy(options.by);
@@ -493,30 +499,33 @@ function* scanFlow(
     }
 
     const { model, batch_size: batchSize } = readDescribing(io);
-    const result = yield {
-      io,
-      root,
-      scans,
-      describer,
-      model,
-      batchSize,
-      selection: {
-        kind: options.describe === "all" ? "all" : "stale",
-        ...(scope === undefined ? {} : { within: scope }),
-      },
-      onStart: (total) => {
-        if (json) {
-          io.stdout(phaseLine("describe", { total }));
-        }
-      },
-      onEntry: (entry) => {
-        finishEntry(phase, entry);
+    const result = (yield {
+      kind: "describe",
+      input: {
+        io,
+        root,
+        scans,
+        describer,
+        model,
+        batchSize,
+        selection: {
+          kind: options.describe === "all" ? "all" : "stale",
+          ...(scope === undefined ? {} : { within: scope }),
+        },
+        onStart: (total) => {
+          if (json) {
+            io.stdout(phaseLine("describe", { total }));
+          }
+        },
+        onEntry: (entry) => {
+          finishEntry(phase, entry);
 
-        if (!json && entry.outcome === "ok") {
-          io.stdout(`described ${entry.name}\n`);
-        }
+          if (!json && entry.outcome === "ok") {
+            io.stdout(`described ${entry.name}\n`);
+          }
+        },
       },
-    };
+    }) as DescribeResult;
 
     if (!json) {
       io.stdout(describeSummaryText(result));
@@ -530,33 +539,43 @@ function* scanFlow(
       io.stdout(phaseLine("sense", { total: selected.length }));
     }
 
-    runSensors({
-      io,
-      root,
-      selected: selected.map((one) => ({
-        ...one,
-        command:
-          options.modules !== undefined && isScoped(one.command)
-            ? [...one.command, "--modules", resolve(options.modules)]
-            : one.command,
-        runsTests: runsTests(one.command),
-      })),
-      commit,
-      onStart: (name) => {
-        if (json) {
-          io.stdout(startLine("sense", name));
-        }
-      },
-      onEntry: (entry) => {
-        finishEntry(phase, entry);
+    yield {
+      kind: "sense",
+      input: {
+        io,
+        root,
+        selected: selected.map((one) => ({
+          ...one,
+          command:
+            options.modules !== undefined && isScoped(one.command)
+              ? [...one.command, "--modules", resolve(options.modules)]
+              : one.command,
+          runsTests: runsTests(one.command),
+        })),
+        commit,
+        onStart: (name) => {
+          if (json) {
+            io.stdout(startLine("sense", name));
+          }
+        },
+        ...(json
+          ? {
+              onProgress: (name: string, progress: SensorProgress) => {
+                io.stdout(progressLine("sense", name, progress));
+              },
+            }
+          : {}),
+        onEntry: (entry) => {
+          finishEntry(phase, entry);
 
-        if (!json) {
-          io.stdout(
-            `${entry.outcome === "ok" ? "ran" : "failed"} ${entry.name}\n`,
-          );
-        }
+          if (!json) {
+            io.stdout(
+              `${entry.outcome === "ok" ? "ran" : "failed"} ${entry.name}\n`,
+            );
+          }
+        },
       },
-    });
+    };
   }
 
   runLog?.finish(phases);
@@ -588,7 +607,7 @@ export function runScanSync(argv: string[], io: Io): number {
   const step = flow.next();
 
   if (!step.done) {
-    throw new Error("a synchronous scan cannot describe");
+    throw new Error("a synchronous scan cannot describe or sense");
   }
 
   return step.value;
@@ -599,7 +618,12 @@ export async function runScan(argv: string[], io: Io): Promise<number> {
   let step = flow.next();
 
   while (!step.done) {
-    step = flow.next(await describeModules(step.value));
+    if (step.value.kind === "sense") {
+      await runSensors(step.value.input);
+      step = flow.next(undefined);
+    } else {
+      step = flow.next(await describeModules(step.value.input));
+    }
   }
 
   return step.value;

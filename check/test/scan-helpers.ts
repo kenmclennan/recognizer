@@ -301,10 +301,19 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     },
     run: (command, args, runOptions): RunResult =>
       runNow(command, args, runOptions),
-    runAsync: (command, args, runOptions) => ({
-      result: Promise.resolve(runNow(command, args, runOptions)),
-      kill: () => {},
-    }),
+    runAsync: (command, args, runOptions) => {
+      const result = runNow(command, args, runOptions);
+
+      if (runOptions?.onStderrLine !== undefined) {
+        for (const line of result.stderr.split("\n")) {
+          if (line !== "") {
+            runOptions.onStderrLine(line);
+          }
+        }
+      }
+
+      return { result: Promise.resolve(result), kill: () => {} };
+    },
     launch: (command, args) => {
       launches.push({ command, args });
 
