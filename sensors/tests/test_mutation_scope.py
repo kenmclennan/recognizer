@@ -7,6 +7,7 @@ import sys
 import pytest
 from conftest import MUTATE_FIXTURE, git_commit
 
+from recognizer_sensors import hashes
 from recognizer_sensors.cli import main
 
 RECORD = ".recognizer/cache/mutation/record.json"
@@ -291,3 +292,23 @@ def test_a_malformed_scope_file_is_exit_2(two_modules, tmp_path, text):
     )
 
     assert code == 2
+
+
+def test_a_scoped_run_leaves_a_fully_carried_module_out_of_inputs(two_modules, tmp_path):
+    root, _, script, _ = two_modules
+    settings = settings_for(script)
+
+    assert mutate(root, tmp_path, settings) == 0
+
+    full = read(root, OVERLAY)
+
+    assert full["overlay_version"] == 2
+    assert sorted(full["inputs"]) == ["app/rules.py", "app/second.py"]
+    assert full["tests"] == hashes.tests_hash(root, [])
+
+    assert mutate(root, tmp_path, settings, ["app/second.py"]) == 0
+
+    scoped = read(root, OVERLAY)
+
+    assert sorted(scoped["inputs"]) == ["app/second.py"]
+    assert scoped["tests"] == full["tests"]

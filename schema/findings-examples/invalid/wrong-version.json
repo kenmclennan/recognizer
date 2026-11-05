@@ -1,5 +1,5 @@
 {
-  "findings_version": 2,
+  "findings_version": 3,
   "sensor": { "name": "structure", "version": "1" },
   "commit": "abc", "modified": false, "settings": {},
   "findings": [{ "id": "a", "kind": "k", "severity": "warning", "principle": "p", "summary": "s", "evidence": { "modules": ["m"] } }]

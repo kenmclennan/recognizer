@@ -6,7 +6,9 @@
   "additionalProperties": false,
   "required": ["findings_version", "sensor", "commit", "modified", "settings", "findings"],
   "properties": {
-    "findings_version": { "const": 1 },
+    "findings_version": { "enum": [1, 2] },
+    "inputs": { "$ref": "#/$defs/hashes" },
+    "tests": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "sensor": {
       "type": "object",
       "additionalProperties": false,
@@ -98,5 +100,17 @@
         }
       }
     }
-  }
+  },
+  "$defs": {
+    "hashes": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "findings_version": { "const": 2 } } },
+      "then": { "required": ["inputs"] }
+    }
+  ]
 }

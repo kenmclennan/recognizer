@@ -147,6 +147,32 @@ describe.skipIf(!HAS_UV)(
         }),
       ).not.toThrow();
 
+      expect(document.findings_version).toBe(2);
+      expect(document.tests).toBeUndefined();
+
+      const scanned = new Map<string, string>();
+
+      for (const language of ["python", "typescript"]) {
+        const scan = JSON.parse(
+          readFileSync(
+            join(repository, `.recognizer/cache/scan.${language}.json`),
+            "utf8",
+          ),
+        );
+
+        for (const file of scan.files) {
+          scanned.set(file.path, file.hash);
+        }
+      }
+
+      expect(Object.keys(document.inputs)).toEqual(
+        expect.arrayContaining(["app/pricing.py", "src/pricing.ts"]),
+      );
+
+      for (const [module, hash] of Object.entries(document.inputs)) {
+        expect(hash).toBe(scanned.get(module));
+      }
+
       return document.findings;
     }
 
@@ -258,7 +284,11 @@ describe.skipIf(!HAS_UV)(
       scaledTimeout(180_000),
     );
 
-    function crapOverlay(): { values: Record<string, Record<string, number>> } {
+    function crapOverlay(): {
+      values: Record<string, Record<string, number>>;
+      inputs: Record<string, string>;
+      tests: string;
+    } {
       return JSON.parse(
         readFileSync(
           join(repository, ".recognizer/cache/overlays/crap.json"),
@@ -313,6 +343,32 @@ describe.skipIf(!HAS_UV)(
         expect(Object.keys(overlay.values.complexity ?? {})).toHaveLength(7);
         expect(Object.keys(overlay.values.coverage ?? {})).toHaveLength(6);
         expect(overlay.values.coverage?.["src/other.ts::pick"]).toBeUndefined();
+
+        const scanned = new Map<string, string>();
+
+        for (const language of ["python", "typescript"]) {
+          const scan = JSON.parse(
+            readFileSync(
+              join(repository, `.recognizer/cache/scan.${language}.json`),
+              "utf8",
+            ),
+          );
+
+          for (const file of scan.files) {
+            scanned.set(file.path, file.hash);
+          }
+        }
+
+        expect(Object.keys(overlay.inputs).length).toBeGreaterThan(0);
+
+        for (const [module, hash] of Object.entries(overlay.inputs)) {
+          expect(hash).toBe(scanned.get(module));
+        }
+
+        expect(document.findings_version).toBe(2);
+        expect(document.inputs).toEqual(overlay.inputs);
+        expect(document.tests).toBe(overlay.tests);
+        expect(overlay.tests).toMatch(/^[0-9a-f]{64}$/);
       },
       scaledTimeout(180_000),
     );

@@ -11,6 +11,7 @@ from pathlib import Path
 from recognizer_sensors.crap.lcov import function_coverage
 from recognizer_sensors.findings import render, write_atomically
 from recognizer_sensors.functions import find_functions
+from recognizer_sensors.hashes import tests_hash
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.record import (
     body_hash,
@@ -826,4 +827,15 @@ def run(
     findings = [finding_for(t, values) for t in measured if t.survived > 0]
     (repository / STALE_OVERLAY).unlink(missing_ok=True)
 
-    return Outcome(findings, overlay, documents, stopped, len(measured), len(targets))
+    inputs = frozenset(target.module for target in measured if not target.carried)
+
+    return Outcome(
+        findings,
+        overlay,
+        documents,
+        stopped,
+        len(measured),
+        len(targets),
+        inputs,
+        tests_hash(repository, scans),
+    )

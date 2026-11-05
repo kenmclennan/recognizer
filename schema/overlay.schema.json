@@ -6,7 +6,9 @@
   "additionalProperties": false,
   "required": ["overlay_version", "commit", "modified", "producer", "metrics", "values"],
   "properties": {
-    "overlay_version": { "const": 1 },
+    "overlay_version": { "enum": [1, 2] },
+    "inputs": { "$ref": "#/$defs/hashes" },
+    "tests": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "commit": { "type": "string", "minLength": 1 },
     "modified": { "type": "boolean" },
     "producer": {
@@ -39,5 +41,17 @@
         "additionalProperties": { "type": ["number", "boolean"] }
       }
     }
-  }
+  },
+  "$defs": {
+    "hashes": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "overlay_version": { "const": 2 } } },
+      "then": { "required": ["inputs"] }
+    }
+  ]
 }

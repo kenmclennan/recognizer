@@ -1,5 +1,6 @@
 import json
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from recognizer_sensors.parsing import LANGUAGES
@@ -35,6 +36,7 @@ class Scan:
     modified: bool
     edges: tuple[ScanEdge, ...] = ()
     skip_paths: tuple[str, ...] = ()
+    hashes: Mapping[str, str] = field(default_factory=dict)
 
 
 def scan_path(repository: Path, language: str) -> Path:
@@ -102,6 +104,18 @@ def read_skip_paths(document: dict) -> tuple[str, ...]:
     return tuple(path for path in raw if isinstance(path, str))
 
 
+def read_hashes(document: dict) -> dict[str, str]:
+    hashes = {}
+
+    for entry in document["files"]:
+        path, digest = entry.get("path"), entry.get("hash")
+
+        if isinstance(path, str) and isinstance(digest, str):
+            hashes[path] = digest
+
+    return hashes
+
+
 def read_scan(repository: Path, language: str) -> Scan | None:
     try:
         document = json.loads(scan_path(repository, language).read_text(encoding="utf-8"))
@@ -132,6 +146,7 @@ def read_scan(repository: Path, language: str) -> Scan | None:
         modified,
         read_edges(document.get("edges")),
         read_skip_paths(document),
+        read_hashes(document),
     )
 
 

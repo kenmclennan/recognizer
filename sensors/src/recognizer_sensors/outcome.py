@@ -17,3 +17,5 @@ class Outcome:
     stopped: bool = False
     measured: int = 0
     total: int = 0
+    inputs: frozenset[str] = frozenset()
+    tests: str | None = None

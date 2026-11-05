@@ -4,6 +4,7 @@ import re
 import sys
 from pathlib import Path
 
+from recognizer_sensors.hashes import tests_hash
 from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import SettingsError
@@ -80,7 +81,7 @@ def valid_overlay(document: object) -> bool:
     producer = document.get("producer")
 
     return (
-        document.get("overlay_version") == 1
+        document.get("overlay_version") in (1, 2)
         and isinstance(document.get("commit"), str)
         and isinstance(producer, dict)
         and isinstance(producer.get("name"), str)
@@ -89,7 +90,7 @@ def valid_overlay(document: object) -> bool:
     )
 
 
-def current_overlays(repository: Path, commit: str) -> list[dict]:
+def current_overlays(repository: Path, commit: str, current_tests: str) -> list[dict]:
     folder = repository / ".recognizer" / "cache" / "overlays"
     overlays = []
 
@@ -108,6 +109,15 @@ def current_overlays(repository: Path, commit: str) -> list[dict]:
             print(
                 f"recognizer-sensors: thresholds: overlay {path.name} is from commit "
                 f"{document['commit']}, not {commit}; skipped",
+                file=sys.stderr,
+            )
+
+            continue
+
+        if isinstance(document.get("tests"), str) and document["tests"] != current_tests:
+            print(
+                f"recognizer-sensors: thresholds: overlay {path.name} measured different test "
+                "files than the current ones; skipped",
                 file=sys.stderr,
             )
 
@@ -180,8 +190,11 @@ def finding_for(metric, entry, key, module, member, value, producer) -> dict:
 
 def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Outcome:
     module_ids = [module.id for scan in scans for module in scan.modules]
-    overlays = current_overlays(repository, commit)
+    current_tests = tests_hash(repository, scans)
+    overlays = current_overlays(repository, commit, current_tests)
     findings = []
+    inputs: set[str] = set()
+    consumed_tests = False
 
     for metric, entry in settings.items():
         source = next((o for o in overlays if declares(o["document"], metric)), None)
@@ -198,6 +211,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         values = source["document"]["values"].get(metric)
         producer = source["document"]["producer"]["name"]
         unresolved = 0
+        consumed_tests = consumed_tests or isinstance(source["document"].get("tests"), str)
 
         for key, value in values.items() if isinstance(values, dict) else []:
             if not is_number(value):
@@ -210,6 +224,8 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
 
                 continue
 
+            inputs.add(resolved[0])
+
             if crosses(value, entry):
                 module, member = resolved
                 findings.append(finding_for(metric, entry, key, module, member, value, producer))
@@ -221,4 +237,6 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
                 file=sys.stderr,
             )
 
-    return Outcome(findings)
+    return Outcome(
+        findings, inputs=frozenset(inputs), tests=current_tests if consumed_tests else None
+    )

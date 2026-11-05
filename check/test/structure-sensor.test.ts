@@ -12,6 +12,7 @@ import { validateFindings } from "../src/findings-document.js";
 import { parsePolicy, validateScan } from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
+  measuredInputs,
   measuredModules,
   structureSensor,
 } from "../src/structure-sensor.js";
@@ -260,5 +261,36 @@ describe("measuredModules", () => {
     expect([...measuredModules([scan], policy)].sort()).toEqual(
       metrics.map((metric) => metric.id).sort(),
     );
+  });
+});
+
+describe("structure sensor inputs", () => {
+  const scanWith = (files: { path: string; hash: string }[]) =>
+    ({
+      modules: [{ id: "a.py" }, { id: "b.py" }, { id: "c.py" }],
+      files,
+    }) as unknown as Parameters<typeof measuredInputs>[0][number];
+
+  it("maps each hashed module to the scan's hash and omits one with no files entry", () => {
+    const inputs = measuredInputs([
+      scanWith([
+        { path: "b.py", hash: "b".repeat(64) },
+        { path: "a.py", hash: "a".repeat(64) },
+      ]),
+    ]);
+
+    expect(inputs).toEqual({
+      "a.py": "a".repeat(64),
+      "b.py": "b".repeat(64),
+    });
+    expect(Object.keys(inputs)).toEqual(["a.py", "b.py"]);
+  });
+
+  it("writes findings version 2 with the inputs and no tests", () => {
+    const result = sense("check-warnings");
+
+    expect(result.document.findings_version).toBe(2);
+    expect(result.document.inputs).toBeDefined();
+    expect(result.document.tests).toBeUndefined();
   });
 });

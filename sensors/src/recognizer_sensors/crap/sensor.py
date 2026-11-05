@@ -4,6 +4,7 @@ from pathlib import Path
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
 from recognizer_sensors.crap.lcov import Coverage, function_coverage
 from recognizer_sensors.functions import find_functions
+from recognizer_sensors.hashes import tests_hash
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
@@ -185,9 +186,11 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
 
     findings = []
     values: dict[str, dict[str, float]] = {"complexity": {}, "coverage": {}, "crap": {}}
+    inputs: set[str] = set()
 
     for scan in scans:
         for identity, m in measure_scan(repository, scan, coverage):
+            inputs.add(m.module)
             values["complexity"][identity] = m.complexity
 
             if m.coverage is not None:
@@ -201,4 +204,4 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
 
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
 
-    return Outcome(findings, overlay)
+    return Outcome(findings, overlay, inputs=frozenset(inputs), tests=tests_hash(repository, scans))

@@ -20,7 +20,10 @@ class Sensor:
 SHIPPED = {
     "duplication": Sensor(
         duplication.parse_settings,
-        lambda repository, scans, settings: Outcome(duplication.run(repository, scans, settings)),
+        lambda repository, scans, settings: Outcome(
+            duplication.run(repository, scans, settings),
+            inputs=duplication.measured_modules(repository, scans),
+        ),
     ),
     "crap": Sensor(crap.parse_settings, crap.run, runs_tests=True),
     "mutation": Sensor(

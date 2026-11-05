@@ -133,6 +133,25 @@ def collect_units(repository: Path, scan: Scan, settings: dict) -> list[Unit]:
     return with_identities(units)
 
 
+def measured_modules(repository: Path, scans: list[Scan]) -> frozenset[str]:
+    measured = set()
+
+    for scan in scans:
+        for module in scan.modules:
+            for path in module.files:
+                if grammar_for(path) is None:
+                    continue
+
+                try:
+                    (repository / path).read_bytes()
+                except OSError:
+                    continue
+
+                measured.add(module.id)
+
+    return frozenset(measured)
+
+
 def member_of(unit: Unit) -> dict:
     return {
         "module": unit.module,

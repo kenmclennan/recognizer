@@ -8,6 +8,7 @@ import pytest
 from conftest import REPOSITORY, git_commit, make_repository, write_scans
 from jsonschema import Draft202012Validator
 
+from recognizer_sensors import hashes
 from recognizer_sensors.cli import main
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
 from recognizer_sensors.crap.lcov import function_coverage, parse_lcov, read_lcov
@@ -688,3 +689,15 @@ def test_a_committed_repository_keeps_the_commit(sample, tmp_path):
     )
 
     assert json.loads((tmp_path / "o.json").read_text())["commit"] == sha
+
+
+def test_crap_writes_version_two_with_inputs_from_the_scan_and_the_tests_hash(sample, tmp_path):
+    status, document, overlay = produced(sample, tmp_path)
+
+    assert status == 0
+    assert document["findings_version"] == 2
+    assert overlay["overlay_version"] == 2
+    assert overlay["inputs"] == document["inputs"]
+    assert overlay["inputs"] != {}
+    assert set(overlay["inputs"].values()) == {"0" * 64}
+    assert overlay["tests"] == document["tests"] == hashes.tests_hash(sample, [])
