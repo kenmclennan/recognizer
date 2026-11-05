@@ -8,13 +8,17 @@ from pathlib import Path
 
 from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco
 from recognizer_sensors.crap.lcov import Coverage, normalise_path, parse_lcov
+from recognizer_sensors.hashes import listed_files
+from recognizer_sensors.mutation.test_files import is_test_file
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import MeasurementError, SettingsError, relative_path
 from recognizer_sensors.testrun.profiles import (
     CONTEXTS_JSON,
+    KOTLIN_CLASSES,
     PROFILES,
     by_file_command,
     coverage_command,
+    kotlin_by_file_command,
 )
 
 LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
@@ -26,6 +30,21 @@ TS_TEST_FILE = re.compile(r"\.(test|spec)\.(ts|tsx|js|jsx|mjs)$")
 BY_FILE_DIRECTORY = ".recognizer/cache/coverage/typescript/by-file"
 
 BY_FILE_REPORT = ".recognizer/cache/coverage/typescript/by-file/{number}/lcov.info"
+
+KOTLIN_BY_FILE_DIRECTORY = ".recognizer/cache/coverage/kotlin/by-file"
+
+KOTLIN_REPORT_GLOB = "**/build/reports/jacoco/test/jacocoTestReport.xml"
+
+KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
+
+KOTLIN_PACKAGE = re.compile(r"^package\s+([\w.`]+)", re.MULTILINE)
+
+KOTLIN_DECLARATION = re.compile(
+    r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:public|internal|private|open|abstract|final|data|sealed|inner|enum|annotation|value)\s+)*"
+    r"(?:class|object)\s+(\w+)",
+    re.MULTILINE,
+)
 
 REASON_LIMIT = 200
 
@@ -386,6 +405,140 @@ def typescript_selection(repository: Path, scan: Scan, whole: Coverage) -> Selec
     return selection
 
 
+def kotlin_project_of(result: Path, repository: Path) -> str:
+    directory = result.parent.parent.parent.parent.relative_to(repository)
+
+    return "".join(f":{part}" for part in directory.parts)
+
+
+def kotlin_result_classes(repository: Path) -> dict[tuple[str, str], set[str]]:
+    found: dict[tuple[str, str], set[str]] = {}
+
+    for result in sorted(repository.glob(KOTLIN_RESULTS_GLOB)):
+        name = result.name[len("TEST-") : -len(".xml")].split("$")[0]
+        project = kotlin_project_of(result, repository)
+        found.setdefault((project, name), set()).add(name)
+
+    return found
+
+
+def kotlin_declarations(repository: Path) -> dict[str, list[str]]:
+    declared: dict[str, list[str]] = {}
+
+    for path in sorted(set(listed_files(repository))):
+        if not path.endswith(".kt") or not is_test_file(path):
+            continue
+
+        try:
+            text = (repository / path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        package = KOTLIN_PACKAGE.search(text)
+
+        if package is None:
+            continue
+
+        prefix = package.group(1).replace("`", "")
+
+        for match in KOTLIN_DECLARATION.finditer(text):
+            declared.setdefault(f"{prefix}.{match.group(1)}", []).append(path)
+
+    return declared
+
+
+def kotlin_class_map(repository: Path) -> dict[str, list[tuple[str, str]]] | str:
+    declared = kotlin_declarations(repository)
+    mapped: dict[str, list[tuple[str, str]]] = {}
+
+    for project, name in sorted(kotlin_result_classes(repository)):
+        files = declared.get(name, [])
+
+        if len(files) != 1:
+            return name
+
+        mapped.setdefault(files[0], []).append((project, name))
+
+    if any(len({project for project, _ in pairs}) > 1 for pairs in mapped.values()):
+        return next(pairs[0][1] for pairs in mapped.values() if len({p for p, _ in pairs}) > 1)
+
+    return mapped
+
+
+def kotlin_fallback(reason: str) -> Selection:
+    print(
+        f"recognizer-sensors: mutation: {reason}; running the whole suite for kotlin",
+        file=sys.stderr,
+    )
+
+    return {}
+
+
+def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection:
+    KOTLIN_CLASSES.clear()
+    mapped = kotlin_class_map(repository)
+
+    if isinstance(mapped, str):
+        print(
+            f"recognizer-sensors: mutation: test class {mapped} has no single test file; "
+            "running the whole suite for kotlin",
+            file=sys.stderr,
+        )
+
+        return {}
+
+    if not mapped:
+        return {}
+
+    scanned = [path for module in scan.modules for path in module.files]
+    executed: dict[str, dict[int, set[str]]] = {}
+
+    for number, file in enumerate(sorted(mapped)):
+        pairs = mapped[file]
+        project = pairs[0][0]
+
+        for stale in repository.glob(KOTLIN_REPORT_GLOB):
+            stale.unlink(missing_ok=True)
+
+        step = Step(f"kotlin {file}", kotlin_by_file_command(project, [n for _, n in pairs]))
+
+        try:
+            run_steps(repository, [step], "a")
+        except MeasurementError as error:
+            return kotlin_fallback(str(error))
+
+        reports = sorted(repository.glob(KOTLIN_REPORT_GLOB))
+
+        if not reports:
+            return kotlin_fallback(f"no coverage report for {file}")
+
+        target = repository / KOTLIN_BY_FILE_DIRECTORY / str(number) / "jacocoTestReport.xml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(reports[0], target)
+        part = parse_jacoco(target.read_text(encoding="utf-8", errors="replace"), scanned)
+
+        if part is None:
+            return kotlin_fallback(f"no coverage report for {file}")
+
+        for path, lines in part.items():
+            for line, hits in lines.items():
+                if hits > 0:
+                    executed.setdefault(path, {}).setdefault(line, set()).add(file)
+
+    selection: Selection = {}
+
+    for path, lines in whole.items():
+        for line, hits in lines.items():
+            files = executed.get(path, {}).get(line)
+
+            if hits > 0 and files:
+                selection.setdefault(path, {})[line] = frozenset(files)
+
+    KOTLIN_CLASSES.update(mapped)
+
+    return selection
+
+
 def collect_coverage_with_tests(
     repository: Path, scans: list[Scan], coverage: str | None
 ) -> tuple[Coverage, Selection]:
@@ -399,6 +552,7 @@ def collect_coverage_with_tests(
     clear_cached_reports(repository, sources)
     (repository / CONTEXTS_JSON).unlink(missing_ok=True)
     shutil.rmtree(repository / BY_FILE_DIRECTORY, ignore_errors=True)
+    shutil.rmtree(repository / KOTLIN_BY_FILE_DIRECTORY, ignore_errors=True)
     run_steps(repository, steps)
     files = [path for scan in scans for module in scan.modules for path in module.files]
     merged: Coverage = {}
@@ -418,5 +572,7 @@ def collect_coverage_with_tests(
             selection.update(python_selection(repository))
         elif scan.language == "typescript":
             selection.update(typescript_selection(repository, scan, merged))
+        elif scan.language == "kotlin":
+            selection.update(kotlin_selection(repository, scan, merged))
 
     return merged, selection
