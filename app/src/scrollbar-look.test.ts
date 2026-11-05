@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { chrome, collectFacts } from "./look-page";
+import { collectFacts, webkit } from "./look-page";
 
 const HARNESS = `
 const box = document.createElement("div");
@@ -14,7 +14,7 @@ document.getElementById("out").textContent = btoa(JSON.stringify(out));
 
 type Facts = { clientWidth: number; offsetWidth: number; overflowing: boolean };
 
-describe.skipIf(chrome === undefined)("the look page scrollbars", () => {
+describe.skipIf(webkit === undefined)("the look page scrollbars", () => {
   let facts: Facts;
 
   beforeAll(async () => {

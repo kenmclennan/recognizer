@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
+import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -335,7 +335,7 @@ type Facts = {
   roomy640: Snap;
 };
 
-describe.skipIf(chrome === undefined)("the trail", () => {
+describe.skipIf(webkit === undefined)("the trail", () => {
   let f: Facts;
 
   beforeAll(async () => {

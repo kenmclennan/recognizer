@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
+import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -297,7 +297,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
 
 type Facts = ReturnType<typeof JSON.parse>;
 
-describe.skipIf(chrome === undefined)("the Findings panel", () => {
+describe.skipIf(webkit === undefined)("the Findings panel", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

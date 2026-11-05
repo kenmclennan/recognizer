@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -86,7 +86,7 @@ type Facts = ReturnType<typeof JSON.parse>;
 const EDITOR = "Open in Editor (⌘⇧E)";
 const FOLDER = "Open Folder in Editor (⌘⇧O)";
 
-describe.skipIf(chrome === undefined)("the Open in Editor icons", () => {
+describe.skipIf(webkit === undefined)("the Open in Editor icons", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

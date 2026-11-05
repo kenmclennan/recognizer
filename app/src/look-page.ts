@@ -10,17 +10,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, type Plugin } from "esbuild";
+import { webkit as playwright } from "playwright";
 
-const CHROME_CANDIDATES = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter((path): path is string => typeof path === "string" && path !== "");
+const LOOK_BROWSER = fileURLToPath(
+  new URL("../scripts/look-browser.mjs", import.meta.url),
+);
 
-export const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
+export const webkit = existsSync(playwright.executablePath())
+  ? LOOK_BROWSER
+  : undefined;
+
+export function lookBrowserArgs(
+  target: string,
+  options: { dark?: boolean; size?: string } = {},
+): string[] {
+  return [
+    LOOK_BROWSER,
+    target,
+    ...(options.dark ? ["--dark"] : []),
+    ...(options.size === undefined ? [] : ["--size", options.size]),
+  ];
+}
 
 export const HIDE_SCROLLBARS =
   "* { scrollbar-width: none } ::-webkit-scrollbar { display: none }";
@@ -101,18 +111,8 @@ export async function collectFacts<T>(
     );
 
     const run = spawnSync(
-      chrome as string,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--window-size=1500,900",
-        "--virtual-time-budget=30000",
-        `--blink-settings=preferredColorScheme=${scheme === "dark" ? 0 : 1}`,
-        `--user-data-dir=${join(dir, "profile")}`,
-        "--dump-dom",
-        `file://${page}`,
-      ],
+      process.execPath,
+      lookBrowserArgs(page, { dark: scheme === "dark", size: "1500x900" }),
       { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);

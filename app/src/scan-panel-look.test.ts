@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
+import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -361,7 +361,7 @@ const NAMES = [
 const names = (panel: Facts) => panel.rows.map((r: Facts) => r.name);
 const states = (panel: Facts) => panel.rows.map((r: Facts) => r.state);
 
-describe.skipIf(chrome === undefined)("the Scan panel", () => {
+describe.skipIf(webkit === undefined)("the Scan panel", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -116,7 +116,7 @@ type Facts = {
   rowOnConst: number;
 };
 
-describe.skipIf(chrome === undefined)("function length on a card", () => {
+describe.skipIf(webkit === undefined)("function length on a card", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

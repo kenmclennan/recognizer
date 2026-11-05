@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-tabs" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-top" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-narrow" style="width:200px;height:300px;display:flex;flex-direction:column"></div><div id="a-fit" style="width:340px;height:300px;display:flex;flex-direction:column"></div>`;
 
@@ -381,7 +381,7 @@ async function prepare(scheme: "light" | "dark"): Promise<Report> {
 
 describe("the inspector, in a real browser", () => {
   for (const scheme of ["light", "dark"] as const) {
-    it.skipIf(chrome === undefined)(
+    it.skipIf(webkit === undefined)(
       `computes the designed styles in ${scheme}`,
       async () => {
         const report = await prepare(scheme);
@@ -399,7 +399,7 @@ describe("the inspector, in a real browser", () => {
     );
   }
 
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "cuts a long name to one line with an ellipsis and puts the folder below",
     async () => {
       const { heads } = await prepare("light");
@@ -425,7 +425,7 @@ describe("the inspector, in a real browser", () => {
     scaledTimeout(180000),
   );
 
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "keeps the tab row to one line with three counted tabs, scrolling sideways when narrow",
     async () => {
       const { tabsRow } = await prepare("light");
@@ -455,7 +455,7 @@ describe("the inspector, in a real browser", () => {
     scaledTimeout(180000),
   );
 
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "gives a folder and a module one header shape with the sentence under the name",
     async () => {
       const { shapes } = await prepare("light");
@@ -480,7 +480,7 @@ describe("the inspector, in a real browser", () => {
     scaledTimeout(180000),
   );
 
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "shows no links to other modules in Contents",
     async () => {
       const report = await prepare("light");
@@ -491,7 +491,7 @@ describe("the inspector, in a real browser", () => {
     scaledTimeout(180000),
   );
 
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "shows a metric table at the foot of the class card, none on a function card and none in the header",
     async () => {
       const { tables } = await prepare("light");
@@ -517,7 +517,7 @@ describe("the inspector, in a real browser", () => {
     scaledTimeout(180000),
   );
 
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "draws every icon as one inline svg and uses no images or icon fonts",
     async () => {
       const { structure } = await prepare("light");

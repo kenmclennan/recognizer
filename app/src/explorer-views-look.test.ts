@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -548,7 +548,7 @@ async function collect(): Promise<Facts> {
   return collectFacts<Facts>(HARNESS, "explorer-views", "light", "app");
 }
 
-describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
+describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {
@@ -848,7 +848,11 @@ describe.skipIf(chrome === undefined)("saved views in the explorer", () => {
 
   it("saves on Enter in Title and in Name, and a blank title removes the title", () => {
     expect(f.enterTitle).toEqual({ card: false, title: "T4" });
-    expect(f.enterName).toEqual({ card: false, description: "D5", renamed: 1 });
+    expect(f.enterName).toEqual({
+      card: false,
+      description: "D5",
+      renamed: 1,
+    });
     expect(f.clearedTitle.hasTitle).toBe(false);
   });
 

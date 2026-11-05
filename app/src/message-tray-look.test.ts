@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -102,7 +102,7 @@ const BELL_PATHS = [
   "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326",
 ];
 
-describe.skipIf(chrome === undefined)(
+describe.skipIf(webkit === undefined)(
   "the footer bell and message tray",
   () => {
     let f = null as unknown as Facts;
