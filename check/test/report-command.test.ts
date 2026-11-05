@@ -1,6 +1,26 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { fakeIo, ROOT } from "./scan-helpers.js";
+import { validateFindings } from "../src/findings-document.js";
+import { fakeIo, PYTHON, ROOT, scanJson } from "./scan-helpers.js";
+
+const sha256 = (text: string) =>
+  createHash("sha256").update(text).digest("hex");
+
+const SOURCES = { "m0.py": "x = 1\n", "m1.py": "y = 2\n" };
+const SCAN = scanJson(2, 1, {
+  commit: "0123456789abcdef0123456789abcdef01234567",
+  files: Object.entries(SOURCES).map(([path, text]) => ({
+    path,
+    hash: sha256(text),
+  })),
+});
+const SCAN_FILES = {
+  [`${ROOT}/.recognizer/cache/scan.python.json`]: SCAN,
+  ...Object.fromEntries(
+    Object.entries(SOURCES).map(([path, text]) => [`${ROOT}/${path}`, text]),
+  ),
+};
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const TARGET = `${ROOT}/.recognizer/cache/findings/review.json`;
@@ -41,7 +61,8 @@ function reporting(
 ) {
   const fake = fakeIo({
     ...(options.commit === null ? {} : { commit: options.commit ?? COMMIT }),
-    files: options.files ?? {},
+    files: { ...SCAN_FILES, ...options.files },
+    scanners: { [PYTHON]: { output: SCAN } },
     ...(options.stdin === undefined ? {} : { stdin: options.stdin }),
     now: () => Date.UTC(2026, 10, 2, 10, 30, 0),
   });
@@ -65,13 +86,28 @@ describe("recognizer report", () => {
     expect(code).toBe(0);
     expect(out).toBe("reported review: 1 findings at 0123456\n");
     expect(written(fake)).toMatchObject({
-      findings_version: 1,
+      findings_version: 2,
       sensor: { name: "review", version: "reported" },
       commit: COMMIT,
       modified: false,
       settings: {},
       reported_at: "2026-11-02T10:30:00.000Z",
     });
+  });
+
+  it("writes version 2 with every scanned module's hash whatever version the agent's file gave", () => {
+    const { fake, code } = reporting(["--as", "review"], {
+      stdin: document({ findings_version: 1 }),
+    });
+    const file = written(fake);
+
+    expect(code).toBe(0);
+    expect(file.findings_version).toBe(2);
+    expect(file.inputs).toEqual({
+      "m0.py": sha256(SOURCES["m0.py"]),
+      "m1.py": sha256(SOURCES["m1.py"]),
+    });
+    expect(() => validateFindings(file)).not.toThrow();
   });
 
   it("reads stdin when no file is given and accepts any principle text", () => {

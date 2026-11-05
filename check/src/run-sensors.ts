@@ -1,13 +1,15 @@
 import type { Io } from "./cli.js";
 import { validateFindings } from "./findings-document.js";
-import { findingsFile } from "./findings-files.js";
+import { findingsFile, writeFindings } from "./findings-files.js";
 import { runRegistered, runRegisteredAsync } from "./registered-command.js";
 import { entryFrom, type RunEntry } from "./run-log.js";
+import type { Scan } from "./scan.js";
 import {
   parseProgressLine,
   type SensorProgress,
   stripProgress,
 } from "./sensor-progress.js";
+import { measuredInputs } from "./structure-sensor.js";
 
 export const SENSOR_TIMEOUT_MS = 60_000;
 
@@ -16,10 +18,22 @@ export interface RunSensorsInput {
   root: string;
   selected: { name: string; command: string[]; runsTests?: boolean }[];
   commit: string;
+  scans: Scan[];
   onStart?: (name: string) => void;
   onEntry?: (entry: RunEntry) => void;
   onProgress?: (name: string, progress: SensorProgress) => void;
   timeoutMs?: number;
+}
+
+function recordInputs(io: Io, root: string, name: string, scans: Scan[]): void {
+  const output = findingsFile(root, name);
+  const document = validateFindings(JSON.parse(io.readFile(output)), { name });
+
+  writeFindings(io, root, {
+    ...document,
+    findings_version: 2,
+    inputs: document.inputs ?? measuredInputs(scans),
+  });
 }
 
 export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
@@ -66,7 +80,16 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
             validate,
             input.timeoutMs ?? SENSOR_TIMEOUT_MS,
           );
-    const { reason } = run;
+    let { reason } = run;
+
+    if (reason === null) {
+      try {
+        recordInputs(io, root, name, input.scans);
+      } catch (error) {
+        reason = `could not record inputs: ${(error as Error).message}`;
+      }
+    }
+
     const entry = entryFrom(name, {
       command: run.command,
       status: run.status,
