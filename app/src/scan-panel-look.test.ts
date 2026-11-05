@@ -107,7 +107,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const visible = (selector) => { const n = q(selector); return n !== null && getComputedStyle(n).display !== "none"; };
   const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state").textContent, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
   const text = (selector) => q(selector)?.textContent ?? "<missing " + selector + ">";
-  const footerText = () => q(".scan-line").textContent;
+  const scanLineText = () => q(".scan-line").textContent;
   const footerButtons = () => all(".footer button").filter((b) => !b.closest(".message-tray, .message-toast")).map((b) => b.className);
   const messages = () => all(".message-list .msg").map((m) => ({ text: m.querySelector(".msg-text").textContent, actions: [...m.querySelectorAll(".msg-act")].map((b) => b.textContent) }));
   const message = (contains) => all(".message-list .msg").find((m) => m.querySelector(".msg-text").textContent.includes(contains));
@@ -115,7 +115,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const setTick = async (key, checked) => { const box = q('.scan-row[data-sensor="' + key + '"] .scan-tick'); box.checked = checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
   const panel = () => ({ header: q(".scan-sub").textContent, amber: q(".scan-sub .warn")?.textContent ?? null, amberColor: q(".scan-sub .warn") ? getComputedStyle(q(".scan-sub .warn")).color : null, rows: rows(), buttons: all(".scan-buttons button").map((b) => ({ text: b.textContent, disabled: b.disabled, spinner: b.querySelectorAll("svg").length })), strays: all(".scan-block, .scan-block-title, .sensor-add, .sensor-remove, .scan-summary, .scan-stop-button, .scan-panel h2, .scan-panel h3, .scan-extract, .scan-describe, .measure-row").length, subLines: all(".scan-row *").filter((n) => n.matches("div")).length });
 
-  return { host, q, all, visible, rows, text, footerText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors };
+  return { host, q, all, visible, rows, text, scanLineText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors };
 }
 
 (async () => {
@@ -160,7 +160,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("duplication"), g2.promise, entry("sense", "duplication"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
   const during = [];
   const duringFooter = [];
-  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.footerText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, findings: [] })); };
+  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, findings: [] })); };
   await c.setTick("describe", true);
   await c.setTick("crap", true);
   click(c.q(".scan-run"));
@@ -173,7 +173,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.run.afterDuplication = c.panel();
   g3.release(); await tick(); await tick();
   facts.run.after = c.panel();
-  facts.run.footerAfter = { text: c.footerText(), buttons: c.footerButtons() };
+  facts.run.footerAfter = { text: c.scanLineText(), buttons: c.footerButtons() };
   facts.run.written = fake.written.map((w) => w.ticked);
   facts.run.crapTickAfter = c.rows().find((r) => r.key === "crap").ticked;
 
@@ -192,7 +192,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(s.q(".scan-stop"));
   await tick(); await tick();
   facts.ticksAfterStop = s.rows().map((r) => r.disabled);
-  facts.stop = { footer: s.footerText(), footerButtons: s.footerButtons(), stopAfter: s.all(".scan-stop").length, button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
+  facts.stop = { footer: s.scanLineText(), footerButtons: s.footerButtons(), stopAfter: s.all(".scan-stop").length, button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
 
   const changed = await mount(fakeScan());
   changed.wired.scanState = { ...changed.wired.scanState, scannedAt: Date.now() - 2 * 3600000, changes: { files: ["app/a.py"], moved: null } };
@@ -214,7 +214,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.failed = { ...t.panel(), posted: t.wired.tray.filter((p) => p.kind === "error" && p.text.includes("failed")).map((p) => p.text) };
   click(t.q(".rail-files"));
   await tick();
-  const failedFooter = { text: t.footerText(), buttons: t.footerButtons() };
+  const failedFooter = { text: t.scanLineText(), buttons: t.footerButtons() };
   const messagesBefore = t.messages();
   const hiddenBefore = !t.visible(".scan-panel");
   t.act("duplication failed", "Show");
@@ -256,7 +256,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick(); await tick();
   click(m.q(".rail-files"));
   await tick();
-  const moduleFooter = { text: m.footerText(), buttons: m.footerButtons() };
+  const moduleFooter = { text: m.scanLineText(), buttons: m.footerButtons() };
   const moduleMessages = m.messages();
   m.act("Describe wrote", "Show");
   await tick();

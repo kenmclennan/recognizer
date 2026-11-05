@@ -17,7 +17,6 @@ export type FooterView = {
   relabel: (id: number, label: string) => void;
   reconcile: (foundKeys: readonly string[]) => void;
   setCount: (text: string) => void;
-  setMetrics: (text: string | null) => void;
   setScan: (state: ScanState | null) => void;
 };
 
@@ -27,7 +26,6 @@ export function buildFooter(container: HTMLElement): FooterView {
   const identity = document.createElement("span");
   const count = document.createElement("span");
   const scan = el("span", "scan-line");
-  const metrics = el("span", "metrics-line");
   const gap = el("span", "footer-gap");
   const tray = createMessageTray(Date.now, realTimer);
   const trayView = buildTrayView(tray);
@@ -39,14 +37,11 @@ export function buildFooter(container: HTMLElement): FooterView {
   identity.textContent = APP_NAME;
   count.className = "module-count";
   count.id = "module-count";
-  metrics.hidden = true;
-  metrics.setAttribute("role", "status");
   list.hidden = true;
   container.replaceChildren(
     identity,
     count,
     scan,
-    metrics,
     gap,
     trayView.bell,
     trayView.tray,
@@ -134,10 +129,6 @@ export function buildFooter(container: HTMLElement): FooterView {
     reconcile: (foundKeys) => tray.reconcile(foundKeys),
     setCount(text) {
       count.textContent = text;
-    },
-    setMetrics(text) {
-      metrics.textContent = text ?? "";
-      metrics.hidden = text === null;
     },
     setScan(state) {
       scanState = state;

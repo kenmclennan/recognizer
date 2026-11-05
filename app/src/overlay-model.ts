@@ -339,16 +339,3 @@ export function currentMetricNamed(
 
   return metrics.find((metric) => metric.label === name) ?? null;
 }
-
-export function footerText(ticked: readonly MetricDescriptor[]): string | null {
-  if (ticked.length === 0) {
-    return null;
-  }
-
-  const labels = ticked.map((metric) => metric.label).join(", ");
-  const overlays = [...new Set(ticked.map((metric) => metric.overlay))].join(
-    ", ",
-  );
-
-  return `Showing ${labels} from ${overlays}`;
-}

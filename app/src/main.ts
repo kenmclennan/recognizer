@@ -94,7 +94,6 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     responsibilitiesSource,
     windowSource,
     scanHost,
-    (text) => footerView.setMetrics(text),
     (id) => footerView.withdraw(id),
     (keys) => {
       explorerKeys = keys;

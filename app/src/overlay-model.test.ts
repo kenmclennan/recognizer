@@ -4,7 +4,6 @@ import {
   buildOverlayModel,
   currentMetricNamed,
   DESCRIPTIONS,
-  footerText,
   groupHeader,
   type MetricDescriptor,
   moduleValue,
@@ -533,27 +532,5 @@ describe("currentMetricNamed", () => {
   it("finds nothing for an unknown or absent name", () => {
     expect(currentMetricNamed("m2", fresh.metrics)).toBeNull();
     expect(currentMetricNamed(undefined, fresh.metrics)).toBeNull();
-  });
-});
-
-describe("footerText", () => {
-  const model = buildOverlayModel(
-    [
-      {
-        name: "crap",
-        text: overlay([{ name: "complexity" }, { name: "coverage" }], {}),
-      },
-    ],
-    { commit: COMMIT },
-  );
-
-  it("names labels in tick order and the overlay once", () => {
-    expect(footerText(model.metrics)).toBe(
-      "Showing complexity, coverage from crap",
-    );
-  });
-
-  it("is null when nothing is ticked", () => {
-    expect(footerText([])).toBeNull();
   });
 });
