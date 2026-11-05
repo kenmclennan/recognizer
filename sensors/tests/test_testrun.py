@@ -113,7 +113,7 @@ def test_the_python_runner_follows_the_lockfile(tmp_path, lockfiles, runner):
 
     assert f"&& {words} coverage run -m pytest && {words} coverage lcov -o {LCOV}" in shell
     assert shell.startswith("export COVERAGE_FILE=.recognizer/cache/coverage/python.data")
-    assert mutant_command(tmp_path, "python") == [*runner, "pytest"]
+    assert mutant_command(tmp_path, "python") == [*runner, "pytest", "-rfE"]
 
 
 def test_the_python_profile_command_is_spliced_not_joined(tmp_path):

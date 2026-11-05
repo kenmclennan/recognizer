@@ -120,6 +120,7 @@ def test_python_selection_follows_the_runner(tmp_path, lockfile, runner_words):
     assert selected_command(tmp_path, "python", {"tests/b.py", "tests/a.py"}) == [
         *runner_words,
         "pytest",
+        "-rfE",
         "tests/a.py",
         "tests/b.py",
     ]
@@ -200,8 +201,8 @@ def spy_commands(monkeypatch):
 A = frozenset({"tests/test_a.py"})
 B = frozenset({"tests/test_b.py"})
 SELECTED = {"app/rules.py": {2: A, 4: A, 5: A, 6: A, 13: B}}
-SELECTED_COMMAND = ["python3", "-m", "pytest", "tests/test_a.py"]
-WHOLE_COMMAND = ["python3", "-m", "pytest"]
+SELECTED_COMMAND = ["python3", "-m", "pytest", "-rfE", "tests/test_a.py"]
+WHOLE_COMMAND = ["python3", "-m", "pytest", "-rfE"]
 
 
 def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once(
@@ -294,7 +295,7 @@ def test_the_record_key_without_a_configured_command_carries_the_selection_marke
 
     assert run_mutate(root, tmp_path / "overlay.json", json.dumps({})) == 0
 
-    key = {"commands": {"python": WHOLE_COMMAND}, "selection": 1}
+    key = {"commands": {"python": WHOLE_COMMAND}, "selection": 2}
     expected = hashlib.sha256(
         json.dumps(key, separators=(",", ":"), sort_keys=True).encode()
     ).hexdigest()
@@ -432,7 +433,7 @@ def test_a_selection_of_more_than_half_the_suite_runs_the_whole_suite_without_it
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
     commands = [tuple(command) for command, _ in seen]
-    half = ("python3", "-m", "pytest", "tests/test_0.py", "tests/test_1.py")
+    half = ("python3", "-m", "pytest", "-rfE", "tests/test_0.py", "tests/test_1.py")
 
     assert commands.count(half) == 2
     assert {c for c in commands if c != half} == {tuple(WHOLE_COMMAND)}

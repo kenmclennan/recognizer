@@ -1,13 +1,10 @@
 import hashlib
 import json
-import subprocess
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from recognizer_sensors.mutation.test_files import is_test_file
-
-RECORD_VERSION = 1
+RECORD_VERSION = 2
 VERDICTS = ("killed", "survived", "timeout")
-PATHSPEC = ["--", ".", ":!.recognizer"]
 
 
 def command_hash(command: object) -> str:
@@ -30,6 +27,7 @@ def read_record(path: Path, command: object) -> dict | None:
         not isinstance(document, dict)
         or document.get("record_version") != RECORD_VERSION
         or not isinstance(document.get("commit"), str)
+        or not isinstance(document.get("support"), str)
         or document.get("command") != command_hash(command)
         or not isinstance(document.get("functions"), dict)
     ):
@@ -44,61 +42,104 @@ def read_record(path: Path, command: object) -> dict | None:
 
 
 def build_record(
-    command: object, commit: str, functions: dict[str, dict], skipped: list[str]
+    command: object, commit: str, support: str, functions: dict[str, dict], skipped: list[str]
 ) -> dict:
     return {
         "record_version": RECORD_VERSION,
         "command": command_hash(command),
         "commit": commit,
+        "support": support,
         "functions": functions,
         "skipped": skipped,
     }
 
 
-def recorded_verdicts(record: dict, identity: str, body: str) -> list[str | None] | None:
+def hash_map(value: object) -> bool:
+    return isinstance(value, dict) and all(
+        isinstance(path, str) and isinstance(digest, str) for path, digest in value.items()
+    )
+
+
+def site_well_formed(verdict: str | None, site: object) -> bool:
+    if verdict is None:
+        return site is None
+
+    if not isinstance(site, dict):
+        return False
+
+    ran = site.get("ran")
+
+    if ran is None:
+        return isinstance(site.get("tests"), str)
+
+    killer = site.get("killer")
+
+    if not hash_map(ran):
+        return False
+
+    return killer is None if verdict == "survived" else hash_map(killer)
+
+
+def recorded_entry(record: dict | None, identity: str, body: str, support: str) -> dict | None:
+    if record is None or record.get("support") != support:
+        return None
+
     entry = record["functions"].get(identity)
 
     if not isinstance(entry, dict) or entry.get("body") != body:
         return None
 
     verdicts = entry.get("verdicts")
+    sites = entry.get("sites")
 
-    if not isinstance(verdicts, list) or not all(v is None or v in VERDICTS for v in verdicts):
+    if (
+        not isinstance(verdicts, list)
+        or not isinstance(sites, list)
+        or len(verdicts) != len(sites)
+        or not all(v is None or v in VERDICTS for v in verdicts)
+        or not all(site_well_formed(v, s) for v, s in zip(verdicts, sites, strict=True))
+    ):
         return None
 
-    return verdicts
+    return entry
 
 
-def git_paths(repository: Path, args: list[str]) -> list[str] | None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(repository), *args],
-            capture_output=True,
-            check=False,
-        )
-    except OSError:
-        return None
-
-    if result.returncode != 0:
-        return None
-
-    return [part.decode("utf-8", "replace") for part in result.stdout.split(b"\0") if part]
-
-
-def stale_test_reason(repository: Path, commit: str) -> str | None:
-    short = commit[:12]
-    changed = git_paths(
-        repository, ["diff", "--relative", "--name-only", "-z", "--no-renames", commit, *PATHSPEC]
-    )
-    untracked = git_paths(
-        repository, ["ls-files", "--others", "--exclude-standard", "-z", *PATHSPEC]
+def conftests_for(path: str, hashes: Mapping[str, str]) -> set[str]:
+    directories = path.split("/")[:-1]
+    candidates = (
+        "/".join([*directories[:depth], "conftest.py"]) for depth in range(len(directories) + 1)
     )
 
-    if changed is None or untracked is None:
-        return f"cannot compare with {short}; running every function"
+    return {candidate for candidate in candidates if candidate in hashes}
 
-    for path in [*changed, *untracked]:
-        if is_test_file(path):
-            return f"test files changed since {short} ({path}); running every function"
 
-    return None
+def with_conftests(files: Iterable[str], hashes: Mapping[str, str]) -> frozenset[str]:
+    covered = set(files)
+
+    for path in list(covered):
+        covered |= conftests_for(path, hashes)
+
+    return frozenset(covered)
+
+
+def site_reusable(
+    verdict: str,
+    site: dict,
+    hashes: Mapping[str, str],
+    tests: str,
+    cover: frozenset[str] | None,
+) -> bool:
+    ran = site.get("ran")
+
+    if ran is None:
+        return site.get("tests") == tests
+
+    if cover is None:
+        return False
+
+    if verdict == "survived":
+        return all(path in ran and ran[path] == hashes.get(path) for path in cover)
+
+    killer = site.get("killer") or {}
+
+    return bool(killer) and all(hashes.get(path) == digest for path, digest in killer.items())

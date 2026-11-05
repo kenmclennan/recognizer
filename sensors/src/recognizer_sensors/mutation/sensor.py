@@ -11,19 +11,21 @@ from pathlib import Path
 from recognizer_sensors.crap.lcov import function_coverage
 from recognizer_sensors.findings import render, write_atomically
 from recognizer_sensors.functions import find_functions
-from recognizer_sensors.hashes import tests_hash
+from recognizer_sensors.hashes import digest_of, support_hash, test_hashes
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.record import (
     body_hash,
     build_record,
     read_record,
-    recorded_verdicts,
-    stale_test_reason,
+    recorded_entry,
+    site_reusable,
+    with_conftests,
 )
 from recognizer_sensors.mutation.runner import (
     NUMBERS,
     STOP,
     Mutant,
+    MutantResult,
     Stopped,
     StoppedBeforeMutation,
     copy_repository,
@@ -100,6 +102,10 @@ class Target:
     timeouts: list[Site] = field(default_factory=list)
     selections: list[frozenset[str] | None] = field(default_factory=list)
     verdicts: list[str | None] = field(default_factory=list)
+    covers: list[frozenset[str] | None] = field(default_factory=list)
+    to_run: list[int] = field(default_factory=list)
+    kept: dict[int, tuple[str, dict]] = field(default_factory=dict)
+    entries: list[dict | None] = field(default_factory=list)
     reused: bool = False
     carried: bool = False
 
@@ -438,10 +444,6 @@ def overlay_values(targets: list[Target]) -> dict[str, dict[str, float]]:
     return values
 
 
-def covered_sites(target: Target) -> list[tuple[int, Site]]:
-    return [(index, site) for index, site in enumerate(target.sites) if target.covered[index]]
-
-
 def apply_verdicts(target: Target, verdicts: list[str | None]) -> None:
     target.verdicts = list(verdicts)
 
@@ -459,27 +461,78 @@ def apply_verdicts(target: Target, verdicts: list[str | None]) -> None:
                 target.timeouts.append(site)
 
 
-def reusable(target: Target, record: dict | None) -> list[str | None] | None:
-    if record is None:
+def cover_of(files: frozenset[str] | None, hashes: dict[str, str]) -> frozenset[str] | None:
+    if not files or any(path not in hashes for path in files):
         return None
 
-    verdicts = recorded_verdicts(record, target.identity, target.body)
+    return with_conftests(files, hashes)
 
-    if verdicts is None or len(verdicts) != len(target.sites):
+
+def kept_sites(
+    target: Target, record: dict | None, hashes: dict[str, str], tests: str, support: str
+) -> dict[int, tuple[str, dict]] | None:
+    entry = recorded_entry(record, target.identity, target.body, support)
+
+    if entry is None or len(entry["verdicts"]) != len(target.sites):
         return None
 
-    recorded = [verdict is not None for verdict in verdicts]
+    kept: dict[int, tuple[str, dict]] = {}
 
-    return verdicts if recorded == target.covered else None
+    for index, covered in enumerate(target.covered):
+        verdict = entry["verdicts"][index]
+        site = entry["sites"][index]
+
+        if (
+            covered
+            and verdict is not None
+            and site_reusable(verdict, site, hashes, tests, target.covers[index])
+        ):
+            kept[index] = (verdict, site)
+
+    return kept
 
 
-def carried_verdicts(target: Target, record: dict | None) -> list[str | None] | None:
-    if record is None:
-        return None
+def site_entry_for(
+    result: MutantResult,
+    cover: frozenset[str] | None,
+    hashes: dict[str, str],
+    tests: str,
+) -> dict:
+    if cover is None:
+        return {"ran": None, "killer": None, "tests": tests}
 
-    verdicts = recorded_verdicts(record, target.identity, target.body)
+    ran = {path: hashes[path] for path in sorted(cover)}
 
-    return verdicts if verdicts is not None and len(verdicts) == len(target.sites) else None
+    if result.verdict == "survived":
+        killer = None
+    elif result.verdict == "timeout" or result.failed is None:
+        killer = ran
+    else:
+        failed = with_conftests(result.failed, hashes)
+        killer = {path: hashes[path] for path in sorted(failed)}
+
+    return {"ran": ran, "killer": killer}
+
+
+def settle(
+    target: Target,
+    results: dict[int, MutantResult],
+    hashes: dict[str, str],
+    tests: str,
+) -> None:
+    verdicts: list[str | None] = [None] * len(target.sites)
+    entries: list[dict | None] = [None] * len(target.sites)
+
+    for index, (verdict, site) in target.kept.items():
+        verdicts[index] = verdict
+        entries[index] = site
+
+    for index, result in results.items():
+        verdicts[index] = result.verdict
+        entries[index] = site_entry_for(result, target.covers[index], hashes, tests)
+
+    apply_verdicts(target, verdicts)
+    target.entries = entries
 
 
 def mutants_for(target: Target, sources: dict[str, bytes]) -> list[Mutant]:
@@ -487,11 +540,11 @@ def mutants_for(target: Target, sources: dict[str, bytes]) -> list[Mutant]:
         Mutant(
             target.file,
             sources[target.file],
-            site.start_byte,
-            site.end_byte,
-            site.replacement.encode("utf-8"),
+            target.sites[index].start_byte,
+            target.sites[index].end_byte,
+            target.sites[index].replacement.encode("utf-8"),
         )
-        for _, site in covered_sites(target)
+        for index in target.to_run
     ]
 
 
@@ -513,7 +566,7 @@ def commands_for(
 
 
 def record_key(configured: list[str] | None, commands: dict[str, list[str]]) -> object:
-    return configured if configured is not None else {"commands": commands, "selection": 1}
+    return configured if configured is not None else {"commands": commands, "selection": 2}
 
 
 def describe(survivor: dict) -> str:
@@ -559,6 +612,7 @@ def finding_for(target: Target, values: dict) -> dict:
 def record_for(
     key: object,
     commit: str,
+    support: str,
     targets: list[Target],
     queued: set[str],
     done: set[str],
@@ -575,7 +629,11 @@ def record_for(
     return build_record(
         key,
         commit,
-        {t.identity: {"body": t.body, "verdicts": t.verdicts} for t in finished},
+        support,
+        {
+            t.identity: {"body": t.body, "verdicts": t.verdicts, "sites": t.entries}
+            for t in finished
+        },
         sorted((queued - done) | set(previously_skipped)),
     )
 
@@ -615,6 +673,9 @@ def run(
     finally:
         restore_coverage_handler()
 
+    hashes = test_hashes(repository, scans)
+    tests = digest_of(hashes)
+    support = support_hash(hashes)
     suite_size = len({f for lines in selection.values() for files in lines.values() for f in files})
     targets: list[Target] = []
     sources: dict[str, bytes] = {}
@@ -641,55 +702,41 @@ def run(
                 chosen.get(covering_line(site, target, lines)) if covered else None
                 for site, covered in zip(target.sites, target.covered, strict=True)
             ]
+            target.covers = [cover_of(files, hashes) for files in target.selections]
 
             if target.sites and not any(target.covered):
                 no_covering_test += 1
 
     commands = commands_for(repository, scans, configured)
     key = record_key(configured, commands)
-    record = read_record(repository / settings["record"], key) if settings["incremental"] else None
-    earlier_skipped = record["skipped"] if record else []
-    reuse = record
-    carry_record = (
-        read_record(repository / settings["record"], key) if modules is not None else None
-    )
-
-    if record is not None:
-        reason = stale_test_reason(repository, record["commit"])
-
-        if reason is not None:
-            print(f"recognizer-sensors: mutation: {reason}", file=sys.stderr)
-            reuse = None
-
+    record = read_record(repository / settings["record"], key)
+    reuse = record if settings["incremental"] else None
+    earlier_skipped = reuse["skipped"] if reuse else []
     pending: list[Target] = []
     unmeasured: dict[str, bool] = {}
-    carry_skipped = set(carry_record["skipped"]) if carry_record else set()
+    carry_skipped = set(record["skipped"]) if record and modules is not None else set()
 
     for target in targets:
-        if modules is not None and target.module not in modules:
-            carried = carried_verdicts(target, carry_record)
+        out_of_scope = modules is not None and target.module not in modules
+        kept = kept_sites(target, record if out_of_scope else reuse, hashes, tests, support)
+        wanted = [index for index, covered in enumerate(target.covered) if covered]
 
-            if carried is None:
+        if out_of_scope:
+            if kept is None or len(kept) != len(wanted):
                 unmeasured[target.identity] = target.identity in carry_skipped
-            else:
-                target.reused = True
-                target.carried = True
-                apply_verdicts(target, carried)
+                continue
 
-            continue
+            target.carried = True
 
-        verdicts = reusable(target, reuse)
+        target.kept = kept or {}
+        target.to_run = [index for index in wanted if index not in target.kept]
 
-        if verdicts is not None:
-            target.reused = True
-            apply_verdicts(target, verdicts)
-        elif any(target.covered):
+        if target.to_run:
             pending.append(target)
         else:
-            apply_verdicts(target, [None] * len(target.sites))
+            target.reused = kept is not None
+            settle(target, {}, hashes, tests)
 
-    carried_any = any(target.carried for target in targets)
-    record_commit = carry_record["commit"] if carried_any and carry_record else commit
     queue = queue_order(pending, earlier_skipped)
     skipped: list[Target] = []
     ran = {"selection": 0, "whole": 0}
@@ -710,11 +757,7 @@ def run(
             def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
                 whole = commands[target.language]
                 subject = f"the {target.language} test command" if labelled else "the test command"
-                chosen = [
-                    selections
-                    for selections, covered in zip(target.selections, target.covered, strict=True)
-                    if covered
-                ]
+                chosen = [target.selections[index] for index in target.to_run]
 
                 def lookup(index: int) -> tuple[list[str], float]:
                     seconds = None
@@ -749,13 +792,11 @@ def run(
             deadline = started + budget * 60 if budget is not None else None
             checkpoint = {"at": started}
 
-            def finish(target: Target, outcome: list[str]) -> None:
-                verdicts: list[str | None] = [None] * len(target.sites)
-
-                for (index, _), verdict in zip(covered_sites(target), outcome, strict=True):
-                    verdicts[index] = verdict
-
-                apply_verdicts(target, verdicts)
+            def finish(target: Target, outcome: list[MutantResult]) -> None:
+                results = {
+                    index: result for index, result in zip(target.to_run, outcome, strict=True)
+                }
+                settle(target, results, hashes, tests)
                 done.add(target.identity)
                 now = CLOCK()
 
@@ -763,13 +804,17 @@ def run(
                     checkpoint["at"] = now
                     write_checkpoint(
                         repository / settings["record"],
-                        record_for(key, record_commit, targets, queued, done, unmeasured),
+                        record_for(key, commit, support, targets, queued, done, unmeasured),
                     )
 
             run_functions(
                 queue,
                 lambda target: run_function(
-                    repository, work, mutants_for(target, sources), plan_for(target)
+                    repository,
+                    work,
+                    mutants_for(target, sources),
+                    plan_for(target),
+                    hashes if configured is None and target.language == "python" else None,
                 ),
                 settings["max_workers"],
                 deadline,
@@ -799,6 +844,14 @@ def run(
         f"{mutated} mutated, {len(skipped_ids)} skipped (uncovered-by-budget)",
         file=sys.stderr,
     )
+
+    site_total = sum(sum(target.covered) for target in measured)
+    site_reused = sum(len(target.kept) for target in measured)
+    print(
+        f"recognizer-sensors: mutation: {site_reused} of {site_total} sites reused, "
+        f"{site_total - site_reused} run",
+        file=sys.stderr,
+    )
     if modules is not None:
         carried_count = sum(1 for target in targets if target.carried)
         print(
@@ -816,7 +869,7 @@ def run(
 
     values = overlay_values(measured)
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
-    record_document = record_for(key, record_commit, targets, queued, done, unmeasured)
+    record_document = record_for(key, commit, support, targets, queued, done, unmeasured)
     documents = [
         (
             repository / settings["survivors"],
@@ -827,7 +880,7 @@ def run(
     findings = [finding_for(t, values) for t in measured if t.survived > 0]
     (repository / STALE_OVERLAY).unlink(missing_ok=True)
 
-    inputs = frozenset(target.module for target in measured if not target.carried)
+    inputs = frozenset(target.module for target in measured)
 
     return Outcome(
         findings,
@@ -837,5 +890,5 @@ def run(
         len(measured),
         len(targets),
         inputs,
-        tests_hash(repository, scans),
+        tests,
     )

@@ -492,7 +492,7 @@ def test_an_unchanged_rerun_reuses_every_function_and_runs_no_test_command(
     first_overlay = read(output)
     record = read(root / RECORD)
 
-    assert record["record_version"] == 1
+    assert record["record_version"] == 2
     assert record["skipped"] == []
     assert record["functions"]["app/rules.py::grade"]["verdicts"] == ["killed", "killed"]
     assert record["functions"]["app/rules.py::total"]["verdicts"] == [None]
@@ -503,6 +503,7 @@ def test_an_unchanged_rerun_reuses_every_function_and_runs_no_test_command(
     )
     assert runs() == after_first
     assert read(output)["values"] == first_overlay["values"]
+    assert read(root / RECORD)["functions"] == record["functions"]
 
     survivors = read(root / SURVIVORS)
 
@@ -528,7 +529,7 @@ def test_a_changed_body_re_mutates_only_that_function(tmp_path, counting, capsys
     "damage",
     [
         lambda path: path.write_text("not json"),
-        lambda path: path.write_text(json.dumps({**read(path), "record_version": 2})),
+        lambda path: path.write_text(json.dumps({**read(path), "record_version": 3})),
         lambda path: path.write_text(json.dumps({**read(path), "commit": 7})),
         lambda path: path.unlink(),
     ],
@@ -582,7 +583,7 @@ def test_a_changed_covered_site_set_re_mutates_that_function(tmp_path, counting,
 
     assert run_mutate(root, output, settings(max_workers=1)) == 0
     assert summary(capsys) == (
-        "2 of 3 functions reused, 1 mutated, 0 skipped (uncovered-by-budget)"
+        "3 of 3 functions reused, 0 mutated, 0 skipped (uncovered-by-budget)"
     )
     assert row(read(output), "app/rules.py::grade") == [1, 0, 1, 1.0]
 
@@ -638,16 +639,16 @@ def edit_conftest(root):
 
 
 @pytest.mark.parametrize(
-    ("change", "path"),
+    ("change", "reused"),
     [
-        (edit_test, "tests/strong.py"),
-        (add_untracked_test, "tests/extra.py"),
-        (delete_test, "tests/weak.py"),
-        (edit_conftest, "conftest.py"),
+        (edit_test, 0),
+        (add_untracked_test, 0),
+        (delete_test, 0),
+        (edit_conftest, 1),
     ],
     ids=["edited", "untracked", "deleted", "conftest"],
 )
-def test_a_changed_test_file_forces_a_full_run(tmp_path, counting, capsys, change, path):
+def test_a_changed_test_file_forces_a_full_run(tmp_path, counting, capsys, change, reused):
     settings, runs = counting
     root, commit, output, after_first = first_run(tmp_path, counting, capsys)
     change(root)
@@ -656,12 +657,9 @@ def test_a_changed_test_file_forces_a_full_run(tmp_path, counting, capsys, chang
 
     err = capsys.readouterr().err
 
-    assert (
-        f"recognizer-sensors: mutation: test files changed since {commit[:12]} ({path}); "
-        "running every function"
-    ) in err
-    assert "0 of 3 functions reused, 3 mutated" in err
-    assert err.index("test files changed") < err.index("functions reused")
+    assert "test files changed" not in err
+    assert f"{reused} of 3 functions reused, {3 - reused} mutated" in err
+    assert runs() > after_first
     assert read(root / RECORD)["commit"] == commit
 
 
@@ -676,13 +674,13 @@ def test_a_committed_test_change_triggers_the_full_run(tmp_path, counting, capsy
 
     err = capsys.readouterr().err
 
-    assert "test files changed since" in err
+    assert "test files changed since" not in err
     assert "0 of 3 functions reused" in err
 
 
-def test_a_record_whose_commit_is_unknown_cannot_be_compared(tmp_path, counting, capsys):
-    settings, _ = counting
-    root, _, output, _ = first_run(tmp_path, counting, capsys)
+def test_a_record_whose_commit_is_unknown_is_still_reused(tmp_path, counting, capsys):
+    settings, runs = counting
+    root, _, output, after_first = first_run(tmp_path, counting, capsys)
     record = read(root / RECORD)
     record["commit"] = "0" * 40
     (root / RECORD).write_text(json.dumps(record))
@@ -691,8 +689,9 @@ def test_a_record_whose_commit_is_unknown_cannot_be_compared(tmp_path, counting,
 
     err = capsys.readouterr().err
 
-    assert f"cannot compare with {'0' * 12}; running every function" in err
-    assert "0 of 3 functions reused" in err
+    assert "cannot compare" not in err
+    assert "3 of 3 functions reused" in err
+    assert runs() == after_first
 
 
 def test_a_non_test_edit_does_not_trigger_the_stale_check(tmp_path, counting, capsys):
@@ -993,7 +992,7 @@ def test_each_language_runs_its_own_mutant_command(tmp_path, monkeypatch):
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
     assert ["npm", "test"] in seen
-    assert any(command[-1] == "pytest" for command in seen)
+    assert any("pytest" in command for command in seen)
 
 
 @pytest.mark.parametrize(

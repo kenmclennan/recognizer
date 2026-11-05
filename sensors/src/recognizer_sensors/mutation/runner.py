@@ -6,7 +6,7 @@ import subprocess
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,6 +42,12 @@ class TestRun:
     @property
     def passed(self) -> bool:
         return self.exit_code == 0 and not self.timed_out
+
+
+@dataclass(frozen=True)
+class MutantResult:
+    verdict: str
+    failed: frozenset[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -127,9 +133,34 @@ def output_tail(output: str) -> str:
 NUMBERS = itertools.count()
 
 
+def failed_files(output: str, known: Collection[str]) -> frozenset[str] | None:
+    found: set[str] = set()
+
+    for line in output.splitlines():
+        word, _, rest = line.partition(" ")
+
+        if word not in ("FAILED", "ERROR") or not rest:
+            continue
+
+        path = rest.split("::", 1)[0].split(" - ", 1)[0].strip()
+
+        if path not in known:
+            return None
+
+        found.add(path)
+
+    return frozenset(found) if found else None
+
+
 def run_mutant(
-    repository: Path, work: Path, number: int, mutant: Mutant, command: list[str], timeout: float
-) -> str:
+    repository: Path,
+    work: Path,
+    number: int,
+    mutant: Mutant,
+    command: list[str],
+    timeout: float,
+    known: Collection[str] | None = None,
+) -> MutantResult:
     copy = work / str(number)
 
     try:
@@ -139,14 +170,19 @@ def run_mutant(
         (copy / mutant.path).write_bytes(head + mutant.replacement + tail)
         result = run_test_command(command, copy, timeout)
     except OSError:
-        return "killed"
+        return MutantResult("killed")
     finally:
         shutil.rmtree(copy, ignore_errors=True)
 
     if result.timed_out:
-        return "timeout"
+        return MutantResult("timeout")
 
-    return "survived" if result.passed else "killed"
+    if result.passed:
+        return MutantResult("survived")
+
+    failed = failed_files(result.output, known) if known is not None else None
+
+    return MutantResult("killed", failed)
 
 
 def run_function(
@@ -154,36 +190,37 @@ def run_function(
     work: Path,
     mutants: list[Mutant],
     plan_for: Callable[[int], tuple[list[str], float]],
-) -> list[str] | None:
-    verdicts = []
+    known: Collection[str] | None = None,
+) -> list[MutantResult] | None:
+    results = []
 
     for index, mutant in enumerate(mutants):
         if STOP.is_set():
             return None
 
         command, timeout = plan_for(index)
-        verdict = run_mutant(repository, work, next(NUMBERS), mutant, command, timeout)
+        result = run_mutant(repository, work, next(NUMBERS), mutant, command, timeout, known)
 
         if STOP.is_set():
             return None
 
-        verdicts.append(verdict)
+        results.append(result)
 
-    return verdicts
+    return results
 
 
 def run_functions(
     items: list,
-    run_item: Callable[[object], list[str] | None],
+    run_item: Callable[[object], list | None],
     max_workers: int,
     deadline: float | None,
     clock: Callable[[], float],
-    on_done: Callable[[object, list[str]], None] | None = None,
-) -> list[list[str] | None]:
+    on_done: Callable[[object, list], None] | None = None,
+) -> list[list | None]:
     spent = threading.Event()
     done_lock = threading.Lock()
 
-    def take(item: object) -> list[str] | None:
+    def take(item: object) -> list | None:
         if spent.is_set() or STOP.is_set() or (deadline is not None and clock() >= deadline):
             spent.set()
 
