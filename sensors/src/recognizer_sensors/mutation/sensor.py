@@ -746,8 +746,8 @@ def run(
     done: set[str] = set()
     queued = {target.identity for target in queue}
     stopped = False
-    total = len(queue) + sum(1 for t in targets if t.reused)
-    finished = total - len(queue)
+    total = len(targets)
+    finished = total - len(queue) - len(unmeasured)
 
     report("mutants", finished, total)
 

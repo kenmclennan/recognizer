@@ -1399,7 +1399,7 @@ def test_progress_reports_coverage_then_functions_rising_to_the_total(
 
     assert lines[0] == {"step": "coverage"}
     assert [line["step"] for line in mutants] == ["mutants"] * len(mutants)
-    assert mutants[0]["done"] == 0
+    assert mutants[0]["done"] == 1
     assert mutants[-1]["done"] == mutants[-1]["total"]
     assert [line["done"] for line in mutants] == sorted(line["done"] for line in mutants)
     assert {line["total"] for line in mutants} == {mutants[0]["total"]}
@@ -1450,7 +1450,7 @@ def test_a_run_cut_by_the_budget_ends_short_of_the_total(tmp_path, counting, cap
 
     mutants = progress_lines(capsys)[1:]
 
-    assert mutants[0]["done"] == 0
+    assert mutants[0]["done"] == 1
     assert mutants[-1]["done"] < mutants[-1]["total"]
 
 

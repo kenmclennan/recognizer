@@ -617,12 +617,7 @@ describe.skipIf(!HAS_UV)(
             "utf8",
           ),
         );
-        const mutated = Object.keys(overlay.values.killed).filter(
-          (identity) =>
-            overlay.values.killed[identity] +
-              (overlay.values.survived[identity] ?? 0) >
-            0,
-        ).length;
+        const mutated = Object.keys(overlay.values.killed).length;
 
         expect(mutants.length).toBeGreaterThan(0);
         expect(mutants.every((event) => event.step === "mutants")).toBe(true);

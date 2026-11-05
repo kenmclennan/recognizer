@@ -339,6 +339,32 @@ def test_a_complete_run_reports_only_the_functions_without_a_covering_test(tmp_p
     assert read(root / SURVIVORS)["unmeasured"] == {"budget": 0, "no-covering-test": 1}
 
 
+def test_the_progress_total_counts_a_function_without_a_covering_test_on_every_run(
+    tmp_path, monkeypatch, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    output = tmp_path / "overlay.json"
+    settings = mutate_settings("tests/strong.py", max_workers=1)
+
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+
+    def totals():
+        lines = [
+            json.loads(line.removeprefix("recognizer-progress "))
+            for line in capsys.readouterr().err.splitlines()
+            if line.startswith("recognizer-progress ")
+        ]
+
+        return {line["total"] for line in lines if line["step"] == "mutants"}
+
+    assert run_mutate(root, output, settings) == 0
+
+    first = totals()
+
+    assert run_mutate(root, output, settings) == 0
+    assert totals() == first == {3}
+
+
 def typescript_repository(tmp_path):
     root = make_repository(
         tmp_path / "r",
