@@ -144,31 +144,32 @@ export function buildFindingsPanelView(
 ): FindingsPanelView {
   const element = el("div", "findings-panel");
   const header = el("div", "findings-header", "Findings");
-  const scope = el("div", "findings-scope");
-  const scopeText = el("div", "findings-scope-text");
-  const scopeCaption = el("small", "findings-scope-caption");
-  const toggle = button("", "findings-switch", () => undefined);
+  const scope = el("div", "findings-scope seg");
+  const canvas = button("", "findings-scope-canvas", () =>
+    actions.setOnlyThisView(true),
+  );
+  const all = button("Whole repository", "findings-scope-all", () =>
+    actions.setOnlyThisView(false),
+  );
   const line = el("p", "findings-line");
   const stale = button("", "findings-stale", () => actions.openSensors());
   const list = el("div", "finding-groups");
   const empty = el("p", "findings-empty");
 
-  let scopeOn = false;
-
-  toggle.setAttribute("role", "switch");
-  toggle.setAttribute("aria-label", "Only this view");
-  toggle.addEventListener("click", () => actions.setOnlyThisView(!scopeOn));
-  scopeText.append("Only this view", scopeCaption);
-  scope.append(scopeText, toggle);
+  scope.append(canvas, all);
   element.append(header, scope, line, stale, list, empty);
 
   return {
     element,
     render(model) {
-      scopeOn = model.scope?.on ?? false;
+      const scopeOn = model.scope?.on ?? false;
+
       scope.hidden = model.scope === null;
-      scopeCaption.textContent = model.scope?.caption ?? "";
-      toggle.setAttribute("aria-checked", String(scopeOn));
+      canvas.textContent = model.scope?.caption ?? "";
+      canvas.setAttribute("aria-pressed", String(scopeOn));
+      all.setAttribute("aria-pressed", String(!scopeOn));
+      canvas.classList.toggle("on", scopeOn);
+      all.classList.toggle("on", !scopeOn);
       line.textContent = model.header ?? "";
       line.hidden = model.header === null;
       stale.textContent = model.stale ?? "";

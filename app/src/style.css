@@ -2144,59 +2144,43 @@ svg.i.chevron {
   color: var(--warn);
 }
 
-.scan-scope {
+.scan-scope,
+.findings-scope {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  margin: 8px 0 6px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
   font-size: 13px;
 }
 
-.scan-scope-caption {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.scan-switch {
-  position: relative;
-  flex: none;
-  width: 34px;
-  height: 20px;
-  padding: 0;
+.scan-scope-canvas,
+.scan-scope-all,
+.findings-scope-canvas,
+.findings-scope-all {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 6px;
   border: 0;
-  border-radius: 10px;
-  background: var(--line);
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.scan-switch::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--fg);
-  transition: left 0.15s;
+.scan-scope .on,
+.findings-scope .on {
+  background: var(--selbg);
+  color: var(--fg);
 }
 
-.scan-switch[aria-checked="true"] {
-  background: var(--sel);
-}
-
-.scan-switch[aria-checked="true"]::after {
-  left: 17px;
-}
-
-.scan-switch:disabled {
-  opacity: 0.5;
+.scan-scope-canvas:disabled,
+.scan-scope-all:disabled {
+  opacity: 0.6;
   cursor: default;
 }
 
@@ -2523,54 +2507,6 @@ svg.i.chevron {
 .findings-header {
   font-size: 14px;
   font-weight: 600;
-}
-
-.findings-scope {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.findings-scope-text small {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.findings-switch {
-  position: relative;
-  flex: none;
-  width: 34px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 10px;
-  background: var(--faint);
-  cursor: pointer;
-}
-
-.findings-switch::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--panel);
-  transition: left 0.15s;
-}
-
-.findings-switch[aria-checked="true"] {
-  background: var(--sel);
-}
-
-.findings-switch[aria-checked="true"]::after {
-  left: 17px;
 }
 
 .findings-line {

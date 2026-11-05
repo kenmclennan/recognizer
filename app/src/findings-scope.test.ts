@@ -121,7 +121,7 @@ describe("counts over the shown findings only", () => {
 
 describe("scopeCaption", () => {
   it("names the view and counts its modules", () => {
-    expect(scopeCaption("engine-loop", 28)).toBe("engine-loop, 28 modules");
-    expect(scopeCaption("one", 1)).toBe("one, 1 module");
+    expect(scopeCaption("engine-loop", 28)).toBe("engine-loop, 28");
+    expect(scopeCaption(null, 1)).toBe("This canvas, 1");
   });
 });

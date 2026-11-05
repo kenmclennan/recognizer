@@ -5,6 +5,7 @@ import {
   type Scan,
   shippedSensorNames,
 } from "recognizer";
+import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
 import type { ResponsibilityState } from "./responsibility-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
@@ -40,7 +41,7 @@ export type ScanPlan = {
 
 export const MUTATION_KEY = "mutation";
 
-export type PanelView = { name: string; modules: string[] };
+export type PanelView = { name: string | null; modules: string[] };
 
 export type RowSensor = {
   name: string;
@@ -471,7 +472,7 @@ function scopeOf(input: PanelInput): ScanPanelModel["scope"] {
   }
 
   return {
-    caption: `${input.view.name}, ${plural(input.view.modules.length, "module")}`,
+    caption: scopeCaption(input.view.name, input.view.modules.length),
     on: input.ticks.onlyView,
     disabled: input.scanning,
   };
