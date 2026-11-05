@@ -31,6 +31,10 @@ on:
       - biome.json
       - .github/workflows/check.yml
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -51,7 +55,11 @@ jobs:
       - run: npm run build -w check
       - run: node scripts/assert-clean-tmpdir.mjs npm test -w check
 
+      - if: failure()
+        uses: ./.github/actions/cancel-on-failure
+
   toolchain:
+    needs: test
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 15
     steps:
@@ -72,3 +80,6 @@ jobs:
           extracted=$(mktemp -d)
           tar -xzf "$RUNNER_TEMP/toolchain/recognizer-toolchain.tar.gz" -C "$extracted"
           node scripts/verify-toolchain.mjs "$extracted"
+
+      - if: failure()
+        uses: ./.github/actions/cancel-on-failure
