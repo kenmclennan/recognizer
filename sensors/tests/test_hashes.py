@@ -103,3 +103,63 @@ def test_a_duplication_run_writes_version_two_with_the_scans_hashes_and_no_tests
     assert "tests" not in document
     assert set(document["inputs"]) >= {"app/pricing.py"}
     assert set(document["inputs"].values()) == {"0" * 64}
+
+
+CUSTOM_MANIFEST = b"""[package]
+name = "demo"
+version = "0.1.0"
+edition = "2021"
+
+[[test]]
+name = "smoke"
+path = "checks/smoke.rs"
+"""
+
+
+def cargo_repository(tmp_path):
+    return repository(
+        tmp_path,
+        {
+            "Cargo.toml": CUSTOM_MANIFEST,
+            "src/lib.rs": b"pub fn f() {}\n",
+            "checks/smoke.rs": b"#[test]\nfn t() {}\n",
+            "tests/a.rs": b"#[test]\nfn a() {}\n",
+        },
+    )
+
+
+def test_a_custom_path_test_target_is_hashed_and_a_tests_dir_file_still_is(tmp_path):
+    root = cargo_repository(tmp_path)
+
+    assert hashes.rust_test_entries(root) == {"checks/smoke.rs", "tests/a.rs"}
+    assert set(hashes.test_hashes(root, [])) == {"checks/smoke.rs", "tests/a.rs"}
+
+
+def test_a_custom_path_test_target_is_not_support(tmp_path):
+    root = cargo_repository(tmp_path)
+    entries = hashes.rust_test_entries(root)
+    found = hashes.test_hashes(root, [], entries)
+
+    assert hashes.support_hash(found, entries) == EMPTY
+    assert hashes.support_hash(found) != EMPTY
+
+
+def test_without_cargo_metadata_the_path_rule_decides(tmp_path):
+    root = repository(
+        tmp_path,
+        {"Cargo.toml": b"not a manifest", "checks/smoke.rs": b"x", "tests/a.rs": b"y"},
+    )
+
+    assert hashes.rust_test_entries(root) == set()
+    assert set(hashes.test_hashes(root, [])) == {"tests/a.rs"}
+
+
+def test_a_repository_without_a_manifest_never_runs_cargo(tmp_path, monkeypatch):
+    root = repository(tmp_path, {"tests/a.py": b"a"})
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("cargo ran")
+
+    monkeypatch.setattr(hashes.subprocess, "run", refuse)
+
+    assert hashes.rust_test_entries(root, ["tests/a.py"]) == set()

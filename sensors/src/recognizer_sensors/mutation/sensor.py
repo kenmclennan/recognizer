@@ -11,7 +11,7 @@ from pathlib import Path
 from recognizer_sensors.crap.lcov import function_coverage
 from recognizer_sensors.findings import render, write_atomically
 from recognizer_sensors.functions import find_functions
-from recognizer_sensors.hashes import digest_of, support_hash, test_hashes
+from recognizer_sensors.hashes import digest_of, rust_test_entries, support_hash, test_hashes
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.record import (
     body_hash,
@@ -677,9 +677,10 @@ def run(
     finally:
         restore_coverage_handler()
 
-    hashes = test_hashes(repository, scans)
+    rust_entries = rust_test_entries(repository)
+    hashes = test_hashes(repository, scans, rust_entries)
     tests = digest_of(hashes)
-    support = support_hash(hashes)
+    support = support_hash(hashes, rust_entries)
     suite_size = len({f for lines in selection.values() for files in lines.values() for f in files})
     targets: list[Target] = []
     sources: dict[str, bytes] = {}
