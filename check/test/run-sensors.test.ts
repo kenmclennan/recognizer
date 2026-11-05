@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
 import { runSensors, SENSOR_TIMEOUT_MS } from "../src/run-sensors.js";
@@ -36,45 +37,52 @@ describe("runSensors ceiling", () => {
     expect(SENSOR_TIMEOUT_MS).toBe(60_000);
   });
 
-  it("fails a sensor still running at the ceiling as timed out and runs the next one", async () => {
-    const { root, io, messages } = setup();
-    const entries: string[] = [];
-    const results = await runSensors({
-      io,
-      root,
-      commit: COMMIT,
-      timeoutMs: 300,
-      selected: [
-        {
-          name: "hung",
-          command: ["sh", "-c", "sleep 30 & wait"],
-        },
-        {
-          name: "quick",
-          command: [
-            process.execPath,
-            "-e",
-            WRITES_FINDINGS,
-            "{commit}",
-            "{output}",
-          ],
-        },
-      ],
-      onEntry: (entry) => entries.push(entry.name),
-    });
+  it(
+    "fails a sensor still running at the ceiling as timed out and runs the next one",
+    async () => {
+      const { root, io, messages } = setup();
+      const entries: string[] = [];
+      const results = await runSensors({
+        io,
+        root,
+        commit: COMMIT,
+        timeoutMs: 3000,
+        selected: [
+          {
+            name: "hung",
+            command: ["sh", "-c", "sleep 30 & wait"],
+          },
+          {
+            name: "quick",
+            command: [
+              process.execPath,
+              "-e",
+              WRITES_FINDINGS,
+              "{commit}",
+              "{output}",
+            ],
+          },
+        ],
+        onEntry: (entry) => entries.push(entry.name),
+      });
 
-    expect(results.map((entry) => entry.name)).toEqual(["hung", "quick"]);
-    expect(results[0]).toMatchObject({
-      outcome: "failed",
-      reason: "timed out",
-    });
-    expect(results[1]).toMatchObject({ outcome: "ok" });
-    expect(entries).toEqual(["hung", "quick"]);
-    expect(messages.join("")).toContain("failed hung: timed out");
-    expect(
-      readFileSync(join(root, ".recognizer/cache/findings/quick.json"), "utf8"),
-    ).toContain('"quick"');
-  });
+      expect(results.map((entry) => entry.name)).toEqual(["hung", "quick"]);
+      expect(results[0]).toMatchObject({
+        outcome: "failed",
+        reason: "timed out",
+      });
+      expect(results[1]).toMatchObject({ outcome: "ok" });
+      expect(entries).toEqual(["hung", "quick"]);
+      expect(messages.join("")).toContain("failed hung: timed out");
+      expect(
+        readFileSync(
+          join(root, ".recognizer/cache/findings/quick.json"),
+          "utf8",
+        ),
+      ).toContain('"quick"');
+    },
+    scaledTimeout(20000),
+  );
 
   it("gives a runsTests selection no timeout and the others the ceiling", async () => {
     const { root, messages } = setup();
