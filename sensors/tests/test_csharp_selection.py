@@ -342,7 +342,7 @@ def dotnet_runs() -> bool:
         return False
 
 
-@pytest.mark.skipif(not dotnet_runs(), reason="needs a .NET 8 SDK and NuGet access")
+@pytest.mark.skipif(not dotnet_runs(), reason="needs a .NET SDK and NuGet access")
 def test_real_dotnet_selection_on_the_committed_fixture(tmp_path, monkeypatch):
     dotnet_scratch = tmp_path / "dotnet-tmp"
     dotnet_scratch.mkdir()
