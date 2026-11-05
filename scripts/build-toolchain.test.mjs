@@ -1,4 +1,13 @@
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -7,37 +16,167 @@ import {
   exportArguments,
   grammarSource,
   mergeRequirements,
+  PYTHON_COMMANDS,
+  pythonInstallArguments,
   verifyArchive,
+  wrapperScript,
 } from "./build-toolchain.mjs";
+import { makeTempDir } from "./temp-dirs.mjs";
 
 const closure = ["node_modules/ajv", "node_modules/yaml"];
-const grammarWheel =
-  "tree_sitter_c_sharp-0.23.5-cp310-abi3-macosx_11_0_arm64.whl";
-const wheelhouse = [
-  "tree_sitter-0.26.0-cp313-cp313-macosx_11_0_arm64.whl",
-  grammarWheel,
-];
 const PINNED_COMMIT = "f1c7c1ee21f56a33412c12efb8abe0c483f05f0d";
+const HOMEBREW_PYTHON = "/opt/homebrew/opt/python@3.13/bin/python3.13";
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 describe("archiveEntries", () => {
-  it("names the vendored packages, the wheel, the notices and the licence", () => {
-    expect(archiveEntries("1.2.3", closure, wheelhouse)).toEqual([
+  it("names the vendored packages, the installed Python folder, the wrappers, the notices and the licence", () => {
+    expect(archiveEntries("1.2.3", closure)).toEqual([
       "node_modules/recognizer/package.json",
       "node_modules/recognizer-scan-typescript/package.json",
       "node_modules/recognizer-describe-claude/package.json",
       "node_modules/ajv/package.json",
       "node_modules/yaml/package.json",
-      "recognizer_scan_python-1.2.3-py3-none-any.whl",
-      "recognizer_scan_kotlin-1.2.3-py3-none-any.whl",
-      "recognizer_scan_csharp-1.2.3-py3-none-any.whl",
-      "recognizer_sensors-1.2.3-py3-none-any.whl",
-      "wheelhouse/tree_sitter-0.26.0-cp313-cp313-macosx_11_0_arm64.whl",
-      `wheelhouse/${grammarWheel}`,
+      "python/recognizer_scan_python/cli.py",
+      "python/recognizer_scan_kotlin/cli.py",
+      "python/recognizer_scan_csharp/cli.py",
+      "python/recognizer_sensors/cli.py",
+      "python/recognizer_scan_python-1.2.3.dist-info/METADATA",
+      "python/recognizer_scan_kotlin-1.2.3.dist-info/METADATA",
+      "python/recognizer_scan_csharp-1.2.3.dist-info/METADATA",
+      "python/recognizer_sensors-1.2.3.dist-info/METADATA",
+      "bin/recognizer-scan-python",
+      "bin/recognizer-scan-kotlin",
+      "bin/recognizer-scan-csharp",
+      "bin/recognizer-sensors",
       "recognizer-scan-rust",
       "THIRD-PARTY-NOTICES.md",
       "LICENSE",
     ]);
   });
+});
+
+describe("the wrapper table", () => {
+  it("generates exactly the four commands the pyprojects declare, with their entry points", () => {
+    const declared = PYTHON_COMMANDS.flatMap(({ project }) => {
+      const text = readFileSync(join(ROOT, project, "pyproject.toml"), "utf8");
+      const section = /\[project\.scripts\]\n([^[]*)/.exec(text)[1];
+
+      return [...section.matchAll(/^(\S+)\s*=\s*"([^"]+)"/gm)].map((match) => [
+        match[1],
+        match[2],
+      ]);
+    });
+
+    expect(declared).toEqual(
+      PYTHON_COMMANDS.map(({ command, module }) => [
+        command,
+        `${module}.cli:main`,
+      ]),
+    );
+    expect(PYTHON_COMMANDS).toHaveLength(4);
+
+    for (const entry of PYTHON_COMMANDS) {
+      expect(wrapperScript(entry)).toContain(
+        `from ${entry.module}.cli import main`,
+      );
+    }
+  });
+
+  it("installs the four project wheels into the target for the Homebrew interpreter", () => {
+    const args = pythonInstallArguments("/w", "/t", "1.2.3");
+
+    expect(args).toContain("--target");
+    expect(args).toContain("--no-index");
+    expect(args).toContain("aarch64-apple-darwin");
+    expect(args.slice(-4)).toEqual([
+      "/w/recognizer_scan_python-1.2.3-py3-none-any.whl",
+      "/w/recognizer_scan_kotlin-1.2.3-py3-none-any.whl",
+      "/w/recognizer_scan_csharp-1.2.3-py3-none-any.whl",
+      "/w/recognizer_sensors-1.2.3-py3-none-any.whl",
+    ]);
+  });
+});
+
+describe("a wrapper", () => {
+  const entry = PYTHON_COMMANDS[0];
+
+  function lay(dir, interpreterBody) {
+    const interpreter = join(dir, "fake-python");
+
+    writeFileSync(interpreter, interpreterBody);
+    chmodSync(interpreter, 0o755);
+    mkdirSync(join(dir, "toolchain/bin"), { recursive: true });
+    mkdirSync(join(dir, "toolchain/python"), { recursive: true });
+
+    const wrapper = join(dir, "toolchain/bin", entry.command);
+
+    writeFileSync(wrapper, wrapperScript(entry, interpreter));
+    chmodSync(wrapper, 0o755);
+
+    return wrapper;
+  }
+
+  it("resolves a symlink chain to itself, forwards arguments and returns the exit code", () => {
+    const dir = makeTempDir("wrapper-");
+    const wrapper = lay(
+      dir,
+      '#!/bin/sh\nfor a in "$@"; do printf "%s\\n" "$a"; done\nexit 7\n',
+    );
+
+    mkdirSync(join(dir, "links"));
+    symlinkSync(wrapper, join(dir, "links/middle"));
+    symlinkSync(join(dir, "links/middle"), join(dir, "links/outer"));
+
+    const result = spawnSync(join(dir, "links/outer"), ["--flag", "a b"], {
+      encoding: "utf8",
+    });
+    const lines = result.stdout.trim().split("\n");
+
+    expect(result.status).toBe(7);
+    expect(lines.slice(-2)).toEqual(["--flag", "a b"]);
+    expect(lines.at(-3).endsWith("/toolchain/bin/../python")).toBe(true);
+    expect(existsSync(lines.at(-3))).toBe(true);
+  });
+
+  it("leaves PYTHONPATH out of the interpreter's environment", () => {
+    const dir = makeTempDir("wrapper-env-");
+    const wrapper = lay(
+      dir,
+      '#!/bin/sh\nif [ -z "$PYTHONPATH" ]; then printf unset; else printf set; fi\n',
+    );
+    const result = spawnSync(wrapper, [], {
+      encoding: "utf8",
+      env: { PATH: "/usr/bin:/bin" },
+    });
+
+    expect(result.stdout).toBe("unset");
+  });
+
+  it.skipIf(!existsSync(HOMEBREW_PYTHON))(
+    "runs the real wrapper over a real Python folder",
+    () => {
+      const dir = makeTempDir("wrapper-real-");
+      const target = join(dir, "toolchain/python");
+
+      mkdirSync(join(target, entry.module), { recursive: true });
+      writeFileSync(join(target, entry.module, "__init__.py"), "");
+      writeFileSync(
+        join(target, entry.module, "cli.py"),
+        "import sys\n\ndef main():\n    print('ok', *sys.argv)\n    return 3\n",
+      );
+      mkdirSync(join(dir, "toolchain/bin"), { recursive: true });
+
+      const wrapper = join(dir, "toolchain/bin", entry.command);
+
+      writeFileSync(wrapper, wrapperScript(entry));
+      chmodSync(wrapper, 0o755);
+
+      const result = spawnSync(wrapper, ["--version"], { encoding: "utf8" });
+
+      expect(result.stdout.trim()).toBe(`ok ${entry.command} --version`);
+      expect(result.status).toBe(3);
+    },
+  );
 });
 
 describe("mergeRequirements", () => {
@@ -54,90 +193,63 @@ describe("mergeRequirements", () => {
 });
 
 describe("verifyArchive", () => {
-  const full = `${archiveEntries("1.2.3", closure, wheelhouse).join("\n")}\n`;
+  const entries = [
+    ...archiveEntries("1.2.3", closure),
+    "python/tree_sitter_c_sharp/__init__.py",
+  ];
+  const full = `${entries.join("\n")}\n`;
 
   it("accepts a complete listing", () => {
-    expect(() =>
-      verifyArchive(full, "1.2.3", closure, wheelhouse),
-    ).not.toThrow();
+    expect(() => verifyArchive(full, "1.2.3", closure)).not.toThrow();
   });
 
   it("accepts a listing whose names carry a leading ./", () => {
-    const listing = archiveEntries("1.2.3", closure, wheelhouse)
-      .map((name) => `./${name}`)
-      .join("\n");
+    const listing = entries.map((name) => `./${name}`).join("\n");
 
-    expect(() =>
-      verifyArchive(listing, "1.2.3", closure, wheelhouse),
-    ).not.toThrow();
-  });
-
-  it("fails when the wheel is missing", () => {
-    const listing = full.replace(/recognizer_scan_python.*\n/, "");
-
-    expect(() => verifyArchive(listing, "1.2.3", closure, wheelhouse)).toThrow(
-      /recognizer_scan_python/,
-    );
+    expect(() => verifyArchive(listing, "1.2.3", closure)).not.toThrow();
   });
 
   it.each([
+    [
+      "a wrapper",
+      "bin/recognizer-scan-kotlin\n",
+      /bin\/recognizer-scan-kotlin/,
+    ],
+    [
+      "the sensors package",
+      "python/recognizer_sensors/cli.py\n",
+      /python\/recognizer_sensors/,
+    ],
+    [
+      "a dist-info",
+      "python/recognizer_scan_csharp-1.2.3.dist-info/METADATA\n",
+      /recognizer_scan_csharp-1\.2\.3/,
+    ],
     ["the Rust binary", "recognizer-scan-rust\n", /recognizer-scan-rust/],
     [
-      "the Kotlin wheel",
-      "recognizer_scan_kotlin-1.2.3-py3-none-any.whl\n",
-      /recognizer_scan_kotlin/,
-    ],
-    [
-      "the C# wheel",
-      "recognizer_scan_csharp-1.2.3-py3-none-any.whl\n",
-      /recognizer_scan_csharp/,
-    ],
-    [
-      "the sensors wheel",
-      "recognizer_sensors-1.2.3-py3-none-any.whl\n",
-      /recognizer_sensors/,
-    ],
-    [
-      "a wheelhouse file",
-      "wheelhouse/tree_sitter-0.26.0-cp313-cp313-macosx_11_0_arm64.whl\n",
-      /wheelhouse\/tree_sitter/,
-    ],
-    [
-      "the grammar wheel",
-      `wheelhouse/${grammarWheel}\n`,
-      /wheelhouse\/tree_sitter_c_sharp-/,
+      "the grammar package",
+      "python/tree_sitter_c_sharp/__init__.py\n",
+      /tree_sitter_c_sharp/,
     ],
     [
       "the describer",
       "node_modules/recognizer-describe-claude/package.json\n",
       /recognizer-describe-claude/,
     ],
+    ["the notices file", "THIRD-PARTY-NOTICES.md\n", /THIRD-PARTY-NOTICES\.md/],
+    [
+      "a closure package",
+      "node_modules/yaml/package.json\n",
+      /node_modules\/yaml/,
+    ],
   ])("fails when %s is missing", (_, entry, pattern) => {
     expect(() =>
-      verifyArchive(full.replace(entry, ""), "1.2.3", closure, wheelhouse),
+      verifyArchive(full.replace(entry, ""), "1.2.3", closure),
     ).toThrow(pattern);
   });
 
-  it("fails when the notices file is missing", () => {
-    const listing = full.replace("THIRD-PARTY-NOTICES.md\n", "");
-
-    expect(() => verifyArchive(listing, "1.2.3", closure, wheelhouse)).toThrow(
-      /THIRD-PARTY-NOTICES\.md/,
-    );
-  });
-
-  it("fails when a closure package is missing", () => {
-    const listing = full.replace("node_modules/yaml/package.json\n", "");
-
-    expect(() => verifyArchive(listing, "1.2.3", closure, wheelhouse)).toThrow(
-      /node_modules\/yaml/,
-    );
-  });
-
   it("fails for a listing built for another version", () => {
-    expect(() => verifyArchive(full, "1.2.4", closure, wheelhouse)).toThrow(
-      /1\.2\.4/,
-    );
+    expect(() => verifyArchive(full, "1.2.4", closure)).toThrow(/1\.2\.4/);
   });
 });
 

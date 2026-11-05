@@ -4,7 +4,7 @@ Recognizer scans a codebase into a language-neutral model of its modules and dep
 
 ## Install
 
-macOS on Apple silicon, from the Homebrew tap. The cask installs the viewer and, as a dependency, the formula that installs the `recognizer` command, the scanners and the sensors. They are released together. A bare `brew upgrade` moves both; `brew upgrade --cask` alone leaves the command behind, so to upgrade just these two run `brew upgrade --formula kenmclennan/tap/recognizer && brew upgrade --cask kenmclennan/tap/recognizer`.
+macOS on Apple silicon, from the Homebrew tap. One cask, `brew install --cask kenmclennan/tap/recognizer`, installs the viewer and the `recognizer` command, the scanners and the sensors, which run on Homebrew's `node` and `python@3.13`. They are one package, so `brew upgrade --cask kenmclennan/tap/recognizer` (or a bare `brew upgrade`) moves them together. A machine that installed the retired formula runs `brew uninstall --formula recognizer && brew upgrade --cask recognizer` once.
 
 ```sh
 brew install --cask kenmclennan/tap/recognizer

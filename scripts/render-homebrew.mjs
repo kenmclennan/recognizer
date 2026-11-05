@@ -16,35 +16,27 @@ export function render(template, values) {
   return rendered;
 }
 
-export function renderAll(root, version, toolchainSha, appSha, outDir) {
-  const values = {
-    version,
-    toolchain_sha256: toolchainSha,
-    app_sha256: appSha,
-  };
-  const targets = [
-    ["recognizer.rb.tmpl", "Formula/recognizer.rb"],
-    ["recognizer-cask.rb.tmpl", "Casks/recognizer.rb"],
-  ];
+export function renderAll(root, version, appSha, outDir) {
+  const values = { version, app_sha256: appSha };
+  const target = "Casks/recognizer.rb";
+  const text = render(
+    readFileSync(
+      join(root, "packaging/homebrew", "recognizer-cask.rb.tmpl"),
+      "utf8",
+    ),
+    values,
+  );
 
-  for (const [template, target] of targets) {
-    const text = render(
-      readFileSync(join(root, "packaging/homebrew", template), "utf8"),
-      values,
-    );
-
-    mkdirSync(dirname(join(outDir, target)), { recursive: true });
-    writeFileSync(join(outDir, target), text);
-  }
+  mkdirSync(dirname(join(outDir, target)), { recursive: true });
+  writeFileSync(join(outDir, target), text);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [version, toolchainSha, appSha, outDir] = process.argv.slice(2);
+  const [version, appSha, outDir] = process.argv.slice(2);
 
   renderAll(
     fileURLToPath(new URL("..", import.meta.url)),
     version,
-    toolchainSha,
     appSha,
     outDir ?? ".",
   );

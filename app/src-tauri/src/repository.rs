@@ -40,18 +40,6 @@ pub enum ScanReport {
     },
 }
 
-#[derive(Debug, PartialEq, Serialize)]
-#[serde(
-    tag = "status",
-    rename_all = "kebab-case",
-    rename_all_fields = "camelCase"
-)]
-pub enum ToolsReport {
-    Version { version: String },
-    CommandMissing,
-    Failed { exit_code: i32, stderr: String },
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShippedSensor {
     pub name: String,
@@ -152,10 +140,6 @@ pub fn scan_args(
     args
 }
 
-pub fn version_args() -> Vec<String> {
-    vec!["--version".to_string()]
-}
-
 pub fn sensors_args() -> Vec<String> {
     vec!["sensors".to_string(), "--json".to_string()]
 }
@@ -219,7 +203,7 @@ pub fn shipped_describer_with(
 pub const RECOGNIZER_COMMAND: &str = "recognizer";
 
 pub fn missing_hint() -> String {
-    "recognizer was not found on your login shell's PATH. Install it with brew install kenmclennan/tap/recognizer.".to_string()
+    "recognizer was not found on your login shell's PATH. Install it with brew install --cask kenmclennan/tap/recognizer.".to_string()
 }
 
 fn scan_file_name(name: &str) -> bool {
@@ -363,37 +347,6 @@ pub fn clean_output(stdout: &str) -> String {
     };
 
     strip_escapes(body)
-}
-
-pub fn tools_report_for(exit: Option<i32>, stdout: &str, stderr: String) -> ToolsReport {
-    let stdout = clean_output(stdout);
-    let stdout = stdout.as_str();
-
-    match exit {
-        Some(127) => ToolsReport::CommandMissing,
-        Some(0) if !stdout.trim().is_empty() => ToolsReport::Version {
-            version: stdout.trim().to_string(),
-        },
-        other => ToolsReport::Failed {
-            exit_code: other.unwrap_or(-1),
-            stderr,
-        },
-    }
-}
-
-pub fn recognizer_version() -> ToolsReport {
-    recognizer_version_with(runner(), RECOGNIZER_COMMAND)
-}
-
-pub fn recognizer_version_with(runner: &ToolRunner, command: &str) -> ToolsReport {
-    match runner.capture(command, &version_args(), true) {
-        None => ToolsReport::CommandMissing,
-        Some(Captured {
-            code,
-            stdout,
-            stderr,
-        }) => tools_report_for(code, &stdout, stderr),
-    }
 }
 
 pub fn shipped_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> ShippedSensors {
@@ -545,7 +498,7 @@ mod tests {
     fn the_hint_says_to_install_and_names_no_setting() {
         let hint = missing_hint();
 
-        assert!(hint.contains("brew install kenmclennan/tap/recognizer"));
+        assert!(hint.contains("brew install --cask kenmclennan/tap/recognizer"));
         assert!(!hint.contains("recognizer_path"));
         assert!(!hint.contains("Settings"));
     }
@@ -714,11 +667,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_version_argv_is_the_flag_only() {
-        assert_eq!(version_args(), ["--version"]);
-    }
-
     #[cfg(unix)]
     fn fake_command(dir: &Path, body: &str) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
@@ -729,22 +677,6 @@ mod tests {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
 
         path
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_command_printing_a_version_gives_that_version() {
-        let dir = TempDir::new().unwrap();
-        let command = fake_command(dir.path(), r#"[ "$1" = "--version" ] && echo 0.3.1"#);
-
-        let runner = working_runner(dir.path());
-
-        assert_eq!(
-            recognizer_version_with(&runner, &command.display().to_string()),
-            ToolsReport::Version {
-                version: "0.3.1".to_string()
-            }
-        );
     }
 
     #[test]
@@ -804,19 +736,11 @@ mod tests {
         let shell = fake_shell(dir.path());
         let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
         let other = TempDir::new().unwrap();
-        let version = fake_command(other.path(), "echo 0.1.77");
-        let third = TempDir::new().unwrap();
         let sensors = fake_command(
-            third.path(),
+            other.path(),
             r#"echo '[{"name":"duplication","line":"l","defaults":{"threshold":0.82}}]'"#,
         );
 
-        assert_eq!(
-            recognizer_version_with(&runner, &version.display().to_string()),
-            ToolsReport::Version {
-                version: "0.1.77".to_string()
-            }
-        );
         assert!(matches!(
             shipped_sensors_with(&runner, &sensors.display().to_string()),
             ShippedSensors::Ok { sensors } if sensors.len() == 1
@@ -906,16 +830,6 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_command_is_reported_missing() {
-        let dir = TempDir::new().unwrap();
-
-        assert_eq!(
-            recognizer_version_with(&working_runner(dir.path()), "/nonexistent/recognizer"),
-            ToolsReport::CommandMissing
-        );
-    }
-
-    #[test]
     fn with_no_recognizer_on_the_resolved_path_every_verb_reports_it_missing() {
         let dir = TempDir::new().unwrap();
         let empty = TempDir::new().unwrap();
@@ -926,10 +840,6 @@ mod tests {
             scan_with(&runner, dir.path(), RECOGNIZER_COMMAND),
             ScanReport::CommandMissing { .. }
         ));
-        assert_eq!(
-            recognizer_version_with(&runner, RECOGNIZER_COMMAND),
-            ToolsReport::CommandMissing
-        );
         assert_eq!(
             shipped_sensors_with(&runner, RECOGNIZER_COMMAND),
             ShippedSensors::Unavailable {
@@ -960,57 +870,6 @@ mod tests {
             ShippedSensors::Unavailable {
                 reason: missing_hint()
             }
-        );
-    }
-
-    #[test]
-    fn the_tools_exit_codes_map_to_reports() {
-        assert_eq!(
-            tools_report_for(Some(0), "0.3.1\n", String::new()),
-            ToolsReport::Version {
-                version: "0.3.1".to_string()
-            }
-        );
-        assert_eq!(
-            tools_report_for(Some(127), "", String::new()),
-            ToolsReport::CommandMissing
-        );
-        assert_eq!(
-            tools_report_for(Some(0), " \n", "e".to_string()),
-            ToolsReport::Failed {
-                exit_code: 0,
-                stderr: "e".to_string()
-            }
-        );
-        assert_eq!(
-            tools_report_for(None, "", String::new()),
-            ToolsReport::Failed {
-                exit_code: -1,
-                stderr: String::new()
-            }
-        );
-    }
-
-    #[test]
-    fn the_tools_report_serialises_to_the_webview_contract() {
-        assert_eq!(
-            serde_json::to_value(ToolsReport::Version {
-                version: "1.2.3".to_string()
-            })
-            .unwrap(),
-            serde_json::json!({ "status": "version", "version": "1.2.3" })
-        );
-        assert_eq!(
-            serde_json::to_value(ToolsReport::CommandMissing).unwrap(),
-            serde_json::json!({ "status": "command-missing" })
-        );
-        assert_eq!(
-            serde_json::to_value(ToolsReport::Failed {
-                exit_code: 2,
-                stderr: "x".to_string()
-            })
-            .unwrap(),
-            serde_json::json!({ "status": "failed", "exitCode": 2, "stderr": "x" })
         );
     }
 

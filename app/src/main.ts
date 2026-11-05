@@ -1,4 +1,3 @@
-import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./style.css";
 import { createBusyGate } from "./busy-gate";
@@ -22,9 +21,6 @@ import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
 import { spinner } from "./spinner-view";
-import { postToolsMessage, TOOLS_KEY } from "./tools-notice";
-import { createToolsRecheck } from "./tools-recheck";
-import { toolsSource } from "./tools-source";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
 import { windowSource } from "./window-source";
@@ -41,7 +37,6 @@ let runningLine: string | null = null;
 let current: Loaded | null = null;
 let releaseFirstScan: () => void = () => {};
 let explorerKeys: readonly string[] = [];
-let toolsFound = false;
 
 const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
@@ -110,33 +105,8 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
 }
 
 function reconcileKeys() {
-  footerView.reconcile([...explorerKeys, ...(toolsFound ? [TOOLS_KEY] : [])]);
+  footerView.reconcile(explorerKeys);
 }
-
-const toolsRecheck = createToolsRecheck({
-  now: () => Date.now(),
-  read: async () => {
-    const [appVersion, report] = await Promise.all([
-      getVersion(),
-      toolsSource.recognizerVersion(),
-    ]);
-
-    return { appVersion, report };
-  },
-  show: (notice, fresh) => {
-    toolsFound = notice !== null;
-
-    if (notice !== null && fresh) {
-      postToolsMessage(notice, footerView, (text) => viewsSource.copy(text));
-    }
-
-    reconcileKeys();
-  },
-});
-
-window.addEventListener("focus", () => {
-  void toolsRecheck.onFocus();
-});
 
 const rescanner = createRescanner<Carried>({
   port: scanSource,
@@ -156,7 +126,6 @@ const rescanner = createRescanner<Carried>({
   replace: (loaded, carried) => {
     explorer?.dispose();
     explorer = buildExplorer(loaded, carried);
-    void toolsRecheck.onOpen();
   },
   update: (loaded) => {
     if (explorer === null) {
