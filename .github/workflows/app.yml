@@ -44,6 +44,7 @@ jobs:
     timeout-minutes: 20
     env:
       LC_MAX_AGENTS: "4"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/../../cargo-target
     steps:
       - name: Checkout
         uses: actions/checkout@v5
