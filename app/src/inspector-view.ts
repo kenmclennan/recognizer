@@ -14,7 +14,7 @@ import type {
   ResponsibilityLineRow,
   Row,
 } from "./inspector-model";
-import { attachModuleTip } from "./module-tip";
+import { attachModuleTip, descriptionOf } from "./module-tip";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
 import {
@@ -253,8 +253,12 @@ function responsibilityNode(row: ResponsibilityLineRow): HTMLElement | null {
     node.append(
       el("span", "muted", `Responsibility unknown: ${row.state.reason}`),
     );
-  } else if (row.state.kind !== "missing") {
-    node.append(el("span", "line", row.state.line));
+  } else {
+    const description = descriptionOf(row.state);
+
+    if (description !== null) {
+      node.append(el("span", "line", description));
+    }
   }
 
   if (row.failure !== null) {

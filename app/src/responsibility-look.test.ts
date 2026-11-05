@@ -27,7 +27,7 @@ const filesOf = (modules, hashes) => ({
   hashes,
 });
 const initial = () => filesOf(
-  { "p/m.py": entry("Current line."), "p/o.py": entry("Stale line.", "b".repeat(64)), "p/n.py": entry("Other stale.", "c".repeat(64)) },
+  { "p/m.py": entry("Current line."), "p/o.py": entry("Stale line.", HASH, "v0"), "p/n.py": entry("Other stale.", "c".repeat(64)) },
   { "p/m.py": HASH, "p/o.py": HASH, "p/n.py": HASH, "p/q.py": HASH },
 );
 
@@ -171,14 +171,16 @@ describe.skipIf(webkit === undefined)("the responsibility row", () => {
     expect(facts.current.first).toBe(true);
   });
 
-  it("shows an out-of-date line undimmed with no tag and no button", () => {
+  it("shows a line out of date only by version undimmed with no tag and no button", () => {
     expect(facts.outOfDate.kind).toBe("out-of-date");
     expect(facts.outOfDate.text).toBe("Stale line.");
     expect(facts.outOfDate.tags).toBe(0);
     expect(facts.outOfDate.buttons).toBe(0);
     expect(facts.outOfDate.lineOpacity).toBe("1");
     expect(facts.outOfDate.beforeSwitch).toBe(true);
-    expect(facts.other.text).toBe("Other stale.");
+    expect(facts.other.kind).toBe("out-of-date");
+    expect(facts.other.text).toBe("");
+    expect(facts.other.buttons).toBe(0);
   });
 
   it("shows no text and no button when a module has no line", () => {
