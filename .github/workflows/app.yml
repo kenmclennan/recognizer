@@ -45,6 +45,7 @@ jobs:
     env:
       LC_MAX_AGENTS: "4"
       CARGO_TARGET_DIR: ${{ github.workspace }}/../../cargo-target
+      CARGO_BUILD_JOBS: "3"
     steps:
       - name: Checkout
         uses: actions/checkout@v5

@@ -40,6 +40,7 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 60
     env:
+      CARGO_BUILD_JOBS: "3"
       HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
       RELEASES_REPO: kenmclennan/recognizer-releases
       TAP_REPO: kenmclennan/homebrew-tap
