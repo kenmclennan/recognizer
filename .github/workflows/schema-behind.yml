@@ -1,0 +1,50 @@
+name: schema-behind
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - schema/scan.schema.json
+
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git fetch origin main
+      - run: node scripts/schema-behind.mjs origin/main "${{ github.event.pull_request.head.sha }}"
+
+  mark-open-pull-requests:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mark pull requests built on an older scan schema
+        run: |
+          main=$(jq '.properties.schema_version.const' schema/scan.schema.json)
+
+          gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[] | .head.sha' | while read -r sha; do
+            branch=$(gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/schema/scan.schema.json?ref=$sha" | jq '.properties.schema_version.const')
+
+            if message=$(node scripts/schema-behind.mjs --versions "$main" "$branch" 2>&1); then
+              state=success
+              message="scan schema is up to date with main"
+            else
+              state=failure
+            fi
+
+            gh api -X POST "repos/$REPO/statuses/$sha" -f state="$state" -f context=schema-behind -f description="$message"
+          done

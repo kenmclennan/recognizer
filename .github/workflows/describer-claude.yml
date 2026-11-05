@@ -23,6 +23,10 @@ on:
       - biome.json
       - .github/workflows/describer-claude.yml
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -38,3 +42,6 @@ jobs:
       - run: npm run build -w recognizer
       - run: npm run build -w describers/claude
       - run: node scripts/assert-clean-tmpdir.mjs npm test -w describers/claude
+
+      - if: failure()
+        uses: ./.github/actions/cancel-on-failure

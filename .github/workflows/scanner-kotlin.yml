@@ -21,6 +21,10 @@ env:
   RECOGNIZER_REQUIRE_REAL_CONTENT: "1"
   RECOGNIZER_KOTLIN_PETCLINIC: ${{ github.workspace }}/petclinic
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -45,3 +49,6 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: node "$GITHUB_WORKSPACE/scripts/assert-clean-tmpdir.mjs" uv run pytest
+
+      - if: failure()
+        uses: ./.github/actions/cancel-on-failure
