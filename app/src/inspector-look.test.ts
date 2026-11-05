@@ -58,7 +58,7 @@ mount("a-rail", { kind: "module", id: "p/m.py" }, false);
 mount("a-panel", { kind: "module", id: "p/m.py" }, true);
 mount("a-long", { kind: "module", id: "deep/folder/" + "n".repeat(120) + ".py" }, true);
 mount("a-short", { kind: "module", id: "p/q.py" }, true);
-const counted = { ...inputs, counts: () => ({ uses: 1000, usedBy: 114 }), findings: () => Array.from({ length: 49 }, () => ({ severity: "warning" })), responsibility: () => ({ state: { kind: "out-of-date", line: "Does the thing.", reasons: ["source"] }, failure: null }) };
+const counted = { ...inputs, counts: () => ({ uses: 1000, usedBy: 114 }), findings: () => Array.from({ length: 49 }, () => ({ severity: "warning" })), responsibility: () => ({ state: { kind: "out-of-date", line: "Does the thing.", reasons: ["describer"] }, failure: null }) };
 const mountCounted = (id, selection) => {
   const view = buildInspectorView(actions);
   view.render(inspectorContent(selection, counted), true);

@@ -6,10 +6,17 @@ export type ModuleTip = { path: string; description: string | null };
 export function descriptionOf(state: {
   kind: string;
   line?: string;
+  reasons?: string[];
 }): string | null {
-  return (state.kind === "current" || state.kind === "out-of-date") &&
-    state.line !== undefined &&
-    state.line !== ""
+  if (state.line === undefined || state.line === "") {
+    return null;
+  }
+
+  if (state.kind === "current") {
+    return state.line;
+  }
+
+  return state.kind === "out-of-date" && !state.reasons?.includes("source")
     ? state.line
     : null;
 }
