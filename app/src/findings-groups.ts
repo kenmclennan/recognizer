@@ -4,7 +4,6 @@ import {
   orderFindings,
   type StaleRow,
 } from "./findings-order";
-import type { ReportRow } from "./scan-panel-model";
 
 export type FindingGroupModel = {
   key: string;
@@ -121,21 +120,17 @@ function joinNames(names: string[]): string {
 
 export function staleNote(
   rows: FindingRow[],
+  hidden: FindingRow[],
   sensors: StaleRow[],
-  reports: ReportRow[] = [],
 ): string | null {
   const stale = new Set([
     ...sensors
-      .filter(
-        (row) =>
-          row.kind === "registered" &&
-          (row.chip === "stale" || row.chip === "failed"),
-      )
+      .filter((row) => row.kind === "registered" && row.chip === "failed")
       .map((row) => row.name),
-    ...reports.filter((row) => row.stale).map((row) => row.name),
+    ...hidden.map((row) => row.sensor),
   ]);
 
-  const names = groupsOf(rows)
+  const names = groupsOf([...rows, ...hidden])
     .filter((group) => group.rows.some((row) => stale.has(row.sensor)))
     .map((group) => group.name);
 

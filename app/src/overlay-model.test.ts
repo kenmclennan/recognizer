@@ -1,5 +1,6 @@
-import { SHIPPED_SENSOR_LIST } from "recognizer";
+import { type Scan, SHIPPED_SENSOR_LIST } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { buildFreshness } from "./freshness";
 import {
   buildOverlayModel,
   currentMetricNamed,
@@ -13,6 +14,31 @@ import {
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
+const H1 = "1".repeat(64);
+const H2 = "2".repeat(64);
+const H0 = "0".repeat(64);
+const TESTS = "a".repeat(64);
+
+function scanOf(hashes: Record<string, string>): Scan {
+  return {
+    modules: Object.keys(hashes).map((id) => ({ id, kind: "module" as const })),
+    edges: [],
+    foreign: [],
+    files: Object.entries(hashes).map(([path, hash]) => ({ path, hash })),
+  } as unknown as Scan;
+}
+
+const KNOWN: Record<string, string> = {
+  "a.py": H1,
+  "b.py": H2,
+  "ab.py": H1,
+  "b.ts": H1,
+  "one.py": H1,
+  "two.py": H1,
+};
+const FRESH = buildFreshness([scanOf(KNOWN)], TESTS);
+const CURRENT = { "a.py": H1 };
+const EDITED = { "a.py": H0 };
 
 type Declared = {
   name: string;
@@ -26,8 +52,19 @@ function overlay(
   values: Record<string, Record<string, number | boolean>>,
   extra: Record<string, unknown> = {},
 ): string {
+  const inputs: Record<string, string> = {};
+
+  for (const group of Object.values(values)) {
+    for (const key of Object.keys(group)) {
+      const module = key.split("::")[0] as string;
+
+      inputs[module] = KNOWN[module] ?? H1;
+    }
+  }
+
   return JSON.stringify({
     overlay_version: 1,
+    inputs,
     commit: COMMIT,
     modified: false,
     producer: { name: "crap", version: "0.1.0" },
@@ -42,74 +79,126 @@ function overlay(
   });
 }
 
-function only(text: string, scan: string | null = COMMIT): MetricDescriptor {
-  const model = buildOverlayModel([{ name: "crap", text }], { commit: scan });
+function only(text: string): MetricDescriptor {
+  const model = buildOverlayModel([{ name: "crap", text }], FRESH);
 
   return model.metrics[0] as MetricDescriptor;
 }
 
-describe("freshness and tooltips", () => {
+describe("tooltips and per-module freshness", () => {
   const text = overlay([{ name: "complexity" }], {});
 
-  it("is fresh when the commit equals the scan's", () => {
-    const model = buildOverlayModel([{ name: "crap", text }], {
-      commit: COMMIT,
-    });
+  it("gives the commit as provenance in the tooltip", () => {
+    const model = buildOverlayModel([{ name: "crap", text }], FRESH);
 
-    expect(model.groups[0]?.stale).toBe(false);
     expect(model.groups[0]?.tooltip).toBe("crap 0.1.0 - at 0123456");
   });
 
   it("appends the modified tree", () => {
     const modified = overlay([{ name: "complexity" }], {}, { modified: true });
-    const model = buildOverlayModel([{ name: "crap", text: modified }], {
-      commit: COMMIT,
-    });
+    const model = buildOverlayModel([{ name: "crap", text: modified }], FRESH);
 
     expect(model.groups[0]?.tooltip).toBe(
       "crap 0.1.0 - at 0123456, modified tree",
     );
   });
 
-  it("is stale for a different commit and for a scan with none", () => {
-    for (const scan of ["ffffffffffff", null]) {
-      const model = buildOverlayModel([{ name: "crap", text }], {
-        commit: scan,
-      });
+  it("keeps the tooltip the same whatever the scan's commit", () => {
+    const stale = overlay([{ name: "complexity" }], {}, { inputs: EDITED });
+    const model = buildOverlayModel([{ name: "crap", text: stale }], FRESH);
 
-      expect(model.groups[0]?.stale).toBe(true);
-      expect(model.groups[0]?.tooltip).toBe(
-        "crap 0.1.0 - from 0123456, not the scan's",
-      );
-      expect(model.groups[0]?.metrics[0]?.stale).toBe(true);
-      expect(model.metrics).toEqual([]);
-    }
+    expect(model.groups[0]?.tooltip).toBe("crap 0.1.0 - at 0123456");
   });
 });
 
-describe("a member-granularity overlay out of date", () => {
-  const text = overlay([{ name: "complexity" }], {
-    complexity: { "a.py::f": 3 },
-  });
-
-  it("lists its metrics but offers none to the canvas or the inspector", () => {
-    const model = buildOverlayModel([{ name: "crap", text }], {
-      commit: "ffffffffffff",
+describe("a member-granularity overlay judged per module", () => {
+  const values = { complexity: { "a.py::f": 3, "b.py::g": 9 } };
+  const mixed = (inputs: Record<string, string>, extra = {}) =>
+    overlay([{ name: "complexity" }], values, {
+      inputs,
+      tests: TESTS,
+      ...extra,
     });
 
+  it("keeps only the current module's values and counts the other", () => {
+    const model = buildOverlayModel(
+      [{ name: "crap", text: mixed({ "a.py": H1, "b.py": H0 }) }],
+      FRESH,
+    );
+    const group = model.groups[0];
+    const metric = model.metrics[0] as MetricDescriptor;
+
+    expect(group?.enabled).toBe(true);
+    expect(group?.outOfDate).toBe(1);
+    expect(group?.total).toBe(2);
+    expect(group?.notes).toEqual([
+      {
+        text: "crap: 1 of 2 modules out of date. Run crap to refresh.",
+        tone: "warn",
+      },
+    ]);
+    expect(metric.values).toEqual({ "a.py::f": 3 });
+    expect(metric.max).toBe(3);
+    expect(moduleValue(metric, "a.py")?.value).toBe(3);
+    expect(moduleValue(metric, "b.py")).toBeNull();
+  });
+
+  it("shows no note when every module is current", () => {
+    const model = buildOverlayModel(
+      [{ name: "crap", text: mixed({ "a.py": H1, "b.py": H2 }) }],
+      FRESH,
+    );
+
+    expect(model.groups[0]?.notes).toEqual([]);
+    expect(model.metrics[0]?.values).toEqual({ "a.py::f": 3, "b.py::g": 9 });
+  });
+
+  it("disables the group when every module is out of date", () => {
+    const model = buildOverlayModel(
+      [{ name: "crap", text: mixed({ "a.py": H0, "b.py": H0 }) }],
+      FRESH,
+    );
+
     expect(model.groups[0]?.enabled).toBe(false);
-    expect(model.groups[0]?.stale).toBe(true);
-    expect(model.groups[0]?.metrics.length).toBeGreaterThan(0);
+    expect(model.groups[0]?.notes[0]?.text).toBe(
+      "crap: 2 of 2 modules out of date. Run crap to refresh.",
+    );
+    expect(model.groups[0]?.metrics[0]?.values).toEqual({});
     expect(model.metrics).toEqual([]);
   });
 
-  it("offers its metrics once the scan's commit matches", () => {
-    const model = buildOverlayModel([{ name: "crap", text }], {
-      commit: COMMIT,
-    });
+  it("is out of date everywhere when the tests hash differs", () => {
+    const model = buildOverlayModel(
+      [
+        {
+          name: "crap",
+          text: mixed({ "a.py": H1, "b.py": H2 }, { tests: "b".repeat(64) }),
+        },
+      ],
+      FRESH,
+    );
 
-    expect(model.groups[0]?.enabled).toBe(true);
-    expect(model.metrics.length).toBeGreaterThan(0);
+    expect(model.groups[0]?.enabled).toBe(false);
+    expect(model.groups[0]?.outOfDate).toBe(2);
+  });
+
+  it("is out of date everywhere with no inputs", () => {
+    const model = buildOverlayModel(
+      [
+        {
+          name: "crap",
+          text: overlay([{ name: "complexity" }], values, {
+            inputs: undefined,
+          }),
+        },
+      ],
+      FRESH,
+    );
+
+    expect(model.groups[0]?.enabled).toBe(false);
+    expect(model.groups[0]?.outOfDate).toBe(2);
+    expect(model.groups[0]?.total).toBe(2);
+    expect(model.metrics).toEqual([]);
   });
 });
 
@@ -135,18 +224,18 @@ function ran(name: string, over: Partial<SensorStatus> = {}): SensorStatus {
 function groupOf(
   name: string,
   statuses: SensorStatus[],
-  scan: string | null = COMMIT,
+  inputs: Record<string, string> = CURRENT,
   modifiedMs: number | null = 1000,
 ) {
   const model = buildOverlayModel(
     [
       {
         name,
-        text: overlay([{ name: "survived" }], {}),
+        text: overlay([{ name: "survived" }], {}, { inputs }),
         modifiedMs,
       },
     ],
-    { commit: scan },
+    FRESH,
     { sensors: statuses, shipped: SHIPPED },
   );
 
@@ -164,12 +253,12 @@ describe("the group header model", () => {
   });
 
   it("warns when out of date and names the sensor's display name", () => {
-    const group = groupOf("crap", [ran("crap")], "ffffffffffff");
+    const group = groupOf("crap", [ran("crap")], EDITED);
 
     expect(group?.title).toBe("C.R.A.P.");
     expect(group?.notes).toEqual([
       {
-        text: "Out of date: measured before your latest commit. Run C.R.A.P. to refresh.",
+        text: "C.R.A.P.: 1 of 1 modules out of date. Run C.R.A.P. to refresh.",
         tone: "warn",
       },
     ]);
@@ -236,11 +325,11 @@ describe("the group header model", () => {
     const group = groupOf(
       "mutation",
       [ran("mutation", { partial: { measured: 1, total: 3 } })],
-      "ffffffffffff",
+      EDITED,
     );
 
     expect(group?.notes.map((note) => note.text)).toEqual([
-      "Out of date: measured before your latest commit. Run Mutation to refresh.",
+      "Mutation: 1 of 1 modules out of date. Run Mutation to refresh.",
       "Partial: 1 of 3 functions measured. The rest are uncoloured.",
     ]);
   });
@@ -260,11 +349,10 @@ describe("the group header model", () => {
   });
 
   it("shows a sensor that never ran as a disabled group built from the shipped list", () => {
-    const model = buildOverlayModel(
-      [],
-      { commit: COMMIT },
-      { sensors: [], shipped: SHIPPED },
-    );
+    const model = buildOverlayModel([], FRESH, {
+      sensors: [],
+      shipped: SHIPPED,
+    });
     const mutation = model.groups.find((group) => group.name === "mutation");
 
     expect(mutation?.enabled).toBe(false);
@@ -279,11 +367,10 @@ describe("the group header model", () => {
   });
 
   it("builds the never-run groups from the real committed list", () => {
-    const model = buildOverlayModel(
-      [],
-      { commit: COMMIT },
-      { sensors: [], shipped: SHIPPED },
-    );
+    const model = buildOverlayModel([], FRESH, {
+      sensors: [],
+      shipped: SHIPPED,
+    });
 
     expect(model.groups.map((group) => group.title)).toEqual([
       "C.R.A.P.",
@@ -301,7 +388,7 @@ describe("the group header model", () => {
           modifiedMs: 1000,
         },
       ],
-      { commit: COMMIT },
+      FRESH,
       { sensors: [ran("crap")], shipped: SHIPPED },
     );
     const [crap, mutation] = model.groups;
@@ -328,10 +415,10 @@ describe("the group header model", () => {
     const stopped = groupOf(
       "mutation",
       [ran("mutation", { stopped: { measured: 1, total: 3 } })],
-      COMMIT,
+      CURRENT,
       1000,
     );
-    const untimed = groupOf("mutation", [ran("mutation")], COMMIT, null);
+    const untimed = groupOf("mutation", [ran("mutation")], CURRENT, null);
 
     expect(stopped && groupHeader(stopped, 1000 + 5 * 60_000)).toBe(
       "stopped 5 minutes ago",
@@ -390,7 +477,7 @@ describe("descriptors", () => {
         { name: "garbage", text: "not json" },
         { name: "good", text: overlay([{ name: "complexity" }], {}) },
       ],
-      { commit: COMMIT },
+      FRESH,
     );
 
     expect(model.unreadable).toEqual(["bad", "garbage", "negative"]);
@@ -495,11 +582,20 @@ describe("pruneTicks", () => {
           text: overlay([{ name: "m1" }, { name: "m2" }], {}),
         },
       ],
-      { commit: COMMIT },
+      FRESH,
     );
     const stale = buildOverlayModel(
-      [{ name: "a", text: overlay([{ name: "m1" }, { name: "m2" }], {}) }],
-      { commit: "other" },
+      [
+        {
+          name: "a",
+          text: overlay(
+            [{ name: "m1" }, { name: "m2" }],
+            {},
+            { inputs: EDITED },
+          ),
+        },
+      ],
+      FRESH,
     );
 
     expect(pruneTicks(["a/m2", "gone/x", "a/m1"], fresh.metrics)).toEqual([
@@ -508,14 +604,10 @@ describe("pruneTicks", () => {
     ]);
     expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([]);
 
-    const disabled = buildOverlayModel(
-      [],
-      { commit: COMMIT },
-      {
-        sensors: [],
-        shipped: SHIPPED,
-      },
-    );
+    const disabled = buildOverlayModel([], FRESH, {
+      sensors: [],
+      shipped: SHIPPED,
+    });
 
     expect(pruneTicks(["mutation/survived"], disabled.metrics)).toEqual([]);
   });
@@ -523,7 +615,7 @@ describe("pruneTicks", () => {
 
 describe("currentMetricNamed", () => {
   const text = overlay([{ name: "m1" }], {});
-  const fresh = buildOverlayModel([{ name: "a", text }], { commit: COMMIT });
+  const fresh = buildOverlayModel([{ name: "a", text }], FRESH);
 
   it("finds a current metric by its name", () => {
     expect(currentMetricNamed("m1", fresh.metrics)?.key).toBe("a/m1");

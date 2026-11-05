@@ -210,7 +210,7 @@ describe("computeHealth with a baseline", () => {
     );
   });
 
-  it("leaves a baselined violation and another commit's document out of documents", () => {
+  it("leaves a baselined violation and an out-of-date document's findings out of documents", () => {
     const policy = fixturePolicy("check");
     const plain = withBaseline(null);
     const health = withBaseline(baseline);
@@ -222,9 +222,10 @@ describe("computeHealth with a baseline", () => {
     ]).health;
 
     expect(count(health.documents)).toBeLessThan(count(plain.documents));
-    expect(stray.documents.map((one) => one.sensor.name)).toEqual([
-      "structure",
-    ]);
+    expect(
+      stray.documents.find((one) => one.sensor.name === "lint")?.findings,
+    ).toEqual([]);
+    expect(stray.hidden.map((one) => one.sensor.name)).toEqual(["lint"]);
   });
 
   it("keeps a violation the baseline does not list", () => {
@@ -362,6 +363,7 @@ describe("hover truncation", () => {
     const ids = Array.from({ length: 12 }, (_, index) => `d/m${index}.py`);
     const health: Health = {
       documents: [],
+      hidden: [],
       disc: () => "amber",
       lines: () => ["a finding"],
       findings: () => [],
@@ -402,5 +404,111 @@ describe("violationLine", () => {
     ).toBe(
       "violation: implements b at line 3, 5 (forbid * -> foreign:requests)",
     );
+  });
+});
+
+describe("computeHealth judged per module", () => {
+  const H1 = "1".repeat(64);
+  const H2 = "2".repeat(64);
+  const H0 = "0".repeat(64);
+  const T = "a".repeat(64);
+
+  const scan = {
+    file: "scan.python.json",
+    scan: {
+      modules: [
+        { id: "a.py", kind: "module" },
+        { id: "b.py", kind: "module" },
+      ],
+      edges: [],
+      foreign: [],
+      files: [
+        { path: "a.py", hash: H1 },
+        { path: "b.py", hash: H2 },
+      ],
+    },
+  } as unknown as Parameters<typeof computeHealth>[0]["scans"][number];
+
+  function crap(
+    inputs: Record<string, string> | undefined,
+    tests: string | undefined = T,
+  ): FindingsDocument {
+    const finding = (id: string, modules: string[]) => ({
+      id,
+      kind: "crap",
+      severity: "warning" as const,
+      principle: "reduce-risk",
+      summary: id,
+      evidence: { modules },
+    });
+
+    return {
+      findings_version: 2,
+      sensor: { name: "crap", version: "1" },
+      commit: "whatever",
+      modified: false,
+      settings: {},
+      findings: [
+        finding("on-a", ["a.py"]),
+        finding("on-b", ["b.py"]),
+        finding("pair", ["a.py", "b.py"]),
+      ],
+      ...(inputs === undefined ? {} : { inputs }),
+      ...(tests === undefined ? {} : { tests }),
+    };
+  }
+
+  const healthOfDocument = (document: FindingsDocument, tests = T) =>
+    computeHealth({
+      scans: [scan],
+      policy: null,
+      modules: ["a.py", "b.py"],
+      baseline: null,
+      findings: [document],
+      tests,
+    });
+
+  it("keeps the findings of current modules and hides the rest", () => {
+    const health = healthOfDocument(crap({ "a.py": H1, "b.py": H0 }));
+
+    expect(health.documents[0]?.findings.map((f) => f.id)).toEqual(["on-a"]);
+    expect(health.hidden[0]?.findings.map((f) => f.id)).toEqual([
+      "on-b",
+      "pair",
+    ]);
+    expect(health.disc("a.py")).toBe("amber");
+    expect(health.disc("b.py")).toBe("grey");
+    expect(health.findings("b.py")).toEqual([]);
+  });
+
+  it("colours a module covered currently with no current findings green", () => {
+    const health = healthOfDocument({
+      ...crap({ "a.py": H1, "b.py": H2 }),
+      findings: [],
+    });
+
+    expect(health.disc("a.py")).toBe("green");
+    expect(health.disc("b.py")).toBe("green");
+    expect(health.hidden).toEqual([]);
+  });
+
+  it("hides everything and leaves its modules grey without inputs", () => {
+    const health = healthOfDocument(crap(undefined));
+
+    expect(health.documents[0]?.findings).toEqual([]);
+    expect(health.hidden[0]?.findings).toHaveLength(3);
+    expect(health.disc("a.py")).toBe("grey");
+    expect(health.disc("b.py")).toBe("grey");
+  });
+
+  it("hides every finding when the tests hash differs though modules match", () => {
+    const health = healthOfDocument(
+      crap({ "a.py": H1, "b.py": H2 }),
+      "b".repeat(64),
+    );
+
+    expect(health.documents[0]?.findings).toEqual([]);
+    expect(health.hidden[0]?.findings).toHaveLength(3);
+    expect(health.disc("a.py")).toBe("grey");
   });
 });

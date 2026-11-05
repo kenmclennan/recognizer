@@ -48,6 +48,7 @@ import { buildFindingsPanelView } from "./findings-panel-view";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
+import { buildFreshness } from "./freshness";
 import { limitsFromText } from "./function-limits";
 import { computeHealth, describeTree } from "./health";
 import {
@@ -117,7 +118,6 @@ import {
   inertSensors,
   type SensorsPort,
   type ShippedSensors,
-  scansCommit,
 } from "./sensor-run";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { currentCommit, hasEntries, staleReport } from "./stale-report";
@@ -249,6 +249,13 @@ type ChangeInfo =
       at: number;
     };
 
+function freshnessOf(loaded: Loaded) {
+  return buildFreshness(
+    loaded.scans.map(({ scan }) => scan),
+    loaded.tests ?? null,
+  );
+}
+
 export function showExplorer(
   container: HTMLElement,
   initial: Loaded,
@@ -288,7 +295,7 @@ export function showExplorer(
   };
   let overlayModel = buildOverlayModel(
     loaded.overlays ?? [],
-    scansCommit(scans),
+    freshnessOf(loaded),
     { sensors: loaded.sensors, shipped: null },
   );
   let metricTicks = pruneTicks(
@@ -373,6 +380,7 @@ export function showExplorer(
   let canvasNotes: CanvasNotes | undefined;
   let canvasNotesKey = "";
   let allFindings = findingRows(health.documents);
+  let hiddenRows = findingRows(health.hidden);
   let orientedFinding: string | null = null;
   const openGroups = new Set<string>();
   let findingsOnlyView = false;
@@ -1604,7 +1612,7 @@ export function showExplorer(
 
     overlayModel = buildOverlayModel(
       loaded.overlays ?? [],
-      scansCommit(scans),
+      freshnessOf(loaded),
       { sensors: loaded.sensors, shipped: shippedSensors },
     );
 
@@ -3067,6 +3075,9 @@ export function showExplorer(
       header: headerLine(shownFindings),
       stale: staleNote(
         shownFindings,
+        openView === null
+          ? hiddenRows
+          : scopedRows(hiddenRows, scopeOf(modules.opened())),
         loaded.sensors
           .filter(
             (one) =>
@@ -3078,7 +3089,6 @@ export function showExplorer(
             kind: "registered" as const,
             chip: one.status,
           })),
-        scanModelNow.reports,
       ),
       groups: groups.map((group) => ({
         group,
@@ -3298,9 +3308,10 @@ export function showExplorer(
       described = describeTree(root, health);
       overlayModel = buildOverlayModel(
         loaded.overlays ?? [],
-        scansCommit(scans),
+        freshnessOf(loaded),
       );
       allFindings = findingRows(health.documents);
+      hiddenRows = findingRows(health.hidden);
       metricTicks = pruneTicks(metricTicks, overlayModel.metrics);
       postConditions();
       render();

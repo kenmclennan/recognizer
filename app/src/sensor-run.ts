@@ -11,6 +11,7 @@ import {
   structureSensor,
   validateFindings,
 } from "recognizer";
+import { scanHashes } from "./freshness";
 import type { Loaded, LoadedScan } from "./scan-loading";
 
 export type SensorStatus = {
@@ -76,6 +77,7 @@ export type SensorsPort = {
   writeStructure(document: string | null): Promise<void>;
   readFindings(): Promise<FindingsFiles>;
   readOverlays(): Promise<OverlayFiles>;
+  readTestsHash(known: Record<string, string>): Promise<string | null>;
   removeFindings(names: string[]): Promise<void>;
   readInputs(): Promise<SensorInputs>;
   onInputsChanged(run: () => void): () => void;
@@ -87,6 +89,7 @@ export const inertSensors: SensorsPort = {
   writeStructure: async () => {},
   readFindings: async () => ({ files: [], refused: [] }),
   readOverlays: async () => ({ files: [], refused: [] }),
+  readTestsHash: async () => null,
   removeFindings: async () => {},
   readInputs: async () => ({
     policy: null,
@@ -300,6 +303,10 @@ export async function withSensors(
   const inputs = await port.readInputs();
   const run = await senseRepository(loaded.scans, inputs, port);
   const overlays = await port.readOverlays();
+  const known = Object.fromEntries(
+    scanHashes(loaded.scans.map(({ scan }) => scan)),
+  );
+  const tests = await port.readTestsHash(known).catch(() => null);
 
   return {
     ...loaded,
@@ -309,5 +316,6 @@ export async function withSensors(
     sensors: run.statuses,
     overlays: overlays.files,
     overlaysUnreadable: overlays.refused,
+    tests,
   };
 }

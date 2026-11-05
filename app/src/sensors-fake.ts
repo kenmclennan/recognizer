@@ -19,6 +19,7 @@ export type FakeSensors = SensorsPort & {
   overlays: Map<string, string>;
   modifiedOverlays: Map<string, number>;
   overlaysRefused: string[];
+  testsHash: string | null;
   removed: string[];
   written: (string | null)[];
   failWrite: boolean;
@@ -49,6 +50,7 @@ export function fakeSensors(
     overlays: new Map(Object.entries(overlays)),
     modifiedOverlays: new Map(),
     overlaysRefused: [],
+    testsHash: null,
     removed: [],
     written: [],
     failWrite: false,
@@ -131,6 +133,9 @@ export function fakeSensors(
         })),
         refused: fake.overlaysRefused,
       };
+    },
+    async readTestsHash() {
+      return fake.testsHash;
     },
     async removeFindings(names) {
       fake.removed.push(...names);

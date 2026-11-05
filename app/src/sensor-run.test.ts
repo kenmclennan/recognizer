@@ -310,6 +310,66 @@ describe("senseRepository and reports", () => {
   });
 });
 
+describe("withSensors tests hash", () => {
+  const empty = {
+    modules: [],
+    scans: [],
+    policy: null,
+    baseline: null,
+    notices: [],
+    blocking: null,
+    findings: [],
+    sensors: [],
+  };
+
+  it("stores the hash the port reads, handing it the scans' file hashes", async () => {
+    const port = fakeSensors();
+    const seen: Record<string, string>[] = [];
+
+    port.testsHash = "a".repeat(64);
+    port.readTestsHash = async (known) => {
+      seen.push(known);
+
+      return port.testsHash;
+    };
+
+    const next = await withSensors(
+      {
+        ...empty,
+        scans: [
+          {
+            file: "scan.json",
+            scan: {
+              modules: [],
+              edges: [],
+              foreign: [],
+              files: [{ path: "tests/a.py", hash: "h" }],
+            } as never,
+          },
+        ],
+      },
+      port,
+    );
+
+    expect(next.tests).toBe("a".repeat(64));
+    expect(seen).toEqual([{ "tests/a.py": "h" }]);
+  });
+
+  it("is null when the port has none and when it throws", async () => {
+    const none = await withSensors(empty, fakeSensors());
+    const port = fakeSensors();
+
+    port.readTestsHash = async () => {
+      throw new Error("no git");
+    };
+
+    const failed = await withSensors(empty, port);
+
+    expect(none.tests).toBeNull();
+    expect(failed.tests).toBeNull();
+  });
+});
+
 describe("withSensors", () => {
   it("carries the documents, statuses, policy and baseline on Loaded", async () => {
     const port = fakeSensors({}, { policy, baseline: "{}" });

@@ -1,0 +1,82 @@
+[
+  {
+    "path": "tests/data.json",
+    "test": true
+  },
+  {
+    "path": "src/a.py",
+    "test": false
+  },
+  {
+    "path": "src/test_a.py",
+    "test": true
+  },
+  {
+    "path": "conftest.py",
+    "test": true
+  },
+  {
+    "path": "src/FooTest.kt",
+    "test": true
+  },
+  {
+    "path": "src/app.spec.ts",
+    "test": true
+  },
+  {
+    "path": "src/__tests__/x.js",
+    "test": true
+  },
+  {
+    "path": "pkg/contest.py",
+    "test": false
+  },
+  {
+    "path": "src/a_test.py",
+    "test": true
+  },
+  {
+    "path": "src/FooTests.cs",
+    "test": true
+  },
+  {
+    "path": "test/x.txt",
+    "test": true
+  },
+  {
+    "path": "a/test/b/c.py",
+    "test": true
+  },
+  {
+    "path": "src/app.test.mjs",
+    "test": true
+  },
+  {
+    "path": "src/app.test.vue",
+    "test": false
+  },
+  {
+    "path": "test_.py",
+    "test": true
+  },
+  {
+    "path": "Test.kt",
+    "test": true
+  },
+  {
+    "path": "src/latest.py",
+    "test": false
+  },
+  {
+    "path": "README.md",
+    "test": false
+  },
+  {
+    "path": "src/x.spec.jsx",
+    "test": true
+  },
+  {
+    "path": "deep/conftest.py",
+    "test": true
+  }
+]

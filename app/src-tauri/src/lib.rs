@@ -1025,6 +1025,18 @@ fn read_overlays(app: AppHandle, window: WebviewWindow) -> Result<overlays::Over
 }
 
 #[tauri::command]
+fn read_tests_hash(
+    app: AppHandle,
+    window: WebviewWindow,
+    known: HashMap<String, String>,
+) -> Result<String, String> {
+    Ok(overlays::tests_hash(
+        &window_folder_path(&app, &window)?,
+        &known,
+    ))
+}
+
+#[tauri::command]
 fn remove_findings(
     app: AppHandle,
     window: WebviewWindow,
@@ -1337,6 +1349,7 @@ pub fn run() {
             read_overlays,
             read_responsibilities,
             read_sensor_inputs,
+            read_tests_hash,
             read_describing,
             read_settings,
             record_recent_view,

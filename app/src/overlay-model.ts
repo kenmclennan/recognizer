@@ -1,5 +1,6 @@
 import { type Overlay, validateOverlay } from "recognizer";
 import { ageText } from "./footer-scan";
+import type { Freshness } from "./freshness";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type OverlayFileInput = {
@@ -27,7 +28,6 @@ export type MetricDescriptor = {
   type: MetricType;
   bad: "high" | "low";
   overlay: string;
-  stale: boolean;
   max: number;
   values: Record<string, MetricValue>;
 };
@@ -40,7 +40,8 @@ export type OverlayGroup = {
   notes: GroupNote[];
   enabled: boolean;
   tooltip: string;
-  stale: boolean;
+  outOfDate: number;
+  total: number;
   metrics: MetricDescriptor[];
 };
 
@@ -76,14 +77,11 @@ export const DESCRIPTIONS: Record<string, string> = {
 
 const SHORT = 7;
 
-function tooltipOf(overlay: Overlay, stale: boolean): string {
+function tooltipOf(overlay: Overlay): string {
   const commit = overlay.commit.slice(0, SHORT);
   const producer = `${overlay.producer.name} ${overlay.producer.version}`;
-  const freshness = stale
-    ? `from ${commit}, not the scan's`
-    : `at ${commit}${overlay.modified ? ", modified tree" : ""}`;
 
-  return `${producer} - ${freshness}`;
+  return `${producer} - at ${commit}${overlay.modified ? ", modified tree" : ""}`;
 }
 
 function largest(values: Record<string, MetricValue>): number {
@@ -108,7 +106,6 @@ type MetricSpec = {
 function describe(
   group: string,
   metric: MetricSpec,
-  stale: boolean,
   values: Record<string, MetricValue>,
 ): MetricDescriptor {
   const description = DESCRIPTIONS[metric.name];
@@ -122,7 +119,6 @@ function describe(
     type: metric.type,
     bad: metric.bad,
     overlay: group,
-    stale,
     max: largest(values),
     values,
   };
@@ -138,9 +134,25 @@ export function groupHeader(group: OverlayGroup, now: number): string {
     : `${group.verb} ${ageText(group.measuredAt, now)}`;
 }
 
+function valueKeysOf(overlay: Overlay): string[] {
+  return Object.values(overlay.values).flatMap((values) => Object.keys(values));
+}
+
+function currentValues(
+  values: Record<string, MetricValue>,
+  overlay: Overlay,
+  freshness: Freshness,
+): Record<string, MetricValue> {
+  return Object.fromEntries(
+    Object.entries(values).filter(([key]) =>
+      freshness.current(overlay, freshness.moduleOf(key)),
+    ),
+  );
+}
+
 export function buildOverlayModel(
   files: readonly OverlayFileInput[],
-  scan: { commit: string | null },
+  freshness: Freshness,
   context: OverlayContext = { sensors: [], shipped: null },
 ): OverlayModel {
   const built = new Map<string, OverlayGroup>();
@@ -170,7 +182,10 @@ export function buildOverlayModel(
     }
 
     const title = display.get(file.name) || file.name;
-    const stale = scan.commit === null || overlay.commit !== scan.commit;
+    const counts = freshness.counts(overlay, valueKeysOf(overlay));
+    const allOutOfDate = counts.total > 0 && counts.outOfDate === counts.total;
+    const values = (name: string) =>
+      currentValues(overlay.values[name] ?? {}, overlay, freshness);
     const found = context.sensors.find((status) => status.name === file.name);
     const facts = found?.commit === overlay.commit ? found : undefined;
     const stopped = facts?.stopped;
@@ -183,9 +198,9 @@ export function buildOverlayModel(
         tone: "muted",
       });
     } else {
-      if (stale) {
+      if (counts.outOfDate > 0) {
         notes.push({
-          text: `Out of date: measured before your latest commit. Run ${title} to refresh.`,
+          text: `${title}: ${plural(counts.outOfDate)} of ${plural(counts.total)} modules out of date. Run ${title} to refresh.`,
           tone: "warn",
         });
       }
@@ -204,11 +219,11 @@ export function buildOverlayModel(
       measuredAt: file.modifiedMs ?? null,
       verb: stopped === undefined ? "measured" : "stopped",
       notes,
-      enabled: !nothing && !stale,
-      tooltip: tooltipOf(overlay, stale),
-      stale,
+      enabled: !nothing && !allOutOfDate,
+      tooltip: tooltipOf(overlay),
+      ...counts,
       metrics: overlay.metrics.map((metric) =>
-        describe(file.name, metric, stale, overlay.values[metric.name] ?? {}),
+        describe(file.name, metric, values(metric.name)),
       ),
     });
   }
@@ -260,9 +275,10 @@ export function buildOverlayModel(
       ],
       enabled: false,
       tooltip: "",
-      stale: false,
+      outOfDate: 0,
+      total: 0,
       metrics: sensor.metrics.map((metric) =>
-        describe(sensor.name, metric, false, {}),
+        describe(sensor.name, metric, {}),
       ),
     });
   }

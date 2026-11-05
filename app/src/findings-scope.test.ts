@@ -107,21 +107,15 @@ describe("counts over the shown findings only", () => {
     ]);
   });
 
-  it("raises the out-of-date notice only for a sensor with shown findings", () => {
-    const sensors = [
-      { name: "structure", kind: "registered" as const, chip: "stale" },
-    ];
+  it("raises the out-of-date notice only for a sensor with hidden findings in scope", () => {
     const other = rowsOf([record("crap:z", "crap", ["other/z.py"])], "crap");
-    const both = [...shown, ...other];
-    const stale = [
-      { name: "crap", kind: "registered" as const, chip: "stale" },
-    ];
+    const mine = rowsOf([record("crap:a", "crap", ["app/a.py"])], "crap");
 
-    expect(staleNote(both, stale)).toBe("C.R.A.P. findings are out of date.");
-    expect(staleNote(scopedRows(both, view), stale)).toBeNull();
-    expect(staleNote(shown, sensors)).toBe(
-      "Policy violation and Orphan findings are out of date.",
+    expect(staleNote(shown, mine, [])).toBe(
+      "C.R.A.P. findings are out of date.",
     );
+    expect(staleNote(shown, scopedRows(other, view), [])).toBeNull();
+    expect(staleNote(shown, [], [])).toBeNull();
   });
 });
 
