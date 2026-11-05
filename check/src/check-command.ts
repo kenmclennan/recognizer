@@ -623,6 +623,32 @@ function gather(
   };
 }
 
+const REASON: Record<string, string> = { ran: "out of date", stale: "stale" };
+
+function refuseInitWithHiddenFindings(sensors: SensorStatus[]): void {
+  const hidden = sensors.filter(
+    (one) =>
+      one.name !== "structure" &&
+      (one.status === "stale" ||
+        one.status === "failed" ||
+        (one.out_of_date ?? 0) > 0),
+  );
+
+  if (hidden.length === 0) {
+    return;
+  }
+
+  const names = hidden.map((one) => one.name);
+
+  throw new InputError([
+    ...hidden.map(
+      (one) =>
+        `--init-baseline refused: ${one.name} has ${REASON[one.status] ?? "invalid"} results`,
+    ),
+    `rerun them with recognizer scan --sense ${names.join(",")}, then run --init-baseline again`,
+  ]);
+}
+
 function executeRepository(
   values: {
     repository?: string;
@@ -669,6 +695,11 @@ function executeRepository(
       : parsePolicy(readInput(io, policyFile, "policy"));
 
   const gathered = gather(io, root, scans, policy, override);
+
+  if (flags.init) {
+    refuseInitWithHiddenFindings(gathered.sensors);
+  }
+
   const failed = gathered.sensors.some((one) => one.status === "failed");
   const allWarnings = warningsOf(gathered.documents);
   const warnings = narrowed

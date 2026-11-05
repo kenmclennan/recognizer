@@ -93,7 +93,8 @@ export const COMMANDS: Command[] = [
       },
       {
         flag: "--init-baseline",
-        description: "write the baseline from today's violations",
+        description:
+          "write the baseline from today's violations; refused with exit 2 while a registered sensor's results are out of date or invalid, naming each to rerun with recognizer scan --sense",
       },
       {
         flag: "--hub-threshold <n>",
@@ -119,7 +120,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown module, a baseline flag with a module, --scan with a module or --json, an unknown flag or a scan that could not be made",
+          "bad input - an unknown module, a baseline flag with a module, --init-baseline while a registered sensor's results are out of date or invalid, --scan with a module or --json, an unknown flag or a scan that could not be made",
       },
     ],
     examples: [
