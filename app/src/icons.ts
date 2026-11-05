@@ -22,6 +22,7 @@ export type IconName =
   | "arrow-right"
   | "route"
   | "sticky-note"
+  | "layers"
   | "scan"
   | "views"
   | "findings"
@@ -122,6 +123,26 @@ const SHAPES: Record<IconName, Shape[]> = {
     ["circle", { cx: "6", cy: "19", r: "3" }],
     ["path", { d: "M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" }],
     ["circle", { cx: "18", cy: "5", r: "3" }],
+  ],
+  layers: [
+    [
+      "path",
+      {
+        d: "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z",
+      },
+    ],
+    [
+      "path",
+      {
+        d: "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12",
+      },
+    ],
+    [
+      "path",
+      {
+        d: "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17",
+      },
+    ],
   ],
   "sticky-note": [
     [

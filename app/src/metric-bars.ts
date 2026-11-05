@@ -126,3 +126,33 @@ const LABEL_MAX = 4;
 export function clipLabel(label: string): string {
   return label.length > LABEL_MAX ? `${label.slice(0, LABEL_MAX - 1)}…` : label;
 }
+
+export type MemberSource = { labels: string[]; member: string };
+
+export function memberSources(
+  bars: readonly { label: string; member: string | null }[],
+): MemberSource[] | null {
+  const sources = new Map<string, string[]>();
+
+  for (const { label, member } of bars) {
+    if (member !== null) {
+      sources.set(member, [...(sources.get(member) ?? []), label]);
+    }
+  }
+
+  if (sources.size < 2) {
+    return null;
+  }
+
+  return [...sources].map(([member, labels]) => ({ labels, member }));
+}
+
+export function sourceTitle(sources: readonly MemberSource[]): string {
+  return sources
+    .map(({ labels, member }) => `${labels.join(", ")}: ${member}`)
+    .join("\n");
+}
+
+export function sourceLabel(sources: readonly MemberSource[]): string {
+  return `from ${sources.length} functions`;
+}

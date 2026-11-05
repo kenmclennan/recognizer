@@ -57,6 +57,7 @@ import {
   type InspectorContent,
   type InspectorTab,
   inspectorContent,
+  shortMetric,
 } from "./inspector-model";
 import { buildInspectorView, type InspectorActions } from "./inspector-view";
 import {
@@ -65,6 +66,7 @@ import {
   startLayoutWorker,
 } from "./layout-source";
 import type { MessageInput, MessageKind } from "./message-tray";
+import { memberSources } from "./metric-bars";
 import type { CanvasMetrics } from "./metrics-view";
 import { descriptionOf } from "./module-tip";
 import {
@@ -1117,9 +1119,17 @@ export function showExplorer(
         continue;
       }
 
+      const found = ticked.flatMap((metric) => {
+        const value = moduleValue(metric, box.id);
+
+        return value === null
+          ? []
+          : [{ label: shortMetric(metric), member: value.member }];
+      });
+
       counts.set(
         box.id,
-        ticked.filter((metric) => moduleValue(metric, box.id) !== null).length,
+        found.length + (memberSources(found) === null ? 0 : 1),
       );
     }
 

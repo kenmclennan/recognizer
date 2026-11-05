@@ -31,7 +31,10 @@ import {
   barTitle,
   clipLabel,
   fraction,
+  memberSources,
   tone as metricTone,
+  sourceLabel,
+  sourceTitle,
   valueLabel,
 } from "./metric-bars";
 import { buildMetricsView, type CanvasMetrics } from "./metrics-view";
@@ -867,7 +870,13 @@ export function buildCanvasView(
       return found === null ? [] : [{ metric, found }];
     });
 
-    return measured.map(({ metric, found }, index) => {
+    const sources = memberSources(
+      measured.map(({ metric, found }) => ({
+        label: shortMetric(metric),
+        member: found.member,
+      })),
+    );
+    const bars = measured.map(({ metric, found }, index) => {
       const track = barRect(box.rect, BOX_HEIGHT, index);
       const group = svg("g", {
         class: "metric-bar",
@@ -915,6 +924,40 @@ export function buildCanvasView(
 
       return group;
     });
+
+    return sources === null
+      ? bars
+      : [...bars, sourcesLine(box, measured.length, sources)];
+  }
+
+  function sourcesLine(
+    box: Scene["boxes"][number],
+    index: number,
+    sources: ReturnType<typeof memberSources> & object,
+  ): SVGElement {
+    const track = barRect(box.rect, BOX_HEIGHT, index);
+    const group = svg("g", { class: "metric-sources" });
+    const glyph = icon("layers");
+
+    glyph.setAttribute("x", String(box.rect.x + 12));
+    glyph.setAttribute("y", String(track.y + BAR_TRACK_HEIGHT / 2 - 6.5));
+    glyph.setAttribute("width", "13");
+    glyph.setAttribute("height", "13");
+    group.append(
+      svg("title", {}, sourceTitle(sources)),
+      glyph,
+      svg(
+        "text",
+        {
+          class: "metric-sources-text",
+          x: box.rect.x + 30,
+          y: track.y + BAR_TRACK_HEIGHT,
+        },
+        sourceLabel(sources),
+      ),
+    );
+
+    return group;
   }
 
   function noteMark(path: string, x: number, y: number): SVGElement {
