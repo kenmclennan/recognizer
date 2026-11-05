@@ -36,12 +36,12 @@ const scan = {
 };
 const style = { id: "style:c", kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers", evidence: { modules: [ids[2]] } };
 const doc = (findings) => ({ findings_version: 1, sensor: { name: "lint", version: "1" }, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, settings: {}, inputs: ${JSON.stringify(INPUTS)}, findings });
-const loadedFor = (modules, overlays, findings) => loadedOf({
+const loadedFor = (modules, overlays, findings, sensors = [{ name: "lint", status: "ran" }]) => loadedOf({
   modules,
   scans: [{ file: "scan.json", scan: { ...scan, modules: modules.map((id) => ({ id, kind: "module" })) } }],
   overlays,
   findings,
-  sensors: [{ name: "lint", status: "ran" }],
+  sensors,
 });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 80));
@@ -96,6 +96,21 @@ const shown = () => ({
     metrics: [before.metrics, after.metrics],
   };
 
+  const partialSensors = [{ name: "crap", status: "ran", commit: ${JSON.stringify(SCAN_COMMIT)}, findings: 0, partial: { measured: 2, total: 5 } }];
+  const landed = loadedFor(ids, [{ name: "crap", text: ${JSON.stringify(overlay)} }], [doc([style])], partialSensors);
+  const notesOf = () => qa(".metric-note").map((n) => n.textContent);
+  explorer.update(landed);
+  await tick();
+  const updatedNotes = notesOf();
+  host.replaceChildren();
+  const fresh = mountExplorer({ container: host, loaded: landed, title: "demo", views: port, post: () => null, carried: null });
+  await tick();
+  click(q(".metrics-toggle"));
+  await tick();
+  facts.notes = { updated: updatedNotes, fresh: notesOf() };
+  fresh.dispose();
+  host.replaceChildren();
+
   const camera = explorer.carry().camera;
   explorer.dispose();
   host.replaceChildren();
@@ -131,6 +146,13 @@ describe.skipIf(webkit === undefined)("an explorer updated in place", () => {
     expect(f.inPlace.badge[1]).not.toBe(f.inPlace.badge[0]);
     expect(f.inPlace.metrics[0]).toHaveLength(0);
     expect(f.inPlace.metrics[1].length).toBeGreaterThan(0);
+  });
+
+  it("keeps the Metrics notes a sensor landing shows on a fresh open", () => {
+    expect(f.notes.fresh.some((t: string) => t.startsWith("Partial:"))).toBe(
+      true,
+    );
+    expect(f.notes.updated).toEqual(f.notes.fresh);
   });
 
   it("starts a rebuilt canvas at the carried camera", () => {
