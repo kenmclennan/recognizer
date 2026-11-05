@@ -86,7 +86,7 @@ export function buildSettings(
 
   describing.className = "describing";
   describingLegend.textContent = "Describing";
-  describingRow.className = "row";
+  describingRow.className = "describing-fields";
   describingRow.append(field("Model", model), field("Batch size", batchSize));
   describing.append(describingLegend, describingRow, hintNode(DESCRIBING_HINT));
   error.className = "error";

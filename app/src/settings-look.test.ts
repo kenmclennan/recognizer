@@ -65,6 +65,10 @@ facts.layout = {
   inputWidth: Math.round(q('input[type="text"]').getBoundingClientRect().width),
 };
 
+const box = (node) => { const r = node.getBoundingClientRect(); return { name: node.tagName + "." + node.className, top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+const stack = (parent) => [...parent.children].map(box);
+facts.stacks = [stack(q("form")), stack(q(".describing"))];
+facts.nested = [q(".describing"), q(".describing-fields")].map((parent) => ({ parent: box(parent), children: stack(parent) }));
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
 
@@ -129,6 +133,32 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
   it("lays the form out as a column of full-width fields", () => {
     expect(f.layout.display).toBe("flex");
     expect(f.layout.inputWidth).toBeGreaterThan(300);
+  });
+
+  it("stacks each section's parts one below the next without overlap", () => {
+    for (const parts of f.stacks) {
+      for (let index = 1; index < parts.length; index += 1) {
+        expect(
+          parts[index].top,
+          `${parts[index].name} overlaps ${parts[index - 1].name}`,
+        ).toBeGreaterThanOrEqual(parts[index - 1].bottom - 0.5);
+      }
+    }
+  });
+
+  it("keeps the Describing parts inside the section and its row", () => {
+    for (const { parent, children } of f.nested) {
+      for (const child of children) {
+        expect(
+          child.top,
+          `${child.name} above ${parent.name}`,
+        ).toBeGreaterThanOrEqual(parent.top - 0.5);
+        expect(
+          child.bottom,
+          `${child.name} below ${parent.name}`,
+        ).toBeLessThanOrEqual(parent.bottom + 0.5);
+      }
+    }
   });
 
   it("gives the error room for two lines", () => {

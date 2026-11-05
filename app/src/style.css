@@ -1809,16 +1809,16 @@ svg.i.chevron {
   font-weight: 600;
 }
 
-.settings .describing .row {
+.settings .describing-fields {
   display: flex;
   gap: 12px;
 }
 
-.settings .describing .row label:first-child {
+.settings .describing-fields label:first-child {
   flex: 1;
 }
 
-.settings .describing .row label:last-child {
+.settings .describing-fields label:last-child {
   width: 110px;
 }
 
