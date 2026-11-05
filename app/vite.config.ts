@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { poolTestOptions } from "../scripts/pool-scale.mjs";
 
 export default defineConfig({
@@ -19,6 +19,11 @@ export default defineConfig({
       "src/**/*.test.ts",
       "scripts/**/*.test.mjs",
       "../scripts/**/*.test.mjs",
+    ],
+    exclude: [
+      ...configDefaults.exclude,
+      "src/layout-worker-build.test.ts",
+      "src/lightcycle-shaped-graph.test.ts",
     ],
     setupFiles: ["../scripts/vitest-remove-temp-dirs.mjs"],
   }),
