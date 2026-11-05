@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -88,7 +88,7 @@ async function collect(): Promise<Facts> {
   return collectFacts<Facts>(HARNESS, "folded-folder", "light", "app");
 }
 
-describe.skipIf(chrome === undefined)("a folded folder's box", () => {
+describe.skipIf(webkit === undefined)("a folded folder's box", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

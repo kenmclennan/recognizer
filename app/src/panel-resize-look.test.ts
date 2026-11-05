@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HOSTS = `<div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="first"></div></div><div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="second"></div></div>`;
 
@@ -89,7 +89,7 @@ async function run(): Promise<Report> {
 }
 
 describe("resizing the side panels in a real browser", () => {
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "drags each inner edge within its limits and reopens at the saved widths",
     async () => {
       const report = await run();

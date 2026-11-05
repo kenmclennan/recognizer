@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -76,7 +76,7 @@ const outerHeight = Number(
 
 type Facts = ReturnType<typeof JSON.parse>;
 
-describe.skipIf(chrome === undefined)("the settings window", () => {
+describe.skipIf(webkit === undefined)("the settings window", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

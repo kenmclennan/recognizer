@@ -57,6 +57,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
+      - name: Install the look-test browser
+        run: npx -w @recognizer/app playwright install webkit
 
       - name: Run quality gate
         run: npm run check:app

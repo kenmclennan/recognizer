@@ -1,27 +1,11 @@
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
-
-const CHROME_CANDIDATES = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter((path): path is string => typeof path === "string" && path !== "");
-
-const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
+import { lookBrowserArgs, webkit } from "./look-page";
 
 const here = (name: string) => fileURLToPath(new URL(name, import.meta.url));
 
@@ -280,15 +264,8 @@ function collect(): Facts {
     );
 
     const run = spawnSync(
-      chrome as string,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        `--user-data-dir=${join(dir, "profile")}`,
-        "--dump-dom",
-        `file://${page}`,
-      ],
+      process.execPath,
+      lookBrowserArgs(page, { size: "800x600" }),
       { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
@@ -311,8 +288,8 @@ function collect(): Facts {
   }
 }
 
-describe.skipIf(chrome === undefined)("tree view in a real browser", () => {
-  const facts = chrome === undefined ? null : collect();
+describe.skipIf(webkit === undefined)("tree view in a real browser", () => {
+  const facts = webkit === undefined ? null : collect();
   const f = facts as Facts;
 
   it("starts with the repository name and its module count and no hide button", () => {

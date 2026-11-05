@@ -1,32 +1,16 @@
-import { spawn } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-} from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ElkNode } from "elkjs/lib/elk-api";
+import { webkit as playwright } from "playwright";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { lightcycleShapedGraph } from "./lightcycle-shaped-graph";
-
-const CHROME_CANDIDATES = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter((path): path is string => typeof path === "string" && path !== "");
-
-const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
+import { webkit } from "./look-page";
 
 const PAGE = `<!doctype html>
 <html><body><script>
@@ -78,35 +62,8 @@ async function buildApp(outDir: string): Promise<string> {
   return `/assets/${file}`;
 }
 
-function groupAlive(pid: number): boolean {
-  try {
-    process.kill(-pid, 0);
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function killGroup(pid: number | undefined): Promise<void> {
-  if (pid === undefined) {
-    return;
-  }
-
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch {
-    return;
-  }
-
-  for (let waited = 0; groupAlive(pid) && waited < 10000; waited += 50) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-}
-
-async function answerInChrome(graph: ElkNode): Promise<string> {
+async function answerInBrowser(graph: ElkNode): Promise<string> {
   const outDir = mkdtempSync(join(tmpdir(), "layout-worker-"));
-  const profile = mkdtempSync(join(tmpdir(), "layout-chrome-"));
 
   try {
     const workerPath = await buildApp(outDir);
@@ -156,53 +113,39 @@ async function answerInChrome(graph: ElkNode): Promise<string> {
 
     try {
       const { port } = server.address() as AddressInfo;
-      const browser = spawn(
-        chrome as string,
-        [
-          "--headless=new",
-          "--disable-gpu",
-          "--no-sandbox",
-          `--user-data-dir=${profile}`,
-          `http://127.0.0.1:${port}/`,
-        ],
-        { stdio: "ignore", detached: true },
-      );
+      const browser = await playwright.launch();
       const silence = new Promise<string>((resolve) =>
         setTimeout(() => resolve("TIMEOUT"), scaledTimeout(150000)),
       );
 
       try {
+        await (await browser.newPage()).goto(`http://127.0.0.1:${port}/`);
+
         return await Promise.race([reported, silence]);
       } finally {
-        await killGroup(browser.pid);
+        await browser.close();
       }
     } finally {
       server.close();
     }
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    rmSync(profile, {
-      recursive: true,
-      force: true,
-      maxRetries: 10,
-      retryDelay: 200,
-    });
   }
 }
 
 describe("built layout worker in a real browser", () => {
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "answers a layout request when started as the app starts it",
     async () => {
-      expect(await answerInChrome(SMALL_GRAPH as ElkNode)).toBe("ANSWERED 2");
+      expect(await answerInBrowser(SMALL_GRAPH as ElkNode)).toBe("ANSWERED 2");
     },
     scaledTimeout(120000),
   );
 
-  it.skipIf(chrome === undefined)(
+  it.skipIf(webkit === undefined)(
     "lays out a graph of lightcycle's shape",
     async () => {
-      expect(await answerInChrome(lightcycleShapedGraph())).toBe("ANSWERED 4");
+      expect(await answerInBrowser(lightcycleShapedGraph())).toBe("ANSWERED 4");
     },
     scaledTimeout(180000),
   );

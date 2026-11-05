@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -164,7 +164,7 @@ const disjoint = (a: Rect, b: Rect) =>
   a.bottom <= b.top ||
   b.bottom <= a.top;
 
-describe.skipIf(!chrome)("box description look", () => {
+describe.skipIf(!webkit)("box description look", () => {
   let facts: Facts;
 
   beforeAll(async () => {

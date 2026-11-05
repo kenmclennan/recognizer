@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
+import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -119,7 +119,7 @@ type Facts = {
   openAfterEdge: State;
 };
 
-describe.skipIf(chrome === undefined)("the window's published state", () => {
+describe.skipIf(webkit === undefined)("the window's published state", () => {
   let f: Facts;
 
   beforeAll(async () => {

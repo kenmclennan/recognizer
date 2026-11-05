@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, here } from "./look-page";
+import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -67,7 +67,7 @@ document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JS
 
 type Facts = ReturnType<typeof JSON.parse>;
 
-describe.skipIf(chrome === undefined)("the spinner, in a real browser", () => {
+describe.skipIf(webkit === undefined)("the spinner, in a real browser", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

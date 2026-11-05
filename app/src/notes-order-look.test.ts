@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
-import { chrome, collectFacts, FAKE_WORKER, here } from "./look-page";
+import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -115,7 +115,7 @@ const facts = {};
 
 type Facts = ReturnType<typeof JSON.parse>;
 
-describe.skipIf(chrome === undefined)("notes in order", () => {
+describe.skipIf(webkit === undefined)("notes in order", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {

@@ -1,11 +1,5 @@
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,18 +7,8 @@ import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { BOX_HEIGHT, FOLDER_BOX_HEIGHT, FRAME_TOP } from "./canvas-layout";
-import { HIDE_SCROLLBARS } from "./look-page";
+import { HIDE_SCROLLBARS, lookBrowserArgs, webkit } from "./look-page";
 
-const CHROME_CANDIDATES = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter((path): path is string => typeof path === "string" && path !== "");
-
-const chrome = CHROME_CANDIDATES.find((path) => existsSync(path));
 const SRC = fileURLToPath(new URL(".", import.meta.url));
 
 const TOKENS = [
@@ -495,16 +479,8 @@ function collect(scheme: "light" | "dark"): Report {
     );
 
     const run = spawnSync(
-      chrome as string,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        `--user-data-dir=${join(dir, "profile")}`,
-        `--blink-settings=preferredColorScheme=${scheme === "dark" ? 0 : 1}`,
-        "--dump-dom",
-        `file://${page}`,
-      ],
+      process.execPath,
+      lookBrowserArgs(page, { dark: scheme === "dark", size: "800x600" }),
       { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
@@ -548,7 +524,7 @@ describe("the canvas, in a real browser", () => {
     describe(scheme, () => {
       const r = () => report(scheme);
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "uses the designed palette for the window and every token",
         () => {
           expect(r().dark).toBe(scheme === "dark");
@@ -559,7 +535,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "draws edges in the designed strokes, dimming the rest",
         () => {
           const { edges } = r();
@@ -590,7 +566,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "holds no tree toggle, no bar and no count across the top",
         () => {
           const { chrome: c } = r();
@@ -603,7 +579,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "draws frames as dashed purple rounded rectangles with a bold label",
         () => {
           const { frames } = r();
@@ -641,7 +617,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "draws boxes 40px high with no counts, a halo when selected and a 50px folded box",
         () => {
           const { boxes } = r();
@@ -688,7 +664,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "shows a dark selection bar of labelled svg icon buttons in the designed order",
         () => {
           const { barModule, barFolder, barClicks, barFolded } = r();
@@ -786,7 +762,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "disables the Dependencies button and opens no tab when the total is zero",
         () => {
           const { barZero } = r();
@@ -798,7 +774,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "shows the bar only while the pointer is over the selected box or the bar",
         () => {
           const { hover } = r();
@@ -822,7 +798,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "gives every icon button a tooltip and shows no word on a bar button",
         () => {
           const { hover } = r();
@@ -837,7 +813,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "words the empty hint and shows it only on an empty canvas",
         () => {
           const { hint } = r();
@@ -850,12 +826,15 @@ describe("the canvas, in a real browser", () => {
           expect(hint.fittedWhenEmpty).toBe(true);
           expect(hint.style["text-align"]).toBe("center");
           expect(hint.style.color).toBe(r().tokens.muted);
-          expect(hint.style["line-height"]).toBe("20.8px");
+          expect(Number.parseFloat(hint.style["line-height"])).toBeCloseTo(
+            20.8,
+            3,
+          );
         },
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "floats a zoom bar that greys out at 10% and 250%",
         () => {
           const { zoom } = r();
@@ -912,7 +891,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "dims unrelated boxes and frames to 60% and leaves related ones alone",
         () => {
           const { dimming } = r();
@@ -926,7 +905,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "leaves the bar off-canvas with its box, at the same offset, when panned away",
         () => {
           const { beforePan, afterPan } = r().pinned;
@@ -939,7 +918,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "keeps the bar centred above its box while zooming",
         () => {
           const { beforePan, afterZoom } = r().pinned;
@@ -953,7 +932,7 @@ describe("the canvas, in a real browser", () => {
         scaledTimeout(120000),
       );
 
-      it.skipIf(chrome === undefined)(
+      it.skipIf(webkit === undefined)(
         "moves a right-click bar by exactly the pan",
         () => {
           const { rightBefore, rightAfter } = r().pinned;

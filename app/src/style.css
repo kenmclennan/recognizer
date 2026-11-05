@@ -615,6 +615,7 @@ svg.i.chevron {
 
 .surface text {
   font-size: 12px;
+  font-optical-sizing: none;
   fill: var(--fg);
   pointer-events: none;
 }
