@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import type { ScanOrigin } from "./footer-scan";
 import type { MessageAction, MessageInput } from "./message-tray";
 import {
@@ -397,7 +398,9 @@ describe("createRescanner", () => {
     );
     const running = stopped.rescanner.run();
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(() => expect(stopped.posted).toHaveLength(1), {
+      timeout: scaledTimeout(4000),
+    });
     await stopped.rescanner.stop();
     await running;
 
