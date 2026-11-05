@@ -96,6 +96,14 @@ pub fn is_test_file(module_id: &str) -> bool {
         return true;
     }
 
+    if basename.ends_with(".cs")
+        && parts
+            .iter()
+            .any(|part| part.ends_with("Test") || part.ends_with("Tests"))
+    {
+        return true;
+    }
+
     if is_test_basename(basename) {
         return true;
     }
