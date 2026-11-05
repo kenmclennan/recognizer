@@ -22,6 +22,7 @@ export function openHoverTip(
 
   const node = el("div", className);
 
+  node.style.pointerEvents = "none";
   fill(node);
   document.body.append(node);
 
