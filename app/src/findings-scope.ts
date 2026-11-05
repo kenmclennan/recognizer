@@ -29,6 +29,6 @@ export function scopedRows(rows: FindingRow[], scope: ViewScope): FindingRow[] {
   return rows.filter((row) => inScope(row, scope));
 }
 
-export function scopeCaption(name: string, count: number): string {
-  return `${name}, ${count} ${count === 1 ? "module" : "modules"}`;
+export function scopeCaption(name: string | null, count: number): string {
+  return `${name ?? "This canvas"}, ${count}`;
 }

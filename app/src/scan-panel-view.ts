@@ -64,18 +64,21 @@ function scopeNode(
   scope: NonNullable<ScanPanelModel["scope"]>,
   actions: ScanPanelActions,
 ): HTMLElement {
-  const node = el("div", "scan-scope");
-  const text = el("div", "scan-scope-text", "Only this view");
-  const toggle = el("button", "scan-switch") as HTMLButtonElement;
+  const node = el("div", "scan-scope seg");
+  const canvas = button(scope.caption, "scan-scope-canvas", () =>
+    actions.setOnlyView(true),
+  );
+  const all = button("Whole repository", "scan-scope-all", () =>
+    actions.setOnlyView(false),
+  );
 
-  text.append(el("small", "scan-scope-caption", scope.caption));
-  toggle.type = "button";
-  toggle.setAttribute("role", "switch");
-  toggle.setAttribute("aria-checked", String(scope.on));
-  toggle.setAttribute("aria-label", "Only this view");
-  toggle.disabled = scope.disabled;
-  toggle.addEventListener("click", () => actions.setOnlyView(!scope.on));
-  node.append(text, toggle);
+  canvas.setAttribute("aria-pressed", String(scope.on));
+  all.setAttribute("aria-pressed", String(!scope.on));
+  canvas.classList.toggle("on", scope.on);
+  all.classList.toggle("on", !scope.on);
+  canvas.disabled = scope.disabled;
+  all.disabled = scope.disabled;
+  node.append(canvas, all);
 
   return node;
 }

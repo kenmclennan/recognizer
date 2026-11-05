@@ -619,17 +619,34 @@ describe("scanPanel only this view", () => {
   const row = (model: ReturnType<typeof scanPanel>, key: string) =>
     model.rows.find((one) => one.key === key);
 
-  it("shows the switch only while a view is open, captioned with its name and module count", () => {
+  it("shows the switch for a canvas, captioned with the view's name or This canvas and the module count", () => {
     expect(scanPanel(input()).scope).toBeNull();
     expect(scanPanel(input({ view })).scope).toEqual({
-      caption: "engine-loop, 1 module",
+      caption: "engine-loop, 1",
       on: false,
       disabled: false,
     });
     expect(
       scanPanel(input({ view: { name: "v", modules: ["a.py", "b.py"] } })).scope
         ?.caption,
-    ).toBe("v, 2 modules");
+    ).toBe("v, 2");
+    expect(
+      scanPanel(input({ view: { name: null, modules: ["a.py"] } })).scope
+        ?.caption,
+    ).toBe("This canvas, 1");
+  });
+
+  it("scopes an untitled canvas to its open modules when the switch is on", () => {
+    const untitled = { name: null, modules: ["a.py"] };
+    const on = scanPanel(
+      input({ view: untitled, scans: SCANS, ticks: ticked(true) }),
+    );
+    const off = scanPanel(
+      input({ view: untitled, scans: SCANS, ticks: ticked(false) }),
+    );
+
+    expect(row(on, "mutation")?.state.text).toBe("2 functions");
+    expect(row(off, "mutation")?.state.text).toBe("4 functions");
   });
 
   it("locks the switch while scanning and reflects the stored value", () => {
@@ -638,7 +655,7 @@ describe("scanPanel only this view", () => {
     );
 
     expect(model.scope).toEqual({
-      caption: "engine-loop, 1 module",
+      caption: "engine-loop, 1",
       on: true,
       disabled: true,
     });

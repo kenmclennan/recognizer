@@ -255,19 +255,34 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   const only = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py"]);
   click(only.q(".rail-findings"));
   await tick();
-  const snap = () => ({ line: only.q(".findings-line").textContent, groups: texts(only, ".finding-group-name"), counts: texts(only, ".finding-group-count"), checked: only.q(".findings-switch").getAttribute("aria-checked") });
-  facts.only = { shown: only.shown(".findings-scope"), caption: only.q(".findings-scope-text small").textContent, before: snap() };
-  click(only.q(".findings-switch"));
+  const snap = () => ({ line: only.q(".findings-line").textContent, groups: texts(only, ".finding-group-name"), counts: texts(only, ".finding-group-count"), checked: only.q(".findings-scope-canvas").getAttribute("aria-pressed"), all: only.q(".findings-scope-all").getAttribute("aria-pressed") });
+  facts.only = { shown: only.shown(".findings-scope"), caption: only.q(".findings-scope-canvas").textContent, before: snap() };
+  click(only.q(".findings-scope-canvas"));
   await tick();
   facts.only.on = snap();
   facts.only.marks = only.all(".box .finding-mark, .box.finding").length;
-  click(only.q(".findings-switch"));
+  click(only.q(".findings-scope-all"));
   await tick();
   facts.only.off = snap();
-  const noView = await mount({ findings: [doc("structure", [cycle])] }, null);
+  const noView = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, null);
   click(noView.q(".rail-findings"));
   await tick();
-  facts.noView = { shown: noView.shown(".findings-scope") };
+  const untitled = () => ({ line: noView.q(".findings-line").textContent, canvas: noView.q(".findings-scope-canvas").getAttribute("aria-pressed") });
+  facts.noView = { shown: noView.shown(".findings-scope"), caption: noView.q(".findings-scope-canvas").textContent, before: untitled() };
+  click(noView.q(".rail-files"));
+  await tick();
+  click(noView.q(".rcheck"));
+  await tick();
+  click(noView.q(".rail-findings"));
+  await tick();
+  facts.noView.opened = noView.all(".box").length;
+  facts.noView.afterOpen = { caption: noView.q(".findings-scope-canvas").textContent };
+  click(noView.q(".findings-scope-canvas"));
+  await tick();
+  facts.noView.on = untitled();
+  click(noView.q(".findings-scope-all"));
+  await tick();
+  facts.noView.off = untitled();
 
   const warn = await mount({ findings: [doc("lint", [style])] }, null);
   facts.warnings = { class: warn.q(".rail-findings .rail-count").className, hidden: warn.q(".rail-findings .rail-count").hidden };
@@ -494,24 +509,32 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
 
   it("limits the panel to the open view's findings when Only this view is on", () => {
     expect(f.only.shown).toBe(true);
-    expect(f.only.caption).toBe("order, 1 module");
+    expect(f.only.caption).toBe("order, 1");
     expect(f.only.before).toEqual({
       line: "1 violation, 2 warnings",
       groups: ["Policy violation", "Cyclic dependency", "Style"],
       counts: ["1", "1", "1"],
       checked: "false",
+      all: "true",
     });
     expect(f.only.on).toEqual({
       line: "1 violation, 1 warning",
       groups: ["Policy violation", "Cyclic dependency"],
       counts: ["1", "1"],
       checked: "true",
+      all: "false",
     });
     expect(f.only.off).toEqual(f.only.before);
   });
 
-  it("hides the switch while no view is open", () => {
-    expect(f.noView.shown).toBe(false);
+  it("offers the canvas and whole-repository switch on an Untitled canvas and scopes by its open modules", () => {
+    expect(f.noView.shown).toBe(true);
+    expect(f.noView.caption).toBe("This canvas, 0");
+    expect(f.noView.opened).toBeGreaterThan(0);
+    expect(f.noView.afterOpen.caption).toBe(`This canvas, ${f.noView.opened}`);
+    expect(f.noView.on.canvas).toBe("true");
+    expect(f.noView.off).toEqual(f.noView.before);
+    expect(f.noView.on.line).not.toBe(f.noView.before.line);
   });
 
   it("shows amber for warnings only, hides the badge at zero and ignores another commit", () => {

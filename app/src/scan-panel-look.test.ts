@@ -310,9 +310,21 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const sc = await mount(scopeFake, undefined, true, { demo: viewJson([{ kind: "pick", module: "app/a.py" }]) });
   click(sc.q(".rail-scan"));
   await tick();
-  const scopeOf = () => ({ switches: sc.all(".scan-switch").length, caption: sc.q(".scan-scope-caption")?.textContent ?? null, on: sc.q(".scan-switch")?.getAttribute("aria-checked") ?? null, disabled: sc.q(".scan-switch")?.disabled ?? null });
+  const scopeOf = () => ({ switches: sc.all(".scan-scope").length, caption: sc.q(".scan-scope-canvas")?.textContent ?? null, on: sc.q(".scan-scope-canvas")?.getAttribute("aria-pressed") ?? null, all: sc.q(".scan-scope-all")?.textContent ?? null, disabled: sc.q(".scan-scope-canvas")?.disabled ?? null });
   const stateOf = (key) => sc.rows().find((r) => r.key === key)?.state;
   facts.scopeNone = { scope: scopeOf(), describe: stateOf("describe") };
+  click(sc.q(".rail-files"));
+  await tick();
+  click(sc.q(".rcheck"));
+  await tick();
+  click(sc.q(".rail-scan"));
+  await tick();
+  facts.scopeUntitled = { scope: scopeOf(), describe: stateOf("describe") };
+  click(sc.q(".scan-scope-canvas"));
+  await tick();
+  facts.scopeUntitledOn = { scope: scopeOf(), describe: stateOf("describe") };
+  click(sc.q(".scan-scope-all"));
+  await tick();
   click(sc.q(".view-list"));
   await tick();
   const item = sc.all(".view-item").find((n) => n.querySelector(".view-item-name").textContent === "demo");
@@ -322,7 +334,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   await sc.setTick("mutation", true);
   facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication") };
-  click(sc.q(".scan-switch"));
+  click(sc.q(".scan-scope-canvas"));
   await tick();
   facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication"), written: scopeFake.written.at(-1) };
   const hold = gate();
@@ -333,7 +345,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   hold.release();
   await tick(); await tick();
   facts.scopeRan = { modules: scopeFake.ran.map((plan) => plan.modules), after: scopeOf() };
-  click(sc.q(".scan-switch"));
+  click(sc.q(".scan-scope-all"));
   await tick();
   click(sc.q(".scan-run"));
   await tick(); await tick();
@@ -368,12 +380,20 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     f = await collectFacts<Facts>(HARNESS, "scan-panel");
   }, scaledTimeout(180000));
 
-  it("shows the Only this view switch only with a view open, captioned and locked during a run", () => {
-    expect(f.scopeNone.scope.switches).toBe(0);
+  it("offers the canvas and whole-repository switch on an Untitled canvas, captioned This canvas and sized by its open modules", () => {
+    expect(f.scopeNone.scope.switches).toBe(1);
+    expect(f.scopeNone.scope.caption).toBe("This canvas, 0");
+    expect(f.scopeNone.scope.all).toBe("Whole repository");
+    expect(f.scopeUntitled.scope.caption).toMatch(/^This canvas, [1-9]/);
+    expect(f.scopeUntitledOn.scope.on).toBe("true");
+  });
+
+  it("captions a saved view by name and locks the switch during a run", () => {
     expect(f.scopeOff.scope).toEqual({
       switches: 1,
-      caption: "demo, 1 module",
+      caption: "demo, 1",
       on: "false",
+      all: "Whole repository",
       disabled: false,
     });
     expect(f.scopeOn.scope.on).toBe("true");

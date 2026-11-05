@@ -807,11 +807,7 @@ export function showExplorer(
       render();
     },
     run: () =>
-      scanHost.run(
-        scanHost.ticks().onlyView && openView !== null
-          ? modules.opened()
-          : null,
-      ),
+      scanHost.run(scanHost.ticks().onlyView ? modules.opened() : null),
     stop: () => scanHost.stop(),
     clearReport: (name) => void clearReport(name),
   });
@@ -1638,10 +1634,7 @@ export function showExplorer(
       lines: { modules: loaded.modules, of: responsibilityOf },
       describedAt,
       ticks: scanHost.ticks(),
-      view:
-        openView === null
-          ? null
-          : { name: openView, modules: modules.opened() },
+      view: { name: openView, modules: modules.opened() },
       scans,
       run: scanHost.runState(),
       scanning: scanHost.running(),
@@ -3058,26 +3051,21 @@ export function showExplorer(
       openView,
     );
 
-    const scoped = openView !== null && findingsOnlyView;
+    const scoped = findingsOnlyView;
     const shownFindings = scoped
       ? scopedRows(allFindings, scopeOf(modules.opened()))
       : allFindings;
     const groups = groupsOf(shownFindings);
 
     findingsView.render({
-      scope:
-        openView === null
-          ? null
-          : {
-              caption: scopeCaption(openView, modules.count()),
-              on: findingsOnlyView,
-            },
+      scope: {
+        caption: scopeCaption(openView, modules.count()),
+        on: findingsOnlyView,
+      },
       header: headerLine(shownFindings),
       stale: staleNote(
         shownFindings,
-        openView === null
-          ? hiddenRows
-          : scopedRows(hiddenRows, scopeOf(modules.opened())),
+        scoped ? scopedRows(hiddenRows, scopeOf(modules.opened())) : hiddenRows,
         loaded.sensors
           .filter(
             (one) =>
@@ -3101,7 +3089,7 @@ export function showExplorer(
         allFindings.length === 0
           ? "No findings for this scan."
           : shownFindings.length === 0
-            ? "No findings on this view's modules."
+            ? "No findings on this canvas's modules."
             : null,
     });
     rail.render({
