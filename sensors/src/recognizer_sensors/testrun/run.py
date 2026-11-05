@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,14 +11,17 @@ from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco
 from recognizer_sensors.crap.lcov import Coverage, normalise_path, parse_lcov
 from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.mutation.test_files import is_test_file
+from recognizer_sensors.parsing import parse
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import MeasurementError, SettingsError, relative_path
 from recognizer_sensors.testrun.profiles import (
     CONTEXTS_JSON,
+    CSHARP_CLASSES,
     KOTLIN_CLASSES,
     PROFILES,
     by_file_command,
     coverage_command,
+    csharp_by_file_command,
     kotlin_by_file_command,
 )
 
@@ -45,6 +49,14 @@ KOTLIN_DECLARATION = re.compile(
     r"(?:class|object)\s+(\w+)",
     re.MULTILINE,
 )
+
+CSHARP_DIRECTORY = ".recognizer/cache/coverage/csharp"
+
+CSHARP_BY_FILE_DIRECTORY = ".recognizer/cache/coverage/csharp/by-file"
+
+CSHARP_CLASS_NAME = re.compile(r"^[A-Za-z0-9_.+]+$")
+
+CSHARP_TYPES = ("class_declaration", "record_declaration", "struct_declaration")
 
 REASON_LIMIT = 200
 
@@ -539,6 +551,170 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
     return selection
 
 
+def csharp_trx_classes(directory: Path) -> set[str] | None:
+    found: set[str] = set()
+
+    for trx in sorted(directory.glob("results_*.trx")):
+        try:
+            root = ElementTree.parse(trx).getroot()
+        except (OSError, ElementTree.ParseError):
+            return None
+
+        for element in root.iter():
+            if element.tag.rpartition("}")[2] == "TestMethod" and element.get("className"):
+                found.add(element.get("className"))
+
+    return found
+
+
+def csharp_declared(node, namespace: str, outer: str, found: list[str]) -> None:
+    for child in node.children:
+        if child.type == "file_scoped_namespace_declaration":
+            name = child.child_by_field_name("name")
+            namespace = name.text.decode("utf-8", errors="replace") if name else namespace
+            csharp_declared(child, namespace, outer, found)
+        elif child.type == "namespace_declaration":
+            name = child.child_by_field_name("name")
+            inner = name.text.decode("utf-8", errors="replace") if name else ""
+            joined = f"{namespace}.{inner}" if namespace and inner else namespace or inner
+            body = child.child_by_field_name("body")
+
+            if body is not None:
+                csharp_declared(body, joined, outer, found)
+        elif child.type in CSHARP_TYPES:
+            name = child.child_by_field_name("name")
+
+            if name is None:
+                continue
+
+            text = name.text.decode("utf-8", errors="replace")
+            qualified = (
+                f"{outer}+{text}" if outer else (f"{namespace}.{text}" if namespace else text)
+            )
+            found.append(qualified)
+            body = child.child_by_field_name("body")
+
+            if body is not None:
+                csharp_declared(body, namespace, qualified, found)
+
+
+def csharp_declarations(repository: Path, names: set[str]) -> dict[str, list[str]]:
+    simple = {name.rpartition("+")[2].rpartition(".")[2] for name in names}
+    declared: dict[str, list[str]] = {}
+
+    for path in sorted(set(listed_files(repository))):
+        if not path.endswith(".cs"):
+            continue
+
+        try:
+            data = (repository / path).read_bytes()
+        except OSError:
+            continue
+
+        text = data.decode("utf-8", errors="replace")
+
+        if not any(name in text for name in simple):
+            continue
+
+        found: list[str] = []
+        csharp_declared(parse("csharp", data).root_node, "", "", found)
+
+        for name in found:
+            declared.setdefault(name, []).append(path)
+
+    return declared
+
+
+def csharp_class_map(repository: Path, classes: set[str]) -> dict[str, list[str]] | str:
+    for name in sorted(classes):
+        if not CSHARP_CLASS_NAME.match(name):
+            return name
+
+    declared = csharp_declarations(repository, classes)
+    mapped: dict[str, list[str]] = {}
+
+    for name in sorted(classes):
+        files = declared.get(name, [])
+
+        if len(files) != 1:
+            return name
+
+        mapped.setdefault(files[0], []).append(name)
+
+    return mapped
+
+
+def csharp_fallback(reason: str) -> Selection:
+    print(
+        f"recognizer-sensors: mutation: {reason}; running the whole suite for csharp",
+        file=sys.stderr,
+    )
+
+    return {}
+
+
+def csharp_selection(repository: Path, whole: Coverage) -> Selection:
+    CSHARP_CLASSES.clear()
+    classes = csharp_trx_classes(repository / CSHARP_DIRECTORY)
+
+    if classes is None:
+        return csharp_fallback("the csharp test results could not be read")
+
+    if not classes:
+        return {}
+
+    mapped = csharp_class_map(repository, classes)
+
+    if isinstance(mapped, str):
+        return csharp_fallback(f"test class {mapped} has no single test file")
+
+    executed: dict[str, dict[int, set[str]]] = {}
+
+    for number, file in enumerate(sorted(mapped)):
+        directory = repository / CSHARP_BY_FILE_DIRECTORY / str(number)
+        shutil.rmtree(directory, ignore_errors=True)
+        step = Step(f"csharp {file}", csharp_by_file_command(number, mapped[file]))
+
+        try:
+            run_steps(repository, [step], "a")
+        except MeasurementError as error:
+            return csharp_fallback(str(error))
+
+        ran = csharp_trx_classes(directory)
+
+        if ran != set(mapped[file]):
+            return csharp_fallback(f"the csharp run for {file} did not execute exactly its classes")
+
+        reports = sorted(directory.glob("*/coverage.info"))
+
+        if not reports:
+            return csharp_fallback(f"no coverage report for {file}")
+
+        for report in reports:
+            try:
+                part = parse_lcov(report.read_text(encoding="utf-8"), repository)
+            except (OSError, ValueError):
+                return csharp_fallback(f"no coverage report for {file}")
+
+            for path, lines in part.items():
+                for line, hits in lines.items():
+                    if hits > 0:
+                        executed.setdefault(path, {}).setdefault(line, set()).add(file)
+
+    selection: Selection = {}
+
+    for path, lines in whole.items():
+        for line, hits in lines.items():
+            files = executed.get(path, {}).get(line)
+
+            if hits > 0 and files:
+                selection.setdefault(path, {})[line] = frozenset(files)
+
+    CSHARP_CLASSES.update(mapped)
+
+    return selection
+
+
 def collect_coverage_with_tests(
     repository: Path, scans: list[Scan], coverage: str | None
 ) -> tuple[Coverage, Selection]:
@@ -553,6 +729,11 @@ def collect_coverage_with_tests(
     (repository / CONTEXTS_JSON).unlink(missing_ok=True)
     shutil.rmtree(repository / BY_FILE_DIRECTORY, ignore_errors=True)
     shutil.rmtree(repository / KOTLIN_BY_FILE_DIRECTORY, ignore_errors=True)
+    shutil.rmtree(repository / CSHARP_BY_FILE_DIRECTORY, ignore_errors=True)
+
+    for stale in (repository / CSHARP_DIRECTORY).glob("results_*.trx"):
+        stale.unlink(missing_ok=True)
+
     run_steps(repository, steps)
     files = [path for scan in scans for module in scan.modules for path in module.files]
     merged: Coverage = {}
@@ -574,5 +755,7 @@ def collect_coverage_with_tests(
             selection.update(typescript_selection(repository, scan, merged))
         elif scan.language == "kotlin":
             selection.update(kotlin_selection(repository, scan, merged))
+        elif scan.language == "csharp":
+            selection.update(csharp_selection(repository, merged))
 
     return merged, selection

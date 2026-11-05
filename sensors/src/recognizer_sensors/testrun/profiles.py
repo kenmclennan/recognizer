@@ -9,6 +9,10 @@ MAX_SELECTED_FILES = 50
 
 KOTLIN_CLASSES: dict[str, list[tuple[str, str]]] = {}
 
+CSHARP_CLASSES: dict[str, list[str]] = {}
+
+CSHARP_TRX_LOGGER = ["--logger", "trx;LogFilePrefix=results"]
+
 PYTHON_COVERAGE = (
     "export COVERAGE_FILE=.recognizer/cache/coverage/python.data"
     " && {runner} coverage run -m pytest"
@@ -120,6 +124,9 @@ def coverage_command(repository: Path, language: str, contexts: bool = False) ->
         script = PYTHON_COVERAGE_CONTEXTS.format(plugin=shlex.quote(str(PLUGIN_DIRECTORY)))
         command = ["sh", "-c", script]
 
+    if contexts and language == "csharp":
+        command = [*command, *CSHARP_TRX_LOGGER]
+
     return fill(command, runner, joined=True)
 
 
@@ -154,6 +161,28 @@ def kotlin_selected_command(selected: list[tuple[str, str]]) -> list[str]:
     return command
 
 
+def csharp_filter(classes: list[str]) -> str:
+    return "|".join(f"FullyQualifiedName~{name}." for name in sorted(classes))
+
+
+def csharp_by_file_command(number: int, classes: list[str]) -> list[str]:
+    return [
+        "dotnet",
+        "test",
+        "--collect:XPlat Code Coverage;Format=lcov",
+        "--results-directory",
+        f".recognizer/cache/coverage/csharp/by-file/{number}",
+        "--logger",
+        "trx;LogFilePrefix=results",
+        "--filter",
+        csharp_filter(classes),
+    ]
+
+
+def csharp_selected_command(classes: list[str]) -> list[str]:
+    return ["dotnet", "test", "--filter", csharp_filter(classes)]
+
+
 def mutant_command(repository: Path, language: str) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
 
@@ -167,6 +196,8 @@ def selected_command(repository: Path, language: str, files: set[str] | frozense
         prefix = ["npm", "test", "--"]
     elif language == "kotlin":
         return kotlin_command_for(repository, files)
+    elif language == "csharp":
+        return csharp_command_for(repository, files)
     else:
         return None
 
@@ -184,3 +215,13 @@ def kotlin_command_for(repository: Path, files: set[str] | frozenset[str]) -> li
         return mutant_command(repository, "kotlin")
 
     return kotlin_selected_command([pair for f in sorted(files) for pair in KOTLIN_CLASSES[f]])
+
+
+def csharp_command_for(repository: Path, files: set[str] | frozenset[str]) -> list[str]:
+    if not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files):
+        return mutant_command(repository, "csharp")
+
+    if any(f not in CSHARP_CLASSES for f in files):
+        return mutant_command(repository, "csharp")
+
+    return csharp_selected_command([name for f in sorted(files) for name in CSHARP_CLASSES[f]])
