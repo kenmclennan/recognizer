@@ -478,7 +478,7 @@ def test_a_covering_set_of_two_of_five_units_is_selected_and_three_run_the_whole
     }
 
 
-def test_a_test_target_edit_reruns_only_the_sites_it_covers_and_a_source_unit_site_always_reruns(
+def test_a_test_target_edit_reruns_only_the_sites_it_covers_and_a_unit_site_reruns_only_when_its_crate_s_in_file_tests_change(
     tmp_path, monkeypatch
 ):
     root = mutation_world(
@@ -510,6 +510,102 @@ def test_a_test_target_edit_reruns_only_the_sites_it_covers_and_a_source_unit_si
     commands = mutation_commands(tmp_path)
 
     assert commands.count("test -p calc --test dirt --test many") == sites["mul"]
-    assert commands.count("test -p calc --lib") == sites["sub"]
-    assert len(commands) == sites["mul"] + sites["sub"]
+    assert commands.count("test -p calc --lib") == 0
+    assert len(commands) == sites["mul"]
     assert os.path.exists(root / RECORD)
+
+
+def with_unit_tests(root, tmp_path, assertion):
+    text = CALC + UNIT_TESTS.format(assertion=assertion)
+    (root / LIB).write_text(text)
+    (tmp_path / "pristine.rs").write_text(text)
+
+
+UNIT_TESTS = """
+#[cfg(test)]
+mod tests {{
+    #[test]
+    fn unit_sub() {{
+        assert_eq!(super::sub(3, 1), {assertion});
+    }}
+}}
+"""
+
+
+def test_an_in_file_test_edit_reruns_the_sites_its_unit_group_covers_and_a_deletion_does_too(
+    tmp_path, monkeypatch
+):
+    root = mutation_world(
+        tmp_path,
+        monkeypatch,
+        [
+            (ADD_LINES, ["add_tests", "dirt"]),
+            (MUL_LINES, ["many", "dirt"]),
+            (SUB_LINES, ["lib"]),
+        ],
+    )
+    with_unit_tests(root, tmp_path, 2)
+    settings = json.dumps({"max_workers": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    functions = read(root / RECORD)["functions"]
+    sites = {name.rsplit("::", 1)[1]: len(entry["sites"]) for name, entry in functions.items()}
+    ran = functions[next(n for n in functions if n.endswith("::sub"))]["sites"][0]["ran"]
+
+    assert list(ran) == [LIB]
+
+    (tmp_path / "log").write_text("")
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert mutation_commands(tmp_path) == []
+
+    with_unit_tests(root, tmp_path, 3)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    commands = mutation_commands(tmp_path)
+
+    assert commands.count("test -p calc --lib") == sites["sub"]
+    assert len(commands) == sites["sub"]
+
+    (tmp_path / "log").write_text("")
+    (root / LIB).write_text(CALC)
+    (tmp_path / "pristine.rs").write_text(CALC)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert len(mutation_commands(tmp_path)) == sites["sub"]
+
+
+def test_a_record_written_with_no_unit_hash_reruns_its_unit_sites_once_and_keeps_the_others(
+    tmp_path, monkeypatch
+):
+    root = mutation_world(
+        tmp_path,
+        monkeypatch,
+        [
+            (ADD_LINES, ["add_tests", "dirt"]),
+            (MUL_LINES, ["many", "dirt"]),
+            (SUB_LINES, ["lib"]),
+        ],
+    )
+    settings = json.dumps({"max_workers": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    record = read(root / RECORD)
+
+    for name, entry in record["functions"].items():
+        if name.endswith("::sub"):
+            for site in entry["sites"]:
+                site["ran"] = None
+                site["killer"] = None
+                site["tests"] = "old"
+
+    (root / RECORD).write_text(json.dumps(record))
+    sites = {n.rsplit("::", 1)[1]: len(e["sites"]) for n, e in record["functions"].items()}
+    (tmp_path / "log").write_text("")
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert mutation_commands(tmp_path).count("test -p calc --lib") == sites["sub"]
+    assert len(mutation_commands(tmp_path)) == sites["sub"]
