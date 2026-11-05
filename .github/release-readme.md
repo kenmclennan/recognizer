@@ -12,4 +12,4 @@ This repository holds the released Recognizer app and its toolchain (the `recogn
 
 ## Moving from the formula
 
-The `recognizer` formula is retired. A machine that installed it runs `brew uninstall --formula recognizer && brew upgrade --cask recognizer` once.
+The `recognizer` formula is retired. A machine that installed it runs `brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer` once.
