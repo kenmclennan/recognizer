@@ -1,5 +1,6 @@
 import {
   type Finding,
+  type FindingRecord,
   type FindingsDocument,
   findingsByModuleFrom,
   InputError,
@@ -12,8 +13,8 @@ import {
   type Violation,
   violationText,
 } from "recognizer";
+import { buildFreshness } from "./freshness";
 import type { Loaded } from "./scan-loading";
-import { scansCommit } from "./sensor-run";
 import type { FolderNode, TreeNode } from "./tree-model";
 
 export type { Finding };
@@ -22,6 +23,7 @@ export type Disc = "red" | "amber" | "grey" | "green";
 
 export type Health = {
   documents: FindingsDocument[];
+  hidden: FindingsDocument[];
   disc: (id: string) => Disc;
   lines: (id: string) => string[];
   findings: (id: string) => Finding[];
@@ -73,25 +75,59 @@ export function computeHealth(
   loaded: Pick<
     Loaded,
     "scans" | "policy" | "modules" | "baseline" | "findings"
-  >,
+  > &
+    Partial<Pick<Loaded, "tests">>,
 ): Health {
   const notices: string[] = [];
   const known = new Set(loaded.modules);
   const accepted = readBaseline(loaded.baseline ?? null, notices);
   const scans = loaded.scans.map(({ scan }) => scan);
-  const { commit } = scansCommit(scans);
-  const current = loaded.findings.filter(
-    (document) => document.commit === (commit ?? ""),
-  );
-  const measured = new Set<string>();
+  const freshness = buildFreshness(scans, loaded.tests ?? null);
+  const namedBy = (record: FindingRecord) => [
+    ...record.evidence.modules,
+    ...(record.evidence.members ?? []).map((member) => member.module),
+  ];
+  const currentRecord = (document: FindingsDocument, record: FindingRecord) => {
+    const named = namedBy(record);
 
-  if (current.some((document) => document.sensor.name === "structure")) {
-    for (const id of measuredModules(scans, readPolicy(loaded.policy))) {
-      measured.add(id);
+    return named.length === 0
+      ? freshness.valid(document)
+      : named.every((module) => freshness.current(document, module));
+  };
+  const measured = new Set<string>();
+  const shown: FindingsDocument[] = [];
+  const hidden: FindingsDocument[] = [];
+
+  for (const document of loaded.findings) {
+    const keep = document.findings.filter((record) =>
+      currentRecord(document, record),
+    );
+    const drop = document.findings.filter(
+      (record) => !currentRecord(document, record),
+    );
+
+    shown.push({ ...document, findings: keep });
+
+    if (drop.length > 0) {
+      hidden.push({ ...document, findings: drop });
+    }
+
+    const covered =
+      document.sensor.name === "structure"
+        ? measuredModules(scans, readPolicy(loaded.policy))
+        : known;
+
+    for (const id of covered) {
+      if (
+        document.inputs?.[id] !== undefined &&
+        freshness.current(document, id)
+      ) {
+        measured.add(id);
+      }
     }
   }
 
-  const visible = current.map((document) => ({
+  const visible = shown.map((document) => ({
     ...document,
     findings: document.findings.filter(
       (record) =>
@@ -99,12 +135,6 @@ export function computeHealth(
     ),
   }));
   const byModule = findingsByModuleFrom(visible);
-
-  if (current.some((document) => document.sensor.name !== "structure")) {
-    for (const id of known) {
-      measured.add(id);
-    }
-  }
 
   const findingsOf = (id: string) =>
     known.has(id) ? (byModule.get(id) ?? []) : [];
@@ -117,6 +147,7 @@ export function computeHealth(
 
   return {
     documents: visible,
+    hidden,
     disc: (id) => {
       const found = findingsOf(id);
 

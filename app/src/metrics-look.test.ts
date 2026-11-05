@@ -8,10 +8,22 @@ const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const shipped = JSON.parse(
   readFileSync(here("../../schema/overlay-examples/valid/crap.json"), "utf8"),
 );
-const fresh = JSON.stringify({ ...shipped, commit: SCAN_COMMIT });
+const HASH = "1".repeat(64);
+const EDITED = "0".repeat(64);
+const inputsAt = (hash: string) => ({
+  "app/risk.py": hash,
+  "src/other.ts": hash,
+  "lib/none.py": hash,
+});
+const fresh = JSON.stringify({
+  ...shipped,
+  commit: SCAN_COMMIT,
+  inputs: inputsAt(HASH),
+});
 const stale = JSON.stringify({
   ...shipped,
   commit: "ffffffffffffffffffffffffffffffffffffffff",
+  inputs: inputsAt(EDITED),
 });
 
 const HARNESS = `
@@ -23,9 +35,12 @@ import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 
 const ids = ["app/risk.py", "src/other.ts", "lib/none.py"];
+const HASH = ${JSON.stringify(HASH)};
+const INPUTS = ${JSON.stringify(inputsAt(HASH))};
 const scanOf = () => ({
   commit: ${JSON.stringify(SCAN_COMMIT)},
   modified: false,
+  files: ids.map((id) => ({ path: id, hash: HASH })),
   modules: ids.map((id) => ({ id, kind: "module" })),
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
@@ -38,8 +53,8 @@ const loadedFor = (overlay) => loadedOf({
 
 const SHIPPED = SHIPPED_SENSOR_LIST.filter((sensor) => sensor.metrics.length > 0).map((sensor) => ({ name: sensor.name, display: sensor.display, line: sensor.line, defaults: {}, runsTests: sensor.runs_tests, listed: sensor.listed, metrics: [...sensor.metrics] }));
 const DAY = 86400000;
-const crapOverlay = (commit) => JSON.stringify({ overlay_version: 1, commit, modified: false, producer: { name: "crap", version: "0.1.72" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }], values: { complexity: { "app/risk.py::classify": 8 }, coverage: { "app/risk.py::classify": 0.18 }, crap: { "app/risk.py::classify": 40 } } });
-const mutationOverlay = () => JSON.stringify({ overlay_version: 1, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, producer: { name: "mutation", version: "0.1.0" }, metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({ name, type: "count", granularity: "member", bad: name === "killed" || name === "score" ? "low" : "high" })), values: { killed: { "app/risk.py::classify": 2 }, survived: { "app/risk.py::classify": 3 }, uncovered: {}, score: {} } });
+const crapOverlay = (commit, inputs = INPUTS) => JSON.stringify({ overlay_version: 1, commit, inputs, modified: false, producer: { name: "crap", version: "0.1.72" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }], values: { complexity: { "app/risk.py::classify": 8 }, coverage: { "app/risk.py::classify": 0.18 }, crap: { "app/risk.py::classify": 40 } } });
+const mutationOverlay = () => JSON.stringify({ overlay_version: 1, inputs: INPUTS, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, producer: { name: "mutation", version: "0.1.0" }, metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({ name, type: "count", granularity: "member", bad: name === "killed" || name === "score" ? "low" : "high" })), values: { killed: { "app/risk.py::classify": 2 }, survived: { "app/risk.py::classify": 3 }, uncovered: {}, score: {} } });
 const status = (name, over) => ({ name, status: "ran", commit: ${JSON.stringify(SCAN_COMMIT)}, findings: 0, ...over });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -185,7 +200,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     };
   };
   facts.currentState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")]);
-  facts.outOfDateState = await stateOf([{ name: "crap", text: crapOverlay("ffffffffffffffffffffffffffffffffffffffff"), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff" })]);
+  facts.outOfDateState = await stateOf([{ name: "crap", text: crapOverlay("ffffffffffffffffffffffffffffffffffffffff", ${JSON.stringify(inputsAt(EDITED))}), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff" })]);
   facts.partialState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
   facts.stoppedNothingState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
   facts.neverRunState = await stateOf([], []);
@@ -202,6 +217,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   host.replaceChildren();
   const longOverlay = JSON.stringify({
     overlay_version: 1,
+    inputs: INPUTS,
     commit: ${JSON.stringify(SCAN_COMMIT)},
     modified: false,
     producer: { name: "long", version: "0.1.0" },
@@ -222,6 +238,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 
   const mixedOverlay = JSON.stringify({
     overlay_version: 1,
+    inputs: INPUTS,
     commit: ${JSON.stringify(SCAN_COMMIT)},
     modified: false,
     producer: { name: "crap", version: "0.1.72" },
@@ -469,11 +486,11 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
 
     expect(state.headers[0].title).toBe("C.R.A.P.");
     expect(state.notes[0]).toEqual({
-      text: "Out of date: measured before your latest commit. Run C.R.A.P. to refresh.",
+      text: "C.R.A.P.: 3 of 3 modules out of date. Run C.R.A.P. to refresh.",
       cls: "metric-note warn",
     });
     expect(state.rows[0].disabled).toBe(true);
-    expect(state.headers[0].tooltip).toContain("from fffffff, not the scan's");
+    expect(state.headers[0].tooltip).toContain("crap 0.1.72 - at fffffff");
     expect(state.perMember).toBe(false);
     expect(state.chips).toBe(0);
     expect(f.afterStaleGroup.notes[0].cls).toBe("metric-note warn");

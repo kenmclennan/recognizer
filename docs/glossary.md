@@ -45,6 +45,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Overlay | Measurements a sensor writes (coverage, churn, mutation), as one file per overlay to `.recognizer/cache/overlays/` and painted onto modules and members. |
 | Inputs | The `inputs` key of an overlay or findings file: each module the sensor measured, mapped to the file hash the scan recorded for it. Never recomputed from disk. |
 | Tests hash | The `tests` key of an overlay or findings file from a sensor that depends on tests: a sha256 over every test file's path and hash, sorted by path. |
+| Current result | A result (an overlay value or a finding) whose measured modules still have the hash `inputs` records and, for a sensor that depends on tests, whose `tests` matches the repository's present test files. Anything else is out of date and shown nowhere. |
 | Metrics list | The canvas control, before Legend, that lists every metric of the current overlays and ticks the ones shown as bars on the boxes; it controls the canvas only. |
 | Metric bar | A row on a module box, one per ticked metric the module has a value for, in tick order: a short label, a track, a fill in the tone colour and the figure; a member-granularity metric shows the box's worst member; hover names it. A folder box and a module the overlay did not measure show no row. |
 | Thresholds sensor | The shipped sensor that turns any overlay metric over a configured line into a finding, a warning or a violation as `sensors.thresholds` says. |

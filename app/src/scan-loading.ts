@@ -19,6 +19,7 @@ export type Loaded = {
   sensors: SensorStatus[];
   overlays?: { name: string; text: string; modifiedMs?: number | null }[];
   overlaysUnreadable?: string[];
+  tests?: string | null;
 };
 
 const EMPTY: Loaded = {

@@ -5,10 +5,14 @@ import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT = "ffffffffffffffffffffffffffffffffffffffff";
 
-const overlayAt = (commit: string) =>
+const HASH = "1".repeat(64);
+const EDITED = "0".repeat(64);
+
+const overlayAt = (commit: string, hash = HASH) =>
   JSON.stringify({
     overlay_version: 1,
     commit,
+    inputs: { "app/risk.py": hash },
     modified: false,
     producer: { name: "crap", version: "0.1.0" },
     metrics: [
@@ -44,6 +48,7 @@ const members = [
 const scan = {
   commit: ${JSON.stringify(SCAN_COMMIT)},
   modified: false,
+  files: [{ path: "app/risk.py", hash: ${JSON.stringify(HASH)} }],
   modules: [{ id: "app/risk.py", kind: "module", members }],
   edges: [],
   foreign: [],
@@ -101,7 +106,7 @@ async function look() {
   const carried = explorer.carry();
   explorer.dispose();
   host.replaceChildren();
-  explorer = mount(${JSON.stringify(overlayAt(OTHER_COMMIT))}, carried);
+  explorer = mount(${JSON.stringify(overlayAt(OTHER_COMMIT, EDITED))}, carried);
   await tick();
   await look();
   click(q(".metrics-toggle"));
@@ -157,7 +162,9 @@ describe.skipIf(webkit === undefined)(
         { key: "crap/complexity", disabled: true },
         { key: "crap/coverage", disabled: true },
       ]);
-      expect(f.staleNotes[0]).toContain("Out of date");
+      expect(f.staleNotes[0]).toBe(
+        "crap: 1 of 1 modules out of date. Run crap to refresh.",
+      );
       expect(f.staleBarsAfterClick).toEqual([]);
     });
   },

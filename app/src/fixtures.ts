@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   type FindingsDocument,
+  measuredInputs,
   parsePolicy,
   type Scan,
   structureSensor,
@@ -84,7 +85,22 @@ export function structureDocument(
     { commit, modified: false },
   );
 
-  return document;
+  return commit === CURRENT ? document : outOfDate(document);
+}
+
+function outOfDate(document: FindingsDocument): FindingsDocument {
+  return {
+    ...document,
+    inputs: Object.fromEntries(
+      Object.keys(document.inputs ?? {}).map((id) => [id, "0".repeat(64)]),
+    ),
+  };
+}
+
+function checkInputs(): Record<string, string> {
+  const { scan } = fixtureScan("check", "scan.json", CURRENT);
+
+  return measuredInputs([scan]);
 }
 
 export function secondSensorDocument(
@@ -93,12 +109,13 @@ export function secondSensorDocument(
   principle = "name-your-constants",
   commit = CURRENT,
 ): FindingsDocument {
-  return {
+  const document: FindingsDocument = {
     findings_version: 1,
     sensor: { name: "lint", version: "1" },
     commit,
     modified: false,
     settings: {},
+    inputs: checkInputs(),
     findings: [
       {
         id: `magic:${module}`,
@@ -110,4 +127,6 @@ export function secondSensorDocument(
       },
     ],
   };
+
+  return commit === CURRENT ? document : outOfDate(document);
 }

@@ -26,8 +26,12 @@ window.__fakeWorker = () => {
 };
 
 const ids = ["app/a.py", "app/b.py", "lib/c.py"];
+const longName = "a-very-long-module-name-".repeat(5) + "x.py";
+const everyModule = [...ids, "app/" + longName];
+const HASH = "1".repeat(64);
 const scan = {
   commit: "cur1234",
+  files: everyModule.map((id) => ({ path: id, hash: HASH })),
   modules: ids.map((id) => ({ id, kind: "module" })),
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 4, names: ["X"] }],
   foreign: [],
@@ -35,10 +39,9 @@ const scan = {
 const violation = { id: "rule-violation:a", kind: "rule-violation", severity: "violation", principle: "dependencies-follow-the-policy", summary: "depends on app/b.py at line 4", evidence: { modules: [ids[0]], edges: [{ from: ids[0], to: ids[1], kind: "depends", lines: [4], rules: [{ type: "level", from_level: "domain", to_level: "adapters" }] }] } };
 const cycle = { id: "cycle:a,b", kind: "cycle", severity: "warning", principle: "no-cycles", summary: "cycle of 2 modules", fix_pattern: "break-cycle", evidence: { modules: [ids[0], ids[1]], edges: [{ from: ids[0], to: ids[1] }, { from: ids[1], to: ids[0] }] } };
 const style = { id: "style:c", kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers", evidence: { modules: [ids[2]] } };
-const longName = "a-very-long-module-name-".repeat(5) + "x.py";
 const longOne = { id: "orphan:long", kind: "orphan", severity: "warning", principle: "p", summary: "s", evidence: { modules: ["app/" + longName] } };
 const longReport = { id: "note:long", kind: "note", severity: "warning", principle: "p", summary: "This is a long agent sentence that has to wrap at word boundaries inside a narrow panel and never be cut at the edge of it. ".repeat(3), evidence: { modules: [ids[2]] } };
-const doc = (name, findings, commit = "cur1234") => ({ findings_version: 1, sensor: { name, version: "1" }, commit, modified: false, settings: {}, findings });
+const doc = (name, findings, commit = "cur1234") => ({ findings_version: 1, sensor: { name, version: "1" }, commit, modified: false, settings: {}, inputs: Object.fromEntries(everyModule.map((id) => [id, commit === "cur1234" ? HASH : "0".repeat(64)])), findings });
 const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
 const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n";
 const make = (picks) => JSON.stringify({ schema_version: 1, description: "d", commit: "cur1234", steps: picks.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
@@ -278,7 +281,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.otherCommit = { rows: other.all(".finding-card").length, hidden: other.q(".rail-findings .rail-count").hidden };
 
-  const stale = await mount({ findings: [doc("structure", [violation]), doc("alpha", [style])] }, null, [{ name: "alpha", status: "stale" }]);
+  const stale = await mount({ findings: [doc("structure", [violation]), doc("alpha", [style], "other")] }, null, [{ name: "alpha", status: "ran" }]);
   click(stale.q(".rail-findings"));
   await tick();
   facts.stale = { text: stale.q(".findings-stale").textContent, shown: stale.shown(".findings-stale") };
@@ -522,7 +525,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.otherCommit).toEqual({ rows: 0, hidden: true });
   });
 
-  it("names a stale sensor and links to the Sensors panel; none when all ran", () => {
+  it("names the group with a hidden finding and links to the Sensors panel; none when all are current", () => {
     expect(f.stale.text).toBe("Style findings are out of date.");
     expect(f.staleClick).toEqual({ sensors: true, findings: false });
     expect(f.fresh.shown).toBe(false);

@@ -7,7 +7,17 @@ const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const shipped = JSON.parse(
   readFileSync(here("../../schema/overlay-examples/valid/crap.json"), "utf8"),
 );
-const overlay = JSON.stringify({ ...shipped, commit: SCAN_COMMIT });
+const HASH = "1".repeat(64);
+const INPUTS = {
+  "app/risk.py": HASH,
+  "src/other.ts": HASH,
+  "lib/none.py": HASH,
+};
+const overlay = JSON.stringify({
+  ...shipped,
+  commit: SCAN_COMMIT,
+  inputs: INPUTS,
+});
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -19,12 +29,13 @@ const ids = ["app/risk.py", "src/other.ts", "lib/none.py"];
 const scan = {
   commit: ${JSON.stringify(SCAN_COMMIT)},
   modified: false,
+  files: Object.entries(${JSON.stringify(INPUTS)}).map(([path, hash]) => ({ path, hash })),
   modules: ids.map((id) => ({ id, kind: "module" })),
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
 };
 const style = { id: "style:c", kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers", evidence: { modules: [ids[2]] } };
-const doc = (findings) => ({ findings_version: 1, sensor: { name: "lint", version: "1" }, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, settings: {}, findings });
+const doc = (findings) => ({ findings_version: 1, sensor: { name: "lint", version: "1" }, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, settings: {}, inputs: ${JSON.stringify(INPUTS)}, findings });
 const loadedFor = (modules, overlays, findings) => loadedOf({
   modules,
   scans: [{ file: "scan.json", scan: { ...scan, modules: modules.map((id) => ({ id, kind: "module" })) } }],
