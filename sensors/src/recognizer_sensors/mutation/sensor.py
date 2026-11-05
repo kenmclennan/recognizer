@@ -653,6 +653,7 @@ def run(
     settings: dict,
     commit: str,
     modules: set[str] | None = None,
+    checkpoint: Callable[[Outcome], None] | None = None,
 ) -> Outcome:
     configured = settings.get("test_command")
 
@@ -741,7 +742,6 @@ def run(
             settle(target, {}, hashes, tests)
 
     queue = queue_order(pending, earlier_skipped)
-    skipped: list[Target] = []
     ran = {"selection": 0, "whole": 0}
     done: set[str] = set()
     queued = {target.identity for target in queue}
@@ -750,6 +750,43 @@ def run(
     finished = total - len(queue)
 
     report("mutants", finished, total)
+
+    def assemble(
+        done: set[str], stopped: bool = False
+    ) -> tuple[Outcome, list[Target], list[str], int]:
+        skipped_ids = [target.identity for target in queue if target.identity not in done]
+        skipped_set = set(skipped_ids)
+        measured = [
+            target
+            for target in targets
+            if target.identity not in skipped_set and target.identity not in unmeasured
+        ]
+        reused = sum(1 for target in measured if target.reused)
+        values = overlay_values(measured)
+        overlay = Overlay(METRICS, values, repository / settings["overlay"])
+        documents = [
+            (
+                repository / settings["record"],
+                record_for(key, commit, support, targets, queued, done, unmeasured),
+            ),
+            (
+                repository / settings["survivors"],
+                survivors_document(commit, measured, skipped_ids, reused, no_covering_test),
+            ),
+        ]
+        findings = [finding_for(t, values) for t in measured if t.survived > 0]
+        outcome = Outcome(
+            findings,
+            overlay,
+            documents,
+            stopped,
+            len(measured),
+            len(targets),
+            frozenset(target.module for target in measured),
+            tests,
+        )
+
+        return outcome, measured, skipped_ids, reused
 
     if queue:
         work = new_work_folder(repository)
@@ -797,7 +834,7 @@ def run(
             budget = settings["max_minutes"]
             started = CLOCK()
             deadline = started + budget * 60 if budget is not None else None
-            checkpoint = {"at": started}
+            last = {"at": started}
             progressed = {"done": finished}
 
             def finish(target: Target, outcome: list[MutantResult]) -> None:
@@ -810,12 +847,19 @@ def run(
                 report("mutants", progressed["done"], total)
                 now = CLOCK()
 
-                if now - checkpoint["at"] >= CHECKPOINT_SECONDS:
-                    checkpoint["at"] = now
-                    write_checkpoint(
-                        repository / settings["record"],
-                        record_for(key, commit, support, targets, queued, done, unmeasured),
-                    )
+                if now - last["at"] >= CHECKPOINT_SECONDS:
+                    last["at"] = now
+
+                    if checkpoint is None:
+                        write_checkpoint(
+                            repository / settings["record"],
+                            record_for(key, commit, support, targets, queued, done, unmeasured),
+                        )
+                    else:
+                        try:
+                            checkpoint(assemble(done)[0])
+                        except OSError:
+                            return
 
             run_functions(
                 queue,
@@ -837,16 +881,7 @@ def run(
             restore_handler()
             remove_work_folder(work)
 
-        skipped = [target for target in queue if target.identity not in done]
-
-    skipped_ids = [target.identity for target in skipped]
-    skipped_set = set(skipped_ids)
-    measured = [
-        target
-        for target in targets
-        if target.identity not in skipped_set and target.identity not in unmeasured
-    ]
-    reused = sum(1 for target in measured if target.reused)
+    outcome, measured, skipped_ids, reused = assemble(done, stopped)
     mutated = len(measured) - reused
 
     print(
@@ -877,28 +912,6 @@ def run(
         file=sys.stderr,
     )
 
-    values = overlay_values(measured)
-    overlay = Overlay(METRICS, values, repository / settings["overlay"])
-    record_document = record_for(key, commit, support, targets, queued, done, unmeasured)
-    documents = [
-        (
-            repository / settings["survivors"],
-            survivors_document(commit, measured, skipped_ids, reused, no_covering_test),
-        ),
-        (repository / settings["record"], record_document),
-    ]
-    findings = [finding_for(t, values) for t in measured if t.survived > 0]
     (repository / STALE_OVERLAY).unlink(missing_ok=True)
 
-    inputs = frozenset(target.module for target in measured)
-
-    return Outcome(
-        findings,
-        overlay,
-        documents,
-        stopped,
-        len(measured),
-        len(targets),
-        inputs,
-        tests,
-    )
+    return outcome

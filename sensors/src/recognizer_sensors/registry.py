@@ -15,6 +15,7 @@ class Sensor:
     needs_commit: bool = False
     runs_tests: bool = False
     scoped: bool = False
+    checkpoints: bool = False
 
 
 SHIPPED = {
@@ -27,7 +28,12 @@ SHIPPED = {
     ),
     "crap": Sensor(crap.parse_settings, crap.run, runs_tests=True),
     "mutation": Sensor(
-        mutation.parse_settings, mutation.run, needs_commit=True, runs_tests=True, scoped=True
+        mutation.parse_settings,
+        mutation.run,
+        needs_commit=True,
+        runs_tests=True,
+        scoped=True,
+        checkpoints=True,
     ),
     "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }

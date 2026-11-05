@@ -1,4 +1,5 @@
 import type { Io, RunOptions, RunResult } from "./cli.js";
+import { registerPending } from "./pending-checkpoints.js";
 
 export interface RegisteredRun {
   reason: string | null;
@@ -22,6 +23,38 @@ export function fill(
     .join(output);
 }
 
+function promoteCheckpoint(
+  io: Io,
+  written: string,
+  output: string,
+  validate: (document: unknown) => void,
+): void {
+  if (!io.exists(written)) {
+    return;
+  }
+
+  try {
+    const document = JSON.parse(io.readFile(written)) as Record<
+      string,
+      unknown
+    > | null;
+
+    validate(document);
+
+    if (
+      document === null ||
+      typeof document !== "object" ||
+      (document.partial === undefined && document.stopped === undefined)
+    ) {
+      throw new Error("not a checkpoint");
+    }
+
+    io.rename(written, output);
+  } catch {
+    io.remove(written);
+  }
+}
+
 interface Prepared {
   filled: string[];
   program: string;
@@ -35,11 +68,11 @@ function prepare(
   command: string[],
   commit: string,
   output: string,
+  validate: (document: unknown) => void,
 ): Prepared {
   const written = `${output}.tmp`;
 
-  io.remove(output);
-  io.remove(written);
+  promoteCheckpoint(io, written, output, validate);
 
   const filled = command.map((item) => fill(item, root, commit, written));
   const [program, ...rest] = filled as [string, ...string[]];
@@ -57,11 +90,20 @@ export function runRegistered(
   validate: (document: unknown) => void,
   timeoutMs?: number,
 ): RegisteredRun {
-  const prepared = prepare(io, root, command, commit, output);
-  const result = io.run(prepared.program, prepared.rest, {
-    cwd: root,
-    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  const prepared = prepare(io, root, command, commit, output, validate);
+  const unregister = registerPending(() => {
+    promoteCheckpoint(io, prepared.written, output, validate);
   });
+  let result: RunResult;
+
+  try {
+    result = io.run(prepared.program, prepared.rest, {
+      cwd: root,
+      ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    });
+  } finally {
+    unregister();
+  }
 
   return conclude(io, prepared, result, output, what, validate);
 }
@@ -77,11 +119,20 @@ export async function runRegisteredAsync(
   options: Omit<RunOptions, "cwd">,
   keepStderr: (stderr: string) => string,
 ): Promise<RegisteredRun> {
-  const prepared = prepare(io, root, command, commit, output);
-  const result = await io.runAsync(prepared.program, prepared.rest, {
-    cwd: root,
-    ...options,
-  }).result;
+  const prepared = prepare(io, root, command, commit, output, validate);
+  const unregister = registerPending(() => {
+    promoteCheckpoint(io, prepared.written, output, validate);
+  });
+  let result: RunResult;
+
+  try {
+    result = await io.runAsync(prepared.program, prepared.rest, {
+      cwd: root,
+      ...options,
+    }).result;
+  } finally {
+    unregister();
+  }
 
   return conclude(
     io,
@@ -110,7 +161,7 @@ function conclude(
   });
 
   if (result.timedOut || !result.started || result.status !== 0) {
-    io.remove(written);
+    promoteCheckpoint(io, written, output, validate);
   }
 
   if (result.timedOut) {

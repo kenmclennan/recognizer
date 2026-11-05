@@ -78,7 +78,6 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
     entries.push(entry);
 
     if (reason !== null) {
-      io.remove(output);
       io.stderr(`failed ${name}: ${reason}\n`);
     }
 

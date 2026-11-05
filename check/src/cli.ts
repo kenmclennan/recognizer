@@ -15,6 +15,7 @@ import { dirname, join } from "node:path";
 import { COMMANDS } from "./commands.js";
 import { InputError } from "./errors.js";
 import { fullHelp, shortHelp } from "./help.js";
+import { promotePending } from "./pending-checkpoints.js";
 
 const CEILING_EXIT = 124;
 
@@ -133,6 +134,7 @@ export function stopEverything(): void {
   }
 
   liveTempDirs.clear();
+  promotePending();
 }
 
 function spawnAsync(
