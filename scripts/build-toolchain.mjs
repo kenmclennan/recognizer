@@ -29,18 +29,92 @@ const OWN_PACKAGES = [
 const RUST_BINARY = "recognizer-scan-rust";
 const WHEELHOUSE = "wheelhouse";
 const GRAMMAR_PACKAGE = "tree-sitter-c-sharp";
-const GRAMMAR_WHEEL_PREFIX = `${WHEELHOUSE}/tree_sitter_c_sharp-`;
 const GRAMMAR_PROJECT = "scanners/csharp";
+const PYTHON_FOLDER = "python";
+const FOLDER = "toolchain";
+const PYTHON_INTERPRETER = "/opt/homebrew/opt/python@3.13/bin/python3.13";
 
-export function archiveEntries(version, closurePaths, wheelhouseFiles = []) {
+export const PYTHON_COMMANDS = [
+  {
+    command: "recognizer-scan-python",
+    module: "recognizer_scan_python",
+    project: "scanners/python",
+  },
+  {
+    command: "recognizer-scan-kotlin",
+    module: "recognizer_scan_kotlin",
+    project: "scanners/kotlin",
+  },
+  {
+    command: "recognizer-scan-csharp",
+    module: "recognizer_scan_csharp",
+    project: "scanners/csharp",
+  },
+  {
+    command: "recognizer-sensors",
+    module: "recognizer_sensors",
+    project: "sensors",
+  },
+];
+
+export function wrapperScript(
+  { command, module },
+  interpreter = PYTHON_INTERPRETER,
+) {
+  const program = [
+    "import sys",
+    "sys.path.insert(0, sys.argv.pop(1))",
+    `sys.argv[0] = "${command}"`,
+    `from ${module}.cli import main`,
+    "sys.exit(main())",
+  ].join("; ");
+
+  return [
+    "#!/bin/sh",
+    "self=$0",
+    'while [ -L "$self" ]; do',
+    '  dir=$(cd "$(dirname "$self")" && pwd)',
+    '  link=$(readlink "$self")',
+    '  case "$link" in',
+    "    /*) self=$link ;;",
+    "    *) self=$dir/$link ;;",
+    "  esac",
+    "done",
+    'here=$(cd "$(dirname "$self")" && pwd)',
+    `exec "${interpreter}" -c '${program}' "$here/../${PYTHON_FOLDER}" "$@"`,
+    "",
+  ].join("\n");
+}
+
+export function pythonInstallArguments(wheelhouse, target, version) {
+  return [
+    "pip",
+    "install",
+    "--target",
+    target,
+    "--no-index",
+    "--find-links",
+    wheelhouse,
+    "--python-version",
+    "3.13",
+    "--python-platform",
+    "aarch64-apple-darwin",
+    ...PYTHON_COMMANDS.map(({ module }) =>
+      join(wheelhouse, `${module}-${version}-py3-none-any.whl`),
+    ),
+  ];
+}
+
+export function archiveEntries(version, closurePaths) {
   return [
     ...OWN_PACKAGES.map((name) => `node_modules/${name}/package.json`),
     ...closurePaths.map((path) => `${path}/package.json`),
-    `recognizer_scan_python-${version}-py3-none-any.whl`,
-    `recognizer_scan_kotlin-${version}-py3-none-any.whl`,
-    `recognizer_scan_csharp-${version}-py3-none-any.whl`,
-    `recognizer_sensors-${version}-py3-none-any.whl`,
-    ...wheelhouseFiles.map((name) => `${WHEELHOUSE}/${name}`),
+    ...PYTHON_COMMANDS.map(({ module }) => `${PYTHON_FOLDER}/${module}/cli.py`),
+    ...PYTHON_COMMANDS.map(
+      ({ module }) =>
+        `${PYTHON_FOLDER}/${module}-${version}.dist-info/METADATA`,
+    ),
+    ...PYTHON_COMMANDS.map(({ command }) => `bin/${command}`),
     RUST_BINARY,
     "THIRD-PARTY-NOTICES.md",
     "LICENSE",
@@ -131,24 +205,23 @@ export function buildGrammarWheel(source, outDir, exec = run) {
   }
 }
 
-export function verifyArchive(
-  listing,
-  version,
-  closurePaths,
-  wheelhouseFiles = [],
-) {
+export function verifyArchive(listing, version, closurePaths) {
   const present = new Set(
     listing
       .split("\n")
       .map((line) => line.trim().replace(/^\.\//, ""))
       .filter((line) => line !== ""),
   );
-  const missing = archiveEntries(version, closurePaths, wheelhouseFiles).filter(
+  const missing = archiveEntries(version, closurePaths).filter(
     (name) => !present.has(name),
   );
 
-  if (![...present].some((name) => name.startsWith(GRAMMAR_WHEEL_PREFIX))) {
-    missing.push(`${GRAMMAR_WHEEL_PREFIX}*`);
+  if (
+    ![...present].some((name) =>
+      name.startsWith(`${PYTHON_FOLDER}/tree_sitter_c_sharp/`),
+    )
+  ) {
+    missing.push(`${PYTHON_FOLDER}/tree_sitter_c_sharp/*`);
   }
 
   if (missing.length > 0) {
@@ -178,10 +251,13 @@ export function buildToolchain(root, outDir) {
   const closure = closureFromLock(lock);
   assertNoInstallScripts(lock);
   const closurePaths = [...closure.keys()];
-  const staging = mkdtempSync(join(tmpdir(), "toolchain-"));
+  const folder = join(outDir, FOLDER);
   const packed = mkdtempSync(join(tmpdir(), "toolchain-packed-"));
 
   try {
+    rmSync(folder, { recursive: true, force: true });
+    mkdirSync(folder, { recursive: true });
+
     run(
       "npm",
       [
@@ -199,7 +275,7 @@ export function buildToolchain(root, outDir) {
     );
 
     for (const name of OWN_PACKAGES) {
-      const dir = join(staging, "node_modules", name);
+      const dir = join(folder, "node_modules", name);
 
       mkdirSync(dir, { recursive: true });
       run("tar", [
@@ -217,39 +293,33 @@ export function buildToolchain(root, outDir) {
     for (const path of closurePaths) {
       const top = path.split("/node_modules/")[0];
 
-      cpSync(join(root, top), join(staging, top), { recursive: true });
+      cpSync(join(root, top), join(folder, top), { recursive: true });
     }
 
     for (const path of closurePaths) {
       versions[path] = JSON.parse(
-        readFileSync(join(staging, path, "package.json"), "utf8"),
+        readFileSync(join(folder, path, "package.json"), "utf8"),
       ).version;
     }
 
     verifyVendored(lock, versions);
 
-    run("uv", ["build", "--wheel", "--out-dir", staging, "scanners/python"], {
-      cwd: root,
-    });
-    run("uv", ["build", "--wheel", "--out-dir", staging, "scanners/kotlin"], {
-      cwd: root,
-    });
-    run("uv", ["build", "--wheel", "--out-dir", staging, GRAMMAR_PROJECT], {
-      cwd: root,
-    });
+    const wheelhouse = join(packed, WHEELHOUSE);
 
-    run("uv", ["build", "--wheel", "--out-dir", staging, "sensors"], {
-      cwd: root,
-    });
+    mkdirSync(wheelhouse, { recursive: true });
 
-    const wheelhouse = join(staging, WHEELHOUSE);
+    for (const { project } of PYTHON_COMMANDS) {
+      run("uv", ["build", "--wheel", "--out-dir", wheelhouse, project], {
+        cwd: root,
+      });
+    }
+
     const requirements = join(packed, "wheelhouse-requirements.txt");
     const exported = ["scanners/kotlin", GRAMMAR_PROJECT, "sensors"].map(
       (project) => run("uv", exportArguments(), { cwd: join(root, project) }),
     );
 
     writeFileSync(requirements, mergeRequirements(exported));
-    mkdirSync(wheelhouse, { recursive: true });
     run("python3", [
       "-m",
       "pip",
@@ -277,7 +347,19 @@ export function buildToolchain(root, outDir) {
       wheelhouse,
     );
 
-    const wheelhouseFiles = readdirSync(wheelhouse).sort();
+    run(
+      "uv",
+      pythonInstallArguments(wheelhouse, join(folder, PYTHON_FOLDER), version),
+    );
+
+    mkdirSync(join(folder, "bin"), { recursive: true });
+
+    for (const entry of PYTHON_COMMANDS) {
+      const path = join(folder, "bin", entry.command);
+
+      writeFileSync(path, wrapperScript(entry));
+      chmodSync(path, 0o755);
+    }
 
     run(
       "cargo",
@@ -298,30 +380,27 @@ export function buildToolchain(root, outDir) {
         "scanners/rust/target/aarch64-apple-darwin/release",
         RUST_BINARY,
       ),
-      join(staging, RUST_BINARY),
+      join(folder, RUST_BINARY),
     );
-    chmodSync(join(staging, RUST_BINARY), 0o755);
+    chmodSync(join(folder, RUST_BINARY), 0o755);
 
     copyFileSync(
       join(root, "THIRD-PARTY-NOTICES.md"),
-      join(staging, "THIRD-PARTY-NOTICES.md"),
+      join(folder, "THIRD-PARTY-NOTICES.md"),
     );
-    copyFileSync(join(root, "LICENSE"), join(staging, "LICENSE"));
-
-    mkdirSync(outDir, { recursive: true });
+    copyFileSync(join(root, "LICENSE"), join(folder, "LICENSE"));
 
     const archive = join(outDir, ARCHIVE);
-    const names = readdirSync(staging).sort();
+    const names = readdirSync(folder).sort();
 
-    run("tar", ["-czf", archive, "-C", staging, ...names]);
+    run("tar", ["-czf", archive, "-C", folder, ...names]);
 
     const listing = run("tar", ["-tzf", archive]);
 
-    verifyArchive(listing, version, closurePaths, wheelhouseFiles);
+    verifyArchive(listing, version, closurePaths);
 
     return archive;
   } finally {
-    rmSync(staging, { recursive: true, force: true });
     rmSync(packed, { recursive: true, force: true });
   }
 }

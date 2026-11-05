@@ -98,30 +98,32 @@ jobs:
             echo "expected exactly one Recognizer.app in $dir, found $count" >&2
             exit 1
           fi
+          cp -R dist-release/toolchain "$dir/Recognizer.app/Contents/Resources/toolchain"
+          codesign --force --deep --sign - "$dir/Recognizer.app"
+          codesign --verify --deep --strict "$dir/Recognizer.app"
           tar -czf dist-release/recognizer.app.tar.gz -C "$dir" Recognizer.app
           lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
           "$lsregister" -u "$dir/Recognizer.app" || true
           rm -rf "$dir/Recognizer.app"
 
-      - name: Smoke-test the toolchain archive
+      - name: Smoke-test the bundled toolchain
         if: steps.released.outputs.skip != 'true'
         run: |
           smoke=$(mktemp -d)
           repo=$PWD
-          tar -xzf dist-release/recognizer-toolchain.tar.gz -C "$smoke"
-          node scripts/verify-toolchain.mjs "$smoke"
+          tar -xzf dist-release/recognizer.app.tar.gz -C "$smoke"
+          toolchain="$smoke/Recognizer.app/Contents/Resources/toolchain"
+          node scripts/verify-toolchain.mjs "$toolchain"
           mkdir "$smoke/bin"
-          ln -s "$smoke/node_modules/recognizer/dist/bin.js" "$smoke/bin/recognizer"
-          ln -s "$smoke/node_modules/recognizer-scan-typescript/dist/bin.js" "$smoke/bin/recognizer-scan-typescript"
-          ln -s "$smoke/node_modules/recognizer-describe-claude/dist/bin.js" "$smoke/bin/recognizer-describe-claude"
-          ln -s "$smoke/recognizer-scan-rust" "$smoke/bin/recognizer-scan-rust"
-          uv venv --python 3.13 "$smoke/venv"
-          uv pip install --python "$smoke/venv/bin/python" --no-index --find-links "$smoke/wheelhouse" \
-            "$smoke/recognizer_scan_python-$VERSION-py3-none-any.whl" \
-            "$smoke/recognizer_scan_kotlin-$VERSION-py3-none-any.whl" \
-            "$smoke/recognizer_scan_csharp-$VERSION-py3-none-any.whl" \
-            "$smoke/recognizer_sensors-$VERSION-py3-none-any.whl"
-          export PATH="$smoke/bin:$smoke/venv/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
+          ln -s "$toolchain/node_modules/recognizer/dist/bin.js" "$smoke/bin/recognizer"
+          ln -s "$toolchain/node_modules/recognizer-scan-typescript/dist/bin.js" "$smoke/bin/recognizer-scan-typescript"
+          ln -s "$toolchain/node_modules/recognizer-describe-claude/dist/bin.js" "$smoke/bin/recognizer-describe-claude"
+          ln -s "$toolchain/bin/recognizer-scan-python" "$smoke/bin/recognizer-scan-python"
+          ln -s "$toolchain/bin/recognizer-scan-kotlin" "$smoke/bin/recognizer-scan-kotlin"
+          ln -s "$toolchain/bin/recognizer-scan-csharp" "$smoke/bin/recognizer-scan-csharp"
+          ln -s "$toolchain/bin/recognizer-sensors" "$smoke/bin/recognizer-sensors"
+          ln -s "$toolchain/recognizer-scan-rust" "$smoke/bin/recognizer-scan-rust"
+          export PATH="$smoke/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
           for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sensors; do
             got=$("$tool" --version)
             if [ "$got" != "$VERSION" ]; then
@@ -168,6 +170,12 @@ jobs:
           else
             git log -n 1 --format=%s "$HEAD_SHA" > dist-release/notes.txt
           fi
+          {
+            echo "From this release one cask installs the app and its tools, and the recognizer formula is retired. An existing machine runs \`brew uninstall --formula recognizer && brew upgrade --cask recognizer\` once."
+            echo
+            cat dist-release/notes.txt
+          } > dist-release/notes-final.txt
+          mv dist-release/notes-final.txt dist-release/notes.txt
 
       - name: Publish the release
         if: steps.released.outputs.skip != 'true'
@@ -188,15 +196,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
-          toolchain_sha=$(shasum -a 256 dist-release/recognizer-toolchain.tar.gz | cut -d' ' -f1)
           app_sha=$(shasum -a 256 dist-release/recognizer.app.tar.gz | cut -d' ' -f1)
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
-          node scripts/render-homebrew.mjs "$VERSION" "$toolchain_sha" "$app_sha" tap-repo
+          node scripts/render-homebrew.mjs "$VERSION" "$app_sha" tap-repo
           cd tap-repo
+          git rm -f --ignore-unmatch Formula/recognizer.rb
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Formula/recognizer.rb Casks/recognizer.rb
+            git add Casks/recognizer.rb
             git commit -m "recognizer $VERSION"
             git push
           fi

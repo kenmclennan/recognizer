@@ -707,13 +707,6 @@ async fn choose_folder(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
 }
 
 #[tauri::command]
-async fn recognizer_version() -> Result<repository::ToolsReport, String> {
-    tauri::async_runtime::spawn_blocking(repository::recognizer_version)
-        .await
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
     tauri::async_runtime::spawn_blocking(repository::shipped_sensors)
         .await
@@ -1346,7 +1339,6 @@ pub fn run() {
             read_sensor_inputs,
             read_describing,
             read_settings,
-            recognizer_version,
             record_recent_view,
             remove_findings,
             shipped_sensors,
