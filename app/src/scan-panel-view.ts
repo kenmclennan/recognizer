@@ -1,6 +1,6 @@
 import { button, el } from "./dom";
+import { attachHoverTip } from "./hover-tip";
 import type { ReportRow, ScanPanelModel, ScanRow } from "./scan-panel-model";
-import { placeTip } from "./tip-placement";
 
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
@@ -31,29 +31,6 @@ function spinnerIcon(): SVGElement {
   return svg;
 }
 
-function showTip(row: HTMLElement, text: string): () => void {
-  const tip = el("div", "scan-tip", text);
-
-  document.body.append(tip);
-
-  const anchor = row.getBoundingClientRect();
-  const at = placeTip(
-    {
-      left: anchor.left,
-      top: anchor.top,
-      width: anchor.width,
-      height: anchor.height,
-    },
-    { width: tip.offsetWidth, height: tip.offsetHeight },
-    { width: window.innerWidth, height: window.innerHeight },
-  );
-
-  tip.style.left = `${at.left}px`;
-  tip.style.top = `${at.top}px`;
-
-  return () => tip.remove();
-}
-
 function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   const node = el("div", "scan-row");
   const label = el("label", "scan-row-label");
@@ -63,18 +40,9 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   node.dataset.sensor = row.key;
   node.dataset.tip = row.title;
 
-  let hide: (() => void) | null = null;
-  const close = () => {
-    hide?.();
-    hide = null;
-  };
-
-  node.addEventListener("mouseenter", () => {
-    close();
-    hide = showTip(node, row.title);
+  attachHoverTip(node, "scan-tip", (tip) => {
+    tip.textContent = row.title;
   });
-  node.addEventListener("mouseleave", close);
-  node.addEventListener("pointerdown", close);
   tick.type = "checkbox";
   tick.checked = row.ticked;
   tick.disabled = row.disabled;
