@@ -6,8 +6,10 @@ import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
 import { validateFindings } from "./findings-document.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
+import { freshScans } from "./freshness.js";
 import { isDirty, resolveCommit } from "./scan-command.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
+import { measuredInputs } from "./structure-sensor.js";
 
 const OPTIONS = {
   as: { type: "string" },
@@ -103,15 +105,17 @@ export function runReport(argv: string[], io: Io): number {
     typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : {};
-  const { findings_version, findings } = source;
+  const { findings } = source;
+  const { scans } = freshScans(io, root);
   const completed = {
-    findings_version,
+    findings_version: 2,
     sensor: { name, version: ownVersion(parsed) },
     commit,
     modified: isDirty(io, root),
     settings: {},
     reported_at: new Date(io.now()).toISOString(),
     findings,
+    inputs: measuredInputs(scans),
   };
 
   let document: ReturnType<typeof validateFindings>;

@@ -318,7 +318,11 @@ describe("scan --sense running a registered sensor", () => {
     const { code } = await sense(fake, "all", "--json");
 
     expect(code).toBe(0);
-    expect(fake.files.get(FAKE)).toBe(fakeDocument({ modified: false }));
+    expect(JSON.parse(fake.files.get(FAKE) as string)).toEqual(
+      JSON.parse(
+        fakeDocument({ modified: false, findings_version: 2, inputs: {} }),
+      ),
+    );
   });
 
   it("promotes a running sensor's checkpoint as soon as everything is stopped", async () => {

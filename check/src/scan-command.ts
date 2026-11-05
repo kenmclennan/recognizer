@@ -553,6 +553,7 @@ function* scanFlow(
           runsTests: runsTests(one.command),
         })),
         commit,
+        scans,
         onStart: (name) => {
           if (json) {
             io.stdout(startLine("sense", name));

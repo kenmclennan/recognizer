@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
+import { validateFindings } from "../src/findings-document.js";
 import { runSensors, SENSOR_TIMEOUT_MS } from "../src/run-sensors.js";
+import type { Scan } from "../src/scan.js";
 
 const COMMIT = "abc123";
 
@@ -46,6 +48,7 @@ describe("runSensors ceiling", () => {
         io,
         root,
         commit: COMMIT,
+        scans: [],
         timeoutMs: 3000,
         selected: [
           {
@@ -115,6 +118,7 @@ describe("runSensors ceiling", () => {
       io,
       root,
       commit: COMMIT,
+      scans: [],
       selected: [
         { name: "slow-one", command: ["true"], runsTests: true },
         { name: "quick-one", command: ["true"], runsTests: false },
@@ -152,6 +156,7 @@ describe("runSensors ceiling", () => {
       io,
       root,
       commit: COMMIT,
+      scans: [],
       selected: [
         {
           name: "live",
@@ -198,6 +203,7 @@ describe("runSensors ceiling", () => {
       io,
       root,
       commit: COMMIT,
+      scans: [],
       selected: [
         {
           name: "quick",
@@ -222,6 +228,7 @@ describe("runSensors ceiling", () => {
         io: nodeIo(),
         root: process.cwd(),
         commit: "abc123",
+        scans: [],
         selected: [{ name: "slow", command: ["sh", "-c", "sleep ${marker} & wait"] }],
       });
     `;
@@ -247,5 +254,69 @@ describe("runSensors ceiling", () => {
     }
 
     expect(running()).toBe(false);
+  });
+
+  describe("recording inputs", () => {
+    const HASH = "a".repeat(64);
+    const OWN = "b".repeat(64);
+    const scans = [
+      {
+        modules: [{ id: "shop/a.py" }],
+        files: [{ path: "shop/a.py", hash: HASH }],
+      },
+    ] as unknown as Scan[];
+    const writing = (extra: string) => `
+      const fs = require("fs");
+      const [commit, output] = process.argv.slice(1);
+      fs.mkdirSync(require("path").dirname(output), { recursive: true });
+      fs.writeFileSync(output, JSON.stringify({
+        findings_version: 1,
+        sensor: { name: "quick", version: "1" },
+        commit, modified: false, settings: {}, findings: [], ${extra}
+      }));
+    `;
+
+    async function sensed(extra: string) {
+      const { root, io } = setup();
+      const [entry] = await runSensors({
+        io,
+        root,
+        commit: COMMIT,
+        scans,
+        selected: [
+          {
+            name: "quick",
+            command: [
+              process.execPath,
+              "-e",
+              writing(extra),
+              "{commit}",
+              "{output}",
+            ],
+          },
+        ],
+      });
+      const file = join(root, ".recognizer/cache/findings/quick.json");
+      const document = JSON.parse(readFileSync(file, "utf8"));
+
+      return { entry, document };
+    }
+
+    it("adds every scanned module's hash to a document with none and writes version 2", async () => {
+      const { entry, document } = await sensed("");
+
+      expect(entry).toMatchObject({ outcome: "ok" });
+      expect(document.findings_version).toBe(2);
+      expect(document.inputs).toEqual({ "shop/a.py": HASH });
+      expect(() => validateFindings(document)).not.toThrow();
+    });
+
+    it("keeps the inputs a sensor wrote itself", async () => {
+      const { document } = await sensed(`inputs: { "shop/b.py": "${OWN}" }`);
+
+      expect(document.findings_version).toBe(2);
+      expect(document.inputs).toEqual({ "shop/b.py": OWN });
+      expect(() => validateFindings(document)).not.toThrow();
+    });
   });
 });
