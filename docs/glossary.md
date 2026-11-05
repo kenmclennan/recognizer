@@ -61,6 +61,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, its Metric declarations and, optionally, `runs_tests: true` when it runs the repository's tests. |
 | Sensor | A program that reads the scans, the policy, the overlays or the repository and writes a findings file; it never runs the code it judges. Recognizer ships the structure sensor and a repository registers others. |
 | Sensor registration | An entry of the Config's `sensors` key: a sensor's name and the command to run with `{repository}`, `{commit}` and `{output}` filled in, or for the structure sensor its settings, or `off`. |
+| Sensor progress | The message a sensor prints while it runs, which the CLI passes through `--json` and the app shows on the progress line. |
 | Folder cycle | Two folders whose modules import each other in both directions; one `folder_cycle` warning per folder pair. |
 | Orphan | A module nothing imports that is not an entry point; reported as an `orphan` warning. |
 | Entry point | A module that need not be imported: one a policy entry names literally, a test file by convention, an index-like file (`index`, `__init__`, `main`, `mod`, `lib`) or one matched by a glob in `warnings.orphan.entry_points`, or a module its scanner marks as run rather than imported (Python: a package's `__main__.py` or a module with a top-level `__name__` guard). |

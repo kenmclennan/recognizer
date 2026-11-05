@@ -1,4 +1,4 @@
-import type { Io } from "./cli.js";
+import type { Io, RunOptions, RunResult } from "./cli.js";
 
 export interface RegisteredRun {
   reason: string | null;
@@ -22,6 +22,31 @@ export function fill(
     .join(output);
 }
 
+interface Prepared {
+  filled: string[];
+  program: string;
+  rest: string[];
+  written: string;
+}
+
+function prepare(
+  io: Io,
+  root: string,
+  command: string[],
+  commit: string,
+  output: string,
+): Prepared {
+  const written = `${output}.tmp`;
+
+  io.remove(output);
+  io.remove(written);
+
+  const filled = command.map((item) => fill(item, root, commit, written));
+  const [program, ...rest] = filled as [string, ...string[]];
+
+  return { filled, program, rest, written };
+}
+
 export function runRegistered(
   io: Io,
   root: string,
@@ -32,17 +57,50 @@ export function runRegistered(
   validate: (document: unknown) => void,
   timeoutMs?: number,
 ): RegisteredRun {
-  const written = `${output}.tmp`;
-
-  io.remove(output);
-  io.remove(written);
-
-  const filled = command.map((item) => fill(item, root, commit, written));
-  const [program, ...rest] = filled as [string, ...string[]];
-  const result = io.run(program, rest, {
+  const prepared = prepare(io, root, command, commit, output);
+  const result = io.run(prepared.program, prepared.rest, {
     cwd: root,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
   });
+
+  return conclude(io, prepared, result, output, what, validate);
+}
+
+export async function runRegisteredAsync(
+  io: Io,
+  root: string,
+  command: string[],
+  commit: string,
+  output: string,
+  what: string,
+  validate: (document: unknown) => void,
+  options: Omit<RunOptions, "cwd">,
+  keepStderr: (stderr: string) => string,
+): Promise<RegisteredRun> {
+  const prepared = prepare(io, root, command, commit, output);
+  const result = await io.runAsync(prepared.program, prepared.rest, {
+    cwd: root,
+    ...options,
+  }).result;
+
+  return conclude(
+    io,
+    prepared,
+    { ...result, stderr: keepStderr(result.stderr) },
+    output,
+    what,
+    validate,
+  );
+}
+
+function conclude(
+  io: Io,
+  { filled, program, written }: Prepared,
+  result: RunResult,
+  output: string,
+  what: string,
+  validate: (document: unknown) => void,
+): RegisteredRun {
   const stderr = result.stderr.trim();
   const ran = (reason: string | null): RegisteredRun => ({
     reason,

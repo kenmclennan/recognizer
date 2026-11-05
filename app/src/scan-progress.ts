@@ -14,7 +14,14 @@ export type ScanEvent =
       reason?: string;
     }
   | { event: "start"; phase: "sense"; name: string }
+  | ({ event: "progress"; phase: "sense"; name: string } & SensorStep)
   | { event: "summary" };
+
+export type SensorStep =
+  | { step: "coverage" }
+  | { step: "mutants"; done: number; total: number };
+
+export type SensorProgress = { name: string } & SensorStep;
 
 export type PhaseName = "extract" | "describe" | "sense";
 
@@ -31,6 +38,7 @@ export type ScanProgress = {
   extractEntries: EntryResult[];
   describe: PhaseProgress | null;
   sense: PhaseProgress | null;
+  sensorProgress: SensorProgress | null;
   extractSettled: boolean;
   done: boolean;
   stopped: boolean;
@@ -45,6 +53,7 @@ export const NO_PROGRESS: ScanProgress = {
   extractEntries: [],
   describe: null,
   sense: null,
+  sensorProgress: null,
   extractSettled: false,
   done: false,
   stopped: false,
@@ -78,9 +87,38 @@ export function parseScanLine(text: string): ScanEvent | null {
       return line.phase === "sense" && typeof line.name === "string"
         ? { event: "start", phase: "sense", name: line.name }
         : null;
+    case "progress":
+      return progressEvent(line);
     default:
       return null;
   }
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function progressEvent(line: Record<string, unknown>): ScanEvent | null {
+  if (line.phase !== "sense" || typeof line.name !== "string") {
+    return null;
+  }
+
+  const base = { event: "progress", phase: "sense", name: line.name } as const;
+
+  if (line.step === "coverage") {
+    return { ...base, step: "coverage" };
+  }
+
+  if (
+    line.step === "mutants" &&
+    isCount(line.done) &&
+    isCount(line.total) &&
+    line.done <= line.total
+  ) {
+    return { ...base, step: "mutants", done: line.done, total: line.total };
+  }
+
+  return null;
 }
 
 function phaseEvent(line: Record<string, unknown>): ScanEvent | null {
@@ -130,7 +168,14 @@ export function foldProgress(
 ): ScanProgress {
   switch (event.event) {
     case "start":
-      return state;
+      return state.sensorProgress === null
+        ? state
+        : { ...state, sensorProgress: null };
+    case "progress": {
+      const { event: _event, phase: _phase, ...sensorProgress } = event;
+
+      return { ...state, sensorProgress };
+    }
     case "summary":
       return { ...state, extractSettled: true, done: true };
     case "phase":
@@ -161,6 +206,7 @@ export function foldProgress(
 
       return {
         ...state,
+        ...(event.phase === "sense" ? { sensorProgress: null } : {}),
         [event.phase]: { ...phase, entries: [...phase.entries, result] },
       };
     }
@@ -202,6 +248,14 @@ export function scanningText(
 
   if (row === undefined) {
     return "Scanning\u2026";
+  }
+
+  const reported = progress.sensorProgress;
+
+  if (reported !== null && reported.name === started) {
+    return reported.step === "coverage"
+      ? `${row.display}: measuring coverage`
+      : `${row.display}: ${reported.done} of ${reported.total} functions`;
   }
 
   return `Running ${row.display}\u2026 ${at + 1} of ${sensors.length}`;

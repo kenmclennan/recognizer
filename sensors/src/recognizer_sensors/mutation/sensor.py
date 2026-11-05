@@ -42,6 +42,7 @@ from recognizer_sensors.mutation.runner import (
 from recognizer_sensors.mutation.sites import Site, find_sites
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
+from recognizer_sensors.progress import report
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import MeasurementError, SettingsError, relative_path
 from recognizer_sensors.testrun.profiles import mutant_command, selected_command
@@ -657,6 +658,8 @@ def run(
 
     restore_coverage_handler = install_coverage_stop_handler()
 
+    report("coverage")
+
     try:
         if configured is None:
             coverage, selection = collect_coverage_with_tests(
@@ -743,6 +746,10 @@ def run(
     done: set[str] = set()
     queued = {target.identity for target in queue}
     stopped = False
+    total = len(queue) + sum(1 for t in targets if t.reused)
+    finished = total - len(queue)
+
+    report("mutants", finished, total)
 
     if queue:
         work = new_work_folder(repository)
@@ -791,6 +798,7 @@ def run(
             started = CLOCK()
             deadline = started + budget * 60 if budget is not None else None
             checkpoint = {"at": started}
+            progressed = {"done": finished}
 
             def finish(target: Target, outcome: list[MutantResult]) -> None:
                 results = {
@@ -798,6 +806,8 @@ def run(
                 }
                 settle(target, results, hashes, tests)
                 done.add(target.identity)
+                progressed["done"] += 1
+                report("mutants", progressed["done"], total)
                 now = CLOCK()
 
                 if now - checkpoint["at"] >= CHECKPOINT_SECONDS:

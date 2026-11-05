@@ -1004,6 +1004,92 @@ describe("recognizer scan: phases", () => {
     });
   });
 
+  describe("a sensor that reports progress", () => {
+    const PROGRESS = [
+      'recognizer-progress {"step":"coverage"}',
+      "recognizer-progress not json",
+      'recognizer-progress {"step":"later"}',
+      'recognizer-progress {"step":"mutants","done":1,"total":2}',
+      'recognizer-progress {"step":"mutants","done":2,"total":2}',
+      "",
+    ].join("\n");
+
+    function mutating() {
+      return setup({
+        programs: {
+          "recognizer-sensors": (args, files) => {
+            files.set(
+              args[args.indexOf("--output") + 1] as string,
+              JSON.stringify({
+                findings_version: 1,
+                sensor: { name: "mutation", version: "1" },
+                commit: COMMIT,
+                modified: false,
+                settings: {},
+                findings: [],
+              }),
+            );
+
+            return { stderr: PROGRESS };
+          },
+        },
+      });
+    }
+
+    it("passes each progress line through the --json stream between start and entry", async () => {
+      const { out, code } = await scan(
+        mutating(),
+        "--sense",
+        "mutation",
+        "--json",
+      );
+      const events = lines(out);
+
+      expect(code).toBe(0);
+      expect(
+        events.map((one) => [one.event, one.step ?? one.name ?? null]),
+      ).toEqual([
+        ["phase", null],
+        ["phase", null],
+        ["start", "mutation"],
+        ["progress", "coverage"],
+        ["progress", "mutants"],
+        ["progress", "mutants"],
+        ["entry", "mutation"],
+        ["summary", null],
+      ]);
+      expect(events[3]).toEqual({
+        event: "progress",
+        phase: "sense",
+        name: "mutation",
+        step: "coverage",
+      });
+      expect(events[5]).toEqual({
+        event: "progress",
+        phase: "sense",
+        name: "mutation",
+        step: "mutants",
+        done: 2,
+        total: 2,
+      });
+    });
+
+    it("writes no progress without --json and keeps none in the run record", async () => {
+      const text = await scan(mutating(), "--sense", "mutation");
+
+      expect(text.out).not.toContain("progress");
+      expect(text.out).not.toContain("recognizer-progress");
+
+      const json = await scan(mutating(), "--sense", "mutation", "--json");
+
+      for (const result of [text, json]) {
+        const [record] = records(result.fake);
+
+        expect(JSON.stringify(record)).not.toContain("recognizer-progress");
+      }
+    });
+  });
+
   it("writes the record when it opens, after every entry and when it finishes", async () => {
     const fake = fakeIo(setup({}, { [CONFIG]: SENSORS }));
     const snapshots: string[] = [];

@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -36,10 +36,10 @@ describe("runSensors ceiling", () => {
     expect(SENSOR_TIMEOUT_MS).toBe(60_000);
   });
 
-  it("fails a sensor still running at the ceiling as timed out and runs the next one", () => {
+  it("fails a sensor still running at the ceiling as timed out and runs the next one", async () => {
     const { root, io, messages } = setup();
     const entries: string[] = [];
-    const results = runSensors({
+    const results = await runSensors({
       io,
       root,
       commit: COMMIT,
@@ -76,7 +76,7 @@ describe("runSensors ceiling", () => {
     ).toContain('"quick"');
   });
 
-  it("gives a runsTests selection no timeout and the others the ceiling", () => {
+  it("gives a runsTests selection no timeout and the others the ceiling", async () => {
     const { root, messages } = setup();
     const timeouts: (number | undefined)[] = [];
     const real = nodeIo();
@@ -92,9 +92,18 @@ describe("runSensors ceiling", () => {
 
         return real.run(command, args, options);
       },
+      runAsync: (
+        command: string,
+        args: string[],
+        options?: { cwd?: string; timeoutMs?: number },
+      ) => {
+        timeouts.push(options?.timeoutMs);
+
+        return real.runAsync(command, args, options);
+      },
     };
 
-    runSensors({
+    await runSensors({
       io,
       root,
       commit: COMMIT,
@@ -108,13 +117,100 @@ describe("runSensors ceiling", () => {
     expect(timeouts).toEqual([undefined, SENSOR_TIMEOUT_MS, SENSOR_TIMEOUT_MS]);
   });
 
+  it("hands a progress line to onProgress while the sensor is still running", async () => {
+    const { root, io } = setup();
+    const seen: unknown[] = [];
+    let release: () => void = () => {};
+    const observed = new Promise<void>((done) => {
+      release = done;
+    });
+    const script = `
+      const fs = require("fs");
+      const [commit, output, gate] = process.argv.slice(1);
+      process.stderr.write('recognizer-progress {"step":"coverage"}\\n');
+      const wait = () => fs.existsSync(gate) ? finish() : setTimeout(wait, 10);
+      const finish = () => {
+        fs.mkdirSync(require("path").dirname(output), { recursive: true });
+        fs.writeFileSync(output, JSON.stringify({
+          findings_version: 1,
+          sensor: { name: "live", version: "1" },
+          commit, modified: false, settings: {}, findings: [],
+        }));
+      };
+      wait();
+    `;
+    const gate = join(root, "gate");
+    const running = runSensors({
+      io,
+      root,
+      commit: COMMIT,
+      selected: [
+        {
+          name: "live",
+          runsTests: true,
+          command: [
+            process.execPath,
+            "-e",
+            script,
+            "{commit}",
+            "{output}",
+            gate,
+          ],
+        },
+      ],
+      onProgress: (name, progress) => {
+        seen.push({ name, ...progress });
+        release();
+      },
+    });
+
+    await observed;
+
+    expect(seen).toEqual([{ name: "live", step: "coverage" }]);
+
+    writeFileSync(gate, "");
+
+    const entries = await running;
+
+    expect(entries[0]).toMatchObject({ outcome: "ok" });
+    expect(entries[0]?.stderr).toBe("");
+  });
+
+  it("drops a malformed or unknown-step progress line and keeps the run", async () => {
+    const { root, io } = setup();
+    const seen: unknown[] = [];
+    const script = `
+      process.stderr.write('recognizer-progress {not json}\\n');
+      process.stderr.write('recognizer-progress {"step":"later"}\\n');
+      process.stderr.write('recognizer-progress {"step":"mutants","done":3,"total":2}\\n');
+      process.stderr.write('recognizer-progress {"step":"mutants","done":1,"total":2}\\n');
+      ${WRITES_FINDINGS}
+    `;
+    const entries = await runSensors({
+      io,
+      root,
+      commit: COMMIT,
+      selected: [
+        {
+          name: "quick",
+          runsTests: true,
+          command: [process.execPath, "-e", script, "{commit}", "{output}"],
+        },
+      ],
+      onProgress: (_name, progress) => seen.push(progress),
+    });
+
+    expect(entries[0]).toMatchObject({ outcome: "ok" });
+    expect(seen).toEqual([{ step: "mutants", done: 1, total: 2 }]);
+  });
+
   it("leaves no sensor process behind when the scan's process group is killed", async () => {
     const marker = `47.${process.pid}`;
     const dist = pathToFileURL(resolve(__dirname, "../dist")).href;
     const script = `
       const { nodeIo } = await import("${dist}/cli.js");
       const { runSensors } = await import("${dist}/run-sensors.js");
-      runSensors({
+      await runSensors({
         io: nodeIo(),
         root: process.cwd(),
         commit: "abc123",
