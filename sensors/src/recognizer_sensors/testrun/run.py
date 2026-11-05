@@ -19,10 +19,12 @@ from recognizer_sensors.testrun.profiles import (
     CSHARP_CLASSES,
     KOTLIN_CLASSES,
     PROFILES,
+    RUST_UNITS,
     by_file_command,
     coverage_command,
     csharp_by_file_command,
     kotlin_by_file_command,
+    rust_by_target_command,
 )
 
 LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
@@ -57,6 +59,12 @@ CSHARP_BY_FILE_DIRECTORY = ".recognizer/cache/coverage/csharp/by-file"
 CSHARP_CLASS_NAME = re.compile(r"^[A-Za-z0-9_.+]+$")
 
 CSHARP_TYPES = ("class_declaration", "record_declaration", "struct_declaration")
+
+RUST_BY_TARGET_DIRECTORY = ".recognizer/cache/coverage/rust/by-target"
+
+RUST_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
+
+RUST_LIB_KINDS = {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"}
 
 REASON_LIMIT = 200
 
@@ -715,6 +723,128 @@ def csharp_selection(repository: Path, whole: Coverage) -> Selection:
     return selection
 
 
+def rust_target_kind(kinds: list) -> str | None:
+    if "test" in kinds:
+        return "test"
+
+    if "bin" in kinds:
+        return "bin"
+
+    if any(kind in RUST_LIB_KINDS for kind in kinds):
+        return "lib"
+
+    return None
+
+
+def rust_units(repository: Path) -> dict[str, tuple[str, str, str]] | str:
+    try:
+        result = subprocess.run(
+            ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+            cwd=repository,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return "cargo metadata did not start"
+
+    if result.returncode != 0:
+        return f"cargo metadata exited {result.returncode}"
+
+    try:
+        document = json.loads(result.stdout)
+        defaults = set(document["workspace_default_members"])
+        packages = [p for p in document["packages"] if p["id"] in defaults]
+    except (ValueError, KeyError, TypeError):
+        return "cargo metadata printed no usable document"
+
+    root = repository.resolve()
+    units: dict[str, tuple[str, str, str]] = {}
+
+    try:
+        for package in packages:
+            for target in package["targets"]:
+                kind = rust_target_kind(target["kind"])
+
+                if kind is None or not target.get("test") or target.get("required-features"):
+                    continue
+
+                if not RUST_NAME.match(package["name"]) or not RUST_NAME.match(target["name"]):
+                    return f"rust target {package['name']}/{target['name']} has an unusable name"
+
+                try:
+                    name = Path(target["src_path"]).resolve().relative_to(root).as_posix()
+                except ValueError:
+                    return f"rust target {target['src_path']} is outside the repository"
+
+                if name in units:
+                    return f"rust target {name} is named twice"
+
+                units[name] = (package["name"], kind, target["name"])
+    except (KeyError, TypeError, AttributeError):
+        return "cargo metadata printed no usable document"
+
+    return units
+
+
+def rust_fallback(reason: str) -> Selection:
+    print(
+        f"recognizer-sensors: mutation: {reason}; running the whole suite for rust",
+        file=sys.stderr,
+    )
+
+    return {}
+
+
+def rust_selection(repository: Path, whole: Coverage) -> Selection:
+    RUST_UNITS.clear()
+    shutil.rmtree(repository / RUST_BY_TARGET_DIRECTORY, ignore_errors=True)
+    units = rust_units(repository)
+
+    if isinstance(units, str):
+        return rust_fallback(units)
+
+    if not units:
+        return {}
+
+    (repository / RUST_BY_TARGET_DIRECTORY).mkdir(parents=True, exist_ok=True)
+    executed: dict[str, dict[int, set[str]]] = {}
+
+    for number, name in enumerate(sorted(units)):
+        step = Step(f"rust {name}", rust_by_target_command(number, units[name]))
+
+        try:
+            run_steps(repository, [step], "a")
+        except MeasurementError as error:
+            return rust_fallback(str(error))
+
+        report = repository / RUST_BY_TARGET_DIRECTORY / f"{number}.lcov"
+
+        try:
+            part = parse_lcov(report.read_text(encoding="utf-8"), repository)
+        except (OSError, ValueError):
+            return rust_fallback(f"no coverage report for {name}")
+
+        for path, lines in part.items():
+            for line, hits in lines.items():
+                if hits > 0:
+                    executed.setdefault(path, {}).setdefault(line, set()).add(name)
+
+    selection: Selection = {}
+
+    for path, lines in whole.items():
+        for line, hits in lines.items():
+            names = executed.get(path, {}).get(line)
+
+            if hits > 0 and names:
+                selection.setdefault(path, {})[line] = frozenset(names)
+
+    RUST_UNITS.update(units)
+
+    return selection
+
+
 def collect_coverage_with_tests(
     repository: Path, scans: list[Scan], coverage: str | None
 ) -> tuple[Coverage, Selection]:
@@ -757,5 +887,7 @@ def collect_coverage_with_tests(
             selection.update(kotlin_selection(repository, scan, merged))
         elif scan.language == "csharp":
             selection.update(csharp_selection(repository, merged))
+        elif scan.language == "rust":
+            selection.update(rust_selection(repository, merged))
 
     return merged, selection

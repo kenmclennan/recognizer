@@ -11,6 +11,8 @@ KOTLIN_CLASSES: dict[str, list[tuple[str, str]]] = {}
 
 CSHARP_CLASSES: dict[str, list[str]] = {}
 
+RUST_UNITS: dict[str, tuple[str, str, str]] = {}
+
 CSHARP_TRX_LOGGER = ["--logger", "trx;LogFilePrefix=results"]
 
 PYTHON_COVERAGE = (
@@ -183,6 +185,38 @@ def csharp_selected_command(classes: list[str]) -> list[str]:
     return ["dotnet", "test", "--filter", csharp_filter(classes)]
 
 
+def rust_by_target_command(number: int, unit: tuple[str, str, str]) -> list[str]:
+    package, kind, name = unit
+    flag = ["--lib"] if kind == "lib" else [f"--{kind}", name]
+
+    return [
+        "cargo",
+        "llvm-cov",
+        "--lcov",
+        "--output-path",
+        f".recognizer/cache/coverage/rust/by-target/{number}.lcov",
+        "-p",
+        package,
+        *flag,
+    ]
+
+
+def rust_selected_command(units: list[tuple[str, str, str]]) -> list[str]:
+    command = ["cargo", "test"]
+
+    for package in sorted({package for package, _, _ in units}):
+        command += ["-p", package]
+
+    if any(kind == "lib" for _, kind, _ in units):
+        command.append("--lib")
+
+    for kind in ("bin", "test"):
+        for name in sorted({name for _, k, name in units if k == kind}):
+            command += [f"--{kind}", name]
+
+    return command
+
+
 def mutant_command(repository: Path, language: str) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
 
@@ -198,6 +232,8 @@ def selected_command(repository: Path, language: str, files: set[str] | frozense
         return kotlin_command_for(repository, files)
     elif language == "csharp":
         return csharp_command_for(repository, files)
+    elif language == "rust":
+        return rust_command_for(repository, files)
     else:
         return None
 
@@ -225,3 +261,13 @@ def csharp_command_for(repository: Path, files: set[str] | frozenset[str]) -> li
         return mutant_command(repository, "csharp")
 
     return csharp_selected_command([name for f in sorted(files) for name in CSHARP_CLASSES[f]])
+
+
+def rust_command_for(repository: Path, files: set[str] | frozenset[str]) -> list[str]:
+    if not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files):
+        return mutant_command(repository, "rust")
+
+    if any(f not in RUST_UNITS for f in files):
+        return mutant_command(repository, "rust")
+
+    return rust_selected_command([RUST_UNITS[f] for f in sorted(files)])

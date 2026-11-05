@@ -189,8 +189,8 @@ def test_more_than_the_file_limit_runs_the_whole_suite(tmp_path):
     KOTLIN_CLASSES.clear()
 
 
-def test_rust_has_no_selection(tmp_path):
-    assert selected_command(tmp_path, "rust", {"a"}) is None
+def test_rust_selected_command_falls_back_to_the_whole_suite_for_an_unmapped_file(tmp_path):
+    assert selected_command(tmp_path, "rust", {"a"}) == ["cargo", "test"]
 
 
 def test_nested_classes_belong_to_their_outermost_files_run(tmp_path, monkeypatch):
