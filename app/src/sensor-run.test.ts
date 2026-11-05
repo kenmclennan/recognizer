@@ -108,14 +108,14 @@ describe("senseRepository", () => {
     expect(port.removed).toEqual(["evil"]);
   });
 
-  it("keeps a file from another commit and lists it as stale", async () => {
+  it("keeps a file from another commit and reports it ran, leaving staleness to the freshness answer", async () => {
     const stale = secondSensorDocument("shop/main.py", "x", "y", "old");
     const port = fakeSensors({ lint: JSON.stringify(stale) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
-    expect(statusOf(run, "lint")).toEqual({
+    expect(statusOf(run, "lint")).toMatchObject({
       name: "lint",
-      status: "stale",
+      status: "ran",
       findings: 1,
       modifiedMs: null,
       commit: "old",
@@ -143,7 +143,7 @@ describe("senseRepository", () => {
     });
   });
 
-  it("shows ran, stale, failed and not run together", async () => {
+  it("shows ran, failed and not run together", async () => {
     const stale = secondSensorDocument("shop/main.py", "x", "y", "old");
     const port = fakeSensors({
       lint: JSON.stringify(stale),
@@ -161,7 +161,7 @@ describe("senseRepository", () => {
 
     expect(run.statuses.map((status) => [status.name, status.status])).toEqual([
       ["structure", "ran"],
-      ["lint", "stale"],
+      ["lint", "ran"],
       ["broken", "failed"],
       ["coverage", "not run"],
     ]);
@@ -187,12 +187,13 @@ describe("senseRepository", () => {
     const port = fakeSensors({ lint: JSON.stringify(document) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
-    expect(statusOf(run, "lint")).toEqual({
+    expect(statusOf(run, "lint")).toMatchObject({
       name: "lint",
       status: "ran",
       findings: 1,
       modifiedMs: null,
       commit: "abc1234",
+      measured: { inputs: expect.any(Object) },
     });
     expect(run.documents.map((one) => one.sensor.name)).toEqual([
       "structure",
@@ -276,7 +277,7 @@ describe("senseRepository and reports", () => {
     });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
-    expect(statusOf(run, "review")).toEqual({
+    expect(statusOf(run, "review")).toMatchObject({
       name: "review",
       status: "ran",
       findings: 1,
@@ -285,7 +286,7 @@ describe("senseRepository and reports", () => {
       reported: { at: "2026-11-02T10:00:00.000Z", commit: CURRENT },
     });
     expect(statusOf(run, "older")).toMatchObject({
-      status: "stale",
+      status: "ran",
       reported: { commit: "old1234567" },
     });
     expect(run.documents.map((one) => one.sensor.name)).toContain("review");

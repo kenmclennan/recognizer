@@ -1,3 +1,4 @@
+import type { Freshness } from "recognizer";
 import {
   type Config,
   parseConfig,
@@ -8,6 +9,15 @@ import {
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
 import type { ResponsibilityState } from "./responsibility-model";
+import {
+  type FreshnessReport,
+  freshnessReport,
+  freshnessScope,
+  gapOf,
+  markStale,
+  type SensorFreshness,
+  sensorFreshness,
+} from "./scan-freshness";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type RunState = {
@@ -65,6 +75,7 @@ export type PanelInput = {
   describeProgress?: { entries: number; total: number } | null;
   now: number;
   shipped: ShippedSensors | null;
+  freshness?: Freshness;
 };
 
 export type StateTone = "muted" | "ok" | "warn" | "run" | "size";
@@ -76,6 +87,7 @@ export type ScanRow = {
   ticked: boolean;
   disabled: boolean;
   state: { text: string; tone: StateTone };
+  note: string | null;
   title: string;
 };
 
@@ -89,6 +101,7 @@ export type ReportRow = {
 export type ScanPanelModel = {
   header: { text: string; changed: string | null };
   scope: { caption: string; on: boolean; disabled: boolean } | null;
+  report: FreshnessReport | null;
   rows: ScanRow[];
   reports: ReportRow[];
   button: { scanning: boolean; label: string };
@@ -414,6 +427,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     return {
       header: header(input),
       scope: null,
+      report: null,
       rows: [],
       reports: [],
       button: {
@@ -426,6 +440,12 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   }
 
   const sensors = rowSensors(input.config, input.shipped);
+  const statuses =
+    input.freshness === undefined
+      ? input.sensors
+      : markStale(input.sensors, input.freshness);
+  const judged: PanelInput = { ...input, sensors: statuses };
+  const gaps = rowGaps(judged, sensors);
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
@@ -436,7 +456,8 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       tickable: true,
       ticked: input.ticks.describe,
       disabled: input.scanning,
-      state: describeState(input),
+      state: describeState(judged),
+      note: null,
       title: DESCRIBE_TITLE,
     },
     ...sensors.map((one) => ({
@@ -447,7 +468,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       ticked: one.runsTests
         ? input.ticks.once.includes(one.name)
         : (input.ticks.ticked ?? plain).includes(one.name),
-      state: sensorState(one.name, input),
+      ...rowFreshnessState(one.name, judged, gaps),
       title: one.title,
     })),
   ];
@@ -455,8 +476,9 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   return {
     header: header(input),
     scope: scopeOf(input),
+    report: reportOf(judged, rows, gaps),
     rows,
-    reports: reportRows(input.sensors, input.now),
+    reports: reportRows(statuses, input.now),
     button: {
       scanning: input.scanning,
       label: input.scanning ? "Running" : "Run",
@@ -464,6 +486,128 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     pending: false,
     mark: panelMark(input),
   };
+}
+
+type RowGaps = Map<string, { result: SensorFreshness; gap: string[] }>;
+
+function scopeModules(input: PanelInput): string[] {
+  return scopedIds(input) ?? input.lines.modules;
+}
+
+function rowGaps(input: PanelInput, sensors: RowSensor[]): RowGaps {
+  const gaps: RowGaps = new Map();
+  const freshness = input.freshness;
+
+  if (freshness === undefined) {
+    return gaps;
+  }
+
+  const modules = scopeModules(input);
+  const scope = freshnessScope(modules, input.scans ?? [], freshness);
+
+  const described = modules.filter((id) => {
+    const kind = input.lines.of(id).kind;
+
+    return kind === "out-of-date" || kind === "missing";
+  });
+
+  gaps.set(DESCRIBE_KEY, {
+    result: { kind: "known", outOfDate: described, missing: [] },
+    gap: described,
+  });
+
+  for (const one of sensors) {
+    const status = input.sensors.find((entry) => entry.name === one.name);
+
+    if (status?.status === "failed") {
+      continue;
+    }
+
+    const measured =
+      status === undefined || status.status === "not run"
+        ? null
+        : (status.measured ?? {});
+    const result = sensorFreshness(scope, measured, one.name === MUTATION_KEY);
+
+    gaps.set(one.name, { result, gap: gapOf(result, modules) });
+  }
+
+  return gaps;
+}
+
+function rowFreshnessState(
+  name: string,
+  input: PanelInput,
+  gaps: RowGaps,
+): Pick<ScanRow, "state" | "note"> {
+  const state = sensorState(name, input);
+  const found = gaps.get(name);
+  const live = liveState(name, input);
+
+  if (
+    found === undefined ||
+    live !== null ||
+    input.run.failures[name] !== undefined ||
+    input.sensors.find((one) => one.name === name)?.status === "failed"
+  ) {
+    return { state, note: null };
+  }
+
+  const functions = (ids: string[] | null) =>
+    functionCount(input.scans ?? [], ids);
+
+  if (found.result.kind === "never-run") {
+    return {
+      state: { text: "never run", tone: "muted" },
+      note:
+        name === MUTATION_KEY
+          ? plural(functions(scopedIds(input)), "function")
+          : null,
+    };
+  }
+
+  if (found.gap.length === 0) {
+    return { state, note: null };
+  }
+
+  return {
+    state: {
+      text: `${plural(found.gap.length, "module")} out of date`,
+      tone: "warn",
+    },
+    note:
+      name === MUTATION_KEY
+        ? `${plural(functions(found.gap), "function")} to run`
+        : "reruns the whole repository",
+  };
+}
+
+function reportOf(
+  input: PanelInput,
+  rows: ScanRow[],
+  gaps: RowGaps,
+): FreshnessReport | null {
+  if (input.freshness === undefined) {
+    return null;
+  }
+
+  const where =
+    input.ticks.onlyView && input.view
+      ? (input.view.name ?? "this canvas")
+      : "the repository";
+
+  return freshnessReport(
+    where,
+    scopeModules(input),
+    rows
+      .filter(({ ticked }) => ticked)
+      .map(({ key, name }) => ({
+        name: key,
+        display: name,
+        gap: gaps.get(key)?.gap ?? [],
+        neverRun: gaps.get(key)?.result.kind === "never-run",
+      })),
+  );
 }
 
 function scopeOf(input: PanelInput): ScanPanelModel["scope"] {

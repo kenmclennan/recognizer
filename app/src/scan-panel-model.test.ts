@@ -1,4 +1,5 @@
 import type { Scan } from "recognizer";
+import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
@@ -719,5 +720,77 @@ describe("scanPanel only this view", () => {
 
     expect(row(unticked, "mutation")?.state.text).toBe("not yet run");
     expect(row(busy, "mutation")?.state.text).not.toContain("function");
+  });
+});
+
+describe("scanPanel freshness", () => {
+  const freshScan = {
+    modules: ["a.py", "b.py"].map((id) => ({
+      id,
+      kind: "module",
+      members: [{ name: "f", exported: true, kind: "function" }],
+    })),
+    edges: [],
+    foreign: [],
+    files: [
+      { path: "a.py", hash: "ha" },
+      { path: "b.py", hash: "hb" },
+    ],
+  } as unknown as Scan;
+
+  const crap = (inputs: Record<string, string>) => ({
+    name: "crap",
+    status: "ran" as const,
+    findings: 0,
+    modifiedMs: null,
+    measured: { inputs, tests: "t" },
+  });
+
+  const base = (inputs: Record<string, string>) =>
+    input({
+      sensors: [crap(inputs)],
+      scans: [freshScan],
+      lines: allCurrent(["a.py", "b.py"]),
+      ticks: { describe: true, ticked: [], once: ["crap"], onlyView: false },
+      freshness: buildFreshness([freshScan], "t"),
+    });
+
+  it("reports a partial picture, the row count and the whole-repository note, and marks the chip stale", () => {
+    const model = scanPanel(base({ "a.py": "ha", "b.py": "old" }));
+    const row = model.rows.find(({ key }) => key === "crap");
+
+    expect(model.report?.head).toBe(
+      "Partial picture: 1 of 2 modules out of date",
+    );
+    expect(model.report?.body).toContain("b.py changed");
+    expect(row?.state.text).toBe("1 module out of date");
+    expect(row?.note).toBe("reruns the whole repository");
+  });
+
+  it("reports a complete picture when every ticked result is current", () => {
+    const model = scanPanel(base({ "a.py": "ha", "b.py": "hb" }));
+
+    expect(model.report?.head).toBe("Complete picture");
+    expect(model.rows.find(({ key }) => key === "crap")?.note).toBeNull();
+  });
+
+  it("reads a sensor with no findings document as never run", () => {
+    const model = scanPanel({ ...base({}), sensors: [] });
+
+    expect(model.report?.head).toBe("Partial picture: C.R.A.P. has not run");
+    expect(model.rows.find(({ key }) => key === "crap")?.state.text).toBe(
+      "never run",
+    );
+  });
+
+  it("scopes the report to the open view's modules", () => {
+    const model = scanPanel({
+      ...base({ "a.py": "ha", "b.py": "old" }),
+      view: { name: "engine", modules: ["a.py"] },
+      ticks: { describe: true, ticked: [], once: ["crap"], onlyView: true },
+    });
+
+    expect(model.report?.head).toBe("Complete picture");
+    expect(model.report?.body).toContain("engine");
   });
 });

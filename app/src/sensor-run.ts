@@ -24,6 +24,7 @@ export type SensorStatus = {
   commit?: string;
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
+  measured?: { inputs?: Record<string, string>; tests?: string };
 };
 
 export type FindingsFiles = {
@@ -251,7 +252,11 @@ export async function senseRepository(
       documents.push(document);
       statuses.push({
         name: file.name,
-        status: document.commit === commit ? "ran" : "stale",
+        status: "ran",
+        measured: {
+          ...(document.inputs !== undefined ? { inputs: document.inputs } : {}),
+          ...(document.tests !== undefined ? { tests: document.tests } : {}),
+        },
         findings: document.findings.length,
         modifiedMs: file.modifiedMs ?? null,
         commit: document.commit,

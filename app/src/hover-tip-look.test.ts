@@ -25,9 +25,9 @@ treeHost.replaceChildren();
 await flush();
 facts.treeAfterRemoval = tips();
 
-const row = (key, ticked) => ({ key, name: key, tickable: true, ticked, disabled: false, state: { text: "idle", tone: "idle" }, title: "About " + key });
+const row = (key, ticked) => ({ key, name: key, tickable: true, ticked, disabled: false, state: { text: "idle", tone: "idle" }, note: null, title: "About " + key });
 const model = (ticked) => ({
-  header: { text: "Scan", changed: null }, scope: null,
+  header: { text: "Scan", changed: null }, scope: null, report: null,
   rows: [row("alpha", ticked === "alpha"), row("beta", ticked === "beta")],
   reports: [], button: { scanning: false, label: "Scan" }, pending: false, mark: false,
 });
