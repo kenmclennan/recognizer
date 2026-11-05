@@ -330,6 +330,22 @@ def test_an_unrelated_test_edit_reruns_no_mutant_and_a_killer_edit_reruns_its_si
     assert all(command[-1] == "tests/test_a.py" for command in mutants)
 
 
+def test_a_kotlin_test_file_edit_reruns_only_the_sites_it_covers(tmp_path, monkeypatch):
+    many = frozenset({"tests/ManyTest.kt", "tests/AddTest.kt"})
+    add = frozenset({"tests/AddTest.kt"})
+    root, _, mutants = make_world(tmp_path, monkeypatch, selection_of(one=add, two=many, three=add))
+    written(root, ["tests/ManyTest.kt", "tests/AddTest.kt"])
+
+    assert go(root, tmp_path) == 0
+    mutants.clear()
+    (root / "tests/ManyTest.kt").write_text("class MulTest\n")
+
+    assert go(root, tmp_path) == 0
+    assert len(mutants) == 1
+    assert sites_of(root, "app/one.py::inc")[0]["ran"] is not None
+    assert "tests/ManyTest.kt" in sites_of(root, "app/two.py::dec")[0]["ran"]
+
+
 def test_a_touched_killer_with_unchanged_bytes_is_reused_and_a_one_byte_edit_reruns(
     tmp_path, monkeypatch
 ):

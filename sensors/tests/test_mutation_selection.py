@@ -135,11 +135,6 @@ def test_typescript_selection_passes_the_files_after_a_separator(tmp_path):
     ]
 
 
-@pytest.mark.parametrize("language", ["kotlin", "rust"])
-def test_kotlin_and_rust_have_no_selection(tmp_path, language):
-    assert selected_command(tmp_path, language, {"a"}) is None
-
-
 def test_fifty_one_files_or_a_dashed_name_run_the_whole_suite(tmp_path):
     whole = mutant_command(tmp_path, "python")
     many = {f"tests/test_{n}.py" for n in range(51)}

@@ -7,6 +7,8 @@ CONTEXTS_JSON = ".recognizer/cache/coverage/python.contexts.json"
 
 MAX_SELECTED_FILES = 50
 
+KOTLIN_CLASSES: dict[str, list[tuple[str, str]]] = {}
+
 PYTHON_COVERAGE = (
     "export COVERAGE_FILE=.recognizer/cache/coverage/python.data"
     " && {runner} coverage run -m pytest"
@@ -130,6 +132,28 @@ def by_file_command(file: str, number: int) -> list[str]:
     return [*command, "--", file]
 
 
+def kotlin_by_file_command(project: str, classes: list[str]) -> list[str]:
+    return [
+        "./gradlew",
+        f"{project}:test" if project else "test",
+        "--rerun",
+        *[arg for name in classes for arg in ("--tests", name)],
+        f"{project}:jacocoTestReport" if project else "jacocoTestReport",
+    ]
+
+
+def kotlin_selected_command(selected: list[tuple[str, str]]) -> list[str]:
+    command = ["./gradlew"]
+
+    for project in sorted({project for project, _ in selected}):
+        command.append(f"{project}:test" if project else "test")
+
+        for name in sorted(name for p, name in selected if p == project):
+            command += ["--tests", name]
+
+    return command
+
+
 def mutant_command(repository: Path, language: str) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
 
@@ -141,6 +165,8 @@ def selected_command(repository: Path, language: str, files: set[str] | frozense
         prefix = [*python_runner(repository), "pytest", "-rfE"]
     elif language == "typescript":
         prefix = ["npm", "test", "--"]
+    elif language == "kotlin":
+        return kotlin_command_for(repository, files)
     else:
         return None
 
@@ -148,3 +174,13 @@ def selected_command(repository: Path, language: str, files: set[str] | frozense
         return mutant_command(repository, language)
 
     return [*prefix, *sorted(files)]
+
+
+def kotlin_command_for(repository: Path, files: set[str] | frozenset[str]) -> list[str]:
+    if not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files):
+        return mutant_command(repository, "kotlin")
+
+    if any(f not in KOTLIN_CLASSES for f in files):
+        return mutant_command(repository, "kotlin")
+
+    return kotlin_selected_command([pair for f in sorted(files) for pair in KOTLIN_CLASSES[f]])
