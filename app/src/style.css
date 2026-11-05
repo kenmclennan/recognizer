@@ -3042,6 +3042,23 @@ svg.i.chevron {
   fill: var(--muted);
 }
 
+.metric-sources {
+  color: var(--muted);
+}
+
+.metric-sources-text {
+  font-size: 9px;
+  fill: var(--muted);
+}
+
+.metric-sources .i {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .views-panel {
   flex: 1;
   flex-direction: column;

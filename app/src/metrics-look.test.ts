@@ -222,6 +222,51 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   await tick();
   facts.long = barsOf("app/risk.py");
 
+  const mixedOverlay = JSON.stringify({
+    overlay_version: 1,
+    commit: ${JSON.stringify(SCAN_COMMIT)},
+    modified: false,
+    producer: { name: "crap", version: "0.1.72" },
+    metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }],
+    values: {
+      complexity: { "app/risk.py::classify": 8, "app/risk.py::heavy": 12 },
+      coverage: { "app/risk.py::classify": 0.1, "app/risk.py::heavy": 0.5 },
+      crap: { "app/risk.py::classify": 40, "app/risk.py::heavy": 30 },
+    },
+  });
+  const sourcesOf = async (overlay, keys) => {
+    explorer.dispose();
+    host.replaceChildren();
+    explorer = mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried: null, showMetrics: () => {} });
+    await tick();
+    for (const folder of ["app", "src", "lib"]) {
+      click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+      await tick();
+    }
+    click(q(".metrics-toggle"));
+    await tick();
+    for (const key of keys) {
+      click(q('.metric-row[data-metric="' + key + '"]'));
+      await tick();
+    }
+    const line = boxOf("app/risk.py").querySelector(".metric-sources");
+    const body = boxOf("app/risk.py").querySelector(".box-body");
+    const bars = [...boxOf("app/risk.py").querySelectorAll(".metric-track")].map((t) => Number(t.getAttribute("y")) + Number(t.getAttribute("height")));
+    const icon = line ? line.querySelector("svg") : null;
+    const text = line ? line.querySelector(".metric-sources-text") : null;
+    return {
+      present: line !== null,
+      text: text ? text.textContent : null,
+      title: line ? line.querySelector("title").textContent : null,
+      iconSize: icon ? [Number(icon.getAttribute("width")), Number(icon.getAttribute("height"))] : null,
+      textY: text ? Number(text.getAttribute("y")) : null,
+      lastBarBottom: Math.max(...bars),
+      boxBottom: Number(body.getAttribute("y")) + Number(body.getAttribute("height")),
+    };
+  };
+  facts.mixed = await sourcesOf(mixedOverlay, ["crap/complexity", "crap/coverage"]);
+  facts.single = await sourcesOf(${JSON.stringify(fresh)}, ["crap/complexity", "crap/coverage"]);
+
   const viewFile = JSON.stringify({
     schema_version: 4,
     description: "d",
@@ -360,6 +405,19 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(bar.label).toBe("a-v\u2026");
     expect(bar.title).toBe("a-very-long-metric 3, worst: classify");
     expect(bar.labelRight).toBeLessThanOrEqual(bar.trackX);
+  });
+
+  it("says when the bars come from more than one function, below the last bar and inside the box", () => {
+    expect(f.mixed.present).toBe(true);
+    expect(f.mixed.text).toBe("from 2 functions");
+    expect(f.mixed.title).toBe("cc: heavy\ncov: classify");
+    expect(f.mixed.iconSize).toEqual([13, 13]);
+    expect(f.mixed.textY).toBeGreaterThan(f.mixed.lastBarBottom);
+    expect(f.mixed.textY).toBeLessThanOrEqual(f.mixed.boxBottom);
+  });
+
+  it("shows no such line when every bar comes from one function", () => {
+    expect(f.single.present).toBe(false);
   });
 
   it("leaves the discs unchanged", () => {

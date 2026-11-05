@@ -9,10 +9,14 @@ import {
   barWidth,
   clipLabel,
   fraction,
+  memberSources,
   rangeLabel,
+  sourceLabel,
+  sourceTitle,
   tone,
   valueLabel,
 } from "./metric-bars";
+import { type MetricDescriptor, moduleValue } from "./overlay-model";
 
 type Shape = Parameters<typeof tone>[0];
 
@@ -147,5 +151,66 @@ describe("clipLabel", () => {
   it("keeps a label that fits and ends a longer one with an ellipsis", () => {
     expect(clipLabel("CRAP")).toBe("CRAP");
     expect(clipLabel("uncovered")).toBe("unc…");
+  });
+});
+
+describe("memberSources", () => {
+  const metric = (
+    name: string,
+    bad: "high" | "low",
+    values: Record<string, number>,
+  ): MetricDescriptor =>
+    ({
+      key: `crap/${name}`,
+      name,
+      type: "number",
+      max: 100,
+      bad,
+      label: name,
+      granularity: "member",
+      values,
+    }) as unknown as MetricDescriptor;
+
+  const barsOf = (metrics: MetricDescriptor[]) =>
+    metrics.map((one) => ({
+      label: one.label,
+      member: moduleValue(one, "a.py")?.member ?? null,
+    }));
+
+  it("names each member once with the metrics it supplies when the worst differ", () => {
+    const crap = metric("CRAP", "high", {
+      "a.py::spawn_pool": 90,
+      "a.py::spawn_worker": 10,
+    });
+    const cov = metric("cov", "low", {
+      "a.py::spawn_pool": 0.1,
+      "a.py::spawn_worker": 0.9,
+    });
+    const cc = metric("cc", "high", {
+      "a.py::spawn_pool": 3,
+      "a.py::spawn_worker": 12,
+    });
+    const sources = memberSources(barsOf([crap, cov, cc]));
+
+    expect(sources).toEqual([
+      { labels: ["CRAP", "cov"], member: "spawn_pool" },
+      { labels: ["cc"], member: "spawn_worker" },
+    ]);
+    expect(sourceLabel(sources ?? [])).toBe("from 2 functions");
+    expect(sourceTitle(sources ?? [])).toBe(
+      "CRAP, cov: spawn_pool\ncc: spawn_worker",
+    );
+  });
+
+  it("is null when one function is worst on every metric", () => {
+    const crap = metric("CRAP", "high", { "a.py::f": 90, "a.py::g": 10 });
+    const cc = metric("cc", "high", { "a.py::f": 12, "a.py::g": 3 });
+
+    expect(memberSources(barsOf([crap, cc]))).toBeNull();
+  });
+
+  it("is null for module-granularity bars and for none", () => {
+    expect(memberSources([{ label: "x", member: null }])).toBeNull();
+    expect(memberSources([])).toBeNull();
   });
 });
