@@ -106,6 +106,7 @@ def method_of(node: Node, decl: Decl) -> dict:
     method = {
         "name": text_of(name) if name is not None else decl.name,
         "line": line_of(name or node),
+        "end_line": node.end_point[0] + 1,
         "params": parameters(node),
         "private": is_private(words, interface),
     }

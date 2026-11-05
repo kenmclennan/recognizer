@@ -157,6 +157,7 @@
             {
               "name": "Run",
               "line": 9,
+              "end_line": 14,
               "params": [
                 {
                   "name": "async",
@@ -200,6 +201,7 @@
             {
               "name": "Total",
               "line": 10,
+              "end_line": 10,
               "params": [],
               "private": false,
               "returns": "int"
@@ -232,6 +234,7 @@
             {
               "name": "Place",
               "line": 5,
+              "end_line": 10,
               "params": [
                 {
                   "name": "order",
@@ -288,6 +291,7 @@
             {
               "name": "Handle",
               "line": 5,
+              "end_line": 7,
               "params": [
                 {
                   "name": "message",
@@ -336,6 +340,7 @@
             {
               "name": "Shout",
               "line": 5,
+              "end_line": 5,
               "params": [
                 {
                   "name": "text",
@@ -369,6 +374,7 @@
             {
               "name": "Handle",
               "line": 5,
+              "end_line": 5,
               "params": [
                 {
                   "name": "message",
@@ -402,6 +408,7 @@
             {
               "name": "Save",
               "line": 5,
+              "end_line": 5,
               "params": [
                 {
                   "name": "order",
@@ -435,6 +442,7 @@
             {
               "name": "Now",
               "line": 5,
+              "end_line": 5,
               "params": [],
               "private": false,
               "returns": "int",
@@ -548,6 +556,7 @@
             {
               "name": "Round",
               "line": 7,
+              "end_line": 7,
               "params": [
                 {
                   "name": "amount",
@@ -627,6 +636,7 @@
             {
               "name": "Save",
               "line": 7,
+              "end_line": 10,
               "params": [
                 {
                   "name": "order",
@@ -657,6 +667,7 @@
             {
               "name": "Run",
               "line": 7,
+              "end_line": 7,
               "params": [],
               "private": false,
               "returns": "string"
@@ -682,6 +693,7 @@
             {
               "name": "Compose",
               "line": 9,
+              "end_line": 13,
               "params": [
                 {
                   "name": "container",
@@ -719,6 +731,7 @@
             {
               "name": "AddShop",
               "line": 5,
+              "end_line": 5,
               "params": [
                 {
                   "name": "services",
@@ -754,6 +767,7 @@
             {
               "name": "ExecuteAsync",
               "line": 7,
+              "end_line": 7,
               "params": [
                 {
                   "name": "stoppingToken",
@@ -794,6 +808,7 @@
             {
               "name": "Show",
               "line": 10,
+              "end_line": 15,
               "params": [
                 {
                   "name": "order",
