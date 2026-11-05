@@ -8,6 +8,7 @@ import { buildScanPanelView } from ${JSON.stringify(here("scan-panel-view.ts"))}
 
 (async () => {
 const enter = (node) => node.dispatchEvent(new MouseEvent("mouseenter"));
+const leave = (node) => node.dispatchEvent(new MouseEvent("mouseleave"));
 const tips = () => document.querySelectorAll(".module-tip, .scan-tip").length;
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const facts = {};
@@ -51,6 +52,27 @@ attachModuleTip(moduleRow, { path: "pkg/b.py", description: null });
 enter(moduleRow);
 facts.mixed = [document.querySelectorAll(".module-tip").length, document.querySelectorAll(".scan-tip").length];
 
+const rowA = document.createElement("div");
+const rowB = document.createElement("div");
+for (const [r, top, path] of [[rowA, 200, "pkg/a.py"], [rowB, 226, "pkg/b.py"]]) {
+  r.style.cssText = "position:fixed;left:20px;width:200px;height:24px;top:" + top + "px";
+  document.body.append(r);
+  attachModuleTip(r, { path, description: "Long description that wraps across several lines of the tip box so it is tall." });
+}
+leave(moduleRow);
+enter(rowA);
+const tipA = document.querySelector(".module-tip");
+const boxA = tipA.getBoundingClientRect();
+const boxB = rowB.getBoundingClientRect();
+facts.coversNext = boxA.top < boxB.bottom && boxA.bottom > boxB.top && boxA.left < boxB.right && boxA.right > boxB.left;
+facts.tipInert = getComputedStyle(tipA).pointerEvents;
+facts.hitIsRow = document.elementFromPoint(boxB.left + 5, boxB.top + 5) === rowB;
+leave(rowA);
+enter(rowB);
+facts.afterMove = [tips(), document.querySelector(".module-tip .module-tip-path").textContent];
+leave(rowB);
+facts.afterLeave = tips();
+
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message); });
 `;
@@ -78,5 +100,16 @@ describe.skipIf(webkit === undefined)("the hover tip", () => {
     expect(f.second).toBe(1);
     expect(f.secondText).toBe("About beta");
     expect(f.mixed).toEqual([1, 0]);
+  });
+
+  it("never lets a tip take the pointer from the row under it", () => {
+    expect(f.coversNext).toBe(true);
+    expect(f.tipInert).toBe("none");
+    expect(f.hitIsRow).toBe(true);
+  });
+
+  it("shows exactly one tip, for the row now under the pointer, and none after leaving", () => {
+    expect(f.afterMove).toEqual([1, "pkg/b.py"]);
+    expect(f.afterLeave).toBe(0);
   });
 });
