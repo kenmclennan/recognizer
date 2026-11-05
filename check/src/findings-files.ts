@@ -1,10 +1,15 @@
 import { join } from "node:path";
 import type { DirEntry, Io } from "./cli.js";
 import {
+  type FindingRecord,
   type FindingsDocument,
   validateFindings,
 } from "./findings-document.js";
-import type { Scan } from "./scan.js";
+import {
+  type Freshness,
+  type Measured,
+  splitFindings,
+} from "./result-freshness.js";
 
 export function findingsFolder(root: string): string {
   return join(root, ".recognizer", "cache", "findings");
@@ -37,12 +42,8 @@ export type ReadOutcome =
       name: string;
       status: "read";
       document: FindingsDocument;
-      reported?: true;
-    }
-  | {
-      name: string;
-      status: "stale";
-      document: FindingsDocument;
+      hidden: FindingRecord[];
+      valid: boolean;
       reported?: true;
     }
   | { name: string; status: "invalid"; reason: string }
@@ -63,15 +64,10 @@ function listed(io: Io, root: string): string[] {
     .sort();
 }
 
-export interface ScanState {
-  commit: string | null;
-  modified: boolean;
-}
-
 export function readFindingsFiles(
   io: Io,
   root: string,
-  state: ScanState,
+  freshnessOf: (measured: Measured) => Freshness,
   skip: string[] = [],
   allowed: string[] | null = null,
 ): ReadOutcome[] {
@@ -100,38 +96,16 @@ export function readFindingsFiles(
       }
 
       const reported = outside ? { reported: true as const } : {};
+      const freshness = freshnessOf(document);
+      const { current, hidden } = splitFindings(document, freshness);
 
-      const current =
-        document.commit === state.commit &&
-        !(
-          document.modified &&
-          document.reported_at === undefined &&
-          !state.modified
-        );
-
-      return current
-        ? { name, status: "read", document, ...reported }
-        : { name, status: "stale", document, ...reported };
+      return {
+        name,
+        status: "read",
+        document: { ...document, findings: current },
+        hidden,
+        valid: freshness.valid(document),
+        ...reported,
+      };
     });
-}
-
-export function withoutAbsentModules(
-  document: FindingsDocument,
-  scans: Scan[],
-): { document: FindingsDocument; dropped: number } {
-  if (!document.modified || document.reported_at !== undefined) {
-    return { document, dropped: 0 };
-  }
-
-  const present = new Set(
-    scans.flatMap((scan) => scan.modules.map((m) => m.id)),
-  );
-  const findings = document.findings.filter((finding) =>
-    finding.evidence.modules.every((id) => present.has(id)),
-  );
-
-  return {
-    document: { ...document, findings },
-    dropped: document.findings.length - findings.length,
-  };
 }

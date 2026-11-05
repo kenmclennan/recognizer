@@ -6,6 +6,8 @@ import { REPO } from "./helpers.js";
 import {
   type FakeOptions,
   fakeIo,
+  hashedScan,
+  mountedModules,
   PYTHON,
   ROOT,
   TYPESCRIPT,
@@ -25,7 +27,7 @@ const policyFiles = {
 };
 
 function cached(scan: Record<string, unknown>, commit = COMMIT) {
-  return JSON.stringify({ ...scan, commit, modified: false, files: [] });
+  return JSON.stringify(hashedScan(scan, commit));
 }
 
 function setup(files: Record<string, string> = {}, options: FakeOptions = {}) {
@@ -33,6 +35,7 @@ function setup(files: Record<string, string> = {}, options: FakeOptions = {}) {
     commit: COMMIT,
     files: {
       [`${ROOT}/shop/a.py`]: "",
+      ...mountedModules(checkScan),
       [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(checkScan),
       ...policyFiles,
       ...files,
@@ -97,6 +100,7 @@ describe("check in repository mode", () => {
       commit: COMMIT,
       files: {
         [`${ROOT}/shop/a.py`]: "",
+        ...mountedModules(checkScan),
         [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(checkScan),
       },
     });
@@ -123,12 +127,7 @@ describe("check in repository mode", () => {
       {
         scanners: {
           [PYTHON]: {
-            output: JSON.stringify({
-              ...checkScan,
-              commit: COMMIT,
-              modified: false,
-              files: [],
-            }),
+            output: JSON.stringify(hashedScan(checkScan, COMMIT)),
           },
         },
       },

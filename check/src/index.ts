@@ -127,6 +127,15 @@ export {
   type ResponsibilityEntry,
   validateResponsibilities,
 } from "./responsibilities.js";
+export {
+  buildFreshness,
+  type Freshness,
+  type Measured,
+  moduleOf,
+  namedModules,
+  scanHashes,
+  splitFindings,
+} from "./result-freshness.js";
 export type { Rule, Violation } from "./rules.js";
 export { collectViolations } from "./rules.js";
 export {

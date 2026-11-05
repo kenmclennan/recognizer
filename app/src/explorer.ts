@@ -1,4 +1,5 @@
 import {
+  buildFreshness,
   type ChangeFacts,
   changeMarks,
   type FileChange,
@@ -48,7 +49,6 @@ import { buildFindingsPanelView } from "./findings-panel-view";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
-import { buildFreshness } from "./freshness";
 import { limitsFromText } from "./function-limits";
 import { computeHealth, describeTree } from "./health";
 import {

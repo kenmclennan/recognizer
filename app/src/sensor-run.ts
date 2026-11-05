@@ -8,10 +8,10 @@ import {
   registeredSensors,
   resolveStructureSettings,
   type Scan,
+  scanHashes,
   structureSensor,
   validateFindings,
 } from "recognizer";
-import { scanHashes } from "./freshness";
 import type { Loaded, LoadedScan } from "./scan-loading";
 
 export type SensorStatus = {

@@ -15,11 +15,7 @@ import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
-import {
-  findingsFile,
-  readFindingsFiles,
-  withoutAbsentModules,
-} from "./findings-files.js";
+import { findingsFile, readFindingsFiles } from "./findings-files.js";
 import type { FolderMetrics } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
 import { scansCommit } from "./load-findings.js";
@@ -38,6 +34,7 @@ import {
   structureSensor,
 } from "./structure-sensor.js";
 import { folderOf } from "./structure-warnings.js";
+import { freshnessFor } from "./tests-hash.js";
 
 type BaselineAction = "none" | "initialised" | "shrunk";
 
@@ -72,6 +69,7 @@ interface SensorStatus {
   reason?: string;
   settings?: StructureSettings;
   reported?: true;
+  out_of_date?: number;
 }
 
 interface Gathered {
@@ -81,6 +79,7 @@ interface Gathered {
   unranked: number;
   thresholds: Thresholds | null;
   sensors: SensorStatus[];
+  hiddenIds: Set<string>;
 }
 
 function readInput(io: Io, path: string, what: string): string {
@@ -295,6 +294,7 @@ function settleBaseline(
   baselinePath: string,
   candidates: Candidate[],
   unranked: number,
+  hiddenIds: Set<string> = new Set(),
 ): {
   result: Ranked;
   report: { path: string; present: boolean; action: BaselineAction };
@@ -313,6 +313,12 @@ function settleBaseline(
   }
 
   let result = rankCandidates(candidates, unranked, baseline);
+
+  result = {
+    ...result,
+    fixed: result.fixed.filter((entry) => !hiddenIds.has(entryId(entry))),
+  };
+
   let action: BaselineAction = "none";
 
   if (flags.init) {
@@ -502,7 +508,8 @@ function gather(
   override: number | undefined,
 ): Gathered {
   const config = readConfig(io, root);
-  const { commit, modified } = scansCommit(scans);
+  const { commit } = scansCommit(scans);
+  const hiddenIds = new Set<string>();
   const sensors: SensorStatus[] = [];
   const documents: FindingsDocument[] = [];
   const resolved = resolveStructureSettings(config, override);
@@ -550,7 +557,7 @@ function gather(
     for (const outcome of readFindingsFiles(
       io,
       root,
-      { commit, modified },
+      freshnessFor(io, root, scans),
       [],
       allowed,
     )) {
@@ -558,37 +565,36 @@ function gather(
         io.remove(findingsFile(root, outcome.name));
         io.stderr(`removed unregistered ${outcome.name}\n`);
       } else if (outcome.status === "read") {
-        const { document, dropped } = withoutAbsentModules(
-          outcome.document,
-          scans,
-        );
+        const { document, hidden, valid } = outcome;
 
-        if (dropped > 0) {
-          io.stderr(
-            `dropped ${dropped} ${outcome.name} findings naming modules not in the scan\n`,
-          );
+        for (const record of hidden) {
+          if (record.severity === "violation") {
+            hiddenIds.add(violationOf(outcome.name, record).id);
+          }
         }
 
         documents.push(document);
 
+        if (!valid) {
+          io.stderr(
+            outcome.reported
+              ? `stale ${outcome.name} (reported at ${document.commit.slice(0, 7)})\n`
+              : `stale ${outcome.name}\n`,
+          );
+        } else if (hidden.length > 0) {
+          io.stderr(`out of date ${outcome.name}: ${hidden.length} findings\n`);
+        }
+
         if (!sensors.some((one) => one.name === outcome.name)) {
           sensors.push({
             name: outcome.name,
-            status: "ran",
+            status: valid ? "ran" : "stale",
+            ...(valid && hidden.length > 0
+              ? { out_of_date: hidden.length }
+              : {}),
             ...(outcome.reported ? { reported: true } : {}),
           });
         }
-      } else if (outcome.status === "stale") {
-        io.stderr(
-          outcome.reported
-            ? `stale ${outcome.name} (reported at ${outcome.document.commit.slice(0, 7)})\n`
-            : `stale ${outcome.name}\n`,
-        );
-        sensors.push({
-          name: outcome.name,
-          status: "stale",
-          ...(outcome.reported ? { reported: true } : {}),
-        });
       } else {
         io.stderr(`invalid ${outcome.name}: ${outcome.reason}\n`);
         sensors.push({
@@ -606,7 +612,15 @@ function gather(
     }
   }
 
-  return { documents, metrics, folderMetrics, unranked, thresholds, sensors };
+  return {
+    documents,
+    metrics,
+    folderMetrics,
+    unranked,
+    thresholds,
+    sensors,
+    hiddenIds,
+  };
 }
 
 function executeRepository(
@@ -706,6 +720,7 @@ function executeRepository(
     baselinePath,
     candidates,
     gathered.unranked,
+    gathered.hiddenIds,
   );
   const result: Ranked = narrowed
     ? {

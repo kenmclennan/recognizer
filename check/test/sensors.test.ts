@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -15,6 +17,9 @@ import {
   type Fake,
   type FakeOptions,
   fakeIo,
+  hashedScan,
+  inputsOf,
+  mountedModules,
   type Program,
   PYTHON,
   ROOT,
@@ -29,7 +34,7 @@ const FAKE = `${ROOT}/.recognizer/cache/findings/fake-sensor.json`;
 const BASELINE = `${ROOT}/.recognizer/baselines/violations.json`;
 
 function cached(commit = COMMIT) {
-  return JSON.stringify({ ...checkScan, commit, modified: false, files: [] });
+  return JSON.stringify(hashedScan(checkScan, commit));
 }
 
 function fakeDocument(changes: Record<string, unknown> = {}) {
@@ -39,6 +44,7 @@ function fakeDocument(changes: Record<string, unknown> = {}) {
     commit: COMMIT,
     modified: false,
     settings: {},
+    inputs: inputsOf(checkScan),
     findings: [
       {
         id: "fake-violation:shop/main.py",
@@ -70,6 +76,7 @@ function setup(yaml: string | null, options: FakeOptions = {}): Fake {
     scanners: { [PYTHON]: {}, ...options.scanners },
     files: {
       [`${ROOT}/shop/a.py`]: "",
+      ...mountedModules(checkScan),
       [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(),
       [`${ROOT}/.recognizer/policy.yaml`]: read(
         "fixtures/check/.recognizer/policy.yaml",
@@ -319,9 +326,7 @@ describe("scan --sense running a registered sensor", () => {
 
     expect(code).toBe(0);
     expect(JSON.parse(fake.files.get(FAKE) as string)).toEqual(
-      JSON.parse(
-        fakeDocument({ modified: false, findings_version: 2, inputs: {} }),
-      ),
+      JSON.parse(fakeDocument({ modified: false, findings_version: 2 })),
     );
   });
 
@@ -383,9 +388,9 @@ describe("check reading registered sensors", () => {
     ).not.toContain("fake-violation:shop/main.py");
   });
 
-  it("ignores a leftover file from another commit and reports it stale", async () => {
+  it("ignores a leftover file with no inputs and reports it stale", async () => {
     const fake = setup(REGISTER, {
-      files: { [FAKE]: fakeDocument({ commit: "old" }) },
+      files: { [FAKE]: fakeDocument({ commit: "old", inputs: undefined }) },
     });
     const { code, err, out } = await check(fake, "--json");
     const report = JSON.parse(out);
@@ -402,7 +407,7 @@ describe("check reading registered sensors", () => {
   it("does not let a stale file change the exit code", async () => {
     const fake = setup(REGISTER, {
       files: {
-        [FAKE]: fakeDocument({ commit: "old" }),
+        [FAKE]: fakeDocument({ commit: "old", inputs: undefined }),
         [BASELINE]: JSON.stringify({
           schema_version: 1,
           violations: JSON.parse(read("fixtures/check/expected.json"))
@@ -464,6 +469,81 @@ describe("check reading registered sensors", () => {
   });
 });
 
+describe("check judging a registered sensor's findings per module", () => {
+  const OTHER = "fake-violation:shop/domain/order.py";
+
+  function twoFindings() {
+    const [first] = JSON.parse(fakeDocument()).findings;
+
+    return fakeDocument({
+      inputs: {
+        ...inputsOf(checkScan),
+        "shop/domain/order.py": "f".repeat(64),
+      },
+      findings: [
+        first,
+        {
+          ...first,
+          id: OTHER,
+          evidence: { modules: ["shop/domain/order.py"] },
+        },
+      ],
+    });
+  }
+
+  it("shows only the finding on a current module and counts the hidden one", async () => {
+    const fake = setup(REGISTER, { files: { [FAKE]: twoFindings() } });
+    const { err, out } = await check(fake, "--json");
+    const report = JSON.parse(out);
+    const ids = report.new.map((v: { finding_id?: string }) => v.finding_id);
+
+    expect(ids).toContain("fake-violation:shop/main.py");
+    expect(ids).not.toContain(OTHER);
+    expect(err).toContain("out of date fake-sensor: 1 findings");
+    expect(report.sensors).toContainEqual({
+      name: "fake-sensor",
+      status: "ran",
+      out_of_date: 1,
+    });
+  });
+
+  it("reads a file from another commit whose inputs all match", async () => {
+    const fake = setup(REGISTER, {
+      files: { [FAKE]: fakeDocument({ commit: "old" }) },
+    });
+    const { err, out } = await check(fake, "--json");
+
+    expect(err).toBe("");
+    expect(JSON.parse(out).sensors).toContainEqual({
+      name: "fake-sensor",
+      status: "ran",
+    });
+    expect(out).toContain("fake-violation:shop/main.py");
+  });
+
+  it("holds a baselined violation whose module is out of date as neither new nor fixed", async () => {
+    const baseline = JSON.stringify({
+      schema_version: 1,
+      violations: [{ id: OTHER }],
+    });
+    const fake = setup(REGISTER, {
+      files: { [FAKE]: twoFindings(), [BASELINE]: `${baseline}\n` },
+    });
+    const report = JSON.parse((await check(fake, "--json")).out);
+
+    expect(report.fixed).toEqual([]);
+    expect(
+      report.new.map((v: { finding_id?: string }) => v.finding_id),
+    ).not.toContain(OTHER);
+
+    await check(fake, "--update-baseline");
+
+    expect(JSON.parse(fake.files.get(BASELINE) as string).violations).toEqual([
+      { id: OTHER },
+    ]);
+  });
+});
+
 describe("check ratcheting a thresholds violation", () => {
   const THRESHOLDS = `${ROOT}/.recognizer/cache/findings/thresholds.json`;
   const ID = "thresholds:churn:app/billing.py";
@@ -477,6 +557,7 @@ describe("check ratcheting a thresholds violation", () => {
       commit: COMMIT,
       modified: false,
       settings: {},
+      inputs: inputsOf(checkScan),
       findings: [
         {
           id: ID,
@@ -486,7 +567,7 @@ describe("check ratcheting a thresholds violation", () => {
           metric: "churn",
           summary: "app/billing.py: churn 25 is at or above 20",
           evidence: {
-            modules: ["app/billing.py"],
+            modules: ["shop/main.py"],
             measures: { value: 25, line: 20 },
             producer: "quality-tool",
           },
@@ -498,7 +579,7 @@ describe("check ratcheting a thresholds violation", () => {
           principle: "functions-stay-small",
           metric: "complexity",
           summary: "app/billing.py::price: complexity 14 is at or above 10",
-          evidence: { modules: ["app/billing.py"] },
+          evidence: { modules: ["shop/main.py"] },
         },
       ],
     });
@@ -810,9 +891,9 @@ describe("show and modules read the findings files", () => {
     expect(fake.files.get(STRUCTURE)).toBe("{}");
   });
 
-  it("ignores a registered sensor's file from another commit with a stale line", async () => {
+  it("ignores a registered sensor's file with no inputs with a stale line", async () => {
     const fake = setup(REGISTER, {
-      files: { [FAKE]: fakeDocument({ commit: "old" }) },
+      files: { [FAKE]: fakeDocument({ commit: "old", inputs: undefined }) },
     });
     const { err } = await show(fake);
 
@@ -1022,6 +1103,33 @@ describe("scan --sense leaves a running record while it works", () => {
   });
 });
 
+function onDisk(scan: typeof checkScan, root: string, commit: string) {
+  const present = new Set<string>(
+    scan.modules
+      .map((module: { id: string }) => module.id)
+      .filter((id: string) => existsSync(join(root, id))),
+  );
+
+  return {
+    ...scan,
+    commit,
+    modified: false,
+    modules: scan.modules.filter((module: { id: string }) =>
+      present.has(module.id),
+    ),
+    edges: scan.edges.filter(
+      (edge: { from: string; to: string }) =>
+        present.has(edge.from) && present.has(edge.to),
+    ),
+    files: [...present].map((path) => ({
+      path,
+      hash: createHash("sha256")
+        .update(readFileSync(join(root, path)))
+        .digest("hex"),
+    })),
+  };
+}
+
 describe("scan --sense running a registered sensor as a real process", () => {
   it("writes the sensor's findings file with the commit it was given", async () => {
     const root = makeTempDir("recognizer-sensor-");
@@ -1042,7 +1150,7 @@ describe("scan --sense running a registered sensor as a real process", () => {
     mkdirSync(join(root, ".recognizer/cache"), { recursive: true });
     writeFileSync(
       join(root, ".recognizer/cache/scan.python.json"),
-      cached(git("rev-parse", "HEAD").trim()),
+      JSON.stringify(onDisk(checkScan, root, git("rev-parse", "HEAD").trim())),
     );
     writeFileSync(
       join(root, ".recognizer/config.yaml"),
@@ -1086,8 +1194,14 @@ describe("a report in the findings folder", () => {
   const OLD = `${ROOT}/.recognizer/cache/findings/old-review.json`;
   const STRAY = `${ROOT}/.recognizer/cache/findings/stray.json`;
 
-  function reportDocument(name: string, commit: string, summary: string) {
+  function reportDocument(
+    name: string,
+    commit: string,
+    summary: string,
+    withInputs = true,
+  ) {
     return fakeDocument({
+      ...(withInputs ? {} : { inputs: undefined }),
       sensor: { name, version: "reported" },
       commit,
       reported_at: "2026-11-02T10:00:00.000Z",
@@ -1112,6 +1226,7 @@ describe("a report in the findings folder", () => {
           "old-review",
           "def4567890",
           "stale report finding",
+          false,
         ),
         [STRAY]: fakeDocument({ sensor: { name: "stray", version: "1" } }),
       },
@@ -1137,13 +1252,14 @@ describe("a report in the findings folder", () => {
     expect(fake.files.has(REVIEW)).toBe(true);
   });
 
-  it("from another commit is ignored, named as reported at its short commit and kept", async () => {
+  it("with no inputs is ignored, named as reported at its short commit and kept", async () => {
     const fake = setup(null, {
       files: {
         [OLD]: reportDocument(
           "old-review",
           "def4567890",
           "stale report finding",
+          false,
         ),
       },
     });
