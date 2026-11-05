@@ -23,6 +23,7 @@ const scan = {
   modules: ids.map((id) => ({ id, kind: "module", members: id === "app/a.py" ? [{ name: "f", exported: true, kind: "function" }, { name: "g", exported: true, kind: "function" }] : [{ name: "h", exported: true, kind: "function" }] })),
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
+  files: [{ path: "app/a.py", hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, { path: "app/b.py", hash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }],
 };
 const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
 const SHIPPED = [
@@ -105,7 +106,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const q = (selector) => root.querySelector(selector);
   const all = (selector) => [...root.querySelectorAll(selector)];
   const visible = (selector) => { const n = q(selector); return n !== null && getComputedStyle(n).display !== "none"; };
-  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state").textContent, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
+  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: [...r.querySelector(".scan-state").childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(""), note: r.querySelector(".scan-note")?.textContent ?? null, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
   const text = (selector) => q(selector)?.textContent ?? "<missing " + selector + ">";
   const scanLineText = () => q(".scan-line").textContent;
   const footerButtons = () => all(".footer button").filter((b) => !b.closest(".message-tray, .message-toast")).map((b) => b.className);
@@ -160,7 +161,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("duplication"), g2.promise, entry("sense", "duplication"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
   const during = [];
   const duringFooter = [];
-  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, findings: [] })); };
+  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] })); };
   await c.setTick("describe", true);
   await c.setTick("crap", true);
   click(c.q(".scan-run"));
@@ -312,6 +313,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   const scopeOf = () => ({ switches: sc.all(".scan-scope").length, caption: sc.q(".scan-scope-canvas")?.textContent ?? null, on: sc.q(".scan-scope-canvas")?.getAttribute("aria-pressed") ?? null, all: sc.q(".scan-scope-all")?.textContent ?? null, disabled: sc.q(".scan-scope-canvas")?.disabled ?? null });
   const stateOf = (key) => sc.rows().find((r) => r.key === key)?.state;
+  const noteOf = (key) => sc.rows().find((r) => r.key === key)?.note;
   facts.scopeNone = { scope: scopeOf(), describe: stateOf("describe") };
   click(sc.q(".rail-files"));
   await tick();
@@ -333,10 +335,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(sc.q(".rail-scan"));
   await tick();
   await sc.setTick("mutation", true);
-  facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication") };
+  facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication") };
   click(sc.q(".scan-scope-canvas"));
   await tick();
-  facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication"), written: scopeFake.written.at(-1) };
+  facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication"), written: scopeFake.written.at(-1) };
   const hold = gate();
   scopeFake.steps = [hold.promise];
   click(sc.q(".scan-run"));
@@ -350,6 +352,20 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(sc.q(".scan-run"));
   await tick(); await tick();
   facts.scopeOffRan = scopeFake.ran.map((plan) => plan.modules);
+
+  const crapDoc = (hashes) => json({ findings_version: 1, sensor: { name: "crap", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: hashes, findings: [] });
+  const fsensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
+  const fr = await mount(fakeScan(), fsensors);
+  click(fr.q(".rail-scan"));
+  await tick();
+  await fr.setTick("crap", true);
+  const freshFacts = () => ({ head: fr.q(".scan-fresh-head")?.textContent ?? null, kind: fr.q(".scan-fresh")?.className ?? null, rows: fr.rows().filter((r) => r.key === "crap").map((r) => ({ state: r.state, note: r.note })), legend: fr.q(".scan-fresh-legend")?.textContent ?? null });
+  facts.freshPartial = freshFacts();
+  fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }));
+  await fr.wired.rescanner.refresh();
+  await tick(); await tick();
+  facts.freshComplete = freshFacts();
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -403,9 +419,10 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("sizes Descriptions and a ticked Mutation row by the switch and leaves the other rows alone", () => {
     expect(f.scopeOff.describe).toBe("2 to describe");
-    expect(f.scopeOff.mutation).toBe("3 functions");
+    expect(f.scopeOff.mutation).toBe("never run");
+    expect(f.scopeOff.mutationNote).toBe("3 functions");
     expect(f.scopeOn.describe).toBe("1 to describe");
-    expect(f.scopeOn.mutation).toBe("2 functions");
+    expect(f.scopeOn.mutationNote).toBe("2 functions");
     expect(f.scopeOn.crap).toBe(f.scopeOff.crap);
     expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
   });
@@ -414,6 +431,20 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
     expect(f.scopeOffRan).toEqual([["app/a.py"], null]);
+  });
+
+  it("reports a partial picture with the row's gap, then a complete one once the hashes match", () => {
+    expect(f.freshPartial.head).toBe(
+      "Partial picture: 1 of 2 modules out of date",
+    );
+    expect(f.freshPartial.kind).toContain("warn");
+    expect(f.freshPartial.legend).toBe("1 current · 1 out of date");
+    expect(f.freshPartial.rows).toEqual([
+      { state: "1 module out of date", note: "reruns the whole repository" },
+    ]);
+    expect(f.freshComplete.head).toBe("Complete picture");
+    expect(f.freshComplete.kind).toContain("ok");
+    expect(f.freshComplete.rows[0].note).toBeNull();
   });
 
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
@@ -430,12 +461,12 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.railLabel).toContain("Scan");
   });
 
-  it("matches the mock's fresh repository: Not scanned yet, one list, nothing ticked, every row not yet run", () => {
+  it("matches the mock's fresh repository: Not scanned yet, one list, nothing ticked, every row never run", () => {
     expect(f.fresh.header).toBe("Not scanned yet");
     expect(names(f.fresh)).toEqual(NAMES);
     expect(states(f.fresh)).toEqual([
       "2 to describe",
-      ...Array(5).fill("not yet run"),
+      ...Array(5).fill("never run"),
     ]);
     expect(f.fresh.rows.every((r: Facts) => !r.ticked)).toBe(true);
     expect(f.fresh.rows.every((r: Facts) => r.color === MUTED)).toBe(true);

@@ -1,5 +1,6 @@
 import { button, el } from "./dom";
 import { attachHoverTip } from "./hover-tip";
+import type { FreshnessReport } from "./scan-freshness";
 import type { ReportRow, ScanPanelModel, ScanRow } from "./scan-panel-model";
 
 export type ScanPanelActions = {
@@ -55,6 +56,11 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   }
 
   state.append(row.state.text);
+
+  if (row.note !== null) {
+    state.append(el("small", "scan-note", row.note));
+  }
+
   node.append(label, state);
 
   return node;
@@ -79,6 +85,36 @@ function scopeNode(
   canvas.disabled = scope.disabled;
   all.disabled = scope.disabled;
   node.append(canvas, all);
+
+  return node;
+}
+
+function freshnessNode(report: FreshnessReport): HTMLElement {
+  const node = el("div", `scan-fresh ${report.complete ? "ok" : "warn"}`);
+
+  node.append(
+    el("div", "scan-fresh-head", report.head),
+    el("div", "scan-fresh-body", report.body),
+  );
+
+  if (report.bar !== null) {
+    const total = report.bar.current + report.bar.outOfDate;
+    const meter = el("div", "scan-fresh-meter");
+    const current = el("i", "scan-fresh-current");
+    const out = el("i", "scan-fresh-out");
+
+    current.style.width = `${(report.bar.current / total) * 100}%`;
+    out.style.width = `${(report.bar.outOfDate / total) * 100}%`;
+    meter.append(current, out);
+    node.append(
+      meter,
+      el(
+        "div",
+        "scan-fresh-legend",
+        `${report.bar.current} current · ${report.bar.outOfDate} out of date`,
+      ),
+    );
+  }
 
   return node;
 }
@@ -125,6 +161,7 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       }
 
       list.replaceChildren(
+        ...(model.report === null ? [] : [freshnessNode(model.report)]),
         ...(model.scope === null ? [] : [scopeNode(model.scope, actions)]),
         ...model.rows.map((row) => rowNode(row, actions)),
         ...model.reports.map((row) => reportNode(row, actions)),

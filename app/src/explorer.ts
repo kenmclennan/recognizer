@@ -1642,6 +1642,7 @@ export function showExplorer(
       describeProgress: scanHost.describeProgress(),
       now: Date.now(),
       shipped: shippedSensors,
+      freshness: freshnessOf(loaded),
     });
   }
 
