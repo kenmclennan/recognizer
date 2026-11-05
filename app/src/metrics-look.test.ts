@@ -471,7 +471,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(state.chips).toBe(0);
   });
 
-  it("warns amber on an out-of-date group and still lets a row be ticked", () => {
+  it("warns amber on an out-of-date group and lists its rows disabled", () => {
     const state = f.outOfDateState;
 
     expect(state.headers[0].title).toBe("C.R.A.P.");
@@ -479,16 +479,14 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
       text: "Out of date: measured before your latest commit. Run C.R.A.P. to refresh.",
       cls: "metric-note warn",
     });
-    expect(state.rows[0].disabled).toBe(false);
+    expect(state.rows[0].disabled).toBe(true);
     expect(state.headers[0].tooltip).toContain("from fffffff, not the scan's");
     expect(state.perMember).toBe(false);
     expect(state.chips).toBe(0);
     expect(f.afterStaleGroup.notes[0].cls).toBe("metric-note warn");
-    expect(f.afterStale).toEqual({
-      bars: 1,
-      footer: "Showing complexity from crap",
-    });
-    expect(f.afterStaleGroup.disabled).toBe(0);
+    expect(f.afterStale).toEqual({ bars: 0, footer: null });
+    expect(f.staleClick).toBe(0);
+    expect(f.afterStaleGroup.disabled).toBe(3);
     expect(f.afterStaleGroup.chips).toBe(0);
   });
 

@@ -82,8 +82,35 @@ describe("freshness and tooltips", () => {
       expect(model.groups[0]?.tooltip).toBe(
         "crap 0.1.0 - from 0123456, not the scan's",
       );
-      expect(model.metrics[0]?.stale).toBe(true);
+      expect(model.groups[0]?.metrics[0]?.stale).toBe(true);
+      expect(model.metrics).toEqual([]);
     }
+  });
+});
+
+describe("a member-granularity overlay out of date", () => {
+  const text = overlay([{ name: "complexity" }], {
+    complexity: { "a.py::f": 3 },
+  });
+
+  it("lists its metrics but offers none to the canvas or the inspector", () => {
+    const model = buildOverlayModel([{ name: "crap", text }], {
+      commit: "ffffffffffff",
+    });
+
+    expect(model.groups[0]?.enabled).toBe(false);
+    expect(model.groups[0]?.stale).toBe(true);
+    expect(model.groups[0]?.metrics.length).toBeGreaterThan(0);
+    expect(model.metrics).toEqual([]);
+  });
+
+  it("offers its metrics once the scan's commit matches", () => {
+    const model = buildOverlayModel([{ name: "crap", text }], {
+      commit: COMMIT,
+    });
+
+    expect(model.groups[0]?.enabled).toBe(true);
+    expect(model.metrics.length).toBeGreaterThan(0);
   });
 });
 
@@ -147,7 +174,7 @@ describe("the group header model", () => {
         tone: "warn",
       },
     ]);
-    expect(group?.enabled).toBe(true);
+    expect(group?.enabled).toBe(false);
   });
 
   it("warns of a budgeted partial result and still says measured", () => {
@@ -461,7 +488,7 @@ describe("per-module values", () => {
 });
 
 describe("pruneTicks", () => {
-  it("drops removed ticks, keeps an out-of-date group's and drops a disabled group's", () => {
+  it("drops removed ticks and those of an out-of-date or disabled group", () => {
     const fresh = buildOverlayModel(
       [
         {
@@ -480,10 +507,7 @@ describe("pruneTicks", () => {
       "a/m2",
       "a/m1",
     ]);
-    expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([
-      "a/m2",
-      "a/m1",
-    ]);
+    expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([]);
 
     const disabled = buildOverlayModel(
       [],
@@ -501,14 +525,9 @@ describe("pruneTicks", () => {
 describe("currentMetricNamed", () => {
   const text = overlay([{ name: "m1" }], {});
   const fresh = buildOverlayModel([{ name: "a", text }], { commit: COMMIT });
-  const stale = buildOverlayModel([{ name: "a", text }], { commit: "other" });
 
   it("finds a current metric by its name", () => {
     expect(currentMetricNamed("m1", fresh.metrics)?.key).toBe("a/m1");
-  });
-
-  it("finds a metric of an out-of-date group", () => {
-    expect(currentMetricNamed("m1", stale.metrics)?.key).toBe("a/m1");
   });
 
   it("finds nothing for an unknown or absent name", () => {

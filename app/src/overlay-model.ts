@@ -204,7 +204,7 @@ export function buildOverlayModel(
       measuredAt: file.modifiedMs ?? null,
       verb: stopped === undefined ? "measured" : "stopped",
       notes,
-      enabled: !nothing,
+      enabled: !nothing && !stale,
       tooltip: tooltipOf(overlay, stale),
       stale,
       metrics: overlay.metrics.map((metric) =>
