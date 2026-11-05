@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -1451,3 +1452,224 @@ def test_a_run_cut_by_the_budget_ends_short_of_the_total(tmp_path, counting, cap
 
     assert mutants[0]["done"] == 0
     assert mutants[-1]["done"] < mutants[-1]["total"]
+
+
+def test_a_run_killed_after_a_checkpoint_keeps_it_and_the_rerun_does_only_the_rest(
+    tmp_path, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+    ticker = Ticker()
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    real = runner.run_function
+    calls = []
+
+    def killed_from_the_second(*args):
+        calls.append(1)
+        ticker.now += sensor.CHECKPOINT_SECONDS
+
+        if len(calls) >= 2:
+            raise RuntimeError("killed")
+
+        return real(*args)
+
+    monkeypatch.setattr(sensor, "run_function", killed_from_the_second)
+    settings = mutate_settings("tests/strong.py", max_workers=1)
+
+    with pytest.raises(RuntimeError):
+        run_mutate(root, tmp_path / "overlay.json", settings)
+
+    document = read(tmp_path / "findings-overlay.json")
+
+    assert document["partial"] == {"measured": 1, "total": 3}
+    assert "stopped" not in document
+    assert list(read(root / RECORD)["functions"]) == [ALPHA]
+    assert list(read(root / OVERLAY)["values"]["killed"]) == [ALPHA]
+
+    calls.clear()
+    monkeypatch.setattr(sensor, "run_function", lambda *args: (calls.append(1), real(*args))[1])
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert len(calls) == 2
+    assert "partial" not in read(tmp_path / "findings-overlay.json")
+
+
+def test_each_checkpoint_counts_only_settled_functions_and_the_last_is_complete(
+    tmp_path, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+    ticker = Ticker()
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    real = runner.run_function
+    seen = []
+    findings = tmp_path / "findings-overlay.json"
+
+    def stepping(*args):
+        ticker.now += sensor.CHECKPOINT_SECONDS
+        seen.append(read(findings).get("partial") if findings.exists() else None)
+
+        return real(*args)
+
+    monkeypatch.setattr(sensor, "run_function", stepping)
+    settings = mutate_settings("tests/strong.py", max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert seen == [None, {"measured": 1, "total": 3}, {"measured": 2, "total": 3}]
+    assert "partial" not in read(findings)
+
+
+def findings_writes(monkeypatch, path):
+    from recognizer_sensors import cli
+
+    writes = []
+    real = cli.write_atomically
+
+    def spy(text, target):
+        if target == path:
+            writes.append(json.loads(text).get("partial"))
+
+        return real(text, target)
+
+    monkeypatch.setattr(cli, "write_atomically", spy)
+
+    return writes
+
+
+def test_a_checkpoint_writes_only_once_the_gap_reaches_the_interval(tmp_path, monkeypatch):
+    interval = sensor.CHECKPOINT_SECONDS
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+    ticker = Ticker()
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    writes = findings_writes(monkeypatch, tmp_path / "findings-overlay.json")
+    real = runner.run_function
+    gaps = iter([interval - 1, 1, interval])
+    seen = []
+
+    def stepping(*args):
+        ticker.now += next(gaps)
+        seen.append(len(writes))
+
+        return real(*args)
+
+    monkeypatch.setattr(sensor, "run_function", stepping)
+
+    assert (
+        run_mutate(
+            root, tmp_path / "overlay.json", mutate_settings("tests/strong.py", max_workers=1)
+        )
+        == 0
+    )
+    assert seen == [0, 0, 1]
+    assert writes == [{"measured": 2, "total": 3}, None, None]
+
+
+FIVE_FUNCTIONS = (
+    "\n\n\n".join(
+        f"def {name}(a, b):\n    return {body}"
+        for name, body in [
+            ("r", "a and b"),
+            ("d", "a and b"),
+            ("a", "a and b"),
+            ("b", "a and b"),
+            ("c", "a and b"),
+        ]
+    )
+    + "\n"
+)
+FIVE_COVERAGE = (
+    "SF:app/rules.py\n"
+    + "".join(
+        f"DA:{line},{0 if line in (5, 6) else 1}\n" for line in (1, 2, 5, 6, 9, 10, 13, 14, 17, 18)
+    )
+    + "end_of_record\n"
+)
+FIVE_TESTS = """import os
+import sys
+
+sys.path.insert(0, os.getcwd())
+
+from app.rules import a, b, c, r
+
+for function in (r, a, b, c):
+    assert function(True, True) is True
+    assert function(True, False) is False
+    assert function(False, True) is False
+"""
+
+
+def five_function_fixture(tmp_path):
+    fixture = tmp_path / "fixture"
+    shutil.copytree(STOP_FIXTURE, fixture)
+    (fixture / "app" / "rules.py").write_text(FIVE_FUNCTIONS)
+    (fixture / "coverage" / "lcov.info").write_text(FIVE_COVERAGE)
+    (fixture / "tests" / "strong.py").write_text(FIVE_TESTS)
+
+    return fixture
+
+
+def test_the_worked_example_counts_reused_and_uncovered_targets_as_measured(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path, five_function_fixture(tmp_path))
+    settings = mutate_settings("tests/strong.py", max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    rules = root / "app" / "rules.py"
+    reordered = FIVE_FUNCTIONS.split("def a(")
+    rules.write_text(reordered[0] + "def a(" + reordered[1].replace("a and b", "b and a"))
+
+    ticker = Ticker()
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    writes = findings_writes(monkeypatch, tmp_path / "findings-overlay.json")
+    real = runner.run_function
+    ran = []
+
+    def stepping(*args):
+        ticker.now += sensor.CHECKPOINT_SECONDS
+        ran.append(len(writes))
+
+        return real(*args)
+
+    monkeypatch.setattr(sensor, "run_function", stepping)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+    assert ran == [0, 1, 2]
+    assert writes[0] == {"measured": 3, "total": 5}
+    assert writes[1] == {"measured": 4, "total": 5}
+
+
+def test_a_scoped_run_keeps_the_out_of_scope_functions_in_the_total(tmp_path, monkeypatch):
+    fixture = tmp_path / "fixture"
+    shutil.copytree(STOP_FIXTURE, fixture)
+    (fixture / "app" / "other.py").write_text("def omega(a, b):\n    return a and b\n")
+    (fixture / "coverage" / "lcov.info").write_text(
+        (fixture / "coverage" / "lcov.info").read_text()
+        + "SF:app/other.py\nDA:1,1\nDA:2,1\nend_of_record\n"
+    )
+    scan = json.loads((fixture / "scan.python.json").read_text())
+    scan["files"].append({"path": "app/other.py", "hash": "1" * 64})
+    scan["modules"].append({"id": "app/other.py"})
+    (fixture / "scan.python.json").write_text(json.dumps(scan))
+    root, _ = mutate_repository(tmp_path, fixture)
+    modules = tmp_path / "modules.json"
+    modules.write_text(json.dumps(["app/rules.py"]))
+    ticker = Ticker()
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    writes = findings_writes(monkeypatch, tmp_path / "findings-overlay.json")
+    real = runner.run_function
+
+    def stepping(*args):
+        ticker.now += sensor.CHECKPOINT_SECONDS
+
+        return real(*args)
+
+    monkeypatch.setattr(sensor, "run_function", stepping)
+    settings = mutate_settings("tests/strong.py", max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings, "--modules", str(modules)) == 0
+    assert writes[0] == {"measured": 1, "total": 4}
+    assert writes[-1] == {"measured": 3, "total": 4}
+
+
+def test_only_mutation_is_handed_a_checkpoint():
+    from recognizer_sensors.registry import SHIPPED
+
+    assert {name for name, entry in SHIPPED.items() if entry.checkpoints} == {"mutation"}

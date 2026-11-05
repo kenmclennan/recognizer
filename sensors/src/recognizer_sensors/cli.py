@@ -13,6 +13,7 @@ from recognizer_sensors.findings import (
 )
 from recognizer_sensors.hashes import inputs_map, scan_hashes
 from recognizer_sensors.mutation.runner import STOPPED_STATUS
+from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError, SettingsError
@@ -135,8 +136,44 @@ def main(argv: list[str] | None = None) -> int:
         is_dirty(args.repository) if sensor.runs_tests else any(scan.modified for scan in scans)
     )
 
+    def emit(outcome: Outcome, final: bool) -> None:
+        for path, document in outcome.documents:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            write_atomically(render(document), path)
+
+        inputs = inputs_map(outcome.inputs, scan_hashes(scans))
+        progress = {"measured": outcome.measured, "total": outcome.total}
+        document = build_document(
+            args.name,
+            package_version,
+            commit,
+            modified,
+            settings,
+            outcome.findings,
+            progress if outcome.stopped else None,
+            progress if outcome.total > outcome.measured else None,
+            inputs,
+            outcome.tests,
+        )
+
+        if outcome.overlay is not None:
+            overlay = build_overlay(
+                args.name, package_version, commit, modified, outcome.overlay, inputs, outcome.tests
+            )
+            outcome.overlay.path.parent.mkdir(parents=True, exist_ok=True)
+            write_atomically(render(overlay), outcome.overlay.path)
+
+        if args.output:
+            write_atomically(render(document), args.output)
+        elif final:
+            sys.stdout.write(render(document))
+
     try:
         extra = {"modules": scope} if sensor.scoped else {}
+
+        if sensor.checkpoints:
+            extra["checkpoint"] = lambda partial: emit(partial, False)
+
         outcome = (
             sensor.run(args.repository, scans, settings, commit, **extra)
             if sensor.needs_commit
@@ -147,38 +184,6 @@ def main(argv: list[str] | None = None) -> int:
 
         return 2
 
-    for path, document in outcome.documents:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        write_atomically(render(document), path)
-
-    inputs = inputs_map(outcome.inputs, scan_hashes(scans))
-
-    document = build_document(
-        args.name,
-        package_version,
-        commit,
-        modified,
-        settings,
-        outcome.findings,
-        {"measured": outcome.measured, "total": outcome.total} if outcome.stopped else None,
-        {"measured": outcome.measured, "total": outcome.total}
-        if outcome.total > outcome.measured
-        else None,
-        inputs,
-        outcome.tests,
-    )
-    text = render(document)
-
-    if outcome.overlay is not None:
-        overlay = build_overlay(
-            args.name, package_version, commit, modified, outcome.overlay, inputs, outcome.tests
-        )
-        outcome.overlay.path.parent.mkdir(parents=True, exist_ok=True)
-        write_atomically(render(overlay), outcome.overlay.path)
-
-    if args.output:
-        write_atomically(text, args.output)
-    else:
-        sys.stdout.write(text)
+    emit(outcome, True)
 
     return STOPPED_STATUS if outcome.stopped else 0

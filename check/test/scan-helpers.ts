@@ -10,6 +10,7 @@ export interface ScannerBehaviour {
 
 export interface ProgramEffect {
   started?: boolean;
+  timedOut?: boolean;
   status?: number;
   stderr?: string;
   stdout?: string;
@@ -161,6 +162,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       return {
         started: effect.started ?? true,
         status: effect.started === false ? null : (effect.status ?? 0),
+        ...(effect.timedOut ? { timedOut: true } : {}),
         stdout: effect.stdout ?? "",
         stderr: effect.stderr ?? "",
       };

@@ -9,7 +9,7 @@ import {
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
-import { run } from "../src/cli.js";
+import { run, stopEverything } from "../src/cli.js";
 import { capture, REPO } from "./helpers.js";
 import {
   type Fake,
@@ -209,7 +209,7 @@ describe("scan --sense running a registered sensor", () => {
       ),
     ],
   ])(
-    "reports a sensor that %s by name, leaves no file and exits 1",
+    "reports a sensor that %s by name, keeps the previous file and exits 1",
     async (_, program) => {
       const fake = setup(REGISTER, {
         programs: { "fake-sensor": program },
@@ -219,13 +219,123 @@ describe("scan --sense running a registered sensor", () => {
 
       expect(code).toBe(1);
       expect(err).toContain("failed fake-sensor:");
-      expect(fake.files.has(FAKE)).toBe(false);
+      expect(fake.files.get(FAKE)).toBe(fakeDocument());
+      expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
       expect(senseReport(out).sensors[0]).toMatchObject({
         name: "fake-sensor",
         status: "failed",
       });
     },
   );
+
+  const PARTIAL = fakeDocument({ partial: { measured: 1, total: 3 } });
+
+  it("promotes the checkpoint of a sensor that fails after writing one", async () => {
+    const fake = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(PARTIAL, 1) },
+      files: { [FAKE]: fakeDocument() },
+    });
+    const { code, err } = await sense(fake, "all", "--json");
+
+    expect(code).toBe(1);
+    expect(err).toContain("failed fake-sensor:");
+    expect(fake.files.get(FAKE)).toBe(PARTIAL);
+    expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
+  });
+
+  it("leaves no output when a sensor fails before any checkpoint and had no earlier file", async () => {
+    const fake = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(null, 1) },
+    });
+    const { code } = await sense(fake, "all", "--json");
+
+    expect(code).toBe(1);
+    expect(fake.files.has(FAKE)).toBe(false);
+  });
+
+  it("promotes a leftover checkpoint for this commit before the run and removes one for another commit", async () => {
+    const mine = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(null, 1) },
+      files: { [`${FAKE}.tmp`]: PARTIAL },
+    });
+
+    await sense(mine, "all", "--json");
+
+    expect(mine.files.get(FAKE)).toBe(PARTIAL);
+
+    const other = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(null, 1) },
+      files: {
+        [FAKE]: fakeDocument(),
+        [`${FAKE}.tmp`]: fakeDocument({
+          commit: "other",
+          partial: { measured: 1, total: 3 },
+        }),
+      },
+    });
+
+    await sense(other, "all", "--json");
+
+    expect(other.files.get(FAKE)).toBe(fakeDocument());
+    expect(other.files.has(`${FAKE}.tmp`)).toBe(false);
+  });
+
+  it("promotes the checkpoint of a sensor that times out", async () => {
+    const timedOut: Program = (args, files) => {
+      files.set(args[args.length - 1] as string, PARTIAL);
+
+      return { status: 1, stderr: "slow", timedOut: true };
+    };
+    const fake = setup(REGISTER, {
+      programs: { "fake-sensor": timedOut },
+      files: { [FAKE]: fakeDocument() },
+    });
+    const { code } = await sense(fake, "all", "--json");
+
+    expect(code).toBe(1);
+    expect(fake.files.get(FAKE)).toBe(PARTIAL);
+    expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
+  });
+
+  it("removes a complete document from a failing sensor and keeps the previous output", async () => {
+    const complete = fakeDocument({ findings: [] });
+    const fake = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(complete, 1) },
+      files: { [FAKE]: fakeDocument() },
+    });
+    const { code } = await sense(fake, "all", "--json");
+
+    expect(code).toBe(1);
+    expect(fake.files.get(FAKE)).toBe(fakeDocument());
+    expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
+  });
+
+  it("renames a successful run's document over the previous output", async () => {
+    const fake = setup(REGISTER, {
+      programs: { "fake-sensor": sensor(fakeDocument({ modified: false })) },
+      files: { [FAKE]: PARTIAL },
+    });
+    const { code } = await sense(fake, "all", "--json");
+
+    expect(code).toBe(0);
+    expect(fake.files.get(FAKE)).toBe(fakeDocument({ modified: false }));
+  });
+
+  it("promotes a running sensor's checkpoint as soon as everything is stopped", async () => {
+    let afterStop: string | undefined;
+    const stopped: Program = (args, files) => {
+      files.set(args[args.length - 1] as string, PARTIAL);
+      stopEverything();
+      afterStop = files.get(FAKE);
+
+      return { status: 1, stderr: "killed" };
+    };
+    const fake = setup(REGISTER, { programs: { "fake-sensor": stopped } });
+
+    await sense(fake, "all", "--json");
+
+    expect(afterStop).toBe(PARTIAL);
+  });
 
   it("fails the run for a missing program", async () => {
     const { code, err } = await sense(setup(REGISTER));
