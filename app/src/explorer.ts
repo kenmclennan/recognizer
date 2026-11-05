@@ -3145,7 +3145,7 @@ export function showExplorer(
           state: responsibilityOf(id),
           failure: describing.failure(id),
         }),
-        metrics: overlayModel.metrics.filter((metric) => !metric.stale),
+        metrics: overlayModel.metrics,
         metricsOn: tickedMetrics().length > 0,
         limits: limitsFromText(scanConfig),
       });
