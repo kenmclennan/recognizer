@@ -7,6 +7,7 @@ import { ScanError } from "./errors.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
 import { listSourceFiles, type Selection, selection } from "./files.js";
 import { Inference } from "./inference.js";
+import { namespaceNames } from "./namespace-use.js";
 import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
 import { namedEdges, Router } from "./routes.js";
@@ -226,7 +227,7 @@ export function scan(
     types: [],
     noEmit: true,
   };
-  const host = ts.createCompilerHost(compilerOptions);
+  const host = ts.createCompilerHost(compilerOptions, true);
 
   host.resolveModuleNameLiterals = (literals, containingFile) =>
     literals.map((literal) => {
@@ -263,6 +264,7 @@ export function scan(
     throw new ScanError(problems);
   }
 
+  const checker = program.getTypeChecker();
   const edges = new Map<string, ScanEdge>();
   const foreign = new Set<string>();
 
@@ -298,18 +300,25 @@ export function scan(
 
     const imported = new Set<string>();
 
+    const source = program.getSourceFile(file);
+
     for (const reference of info.imports) {
+      const names =
+        reference.names ??
+        (reference.namespace && source
+          ? namespaceNames(checker, source, reference.namespace)
+          : null);
       const target = targetOf(reference.specifier, reference.commonjs);
 
       if (target.kind === "project" && target.id !== from) {
-        if (reference.names === null) {
+        if (names === null) {
           imported.add(target.id);
           push({ from, to: target.id, kind: "depends", line: reference.line });
         }
 
-        for (const named of reference.names === null
+        for (const named of names === null
           ? []
-          : namedEdges(from, target.id, reference.names, router)) {
+          : namedEdges(from, target.id, names, router)) {
           imported.add(named.to);
           push({
             from,

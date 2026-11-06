@@ -311,7 +311,17 @@ impl<'a> Resolver<'a> {
             scope: scope.to_vec(),
         };
         let mut state = State::default();
-        let outcome = self.resolve_path(&from, path, leading_colon, &mut state);
+        let mut outcome = self.resolve_path(&from, path, leading_colon, &mut state);
+
+        if let Res::Item { name, .. } = &mut outcome {
+            if name.is_none() {
+                *name = path
+                    .iter()
+                    .rev()
+                    .find(|segment| *segment != "self")
+                    .cloned();
+            }
+        }
 
         self.finish(outcome, &state)
     }

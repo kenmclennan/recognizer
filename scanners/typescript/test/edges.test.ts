@@ -183,3 +183,101 @@ describe("heritage", () => {
     ).toEqual(["a.ts depends b.ts @1", "a.ts inherits b.ts @2 C->B"]);
   });
 });
+
+describe("names recorded for forms without a named binding", () => {
+  const namesOf = (doc: ReturnType<typeof scanTree>, from: string) =>
+    doc.edges
+      .filter((e) => e.from === from && e.to === "t.ts")
+      .map((e) => e.names ?? null);
+
+  it("lists the properties and types accessed through a namespace import", () => {
+    const doc = scanTree({
+      "tsconfig.json": BUNDLER,
+      "t.ts": x,
+      "a.ts": [
+        'import * as ns from "./t";',
+        "export const v = ns.x;",
+        'export const w = ns["x"];',
+        "export let t: ns.T;",
+        "",
+      ].join("\n"),
+    });
+
+    expect(namesOf(doc, "a.ts")).toEqual([["x", "T"]]);
+  });
+
+  it("leaves a namespace that escapes name-less", () => {
+    const doc = scanTree({
+      "tsconfig.json": BUNDLER,
+      "t.ts": x,
+      "a.ts": [
+        'import * as ns from "./t";',
+        "declare function f(v: unknown): void;",
+        "f(ns);",
+        "export const v = ns.x;",
+        "",
+      ].join("\n"),
+    });
+
+    expect(namesOf(doc, "a.ts")).toEqual([null]);
+  });
+
+  it("does not count a shadowing local", () => {
+    const doc = scanTree({
+      "tsconfig.json": BUNDLER,
+      "t.ts": x,
+      "a.ts": [
+        'import * as ns from "./t";',
+        "export const v = ns.x;",
+        "export function g(ns: { y: number }) {",
+        "  return ns.y;",
+        "}",
+        "",
+      ].join("\n"),
+    });
+
+    expect(namesOf(doc, "a.ts")).toEqual([["x"]]);
+  });
+
+  it("names the destructuring target of require and import()", () => {
+    const doc = scanTree({
+      "tsconfig.json": BUNDLER,
+      "t.ts": x,
+      "a.ts": [
+        'const { x: a } = require("./t");',
+        "export async function f() {",
+        '  const { x: b } = await import("./t");',
+        "  return [a, b];",
+        "}",
+        "",
+      ].join("\n"),
+    });
+
+    expect(namesOf(doc, "a.ts")).toEqual([["x"], ["x"]]);
+  });
+
+  it("names the qualifier of an import type", () => {
+    const doc = scanTree({
+      "tsconfig.json": BUNDLER,
+      "t.ts": x,
+      "a.ts": 'export type Y = import("./t").T;\n',
+    });
+
+    expect(namesOf(doc, "a.ts")).toEqual([["T"]]);
+  });
+
+  it("leaves side-effect, export-all and whole-module uses name-less", () => {
+    const doc = scanTree({
+      "tsconfig.json": BUNDLER,
+      "t.ts": x,
+      "a.ts": 'import "./t";\n',
+      "b.ts": 'export * from "./t";\n',
+      "c.ts": 'import q = require("./t");\nexport { q };\n',
+      "d.ts": 'export const m = require("./t");\n',
+    });
+
+    for (const file of ["a.ts", "b.ts", "c.ts", "d.ts"]) {
+      expect(namesOf(doc, file)).toEqual([null]);
+    }
+  });
+});
