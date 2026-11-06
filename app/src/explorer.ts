@@ -152,6 +152,7 @@ import {
 import { type FilterState, filterTree, isVisible } from "./tree-filter";
 import { buildTree } from "./tree-model";
 import { buildTreeView } from "./tree-view";
+import { buildUnsavedDialog, type UnsavedChoice } from "./unsaved-dialog-view";
 import { buildViewBar } from "./view-bar-view";
 import {
   createViewComparisons,
@@ -268,6 +269,9 @@ function freshnessOf(loaded: Loaded) {
   );
 }
 
+const LOSS_WARNING =
+  "Your changes since it was saved will be lost unless you save them.";
+const CLEAR_BODY = `Clearing closes the view. ${LOSS_WARNING}`;
 const SENSOR_LOG = ".recognizer/cache/coverage/last-run.log";
 
 export function showExplorer(
@@ -475,7 +479,11 @@ export function showExplorer(
 
         if (name !== null && modified()) {
           promptView = name;
-          canvas.askSave(name, (choice) => void chooseClear(name, choice));
+          unsavedDialog.show(
+            name,
+            CLEAR_BODY,
+            (choice) => void chooseClear(name, choice),
+          );
 
           return;
         }
@@ -761,16 +769,20 @@ export function showExplorer(
     },
   );
 
+  const unsavedDialog = buildUnsavedDialog();
+  const deleting = new Set<string>();
   const bar = buildViewBar({
     back,
     forward,
-    openView: (name) => void openSaved(name),
+    openView: (name) => void requestOpen(name),
     openViewsPanel: toggleViewsPanel,
     save: () => void saveOpen(),
     revert,
     saveNew: (name, title, description) => saveNew(name, title, description),
     saveDetails: (name, title, description) =>
-      saveDetails(name, title, description),
+      openView === null
+        ? Promise.resolve(null)
+        : saveDetails(openView, name, title, description),
     preview: (draft) => {
       headingDraft = draft;
       render();
@@ -779,8 +791,10 @@ export function showExplorer(
     hasOpenView: () => openView !== null,
   });
   const viewsPanel = buildViewsPanelView({
-    open: (name) => void openSaved(name),
+    open: (name) => void requestOpen(name),
     remove: (name) => void removeSavedView(name),
+    saveDetails: (from, name, title, description) =>
+      saveDetails(from, name, title, description),
   });
   const notesPanel = buildNotesPanelView({
     toggle: toggleNote,
@@ -897,7 +911,13 @@ export function showExplorer(
     scanView.element,
     findingsView.element,
   );
-  body.append(rail.element, tree.element, canvas.element, inspector.element);
+  body.append(
+    rail.element,
+    tree.element,
+    canvas.element,
+    inspector.element,
+    unsavedDialog.element,
+  );
   container.replaceChildren(body);
 
   function emptyGraph(): CanvasGraph {
@@ -1333,20 +1353,30 @@ export function showExplorer(
       return;
     }
 
+    const wasOpen = name === openView;
+
+    deleting.add(name);
+
     try {
       await views.remove(name);
+
+      if (name === openView) {
+        closeOpenView(name);
+      }
     } catch (error) {
       fail(`Could not delete ${name}: ${String(error)}`);
 
       return;
+    } finally {
+      deleting.delete(name);
     }
 
-    showUndo(name, text);
+    showUndo(name, text, wasOpen);
     await loadViewList();
     render();
   }
 
-  function showUndo(name: string, text: string) {
+  function showUndo(name: string, text: string, reopen = false) {
     let id: number | null = null;
     let used = false;
 
@@ -1370,6 +1400,11 @@ export function showExplorer(
           void views
             .write(name, text)
             .then(() => loadViewList())
+            .then(async () => {
+              if (reopen && openView === null && modules.count() === 0) {
+                await openSaved(name);
+              }
+            })
             .then(() => render())
             .catch((error) =>
               fail(`Could not restore ${name}: ${String(error)}`),
@@ -2391,7 +2426,7 @@ export function showExplorer(
     promptView = choice === "save" ? promptView : null;
 
     if (choice === "cancel") {
-      canvas.dismissPrompt();
+      unsavedDialog.hide();
 
       return;
     }
@@ -2400,13 +2435,13 @@ export function showExplorer(
       const written = await writeOpen();
 
       promptView = null;
-      canvas.dismissPrompt();
+      unsavedDialog.hide();
 
       if (!written || openView !== name) {
         return;
       }
     } else {
-      canvas.dismissPrompt();
+      unsavedDialog.hide();
     }
 
     closeOpenView(name);
@@ -2468,7 +2503,7 @@ export function showExplorer(
   function renderBar() {
     if (promptView !== null && (openView !== promptView || !modified())) {
       promptView = null;
-      canvas.dismissPrompt();
+      unsavedDialog.hide();
     }
 
     bar.render({
@@ -2666,6 +2701,47 @@ export function showExplorer(
     }
   }
 
+  async function requestOpen(name: string) {
+    const from = openView;
+
+    if (from === null || name === from || !modified()) {
+      await openSaved(name);
+
+      return;
+    }
+
+    promptView = from;
+    unsavedDialog.show(
+      from,
+      `Opening ${name} closes ${from}. ${LOSS_WARNING}`,
+      (choice) => void chooseOpen(from, name, choice),
+    );
+  }
+
+  async function chooseOpen(from: string, name: string, choice: UnsavedChoice) {
+    if (choice === "save") {
+      const written = await writeOpen();
+
+      promptView = null;
+      unsavedDialog.hide();
+
+      if (!written || openView !== from) {
+        return;
+      }
+
+      post({ kind: "done", text: `Saved ${from}` });
+    } else {
+      promptView = null;
+      unsavedDialog.hide();
+
+      if (choice === "cancel") {
+        return;
+      }
+    }
+
+    await openSaved(name);
+  }
+
   async function openSaved(name: string) {
     const text = viewList.find((view) => view.name === name)?.text;
 
@@ -2738,20 +2814,15 @@ export function showExplorer(
   }
 
   async function saveDetails(
+    from: string,
     name: string,
     title: string | null,
     description: string,
   ): Promise<string | null> {
-    const from = openView;
-
-    if (from === null) {
-      return null;
-    }
-
     let current: string = from;
 
     if (name !== from) {
-      const refused = await renameOpen(from, name);
+      const refused = await renameView(from, name);
 
       if (refused !== null) {
         return refused;
@@ -2808,7 +2879,7 @@ export function showExplorer(
     return problem;
   }
 
-  async function renameOpen(from: string, to: string) {
+  async function renameView(from: string, to: string) {
     try {
       await views.rename(from, to);
     } catch (error) {
@@ -2869,7 +2940,7 @@ export function showExplorer(
     );
 
     if ("open" in resolved) {
-      await openSaved(resolved.open);
+      await requestOpen(resolved.open);
     } else {
       fail(resolved.refuse);
     }
@@ -3023,6 +3094,10 @@ export function showExplorer(
 
     const name = openView;
     const entry = viewList.find((view) => view.name === name);
+
+    if (entry === undefined && deleting.has(name)) {
+      return;
+    }
 
     if (entry === undefined) {
       openView = null;

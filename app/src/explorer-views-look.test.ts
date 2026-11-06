@@ -74,7 +74,7 @@ function mount(files, options, comparisons) {
   const win = fakeWindow();
   const state = { count: "" };
   const notes = [];
-  mountExplorer({ container: host, loaded, title: "demo", onCount: (text) => { state.count = text; }, views: port, post: (input) => { notes.push(input.text); return footer.post(input); }, withdraw: footer.withdraw, reconcileMessages: footer.reconcile, windowPort: win, comparisons });
+  const explorer = mountExplorer({ container: host, loaded, title: "demo", onCount: (text) => { state.count = text; }, views: port, post: (input) => { notes.push(input.text); return footer.post(input); }, withdraw: footer.withdraw, reconcileMessages: footer.reconcile, windowPort: win, comparisons });
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];
   const count = () => Number(/^(\\d+) of/.exec(state.count)[1]);
@@ -84,7 +84,7 @@ function mount(files, options, comparisons) {
   const canvasKids = () => q(".canvas").children.length;
   const badge = () => ({ hidden: footerEl.querySelector(".bell-badge").hidden, count: footerEl.querySelector(".bell-badge").textContent });
   const selected = () => all(".box.selected").map((n) => n.dataset.id);
-  return { footerEl, host, port, win, state, notes, q, all, count, lastCurrent, tray, update, canvasKids, badge, calls, selected };
+  return { explorer, footerEl, host, port, win, state, notes, q, all, count, lastCurrent, tray, update, canvasKids, badge, calls, selected };
 }
 
 const facts = {};
@@ -542,10 +542,9 @@ const facts = {};
 
 
   const clearBtn = (ctx) => ctx.all(".canvas .control").find((n) => n.textContent === "Clear");
-  const prompt = (ctx) => { const node = ctx.q(".clear-prompt"); return { shown: node !== null && !node.hidden, heading: node && node.querySelector(".clear-prompt-heading").textContent, buttons: node ? [...node.querySelectorAll("button")].map((b) => b.textContent) : [], focused: node !== null && document.activeElement === node.querySelector(".clear-prompt-save"), inCanvas: node !== null && ctx.q(".canvas").contains(node), beforeClear: node !== null && !!(node.compareDocumentPosition(clearBtn(ctx)) & Node.DOCUMENT_POSITION_FOLLOWING) };
-  };
+  const prompt = (ctx) => { const scrim = ctx.q(".unsaved-dialog-scrim"); const node = ctx.q(".unsaved-dialog"); return { shown: scrim !== null && !scrim.hidden, heading: node && node.querySelector(".unsaved-dialog-heading").textContent, body: node && node.querySelector(".unsaved-dialog-body").textContent, buttons: node ? [...node.querySelectorAll("button")].map((b) => b.textContent) : [], focused: node !== null && document.activeElement === node.querySelector(".unsaved-dialog-save"), inCanvas: scrim !== null && ctx.q(".canvas").contains(scrim), inExplorer: scrim !== null && ctx.q(".explorer").contains(scrim) }; };
   const closed = (ctx) => ({ name: ctx.q(".view-name").textContent.trim(), marker: bar(ctx).marker, save: bar(ctx).save, revertShown: bar(ctx).revertShown, copy: !ctx.q(".view-copy").disabled, count: ctx.count(), prompt: prompt(ctx).shown });
-  const choose = (ctx, name) => click(ctx.q(".clear-prompt-" + name));
+  const choose = (ctx, name) => click(ctx.q(".unsaved-dialog-" + name));
   const lastNote = (ctx) => ctx.notes[ctx.notes.length - 1];
   const modifiedView = async (files, options) => {
     const ctx = mount(files, options);
@@ -618,8 +617,7 @@ const facts = {};
   toggleLib(cr);
   await tick();
   click(clearBtn(cr));
-  click(cr.q(".view-list"));
-  click(cr.all(".view-item").find((n) => n.textContent.startsWith("w")));
+  cr.port.edit("v", null);
   await tick();
   facts.clr.dismissOpen = { prompt: prompt(cr).shown, name: cr.q(".view-name").textContent.trim() };
 
@@ -634,7 +632,247 @@ const facts = {};
 
   const cp = await modifiedView({ v: text0 });
   click(clearBtn(cp));
-  facts.clr.escape = (() => { cp.q(".clear-prompt").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); return prompt(cp).shown; })();
+  facts.clr.escape = (() => { cp.q(".unsaved-dialog").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); return prompt(cp).shown; })();
+
+
+  facts.mg = {};
+  const mgA = viewText([pick("app/hub.py")], "cur1234");
+  const mgB = viewText([pick("app/a.py")], "cur1234");
+  const nameOf = (ctx) => ctx.q(".view-name").textContent.trim();
+  const showPanel = async (ctx) => { click(ctx.q(".rail-views")); await tick(); };
+  const rowOf = (ctx, n) => ctx.all(".views-row").find((r) => r.dataset.view === n) || null;
+  const act = (ctx, n, cls) => click(rowOf(ctx, n).querySelector("." + cls));
+  const cardOf = (ctx) => ctx.q(".views-panel .view-details");
+  const fill = (ctx, field, value) => typeInto(cardOf(ctx).querySelector(".view-details-" + field), value);
+  const problemOf = (ctx) => { const n = cardOf(ctx) && cardOf(ctx).querySelector(".view-details-problem"); return n && !n.hidden ? n.textContent : null; };
+  const undoNow = (ctx) => click([...ctx.footerEl.querySelectorAll(".message-list .msg-act")].find((n) => n.textContent === "Undo"));
+  const parsedOf = (ctx, n) => { const r = parseViewFile(ctx.port.files.get(n)); return r.ok ? r.view : null; };
+  const warned = (ctx) => ctx.notes.some((t) => t.includes("was deleted from"));
+
+  const mr = mount({ a: mgA, b: mgB, bad: "{nope" });
+  await tick();
+  await showPanel(mr);
+  const footOf = (ctx, n) => { const r = rowOf(ctx, n); const foot = r.querySelector(".views-row-foot"); return foot && { classes: [...foot.children].map((c) => c.className), labels: [...foot.querySelectorAll("button")].map((b) => b.textContent), aria: [...foot.querySelectorAll("button")].map((b) => b.getAttribute("aria-label")), buttonsShown: [...foot.querySelectorAll("button")].every((b) => getComputedStyle(b).display !== "none"), tag: r.tagName, role: r.getAttribute("role"), tabindex: r.getAttribute("tabindex") }; };
+  facts.mg.rows = { live: footOf(mr, "a"), invalid: { edit: rowOf(mr, "bad").querySelector(".views-edit"), del: rowOf(mr, "bad").querySelector(".views-delete") } };
+  click(rowOf(mr, "b").querySelector(".views-row-title"));
+  await tick();
+  facts.mg.rows.clickTitle = nameOf(mr);
+  click(rowOf(mr, "a").querySelector(".views-row-description"));
+  await tick();
+  facts.mg.rows.clickDescription = nameOf(mr);
+  click(rowOf(mr, "b"));
+  await tick();
+  facts.mg.rows.clickRow = nameOf(mr);
+  const mrEnter = mount({ a: mgA, b: mgB });
+  await tick();
+  await showPanel(mrEnter);
+  rowOf(mrEnter, "b").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  await tick();
+  facts.mg.rows.enter = nameOf(mrEnter);
+  const mrEdit = mount({ a: mgA, b: mgB });
+  await tick();
+  await showPanel(mrEdit);
+  act(mrEdit, "b", "views-edit");
+  await tick();
+  facts.mg.rows.editDoesNotOpen = { name: nameOf(mrEdit), card: cardOf(mrEdit) !== null };
+  const mrDel = mount({ a: mgA, b: mgB });
+  await tick();
+  await showPanel(mrDel);
+  act(mrDel, "b", "views-delete");
+  await tick();
+  facts.mg.rows.deleteDoesNotOpen = nameOf(mrDel);
+
+  const me = mount({ a: mgA, b: mgB });
+  await tick();
+  await openFirst(me);
+  const meCount = me.count();
+  await showPanel(me);
+  act(me, "b", "views-edit");
+  await tick();
+  facts.mg.edit = { replaced: rowOf(me, "b") === null && cardOf(me) !== null, fields: ["name", "title", "description"].map((f) => cardOf(me).querySelector(".view-details-" + f).value) };
+  fill(me, "name", "!!");
+  facts.mg.edit.badName = problemOf(me);
+  fill(me, "name", "a");
+  facts.mg.edit.duplicate = problemOf(me);
+  fill(me, "name", "b");
+  fill(me, "title", "Edited title");
+  fill(me, "description", "edited description");
+  click(cardOf(me).querySelector(".view-details-save"));
+  await tick();
+  facts.mg.edit.saved = { title: parsedOf(me, "b").title, description: parsedOf(me, "b").description, aSame: me.port.files.get("a") === mgA, open: nameOf(me), count: me.count() === meCount, note: me.notes[me.notes.length - 1], card: cardOf(me) !== null, row: rowOf(me, "b") !== null };
+  act(me, "b", "views-edit");
+  await tick();
+  fill(me, "name", "c");
+  click(cardOf(me).querySelector(".view-details-save"));
+  await tick();
+  facts.mg.edit.renamed = { files: [...me.port.files.keys()].sort(), renamed: me.port.renamed, notes: me.notes.filter((t) => t.startsWith("Renamed")), open: nameOf(me) };
+
+  const mo = await modifiedView({ a: mgA, b: mgB });
+  const moCount = mo.count();
+  await showPanel(mo);
+  act(mo, "a", "views-edit");
+  await tick();
+  fill(mo, "title", "Open heading");
+  fill(mo, "description", "open description");
+  click(cardOf(mo).querySelector(".view-details-save"));
+  await tick();
+  facts.mg.editOpen = { heading: mo.q(".view-heading-title") && mo.q(".view-heading-title").textContent, marker: bar(mo).marker, count: mo.count() === moCount, savedTitle: parsedOf(mo, "a").title, savedSteps: parsedOf(mo, "a").steps.length };
+
+  const mn = mount({ a: mgA, b: mgB });
+  await tick();
+  await openFirst(mn);
+  click(mn.q(".view-list"));
+  click(mn.all(".view-item").find((n) => n.textContent.startsWith("b")));
+  await tick();
+  await showPanel(mn);
+  act(mn, "b", "views-edit");
+  await tick();
+  fill(mn, "name", "z");
+  click(cardOf(mn).querySelector(".view-details-save"));
+  await tick();
+  const mnName = nameOf(mn);
+  click(mn.q(".view-back"));
+  await tick();
+  const mnBack = nameOf(mn);
+  click(mn.q(".view-forward"));
+  await tick();
+  facts.mg.renameOpen = { name: mnName, back: mnBack, forward: nameOf(mn) };
+
+  const mf = mount({ a: mgA, b: mgB }, { writeError: "disk full" });
+  await tick();
+  await showPanel(mf);
+  act(mf, "b", "views-edit");
+  await tick();
+  fill(mf, "description", "will not save");
+  click(cardOf(mf).querySelector(".view-details-save"));
+  await tick();
+  facts.mg.editFails = { card: cardOf(mf) !== null, problem: problemOf(mf), row: rowOf(mf, "b") !== null, saved: mf.notes.some((t) => t.startsWith("Saved")), file: mf.port.files.get("b") === mgB };
+
+  const ms = mount({ a: mgA, b: mgB });
+  await tick();
+  await showPanel(ms);
+  act(ms, "b", "views-edit");
+  await tick();
+  const msCard = cardOf(ms);
+  fill(ms, "title", "typing");
+  toggleLib(ms);
+  await tick();
+  facts.mg.survives = { same: cardOf(ms) === msCard, value: cardOf(ms).querySelector(".view-details-title").value };
+  ms.port.edit("b", null);
+  await tick();
+  facts.mg.survives.goneWithRow = cardOf(ms) === null;
+  act(ms, "a", "views-edit");
+  await tick();
+  click(ms.q(".views-panel .view-details-cancel"));
+  facts.mg.survives.cancelled = cardOf(ms) === null;
+  act(ms, "a", "views-edit");
+  await tick();
+  ms.port.edit("c", mgB);
+  await tick();
+  facts.mg.survives.otherRowKeeps = cardOf(ms) !== null;
+  cardOf(ms).querySelector(".view-details-title").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  facts.mg.survives.escape = cardOf(ms) === null;
+
+  const dn = mount({ a: mgA, b: mgB });
+  await tick();
+  await openFirst(dn);
+  await showPanel(dn);
+  act(dn, "b", "views-delete");
+  await tick();
+  facts.mg.deleteOther = { gone: !dn.port.files.has("b"), dialog: prompt(dn).shown, tray: dn.tray(), open: nameOf(dn), row: rowOf(dn, "b") !== null };
+  undoNow(dn);
+  await tick();
+  facts.mg.deleteOther.undone = { has: dn.port.files.has("b"), row: rowOf(dn, "b") !== null, open: nameOf(dn) };
+
+  const delOpen = async (modify) => {
+    const ctx = mount({ a: mgA, b: mgB });
+    await tick();
+    await openFirst(ctx);
+    const saved = ctx.count();
+    if (modify) { toggleLib(ctx); await tick(); }
+    await showPanel(ctx);
+    const filesBefore = [...ctx.port.files.keys()];
+    act(ctx, "a", "views-delete");
+    await tick();
+    return { ctx, saved, filesBefore };
+  };
+  const closedState = (ctx) => ({ name: nameOf(ctx), count: ctx.count(), save: bar(ctx).save, copy: !ctx.q(".view-copy").disabled, warned: warned(ctx), files: [...ctx.port.files.keys()].sort(), steps: ctx.port.files.get("b") === mgB });
+  facts.mg.deleteOpen = {};
+  for (const modify of [false, true]) {
+    const { ctx, saved } = await delOpen(modify);
+    const after = closedState(ctx);
+    undoNow(ctx);
+    await tick();
+    facts.mg.deleteOpen[modify ? "modified" : "plain"] = { after, saved, undone: { name: nameOf(ctx), count: ctx.count(), marker: bar(ctx).marker, has: ctx.port.files.has("a"), same: ctx.port.files.get("a") === mgA } };
+  }
+  const dm = await delOpen(false);
+  click(dm.ctx.q('.tree .row[data-path="app"] .rcheck'));
+  await tick();
+  const dmCount = dm.ctx.count();
+  undoNow(dm.ctx);
+  await tick();
+  facts.mg.deleteOpen.busy = { has: dm.ctx.port.files.has("a"), name: nameOf(dm.ctx), count: dm.ctx.count() === dmCount };
+  const dh = await delOpen(false);
+  const dhBack = await (async () => { click(dh.ctx.q(".view-back")); await tick(); return nameOf(dh.ctx); })();
+  facts.mg.deleteOpen.history = dhBack;
+
+  const guardOpen = async (ctx, entry) => {
+    if (entry === "panel") { await showPanel(ctx); click(rowOf(ctx, "b").querySelector(".views-row-title")); }
+    else if (entry === "menu") { click(ctx.q(".view-list")); click(ctx.all(".view-item").find((n) => n.textContent.startsWith("b"))); }
+    else { ctx.port.pending.push("b"); ctx.explorer.openLinkedView(); }
+    await tick();
+  };
+  const guarded = async (entry, choice, options) => {
+    const ctx = await modifiedView({ a: mgA, b: mgB }, options);
+    const count = ctx.count();
+    const notesBefore = ctx.notes.length;
+    await guardOpen(ctx, entry);
+    const asked = { ...prompt(ctx), name: nameOf(ctx) };
+    const written = ctx.port.files.get("a") === mgA;
+    if (choice === "escape") {
+      ctx.q(".unsaved-dialog").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    } else if (choice === "enter") {
+      ctx.q(".unsaved-dialog-save").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    } else {
+      choose(ctx, choice);
+    }
+    await tick();
+    return { asked, askedClean: written, after: { shown: prompt(ctx).shown, name: nameOf(ctx), marker: bar(ctx).marker, same: ctx.port.files.get("a") === mgA, steps: JSON.parse(ctx.port.files.get("a")).steps.length, count: ctx.count() === count, notes: ctx.notes.slice(notesBefore) } };
+  };
+  facts.mg.guard = {};
+  for (const entry of ["panel", "menu", "link"]) {
+    facts.mg.guard[entry] = { cancel: await guarded(entry, "cancel"), discard: await guarded(entry, "discard"), save: await guarded(entry, "save") };
+  }
+  facts.mg.guard.escape = await guarded("panel", "escape");
+  facts.mg.guard.enter = await guarded("panel", "enter");
+  facts.mg.guard.failed = await guarded("menu", "save", { writeError: "disk full" });
+
+  const unguarded = async (setup) => {
+    const ctx = await setup();
+    return { shown: prompt(ctx).shown, name: nameOf(ctx) };
+  };
+  facts.mg.noGuard = {
+    unmodified: await unguarded(async () => { const c = mount({ a: mgA, b: mgB }); await tick(); await openFirst(c); await guardOpen(c, "menu"); return c; }),
+    untitled: await unguarded(async () => { const c = mount({ a: mgA, b: mgB }); await tick(); click(c.q('.tree .row[data-path="app"] .rcheck')); await tick(); await guardOpen(c, "menu"); return c; }),
+    same: await unguarded(async () => { const c = await modifiedView({ a: mgA, b: mgB }); click(c.q(".view-list")); click(c.all(".view-item").find((n) => n.textContent.startsWith("a"))); await tick(); return c; }),
+    socket: await unguarded(async () => { const c = await modifiedView({ a: mgA, b: mgB }); await c.win.drive({ action: "open-view", args: ["b"], options: {}, by: "Claude" }); await tick(); return c; }),
+    back: await unguarded(async () => { const c = mount({ a: mgA, b: mgB }); await tick(); await openFirst(c); await guardOpen(c, "menu"); toggleLib(c); await tick(); click(c.q(".view-back")); await tick(); return c; }),
+  };
+  const nb = mount({ a: mgA, b: mgB });
+  await tick();
+  await openFirst(nb);
+  await guardOpen(nb, "menu");
+  toggleLib(nb);
+  await tick();
+  click(nb.q(".view-back"));
+  await tick();
+  click(nb.q(".view-forward"));
+  await tick();
+  facts.mg.noGuard.forward = { shown: prompt(nb).shown };
+
+  const cc = await modifiedView({ v: text0 });
+  click(clearBtn(cc));
+  facts.mg.clearBody = prompt(cc);
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -659,7 +897,7 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
       "views-row-title",
       "views-row-name",
       "views-row-description",
-      "views-row-meta",
+      "views-row-foot",
     ]);
     expect(r.clamp).toBe("3");
     expect(r.clampedLines).toBeLessThanOrEqual(3);
@@ -672,8 +910,13 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
       "views-row-title",
       "views-row-name",
       "views-row-description",
+      "views-row-foot",
     ]);
-    expect(r.plainOrder).toEqual(["views-row-title", "views-row-description"]);
+    expect(r.plainOrder).toEqual([
+      "views-row-title",
+      "views-row-description",
+      "views-row-foot",
+    ]);
     expect(r.plainTitle).toBe("plain");
     expect(r.changedMeta).toBe("Changes aaaaaaa to bbbbbbb \u00b7 2 notes");
     expect(r.invalidTag).toBe("DIV");
@@ -1154,8 +1397,9 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
       heading: "Save changes to v?",
       buttons: ["Cancel", "Don't save", "Save"],
       focused: true,
-      inCanvas: true,
-      beforeClear: true,
+      body: "Clearing closes the view. Your changes since it was saved will be lost unless you save them.",
+      inCanvas: false,
+      inExplorer: true,
     });
     expect(f.clr.asked.count).toBe(true);
     expect(f.clr.asked.file).toBe(true);
@@ -1215,7 +1459,7 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
   it("dismisses the prompt when the view is reverted, undone by hand or another is opened", () => {
     expect(f.clr.dismissRevert).toEqual({ prompt: false, name: "v" });
     expect(f.clr.dismissByHand).toBe(false);
-    expect(f.clr.dismissOpen).toEqual({ prompt: false, name: "w" });
+    expect(f.clr.dismissOpen).toEqual({ prompt: false, name: "Untitled" });
   });
 
   it("empties the canvas with no prompt when no view is loaded, then disables Save", () => {
@@ -1230,5 +1474,198 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
 
   it("chooses cancel on Escape", () => {
     expect(f.clr.escape).toBe(false);
+  });
+
+  it("shows Edit and Delete on a live row's bottom line, Delete only on a stale row and neither on an invalid one", () => {
+    const row = f.mg.rows.live;
+    expect(row.classes).toEqual([
+      "views-row-meta",
+      "views-edit",
+      "views-delete",
+    ]);
+    expect(row.labels).toEqual(["Edit", "Delete"]);
+    expect(row.aria).toEqual(["Edit a", "Delete a"]);
+    expect(row.buttonsShown).toBe(true);
+    expect(row).toMatchObject({ tag: "DIV", role: "button", tabindex: "0" });
+    expect(f.mg.rows.invalid).toEqual({ edit: null, del: null });
+  });
+
+  it("opens a live row on a click anywhere but its buttons and on Enter", () => {
+    expect(f.mg.rows.clickTitle).toBe("b");
+    expect(f.mg.rows.clickDescription).toBe("a");
+    expect(f.mg.rows.clickRow).toBe("b");
+    expect(f.mg.rows.enter).toBe("b");
+    expect(f.mg.rows.editDoesNotOpen).toEqual({ name: "Untitled", card: true });
+    expect(f.mg.rows.deleteDoesNotOpen).toBe("Untitled");
+  });
+
+  it("edits a view that is not open in place and saves only its details", () => {
+    const e = f.mg.edit;
+    expect(e.replaced).toBe(true);
+    expect(e.fields).toEqual(["b", "", "d"]);
+    expect(e.badName).toBe(
+      "Use letters, digits, - and _, starting with a letter or digit (64 at most)",
+    );
+    expect(e.duplicate).toBe("a already exists");
+    expect(e.saved).toMatchObject({
+      title: "Edited title",
+      description: "edited description",
+      aSame: true,
+      open: "a",
+      count: true,
+      note: "Saved b",
+      card: false,
+      row: true,
+    });
+    expect(e.renamed.files).toEqual(["a", "c"]);
+    expect(e.renamed.renamed).toEqual([{ from: "b", to: "c" }]);
+    expect(e.renamed.notes).toEqual(["Renamed b to c"]);
+    expect(e.renamed.open).toBe("a");
+  });
+
+  it("edits the open view's details without touching a modified canvas", () => {
+    expect(f.mg.editOpen.heading).toBe("Open heading");
+    expect(f.mg.editOpen.marker).toBe(true);
+    expect(f.mg.editOpen.count).toBe(true);
+    expect(f.mg.editOpen.savedTitle).toBe("Open heading");
+    expect(f.mg.editOpen.savedSteps).toBe(1);
+  });
+
+  it("renames the open view from the panel and keeps Back and Forward on it", () => {
+    expect(f.mg.renameOpen).toEqual({ name: "z", back: "a", forward: "z" });
+  });
+
+  it("keeps the card and shows the error when the edit cannot be written", () => {
+    expect(f.mg.editFails.card).toBe(true);
+    expect(f.mg.editFails.problem).toContain("disk full");
+    expect(f.mg.editFails.row).toBe(false);
+    expect(f.mg.editFails.saved).toBe(false);
+    expect(f.mg.editFails.file).toBe(true);
+  });
+
+  it("keeps the card and what was typed across re-renders, and drops it with its row or on Cancel and Escape", () => {
+    expect(f.mg.survives.same).toBe(true);
+    expect(f.mg.survives.value).toBe("typing");
+    expect(f.mg.survives.goneWithRow).toBe(true);
+    expect(f.mg.survives.cancelled).toBe(true);
+    expect(f.mg.survives.otherRowKeeps).toBe(true);
+    expect(f.mg.survives.escape).toBe(true);
+  });
+
+  it("deletes a live view that is not open at once, with Undo and no dialog", () => {
+    const d = f.mg.deleteOther;
+    expect(d.gone).toBe(true);
+    expect(d.dialog).toBe(false);
+    expect(d.open).toBe("a");
+    expect(d.row).toBe(false);
+    expect(d.tray).toEqual([{ text: "Deleted b", actions: ["Undo"] }]);
+    expect(d.undone).toEqual({ has: true, row: true, open: "a" });
+  });
+
+  it("closes the open view to an empty canvas when it is deleted, and Undo reopens its saved version", () => {
+    for (const kind of ["plain", "modified"]) {
+      const d = f.mg.deleteOpen[kind];
+      expect(d.after).toEqual({
+        name: "Untitled",
+        count: 0,
+        save: false,
+        copy: false,
+        warned: false,
+        files: ["b"],
+        steps: true,
+      });
+      expect(d.undone).toEqual({
+        name: "a",
+        count: d.saved,
+        marker: false,
+        has: true,
+        same: true,
+      });
+    }
+  });
+
+  it("restores only the file on Undo once something is on the canvas, and records one history step", () => {
+    expect(f.mg.deleteOpen.busy).toEqual({
+      has: true,
+      name: "Untitled",
+      count: true,
+    });
+    expect(f.mg.deleteOpen.history).toBe("a");
+  });
+
+  it("asks before opening another view over a modified one from the panel, the drop-down and a link", () => {
+    for (const entry of ["panel", "menu", "link"]) {
+      const g = f.mg.guard[entry];
+      expect(g.cancel.asked).toMatchObject({
+        shown: true,
+        heading: "Save changes to a?",
+        body: "Opening b closes a. Your changes since it was saved will be lost unless you save them.",
+        buttons: ["Cancel", "Don't save", "Save"],
+        focused: true,
+        inCanvas: false,
+        inExplorer: true,
+        name: "a",
+      });
+      expect(g.cancel.after).toMatchObject({
+        shown: false,
+        name: "a",
+        marker: true,
+        same: true,
+        count: true,
+      });
+      expect(g.discard.after).toMatchObject({
+        shown: false,
+        name: "b",
+        same: true,
+      });
+      expect(g.save.after).toMatchObject({
+        shown: false,
+        name: "b",
+        same: false,
+      });
+      expect(g.save.after.steps).toBeGreaterThan(1);
+      expect(g.save.after.notes).toContain("Saved a");
+    }
+  });
+
+  it("cancels on Escape, saves on Enter and stays put when the guard's Save cannot be written", () => {
+    expect(f.mg.guard.escape.after).toMatchObject({
+      shown: false,
+      name: "a",
+      marker: true,
+      same: true,
+    });
+    expect(f.mg.guard.enter.after).toMatchObject({
+      shown: false,
+      name: "b",
+      same: false,
+    });
+    expect(f.mg.guard.failed.after).toMatchObject({
+      shown: false,
+      name: "a",
+      marker: true,
+      same: true,
+    });
+    expect(f.mg.guard.failed.after.notes.join(" ")).toContain("disk full");
+    expect(f.mg.guard.failed.after.notes).not.toContain("Saved a");
+  });
+
+  it("opens without a dialog for an unmodified view, an unsaved canvas, the open view, Back, Forward and the socket", () => {
+    expect(f.mg.noGuard.unmodified).toEqual({ shown: false, name: "b" });
+    expect(f.mg.noGuard.untitled).toEqual({ shown: false, name: "b" });
+    expect(f.mg.noGuard.same).toEqual({ shown: false, name: "a" });
+    expect(f.mg.noGuard.socket).toEqual({ shown: false, name: "b" });
+    expect(f.mg.noGuard.back.shown).toBe(false);
+    expect(f.mg.noGuard.forward.shown).toBe(false);
+  });
+
+  it("uses the same dialog for Clear with the Clear body", () => {
+    expect(f.mg.clearBody).toMatchObject({
+      shown: true,
+      heading: "Save changes to v?",
+      body: "Clearing closes the view. Your changes since it was saved will be lost unless you save them.",
+      inExplorer: true,
+      inCanvas: false,
+    });
   });
 });

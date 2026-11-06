@@ -3,17 +3,30 @@ import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { collectFacts, here, webkit } from "./look-page";
 
 const HARNESS = `
-window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { buildClearPrompt } from ${JSON.stringify(here("clear-prompt-view.ts"))};
+window.addEventListener("error", (e) => { const g = fresh();
+g.show("v");
+const gb = buttons(g);
+const focusAfter = (key, shiftKey) => { document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); return gb.indexOf(document.activeElement); };
+facts.tabs = [focusAfter("Tab", false), focusAfter("Tab", false), focusAfter("Tab", false)];
+gb[0].focus();
+facts.shiftTabWrap = focusAfter("Tab", true);
+
+const h = fresh();
+h.show("v");
+click(h.prompt.element);
+facts.backdrop = h.choices;
+
+document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
+import { buildUnsavedDialog } from ${JSON.stringify(here("unsaved-dialog-view.ts"))};
 
 const facts = {};
 const press = (node, key) => node.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 const fresh = () => {
-  const prompt = buildClearPrompt();
+  const prompt = buildUnsavedDialog();
   const choices = [];
   document.body.append(prompt.element);
-  return { prompt, choices, show: (name) => prompt.show(name, (choice) => choices.push(choice)) };
+  return { prompt, choices, show: (name) => prompt.show(name, "body for " + name, (choice) => choices.push(choice)) };
 };
 const buttons = (p) => [...p.prompt.element.querySelectorAll("button")];
 
@@ -22,11 +35,14 @@ facts.hiddenAtStart = a.prompt.element.hidden;
 a.show("overview");
 facts.shown = {
   hidden: a.prompt.element.hidden,
-  heading: a.prompt.element.querySelector(".clear-prompt-heading").textContent,
+  heading: a.prompt.element.querySelector(".unsaved-dialog-heading").textContent,
   labels: buttons(a).map((b) => b.textContent),
-  focusedSave: document.activeElement === a.prompt.element.querySelector(".clear-prompt-save"),
-  body: a.prompt.element.querySelector(".clear-prompt-body").textContent,
+  focusedSave: document.activeElement === a.prompt.element.querySelector(".unsaved-dialog-save"),
+  body: a.prompt.element.querySelector(".unsaved-dialog-body").textContent,
+  modal: a.prompt.element.querySelector(".unsaved-dialog").getAttribute("aria-modal"),
 };
+a.prompt.show("other", "Another body line.", () => {});
+facts.bodyFollowsShow = a.prompt.element.querySelector(".unsaved-dialog-body").textContent;
 a.prompt.hide();
 facts.hiddenAfter = a.prompt.element.hidden;
 
@@ -55,23 +71,36 @@ facts.escape = c.choices;
 
 const d = fresh();
 d.show("v");
-press(d.prompt.element.querySelector(".clear-prompt-save"), "Enter");
+press(d.prompt.element.querySelector(".unsaved-dialog-save"), "Enter");
 facts.enter = d.choices;
 
 const e = fresh();
 e.show("<b>x</b>");
-facts.literal = { heading: e.prompt.element.querySelector(".clear-prompt-heading").textContent, injected: e.prompt.element.querySelector(".clear-prompt-heading b") !== null };
+facts.literal = { heading: e.prompt.element.querySelector(".unsaved-dialog-heading").textContent, injected: e.prompt.element.querySelector(".unsaved-dialog-heading b") !== null };
+
+const g = fresh();
+g.show("v");
+const gb = buttons(g);
+const focusAfter = (key, shiftKey) => { document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); return gb.indexOf(document.activeElement); };
+facts.tabs = [focusAfter("Tab", false), focusAfter("Tab", false), focusAfter("Tab", false)];
+gb[0].focus();
+facts.shiftTabWrap = focusAfter("Tab", true);
+
+const h = fresh();
+h.show("v");
+click(h.prompt.element);
+facts.backdrop = h.choices;
 
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
 
 type Facts = ReturnType<typeof JSON.parse>;
 
-describe.skipIf(webkit === undefined)("the clear prompt view", () => {
+describe.skipIf(webkit === undefined)("the unsaved-changes dialog view", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {
-    f = await collectFacts<Facts>(HARNESS, "clear-prompt-view");
+    f = await collectFacts<Facts>(HARNESS, "unsaved-dialog-view");
   }, scaledTimeout(180000));
 
   it("shows the name and three buttons with Save focused, and hide removes it", () => {
@@ -93,6 +122,18 @@ describe.skipIf(webkit === undefined)("the clear prompt view", () => {
     expect(f.disabledAfterSave).toEqual([true, true, true]);
     expect(f.saveClicksIgnored).toBe(1);
     expect(f.reenabled).toEqual([false, false, false]);
+  });
+
+  it("shows the body line it is given and is modal", () => {
+    expect(f.shown.body).toBe("body for overview");
+    expect(f.bodyFollowsShow).toBe("Another body line.");
+    expect(f.shown.modal).toBe("true");
+  });
+
+  it("wraps Tab and Shift+Tab among the three buttons and ignores a backdrop click", () => {
+    expect(f.tabs).toEqual([0, 1, 2]);
+    expect(f.shiftTabWrap).toBe(2);
+    expect(f.backdrop).toEqual([]);
   });
 
   it("renders the name as text, not HTML", () => {

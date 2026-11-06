@@ -3230,6 +3230,41 @@ svg.i.chevron {
   cursor: pointer;
 }
 
+.views-edit {
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--boxline);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.views-row-foot {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.views-row-foot .views-row-meta {
+  flex: 1;
+  margin-top: 0;
+}
+
+.views-row-foot .views-delete,
+.views-row-foot .views-edit {
+  margin-top: 0;
+}
+
+.views-panel .view-details {
+  position: static;
+  width: auto;
+  max-width: none;
+  box-shadow: none;
+}
+
 .view-item-chip,
 .view-range-chip {
   padding: 0 6px;
@@ -3339,31 +3374,39 @@ svg.i.chevron {
   margin-top: 8px;
 }
 
-.clear-prompt {
-  position: absolute;
-  z-index: 6;
-  right: 14px;
-  bottom: 58px;
-  width: 280px;
-  padding: 10px 12px;
+.unsaved-dialog-scrim {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(31, 35, 40, 0.4);
+}
+
+.unsaved-dialog {
+  box-sizing: border-box;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  padding: 16px;
   color: var(--fg);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(31, 35, 40, 0.16);
+  box-shadow: 0 12px 32px rgba(31, 35, 40, 0.28);
 }
 
-.clear-prompt-heading {
-  margin: 0 0 4px;
+.unsaved-dialog-heading {
+  margin: 0 0 6px;
   font-weight: 600;
 }
 
-.clear-prompt-body {
-  margin: 0 0 10px;
+.unsaved-dialog-body {
+  margin: 0 0 14px;
   color: var(--muted);
 }
 
-.clear-prompt-actions {
+.unsaved-dialog-actions {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
