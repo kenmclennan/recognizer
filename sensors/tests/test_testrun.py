@@ -454,3 +454,15 @@ def test_the_python_profile_runs_coverage_py_for_real(tmp_path):
         overlay["values"]["coverage"]["pkg/calc.py::used"]
         > overlay["values"]["coverage"]["pkg/calc.py::unused"]
     )
+
+
+def test_tool_environment_points_uv_at_the_cache_only_when_a_uv_lock_exists(tmp_path):
+    from recognizer_sensors.testrun.profiles import tool_environment
+
+    assert tool_environment(tmp_path) is None
+
+    (tmp_path / "uv.lock").write_text("")
+
+    assert tool_environment(tmp_path)["UV_PROJECT_ENVIRONMENT"] == str(
+        tmp_path / ".recognizer/cache/python-env"
+    )

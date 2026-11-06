@@ -9,6 +9,7 @@ from pathlib import Path
 from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import diagnose
+from recognizer_sensors.testrun.profiles import tool_environment
 
 COVERLET = "coverlet.collector"
 
@@ -53,6 +54,7 @@ def answers(command: list[str], repository: Path) -> subprocess.CompletedProcess
         return subprocess.run(
             command,
             cwd=repository,
+            env=tool_environment(repository),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,

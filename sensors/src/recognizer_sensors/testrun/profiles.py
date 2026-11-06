@@ -1,7 +1,10 @@
+import os
 import shlex
 from pathlib import Path
 
 PLUGIN_DIRECTORY = Path(__file__).parent / "plugin"
+
+UV_ENVIRONMENT = ".recognizer/cache/python-env"
 
 CONTEXTS_JSON = ".recognizer/cache/coverage/python.contexts.json"
 
@@ -108,6 +111,13 @@ def python_runner(repository: Path) -> list[str]:
             return [*command, *PYTHON_BORROWED] if command[0] == "uv" else command
 
     return list(PYTHON_RUNNERS[-1][1])
+
+
+def tool_environment(repository: Path) -> dict[str, str] | None:
+    if not (repository / "uv.lock").is_file():
+        return None
+
+    return {**os.environ, "UV_PROJECT_ENVIRONMENT": str(repository / UV_ENVIRONMENT)}
 
 
 def fill(command: list[str], runner: list[str] | None, joined: bool) -> list[str]:
