@@ -2701,11 +2701,12 @@ export function showExplorer(
     }
   }
 
-  async function requestOpen(name: string) {
+  async function requestOpen(name: string, afterOpen?: () => Promise<void>) {
     const from = openView;
 
     if (from === null || name === from || !modified()) {
       await openSaved(name);
+      await afterOpen?.();
 
       return;
     }
@@ -2714,11 +2715,16 @@ export function showExplorer(
     unsavedDialog.show(
       from,
       `Opening ${name} closes ${from}. ${LOSS_WARNING}`,
-      (choice) => void chooseOpen(from, name, choice),
+      (choice) => void chooseOpen(from, name, choice, afterOpen),
     );
   }
 
-  async function chooseOpen(from: string, name: string, choice: UnsavedChoice) {
+  async function chooseOpen(
+    from: string,
+    name: string,
+    choice: UnsavedChoice,
+    afterOpen?: () => Promise<void>,
+  ) {
     if (choice === "save") {
       const written = await writeOpen();
 
@@ -2740,6 +2746,7 @@ export function showExplorer(
     }
 
     await openSaved(name);
+    await afterOpen?.();
   }
 
   async function openSaved(name: string) {
@@ -3018,9 +3025,15 @@ export function showExplorer(
 
   async function update(name: string) {
     if (openView !== name) {
-      await openSaved(name);
+      await requestOpen(name, () => applyUpdate(name));
+
+      return;
     }
 
+    await applyUpdate(name);
+  }
+
+  async function applyUpdate(name: string) {
     const text = viewList.find((entry) => entry.name === name)?.text;
     const parsed = text === undefined ? null : parseViewFile(text);
 

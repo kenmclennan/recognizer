@@ -870,6 +870,28 @@ const facts = {};
   await tick();
   facts.mg.noGuard.forward = { shown: prompt(nb).shown };
 
+  const trayUpdate = async (choice) => {
+    const staleB = viewText([pick("app/hub.py"), pick("lib/c.py"), pick("lib/deleted.py")], "old1234");
+    const ctx = mount({ a: mgA, b: staleB });
+    await tick();
+    click(ctx.q(".view-list"));
+    click(ctx.all(".view-item").find((n) => n.textContent.startsWith("b")));
+    await tick();
+    click(ctx.q(".view-list"));
+    click(ctx.all(".view-item").find((n) => n.textContent.startsWith("a")));
+    await tick();
+    toggleLib(ctx);
+    await tick();
+    const trayBefore = ctx.tray().length;
+    ctx.update();
+    await tick();
+    const asked = { ...prompt(ctx), name: nameOf(ctx) };
+    choose(ctx, choice);
+    await tick();
+    return { trayBefore, asked, after: { shown: prompt(ctx).shown, name: nameOf(ctx), commit: JSON.parse(ctx.port.files.get("b")).commit, aSame: ctx.port.files.get("a") === mgA, tray: ctx.tray() } };
+  };
+  facts.mg.trayUpdate = { cancel: await trayUpdate("cancel"), discard: await trayUpdate("discard"), save: await trayUpdate("save") };
+
   const cc = await modifiedView({ v: text0 });
   click(clearBtn(cc));
   facts.mg.clearBody = prompt(cc);
@@ -1626,6 +1648,35 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
       expect(g.save.after.steps).toBeGreaterThan(1);
       expect(g.save.after.notes).toContain("Saved a");
     }
+  });
+
+  it("asks before the tray's Update opens another view over a modified one and updates it once opened", () => {
+    const t = f.mg.trayUpdate;
+    for (const choice of ["cancel", "discard", "save"]) {
+      expect(t[choice].trayBefore).toBe(1);
+      expect(t[choice].asked).toMatchObject({
+        shown: true,
+        heading: "Save changes to a?",
+        body: "Opening b closes a. Your changes since it was saved will be lost unless you save them.",
+        name: "a",
+      });
+      expect(t[choice].after.shown).toBe(false);
+    }
+    expect(t.cancel.after).toMatchObject({
+      name: "a",
+      commit: "old1234",
+      aSame: true,
+    });
+    for (const choice of ["discard", "save"]) {
+      expect(t[choice].after).toMatchObject({ name: "b", commit: "cur1234" });
+      expect(
+        t[choice].after.tray.flatMap(
+          (row: { actions: string[] }) => row.actions,
+        ),
+      ).toEqual([]);
+    }
+    expect(t.discard.after.aSame).toBe(true);
+    expect(t.save.after.aSame).toBe(false);
   });
 
   it("cancels on Escape, saves on Enter and stays put when the guard's Save cannot be written", () => {
