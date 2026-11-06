@@ -12,18 +12,15 @@ import {
   folderCycleFindings,
   orphanFindings,
   policyDriftFindings,
-  stableAbstractionsFindings,
   stableDependenciesFindings,
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "5";
+export const STRUCTURE_SENSOR_VERSION = "6";
 export const DEFAULT_HUB_THRESHOLD = 10;
-export const DEFAULT_DISTANCE_THRESHOLD = 0.3;
 
 export interface StructureSettings {
   hub_threshold: number;
-  distance_threshold: number;
   entry_points: string[];
   warnings: {
     cycle: boolean;
@@ -32,7 +29,6 @@ export interface StructureSettings {
     orphan: boolean;
     policy_drift: boolean;
     stable_dependencies: boolean;
-    stable_abstractions: boolean;
     unused_exports: boolean;
   };
 }
@@ -51,7 +47,6 @@ export interface StructureResult {
 
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
   hub_threshold: DEFAULT_HUB_THRESHOLD,
-  distance_threshold: DEFAULT_DISTANCE_THRESHOLD,
   entry_points: [],
   warnings: {
     cycle: true,
@@ -60,7 +55,6 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
     orphan: true,
     policy_drift: true,
     stable_dependencies: true,
-    stable_abstractions: true,
     unused_exports: false,
   },
 };
@@ -85,8 +79,6 @@ export function resolveStructureSettings(
       override ??
       given.hub_threshold ??
       DEFAULT_STRUCTURE_SETTINGS.hub_threshold,
-    distance_threshold:
-      given.distance_threshold ?? DEFAULT_STRUCTURE_SETTINGS.distance_threshold,
     entry_points: typeof orphan === "object" ? [...orphan.entry_points] : [],
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
@@ -96,8 +88,6 @@ export function resolveStructureSettings(
       policy_drift: given.warnings?.policy_drift ?? defaults.policy_drift,
       stable_dependencies:
         given.warnings?.stable_dependencies ?? defaults.stable_dependencies,
-      stable_abstractions:
-        given.warnings?.stable_abstractions ?? defaults.stable_abstractions,
       unused_exports: given.warnings?.unused_exports ?? defaults.unused_exports,
     },
   };
@@ -127,7 +117,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  return `hub_threshold ${settings.hub_threshold}, distance_threshold ${settings.distance_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, stable_abstractions ${on(w.stable_abstractions)}, unused_exports ${on(w.unused_exports)}${entries}`;
+  return `hub_threshold ${settings.hub_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, unused_exports ${on(w.unused_exports)}${entries}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -287,15 +277,6 @@ export function structureSensor(
     }
   }
 
-  if (settings.warnings.stable_abstractions) {
-    for (const finding of stableAbstractionsFindings(
-      folders,
-      settings.distance_threshold,
-    )) {
-      add(warnings, finding);
-    }
-  }
-
   return {
     document: {
       findings_version: 2,
@@ -304,7 +285,6 @@ export function structureSensor(
       modified: context.modified,
       settings: {
         hub_threshold: settings.hub_threshold,
-        distance_threshold: settings.distance_threshold,
         entry_points: [...settings.entry_points],
         warnings: {
           cycle: settings.warnings.cycle,
@@ -313,7 +293,6 @@ export function structureSensor(
           orphan: settings.warnings.orphan,
           policy_drift: settings.warnings.policy_drift,
           stable_dependencies: settings.warnings.stable_dependencies,
-          stable_abstractions: settings.warnings.stable_abstractions,
           unused_exports: settings.warnings.unused_exports,
         },
       },

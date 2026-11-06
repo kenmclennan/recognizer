@@ -26,10 +26,6 @@ import {
   validateResponsibilities,
 } from "./responsibilities.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
-import {
-  DEFAULT_DISTANCE_THRESHOLD,
-  resolveStructureSettings,
-} from "./structure-sensor.js";
 
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -341,21 +337,16 @@ function showFolder(loaded: Loaded, io: Io, id: string): number {
     throw new InputError([`no such module: ${id}`]);
   }
 
-  const settings = resolveStructureSettings(readConfig(io, loaded.root));
-  const threshold =
-    settings === "off"
-      ? DEFAULT_DISTANCE_THRESHOLD
-      : settings.distance_threshold;
   const lines = [
     `${row.id}  folder  ${plural(row.modules, "module")}`,
-    metricsLine(row, threshold),
-    ...metricsTable(row, threshold).map(([name, value]) => `${name}: ${value}`),
+    metricsLine(row),
+    ...metricsTable(row).map(([name, value]) => `${name}: ${value}`),
   ];
 
   print(
     io,
     loaded,
-    { folder: row.id, metrics: row, line: metricsLine(row, threshold) },
+    { folder: row.id, metrics: row, line: metricsLine(row) },
     lines,
   );
 

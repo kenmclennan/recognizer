@@ -46,14 +46,6 @@ describe("groupsOf", () => {
       record("cr", "crap"),
       record("du", "duplication"),
       record("ue", "unused_exports"),
-      record("us", "stable_abstractions", "warning", {
-        abstractness: 1,
-        instability: 1,
-      }),
-      record("pa", "stable_abstractions", "warning", {
-        abstractness: 0,
-        instability: 0.23,
-      }),
       record("sd", "stable_dependencies"),
       record("pd", "policy_drift"),
       record("or", "orphan"),
@@ -71,8 +63,6 @@ describe("groupsOf", () => {
       "Orphan",
       "Policy drift",
       "Unstable dependency",
-      "Pain zone",
-      "Useless zone",
       "Unused exports",
       "Duplication",
       "C.R.A.P.",
@@ -84,17 +74,17 @@ describe("groupsOf", () => {
     ]);
   });
 
-  it("puts the boundary of abstractness plus instability equal to 1 in Useless zone", () => {
-    expect(
-      names([
-        document("s", [
-          record("b", "stable_abstractions", "warning", {
-            abstractness: 0.5,
-            instability: 0.5,
-          }),
-        ]),
-      ]),
-    ).toEqual(["Useless zone"]);
+  it("groups a stable_abstractions record from an old cached file under its kind", () => {
+    const old = document("structure", [
+      record("sa", "stable_abstractions", "warning", {
+        abstractness: 0,
+        instability: 0.23,
+      }),
+    ]);
+    const [group] = groupsOf(findingRows([old]));
+
+    expect(group?.key).toBe("kind:stable_abstractions");
+    expect(group?.name).toBe("Stable abstractions");
   });
 
   it("puts a report under its sensor name after the fixed kinds, then unknown kinds by name", () => {
@@ -170,10 +160,6 @@ describe("staleNote", () => {
   const rows = findingRows([
     document("structure", [record("hu", "hub")]),
     document("a", [
-      record("pa", "stable_abstractions", "warning", {
-        abstractness: 0,
-        instability: 0.23,
-      }),
       record("sd", "stable_dependencies"),
       record("du", "duplication"),
     ]),
@@ -185,7 +171,7 @@ describe("staleNote", () => {
 
   it("names the groups with a hidden finding in panel order, joined with and", () => {
     expect(staleNote([], hiddenOf("a"), [])).toBe(
-      "Unstable dependency, Pain zone and Duplication findings are out of date.",
+      "Unstable dependency and Duplication findings are out of date.",
     );
     expect(staleNote([], hiddenOf("b"), [])).toBe(
       "Mutation findings are out of date.",
@@ -197,7 +183,7 @@ describe("staleNote", () => {
         [sensorRow("a", "failed")],
       ),
     ).toBe(
-      "Unstable dependency, Pain zone, Duplication and Mutation findings are out of date.",
+      "Unstable dependency, Duplication and Mutation findings are out of date.",
     );
   });
 

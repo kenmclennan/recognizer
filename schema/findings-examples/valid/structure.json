@@ -5,7 +5,6 @@
   "modified": false,
   "settings": {
     "hub_threshold": 10,
-    "distance_threshold": 0.3,
     "entry_points": [],
     "warnings": {
       "cycle": true,
@@ -14,7 +13,6 @@
       "orphan": true,
       "policy_drift": true,
       "stable_dependencies": true,
-      "stable_abstractions": true,
       "unused_exports": false
     }
   },
@@ -118,25 +116,6 @@
         "modules": ["app/domain/order.py", "app/util/fmt.py"],
         "edges": [{ "from": "app/domain/order.py", "to": "app/util/fmt.py" }],
         "measures": { "source_instability": 0.5, "target_instability": 0.6667 }
-      }
-    },
-    {
-      "id": "stable_abstractions:app/contracts",
-      "kind": "stable_abstractions",
-      "severity": "warning",
-      "principle": "stable-folders-are-abstract",
-      "summary": "folder app/contracts is in the useless zone (abstractness 1, instability 1, distance 1, threshold 0.3)",
-      "fix_pattern": "move-toward-main-sequence",
-      "evidence": {
-        "modules": ["app/contracts/audit.py"],
-        "measures": {
-          "afferent": 0,
-          "efferent": 1,
-          "instability": 1,
-          "abstractness": 1,
-          "distance": 1,
-          "threshold": 0.3
-        }
       }
     }
   ]

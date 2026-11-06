@@ -4,7 +4,6 @@ import {
   measureFolders,
   metricsLine,
   metricsTable,
-  zoneOf,
 } from "../src/folder-metrics.js";
 import { parsePolicy } from "../src/index.js";
 import { scanOf, WORKED, WORKED_EDGES } from "./folder-fixtures.js";
@@ -211,42 +210,21 @@ const sample = (
   distance,
 });
 
-describe("zoneOf", () => {
-  it("is the main sequence at or below the threshold and a zone only beyond it", () => {
-    expect(zoneOf(sample(0.1, 0.8, 0.1), 0.3)).toBe("main sequence");
-    expect(zoneOf(sample(0.1, 0.6, 0.3), 0.3)).toBe("main sequence");
-    expect(zoneOf(sample(0.1, 0.5, 0.4), 0.3)).toBe("pain");
-    expect(zoneOf(sample(0.9, 0.5, 0.4), 0.3)).toBe("useless");
-    expect(zoneOf(sample(0.1, 0.5, 0.4), 0.5)).toBe("main sequence");
-  });
-
-  it("is unknown when a figure is missing", () => {
-    expect(zoneOf(sample(null, 0.5, null), 0.3)).toBe("unknown");
-    expect(zoneOf(sample(0.5, null, null), 0.3)).toBe("unknown");
-  });
-});
-
 describe("metricsLine and metricsTable", () => {
-  it("names the zone in the line only for pain and useless", () => {
-    expect(metricsLine(sample(0.1, 0.5, 0.4), 0.3)).toBe(
-      "I 0.50 \u00b7 A 0.10 \u00b7 D 0.40 \u00b7 pain",
+  it("prints the three figures and no zone", () => {
+    expect(metricsLine(sample(0.1, 0.5, 0.4))).toBe(
+      "I 0.50 \u00b7 A 0.10 \u00b7 D 0.40",
     );
-    expect(metricsLine(sample(0.9, 0.5, 0.4), 0.3)).toBe(
-      "I 0.50 \u00b7 A 0.90 \u00b7 D 0.40 \u00b7 useless",
-    );
-    expect(metricsLine(sample(0.1, 0.8, 0.1), 0.3)).toBe(
-      "I 0.80 \u00b7 A 0.10 \u00b7 D 0.10",
-    );
-    expect(metricsLine(sample(null, 0.5, null), 0.3)).toBe(
+    expect(metricsLine(sample(null, 0.5, null))).toBe(
       "I 0.50 \u00b7 A unknown \u00b7 D unknown",
     );
   });
 
-  it("keeps the zone row in the table", () => {
-    expect(metricsTable(sample(0.1, 0.8, 0.1), 0.3).at(-1)).toEqual([
-      "Zone",
-      "main sequence",
-    ]);
+  it("ends the table on the distance row", () => {
+    const table = metricsTable(sample(0.1, 0.8, 0.1));
+
+    expect(table.at(-1)).toEqual(["Distance (D)", "0.10"]);
+    expect(table.map(([name]) => name)).not.toContain("Zone");
   });
 });
 

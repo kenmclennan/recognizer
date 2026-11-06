@@ -16,13 +16,11 @@ import {
   folderCycleFindings,
   orphanFindings,
   policyDriftFindings,
-  stableAbstractionsFindings,
   stableDependenciesFindings,
   unusedExportsFindings,
 } from "../src/structure-warnings.js";
 import {
   scanOf as foldersOf,
-  type Spec,
   WORKED,
   WORKED_EDGES,
 } from "./folder-fixtures.js";
@@ -356,14 +354,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"hub_threshold":10,"distance_threshold":0.3,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"stable_abstractions":true,"unused_exports":false}}',
+      '{"hub_threshold":10,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("5");
+    expect(document.sensor.version).toBe("6");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on, unused_exports off";
+      "hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, unused_exports off";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -557,82 +555,35 @@ describe("stable_dependencies", () => {
   });
 });
 
-describe("stable_abstractions", () => {
-  const worked = () => measureFolders([foldersOf(WORKED, WORKED_EDGES)], null);
+describe("retired stable_abstractions finding", () => {
+  const scan = foldersOf(WORKED, WORKED_EDGES);
 
-  it("names the zones in the worked example at the default threshold", () => {
-    const found = stableAbstractionsFindings(worked(), 0.3);
-
-    expect(ids(found)).toEqual([
-      "stable_abstractions:app/contracts",
-      "stable_abstractions:app/domain",
-      "stable_abstractions:app/util",
-    ]);
-    expect(found[0]?.summary).toContain("useless zone");
-    expect(found[1]?.summary).toContain("pain zone");
-    expect(found[2]?.summary).toContain("pain zone");
-    expect(found[0]).toMatchObject({
-      principle: "stable-folders-are-abstract",
-      fix_pattern: "move-toward-main-sequence",
-      evidence: {
-        modules: ["app/contracts/audit.ts"],
-        measures: {
-          afferent: 0,
-          efferent: 1,
-          instability: 1,
-          abstractness: 1,
-          distance: 1,
-          threshold: 0.3,
-        },
-      },
-    });
-  });
-
-  it("drops a folder exactly on the bound", () => {
-    expect(ids(stableAbstractionsFindings(worked(), 0.3333))).toEqual([
-      "stable_abstractions:app/contracts",
-      "stable_abstractions:app/domain",
-    ]);
-    expect(ids(stableAbstractionsFindings(worked(), 0.5))).toEqual([
-      "stable_abstractions:app/contracts",
-    ]);
-  });
-
-  it("yields none when abstractness or instability is null", () => {
-    const measures = measureFolders(
-      [foldersOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]])],
+  it("reports none on the worked example and keeps the folder numbers", () => {
+    const { document, folder_metrics } = structureSensor(
+      [scan],
       null,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
     );
 
-    expect(stableAbstractionsFindings(measures, 0)).toEqual([]);
-  });
-
-  it("does not warn at distance 0.3 computed as 0.30000000000000004", () => {
-    const importers: Spec[] = [];
-    const edges: [string, string][] = [];
-
-    for (let index = 0; index < 7; index += 1) {
-      importers.push({ id: `f/m${index}.ts`, exports: ["class"] });
-      edges.push([`f/m${index}.ts`, "foreign:q"]);
-    }
-
-    for (let index = 0; index < 3; index += 1) {
-      importers.push({ id: `o/u${index}.ts` });
-      edges.push([`o/u${index}.ts`, "f/m0.ts"]);
-    }
-
-    const measures = measureFolders([foldersOf(importers, edges)], null);
-    const folder = measures.rows.find((row) => row.id === "f");
-
-    expect(folder).toMatchObject({ afferent: 3, efferent: 7, distance: 0.3 });
-    expect(stableAbstractionsFindings(measures, 0.3)).toEqual([]);
+    expect(
+      document.findings.filter(
+        (finding) => finding.kind === "stable_abstractions",
+      ),
+    ).toEqual([]);
+    expect(
+      folder_metrics.find((row) => row.id === "app/contracts"),
+    ).toMatchObject({ abstractness: 1, instability: 1, distance: 1 });
+    expect(
+      folder_metrics.filter((row) => (row.distance ?? 0) > 0.3).length,
+    ).toBeGreaterThan(0);
   });
 });
 
 describe("switches for the package metric warnings", () => {
   const scan = foldersOf(WORKED, WORKED_EDGES);
 
-  const run = (deps: boolean, abstractions: boolean) =>
+  const run = (deps: boolean) =>
     structureSensor(
       [scan],
       null,
@@ -645,7 +596,6 @@ describe("switches for the package metric warnings", () => {
           orphan: false,
           policy_drift: false,
           stable_dependencies: deps,
-          stable_abstractions: abstractions,
           unused_exports: false,
         },
       },
@@ -653,8 +603,8 @@ describe("switches for the package metric warnings", () => {
     );
 
   it("keeps folder metrics whatever the switches say", () => {
-    const both = run(true, true);
-    const none = run(false, false);
+    const both = run(true);
+    const none = run(false);
 
     expect(none.document.findings).toEqual([]);
     expect(none.folder_metrics).toEqual(both.folder_metrics);
@@ -663,13 +613,9 @@ describe("switches for the package metric warnings", () => {
     );
   });
 
-  it("switches each kind off on its own", () => {
-    expect(
-      ids(run(false, true).document.findings).every((id) =>
-        id.startsWith("stable_abstractions:"),
-      ),
-    ).toBe(true);
-    expect(ids(run(true, false).document.findings)).toEqual([
+  it("switches stable dependencies off on its own", () => {
+    expect(ids(run(false).document.findings)).toEqual([]);
+    expect(ids(run(true).document.findings)).toEqual([
       "stable_dependencies:app/domain->app/util",
     ]);
   });
@@ -679,22 +625,58 @@ describe("settings for the package metrics", () => {
   const resolve = (yaml: string) =>
     resolveStructureSettings(parseConfig(yaml), undefined);
 
-  it("defaults the threshold and both switches", () => {
+  it("defaults the switch", () => {
     expect(resolveStructureSettings(null)).toMatchObject({
-      distance_threshold: 0.3,
-      warnings: { stable_dependencies: true, stable_abstractions: true },
+      warnings: { stable_dependencies: true },
     });
   });
 
   it("reads the configured values", () => {
     expect(
       resolve(
-        "sensors:\n  structure:\n    distance_threshold: 0.5\n    warnings: { stable_dependencies: false }\n",
+        "sensors:\n  structure:\n    warnings: { stable_dependencies: false }\n",
       ),
-    ).toMatchObject({
-      distance_threshold: 0.5,
-      warnings: { stable_dependencies: false, stable_abstractions: true },
-    });
+    ).toMatchObject({ warnings: { stable_dependencies: false } });
+  });
+
+  it("accepts and ignores the retired keys", () => {
+    const retired = resolve(
+      readFileSync(
+        join(
+          REPO,
+          "schema",
+          "config-examples",
+          "valid",
+          "sensors-retired-keys.yaml",
+        ),
+        "utf8",
+      ),
+    );
+    const bare = resolve(
+      "sensors:\n  structure:\n    hub_threshold: 6\n    warnings: { hub: false }\n",
+    );
+
+    expect(retired).toEqual(bare);
+    expect(retired).not.toHaveProperty("distance_threshold");
+
+    const run = (settings: typeof retired) =>
+      structureSensor(
+        [foldersOf(WORKED, WORKED_EDGES)],
+        null,
+        settings as StructureSettings,
+        CONTEXT,
+      ).document.findings;
+
+    expect(run(retired)).toEqual(run(bare));
+  });
+
+  it("honours a live key beside a retired one", () => {
+    const settings = resolve(
+      "sensors:\n  structure:\n    hub_threshold: 6\n    distance_threshold: 0.9\n",
+    );
+
+    expect(settings).toMatchObject({ hub_threshold: 6 });
+    expect(settings).not.toHaveProperty("distance_threshold");
   });
 
   it.each([
@@ -1190,9 +1172,9 @@ describe("unused_exports", () => {
     ).toThrow(InputError);
   });
 
-  it("prints the switch after stable_abstractions", () => {
+  it("prints the switch after stable_dependencies", () => {
     const base =
-      "hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on";
+      "hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on";
 
     expect(
       describeSettings({

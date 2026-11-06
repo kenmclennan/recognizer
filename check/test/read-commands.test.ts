@@ -159,23 +159,16 @@ describe("show", () => {
     expect(code).toBe(0);
     expect(document.folder).toBe("shop/domain");
     expect(document.metrics.id).toBe("shop/domain");
-    expect(document.line).toMatch(/^I \S+ \u00b7 A \S+ \u00b7 D \S+ \u00b7 \S/);
+    expect(document.line).toMatch(/^I \S+ \u00b7 A \S+ \u00b7 D \S+$/);
     expect(ask(python, ["show", "shop/domain/"]).out).toContain(document.line);
     expect(ask(python, ["show", "nowhere"]).code).toBe(2);
   });
 
-  it("takes the zone from the structure sensor's distance_threshold", () => {
-    const config = (threshold: number) => ({
-      [`${ROOT}/.recognizer/config.yaml`]: `sensors:\n  structure:\n    distance_threshold: ${threshold}\n`,
-    });
-    const beyond = ask(python, ["show", "shop/domain", "--json"], config(0.3));
-    const within = ask(python, ["show", "shop/domain", "--json"], config(0.9));
+  it("prints no zone for a folder", () => {
+    const json = JSON.parse(ask(python, ["show", "shop/domain", "--json"]).out);
 
-    expect(JSON.parse(beyond.out).line).toMatch(/ \u00b7 pain$/);
-    expect(JSON.parse(within.out).line).not.toMatch(/pain|useless/);
-    expect(ask(python, ["show", "shop/domain"], config(0.9)).out).toContain(
-      "Zone: main sequence",
-    );
+    expect(json.line).toMatch(/^I \S+ \u00b7 A \S+ \u00b7 D \S+$/);
+    expect(ask(python, ["show", "shop/domain"]).out).not.toContain("Zone");
   });
 
   it("lists every member with --private", () => {
@@ -261,10 +254,8 @@ describe("show", () => {
     expect(lines[4]).toBe("    10  public  field  id: str");
     expect(out).toContain("    14  public  method  total() → int");
     expect(out).toContain("6 private hidden");
-    expect(out).not.toContain("no findings");
-    expect(out).toContain(
-      "folder shop/domain is in the pain zone (abstractness 0, instability 0.2, distance 0.8, threshold 0.3)",
-    );
+    expect(out).toContain("no findings");
+    expect(out).not.toContain("zone");
   });
 
   it("reports the hub and cycle warnings on the check-warnings fixture", () => {

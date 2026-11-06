@@ -52,11 +52,9 @@ export {
 } from "./findings-document.js";
 export {
   type FolderMetrics,
-  type FolderZone,
   measureFolders,
   metricsLine,
   metricsTable,
-  zoneOf,
 } from "./folder-metrics.js";
 export {
   checkLink,
@@ -154,7 +152,6 @@ export type { Diagnosis } from "./sensor-reason.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";
 export {
-  DEFAULT_DISTANCE_THRESHOLD,
   measuredInputs,
   measuredModules,
   resolveStructureSettings,
