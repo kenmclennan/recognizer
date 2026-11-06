@@ -3,6 +3,7 @@ import {
   parseConfig,
   SHIPPED_DESCRIBER_COMMAND,
 } from "recognizer";
+import type { RunRecordFiles } from "./refusal-record";
 import type {
   FindingsFiles,
   OverlayFiles,
@@ -19,6 +20,8 @@ export type FakeSensors = SensorsPort & {
   overlays: Map<string, string>;
   modifiedOverlays: Map<string, number>;
   overlaysRefused: string[];
+  runRecords: Map<string, string>;
+  runRecordsRefused: string[];
   testsHash: string | null;
   removed: string[];
   written: (string | null)[];
@@ -49,6 +52,8 @@ export function fakeSensors(
     overlays: new Map(Object.entries(overlays)),
     modifiedOverlays: new Map(),
     overlaysRefused: [],
+    runRecords: new Map(),
+    runRecordsRefused: [],
     testsHash: null,
     removed: [],
     written: [],
@@ -127,6 +132,14 @@ export function fakeSensors(
           modifiedMs: fake.modifiedOverlays.get(name) ?? null,
         })),
         refused: fake.overlaysRefused,
+      };
+    },
+    async readRunRecords(): Promise<RunRecordFiles> {
+      return {
+        files: [...fake.runRecords]
+          .map(([name, text]) => ({ name, text }))
+          .sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0)),
+        refused: fake.runRecordsRefused,
       };
     },
     async readTestsHash() {

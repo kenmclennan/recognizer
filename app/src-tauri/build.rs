@@ -13,6 +13,7 @@ fn main() {
         "read_findings",
         "read_overlays",
         "read_recent_views",
+        "read_run_records",
         "read_sensor_inputs",
         "read_settings",
         "read_tests_hash",

@@ -1039,6 +1039,16 @@ fn read_findings(app: AppHandle, window: WebviewWindow) -> Result<sensors::Findi
 }
 
 #[tauri::command]
+fn read_run_records(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<sensors::RunRecordsRead, String> {
+    Ok(sensors::read_run_records(&window_folder_path(
+        &app, &window,
+    )?))
+}
+
+#[tauri::command]
 fn read_overlays(app: AppHandle, window: WebviewWindow) -> Result<overlays::OverlaysRead, String> {
     Ok(overlays::read_overlays(&window_folder_path(&app, &window)?))
 }
@@ -1365,6 +1375,7 @@ pub fn run() {
             open_in_editor,
             publish_window_state,
             read_findings,
+            read_run_records,
             read_overlays,
             read_responsibilities,
             read_sensor_inputs,

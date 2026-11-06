@@ -1050,3 +1050,85 @@ describe("whyOf", () => {
     expect(text("really?")).toBe("really?");
   });
 });
+
+describe("scanPanel remembered refusal", () => {
+  const remembered = (
+    diagnosis: Diagnosis | undefined,
+    over: Partial<PanelInput> = {},
+    modifiedMs: number | null = NOW - 5 * MINUTE,
+  ) =>
+    scanPanel(
+      input({
+        sensors: [
+          {
+            name: "crap",
+            status: "ran",
+            findings: 2,
+            modifiedMs,
+            refusal: {
+              reason: "failed",
+              ...(diagnosis === undefined ? {} : { diagnosis }),
+              at: NOW - MINUTE,
+            },
+          },
+        ],
+        ...over,
+      }),
+    ).rows.find((row) => row.key === "crap");
+
+  it.each([
+    ["tool-missing", "could not run, 5 minutes ago", "bad"],
+    ["tests-failed", "refused, 5 minutes ago", "bad"],
+    ["coverage-unavailable", "refused, 5 minutes ago", "bad"],
+  ] as const)(
+    "reads a %s refusal as %s with the findings' age",
+    (code, text, tone) => {
+      const diagnosis: Diagnosis = { code, line: "why" };
+      const row = remembered(diagnosis);
+
+      expect(row?.state).toEqual({ text, tone });
+      expect(row?.why).toEqual(whyOf(diagnosis));
+    },
+  );
+
+  it("reads a refusal with no diagnosis as failed in the warn tone with no second line", () => {
+    const row = remembered(undefined);
+
+    expect(row?.state).toEqual({ text: "failed, 5 minutes ago", tone: "warn" });
+    expect(row?.why).toBeNull();
+  });
+
+  it("takes the age from the refusal when the sensor has no document", () => {
+    const row = remembered(undefined, {}, null);
+
+    expect(row?.state.text).toBe("failed, 1 minute ago");
+  });
+
+  it("lets this session's failure outrank a remembered refusal", () => {
+    const row = remembered(
+      { code: "tests-failed", line: "old" },
+      {
+        run: run({
+          failures: { crap: "refused" },
+          diagnoses: { crap: { code: "tool-missing", line: "new" } },
+          ranAt: { crap: NOW },
+        }),
+      },
+    );
+
+    expect(row?.state).toEqual({
+      text: "could not run, just now",
+      tone: "bad",
+    });
+    expect(row?.why).toEqual(whyOf({ code: "tool-missing", line: "new" }));
+  });
+
+  it("does not turn a refused row into out of date for a module gap", () => {
+    const row = remembered(
+      { code: "tests-failed", line: "why" },
+      { scans: SCANS },
+    );
+
+    expect(row?.state.text).toMatch(/^refused/);
+  });
+});
