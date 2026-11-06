@@ -157,13 +157,13 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its title, its description, the commit it was saved at, its steps and its notes. |
 | Modified view | A saved view whose canvas contents differ from its saved file, shown by the muted "modified" beside its name; panning and zooming do not count. |
 | Revert | The view bar's button that restores a modified saved view's saved contents and camera, with Undo, or only the camera when that is all that moved. |
-| Clear prompt | The small prompt above the canvas toolbar's Clear that asks whether to save a modified view before Clear closes it. |
+| Unsaved-changes dialog | The dialog, centred over the window on a dimmed backdrop, that asks whether to save a modified view before Clear or opening another view closes it. |
 | View title | The optional heading text of a saved view, separate from its name. |
-| View details card | The card under the view bar that edits a view's name, title and description together, with Cancel and Save. |
+| View details card | The card under the view bar, or in place of a Views panel row, that edits a view's name, title and description together, with Cancel and Save. |
 | View heading | The title and description of a saved view, drawn centred above the diagram and moving with it. |
 | Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
 | Stale view | A saved view the list shows under Stale with Delete: a change view whose head is merged or whose branch is gone, or any view with a pick that no longer resolves. |
-| Views panel | The left-column panel, behind the rail icon between Files and Notes, that lists every saved view: live ones, then stale ones with Delete; opened from the view bar's All views link. |
+| Views panel | The left-column panel, behind the rail icon between Files and Notes, that lists every saved view: live ones, then stale ones, each with Edit and Delete (stale ones only Delete); opened from the view bar's All views link. |
 | Note | The one text a person or an agent attaches to a module or folder in a saved view, with the name of who last wrote it; writing again replaces it. |
 | Notes panel | The left-column panel, behind the rail's speech-bubble icon, that lists every noted box and folder in the view, numbered and in reading order with a drag handle on each row, and focuses the selected note; the overview, with no composer. |
 | Note bubble | The speech bubble hanging from a box's or folder's note mark that holds its one note, who last wrote it, Edit and Remove, and its number, "n of N", and Previous and Next that pan the canvas to the next box with the bubble kept where it is; the place notes are read and written, opened from the mark, the bar's notes button or N. |

@@ -267,13 +267,13 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     expect(f.panel.chips).toBe(0);
     expect(f.panel.descriptions).toEqual({ alpha: "d", beta: "d" });
     expect(f.panel.metas).toEqual({
-      alpha: null,
-      beta: null,
+      alpha: "",
+      beta: "",
       live: "Changes main to feat",
     });
     expect(f.panel.notes).toBe("1 note");
     expect(f.panel.heading).toBe("Stale");
-    expect(f.panel.liveHasDelete).toBe(false);
+    expect(f.panel.liveHasDelete).toBe(true);
   });
 
   it("lists the stale views with their reasons and deletes nothing on its own", () => {

@@ -179,7 +179,7 @@ canvas.render(canvasProps());
 const shown = {
   topStrip: canvas.element.querySelector(".canvas-bar") === null,
   treeToggle: canvas.element.querySelector(".tree-toggle") !== null,
-  buttonsOutsideControls: [...canvas.element.querySelectorAll("button")].filter((b) => !b.closest(".controls, .canvas-legend, .selection-bar, .clear-prompt")).length,
+  buttonsOutsideControls: [...canvas.element.querySelectorAll("button")].filter((b) => !b.closest(".controls, .canvas-legend, .selection-bar")).length,
 };
 
 document.getElementById("out").textContent = btoa(
