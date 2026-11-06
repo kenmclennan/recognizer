@@ -127,7 +127,7 @@ fn r2_an_unmodelled_leaf_ends_at_the_module_holding_the_declaration() {
 
     assert_has(&document, "src/a.rs -> src/b.rs [Status]");
     assert_has(&document, "src/a.rs -> src/b.rs [Alias]");
-    assert_has(&document, "src/a.rs -> src/b.rs");
+    assert_has(&document, "src/a.rs -> src/b.rs [Gone]");
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn r3_a_private_use_is_not_a_re_export() {
         ("src/a.rs", "use crate::Order;\n"),
     ]);
 
-    assert_has(&document, "src/a.rs -> src/lib.rs");
+    assert_has(&document, "src/a.rs -> src/lib.rs [Order]");
     assert_lacks(
         &document,
         "src/a.rs -> src/orders.rs [Order] via src/lib.rs",
@@ -190,7 +190,7 @@ fn r3_a_glob_re_export_is_searched_for_the_name() {
         &document,
         "src/a.rs -> src/orders.rs [Order] via src/lib.rs",
     );
-    assert_has(&document, "src/a.rs -> src/lib.rs");
+    assert_has(&document, "src/a.rs -> src/lib.rs [Missing]");
 }
 
 #[test]
@@ -505,4 +505,45 @@ fn one_use_tree_with_an_in_repo_a_foreign_and_an_unresolved_leaf() {
         ]
     );
     assert_eq!(scanned.missing_mods, 0);
+}
+
+#[test]
+fn r9_a_macro_generated_item_is_named_by_the_last_path_segment() {
+    let document = krate(&[
+        ("src/lib.rs", "mod m;\nmod user;\n"),
+        ("src/m.rs", "macro_rules! make { () => {}; }\nmake!();\n"),
+        ("src/user.rs", "use crate::m::generated;\n"),
+    ]);
+
+    assert_has(&document, "src/user.rs -> src/m.rs [generated]");
+}
+
+#[test]
+fn r9_globs_modules_and_mod_declarations_stay_nameless() {
+    let document = krate(&[
+        ("src/lib.rs", "mod m;\nmod g;\nmod h;\n"),
+        ("src/m.rs", "pub struct S;\n"),
+        ("src/g.rs", "use crate::m::*;\n"),
+        ("src/h.rs", "use crate::m;\n"),
+    ]);
+
+    assert_has(&document, "src/g.rs -> src/m.rs");
+    assert_has(&document, "src/h.rs -> src/m.rs");
+    assert_has(&document, "src/lib.rs -> src/m.rs");
+    assert_lacks(&document, "src/g.rs -> src/m.rs [S]");
+    assert_lacks(&document, "src/h.rs -> src/m.rs [m]");
+}
+
+#[test]
+fn r9_a_trait_impl_through_an_unresolved_path_keeps_its_member() {
+    let document = krate(&[
+        ("src/lib.rs", "mod m;\nmod user;\n"),
+        ("src/m.rs", "macro_rules! make { () => {}; }\nmake!();\n"),
+        (
+            "src/user.rs",
+            "use crate::m::Gen;\npub struct T;\nimpl Gen for T {}\n",
+        ),
+    ]);
+
+    assert_has(&document, "src/user.rs => src/m.rs T.Gen");
 }

@@ -30,6 +30,7 @@ export interface ImportRef {
   line: number;
   commonjs: boolean;
   names: string[] | null;
+  namespace?: ts.Identifier;
 }
 
 export interface Reexport {
@@ -167,6 +168,70 @@ function importedNames(
   return names.length > 0 ? names : null;
 }
 
+function namespaceAlias(
+  node: ts.ImportDeclaration | ts.ExportDeclaration,
+): ts.Identifier | undefined {
+  if (!ts.isImportDeclaration(node)) {
+    return undefined;
+  }
+
+  const bindings = node.importClause?.namedBindings;
+
+  return bindings && ts.isNamespaceImport(bindings) ? bindings.name : undefined;
+}
+
+function destructuredNames(call: ts.CallExpression): string[] | null {
+  let use: ts.Node = call;
+
+  while (
+    ts.isParenthesizedExpression(use.parent) ||
+    ts.isAwaitExpression(use.parent)
+  ) {
+    use = use.parent;
+  }
+
+  const declaration = use.parent;
+
+  if (
+    !ts.isVariableDeclaration(declaration) ||
+    declaration.initializer !== use ||
+    !ts.isObjectBindingPattern(declaration.name)
+  ) {
+    return null;
+  }
+
+  const names: string[] = [];
+
+  for (const element of declaration.name.elements) {
+    const key = element.propertyName ?? element.name;
+
+    if (
+      element.dotDotDotToken ||
+      !(ts.isIdentifier(key) || ts.isStringLiteral(key))
+    ) {
+      return null;
+    }
+
+    names.push(key.text);
+  }
+
+  return names.length > 0 ? names : null;
+}
+
+function importTypeName(node: ts.ImportTypeNode): string[] | null {
+  let qualifier = node.qualifier;
+
+  if (!qualifier) {
+    return null;
+  }
+
+  while (ts.isQualifiedName(qualifier)) {
+    qualifier = qualifier.left;
+  }
+
+  return [qualifier.text];
+}
+
 function collectImports(sf: ts.SourceFile): ImportRef[] {
   const imports: ImportRef[] = [];
 
@@ -181,6 +246,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
         line: startLine(sf, node),
         commonjs: false,
         names: importedNames(node),
+        namespace: namespaceAlias(node),
       });
     } else if (
       ts.isImportEqualsDeclaration(node) &&
@@ -203,7 +269,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
             specifier,
             line: startLine(sf, argument),
             commonjs: false,
-            names: null,
+            names: destructuredNames(node),
           });
         } else if (
           ts.isIdentifier(node.expression) &&
@@ -213,7 +279,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
             specifier,
             line: startLine(sf, argument),
             commonjs: true,
-            names: null,
+            names: destructuredNames(node),
           });
         }
       }
@@ -226,7 +292,7 @@ function collectImports(sf: ts.SourceFile): ImportRef[] {
         specifier: node.argument.literal.text,
         line: startLine(sf, node.argument.literal),
         commonjs: false,
-        names: null,
+        names: importTypeName(node),
       });
     }
 

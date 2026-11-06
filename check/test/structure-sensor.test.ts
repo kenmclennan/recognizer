@@ -116,8 +116,8 @@ describe("structureSensor ids", () => {
     expect(ids([other])).toEqual(ids([scan]));
   });
 
-  it("records sensor version 9", () => {
-    expect(sense("check-warnings").document.sensor.version).toBe("9");
+  it("records sensor version 10", () => {
+    expect(sense("check-warnings").document.sensor.version).toBe("10");
   });
 
   it("produces a document that validates against the schema", () => {

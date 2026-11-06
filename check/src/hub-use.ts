@@ -39,14 +39,21 @@ export function hubUse(
       continue;
     }
 
-    if (edge.names === undefined || edge.names.length === 0) {
+    const edgeNames =
+      edge.names !== undefined && edge.names.length > 0
+        ? edge.names
+        : edge.to_member !== undefined
+          ? [edge.to_member]
+          : [];
+
+    if (edgeNames.length === 0) {
       unknown.add(edge.from);
       continue;
     }
 
     const seen = named.get(edge.from) ?? new Set<string>();
 
-    for (const name of edge.names) {
+    for (const name of edgeNames) {
       seen.add(name);
     }
 

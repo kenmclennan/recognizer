@@ -390,7 +390,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"hub_threshold":10,"instability_gap":0.2,"composition_roots":[],"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("9");
+    expect(document.sensor.version).toBe("10");
   });
 
   it("describes the settings with and without entry points", () => {
@@ -910,7 +910,7 @@ describe("settings for the package metrics", () => {
       instability_gap: 0.3,
       composition_roots: ["cmd"],
     });
-    expect(document.sensor.version).toBe("9");
+    expect(document.sensor.version).toBe("10");
   });
 
   it("honours a live key beside a retired one", () => {

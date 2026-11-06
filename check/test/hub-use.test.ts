@@ -81,6 +81,48 @@ describe("hubUse names per importer", () => {
     );
   });
 
+  it("names an importer by the to_member of its implements edge", () => {
+    const edges = [
+      {
+        ...edge("b/x.py"),
+        kind: "implements",
+        member: "C",
+        to_member: "Small",
+      },
+    ] as ScanEdge[];
+
+    expect(hubUse(edges, hubModule(members), importers(edges)).used_by).toEqual(
+      [{ module: "b/x.py", names: ["Small"] }],
+    );
+  });
+
+  it("merges a depends name with an inherits to_member", () => {
+    const edges = [
+      edge("b/x.py", ["Big"]),
+      { ...edge("b/x.py"), kind: "inherits", member: "C", to_member: "Small" },
+    ] as ScanEdge[];
+
+    expect(
+      hubUse(edges, hubModule(members), importers(edges)).used_by[0]?.names,
+    ).toEqual(["Big", "Small"]);
+  });
+
+  it("stays unknown when a name-less depends edge sits beside a member edge", () => {
+    const edges = [
+      edge("b/x.py"),
+      {
+        ...edge("b/x.py"),
+        kind: "implements",
+        member: "C",
+        to_member: "Small",
+      },
+    ] as ScanEdge[];
+
+    expect(
+      hubUse(edges, hubModule(members), importers(edges)).used_by[0]?.names,
+    ).toEqual([]);
+  });
+
   it("merges the names of two edges from one importer", () => {
     const edges = [edge("b/x.py", ["Small"]), edge("b/x.py", ["Big", "Small"])];
 

@@ -201,6 +201,7 @@
       ]
     },
     "edge": {
+      "description": "An edge to an in-repository module with no names and no member means the scanner could not list the names imported (a glob, a whole module, a side-effect import or a re-export-all). It never means imports nothing.",
       "type": "object",
       "required": ["from", "to", "kind", "line"],
       "properties": {
