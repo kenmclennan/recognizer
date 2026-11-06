@@ -2155,7 +2155,10 @@ export function showExplorer(
     }
 
     restoreCanvas(snap.folded, snap.focus);
-    openView = snap.view;
+    openView =
+      snap.view !== null && viewList.some((entry) => entry.name === snap.view)
+        ? snap.view
+        : null;
     hovered = null;
     resetList();
     rebuild();
