@@ -60,3 +60,23 @@ describe("fakeSensors describer", () => {
     expect((await fake.readFindings()).files[0]?.modifiedMs).toBe(42);
   });
 });
+
+describe("fakeSensors readRunRecords", () => {
+  it("returns names descending and surfaces the refused list, as the real command does", async () => {
+    const fake = fakeSensors();
+
+    fake.runRecords.set("20260101T000000001Z-scan.json", "a");
+    fake.runRecords.set("20260101T000000003Z-sense.json", "c");
+    fake.runRecords.set("20260101T000000002Z-scan.json", "b");
+    fake.runRecordsRefused.push("20260101T000000009Z-scan.json");
+
+    expect(await fake.readRunRecords()).toEqual({
+      files: [
+        { name: "20260101T000000003Z-sense.json", text: "c" },
+        { name: "20260101T000000002Z-scan.json", text: "b" },
+        { name: "20260101T000000001Z-scan.json", text: "a" },
+      ],
+      refused: ["20260101T000000009Z-scan.json"],
+    });
+  });
+});

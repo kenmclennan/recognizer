@@ -390,6 +390,25 @@ function sensorState(name: string, input: PanelInput): ScanRow["state"] {
     };
   }
 
+  if (status?.refusal !== undefined) {
+    const at = status.modifiedMs ?? status.refusal.at;
+
+    if (status.refusal.diagnosis !== undefined) {
+      return {
+        text: withAge(
+          status.refusal.diagnosis.code === "tool-missing"
+            ? "could not run"
+            : "refused",
+          at,
+          input.now,
+        ),
+        tone: "bad",
+      };
+    }
+
+    return { text: withAge("failed", at, input.now), tone: "warn" };
+  }
+
   if (status?.status === "failed") {
     return { text: "failed", tone: "warn" };
   }
@@ -462,6 +481,12 @@ function whyFor(name: string, input: PanelInput): ScanWhy | null {
   }
 
   const status = input.sensors.find((one) => one.name === name);
+
+  if (status?.refusal !== undefined) {
+    return status.refusal.diagnosis === undefined
+      ? null
+      : whyOf(status.refusal.diagnosis);
+  }
 
   if (
     (status?.status === "ran" || status?.status === "stale") &&
@@ -689,6 +714,7 @@ function rowFreshnessState(
     found === undefined ||
     live !== null ||
     input.run.failures[name] !== undefined ||
+    input.sensors.find((one) => one.name === name)?.refusal !== undefined ||
     input.sensors.find((one) => one.name === name)?.status === "failed"
   ) {
     return { state, note: null };

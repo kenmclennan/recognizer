@@ -1,0 +1,44 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-02T09:00:00.000Z",
+  "finished": "2026-11-02T09:00:09.500Z",
+  "by": "ken",
+  "arguments": [
+    "/work/shop",
+    "--sense",
+    "mutation"
+  ],
+  "outcome": "failed",
+  "exit": 1,
+  "phases": [
+    {
+      "phase": "sense",
+      "entries": [
+        {
+          "name": "mutation",
+          "command": [
+            "recognizer-sensors",
+            "mutation",
+            "/work/shop"
+          ],
+          "status": 1,
+          "outcome": "failed",
+          "duration_ms": 2400,
+          "stderr": "",
+          "reason": "3 tests fail, so mutation testing was refused",
+          "diagnosis": {
+            "code": "tests-failed",
+            "line": "3 tests fail, so mutation testing was refused.",
+            "failing": {
+              "names": [
+                "tests/test_orders.py::test_refund"
+              ],
+              "count": 3
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
