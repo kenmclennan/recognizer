@@ -30,6 +30,7 @@ export interface FindingRecord {
       lines?: [number, number];
     }[];
     measures?: Record<string, number>;
+    used_by?: { module: string; names: string[] }[];
     producer?: string;
   };
 }

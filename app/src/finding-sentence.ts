@@ -89,7 +89,21 @@ function hub(record: FindingRecord): string | null {
     return null;
   }
 
-  return `${shortName(module)} is imported by ${num(measures.fan_in)} modules and imports ${num(measures.fan_out)}; the limit is ${num(measures.threshold)}.`;
+  const counts = `${shortName(module)} is imported by ${num(measures.fan_in)} modules and imports ${num(measures.fan_out)}`;
+  const { lines, members } = measures;
+
+  if (lines === undefined && members === undefined) {
+    return `${counts}; the limit is ${num(measures.threshold)}.`;
+  }
+
+  const size =
+    lines !== undefined && members !== undefined
+      ? `it is ${num(lines)} lines with ${num(members)} members`
+      : members !== undefined
+        ? `it has ${num(members)} members`
+        : `it is ${num(lines as number)} lines`;
+
+  return `${counts}; ${size}; the limit is ${num(measures.threshold)}.`;
 }
 
 function folderCycle(record: FindingRecord): string | null {

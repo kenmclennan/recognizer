@@ -53,12 +53,27 @@
       "id": "hub",
       "principle": "interfaces-are-narrow-and-explicit",
       "fix_pattern": "split-hub",
-      "summary": "app/application/place.py has fan-in 3 and fan-out 3 (threshold 3)",
+      "summary": "app/application/place.py is imported by 3 modules and imports 3 (at least 3 on both); it has 0 members",
       "evidence": {
         "module": "app/application/place.py",
         "fan_in": 3,
         "fan_out": 3,
-        "threshold": 3
+        "threshold": 3,
+        "members": 0,
+        "used_by": [
+          {
+            "module": "app/adapters/audit.py",
+            "names": []
+          },
+          {
+            "module": "app/adapters/clock.py",
+            "names": []
+          },
+          {
+            "module": "app/application/report.py",
+            "names": []
+          }
+        ]
       }
     },
     {

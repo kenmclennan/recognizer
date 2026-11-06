@@ -99,7 +99,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--hub-threshold <n>",
         description:
-          "the dependent count above which a module is a hub; overrides sensors.structure.hub_threshold for this run, and the structure findings file records it",
+          "a module is a hub when its fan-in and its fan-out are each at least this count; overrides sensors.structure.hub_threshold for this run, and the structure findings file records it",
       },
       {
         flag: "--json",
@@ -403,7 +403,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--hub-threshold <n>",
         description:
-          "the dependent count above which a module is a hub finding; defaults to 10",
+          "a module is a hub finding when its fan-in and its fan-out are each at least this count; defaults to 10",
       },
       ...REPOSITORY_OPTIONS,
     ],
@@ -457,7 +457,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--hub-threshold <n>",
         description:
-          "the dependent count above which a module is a hub finding; defaults to 10",
+          "a module is a hub finding when its fan-in and its fan-out are each at least this count; defaults to 10",
       },
       ...REPOSITORY_OPTIONS,
     ],

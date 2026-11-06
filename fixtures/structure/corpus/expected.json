@@ -6,7 +6,7 @@
     { "id": "cycle/self-import", "scan": "cycle", "expect": "no-finding", "finding_id": "cycle:s/a.ts", "measures": {}, "derivation": "a self edge makes a component of one module; a cycle needs two or more", "known_defect": null },
     { "id": "cycle/through-foreign-only", "scan": "cycle", "expect": "no-finding", "finding_id": "cycle:f/a.ts,f/b.ts", "measures": {}, "derivation": "f/a.ts and f/b.ts both import foreign:pkg and f/a.ts imports f/b.ts; a foreign node has no outgoing edge so nothing returns to f/a.ts", "known_defect": null },
 
-    { "id": "hub/10-in-10-out", "scan": "hub", "expect": "finding", "finding_id": "hub:h10/hub.ts", "measures": { "fan_in": 10, "fan_out": 10, "threshold": 10 }, "derivation": "ten modules import the hub and it imports ten: both counts equal the threshold of 10, and the rule is >= on both", "known_defect": null },
+    { "id": "hub/10-in-10-out", "scan": "hub", "expect": "finding", "finding_id": "hub:h10/hub.ts", "measures": { "fan_in": 10, "fan_out": 10, "threshold": 10, "members": 0 }, "derivation": "ten modules import the hub and it imports ten: both counts equal the threshold of 10, and the rule is >= on both", "known_defect": null },
     { "id": "hub/10-in-9-out", "scan": "hub", "expect": "no-finding", "finding_id": "hub:h10x9/hub.ts", "measures": {}, "derivation": "fan-out 9 is below the threshold of 10", "known_defect": null },
     { "id": "hub/9-in-10-out", "scan": "hub", "expect": "no-finding", "finding_id": "hub:h9x10/hub.ts", "measures": {}, "derivation": "fan-in 9 is below the threshold of 10", "known_defect": null },
 

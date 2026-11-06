@@ -5,6 +5,13 @@ import type { FindingRow } from "./findings-order";
 export type CardRowModel =
   | { kind: "module"; module: string; name: string; folder: string }
   | { kind: "member"; module: string; name: string; folder: string }
+  | {
+      kind: "use";
+      module: string;
+      name: string;
+      folder: string;
+      names: string[];
+    }
   | { kind: "edge"; from: string; to: string };
 
 export type CardModel = {
@@ -129,6 +136,18 @@ export function cardOf(row: FindingRow): CardModel {
         module,
         name: shortName(module),
         folder: folderOf(module),
+      });
+    }
+  }
+
+  if (record.kind === "hub") {
+    for (const use of record.evidence.used_by ?? []) {
+      rows.push({
+        kind: "use",
+        module: use.module,
+        name: shortName(use.module),
+        folder: folderOf(use.module),
+        names: use.names,
       });
     }
   }
