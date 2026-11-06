@@ -286,6 +286,24 @@ describe("recognizer scan: outcomes", () => {
     expect(err).toContain("bad root");
   });
 
+  it("records the stderr of a successful typescript scan in the run log", async () => {
+    const stderr = "skipped project vue: vue/tsconfig.app.json: not found\n";
+    const { code, fake } = await scan({
+      files: { [`${ROOT}/b.ts`]: "" },
+      scanners: { [TYPESCRIPT]: { output: scanJson(3, 2), stderr } },
+    });
+    const record = [...fake.files.keys()]
+      .filter((key) => key.startsWith(`${ROOT}/.recognizer/cache/log/`))
+      .map((key) => JSON.parse(fake.files.get(key) as string))[0];
+    const entry = record.phases[0].entries.find(
+      (one: { name: string }) => one.name === "typescript",
+    );
+
+    expect(code).toBe(0);
+    expect(entry.outcome).toBe("ok");
+    expect(entry.stderr).toContain("skipped project vue");
+  });
+
   it("removes the temporary directories on every path", async () => {
     const { fake } = await scan({
       files: both(),

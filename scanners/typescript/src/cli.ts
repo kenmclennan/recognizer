@@ -127,6 +127,7 @@ export function run(argv: string[], io: Io = nodeIo()): number {
       args.root,
       args.commit ? args.commit : resolveCommit(args.root),
       args.modified ?? resolveModified(args.root),
+      io.stderr,
     );
     const text = render(document);
 

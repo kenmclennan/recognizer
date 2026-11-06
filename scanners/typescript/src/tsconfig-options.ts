@@ -1,5 +1,7 @@
-import { dirname, join } from "node:path";
+import { readdirSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
 import ts from "typescript";
+import { isSkippedDirectory } from "./files.js";
 
 const NO_INPUTS = 18003;
 
@@ -8,6 +10,13 @@ interface ParsedConfig {
   options: ts.CompilerOptions;
   files: Set<string>;
   references: string[];
+}
+
+export interface SkippedProject {
+  directory: string;
+  config: string;
+  message: string;
+  inside: string | null;
 }
 
 const DEFAULT_OPTIONS: ts.CompilerOptions = {
@@ -24,7 +33,7 @@ export class TsconfigOptions {
     ts.CompilerOptions,
     ts.CompilerOptions
   >();
-  private readonly problems: string[] = [];
+  private readonly problems = new Map<string, string[]>();
 
   constructor(private readonly root: string) {}
 
@@ -66,8 +75,104 @@ export class TsconfigOptions {
     return this.allowJs(config.options);
   }
 
-  failures(): string[] {
-    return this.problems;
+  skippedProjects(): SkippedProject[] {
+    const directories = this.projectDirectories();
+    const failing = new Map<string, SkippedProject>();
+
+    for (const directory of directories) {
+      const failure = this.failureFrom(join(directory, "tsconfig.json"));
+
+      if (failure) {
+        failing.set(directory, {
+          directory: this.idOf(directory),
+          config: this.idOf(failure.path),
+          message: failure.message,
+          inside: null,
+        });
+      }
+    }
+
+    const records = [...failing.values()];
+
+    for (const directory of directories) {
+      const id = this.idOf(directory);
+
+      if (failing.has(directory)) {
+        continue;
+      }
+
+      const outer = records
+        .filter((record) => isUnder(id, record.directory))
+        .sort((a, b) => a.directory.length - b.directory.length)[0];
+
+      if (outer) {
+        records.push({
+          directory: id,
+          config: "",
+          message: "",
+          inside: outer.directory,
+        });
+      }
+    }
+
+    return records.sort((a, b) =>
+      a.directory < b.directory ? -1 : a.directory > b.directory ? 1 : 0,
+    );
+  }
+
+  private idOf(path: string): string {
+    const id = relative(this.root, path).split(sep).join("/");
+
+    return id === "" ? "." : id;
+  }
+
+  private projectDirectories(): string[] {
+    const found: string[] = [];
+
+    const walk = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          if (!isSkippedDirectory(entry.name)) {
+            walk(join(directory, entry.name));
+          }
+        } else if (entry.name === "tsconfig.json") {
+          found.push(directory);
+        }
+      }
+    };
+
+    walk(this.root);
+
+    return found;
+  }
+
+  private failureFrom(
+    path: string,
+    seen: Set<string> = new Set(),
+  ): { path: string; message: string } | null {
+    if (seen.has(path)) {
+      return null;
+    }
+
+    seen.add(path);
+
+    const config = this.parse(path);
+
+    if (!config) {
+      const messages = this.problems.get(path) ?? [];
+
+      return { path, message: messages.join("; ") };
+    }
+
+    for (const reference of config.references) {
+      const failure = this.failureFrom(reference, seen);
+
+      if (failure) {
+        return failure;
+      }
+    }
+
+    return null;
   }
 
   private allowJs(options: ts.CompilerOptions): ts.CompilerOptions {
@@ -150,9 +255,15 @@ export class TsconfigOptions {
         diagnostic.messageText,
         "\n",
       );
-      this.problems.push(`${path}:0: ${message}`);
+      this.problems.set(path, [...(this.problems.get(path) ?? []), message]);
     }
 
     return null;
   }
+}
+
+export function isUnder(id: string, directory: string): boolean {
+  return (
+    directory === "." || id === directory || id.startsWith(`${directory}/`)
+  );
 }

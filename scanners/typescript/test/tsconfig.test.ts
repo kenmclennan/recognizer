@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ScanDocument } from "../src/index.js";
 import { BUNDLER, edgeList, makeTree, runBin, scanTree } from "./helpers.js";
 
 const alias = (target: string) =>
@@ -131,16 +132,18 @@ describe("tsconfig selection", () => {
     ]);
   });
 
-  it("exits 2 naming the tsconfig when extends cannot be found", () => {
+  it("skips the project and exits 0 when extends cannot be found", () => {
     const root = makeTree({
       "tsconfig.json": JSON.stringify({ extends: "./missing.json" }),
       "a.ts": target,
     });
     const result = runBin(root);
+    const doc = JSON.parse(result.stdout) as ScanDocument;
 
-    expect(result.status).toBe(2);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toContain("tsconfig.json:0:");
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("skipped project .: tsconfig.json:");
+    expect(doc.selection.skip_paths).toEqual(["."]);
+    expect(doc.modules).toEqual([]);
   });
 
   it("does not fail on a config with no inputs", () => {
