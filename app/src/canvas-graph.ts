@@ -1,5 +1,6 @@
 import {
   folderCounts,
+  type Ghost,
   lastSegment,
   moduleCounts,
   moduleLabel,
@@ -11,6 +12,7 @@ import {
 import type { Selection } from "./canvas-state";
 import { compactFolders } from "./folder-compaction";
 import type { Disc } from "./health";
+import { ghostId } from "./plan-overlay";
 
 export type EdgeStyle = "plain" | "private" | "inferred" | "hollow";
 
@@ -31,6 +33,7 @@ export type Box = {
   disc: Disc;
   open: number;
   held: number;
+  ghost?: { from: string; to: string };
 };
 
 export type Line = {
@@ -61,6 +64,7 @@ export type GraphInput = {
   folded: ReadonlySet<string>;
   focus: string | null;
   showInferred: boolean;
+  ghosts?: Ghost[];
 };
 
 export { lastSegment, moduleLabel, under };
@@ -125,9 +129,15 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       .filter((path) => under(id, path))
       .sort((a, b) => a.length - b.length)[0] ?? null;
   const boxOf = (id: string) => foldOf(id) ?? id;
-
   const inFocus = (path: string) => focus === null || under(path, focus);
-  const compaction = compactFolders(input.modules);
+
+  const ghosts = (input.ghosts ?? []).filter(
+    (ghost) => inFocus(ghost.from) && foldOf(ghost.from) === null,
+  );
+  const compaction = compactFolders([
+    ...input.modules,
+    ...ghosts.map((ghost) => ghost.from),
+  ]);
   const chainOf = (box: string) => compaction.ancestors(box).filter(inFocus);
 
   const openIn = (folder: string) =>
@@ -163,6 +173,26 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       disc: input.disc(key),
       open: folded ? openIn(key) : 1,
       held: folded ? held(key) : 1,
+    });
+  }
+
+  for (const ghost of ghosts) {
+    const id = ghostId(ghost.from);
+    const chain = chainOf(ghost.from);
+
+    chain.forEach((path, index) => {
+      frameChains.set(path, chain.slice(0, index));
+    });
+
+    boxes.set(id, {
+      id,
+      kind: "module",
+      label: lastSegment(ghost.from),
+      parent: chain[chain.length - 1] ?? null,
+      disc: "grey",
+      open: 0,
+      held: 0,
+      ghost,
     });
   }
 
@@ -313,5 +343,9 @@ export function frameFigure(frame: Pick<Frame, "open" | "held">): string {
 }
 
 export function boxSubline(box: Box): string {
+  if (box.ghost !== undefined) {
+    return `moving to ${box.ghost.to.slice(0, Math.max(0, box.ghost.to.lastIndexOf("/")))}/`;
+  }
+
   return box.kind === "folder" ? `${box.open} open, folded` : "";
 }

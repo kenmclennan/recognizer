@@ -1723,3 +1723,61 @@ describe("the metrics row on a function card", () => {
     ]);
   });
 });
+
+describe("the proposed change on a plan", () => {
+  const header = (id: string, extra: Partial<InspectorInputs>) =>
+    inspectorContent(module(id), inputsFor([scanOf(undefined)], extra)).header;
+
+  it("names the proposed change for every kind", () => {
+    const words = {
+      new: "New",
+      changes: "Changes",
+      moves: "Moves, code unchanged",
+      "moves-and-changes": "Moves and changes",
+      removed: "Removed",
+    } as const;
+
+    for (const [kind, word] of Object.entries(words)) {
+      const proposed = {
+        module: "pkg/m.py",
+        kind: kind as keyof typeof words,
+        ...(kind.startsWith("moves") ? { from: "old/m.py" } : {}),
+      };
+
+      expect(header("pkg/m.py", { proposed: () => proposed }).proposed).toBe(
+        `Proposed change: ${word}`,
+      );
+    }
+  });
+
+  it("gives a move the path it comes from and others none", () => {
+    expect(
+      header("pkg/m.py", {
+        proposed: () => ({
+          module: "pkg/m.py",
+          kind: "moves",
+          from: "old/m.py",
+        }),
+      }).from,
+    ).toBe("old/m.py");
+    expect(
+      header("pkg/m.py", {
+        proposed: () => ({ module: "pkg/m.py", kind: "new" }),
+      }).from,
+    ).toBeUndefined();
+  });
+
+  it("shows no line for a module without one and still renders a module the scan lacks", () => {
+    expect(header("pkg/m.py", {}).proposed).toBeUndefined();
+
+    const planned = inspectorContent(
+      module("pkg/new.py"),
+      inputsFor([scanOf(undefined)], {
+        proposed: () => ({ module: "pkg/new.py", kind: "new" }),
+      }),
+    );
+
+    expect(planned.header.title).toBe("new.py");
+    expect(planned.header.proposed).toBe("Proposed change: New");
+  });
+});

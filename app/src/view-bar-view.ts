@@ -14,6 +14,7 @@ export type ViewBarProps = {
   names: string[];
   total: number;
   openChip: string | null;
+  openPlan: boolean;
   listed: boolean;
   listProblem: string | null;
   canBack: boolean;
@@ -80,6 +81,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     editing ? cancelEditing() : startEditing(),
   );
   const rangeChip = el("span", "view-range-chip");
+  const planTag = el("span", "view-plan-tag", "Plan");
   const nameText = el("span", "view-name-text", "Untitled");
   const details = buildDetailsCard({
     idPrefix: "view-details",
@@ -123,6 +125,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     names: [],
     total: 0,
     openChip: null,
+    openPlan: false,
     listed: false,
     listProblem: null,
     canBack: false,
@@ -163,6 +166,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     name,
     modifiedMark,
     rangeChip,
+    planTag,
     save,
     revert,
     copy,
@@ -413,6 +417,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       nameText.textContent = next.open ?? "Untitled";
       rangeChip.hidden = next.openChip === null;
       rangeChip.textContent = next.openChip ?? "";
+      planTag.hidden = !next.openPlan;
       if (editing && next.open !== previousOpen) {
         cancelEditing();
       } else if (editing) {

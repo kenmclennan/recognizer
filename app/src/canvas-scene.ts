@@ -40,6 +40,7 @@ export type SceneBox = {
   parent: string | null;
   subline: string;
   disc: Disc;
+  ghost?: { from: string; to: string };
 };
 
 export type SceneLine = {
@@ -151,6 +152,7 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
         parent: box.parent,
         subline: boxSubline(box),
         disc: box.disc,
+        ...(box.ghost === undefined ? {} : { ghost: box.ghost }),
       });
     }
   }

@@ -17,6 +17,7 @@
   --ok: #1a7f37;
   --warn: #bf8700;
   --bad: #cf222e;
+  --move: #1b7c83;
   --priv: #bc4c00;
   --inf: #0969da;
   --impl: #1a7f37;
@@ -56,6 +57,7 @@
     --ok: #3fb950;
     --warn: #d29922;
     --bad: #f85149;
+    --move: #39c5cf;
     --priv: #f0883e;
     --inf: #58a6ff;
     --impl: #3fb950;
@@ -3280,6 +3282,18 @@ svg.i.chevron {
   margin-left: 4px;
 }
 
+.view-plan-tag {
+  align-self: center;
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--selbg);
+  color: var(--sel);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .view-modified {
   align-self: center;
   margin-left: 4px;
@@ -3319,6 +3333,116 @@ svg.i.chevron {
 
 .surface .box.mark-removed .name {
   text-decoration: line-through;
+}
+
+.surface .box.ghost .box-body {
+  fill: none;
+  stroke: var(--faint);
+  stroke-dasharray: 3 3;
+  cursor: default;
+}
+
+.surface .box.ghost .name,
+.surface .box.ghost .figure {
+  fill: var(--faint);
+  pointer-events: none;
+}
+
+.surface .box.ghost .figure {
+  font-size: 10px;
+}
+
+.surface .box[class*="proposed-"]:not(.selected) .box-body {
+  stroke-width: 1;
+  stroke-dasharray: none;
+}
+
+.surface .box.proposed-new:not(.selected) .box-body {
+  stroke: var(--ok);
+}
+
+.surface .box.proposed-changes:not(.selected) .box-body {
+  stroke: var(--warn);
+}
+
+.surface .box.proposed-removed:not(.selected) .box-body {
+  fill: var(--panel);
+  stroke: var(--bad);
+}
+
+.surface .box.proposed-moves:not(.selected) .box-body {
+  stroke: var(--move);
+}
+
+.surface .box.proposed-moves-and-changes:not(.selected) .box-body {
+  stroke: none;
+}
+
+.surface .box.proposed-new .name {
+  font-style: italic;
+}
+
+.surface .box.proposed-removed .name {
+  text-decoration: line-through;
+}
+
+.surface .split {
+  fill: none;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.surface .split.a {
+  stroke: var(--move);
+}
+
+.surface .split.b {
+  stroke: var(--warn);
+}
+
+.surface .wire {
+  fill: none;
+  stroke: var(--move);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.surface .wire-head {
+  fill: var(--move);
+  pointer-events: none;
+}
+
+.plan-swatch {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+}
+
+.plan-swatch.new {
+  border-color: var(--ok);
+}
+
+.plan-swatch.changes {
+  border-color: var(--warn);
+}
+
+.plan-swatch.moves {
+  border-color: var(--move);
+}
+
+.plan-swatch.moves-and-changes {
+  border-color: var(--move) var(--warn) var(--warn) var(--move);
+}
+
+.plan-swatch.removed {
+  border-color: var(--bad);
+}
+
+.plan-swatch.moved-from {
+  border: 1.5px dashed var(--faint);
 }
 
 .change-swatch {
@@ -3410,4 +3534,18 @@ svg.i.chevron {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
+}
+
+.ih-from,
+.ih-proposed {
+  display: block;
+  overflow: hidden;
+  margin-top: 1px;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ih-proposed {
+  font-weight: 600;
 }

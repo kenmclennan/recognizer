@@ -899,6 +899,68 @@ const facts = {};
   click(clearBtn(cc));
   facts.mg.clearBody = prompt(cc);
 
+  const PLAN_PROPOSED = [
+    { module: "app/hub.py", kind: "changes" },
+    { module: "app/fresh.py", kind: "new" },
+    { module: "lib/m.py", kind: "moves", from: "app/a.py" },
+  ];
+  const planNotes = [
+    { module: "app/hub.py", text: "First", by: "Ken" },
+    { module: "app/a.py", text: "Second", by: "Ken" },
+    { module: "lib/c.py", text: "Third", by: "Ken" },
+  ];
+  const planText = (plan) => JSON.stringify({ schema_version: 4, description: "d", commit: "old1234", ...(plan ? { plan: true } : {}), notes: planNotes, ...(plan ? { proposed: PLAN_PROPOSED } : {}), steps: [pick("app/hub.py"), pick("app/a.py"), pick("lib/c.py")] }, null, 2) + "\\n";
+  const planFacts = async (plan) => {
+    const ctx = mount({ plan: planText(plan) });
+    await tick();
+    await openFirst(ctx);
+    const stages = {};
+    const read = (stage) => {
+      const text = ctx.port.files.get("plan");
+      const parsed = parseViewFile(text);
+      const file = JSON.parse(text);
+      stages[stage] = { ok: parsed.ok, plan: file.plan, proposed: file.proposed, picks: file.steps.filter((step) => step.kind === "pick").map((step) => step.module), notes: (file.notes || []).map((n) => n.module), title: file.title, commit: file.commit };
+    };
+    ctx.update();
+    await tick();
+    read("update");
+    toggleLib(ctx);
+    await tick();
+    click(ctx.q(".view-save"));
+    await tick();
+    read("save");
+    click(ctx.q(".view-name"));
+    typeInto(ctx.q(".view-details-title"), "A title");
+    await tick();
+    click(ctx.q(".view-details-save"));
+    await tick();
+    read("details");
+    const target = plan ? "app/fresh.py" : "lib/e.py";
+    click(ctx.q('.box[data-id="' + target + '"] .box-body'));
+    await tick();
+    key("n");
+    await tick();
+    typeInto(ctx.q(".note-bubble textarea"), "A fresh note");
+    click([...ctx.all(".note-bubble button")].find((b) => b.textContent === "Save"));
+    await tick();
+    read("note");
+    click(ctx.q(".rail-notes"));
+    await tick();
+    const rows = ctx.all(".note-row");
+    const handle = rows[0];
+    const lastRow = rows[rows.length - 1].getBoundingClientRect();
+    const start = handle.getBoundingClientRect();
+    const fire = (type, clientY) => handle.dispatchEvent(new PointerEvent(type, { pointerId: 1, bubbles: true, clientX: start.left + 30, clientY }));
+    fire("pointerdown", start.top + start.height / 2);
+    for (let i = 1; i <= 5; i += 1) { fire("pointermove", start.top + (((lastRow.bottom - 2) - start.top) * i) / 5); await tick(10); }
+    fire("pointerup", lastRow.bottom - 2);
+    await tick(80);
+    read("reorder");
+    return stages;
+  };
+  facts.planSaves = await planFacts(true);
+  facts.plainSaves = await planFacts(false);
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -1725,5 +1787,39 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
       inExplorer: true,
       inCanvas: false,
     });
+  });
+
+  it("keeps a plan and every proposed change through update, Save, a title edit, a note write and a reorder", () => {
+    const proposed = [
+      { module: "app/hub.py", kind: "changes" },
+      { module: "app/fresh.py", kind: "new" },
+      { module: "lib/m.py", kind: "moves", from: "app/a.py" },
+    ];
+
+    for (const stage of ["update", "save", "details", "note", "reorder"]) {
+      const saved = f.planSaves[stage];
+
+      expect(saved.ok, stage).toBe(true);
+      expect(saved.plan, stage).toBe(true);
+      expect(saved.proposed, stage).toEqual(proposed);
+      expect(saved.picks, stage).not.toContain("app/fresh.py");
+      expect(saved.picks, stage).not.toContain("lib/m.py");
+    }
+
+    expect(f.planSaves.update.commit).toBe("cur1234");
+    expect(f.planSaves.save.picks).toContain("lib/e.py");
+    expect(f.planSaves.details.title).toBe("A title");
+    expect(f.planSaves.note.notes).toContain("app/fresh.py");
+    expect(f.planSaves.reorder.notes).not.toEqual(f.planSaves.note.notes);
+  });
+
+  it("writes no plan or proposed key for a plain view through the same sequence", () => {
+    for (const stage of ["update", "save", "details", "note", "reorder"]) {
+      const saved = f.plainSaves[stage];
+
+      expect(saved.ok, stage).toBe(true);
+      expect(saved.plan, stage).toBeUndefined();
+      expect(saved.proposed, stage).toBeUndefined();
+    }
   });
 });
