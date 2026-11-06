@@ -24,6 +24,10 @@ A crate is a Cargo package's library or binary target. Every `Cargo.toml` with a
 - **Foreign.** A first segment naming `std`, `core`, `alloc` or a foreign dependency makes an edge to `foreign:<name>`. A first segment that resolves to nothing makes no edge.
 - **Traits.** `impl Trait for Type` makes an `implements` edge when the trait is defined in a scanned file other than this one. Supertraits are `bases`. `inherits` is never emitted.
 
+## Entry points
+
+A module gets `entry_point: true` in two cases. The first is a Cargo target root: `package.build` (or `build.rs`; none when `build = false`), `src/main.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `examples/*.rs`, `examples/*/main.rs`, `benches/*.rs`, `benches/*/main.rs`, and the `path` of any `[[bin]]`, `[[example]]`, `[[bench]]` or `[[test]]` table that names a scanned file. The second is a file reached only through a `#[cfg(test)] mod x;` declaration (with or without `#[path]`), together with every file its own `mod y;` declarations name. A test module adds no edge. The library root is not marked, and files under a `tests/` directory are not scanned, so they are not marked.
+
 ## Members
 
 Structs and enums are `class`, traits `interface`, functions `function`, `const` and `static` `constant`. `exported` is true for any `pub` form except `pub(self)`. Methods from the `impl` blocks of the same file are in the outline of their struct or enum.

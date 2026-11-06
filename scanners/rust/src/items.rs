@@ -45,6 +45,7 @@ pub struct Parsed {
     pub members: Vec<Value>,
     pub scopes: BTreeMap<Vec<String>, Scope>,
     pub mods: Vec<ModDecl>,
+    pub test_mods: Vec<ModDecl>,
     pub impls: Vec<ImplRef>,
 }
 
@@ -390,6 +391,7 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
         members: Vec::new(),
         scopes: BTreeMap::new(),
         mods: Vec::new(),
+        test_mods: Vec::new(),
         impls: Vec::new(),
     };
     let mut methods: HashMap<String, Vec<Value>> = HashMap::new();
@@ -433,7 +435,22 @@ fn collect(
 ) {
     let top = scope.is_empty();
 
-    for item in items.iter().filter(|item| !is_test_item(item)) {
+    for item in items {
+        if is_test_item(item) {
+            if let Item::Mod(module) = item {
+                if module.content.is_none() {
+                    parsed.test_mods.push(ModDecl {
+                        name: name_of(&module.ident),
+                        line: line_of(module.mod_token.span),
+                        path_attr: path_attribute(&module.attrs),
+                        scope: scope.clone(),
+                    });
+                }
+            }
+
+            continue;
+        }
+
         match item {
             Item::Use(import) => {
                 let mut found = Vec::new();

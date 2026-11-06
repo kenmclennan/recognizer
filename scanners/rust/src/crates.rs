@@ -9,6 +9,7 @@ pub struct Package {
     pub lib_name: String,
     pub lib_root: Option<String>,
     pub roots: Vec<String>,
+    pub entries: Vec<String>,
     pub in_repo: BTreeMap<String, String>,
     pub foreign: BTreeSet<String>,
 }
@@ -119,11 +120,14 @@ pub fn read_packages(
             .unwrap_or_else(|| use_name(name));
         let lib_root = library_root(manifest, source_files);
 
+        let (roots, entries) = target_roots(manifest, source_files);
+
         packages.push(Package {
             dir: manifest.dir.clone(),
             lib_name,
             lib_root,
-            roots: target_roots(manifest, source_files),
+            roots,
+            entries,
             in_repo: BTreeMap::new(),
             foreign: BTreeSet::new(),
         });
@@ -217,27 +221,47 @@ fn library_root(manifest: &Manifest, source_files: &HashSet<String>) -> Option<S
     source_files.contains(&path).then_some(path)
 }
 
-fn target_roots(manifest: &Manifest, source_files: &HashSet<String>) -> Vec<String> {
+fn target_roots(manifest: &Manifest, source_files: &HashSet<String>) -> (Vec<String>, Vec<String>) {
     let dir = manifest.dir.as_str();
-    let mut roots: BTreeSet<String> = BTreeSet::new();
-    let mut add = |relative: &str| {
-        if let Some(path) = join(dir, relative) {
-            if source_files.contains(&path) {
-                roots.insert(path);
-            }
-        }
+    let mut library: BTreeSet<String> = BTreeSet::new();
+    let mut entries: BTreeSet<String> = BTreeSet::new();
+    let resolve = |relative: &str| join(dir, relative).filter(|path| source_files.contains(path));
+
+    if let Some(path) =
+        resolve(string_at(&manifest.table, &["lib", "path"]).unwrap_or("src/lib.rs"))
+    {
+        library.insert(path);
+    }
+
+    if let Some(path) = resolve("src/main.rs") {
+        entries.insert(path);
+    }
+
+    let build = match manifest
+        .table
+        .get("package")
+        .and_then(Value::as_table)
+        .and_then(|package| package.get("build"))
+    {
+        Some(Value::Boolean(false)) => None,
+        Some(Value::String(path)) => Some(path.as_str()),
+        _ => Some("build.rs"),
     };
 
-    add(string_at(&manifest.table, &["lib", "path"]).unwrap_or("src/lib.rs"));
-    add("src/main.rs");
-    add(string_at(&manifest.table, &["package", "build"]).unwrap_or("build.rs"));
+    if let Some(path) = build.and_then(resolve) {
+        entries.insert(path);
+    }
 
-    if let Some(bins) = manifest.table.get("bin").and_then(Value::as_array) {
-        for path in bins
-            .iter()
-            .filter_map(|bin| bin.as_table()?.get("path")?.as_str())
-        {
-            add(path);
+    for table in ["bin", "example", "bench", "test"] {
+        if let Some(found) = manifest.table.get(table).and_then(Value::as_array) {
+            for path in found
+                .iter()
+                .filter_map(|entry| entry.as_table()?.get("path")?.as_str())
+            {
+                if let Some(path) = resolve(path) {
+                    entries.insert(path);
+                }
+            }
         }
     }
 
@@ -255,14 +279,15 @@ fn target_roots(manifest: &Manifest, source_files: &HashSet<String>) -> Vec<Stri
                 continue;
             };
             let direct = !rest.contains('/');
-            let bin_main =
-                folder == "src/bin" && rest.matches('/').count() == 1 && rest.ends_with("/main.rs");
+            let folder_main = rest.matches('/').count() == 1 && rest.ends_with("/main.rs");
 
-            if direct || bin_main {
-                roots.insert(path.clone());
+            if direct || folder_main {
+                entries.insert(path.clone());
             }
         }
     }
 
-    roots.into_iter().collect()
+    let roots = library.union(&entries).cloned().collect();
+
+    (roots, entries.into_iter().collect())
 }

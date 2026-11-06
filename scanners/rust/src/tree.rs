@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::crates::{directory_of, join};
 use crate::items::Parsed;
@@ -10,6 +10,7 @@ pub struct Tree {
     pub parents: HashMap<usize, (usize, Vec<String>)>,
     pub owner: Vec<Option<usize>>,
     pub missing: usize,
+    pub test_files: BTreeSet<usize>,
 }
 
 fn candidates(
@@ -77,11 +78,46 @@ pub fn build(paths: &[String], parsed: &[Parsed], roots: &[usize]) -> Tree {
         }
     }
 
+    let mut test_files: BTreeSet<usize> = BTreeSet::new();
+
+    for (file, source) in parsed.iter().enumerate() {
+        for declaration in &source.test_mods {
+            let found = candidates(
+                &paths[file],
+                root_set.contains(&file),
+                &declaration.scope,
+                &declaration.name,
+                declaration.path_attr.as_deref(),
+            )
+            .into_iter()
+            .find_map(|candidate| index.get(candidate.as_str()).copied());
+
+            if let Some(child) = found {
+                test_files.insert(child);
+            }
+        }
+    }
+
+    let mut pending: Vec<usize> = test_files.iter().copied().collect();
+
+    while let Some(file) = pending.pop() {
+        for declaration in &parsed[file].mods {
+            let key = (file, declaration.scope.clone(), declaration.name.clone());
+
+            if let Some(&child) = children.get(&key) {
+                if test_files.insert(child) {
+                    pending.push(child);
+                }
+            }
+        }
+    }
+
     let mut tree = Tree {
         children,
         parents: HashMap::new(),
         owner: vec![None; paths.len()],
         missing,
+        test_files,
     };
 
     let mut ordered = roots.to_vec();
