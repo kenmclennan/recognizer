@@ -469,9 +469,23 @@ export function showExplorer(
         }
       },
       clear() {
-        orientedFinding = null;
-        noteFocus = null;
-        state.clear();
+        const name = openView;
+
+        if (name !== null && modified()) {
+          promptView = name;
+          canvas.askSave(name, (choice) => void chooseClear(name, choice));
+
+          return;
+        }
+
+        if (name !== null) {
+          closeOpenView(name);
+
+          return;
+        }
+
+        canvas.resetCamera();
+        emptyCanvas();
         changed();
       },
       setShowInferred(show) {
@@ -2335,6 +2349,68 @@ export function showExplorer(
 
   let revertMessage: number | null = null;
 
+  function emptyCanvas() {
+    orientedFinding = null;
+    noteFocus = null;
+    state.clear();
+  }
+
+  function closeOpenView(name: string) {
+    canvas.resetCamera();
+    emptyCanvas();
+    openView = null;
+    changeInfo = null;
+    headingDraft = null;
+    pendingLanding = null;
+    openToken += 1;
+    comparisons.drop(name);
+
+    if (revertMessage !== null) {
+      withdraw(revertMessage);
+      revertMessage = null;
+    }
+
+    rebuild();
+    record();
+    renderBar();
+    render();
+  }
+
+  async function chooseClear(
+    name: string,
+    choice: "cancel" | "discard" | "save",
+  ) {
+    promptView = choice === "save" ? promptView : null;
+
+    if (choice === "cancel") {
+      canvas.dismissPrompt();
+
+      return;
+    }
+
+    if (choice === "save") {
+      const written = await writeOpen();
+
+      promptView = null;
+      canvas.dismissPrompt();
+
+      if (!written || openView !== name) {
+        return;
+      }
+    } else {
+      canvas.dismissPrompt();
+    }
+
+    closeOpenView(name);
+    post({
+      kind: "done",
+      text:
+        choice === "save"
+          ? `Saved ${name} and closed it.`
+          : `Closed ${name}. The saved view is unchanged.`,
+    });
+  }
+
   function revert() {
     const name = openView;
     const text =
@@ -2379,7 +2455,14 @@ export function showExplorer(
     });
   }
 
+  let promptView: string | null = null;
+
   function renderBar() {
+    if (promptView !== null && (openView !== promptView || !modified())) {
+      promptView = null;
+      canvas.dismissPrompt();
+    }
+
     bar.render({
       open: openView,
       views: dropdownNames(
@@ -2406,6 +2489,7 @@ export function showExplorer(
       backLabel: backLabel(history.markNow()),
       forwardLabel: forwardLabel(history.markNext()),
       canCopy: openView !== null,
+      canvasEmpty: modules.count() === 0,
       modified: modified(),
       canRevert: modified() || !canvas.fitted(),
       revertLabel: modified()
@@ -2617,24 +2701,30 @@ export function showExplorer(
     }
   }
 
-  async function saveOpen() {
+  async function writeOpen(): Promise<boolean> {
     const name = openView;
     const text = name === null ? undefined : viewTexts.get(name);
     const parsed = text === undefined ? null : parseViewFile(text);
 
     if (name === null || parsed === null || !parsed.ok) {
-      return;
+      return false;
     }
 
     const clean = viewIsClean(name, parsed.view);
 
-    if (
+    return (
       (await writeView(name, {
         ...parsed.view,
         commit: clean ? currentCommit(scans) : parsed.view.commit,
         steps: stepsFor(parsed.view.steps, canvasContent(), scans),
       })) === null
-    ) {
+    );
+  }
+
+  async function saveOpen() {
+    const name = openView;
+
+    if (await writeOpen()) {
       post({ kind: "done", text: `Saved ${name}` });
     }
   }

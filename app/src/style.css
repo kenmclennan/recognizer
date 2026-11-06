@@ -3297,3 +3297,33 @@ svg.i.chevron {
   gap: 8px;
   margin-top: 8px;
 }
+
+.clear-prompt {
+  position: absolute;
+  z-index: 6;
+  right: 14px;
+  bottom: 58px;
+  width: 280px;
+  padding: 10px 12px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(31, 35, 40, 0.16);
+}
+
+.clear-prompt-heading {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.clear-prompt-body {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.clear-prompt-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}

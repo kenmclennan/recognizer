@@ -17,6 +17,7 @@ import {
 } from "./canvas-layout";
 import type { Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
+import { buildClearPrompt, type ClearChoice } from "./clear-prompt-view";
 import { button, el } from "./dom";
 import { icon } from "./icons";
 import {
@@ -141,6 +142,9 @@ export type CanvasView = {
   fitted: () => boolean;
   camera: () => Viewport;
   setCamera: (target: Viewport | "fit", afterNextScene?: boolean) => void;
+  resetCamera: () => void;
+  askSave: (name: string, choose: (choice: ClearChoice) => void) => void;
+  dismissPrompt: () => void;
 };
 
 type BubbleScreen = {
@@ -379,11 +383,8 @@ export function buildCanvasView(
   const level = el("span", "level");
   const zoomIn = button("+", "control", () => zoomBy(BUTTON_ZOOM_STEP));
   const fitButton = button("Fit", "control", () => fitNow());
-  const clearButton = button("Clear", "control", () => {
-    viewport = { x: 0, y: 0, k: 1 };
-    hadContent = false;
-    actions.clear();
-  });
+  const clearPrompt = buildClearPrompt();
+  const clearButton = button("Clear", "control", () => actions.clear());
   const legendButton = button("Legend", "control", () => {
     legendOpen = !legendOpen;
     metricsOpen = false;
@@ -425,7 +426,13 @@ export function buildCanvasView(
     legendButton,
   );
 
-  element.append(stage, controls, legend.element, metricsView.element);
+  element.append(
+    stage,
+    clearPrompt.element,
+    controls,
+    legend.element,
+    metricsView.element,
+  );
 
   function size() {
     const box = stage.getBoundingClientRect();
@@ -1572,6 +1579,16 @@ export function buildCanvasView(
         pendingCamera = null;
         applyCamera(target);
       }
+    },
+    resetCamera() {
+      viewport = { x: 0, y: 0, k: 1 };
+      hadContent = false;
+    },
+    askSave(name, choose) {
+      clearPrompt.show(name, choose);
+    },
+    dismissPrompt() {
+      clearPrompt.hide();
     },
     centerOn(id) {
       if (!centerNow(id)) {
