@@ -1,0 +1,10 @@
+{
+  "lib/src/cli.mts": "manifest-bin",
+  "lib/src/index.ts": "manifest-main",
+  "lib/src/other.ts": "none",
+  "lib/src/view.tsx": "manifest-bin",
+  "src/feat.ts": "manifest-exports",
+  "src/index.ts": "manifest-exports",
+  "src/types/index.ts": "none",
+  "src/unlisted.ts": "none"
+}

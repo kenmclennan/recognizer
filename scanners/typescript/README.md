@@ -54,7 +54,7 @@ The checker pass builds one program over every scanned file, so a scan takes not
 
 A module is marked `entry_point: true` when a tool, a manifest or an HTML page loads it rather than another module importing it. The mark is set only on a scanned module, and an extension is never probed.
 
-1. A `package.json` `main`, a `bin` value or an `exports` leaf, resolved from that `package.json`'s directory. A value containing `*` is skipped, and a value naming an unscanned build output (`./dist/index.js`) marks nothing.
+1. A `package.json` `main`, a `bin` value or an `exports` leaf, resolved from that `package.json`'s directory. A value containing `*` is skipped. A value under the `outDir` of a tsconfig in the package's directory (or one it references; not `noEmit`) also marks the source that `rootDir` and the `.js`, `.d.ts`, `.mjs` or `.cjs` to `.ts`, `.tsx`, `.mts` or `.cts` change select, while a value under no `outDir` (a bundler's output) marks nothing.
 2. A path in a `package.json` `scripts` command, found by splitting on whitespace and `&&`, `||`, `;`, `|` and `&`. A token starting with `-` is skipped, so `--flag=path` is not read, and a path after `cd` resolves from the `package.json`'s directory.
 3. A file named `*.config.{ts,mts,cts,js,mjs,cjs}`.
 4. A file an HTML file loads with `<script src>`. A relative value resolves from the HTML file, a leading `/` is tried in the HTML file's directory and then each ancestor up to the repository root, and a scheme or `//` value is skipped.

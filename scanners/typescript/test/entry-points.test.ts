@@ -42,6 +42,109 @@ describe("entry point fixture", () => {
   });
 });
 
+describe("entry point dist fixture", () => {
+  const root = join(FIXTURE, "entry-points-dist");
+  const expected: Record<string, string> = JSON.parse(
+    readFileSync(join(root, "expected.json"), "utf8"),
+  );
+  const doc = scan(root, null);
+
+  it("scans exactly the modules expected.json lists", () => {
+    expect(doc.modules.map((module) => module.id)).toEqual(
+      Object.keys(expected).sort(),
+    );
+  });
+
+  it("marks exactly the modules with a rule", () => {
+    const want = Object.entries(expected)
+      .filter(([, rule]) => rule !== "none")
+      .map(([id]) => id);
+
+    expect(doc.modules.filter((m) => m.entry_point).map((m) => m.id)).toEqual(
+      want,
+    );
+  });
+});
+
+function built(
+  value: string,
+  source: string,
+  config = '{"compilerOptions":{"outDir":"dist","rootDir":"src"}}',
+): string[] {
+  return marked({
+    "package.json": JSON.stringify({ main: value }),
+    "tsconfig.json": config,
+    [source]: body,
+  });
+}
+
+describe("entry point build output mapping", () => {
+  it.each([
+    ["./dist/a.d.ts", "src/a.tsx"],
+    ["./dist/a.js", "src/a.tsx"],
+    ["./dist/a.mjs", "src/a.mts"],
+    ["./dist/a.cjs", "src/a.cts"],
+    ["./dist/a.jsx", "src/a.tsx"],
+  ])("maps %s to %s", (value, source) => {
+    expect(built(value, source)).toEqual([source]);
+  });
+
+  it("marks nothing extra for a tsconfig with no outDir", () => {
+    expect(built("./dist/a.js", "src/a.ts", "{}")).toEqual([]);
+  });
+
+  it("ignores an unparseable tsconfig", () => {
+    expect(built("./dist/a.js", "src/a.ts", "{not json")).toEqual([]);
+  });
+
+  it("skips a value whose source is not scanned", () => {
+    expect(built("./dist/missing.js", "src/a.ts")).toEqual([]);
+  });
+
+  it("marks exactly the outputs that map to scanned sources", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          main: "./dist/a.js",
+          bin: { x: "./dist/b.mjs", y: "./dist/gone.js" },
+          exports: { ".": "./out/c.js", "./d": "./dist/d.json" },
+        }),
+        "tsconfig.json":
+          '{"compilerOptions":{"outDir":"dist","rootDir":"src"}}',
+        "src/a.ts": body,
+        "src/b.mts": body,
+        "src/c.ts": body,
+        "src/d.ts": body,
+      }),
+    ).toEqual(["src/a.ts", "src/b.mts"]);
+  });
+
+  it("maps an outDir equal to the package directory", () => {
+    expect(
+      built(
+        "./index.js",
+        "src/index.ts",
+        '{"compilerOptions":{"outDir":".","rootDir":"src"}}',
+      ),
+    ).toEqual(["src/index.ts"]);
+  });
+
+  it("maps nothing for a value equal to the outDir directory", () => {
+    expect(built("./dist", "src/index.ts")).toEqual([]);
+  });
+
+  it("does not consult an ancestor tsconfig", () => {
+    expect(
+      marked({
+        "tsconfig.json":
+          '{"compilerOptions":{"outDir":"pkg/dist","rootDir":"pkg/src"}}',
+        "pkg/package.json": '{"main":"dist/a.js"}',
+        "pkg/src/a.ts": body,
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe("entry point manifests", () => {
   it("skips package.json files in skipped directories", () => {
     expect(

@@ -266,11 +266,16 @@ export function scan(
     throw new ScanError(problems);
   }
 
-  const entries = entryPoints(real, modules, (id) => {
-    const source = program.getSourceFile(join(real, id));
+  const entries = entryPoints(
+    real,
+    modules,
+    (id) => {
+      const source = program.getSourceFile(join(real, id));
 
-    return source ? source.text : null;
-  });
+      return source ? source.text : null;
+    },
+    (directory) => tsconfigs.outputMappings(join(real, directory)),
+  );
   const checker = program.getTypeChecker();
   const edges = new Map<string, ScanEdge>();
   const foreign = new Set<string>();

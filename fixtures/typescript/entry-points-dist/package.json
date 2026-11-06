@@ -1,0 +1,10 @@
+{
+  "name": "entry-points-dist",
+  "private": true,
+  "main": "./dist/index.js",
+  "bin": { "tool": "./dist/bin/tool.mjs" },
+  "exports": {
+    ".": { "types": "./dist/types/index.d.ts", "import": "./dist/index.js" },
+    "./feat": "./dist/types/feat.d.ts"
+  }
+}
