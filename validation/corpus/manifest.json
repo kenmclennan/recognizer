@@ -1,0 +1,168 @@
+[
+  {
+    "name": "axum",
+    "upstream": "https://github.com/tokio-rs/axum",
+    "commit": "40d061fdacd468217c7a609bede16357276b6c40",
+    "languages": [
+      "rust"
+    ],
+    "why": "Async Rust web framework, a large idiomatic workspace"
+  },
+  {
+    "name": "flask",
+    "upstream": "https://github.com/pallets/flask",
+    "commit": "49943b5a94413a530761350f04e896f76e8d620e",
+    "languages": [
+      "python"
+    ],
+    "why": "Small, mature Python web framework"
+  },
+  {
+    "name": "hono",
+    "upstream": "https://github.com/honojs/hono",
+    "commit": "eb754bd5ef22c63f1634a4c374a86be086f85710",
+    "languages": [
+      "typescript"
+    ],
+    "why": "Multi-runtime TypeScript web framework"
+  },
+  {
+    "name": "httpx",
+    "upstream": "https://github.com/encode/httpx",
+    "commit": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+    "languages": [
+      "python"
+    ],
+    "why": "Typed Python HTTP client with sync and async APIs"
+  },
+  {
+    "name": "kotlinpoet",
+    "upstream": "https://github.com/square/kotlinpoet",
+    "commit": "a1cefe06f007643f142f1b864c522397497fee4c",
+    "languages": [
+      "kotlin"
+    ],
+    "why": "Kotlin code generation library"
+  },
+  {
+    "name": "ktor",
+    "upstream": "https://github.com/ktorio/ktor",
+    "commit": "6f3b9da6d643ca1dea6ace1dcaf6f37f081daad3",
+    "languages": [
+      "kotlin"
+    ],
+    "why": "Large Kotlin multi-module server and client framework"
+  },
+  {
+    "name": "lightcycle",
+    "upstream": "https://github.com/kenmclennan/lightcycle",
+    "commit": "2eae0f37a5de51b663b34ac73e34ffbd7101ebfc",
+    "languages": [
+      "python"
+    ],
+    "why": "Ken's Python workflow engine, a hexagonal codebase"
+  },
+  {
+    "name": "loom",
+    "upstream": "https://github.com/kenmclennan/loom",
+    "commit": "0ca47c7133af5bec26675ff1033962c944ce941d",
+    "languages": [
+      "typescript",
+      "rust"
+    ],
+    "why": "Ken's Tauri app with TypeScript and Rust halves"
+  },
+  {
+    "name": "MediatR",
+    "upstream": "https://github.com/LuckyPennySoftware/MediatR",
+    "commit": "771a5ae2448960b60cbc1d6af35518366fe78058",
+    "languages": [
+      "csharp"
+    ],
+    "why": "Small C# mediator library (the original jbogard/MediatR)"
+  },
+  {
+    "name": "moshi",
+    "upstream": "https://github.com/square/moshi",
+    "commit": "889013ec2edb8d8034902662a1dc8c4f3b3f8111",
+    "languages": [
+      "kotlin"
+    ],
+    "why": "Kotlin and Java JSON library"
+  },
+  {
+    "name": "Newtonsoft.Json",
+    "upstream": "https://github.com/JamesNK/Newtonsoft.Json",
+    "commit": "52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa",
+    "languages": [
+      "csharp"
+    ],
+    "why": "Large, long-lived C# JSON library"
+  },
+  {
+    "name": "recognizer",
+    "upstream": "https://github.com/kenmclennan/recognizer",
+    "commit": "8f129c67dc95f9cc8cd5beecee32e2c53d6e270d",
+    "languages": [
+      "python",
+      "typescript",
+      "rust"
+    ],
+    "why": "Ken's multi-language repository; its Kotlin and C# scans are fixtures and left out"
+  },
+  {
+    "name": "requests",
+    "upstream": "https://github.com/psf/requests",
+    "commit": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
+    "languages": [
+      "python"
+    ],
+    "why": "Small, widely used Python HTTP library"
+  },
+  {
+    "name": "ripgrep",
+    "upstream": "https://github.com/BurntSushi/ripgrep",
+    "commit": "91f5d22ef48bde459d90a8c7dbeab416e97d0f2b",
+    "languages": [
+      "rust"
+    ],
+    "why": "Rust search tool made of several focused crates"
+  },
+  {
+    "name": "serde",
+    "upstream": "https://github.com/serde-rs/serde",
+    "commit": "0db9b3b504bcb0a7fa9cf001429869519afd3e9a",
+    "languages": [
+      "rust"
+    ],
+    "why": "Rust serialization framework with heavy generics"
+  },
+  {
+    "name": "vite",
+    "upstream": "https://github.com/vitejs/vite",
+    "commit": "a579e352a66fbdce6a51d4e1f67006ccf4f91343",
+    "languages": [
+      "typescript"
+    ],
+    "why": "Large TypeScript build tool; its scan failed in the 2026-11-06 snapshot (REC-338)"
+  },
+  {
+    "name": "yori",
+    "upstream": "https://github.com/kenmclennan/yori",
+    "commit": "b8040ec389afebee98e08717e99767aef0bfd22f",
+    "languages": [
+      "typescript",
+      "rust"
+    ],
+    "why": "Ken's Tauri app with TypeScript and Rust halves"
+  },
+  {
+    "name": "zod",
+    "upstream": "https://github.com/colinhacks/zod",
+    "commit": "19c40d2072288b4cafec851e9d056a72a88e5973",
+    "languages": [
+      "typescript"
+    ],
+    "why": "TypeScript schema library with deep type-level code"
+  }
+]

@@ -19,6 +19,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "scripts/**/*.test.mjs",
       "../scripts/**/*.test.mjs",
+      "../validation/corpus/*.test.mjs",
     ],
     exclude: [
       ...configDefaults.exclude,
