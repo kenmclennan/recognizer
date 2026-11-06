@@ -9,6 +9,10 @@ import {
   readResponsibilities,
   subjectFor,
 } from "./describe-modules.js";
+import {
+  type DescribeProjection,
+  projectionText,
+} from "./describe-projection.js";
 import { describerInEffect } from "./describer-in-effect.js";
 import { InputError } from "./errors.js";
 import { freshScans } from "./freshness.js";
@@ -168,6 +172,7 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
   const startedAt = io.now();
   const recorded: RunEntry[] = [];
   let runLog: OpenRunLog | null = null;
+  let projection: DescribeProjection | null = null;
 
   const { model, batch_size: batchSize } = readDescribing(io);
 
@@ -183,6 +188,13 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
       : loaded.names.length > 0
         ? { kind: "names", names: loaded.names }
         : { kind: "stale" },
+    onProjection: (one) => {
+      projection = one;
+
+      if (!loaded.json) {
+        io.stdout(projectionText(one));
+      }
+    },
     onStart: (total) => {
       if (total > 0) {
         runLog = openRunLog(
@@ -211,7 +223,11 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
     const { described, failed, current, pruned, stopped } = result;
 
     io.stdout(
-      `${JSON.stringify({ described, failed, current, pruned, stopped }, null, 2)}\n`,
+      `${JSON.stringify(
+        { projection, described, failed, current, pruned, stopped },
+        null,
+        2,
+      )}\n`,
     );
   } else {
     io.stdout(describeSummaryText(result));

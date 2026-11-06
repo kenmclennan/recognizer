@@ -321,6 +321,7 @@ describe("describe selection", () => {
     const result = await exec(root, "describe", ORDER, "--json");
 
     expect(JSON.parse(result.out)).toEqual({
+      projection: expect.objectContaining({ modules: 1 }),
       described: [ORDER],
       failed: [],
       current: 0,
@@ -364,6 +365,57 @@ describe("describe stops on a usage limit", () => {
     expect(result.out).toContain(
       "stopped: claude usage limit reached (claude usage limit: Claude usage limit reached); described 1, failed 1, not described 1, already current 0\n",
     );
+  });
+});
+
+describe("describe projection", () => {
+  it("prints the projection as the first line before any call", async () => {
+    const root = ready();
+
+    useDescribing("haiku", 4);
+
+    const result = await exec(root, "describe");
+    const first = result.out.split("\n")[0] as string;
+
+    expect(first).toMatch(
+      /^projection: 15 modules, ~\d+ input tokens, ~\$\d+\.\d{4} \(haiku, API-equivalent estimate\)$/,
+    );
+  });
+
+  it("carries the projection in --json", async () => {
+    const root = ready();
+
+    useDescribing("haiku", 4);
+
+    const body = JSON.parse((await exec(root, "describe", "--json")).out);
+
+    expect(body.projection).toMatchObject({
+      modules: 15,
+      model: "haiku",
+      output_tokens: 1200,
+    });
+    expect(body.projection.input_tokens).toBeGreaterThan(15 * 900);
+    expect(body.projection.cost_usd).toBeGreaterThan(0);
+  });
+
+  it("prints a bare line when no module needs describing", async () => {
+    const root = ready();
+
+    await exec(root, "describe");
+
+    const result = await exec(root, "describe");
+
+    expect(result.out.split("\n")[0]).toBe("projection: 0 modules");
+  });
+
+  it("prints $unknown for a model with no known price", async () => {
+    const root = ready();
+
+    useDescribing("mystery", 4);
+
+    const result = await exec(root, "describe");
+
+    expect(result.out.split("\n")[0]).toContain("~$unknown (mystery,");
   });
 });
 

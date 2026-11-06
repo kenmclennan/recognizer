@@ -695,7 +695,10 @@ describe("recognizer scan: phases", () => {
     );
 
     expect(code).toBe(0);
-    expect(out).toBe(
+    expect(out).toMatch(
+      /describe\nprojection: 2 modules, ~\d+ input tokens, ~\$[\d.]+ \(.+, API-equivalent estimate\)\ndescribed m0\.py/,
+    );
+    expect(out.replace(/projection: .*\n/, "")).toBe(
       `extract\nscans current at ${COMMIT}\ndescribe\ndescribed m0.py\ndescribed m1.py\ndescribed 2, failed 0, already current 0\nsense\nran first\nran second\n`,
     );
 
@@ -795,6 +798,38 @@ describe("recognizer scan: phases", () => {
       events.lastIndexOf("entry", events.indexOf("stopped")),
     );
     expect(events.indexOf("stopped")).toBeLessThan(events.indexOf("summary"));
+  });
+
+  it("emits the projection event immediately before the describe phase event", async () => {
+    const { out } = await scan(
+      setup({}, { [CONFIG]: DESCRIBER }),
+      "--describe",
+      "--json",
+    );
+    const all = lines(out);
+    const at = all.findIndex((line) => line.event === "projection");
+
+    expect(at).toBeGreaterThan(-1);
+    expect(all[at]).toMatchObject({
+      event: "projection",
+      phase: "describe",
+      modules: 2,
+    });
+    expect(all[at + 1]).toMatchObject({ event: "phase", phase: "describe" });
+  });
+
+  it("prints the projection as the first line after the describe heading", async () => {
+    const { out } = await scan(
+      setup({}, { [CONFIG]: DESCRIBER }),
+      "--describe",
+    );
+    const rows = out.split("\n");
+    const heading = rows.indexOf("describe");
+
+    expect(heading).toBeGreaterThan(-1);
+    expect(rows[heading + 1]).toMatch(
+      /^projection: 2 modules, ~\d+ input tokens, ~\$[\d.]+ \(.+, API-equivalent estimate\)$/,
+    );
   });
 
   it("says on stderr that the describe phase stopped", async () => {
@@ -1023,6 +1058,7 @@ describe("recognizer scan: phases", () => {
 
     expect(events.map((one) => [one.event, one.phase ?? null])).toEqual([
       ["phase", "extract"],
+      ["projection", "describe"],
       ["phase", "describe"],
       ["entry", "describe"],
       ["entry", "describe"],
@@ -1037,13 +1073,13 @@ describe("recognizer scan: phases", () => {
       state: "current",
       commit: COMMIT,
     });
-    expect(events[1]).toEqual({ event: "phase", phase: "describe", total: 2 });
-    expect(events[5]).toEqual({
+    expect(events[2]).toEqual({ event: "phase", phase: "describe", total: 2 });
+    expect(events[6]).toEqual({
       event: "start",
       phase: "sense",
       name: "first",
     });
-    expect(events[6]).toEqual({
+    expect(events[7]).toEqual({
       event: "entry",
       phase: "sense",
       name: "first",
