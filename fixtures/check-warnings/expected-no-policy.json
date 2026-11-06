@@ -41,7 +41,7 @@
       "id": "folder_cycle",
       "principle": "no-cycles",
       "fix_pattern": "break-folder-cycle",
-      "summary": "folders app/adapters, app/application, app/domain import each other in a cycle (5 edges)",
+      "summary": "3 folders import each other in a cycle; removing 1 of 5 imports breaks it",
       "evidence": {
         "modules": [
           "app/adapters/audit.py",
@@ -68,6 +68,12 @@
             "from": "app/application/place.py",
             "to": "app/domain/order.py"
           },
+          {
+            "from": "app/domain/order.py",
+            "to": "app/adapters/memory.py"
+          }
+        ],
+        "cuts": [
           {
             "from": "app/domain/order.py",
             "to": "app/adapters/memory.py"

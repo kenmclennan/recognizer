@@ -85,6 +85,7 @@ describe("folder_cycle", () => {
         ["b/y.py", "a/x.py"],
       ]),
       null,
+      { hub_threshold: 10 },
     );
 
     expect(found).toHaveLength(1);
@@ -94,7 +95,8 @@ describe("folder_cycle", () => {
       severity: "warning",
       principle: "no-cycles",
       fix_pattern: "break-folder-cycle",
-      summary: "folders a and b import each other (3 edges)",
+      summary:
+        "folders a and b import each other; removing 1 of 3 imports breaks the cycle",
     });
     expect(found[0]?.evidence.edges).toEqual([
       { from: "a/x.py", to: "b/y.py" },
@@ -102,12 +104,16 @@ describe("folder_cycle", () => {
       { from: "b/y.py", to: "a/x.py" },
     ]);
     expect(found[0]?.evidence.modules).toEqual(["a/x.py", "a/x2.py", "b/y.py"]);
+    expect(found[0]?.evidence.cuts).toEqual([{ from: "b/y.py", to: "a/x.py" }]);
+    expect(found[0]?.evidence.split_candidates).toBeUndefined();
   });
 
   it("reports nothing for edges in one direction", () => {
-    expect(folderCycleFindings(scanOf([["a/x.py", "b/y.py"]]), null)).toEqual(
-      [],
-    );
+    expect(
+      folderCycleFindings(scanOf([["a/x.py", "b/y.py"]]), null, {
+        hub_threshold: 10,
+      }),
+    ).toEqual([]);
   });
 
   it("reports a ring of three folders as one finding", () => {
@@ -116,14 +122,37 @@ describe("folder_cycle", () => {
       ["b/y.py", "c/z.py"],
       ["c/z.py", "a/x.py"],
     ]);
-    const found = folderCycleFindings(ring, null);
+    const found = folderCycleFindings(ring, null, { hub_threshold: 10 });
 
     expect(found).toHaveLength(1);
     expect(found[0]).toMatchObject({
       id: "folder_cycle:a,b,c",
-      summary: "folders a, b, c import each other in a cycle (3 edges)",
+      summary:
+        "3 folders import each other in a cycle; removing 1 of 3 imports breaks it",
     });
     expect(found[0]?.evidence.edges).toHaveLength(3);
+    expect(found[0]?.evidence.cuts).toHaveLength(1);
+  });
+
+  it("names a split candidate in the summary and the evidence", () => {
+    const hub = scanOf([
+      ["a/x.py", "h/x.py"],
+      ["b/x.py", "h/x.py"],
+      ["h/x.py", "a/y.py"],
+      ["h/y.py", "b/y.py"],
+    ]);
+    const found = folderCycleFindings(hub, null, { hub_threshold: 2 });
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.evidence.split_candidates).toEqual(["h"]);
+    expect(found[0]?.summary).toContain(
+      "and h is imported by and imports most of the cycle, so splitting it is likely the real fix",
+    );
+    expect(found[0]?.summary).toContain("removing 2 of 4 imports");
+    expect(
+      folderCycleFindings(hub, null, { hub_threshold: 3 })[0]?.evidence
+        .split_candidates,
+    ).toBeUndefined();
   });
 
   it("pairs an ancestor and a descendant folder", () => {
@@ -133,6 +162,7 @@ describe("folder_cycle", () => {
         ["a/b/y.py", "a/x.py"],
       ]),
       null,
+      { hub_threshold: 10 },
     );
 
     expect(ids(found)).toEqual(["folder_cycle:a,a/b"]);
@@ -144,7 +174,7 @@ describe("folder_cycle", () => {
       ["a/y.py", "a/x.py"],
     ]);
 
-    expect(folderCycleFindings(same, null)).toEqual([]);
+    expect(folderCycleFindings(same, null, { hub_threshold: 10 })).toEqual([]);
   });
 });
 
@@ -360,7 +390,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"hub_threshold":10,"instability_gap":0.2,"composition_roots":[],"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("7");
+    expect(document.sensor.version).toBe("8");
   });
 
   it("describes the settings with and without entry points", () => {
@@ -880,7 +910,7 @@ describe("settings for the package metrics", () => {
       instability_gap: 0.3,
       composition_roots: ["cmd"],
     });
-    expect(document.sensor.version).toBe("7");
+    expect(document.sensor.version).toBe("8");
   });
 
   it("honours a live key beside a retired one", () => {

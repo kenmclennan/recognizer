@@ -69,7 +69,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Sensor | A program that reads the scans, the policy, the overlays or the repository and writes a findings file; it never runs the code it judges. Recognizer ships the structure sensor and a repository registers others. |
 | Sensor registration | An entry of the Config's `sensors` key: a sensor's name and the command to run with `{repository}`, `{commit}` and `{output}` filled in, or for the structure sensor its settings, or `off`. |
 | Sensor progress | The message a sensor prints while it runs, which the CLI passes through `--json` and the app shows on the progress line. |
-| Folder cycle | Two folders whose modules import each other in both directions; one `folder_cycle` warning per folder pair. |
+| Folder cycle | A set of two or more folders whose modules import each other in a cycle; one `folder_cycle` warning per strongly connected set of folders. |
+| Cut | The module imports whose removal breaks a folder cycle, ranked cheapest first: the lightest folder edges by import count, found by a stated heuristic for the minimum feedback arc set. Carried on the finding as `evidence.cuts`. |
+| Split candidate | A folder in a folder cycle that at least `hub_threshold` other folders of the cycle import and that imports at least `hub_threshold` of them; splitting it is likely the real fix. Carried as `evidence.split_candidates`. |
 | Orphan | A module nothing imports that is not an entry point; reported as an `orphan` warning. |
 | Entry point | A module that need not be imported: one a policy entry names literally, a test file by convention, an index-like file (`index`, `__init__`, `main`, `mod`, `lib`) or one matched by a glob in `warnings.orphan.entry_points`, or a module its scanner marks as run rather than imported (Python: a package's `__main__.py` or a module with a top-level `__name__` guard). |
 | Policy drift | A policy entry that matches no scanned module, or a scanned folder no policy component covers; reported as a `policy_drift` warning. |

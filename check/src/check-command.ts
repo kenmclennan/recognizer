@@ -113,6 +113,29 @@ function isStructureViolation(value: ReportedViolation): value is Violation {
   return "from" in value;
 }
 
+const CUT_LINES_SHOWN = 5;
+
+function cutLines(warning: ReportedWarning): string[] {
+  const cuts =
+    warning.id === "folder_cycle"
+      ? (warning.evidence as FindingRecord["evidence"]).cuts
+      : undefined;
+
+  if (!cuts || cuts.length === 0) {
+    return [];
+  }
+
+  const lines = cuts
+    .slice(0, CUT_LINES_SHOWN)
+    .map((cut) => `  cut ${cut.from} -> ${cut.to}`);
+
+  if (cuts.length > CUT_LINES_SHOWN) {
+    lines.push(`  and ${cuts.length - CUT_LINES_SHOWN} more cuts`);
+  }
+
+  return lines;
+}
+
 function summary(
   result: Ranked | null,
   warnings: ReportedWarning[],
@@ -137,7 +160,9 @@ function summary(
   lines.push(`warnings: ${warnings.length}`);
 
   if (listWarnings) {
-    lines.push(...warnings.map((warning) => `warning: ${warning.summary}`));
+    for (const warning of warnings) {
+      lines.push(`warning: ${warning.summary}`, ...cutLines(warning));
+    }
   }
 
   return `${lines.join("\n")}\n`;

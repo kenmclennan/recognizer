@@ -1,6 +1,6 @@
 {
   "findings_version": 1,
-  "sensor": { "name": "structure", "version": "4" },
+  "sensor": { "name": "structure", "version": "8" },
   "commit": "0123456789abcdef0123456789abcdef01234567",
   "modified": false,
   "settings": {
@@ -70,14 +70,16 @@
       "kind": "folder_cycle",
       "severity": "warning",
       "principle": "no-cycles",
-      "summary": "folders app/adapters and app/application import each other (2 edges)",
+      "summary": "folders app/adapters and app/application import each other; removing 1 of 2 imports breaks the cycle",
       "fix_pattern": "break-folder-cycle",
       "evidence": {
         "modules": ["app/adapters/sql.py", "app/application/place.py"],
         "edges": [
           { "from": "app/adapters/sql.py", "to": "app/application/place.py" },
           { "from": "app/application/place.py", "to": "app/adapters/sql.py" }
-        ]
+        ],
+        "cuts": [{ "from": "app/application/place.py", "to": "app/adapters/sql.py" }],
+        "split_candidates": ["app/application"]
       }
     },
     {

@@ -16,7 +16,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "7";
+export const STRUCTURE_SENSOR_VERSION = "8";
 export const DEFAULT_HUB_THRESHOLD = 10;
 export const DEFAULT_INSTABILITY_GAP = 0.2;
 
@@ -260,7 +260,9 @@ export function structureSensor(
 
     const extra = [
       ...(settings.warnings.folder_cycle
-        ? folderCycleFindings(scan, policy)
+        ? folderCycleFindings(scan, policy, {
+            hub_threshold: settings.hub_threshold,
+          })
         : []),
       ...(settings.warnings.orphan
         ? orphanFindings(scan, policy, settings.entry_points)

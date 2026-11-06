@@ -87,6 +87,50 @@ describe("cardOf subject", () => {
 });
 
 describe("cardOf rows", () => {
+  it("lists the cuts in rank order and no modules for a folder cycle", () => {
+    const card = cardOf(
+      rowOf({
+        id: "folder_cycle:a,b",
+        kind: "folder_cycle",
+        evidence: {
+          modules: ["a/x.py", "b/y.py"],
+          edges: [
+            { from: "a/x.py", to: "b/y.py" },
+            { from: "b/y.py", to: "a/x.py" },
+          ],
+          cuts: [
+            { from: "b/y.py", to: "a/x.py" },
+            { from: "a/x.py", to: "b/y.py" },
+          ],
+        },
+      }),
+    );
+
+    expect(card.rows).toEqual([
+      { kind: "edge", from: "b/y.py", to: "a/x.py" },
+      { kind: "edge", from: "a/x.py", to: "b/y.py" },
+    ]);
+  });
+
+  it("keeps the module and edge rows for a folder cycle without cuts", () => {
+    const card = cardOf(
+      rowOf({
+        id: "folder_cycle:a,b",
+        kind: "folder_cycle",
+        evidence: {
+          modules: ["a/x.py", "b/y.py"],
+          edges: [{ from: "a/x.py", to: "b/y.py" }],
+        },
+      }),
+    );
+
+    expect(card.rows.map((row) => row.kind)).toEqual([
+      "module",
+      "module",
+      "edge",
+    ]);
+  });
+
   it("lists modules then edges for an edge finding", () => {
     const card = cardOf(
       rowOf({

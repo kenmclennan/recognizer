@@ -136,7 +136,7 @@
       "id": "folder_cycle",
       "principle": "no-cycles",
       "fix_pattern": "break-folder-cycle",
-      "summary": "folders app/billing, app/orders, app/shared import each other in a cycle (4 edges)",
+      "summary": "3 folders import each other in a cycle; removing 1 of 4 imports breaks it",
       "evidence": {
         "modules": [
           "app/billing/invoice.py",
@@ -156,6 +156,12 @@
             "from": "app/orders/place.py",
             "to": "app/shared/money.py"
           },
+          {
+            "from": "app/shared/money.py",
+            "to": "app/orders/place.py"
+          }
+        ],
+        "cuts": [
           {
             "from": "app/shared/money.py",
             "to": "app/orders/place.py"

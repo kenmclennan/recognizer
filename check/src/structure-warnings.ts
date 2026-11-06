@@ -1,4 +1,5 @@
 import { strongComponents } from "./analyse.js";
+import { cutSet, splitCandidates } from "./cycle-cuts.js";
 import { isEntryPoint, isLiteralPath } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
 import { type FolderMeasures, round } from "./folder-metrics.js";
@@ -38,17 +39,39 @@ function moduleEdges(scan: Scan, policy: Policy | null) {
   return { ids, pairs };
 }
 
-function folderSummary(folders: string[], edgeCount: number): string {
-  if (folders.length === 2) {
-    return `folders ${folders[0]} and ${folders[1]} import each other (${edgeCount} edges)`;
+function splitClause(candidates: string[]): string {
+  if (candidates.length === 0) {
+    return "";
   }
 
-  return `folders ${folders.join(", ")} import each other in a cycle (${edgeCount} edges)`;
+  const names =
+    candidates.length === 1
+      ? (candidates[0] as string)
+      : `${candidates.slice(0, -1).join(", ")} and ${candidates.at(-1)}`;
+  const verb = candidates.length === 1 ? "is" : "are";
+
+  return `, and ${names} ${verb} imported by and import${candidates.length === 1 ? "s" : ""} most of the cycle, so splitting ${candidates.length === 1 ? "it" : "them"} is likely the real fix`;
+}
+
+function folderSummary(
+  folders: string[],
+  cutCount: number,
+  edgeCount: number,
+  candidates: string[],
+): string {
+  const removing = `removing ${cutCount} of ${edgeCount} imports`;
+
+  if (folders.length === 2) {
+    return `folders ${folders[0]} and ${folders[1]} import each other; ${removing} breaks the cycle${splitClause(candidates)}`;
+  }
+
+  return `${folders.length} folders import each other in a cycle; ${removing} breaks it${splitClause(candidates)}`;
 }
 
 export function folderCycleFindings(
   scan: Scan,
   policy: Policy | null,
+  options: { hub_threshold: number },
 ): FindingRecord[] {
   const { pairs } = moduleEdges(scan, policy);
   const crossing = pairs.filter(
@@ -93,14 +116,28 @@ export function folderCycleFindings(
       ...new Set(edges.flatMap((edge) => [edge.from, edge.to])),
     ].sort(compare);
 
+    const cuts = cutSet(folderOf, edges);
+    const candidates = splitCandidates(
+      edges.map((edge) => ({
+        from: folderOf(edge.from),
+        to: folderOf(edge.to),
+      })),
+      options.hub_threshold,
+    );
+
     findings.push({
       id: `folder_cycle:${folders.join(",")}`,
       kind: "folder_cycle",
       severity: "warning",
       principle: "no-cycles",
-      summary: folderSummary(folders, edges.length),
+      summary: folderSummary(folders, cuts.length, edges.length, candidates),
       fix_pattern: "break-folder-cycle",
-      evidence: { modules, edges },
+      evidence: {
+        modules,
+        edges,
+        cuts,
+        ...(candidates.length > 0 ? { split_candidates: candidates } : {}),
+      },
     });
   }
 
