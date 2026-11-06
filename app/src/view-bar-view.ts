@@ -21,6 +21,7 @@ export type ViewBarProps = {
   backLabel: string;
   forwardLabel: string;
   canCopy: boolean;
+  canvasEmpty: boolean;
   openTitle: string | null;
   openDescription: string | null;
   modified: boolean;
@@ -133,6 +134,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     backLabel: "Back",
     forwardLabel: "Forward",
     canCopy: false,
+    canvasEmpty: true,
     openTitle: null,
     openDescription: null,
     modified: false,
@@ -546,7 +548,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       }
 
       modifiedMark.hidden = next.open === null || !next.modified;
-      save.disabled = next.open !== null && !next.modified;
+      save.disabled = next.open !== null ? !next.modified : next.canvasEmpty;
       revert.hidden = next.open === null;
       revert.disabled = !next.canRevert;
       relabel(revert, next.revertLabel);

@@ -276,6 +276,8 @@ const facts = {};
   click(six.q(".view-list"));
   const broken = mount({}, { writeError: "disk full" });
   await tick();
+  click(broken.q('.tree .row[data-path="app"] .rcheck'));
+  await tick();
   click(broken.q(".view-save"));
   typeInto(broken.q(".view-dialog .view-field-name"), "keep");
   typeInto(broken.q(".view-dialog .view-field-description"), "a long description kept after a failure");
@@ -537,6 +539,102 @@ const facts = {};
   click(renamedPick.q(".view-revert"));
   await tick();
   facts.revert.renamedPick = { opened: renamedOpen, reverted: { bar: bar(renamedPick), count: renamedPick.count() } };
+
+
+  const clearBtn = (ctx) => ctx.all(".canvas .control").find((n) => n.textContent === "Clear");
+  const prompt = (ctx) => { const node = ctx.q(".clear-prompt"); return { shown: node !== null && !node.hidden, heading: node && node.querySelector(".clear-prompt-heading").textContent, buttons: node ? [...node.querySelectorAll("button")].map((b) => b.textContent) : [], focused: node !== null && document.activeElement === node.querySelector(".clear-prompt-save"), inCanvas: node !== null && ctx.q(".canvas").contains(node), beforeClear: node !== null && !!(node.compareDocumentPosition(clearBtn(ctx)) & Node.DOCUMENT_POSITION_FOLLOWING) };
+  };
+  const closed = (ctx) => ({ name: ctx.q(".view-name").textContent.trim(), marker: bar(ctx).marker, save: bar(ctx).save, revertShown: bar(ctx).revertShown, copy: !ctx.q(".view-copy").disabled, count: ctx.count(), prompt: prompt(ctx).shown });
+  const choose = (ctx, name) => click(ctx.q(".clear-prompt-" + name));
+  const lastNote = (ctx) => ctx.notes[ctx.notes.length - 1];
+  const modifiedView = async (files, options) => {
+    const ctx = mount(files, options);
+    await tick();
+    await openFirst(ctx);
+    toggleLib(ctx);
+    await tick();
+    return ctx;
+  };
+  const text0 = viewText([pick("app/hub.py")], "cur1234");
+  facts.clr = {};
+
+  const cu = mount({ v: text0 });
+  await tick();
+  await openFirst(cu);
+  const cuNotes = cu.notes.length;
+  click(clearBtn(cu));
+  await tick();
+  facts.clr.unmodified = { ...closed(cu), file: cu.port.files.get("v") === text0, newNotes: cu.notes.length - cuNotes };
+
+  const cm = await modifiedView({ v: text0 });
+  const cmCamera = camera(cm);
+  const cmCount = cm.count();
+  click(clearBtn(cm));
+  facts.clr.asked = { prompt: prompt(cm), count: cm.count() === cmCount, file: cm.port.files.get("v") === text0 };
+  choose(cm, "cancel");
+  await tick();
+  facts.clr.cancelled = { ...closed(cm), count: cm.count() === cmCount, camera: camera(cm) === cmCamera };
+  zoomIn(cm);
+  const cmZoomed = camera(cm);
+  click(clearBtn(cm));
+  zoomIn(cm);
+  facts.clr.afterPan = { prompt: prompt(cm).shown, moved: camera(cm) !== cmZoomed };
+  choose(cm, "discard");
+  await tick();
+  facts.clr.discarded = { ...closed(cm), file: cm.port.files.get("v") === text0, note: lastNote(cm) };
+  click(cm.q(".view-back"));
+  await tick();
+  facts.clr.backAfterDiscard = { name: cm.q(".view-name").textContent.trim(), marker: bar(cm).marker, count: cm.count() === cmCount };
+
+  const cs = await modifiedView({ v: text0 });
+  const csNotes = cs.notes.length;
+  click(clearBtn(cs));
+  choose(cs, "save");
+  await tick();
+  facts.clr.saved = { ...closed(cs), steps: JSON.parse(cs.port.files.get("v")).steps.length, changed: cs.port.files.get("v") !== text0, notes: cs.notes.slice(csNotes) };
+  click(cs.q(".view-back"));
+  await tick();
+  facts.clr.backAfterSave = { name: cs.q(".view-name").textContent.trim(), marker: bar(cs).marker, count: cs.count() };
+
+  const cf = await modifiedView({ v: text0 }, { writeError: "disk full" });
+  const cfCount = cf.count();
+  const cfNotes = cf.notes.length;
+  click(clearBtn(cf));
+  choose(cf, "save");
+  await tick();
+  facts.clr.failed = { ...closed(cf), name: cf.q(".view-name").textContent.trim(), marker: bar(cf).marker, count: cf.count() === cfCount, notes: cf.notes.slice(cfNotes), file: cf.port.files.get("v") === text0 };
+
+  const cr = await modifiedView({ v: text0, w: viewText([pick("app/a.py")], "cur1234") });
+  click(clearBtn(cr));
+  click(cr.q(".view-revert"));
+  await tick();
+  facts.clr.dismissRevert = { prompt: prompt(cr).shown, name: cr.q(".view-name").textContent.trim() };
+  toggleLib(cr);
+  await tick();
+  click(clearBtn(cr));
+  toggleLib(cr);
+  await tick();
+  facts.clr.dismissByHand = prompt(cr).shown;
+  toggleLib(cr);
+  await tick();
+  click(clearBtn(cr));
+  click(cr.q(".view-list"));
+  click(cr.all(".view-item").find((n) => n.textContent.startsWith("w")));
+  await tick();
+  facts.clr.dismissOpen = { prompt: prompt(cr).shown, name: cr.q(".view-name").textContent.trim() };
+
+  const cn = mount({});
+  await tick();
+  click(cn.q('.tree .row[data-path="app"] .rcheck'));
+  await tick();
+  const cnBefore = { count: cn.count(), save: bar(cn).save };
+  click(clearBtn(cn));
+  await tick();
+  facts.clr.noView = { before: cnBefore, after: closed(cn) };
+
+  const cp = await modifiedView({ v: text0 });
+  click(clearBtn(cp));
+  facts.clr.escape = (() => { cp.q(".clear-prompt").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); return prompt(cp).shown; })();
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -1034,5 +1132,103 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
     expect(f.revert.renamedPick.opened.count).toBe(2);
     expect(f.revert.renamedPick.reverted.bar.marker).toBe(false);
     expect(f.revert.renamedPick.reverted.count).toBe(1);
+  });
+
+  it("closes an unmodified loaded view at once on Clear, writing nothing", () => {
+    expect(f.clr.unmodified).toMatchObject({
+      name: "Untitled",
+      marker: false,
+      save: false,
+      revertShown: false,
+      copy: false,
+      count: 0,
+      prompt: false,
+      file: true,
+      newNotes: 0,
+    });
+  });
+
+  it("asks before clearing a modified view and leaves everything on Cancel", () => {
+    expect(f.clr.asked.prompt).toMatchObject({
+      shown: true,
+      heading: "Save changes to v?",
+      buttons: ["Cancel", "Don't save", "Save"],
+      focused: true,
+      inCanvas: true,
+      beforeClear: true,
+    });
+    expect(f.clr.asked.count).toBe(true);
+    expect(f.clr.asked.file).toBe(true);
+    expect(f.clr.cancelled).toMatchObject({
+      name: "v",
+      marker: true,
+      save: true,
+      prompt: false,
+      count: true,
+      camera: true,
+    });
+  });
+
+  it("keeps the prompt open across a pan or zoom", () => {
+    expect(f.clr.afterPan).toEqual({ prompt: true, moved: true });
+  });
+
+  it("closes without writing on Don't save and Back returns the unsaved canvas", () => {
+    expect(f.clr.discarded).toMatchObject({
+      name: "Untitled",
+      count: 0,
+      prompt: false,
+      file: true,
+      note: "Closed v. The saved view is unchanged.",
+    });
+    expect(f.clr.backAfterDiscard).toEqual({
+      name: "v",
+      marker: true,
+      count: true,
+    });
+  });
+
+  it("writes then closes on Save with one toast, and Back returns the view", () => {
+    expect(f.clr.saved).toMatchObject({
+      name: "Untitled",
+      count: 0,
+      changed: true,
+      notes: ["Saved v and closed it."],
+    });
+    expect(f.clr.saved.steps).toBeGreaterThan(1);
+    expect(f.clr.backAfterSave).toMatchObject({ name: "v", marker: false });
+    expect(f.clr.backAfterSave.count).toBeGreaterThan(0);
+  });
+
+  it("keeps the view open and modified when the prompt's Save fails", () => {
+    expect(f.clr.failed).toMatchObject({
+      name: "v",
+      marker: true,
+      prompt: false,
+      count: true,
+      file: true,
+    });
+    expect(f.clr.failed.notes.join(" ")).toContain("disk full");
+    expect(f.clr.failed.notes.join(" ")).not.toContain("closed it");
+  });
+
+  it("dismisses the prompt when the view is reverted, undone by hand or another is opened", () => {
+    expect(f.clr.dismissRevert).toEqual({ prompt: false, name: "v" });
+    expect(f.clr.dismissByHand).toBe(false);
+    expect(f.clr.dismissOpen).toEqual({ prompt: false, name: "w" });
+  });
+
+  it("empties the canvas with no prompt when no view is loaded, then disables Save", () => {
+    expect(f.clr.noView.before.save).toBe(true);
+    expect(f.clr.noView.after).toMatchObject({
+      name: "Untitled",
+      count: 0,
+      save: false,
+      prompt: false,
+    });
+  });
+
+  it("chooses cancel on Escape", () => {
+    expect(f.clr.escape).toBe(false);
   });
 });

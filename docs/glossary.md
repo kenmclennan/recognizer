@@ -157,6 +157,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Saved view | A named view committed at `.recognizer/views/<name>.json`: its title, its description, the commit it was saved at, its steps and its notes. |
 | Modified view | A saved view whose canvas contents differ from its saved file, shown by the muted "modified" beside its name; panning and zooming do not count. |
 | Revert | The view bar's button that restores a modified saved view's saved contents and camera, with Undo, or only the camera when that is all that moved. |
+| Clear prompt | The small prompt above the canvas toolbar's Clear that asks whether to save a modified view before Clear closes it. |
 | View title | The optional heading text of a saved view, separate from its name. |
 | View details card | The card under the view bar that edits a view's name, title and description together, with Cancel and Save. |
 | View heading | The title and description of a saved view, drawn centred above the diagram and moving with it. |
