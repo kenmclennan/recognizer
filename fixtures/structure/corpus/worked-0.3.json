@@ -1,10 +1,5 @@
 {
-  "settings": {
-    "distance_threshold": 0.3,
-    "warnings": {
-      "stable_abstractions": true
-    }
-  },
+  "settings": {},
   "modules": [
     {
       "id": "app/main.ts",

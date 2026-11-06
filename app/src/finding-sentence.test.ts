@@ -36,7 +36,6 @@ const PINNED = [
   "The policy names app/legacy/**, which matches no module.",
   "app/tools is covered by no policy layer.",
   "app/domain depends on app/util, which changes more often (instability 0.5 against 0.67).",
-  "app/contracts is abstract and little depends on it (distance 1 from the main sequence).",
   "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
   "sumWithLevy in pricing.ts repeats the structure of totalWithTax in pricing.ts (10 lines).",
   "grade in rules.py has 2 surviving mutations.",
@@ -62,7 +61,7 @@ const sentence = (over: Partial<FindingRecord>, reported = false) =>
   sentenceOf({ record: record(over), reported });
 
 describe("the committed findings examples", () => {
-  it("render exactly the 16 pinned sentences", () => {
+  it("render exactly the 15 pinned sentences", () => {
     const rows = FILES.flatMap((name) => findingRows([load(name)]));
 
     expect(
@@ -220,21 +219,6 @@ describe("sentenceOf", () => {
     ).toBe("a.py imports b.py, which the policy forbids: app may not use db.");
     expect(edge({ type: "forbid", pattern: "y/**" })).toBe(
       "a.py imports b.py, which the policy forbids: nothing may match y/**.",
-    );
-  });
-
-  it("writes the pain zone sentence", () => {
-    expect(
-      sentence({
-        kind: "stable_abstractions",
-        id: "stable_abstractions:lightcycle",
-        evidence: {
-          modules: [],
-          measures: { abstractness: 0, instability: 0.23, distance: 0.77 },
-        },
-      }),
-    ).toBe(
-      "lightcycle is concrete and much depends on it, so it is hard to change (distance 0.77 from the main sequence).",
     );
   });
 });

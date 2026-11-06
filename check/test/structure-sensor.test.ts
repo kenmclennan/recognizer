@@ -41,7 +41,6 @@ function sense(name: string, hub = 10, cycle = true, hubOn = true) {
     policy,
     {
       hub_threshold: hub,
-      distance_threshold: 0.3,
       entry_points: [],
       warnings: {
         cycle,
@@ -50,7 +49,6 @@ function sense(name: string, hub = 10, cycle = true, hubOn = true) {
         orphan: cycle,
         policy_drift: cycle,
         stable_dependencies: false,
-        stable_abstractions: false,
         unused_exports: false,
       },
     },
@@ -116,8 +114,8 @@ describe("structureSensor ids", () => {
     expect(ids([other])).toEqual(ids([scan]));
   });
 
-  it("records sensor version 5", () => {
-    expect(sense("check-warnings").document.sensor.version).toBe("5");
+  it("records sensor version 6", () => {
+    expect(sense("check-warnings").document.sensor.version).toBe("6");
   });
 
   it("produces a document that validates against the schema", () => {
@@ -135,7 +133,6 @@ describe("structureSensor ids", () => {
     expect(off.metrics.length).toBeGreaterThan(0);
     expect(off.document.settings).toEqual({
       hub_threshold: 3,
-      distance_threshold: 0.3,
       entry_points: [],
       warnings: {
         cycle: false,
@@ -144,7 +141,6 @@ describe("structureSensor ids", () => {
         orphan: false,
         policy_drift: false,
         stable_dependencies: false,
-        stable_abstractions: false,
         unused_exports: false,
       },
     });

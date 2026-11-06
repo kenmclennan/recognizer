@@ -122,7 +122,6 @@ describe("findingRows", () => {
       "orphan",
       "policy_drift",
       "policy_drift",
-      "stable_abstractions",
       "stable_dependencies",
     ]);
     expect(badge(real)).toEqual({ count: 1, tone: "red" });

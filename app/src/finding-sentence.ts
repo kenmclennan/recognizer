@@ -127,29 +127,6 @@ function unstable(record: FindingRecord): string | null {
   return `${from} depends on ${to}, which changes more often (instability ${num(measures.source_instability)} against ${num(measures.target_instability)}).`;
 }
 
-export function isPainZone(record: FindingRecord): boolean {
-  const measures = record.evidence.measures;
-
-  return (
-    measures?.abstractness !== undefined &&
-    measures.instability !== undefined &&
-    measures.abstractness + measures.instability < 1
-  );
-}
-
-function zone(record: FindingRecord): string | null {
-  const folder = after(record.id, "stable_abstractions:");
-  const distance = record.evidence.measures?.distance;
-
-  if (folder === "" || distance === undefined) {
-    return null;
-  }
-
-  return isPainZone(record)
-    ? `${folder} is concrete and much depends on it, so it is hard to change (distance ${num(distance)} from the main sequence).`
-    : `${folder} is abstract and little depends on it (distance ${num(distance)} from the main sequence).`;
-}
-
 function drift(record: FindingRecord): string | null {
   const entry = after(record.id, "policy_drift:entry:");
 
@@ -299,7 +276,6 @@ const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   orphan,
   policy_drift: drift,
   stable_dependencies: unstable,
-  stable_abstractions: zone,
   unused_exports: unusedExports,
   duplication,
   crap,

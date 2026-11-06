@@ -27,7 +27,6 @@ import { type Scan, validateScan } from "./scan.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
-  DEFAULT_DISTANCE_THRESHOLD,
   DEFAULT_HUB_THRESHOLD,
   describeSettings,
   resolveStructureSettings,
@@ -418,7 +417,6 @@ function executeScanReplay(
     : null;
   const settings: StructureSettings = {
     hub_threshold: hubThreshold,
-    distance_threshold: DEFAULT_DISTANCE_THRESHOLD,
     entry_points: [],
     warnings: {
       cycle: true,
@@ -427,7 +425,6 @@ function executeScanReplay(
       orphan: true,
       policy_drift: true,
       stable_dependencies: true,
-      stable_abstractions: true,
       unused_exports: false,
     },
   };
