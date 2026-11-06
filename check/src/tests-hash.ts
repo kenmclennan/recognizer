@@ -8,6 +8,7 @@ import {
   type Measured,
   scanHashes,
 } from "./result-freshness.js";
+import { inFileTestHashes } from "./rust-test-blocks.js";
 import type { Scan } from "./scan.js";
 
 export function currentTestsHash(
@@ -33,20 +34,26 @@ export function currentTestsHash(
   }
 
   const known = scanHashes(scans);
-  const paths = [
+  const listedPaths = [
     ...new Set(listed.stdout.split("\0").filter((path) => path !== "")),
-  ]
-    .filter(isTestFile)
-    .sort();
-  const lines: string[] = [];
+  ];
+  const hashes = new Map<string, string>();
 
-  for (const path of paths) {
+  for (const path of listedPaths.filter(isTestFile)) {
     const hash = known.get(path) ?? io.hashFile(join(root, path));
 
     if (hash !== null && hash !== undefined) {
-      lines.push(`${path}\t${hash}\n`);
+      hashes.set(path, hash);
     }
   }
+
+  for (const [key, hash] of inFileTestHashes(io, root, listedPaths)) {
+    hashes.set(key, hash);
+  }
+
+  const lines = [...hashes.keys()]
+    .sort()
+    .map((key) => `${key}\t${hashes.get(key)}\n`);
 
   return createHash("sha256").update(lines.join("")).digest("hex");
 }

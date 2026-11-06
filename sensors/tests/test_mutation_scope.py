@@ -305,3 +305,28 @@ def test_a_scoped_run_keeps_a_carried_module_in_inputs(two_modules, tmp_path):
 
     assert sorted(scoped["inputs"]) == ["app/rules.py", "app/second.py"]
     assert scoped["tests"] == full["tests"]
+
+
+def test_the_overlay_records_the_shared_digest_with_a_lib_and_a_bin_unit(two_modules, tmp_path):
+    from recognizer_sensors.testrun.profiles import RUST_UNITS
+
+    root, _, script, _ = two_modules
+    (root / "src" / "bin").mkdir(parents=True)
+    (root / "src" / "lib.rs").write_text("pub fn f() {}\n\n#[cfg(test)]\nmod t {}\n")
+    (root / "src" / "bin" / "tool.rs").write_text("fn main() {}\n\n#[test]\nfn u() {}\n")
+    git_commit(root)
+    before = hashes.support_hash(hashes.test_hashes(root, []))
+
+    RUST_UNITS.clear()
+    RUST_UNITS["src/lib.rs"] = ("calc", "lib", "calc")
+    RUST_UNITS["src/bin/tool.rs"] = ("calc", "bin", "tool")
+
+    try:
+        assert mutate(root, tmp_path, settings_for(script)) == 0
+    finally:
+        RUST_UNITS.clear()
+
+    recorded = read(root, OVERLAY)["tests"]
+
+    assert recorded == hashes.tests_hash(root, [])
+    assert hashes.support_hash(hashes.test_hashes(root, [])) == before

@@ -11,7 +11,13 @@ from pathlib import Path
 from recognizer_sensors.crap.lcov import function_coverage
 from recognizer_sensors.findings import render, write_atomically
 from recognizer_sensors.functions import find_functions
-from recognizer_sensors.hashes import digest_of, rust_test_entries, support_hash, test_hashes
+from recognizer_sensors.hashes import (
+    digest_of,
+    listed_files,
+    rust_test_entries,
+    support_hash,
+    test_hashes,
+)
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.inline_tests import unit_test_hashes
 from recognizer_sensors.mutation.record import (
@@ -44,6 +50,7 @@ from recognizer_sensors.mutation.sites import Site, find_sites
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.progress import report
+from recognizer_sensors.rust_test_blocks import in_file_test_hashes
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import (
     MeasurementError,
@@ -690,6 +697,9 @@ def run(
     support = support_hash(test_files, rust_entries)
     hashes = {**test_files, **unit_test_hashes(repository, RUST_UNITS)}
     tests = digest_of(hashes)
+    shared_tests = digest_of(
+        {**test_files, **in_file_test_hashes(repository, listed_files(repository))}
+    )
     suite_size = len({f for lines in selection.values() for files in lines.values() for f in files})
     targets: list[Target] = []
     sources: dict[str, bytes] = {}
@@ -793,7 +803,7 @@ def run(
             len(measured),
             len(targets),
             frozenset(target.module for target in measured),
-            tests,
+            shared_tests,
         )
 
         return outcome, measured, skipped_ids, reused

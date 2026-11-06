@@ -453,3 +453,39 @@ def test_a_version_one_and_a_version_two_overlay_both_produce_findings(tmp_path,
 
     assert code == 0
     assert len(result["findings"]) == 1
+
+
+@pytest.mark.parametrize("producer", ["crap", "mutation"])
+def test_an_in_file_test_edit_makes_an_overlay_with_the_old_digest_skipped(
+    tmp_path, capsys, producer
+):
+    root, commit = repository(tmp_path)
+    (root / "src").mkdir()
+    (root / "src" / "lib.rs").write_text("#[test]\nfn t() {}\n")
+    old = current_tests(root)
+
+    (root / "src" / "lib.rs").write_text("#[test]\nfn t() { assert!(true); }\n")
+
+    new = current_tests(root)
+
+    assert new != old
+
+    install(
+        root,
+        "old.json",
+        overlay(commit, {"complexity": {"a.py::f": 99}}, name=producer, inputs={}, tests=old),
+    )
+    code, document = sense(root, tmp_path)
+
+    assert code == 0
+    assert document["findings"] == []
+    assert "old.json" in capsys.readouterr().err
+
+    install(
+        root,
+        "old.json",
+        overlay(commit, {"complexity": {"a.py::f": 99}}, name=producer, inputs={}, tests=new),
+    )
+    _, document = sense(root, tmp_path)
+
+    assert len(document["findings"]) == 1

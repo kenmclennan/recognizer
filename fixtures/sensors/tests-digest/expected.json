@@ -1,0 +1,13 @@
+{
+  "digest": "7f534c633cb30e2d0672d923004bfd9e0ef40ee4d231a13fe423845c66d099f1",
+  "entries": {
+    "src/inner.rs#file": "6360f025460ee8e7b08e1688186faba0d6ab21a2979aaaa74e471b4efb777275",
+    "src/lib.rs#0": "227335085e5ca24e61e33102357a06cce3220adae92828901cc34cf49f901bbb",
+    "src/lib.rs#1": "b0523301ac1b077386d95c5523fb83bd46d4e325a60d0135db186bea01f646c4",
+    "src/more.rs#0": "f51de5caacd05457a2801d3155cb652a56d041484ae99723f6c8e90270bae07b",
+    "src/more/helper_tests.rs#0": "71bc4cf7e91b703343c3c537a1137fbe4e3aa3fe0985811a494aeb5ed5601e08",
+    "src/more/helper_tests.rs#file": "35a82c01e75c9e9b5a86b84fc9b2f23c43217f48f3ffc4d6fb2fc0e46c7c18c1",
+    "tests/a.py": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    "tests/it.rs": "92a629f3ccf0f349f421ddfafecd77d8e653ffa3dc0157fbe3a5a5829357bdfc"
+  }
+}
