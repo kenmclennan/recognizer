@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -220,7 +221,7 @@ def test_unit_entries_would_change_support_so_they_join_only_the_ran_and_tests_s
     assert digest_of(merged) != digest_of(files)
 
 
-def test_the_committed_app_crate_reaches_one_test_item_in_each_of_17_files():
+def test_the_committed_app_crate_reaches_one_test_item_in_each_file_with_a_cfg_test_line():
     repository = Path(__file__).parents[2]
 
     if not (repository / "app/src-tauri/src/lib.rs").exists():
@@ -235,8 +236,27 @@ def test_the_committed_app_crate_reaches_one_test_item_in_each_of_17_files():
         inline_tests.walk_file(repository, inline_tests.PurePosixPath(root), set(), entries)
         reached[root] = entries
 
-    assert len(reached["app/src-tauri/src/lib.rs"]) == 17
-    assert len({k.split("#")[0] for k in reached["app/src-tauri/src/lib.rs"]}) == 17
+    grep = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "grep",
+            "-l",
+            "-E",
+            r"^#\[cfg\(test\)\]",
+            "--",
+            "app/src-tauri/src",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    expected = {line for line in grep.stdout.splitlines() if line}
+
+    assert expected
+    assert len(reached["app/src-tauri/src/lib.rs"]) == len(expected)
+    assert {k.split("#")[0] for k in reached["app/src-tauri/src/lib.rs"]} == expected
     assert reached["app/src-tauri/src/main.rs"] == {}
 
     units = {

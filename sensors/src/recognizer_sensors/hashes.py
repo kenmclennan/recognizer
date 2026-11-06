@@ -5,6 +5,7 @@ from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
 
 from recognizer_sensors.mutation.test_files import is_test_entry, is_test_file
+from recognizer_sensors.rust_test_blocks import in_file_test_hashes
 from recognizer_sensors.scans import Scan
 
 
@@ -132,7 +133,12 @@ def support_hash(hashes: Mapping[str, str], entries: Collection[str] = frozenset
 
 
 def tests_hash(repository: Path, scans: Iterable[Scan]) -> str:
-    return digest_of(test_hashes(repository, scans))
+    return digest_of(
+        {
+            **test_hashes(repository, scans),
+            **in_file_test_hashes(repository, listed_files(repository)),
+        }
+    )
 
 
 def inputs_map(modules: Iterable[str], hashes: Mapping[str, str]) -> dict[str, str]:

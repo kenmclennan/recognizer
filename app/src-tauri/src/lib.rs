@@ -7,6 +7,7 @@ use tauri::{
 pub mod changes;
 pub mod editor;
 pub mod fs_safe;
+pub mod in_file_tests;
 mod launch;
 pub mod link;
 pub mod overlays;

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -7,6 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::fs_safe::checked_relative;
+use crate::in_file_tests::in_file_test_hashes;
 use crate::sensors::modified_ms;
 
 pub const OVERLAYS: &str = ".recognizer/cache/overlays";
@@ -141,15 +142,17 @@ fn listed_files(folder: &Path) -> Vec<String> {
 }
 
 pub fn tests_hash(folder: &Path, known: &HashMap<String, String>) -> String {
-    let mut paths: Vec<String> = listed_files(folder)
-        .into_iter()
+    let listed = listed_files(folder);
+    let mut paths: Vec<String> = listed
+        .iter()
         .filter(|path| is_test_file(path))
+        .cloned()
         .collect();
 
     paths.sort();
     paths.dedup();
 
-    let mut lines = String::new();
+    let mut hashes: BTreeMap<String, String> = BTreeMap::new();
 
     for path in paths {
         let digest = known
@@ -163,8 +166,16 @@ pub fn tests_hash(folder: &Path, known: &HashMap<String, String>) -> String {
             });
 
         if let Some(digest) = digest {
-            lines.push_str(&format!("{path}\t{digest}\n"));
+            hashes.insert(path, digest);
         }
+    }
+
+    hashes.extend(in_file_test_hashes(folder, &listed, is_test_file));
+
+    let mut lines = String::new();
+
+    for (key, digest) in hashes {
+        lines.push_str(&format!("{key}\t{digest}\n"));
     }
 
     format!("{:x}", Sha256::digest(lines.as_bytes()))
@@ -231,6 +242,43 @@ mod tests {
         let dir = repository(&[("tests/a.py", "a"), ("tests/b.py", "b")]);
 
         assert_eq!(tests_hash(dir.path(), &HashMap::new()), WORKED);
+    }
+
+    fn copy_tree(from: &Path, to: &Path) {
+        fs::create_dir_all(to).unwrap();
+
+        for entry in fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            let target = to.join(entry.file_name());
+
+            if entry.file_type().unwrap().is_dir() {
+                copy_tree(&entry.path(), &target);
+            } else {
+                fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn tests_hash_of_the_rust_in_file_fixture_is_the_shared_digest() {
+        let dir = TempDir::new().unwrap();
+
+        copy_tree(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/sensors/tests-digest/rust-in-file"),
+            dir.path(),
+        );
+        Command::new("git")
+            .arg("-C")
+            .arg(dir.path())
+            .args(["init", "-q"])
+            .status()
+            .unwrap();
+
+        assert_eq!(
+            tests_hash(dir.path(), &HashMap::new()),
+            "7f534c633cb30e2d0672d923004bfd9e0ef40ee4d231a13fe423845c66d099f1"
+        );
     }
 
     #[test]

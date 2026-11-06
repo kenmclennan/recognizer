@@ -68,3 +68,20 @@ describe("freshnessFor", () => {
     expect(spawned).toBe(1);
   });
 });
+
+describe("a result recorded before in-file tests were hashed", () => {
+  it("reads as out of date for a repository holding a Rust in-file test", () => {
+    const root = makeTempDir("recognizer-tests-hash-");
+
+    mkdirSync(join(root, "src"), { recursive: true });
+    writeFileSync(join(root, "src/lib.rs"), "#[test]\nfn t() {}\n");
+    execFileSync("git", ["-C", root, "init", "-q"]);
+
+    const old =
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const current = currentTestsHash(nodeIo(), root, []);
+
+    expect(current).not.toBeNull();
+    expect(current).not.toBe(old);
+  });
+});
