@@ -30,7 +30,7 @@
     "exported_members": 8,
     "abstract_members": 3,
     "abstractness": 0.375,
-    "distance": 0.375,
+    "distance": null,
     "members": {
       "Store": true,
       "Base": true,

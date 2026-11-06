@@ -1,0 +1,3 @@
+sensors:
+  structure:
+    composition_roots: [""]

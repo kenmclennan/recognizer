@@ -15,7 +15,7 @@
 
 ### Warnings against hand labels
 
-23 cases: 5 cycle, 3 hub, 4 folder cycle, 7 orphan, 4 stable dependencies. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the folder cycle against a one-way dependency and two nested folders; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability.
+23 cases: 5 cycle, 3 hub, 4 folder cycle, 7 orphan, 4 stable dependencies. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the folder cycle against a one-way dependency and two nested folders; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability. Since sensor version 7 the stable-dependencies scans also have cases for a gap exactly on `instability_gap` and just under it, a folder named in `composition_roots` as the depending side and as the target, and a folder with only foreign imports, whose instability is unknown.
 
 | result | count |
 | --- | --- |
@@ -25,7 +25,7 @@
 
 ### Folder metrics, hand-computed beside the sensor's
 
-The hand column is `expected.json`; the sensor column is `measureFolders` output. All 136 values (8 fields over 17 folders) agree.
+The hand column is `expected.json`; the sensor column is `measureFolders` output. All 160 values (8 fields over 20 folders) agree; the three `folder-foreign-only` folders (`c` unknown, `d` 0, `e` 1) were added when foreign imports stopped counting as efferent coupling.
 
 | scan | folder | Ca | Ce | I | A | D |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -46,6 +46,9 @@ The hand column is `expected.json`; the sensor column is `measureFolders` output
 | zones | iso | 0 = 0 | 0 = 0 | null = null | 0 = 0 | null = null |
 | zones | nx | 0 = 0 | 1 = 1 | 1 = 1 | null = null | null = null |
 | zones | ny | 1 = 1 | 0 = 0 | 0 = 0 | 1 = 1 | 0 = 0 |
+| folder-foreign-only | c | 0 = 0 | 0 = 0 | null = null | null = null | null = null |
+| folder-foreign-only | d | 1 = 1 | 0 = 0 | 0 = 0 | null = null | null = null |
+| folder-foreign-only | e | 0 = 0 | 1 = 1 | 1 = 1 | null = null | null = null |
 
 ### Import graph against grimp (lightcycle)
 

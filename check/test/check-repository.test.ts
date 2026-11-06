@@ -65,6 +65,8 @@ describe("check in repository mode", () => {
         status: "ran",
         settings: {
           hub_threshold: 10,
+          instability_gap: 0.2,
+          composition_roots: [],
           entry_points: [],
           warnings: {
             cycle: true,

@@ -16,11 +16,14 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "6";
+export const STRUCTURE_SENSOR_VERSION = "7";
 export const DEFAULT_HUB_THRESHOLD = 10;
+export const DEFAULT_INSTABILITY_GAP = 0.2;
 
 export interface StructureSettings {
   hub_threshold: number;
+  instability_gap: number;
+  composition_roots: string[];
   entry_points: string[];
   warnings: {
     cycle: boolean;
@@ -47,6 +50,8 @@ export interface StructureResult {
 
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
   hub_threshold: DEFAULT_HUB_THRESHOLD,
+  instability_gap: DEFAULT_INSTABILITY_GAP,
+  composition_roots: [],
   entry_points: [],
   warnings: {
     cycle: true,
@@ -79,6 +84,8 @@ export function resolveStructureSettings(
       override ??
       given.hub_threshold ??
       DEFAULT_STRUCTURE_SETTINGS.hub_threshold,
+    instability_gap: given.instability_gap ?? DEFAULT_INSTABILITY_GAP,
+    composition_roots: [...(given.composition_roots ?? [])],
     entry_points: typeof orphan === "object" ? [...orphan.entry_points] : [],
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
@@ -117,7 +124,12 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  return `hub_threshold ${settings.hub_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, unused_exports ${on(w.unused_exports)}${entries}`;
+  const roots =
+    settings.composition_roots.length > 0
+      ? `, composition_roots ${settings.composition_roots.length}`
+      : "";
+
+  return `hub_threshold ${settings.hub_threshold}, instability_gap ${settings.instability_gap}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, unused_exports ${on(w.unused_exports)}${entries}${roots}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -272,7 +284,10 @@ export function structureSensor(
   const folders = measureFolders(scans, policy);
 
   if (settings.warnings.stable_dependencies) {
-    for (const finding of stableDependenciesFindings(folders)) {
+    for (const finding of stableDependenciesFindings(folders, {
+      min_gap: settings.instability_gap,
+      composition_roots: settings.composition_roots,
+    })) {
       add(warnings, finding);
     }
   }
@@ -285,6 +300,8 @@ export function structureSensor(
       modified: context.modified,
       settings: {
         hub_threshold: settings.hub_threshold,
+        instability_gap: settings.instability_gap,
+        composition_roots: [...settings.composition_roots],
         entry_points: [...settings.entry_points],
         warnings: {
           cycle: settings.warnings.cycle,

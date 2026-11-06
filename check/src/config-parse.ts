@@ -9,6 +9,8 @@ export interface SensorRegistration {
 
 export interface StructureSettingsInput {
   hub_threshold?: number;
+  instability_gap?: number;
+  composition_roots?: string[];
   warnings?: {
     cycle?: boolean;
     hub?: boolean;

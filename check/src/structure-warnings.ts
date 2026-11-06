@@ -1,7 +1,7 @@
 import { strongComponents } from "./analyse.js";
 import { isEntryPoint, isLiteralPath } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
-import type { FolderMeasures } from "./folder-metrics.js";
+import { type FolderMeasures, round } from "./folder-metrics.js";
 import { compileGlob, matchesAny } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
@@ -332,9 +332,16 @@ function fixed(value: number): string {
   return String(value);
 }
 
+export interface StableDependenciesOptions {
+  min_gap: number;
+  composition_roots: string[];
+}
+
 export function stableDependenciesFindings(
   measures: FolderMeasures,
+  options: StableDependenciesOptions,
 ): FindingRecord[] {
+  const roots = options.composition_roots.map(compileGlob);
   const instability = new Map(
     measures.rows.map((row) => [row.id, row.instability]),
   );
@@ -346,6 +353,14 @@ export function stableDependenciesFindings(
     const targetI = instability.get(target) ?? null;
 
     if (sourceI === null || targetI === null || !(targetI > sourceI)) {
+      continue;
+    }
+
+    if (round(targetI - sourceI) < options.min_gap) {
+      continue;
+    }
+
+    if (matchesAny(roots, source)) {
       continue;
     }
 
