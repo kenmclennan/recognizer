@@ -1,0 +1,19 @@
+{
+  "name": "entry-points-sample",
+  "private": true,
+  "workspaces": ["pkg"],
+  "main": "src/main.ts",
+  "bin": { "cli": "./bin/cli.js", "other": "./src/other.ts" },
+  "exports": {
+    ".": { "import": "./src/exported.ts", "require": ["./src/exported-cjs.ts"] },
+    "./dist": "./dist/x.js",
+    "./features/*": "./src/features/*.ts"
+  },
+  "scripts": {
+    "run": "node scripts/run.mjs",
+    "quoted": "node \"scripts/quoted.mjs\"",
+    "chain": "node scripts/first.mjs && node scripts/second.mjs --verbose",
+    "flag": "node --import=scripts/not-read.mjs scripts/flagged.mjs",
+    "moved": "cd sub && node sub-only.mjs"
+  }
+}
