@@ -19,3 +19,4 @@ class Outcome:
     total: int = 0
     inputs: frozenset[str] = frozenset()
     tests: str | None = None
+    diagnosis: dict | None = None

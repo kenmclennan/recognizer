@@ -284,8 +284,21 @@ describe("a phased scan record", () => {
 });
 
 describe("log schema examples", () => {
+  it("shares the diagnosis definition with the findings schema", () => {
+    const findings = JSON.parse(
+      readFileSync(join(REPO, "schema/findings.schema.json"), "utf8"),
+    );
+    const log = JSON.parse(
+      readFileSync(join(REPO, "schema/log.schema.json"), "utf8"),
+    );
+
+    expect(log.$defs.entry.properties.diagnosis).toEqual(
+      findings.$defs.diagnosis,
+    );
+  });
+
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(8);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(9);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {

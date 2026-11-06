@@ -13,7 +13,20 @@ from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.mutation.test_files import is_test_file
 from recognizer_sensors.parsing import parse
 from recognizer_sensors.scans import Scan
-from recognizer_sensors.settings import MeasurementError, SettingsError, relative_path
+from recognizer_sensors.settings import (
+    MeasurementError,
+    Refusal,
+    SettingsError,
+    diagnose,
+    relative_path,
+)
+from recognizer_sensors.testrun.failures import (
+    crap_tests_failed,
+    failing_names,
+    mutation_tests_failed,
+    named,
+    suite_failed,
+)
 from recognizer_sensors.testrun.profiles import (
     CONTEXTS_JSON,
     CSHARP_CLASSES,
@@ -77,6 +90,14 @@ Selection = dict[str, dict[int, frozenset[str]]]
 class Step:
     label: str | None
     command: list[str]
+    language: str | None = None
+
+
+@dataclass(frozen=True)
+class StepResult:
+    step: Step
+    returncode: int
+    output: str
 
 
 @dataclass(frozen=True)
@@ -182,6 +203,7 @@ def plan(
         Step(
             language if len(languages) > 1 else None,
             coverage_command(repository, language, contexts),
+            language,
         )
         for language in languages
     ]
@@ -230,12 +252,19 @@ def clear_cached_reports(repository: Path, sources: list[Source]) -> None:
             (repository / source.path).unlink(missing_ok=True)
 
 
-def run_steps(repository: Path, steps: list[Step], mode: str = "w") -> None:
+def not_installed(program: str) -> Refusal:
+    return Refusal(diagnose("tool-missing", f"{program} is not installed"))
+
+
+def run_steps(
+    repository: Path, steps: list[Step], mode: str = "w", strict: bool = False
+) -> list[StepResult]:
     if not steps:
-        return
+        return []
 
     log = repository / LOG
     log.parent.mkdir(parents=True, exist_ok=True)
+    results: list[StepResult] = []
 
     with log.open(mode, encoding="utf-8") as stream:
         for step in steps:
@@ -253,18 +282,88 @@ def run_steps(repository: Path, steps: list[Step], mode: str = "w") -> None:
                     check=False,
                 )
             except OSError:
-                raise MeasurementError(
-                    sentence(step, f"did not start: {step.command[0]}")
-                ) from None
+                raise not_installed(step.command[0]) from None
 
-            if result.returncode != 0:
-                stream.flush()
+            stream.flush()
 
-                with log.open("rb") as written:
-                    written.seek(offset)
-                    output = written.read().decode("utf-8", errors="replace")
+            with log.open("rb") as written:
+                written.seek(offset)
+                output = written.read().decode("utf-8", errors="replace")
 
+            if strict and result.returncode != 0:
                 raise MeasurementError(failure_reason(step, result.returncode, output))
+
+            results.append(StepResult(step, result.returncode, output))
+
+    return results
+
+
+def settle(
+    repository: Path,
+    results: list[StepResult],
+    merged: Coverage,
+    missing: list[Source],
+    diagnoses: list[dict] | None,
+) -> None:
+    failed = [r for r in results if suite_failed(r.step.language, r.returncode, r.output)]
+    names = [n for r in failed for n in failing_names(repository, r.step.language, r.output)]
+
+    if failed and (names or not missing):
+        if diagnoses is None:
+            raise Refusal(mutation_tests_failed(names))
+
+        diagnoses.append(crap_tests_failed(names))
+
+    if not missing:
+        return
+
+    cause = "the test command left no coverage report"
+
+    if names:
+        cause = f"{cause} after {named(names)} failed"
+    elif failed:
+        cause = f"the test command exited {failed[0].returncode} and left no coverage report"
+
+    diagnosis = diagnose(
+        "coverage-unavailable",
+        f"coverage unavailable: {cause}; see {LOG.as_posix()}",
+    )
+
+    if diagnoses is None:
+        raise Refusal(diagnosis)
+
+    diagnoses.append(diagnosis)
+
+
+def read_reports(
+    repository: Path,
+    sources: list[Source],
+    scans: list[Scan],
+    steps: list[Step],
+    results: list[StepResult],
+    diagnoses: list[dict] | None,
+) -> Coverage:
+    files = [path for scan in scans for module in scan.modules for path in module.files]
+    merged: Coverage = {}
+    missing: list[Source] = []
+
+    for source in sources:
+        part = read_source(repository, source, files)
+
+        if part is None:
+            missing.append(source)
+        else:
+            merge_coverage(merged, part)
+
+    if not steps:
+        if missing:
+            raise MeasurementError(f"the coverage file is missing: {missing[0].path}")
+
+        return merged
+
+    settle(repository, results, merged, missing, diagnoses)
+
+    return merged
 
 
 def read_source(repository: Path, source: Source, files: list[str]) -> Coverage | None:
@@ -296,28 +395,27 @@ def collect_coverage(
     scans: list[Scan],
     test_command: list[str] | None,
     coverage: str | None,
+    diagnoses: list[dict] | None = None,
 ) -> Coverage:
     if not scans:
         return {}
 
     steps, sources = plan(repository, scans, test_command, coverage)
     clear_cached_reports(repository, sources)
-    run_steps(repository, steps)
-    files = [path for scan in scans for module in scan.modules for path in module.files]
-    merged: Coverage = {}
 
-    for source in sources:
-        part = read_source(repository, source, files)
+    try:
+        results = run_steps(repository, steps)
+    except Refusal as refusal:
+        if diagnoses is None:
+            raise
 
-        if part is None:
-            if steps:
-                raise MeasurementError(f"the test command left no coverage report: {source.path}")
+        diagnoses.append(
+            diagnose("coverage-unavailable", f"coverage unavailable: {refusal.diagnosis['line']}")
+        )
 
-            raise MeasurementError(f"the coverage file is missing: {source.path}")
+        return {}
 
-        merge_coverage(merged, part)
-
-    return merged
+    return read_reports(repository, sources, scans, steps, results, diagnoses)
 
 
 def read_contexts(text: str, repository: Path) -> Selection:
@@ -383,7 +481,7 @@ def typescript_selection(repository: Path, scan: Scan, whole: Coverage) -> Selec
     ]
 
     try:
-        run_steps(repository, steps, "a")
+        run_steps(repository, steps, "a", strict=True)
     except MeasurementError as error:
         print(
             f"recognizer-sensors: mutation: {error}; running the whole suite for typescript",
@@ -523,7 +621,7 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         step = Step(f"kotlin {file}", kotlin_by_file_command(project, [n for _, n in pairs]))
 
         try:
-            run_steps(repository, [step], "a")
+            run_steps(repository, [step], "a", strict=True)
         except MeasurementError as error:
             return kotlin_fallback(str(error))
 
@@ -684,7 +782,7 @@ def csharp_selection(repository: Path, whole: Coverage) -> Selection:
         step = Step(f"csharp {file}", csharp_by_file_command(number, mapped[file]))
 
         try:
-            run_steps(repository, [step], "a")
+            run_steps(repository, [step], "a", strict=True)
         except MeasurementError as error:
             return csharp_fallback(str(error))
 
@@ -815,7 +913,7 @@ def rust_selection(repository: Path, whole: Coverage) -> Selection:
         step = Step(f"rust {name}", rust_by_target_command(number, units[name]))
 
         try:
-            run_steps(repository, [step], "a")
+            run_steps(repository, [step], "a", strict=True)
         except MeasurementError as error:
             return rust_fallback(str(error))
 
@@ -864,18 +962,8 @@ def collect_coverage_with_tests(
     for stale in (repository / CSHARP_DIRECTORY).glob("results_*.trx"):
         stale.unlink(missing_ok=True)
 
-    run_steps(repository, steps)
-    files = [path for scan in scans for module in scan.modules for path in module.files]
-    merged: Coverage = {}
-
-    for source in sources:
-        part = read_source(repository, source, files)
-
-        if part is None:
-            raise MeasurementError(f"the test command left no coverage report: {source.path}")
-
-        merge_coverage(merged, part)
-
+    results = run_steps(repository, steps)
+    merged = read_reports(repository, sources, scans, steps, results, None)
     selection: Selection = {}
 
     for scan in scans:

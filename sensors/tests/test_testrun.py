@@ -16,7 +16,7 @@ from recognizer_sensors.testrun.profiles import (
     mutant_command,
     python_runner,
 )
-from recognizer_sensors.testrun.run import collect_coverage
+from recognizer_sensors.testrun.run import collect_coverage, exit_reason
 
 LCOV = ".recognizer/cache/coverage/python.lcov"
 TS_LCOV = ".recognizer/cache/coverage/typescript/lcov.info"
@@ -111,7 +111,9 @@ def test_the_python_runner_follows_the_lockfile(tmp_path, lockfiles, runner):
     shell = coverage_command(tmp_path, "python")[2]
     words = " ".join(runner)
 
-    assert f"&& {words} coverage run -m pytest && {words} coverage lcov -o {LCOV}" in shell
+    assert f"; {words} coverage run -m pytest; status=$?" in shell
+    assert f"; {words} coverage lcov -o {LCOV}; lcov=$?" in shell
+    assert shell.endswith("; [ $status -ne 0 ] && exit $status; exit $lcov")
     assert shell.startswith("export COVERAGE_FILE=.recognizer/cache/coverage/python.data")
     assert mutant_command(tmp_path, "python") == [*runner, "pytest", "-rfE"]
 
@@ -192,82 +194,104 @@ def sentence(capsys):
     return capsys.readouterr().err
 
 
-def test_a_failing_command_is_one_sentence_and_writes_nothing(tmp_path, capsys):
+def diagnosis_of(output):
+    return json.loads(output.read_text())["diagnosis"]
+
+
+def test_a_failing_command_with_no_report_is_complexity_only_with_the_exit_in_the_line(tmp_path):
     root = repository(tmp_path)
     failing = script(root, "f.py", FAIL)
 
     status, output = crap(root, tmp_path, {"test_command": [sys.executable, failing, "1"]})
 
-    assert status == 2
-    assert sentence(capsys) == f"the test command exited 1: boom (see {LOG})\n"
-    assert not output.exists()
-    assert not (root / OVERLAY).exists()
+    assert status == 0
+    assert diagnosis_of(output) == {
+        "code": "coverage-unavailable",
+        "line": f"coverage unavailable: the test command exited 1 and left no coverage report; see {LOG}",
+    }
+
+    overlay = json.loads((root / OVERLAY).read_text())
+
+    assert overlay["values"]["coverage"] == {}
+    assert overlay["values"]["crap"] == {}
+    assert overlay["values"]["complexity"]
     assert "boom" in (root / LOG).read_text()
 
 
-def test_a_failing_command_reports_its_summary_line_and_the_log_path(tmp_path, capsys):
+def test_a_failing_command_keeps_the_report_it_wrote_and_says_the_tests_failed(tmp_path):
     root = repository(tmp_path)
-    failing = script(root, "f.py", SUMMARY)
+    body = WRITE_LCOV + "\nsys.exit(1)\n"
+    writer = script(root, "w.py", body)
 
-    status, _ = crap(root, tmp_path, {"test_command": [sys.executable, failing]})
+    status, output = crap(root, tmp_path, {"test_command": [sys.executable, writer, LCOV]})
 
-    assert status == 2
-    assert sentence(capsys) == (
-        f"the test command exited 2: Interrupted: 2 errors during collection (see {LOG})\n"
+    assert status == 0
+    assert diagnosis_of(output) == {
+        "code": "tests-failed",
+        "line": "the tests failed, so coverage may read low",
+    }
+    assert json.loads((root / OVERLAY).read_text())["values"]["coverage"]
+
+
+def test_failing_pytest_lines_give_the_count_and_at_most_five_names(tmp_path):
+    root = repository(tmp_path)
+    names = [f"tests/test_a.py::test_{i}" for i in range(7)]
+    lines = "".join(f"print('FAILED {name} - assert 1 == 2')\n" for name in names)
+    writer = script(root, "w.py", WRITE_LCOV + lines + "sys.exit(1)\n")
+
+    status, output = crap(root, tmp_path, {"test_command": [sys.executable, writer, LCOV]})
+    diagnosis = diagnosis_of(output)
+
+    assert status == 0
+    assert diagnosis["code"] == "tests-failed"
+    assert diagnosis["line"] == "7 tests failed, so coverage may read low"
+    assert diagnosis["failing"] == {"count": 7, "names": names[:5]}
+
+
+def test_the_exit_sentence_keeps_the_summary_line_and_the_log_path():
+    output = "collecting ...\n!!!! Interrupted: 2 errors during collection !!!!\n" + "=" * 20 + "\n"
+
+    assert exit_reason("the test command", 2, output) == (
+        f"the test command exited 2: Interrupted: 2 errors during collection (see {LOG})"
+    )
+    assert exit_reason("the test command", 2, "") == f"the test command exited 2 (see {LOG})"
+    assert exit_reason("the test command", 2, "x" * 500 + "\n") == (
+        f"the test command exited 2: {'x' * 200} (see {LOG})"
     )
 
 
-def test_a_failing_command_with_no_output_reports_the_bare_sentence_and_the_log_path(
-    tmp_path, capsys
-):
-    root = repository(tmp_path)
-    failing = script(root, "f.py", SILENT)
-
-    status, _ = crap(root, tmp_path, {"test_command": [sys.executable, failing]})
-
-    assert status == 2
-    assert sentence(capsys) == f"the test command exited 2 (see {LOG})\n"
-
-
-def test_a_long_last_line_is_capped_to_one_line(tmp_path, capsys):
-    root = repository(tmp_path)
-    failing = script(root, "f.py", "import sys; print('x' * 500); sys.exit(2)")
-
-    crap(root, tmp_path, {"test_command": [sys.executable, failing]})
-
-    assert sentence(capsys) == f"the test command exited 2: {'x' * 200} (see {LOG})\n"
-
-
-def test_a_failing_run_leaves_a_prior_overlay_untouched(tmp_path):
+def test_a_refusal_or_a_missing_coverage_file_leaves_a_prior_overlay_untouched(tmp_path):
     root = repository(tmp_path)
     writer = script(root, "w.py", WRITE_LCOV)
-    failing = script(root, "f.py", FAIL)
 
     assert crap(root, tmp_path, {"test_command": [sys.executable, writer, LCOV]})[0] == 0
 
     before = (root / OVERLAY).read_bytes()
 
-    assert crap(root, tmp_path, {"test_command": [sys.executable, failing, "1"]})[0] == 2
+    assert crap(root, tmp_path, {"coverage": "coverage/missing.info"})[0] == 2
     assert (root / OVERLAY).read_bytes() == before
 
 
-def test_a_command_that_does_not_start_names_the_program(tmp_path, capsys):
+def test_a_command_that_does_not_start_is_complexity_only_naming_the_program(tmp_path):
     root = repository(tmp_path)
 
-    status, _ = crap(root, tmp_path, {"test_command": ["/no/such/program"]})
+    status, output = crap(root, tmp_path, {"test_command": ["/no/such/program"]})
 
-    assert status == 2
-    assert sentence(capsys) == "the test command did not start: /no/such/program\n"
+    assert status == 0
+    assert diagnosis_of(output)["line"] == "coverage unavailable: /no/such/program is not installed"
 
 
-def test_a_command_that_leaves_no_report_names_the_path(tmp_path, capsys):
+def test_a_command_that_leaves_no_report_is_complexity_only_naming_the_log(tmp_path):
     root = repository(tmp_path)
     nothing = script(root, "n.py", NOTHING)
 
-    status, _ = crap(root, tmp_path, {"test_command": [sys.executable, nothing]})
+    status, output = crap(root, tmp_path, {"test_command": [sys.executable, nothing]})
 
-    assert status == 2
-    assert sentence(capsys) == f"the test command left no coverage report: {LCOV}\n"
+    assert status == 0
+    assert diagnosis_of(output) == {
+        "code": "coverage-unavailable",
+        "line": f"coverage unavailable: the test command left no coverage report; see {LOG}",
+    }
 
 
 def test_a_missing_coverage_file_with_no_command_has_its_own_sentence(tmp_path, capsys):
@@ -288,7 +312,9 @@ def two_languages(tmp_path):
     return root
 
 
-def test_two_languages_run_in_order_and_stop_at_the_first_failure(tmp_path, capsys, monkeypatch):
+def test_two_languages_run_in_order_and_a_failing_one_does_not_hide_the_other(
+    tmp_path, capsys, monkeypatch
+):
     root = two_languages(tmp_path)
     calls = []
 
@@ -314,10 +340,9 @@ def test_two_languages_run_in_order_and_stop_at_the_first_failure(tmp_path, caps
     status, output = crap(root, tmp_path, {})
 
     assert calls == ["sh", "npx"]
-    assert status == 2
-    assert sentence(capsys) == f"the typescript test command exited 3: out (see {LOG})\n"
-    assert not output.exists()
-    assert not (root / OVERLAY).exists()
+    assert status == 0
+    assert diagnosis_of(output)["code"] == "coverage-unavailable"
+    assert json.loads((root / OVERLAY).read_text())["values"]["coverage"]
 
     log = (root / LOG).read_text()
 
@@ -356,10 +381,11 @@ def test_a_stale_report_does_not_stand_in_for_a_missing_one(tmp_path, capsys):
     (root / LCOV).write_text("SF:app/m.py\nDA:1,1\nend_of_record\n")
     nothing = script(root, "n.py", NOTHING)
 
-    status, _ = crap(root, tmp_path, {"test_command": [sys.executable, nothing]})
+    status, output = crap(root, tmp_path, {"test_command": [sys.executable, nothing]})
 
-    assert status == 2
-    assert "left no coverage report" in sentence(capsys)
+    assert status == 0
+    assert "left no coverage report" in diagnosis_of(output)["line"]
+    assert json.loads((root / OVERLAY).read_text())["values"]["coverage"] == {}
 
 
 def test_killing_the_sensors_group_ends_the_test_command(tmp_path):
