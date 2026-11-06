@@ -56,3 +56,66 @@ def test_mutation_refuses_over_a_red_uv_project_before_any_work_folder(
     assert reason["failing"] == {"count": 1, "names": ["test_m.py::test_g"]}
     assert not output.exists()
     assert not (red_project / ".recognizer/cache/mutation/work").exists()
+
+
+@pytest.fixture
+def green_project(tmp_path):
+    root = make_repository(
+        tmp_path / "g",
+        {
+            "pyproject.toml": PYPROJECT,
+            "m.py": MODULE,
+            "test_m.py": TESTS.replace("g(1) == 2", "g(1) == 1"),
+        },
+    )
+    subprocess.run(["uv", "lock", "-q"], cwd=root, check=True, capture_output=True)
+    git_commit(root)
+
+    return root
+
+
+def snapshot(root):
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_crap_builds_its_uv_environment_under_the_cache_and_leaves_no_venv(green_project, tmp_path):
+    status = main(
+        [
+            "crap",
+            "--repository",
+            str(green_project),
+            "--output",
+            str(tmp_path / "f.json"),
+            "--settings",
+            "{}",
+        ]
+    )
+
+    assert status == 0
+    assert not (green_project / ".venv").exists()
+    assert (green_project / ".recognizer/cache/python-env").is_dir()
+
+
+def test_crap_leaves_an_existing_venv_byte_for_byte_unchanged(green_project, tmp_path):
+    subprocess.run(["uv", "venv", "-q"], cwd=green_project, check=True, capture_output=True)
+    before = snapshot(green_project / ".venv")
+
+    status = main(
+        [
+            "crap",
+            "--repository",
+            str(green_project),
+            "--output",
+            str(tmp_path / "f.json"),
+            "--settings",
+            "{}",
+        ]
+    )
+
+    assert status == 0
+    assert snapshot(green_project / ".venv") == before
+    assert (green_project / ".recognizer/cache/python-env").is_dir()

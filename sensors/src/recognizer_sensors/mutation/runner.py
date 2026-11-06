@@ -11,6 +11,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from recognizer_sensors.testrun.profiles import tool_environment
+
 WORK = Path(".recognizer") / "cache" / "mutation" / "work"
 TAIL_LINES = 20
 PID_FILE = "pid"
@@ -98,6 +100,7 @@ def run_test_command(command: list[str], cwd: Path, timeout: float | None) -> Te
             process = subprocess.Popen(
                 command,
                 cwd=cwd,
+                env=tool_environment(cwd),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

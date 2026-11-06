@@ -41,6 +41,7 @@ from recognizer_sensors.testrun.profiles import (
     csharp_by_file_command,
     kotlin_by_file_command,
     rust_by_target_command,
+    tool_environment,
 )
 
 LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
@@ -237,6 +238,7 @@ def run_steps(
                 result = subprocess.run(
                     step.command,
                     cwd=repository,
+                    env=tool_environment(repository),
                     stdin=subprocess.DEVNULL,
                     stdout=stream,
                     stderr=subprocess.STDOUT,
