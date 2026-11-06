@@ -18,6 +18,7 @@ export const scanSource: ScanPort = {
       modules: plan.modules,
     }),
   stop: () => invoke<void>("stop_scan"),
+  answerDescribe: (describe) => invoke<void>("answer_describe", { describe }),
   readCache: () => invoke<ScanReport>("read_scan_cache"),
   readTicks: () => invoke<StoredTicks>("read_scan_ticks"),
   writeTicks: (ticks) =>

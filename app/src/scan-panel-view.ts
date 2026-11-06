@@ -1,7 +1,12 @@
 import { button, el } from "./dom";
 import { attachHoverTip } from "./hover-tip";
 import type { FreshnessReport, ResultsMode } from "./scan-freshness";
-import type { ReportRow, ScanPanelModel, ScanRow } from "./scan-panel-model";
+import {
+  DESCRIBE_KEY,
+  type ReportRow,
+  type ScanPanelModel,
+  type ScanRow,
+} from "./scan-panel-model";
 
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
@@ -9,6 +14,7 @@ export type ScanPanelActions = {
   setMode: (mode: ResultsMode) => void;
   run: () => void;
   stop: () => void;
+  answerDescribe: (describe: boolean) => void;
   clearReport: (name: string) => void;
 };
 
@@ -63,6 +69,32 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   }
 
   node.append(label, state);
+
+  return node;
+}
+
+function confirmNode(
+  confirm: NonNullable<ScanPanelModel["confirm"]>,
+  actions: ScanPanelActions,
+): HTMLElement {
+  const node = el("div", "scan-confirm");
+  const buttons = el("div", "scan-confirm-buttons");
+
+  buttons.append(
+    button("Describe", "scan-confirm-describe primary", () =>
+      actions.answerDescribe(true),
+    ),
+    button("Skip describing", "scan-confirm-skip", () =>
+      actions.answerDescribe(false),
+    ),
+  );
+  node.setAttribute("role", "alertdialog");
+  node.append(
+    el("div", "scan-confirm-head", confirm.heading),
+    el("div", "scan-confirm-model", confirm.model),
+    el("div", "scan-confirm-estimate", confirm.estimate),
+    buttons,
+  );
 
   return node;
 }
@@ -191,7 +223,12 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         ...(model.report === null ? [] : [freshnessNode(model.report)]),
         ...(model.scope === null ? [] : [scopeNode(model.scope, actions)]),
         ...(model.pending ? [] : [modeNode(model.mode, actions)]),
-        ...model.rows.map((row) => rowNode(row, actions)),
+        ...model.rows.flatMap((row) => [
+          rowNode(row, actions),
+          ...(row.key === DESCRIBE_KEY && model.confirm !== null
+            ? [confirmNode(model.confirm, actions)]
+            : []),
+        ]),
         ...model.reports.map((row) => reportNode(row, actions)),
       );
 

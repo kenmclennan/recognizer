@@ -1,6 +1,11 @@
 export const MAX_BATCH_SIZE = 16;
+export const MAX_CONFIRM_ABOVE_USD = 10000;
 
-export type DescribingValues = { model: string; batchSize: number };
+export type DescribingValues = {
+  model: string;
+  batchSize: number;
+  confirmAboveUsd: number;
+};
 
 export type DescribingCheck =
   | { ok: true; value: DescribingValues }
@@ -9,6 +14,7 @@ export type DescribingCheck =
 export function checkDescribing(
   model: string,
   batchSize: string,
+  confirmAbove: string,
 ): DescribingCheck {
   const name = model.trim();
 
@@ -34,5 +40,22 @@ export function checkDescribing(
     };
   }
 
-  return { ok: true, value: { model: name, batchSize: size } };
+  const amount = Number(confirmAbove);
+
+  if (
+    confirmAbove.trim() === "" ||
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > MAX_CONFIRM_ABOVE_USD
+  ) {
+    return {
+      ok: false,
+      error: `Confirm above must be a number of dollars from 0 to ${MAX_CONFIRM_ABOVE_USD}`,
+    };
+  }
+
+  return {
+    ok: true,
+    value: { model: name, batchSize: size, confirmAboveUsd: amount },
+  };
 }

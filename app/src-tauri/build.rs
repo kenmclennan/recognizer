@@ -1,6 +1,7 @@
 fn main() {
     let commands = tauri_build::AppManifest::new().commands(&[
         "adopt_scan",
+        "answer_describe",
         "answer_window_drive",
         "change_range",
         "choose_folder",

@@ -4,7 +4,7 @@ import type { SensorProgress } from "./sensor-progress.js";
 import { shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
-  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--by <name>] [--json]";
+  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--confirm-above <usd>] [--by <name>] [--json]";
 
 export interface ScanOptions {
   positionals: string[];
@@ -14,6 +14,7 @@ export interface ScanOptions {
   json: boolean;
   by: string | undefined;
   modules: string | undefined;
+  confirmAbove: number | undefined;
 }
 
 function usageError(message: string): InputError {
@@ -43,6 +44,7 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     json: false,
     by: undefined,
     modules: undefined,
+    confirmAbove: undefined,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -86,6 +88,26 @@ export function parseScanArgs(argv: string[]): ScanOptions {
       }
 
       options.modules = value;
+    } else if (
+      arg === "--confirm-above" ||
+      arg.startsWith("--confirm-above=")
+    ) {
+      const inline = arg.startsWith("--confirm-above=");
+      const value = inline ? arg.slice(16) : argv[index + 1];
+      const amount =
+        value === undefined || value === "" ? Number.NaN : Number(value);
+
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw usageError(
+          "--confirm-above needs a non-negative number of dollars",
+        );
+      }
+
+      if (!inline) {
+        index += 1;
+      }
+
+      options.confirmAbove = amount;
     } else if (arg === "--by" || arg.startsWith("--by=")) {
       const inline = arg.startsWith("--by=");
       const value = inline ? arg.slice(5) : argv[index + 1];

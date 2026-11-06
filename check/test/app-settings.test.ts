@@ -45,9 +45,10 @@ describe("readDescribing", () => {
     expect(readDescribing(ioFor(directory))).toEqual({
       model: "haiku",
       batch_size: 4,
+      confirm_above_usd: 5,
     });
     expect(JSON.parse(readFileSync(configIn(directory), "utf8"))).toEqual({
-      describing: { model: "haiku", batch_size: 4 },
+      describing: { model: "haiku", batch_size: 4, confirm_above_usd: 5 },
     });
     expect(existsSync(`${configIn(directory)}.tmp`)).toBe(false);
   });
@@ -64,7 +65,7 @@ describe("readDescribing", () => {
     expect(JSON.parse(readFileSync(configIn(directory), "utf8"))).toEqual({
       editor: "code",
       unknown: [1, 2],
-      describing: { model: "haiku", batch_size: 4 },
+      describing: { model: "haiku", batch_size: 4, confirm_above_usd: 5 },
     });
   });
 
@@ -79,8 +80,41 @@ describe("readDescribing", () => {
     expect(readDescribing(ioFor(directory))).toEqual({
       model: "opus",
       batch_size: 8,
+      confirm_above_usd: 5,
     });
     expect(readFileSync(configIn(directory), "utf8")).toBe(text);
+  });
+
+  it("keeps an existing sonnet model and reads a missing threshold as 5", () => {
+    const directory = makeTempDir("recognizer-settings-");
+
+    writeFileSync(
+      configIn(directory),
+      JSON.stringify({ describing: { model: "sonnet", batch_size: 2 } }),
+    );
+
+    expect(readDescribing(ioFor(directory))).toEqual({
+      model: "sonnet",
+      batch_size: 2,
+      confirm_above_usd: 5,
+    });
+  });
+
+  it.each([0, 10000, 0.5])("accepts a threshold of %s", (amount) => {
+    const directory = makeTempDir("recognizer-settings-");
+
+    writeFileSync(
+      configIn(directory),
+      JSON.stringify({
+        describing: {
+          model: "haiku",
+          batch_size: 4,
+          confirm_above_usd: amount,
+        },
+      }),
+    );
+
+    expect(readDescribing(ioFor(directory)).confirm_above_usd).toBe(amount);
   });
 
   it.each([
@@ -92,6 +126,19 @@ describe("readDescribing", () => {
     ["batch_size", { model: "sonnet", batch_size: 17 }],
     ["batch_size", { model: "sonnet", batch_size: 2.5 }],
     ["batch_size", { model: "sonnet", batch_size: "4" }],
+    ["confirm_above_usd", { model: "a", batch_size: 4, confirm_above_usd: -1 }],
+    [
+      "confirm_above_usd",
+      { model: "a", batch_size: 4, confirm_above_usd: "5" },
+    ],
+    [
+      "confirm_above_usd",
+      { model: "a", batch_size: 4, confirm_above_usd: null },
+    ],
+    [
+      "confirm_above_usd",
+      { model: "a", batch_size: 4, confirm_above_usd: 10001 },
+    ],
   ])("rejects a bad %s", (key, describing) => {
     const directory = makeTempDir("recognizer-settings-");
 

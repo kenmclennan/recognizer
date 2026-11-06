@@ -21,7 +21,13 @@ import {
   type SensorFreshness,
   sensorFreshness,
 } from "./scan-freshness";
-import { type DescribeStop, describeStopText } from "./scan-progress";
+import {
+  type DescribeAsk,
+  type DescribeAskText,
+  type DescribeStop,
+  describeAskText,
+  describeStopText,
+} from "./scan-progress";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type RunState = {
@@ -80,6 +86,8 @@ export type PanelInput = {
   progressText?: string | null;
   describeProgress?: { entries: number; total: number } | null;
   describeStop?: DescribeStop | null;
+  describeAsk?: DescribeAsk | null;
+  describeSkipped?: boolean;
   now: number;
   shipped: ShippedSensors | null;
   freshness?: Freshness;
@@ -116,6 +124,7 @@ export type ScanPanelModel = {
   planned: PlannedRun | null;
   pending: boolean;
   mark: boolean;
+  confirm: DescribeAskText | null;
 };
 
 const DESCRIBE_TITLE =
@@ -295,6 +304,10 @@ function describeState(input: PanelInput): ScanRow["state"] {
     return { text: "stopped", tone: "warn" };
   }
 
+  if (input.describeSkipped === true) {
+    return { text: "skipped this scan", tone: "warn" };
+  }
+
   if (input.run.failures[DESCRIBE_KEY] !== undefined) {
     return {
       text: withAge("failed", input.run.ranAt[DESCRIBE_KEY], input.now),
@@ -457,6 +470,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       planned: null,
       pending: true,
       mark: panelMark(input),
+      confirm: null,
     };
   }
 
@@ -514,6 +528,8 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     planned,
     pending: false,
     mark: panelMark(input),
+    confirm:
+      input.describeAsk == null ? null : describeAskText(input.describeAsk),
   };
 }
 

@@ -19,7 +19,7 @@ const q = (selector) => host.querySelector(selector);
 const cs = (node) => getComputedStyle(node);
 const facts = {};
 
-view.fill({ editor: "", describing: { model: "haiku", batchSize: 4 } });
+view.fill({ editor: "", describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 } });
 facts.empty = {
   labels: [...host.querySelectorAll("label > span")].map((n) => n.textContent),
   placeholders: [...host.querySelectorAll('input[type="text"]')].map((n) => n.placeholder),
@@ -32,9 +32,9 @@ facts.empty = {
   error: q(".error").textContent,
 };
 
-view.fill({ editor: "Sublime Text", describing: { model: "opus", batchSize: 8 } });
+view.fill({ editor: "Sublime Text", describing: { model: "opus", batchSize: 8, confirmAboveUsd: 7.5 } });
 facts.filled = [...host.querySelectorAll('input[type="text"]')].map((n) => n.value);
-facts.filledDescribing = { model: q('input[name="model"]').value, batch: q('input[name="batch_size"]').value };
+facts.filledDescribing = { model: q('input[name="model"]').value, batch: q('input[name="batch_size"]').value, confirm: q('input[name="confirm_above_usd"]').value };
 
 view.showError("the editor must be a single line");
 facts.errorShown = {
@@ -88,7 +88,12 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
   }, scaledTimeout(180000));
 
   it("shows the editor field and a Describing section with its placeholders, hints and buttons and no Scanning section", () => {
-    expect(f.empty.labels).toEqual(["Editor", "Model", "Batch size"]);
+    expect(f.empty.labels).toEqual([
+      "Editor",
+      "Model",
+      "Batch size",
+      "Confirm above (USD)",
+    ]);
     expect(f.empty.scanning).toBe(false);
     expect(f.empty.placeholders).toEqual(["System default", "haiku"]);
     expect(f.empty.values).toEqual(["", "haiku"]);
@@ -101,18 +106,25 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
     expect(f.empty.describingLegend).toBe("Describing");
     expect(f.empty.hints[0]).toContain("Sublime Text");
     expect(f.empty.hints[0]).toContain("Terminal editors are not supported");
-    expect(f.empty.hints).toHaveLength(2);
+    expect(f.empty.hints).toHaveLength(3);
     expect(f.empty.hints[1]).toContain(
       "how many modules are described at once",
     );
     expect(f.empty.hints[1]).toContain("from a terminal");
+    expect(f.empty.hints[2]).toBe(
+      "A scan asks before describing when its API-equivalent estimate is above this.",
+    );
     expect(f.empty.buttons).toEqual(["Cancel", "Save"]);
     expect(f.empty.error).toBe("");
   });
 
   it("fills the fields from the loaded settings", () => {
     expect(f.filled).toEqual(["Sublime Text", "opus"]);
-    expect(f.filledDescribing).toEqual({ model: "opus", batch: "8" });
+    expect(f.filledDescribing).toEqual({
+      model: "opus",
+      batch: "8",
+      confirm: "7.50",
+    });
   });
 
   it("shows an error line as an alert in the error colour", () => {
@@ -123,7 +135,10 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
 
   it("saves the trimmed values and cancels without saving", () => {
     expect(f.saved).toEqual([
-      { editor: "code --goto", describing: { model: "opus", batchSize: 6 } },
+      {
+        editor: "code --goto",
+        describing: { model: "opus", batchSize: 6, confirmAboveUsd: 7.5 },
+      },
     ]);
     expect(f.invalidError).toContain("Batch size");
     expect(f.savedAfterInvalid).toBe(0);

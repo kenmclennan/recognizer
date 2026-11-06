@@ -82,6 +82,7 @@ export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
   readStdin(): string;
+  readLine(): Promise<string | null>;
   readBytes(path: string): Buffer;
   hashFile(path: string): string | null;
   writeFile(path: string, content: string): void;
@@ -236,11 +237,41 @@ function spawnAsync(
   };
 }
 
+function readStdinLine(): Promise<string | null> {
+  return new Promise((resolve) => {
+    let buffered = "";
+
+    const finish = (line: string | null) => {
+      process.stdin.off("data", onData);
+      process.stdin.off("end", onEnd);
+      process.stdin.pause();
+      resolve(line);
+    };
+
+    const onData = (chunk: Buffer | string) => {
+      buffered += chunk.toString();
+
+      const newline = buffered.indexOf("\n");
+
+      if (newline !== -1) {
+        finish(buffered.slice(0, newline));
+      }
+    };
+
+    const onEnd = () => finish(buffered === "" ? null : buffered);
+
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.resume();
+  });
+}
+
 export function nodeIo(): Io {
   return {
     exists: (path) => existsSync(path),
     readFile: (path) => readFileSync(path, "utf8"),
     readStdin: () => readFileSync(0, "utf8"),
+    readLine: readStdinLine,
     readBytes: (path) => readFileSync(path),
     hashFile: (path) => {
       try {

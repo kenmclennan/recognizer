@@ -16,7 +16,15 @@ export type ScanEvent =
   | { event: "start"; phase: "sense"; name: string }
   | ({ event: "progress"; phase: "sense"; name: string } & SensorStep)
   | ({ event: "stopped"; phase: "describe" } & DescribeStop)
+  | ({ event: "confirm"; phase: "describe" } & DescribeAsk)
   | { event: "summary" };
+
+export type DescribeAsk = {
+  modules: number;
+  model: string;
+  inputTokens: number;
+  costUsd: number | null;
+};
 
 export type DescribeStop = {
   cause: "limit" | "failures";
@@ -47,6 +55,8 @@ export type ScanProgress = {
   extractEntries: EntryResult[];
   describe: PhaseProgress | null;
   describeStop: DescribeStop | null;
+  describeAsk: DescribeAsk | null;
+  describeSkipped: boolean;
   sense: PhaseProgress | null;
   sensorProgress: SensorProgress | null;
   extractSettled: boolean;
@@ -63,6 +73,8 @@ export const NO_PROGRESS: ScanProgress = {
   extractEntries: [],
   describe: null,
   describeStop: null,
+  describeAsk: null,
+  describeSkipped: false,
   sense: null,
   sensorProgress: null,
   extractSettled: false,
@@ -94,6 +106,8 @@ export function parseScanLine(text: string): ScanEvent | null {
       return phaseEvent(line);
     case "stopped":
       return stoppedEvent(line);
+    case "confirm":
+      return confirmEvent(line);
     case "entry":
       return entryEvent(line);
     case "start":
@@ -129,6 +143,28 @@ function stoppedEvent(line: Record<string, unknown>): ScanEvent | null {
     described: line.described,
     notDescribed: line.not_described,
     threshold: isCount(line.threshold) ? line.threshold : 0,
+  };
+}
+
+function confirmEvent(line: Record<string, unknown>): ScanEvent | null {
+  if (
+    line.phase !== "describe" ||
+    !isCount(line.modules) ||
+    typeof line.model !== "string" ||
+    !isCount(line.input_tokens) ||
+    (line.cost_usd !== null &&
+      (typeof line.cost_usd !== "number" || !Number.isFinite(line.cost_usd)))
+  ) {
+    return null;
+  }
+
+  return {
+    event: "confirm",
+    phase: "describe",
+    modules: line.modules,
+    model: line.model,
+    inputTokens: line.input_tokens,
+    costUsd: line.cost_usd,
   };
 }
 
@@ -217,6 +253,11 @@ export function foldProgress(
 
       return { ...state, describeStop };
     }
+    case "confirm": {
+      const { event: _event, phase: _phase, ...describeAsk } = event;
+
+      return { ...state, describeAsk };
+    }
     case "phase":
       if (event.phase === "extract") {
         return { ...state, extract: event.state };
@@ -253,7 +294,45 @@ export function foldProgress(
 }
 
 export function stoppedProgress(state: ScanProgress): ScanProgress {
-  return { ...state, stopped: true };
+  return { ...state, stopped: true, describeAsk: null };
+}
+
+export function answeredProgress(
+  state: ScanProgress,
+  describe: boolean,
+): ScanProgress {
+  return { ...state, describeAsk: null, describeSkipped: !describe };
+}
+
+export function tokensText(tokens: number): string {
+  if (tokens < 1000) {
+    return String(tokens);
+  }
+
+  if (tokens < 1_000_000) {
+    return `${Math.round(tokens / 1000)}K`;
+  }
+
+  return `${(tokens / 1_000_000).toFixed(1)}M`;
+}
+
+export type DescribeAskText = {
+  heading: string;
+  model: string;
+  estimate: string;
+};
+
+export function describeAskText(ask: DescribeAsk): DescribeAskText {
+  const tokens = `About ${tokensText(ask.inputTokens)} tokens`;
+
+  return {
+    heading: `Describe ${count(ask.modules)} modules?`,
+    model: `Model: ${ask.model}`,
+    estimate:
+      ask.costUsd === null
+        ? `${tokens}, price unknown`
+        : `${tokens}, $${ask.costUsd.toFixed(2)} at API prices`,
+  };
 }
 
 function failures(entries: EntryResult[]): EntryResult[] {
@@ -287,6 +366,10 @@ export function scanningText(
 ): string | null {
   if (progress.done || progress.stopped) {
     return null;
+  }
+
+  if (progress.describeAsk !== null) {
+    return "Waiting for your answer";
   }
 
   if (started === DESCRIBE_PHASE_KEY) {

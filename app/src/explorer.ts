@@ -118,7 +118,7 @@ import {
   scanPanel,
 } from "./scan-panel-model";
 import { buildScanPanelView } from "./scan-panel-view";
-import type { DescribeStop, ShowTarget } from "./scan-progress";
+import type { DescribeAsk, DescribeStop, ShowTarget } from "./scan-progress";
 import type { BarModel } from "./selection-bar-view";
 import {
   inertSensors,
@@ -208,6 +208,9 @@ export type ScanHost = {
   progressText: () => string | null;
   describeProgress: () => { entries: number; total: number } | null;
   describeStop: () => DescribeStop | null;
+  describeAsk: () => DescribeAsk | null;
+  describeSkipped: () => boolean;
+  answerDescribe: (describe: boolean) => void;
   run: (modules: string[] | null, planned?: PlannedRun) => void;
   stop: () => void;
   refresh: () => void;
@@ -223,6 +226,9 @@ export const inertScanHost: ScanHost = {
   progressText: () => null,
   describeProgress: () => null,
   describeStop: () => null,
+  describeAsk: () => null,
+  describeSkipped: () => false,
+  answerDescribe: () => {},
   run: () => {},
   stop: () => {},
   refresh: () => {},
@@ -819,6 +825,7 @@ export function showExplorer(
       scanHost.run(planned.plan.modules, planned);
     },
     stop: () => scanHost.stop(),
+    answerDescribe: (describe) => scanHost.answerDescribe(describe),
     clearReport: (name) => void clearReport(name),
   });
   const findingsView = buildFindingsPanelView({
@@ -1674,6 +1681,8 @@ export function showExplorer(
       progressText: scanHost.progressText(),
       describeProgress: scanHost.describeProgress(),
       describeStop: scanHost.describeStop(),
+      describeAsk: scanHost.describeAsk(),
+      describeSkipped: scanHost.describeSkipped(),
       now: Date.now(),
       shipped: shippedSensors,
       freshness: freshnessOf(loaded),

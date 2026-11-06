@@ -70,6 +70,9 @@ const scanHost: ScanHost = {
       : { entries: describe.entries.length, total: describe.total };
   },
   describeStop: () => rescanner.progress().describeStop,
+  describeAsk: () => rescanner.progress().describeAsk,
+  describeSkipped: () => rescanner.progress().describeSkipped,
+  answerDescribe: (describe) => void rescanner.answerDescribe(describe),
   run: (modules, planned) => void rescanner.run(modules, planned),
   stop: () => void rescanner.stop(),
   refresh: () => void rescanner.refresh(),

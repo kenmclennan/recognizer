@@ -4,15 +4,18 @@ import { InputError } from "./errors.js";
 
 const CONFIG_DIR_ENV = "RECOGNIZER_APP_CONFIG_DIR";
 const MAX_BATCH_SIZE = 16;
+const MAX_CONFIRM_ABOVE_USD = 10000;
 
 export interface Describing {
   model: string;
   batch_size: number;
+  confirm_above_usd: number;
 }
 
 export const DESCRIBING_DEFAULTS: Describing = {
   model: "haiku",
   batch_size: 4,
+  confirm_above_usd: 5,
 };
 
 export function appConfigDir(io: Io): string {
@@ -53,7 +56,11 @@ export function validateDescribing(value: unknown): Describing {
     throw new InputError(["describing in config.json must be an object"]);
   }
 
-  const { model, batch_size: batchSize } = value as Record<string, unknown>;
+  const {
+    model,
+    batch_size: batchSize,
+    confirm_above_usd: confirmAbove = DESCRIBING_DEFAULTS.confirm_above_usd,
+  } = value as Record<string, unknown>;
 
   if (
     typeof model !== "string" ||
@@ -77,7 +84,18 @@ export function validateDescribing(value: unknown): Describing {
     ]);
   }
 
-  return { model, batch_size: batchSize };
+  if (
+    typeof confirmAbove !== "number" ||
+    !Number.isFinite(confirmAbove) ||
+    confirmAbove < 0 ||
+    confirmAbove > MAX_CONFIRM_ABOVE_USD
+  ) {
+    throw new InputError([
+      `describing.confirm_above_usd in config.json must be a number from 0 to ${MAX_CONFIRM_ABOVE_USD}`,
+    ]);
+  }
+
+  return { model, batch_size: batchSize, confirm_above_usd: confirmAbove };
 }
 
 export function readDescribing(io: Io): Describing {
