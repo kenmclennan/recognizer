@@ -1,4 +1,3 @@
-import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import type { Describer } from "./describe-modules.js";
@@ -13,13 +12,12 @@ export interface DescriberInEffect extends Describer {
 }
 
 export function describerInEffect(io: Io, root: string): DescriberInEffect {
-  const { model } = readDescribing(io);
   const configured = readConfig(io, root)?.describer;
 
   if (configured !== undefined) {
     return {
       ...configured,
-      version: describerVersion(configured, model),
+      version: describerVersion(configured),
       source: "config",
     };
   }
@@ -39,7 +37,7 @@ export function describerInEffect(io: Io, root: string): DescriberInEffect {
 
   return {
     ...shipped,
-    version: describerVersion(shipped, model),
+    version: describerVersion(shipped),
     source: "shipped",
   };
 }

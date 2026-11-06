@@ -33,6 +33,21 @@ export function validateResponsibilities(value: unknown): Responsibilities {
   );
 }
 
+function versionMatches(
+  recorded: string,
+  current: string,
+  describer: string[],
+): boolean {
+  if (recorded === current) {
+    return true;
+  }
+
+  return (
+    describer.some((item) => item.includes("{model}")) &&
+    recorded.startsWith(`${current}+`)
+  );
+}
+
 export function lineStatus(
   entry: ResponsibilityEntry | undefined,
   sourceHash: string,
@@ -53,7 +68,7 @@ export function lineStatus(
     reasons.push("describer");
   }
 
-  if (entry.version !== version) {
+  if (!versionMatches(entry.version, version, describer)) {
     reasons.push("version");
   }
 

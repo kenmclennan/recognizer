@@ -876,7 +876,7 @@ describe("recognizer scan: phases", () => {
       "{model}",
       "{request}",
     ]);
-    expect(entry.version).toBe("prompt-0123456789ab+sonnet");
+    expect(entry.version).toBe("prompt-0123456789ab");
   });
 
   it("emits no start line without --json", async () => {

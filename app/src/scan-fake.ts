@@ -37,7 +37,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
       policy: null,
     },
     defaults: { describe: false, sensors: false },
-    describing: { model: "sonnet", batchSize: 4 },
+    describing: { model: "haiku", batchSize: 4 },
     ran: [],
     stopped: 0,
     written: [],

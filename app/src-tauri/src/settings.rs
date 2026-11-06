@@ -14,7 +14,7 @@ pub struct Settings {
     pub describing: Describing,
 }
 
-pub const DEFAULT_MODEL: &str = "sonnet";
+pub const DEFAULT_MODEL: &str = "haiku";
 pub const DEFAULT_BATCH_SIZE: u32 = 4;
 const MAX_BATCH_SIZE: u32 = 16;
 
@@ -444,7 +444,7 @@ mod tests {
 
         assert_eq!(
             defaults["describing"],
-            serde_json::json!({"model": "sonnet", "batch_size": 4})
+            serde_json::json!({"model": "haiku", "batch_size": 4})
         );
     }
 
@@ -458,7 +458,7 @@ mod tests {
 
         assert_eq!(
             fresh["describing"],
-            serde_json::json!({"model": "sonnet", "batch_size": 4})
+            serde_json::json!({"model": "haiku", "batch_size": 4})
         );
 
         fs::write(
@@ -473,7 +473,7 @@ mod tests {
         assert_eq!(kept["editor"], "code");
         assert_eq!(kept["recognizer_path"], "/x");
         assert_eq!(kept["other"], 1);
-        assert_eq!(kept["describing"]["model"], "sonnet");
+        assert_eq!(kept["describing"]["model"], "haiku");
 
         fs::write(
             &path,

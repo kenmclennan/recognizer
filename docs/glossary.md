@@ -55,11 +55,11 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Report | A findings file an agent hands to recognizer with `recognizer report --as <name>` after a review it ran itself; listed with the sensors but never run by a scan, stale once the scan passes its commit, replaced only by the next report under the same name. |
 | Responsibility | A module's generated one-line statement of what it is for, committed in `.recognizer/responsibilities.json` and current while its source and describer are unchanged. |
 | Describer | The command a repository registers in its config to write responsibilities. |
-| Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}`, `{model}` and `{request}` filled in, and a version naming its prompt, recorded with the model when the command names `{model}`. A Config without one falls back to the Describer in effect. |
-| Describing settings | The model and the Batch size, global to the user, held under `describing` in the app's `config.json`, seeded as `sonnet` and 4 and edited in Settings; a scan from the app and one from a terminal read the same values. |
+| Describer registration | The `describer` key of the Config: the command to run, with `{repository}`, `{module}`, `{model}` and `{request}` filled in, and a version naming its prompt, recorded bare: the model is not part of it. A Config without one falls back to the Describer in effect. |
+| Describing settings | The model and the Batch size, global to the user, held under `describing` in the app's `config.json`, seeded as `haiku` and 4 and edited in Settings; a scan from the app and one from a terminal read the same values. |
 | Batch size | How many modules are described at once; the describe phase keeps that many describer runs going. |
 | Describer in effect | The Config's describer when it has one, otherwise the shipped `recognizer-describe-claude` with its prompt version, as `recognizer describe --describer` reports. |
-| Current line | A Responsibility whose source hash, describer and version all match the module and the Describer in effect today. |
+| Current line | A Responsibility whose source hash, describer and version all match the module and the Describer in effect today; the model that wrote it is not compared. |
 | Out of date | A Responsibility that is not a Current line: its module's source (the files the scan recorded for it), the describer command or the version has changed since it was written. |
 | Unchecked | The status of a Responsibility that exists but whose Current line test cannot run, because no Describer registration exists or the module's source cannot be read. |
 | Overlay registration | An entry of the Config's `overlays` key: an overlay's name, the command to run with `{repository}`, `{commit}` and `{output}` filled in, its Metric declarations and, optionally, `runs_tests: true` when it runs the repository's tests. |

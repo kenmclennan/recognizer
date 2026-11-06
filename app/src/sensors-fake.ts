@@ -26,7 +26,6 @@ export type FakeSensors = SensorsPort & {
   list: ShippedSensors;
   modified: Map<string, number>;
   shippedVersion: string | null;
-  model: string;
   editInputs(inputs: Partial<SensorInputs>): void;
 };
 
@@ -57,7 +56,6 @@ export function fakeSensors(
     list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
     modified: new Map(),
     shippedVersion: "prompt-0123456789ab",
-    model: "sonnet",
     async describer() {
       let configured: { command: string[]; version: string } | undefined;
 
@@ -74,7 +72,7 @@ export function fakeSensors(
         return {
           status: "ok",
           ...configured,
-          version: describerVersion(configured, fake.model),
+          version: describerVersion(configured),
           source: "config",
         };
       }
@@ -88,13 +86,10 @@ export function fakeSensors(
         : {
             status: "ok",
             command: [...SHIPPED_DESCRIBER_COMMAND],
-            version: describerVersion(
-              {
-                command: [...SHIPPED_DESCRIBER_COMMAND],
-                version: fake.shippedVersion,
-              },
-              fake.model,
-            ),
+            version: describerVersion({
+              command: [...SHIPPED_DESCRIBER_COMMAND],
+              version: fake.shippedVersion,
+            }),
             source: "shipped",
           };
     },

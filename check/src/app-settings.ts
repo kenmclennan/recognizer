@@ -11,7 +11,7 @@ export interface Describing {
 }
 
 export const DESCRIBING_DEFAULTS: Describing = {
-  model: "sonnet",
+  model: "haiku",
   batch_size: 4,
 };
 

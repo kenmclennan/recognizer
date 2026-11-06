@@ -77,7 +77,7 @@ export function buildSettings(
   const describing = document.createElement("fieldset");
   const describingLegend = document.createElement("legend");
   const describingRow = document.createElement("div");
-  const model = textInput("sonnet", "model");
+  const model = textInput("haiku", "model");
   const batchSize = numberInput("batch_size");
   const error = document.createElement("p");
   const buttons = document.createElement("div");

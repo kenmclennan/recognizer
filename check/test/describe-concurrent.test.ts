@@ -411,18 +411,14 @@ describe("the model marks lines out of date", () => {
 
     const parsed = await check(root);
 
-    expect(parsed.counts.outOfDate).toBe(15);
-    expect(
-      parsed.modules.every((one: { reasons: string[] }) =>
-        one.reasons.includes("version"),
-      ),
-    ).toBe(true);
-    expect(responsibilities(root).modules[ORDER].version).toBe("v1+sonnet");
+    expect(parsed.counts.outOfDate).toBe(0);
+    expect(parsed.ok).toBe(true);
+    expect(responsibilities(root).modules[ORDER].version).toBe("v1");
 
     await run(["describe", "--repository", root], capture().io);
 
     expect((await check(root)).ok).toBe(true);
-    expect(responsibilities(root).modules[ORDER].version).toBe("v1+opus");
+    expect(responsibilities(root).modules[ORDER].version).toBe("v1");
   });
 
   it("leaves lines current for a describer that ignores the model", async () => {
@@ -450,7 +446,7 @@ describe("the model marks lines out of date", () => {
       .filter((one: { status: string }) => one.status === "out-of-date")
       .map((one: { module: string }) => one.module);
 
-    expect(old).toEqual([ORDER, STORE]);
+    expect(old).toEqual([]);
   });
 
   it("passes the configured model on the describer's command line", async () => {

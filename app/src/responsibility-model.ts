@@ -55,7 +55,6 @@ export type EffectiveDescriber = { command: string[]; version: string };
 export function responsibilityStates(
   files: ResponsibilityFiles,
   fallback: EffectiveDescriber | null,
-  model: string,
 ): (id: string) => ResponsibilityState {
   let responsibilities: Responsibilities | null = null;
   let config: Config | null = null;
@@ -95,7 +94,7 @@ export function responsibilityStates(
         ? (fallback ?? undefined)
         : {
             ...config.describer,
-            version: describerVersion(config.describer, model),
+            version: describerVersion(config.describer),
           };
 
     if (describer === undefined) {

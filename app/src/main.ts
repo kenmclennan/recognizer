@@ -72,7 +72,6 @@ const scanHost: ScanHost = {
   run: (modules, planned) => void rescanner.run(modules, planned),
   stop: () => void rescanner.stop(),
   refresh: () => void rescanner.refresh(),
-  model: async () => (await scanSource.readDescribing()).model,
 };
 
 const comparisons = createViewComparisons();

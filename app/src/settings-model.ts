@@ -16,7 +16,7 @@ export function checkDescribing(
     return {
       ok: false,
       error:
-        "Model must be a name with no spaces and no leading - (for example sonnet)",
+        "Model must be a name with no spaces and no leading - (for example haiku)",
     };
   }
 
