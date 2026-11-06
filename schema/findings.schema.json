@@ -61,6 +61,18 @@
             "required": ["modules"],
             "properties": {
               "modules": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "used_by": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["module", "names"],
+                  "properties": {
+                    "module": { "type": "string", "minLength": 1 },
+                    "names": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                  }
+                }
+              },
               "edges": {
                 "type": "array",
                 "items": {

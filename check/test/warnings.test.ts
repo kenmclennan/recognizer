@@ -228,8 +228,18 @@ describe("hub warning", () => {
         id: "hub",
         principle: "interfaces-are-narrow-and-explicit",
         fix_pattern: "split-hub",
-        summary: "h has fan-in 2 and fan-out 2 (threshold 2)",
-        evidence: { module: "h", fan_in: 2, fan_out: 2, threshold: 2 },
+        summary:
+          "h is imported by 2 modules and imports 2 (at least 2 on both)",
+        evidence: {
+          module: "h",
+          fan_in: 2,
+          fan_out: 2,
+          threshold: 2,
+          used_by: [
+            { module: "a", names: [] },
+            { module: "b", names: [] },
+          ],
+        },
       },
     ]);
   });

@@ -16,7 +16,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "8";
+export const STRUCTURE_SENSOR_VERSION = "9";
 export const DEFAULT_HUB_THRESHOLD = 10;
 export const DEFAULT_INSTABILITY_GAP = 0.2;
 
@@ -161,7 +161,14 @@ function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
         fan_in: warning.evidence.fan_in,
         fan_out: warning.evidence.fan_out,
         threshold: warning.evidence.threshold,
+        ...(warning.evidence.lines !== undefined
+          ? { lines: warning.evidence.lines }
+          : {}),
+        ...(warning.evidence.members !== undefined
+          ? { members: warning.evidence.members }
+          : {}),
       },
+      used_by: warning.evidence.used_by,
     },
   };
 }

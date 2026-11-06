@@ -30,7 +30,7 @@ const FILES = [
 const PINNED = [
   "order.py imports memory_store.py, which the policy forbids: domain may not use adapters.",
   "money.py and order.py import each other.",
-  "place.py is imported by 3 modules and imports 3; the limit is 3.",
+  "place.py is imported by 3 modules and imports 3; it is 40 lines with 4 members; the limit is 3.",
   "app/adapters and app/application import each other; removing 1 of 2 imports breaks the cycle. app/application is imported by and imports most of the cycle, so splitting it is likely the real fix.",
   "audit.py is imported by nothing and is not an entry point.",
   "The policy names app/legacy/**, which matches no module.",
@@ -329,5 +329,23 @@ describe("the duplication sentence", () => {
     expect(family(members)).toBe(
       "22 functions repeat one structure: m0 in f0.py, m1 in f1.py, m2 in f2.py and 19 more (30 lines).",
     );
+  });
+});
+
+describe("hub sentence without size", () => {
+  it("keeps today's sentence for a record from an older file", () => {
+    expect(
+      sentenceOf({
+        record: record({
+          id: "hub:app/place.py",
+          kind: "hub",
+          evidence: {
+            modules: ["app/place.py"],
+            measures: { fan_in: 3, fan_out: 3, threshold: 3 },
+          },
+        }),
+        reported: false,
+      }),
+    ).toBe("place.py is imported by 3 modules and imports 3; the limit is 3.");
   });
 });

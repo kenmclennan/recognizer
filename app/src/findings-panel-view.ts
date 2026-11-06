@@ -53,6 +53,16 @@ function itemNode(
     text.append(el("span", "finding-folder", row.folder));
   }
 
+  if (row.kind === "use") {
+    text.append(
+      el(
+        "span",
+        "finding-folder",
+        row.names.length === 0 ? "(names unknown)" : row.names.join(", "),
+      ),
+    );
+  }
+
   if (absent) {
     node.append(
       button("Add to view", "finding-add", () => actions.addToView(row.module)),

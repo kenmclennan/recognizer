@@ -1,6 +1,11 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { ModuleMetrics, Thresholds, Warning } from "./analyse.js";
+import type {
+  HubWarning,
+  ModuleMetrics,
+  Thresholds,
+  Warning,
+} from "./analyse.js";
 import {
   type BaselineEntry,
   entryId,
@@ -136,6 +141,32 @@ function cutLines(warning: ReportedWarning): string[] {
   return lines;
 }
 
+const IMPORTER_LINES_SHOWN = 10;
+
+function importerLines(warning: ReportedWarning): string[] {
+  const usedBy =
+    warning.id === "hub"
+      ? (warning.evidence as HubWarning["evidence"]).used_by
+      : undefined;
+
+  if (!usedBy || usedBy.length === 0) {
+    return [];
+  }
+
+  const lines = usedBy
+    .slice(0, IMPORTER_LINES_SHOWN)
+    .map(
+      (entry) =>
+        `  ${entry.module}: ${entry.names.length === 0 ? "(names unknown)" : entry.names.join(", ")}`,
+    );
+
+  if (usedBy.length > IMPORTER_LINES_SHOWN) {
+    lines.push(`  and ${usedBy.length - IMPORTER_LINES_SHOWN} more importers`);
+  }
+
+  return lines;
+}
+
 function summary(
   result: Ranked | null,
   warnings: ReportedWarning[],
@@ -161,7 +192,11 @@ function summary(
 
   if (listWarnings) {
     for (const warning of warnings) {
-      lines.push(`warning: ${warning.summary}`, ...cutLines(warning));
+      lines.push(
+        `warning: ${warning.summary}`,
+        ...cutLines(warning),
+        ...importerLines(warning),
+      );
     }
   }
 
@@ -253,6 +288,11 @@ function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
         fan_in: measures.fan_in as number,
         fan_out: measures.fan_out as number,
         threshold: measures.threshold as number,
+        ...(measures.lines !== undefined ? { lines: measures.lines } : {}),
+        ...(measures.members !== undefined
+          ? { members: measures.members }
+          : {}),
+        used_by: record.evidence.used_by ?? [],
       },
     };
   }
