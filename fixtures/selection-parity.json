@@ -42,6 +42,8 @@
       "c.js",
       "d.jsx",
       "dist/a.ts",
+      "e.mts",
+      "f.cts",
       "keep.cjs",
       "keep.mjs",
       "node_modules/pkg/a.ts",
@@ -49,11 +51,23 @@
       "src/a.spec.tsx",
       "src/a.test.ts",
       "src/b.tsx",
+      "src/g.d.mts",
+      "src/h.d.cts",
+      "src/i.test.mts",
       "src/readme.md",
       "test/a.ts",
       "tests/a.ts"
     ],
-    "accepted": ["a.ts", "c.js", "d.jsx", "keep.cjs", "keep.mjs", "src/b.tsx"]
+    "accepted": [
+      "a.ts",
+      "c.js",
+      "d.jsx",
+      "e.mts",
+      "f.cts",
+      "keep.cjs",
+      "keep.mjs",
+      "src/b.tsx"
+    ]
   },
   "kotlin": {
     "tree": [

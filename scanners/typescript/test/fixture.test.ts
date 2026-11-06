@@ -85,7 +85,16 @@ describe("fixture", () => {
     }
 
     expect(doc.selection).toEqual({
-      extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      extensions: [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".mts",
+        ".cts",
+      ],
       skip_directory_names: [
         "node_modules",
         "dist",
@@ -97,7 +106,7 @@ describe("fixture", () => {
       skip_directory_prefixes: ["."],
       skip_directory_suffixes: [],
       skip_directories_containing: [],
-      skip_file_globs: ["*.d.ts", "*.test.*", "*.spec.*"],
+      skip_file_globs: ["*.d.ts", "*.d.mts", "*.d.cts", "*.test.*", "*.spec.*"],
     });
   });
 

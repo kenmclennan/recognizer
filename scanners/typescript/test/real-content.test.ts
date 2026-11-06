@@ -3,7 +3,7 @@ import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO, runBin, validate } from "./helpers.js";
 
-const SOURCE_EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
+const SOURCE_EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;
 const SKIPPED_DIRECTORIES = new Set([
   "node_modules",
   "dist",
@@ -21,6 +21,8 @@ function scannedFiles(root: string): string[] {
     return (
       SOURCE_EXTENSION.test(name) &&
       !name.endsWith(".d.ts") &&
+      !name.endsWith(".d.mts") &&
+      !name.endsWith(".d.cts") &&
       !/\.(test|spec)\./.test(name) &&
       !parts
         .slice(0, -1)

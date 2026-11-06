@@ -1,7 +1,16 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+const SOURCE_EXTENSIONS = [
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".mts",
+  ".cts",
+];
 const SKIPPED_DIRECTORIES = [
   "node_modules",
   "dist",
@@ -11,7 +20,13 @@ const SKIPPED_DIRECTORIES = [
   "__tests__",
 ];
 const SKIPPED_DIRECTORY_PREFIXES = ["."];
-const SKIPPED_FILE_GLOBS = ["*.d.ts", "*.test.*", "*.spec.*"];
+const SKIPPED_FILE_GLOBS = [
+  "*.d.ts",
+  "*.d.mts",
+  "*.d.cts",
+  "*.test.*",
+  "*.spec.*",
+];
 
 export interface Selection {
   extensions: string[];

@@ -1,0 +1,11 @@
+{
+  "modules": ["a.mts", "b.mts", "c.cts", "d.cts", "e.ts", "vite.config.mts"],
+  "edges": [
+    "a.mts -> b.mts",
+    "a.mts -> c.cts",
+    "d.cts -> a.mts",
+    "e.ts -> b.mts",
+    "e.ts -> c.cts"
+  ],
+  "entry_points": ["vite.config.mts"]
+}

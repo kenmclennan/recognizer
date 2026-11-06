@@ -56,7 +56,7 @@ A module is marked `entry_point: true` when a tool, a manifest or an HTML page l
 
 1. A `package.json` `main`, a `bin` value or an `exports` leaf, resolved from that `package.json`'s directory. A value containing `*` is skipped, and a value naming an unscanned build output (`./dist/index.js`) marks nothing.
 2. A path in a `package.json` `scripts` command, found by splitting on whitespace and `&&`, `||`, `;`, `|` and `&`. A token starting with `-` is skipped, so `--flag=path` is not read, and a path after `cd` resolves from the `package.json`'s directory.
-3. A file named `*.config.{ts,mts,cts,js,mjs,cjs}`. The scanner selects no `.mts` or `.cts` file, so those two never fire.
+3. A file named `*.config.{ts,mts,cts,js,mjs,cjs}`.
 4. A file an HTML file loads with `<script src>`. A relative value resolves from the HTML file, a leading `/` is tried in the HTML file's directory and then each ancestor up to the repository root, and a scheme or `//` value is skipped.
 5. A file whose text starts with `#!`.
 
@@ -69,4 +69,4 @@ The walk for `package.json` and HTML files skips the same directories as source 
 
 ## Skipped
 
-`node_modules`, `dist`, `build`, `test`, `tests`, `__tests__`, any directory starting with `.`, `*.test.*`, `*.spec.*` and `*.d.ts`. Directory symlinks are not followed.
+`node_modules`, `dist`, `build`, `test`, `tests`, `__tests__`, any directory starting with `.`, `*.test.*`, `*.spec.*`, `*.d.ts`, `*.d.mts` and `*.d.cts`. Directory symlinks are not followed.

@@ -27,7 +27,9 @@
       ".js",
       ".jsx",
       ".mjs",
-      ".cjs"
+      ".cjs",
+      ".mts",
+      ".cts"
     ],
     "skip_directory_names": [
       "node_modules",
@@ -44,6 +46,8 @@
     "skip_directories_containing": [],
     "skip_file_globs": [
       "*.d.ts",
+      "*.d.mts",
+      "*.d.cts",
       "*.test.*",
       "*.spec.*"
     ]
