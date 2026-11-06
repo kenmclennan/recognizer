@@ -112,3 +112,27 @@ def mutation_tests_failed(names: list[str]) -> dict:
         line = f"{line}: {named(names)}"
 
     return diagnose("tests-failed", line, failing=failing_object(names))
+
+
+SIGNATURES = (
+    (
+        re.compile(r"llvm-tools", re.IGNORECASE),
+        "llvm-tools is not installed",
+        "install it with rustup component add llvm-tools-preview",
+        "rustup component add llvm-tools-preview",
+    ),
+    (
+        re.compile(r"npx canceled|npm (?:error|ERR!) network|ENOTFOUND|EAI_AGAIN"),
+        "c8 could not be fetched",
+        "check the network, c8 is fetched by npx",
+        "check the network, c8 is fetched by npx",
+    ),
+)
+
+
+def known_cause(outputs: list[str]) -> tuple[str, str, str] | None:
+    for pattern, cause, sentence, fix in SIGNATURES:
+        if any(pattern.search(output) for output in outputs):
+            return cause, sentence, fix
+
+    return None
