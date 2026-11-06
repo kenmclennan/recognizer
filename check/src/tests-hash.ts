@@ -11,6 +11,10 @@ import {
 import { inFileTestHashes } from "./rust-test-blocks.js";
 import type { Scan } from "./scan.js";
 
+function compareUtf8(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
 export function currentTestsHash(
   io: Io,
   root: string,
@@ -52,7 +56,7 @@ export function currentTestsHash(
   }
 
   const lines = [...hashes.keys()]
-    .sort()
+    .sort(compareUtf8)
     .map((key) => `${key}\t${hashes.get(key)}\n`);
 
   return createHash("sha256").update(lines.join("")).digest("hex");
