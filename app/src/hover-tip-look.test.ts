@@ -27,9 +27,9 @@ facts.treeAfterRemoval = tips();
 
 const row = (key, ticked) => ({ key, name: key, tickable: true, ticked, disabled: false, state: { text: "idle", tone: "idle" }, note: null, title: "About " + key });
 const model = (ticked) => ({
-  header: { text: "Scan", changed: null }, scope: null, report: null,
+  header: { text: "Scan", changed: null }, scope: null, mode: { value: "bring", disabled: false }, report: null,
   rows: [row("alpha", ticked === "alpha"), row("beta", ticked === "beta")],
-  reports: [], button: { scanning: false, label: "Scan" }, pending: false, mark: false,
+  reports: [], button: { scanning: false, label: "Scan", disabled: false }, planned: null, pending: false, mark: false,
 });
 const panel = buildScanPanelView({ tick() {}, setOnlyView() {}, run() {}, stop() {}, clearReport() {} });
 document.body.append(panel.element);

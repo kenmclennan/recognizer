@@ -1,6 +1,12 @@
 import type { Scan } from "recognizer";
 import { type Freshness, type Measured, scanHashes } from "recognizer";
+import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { SensorStatus } from "./sensor-run";
+
+export type ResultsMode = "bring" | "rescan";
+
+export const DESCRIBE_ROW = "describe";
+export const SCOPED_SENSOR = "mutation";
 
 export type SensorFreshness =
   | { kind: "never-run" }
@@ -192,5 +198,152 @@ export function freshnessReport(
       union.size > 0
         ? { current: scope.length - union.size, outOfDate: union.size }
         : null,
+  };
+}
+
+export type PlanRow = { name: string; runsTests: boolean };
+
+export type RowGap = { gap: string[]; neverRun: boolean };
+
+export type PlannedRun = {
+  plan: ScanPlan;
+  dropped: string[];
+  modules: number;
+  idle: boolean;
+  label: string;
+  progress: string;
+};
+
+export function tickedPhases(
+  ticks: ScanTicks,
+  rows: PlanRow[],
+): { describe: boolean; sense: string[]; dropped: string[] } {
+  const testing = rows
+    .filter(({ runsTests }) => runsTests)
+    .map(({ name }) => name);
+  const plain = rows
+    .filter(({ runsTests }) => !runsTests)
+    .map(({ name }) => name);
+  const wanted = ticks.ticked ?? plain;
+  const known = [...plain, ...testing];
+
+  return {
+    describe: ticks.describe,
+    sense: [
+      ...wanted.filter((name) => plain.includes(name)),
+      ...testing.filter((name) => ticks.once.includes(name)),
+    ],
+    dropped: wanted.filter((name) => !known.includes(name)),
+  };
+}
+
+function inOrder(ids: Set<string>, order: string[]): string[] {
+  return order.filter((id) => ids.has(id));
+}
+
+function runLabel(names: string[], display: Map<string, string>): string {
+  const shown = names.map((name) => display.get(name) ?? name);
+
+  return shown.length === 1 ? `Run ${shown[0]}` : `Run ${shown.length} sensors`;
+}
+
+export function planFor(
+  mode: ResultsMode,
+  ticks: ScanTicks,
+  rows: (PlanRow & { display?: string })[],
+  gaps: ReadonlyMap<string, RowGap>,
+  scope: string[] | null,
+  all: string[],
+): PlannedRun {
+  const phases = tickedPhases(ticks, rows);
+  const display = new Map(
+    rows.map(({ name, display }) => [name, display ?? name]),
+  );
+  const order = scope ?? all;
+
+  if (mode === "rescan") {
+    const total = order.length;
+    const any = phases.describe || phases.sense.length > 0;
+
+    return {
+      plan: {
+        describe: phases.describe,
+        describeAll: true,
+        sense: phases.sense,
+        modules: scope !== null && any ? scope : null,
+      },
+      dropped: phases.dropped,
+      modules: total,
+      idle: false,
+      label: `Rescan ${total} ${total === 1 ? "module" : "modules"}`,
+      progress: `Rescanning ${total} ${total === 1 ? "module" : "modules"}\u2026`,
+    };
+  }
+
+  const gapOfRow = (name: string): RowGap | undefined => gaps.get(name);
+  const describe =
+    phases.describe && (gapOfRow(DESCRIBE_ROW)?.gap.length ?? 0) > 0;
+  const sense = phases.sense.filter((name) => {
+    const found = gapOfRow(name);
+
+    return found === undefined || found.neverRun || found.gap.length > 0;
+  });
+  const scopedIds = new Set<string>();
+
+  if (describe) {
+    for (const id of gapOfRow(DESCRIBE_ROW)?.gap ?? []) {
+      scopedIds.add(id);
+    }
+  }
+
+  if (sense.includes(SCOPED_SENSOR)) {
+    for (const id of gapOfRow(SCOPED_SENSOR)?.gap ?? []) {
+      scopedIds.add(id);
+    }
+  }
+
+  const union = new Set<string>();
+
+  for (const name of phases.describe ? [DESCRIBE_ROW] : []) {
+    for (const id of gapOfRow(name)?.gap ?? []) {
+      union.add(id);
+    }
+  }
+
+  for (const name of phases.sense) {
+    const found = gapOfRow(name);
+
+    if (found !== undefined && !found.neverRun) {
+      for (const id of found.gap) {
+        union.add(id);
+      }
+    }
+  }
+
+  const never = phases.sense.filter((name) => gapOfRow(name)?.neverRun);
+  const nothingTicked = !phases.describe && phases.sense.length === 0;
+  const idle = !nothingTicked && !describe && sense.length === 0;
+  const count = union.size;
+  const progress = `Bringing ${count} ${count === 1 ? "module" : "modules"} up to date\u2026`;
+  const label = nothingTicked
+    ? "Run"
+    : idle
+      ? "Up to date"
+      : count > 0
+        ? `Bring ${count} ${count === 1 ? "module" : "modules"} up to date`
+        : runLabel(never.length > 0 ? never : sense, display);
+
+  return {
+    plan: {
+      describe,
+      describeAll: false,
+      sense,
+      modules: scopedIds.size === 0 ? null : inOrder(scopedIds, order),
+    },
+    dropped: phases.dropped,
+    modules: count,
+    idle,
+    label,
+    progress,
   };
 }

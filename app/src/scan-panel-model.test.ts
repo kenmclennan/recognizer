@@ -461,10 +461,12 @@ describe("scanPanel row states", () => {
     expect(scanPanel(input()).button).toEqual({
       scanning: false,
       label: "Run",
+      disabled: false,
     });
     expect(scanPanel(input({ scanning: true })).button).toEqual({
       scanning: true,
       label: "Running",
+      disabled: true,
     });
   });
 });
@@ -532,6 +534,7 @@ describe("phasesFor", () => {
 
     expect(plan).toEqual({
       describe: true,
+      describeAll: false,
       sense: ["duplication", "alpha"],
       modules: null,
     });

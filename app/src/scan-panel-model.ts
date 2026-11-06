@@ -15,6 +15,9 @@ import {
   freshnessScope,
   gapOf,
   markStale,
+  type PlannedRun,
+  planFor,
+  type ResultsMode,
   type SensorFreshness,
   sensorFreshness,
 } from "./scan-freshness";
@@ -45,6 +48,7 @@ export type ScanTicks = {
 
 export type ScanPlan = {
   describe: boolean;
+  describeAll: boolean;
   sense: string[];
   modules: string[] | null;
 };
@@ -68,6 +72,7 @@ export type PanelInput = {
   describedAt: number | null;
   ticks: ScanTicks;
   view?: PanelView | null;
+  mode?: ResultsMode;
   scans?: Scan[];
   run: RunState;
   scanning: boolean;
@@ -101,10 +106,12 @@ export type ReportRow = {
 export type ScanPanelModel = {
   header: { text: string; changed: string | null };
   scope: { caption: string; on: boolean; disabled: boolean } | null;
+  mode: { value: ResultsMode; disabled: boolean };
   report: FreshnessReport | null;
   rows: ScanRow[];
   reports: ReportRow[];
-  button: { scanning: boolean; label: string };
+  button: { scanning: boolean; label: string; disabled: boolean };
+  planned: PlannedRun | null;
   pending: boolean;
   mark: boolean;
 };
@@ -187,7 +194,12 @@ export function phasesFor(
   ];
 
   return {
-    plan: { describe: ticks.describe, sense, modules: null },
+    plan: {
+      describe: ticks.describe,
+      describeAll: false,
+      sense,
+      modules: null,
+    },
     dropped: wanted.filter((name) => !known.includes(name)),
   };
 }
@@ -427,13 +439,16 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     return {
       header: header(input),
       scope: null,
+      mode: modeOf(input),
       report: null,
       rows: [],
       reports: [],
       button: {
         scanning: input.scanning,
         label: input.scanning ? "Running" : "Run",
+        disabled: input.scanning,
       },
+      planned: null,
       pending: true,
       mark: panelMark(input),
     };
@@ -446,6 +461,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       : markStale(input.sensors, input.freshness);
   const judged: PanelInput = { ...input, sensors: statuses };
   const gaps = rowGaps(judged, sensors);
+  const planned = plannedRun(judged, sensors, gaps);
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
@@ -476,13 +492,16 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   return {
     header: header(input),
     scope: scopeOf(input),
+    mode: modeOf(input),
     report: reportOf(judged, rows, gaps),
     rows,
     reports: reportRows(statuses, input.now),
     button: {
       scanning: input.scanning,
-      label: input.scanning ? "Running" : "Run",
+      label: input.scanning ? "Running" : planned.label,
+      disabled: input.scanning || planned.idle,
     },
+    planned,
     pending: false,
     mark: panelMark(input),
   };
@@ -535,6 +554,42 @@ function rowGaps(input: PanelInput, sensors: RowSensor[]): RowGaps {
   return gaps;
 }
 
+function modeOf(input: PanelInput): ScanPanelModel["mode"] {
+  return { value: input.mode ?? "bring", disabled: input.scanning };
+}
+
+function plannedRun(
+  input: PanelInput,
+  sensors: RowSensor[],
+  gaps: RowGaps,
+): PlannedRun {
+  const plain = new Map(
+    [...gaps].map(([name, { result, gap }]) => [
+      name,
+      { gap, neverRun: result.kind === "never-run" },
+    ]),
+  );
+
+  return planFor(
+    input.mode ?? "bring",
+    input.ticks,
+    sensors,
+    plain,
+    scopedIds(input),
+    input.lines.modules,
+  );
+}
+
+function bringNote(name: string, functions: number): string | null {
+  if (name === DESCRIBE_KEY) {
+    return null;
+  }
+
+  return name === MUTATION_KEY
+    ? `${plural(functions, "function")} to run`
+    : "reruns the whole repository";
+}
+
 function rowFreshnessState(
   name: string,
   input: PanelInput,
@@ -570,15 +625,14 @@ function rowFreshnessState(
     return { state, note: null };
   }
 
+  const bring = (input.mode ?? "bring") === "bring";
+
   return {
     state: {
       text: `${plural(found.gap.length, "module")} out of date`,
       tone: "warn",
     },
-    note:
-      name === MUTATION_KEY
-        ? `${plural(functions(found.gap), "function")} to run`
-        : "reruns the whole repository",
+    note: bring ? bringNote(name, functions(found.gap)) : null,
   };
 }
 

@@ -1,6 +1,7 @@
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
+import type { PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
@@ -49,7 +50,7 @@ export type RescanPorts<Carried> = {
 };
 
 export type Rescanner = {
-  run: (modules?: string[] | null) => Promise<void>;
+  run: (modules?: string[] | null, planned?: PlannedRun) => Promise<void>;
   stop: () => Promise<void>;
   refresh: () => Promise<void>;
   loadTicks: () => Promise<void>;
@@ -95,6 +96,7 @@ export function createRescanner<Carried>(
   let current: Promise<void> = Promise.resolve();
 
   let rows: RunRow[] = [];
+  let heading: string | null = null;
   let failureIds: number[] = [];
   let lastUpdate: ProgressUpdate = { scanning: null };
 
@@ -104,7 +106,11 @@ export function createRescanner<Carried>(
   }
 
   function publish() {
-    emit({ scanning: scanningText(rows, run.started, progress) });
+    const text = scanningText(rows, run.started, progress);
+
+    emit({
+      scanning: text === null || heading === null ? text : `${heading} ${text}`,
+    });
   }
 
   async function writeTicks(registered: Registered) {
@@ -336,15 +342,16 @@ export function createRescanner<Carried>(
     }
   }
 
-  async function execute(modules: string[] | null) {
+  async function execute(modules: string[] | null, planned?: PlannedRun) {
     try {
-      await executeScan(modules);
+      await executeScan(modules, planned);
     } finally {
       ticks = { ...ticks, once: [] };
+      heading = null;
     }
   }
 
-  async function executeScan(modules: string[] | null) {
+  async function executeScan(modules: string[] | null, planned?: PlannedRun) {
     const registered = await ports.registered();
 
     if (!ticksLoaded) {
@@ -352,13 +359,15 @@ export function createRescanner<Carried>(
     }
 
     const { plan: base } = phasesFor(ticks, registered);
-    const plan = {
+    const plan = planned?.plan ?? {
       ...base,
       modules:
         modules !== null && (base.describe || base.sense.length > 0)
           ? modules
           : null,
     };
+
+    heading = planned?.progress ?? null;
 
     if (!remembered) {
       await writeTicks(registered);
@@ -465,13 +474,13 @@ export function createRescanner<Carried>(
   }
 
   return {
-    run(modules = null) {
+    run(modules = null, planned) {
       if (busy) {
         return Promise.resolve();
       }
 
       busy = true;
-      current = execute(modules)
+      current = execute(modules, planned)
         .catch((error: unknown) => {
           ports.blocked(String(error));
           ports.settled();

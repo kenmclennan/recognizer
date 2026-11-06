@@ -102,6 +102,7 @@ import {
   responsibilityStates,
 } from "./responsibility-model";
 import { nextCheck } from "./row-model";
+import type { PlannedRun, ResultsMode } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
@@ -201,7 +202,7 @@ export type ScanHost = {
   running: () => boolean;
   progressText: () => string | null;
   describeProgress: () => { entries: number; total: number } | null;
-  run: (modules: string[] | null) => void;
+  run: (modules: string[] | null, planned?: PlannedRun) => void;
   stop: () => void;
   refresh: () => void;
   model: () => Promise<string>;
@@ -336,6 +337,7 @@ export function showExplorer(
   let layoutBusy = false;
   let pickerFilter = "";
   let openView: string | null = null;
+  let resultsMode: ResultsMode = "bring";
   let viewList: { name: string; text: string }[] = [];
   let viewNotice: string | null = null;
   let listNotice: string | null = null;
@@ -806,8 +808,19 @@ export function showExplorer(
       scanHost.setTicks({ ...scanHost.ticks(), onlyView: on });
       render();
     },
-    run: () =>
-      scanHost.run(scanHost.ticks().onlyView ? modules.opened() : null),
+    setMode(next) {
+      resultsMode = next;
+      render();
+    },
+    run() {
+      const { planned, button } = scanModel();
+
+      if (planned === null || button.disabled) {
+        return;
+      }
+
+      scanHost.run(planned.plan.modules, planned);
+    },
     stop: () => scanHost.stop(),
     clearReport: (name) => void clearReport(name),
   });
@@ -1635,6 +1648,7 @@ export function showExplorer(
       describedAt,
       ticks: scanHost.ticks(),
       view: { name: openView, modules: modules.opened() },
+      mode: resultsMode,
       scans,
       run: scanHost.runState(),
       scanning: scanHost.running(),
