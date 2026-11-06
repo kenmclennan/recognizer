@@ -80,7 +80,7 @@
     "b": "branching.py::Limits.page_size",
     "label": "near-copy-not-accessor",
     "expected": "reported",
-    "note": "a four-line function with a branch is not an accessor: the accessor shape must not skip it"
+    "note": "a six-line function with a branch is not an accessor: the accessor shape must not skip it"
   },
   {
     "language": "python",

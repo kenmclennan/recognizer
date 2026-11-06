@@ -48,8 +48,8 @@ def test_the_size_gate_on_lines(tmp_path):
         },
     )
 
-    assert len(find(root, min_nodes=1, min_lines=4)) == 1
-    assert find(root, min_nodes=1, min_lines=5) == []
+    assert len(find(root, min_nodes=1, min_lines=4, pair_min_lines=4)) == 1
+    assert find(root, min_nodes=1, min_lines=5, pair_min_lines=4) == []
 
 
 def test_the_size_gate_on_nodes(tmp_path):
@@ -104,7 +104,7 @@ def test_two_functions_with_one_qualified_name_get_line_suffixes(tmp_path):
         "            total += item.price\n        return total\n"
     )
     root = make_repository(tmp_path, {"a.py": source})
-    findings = find(root, min_nodes=1)
+    findings = find(root, min_nodes=1, pair_min_lines=4)
 
     assert [f["id"] for f in findings] == ["duplication:a.py::A.run@2|a.py::A.run@8"]
 
@@ -252,8 +252,8 @@ def test_the_fixture_has_exactly_the_two_planted_findings(sample):
     findings = find(sample)
 
     assert [f["id"] for f in findings] == [
-        "duplication:app/pricing.py::sum_with_levy|app/pricing.py::total_with_tax",
         "duplication:src/pricing.ts::sumWithLevy|src/pricing.ts::totalWithTax",
+        "duplication:app/pricing.py::sum_with_levy|app/pricing.py::total_with_tax",
     ]
 
 
@@ -293,8 +293,18 @@ def test_the_fixture_describe_functions_stay_below_the_gate_or_threshold(sample)
 
 
 def test_defaults_and_validation():
-    assert parse_settings({}) == {"threshold": 0.82, "min_lines": 4, "min_nodes": 20}
-    assert list(parse_settings({"min_nodes": 3})) == ["threshold", "min_lines", "min_nodes"]
+    assert parse_settings({}) == {
+        "threshold": 0.82,
+        "min_lines": 4,
+        "pair_min_lines": 6,
+        "min_nodes": 20,
+    }
+    assert list(parse_settings({"min_nodes": 3})) == [
+        "threshold",
+        "min_lines",
+        "pair_min_lines",
+        "min_nodes",
+    ]
 
     for bad in (
         {"threshold": 2},
@@ -303,8 +313,131 @@ def test_defaults_and_validation():
         {"threshold": True},
         {"min_lines": 0},
         {"min_lines": 1.5},
+        {"pair_min_lines": 0},
+        {"pair_min_lines": 2.5},
         {"min_nodes": True},
         {"nonesuch": 1},
     ):
         with pytest.raises(SettingsError):
             parse_settings(bad)
+
+
+def sized(name: str, lines: int) -> str:
+    body = "".join(f"    v{i} = x + {i}\n" for i in range(lines - 2))
+
+    return f"def {name}(x):\n{body}    return x\n"
+
+
+def distinct(name: str, lines: int) -> str:
+    body = "".join(f"    v{i} = x * {i}\n" for i in range(lines - 2))
+
+    return f"def {name}(x):\n{body}    return x\n"
+
+
+def method_class(name: str, methods: list[str], lines: int) -> str:
+    body = "".join("    " + line + "\n" for m in methods for line in sized(m, lines).splitlines())
+
+    return f"class {name}:\n{body}"
+
+
+def test_a_five_line_pair_is_dropped_at_the_defaults_and_kept_when_lowered(tmp_path):
+    root = make_repository(tmp_path, {"a.py": sized("f", 5), "b.py": sized("g", 5)})
+
+    assert find(root, min_nodes=1) == []
+    assert len(find(root, min_nodes=1, pair_min_lines=4)) == 1
+
+
+def test_a_six_line_pair_is_kept(tmp_path):
+    root = make_repository(tmp_path, {"a.py": sized("f", 6), "b.py": sized("g", 6)})
+
+    assert len(find(root, min_nodes=1)) == 1
+
+
+def test_a_pair_with_a_five_line_member_is_dropped(tmp_path):
+    root = make_repository(tmp_path, {"a.py": sized("f", 6), "b.py": sized("g", 5)})
+
+    assert find(root, min_nodes=1, threshold=0.5) == []
+
+
+def test_a_family_of_three_five_line_functions_is_kept_at_the_defaults(tmp_path):
+    files = {f"{n}.py": sized(n, 5) for n in ("a", "b", "c")}
+    root = make_repository(tmp_path, files)
+
+    found = find(root, min_nodes=1)
+
+    assert len(found) == 1
+    assert len(found[0]["evidence"]["members"]) == 3
+
+
+def test_a_raised_min_lines_drops_a_seven_line_pair_and_family(tmp_path):
+    pair = make_repository(tmp_path / "p", {"a.py": sized("f", 7), "b.py": sized("g", 7)})
+    family = make_repository(tmp_path / "f", {f"{n}.py": sized(n, 7) for n in ("a", "b", "c")})
+
+    assert find(pair, min_nodes=1, min_lines=8) == []
+    assert find(family, min_nodes=1, min_lines=8) == []
+
+
+def test_three_methods_of_one_class_get_the_class_summary(tmp_path):
+    root = make_repository(tmp_path, {"a.py": method_class("C", ["f", "g", "h"], 5)})
+
+    found = find(root, min_nodes=1)
+
+    assert len(found) == 1
+    assert found[0]["summary"] == "3 methods of C share one structure"
+    assert len(found[0]["evidence"]["members"]) == 3
+    assert found[0]["id"].endswith("#3")
+
+
+def test_methods_across_two_classes_and_free_functions_keep_the_names_summary(tmp_path):
+    split = make_repository(
+        tmp_path / "s",
+        {"a.py": method_class("C", ["f", "g"], 5) + method_class("D", ["h"], 5)},
+    )
+    free = make_repository(
+        tmp_path / "r", {"a.py": "".join(sized(n, 5) + "\n" for n in ("f", "g", "h"))}
+    )
+
+    for root in (split, free):
+        found = find(root, min_nodes=1)
+
+        assert len(found) == 1
+        assert found[0]["summary"].startswith("3 functions share one structure: ")
+
+
+def test_a_pair_of_methods_keeps_the_pair_summary(tmp_path):
+    root = make_repository(tmp_path, {"a.py": method_class("C", ["f", "g"], 6)})
+
+    found = find(root, min_nodes=1)
+
+    assert len(found) == 1
+    assert "% similar to" in found[0]["summary"]
+
+
+def test_findings_come_out_largest_summed_lines_first(tmp_path):
+    files = {
+        "a.py": sized("f", 6),
+        "b.py": sized("g", 6),
+        "c.py": distinct("p", 9),
+        "d.py": distinct("q", 9),
+        "e.py": distinct("r", 9),
+    }
+    root = make_repository(tmp_path, files)
+
+    found = find(root, min_nodes=1)
+    totals = [
+        sum(m["lines"][1] - m["lines"][0] + 1 for m in f["evidence"]["members"]) for f in found
+    ]
+
+    assert totals == sorted(totals, reverse=True)
+    assert len(found) == 2
+    assert len(found[0]["evidence"]["members"]) == 3
+
+
+def test_the_sample_repository_findings_are_in_non_increasing_lines_order(sample):
+    found = find(sample)
+    totals = [
+        sum(m["lines"][1] - m["lines"][0] + 1 for m in f["evidence"]["members"]) for f in found
+    ]
+
+    assert totals == sorted(totals, reverse=True)
+    assert len(found) == 2

@@ -11,7 +11,7 @@ from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import SettingsError
 
-DEFAULTS = {"threshold": 0.82, "min_lines": 4, "min_nodes": 20}
+DEFAULTS = {"threshold": 0.82, "min_lines": 4, "pair_min_lines": 6, "min_nodes": 20}
 
 PRINCIPLE = "Do not repeat yourself"
 FIX_PATTERN = "extract-shared-function"
@@ -45,7 +45,7 @@ def parse_settings(raw: dict) -> dict:
     if not 0 < threshold <= 1:
         raise SettingsError("threshold must be above 0 and at most 1")
 
-    for key in ("min_lines", "min_nodes"):
+    for key in ("min_lines", "pair_min_lines", "min_nodes"):
         value = settings[key]
 
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
@@ -54,6 +54,7 @@ def parse_settings(raw: dict) -> dict:
     return {
         "threshold": float(threshold),
         "min_lines": settings["min_lines"],
+        "pair_min_lines": settings["pair_min_lines"],
         "min_nodes": settings["min_nodes"],
     }
 
@@ -161,6 +162,24 @@ def member_of(unit: Unit) -> dict:
     }
 
 
+def shared_prefix(members: list[Unit]) -> str | None:
+    if len({unit.file for unit in members}) != 1:
+        return None
+
+    prefixes = {unit.qualified.rpartition(".")[0] for unit in members}
+
+    if len(prefixes) != 1:
+        return None
+
+    prefix = prefixes.pop()
+
+    return prefix or None
+
+
+def lines_of(finding: dict) -> int:
+    return sum(m["lines"][1] - m["lines"][0] + 1 for m in finding["evidence"]["members"])
+
+
 def finding_for(members: list[Unit], score: float) -> dict:
     members = sorted(members, key=lambda unit: unit.identity)
     first, second = members[0], members[1]
@@ -173,8 +192,13 @@ def finding_for(members: list[Unit], score: float) -> dict:
         )
     else:
         finding_id = f"duplication:{first.identity}|{second.identity}#{len(members)}"
-        names = ", ".join(f"{unit.qualified} in {unit.module}" for unit in members)
-        summary = f"{len(members)} functions share one structure: {names}"
+        prefix = shared_prefix(members)
+
+        if prefix is None:
+            names = ", ".join(f"{unit.qualified} in {unit.module}" for unit in members)
+            summary = f"{len(members)} functions share one structure: {names}"
+        else:
+            summary = f"{len(members)} methods of {prefix} share one structure"
 
     return {
         "id": finding_id,
@@ -233,7 +257,17 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> list[dict]:
             if not nested(units[i], units[j])
         ]
 
-        for indices, score in families(edges):
-            findings.append(finding_for([units[i] for i in indices], score))
+        pair_floor = max(settings["min_lines"], settings["pair_min_lines"])
 
-    return findings
+        for indices, score in families(edges):
+            members = [units[i] for i in indices]
+
+            if (
+                len(members) == 2
+                and min(u.end_line - u.start_line + 1 for u in members) < pair_floor
+            ):
+                continue
+
+            findings.append(finding_for(members, score))
+
+    return sorted(findings, key=lambda finding: (-lines_of(finding), finding["id"]))

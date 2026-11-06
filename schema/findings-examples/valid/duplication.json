@@ -3,7 +3,7 @@
   "sensor": { "name": "duplication", "version": "0.1.0" },
   "commit": "0123456789abcdef0123456789abcdef01234567",
   "modified": false,
-  "settings": { "threshold": 0.82, "min_lines": 4, "min_nodes": 20 },
+  "settings": { "threshold": 0.82, "min_lines": 4, "pair_min_lines": 6, "min_nodes": 20 },
   "findings": [
     {
       "id": "duplication:src/pricing.ts::sumWithLevy|src/pricing.ts::totalWithTax",

@@ -173,6 +173,25 @@ function unusedExports(record: FindingRecord): string | null {
   return `${shortName(module)} exports ${names.length} ${plural(names.length, "name", "names")} no other module imports: ${names.join(", ")}.`;
 }
 
+function sharedPrefix(
+  members: NonNullable<FindingRecord["evidence"]["members"]>,
+): string | null {
+  const files = new Set(members.map((member) => member.file));
+
+  if (files.size !== 1 || files.has(undefined)) {
+    return null;
+  }
+
+  const prefixes = new Set(
+    members.map((member) =>
+      member.name.slice(0, Math.max(0, member.name.lastIndexOf("."))),
+    ),
+  );
+  const [only] = [...prefixes];
+
+  return prefixes.size === 1 && only !== undefined && only !== "" ? only : null;
+}
+
 function duplication(record: FindingRecord): string | null {
   const members = record.evidence.members ?? [];
   const [first, second, third] = members;
@@ -185,6 +204,12 @@ function duplication(record: FindingRecord): string | null {
     member.lines === undefined ? [] : [member.lines[1] - member.lines[0] + 1],
   );
   const tail = sizes.length === 0 ? "" : ` (${Math.max(...sizes)} lines)`;
+
+  const prefix = sharedPrefix(members);
+
+  if (third !== undefined && prefix !== null) {
+    return `${members.length} methods of ${prefix} repeat one structure${tail}.`;
+  }
 
   if (third === undefined) {
     return `${first.name} in ${shortName(first.module)} repeats the structure of ${second.name} in ${shortName(second.module)}${tail}.`;

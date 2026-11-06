@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { findingsByModuleFrom } from "../src/findings.js";
+import {
+  findingsByModuleFrom,
+  linesDuplicated,
+  orderDuplication,
+} from "../src/findings.js";
+import type { FindingRecord } from "../src/findings-document.js";
 import { parsePolicy, validateScan } from "../src/index.js";
 import { structureSensor } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
@@ -101,5 +106,52 @@ describe("findingsByModuleFrom over the structure document", () => {
     expect(
       findingsByModule([scan], ignoring, 3).has("app/domain/money.py"),
     ).toBe(false);
+  });
+});
+
+describe("linesDuplicated and orderDuplication", () => {
+  const rec = (
+    id: string,
+    kind: string,
+    sizes: (number | null)[],
+  ): FindingRecord => ({
+    id,
+    kind,
+    severity: "warning",
+    principle: "p",
+    summary: id,
+    evidence: {
+      modules: ["m"],
+      members: sizes.map((size, index) => ({
+        module: "m",
+        name: `n${index}`,
+        ...(size === null ? {} : { lines: [1, size] as [number, number] }),
+      })),
+    },
+  });
+
+  it("sums unequal members and counts a member without lines as 0", () => {
+    expect(linesDuplicated(rec("a", "duplication", [46, 51, 57]))).toBe(154);
+    expect(linesDuplicated(rec("a", "duplication", [10, null]))).toBe(10);
+  });
+
+  it("orders duplication records in their own slots and leaves other kinds put", () => {
+    const records = [
+      rec("hub1", "hub", []),
+      rec("d-small", "duplication", [5, 5]),
+      rec("cycle1", "cycle", []),
+      rec("d-b", "duplication", [8, 8]),
+      rec("d-big", "duplication", [20, 20]),
+      rec("d-a", "duplication", [8, 8]),
+    ];
+
+    expect(orderDuplication(records).map((one) => one.id)).toEqual([
+      "hub1",
+      "d-big",
+      "cycle1",
+      "d-a",
+      "d-b",
+      "d-small",
+    ]);
   });
 });

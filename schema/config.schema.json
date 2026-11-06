@@ -138,6 +138,10 @@
                   "type": "integer",
                   "minimum": 1
                 },
+                "pair_min_lines": {
+                  "type": "integer",
+                  "minimum": 1
+                },
                 "min_nodes": {
                   "type": "integer",
                   "minimum": 1

@@ -1,4 +1,8 @@
-import type { FindingRecord, FindingsDocument } from "recognizer";
+import {
+  type FindingRecord,
+  type FindingsDocument,
+  linesDuplicated,
+} from "recognizer";
 
 export type StaleRow = {
   name: string;
@@ -42,13 +46,23 @@ export function findingRows(documents: FindingsDocument[]): FindingRow[] {
   );
 }
 
+function withinKind(a: FindingRow, b: FindingRow): number {
+  if (a.kind === "duplication") {
+    return (
+      linesDuplicated(b.record) - linesDuplicated(a.record) ||
+      compare(a.id, b.id)
+    );
+  }
+
+  return compare(a.module, b.module) || compare(a.id, b.id);
+}
+
 export function orderFindings(rows: FindingRow[]): FindingRow[] {
   return [...rows].sort(
     (a, b) =>
       SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) ||
       compare(a.kind, b.kind) ||
-      compare(a.module, b.module) ||
-      compare(a.id, b.id),
+      withinKind(a, b),
   );
 }
 
