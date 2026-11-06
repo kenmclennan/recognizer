@@ -43,11 +43,11 @@ describe("readDescribing", () => {
     const directory = makeTempDir("recognizer-settings-");
 
     expect(readDescribing(ioFor(directory))).toEqual({
-      model: "sonnet",
+      model: "haiku",
       batch_size: 4,
     });
     expect(JSON.parse(readFileSync(configIn(directory), "utf8"))).toEqual({
-      describing: { model: "sonnet", batch_size: 4 },
+      describing: { model: "haiku", batch_size: 4 },
     });
     expect(existsSync(`${configIn(directory)}.tmp`)).toBe(false);
   });
@@ -64,7 +64,7 @@ describe("readDescribing", () => {
     expect(JSON.parse(readFileSync(configIn(directory), "utf8"))).toEqual({
       editor: "code",
       unknown: [1, 2],
-      describing: { model: "sonnet", batch_size: 4 },
+      describing: { model: "haiku", batch_size: 4 },
     });
   });
 

@@ -210,7 +210,6 @@ export type ScanHost = {
   run: (modules: string[] | null, planned?: PlannedRun) => void;
   stop: () => void;
   refresh: () => void;
-  model: () => Promise<string>;
 };
 
 export const inertScanHost: ScanHost = {
@@ -225,7 +224,6 @@ export const inertScanHost: ScanHost = {
   run: () => {},
   stop: () => {},
   refresh: () => {},
-  model: async () => "sonnet",
 };
 
 export type Explorer = {
@@ -324,7 +322,6 @@ export function showExplorer(
   let describedAt: number | null = null;
   let describerSeen: {
     config: string | null;
-    model: string;
     found: EffectiveDescriber | null;
   } | null = null;
   let scrollTarget: string | null = null;
@@ -543,18 +540,16 @@ export function showExplorer(
 
   const describing = createDescribing();
   let responsibilityOf: (id: string) => ResponsibilityState =
-    responsibilityStates(NO_FILES, null, "");
+    responsibilityStates(NO_FILES, null);
 
   async function readResponsibilities() {
     try {
       const files = await responsibilities.read();
-      const model = await scanHost.model();
 
       describedAt = files.responsibilitiesModifiedMs ?? null;
       responsibilityOf = responsibilityStates(
         files,
-        await describerFallback(files.config, model),
-        model,
+        await describerFallback(files.config),
       );
     } catch (error) {
       const reason = String(error);
@@ -568,13 +563,8 @@ export function showExplorer(
 
   async function describerFallback(
     config: string | null,
-    model: string,
   ): Promise<EffectiveDescriber | null> {
-    if (
-      describerSeen === null ||
-      describerSeen.config !== config ||
-      describerSeen.model !== model
-    ) {
+    if (describerSeen === null || describerSeen.config !== config) {
       let found: EffectiveDescriber | null = null;
 
       try {
@@ -588,7 +578,7 @@ export function showExplorer(
         found = null;
       }
 
-      describerSeen = { config, model, found };
+      describerSeen = { config, found };
     }
 
     return describerSeen.found;

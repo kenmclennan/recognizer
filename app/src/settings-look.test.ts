@@ -19,7 +19,7 @@ const q = (selector) => host.querySelector(selector);
 const cs = (node) => getComputedStyle(node);
 const facts = {};
 
-view.fill({ editor: "", describing: { model: "sonnet", batchSize: 4 } });
+view.fill({ editor: "", describing: { model: "haiku", batchSize: 4 } });
 facts.empty = {
   labels: [...host.querySelectorAll("label > span")].map((n) => n.textContent),
   placeholders: [...host.querySelectorAll('input[type="text"]')].map((n) => n.placeholder),
@@ -90,8 +90,8 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
   it("shows the editor field and a Describing section with its placeholders, hints and buttons and no Scanning section", () => {
     expect(f.empty.labels).toEqual(["Editor", "Model", "Batch size"]);
     expect(f.empty.scanning).toBe(false);
-    expect(f.empty.placeholders).toEqual(["System default", "sonnet"]);
-    expect(f.empty.values).toEqual(["", "sonnet"]);
+    expect(f.empty.placeholders).toEqual(["System default", "haiku"]);
+    expect(f.empty.values).toEqual(["", "haiku"]);
     expect(f.empty.batch).toEqual({
       value: "4",
       min: "1",

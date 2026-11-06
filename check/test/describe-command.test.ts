@@ -692,7 +692,7 @@ describe("describer in effect", () => {
         "{model}",
         "{request}",
       ],
-      version: `${SHIPPED_VERSION}+sonnet`,
+      version: SHIPPED_VERSION,
       source: "shipped",
     });
   });
@@ -703,7 +703,7 @@ describe("describer in effect", () => {
     const result = await exec(repository(), "describe", "--describer");
 
     expect(result.out).toBe(
-      `recognizer-describe-claude --model {model} {request}  ${SHIPPED_VERSION}+sonnet  shipped\n`,
+      `recognizer-describe-claude --model {model} {request}  ${SHIPPED_VERSION}  shipped\n`,
     );
   });
 
@@ -747,7 +747,7 @@ describe("describer in effect", () => {
       "{model}",
       "{request}",
     ]);
-    expect(entry.version).toBe(`${SHIPPED_VERSION}+sonnet`);
+    expect(entry.version).toBe(SHIPPED_VERSION);
     expect(entry.line).toBe(`shipped ${ORDER}`);
     expect((await statuses(root)).parsed.ok).toBe(true);
   });

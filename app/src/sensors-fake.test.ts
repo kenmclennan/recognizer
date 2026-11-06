@@ -25,7 +25,7 @@ describe("fakeSensors describer", () => {
         "{model}",
         "{request}",
       ],
-      version: "prompt-0123456789ab+sonnet",
+      version: "prompt-0123456789ab",
       source: "shipped",
     });
   });
@@ -39,10 +39,8 @@ describe("fakeSensors describer", () => {
       },
     );
 
-    fake.model = "opus";
-
     expect(((await fake.describer()) as { version: string }).version).toBe(
-      "v9+opus",
+      "v9",
     );
   });
 

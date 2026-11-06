@@ -49,6 +49,6 @@ export const inertScan: ScanPort = {
     remembered: false,
   }),
   writeTicks: async () => {},
-  readDescribing: async () => ({ model: "sonnet", batchSize: 4 }),
+  readDescribing: async () => ({ model: "haiku", batchSize: 4 }),
   onLine: () => () => {},
 };

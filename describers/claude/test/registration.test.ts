@@ -64,7 +64,7 @@ describe("the committed registration", () => {
     );
 
     expect(result.status).toBe(0);
-    expect(JSON.parse(result.stdout).version).toBe(`${promptVersion()}+sonnet`);
+    expect(JSON.parse(result.stdout).version).toBe(promptVersion());
   });
 
   it("names the current prompt version", () => {
