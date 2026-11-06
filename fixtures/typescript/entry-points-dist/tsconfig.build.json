@@ -1,0 +1,1 @@
+{"compilerOptions":{"rootDir":"./src","outDir":"./dist/types","declaration":true},"include":["src"]}

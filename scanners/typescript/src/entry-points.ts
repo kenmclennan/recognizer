@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, posix, relative, sep } from "node:path";
 import { isSkippedDirectory } from "./files.js";
+import { isUnder, type OutputMapping } from "./tsconfig-options.js";
 
 const CONFIG_NAME = /^.+\.config\.(ts|mts|cts|js|mjs|cjs)$/;
 const SCRIPT_TAG = /<script\b[^>]*>/gi;
@@ -150,10 +151,57 @@ function pageResolutions(directory: string, value: string): string[] {
   }
 }
 
+const OUTPUT_SUFFIXES: [string, string[]][] = [
+  [".d.ts", [".ts", ".tsx"]],
+  [".d.mts", [".mts"]],
+  [".d.cts", [".cts"]],
+  [".js", [".ts", ".tsx", ".js", ".jsx"]],
+  [".jsx", [".tsx", ".jsx"]],
+  [".mjs", [".mts", ".mjs"]],
+  [".cjs", [".cts", ".cjs"]],
+];
+
+function sourceCandidates(
+  resolved: string,
+  mappings: OutputMapping[],
+): string[] {
+  const suffix = OUTPUT_SUFFIXES.filter(([ending]) =>
+    resolved.endsWith(ending),
+  ).sort((a, b) => b[0].length - a[0].length)[0];
+
+  if (!suffix) {
+    return [];
+  }
+
+  const [ending, replacements] = suffix;
+  const candidates: string[] = [];
+
+  for (const { outDir, rootDir } of mappings) {
+    if (!isUnder(resolved, outDir) || resolved === outDir) {
+      continue;
+    }
+
+    const relativePath =
+      outDir === "." ? resolved : resolved.slice(outDir.length + 1);
+    const stem = relativePath.slice(0, -ending.length);
+
+    if (stem === "" || stem.endsWith("/")) {
+      continue;
+    }
+
+    for (const replacement of replacements) {
+      candidates.push(posix.normalize(posix.join(rootDir, stem + replacement)));
+    }
+  }
+
+  return candidates;
+}
+
 export function entryPoints(
   root: string,
   files: ReadonlySet<string>,
   sources: (id: string) => string | null,
+  mappings: (directory: string) => OutputMapping[],
 ): Set<string> {
   const marked = new Set<string>();
   const mark = (id: string | null) => {
@@ -172,10 +220,27 @@ export function entryPoints(
 
     const directory = posix.dirname(idOf(root, path));
 
-    for (const value of [
-      ...manifestTargets(manifest),
-      ...scriptTargets(manifest),
-    ]) {
+    const outputs = manifestTargets(manifest);
+    let packageMappings: OutputMapping[] | null = null;
+
+    for (const value of outputs) {
+      const resolved = resolveFrom(directory, value);
+
+      if (resolved === null) {
+        continue;
+      }
+
+      mark(resolved);
+      packageMappings ??= mappings(directory);
+
+      const source = sourceCandidates(resolved, packageMappings).find((id) =>
+        files.has(id),
+      );
+
+      mark(source ?? null);
+    }
+
+    for (const value of scriptTargets(manifest)) {
       mark(resolveFrom(directory, value));
     }
   }

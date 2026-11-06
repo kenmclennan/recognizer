@@ -1,15 +1,43 @@
 import { readdirSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import ts from "typescript";
 import { isSkippedDirectory } from "./files.js";
 
 const NO_INPUTS = 18003;
+const DECLARATION = /\.d\.[mc]?ts$/;
+
+function commonDirectory(files: string[]): string | null {
+  const [first, ...rest] = files.map((file) => dirname(file).split(sep));
+
+  if (!first) {
+    return null;
+  }
+
+  let length = first.length;
+
+  for (const parts of rest) {
+    let at = 0;
+
+    while (at < length && at < parts.length && parts[at] === first[at]) {
+      at += 1;
+    }
+
+    length = at;
+  }
+
+  return first.slice(0, length).join(sep) || sep;
+}
 
 interface ParsedConfig {
   path: string;
   options: ts.CompilerOptions;
   files: Set<string>;
   references: string[];
+}
+
+export interface OutputMapping {
+  outDir: string;
+  rootDir: string;
 }
 
 export interface SkippedProject {
@@ -73,6 +101,66 @@ export class TsconfigOptions {
     }
 
     return this.allowJs(config.options);
+  }
+
+  outputMappings(directory: string): OutputMapping[] {
+    const mappings: OutputMapping[] = [];
+    const seen = new Set<string>();
+
+    const visit = (path: string) => {
+      if (seen.has(path)) {
+        return;
+      }
+
+      seen.add(path);
+
+      const config = this.parse(path);
+
+      if (!config) {
+        return;
+      }
+
+      const mapping = this.mappingOf(config);
+
+      if (mapping) {
+        mappings.push(mapping);
+      }
+
+      for (const reference of config.references) {
+        visit(reference);
+      }
+    };
+
+    visit(join(directory, "tsconfig.json"));
+
+    return mappings;
+  }
+
+  private mappingOf(config: ParsedConfig): OutputMapping | null {
+    const { outDir, rootDir, noEmit } = config.options;
+
+    if (noEmit === true || typeof outDir !== "string") {
+      return null;
+    }
+
+    const root =
+      typeof rootDir === "string"
+        ? rootDir
+        : (commonDirectory(
+            [...config.files].filter((file) => !DECLARATION.test(file)),
+          ) ?? dirname(config.path));
+
+    if (this.outside(outDir) || this.outside(root)) {
+      return null;
+    }
+
+    return { outDir: this.idOf(outDir), rootDir: this.idOf(root) };
+  }
+
+  private outside(path: string): boolean {
+    const id = relative(this.root, path);
+
+    return id === ".." || id.startsWith(`..${sep}`) || isAbsolute(id);
   }
 
   skippedProjects(): SkippedProject[] {
