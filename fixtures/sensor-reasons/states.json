@@ -1,0 +1,27 @@
+{
+  "crap-tests-failed": {
+    "code": "tests-failed",
+    "line": "3 tests failed, so coverage may read low",
+    "failing": { "count": 3, "names": [] }
+  },
+  "crap-no-coverage": {
+    "code": "coverage-unavailable",
+    "line": "Coverage unavailable: cargo-llvm-cov is not installed. Install it with cargo install cargo-llvm-cov",
+    "fix": "cargo install cargo-llvm-cov"
+  },
+  "crap-no-runner": {
+    "code": "tool-missing",
+    "line": "pytest is not in this repository's environment. Add it with uv add --dev pytest",
+    "fix": "uv add --dev pytest"
+  },
+  "mutation-tests-failing": {
+    "code": "tests-failed",
+    "line": "The test suite fails before any mutation, so verdicts would mean nothing. Failing: tests/test_orders.py::test_refund and 2 more",
+    "failing": { "count": 3, "names": ["tests/test_orders.py::test_refund"] }
+  },
+  "mutation-no-coverage": {
+    "code": "coverage-unavailable",
+    "line": "Mutation needs coverage: cargo-llvm-cov is not installed. Install it with cargo install cargo-llvm-cov",
+    "fix": "cargo install cargo-llvm-cov"
+  }
+}

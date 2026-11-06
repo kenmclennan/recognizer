@@ -268,6 +268,8 @@ function freshnessOf(loaded: Loaded) {
   );
 }
 
+const SENSOR_LOG = ".recognizer/cache/coverage/last-run.log";
+
 export function showExplorer(
   container: HTMLElement,
   initial: Loaded,
@@ -841,6 +843,12 @@ export function showExplorer(
     stop: () => scanHost.stop(),
     answerDescribe: (describe) => scanHost.answerDescribe(describe),
     clearReport: (name) => void clearReport(name),
+    copy: (text) =>
+      void views.copy(text).catch((error: unknown) => fail(String(error))),
+    openLog: () =>
+      void editor
+        .openFile(SENSOR_LOG)
+        .catch((error: unknown) => fail(String(error))),
   });
   const findingsView = buildFindingsPanelView({
     toggle: toggleFinding,

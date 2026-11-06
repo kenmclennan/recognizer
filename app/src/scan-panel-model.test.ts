@@ -1,4 +1,4 @@
-import type { Scan } from "recognizer";
+import type { Diagnosis, Scan } from "recognizer";
 import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
@@ -13,6 +13,7 @@ import {
   rowSensors,
   scanPanel,
 } from "./scan-panel-model";
+import { whyOf } from "./scan-why";
 import type { ShippedSensor, ShippedSensors } from "./sensor-run";
 
 const CONFIG = `sensors:
@@ -816,6 +817,23 @@ describe("scanPanel freshness", () => {
       freshness: buildFreshness([freshScan], "t"),
     });
 
+  it("keeps the second line of a ran, partly row when a module gap replaces the state", () => {
+    const withWhy = base({ "a.py": "ha", "b.py": "old" });
+    const model = scanPanel({
+      ...withWhy,
+      sensors: [
+        {
+          ...crap({ "a.py": "ha", "b.py": "old" }),
+          diagnosis: { code: "tests-failed", line: "3 failed" },
+        },
+      ],
+    });
+    const row = model.rows.find(({ key }) => key === "crap");
+
+    expect(row?.state.text).toBe("1 module out of date");
+    expect(row?.why).not.toBeNull();
+  });
+
   it("reports a partial picture, the row count and the whole-repository note, and marks the chip stale", () => {
     const model = scanPanel(base({ "a.py": "ha", "b.py": "old" }));
     const row = model.rows.find(({ key }) => key === "crap");
@@ -853,5 +871,182 @@ describe("scanPanel freshness", () => {
 
     expect(model.report?.head).toBe("Complete picture");
     expect(model.report?.body).toContain("engine");
+  });
+});
+
+describe("scanPanel why", () => {
+  const FIX = "cargo install cargo-llvm-cov";
+  const refusal = (name: string, diagnosis: Diagnosis) =>
+    scanPanel(
+      input({
+        run: run({
+          failures: { [name]: "refused" },
+          diagnoses: { [name]: diagnosis },
+          ranAt: { [name]: NOW },
+        }),
+      }),
+    ).rows.find((row) => row.key === name);
+  const completed = (diagnosis: Diagnosis) =>
+    scanPanel(
+      input({
+        sensors: [
+          {
+            name: "crap",
+            status: "ran",
+            findings: 2,
+            modifiedMs: NOW,
+            diagnosis,
+          },
+        ],
+      }),
+    ).rows.find((row) => row.key === "crap");
+
+  it("reads could not run in the bad tone for a refusal with tool-missing and offers the fix to copy", () => {
+    const row = refusal("crap", {
+      code: "tool-missing",
+      line: `pytest is missing. Add it with ${FIX}`,
+      fix: FIX,
+    });
+
+    expect(row?.state).toEqual({
+      text: "could not run, just now",
+      tone: "bad",
+    });
+    expect(row?.why).toEqual({
+      segments: [
+        { text: "pytest is missing. Add it with ", code: false },
+        { text: FIX, code: true },
+        { text: ".", code: false },
+      ],
+      copy: FIX,
+      log: false,
+    });
+  });
+
+  it("reads refused for tests-failed, marks the first failing name and offers the log", () => {
+    const row = refusal("mutation", {
+      code: "tests-failed",
+      line: "Suite fails. Failing: t::a and 2 more",
+      failing: { count: 3, names: ["t::a"] },
+    });
+
+    expect(row?.state).toEqual({ text: "refused, just now", tone: "bad" });
+    expect(row?.why?.segments).toContainEqual({ text: "t::a", code: true });
+    expect(row?.why).toMatchObject({ copy: null, log: true });
+  });
+
+  it("reads refused for coverage-unavailable, with the log only when there is no fix", () => {
+    expect(
+      refusal("mutation", {
+        code: "coverage-unavailable",
+        line: `Needs coverage. Install ${FIX}`,
+        fix: FIX,
+      })?.why,
+    ).toMatchObject({ copy: FIX, log: false });
+    expect(
+      refusal("mutation", {
+        code: "coverage-unavailable",
+        line: "Needs coverage, see the log",
+      })?.why,
+    ).toMatchObject({ copy: null, log: true });
+  });
+
+  it("reads ran, partly for a completed tests-failed run and keeps the findings", () => {
+    const row = completed({
+      code: "tests-failed",
+      line: "3 tests failed, so coverage may read low",
+      failing: { count: 3, names: [] },
+    });
+
+    expect(row?.state).toEqual({ text: "ran, partly, just now", tone: "warn" });
+    expect(row?.why).toMatchObject({ copy: null, log: true });
+  });
+
+  it("reads complexity only for a completed coverage-unavailable run with a fix to copy", () => {
+    const row = completed({
+      code: "coverage-unavailable",
+      line: `No coverage. Install ${FIX}`,
+      fix: FIX,
+    });
+
+    expect(row?.state).toEqual({
+      text: "complexity only, just now",
+      tone: "warn",
+    });
+    expect(row?.why).toMatchObject({ copy: FIX, log: false });
+  });
+
+  it("keeps failed and no second line for a failure with no diagnosis", () => {
+    const row = scanPanel(
+      input({
+        run: run({ failures: { crap: "boom" }, ranAt: { crap: NOW } }),
+      }),
+    ).rows.find((one) => one.key === "crap");
+
+    expect(row?.state.text).toBe("failed, just now");
+    expect(row?.why).toBeNull();
+  });
+
+  it("gives a live row no second line", () => {
+    const model = scanPanel(
+      input({
+        scanning: true,
+        run: run({
+          running: ["crap"],
+          started: "crap",
+          diagnoses: { crap: { code: "tool-missing", line: "x" } },
+        }),
+      }),
+    );
+
+    expect(model.rows.find((row) => row.key === "crap")?.why).toBeNull();
+  });
+
+  it("survives a reload from the status alone", () => {
+    const row = scanPanel(
+      input({
+        sensors: [
+          {
+            name: "crap",
+            status: "ran",
+            findings: 1,
+            modifiedMs: NOW - 5 * MINUTE,
+            diagnosis: { code: "tests-failed", line: "3 failed" },
+          },
+        ],
+      }),
+    ).rows.find((one) => one.key === "crap");
+
+    expect(row?.state.text).toBe("ran, partly, 5 minutes ago");
+  });
+});
+
+describe("whyOf", () => {
+  it("gives no code segment for a fix that is not in the line and still sets copy", () => {
+    const why = whyOf({
+      code: "tool-missing",
+      line: "Missing tool.",
+      fix: "do x",
+    });
+
+    expect(why.segments).toEqual([{ text: "Missing tool.", code: false }]);
+    expect(why.copy).toBe("do x");
+  });
+
+  it("keeps a lower-case first letter", () => {
+    expect(
+      whyOf({ code: "tests-failed", line: "pytest failed." }).segments[0]?.text,
+    ).toBe("pytest failed.");
+  });
+
+  it("adds exactly one full stop when the line has none and none when it ends in one", () => {
+    const text = (line: string) =>
+      whyOf({ code: "tests-failed", line })
+        .segments.map((one) => one.text)
+        .join("");
+
+    expect(text("3 failed")).toBe("3 failed.");
+    expect(text("3 failed.")).toBe("3 failed.");
+    expect(text("really?")).toBe("really?");
   });
 });

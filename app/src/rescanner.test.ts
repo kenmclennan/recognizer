@@ -243,6 +243,37 @@ describe("createRescanner", () => {
     expect(second.rescanner.runState().failures).toEqual({});
   });
 
+  it("clears a sensor's diagnosis when a later sense entry for it is ok", async () => {
+    const refused = line({
+      event: "entry",
+      phase: "sense",
+      name: "alpha",
+      outcome: "failed",
+      reason: "refused",
+      diagnosis: { code: "tool-missing", line: "cargo-llvm-cov is missing" },
+    });
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [current, sensing(1), refused, entry("sense", "alpha"), summary],
+    });
+    const { rescanner } = harness(scan);
+    const seen: Record<string, unknown>[] = [];
+
+    scan.onStep = (index) => {
+      if (index === 2) {
+        seen.push({ ...rescanner.runState().diagnoses });
+      }
+    };
+
+    await rescanner.run();
+
+    expect(seen).toEqual([
+      { alpha: { code: "tool-missing", line: "cargo-llvm-cov is missing" } },
+    ]);
+    expect(rescanner.runState().diagnoses).toEqual({});
+    expect(rescanner.runState().failures).toEqual({});
+  });
+
   it("shows the first unfinished planned sensor as running when the stream has no start events", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },

@@ -7,6 +7,7 @@ import {
   type ScanPanelModel,
   type ScanRow,
 } from "./scan-panel-model";
+import type { ScanWhy } from "./scan-why";
 
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
@@ -16,6 +17,8 @@ export type ScanPanelActions = {
   stop: () => void;
   answerDescribe: (describe: boolean) => void;
   clearReport: (name: string) => void;
+  copy: (text: string) => void;
+  openLog: () => void;
 };
 
 export type ScanPanelView = {
@@ -69,6 +72,38 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   }
 
   node.append(label, state);
+
+  if (row.why !== null) {
+    node.classList.add("has-why");
+    node.append(whyNode(row.why, actions));
+  }
+
+  return node;
+}
+
+function whyNode(why: ScanWhy, actions: ScanPanelActions): HTMLElement {
+  const node = el("div", "scan-why");
+
+  node.append(
+    ...why.segments.map((segment) =>
+      segment.code ? el("code", "", segment.text) : segment.text,
+    ),
+  );
+
+  if (why.copy !== null) {
+    const text = why.copy;
+
+    node.append(
+      " ",
+      button("Copy", "scan-why-copy", () => actions.copy(text)),
+    );
+  }
+
+  if (why.log) {
+    const link = button("Show log", "scan-why-log", () => actions.openLog());
+
+    node.append(" ", link);
+  }
 
   return node;
 }

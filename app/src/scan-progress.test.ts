@@ -87,6 +87,62 @@ describe("parseScanLine", () => {
   });
 });
 
+describe("parseScanLine diagnosis", () => {
+  const diagnosis = {
+    code: "tests-failed",
+    line: "3 tests failed",
+    fix: "run them",
+    failing: { count: 3, names: ["t::a"] },
+  };
+  const sensed = (extra: object) => ({
+    ...entry("crap", "sense", "refused"),
+    ...extra,
+  });
+
+  it("keeps a well-formed diagnosis on an entry", () => {
+    expect(parseScanLine(JSON.stringify(sensed({ diagnosis })))).toEqual({
+      event: "entry",
+      phase: "sense",
+      name: "crap",
+      outcome: "failed",
+      reason: "refused",
+      diagnosis,
+    });
+  });
+
+  it.each([
+    ["an unknown code", { ...diagnosis, code: "nope" }],
+    ["a missing line", { code: "tests-failed" }],
+    ["a fix that is not a string", { ...diagnosis, fix: 4 }],
+    [
+      "failing names that are not strings",
+      { ...diagnosis, failing: { names: [1] } },
+    ],
+    ["failing names that are not an array", { ...diagnosis, failing: {} }],
+  ])("drops %s and leaves the entry otherwise unchanged", (_label, bad) => {
+    expect(parseScanLine(JSON.stringify(sensed({ diagnosis: bad })))).toEqual({
+      event: "entry",
+      phase: "sense",
+      name: "crap",
+      outcome: "failed",
+      reason: "refused",
+    });
+  });
+
+  it("folds only the valid diagnosis of two entries", () => {
+    const state = fold([
+      phase("sense", 2),
+      sensed({ diagnosis }),
+      { ...entry("mutation", "sense", "refused"), diagnosis: { code: "x" } },
+    ]);
+
+    expect(state.sense?.entries.map((one) => one.diagnosis)).toEqual([
+      diagnosis,
+      null,
+    ]);
+  });
+});
+
 describe("scanningText", () => {
   const rows = [
     { key: "crap", display: "C.R.A.P." },

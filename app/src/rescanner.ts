@@ -1,3 +1,4 @@
+import type { Diagnosis } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
@@ -227,13 +228,25 @@ export function createRescanner<Carried>(
     }
   }
 
-  function finished(name: string, ok: boolean, reason: string) {
+  function finished(
+    name: string,
+    ok: boolean,
+    reason: string,
+    diagnosis: Diagnosis | null = null,
+  ) {
     const failures = { ...run.failures };
+    const diagnoses = { ...run.diagnoses };
 
     if (ok) {
       delete failures[name];
     } else {
       failures[name] = reason;
+    }
+
+    if (ok || diagnosis === null) {
+      delete diagnoses[name];
+    } else {
+      diagnoses[name] = diagnosis;
     }
 
     const running = run.running.filter((one) => one !== name);
@@ -243,6 +256,7 @@ export function createRescanner<Carried>(
       running,
       started: run.started === name ? next : run.started,
       failures,
+      diagnoses,
       ranAt: { ...run.ranAt, [name]: Date.now() },
     };
   }
@@ -304,7 +318,12 @@ export function createRescanner<Carried>(
     }
 
     if (event.event === "entry" && event.phase === "sense") {
-      finished(event.name, event.outcome === "ok", event.reason ?? "failed");
+      finished(
+        event.name,
+        event.outcome === "ok",
+        event.reason ?? "failed",
+        event.diagnosis ?? null,
+      );
 
       if (event.outcome === "failed") {
         postFailure(event.name, event.reason ?? "failed");
@@ -390,6 +409,7 @@ export function createRescanner<Carried>(
       running: [...(plan.describe ? [DESCRIBE_KEY] : []), ...plan.sense],
       started: null,
       failures: run.failures,
+      diagnoses: run.diagnoses,
       ranAt: run.ranAt,
     };
 

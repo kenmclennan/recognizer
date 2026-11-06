@@ -1,3 +1,5 @@
+import type { Diagnosis } from "recognizer";
+
 export type ScanEvent =
   | {
       event: "phase";
@@ -12,6 +14,7 @@ export type ScanEvent =
       name: string;
       outcome: "ok" | "failed";
       reason?: string;
+      diagnosis?: Diagnosis;
     }
   | { event: "start"; phase: "sense"; name: string }
   | ({ event: "progress"; phase: "sense"; name: string } & SensorStep)
@@ -46,6 +49,7 @@ export type EntryResult = {
   name: string;
   outcome: "ok" | "failed";
   reason: string | null;
+  diagnosis: Diagnosis | null;
 };
 
 export type PhaseProgress = { total: number; entries: EntryResult[] };
@@ -223,12 +227,74 @@ function entryEvent(line: Record<string, unknown>): ScanEvent | null {
     return null;
   }
 
+  const diagnosis = diagnosisOf(line.diagnosis);
+
   return {
     event: "entry",
     phase: line.phase as PhaseName,
     name: line.name,
     outcome: line.outcome,
     ...(typeof line.reason === "string" ? { reason: line.reason } : {}),
+    ...(diagnosis === null ? {} : { diagnosis }),
+  };
+}
+
+const DIAGNOSIS_CODES: readonly string[] = [
+  "tool-missing",
+  "tests-failed",
+  "coverage-unavailable",
+];
+
+function nonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value !== "";
+}
+
+function failingOf(value: unknown): Diagnosis["failing"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const { count, names } = value as Record<string, unknown>;
+
+  if (!Array.isArray(names) || !names.every(nonEmpty)) {
+    return null;
+  }
+
+  return {
+    names,
+    ...(typeof count === "number" && Number.isInteger(count) && count >= 1
+      ? { count }
+      : {}),
+  };
+}
+
+export function diagnosisOf(value: unknown): Diagnosis | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const { code, line, fix, failing } = value as Record<string, unknown>;
+
+  if (
+    typeof code !== "string" ||
+    !DIAGNOSIS_CODES.includes(code) ||
+    !nonEmpty(line) ||
+    (fix !== undefined && !nonEmpty(fix))
+  ) {
+    return null;
+  }
+
+  const names = failing === undefined ? undefined : failingOf(failing);
+
+  if (names === null) {
+    return null;
+  }
+
+  return {
+    code: code as Diagnosis["code"],
+    line,
+    ...(fix === undefined ? {} : { fix }),
+    ...(names === undefined ? {} : { failing: names }),
   };
 }
 
@@ -273,6 +339,7 @@ export function foldProgress(
         name: event.name,
         outcome: event.outcome,
         reason: event.reason ?? null,
+        diagnosis: event.diagnosis ?? null,
       };
 
       if (event.phase === "extract") {

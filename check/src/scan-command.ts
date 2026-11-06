@@ -289,6 +289,7 @@ function eventEntry(entry: RunEntry): EventEntry {
     name: entry.name,
     outcome: entry.outcome,
     ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+    ...(entry.diagnosis === undefined ? {} : { diagnosis: entry.diagnosis }),
   };
 }
 
