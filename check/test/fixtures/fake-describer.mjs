@@ -74,6 +74,11 @@ if (flagged("--fail")) {
   process.exit(1);
 }
 
+if (flagged("--limit")) {
+  process.stderr.write("claude usage limit: Claude usage limit reached\n");
+  process.exit(75);
+}
+
 if (flagged("--empty")) {
   process.exit(0);
 }

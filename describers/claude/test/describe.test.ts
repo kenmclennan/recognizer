@@ -38,6 +38,16 @@ describe("prompt reaches claude", () => {
       "--tools",
       "",
       "--no-session-persistence",
+      "--output-format",
+      "json",
+      "--setting-sources",
+      "",
+      "--strict-mcp-config",
+      "--mcp-config",
+      '{"mcpServers":{}}',
+      "--disable-slash-commands",
+      "--system-prompt",
+      "You describe code modules.",
     ]);
     expect(recorded(box, "cwd")).not.toBe(box.directory);
   });
@@ -56,7 +66,7 @@ describe("one line, trimmed", () => {
 });
 
 describe("failure prints nothing", () => {
-  const modes = ["fail", "empty", "blank", "two"];
+  const modes = ["fail", "empty", "blank", "two", "plain", "notfound"];
 
   it.each(modes)("exits 1 with empty stdout for %s", (mode) => {
     const box = sandbox();
@@ -87,6 +97,32 @@ describe("failure prints nothing", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).not.toBe("");
+  });
+});
+
+describe("the usage limit", () => {
+  const limits = ["limit", "limit-text"];
+
+  it.each(limits)("exits 75 with the limit line for %s", (mode) => {
+    const box = sandbox();
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)], {
+      FAKE_CLAUDE_MODE: mode,
+    });
+
+    expect(result.status).toBe(75);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toMatch(/^claude usage limit: .+\n$/);
+  });
+
+  it("does not treat a 404 error as a limit", () => {
+    const box = sandbox();
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)], {
+      FAKE_CLAUDE_MODE: "notfound",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("model not found");
+    expect(result.stderr).not.toContain("usage limit");
   });
 });
 

@@ -21,6 +21,7 @@ import {
   type SensorFreshness,
   sensorFreshness,
 } from "./scan-freshness";
+import { type DescribeStop, describeStopText } from "./scan-progress";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type RunState = {
@@ -78,6 +79,7 @@ export type PanelInput = {
   scanning: boolean;
   progressText?: string | null;
   describeProgress?: { entries: number; total: number } | null;
+  describeStop?: DescribeStop | null;
   now: number;
   shipped: ShippedSensors | null;
   freshness?: Freshness;
@@ -289,6 +291,10 @@ function describeState(input: PanelInput): ScanRow["state"] {
 
   const at = input.run.ranAt[DESCRIBE_KEY] ?? input.describedAt;
 
+  if (input.describeStop != null) {
+    return { text: "stopped", tone: "warn" };
+  }
+
   if (input.run.failures[DESCRIBE_KEY] !== undefined) {
     return {
       text: withAge("failed", input.run.ranAt[DESCRIBE_KEY], input.now),
@@ -465,6 +471,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
+  const describing = describeState(judged);
   const rows: ScanRow[] = [
     {
       key: DESCRIBE_KEY,
@@ -472,8 +479,11 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       tickable: true,
       ticked: input.ticks.describe,
       disabled: input.scanning,
-      state: describeState(judged),
-      note: null,
+      state: describing,
+      note:
+        describing.text === "stopped" && judged.describeStop != null
+          ? describeStopText(judged.describeStop)
+          : null,
       title: DESCRIBE_TITLE,
     },
     ...sensors.map((one) => ({

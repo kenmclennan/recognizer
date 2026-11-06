@@ -10,6 +10,7 @@ import {
   describeModules,
   describeSummaryText,
   readResponsibilities,
+  stopCauseText,
 } from "./describe-modules.js";
 import { describerInEffect } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
@@ -526,6 +527,30 @@ function* scanFlow(
         },
       },
     }) as DescribeResult;
+
+    const stop = result.stopped;
+
+    if (stop !== null) {
+      failed = true;
+
+      if (json) {
+        io.stdout(
+          `${JSON.stringify({
+            event: "stopped",
+            phase: "describe",
+            cause: stop.cause,
+            reason: stop.reason,
+            described: stop.described,
+            not_described: stop.not_described.length,
+            threshold: stop.threshold,
+          })}\n`,
+        );
+      } else {
+        io.stderr(
+          `stopped: ${stopCauseText(stop)}; ${stop.not_described.length} modules not described\n`,
+        );
+      }
+    }
 
     if (!json) {
       io.stdout(describeSummaryText(result));

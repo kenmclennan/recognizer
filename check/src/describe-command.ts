@@ -208,16 +208,16 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
   (runLog as OpenRunLog | null)?.finish(recorded);
 
   if (loaded.json) {
-    const { described, failed, current, pruned } = result;
+    const { described, failed, current, pruned, stopped } = result;
 
     io.stdout(
-      `${JSON.stringify({ described, failed, current, pruned }, null, 2)}\n`,
+      `${JSON.stringify({ described, failed, current, pruned, stopped }, null, 2)}\n`,
     );
   } else {
     io.stdout(describeSummaryText(result));
   }
 
-  return result.failed.length > 0 ? 1 : 0;
+  return result.failed.length > 0 || result.stopped !== null ? 1 : 0;
 }
 
 function runDescriber(argv: string[], io: Io): number {

@@ -15,7 +15,16 @@ export type ScanEvent =
     }
   | { event: "start"; phase: "sense"; name: string }
   | ({ event: "progress"; phase: "sense"; name: string } & SensorStep)
+  | ({ event: "stopped"; phase: "describe" } & DescribeStop)
   | { event: "summary" };
+
+export type DescribeStop = {
+  cause: "limit" | "failures";
+  reason: string;
+  described: number;
+  notDescribed: number;
+  threshold: number;
+};
 
 export type SensorStep =
   | { step: "coverage" }
@@ -37,6 +46,7 @@ export type ScanProgress = {
   extract: "pending" | "run" | "current";
   extractEntries: EntryResult[];
   describe: PhaseProgress | null;
+  describeStop: DescribeStop | null;
   sense: PhaseProgress | null;
   sensorProgress: SensorProgress | null;
   extractSettled: boolean;
@@ -52,6 +62,7 @@ export const NO_PROGRESS: ScanProgress = {
   extract: "pending",
   extractEntries: [],
   describe: null,
+  describeStop: null,
   sense: null,
   sensorProgress: null,
   extractSettled: false,
@@ -81,6 +92,8 @@ export function parseScanLine(text: string): ScanEvent | null {
       return { event: "summary" };
     case "phase":
       return phaseEvent(line);
+    case "stopped":
+      return stoppedEvent(line);
     case "entry":
       return entryEvent(line);
     case "start":
@@ -96,6 +109,27 @@ export function parseScanLine(text: string): ScanEvent | null {
 
 function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function stoppedEvent(line: Record<string, unknown>): ScanEvent | null {
+  if (
+    line.phase !== "describe" ||
+    (line.cause !== "limit" && line.cause !== "failures") ||
+    !isCount(line.described) ||
+    !isCount(line.not_described)
+  ) {
+    return null;
+  }
+
+  return {
+    event: "stopped",
+    phase: "describe",
+    cause: line.cause,
+    reason: typeof line.reason === "string" ? line.reason : "",
+    described: line.described,
+    notDescribed: line.not_described,
+    threshold: isCount(line.threshold) ? line.threshold : 0,
+  };
 }
 
 function progressEvent(line: Record<string, unknown>): ScanEvent | null {
@@ -178,6 +212,11 @@ export function foldProgress(
     }
     case "summary":
       return { ...state, extractSettled: true, done: true };
+    case "stopped": {
+      const { event: _event, phase: _phase, ...describeStop } = event;
+
+      return { ...state, describeStop };
+    }
     case "phase":
       if (event.phase === "extract") {
         return { ...state, extract: event.state };
@@ -222,6 +261,22 @@ function failures(entries: EntryResult[]): EntryResult[] {
 }
 
 const DESCRIBE_PHASE_KEY = "describe";
+
+function count(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
+export function describeStopText(stop: DescribeStop): string {
+  const counts = `${count(stop.described)} described, ${count(stop.notDescribed)} not described. The next scan describes the rest.`;
+
+  if (stop.cause === "failures") {
+    return `Stopped: ${stop.threshold} describing calls failed in a row. ${counts}`;
+  }
+
+  const reason = stop.reason === "" ? "" : `: ${stop.reason}`;
+
+  return `Stopped: Claude usage limit reached${reason}. ${counts}`;
+}
 
 export type RunRow = { key: string; display: string };
 

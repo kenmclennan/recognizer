@@ -325,7 +325,45 @@ describe("describe selection", () => {
       failed: [],
       current: 0,
       pruned: [],
+      stopped: null,
     });
+  });
+});
+
+describe("describe stops on a usage limit", () => {
+  it("exits 1 with stopped in the JSON and the lines already written kept", async () => {
+    const root = ready("v1", "--limit", ORDER);
+
+    useDescribing("sonnet", 1);
+
+    const result = await exec(root, "describe", PLACE, ORDER, STORE, "--json");
+    const body = JSON.parse(result.out);
+
+    expect(result.code).toBe(1);
+    expect(body.described).toEqual([PLACE]);
+    expect(body.failed.map((one: { module: string }) => one.module)).toEqual([
+      ORDER,
+    ]);
+    expect(body.stopped).toMatchObject({
+      cause: "limit",
+      module: ORDER,
+      described: 1,
+      not_described: [STORE],
+    });
+    expect(Object.keys(responsibilities(root).modules)).toEqual([PLACE]);
+    expect(calls(root)).toEqual([PLACE, ORDER]);
+  });
+
+  it("says why it stopped in the summary", async () => {
+    const root = ready("v1", "--limit", ORDER);
+
+    useDescribing("sonnet", 1);
+
+    const result = await exec(root, "describe", PLACE, ORDER, STORE);
+
+    expect(result.out).toContain(
+      "stopped: claude usage limit reached (claude usage limit: Claude usage limit reached); described 1, failed 1, not described 1, already current 0\n",
+    );
   });
 });
 
