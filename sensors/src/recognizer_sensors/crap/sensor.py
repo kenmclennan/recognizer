@@ -180,8 +180,9 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
 
 
 def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
+    diagnoses: list[dict] = []
     coverage = collect_coverage(
-        repository, scans, settings.get("test_command"), settings.get("coverage")
+        repository, scans, settings.get("test_command"), settings.get("coverage"), diagnoses
     )
 
     findings = []
@@ -204,4 +205,10 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
 
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
 
-    return Outcome(findings, overlay, inputs=frozenset(inputs), tests=tests_hash(repository, scans))
+    return Outcome(
+        findings,
+        overlay,
+        inputs=frozenset(inputs),
+        tests=tests_hash(repository, scans),
+        diagnosis=diagnoses[-1] if diagnoses else None,
+    )

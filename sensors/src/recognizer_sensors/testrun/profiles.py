@@ -17,16 +17,18 @@ CSHARP_TRX_LOGGER = ["--logger", "trx;LogFilePrefix=results"]
 
 PYTHON_COVERAGE = (
     "export COVERAGE_FILE=.recognizer/cache/coverage/python.data"
-    " && {runner} coverage run -m pytest"
-    " && {runner} coverage lcov -o .recognizer/cache/coverage/python.lcov"
+    "; {runner} coverage run -m pytest; status=$?"
+    "; {runner} coverage lcov -o .recognizer/cache/coverage/python.lcov; lcov=$?"
+    "; [ $status -ne 0 ] && exit $status; exit $lcov"
 )
 
 PYTHON_COVERAGE_CONTEXTS = (
     "export COVERAGE_FILE=.recognizer/cache/coverage/python.data"
     " && export PYTHONPATH={plugin}${{PYTHONPATH:+:$PYTHONPATH}}"
-    " && {{runner}} coverage run -m pytest -p recognizer_covctx"
-    " && {{runner}} coverage lcov -o .recognizer/cache/coverage/python.lcov"
-    " && {{runner}} coverage json --show-contexts -o " + CONTEXTS_JSON
+    "; {{runner}} coverage run -m pytest -p recognizer_covctx; status=$?"
+    "; {{runner}} coverage lcov -o .recognizer/cache/coverage/python.lcov; lcov=$?"
+    "; {{runner}} coverage json --show-contexts -o " + CONTEXTS_JSON + "; json=$?"
+    "; [ $status -ne 0 ] && exit $status; [ $lcov -ne 0 ] && exit $lcov; exit $json"
 )
 
 PYTHON_RUNNERS = (
@@ -73,6 +75,7 @@ PROFILES = {
             "--lcov",
             "--output-path",
             ".recognizer/cache/coverage/rust.lcov",
+            "--ignore-run-fail",
         ],
         "report": ".recognizer/cache/coverage/rust.lcov",
         "format": "lcov",

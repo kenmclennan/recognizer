@@ -264,16 +264,16 @@ def test_a_failing_or_unstartable_baseline_is_exit_two_and_writes_nothing(
     settings = json.dumps({"test_command": command, "coverage": COVERAGE})
 
     assert run_mutate(root, output, settings) == 2
-    assert capsys.readouterr().err.strip() in {
-        "the test command exited 1 (see .recognizer/cache/coverage/last-run.log)",
-        "the test command did not start: /no/such/program",
+    assert capsys.readouterr().err.strip().splitlines()[-1] in {
+        "the test suite fails before any mutation",
+        "/no/such/program is not installed",
     }
     assert not output.exists()
     assert not (root / SURVIVORS).exists()
     assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
 
 
-def test_a_failing_baseline_names_the_summary_line_and_the_log(tmp_path, capsys):
+def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_path, capsys):
     root, _ = mutate_repository(tmp_path)
     script = (
         "import sys; print('FAILED tests/test_a.py::test_x - assert 1 == 2');"
@@ -282,10 +282,14 @@ def test_a_failing_baseline_names_the_summary_line_and_the_log(tmp_path, capsys)
     settings = json.dumps({"test_command": ["python3", "-c", script], "coverage": COVERAGE})
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
-    assert capsys.readouterr().err == (
-        "the test command exited 2: 1 failed, 4 passed in 0.31s"
-        " (see .recognizer/cache/coverage/last-run.log)\n"
-    )
+    lines = capsys.readouterr().err.splitlines()
+    reason = json.loads(lines[0].removeprefix("recognizer-reason "))
+
+    assert len(lines) == 2
+    assert reason["code"] == "tests-failed"
+    assert reason["failing"] == {"count": 1, "names": ["tests/test_a.py::test_x"]}
+    assert lines[1] == "the test suite fails before any mutation: tests/test_a.py::test_x"
+    assert reason["line"] == lines[1]
 
 
 def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_path, capsys):
@@ -294,9 +298,7 @@ def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_p
     settings = json.dumps({"test_command": ["python3", "-c", script], "coverage": COVERAGE})
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
-    assert capsys.readouterr().err == (
-        "the test command exited 3: 39 (see .recognizer/cache/coverage/last-run.log)\n"
-    )
+    assert capsys.readouterr().err.splitlines()[-1] == "the test suite fails before any mutation"
 
     log = (root / ".recognizer" / "cache" / "coverage" / "last-run.log").read_text()
 

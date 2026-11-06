@@ -1,0 +1,61 @@
+{
+  "findings_version": 2,
+  "sensor": {
+    "name": "crap",
+    "version": "0.1.0"
+  },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": {
+    "threshold": 30.0,
+    "coverage": "coverage/lcov.info",
+    "overlay": ".recognizer/cache/overlays/crap.json"
+  },
+  "findings": [
+    {
+      "id": "crap:app/risk.py::classify",
+      "kind": "crap",
+      "severity": "warning",
+      "principle": "Complex code needs tests",
+      "fix_pattern": "simplify-or-test",
+      "summary": "classify in app/risk.py has complexity 8 and 18% coverage, CRAP 43.1",
+      "evidence": {
+        "modules": [
+          "app/risk.py"
+        ],
+        "members": [
+          {
+            "module": "app/risk.py",
+            "name": "classify",
+            "file": "app/risk.py",
+            "lines": [
+              1,
+              11
+            ]
+          }
+        ],
+        "measures": {
+          "complexity": 8,
+          "coverage": 0.1818,
+          "crap": 43.053
+        }
+      }
+    }
+  ],
+  "inputs": {
+    "app/risk.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "diagnosis": {
+    "code": "tests-failed",
+    "line": "3 tests failed, so coverage may read low",
+    "failing": {
+      "count": 3,
+      "names": [
+        "tests/test_orders.py::test_refund",
+        "tests/test_orders.py::test_cancel",
+        "tests/test_cart.py::test_total"
+      ]
+    },
+    "extra": 1
+  }
+}

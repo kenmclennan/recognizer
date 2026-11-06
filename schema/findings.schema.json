@@ -8,6 +8,7 @@
   "properties": {
     "findings_version": { "enum": [1, 2] },
     "inputs": { "$ref": "#/$defs/hashes" },
+    "diagnosis": { "$ref": "#/$defs/diagnosis" },
     "tests": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "sensor": {
       "type": "object",
@@ -102,6 +103,52 @@
     }
   },
   "$defs": {
+    "diagnosis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "line"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "tool-missing",
+            "tests-failed",
+            "coverage-unavailable"
+          ]
+        },
+        "line": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fix": {
+          "type": "string",
+          "minLength": 1
+        },
+        "failing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "names"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "names": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
     "hashes": {
       "type": "object",
       "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }

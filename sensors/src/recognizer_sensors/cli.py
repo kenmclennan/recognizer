@@ -16,9 +16,11 @@ from recognizer_sensors.mutation.runner import STOPPED_STATUS
 from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
-from recognizer_sensors.settings import MeasurementError, SettingsError
+from recognizer_sensors.settings import MeasurementError, Refusal, SettingsError
 
 RECURSION_LIMIT = 20000
+
+REASON_PREFIX = "recognizer-reason "
 
 
 def resolve_commit(root: Path) -> str | None:
@@ -154,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             progress if outcome.total > outcome.measured else None,
             inputs,
             outcome.tests,
+            outcome.diagnosis,
         )
 
         if outcome.overlay is not None:
@@ -179,6 +182,11 @@ def main(argv: list[str] | None = None) -> int:
             if sensor.needs_commit
             else sensor.run(args.repository, scans, settings, **extra)
         )
+    except Refusal as refusal:
+        print(f"{REASON_PREFIX}{json.dumps(refusal.diagnosis)}", file=sys.stderr)
+        print(str(refusal), file=sys.stderr)
+
+        return 2
     except MeasurementError as error:
         print(str(error), file=sys.stderr)
 

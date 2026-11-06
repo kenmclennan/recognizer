@@ -17,6 +17,7 @@ def build_document(
     partial: dict | None = None,
     inputs: dict[str, str] | None = None,
     tests: str | None = None,
+    diagnosis: dict | None = None,
 ) -> dict:
     document = {
         "findings_version": 2,
@@ -30,6 +31,9 @@ def build_document(
 
     if tests is not None:
         document["tests"] = tests
+
+    if diagnosis is not None:
+        document["diagnosis"] = diagnosis
 
     if stopped is not None:
         document["stopped"] = stopped

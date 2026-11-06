@@ -1,0 +1,36 @@
+{
+  "log_version": 1,
+  "kind": "measure",
+  "started": "2026-11-02T10:05:00.000Z",
+  "finished": "2026-11-02T10:05:02.000Z",
+  "by": "Claude",
+  "arguments": [
+    "--json",
+    "--by",
+    "Claude"
+  ],
+  "outcome": "failed",
+  "exit": 1,
+  "entries": [
+    {
+      "name": "line-coverage",
+      "command": [
+        "node",
+        "scripts/coverage.mjs",
+        "/work/shop",
+        "abc123",
+        "/work/shop/.recognizer/cache/overlays/line-coverage.json"
+      ],
+      "status": 2,
+      "outcome": "failed",
+      "duration_ms": 1800,
+      "stderr": "",
+      "diagnosis": {
+        "code": "nope",
+        "line": "cargo-llvm-cov is not installed; install it with cargo install cargo-llvm-cov",
+        "fix": "cargo install cargo-llvm-cov"
+      },
+      "reason": "cargo-llvm-cov is not installed; install it with cargo install cargo-llvm-cov"
+    }
+  ]
+}

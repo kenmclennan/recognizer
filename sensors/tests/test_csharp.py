@@ -389,14 +389,14 @@ def test_the_preflight_is_skipped_when_a_test_command_or_coverage_is_set(monkeyp
     assert collect_coverage(root, read_scans(root), None, "cov.info") == {"src/A/One.cs": {1: 1}}
 
 
-def test_a_missing_dotnet_ends_with_the_did_not_start_line(monkeypatch, tmp_path):
+def test_a_missing_dotnet_ends_with_the_not_installed_line(monkeypatch, tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
     root = csharp_repository(tmp_path)
     (root / "tests/T/T.csproj").write_text("coverlet.collector")
 
-    with pytest.raises(MeasurementError, match="did not start: dotnet"):
+    with pytest.raises(MeasurementError, match="dotnet is not installed"):
         collect_coverage(root, read_scans(root), None, None)
 
 
@@ -430,10 +430,14 @@ def test_crap_and_mutation_exit_2_naming_dotnet_when_it_is_missing(
     (root / "tests/T/T.csproj").write_text("coverlet.collector")
     commit = git_commit(root)
     monkeypatch.setenv("PATH", str(empty))
-    status, _ = run_sensor(sensor, root, tmp_path, {}, commit)
+    status, output = run_sensor(sensor, root, tmp_path, {}, commit)
 
-    assert status == 2
-    assert "did not start: dotnet" in capsys.readouterr().err
+    if sensor == "mutation":
+        assert status == 2
+        assert capsys.readouterr().err.splitlines()[-1] == "dotnet is not installed"
+    else:
+        assert status == 0
+        assert json.loads(output.read_text())["diagnosis"]["code"] == "coverage-unavailable"
 
 
 def valid(output):

@@ -45,13 +45,19 @@ from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.progress import report
 from recognizer_sensors.scans import Scan
-from recognizer_sensors.settings import MeasurementError, SettingsError, relative_path
+from recognizer_sensors.settings import (
+    MeasurementError,
+    Refusal,
+    SettingsError,
+    relative_path,
+)
+from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed
 from recognizer_sensors.testrun.profiles import RUST_UNITS, mutant_command, selected_command
 from recognizer_sensors.testrun.run import (
     LOG,
     collect_coverage,
     collect_coverage_with_tests,
-    exit_reason,
+    not_installed,
     parse_coverage,
     parse_test_command,
 )
@@ -327,7 +333,7 @@ def run_baseline(repository: Path, copies: CopyPool, command: list[str], subject
         with copies.lease() as copy:
             result = run_test_command(command, copy, None)
     except OSError:
-        raise MeasurementError(f"{subject} did not start: {command[0]}") from None
+        raise not_installed(command[0]) from None
 
     if STOP.is_set():
         raise Stopped
@@ -344,9 +350,9 @@ def run_baseline(repository: Path, copies: CopyPool, command: list[str], subject
             stream.write(f"== baseline {' '.join(command)}\n{output_tail(result.output)}\n")
 
     if result.exit_code is None:
-        raise MeasurementError(f"{subject} did not start: {command[0]}")
+        raise not_installed(command[0])
 
-    raise MeasurementError(exit_reason(subject, result.exit_code, result.output))
+    raise Refusal(mutation_tests_failed(log_names(None, result.output)))
 
 
 class Baseline:
@@ -381,7 +387,8 @@ class Baselines:
 
                 if fallback and not isinstance(error, Stopped):
                     print(
-                        f"recognizer-sensors: mutation: {error}; running the whole suite",
+                        f"recognizer-sensors: mutation: {subject}: {error};"
+                        " running the whole suite",
                         file=sys.stderr,
                     )
             finally:
