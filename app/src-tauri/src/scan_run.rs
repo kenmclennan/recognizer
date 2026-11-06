@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use serde::Serialize;
 
 use crate::fs_safe::write_atomic;
-use crate::repository::{missing_hint, scan_args, strip_escapes};
+use crate::repository::{missing_hint, scan_args, strip_escapes, Describe};
 use crate::tool_runner::ToolRunner;
 
 const LOG: &str = ".recognizer/cache/log";
@@ -177,7 +177,7 @@ pub fn run_with(
     folder: &Path,
     runner: &ToolRunner,
     command: &str,
-    describe: bool,
+    describe: Describe,
     measure: &[String],
     sense: &[String],
     modules: Option<&[String]>,
@@ -248,7 +248,7 @@ fn spawn_and_stream(
     folder: &Path,
     runner: &ToolRunner,
     command: &str,
-    describe: bool,
+    describe: Describe,
     measure: &[String],
     sense: &[String],
     modules_file: Option<&Path>,
@@ -365,7 +365,7 @@ mod tests {
         runs: &ScanRuns,
         folder: &Path,
         command: &Path,
-        describe: bool,
+        describe: Describe,
         measure: &[String],
         sense: &[String],
     ) -> (ScanRun, Vec<String>) {
@@ -458,7 +458,7 @@ mod tests {
             dir.path(),
             &runner,
             &command.display().to_string(),
-            false,
+            Describe::Off,
             &[],
             &[],
             None,
@@ -478,7 +478,14 @@ mod tests {
             dir.path(),
             r#"echo '{"event":"phase"}'; echo '{"event":"summary"}'; exit 1"#,
         );
-        let (result, lines) = collect(&ScanRuns::default(), dir.path(), &command, false, &[], &[]);
+        let (result, lines) = collect(
+            &ScanRuns::default(),
+            dir.path(),
+            &command,
+            Describe::Off,
+            &[],
+            &[],
+        );
 
         assert_eq!(
             lines,
@@ -503,7 +510,7 @@ mod tests {
             &ScanRuns::default(),
             dir.path(),
             &command,
-            true,
+            Describe::Stale,
             &names(&["m"]),
             &names(&["a"]),
         );
@@ -519,6 +526,16 @@ mod tests {
 
     #[cfg(unix)]
     fn collect_scoped(folder: &Path, command: &Path, modules: &[String]) -> (ScanRun, Vec<String>) {
+        collect_scoped_describing(folder, command, modules, Describe::Stale)
+    }
+
+    #[cfg(unix)]
+    fn collect_scoped_describing(
+        folder: &Path,
+        command: &Path,
+        modules: &[String],
+        describe: Describe,
+    ) -> (ScanRun, Vec<String>) {
         let lines = Mutex::new(Vec::new());
         let tools = TempDir::new().unwrap();
         let runner = working_runner(tools.path());
@@ -528,7 +545,7 @@ mod tests {
             folder,
             &runner,
             &command.display().to_string(),
-            true,
+            describe,
             &[],
             &[],
             Some(modules),
@@ -537,6 +554,25 @@ mod tests {
         );
 
         (result, lines.into_inner().unwrap())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_describe_all_run_passes_describe_all_with_the_modules() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(dir.path(), r#"echo "$@""#);
+        let (_, lines) =
+            collect_scoped_describing(dir.path(), &command, &names(&["a.py"]), Describe::All);
+        let file = dir.path().join(".recognizer/cache/scan-modules-w-1.json");
+
+        assert_eq!(
+            lines,
+            vec![format!(
+                "scan {} --json --describe=all --modules {}",
+                dir.path().display(),
+                file.display()
+            )]
+        );
     }
 
     #[cfg(unix)]
@@ -606,7 +642,14 @@ mod tests {
             dir.path(),
             r#"echo '{"event":"summary","log":"20261102T123456789Z-scan"}'"#,
         );
-        let (result, _) = collect(&ScanRuns::default(), dir.path(), &command, false, &[], &[]);
+        let (result, _) = collect(
+            &ScanRuns::default(),
+            dir.path(),
+            &command,
+            Describe::Off,
+            &[],
+            &[],
+        );
 
         assert_eq!(
             result,
@@ -623,7 +666,14 @@ mod tests {
     fn exit_two_is_failed_with_stderr_and_127_is_missing() {
         let dir = TempDir::new().unwrap();
         let command = fake_command(dir.path(), "echo bad flag >&2; exit 2");
-        let (result, _) = collect(&ScanRuns::default(), dir.path(), &command, false, &[], &[]);
+        let (result, _) = collect(
+            &ScanRuns::default(),
+            dir.path(),
+            &command,
+            Describe::Off,
+            &[],
+            &[],
+        );
 
         assert_eq!(
             result,
@@ -637,7 +687,7 @@ mod tests {
             &ScanRuns::default(),
             dir.path(),
             Path::new("/nonexistent/recognizer"),
-            false,
+            Describe::Off,
             &[],
             &[],
         );
@@ -666,7 +716,7 @@ mod tests {
                     &folder,
                     &runner,
                     &path.display().to_string(),
-                    false,
+                    Describe::Off,
                     &[],
                     &[],
                     None,
@@ -680,7 +730,7 @@ mod tests {
 
         assert_eq!(receiver.recv().unwrap(), "started");
 
-        let (second, _) = collect(&runs, dir.path(), &command, false, &[], &[]);
+        let (second, _) = collect(&runs, dir.path(), &command, Describe::Off, &[], &[]);
 
         assert_eq!(
             second,

@@ -2145,6 +2145,7 @@ svg.i.chevron {
 }
 
 .scan-scope,
+.scan-mode-switch,
 .findings-scope {
   display: flex;
   margin: 8px 0 6px;
@@ -2156,6 +2157,8 @@ svg.i.chevron {
 
 .scan-scope-canvas,
 .scan-scope-all,
+.scan-mode-bring,
+.scan-mode-rescan,
 .findings-scope-canvas,
 .findings-scope-all {
   flex: 1;
@@ -2173,13 +2176,22 @@ svg.i.chevron {
 }
 
 .scan-scope .on,
+.scan-mode-switch .on,
 .findings-scope .on {
   background: var(--selbg);
   color: var(--fg);
 }
 
+.scan-mode-title {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .scan-scope-canvas:disabled,
-.scan-scope-all:disabled {
+.scan-scope-all:disabled,
+.scan-mode-bring:disabled,
+.scan-mode-rescan:disabled {
   opacity: 0.6;
   cursor: default;
 }

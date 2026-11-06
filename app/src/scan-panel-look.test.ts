@@ -68,7 +68,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     setTicks: (next) => wired.rescanner.setTicks(next),
     runState: () => wired.rescanner.runState(),
     running: () => wired.rescanner.running(),
-    run: (modules) => void wired.rescanner.run(modules),
+    run: (modules, planned) => void wired.rescanner.run(modules, planned),
     stop: () => void wired.rescanner.stop(),
     refresh: () => void wired.rescanner.refresh(),
   });
@@ -360,12 +360,15 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(fr.q(".rail-scan"));
   await tick();
   await fr.setTick("crap", true);
-  const freshFacts = () => ({ head: fr.q(".scan-fresh-head")?.textContent ?? null, kind: fr.q(".scan-fresh")?.className ?? null, rows: fr.rows().filter((r) => r.key === "crap").map((r) => ({ state: r.state, note: r.note })), legend: fr.q(".scan-fresh-legend")?.textContent ?? null });
+  const freshFacts = () => ({ head: fr.q(".scan-fresh-head")?.textContent ?? null, kind: fr.q(".scan-fresh")?.className ?? null, rows: fr.rows().filter((r) => r.key === "crap").map((r) => ({ state: r.state, note: r.note })), legend: fr.q(".scan-fresh-legend")?.textContent ?? null, button: fr.q(".scan-run")?.textContent ?? null, disabled: fr.q(".scan-run")?.disabled ?? null, mode: fr.q(".scan-mode-bring")?.getAttribute("aria-pressed") ?? null });
   facts.freshPartial = freshFacts();
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }));
   await fr.wired.rescanner.refresh();
   await tick(); await tick();
   facts.freshComplete = freshFacts();
+  click(fr.q(".scan-mode-rescan"));
+  await tick();
+  facts.freshRescan = { ...freshFacts(), rescanPressed: fr.q(".scan-mode-rescan")?.getAttribute("aria-pressed") ?? null, notes: fr.rows().map((r) => r.note) };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -445,6 +448,14 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.freshComplete.head).toBe("Complete picture");
     expect(f.freshComplete.kind).toContain("ok");
     expect(f.freshComplete.rows[0].note).toBeNull();
+    expect(f.freshPartial.button).toBe("Bring 1 module up to date");
+    expect(f.freshPartial.disabled).toBe(false);
+    expect(f.freshPartial.mode).toBe("true");
+    expect(f.freshComplete.button).toBe("Up to date");
+    expect(f.freshComplete.disabled).toBe(true);
+    expect(f.freshRescan.button).toBe("Rescan 2 modules");
+    expect(f.freshRescan.disabled).toBe(false);
+    expect(f.freshRescan.rescanPressed).toBe("true");
   });
 
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
@@ -531,8 +542,9 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.plans).toEqual([
       {
         describe: true,
+        describeAll: false,
         sense: ["duplication", "crap"],
-        modules: null,
+        modules: ["app/a.py", "app/b.py"],
       },
     ]);
     expect(f.run.first.header).toBe("Scanning\u2026");
@@ -552,12 +564,14 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       { text: "Running", disabled: true, spinner: 1 },
       { text: "Stop", disabled: false, spinner: 0 },
     ]);
-    expect(f.run.footer.text).toBe("Describing\u2026 0 of 1 modules");
+    expect(f.run.footer.text).toBe(
+      "Bringing 2 modules up to date\u2026 Describing\u2026 0 of 1 modules",
+    );
     expect(f.run.footer.buttons).toEqual(["bell"]);
     expect(f.run.footerAfter.text).toBe("Scanned at cur1234, just now");
     expect(f.run.footerAfter.buttons).toEqual(["bell"]);
     expect(f.run.after.buttons).toEqual([
-      { text: "Run", disabled: false, spinner: 0 },
+      { text: "Bring 2 modules up to date", disabled: false, spinner: 0 },
     ]);
     expect(f.run.first.rows.every((r: Facts) => r.disabled)).toBe(true);
   });
@@ -579,7 +593,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(row(f.run.after, "duplication").state).toBe("0 findings, just now");
     expect(f.run.after.header).toBe("Ran just now");
     expect(f.run.after.buttons).toEqual([
-      { text: "Run", disabled: false, spinner: 0 },
+      { text: "Bring 2 modules up to date", disabled: false, spinner: 0 },
     ]);
   });
 

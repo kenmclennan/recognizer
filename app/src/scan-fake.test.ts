@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { fakeScan } from "./scan-fake";
 
-const PLAN = { describe: true, sense: ["alpha"], modules: null };
+const PLAN = {
+  describe: true,
+  describeAll: false,
+  sense: ["alpha"],
+  modules: null,
+};
 
 describe("fakeScan", () => {
   it("delivers the scripted lines in order before the run resolves", async () => {

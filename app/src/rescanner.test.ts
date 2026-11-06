@@ -124,7 +124,12 @@ describe("createRescanner", () => {
     await rescanner.run();
 
     expect(scan.ran).toEqual([
-      { describe: true, sense: ["alpha", "beta"], modules: null },
+      {
+        describe: true,
+        describeAll: false,
+        sense: ["alpha", "beta"],
+        modules: null,
+      },
     ]);
     expect(scan.written).toEqual([
       {
@@ -857,5 +862,45 @@ describe("createRescanner", () => {
     expect(posted.some((input) => input.text.startsWith("Describe"))).toBe(
       false,
     );
+  });
+
+  it("hands the port the planned run and prefixes its progress line with the mode", async () => {
+    const start = (name: string) =>
+      line({ event: "start", phase: "sense", name });
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [
+        current,
+        sensing(1),
+        start("alpha"),
+        entry("sense", "alpha"),
+        summary,
+      ],
+    });
+    const { rescanner, updates } = harness(scan);
+    const planned = {
+      plan: {
+        describe: false,
+        describeAll: true,
+        sense: ["alpha"],
+        modules: ["a.py"],
+      },
+      dropped: [],
+      modules: 1,
+      idle: false,
+      label: "Rescan 1 module",
+      progress: "Rescanning 1 module\u2026",
+    };
+
+    await rescanner.run(planned.plan.modules, planned);
+
+    expect(scan.ran).toEqual([planned.plan]);
+
+    const shown = texts(updates).filter((text) => text !== null);
+
+    expect(shown.length).toBeGreaterThan(0);
+    expect(
+      shown.every((text) => text?.startsWith("Rescanning 1 module\u2026 ")),
+    ).toBe(true);
   });
 });

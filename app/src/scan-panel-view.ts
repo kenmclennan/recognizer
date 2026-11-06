@@ -1,11 +1,12 @@
 import { button, el } from "./dom";
 import { attachHoverTip } from "./hover-tip";
-import type { FreshnessReport } from "./scan-freshness";
+import type { FreshnessReport, ResultsMode } from "./scan-freshness";
 import type { ReportRow, ScanPanelModel, ScanRow } from "./scan-panel-model";
 
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
   setOnlyView: (on: boolean) => void;
+  setMode: (mode: ResultsMode) => void;
   run: () => void;
   stop: () => void;
   clearReport: (name: string) => void;
@@ -89,6 +90,32 @@ function scopeNode(
   return node;
 }
 
+function modeNode(
+  mode: ScanPanelModel["mode"],
+  actions: ScanPanelActions,
+): HTMLElement {
+  const node = el("div", "scan-mode");
+  const group = el("div", "scan-mode-switch seg");
+  const bring = button("Bring up to date", "scan-mode-bring", () =>
+    actions.setMode("bring"),
+  );
+  const rescan = button("Rescan from scratch", "scan-mode-rescan", () =>
+    actions.setMode("rescan"),
+  );
+  const on = mode.value === "bring";
+
+  bring.setAttribute("aria-pressed", String(on));
+  rescan.setAttribute("aria-pressed", String(!on));
+  bring.classList.toggle("on", on);
+  rescan.classList.toggle("on", !on);
+  bring.disabled = mode.disabled;
+  rescan.disabled = mode.disabled;
+  group.append(bring, rescan);
+  node.append(el("div", "scan-mode-title", "Results"), group);
+
+  return node;
+}
+
 function freshnessNode(report: FreshnessReport): HTMLElement {
   const node = el("div", `scan-fresh ${report.complete ? "ok" : "warn"}`);
 
@@ -163,6 +190,7 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       list.replaceChildren(
         ...(model.report === null ? [] : [freshnessNode(model.report)]),
         ...(model.scope === null ? [] : [scopeNode(model.scope, actions)]),
+        ...(model.pending ? [] : [modeNode(model.mode, actions)]),
         ...model.rows.map((row) => rowNode(row, actions)),
         ...model.reports.map((row) => reportNode(row, actions)),
       );
@@ -175,7 +203,7 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
 
       const run = button("", "scan-run primary", () => actions.run());
 
-      run.disabled = model.button.scanning;
+      run.disabled = model.button.disabled;
 
       if (model.button.scanning) {
         run.append(spinnerIcon());

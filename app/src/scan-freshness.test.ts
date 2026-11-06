@@ -8,8 +8,11 @@ import {
   gapOf,
   markStale,
   modulesWithFunctions,
+  planFor,
+  type RowGap,
   sensorFreshness,
 } from "./scan-freshness";
+import type { ScanTicks } from "./scan-panel-model";
 import type { SensorStatus } from "./sensor-run";
 
 function scanOf(files: Record<string, string>, withFunction: string[]) {
@@ -244,5 +247,134 @@ describe("freshnessReport", () => {
 
   it("is absent with nothing ticked", () => {
     expect(freshnessReport("x", MODULES, [])).toBeNull();
+  });
+});
+
+describe("planFor", () => {
+  const rows = [
+    { name: "crap", display: "C.R.A.P.", runsTests: false },
+    { name: "mutation", display: "Mutation", runsTests: true },
+  ];
+  const ticks: ScanTicks = {
+    describe: true,
+    ticked: ["crap"],
+    once: ["mutation"],
+    onlyView: false,
+  };
+  const clean: RowGap = { gap: [], neverRun: false };
+  const gaps = (entries: Record<string, RowGap>) =>
+    new Map(Object.entries(entries));
+
+  it("leaves a current sensor out and hands Mutation and Descriptions the union of their gaps", () => {
+    const planned = planFor(
+      "bring",
+      ticks,
+      rows,
+      gaps({
+        describe: { gap: ["a.py"], neverRun: false },
+        crap: clean,
+        mutation: { gap: ["b.py", "c.py"], neverRun: false },
+      }),
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: true,
+      describeAll: false,
+      sense: ["mutation"],
+      modules: ["a.py", "b.py", "c.py"],
+    });
+    expect(planned.label).toBe("Bring 3 modules up to date");
+    expect(planned.progress).toBe("Bringing 3 modules up to date\u2026");
+    expect(planned.idle).toBe(false);
+  });
+
+  it("reruns an unscoped sensor whole and sends no module list when no scoped phase runs", () => {
+    const planned = planFor(
+      "bring",
+      { ...ticks, describe: false, once: [] },
+      rows,
+      gaps({ crap: { gap: ["b.py"], neverRun: false } }),
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: false,
+      describeAll: false,
+      sense: ["crap"],
+      modules: null,
+    });
+    expect(planned.label).toBe("Bring 1 module up to date");
+  });
+
+  it("is idle and reads Up to date when nothing has a gap", () => {
+    const planned = planFor(
+      "bring",
+      ticks,
+      rows,
+      gaps({ describe: clean, crap: clean, mutation: clean }),
+      null,
+      MODULES,
+    );
+
+    expect(planned.idle).toBe(true);
+    expect(planned.label).toBe("Up to date");
+    expect(planned.plan.sense).toEqual([]);
+    expect(planned.plan.describe).toBe(false);
+    expect(planned.plan.modules).toBeNull();
+  });
+
+  it("names a never-run sensor on the button when it is the only work", () => {
+    const planned = planFor(
+      "bring",
+      { ...ticks, describe: false, ticked: [] },
+      rows,
+      gaps({ mutation: { gap: MODULES, neverRun: true } }),
+      null,
+      MODULES,
+    );
+
+    expect(planned.label).toBe("Run Mutation");
+    expect(planned.plan.sense).toEqual(["mutation"]);
+    expect(planned.plan.modules).toEqual(MODULES);
+  });
+
+  it("runs every ticked sensor over the scope and describes everything when rescanning", () => {
+    const planned = planFor(
+      "rescan",
+      ticks,
+      rows,
+      gaps({ describe: clean, crap: clean, mutation: clean }),
+      ["a.py", "b.py"],
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: true,
+      describeAll: true,
+      sense: ["crap", "mutation"],
+      modules: ["a.py", "b.py"],
+    });
+    expect(planned.label).toBe("Rescan 2 modules");
+    expect(planned.progress).toBe("Rescanning 2 modules\u2026");
+
+    expect(
+      planFor("rescan", ticks, rows, gaps({}), null, MODULES).plan.modules,
+    ).toBeNull();
+  });
+
+  it("keeps the run enabled when nothing is ticked so a plain rescan stays reachable", () => {
+    const planned = planFor(
+      "rescan",
+      { describe: false, ticked: [], once: [], onlyView: false },
+      rows,
+      gaps({}),
+      null,
+      MODULES,
+    );
+
+    expect(planned.idle).toBe(false);
   });
 });
