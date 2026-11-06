@@ -8,6 +8,7 @@ import {
   type RescanPorts,
 } from "./rescanner";
 import { fakeScan } from "./scan-fake";
+import { OPEN_RUN } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 
 const ORIGIN: ScanOrigin = { branch: "main", commit: "a1b2c3d" };
@@ -142,6 +143,28 @@ describe("createRescanner", () => {
     await rescanner.run();
 
     expect(scan.written).toHaveLength(1);
+  });
+
+  it("runs only the structure scan on open and leaves the remembered ticks alone", async () => {
+    const scan = fakeScan({ defaults: { describe: true, sensors: true } });
+    const { rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    const written = [...scan.written];
+    const before = rescanner.ticks();
+
+    await rescanner.run(null, OPEN_RUN);
+
+    expect(scan.ran[1]).toEqual({
+      describe: false,
+      describeAll: false,
+      sense: [],
+      modules: null,
+    });
+    expect(scan.written).toEqual(written);
+    expect(rescanner.ticks()).toEqual(before);
+    expect(before.describe).toBe(true);
   });
 
   it("renders the canvas when extraction settles, before describe and sense run", async () => {

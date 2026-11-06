@@ -15,6 +15,7 @@ import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
+import { OPEN_RUN } from "./scan-freshness";
 import { type Loaded, loadScans } from "./scan-loading";
 import { rowSensors } from "./scan-panel-model";
 import { scanSource } from "./scan-source";
@@ -208,7 +209,7 @@ async function start(): Promise<void> {
     releaseFirstScan = resolve;
   });
 
-  void rescanner.run();
+  void rescanner.run(null, OPEN_RUN);
 
   await createBusyGate(
     () => content.replaceChildren(scanning),
