@@ -229,6 +229,11 @@ pub fn scan(
         .collect::<BTreeSet<usize>>()
         .into_iter()
         .collect();
+    let entry_files: BTreeSet<usize> = packages
+        .iter()
+        .flat_map(|p| p.entries.iter())
+        .filter_map(|r| index.get(r.as_str()).copied())
+        .collect();
     let tree = tree::build(&paths, &parsed, &roots);
     let envs = build_envs(&paths, &index, &packages, &tree.owner);
     let resolver = Resolver {
@@ -244,12 +249,18 @@ pub fn scan(
     for (file, source) in parsed.iter().enumerate() {
         let id = &paths[file];
 
-        modules.push(json!({
+        let mut module = json!({
             "id": id,
             "language": "rust",
             "kind": module_kind(&source.members),
             "members": source.members,
-        }));
+        });
+
+        if entry_files.contains(&file) || tree.test_files.contains(&file) {
+            module["entry_point"] = json!(true);
+        }
+
+        modules.push(module);
 
         for declaration in &source.mods {
             let key = (file, declaration.scope.clone(), declaration.name.clone());

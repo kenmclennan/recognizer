@@ -79,6 +79,15 @@ fn this_repositorys_tauri_crate_scans_to_the_recorded_shape() {
     assert_eq!(modules as u64, baseline["modules"]);
     assert_eq!(tauri_edges.len() as u64, baseline["edges"]);
     assert_eq!(implements as u64, baseline["implements"]);
+
+    let build = document["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == "app/src-tauri/build.rs")
+        .expect("the build script is a module");
+
+    assert_eq!(build["entry_point"], true);
 }
 
 #[test]

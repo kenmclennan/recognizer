@@ -1,0 +1,19 @@
+[
+  "benches/b.rs",
+  "benches/c/main.rs",
+  "build.rs",
+  "examples/e.rs",
+  "examples/f/main.rs",
+  "extra/w.rs",
+  "extra/y.rs",
+  "extra/z.rs",
+  "src/a/tests.rs",
+  "src/bin/a.rs",
+  "src/bin/b/main.rs",
+  "src/checks.rs",
+  "src/checks/helper.rs",
+  "src/main.rs",
+  "src/t.rs",
+  "src/tests.rs",
+  "tools/x.rs"
+]

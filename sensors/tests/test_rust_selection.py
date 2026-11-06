@@ -365,7 +365,7 @@ def test_a_repository_with_no_units_has_no_selection_and_prints_nothing(
     assert capsys.readouterr().err == ""
 
 
-def test_the_reader_over_the_committed_rust_scanner_finds_ten_units():
+def test_the_reader_over_the_committed_rust_scanner_finds_eleven_units():
     root = Path(__file__).parents[2] / "scanners" / "rust"
     probe = subprocess.run(
         ["cargo", "metadata", "--no-deps", "--offline", "--format-version", "1"],
@@ -388,6 +388,7 @@ def test_the_reader_over_the_committed_rust_scanner_finds_ten_units():
                 for name in (
                     "abstractness",
                     "crates",
+                    "entry_points",
                     "fixture_and_cli",
                     "limits",
                     "members",

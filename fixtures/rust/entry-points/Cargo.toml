@@ -1,0 +1,23 @@
+[package]
+name = "ep"
+version = "0.1.0"
+
+[[bin]]
+name = "x"
+path = "tools/x.rs"
+
+[[example]]
+name = "y"
+path = "extra/y.rs"
+
+[[bench]]
+name = "z"
+path = "extra/z.rs"
+
+[[test]]
+name = "w"
+path = "extra/w.rs"
+
+[[example]]
+name = "none"
+path = "extra/none.rs"
