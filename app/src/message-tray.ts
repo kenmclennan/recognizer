@@ -1,7 +1,15 @@
 export type MessageKind = "warning" | "error" | "done" | "info";
 
 export type MessageAction = {
-  label: "Upgrade" | "Show" | "Undo" | "Open log" | "Update";
+  label:
+    | "Upgrade"
+    | "Show"
+    | "Undo"
+    | "Open log"
+    | "Update"
+    | "Bring up to date"
+    | "Run Mutation"
+    | "Show in Scan";
   run: () => void;
 };
 

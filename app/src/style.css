@@ -2577,8 +2577,16 @@ svg.i.chevron {
 }
 
 .findings-header {
+  display: flex;
+  justify-content: space-between;
   font-size: 14px;
   font-weight: 600;
+}
+
+.findings-coverage {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .findings-line {

@@ -102,7 +102,12 @@ import {
   responsibilityStates,
 } from "./responsibility-model";
 import { nextCheck } from "./row-model";
-import type { PlannedRun, ResultsMode } from "./scan-freshness";
+import {
+  coverageNote,
+  freshnessMessage,
+  type PlannedRun,
+  type ResultsMode,
+} from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
@@ -1597,6 +1602,22 @@ export function showExplorer(
     return canvasOrientation;
   }
 
+  function showScanPanel() {
+    leftPanel = "scan";
+    render();
+    void loadScanConfig();
+  }
+
+  function bringCanvasUpToDate() {
+    const { planned, button } = scanModel(true);
+
+    if (planned === null || button.disabled) {
+      return;
+    }
+
+    scanHost.run(planned.plan.modules, planned);
+  }
+
   function toggleScanPanel() {
     leftPanel = leftPanel === "scan" ? null : "scan";
     render();
@@ -1625,6 +1646,7 @@ export function showExplorer(
       { sensors: loaded.sensors, shipped: shippedSensors },
     );
 
+    postConditions();
     render();
   }
 
@@ -1639,16 +1661,21 @@ export function showExplorer(
     await loadScanConfig();
   }
 
-  function scanModel() {
+  function scanModel(onlyView?: boolean) {
+    const ticks = scanHost.ticks();
+
     return scanPanel({
       scan: scanHost.scan(),
       config: scanConfig,
       sensors: loaded.sensors,
       lines: { modules: loaded.modules, of: responsibilityOf },
       describedAt,
-      ticks: scanHost.ticks(),
+      ticks:
+        onlyView === undefined
+          ? ticks
+          : { ...ticks, onlyView, describe: false },
       view: { name: openView, modules: modules.opened() },
-      mode: resultsMode,
+      mode: onlyView === undefined ? resultsMode : "bring",
       scans,
       run: scanHost.runState(),
       scanning: scanHost.running(),
@@ -2782,6 +2809,22 @@ export function showExplorer(
       );
     }
 
+    const freshness = freshnessMessage(scanModel(true).report);
+
+    if (freshness !== null) {
+      found.push(freshness.key);
+      post({
+        kind: "warning",
+        text: freshness.text,
+        key: freshness.key,
+        action: {
+          label: freshness.neverRunOnly ? "Run Mutation" : "Bring up to date",
+          run: bringCanvasUpToDate,
+        },
+        extra: { label: "Show in Scan", run: showScanPanel },
+      });
+    }
+
     found.push(...heldViewKeys, ...comparisons.heldKeys(currentCommit(scans)));
     if (!listKnown) {
       found.push("view-list");
@@ -3078,6 +3121,10 @@ export function showExplorer(
         on: findingsOnlyView,
       },
       header: headerLine(shownFindings),
+      coverage: coverageNote(
+        scanModel(scoped).report,
+        scoped ? modules.count() : loaded.modules.length,
+      ),
       stale: staleNote(
         shownFindings,
         scoped ? scopedRows(hiddenRows, scopeOf(modules.opened())) : hiddenRows,

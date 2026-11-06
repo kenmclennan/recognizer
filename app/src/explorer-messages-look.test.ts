@@ -5,9 +5,10 @@ import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 window.__TAURI_INTERNALS__ = { invoke: async () => "0.0.0" };
-import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -38,7 +39,7 @@ function session(options = {}) {
     host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
     document.body.append(host);
     state.host = host;
-    state.explorer = mountExplorer({ container: host, loaded, title: "demo", views: port, post: footer.post, windowPort: win, withdraw: footer.withdraw, reconcileMessages: footer.reconcile });
+    state.explorer = mountExplorer({ container: host, loaded, title: "demo", views: port, post: footer.post, windowPort: win, withdraw: footer.withdraw, reconcileMessages: footer.reconcile, scanHost: scanHostOf({ port: fakeSensors({}, { config: "sensors:\\n  alpha:\\n    command: [node, a.mjs]\\n" }) }) });
   };
   const hostQ = (selector) => state.host.querySelector(selector);
   const hostAll = (selector) => [...state.host.querySelectorAll(selector)];
@@ -74,6 +75,20 @@ const facts = {};
   fixed.build({ ...base });
   await tick();
   facts.afterAllFixed = { rows: fixed.rows(), badgeHidden: fixed.q(".bell-badge").hidden, toastHidden: fixed.q(".message-toast").hidden };
+
+  const fresh = session();
+  const ranLoaded = { ...base, sensors: [{ name: "alpha", status: "ran" }] };
+  fresh.build(ranLoaded);
+  await tick();
+  facts.freshnessEmptyCanvas = fresh.rows();
+  await fresh.win.drive({ action: "add", args: ["app/hub.py"], options: {}, by: "Claude" });
+  await tick();
+  fresh.state.explorer.update(ranLoaded);
+  await tick();
+  facts.freshness = { rows: fresh.rows().filter((t) => t.includes("changed since")), actions: fresh.all(".message-list .msg-act").map((b) => b.textContent) };
+  fresh.state.explorer.update(ranLoaded);
+  await tick();
+  facts.freshnessAgain = fresh.rows().filter((t) => t.includes("changed since"));
 
   const keep = session();
   keep.build({ ...base });
@@ -161,6 +176,18 @@ describe.skipIf(webkit === undefined)("explorer messages in the tray", () => {
 
   it("does not duplicate the baseline message on a second explorer build", () => {
     expect(f.baselineTwice).toHaveLength(1);
+  });
+
+  it("posts one out-of-date message with Bring up to date and Show in Scan, not again for the same set", () => {
+    expect(f.freshnessEmptyCanvas).toEqual([]);
+    expect(f.freshness.rows).toEqual([
+      "1 module has changed since it was scanned. Its results are hidden, so this picture is partial.",
+    ]);
+    expect(f.freshness.actions.filter((t: string) => t !== "Undo")).toEqual([
+      "Bring up to date",
+      "Show in Scan",
+    ]);
+    expect(f.freshnessAgain).toHaveLength(1);
   });
 
   it("posts the baseline message again after Clear", () => {

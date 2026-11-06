@@ -126,6 +126,8 @@ export type FreshnessReport = {
   head: string;
   body: string;
   bar: { current: number; outOfDate: number } | null;
+  outOfDate: string[];
+  neverRun: string[];
 };
 
 function plural(count: number, noun: string): string {
@@ -171,6 +173,8 @@ export function freshnessReport(
       head: "Complete picture",
       body: `Every result for ${where} is current: ${plural(scope.length, "module")} measured by all ${rows.length} sensors.`,
       bar: null,
+      outOfDate: [],
+      neverRun: [],
     };
   }
 
@@ -198,7 +202,58 @@ export function freshnessReport(
       union.size > 0
         ? { current: scope.length - union.size, outOfDate: union.size }
         : null,
+    outOfDate: ordered,
+    neverRun: never.map(({ name }) => name),
   };
+}
+
+export type FreshnessMessage = {
+  key: string;
+  text: string;
+  neverRunOnly: boolean;
+};
+
+export function freshnessMessage(
+  report: FreshnessReport | null,
+): FreshnessMessage | null {
+  if (report === null || report.complete) {
+    return null;
+  }
+
+  if (report.outOfDate.length > 0) {
+    const count = report.outOfDate.length;
+    const text =
+      count === 1
+        ? "1 module has changed since it was scanned. Its results are hidden, so this picture is partial."
+        : `${count} modules have changed since they were scanned. Their results are hidden, so this picture is partial.`;
+
+    return {
+      key: `scan-freshness:${report.outOfDate.join(",")}`,
+      text,
+      neverRunOnly: false,
+    };
+  }
+
+  if (report.neverRun.includes(SCOPED_SENSOR)) {
+    return {
+      key: "scan-freshness:mutation-never-run",
+      text: "Mutation has not run here yet. Survived-mutant results are missing from this picture.",
+      neverRunOnly: true,
+    };
+  }
+
+  return null;
+}
+
+export function coverageNote(
+  report: FreshnessReport | null,
+  scopeSize: number,
+): string | null {
+  if (report === null || report.outOfDate.length === 0) {
+    return null;
+  }
+
+  return `from ${scopeSize - report.outOfDate.length} of ${scopeSize} modules`;
 }
 
 export type PlanRow = { name: string; runsTests: boolean };
