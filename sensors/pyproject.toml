@@ -37,7 +37,7 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-tmp_path_retention_policy = "none"
+tmp_path_retention_policy = "failed"
 markers = ["real_probes: run the tool probes instead of the stub the suite installs"]
 
 [tool.ruff.lint.per-file-ignores]
