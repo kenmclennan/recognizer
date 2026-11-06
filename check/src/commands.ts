@@ -477,17 +477,18 @@ export const COMMANDS: Command[] = [
   {
     name: "views",
     summary:
-      "build, show and check saved views: new, add, rule, fold, focus, remove, note, reorder, set, show, diff, list, check, rm",
+      "build, show and check saved views: new, add, rule, fold, focus, remove, change, note, reorder, set, show, diff, list, check, rm",
     usage: [
-      "recognizer views new <name> --description <text> [--change <base>..<head>] [--from-window <id>]",
-      "recognizer views add <name> <module>...",
+      "recognizer views new <name> --description <text> [--change <base>..<head> | --plan] [--from-window <id>]",
+      "recognizer views add <name> <module>... [--change new|changes|moves|moves-and-changes|removed [--from <path>]]",
       "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>]",
       "recognizer views fold <name> <folder>",
       "recognizer views focus <name> <folder>",
       "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]]",
+      "recognizer views change <name> <module> (new|changes|moves|moves-and-changes|removed [--from <path>] | --clear)",
       "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>])",
       "recognizer views reorder <name> <module-or-folder>...",
-      "recognizer views set <name> [--change <base>..<head>|none] [--title <text>] [--description <text>]",
+      "recognizer views set <name> [--change <base>..<head>|none] [--plan | --no-plan] [--title <text>] [--description <text>]",
       "recognizer views show <name>",
       "recognizer views diff <name>",
       "recognizer views list",
@@ -522,7 +523,13 @@ export const COMMANDS: Command[] = [
       },
       {
         name: "add",
-        description: "pick one or more modules; each must be in the scan",
+        description:
+          "pick one or more modules; each must be in the scan, except on a plan with --change new, moves or moves-and-changes, where a module that does not exist yet is planned and takes only its proposed change; --change sets the proposed change of each module named (a plan only)",
+      },
+      {
+        name: "change",
+        description:
+          "set or clear a proposed change on a plan: what the plan says will happen to one module, drawn as a coloured border. A proposed change is new, changes, moves, moves-and-changes or removed; changes and removed need the module in the scan; moves and moves-and-changes need --from, the path the module moves from, and draw a ghost box there. --clear removes it, and is refused on a planned module (remove it with views remove)",
       },
       {
         name: "rule",
@@ -591,7 +598,26 @@ export const COMMANDS: Command[] = [
       {
         flag: "--change <base>..<head>|none",
         description:
-          "make the view a change view over a git range, each side a ref git knows; none removes the range (new, set)",
+          "make the view a change view over a git range, each side a ref git knows; none removes the range (new, set). On add it takes a proposed change kind instead, and on a plan only",
+      },
+      {
+        flag: "--plan",
+        description:
+          "make the view a plan: modules may carry a proposed change, and the view has no change range (new, set)",
+      },
+      {
+        flag: "--no-plan",
+        description:
+          "stop the view being a plan, dropping its proposed changes (set)",
+      },
+      {
+        flag: "--from <path>",
+        description:
+          "the path a moved module moves from; required with moves and moves-and-changes (add, change)",
+      },
+      {
+        flag: "--clear",
+        description: "clear a module's proposed change (change)",
       },
       {
         flag: "--fix",
@@ -681,6 +707,16 @@ export const COMMANDS: Command[] = [
         command:
           'recognizer views set order-placement --title "Placing an order" --description "How an order is placed"',
         note: "set the heading title and description; an empty --title removes the title",
+      },
+      {
+        command:
+          'recognizer views new redesign --description "Proposed split" --plan',
+        note: "start a plan, a view of what will change before the code exists",
+      },
+      {
+        command:
+          "recognizer views add redesign shop/application/discount.py --change new",
+        note: "plan a module that does not exist yet; changes and removed need the module in the scan, and moves needs --from <old path>",
       },
       {
         command: "recognizer views show order-placement --json",

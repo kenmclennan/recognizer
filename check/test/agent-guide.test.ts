@@ -28,6 +28,13 @@ describe("agent guide", () => {
     expect(guide).toMatch(/\[missing\][^\n]*recognizer describe/);
   });
 
+  it("has a recipe for planning a change", () => {
+    const guide = agentGuide();
+
+    expect(guide).toContain("views new <name> --description <text> --plan");
+    expect(guide).toMatch(/moves needs --from/);
+  });
+
   it("has a recipe for reporting a review", () => {
     const guide = agentGuide();
 

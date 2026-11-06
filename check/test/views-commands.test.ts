@@ -1458,3 +1458,281 @@ describe("change views", () => {
     ).toBeDefined();
   });
 });
+
+describe("plan views", () => {
+  const NEW = "shop/application/discount.py";
+  const ORDER = "shop/domain/order.py";
+  const planned = (
+    extra: Record<string, unknown> = {},
+    steps: unknown[] = [],
+  ) => noted("p", { plan: true, ...extra }, steps, 4);
+
+  it("creates a plan and refuses a plan with a range", () => {
+    const fake = repository();
+
+    expect(go(fake, "new", "p", "--description", "d", "--plan").code).toBe(0);
+    expect(saved(fake, "p")).toEqual({
+      schema_version: 4,
+      description: "d",
+      commit: COMMIT,
+      plan: true,
+      steps: [],
+    });
+
+    const refused = go(
+      fake,
+      "new",
+      "q",
+      "--description",
+      "d",
+      "--plan",
+      "--change",
+      "a..b",
+    );
+
+    expect(refused.code).toBe(2);
+    expect(fake.files.has(`${VIEWS}/q.json`)).toBe(false);
+  });
+
+  it("refuses set --plan on a change view and set --change on a plan", () => {
+    const fake = repository(
+      noted("c", { change: { base: "main", head: "feat" } }, [], 4),
+    );
+
+    expect(go(fake, "set", "c", "--plan").code).toBe(2);
+
+    const plan = repository(planned());
+
+    expect(go(plan, "set", "p", "--change", "main..feat").code).toBe(2);
+  });
+
+  it("makes a view a plan and set --no-plan drops the proposed changes", () => {
+    const fake = repository(view("a"));
+
+    expect(go(fake, "set", "a", "--plan").code).toBe(0);
+    expect(saved(fake, "a").plan).toBe(true);
+
+    go(fake, "add", "a", NEW, "--change", "new");
+
+    const cleared = go(fake, "set", "a", "--no-plan");
+
+    expect(cleared.code).toBe(0);
+    expect(cleared.out).toContain("dropped 1 proposed change");
+    expect(saved(fake, "a").plan).toBeUndefined();
+    expect(saved(fake, "a").proposed).toBeUndefined();
+  });
+
+  it("adds a new module that is not in the scan with only a proposed change", () => {
+    const fake = repository(planned());
+
+    expect(go(fake, "add", "p", NEW, "--change", "new").code).toBe(0);
+    expect(saved(fake, "p").steps).toEqual([]);
+    expect(saved(fake, "p").proposed).toEqual([{ module: NEW, kind: "new" }]);
+    expect(go(fake, "check").code).toBe(0);
+  });
+
+  it("gives a module in the scan a pick as well as its proposed change", () => {
+    const fake = repository(planned());
+
+    go(fake, "add", "p", ORDER, "--change", "changes");
+
+    expect(saved(fake, "p").steps).toEqual([{ kind: "pick", module: ORDER }]);
+    expect(saved(fake, "p").proposed).toEqual([
+      { module: ORDER, kind: "changes" },
+    ]);
+  });
+
+  it("refuses changes and removed for a module not in the scan", () => {
+    const fake = repository(planned());
+    const { code, err } = go(fake, "add", "p", NEW, "--change", "changes");
+
+    expect(code).toBe(2);
+    expect(err).toContain(`no such module: ${NEW}`);
+    expect(go(fake, "add", "p", NEW, "--change", "removed").code).toBe(2);
+  });
+
+  it("enforces --from rules on add", () => {
+    const fake = repository(planned());
+
+    expect(go(fake, "add", "p", NEW, "--change", "moves").code).toBe(2);
+    expect(
+      go(fake, "add", "p", NEW, "--change", "moves", "--from", NEW).code,
+    ).toBe(2);
+    expect(
+      go(fake, "add", "p", NEW, "--change", "new", "--from", "x/y.py").code,
+    ).toBe(2);
+    expect(
+      go(
+        fake,
+        "add",
+        "p",
+        NEW,
+        "shop/b.py",
+        "--change",
+        "moves",
+        "--from",
+        "x/y.py",
+      ).code,
+    ).toBe(2);
+    expect(
+      go(fake, "add", "p", NEW, "--change", "moves", "--from", "x/y.py").code,
+    ).toBe(0);
+    expect(saved(fake, "p").proposed).toEqual([
+      { module: NEW, kind: "moves", from: "x/y.py" },
+    ]);
+  });
+
+  it("refuses --change on a view that is not a plan and adds as today without it", () => {
+    const fake = repository(view("a"));
+
+    expect(go(fake, "add", "a", NEW, "--change", "new").code).toBe(2);
+    expect(go(fake, "add", "a", NEW).code).toBe(2);
+  });
+
+  it("changes and clears a proposed change", () => {
+    const fake = repository(
+      planned({ proposed: [{ module: ORDER, kind: "changes" }] }, [
+        { kind: "pick", module: ORDER },
+      ]),
+    );
+
+    expect(go(fake, "change", "p", ORDER, "removed").code).toBe(0);
+    expect(saved(fake, "p").proposed).toEqual([
+      { module: ORDER, kind: "removed" },
+    ]);
+    expect(go(fake, "change", "p", ORDER, "--clear").code).toBe(0);
+    expect(saved(fake, "p").proposed).toBeUndefined();
+    expect(saved(fake, "p").steps).toEqual([{ kind: "pick", module: ORDER }]);
+  });
+
+  it("refuses to clear the proposed change of a planned module", () => {
+    const fake = repository(
+      planned({ proposed: [{ module: NEW, kind: "new" }] }),
+    );
+    const { code, err } = go(fake, "change", "p", NEW, "--clear");
+
+    expect(code).toBe(2);
+    expect(err).toContain(`${NEW} is planned; remove it with views remove`);
+  });
+
+  it("removes a planned module", () => {
+    const fake = repository(
+      planned({ proposed: [{ module: NEW, kind: "new" }] }),
+    );
+
+    expect(go(fake, "remove", "p", NEW).code).toBe(0);
+    expect(saved(fake, "p").proposed).toBeUndefined();
+  });
+
+  it("drops the proposed change when an in-scan module is taken off", () => {
+    const fake = repository(
+      planned({ proposed: [{ module: ORDER, kind: "changes" }] }, [
+        { kind: "pick", module: ORDER },
+      ]),
+    );
+
+    go(fake, "remove", "p", ORDER);
+
+    expect(saved(fake, "p").proposed).toBeUndefined();
+    expect(saved(fake, "p").steps).toEqual([]);
+  });
+
+  it("takes a note on a planned module and on its folder", () => {
+    const fake = repository(
+      planned({ proposed: [{ module: NEW, kind: "new" }] }),
+    );
+
+    expect(go(fake, "note", "p", NEW, "Will price orders").code).toBe(0);
+    expect(go(fake, "note", "p", "shop/application/", "The folder").code).toBe(
+      0,
+    );
+    expect(
+      saved(fake, "p").notes.map((n: { module: string }) => n.module),
+    ).toEqual([NEW, "shop/application/"]);
+    expect(go(fake, "show", "p").out).not.toContain("(not on the view)");
+  });
+
+  it("reads every proposed change back through show, text and json", () => {
+    const fake = repository(
+      planned(
+        {
+          proposed: [
+            { module: NEW, kind: "new" },
+            { module: "shop/x/m.py", kind: "moves", from: ORDER },
+          ],
+        },
+        [],
+      ),
+    );
+    const text = go(fake, "show", "p").out;
+
+    expect(text.split("\n")[1]).toBe("plan");
+    expect(text).toContain(`  new ${NEW} (planned)`);
+    expect(text).toContain(`  moves shop/x/m.py (from ${ORDER}) (planned)`);
+
+    const document = JSON.parse(go(fake, "show", "p", "--json").out);
+
+    expect(document.plan).toBe(true);
+    expect(document.proposed).toEqual([
+      { module: NEW, kind: "new" },
+      { module: "shop/x/m.py", kind: "moves", from: ORDER },
+    ]);
+    expect(document.resolved.planned).toEqual([NEW, "shop/x/m.py"]);
+  });
+
+  it("prints a view that is not a plan as before", () => {
+    const fake = repository(view("a", [{ kind: "pick", module: ORDER }]));
+    const document = JSON.parse(go(fake, "show", "a", "--json").out);
+
+    expect(Object.keys(document)).not.toContain("plan");
+    expect(Object.keys(document)).not.toContain("proposed");
+    expect(Object.keys(document.resolved)).toEqual([
+      "modules",
+      "folded",
+      "focus",
+    ]);
+    expect(go(fake, "show", "a").out).not.toContain("plan");
+  });
+
+  it("lists a plan with the plan word", () => {
+    const fake = repository({ ...planned(), ...view("a") });
+    const text = go(fake, "list").out;
+
+    expect(text).toContain("p  plan  0 steps");
+    expect(text).not.toContain("a  plan");
+    expect(JSON.parse(go(fake, "list", "--json").out).views[1].plan).toBe(true);
+    expect(
+      JSON.parse(go(fake, "list", "--json").out).views[0].plan,
+    ).toBeUndefined();
+  });
+
+  it("check --fix follows a rename into a proposed change", () => {
+    const OLD = "shop/old.py";
+    const fake = repository(
+      planned(
+        {
+          proposed: [
+            { module: OLD, kind: "changes" },
+            { module: NEW, kind: "moves", from: OLD },
+          ],
+        },
+        [{ kind: "pick", module: OLD }],
+      ),
+      `R100\0${OLD}\0${ORDER}\0`,
+    );
+
+    expect(go(fake, "check", "--fix").code).toBe(0);
+    expect(saved(fake, "p").proposed).toEqual([
+      { module: ORDER, kind: "changes" },
+      { module: NEW, kind: "moves", from: ORDER },
+    ]);
+  });
+
+  it("writes only under .recognizer/views", () => {
+    const fake = repository(planned());
+
+    go(fake, "add", "p", NEW, "--change", "new");
+
+    expect(fake.writes.every((w) => w.startsWith(`${VIEWS}/`))).toBe(true);
+  });
+});

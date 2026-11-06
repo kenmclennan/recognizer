@@ -162,6 +162,10 @@ The words recognizer's code, docs and interface use. A term is added here before
 | View details card | The card under the view bar, or in place of a Views panel row, that edits a view's name, title and description together, with Cancel and Save. |
 | View heading | The title and description of a saved view, drawn centred above the diagram and moving with it. |
 | Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
+| Plan | A saved view marked `plan: true` that shows what is intended before the code exists: its modules may carry a proposed change, and it has no change range. A view is never both a plan and a change view. |
+| Proposed change | What a plan says will happen to one module: new, changes, moves, moves and changes, or removed. It is the view file's `proposed` entry, the `--change` kind on `views add` and `views change`, and a coloured border on the canvas. It is not the range of a change view. |
+| Planned module | A module a plan names with a proposed change of new, moves or moves and changes that the scan does not hold. It has a box, takes a note and never makes the view stale. |
+| Ghost box | The dashed box a plan draws at the old path of a moved module, reading "moving to" the new folder, with a dashed arrow to the module's new box. It is not a module: it takes no note and cannot be selected. |
 | Stale view | A saved view the list shows under Stale with Delete: a change view whose head is merged or whose branch is gone, or any view with a pick that no longer resolves. |
 | Views panel | The left-column panel, behind the rail icon between Files and Notes, that lists every saved view: live ones, then stale ones, each with Edit and Delete (stale ones only Delete); opened from the view bar's All views link. |
 | Note | The one text a person or an agent attaches to a module or folder in a saved view, with the name of who last wrote it; writing again replaces it. |

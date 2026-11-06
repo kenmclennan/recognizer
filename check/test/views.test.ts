@@ -6,6 +6,7 @@ import type { Scan } from "../src/scan.js";
 import {
   migrateView,
   noteWarnings,
+  proposedWarnings,
   resolveView,
   serialiseView,
   type View,
@@ -371,8 +372,8 @@ describe("view versions", () => {
   });
 
   it("counts the examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(11);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(31);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(12);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(38);
   });
 });
 
@@ -398,5 +399,175 @@ describe("change views", () => {
     expect(migrateView(validateView(JSON.parse(text))).change).toEqual(
       change.change,
     );
+  });
+});
+
+describe("plan views", () => {
+  const plan = (proposed: View["proposed"], ...steps: ViewStep[]): View => ({
+    schema_version: 4,
+    description: "p",
+    commit: null,
+    plan: true,
+    proposed,
+    steps,
+  });
+  const pick = (module: string): ViewStep => ({ kind: "pick", module });
+  const NEW = "shop/application/discount.py";
+  const ORDER = "shop/domain/order.py";
+
+  it("serialises every view file already committed to the same text as before plans existed", () => {
+    const pins = JSON.parse(
+      readFileSync(
+        join(REPO, "check/test/fixtures/view-serialised-pins.json"),
+        "utf8",
+      ),
+    ) as Record<string, string>;
+    const files = readdirSync(join(EXAMPLES, "valid")).filter(
+      (file) => file !== "version-4-plan.json",
+    );
+
+    expect(Object.keys(pins).sort()).toEqual(files.sort());
+
+    for (const file of files) {
+      const text = serialiseView(
+        validateView(
+          JSON.parse(readFileSync(join(EXAMPLES, "valid", file), "utf8")),
+        ),
+      );
+
+      expect(text, file).toBe(pins[file]);
+      expect(text).not.toContain('"plan"');
+      expect(text).not.toContain('"proposed"');
+    }
+  });
+
+  it("keeps plan and proposed through migrate and serialise in the documented order", () => {
+    const example = validateView(
+      JSON.parse(
+        readFileSync(join(EXAMPLES, "valid/version-4-plan.json"), "utf8"),
+      ),
+    );
+    const text = serialiseView(example);
+    const parsed = JSON.parse(text);
+
+    expect(Object.keys(parsed)).toEqual([
+      "schema_version",
+      "description",
+      "commit",
+      "plan",
+      "notes",
+      "proposed",
+      "steps",
+    ]);
+    expect(parsed.proposed).toHaveLength(5);
+    expect(Object.keys(parsed.proposed[2])).toEqual(["module", "kind", "from"]);
+    expect(migrateView(example).proposed).toEqual(example.proposed);
+    expect(serialiseView(validateView(parsed))).toBe(text);
+  });
+
+  it("keeps the last proposed change on a module and warns", () => {
+    const doubled = plan(
+      [
+        { module: ORDER, kind: "new" },
+        { module: ORDER, kind: "removed" },
+      ],
+      pick(ORDER),
+    );
+
+    expect(migrateView(doubled).proposed).toEqual([
+      { module: ORDER, kind: "removed" },
+    ]);
+    expect(proposedWarnings(doubled, resolveView(doubled, [scan]))).toEqual([
+      `view holds 1 proposed change on ${ORDER}; kept the last on each`,
+    ]);
+  });
+
+  it("puts a new module that is not in the scan on the plan and never stale", () => {
+    const resolved = resolveView(
+      plan([{ module: NEW, kind: "new" }], pick(ORDER)),
+      [scan],
+    );
+
+    expect(resolved.planned).toEqual([NEW]);
+    expect(resolved.modules).toEqual([ORDER]);
+    expect(resolved.unresolved).toEqual([]);
+  });
+
+  it("leaves exactly the changes module that is not in the scan unresolved", () => {
+    const view = plan(
+      [
+        { module: NEW, kind: "new" },
+        { module: ORDER, kind: "changes" },
+        { module: "shop/domain/gone.py", kind: "changes" },
+      ],
+      pick(ORDER),
+      pick("shop/domain/gone.py"),
+    );
+    const resolved = resolveView(view, [scan]);
+
+    expect(resolved.planned).toEqual([NEW]);
+    expect(resolved.modules).toEqual([ORDER]);
+    expect(resolved.unresolved).toEqual([
+      { step: 2, kind: "pick", path: "shop/domain/gone.py", what: "module" },
+    ]);
+  });
+
+  it("does not plan a changes or removed module that is not in the scan", () => {
+    const resolved = resolveView(
+      plan([
+        { module: "shop/gone.py", kind: "changes" },
+        { module: "shop/also-gone.py", kind: "removed" },
+      ]),
+      [scan],
+    );
+
+    expect(resolved.planned).toEqual([]);
+  });
+
+  it("keeps a planned module off the view when a left-out step names it", () => {
+    const resolved = resolveView(
+      plan([{ module: NEW, kind: "new" }], { kind: "left-out", module: NEW }),
+      [scan],
+    );
+
+    expect(resolved.planned).toEqual([]);
+  });
+
+  it("yields a ghost for a move whether or not from is in the scan", () => {
+    const resolved = resolveView(
+      plan([
+        { module: "shop/new/a.py", kind: "moves", from: ORDER },
+        {
+          module: "shop/new/b.py",
+          kind: "moves-and-changes",
+          from: "shop/never/was.py",
+        },
+      ]),
+      [scan],
+    );
+
+    expect(resolved.ghosts).toEqual([
+      { from: ORDER, to: "shop/new/a.py" },
+      { from: "shop/never/was.py", to: "shop/new/b.py" },
+    ]);
+    expect(resolved.planned).toEqual(["shop/new/a.py", "shop/new/b.py"]);
+  });
+
+  it("treats a new module that exists in the scan as an ordinary module", () => {
+    const resolved = resolveView(
+      plan([{ module: ORDER, kind: "new" }], pick(ORDER)),
+      [scan],
+    );
+
+    expect(resolved.planned).toEqual([]);
+    expect(resolved.modules).toEqual([ORDER]);
+  });
+
+  it("warns about a proposed change on a module that is not on the view", () => {
+    const view = plan([{ module: ORDER, kind: "changes" }]);
+
+    expect(proposedWarnings(view, resolveView(view, [scan]))).toEqual([
+      `proposed change on ${ORDER} is not drawn: the module is not on the view`,
+    ]);
   });
 });

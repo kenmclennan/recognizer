@@ -27,9 +27,41 @@ export interface ViewChange {
   head: string;
 }
 
+export type ProposedKind =
+  | "new"
+  | "changes"
+  | "moves"
+  | "moves-and-changes"
+  | "removed";
+
+export const PROPOSED_KINDS: ProposedKind[] = [
+  "new",
+  "changes",
+  "moves",
+  "moves-and-changes",
+  "removed",
+];
+
+export interface ViewProposedChange {
+  module: string;
+  kind: ProposedKind;
+  from?: string;
+}
+
+export interface Ghost {
+  from: string;
+  to: string;
+}
+
+export function movesKind(kind: ProposedKind): boolean {
+  return kind === "moves" || kind === "moves-and-changes";
+}
+
 export interface View {
   schema_version: 1 | 2 | 3 | 4;
   change?: ViewChange;
+  plan?: true;
+  proposed?: ViewProposedChange[];
   title?: string;
   description: string;
   commit: string | null;
@@ -41,6 +73,8 @@ export interface View {
 
 export interface ResolvedView {
   modules: string[];
+  planned: string[];
+  ghosts: Ghost[];
   folded: string[];
   focus: string | null;
   unresolved: {
@@ -114,6 +148,68 @@ export function noteWarnings(view: View): string[] {
   ];
 }
 
+export function orderedProposed(
+  proposed: ViewProposedChange,
+): ViewProposedChange {
+  return {
+    module: proposed.module,
+    kind: proposed.kind,
+    ...(proposed.from === undefined ? {} : { from: proposed.from }),
+  };
+}
+
+export function lastProposedPerModule(
+  proposed: ViewProposedChange[],
+): ViewProposedChange[] {
+  const lastIndex = new Map<string, number>();
+
+  proposed.forEach((entry, index) => {
+    lastIndex.set(entry.module, index);
+  });
+
+  return proposed.filter(
+    (entry, index) => lastIndex.get(entry.module) === index,
+  );
+}
+
+export function viewProposed(view: View): ViewProposedChange[] {
+  return lastProposedPerModule(view.proposed ?? []).map(orderedProposed);
+}
+
+export function proposedWarnings(view: View, resolved: ResolvedView): string[] {
+  const all = view.proposed ?? [];
+  const warnings: string[] = [];
+  const dropped = all.length - lastProposedPerModule(all).length;
+
+  if (dropped > 0) {
+    const counts = new Map<string, number>();
+
+    for (const entry of all) {
+      counts.set(entry.module, (counts.get(entry.module) ?? 0) + 1);
+    }
+
+    const repeated = [...counts]
+      .filter(([, count]) => count > 1)
+      .map(([path]) => path);
+
+    warnings.push(
+      `view holds ${dropped} ${dropped === 1 ? "proposed change" : "proposed changes"} on ${repeated.join(", ")}; kept the last on each`,
+    );
+  }
+
+  const present = new Set([...resolved.modules, ...resolved.planned]);
+
+  for (const entry of viewProposed(view)) {
+    if (!present.has(entry.module)) {
+      warnings.push(
+        `proposed change on ${entry.module} is not drawn: the module is not on the view`,
+      );
+    }
+  }
+
+  return warnings;
+}
+
 export function isValidRef(ref: string): boolean {
   return /^(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9_./@+-]*$/.test(ref);
 }
@@ -146,7 +242,11 @@ export function migrateView(view: View): View {
     ...(view.change === undefined
       ? {}
       : { change: { base: view.change.base, head: view.change.head } }),
+    ...(view.plan === true ? { plan: true as const } : {}),
     ...(notes.length === 0 ? {} : { notes }),
+    ...(view.plan === true && view.proposed !== undefined
+      ? { proposed: viewProposed(view) }
+      : {}),
     steps: view.steps,
   };
 }
@@ -161,9 +261,13 @@ export function serialiseView(view: View): string {
       description: migrated.description,
       commit: migrated.commit,
       ...(migrated.change === undefined ? {} : { change: migrated.change }),
+      ...(migrated.plan === true ? { plan: true } : {}),
       ...(migrated.notes === undefined
         ? {}
         : { notes: migrated.notes.map(orderedNote) }),
+      ...(migrated.proposed === undefined
+        ? {}
+        : { proposed: migrated.proposed.map(orderedProposed) }),
       steps: migrated.steps.map(orderedStep),
     },
     null,
@@ -289,10 +393,40 @@ export function resolveView(view: View, scans: Scan[]): ResolvedView {
     ruled.delete(module);
   }
 
+  const onView = [...new Set([...picked, ...ruled])].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const onViewSet = new Set(onView);
+  const planned: string[] = [];
+  const ghosts: Ghost[] = [];
+
+  if (view.plan === true) {
+    for (const entry of viewProposed(view)) {
+      const isPlanned =
+        !known.has(entry.module) &&
+        !leftOut.has(entry.module) &&
+        (entry.kind === "new" || movesKind(entry.kind));
+
+      if (isPlanned) {
+        planned.push(entry.module);
+      }
+
+      if (
+        movesKind(entry.kind) &&
+        entry.from !== undefined &&
+        (isPlanned || onViewSet.has(entry.module))
+      ) {
+        ghosts.push({ from: entry.from, to: entry.module });
+      }
+    }
+
+    planned.sort((a, b) => a.localeCompare(b));
+  }
+
   return {
-    modules: [...new Set([...picked, ...ruled])].sort((a, b) =>
-      a.localeCompare(b),
-    ),
+    modules: onView,
+    planned,
+    ghosts,
     folded,
     focus,
     unresolved,

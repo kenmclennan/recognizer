@@ -1,0 +1,18 @@
+{
+  "schema_version": 4,
+  "description": "What the discount change will do.",
+  "commit": null,
+  "plan": true,
+  "proposed": [
+    {
+      "module": "shop/a.py",
+      "kind": "renamed"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "pick",
+      "module": "shop/application/place.py"
+    }
+  ]
+}
