@@ -38,7 +38,12 @@ def test_a_produced_file_validates_against_the_findings_schema(sample, tmp_path)
     assert document["sensor"] == {"name": "duplication", "version": version("recognizer-sensors")}
     assert document["commit"] == "c1"
     assert document["modified"] is False
-    assert document["settings"] == {"threshold": 0.82, "min_lines": 4, "min_nodes": 20}
+    assert document["settings"] == {
+        "threshold": 0.82,
+        "min_lines": 4,
+        "pair_min_lines": 6,
+        "min_nodes": 20,
+    }
     assert len(document["findings"]) == 2
 
 
@@ -71,7 +76,12 @@ def test_settings_reach_the_sensor_and_are_recorded(sample, tmp_path):
 
     document = json.loads(output.read_text())
 
-    assert document["settings"] == {"threshold": 0.99, "min_lines": 6, "min_nodes": 20}
+    assert document["settings"] == {
+        "threshold": 0.99,
+        "min_lines": 6,
+        "pair_min_lines": 6,
+        "min_nodes": 20,
+    }
     assert len(document["findings"]) == 2
 
 

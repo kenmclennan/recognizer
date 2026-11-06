@@ -41,6 +41,8 @@ export { InputError } from "./errors.js";
 export {
   type Finding,
   findingsByModuleFrom,
+  linesDuplicated,
+  orderDuplication,
   ruleText,
   violationText,
 } from "./findings.js";

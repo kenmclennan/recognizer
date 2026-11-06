@@ -14,6 +14,7 @@ import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
+import { orderDuplication } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { findingsFile, readFindingsFiles } from "./findings-files.js";
 import type { FolderMetrics } from "./folder-metrics.js";
@@ -249,7 +250,7 @@ function candidatesOf(documents: FindingsDocument[]): Candidate[] {
 
 function warningsOf(documents: FindingsDocument[]): ReportedWarning[] {
   return documents.flatMap((document) =>
-    document.findings
+    orderDuplication(document.findings)
       .filter((record) => record.severity === "warning")
       .map((record) => warningOf(document.sensor.name, record)),
   );

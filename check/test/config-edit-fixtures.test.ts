@@ -19,7 +19,7 @@ describe("the config-edit fixtures", () => {
       const after = parseConfig(read(`${shape}.added.yaml`));
 
       expect(after.sensors?.duplication?.command).toContain(
-        '{"threshold":0.82,"min_lines":4,"min_nodes":20}',
+        '{"threshold":0.82,"min_lines":4,"pair_min_lines":6,"min_nodes":20}',
       );
       expect(Object.keys(after.sensors ?? {})).toEqual([
         ...Object.keys(before.sensors ?? {}),

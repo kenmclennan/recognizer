@@ -24,6 +24,7 @@ export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
     defaults: {
       threshold: 0.82,
       min_lines: 4,
+      pair_min_lines: 6,
       min_nodes: 20,
     },
     runs_tests: false,

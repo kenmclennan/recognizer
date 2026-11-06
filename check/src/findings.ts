@@ -1,4 +1,4 @@
-import type { FindingsDocument } from "./findings-document.js";
+import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import type { Violation } from "./rules.js";
 
 export type Finding = {
@@ -70,4 +70,29 @@ export function findingsByModuleFrom(
   }
 
   return merged;
+}
+
+export function linesDuplicated(record: FindingRecord): number {
+  return (record.evidence.members ?? []).reduce(
+    (sum, member) =>
+      member.lines === undefined
+        ? sum
+        : sum + (member.lines[1] - member.lines[0] + 1),
+    0,
+  );
+}
+
+export function orderDuplication(records: FindingRecord[]): FindingRecord[] {
+  const ranked = records
+    .filter((record) => record.kind === "duplication")
+    .sort(
+      (a, b) =>
+        linesDuplicated(b) - linesDuplicated(a) ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
+  let next = 0;
+
+  return records.map((record) =>
+    record.kind === "duplication" ? (ranked[next++] as FindingRecord) : record,
+  );
 }

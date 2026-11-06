@@ -49,6 +49,48 @@ const docs = [
 
 const rows = findingRows(docs);
 
+function duplicate(
+  id: string,
+  sizes: number[],
+  severity = "warning" as const,
+): FindingRecord {
+  return {
+    ...record(id, "duplication", severity, "m.py"),
+    evidence: {
+      modules: ["m.py"],
+      members: sizes.map((size, index) => ({
+        module: "m.py",
+        name: `n${index}`,
+        lines: [1, size] as [number, number],
+      })),
+    },
+  };
+}
+
+describe("duplication order", () => {
+  it("sorts by lines duplicated descending then id, after other kinds by kind", () => {
+    const ordered = orderFindings(
+      findingRows([
+        document("duplication", [
+          duplicate("d-small", [5, 5]),
+          duplicate("d-b", [9, 9]),
+          duplicate("d-big", [4, 4, 4, 4, 4, 4]),
+          duplicate("d-a", [9, 9]),
+        ]),
+        document("crap", [record("c1", "crap", "warning", "a.py")]),
+      ]),
+    );
+
+    expect(ordered.map((row) => row.id)).toEqual([
+      "c1",
+      "d-big",
+      "d-a",
+      "d-b",
+      "d-small",
+    ]);
+  });
+});
+
 describe("findingRows", () => {
   it("makes one row per record with the first evidence module and the sensor name", () => {
     expect(rows).toHaveLength(6);

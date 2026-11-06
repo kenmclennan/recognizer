@@ -257,6 +257,28 @@ describe("the duplication sentence", () => {
     );
   });
 
+  it("reads a family of one class as methods of that class", () => {
+    const methods = ["C.a", "C.b", "C.c"].map((name, index) =>
+      member(name, "src/x.py", [1, 4 + index]),
+    );
+
+    expect(family(methods)).toBe(
+      "3 methods of C repeat one structure (6 lines).",
+    );
+  });
+
+  it("keeps the names sentence for methods of two classes", () => {
+    expect(
+      family([
+        member("C.a", "src/x.py", [1, 5]),
+        member("C.b", "src/x.py", [1, 5]),
+        member("D.c", "src/x.py", [1, 5]),
+      ]),
+    ).toBe(
+      "3 functions repeat one structure: C.a in x.py, C.b in x.py and D.c in x.py (5 lines).",
+    );
+  });
+
   it("drops the tail when no member has lines", () => {
     expect(
       family([

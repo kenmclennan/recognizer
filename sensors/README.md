@@ -72,12 +72,13 @@ Reports pairs and families of functions or methods in the same language whose st
 | setting | default | meaning |
 | --- | --- | --- |
 | `threshold` | `0.82` | a number above 0 and at most 1 |
-| `min_lines` | `4` | functions with fewer lines are skipped (integer >= 1) |
+| `min_lines` | `4` | functions with fewer lines are skipped, and so are family members (integer >= 1) |
+| `pair_min_lines` | `6` | a two-member pair is dropped unless its shorter member has at least `max(min_lines, pair_min_lines)` lines (integer >= 1) |
 | `min_nodes` | `20` | functions with fewer syntax nodes are skipped (integer >= 1) |
 
 Two shapes are skipped before fingerprinting, because same-shaped functions of this kind are rightly separate. A constructor shape is a body of only assignments whose right-hand side is a parameter or a literal: Python, TypeScript, Kotlin and C# `field = parameter` statements (plain `=` only), and in Rust the same statements or a single `Self { a, b: 1, c: param }` struct expression. An accessor shape is a body of one result (a `return`, or in Rust, Kotlin and C# an expression body or tail expression) that is a member access, subscript or call chain over a name or `self`/`this`, where every call argument and subscript index is a literal or `self`/`this`. A body with a branch, a local variable, an operator or a non-literal argument is neither, and is scored as before. A language's null (`None`, Kotlin `null`, Rust `None`) counts as a literal only where its grammar parses it as one: Kotlin `null` and Rust `None` do not.
 
-Each finding is a warning on every member's module, with the fix pattern `extract-shared-function` and every member function as an evidence member with `file` and `lines`. A pair keeps the id `duplication:<a>|<b>`; a family of three or more is `duplication:<a>|<b>#<n>` (its first two members and the member count), its summary names every member, and its similarity is the lowest linking pair's. Written with unclebob/dryer (0BSD) as the reference, never a dependency.
+Each finding is a warning on every member's module, with the fix pattern `extract-shared-function` and every member function as an evidence member with `file` and `lines`. A pair keeps the id `duplication:<a>|<b>`; a family of three or more is `duplication:<a>|<b>#<n>` (its first two members and the member count), its summary names every member, or reads `<n> methods of <prefix> share one structure` when all members are in one file under one qualified-name prefix, and its similarity is the lowest linking pair's. Findings are written largest first by lines duplicated (the sum of the members' line counts), then by id. Written with unclebob/dryer (0BSD) as the reference, never a dependency.
 
 Cost: scoring is quadratic in the number of functions per language, narrowed by a size filter and an inverted index on fingerprints; a very large repository may take minutes. The sensor runs only when asked (`recognizer scan --sense duplication`), never on open.
 

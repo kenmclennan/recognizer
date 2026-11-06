@@ -7,6 +7,7 @@ import {
   type FakeOptions,
   fakeIo,
   hashedScan,
+  inputsOf,
   mountedModules,
   PYTHON,
   ROOT,
@@ -222,5 +223,76 @@ describe("check with --scan", () => {
     const fake = fakeIo({ files: { "x.json": "{}" } });
 
     expect(run(["check", ...argv], fake.io)).toBe(2);
+  });
+});
+
+describe("check ranks duplication warnings by lines duplicated", () => {
+  const member = (name: string, size: number) => ({
+    module: "shop/domain/order.py",
+    name,
+    file: "shop/domain/order.py",
+    lines: [1, size] as [number, number],
+  });
+  const finding = (id: string, sizes: number[]) => ({
+    id,
+    kind: "duplication",
+    severity: "warning",
+    principle: "Do not repeat yourself",
+    fix_pattern: "extract-shared-function",
+    summary: `summary ${id}`,
+    evidence: {
+      modules: ["shop/domain/order.py"],
+      members: sizes.map((size, index) => member(`m${index}`, size)),
+    },
+  });
+  const duplication = JSON.stringify({
+    findings_version: 1,
+    sensor: { name: "duplication", version: "1" },
+    commit: COMMIT,
+    modified: false,
+    settings: {},
+    inputs: inputsOf(checkScan),
+    findings: [
+      finding("duplication:a", [6, 6]),
+      finding("duplication:b", [5, 5, 5, 5]),
+      finding("duplication:c", [7, 7]),
+      finding("duplication:d", [10, 10]),
+    ],
+  });
+
+  const order = [
+    "summary duplication:b",
+    "summary duplication:d",
+    "summary duplication:c",
+    "summary duplication:a",
+  ];
+
+  it("lists the warning lines largest first, ties by id, in text and in json", () => {
+    const fake = setup({
+      [`${ROOT}/.recognizer/cache/findings/duplication.json`]: duplication,
+    });
+    const text = check([], fake).out.split("\n");
+    const at = order.map((summary) =>
+      text.findIndex((line) => line.includes(summary)),
+    );
+
+    expect(at.every((index) => index >= 0)).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+
+    const json = JSON.parse(
+      check(
+        ["--json"],
+        setup({
+          [`${ROOT}/.recognizer/cache/findings/duplication.json`]: duplication,
+        }),
+      ).out,
+    );
+    const ids = json.warnings
+      .filter((warning: { summary: string }) =>
+        warning.summary.startsWith("summary duplication:"),
+      )
+      .map((warning: { summary: string }) => warning.summary);
+
+    expect(ids).toEqual(order);
   });
 });
