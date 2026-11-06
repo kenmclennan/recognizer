@@ -10,7 +10,7 @@ import { Inference } from "./inference.js";
 import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
 import { namedEdges, Router } from "./routes.js";
-import { TsconfigOptions } from "./tsconfig-options.js";
+import { isUnder, TsconfigOptions } from "./tsconfig-options.js";
 import { scannerVersion } from "./version.js";
 import { discoverWorkspaces } from "./workspaces.js";
 
@@ -160,17 +160,39 @@ export function scan(
   root: string,
   commit: string | null,
   modified: boolean | null = null,
+  onSkipped: (line: string) => void = () => {},
 ): ScanDocument {
   if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) {
     throw new ScanError([`ROOT is not a directory: ${root}`]);
   }
 
   const real = realpathSync(root);
-  const files = listSourceFiles(real).sort(compare);
   const idOf = (file: string) => relative(real, file).split(sep).join("/");
+  const tsconfigs = new TsconfigOptions(real);
+  const skipped = tsconfigs.skippedProjects();
+  const skipPaths = skipped
+    .map((project) => project.directory)
+    .filter(
+      (directory, index, all) =>
+        !all.some(
+          (other, at) =>
+            at !== index && other !== directory && isUnder(directory, other),
+        ),
+    );
+
+  for (const project of skipped) {
+    onSkipped(
+      project.inside === null
+        ? `skipped project ${project.directory}: ${project.config}: ${project.message}\n`
+        : `skipped project ${project.directory}: inside skipped project ${project.inside}\n`,
+    );
+  }
+
+  const files = listSourceFiles(real)
+    .filter((file) => !skipPaths.some((path) => isUnder(idOf(file), path)))
+    .sort(compare);
   const modules = new Set(files.map(idOf));
 
-  const tsconfigs = new TsconfigOptions(real);
   const resolver = new Resolver(real, modules, discoverWorkspaces(real));
   const optionsByFile = new Map<string, ts.CompilerOptions>();
 
@@ -235,10 +257,7 @@ export function scan(
     }
   }
 
-  const problems = [
-    ...syntaxProblems(program, files, real),
-    ...tsconfigs.failures(),
-  ];
+  const problems = syntaxProblems(program, files, real);
 
   if (problems.length > 0) {
     throw new ScanError(problems);
@@ -387,7 +406,10 @@ export function scan(
       path: idOf(file),
       hash: createHash("sha256").update(readFileSync(file)).digest("hex"),
     })),
-    selection: selection(),
+    selection: {
+      ...selection(),
+      ...(skipPaths.length > 0 ? { skip_paths: skipPaths } : {}),
+    },
     modules: [...modules].sort(compare).map((id) => {
       const members = infos.get(id)?.members ?? [];
 

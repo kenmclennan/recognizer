@@ -53,7 +53,7 @@ The checker pass builds one program over every scanned file, so a scan takes not
 ## Exit codes
 
 - `0` - the scan was written.
-- `2` - a usage error, a `ROOT` that is not a directory, a syntax error in a scanned file or an unreadable `tsconfig.json`. Nothing is written, and every failure is listed on stderr as `path:line: message`.
+- `2` - a usage error, a `ROOT` that is not a directory, a syntax error in a scanned file. A project whose `tsconfig.json` cannot be read, parsed or resolved is skipped instead, with exit 0: its directory (and everything under it) is left unscanned, named on stderr as `skipped project <directory>: <config>: <message>` and listed in `selection.skip_paths`. On exit 2 nothing is written, and every failure is listed on stderr as `path:line: message`.
 
 ## Skipped
 
