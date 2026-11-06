@@ -13,6 +13,11 @@ import {
   structureSensor,
   validateFindings,
 } from "recognizer";
+import {
+  type Refusal,
+  type RunRecordFiles,
+  refusalsOf,
+} from "./refusal-record";
 import type { Loaded, LoadedScan } from "./scan-loading";
 
 export type SensorStatus = {
@@ -26,6 +31,7 @@ export type SensorStatus = {
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
   diagnosis?: Diagnosis;
+  refusal?: Refusal;
   measured?: { inputs?: Record<string, string>; tests?: string };
 };
 
@@ -80,6 +86,7 @@ export type SensorsPort = {
   writeStructure(document: string | null): Promise<void>;
   readFindings(): Promise<FindingsFiles>;
   readOverlays(): Promise<OverlayFiles>;
+  readRunRecords(): Promise<RunRecordFiles>;
   readTestsHash(known: Record<string, string>): Promise<string | null>;
   removeFindings(names: string[]): Promise<void>;
   readInputs(): Promise<SensorInputs>;
@@ -92,6 +99,7 @@ export const inertSensors: SensorsPort = {
   writeStructure: async () => {},
   readFindings: async () => ({ files: [], refused: [] }),
   readOverlays: async () => ({ files: [], refused: [] }),
+  readRunRecords: async () => ({ files: [], refused: [] }),
   readTestsHash: async () => null,
   removeFindings: async () => {},
   readInputs: async () => ({
@@ -306,6 +314,18 @@ export async function senseRepository(
   };
 }
 
+function registeredNames(config: string | null): string[] {
+  if (config === null) {
+    return [];
+  }
+
+  try {
+    return registeredSensors(parseConfig(config)).map(({ name }) => name);
+  } catch {
+    return [];
+  }
+}
+
 export async function withSensors(
   loaded: Loaded,
   port: SensorsPort,
@@ -317,13 +337,25 @@ export async function withSensors(
     scanHashes(loaded.scans.map(({ scan }) => scan)),
   );
   const tests = await port.readTestsHash(known).catch(() => null);
+  const records = await port
+    .readRunRecords()
+    .catch((): RunRecordFiles => ({ files: [], refused: [] }));
+  const refusals = refusalsOf(
+    records.files,
+    registeredNames(inputs.config),
+    run.statuses,
+  );
 
   return {
     ...loaded,
     policy: inputs.policy,
     baseline: inputs.baseline,
     findings: run.documents,
-    sensors: run.statuses,
+    sensors: run.statuses.map((status) =>
+      status.status !== "failed" && refusals[status.name] !== undefined
+        ? { ...status, refusal: refusals[status.name] }
+        : status,
+    ),
     overlays: overlays.files,
     overlaysUnreadable: overlays.refused,
     tests,

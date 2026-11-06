@@ -422,6 +422,26 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.reasons.mutationNoCov = whyFacts(await reasonScan("mutation", REASONS["mutation-no-coverage"]), "mutation");
   facts.reasons.plain = (await (async () => { const m = await mount(fakeScan({ steps: [current, sensing(1), json({ event: "entry", phase: "sense", name: "crap", outcome: "failed", reason: "boom" }), summary] })); await openScan(m); await m.setTick("crap", true); click(m.q(".scan-run")); await tick(); await tick(); await tick(); return whyFacts(m, "crap"); })());
 
+  const recordOf = (name, outcome, at, diagnosis) => json({ log_version: 1, kind: "scan", started: at, finished: at, by: "ken", arguments: [], outcome, exit: outcome === "ok" ? 0 : 1, phases: [{ phase: "sense", entries: [{ name, command: ["x"], status: outcome === "ok" ? 0 : 1, outcome, duration_ms: 1, stderr: "", ...(outcome === "failed" ? { reason: "tests failed", ...(diagnosis ? { diagnosis } : {}) } : {}) }] }] });
+  const restart = async (records, modifiedMs) => {
+    const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG + "  crap:\\n    command: [recognizer-sensors, crap, '{repository}']\\n" }, {}, SHIPPED);
+    if (modifiedMs !== undefined) f.modified.set("crap", modifiedMs);
+    for (const [name, text] of Object.entries(records)) f.runRecords.set(name, text);
+    const m = await mount(fakeScan(), f);
+    await openScan(m);
+    return whyFacts(m, "crap");
+  };
+  const FAILED_AT = "2026-11-02T09:00:00.000Z";
+  const FAILED = recordOf("crap", "failed", FAILED_AT, REASONS["mutation-tests-failing"]);
+  facts.restart = {
+    refused: await restart({ "20261102T090000000Z-scan.json": FAILED }, Date.parse(FAILED_AT) - 1000),
+    okNewer: await restart({ "20261102T090000000Z-scan.json": FAILED, "20261102T100000000Z-scan.json": recordOf("crap", "ok", "2026-11-02T10:00:00.000Z") }, Date.parse(FAILED_AT) - 1000),
+    copy: await restart({ "20261102T090000000Z-scan.json": recordOf("crap", "failed", FAILED_AT, REASONS["crap-no-coverage"]) }, Date.parse(FAILED_AT) - 1000),
+    none: await restart({}, Date.parse(FAILED_AT) - 1000),
+    older: await restart({ "20261102T090000000Z-scan.json": FAILED }, Date.parse(FAILED_AT) + 1000),
+    tie: await restart({ "20261102T090000000Z-scan.json": FAILED }, Date.parse(FAILED_AT)),
+  };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -802,6 +822,22 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       ".recognizer/cache/coverage/last-run.log",
     ]);
     expect(f.reasons.copied).toEqual(["cargo install cargo-llvm-cov"]);
+  });
+
+  it("shows a refusal remembered from the run log after a restart, with its reason, Copy and Show log, and nothing else changes", () => {
+    const r = f.restart;
+
+    expect(r.refused.state).toMatch(/^refused/);
+    expect(r.refused.tone).toBe("bad");
+    expect(r.refused.why).toBeTruthy();
+    expect(r.refused.log).toBe("Show log");
+    expect(r.copy.copy).toBe("Copy");
+    expect(r.refused.inside).toBe(true);
+
+    for (const one of [r.okNewer, r.none, r.older, r.tie]) {
+      expect(one.state).toMatch(/^0 findings/);
+      expect(one.why).toBeNull();
+    }
   });
 
   it("shows failed and no second line for a failure with no diagnosis", () => {

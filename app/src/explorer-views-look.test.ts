@@ -170,6 +170,9 @@ const facts = {};
   one.port.edit("overview", null);
   await tick();
   facts.deleted = { count: one.count(), name: one.q(".view-name").textContent, notice: one.notes.join(" | ") };
+  click(one.q(".view-back"));
+  await tick();
+  facts.backToDeleted = one.q(".view-name").textContent.trim();
 
   const staleFile = viewText([pick("app/hub.py"), pick("lib/c.py"), pick("lib/deleted.py")], "old1234");
   const comparisons = createViewComparisons();
@@ -1040,6 +1043,10 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
     expect(f.deleted.notice).toContain("overview was deleted");
   });
 
+  it("restores no view when Back reaches a step naming a deleted view", () => {
+    expect(f.backToDeleted).toBe("Untitled");
+  });
+
   it("opens a stale view drawing nothing on the canvas and posting one message with Update", () => {
     expect(f.stale.panel).toBe(false);
     expect(f.stale.kids).toBe(true);
@@ -1612,7 +1619,7 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
       name: "Untitled",
       count: true,
     });
-    expect(f.mg.deleteOpen.history).toBe("a");
+    expect(f.mg.deleteOpen.history).toBe("Untitled");
   });
 
   it("asks before opening another view over a modified one from the panel, the drop-down and a link", () => {

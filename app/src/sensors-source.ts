@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { RunRecordFiles } from "./refusal-record";
 import type {
   DescriberInEffect,
   FindingsFiles,
@@ -13,6 +14,7 @@ export const sensorsSource: SensorsPort = {
   writeStructure: (document) => invoke<void>("write_structure", { document }),
   readFindings: () => invoke<FindingsFiles>("read_findings"),
   readOverlays: () => invoke<OverlayFiles>("read_overlays"),
+  readRunRecords: () => invoke<RunRecordFiles>("read_run_records"),
   readTestsHash: (known) => invoke<string>("read_tests_hash", { known }),
   removeFindings: (names) => invoke<void>("remove_findings", { names }),
   readInputs: () => invoke<SensorInputs>("read_sensor_inputs"),

@@ -65,6 +65,7 @@ export {
   type LinkParse,
   parseLink,
 } from "./link.js";
+export { validateRunRecord } from "./log-document.js";
 export {
   classHeadTokens,
   classHeritage,
@@ -138,6 +139,7 @@ export {
 } from "./result-freshness.js";
 export type { Rule, Violation } from "./rules.js";
 export { collectViolations } from "./rules.js";
+export type { RunEntry, RunPhase, RunRecord } from "./run-log.js";
 export {
   SCAN_SCHEMA_VERSION,
   type Scan,

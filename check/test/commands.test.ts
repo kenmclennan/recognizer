@@ -134,6 +134,10 @@ describe("command table", () => {
     expect(call([])).toEqual({ code: 2, out: "", err: shortHelp() });
   });
 
+  it("names diagnosis in the entry shape of log --json", () => {
+    expect(call(["help", "log"]).out).toContain("reason?, diagnosis?, stderr");
+  });
+
   it("lists every command for help with no name", () => {
     expect(call(["help"]).out).toBe(shortHelp());
   });
