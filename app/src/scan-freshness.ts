@@ -269,6 +269,15 @@ export type PlannedRun = {
   progress: string;
 };
 
+export const OPEN_RUN: PlannedRun = {
+  plan: { describe: false, describeAll: false, sense: [], modules: null },
+  dropped: [],
+  modules: 0,
+  idle: true,
+  label: "",
+  progress: "",
+};
+
 export function tickedPhases(
   ticks: ScanTicks,
   rows: PlanRow[],
