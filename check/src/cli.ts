@@ -22,6 +22,7 @@ const CEILING_EXIT = 124;
 const CEILING_SCRIPT = `
 kill_tree() {
   for child in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$child"; done
+  if [ -n "$RECOGNIZER_CEILING_PAUSE" ]; then sleep "$RECOGNIZER_CEILING_PAUSE"; fi
   kill -KILL "$1" 2>/dev/null
 }
 limit=$1
@@ -29,7 +30,7 @@ shift
 flag=$(mktemp)
 "$@" &
 command_pid=$!
-( sleep "$limit"; echo expired > "$flag"; kill_tree "$command_pid" ) &
+( sleep "$limit"; echo expired > "$flag"; kill_tree "$command_pid" ) 2>/dev/null &
 watchdog_pid=$!
 wait "$command_pid"
 status=$?
