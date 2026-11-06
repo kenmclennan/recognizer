@@ -13,6 +13,11 @@ describe("skip rules", () => {
     const doc = scanTree({
       "keep.mjs": body,
       "keep.cjs": "module.exports = {};\n",
+      "keep.mts": body,
+      "keep.cts": "module.exports = {};\n",
+      "src/a.d.mts": "declare const x: number;\n",
+      "src/a.d.cts": "declare const x: number;\n",
+      "src/a.test.mts": body,
       "node_modules/pkg/a.ts": body,
       "dist/a.ts": body,
       "build/a.ts": body,
@@ -26,7 +31,12 @@ describe("skip rules", () => {
       "src/readme.md": "x",
     });
 
-    expect(doc.modules.map((m) => m.id)).toEqual(["keep.cjs", "keep.mjs"]);
+    expect(doc.modules.map((m) => m.id)).toEqual([
+      "keep.cjs",
+      "keep.cts",
+      "keep.mjs",
+      "keep.mts",
+    ]);
   });
 
   it("does not follow a directory symlink to its own parent", () => {

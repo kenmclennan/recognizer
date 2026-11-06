@@ -83,6 +83,11 @@ describe("detectLanguages", () => {
     [["b.jsx"], ["typescript"]],
     [["c.mjs"], ["typescript"]],
     [["d.cjs"], ["typescript"]],
+    [["a.mts"], ["typescript"]],
+    [["b.cts"], ["typescript"]],
+    [["types/index.d.mts"], []],
+    [["types/index.d.cts"], []],
+    [["src/a.test.mts"], []],
     [["src/a.test.js"], []],
     [["types/index.d.ts"], []],
   ])("detects %j as %j", (files, expected) => {

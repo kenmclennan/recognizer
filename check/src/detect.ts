@@ -58,7 +58,7 @@ const SKIP_RULES: Record<Language, SkipRules> = {
     directoryPrefixes: ["."],
     directorySuffixes: [],
     directoryMarkers: [],
-    fileGlobs: ["*.d.ts", "*.test.*", "*.spec.*"],
+    fileGlobs: ["*.d.ts", "*.d.mts", "*.d.cts", "*.test.*", "*.spec.*"],
   },
   kotlin: {
     directoryNames: [
@@ -107,7 +107,16 @@ function skipsDirectoryName(rules: SkipRules, name: string): boolean {
 }
 
 const CSHARP_EXTENSIONS = [".cs", ".razor", ".cshtml", ".xaml"];
-const TYPESCRIPT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+const TYPESCRIPT_EXTENSIONS = [
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".mts",
+  ".cts",
+];
 
 function languageOf(fileName: string): Language | null {
   if (fileName.endsWith(".py")) {
