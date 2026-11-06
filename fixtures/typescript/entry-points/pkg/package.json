@@ -1,0 +1,5 @@
+{
+  "name": "@entry/pkg",
+  "main": "./src/index-entry.ts",
+  "scripts": { "tool": "tsx tools/build.ts" }
+}

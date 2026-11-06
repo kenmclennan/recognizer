@@ -3,6 +3,7 @@ import { readFileSync, realpathSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import ts from "typescript";
 import { findCalls, type ScanCall } from "./calls.js";
+import { entryPoints } from "./entry-points.js";
 import { ScanError } from "./errors.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
 import { listSourceFiles, type Selection, selection } from "./files.js";
@@ -29,6 +30,7 @@ export interface ScanModule {
   language: "typescript";
   kind: "module" | "interface";
   members: ScanMember[];
+  entry_point?: true;
 }
 
 export interface ScanEdge {
@@ -264,6 +266,11 @@ export function scan(
     throw new ScanError(problems);
   }
 
+  const entries = entryPoints(real, modules, (id) => {
+    const source = program.getSourceFile(join(real, id));
+
+    return source ? source.text : null;
+  });
   const checker = program.getTypeChecker();
   const edges = new Map<string, ScanEdge>();
   const foreign = new Set<string>();
@@ -426,6 +433,7 @@ export function scan(
         id,
         language: "typescript",
         kind: moduleKind(members),
+        ...(entries.has(id) ? { entry_point: true as const } : {}),
         members: members.map(({ name, kind, line, exported, outline }) => ({
           name,
           kind,
