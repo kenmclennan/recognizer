@@ -191,6 +191,55 @@ def test_each_convention_root_pattern_marks_the_registered_types(run, root):
     assert not entry(document, "App/Contract.cs")
 
 
+PARTIAL_BASE = {
+    "App/Base.cs": "namespace N;\npublic abstract partial class Base {}\n",
+    "App/Base.More.cs": "namespace N;\npublic abstract partial class Base { }\n",
+    "App/Sub.cs": "namespace N;\npublic partial class Sub : Base {}\n",
+}
+
+
+def test_a_runtime_type_test_on_a_partial_type_does_not_make_its_subclasses_entry_points(run):
+    document = run(
+        APP
+        | PARTIAL_BASE
+        | {
+            "App/Check.cs": "namespace N;\npublic class Check { bool M(System.Type t) { return typeof(Base).IsAssignableFrom(t); } }\n"
+        }
+    )
+
+    for path in ("App/Base.cs", "App/Base.More.cs", "App/Sub.cs", "App/Check.cs"):
+        assert not entry(document, path)
+
+
+def test_a_closed_type_test_over_an_assembly_enumeration_is_a_root(run):
+    document = run(
+        APP
+        | PARTIAL_BASE
+        | {
+            "App/Check.cs": "namespace N;\npublic class Check { void M() { System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).Where(t => typeof(Base).IsAssignableFrom(t)); } }\n"
+        }
+    )
+
+    assert entry(document, "App/Sub.cs")
+    assert not entry(document, "App/Base.cs")
+
+
+def test_only_the_closed_type_test_with_an_assembly_enumeration_is_a_root(run):
+    document = run(
+        APP
+        | PARTIAL_BASE
+        | {
+            "App/Other.cs": "namespace N;\npublic abstract class Other {}\n",
+            "App/OtherSub.cs": "namespace N;\npublic class OtherSub : Other {}\n",
+            "App/Check.cs": "namespace N;\npublic class Check { bool M(System.Type t) { return typeof(Base).IsAssignableFrom(t); } }\n",
+            "App/Scan.cs": "namespace N;\npublic class Scan { void M() { asm.GetTypes().Where(t => typeof(Other).IsAssignableFrom(t)); } }\n",
+        }
+    )
+
+    assert entry(document, "App/OtherSub.cs")
+    assert not entry(document, "App/Sub.cs")
+
+
 def test_an_open_generic_register_without_an_assembly_argument_is_not_a_root(run):
     document = run(
         APP

@@ -30,7 +30,7 @@ Edges are by name resolution; a `using` makes an edge only for a name that is us
 
 Classes, records, structs and enums are `class`; interfaces are `interface`; delegates and aliases are not members. An abstract class or record carries the tag `abstract`.
 
-A file is an entry point when it has top-level statements, a `static Main`, a controller, a hosted service, a framework-loaded type (`[Migration]`, `[DbContext]`, analyzers, generators, cmdlets), code-behind (`*.xaml.cs`, `*.razor.cs`, `*.cshtml.cs`), or a type the repository registers by convention (`typeof(I).IsAssignableFrom`, `GetTypesToRegister`, an open-generic `Register`, `Collection.Register`, `Collection.Append` or `RegisterDecorator` with an assembly argument, MediatR handlers where `AddMediatR` appears, FluentValidation validators where `AddValidatorsFromAssembly` appears).
+A file is an entry point when it has top-level statements, a `static Main`, a controller, a hosted service, a framework-loaded type (`[Migration]`, `[DbContext]`, analyzers, generators, cmdlets), code-behind (`*.xaml.cs`, `*.razor.cs`, `*.cshtml.cs`), or a type the repository registers by convention (`typeof(I).IsAssignableFrom` with an open-generic argument or an assembly enumeration in the same statement, `GetTypesToRegister`, an open-generic `Register`, `Collection.Register`, `Collection.Append` or `RegisterDecorator` with an assembly argument, MediatR handlers where `AddMediatR` appears, FluentValidation validators where `AddValidatorsFromAssembly` appears).
 
 ## Markup
 

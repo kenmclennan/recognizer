@@ -35,7 +35,8 @@ MEDIATR_NAMES = {
     "IRequestExceptionHandler",
 }
 VALIDATION_NAMES = {"AbstractValidator", "IValidator"}
-ASSIGNABLE = re.compile(r"typeof\(\s*([\w.]+)\s*(?:<[^()]*?>)?\s*\)\s*\.IsAssignableFrom")
+ASSIGNABLE = re.compile(r"typeof\(\s*([\w.]+)\s*(<[^()]*?>)?\s*\)\s*\.IsAssignableFrom")
+OPEN_ARGUMENTS = re.compile(r"<[\s,]*>")
 TYPES_TO_REGISTER = re.compile(
     r"GetTypesToRegister\s*(?:<\s*([\w.]+)|\(\s*(?:[^,()]+,\s*)?typeof\(\s*([\w.]+))"
 )
@@ -48,12 +49,24 @@ def last_segment(name: str) -> str:
     return name.split(".")[-1]
 
 
+def registers_types(text: str, match: re.Match) -> bool:
+    if match.group(2) and OPEN_ARGUMENTS.fullmatch(match.group(2)):
+        return True
+
+    start = text.rfind(";", 0, match.start()) + 1
+    end = text.find(";", match.end())
+    statement = text[start : len(text) if end < 0 else end]
+
+    return "ssembl" in statement or "GetTypes" in statement
+
+
 def convention_roots(files: list[SourceFile], index: Index) -> set[str]:
     named = set()
     text = "\n".join(f.text for f in files)
 
     for match in ASSIGNABLE.finditer(text):
-        named.add(last_segment(match.group(1)))
+        if registers_types(text, match):
+            named.add(last_segment(match.group(1)))
 
     for match in TYPES_TO_REGISTER.finditer(text):
         named.add(last_segment(match.group(1) or match.group(2)))
