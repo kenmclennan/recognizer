@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
@@ -320,13 +321,14 @@ def read_reports(
     steps: list[Step],
     results: list[StepResult],
     diagnoses: list[dict] | None,
+    since: float | None = None,
 ) -> Coverage:
     files = [path for scan in scans for module in scan.modules for path in module.files]
     merged: Coverage = {}
     missing: list[Source] = []
 
     for source in sources:
-        part = read_source(repository, source, files)
+        part = read_source(repository, source, files, since)
 
         if part is None:
             missing.append(source)
@@ -344,8 +346,19 @@ def read_reports(
     return merged
 
 
-def read_source(repository: Path, source: Source, files: list[str]) -> Coverage | None:
-    matches = sorted(p for p in repository.glob(source.path) if p.is_file())
+def fresh_reports(repository: Path, pattern: str, since: float | None) -> list[Path]:
+    matches = sorted(p for p in repository.glob(pattern) if p.is_file())
+
+    if since is None or pattern.startswith(CACHE_PREFIX):
+        return matches
+
+    return [p for p in matches if p.stat().st_mtime >= since]
+
+
+def read_source(
+    repository: Path, source: Source, files: list[str], since: float | None = None
+) -> Coverage | None:
+    matches = fresh_reports(repository, source.path, since)
 
     if not matches:
         return None
@@ -381,6 +394,7 @@ def collect_coverage(
     try:
         steps, sources = plan(repository, scans, test_command, coverage)
         clear_cached_reports(repository, sources)
+        started = time.time() if steps else None
         results = run_steps(repository, steps)
     except Refusal as refusal:
         if diagnoses is None:
@@ -397,7 +411,7 @@ def collect_coverage(
 
         return {}
 
-    return read_reports(repository, sources, scans, steps, results, diagnoses)
+    return read_reports(repository, sources, scans, steps, results, diagnoses, started)
 
 
 def read_contexts(text: str, repository: Path) -> Selection:
@@ -597,17 +611,16 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         pairs = mapped[file]
         project = pairs[0][0]
 
-        for stale in repository.glob(KOTLIN_REPORT_GLOB):
-            stale.unlink(missing_ok=True)
-
         step = Step(f"kotlin {file}", kotlin_by_file_command(project, [n for _, n in pairs]))
+
+        started = time.time()
 
         try:
             run_steps(repository, [step], "a", strict=True)
         except MeasurementError as error:
             return kotlin_fallback(str(error))
 
-        reports = sorted(repository.glob(KOTLIN_REPORT_GLOB))
+        reports = fresh_reports(repository, KOTLIN_REPORT_GLOB, started)
 
         if not reports:
             return kotlin_fallback(f"no coverage report for {file}")
@@ -944,8 +957,9 @@ def collect_coverage_with_tests(
     for stale in (repository / CSHARP_DIRECTORY).glob("results_*.trx"):
         stale.unlink(missing_ok=True)
 
+    started = time.time() if steps else None
     results = run_steps(repository, steps)
-    merged = read_reports(repository, sources, scans, steps, results, None)
+    merged = read_reports(repository, sources, scans, steps, results, None, started)
     selection: Selection = {}
 
     for scan in scans:
