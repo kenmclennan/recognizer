@@ -13,6 +13,7 @@ import {
 } from "./scan-panel-model";
 import type { ScanPort, ScanRunResult } from "./scan-port";
 import {
+  answeredProgress,
   foldProgress,
   NO_PROGRESS,
   parseScanLine,
@@ -52,6 +53,7 @@ export type RescanPorts<Carried> = {
 export type Rescanner = {
   run: (modules?: string[] | null, planned?: PlannedRun) => Promise<void>;
   stop: () => Promise<void>;
+  answerDescribe: (describe: boolean) => Promise<void>;
   refresh: () => Promise<void>;
   loadTicks: () => Promise<void>;
   ticks: () => ScanTicks;
@@ -499,6 +501,20 @@ export function createRescanner<Carried>(
 
       await ports.port.stop();
       await current;
+    },
+    async answerDescribe(describe) {
+      if (progress.describeAsk === null) {
+        return;
+      }
+
+      progress = answeredProgress(progress, describe);
+      publish();
+
+      try {
+        await ports.port.answerDescribe(describe);
+      } catch (error) {
+        ports.post({ kind: "error", text: String(error) });
+      }
     },
     async refresh() {
       if (busy) {

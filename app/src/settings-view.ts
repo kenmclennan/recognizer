@@ -2,6 +2,7 @@ import {
   checkDescribing,
   type DescribingValues,
   MAX_BATCH_SIZE,
+  MAX_CONFIRM_ABOVE_USD,
 } from "./settings-model";
 
 export type SettingsValues = {
@@ -35,6 +36,9 @@ function field(label: string, control: HTMLElement): HTMLLabelElement {
 export const DESCRIBING_HINT =
   "The model every description uses, and how many modules are described at once. Applies to scans started from the app and from a terminal.";
 
+export const CONFIRM_HINT =
+  "A scan asks before describing when its API-equivalent estimate is above this.";
+
 function textInput(placeholder: string, name: string): HTMLInputElement {
   const node = document.createElement("input");
 
@@ -47,14 +51,17 @@ function textInput(placeholder: string, name: string): HTMLInputElement {
   return node;
 }
 
-function numberInput(name: string): HTMLInputElement {
+function numberInput(
+  name: string,
+  range: { min: number; max: number; step: string },
+): HTMLInputElement {
   const node = document.createElement("input");
 
   node.type = "number";
   node.name = name;
-  node.min = "1";
-  node.max = String(MAX_BATCH_SIZE);
-  node.step = "1";
+  node.min = String(range.min);
+  node.max = String(range.max);
+  node.step = range.step;
 
   return node;
 }
@@ -78,7 +85,16 @@ export function buildSettings(
   const describingLegend = document.createElement("legend");
   const describingRow = document.createElement("div");
   const model = textInput("haiku", "model");
-  const batchSize = numberInput("batch_size");
+  const batchSize = numberInput("batch_size", {
+    min: 1,
+    max: MAX_BATCH_SIZE,
+    step: "1",
+  });
+  const confirmAbove = numberInput("confirm_above_usd", {
+    min: 0,
+    max: MAX_CONFIRM_ABOVE_USD,
+    step: "0.01",
+  });
   const error = document.createElement("p");
   const buttons = document.createElement("div");
   const saveButton = document.createElement("button");
@@ -87,8 +103,17 @@ export function buildSettings(
   describing.className = "describing";
   describingLegend.textContent = "Describing";
   describingRow.className = "describing-fields";
-  describingRow.append(field("Model", model), field("Batch size", batchSize));
-  describing.append(describingLegend, describingRow, hintNode(DESCRIBING_HINT));
+  describingRow.append(
+    field("Model", model),
+    field("Batch size", batchSize),
+    field("Confirm above (USD)", confirmAbove),
+  );
+  describing.append(
+    describingLegend,
+    describingRow,
+    hintNode(DESCRIBING_HINT),
+    hintNode(CONFIRM_HINT),
+  );
   error.className = "error";
   error.setAttribute("role", "alert");
   buttons.className = "buttons";
@@ -102,7 +127,11 @@ export function buildSettings(
   form.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    const checked = checkDescribing(model.value, batchSize.value);
+    const checked = checkDescribing(
+      model.value,
+      batchSize.value,
+      confirmAbove.value,
+    );
 
     if (!checked.ok) {
       error.textContent = checked.error;
@@ -128,6 +157,7 @@ export function buildSettings(
       editor.value = values.editor;
       model.value = values.describing.model;
       batchSize.value = String(values.describing.batchSize);
+      confirmAbove.value = values.describing.confirmAboveUsd.toFixed(2);
     },
     showError(text) {
       error.textContent = text;

@@ -3273,3 +3273,27 @@ svg.i.chevron {
 .surface .view-heading-description {
   fill: var(--muted);
 }
+
+.scan-confirm {
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 2px 0 10px;
+}
+
+.scan-confirm-head {
+  font-weight: 600;
+}
+
+.scan-confirm-model,
+.scan-confirm-estimate {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.scan-confirm-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

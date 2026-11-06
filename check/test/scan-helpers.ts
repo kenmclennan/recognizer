@@ -34,6 +34,8 @@ export interface FakeOptions {
   request?: (socket: string, text: string) => string | null;
   now?: () => number;
   stdin?: string;
+  lines?: (string | null)[];
+  linesRead?: { count: number };
 }
 
 export interface Fake {
@@ -243,6 +245,13 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       }
 
       return options.stdin;
+    },
+    readLine: async () => {
+      if (options.linesRead !== undefined) {
+        options.linesRead.count += 1;
+      }
+
+      return options.lines?.shift() ?? null;
     },
     readBytes: (path) => Buffer.from(io.readFile(path), "utf8"),
     hashFile: (path) => {

@@ -20,11 +20,16 @@ export type WrittenTicks = Omit<ScanTicks, "ticked" | "once"> & {
   ticked: string[];
 };
 
-export type DescribingSettings = { model: string; batchSize: number };
+export type DescribingSettings = {
+  model: string;
+  batchSize: number;
+  confirmAboveUsd: number;
+};
 
 export type ScanPort = {
   run(plan: ScanPlan): Promise<ScanRunResult>;
   stop(): Promise<void>;
+  answerDescribe(describe: boolean): Promise<void>;
   readCache(): Promise<ScanReport>;
   readTicks(): Promise<StoredTicks>;
   writeTicks(ticks: WrittenTicks): Promise<void>;
@@ -35,6 +40,7 @@ export type ScanPort = {
 export const inertScan: ScanPort = {
   run: async () => ({ status: "finished", exitCode: 0, stderr: "", log: null }),
   stop: async () => {},
+  answerDescribe: async () => {},
   readCache: async () => ({
     status: "scanned",
     exitCode: 0,
@@ -49,6 +55,10 @@ export const inertScan: ScanPort = {
     remembered: false,
   }),
   writeTicks: async () => {},
-  readDescribing: async () => ({ model: "haiku", batchSize: 4 }),
+  readDescribing: async () => ({
+    model: "haiku",
+    batchSize: 4,
+    confirmAboveUsd: 5,
+  }),
   onLine: () => () => {},
 };

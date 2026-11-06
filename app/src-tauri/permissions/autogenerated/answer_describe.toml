@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-answer-describe"
+description = "Enables the answer_describe command without any pre-configured scope."
+commands.allow = ["answer_describe"]
+
+[[permission]]
+identifier = "deny-answer-describe"
+description = "Denies the answer_describe command without any pre-configured scope."
+commands.deny = ["answer_describe"]

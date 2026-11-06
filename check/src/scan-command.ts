@@ -12,7 +12,10 @@ import {
   readResponsibilities,
   stopCauseText,
 } from "./describe-modules.js";
-import { projectionText } from "./describe-projection.js";
+import {
+  type DescribeProjection,
+  projectionText,
+} from "./describe-projection.js";
 import { describerInEffect } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
@@ -514,6 +517,26 @@ function* scanFlow(
           kind: options.describe === "all" ? "all" : "stale",
           ...(scope === undefined ? {} : { within: scope }),
         },
+        ...(options.confirmAbove === undefined
+          ? {}
+          : {
+              confirm: async (projection: DescribeProjection) => {
+                const limit = options.confirmAbove as number;
+
+                if (
+                  projection.modules === 0 ||
+                  (projection.cost_usd !== null && projection.cost_usd <= limit)
+                ) {
+                  return true;
+                }
+
+                io.stdout(
+                  `${JSON.stringify({ event: "confirm", phase: "describe", ...projection })}\n`,
+                );
+
+                return (await io.readLine())?.trim() === "describe";
+              },
+            }),
         onProjection: (projection) => {
           if (json) {
             io.stdout(

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  answeredProgress,
+  describeAskText,
   foldProgress,
   NO_PROGRESS,
   parseScanLine,
@@ -7,6 +9,7 @@ import {
   scanningText,
   showTarget,
   stoppedProgress,
+  tokensText,
 } from "./scan-progress";
 
 function fold(lines: object[], from: ScanProgress = NO_PROGRESS): ScanProgress {
@@ -348,6 +351,71 @@ describe("the describe stop event", () => {
     ).toBeNull();
     expect(
       parseScanLine(JSON.stringify({ ...stopped, not_described: "many" })),
+    ).toBeNull();
+  });
+});
+
+describe("the describe confirmation", () => {
+  const confirm = {
+    event: "confirm",
+    phase: "describe",
+    modules: 2040,
+    model: "sonnet",
+    input_tokens: 8_000_000,
+    cost_usd: 17.54,
+  };
+
+  it("holds the ask until it is answered and shows a waiting line", () => {
+    const state = fold([confirm]);
+
+    expect(state.describeAsk).toEqual({
+      modules: 2040,
+      model: "sonnet",
+      inputTokens: 8_000_000,
+      costUsd: 17.54,
+    });
+    expect(scanningText([], "describe", state)).toBe("Waiting for your answer");
+    expect(answeredProgress(state, true).describeAsk).toBeNull();
+    expect(answeredProgress(state, true).describeSkipped).toBe(false);
+    expect(answeredProgress(state, false).describeSkipped).toBe(true);
+    expect(stoppedProgress(state).describeAsk).toBeNull();
+  });
+
+  it("words the card with the known and the unknown price", () => {
+    expect(
+      describeAskText({
+        modules: 2040,
+        model: "sonnet",
+        inputTokens: 8_000_000,
+        costUsd: 17.54,
+      }),
+    ).toEqual({
+      heading: "Describe 2,040 modules?",
+      model: "Model: sonnet",
+      estimate: "About 8.0M tokens, $17.54 at API prices",
+    });
+    expect(
+      describeAskText({
+        modules: 2040,
+        model: "sonnet",
+        inputTokens: 8_000_000,
+        costUsd: null,
+      }).estimate,
+    ).toBe("About 8.0M tokens, price unknown");
+  });
+
+  it.each([
+    [999, "999"],
+    [1000, "1K"],
+    [412_000, "412K"],
+    [1_000_000, "1.0M"],
+  ])("writes %i tokens as %s", (tokens, text) => {
+    expect(tokensText(tokens)).toBe(text);
+  });
+
+  it("is ignored with a missing count", () => {
+    expect(
+      parseScanLine(JSON.stringify({ ...confirm, modules: "many" })),
     ).toBeNull();
   });
 });

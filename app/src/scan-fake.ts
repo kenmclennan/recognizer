@@ -18,6 +18,7 @@ export type FakeScan = ScanPort & {
   describing: DescribingSettings;
   ran: ScanPlan[];
   stopped: number;
+  answers: boolean[];
   written: WrittenTicks[];
   onStep: (index: number) => void;
 };
@@ -37,9 +38,10 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
       policy: null,
     },
     defaults: { describe: false, sensors: false },
-    describing: { model: "haiku", batchSize: 4 },
+    describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
     ran: [],
     stopped: 0,
+    answers: [],
     written: [],
     onStep: () => {},
     async run(plan) {
@@ -89,6 +91,9 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     async stop() {
       fake.stopped += 1;
       pending?.stop();
+    },
+    async answerDescribe(describe) {
+      fake.answers.push(describe);
     },
     async readCache() {
       return fake.cache;

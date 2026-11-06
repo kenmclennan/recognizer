@@ -903,4 +903,68 @@ describe("createRescanner", () => {
       shown.every((text) => text?.startsWith("Rescanning 1 module\u2026 ")),
     ).toBe(true);
   });
+
+  describe("the describe confirmation", () => {
+    const ask = line({
+      event: "confirm",
+      phase: "describe",
+      modules: 3,
+      model: "sonnet",
+      input_tokens: 12000,
+      cost_usd: 9.5,
+    });
+
+    async function waiting(over: Parameters<typeof fakeScan>[0] = {}) {
+      const gate = new Promise<void>(() => {});
+      const scan = fakeScan({
+        defaults: { describe: true, sensors: false },
+        steps: [current, ask, gate],
+        ...over,
+      });
+      const made = harness(scan);
+      const running = made.rescanner.run();
+
+      await vi.waitFor(
+        () => expect(made.rescanner.progress().describeAsk).not.toBeNull(),
+        { timeout: scaledTimeout(4000) },
+      );
+
+      return { ...made, running };
+    }
+
+    it("opens the ask and answers describe through the port once", async () => {
+      const { rescanner, scan, updates } = await waiting();
+
+      expect(texts(updates).at(-1)).toContain("Waiting for your answer");
+
+      await rescanner.answerDescribe(true);
+      await rescanner.answerDescribe(true);
+
+      expect(scan.answers).toEqual([true]);
+      expect(rescanner.progress().describeAsk).toBeNull();
+      expect(rescanner.progress().describeSkipped).toBe(false);
+
+      await rescanner.stop();
+    });
+
+    it("marks the describe phase skipped on a skip answer", async () => {
+      const { rescanner, scan } = await waiting();
+
+      await rescanner.answerDescribe(false);
+
+      expect(scan.answers).toEqual([false]);
+      expect(rescanner.progress().describeSkipped).toBe(true);
+
+      await rescanner.stop();
+    });
+
+    it("clears the ask when the scan is stopped while it is open", async () => {
+      const { rescanner, running } = await waiting();
+
+      await rescanner.stop();
+      await running;
+
+      expect(rescanner.progress().describeAsk).toBeNull();
+    });
+  });
 });

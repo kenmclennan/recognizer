@@ -16,13 +16,16 @@ pub struct Settings {
 
 pub const DEFAULT_MODEL: &str = "haiku";
 pub const DEFAULT_BATCH_SIZE: u32 = 4;
+pub const DEFAULT_CONFIRM_ABOVE_USD: f64 = 5.0;
 const MAX_BATCH_SIZE: u32 = 16;
+const MAX_CONFIRM_ABOVE_USD: f64 = 10000.0;
 
 #[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Describing {
     pub model: String,
     pub batch_size: u32,
+    pub confirm_above_usd: f64,
 }
 
 impl Default for Describing {
@@ -30,6 +33,7 @@ impl Default for Describing {
         Describing {
             model: DEFAULT_MODEL.to_string(),
             batch_size: DEFAULT_BATCH_SIZE,
+            confirm_above_usd: DEFAULT_CONFIRM_ABOVE_USD,
         }
     }
 }
@@ -38,6 +42,7 @@ fn describing_json(describing: &Describing) -> Value {
     serde_json::json!({
         "model": describing.model,
         "batch_size": describing.batch_size,
+        "confirm_above_usd": describing.confirm_above_usd,
     })
 }
 
@@ -54,6 +59,14 @@ pub fn validate_describing(describing: &Describing) -> Result<(), String> {
     if describing.batch_size < 1 || describing.batch_size > MAX_BATCH_SIZE {
         return Err(format!(
             "describing.batch_size must be a whole number from 1 to {MAX_BATCH_SIZE}"
+        ));
+    }
+
+    let confirm = describing.confirm_above_usd;
+
+    if !confirm.is_finite() || !(0.0..=MAX_CONFIRM_ABOVE_USD).contains(&confirm) {
+        return Err(format!(
+            "describing.confirm_above_usd must be a number from 0 to {MAX_CONFIRM_ABOVE_USD}"
         ));
     }
 
@@ -79,7 +92,23 @@ fn parse_describing(value: &Value) -> Result<Describing, String> {
         }
     };
 
-    let describing = Describing { model, batch_size };
+    let confirm_above_usd = match object.get("confirm_above_usd") {
+        None => DEFAULT_CONFIRM_ABOVE_USD,
+        Some(value) => match value.as_f64() {
+            Some(amount) => amount,
+            None => {
+                return Err(format!(
+                "describing.confirm_above_usd must be a number from 0 to {MAX_CONFIRM_ABOVE_USD}"
+            ))
+            }
+        },
+    };
+
+    let describing = Describing {
+        model,
+        batch_size,
+        confirm_above_usd,
+    };
 
     validate_describing(&describing)?;
 
@@ -380,6 +409,7 @@ mod tests {
 
         assert_eq!(fixture["model"], seed.model);
         assert_eq!(fixture["batch_size"], seed.batch_size);
+        assert_eq!(fixture["confirm_above_usd"], seed.confirm_above_usd);
         assert_eq!(parse(None).unwrap().describing, seed);
         assert_eq!(parse(Some("{}")).unwrap().describing, seed);
     }
@@ -395,11 +425,47 @@ mod tests {
             r#"{"describing": {"model": "sonnet", "batch_size": 17}}"#,
             r#"{"describing": {"model": "sonnet", "batch_size": 2.5}}"#,
             r#"{"describing": {"model": "sonnet", "batch_size": "4"}}"#,
+            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": -1}}"#,
+            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": "5"}}"#,
+            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": 10001}}"#,
+            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": null}}"#,
         ] {
             let error = parse(Some(bad)).unwrap_err();
 
             assert!(error.contains("describing"), "{bad}: {error}");
         }
+    }
+
+    #[test]
+    fn describing_without_a_threshold_reads_five_and_keeps_its_model() {
+        let settings = parse(Some(
+            r#"{"describing": {"model": "sonnet", "batch_size": 2}}"#,
+        ))
+        .unwrap();
+
+        assert_eq!(settings.describing.model, "sonnet");
+        assert_eq!(settings.describing.confirm_above_usd, 5.0);
+    }
+
+    #[test]
+    fn describing_threshold_accepts_zero_and_the_maximum() {
+        for amount in ["0", "10000", "0.5"] {
+            let text = format!(
+                r#"{{"describing": {{"model": "haiku", "batch_size": 4, "confirm_above_usd": {amount}}}}}"#
+            );
+
+            assert!(parse(Some(&text)).is_ok(), "{amount}");
+        }
+
+        let nan = Settings {
+            describing: Describing {
+                confirm_above_usd: f64::NAN,
+                ..Describing::default()
+            },
+            ..Settings::default()
+        };
+
+        assert!(validate(&nan).is_err());
     }
 
     #[test]
@@ -409,6 +475,7 @@ mod tests {
             describing: Describing {
                 model: "-x".to_string(),
                 batch_size: 4,
+                confirm_above_usd: 5.0,
             },
             ..Settings::default()
         };
@@ -424,6 +491,7 @@ mod tests {
             describing: Describing {
                 model: "opus".to_string(),
                 batch_size: 8,
+                confirm_above_usd: 2.5,
             },
             ..Settings::default()
         };
@@ -434,7 +502,7 @@ mod tests {
 
         assert_eq!(
             written["describing"],
-            serde_json::json!({"model": "opus", "batch_size": 8})
+            serde_json::json!({"model": "opus", "batch_size": 8, "confirm_above_usd": 2.5})
         );
         assert_eq!(read(&path), Ok(settings));
 
@@ -444,7 +512,7 @@ mod tests {
 
         assert_eq!(
             defaults["describing"],
-            serde_json::json!({"model": "haiku", "batch_size": 4})
+            serde_json::json!({"model": "haiku", "batch_size": 4, "confirm_above_usd": 5.0})
         );
     }
 
@@ -458,7 +526,7 @@ mod tests {
 
         assert_eq!(
             fresh["describing"],
-            serde_json::json!({"model": "haiku", "batch_size": 4})
+            serde_json::json!({"model": "haiku", "batch_size": 4, "confirm_above_usd": 5.0})
         );
 
         fs::write(

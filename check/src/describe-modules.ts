@@ -236,6 +236,7 @@ export interface DescribeInput {
   model: string;
   batchSize: number;
   onProjection?: (projection: DescribeProjection) => void;
+  confirm?: (projection: DescribeProjection) => Promise<boolean>;
   onStart?: (total: number) => void;
   onEntry?: (entry: RunEntry) => void;
 }
@@ -259,7 +260,7 @@ export async function describeModules(
     .sort()
     .filter((id) => within === undefined || within.includes(id))
     .map((id) => subjectFor(io, root, scans, id, entries, describer));
-  const selected = subjects.filter((subject) => {
+  const candidates = subjects.filter((subject) => {
     if (selection.kind === "all") {
       return true;
     }
@@ -282,14 +283,18 @@ export async function describeModules(
   const running = new Set<Running>();
   const threshold = Math.max(input.batchSize, 2);
 
-  input.onProjection?.(
-    projectDescribe(
-      selected
-        .filter((subject) => subject.hash !== null)
-        .map((subject) => buildRequest(scans, modules, subject)),
-      input.model,
-    ),
+  const projection = projectDescribe(
+    candidates
+      .filter((subject) => subject.hash !== null)
+      .map((subject) => buildRequest(scans, modules, subject)),
+    input.model,
   );
+
+  input.onProjection?.(projection);
+
+  const approved =
+    input.confirm === undefined || (await input.confirm(projection));
+  const selected = approved ? candidates : [];
 
   input.onStart?.(selected.length);
 

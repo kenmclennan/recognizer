@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { scannerFor } from "../src/scanners.js";
 import {
+  APP_CONFIG,
   type FakeOptions,
   fakeIo,
   PYTHON,
@@ -830,6 +831,107 @@ describe("recognizer scan: phases", () => {
     expect(rows[heading + 1]).toMatch(
       /^projection: 2 modules, ~\d+ input tokens, ~\$[\d.]+ \(.+, API-equivalent estimate\)$/,
     );
+  });
+
+  describe("--confirm-above", () => {
+    const ask = async (
+      answers: (string | null)[],
+      ...args: string[]
+    ): Promise<{
+      events: Record<string, unknown>[];
+      reads: number;
+      described: number;
+    }> => {
+      const reads = { count: 0 };
+      const options = setup({}, { [CONFIG]: DESCRIBER });
+      const { out } = await scan(
+        { ...options, lines: [...answers], linesRead: reads },
+        "--describe",
+        "--json",
+        ...args,
+      );
+      const events = lines(out);
+
+      return {
+        events,
+        reads: reads.count,
+        described: events.filter(
+          (line) => line.event === "entry" && line.phase === "describe",
+        ).length,
+      };
+    };
+
+    it("asks and describes when the answer is describe", async () => {
+      const result = await ask(["describe"], "--confirm-above", "0.0001");
+      const confirm = result.events.find((line) => line.event === "confirm");
+
+      expect(confirm).toMatchObject({
+        event: "confirm",
+        phase: "describe",
+        modules: 2,
+      });
+      expect(result.reads).toBe(1);
+      expect(result.described).toBe(2);
+    });
+
+    it("skips describing when the answer is skip, reporting total 0", async () => {
+      const result = await ask(["skip"], "--confirm-above", "0.0001");
+      const phase = result.events.find(
+        (line) => line.event === "phase" && line.phase === "describe",
+      );
+
+      expect(phase).toMatchObject({ total: 0 });
+      expect(result.described).toBe(0);
+    });
+
+    it("skips describing at end of input", async () => {
+      const result = await ask([], "--confirm-above", "0.0001");
+
+      expect(result.reads).toBe(1);
+      expect(result.described).toBe(0);
+    });
+
+    it("reads nothing when the estimate is not above the value", async () => {
+      const result = await ask(["skip"], "--confirm-above", "5");
+
+      expect(result.events.some((line) => line.event === "confirm")).toBe(
+        false,
+      );
+      expect(result.reads).toBe(0);
+      expect(result.described).toBe(2);
+    });
+
+    it("never reads input without the flag", async () => {
+      const result = await ask(["skip"]);
+
+      expect(result.reads).toBe(0);
+      expect(result.described).toBe(2);
+    });
+
+    it("asks when the model has no known price", async () => {
+      const reads = { count: 0 };
+      const options = setup({}, { [CONFIG]: DESCRIBER });
+      const { out } = await scan(
+        {
+          ...options,
+          files: {
+            ...options.files,
+            [`${APP_CONFIG}/config.json`]: `${JSON.stringify({ describing: { model: "mystery", batch_size: 4 } })}\n`,
+          },
+          lines: ["skip"],
+          linesRead: reads,
+        },
+        "--describe",
+        "--json",
+        "--confirm-above",
+        "100000",
+      );
+
+      expect(lines(out).find((line) => line.event === "confirm")).toMatchObject(
+        { cost_usd: null },
+      );
+      expect(reads.count).toBe(1);
+    });
   });
 
   it("says on stderr that the describe phase stopped", async () => {

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{ChildStdin, Command, Stdio};
 use std::sync::Mutex;
 
 use serde::Serialize;
@@ -70,6 +70,7 @@ pub enum ScanRun {
 struct Handle {
     pid: Option<u32>,
     stopped: bool,
+    stdin: Option<ChildStdin>,
 }
 
 #[derive(Default)]
@@ -114,11 +115,29 @@ impl ScanRuns {
         }
     }
 
+    fn attach_stdin(&self, label: &str, stdin: ChildStdin) {
+        if let Some(handle) = self.lock().get_mut(label) {
+            handle.stdin = Some(stdin);
+        }
+    }
+
+    pub fn answer_describe(&self, label: &str, describe: bool) -> Result<(), String> {
+        let mut runs = self.lock();
+        let Some(stdin) = runs.get_mut(label).and_then(|handle| handle.stdin.take()) else {
+            return Err("no scan is waiting for an answer".to_string());
+        };
+        let mut stdin = stdin;
+        let word = if describe { "describe" } else { "skip" };
+
+        writeln!(stdin, "{word}").map_err(|error| error.to_string())
+    }
+
     pub fn stop(&self, label: &str) {
         let mut runs = self.lock();
 
         if let Some(handle) = runs.get_mut(label) {
             handle.stopped = true;
+            handle.stdin = None;
 
             if let Some(pid) = handle.pid {
                 kill_group(pid);
@@ -181,6 +200,7 @@ pub fn run_with(
     measure: &[String],
     sense: &[String],
     modules: Option<&[String]>,
+    confirm_above: Option<f64>,
     prepare: impl FnOnce(),
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
@@ -229,6 +249,7 @@ pub fn run_with(
         measure,
         sense,
         file.as_deref(),
+        confirm_above,
         emit,
     );
 
@@ -252,6 +273,7 @@ fn spawn_and_stream(
     measure: &[String],
     sense: &[String],
     modules_file: Option<&Path>,
+    confirm_above: Option<f64>,
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
     let Some(mut process) = runner.command(command) else {
@@ -267,7 +289,17 @@ fn spawn_and_stream(
                 .map(|path| vec!["--modules".to_string(), path.display().to_string()])
                 .unwrap_or_default(),
         )
-        .stdin(Stdio::null())
+        .args(
+            confirm_above
+                .filter(|_| describe != Describe::Off)
+                .map(|usd| vec!["--confirm-above".to_string(), usd.to_string()])
+                .unwrap_or_default(),
+        )
+        .stdin(if confirm_above.is_some() && describe != Describe::Off {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -286,6 +318,10 @@ fn spawn_and_stream(
             }
         }
     };
+
+    if let Some(stdin) = child.stdin.take() {
+        runs.attach_stdin(label, stdin);
+    }
 
     runs.started(label, child.id());
 
@@ -382,6 +418,7 @@ mod tests {
             measure,
             sense,
             None,
+            None,
             || {},
             &|line| lines.lock().unwrap().push(line),
         );
@@ -461,6 +498,7 @@ mod tests {
             Describe::Off,
             &[],
             &[],
+            None,
             None,
             || {},
             &|line| lines.lock().unwrap().push(line),
@@ -549,6 +587,7 @@ mod tests {
             &[],
             &[],
             Some(modules),
+            None,
             || {},
             &|line| lines.lock().unwrap().push(line),
         );
@@ -720,6 +759,7 @@ mod tests {
                     &[],
                     &[],
                     None,
+                    None,
                     || {},
                     &|line| {
                         let _ = sender.send(line);
@@ -743,6 +783,95 @@ mod tests {
 
         assert_eq!(worker.join().unwrap(), ScanRun::Stopped);
         assert!(!runs.running("w-1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn answer_describe_reaches_the_waiting_scan_once() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(
+            dir.path(),
+            "echo waiting; read answer; echo \"got $answer\"",
+        );
+        let runs = Arc::new(ScanRuns::default());
+        let runner = Arc::new(working_runner(dir.path()));
+        let (sender, receiver) = mpsc::channel();
+        let folder = dir.path().to_path_buf();
+        let path = command.clone();
+        let worker = {
+            let runs = Arc::clone(&runs);
+            let runner = Arc::clone(&runner);
+
+            std::thread::spawn(move || {
+                run_with(
+                    &runs,
+                    "w-1",
+                    &folder,
+                    &runner,
+                    &path.display().to_string(),
+                    Describe::Stale,
+                    &[],
+                    &[],
+                    None,
+                    Some(5.0),
+                    || {},
+                    &|line| {
+                        let _ = sender.send(line);
+                    },
+                )
+            })
+        };
+
+        assert_eq!(receiver.recv().unwrap(), "waiting");
+        assert!(runs.answer_describe("w-1", false).is_ok());
+        assert!(runs.answer_describe("w-1", false).is_err());
+        assert_eq!(receiver.recv().unwrap(), "got skip");
+        assert!(matches!(
+            worker.join().unwrap(),
+            ScanRun::Finished { exit_code: 0, .. }
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stopping_while_waiting_for_an_answer_ends_the_scan() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(dir.path(), "echo waiting; read answer");
+        let runs = Arc::new(ScanRuns::default());
+        let runner = Arc::new(working_runner(dir.path()));
+        let (sender, receiver) = mpsc::channel();
+        let folder = dir.path().to_path_buf();
+        let path = command.clone();
+        let worker = {
+            let runs = Arc::clone(&runs);
+            let runner = Arc::clone(&runner);
+
+            std::thread::spawn(move || {
+                run_with(
+                    &runs,
+                    "w-1",
+                    &folder,
+                    &runner,
+                    &path.display().to_string(),
+                    Describe::All,
+                    &[],
+                    &[],
+                    None,
+                    Some(5.0),
+                    || {},
+                    &|line| {
+                        let _ = sender.send(line);
+                    },
+                )
+            })
+        };
+
+        assert_eq!(receiver.recv().unwrap(), "waiting");
+
+        runs.stop("w-1");
+
+        assert_eq!(worker.join().unwrap(), ScanRun::Stopped);
+        assert!(runs.answer_describe("w-1", true).is_err());
     }
 
     #[test]

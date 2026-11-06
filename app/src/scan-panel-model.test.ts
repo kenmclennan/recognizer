@@ -326,6 +326,35 @@ describe("scanPanel row states", () => {
     },
   );
 
+  it("shows skipped this scan in the warn tone after a skip answer", () => {
+    const model = scanPanel(input({ describeSkipped: true }));
+
+    expect(model.rows[0]?.state).toEqual({
+      text: "skipped this scan",
+      tone: "warn",
+    });
+  });
+
+  it("carries the confirmation card text only while a question is open", () => {
+    const asked = scanPanel(
+      input({
+        describeAsk: {
+          modules: 2040,
+          model: "sonnet",
+          inputTokens: 8_000_000,
+          costUsd: 17.54,
+        },
+      }),
+    );
+
+    expect(asked.confirm).toEqual({
+      heading: "Describe 2,040 modules?",
+      model: "Model: sonnet",
+      estimate: "About 8.0M tokens, $17.54 at API prices",
+    });
+    expect(scanPanel(input({})).confirm).toBeNull();
+  });
+
   it("counts findings with the age from the findings file and says 1 finding", () => {
     const model = scanPanel(
       input({

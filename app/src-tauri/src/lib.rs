@@ -742,6 +742,16 @@ async fn run_scan(
         return Ok(ScanRun::Refused { reason });
     }
 
+    let confirm_above = if describe {
+        Some(
+            settings::read(&config_file(&app)?)?
+                .describing
+                .confirm_above_usd,
+        )
+    } else {
+        None
+    };
+
     tauri::async_runtime::spawn_blocking(move || {
         let runs = app.state::<ScanRuns>();
 
@@ -755,6 +765,7 @@ async fn run_scan(
             &measure,
             &sense,
             modules.as_deref(),
+            confirm_above,
             || {
                 let origin = changes::take_origin(&folder);
 
@@ -769,6 +780,12 @@ async fn run_scan(
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+fn answer_describe(app: AppHandle, window: WebviewWindow, describe: bool) -> Result<(), String> {
+    app.state::<ScanRuns>()
+        .answer_describe(&window_label(&window), describe)
 }
 
 #[tauri::command]
@@ -1366,6 +1383,7 @@ pub fn run() {
             run_scan,
             scans_at,
             stop_scan,
+            answer_describe,
             take_pending_view,
             view_author,
             view_link,
