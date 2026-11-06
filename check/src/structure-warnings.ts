@@ -7,6 +7,7 @@ import { compileGlob, matchesAny } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
+import { testImportersOf, testOnlySummary } from "./test-importers.js";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -172,21 +173,39 @@ export function orphanFindings(
       .map((module) => module.id),
   );
 
+  const testImporters = testImportersOf(scan);
+
   return [...ids]
     .filter((id) => !imported.has(id))
     .filter(
       (id) => !isEntryPoint(id, literalPaths, entryPoints, scanned.has(id)),
     )
     .sort(compare)
-    .map((id) => ({
-      id: `orphan:${id}`,
-      kind: "orphan",
-      severity: "warning" as const,
-      principle: "every-module-is-reachable",
-      summary: `${id} is imported by no module and is not an entry point`,
-      fix_pattern: "remove-or-wire-orphan",
-      evidence: { modules: [id] },
-    }));
+    .map((id): FindingRecord => {
+      const importers = testImporters.get(id) ?? [];
+      const base = {
+        id: `orphan:${id}`,
+        kind: "orphan",
+        severity: "warning" as const,
+        principle: "every-module-is-reachable",
+      };
+
+      if (importers.length === 0) {
+        return {
+          ...base,
+          summary: `${id} is imported by no module and is not an entry point`,
+          fix_pattern: "remove-or-wire-orphan",
+          evidence: { modules: [id] },
+        };
+      }
+
+      return {
+        ...base,
+        summary: testOnlySummary(id, importers),
+        fix_pattern: "move-orphan-to-tests",
+        evidence: { modules: [id], test_importers: importers },
+      };
+    });
 }
 
 function usedNames(edges: ScanEdge[]) {

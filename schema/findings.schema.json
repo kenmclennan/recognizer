@@ -73,6 +73,18 @@
                   }
                 }
               },
+              "test_importers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["file", "names"],
+                  "properties": {
+                    "file": { "type": "string", "minLength": 1 },
+                    "names": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                  }
+                }
+              },
               "edges": {
                 "type": "array",
                 "items": {

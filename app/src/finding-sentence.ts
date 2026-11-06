@@ -292,9 +292,17 @@ function threshold(record: FindingRecord): string | null {
 function orphan(record: FindingRecord): string | null {
   const module = record.evidence.modules[0];
 
-  return module === undefined
-    ? null
-    : `${shortName(module)} is imported by nothing and is not an entry point.`;
+  if (module === undefined) {
+    return null;
+  }
+
+  const tests = record.evidence.test_importers?.length ?? 0;
+
+  if (tests === 0) {
+    return `${shortName(module)} is imported by nothing and is not an entry point.`;
+  }
+
+  return `${shortName(module)} is imported only by ${tests === 1 ? "1 test file" : `${tests} test files`} and is not an entry point; if it only supports tests, move it next to ${tests === 1 ? "it" : "them"}.`;
 }
 
 const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {

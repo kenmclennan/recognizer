@@ -116,8 +116,39 @@ describe("structureSensor ids", () => {
     expect(ids([other])).toEqual(ids([scan]));
   });
 
-  it("records sensor version 10", () => {
-    expect(sense("check-warnings").document.sensor.version).toBe("10");
+  it("records sensor version 11", () => {
+    expect(sense("check-warnings").document.sensor.version).toBe("11");
+  });
+
+  it("changes only orphan findings when the scan carries test imports", () => {
+    const { scan, policy } = fixture("check-warnings");
+    const orphan = sense("check-warnings").document.findings.find(
+      (f) => f.kind === "orphan",
+    );
+    const to = orphan?.evidence.modules[0] as string;
+    const withTests = {
+      ...scan,
+      test_imports: [{ from: "tests/test_x.py", to }],
+    };
+    const run = (scans: (typeof scan)[]) =>
+      structureSensor(scans, policy, DEFAULT_STRUCTURE_SETTINGS, CONTEXT)
+        .document.findings;
+    const other = (findings: ReturnType<typeof run>) =>
+      findings.filter((f) => f.kind !== "orphan");
+
+    expect(other(run([withTests]))).toEqual(other(run([scan])));
+    expect(
+      run([withTests])
+        .filter((f) => f.kind === "orphan")
+        .map((f) => f.id),
+    ).toEqual(
+      run([scan])
+        .filter((f) => f.kind === "orphan")
+        .map((f) => f.id),
+    );
+    expect(run([withTests]).find((f) => f.id === orphan?.id)?.fix_pattern).toBe(
+      "move-orphan-to-tests",
+    );
   });
 
   it("produces a document that validates against the schema", () => {

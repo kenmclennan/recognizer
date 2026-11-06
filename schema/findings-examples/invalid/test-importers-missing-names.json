@@ -1,0 +1,6 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "structure", "version": "11" },
+  "commit": "abc", "modified": false, "settings": {},
+  "findings": [{ "id": "orphan:a/o.py", "kind": "orphan", "severity": "warning", "principle": "every-module-is-reachable", "summary": "s", "evidence": { "modules": ["a/o.py"], "test_importers": [{ "file": "tests/test_o.py" }] } }]
+}

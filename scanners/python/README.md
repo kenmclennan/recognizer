@@ -12,6 +12,10 @@ recognizer-scan-python ROOT [--commit SHA] [--output FILE] [--source-root DIR ..
 
 A `depends` edge lists the imported `names` (the original name, never the alias) and is omitted for a whole-module import, which points at the module imported. Each name is followed through re-exports (a package `__init__.py`, `from x import y`, `from x import *`) to the module that defines it, which is `to`; the modules it passed through are `via`, in order. An import of names from several defining modules makes one edge per defining module, all on the statement's line. A name the re-exporting module defines itself, a name re-exported from a foreign module and a name found nowhere keep the edge on that module. A cycle of re-exports ends at the module whose next hop would revisit a name already seen.
 
+## Test imports
+
+The files the scanner skips as tests (a directory named `test` or `tests`, and `conftest.py`) are read for their imports only, with the resolution an ordinary module gets, and each import of a scanned module becomes one `test_imports` record `{ from, to, names? }` in the scan: `from` the test file's path, `to` the module id, `names` the sorted names it takes from that module and absent when any of its imports takes the whole module. Records are sorted by `from` then `to`, one per pair, and the key is written even when empty. A test file is never a module, edge or file in the scan, and one that cannot be parsed contributes nothing and does not fail the scan.
+
 ## Inferred edges
 
 An untyped parameter of a module-level function, or of a method or constructor of a module-level class, whose methods are called in the body (or, once stored on the instance, anywhere in the class) is matched to the repository classes that define all those methods, inherited ones included. Abstract classes are preferred when any match. More than 4 matches, or methods that are all generic, emit nothing. The edge goes to the module defining the matched class, with `names` the called methods and `inferred` holding the parameter, the methods, the class and its direct implementations. An inferred edge is dropped when the importer already has an edge to the same module.

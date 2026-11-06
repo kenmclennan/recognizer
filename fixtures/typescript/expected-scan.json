@@ -600,5 +600,9 @@
       "line": 8,
       "how": "construct"
     }
+  ],
+  "test_imports": [
+    { "from": "api/src/memory-store.test.ts", "to": "api/src/memory-store.ts", "names": ["MemoryStore"] },
+    { "from": "web/src/__tests__/App.test.tsx", "to": "web/src/App.tsx", "names": ["App"] }
   ]
 }

@@ -6,12 +6,18 @@ import { findCalls, type ScanCall } from "./calls.js";
 import { entryPoints } from "./entry-points.js";
 import { ScanError } from "./errors.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
-import { listSourceFiles, type Selection, selection } from "./files.js";
+import {
+  listSourceFiles,
+  listTestFiles,
+  type Selection,
+  selection,
+} from "./files.js";
 import { Inference } from "./inference.js";
 import { namespaceNames } from "./namespace-use.js";
 import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
 import { namedEdges, Router } from "./routes.js";
+import { readTestImports } from "./test-imports.js";
 import { isUnder, TsconfigOptions } from "./tsconfig-options.js";
 import { scannerVersion } from "./version.js";
 import { discoverWorkspaces } from "./workspaces.js";
@@ -50,6 +56,12 @@ export interface ScanEdge {
   };
 }
 
+export interface ScanTestImport {
+  from: string;
+  to: string;
+  names?: string[];
+}
+
 export interface ScanDocument {
   schema_version: 6;
   scanner: { name: string; version: string };
@@ -61,6 +73,7 @@ export interface ScanDocument {
   edges: ScanEdge[];
   foreign: { id: string; name: string }[];
   calls: ScanCall[];
+  test_imports: ScanTestImport[];
 }
 
 const SCANNER_NAME = "recognizer-scan-typescript";
@@ -418,6 +431,19 @@ export function scan(
     members: outlined,
   });
 
+  const testImports = readTestImports({
+    testFiles: listTestFiles(real)
+      .filter((file) => !skipPaths.some((path) => isUnder(idOf(file), path)))
+      .sort(compare),
+    idOf,
+    compilerOptions,
+    host,
+    modules,
+    resolver,
+    router,
+    optionsFor: (file) => tsconfigs.optionsFor(file),
+  });
+
   return {
     schema_version: 6,
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
@@ -453,5 +479,6 @@ export function scan(
       .sort((a, b) => compare(`foreign:${a}`, `foreign:${b}`))
       .map((name) => ({ id: `foreign:${name}`, name })),
     calls,
+    test_imports: testImports,
   };
 }

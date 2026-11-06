@@ -33,6 +33,7 @@ const PINNED = [
   "place.py is imported by 3 modules and imports 3; it is 40 lines with 4 members; the limit is 3.",
   "app/adapters and app/application import each other; removing 1 of 2 imports breaks the cycle. app/application is imported by and imports most of the cycle, so splitting it is likely the real fix.",
   "audit.py is imported by nothing and is not an entry point.",
+  "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them.",
   "The policy names app/legacy/**, which matches no module.",
   "app/tools is covered by no policy layer.",
   "app/domain depends on app/util, which changes more often (instability 0.5 against 0.67).",
@@ -61,7 +62,7 @@ const sentence = (over: Partial<FindingRecord>, reported = false) =>
   sentenceOf({ record: record(over), reported });
 
 describe("the committed findings examples", () => {
-  it("render exactly the 15 pinned sentences", () => {
+  it("render exactly the 16 pinned sentences", () => {
     const rows = FILES.flatMap((name) => findingRows([load(name)]));
 
     expect(
@@ -77,6 +78,41 @@ describe("the committed findings examples", () => {
       expect(line).not.toMatch(/[a-z]+\/[a-z_]+\.py/);
       expect(line).not.toMatch(/^[a-z_-]+:/);
     }
+  });
+});
+
+describe("sentenceOf orphan", () => {
+  const orphanOf = (importers: { file: string; names: string[] }[]) =>
+    sentence({
+      kind: "orphan",
+      evidence: {
+        modules: ["app/fake.py"],
+        ...(importers.length > 0 ? { test_importers: importers } : {}),
+      },
+    });
+
+  it("says nothing imports a module no test imports", () => {
+    expect(orphanOf([])).toBe(
+      "fake.py is imported by nothing and is not an entry point.",
+    );
+  });
+
+  it("says one test file imports it, singular", () => {
+    expect(orphanOf([{ file: "tests/test_a.py", names: [] }])).toBe(
+      "fake.py is imported only by 1 test file and is not an entry point; if it only supports tests, move it next to it.",
+    );
+  });
+
+  it("counts several test files", () => {
+    expect(
+      orphanOf([
+        { file: "tests/test_a.py", names: [] },
+        { file: "tests/test_b.py", names: ["X"] },
+        { file: "tests/test_c.py", names: [] },
+      ]),
+    ).toBe(
+      "fake.py is imported only by 3 test files and is not an entry point; if it only supports tests, move it next to them.",
+    );
   });
 });
 

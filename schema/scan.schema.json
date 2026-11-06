@@ -37,6 +37,10 @@
     "unresolved_imports": {
       "type": "array",
       "items": { "$ref": "#/$defs/unresolvedImport" }
+    },
+    "test_imports": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/testImport" }
     }
   },
   "$defs": {
@@ -57,6 +61,16 @@
         "from": { "$ref": "#/$defs/moduleId" },
         "import": { "type": "string", "minLength": 1 },
         "line": { "$ref": "#/$defs/line" }
+      }
+    },
+    "testImport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "pattern": "^(?!\\./)(?!/)[^\\\\]+$" },
+        "to": { "$ref": "#/$defs/moduleId" },
+        "names": { "$ref": "#/$defs/stringList" }
       }
     },
     "stringList": {

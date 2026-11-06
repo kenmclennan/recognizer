@@ -27,6 +27,9 @@ const SKIPPED_FILE_GLOBS = [
   "*.test.*",
   "*.spec.*",
 ];
+const DECLARATION_GLOBS = ["*.d.ts", "*.d.mts", "*.d.cts"];
+const TEST_DIRECTORIES = ["test", "tests", "__tests__"];
+const TEST_FILE_GLOBS = ["*.test.*", "*.spec.*"];
 
 export interface Selection {
   extensions: string[];
@@ -71,6 +74,48 @@ export function isSourceFile(name: string): boolean {
   }
 
   return !SKIPPED_FILE_GLOBS.some((glob) => matchesGlob(name, glob));
+}
+
+function isReadableDirectory(name: string): boolean {
+  return (
+    !SKIPPED_DIRECTORY_PREFIXES.some((prefix) => name.startsWith(prefix)) &&
+    (TEST_DIRECTORIES.includes(name) || !SKIPPED_DIRECTORIES.includes(name))
+  );
+}
+
+function isTestFile(name: string, insideTests: boolean): boolean {
+  if (
+    !SOURCE_EXTENSIONS.some((extension) => name.endsWith(extension)) ||
+    DECLARATION_GLOBS.some((glob) => matchesGlob(name, glob))
+  ) {
+    return false;
+  }
+
+  return insideTests || TEST_FILE_GLOBS.some((glob) => matchesGlob(name, glob));
+}
+
+export function listTestFiles(root: string): string[] {
+  const found: string[] = [];
+
+  const walk = (directory: string, insideTests: boolean) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        if (isReadableDirectory(entry.name)) {
+          walk(path, insideTests || TEST_DIRECTORIES.includes(entry.name));
+        }
+      } else if (entry.isFile() || isFileSymlink(entry, path)) {
+        if (isTestFile(entry.name, insideTests)) {
+          found.push(path);
+        }
+      }
+    }
+  };
+
+  walk(root, false);
+
+  return found;
 }
 
 export function listSourceFiles(root: string): string[] {
