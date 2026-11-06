@@ -13,6 +13,21 @@ describe("nodeIo.run with a ceiling", () => {
     expect(result.timedOut).toBeUndefined();
   });
 
+  it("returns only the command's own stderr when the watchdog is reaped late", () => {
+    process.env.RECOGNIZER_CEILING_PAUSE = "0.3";
+
+    try {
+      const result = nodeIo().run("sh", ["-c", "echo boom >&2; exit 1"], {
+        timeoutMs: 5_000,
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toBe("boom\n");
+    } finally {
+      delete process.env.RECOGNIZER_CEILING_PAUSE;
+    }
+  });
+
   it("returns empty stderr when it succeeds before the ceiling", () => {
     const result = nodeIo().run("sh", ["-c", "exit 0"], { timeoutMs: 5_000 });
 
