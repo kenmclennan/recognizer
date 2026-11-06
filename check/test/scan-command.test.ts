@@ -1148,6 +1148,46 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)).toEqual([]);
   });
 
+  it("carries a refusal's diagnosis on the entry event and the summary, and none otherwise", async () => {
+    const diagnosis = {
+      code: "tests-failed",
+      line: "The suite fails before any mutation.",
+      failing: { count: 3, names: ["tests/test_a.py::test_one"] },
+    };
+    const { out } = await scan(
+      setup(
+        {
+          programs: {
+            "first-sensor": () => ({
+              status: 2,
+              stderr: `recognizer-reason ${JSON.stringify(diagnosis)}\n${diagnosis.line}\n`,
+            }),
+            "second-sensor": findings("second"),
+          },
+        },
+        { [CONFIG]: SENSORS },
+      ),
+      "--sense",
+      "all",
+      "--json",
+    );
+    const events = lines(out);
+    const entries = events.filter((one) => one.event === "entry");
+    const summary = events.at(-1) as {
+      phases: { phase: string; entries: Record<string, unknown>[] }[];
+    };
+    const sensed = summary.phases.find((one) => one.phase === "sense");
+
+    expect(entries[0]).toMatchObject({
+      name: "first",
+      outcome: "failed",
+      diagnosis,
+    });
+    expect(entries[1]).not.toHaveProperty("diagnosis");
+    expect(sensed?.entries[0]).toMatchObject({ name: "first", diagnosis });
+    expect(sensed?.entries[1]).not.toHaveProperty("diagnosis");
+  });
+
   it("streams phase, entry and summary lines under --json", async () => {
     const { out } = await scan(
       setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),

@@ -1,4 +1,4 @@
-import type { Freshness } from "recognizer";
+import type { Diagnosis, Freshness } from "recognizer";
 import {
   type Config,
   parseConfig,
@@ -28,12 +28,14 @@ import {
   describeAskText,
   describeStopText,
 } from "./scan-progress";
+import { type ScanWhy, whyOf } from "./scan-why";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type RunState = {
   running: string[];
   started: string | null;
   failures: Record<string, string>;
+  diagnoses: Record<string, Diagnosis>;
   ranAt: Record<string, number>;
 };
 
@@ -41,6 +43,7 @@ export const NO_RUN: RunState = {
   running: [],
   started: null,
   failures: {},
+  diagnoses: {},
   ranAt: {},
 };
 
@@ -93,7 +96,7 @@ export type PanelInput = {
   freshness?: Freshness;
 };
 
-export type StateTone = "muted" | "ok" | "warn" | "run" | "size";
+export type StateTone = "muted" | "ok" | "warn" | "bad" | "run" | "size";
 
 export type ScanRow = {
   key: string;
@@ -103,6 +106,7 @@ export type ScanRow = {
   disabled: boolean;
   state: { text: string; tone: StateTone };
   note: string | null;
+  why: ScanWhy | null;
   title: string;
 };
 
@@ -366,7 +370,20 @@ function sensorState(name: string, input: PanelInput): ScanRow["state"] {
 
   const status = input.sensors.find((one) => one.name === name);
 
+  const refusal = input.run.diagnoses[name];
+
   if (input.run.failures[name] !== undefined) {
+    if (refusal !== undefined) {
+      return {
+        text: withAge(
+          refusal.code === "tool-missing" ? "could not run" : "refused",
+          input.run.ranAt[name],
+          input.now,
+        ),
+        tone: "bad",
+      };
+    }
+
     return {
       text: withAge("failed", input.run.ranAt[name], input.now),
       tone: "warn",
@@ -375,6 +392,23 @@ function sensorState(name: string, input: PanelInput): ScanRow["state"] {
 
   if (status?.status === "failed") {
     return { text: "failed", tone: "warn" };
+  }
+
+  if (
+    (status?.status === "ran" || status?.status === "stale") &&
+    status.diagnosis !== undefined &&
+    status.diagnosis.code !== "tool-missing"
+  ) {
+    return {
+      text: withAge(
+        status.diagnosis.code === "tests-failed"
+          ? "ran, partly"
+          : "complexity only",
+        input.run.ranAt[name] ?? status.modifiedMs,
+        input.now,
+      ),
+      tone: "warn",
+    };
   }
 
   if (
@@ -414,6 +448,30 @@ function sensorState(name: string, input: PanelInput): ScanRow["state"] {
   }
 
   return { text: "not yet run", tone: "muted" };
+}
+
+function whyFor(name: string, input: PanelInput): ScanWhy | null {
+  if (liveState(name, input) !== null) {
+    return null;
+  }
+
+  if (input.run.failures[name] !== undefined) {
+    const refusal = input.run.diagnoses[name];
+
+    return refusal === undefined ? null : whyOf(refusal);
+  }
+
+  const status = input.sensors.find((one) => one.name === name);
+
+  if (
+    (status?.status === "ran" || status?.status === "stale") &&
+    status.diagnosis !== undefined &&
+    status.diagnosis.code !== "tool-missing"
+  ) {
+    return whyOf(status.diagnosis);
+  }
+
+  return null;
 }
 
 function reportRows(sensors: SensorStatus[], now: number): ReportRow[] {
@@ -498,6 +556,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         describing.text === "stopped" && judged.describeStop != null
           ? describeStopText(judged.describeStop)
           : null,
+      why: null,
       title: DESCRIBE_TITLE,
     },
     ...sensors.map((one) => ({
@@ -509,6 +568,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         ? input.ticks.once.includes(one.name)
         : (input.ticks.ticked ?? plain).includes(one.name),
       ...rowFreshnessState(one.name, judged, gaps),
+      why: whyFor(one.name, judged),
       title: one.title,
     })),
   ];

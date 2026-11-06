@@ -1,5 +1,6 @@
 import {
   type Config,
+  type Diagnosis,
   type FindingsDocument,
   InputError,
   type Policy,
@@ -24,6 +25,7 @@ export type SensorStatus = {
   commit?: string;
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
+  diagnosis?: Diagnosis;
   measured?: { inputs?: Record<string, string>; tests?: string };
 };
 
@@ -265,6 +267,9 @@ export async function senseRepository(
           : {}),
         ...(document.partial !== undefined
           ? { partial: document.partial }
+          : {}),
+        ...(document.diagnosis !== undefined
+          ? { diagnosis: document.diagnosis }
           : {}),
         ...(document.reported_at !== undefined &&
         !registered.includes(file.name)

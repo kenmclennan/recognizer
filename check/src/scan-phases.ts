@@ -1,6 +1,7 @@
 import { InputError } from "./errors.js";
 import type { PhaseName } from "./run-log.js";
 import type { SensorProgress } from "./sensor-progress.js";
+import type { Diagnosis } from "./sensor-reason.js";
 import { shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
@@ -284,6 +285,7 @@ export interface EventEntry {
   name: string;
   outcome: "ok" | "failed";
   reason?: string;
+  diagnosis?: Diagnosis;
   modules?: number;
   edges?: number;
 }

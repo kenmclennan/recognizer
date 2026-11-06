@@ -10,6 +10,7 @@ import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeResponsibilities } from ${JSON.stringify(here("responsibilities-fake.ts"))};
 import { fakeScan } from ${JSON.stringify(here("scan-fake.ts"))};
+import REASONS from ${JSON.stringify(here("../../fixtures/sensor-reasons/states.json"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
@@ -74,7 +75,8 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   });
   const build = (loaded, carried) => {
     wired.current = loaded;
-    return mountExplorer({ container: host, loaded, title: "demo", views: fakeViews(viewFiles), post: (input) => { wired.posted.push(input); return null; }, carried, storage: { getItem: () => null, setItem: () => {} }, editor, responsibilities, scanHost });
+    wired.views = fakeViews(viewFiles);
+    return mountExplorer({ container: host, loaded, title: "demo", views: wired.views, post: (input) => { wired.posted.push(input); return null; }, carried, storage: { getItem: () => null, setItem: () => {} }, editor, responsibilities, scanHost });
   };
   const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
   wired.rescanner = createRescanner({
@@ -369,6 +371,56 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(fr.q(".scan-mode-rescan"));
   await tick();
   facts.freshRescan = { ...freshFacts(), rescanPressed: fr.q(".scan-mode-rescan")?.getAttribute("aria-pressed") ?? null, notes: fr.rows().map((r) => r.note) };
+
+  const ranDoc = (name, diagnosis) => json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [], diagnosis });
+  const whyFacts = (m, key) => {
+    const row = m.q('.scan-row[data-sensor="' + key + '"]');
+    const why = row.querySelector(".scan-why");
+    const rowBox = row.getBoundingClientRect();
+    const whyBox = why ? why.getBoundingClientRect() : null;
+    const next = row.nextElementSibling;
+    const nextBox = next ? next.getBoundingClientRect() : null;
+    return {
+      state: m.rows().find((r) => r.key === key).state,
+      tone: m.rows().find((r) => r.key === key).tone,
+      why: why ? [...why.childNodes].filter((n) => n.nodeType === 3 || n.tagName === "CODE").map((n) => n.textContent).join("").trim() : null,
+      chips: why ? [...why.querySelectorAll("code")].map((c) => c.textContent) : [],
+      copy: why?.querySelector(".scan-why-copy")?.textContent ?? null,
+      log: why?.querySelector(".scan-why-log")?.textContent ?? null,
+      inside: whyBox === null ? null : whyBox.top >= rowBox.top - 0.5 && whyBox.bottom <= rowBox.bottom + 0.5 && whyBox.left >= rowBox.left - 0.5 && whyBox.right <= rowBox.right + 0.5,
+      clear: whyBox === null || nextBox === null ? null : nextBox.top >= whyBox.bottom - 0.5,
+    };
+  };
+  const openScan = async (m) => { click(m.q(".rail-scan")); await tick(); };
+  const reasonScan = async (name, diagnosis) => {
+    const lines = [current, sensing(1), json({ event: "start", phase: "sense", name }), json({ event: "entry", phase: "sense", name, outcome: "failed", reason: diagnosis.line, diagnosis }), summary];
+    const m = await mount(fakeScan({ steps: lines }));
+    await openScan(m);
+    await m.setTick(name, true);
+    click(m.q(".scan-run"));
+    await tick(); await tick(); await tick();
+    return m;
+  };
+  const completedScan = async (name, diagnosis) => {
+    const m = await mount(fakeScan(), fakeSensors({ [name]: ranDoc(name, diagnosis) }, { config: CONFIG }, {}, SHIPPED));
+    await openScan(m);
+    return m;
+  };
+  facts.reasons = {};
+  const crapRed = await completedScan("crap", REASONS["crap-tests-failed"]);
+  facts.reasons.crapRed = whyFacts(crapRed, "crap");
+  click(crapRed.q('.scan-row[data-sensor="crap"] .scan-why-log'));
+  await tick();
+  facts.reasons.opened = crapRed.editor.opened.map((o) => o.file);
+  const crapNoCov = await completedScan("crap", REASONS["crap-no-coverage"]);
+  facts.reasons.crapNoCov = whyFacts(crapNoCov, "crap");
+  click(crapNoCov.q('.scan-row[data-sensor="crap"] .scan-why-copy'));
+  await tick();
+  facts.reasons.copied = crapNoCov.wired.views.copied;
+  facts.reasons.crapNoRun = whyFacts(await reasonScan("crap", REASONS["crap-no-runner"]), "crap");
+  facts.reasons.mutationRed = whyFacts(await reasonScan("mutation", REASONS["mutation-tests-failing"]), "mutation");
+  facts.reasons.mutationNoCov = whyFacts(await reasonScan("mutation", REASONS["mutation-no-coverage"]), "mutation");
+  facts.reasons.plain = (await (async () => { const m = await mount(fakeScan({ steps: [current, sensing(1), json({ event: "entry", phase: "sense", name: "crap", outcome: "failed", reason: "boom" }), summary] })); await openScan(m); await m.setTick("crap", true); click(m.q(".scan-run")); await tick(); await tick(); await tick(); return whyFacts(m, "crap"); })());
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -703,6 +755,58 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       "beta",
     ]);
     expect(f.loaded.buttons).toBe(1);
+  });
+
+  it("says why each sensor could not run fully, one second line per mock state", () => {
+    const r = f.reasons;
+
+    expect(r.crapRed.state).toMatch(/^ran, partly/);
+    expect(r.crapRed.tone).toBe("warn");
+    expect(r.crapRed.why).toBe("3 tests failed, so coverage may read low.");
+    expect(r.crapRed).toMatchObject({ copy: null, log: "Show log", chips: [] });
+    expect(r.crapNoCov.state).toMatch(/^complexity only/);
+    expect(r.crapNoCov.chips).toEqual(["cargo install cargo-llvm-cov"]);
+    expect(r.crapNoCov).toMatchObject({ copy: "Copy", log: null });
+    expect(r.crapNoRun.state).toMatch(/^could not run/);
+    expect(r.crapNoRun.tone).toBe("bad");
+    expect(r.crapNoRun.why).toBe(
+      "pytest is not in this repository's environment. Add it with uv add --dev pytest.",
+    );
+    expect(r.crapNoRun.chips).toEqual(["uv add --dev pytest"]);
+    expect(r.crapNoRun).toMatchObject({ copy: "Copy", log: null });
+    expect(r.mutationRed.state).toMatch(/^refused/);
+    expect(r.mutationRed.tone).toBe("bad");
+    expect(r.mutationRed.chips).toEqual(["tests/test_orders.py::test_refund"]);
+    expect(r.mutationRed).toMatchObject({ copy: null, log: "Show log" });
+    expect(r.mutationNoCov.state).toMatch(/^refused/);
+    expect(r.mutationNoCov).toMatchObject({ copy: "Copy", log: null });
+  });
+
+  it("keeps each second line inside its row and clear of the next row", () => {
+    const r = f.reasons;
+
+    for (const one of [
+      r.crapRed,
+      r.crapNoCov,
+      r.crapNoRun,
+      r.mutationRed,
+      r.mutationNoCov,
+    ]) {
+      expect(one.inside).toBe(true);
+      expect(one.clear).not.toBe(false);
+    }
+  });
+
+  it("opens the sensors' log through the editor and copies the bare fix", () => {
+    expect(f.reasons.opened).toEqual([
+      ".recognizer/cache/coverage/last-run.log",
+    ]);
+    expect(f.reasons.copied).toEqual(["cargo install cargo-llvm-cov"]);
+  });
+
+  it("shows failed and no second line for a failure with no diagnosis", () => {
+    expect(f.reasons.plain.state).toMatch(/^failed/);
+    expect(f.reasons.plain.why).toBeNull();
   });
 
   it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {

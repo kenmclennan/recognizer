@@ -2341,6 +2341,47 @@ svg.i.chevron {
   color: var(--warn);
 }
 
+.scan-state.bad {
+  color: var(--bad);
+}
+
+.scan-row.has-why {
+  flex-wrap: wrap;
+}
+
+.scan-row.has-why .scan-state {
+  flex: 1 1 0;
+}
+
+.scan-why {
+  flex-basis: calc(100% - 25px);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  margin: 0 0 0 25px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.scan-why code {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.scan-why-copy,
+.scan-why-log {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--sel);
+  cursor: pointer;
+}
+
 .scan-state.size {
   color: var(--fg);
 }
