@@ -227,6 +227,17 @@ def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, m
     assert (root / ".recognizer/cache/coverage/kotlin/by-file/0/jacocoTestReport.xml").is_file()
 
 
+def test_the_per_file_run_deletes_no_report_and_ignores_one_it_did_not_write(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKE_NO_REPORT", "1")
+    root, scan = make(tmp_path, monkeypatch=monkeypatch)
+
+    _, selection = collect_coverage_with_tests(root, [scan], None)
+
+    assert (root / REPORT).is_file()
+    assert selection == {}
+    assert not (root / ".recognizer/cache/coverage/kotlin/by-file").exists()
+
+
 def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
     collect_coverage_with_tests(root, [scan], None)

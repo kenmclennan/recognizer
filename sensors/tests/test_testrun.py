@@ -190,6 +190,44 @@ def test_an_xml_coverage_file_is_read_as_jacoco(tmp_path):
     assert collect_coverage(root, read_scans(root), None, "cov/jacoco.xml") == {"app/m.py": {1: 3}}
 
 
+def test_a_jacoco_report_older_than_the_run_is_ignored_and_kept(tmp_path):
+    stale = '<report><package name="app"><sourcefile name="m.py"><line nr="1" mi="0" ci="9"/></sourcefile></package></report>'
+    root = repository(tmp_path, {"app/m.py": BODY})
+    report = root / "build/reports/jacoco/test/jacocoTestReport.xml"
+    report.parent.mkdir(parents=True)
+    report.write_text(stale)
+    old = time.time() - 3600
+    os.utime(report, (old, old))
+    steps = [sys.executable, script(root, "n.py", NOTHING)]
+    diagnoses: list[dict] = []
+
+    coverage = collect_coverage(
+        root, read_scans(root), steps, "build/reports/jacoco/test/jacocoTestReport.xml", diagnoses
+    )
+
+    assert coverage == {}
+    assert diagnoses[0]["code"] == "coverage-unavailable"
+    assert report.read_text() == stale
+
+
+def test_a_jacoco_report_written_by_the_run_is_read(tmp_path):
+    fresh = '<report><package name="app"><sourcefile name="m.py"><line nr="1" mi="0" ci="4"/></sourcefile></package></report>'
+    root = repository(tmp_path, {"app/m.py": BODY})
+    writer = script(
+        root,
+        "w.py",
+        "import pathlib, sys\np = pathlib.Path(sys.argv[1])\np.parent.mkdir(parents=True, exist_ok=True)\n"
+        f"p.write_text({fresh!r})\n",
+    )
+    target = "build/reports/jacoco/test/jacocoTestReport.xml"
+
+    coverage = collect_coverage(
+        root, read_scans(root), [sys.executable, writer, target], target, []
+    )
+
+    assert coverage == {"app/m.py": {1: 4}}
+
+
 def sentence(capsys):
     return capsys.readouterr().err
 
