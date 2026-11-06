@@ -17,6 +17,7 @@ export type FindingsPanelActions = FindingRowActions & {
 export type FindingsPanelModel = {
   scope: { caption: string; on: boolean } | null;
   header: string | null;
+  coverage: string | null;
   stale: string | null;
   groups: { group: FindingGroupModel; open: boolean; cards: CardModel[] }[];
   active: string | null;
@@ -144,6 +145,7 @@ export function buildFindingsPanelView(
 ): FindingsPanelView {
   const element = el("div", "findings-panel");
   const header = el("div", "findings-header", "Findings");
+  const coverage = el("span", "findings-coverage");
   const scope = el("div", "findings-scope seg");
   const canvas = button("", "findings-scope-canvas", () =>
     actions.setOnlyThisView(true),
@@ -157,6 +159,7 @@ export function buildFindingsPanelView(
   const empty = el("p", "findings-empty");
 
   scope.append(canvas, all);
+  header.append(coverage);
   element.append(header, scope, line, stale, list, empty);
 
   return {
@@ -170,6 +173,7 @@ export function buildFindingsPanelView(
       all.setAttribute("aria-pressed", String(!scopeOn));
       canvas.classList.toggle("on", scopeOn);
       all.classList.toggle("on", !scopeOn);
+      coverage.textContent = model.coverage ?? "";
       line.textContent = model.header ?? "";
       line.hidden = model.header === null;
       stale.textContent = model.stale ?? "";

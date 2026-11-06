@@ -3,6 +3,8 @@ import type { Scan } from "recognizer";
 import { buildFreshness, scanHashes } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
+  coverageNote,
+  freshnessMessage,
   freshnessReport,
   freshnessScope,
   gapOf,
@@ -376,5 +378,61 @@ describe("planFor", () => {
     );
 
     expect(planned.idle).toBe(false);
+  });
+});
+
+describe("freshnessMessage and coverageNote", () => {
+  const row = (display: string, gap: string[], neverRun = false) => ({
+    name: display.toLowerCase(),
+    display,
+    gap,
+    neverRun,
+  });
+
+  it("says nothing for a complete picture or no report", () => {
+    expect(freshnessMessage(null)).toBeNull();
+    expect(
+      freshnessMessage(freshnessReport("x", MODULES, [row("A", [])])),
+    ).toBeNull();
+  });
+
+  it("counts the out-of-date modules and keys the message by their set", () => {
+    const one = freshnessMessage(
+      freshnessReport("x", MODULES, [row("A", ["b.py"])]),
+    );
+    const two = freshnessMessage(
+      freshnessReport("x", MODULES, [row("A", ["b.py", MODULES[0]])]),
+    );
+
+    expect(one?.text).toBe(
+      "1 module has changed since it was scanned. Its results are hidden, so this picture is partial.",
+    );
+    expect(two?.text.startsWith("2 modules have changed")).toBe(true);
+    expect(one?.neverRunOnly).toBe(false);
+    expect(one?.key).not.toBe(two?.key);
+  });
+
+  it("reports Mutation never run when nothing is out of date", () => {
+    expect(
+      freshnessMessage(
+        freshnessReport("x", MODULES, [row("Mutation", MODULES, true)]),
+      )?.text,
+    ).toBe(
+      "Mutation has not run here yet. Survived-mutant results are missing from this picture.",
+    );
+    expect(
+      freshnessMessage(
+        freshnessReport("x", MODULES, [row("Mutation", MODULES, true)]),
+      )?.neverRunOnly,
+    ).toBe(true);
+  });
+
+  it("states how many modules the findings cover", () => {
+    const report = freshnessReport("x", MODULES, [row("A", ["b.py"])]);
+
+    expect(coverageNote(report, 3)).toBe("from 2 of 3 modules");
+    expect(
+      coverageNote(freshnessReport("x", MODULES, [row("A", [])]), 3),
+    ).toBeNull();
   });
 });

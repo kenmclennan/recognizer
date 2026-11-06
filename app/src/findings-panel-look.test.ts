@@ -88,7 +88,8 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     label: getComputedStyle(m.q(".rail-findings"), "::after").content,
     open: m.shown(".findings-panel"),
     files: m.shown(".tree-header"),
-    heading: m.q(".findings-header").textContent,
+    heading: m.q(".findings-header").firstChild.textContent,
+    coverage: m.q(".findings-coverage").textContent,
     line: m.q(".findings-line").textContent,
     chips: m.all(".findings-chip").length,
     groups: texts(m, ".finding-group-name"),
@@ -336,6 +337,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.panel.open).toBe(true);
     expect(f.panel.files).toBe(false);
     expect(f.panel.heading).toBe("Findings");
+    expect(f.panel.coverage).toBe("from 0 of 3 modules");
     expect(f.panel.line).toBe("1 violation, 2 warnings");
     expect(f.panel.chips).toBe(0);
     expect(f.panel.groups).toEqual([
