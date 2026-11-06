@@ -9,6 +9,11 @@ import {
   type SensorProgress,
   stripProgress,
 } from "./sensor-progress.js";
+import {
+  type Diagnosis,
+  parseReasonLine,
+  stripReason,
+} from "./sensor-reason.js";
 import { measuredInputs } from "./structure-sensor.js";
 
 export const SENSOR_TIMEOUT_MS = 60_000;
@@ -25,7 +30,12 @@ export interface RunSensorsInput {
   timeoutMs?: number;
 }
 
-function recordInputs(io: Io, root: string, name: string, scans: Scan[]): void {
+function recordInputs(
+  io: Io,
+  root: string,
+  name: string,
+  scans: Scan[],
+): Diagnosis | undefined {
   const output = findingsFile(root, name);
   const document = validateFindings(JSON.parse(io.readFile(output)), { name });
 
@@ -34,6 +44,8 @@ function recordInputs(io: Io, root: string, name: string, scans: Scan[]): void {
     findings_version: 2,
     inputs: document.inputs ?? measuredInputs(scans),
   });
+
+  return document.diagnosis;
 }
 
 export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
@@ -45,6 +57,14 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
 
     const output = findingsFile(root, name);
     const began = io.now();
+    let refusal: Diagnosis | undefined;
+    const keepStderr = (stderr: string): string => {
+      for (const line of stderr.split("\n")) {
+        refusal ??= parseReasonLine(line) ?? undefined;
+      }
+
+      return stripReason(stderr);
+    };
     const validate = (document: unknown) => {
       validateFindings(document, { name, commit });
     };
@@ -68,7 +88,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
                 }
               },
             },
-            stripProgress,
+            (stderr) => stripProgress(keepStderr(stderr)),
           )
         : runRegistered(
             io,
@@ -79,12 +99,14 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
             "findings",
             validate,
             input.timeoutMs ?? SENSOR_TIMEOUT_MS,
+            keepStderr,
           );
     let { reason } = run;
+    let diagnosis = refusal;
 
     if (reason === null) {
       try {
-        recordInputs(io, root, name, input.scans);
+        diagnosis = recordInputs(io, root, name, input.scans);
       } catch (error) {
         reason = `could not record inputs: ${(error as Error).message}`;
       }
@@ -96,6 +118,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       stderr: run.stderr,
       duration_ms: io.now() - began,
       ...(reason === null ? {} : { reason }),
+      ...(diagnosis === undefined ? {} : { diagnosis }),
     });
 
     entries.push(entry);

@@ -320,3 +320,132 @@ describe("runSensors ceiling", () => {
     });
   });
 });
+
+const DIAGNOSIS = {
+  code: "tool-missing",
+  line: "cargo-llvm-cov is not installed; install it with cargo install cargo-llvm-cov",
+  fix: "cargo install cargo-llvm-cov",
+};
+
+const REFUSES = `
+const [reason, plain] = process.argv.slice(1);
+process.stderr.write(reason + "\\n" + plain + "\\n");
+process.exit(2);
+`;
+
+const WRITES_DIAGNOSIS = `
+const fs = require("fs");
+const [commit, output, diagnosis] = process.argv.slice(1);
+fs.mkdirSync(require("path").dirname(output), { recursive: true });
+fs.writeFileSync(output, JSON.stringify({
+  findings_version: 1,
+  sensor: { name: "quick", version: "1" },
+  commit,
+  modified: false,
+  settings: {},
+  findings: [],
+  diagnosis: JSON.parse(diagnosis),
+}));
+`;
+
+describe("runSensors diagnosis", () => {
+  for (const runsTests of [false, true]) {
+    it(`carries a refusal's reason line to the entry and keeps the plain line as the reason (runsTests ${runsTests})`, async () => {
+      const { root, io } = setup();
+      const [entry] = await runSensors({
+        io,
+        root,
+        commit: COMMIT,
+        scans: [],
+        selected: [
+          {
+            name: "quick",
+            runsTests,
+            command: [
+              process.execPath,
+              "-e",
+              REFUSES,
+              `recognizer-reason ${JSON.stringify(DIAGNOSIS)}`,
+              DIAGNOSIS.line,
+            ],
+          },
+        ],
+      });
+
+      expect(entry?.diagnosis).toEqual(DIAGNOSIS);
+      expect(entry?.reason).toBe(DIAGNOSIS.line);
+      expect(entry?.stderr).not.toContain("recognizer-reason");
+    });
+  }
+
+  it("carries the findings document's diagnosis on a run that exits zero", async () => {
+    const { root, io } = setup();
+    const [entry] = await runSensors({
+      io,
+      root,
+      commit: COMMIT,
+      scans: [],
+      selected: [
+        {
+          name: "quick",
+          command: [
+            process.execPath,
+            "-e",
+            WRITES_DIAGNOSIS,
+            "{commit}",
+            "{output}",
+            JSON.stringify({
+              code: "tests-failed",
+              line: "3 tests failed, so coverage may read low",
+              failing: { count: 3, names: ["a", "b", "c"] },
+            }),
+          ],
+        },
+      ],
+    });
+
+    expect(entry).toMatchObject({
+      outcome: "ok",
+      diagnosis: { code: "tests-failed", failing: { count: 3 } },
+    });
+  });
+
+  for (const [label, reason] of [
+    ["not valid JSON", "recognizer-reason {nope"],
+    [
+      "an unknown code",
+      `recognizer-reason ${JSON.stringify({ ...DIAGNOSIS, code: "odd" })}`,
+    ],
+    [
+      "an extra key",
+      `recognizer-reason ${JSON.stringify({ ...DIAGNOSIS, extra: 1 })}`,
+    ],
+    [
+      "six names",
+      `recognizer-reason ${JSON.stringify({
+        code: "tests-failed",
+        line: "x",
+        failing: { names: ["1", "2", "3", "4", "5", "6"] },
+      })}`,
+    ],
+  ] as const) {
+    it(`leaves a reason line that is ${label} in the stderr and gives no diagnosis`, async () => {
+      const { root, io } = setup();
+      const [entry] = await runSensors({
+        io,
+        root,
+        commit: COMMIT,
+        scans: [],
+        selected: [
+          {
+            name: "quick",
+            command: [process.execPath, "-e", REFUSES, reason, "plain"],
+          },
+        ],
+      });
+
+      expect(entry?.diagnosis).toBeUndefined();
+      expect(entry?.stderr).toContain(reason);
+    });
+  }
+});

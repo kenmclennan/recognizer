@@ -89,6 +89,7 @@ export function runRegistered(
   what: string,
   validate: (document: unknown) => void,
   timeoutMs?: number,
+  keepStderr: (stderr: string) => string = (stderr) => stderr,
 ): RegisteredRun {
   const prepared = prepare(io, root, command, commit, output, validate);
   const unregister = registerPending(() => {
@@ -105,7 +106,14 @@ export function runRegistered(
     unregister();
   }
 
-  return conclude(io, prepared, result, output, what, validate);
+  return conclude(
+    io,
+    prepared,
+    { ...result, stderr: keepStderr(result.stderr) },
+    output,
+    what,
+    validate,
+  );
 }
 
 export async function runRegisteredAsync(

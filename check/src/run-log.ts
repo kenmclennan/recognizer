@@ -2,6 +2,7 @@ import { basename, join } from "node:path";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import { validateRunRecord } from "./log-document.js";
+import type { Diagnosis } from "./sensor-reason.js";
 
 export type RunKind = "scan" | "sense" | "describe" | "measure";
 
@@ -12,6 +13,7 @@ export interface RunEntry {
   outcome: "ok" | "failed";
   duration_ms: number;
   reason?: string;
+  diagnosis?: Diagnosis;
   stderr: string;
   stderr_truncated?: true;
 }
@@ -59,6 +61,7 @@ export interface EntryTiming {
   stderr: string;
   duration_ms: number;
   reason?: string;
+  diagnosis?: Diagnosis;
 }
 
 export const STDERR_LIMIT = 8192;
@@ -115,6 +118,10 @@ export function entryFrom(name: string, timing: EntryTiming): RunEntry {
 
   if (timing.reason !== undefined) {
     entry.reason = timing.reason;
+  }
+
+  if (timing.diagnosis !== undefined) {
+    entry.diagnosis = timing.diagnosis;
   }
 
   if (truncated) {

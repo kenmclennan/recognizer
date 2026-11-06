@@ -1,5 +1,6 @@
 import validate from "./generated/findings-validator.js";
 import type { Rule } from "./rules.js";
+import type { Diagnosis } from "./sensor-reason.js";
 
 export interface FindingEdge {
   from: string;
@@ -43,6 +44,7 @@ export interface FindingsDocument {
   findings: FindingRecord[];
   inputs?: Record<string, string>;
   tests?: string;
+  diagnosis?: Diagnosis;
 }
 
 export interface ExpectedSensor {
