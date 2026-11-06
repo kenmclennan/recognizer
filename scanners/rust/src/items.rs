@@ -153,8 +153,32 @@ fn is_test_attribute(attribute: &syn::Attribute) -> bool {
     }
 
     match &attribute.meta {
-        Meta::List(list) => list.path.is_ident("cfg") && list.tokens.to_string() == "test",
+        Meta::List(list) if list.path.is_ident("cfg") => syn::parse2::<Meta>(list.tokens.clone())
+            .map(|predicate| requires_test(&predicate))
+            .unwrap_or(false),
         _ => false,
+    }
+}
+
+fn requires_test(predicate: &Meta) -> bool {
+    match predicate {
+        Meta::Path(path) => path.is_ident("test"),
+        Meta::List(list) => {
+            let Ok(arguments) = list.parse_args_with(
+                syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated,
+            ) else {
+                return false;
+            };
+
+            if list.path.is_ident("all") {
+                arguments.iter().any(requires_test)
+            } else if list.path.is_ident("any") {
+                !arguments.is_empty() && arguments.iter().all(requires_test)
+            } else {
+                false
+            }
+        }
+        Meta::NameValue(_) => false,
     }
 }
 

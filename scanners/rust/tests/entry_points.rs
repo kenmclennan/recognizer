@@ -299,3 +299,54 @@ fn the_labelled_fixture_marks_exactly_the_expected_files() {
 
     assert_eq!(marked(&scanned.document), expected);
 }
+
+#[test]
+fn a_cfg_all_test_mod_marks_its_file() {
+    let document = krate(&[
+        ("src/lib.rs", "#[cfg(all(test, unix))]\nmod tests;\n"),
+        ("src/tests.rs", ""),
+    ]);
+
+    assert_eq!(marked(&document), vec!["src/tests.rs"]);
+}
+
+#[test]
+fn a_cfg_all_test_mod_with_a_path_marks_the_named_file() {
+    let document = krate(&[
+        (
+            "src/lib.rs",
+            "#[cfg(all(unix, test))]\n#[path = \"t.rs\"]\nmod tests;\n",
+        ),
+        ("src/t.rs", ""),
+    ]);
+
+    assert_eq!(marked(&document), vec!["src/t.rs"]);
+}
+
+#[test]
+fn a_cfg_any_test_or_not_test_mod_marks_nothing() {
+    let document = krate(&[
+        (
+            "src/lib.rs",
+            "#[cfg(any(test, unix))]\nmod maybe;\n#[cfg(not(test))]\nmod only;\n",
+        ),
+        ("src/maybe.rs", ""),
+        ("src/only.rs", ""),
+    ]);
+
+    assert_eq!(marked(&document), Vec::<String>::new());
+}
+
+#[test]
+fn a_cfg_any_whose_every_alternative_requires_test_marks_its_file() {
+    let document = krate(&[
+        (
+            "src/lib.rs",
+            "#[cfg(any(all(test, unix), test))]\nmod both;\n#[cfg(any(test, test))]\nmod twice;\n",
+        ),
+        ("src/both.rs", ""),
+        ("src/twice.rs", ""),
+    ]);
+
+    assert_eq!(marked(&document), vec!["src/both.rs", "src/twice.rs"]);
+}

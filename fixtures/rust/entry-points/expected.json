@@ -12,6 +12,7 @@
   "src/bin/b/main.rs",
   "src/checks.rs",
   "src/checks/helper.rs",
+  "src/gated.rs",
   "src/main.rs",
   "src/t.rs",
   "src/tests.rs",

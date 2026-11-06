@@ -305,3 +305,63 @@ fn functions_and_methods_record_the_last_line_of_the_declaration() {
     );
     assert!(class.get("end_line").is_none());
 }
+
+const GATES: &str = r#"
+#[cfg(test)] fn g_test() {}
+#[cfg(all(test, unix))] fn g_all() {}
+#[cfg(all(unix, feature = "x", test))] fn g_all_late() {}
+#[cfg( test )] fn g_spaced() {}
+#[cfg(all(test,))] fn g_trailing() {}
+#[cfg(all(unix, any(test, all(test, x))))] fn g_nested() {}
+#[cfg(any(test, test))] fn g_any_test() {}
+#[cfg(any(all(test, unix), test))] fn g_any_mixed() {}
+#[cfg(any(test, unix))] fn k_any() {}
+#[cfg(not(test))] fn k_not() {}
+#[cfg(all(not(test), unix))] fn k_all_not() {}
+#[cfg(all())] fn k_all_empty() {}
+#[cfg(any())] fn k_any_empty() {}
+#[cfg(feature = "testing")] fn k_feature() {}
+fn k_plain() {}
+"#;
+
+#[test]
+fn a_cfg_that_requires_test_drops_its_item_and_the_rest_stay() {
+    let document = krate(&[("src/lib.rs", GATES)]);
+    let mut names: Vec<String> = module(&document, "src/lib.rs")["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["name"].as_str().unwrap().to_string())
+        .collect();
+
+    names.sort();
+
+    assert_eq!(
+        names,
+        vec![
+            "k_all_empty",
+            "k_all_not",
+            "k_any",
+            "k_any_empty",
+            "k_feature",
+            "k_not",
+            "k_plain"
+        ]
+    );
+}
+
+#[test]
+fn an_impl_gated_on_all_test_adds_no_methods_and_an_any_test_impl_does() {
+    let document = krate(&[(
+        "src/lib.rs",
+        "pub struct S;\n#[cfg(all(test, unix))]\nimpl S { fn a() {} }\n#[cfg(any(test, unix))]\nimpl S { fn b() {} }\n",
+    )]);
+    let names: Vec<&str> = member(&document, "src/lib.rs", "S")["methods"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["name"].as_str().unwrap())
+        .collect();
+
+    assert_eq!(names, vec!["b"]);
+}

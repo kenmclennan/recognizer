@@ -26,13 +26,15 @@ A crate is a Cargo package's library or binary target. Every `Cargo.toml` with a
 
 ## Entry points
 
-A module gets `entry_point: true` in two cases. The first is a Cargo target root: `package.build` (or `build.rs`; none when `build = false`), `src/main.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `examples/*.rs`, `examples/*/main.rs`, `benches/*.rs`, `benches/*/main.rs`, and the `path` of any `[[bin]]`, `[[example]]`, `[[bench]]` or `[[test]]` table that names a scanned file. The second is a file reached only through a `#[cfg(test)] mod x;` declaration (with or without `#[path]`), together with every file its own `mod y;` declarations name. A test module adds no edge. The library root is not marked, and files under a `tests/` directory are not scanned, so they are not marked.
+A module gets `entry_point: true` in two cases. The first is a Cargo target root: `package.build` (or `build.rs`; none when `build = false`), `src/main.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `examples/*.rs`, `examples/*/main.rs`, `benches/*.rs`, `benches/*/main.rs`, and the `path` of any `[[bin]]`, `[[example]]`, `[[bench]]` or `[[test]]` table that names a scanned file. The second is a file reached only through a `mod x;` declaration gated by a test gate (with or without `#[path]`), together with every file its own `mod y;` declarations name. A test module adds no edge. The library root is not marked, and files under a `tests/` directory are not scanned, so they are not marked.
 
 ## Members
 
 Structs and enums are `class`, traits `interface`, functions `function`, `const` and `static` `constant`. `exported` is true for any `pub` form except `pub(self)`. Methods from the `impl` blocks of the same file are in the outline of their struct or enum.
 
 ## Limits
+
+A test gate is `#[test]` or a `cfg` predicate that requires `test`: `cfg(test)`, `cfg(all(..., test, ...))`, or `cfg(any(...))` when every alternative requires `test`; `cfg(any(test, unix))` and `cfg(not(test))` are production code. Test-gated items are dropped from members, and a `cfg` is read only for this decision.
 
 Calls, `cfg` and feature evaluation, macro expansion and macro bodies, `use` items inside function bodies, type aliases, enum variants and path expressions that are not `use` items are not read. An `impl` for a type declared in another file adds nothing to any outline. A file declared by no crate is still a module, but its `crate::` and `super::` paths resolve to nothing.
 
