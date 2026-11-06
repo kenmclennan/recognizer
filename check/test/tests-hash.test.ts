@@ -39,6 +39,24 @@ describe("currentTestsHash", () => {
     expect(currentTestsHash(nodeIo(), root, [])).not.toBe(WORKED);
   });
 
+  it("orders paths by UTF-8 bytes, as the sensors and the app do", () => {
+    const root = makeTempDir("recognizer-tests-hash-");
+
+    for (const [path, text] of [
+      ["tests/.py", "a"],
+      ["tests/\u{10000}.py", "b"],
+    ] as const) {
+      mkdirSync(join(root, "tests"), { recursive: true });
+      writeFileSync(join(root, path), text);
+    }
+
+    execFileSync("git", ["-C", root, "init", "-q"]);
+
+    expect(currentTestsHash(nodeIo(), root, [])).toBe(
+      "9ca05192c8d29e058594e8b9e90288c94ad179315ab6b649529d9d09c4623d06",
+    );
+  });
+
   it("is null when git fails", () => {
     expect(
       currentTestsHash(nodeIo(), makeTempDir("recognizer-tests-hash-"), []),
