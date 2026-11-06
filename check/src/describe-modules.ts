@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { Io, RunResult } from "./cli.js";
+import type { Io, Running, RunResult } from "./cli.js";
 import { InputError } from "./errors.js";
 import { moduleSource } from "./module-source.js";
 import {
@@ -204,11 +204,23 @@ export type DescribeSelection =
   | { kind: "all"; within?: string[] }
   | { kind: "names"; names: string[] };
 
+export const LIMIT_STATUS = 75;
+
+export interface DescribeStop {
+  cause: "limit" | "failures";
+  module: string;
+  reason: string;
+  described: number;
+  not_described: string[];
+  threshold: number;
+}
+
 export interface DescribeResult {
   described: string[];
   failed: { module: string; reason: string }[];
   current: number;
   pruned: string[];
+  stopped: DescribeStop | null;
 }
 
 export interface DescribeInput {
@@ -260,6 +272,10 @@ export async function describeModules(
   const described: string[] = [];
   const failed: { module: string; reason: string }[] = [];
   let temp: string | null = null;
+  let stopped: DescribeStop | null = null;
+  let failuresInARow = 0;
+  const running = new Set<Running>();
+  const threshold = Math.max(input.batchSize, 2);
 
   input.onStart?.(selected.length);
 
@@ -276,7 +292,12 @@ export async function describeModules(
   ) => {
     const reason = failureReason(result, filled[0] as string);
 
+    if (stopped !== null && reason !== null) {
+      return;
+    }
+
     if (reason === null) {
+      failuresInARow = 0;
       entries[subject.id] = {
         line: result.stdout.trim(),
         source_hash: subject.hash,
@@ -287,6 +308,25 @@ export async function describeModules(
       described.push(subject.id);
     } else {
       fail(subject.id, reason);
+
+      const limit = result.started && result.status === LIMIT_STATUS;
+
+      failuresInARow += 1;
+
+      if (limit || failuresInARow >= threshold) {
+        stopped = {
+          cause: limit ? "limit" : "failures",
+          module: subject.id,
+          reason,
+          described: 0,
+          not_described: [],
+          threshold,
+        };
+
+        for (const other of running) {
+          other.kill();
+        }
+      }
     }
 
     input.onEntry?.(
@@ -316,9 +356,14 @@ export async function describeModules(
     const [program, ...rest] = filled as [string, ...string[]];
     const began = io.now();
 
-    return io
-      .runAsync(program, rest)
-      .result.then((result) => complete(subject, filled, began, result));
+    const call = io.runAsync(program, rest);
+
+    running.add(call);
+
+    return call.result.then((result) => {
+      running.delete(call);
+      complete(subject, filled, began, result);
+    });
   };
 
   try {
@@ -327,6 +372,10 @@ export async function describeModules(
       { length: Math.max(1, Math.min(input.batchSize, selected.length)) },
       async () => {
         for (const [index, subject] of queue) {
+          if (stopped !== null) {
+            return;
+          }
+
           if (subject.hash === null) {
             fail(subject.id, "source could not be read");
             input.onEntry?.(
@@ -377,12 +426,42 @@ export async function describeModules(
       !selectedIds.has(subject.id) && subject.status.status === "current",
   ).length;
 
-  return { described, failed, current, pruned };
+  const stop = stopped as DescribeStop | null;
+
+  if (stop !== null) {
+    const failedIds = new Set(failed.map((one) => one.module));
+
+    stop.described = described.length;
+    stop.not_described = selected
+      .map((subject) => subject.id)
+      .filter((id) => !described.includes(id) && !failedIds.has(id))
+      .sort();
+  }
+
+  return { described, failed, current, pruned, stopped: stop };
 }
 
 export function describeSummaryText(result: DescribeResult): string {
   const prunedNote =
     result.pruned.length > 0 ? `, pruned ${result.pruned.length}` : "";
 
-  return `described ${result.described.length}, failed ${result.failed.length}, already current ${result.current}${prunedNote}\n`;
+  const stop = result.stopped;
+
+  if (stop === null) {
+    return `described ${result.described.length}, failed ${result.failed.length}, already current ${result.current}${prunedNote}\n`;
+  }
+
+  const cause = stopCauseText(stop);
+
+  return `stopped: ${cause}; described ${result.described.length}, failed ${result.failed.length}, not described ${stop.not_described.length}, already current ${result.current}${prunedNote}\n`;
+}
+
+export function stopCauseText(stop: {
+  cause: "limit" | "failures";
+  reason: string;
+  threshold: number;
+}): string {
+  return stop.cause === "limit"
+    ? `claude usage limit reached (${stop.reason})`
+    : `${stop.threshold} describer calls failed in a row (last: ${stop.reason})`;
 }

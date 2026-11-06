@@ -313,3 +313,41 @@ describe("sensor progress", () => {
     );
   });
 });
+
+describe("the describe stop event", () => {
+  const stopped = {
+    event: "stopped",
+    phase: "describe",
+    cause: "limit",
+    reason: "out of quota",
+    described: 412,
+    not_described: 1628,
+    threshold: 4,
+  };
+
+  it("folds into the progress and leaves the entries alone", () => {
+    const state = fold([
+      phase("describe", 2040),
+      entry("a.py", "describe"),
+      stopped,
+    ]);
+
+    expect(state.describeStop).toEqual({
+      cause: "limit",
+      reason: "out of quota",
+      described: 412,
+      notDescribed: 1628,
+      threshold: 4,
+    });
+    expect(state.describe?.entries).toHaveLength(1);
+  });
+
+  it("is ignored with an unknown cause or a missing count", () => {
+    expect(
+      parseScanLine(JSON.stringify({ ...stopped, cause: "other" })),
+    ).toBeNull();
+    expect(
+      parseScanLine(JSON.stringify({ ...stopped, not_described: "many" })),
+    ).toBeNull();
+  });
+});

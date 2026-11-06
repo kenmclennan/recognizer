@@ -768,6 +768,58 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)[0].outcome).toBe("failed");
   });
 
+  it("reports a describer that hit the usage limit as a stopped event before the summary", async () => {
+    const limited = setup(
+      {
+        programs: {
+          describer: (args) =>
+            args[0] === "m0.py"
+              ? { status: 75, stderr: "claude usage limit: out of quota" }
+              : { stdout: "ok\n" },
+        },
+      },
+      { [CONFIG]: DESCRIBER },
+    );
+    const { code, out } = await scan(limited, "--describe", "--json");
+    const events = lines(out).map((line) => line.event);
+    const stopped = lines(out).find((line) => line.event === "stopped");
+
+    expect(code).toBe(1);
+    expect(stopped).toMatchObject({
+      event: "stopped",
+      phase: "describe",
+      cause: "limit",
+      reason: "claude usage limit: out of quota",
+    });
+    expect(events.indexOf("stopped")).toBeGreaterThan(
+      events.lastIndexOf("entry", events.indexOf("stopped")),
+    );
+    expect(events.indexOf("stopped")).toBeLessThan(events.indexOf("summary"));
+  });
+
+  it("says on stderr that the describe phase stopped", async () => {
+    const { code, err, out } = await scan(
+      setup(
+        {
+          programs: {
+            describer: () => ({
+              status: 75,
+              stderr: "claude usage limit: out of quota",
+            }),
+          },
+        },
+        { [CONFIG]: DESCRIBER },
+      ),
+      "--describe",
+    );
+
+    expect(code).toBe(1);
+    expect(err).toMatch(
+      /stopped: claude usage limit reached \(claude usage limit: out of quota\); \d+ modules not described/,
+    );
+    expect(out).toContain("stopped: claude usage limit reached");
+  });
+
   it("fails the run after the remaining entries when a sensor entry fails", async () => {
     const { code, fake, out } = await scan(
       setup(

@@ -10,12 +10,30 @@ import {
   UsageError,
 } from "./describe.js";
 import { promptVersion, readPrompt } from "./prompt.js";
+import { interpretReply, LIMIT_STATUS, LimitError } from "./reply.js";
 
 const TIMEOUT_MS = 120_000;
 const USAGE = "usage: recognizer-describe-claude --model <name> <request-file>";
 
 function claudeArgs(model: string): string[] {
-  return ["-p", "--model", model, "--tools", "", "--no-session-persistence"];
+  return [
+    "-p",
+    "--model",
+    model,
+    "--tools",
+    "",
+    "--no-session-persistence",
+    "--output-format",
+    "json",
+    "--setting-sources",
+    "",
+    "--strict-mcp-config",
+    "--mcp-config",
+    '{"mcpServers":{}}',
+    "--disable-slash-commands",
+    "--system-prompt",
+    "You describe code modules.",
+  ];
 }
 
 const FORWARDED = { SIGINT: 2, SIGTERM: 15 } as const;
@@ -94,19 +112,18 @@ function runClaude(model: string, input: string): Promise<string> {
           return;
         }
 
-        if (status !== 0) {
-          const detail = Buffer.concat(err).toString("utf8").trim();
-
-          reject(
-            new DescribeError(
-              `claude exited with ${status ?? signal}${detail ? `: ${detail}` : ""}`,
+        try {
+          resolve(
+            interpretReply(
+              status,
+              signal,
+              Buffer.concat(out).toString("utf8"),
+              Buffer.concat(err).toString("utf8"),
             ),
           );
-
-          return;
+        } catch (error) {
+          reject(error);
         }
-
-        resolve(Buffer.concat(out).toString("utf8"));
       }),
     );
 
@@ -163,6 +180,12 @@ async function main(args: string[]): Promise<number> {
 
     return 0;
   } catch (error) {
+    if (error instanceof LimitError) {
+      process.stderr.write(`claude usage limit: ${error.message}\n`);
+
+      return LIMIT_STATUS;
+    }
+
     process.stderr.write(`${(error as Error).message}\n`);
 
     return error instanceof UsageError ? 2 : 1;

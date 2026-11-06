@@ -297,6 +297,35 @@ describe("scanPanel row states", () => {
     expect(model.rows[0]?.state).toEqual({ text: "12 of 40", tone: "run" });
   });
 
+  it.each([
+    [
+      "limit",
+      "Stopped: Claude usage limit reached: out of quota. 412 described, 1,628 not described. The next scan describes the rest.",
+    ],
+    [
+      "failures",
+      "Stopped: 4 describing calls failed in a row. 412 described, 1,628 not described. The next scan describes the rest.",
+    ],
+  ] as const)(
+    "shows the describe stop for %s in the warn tone with its sentence",
+    (cause, note) => {
+      const model = scanPanel(
+        input({
+          describeStop: {
+            cause,
+            reason: "out of quota",
+            described: 412,
+            notDescribed: 1628,
+            threshold: 4,
+          },
+        }),
+      );
+
+      expect(model.rows[0]?.state).toEqual({ text: "stopped", tone: "warn" });
+      expect(model.rows[0]?.note).toBe(note);
+    },
+  );
+
   it("counts findings with the age from the findings file and says 1 finding", () => {
     const model = scanPanel(
       input({

@@ -118,7 +118,7 @@ import {
   scanPanel,
 } from "./scan-panel-model";
 import { buildScanPanelView } from "./scan-panel-view";
-import type { ShowTarget } from "./scan-progress";
+import type { DescribeStop, ShowTarget } from "./scan-progress";
 import type { BarModel } from "./selection-bar-view";
 import {
   inertSensors,
@@ -207,6 +207,7 @@ export type ScanHost = {
   running: () => boolean;
   progressText: () => string | null;
   describeProgress: () => { entries: number; total: number } | null;
+  describeStop: () => DescribeStop | null;
   run: (modules: string[] | null, planned?: PlannedRun) => void;
   stop: () => void;
   refresh: () => void;
@@ -221,6 +222,7 @@ export const inertScanHost: ScanHost = {
   running: () => false,
   progressText: () => null,
   describeProgress: () => null,
+  describeStop: () => null,
   run: () => {},
   stop: () => {},
   refresh: () => {},
@@ -1671,6 +1673,7 @@ export function showExplorer(
       scanning: scanHost.running(),
       progressText: scanHost.progressText(),
       describeProgress: scanHost.describeProgress(),
+      describeStop: scanHost.describeStop(),
       now: Date.now(),
       shipped: shippedSensors,
       freshness: freshnessOf(loaded),
