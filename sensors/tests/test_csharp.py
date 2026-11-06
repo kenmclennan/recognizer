@@ -19,6 +19,8 @@ from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError
 from recognizer_sensors.testrun.run import collect_coverage
 
+pytestmark = pytest.mark.real_probes
+
 SAMPLE = REPOSITORY / "fixtures" / "csharp" / "sample"
 EXPECTED_SCAN = REPOSITORY / "fixtures" / "csharp" / "expected-scan.json"
 FINDINGS_SCHEMA = REPOSITORY / "schema" / "findings.schema.json"
@@ -292,6 +294,7 @@ def test_a_directive_condition_is_skipped_and_the_code_under_it_is_kept():
 
 
 FAKE_DOTNET = """#!/bin/sh
+if [ "$1" = "--version" ]; then echo 10.0.0; exit 0; fi
 while [ "$#" -gt 0 ]; do
   if [ "$1" = "--results-directory" ]; then directory="$2"; fi
   shift
@@ -352,15 +355,18 @@ def test_a_second_run_does_not_merge_the_first_runs_reports(monkeypatch, tmp_pat
 
 
 def test_a_test_project_without_coverlet_stops_before_dotnet_starts(monkeypatch, tmp_path):
-    install_dotnet(monkeypatch, tmp_path, "#!/bin/sh\ntouch started\n")
+    install_dotnet(
+        monkeypatch, tmp_path, '#!/bin/sh\n[ "$1" = --version ] && exit 0\ntouch started\n'
+    )
     root = csharp_repository(tmp_path)
     (root / "tests/T/T.csproj").write_text('<Project Sdk="Microsoft.NET.Sdk" />')
 
     with pytest.raises(MeasurementError) as raised:
         collect_coverage(root, read_scans(root), None, None)
 
-    assert (
-        str(raised.value) == "the csharp test project tests/T does not reference coverlet.collector"
+    assert str(raised.value) == (
+        "the csharp test project tests/T does not reference coverlet.collector; "
+        "add it with dotnet add tests/T package coverlet.collector"
     )
     assert not (root / "started").exists()
 
@@ -434,7 +440,9 @@ def test_crap_and_mutation_exit_2_naming_dotnet_when_it_is_missing(
 
     if sensor == "mutation":
         assert status == 2
-        assert capsys.readouterr().err.splitlines()[-1] == "dotnet is not installed"
+        assert capsys.readouterr().err.splitlines()[-1] == (
+            "dotnet is not installed; install it with brew install --cask dotnet-sdk"
+        )
     else:
         assert status == 0
         assert json.loads(output.read_text())["diagnosis"]["code"] == "coverage-unavailable"

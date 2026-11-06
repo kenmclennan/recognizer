@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from recognizer_sensors.cli import main
+from recognizer_sensors.testrun import run as testrun
+from recognizer_sensors.testrun.probes import Probe
 
 REPOSITORY = Path(__file__).parents[2]
 FIXTURE = REPOSITORY / "fixtures" / "duplication" / "sample"
@@ -148,3 +150,9 @@ def exports_module(module_id: str, *names: str, hidden: tuple[str, ...] = ()) ->
     ]
 
     return {"id": module_id, "members": members}
+
+
+@pytest.fixture(autouse=True)
+def probes_off(request, monkeypatch):
+    if request.node.get_closest_marker("real_probes") is None:
+        monkeypatch.setattr(testrun, "probe", lambda repository, scans, settings: Probe())

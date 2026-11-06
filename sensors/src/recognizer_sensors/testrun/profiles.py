@@ -13,6 +13,8 @@ CSHARP_CLASSES: dict[str, list[str]] = {}
 
 RUST_UNITS: dict[str, tuple[str, str, str]] = {}
 
+PYTHON_BORROWED: list[str] = []
+
 CSHARP_TRX_LOGGER = ["--logger", "trx;LogFilePrefix=results"]
 
 PYTHON_COVERAGE = (
@@ -101,7 +103,9 @@ def python_runner(repository: Path) -> list[str]:
         lockfile = entry["lockfile"]
 
         if lockfile is None or (repository / lockfile).is_file():
-            return list(entry["command"])
+            command = list(entry["command"])
+
+            return [*command, *PYTHON_BORROWED] if command[0] == "uv" else command
 
     return list(PYTHON_RUNNERS[-1][1])
 

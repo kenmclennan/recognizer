@@ -23,15 +23,18 @@ from recognizer_sensors.settings import (
 from recognizer_sensors.testrun.failures import (
     crap_tests_failed,
     failing_names,
+    known_cause,
     mutation_tests_failed,
     named,
     suite_failed,
 )
+from recognizer_sensors.testrun.probes import probe
 from recognizer_sensors.testrun.profiles import (
     CONTEXTS_JSON,
     CSHARP_CLASSES,
     KOTLIN_CLASSES,
     PROFILES,
+    PYTHON_BORROWED,
     RUST_UNITS,
     by_file_command,
     coverage_command,
@@ -130,53 +133,6 @@ def format_of(path: str) -> str:
     return "jacoco" if path.endswith(".xml") else "lcov"
 
 
-COVERLET = "coverlet.collector"
-
-BUILD_PROPERTY_FILES = (
-    "Directory.Build.props",
-    "Directory.Build.targets",
-    "Directory.Packages.props",
-)
-
-
-def names_coverlet(path: Path) -> bool:
-    try:
-        return COVERLET in path.read_text(encoding="utf-8", errors="replace").lower()
-    except OSError:
-        return False
-
-
-def project_has_coverlet(repository: Path, directory: Path) -> bool:
-    if any(names_coverlet(project) for project in directory.glob("*.csproj")):
-        return True
-
-    current = directory
-
-    while True:
-        if any(names_coverlet(current / name) for name in BUILD_PROPERTY_FILES):
-            return True
-
-        if current == repository or repository not in current.parents:
-            return False
-
-        current = current.parent
-
-
-def check_coverlet(repository: Path, scans: list[Scan]) -> None:
-    for scan in scans:
-        if scan.language != "csharp":
-            continue
-
-        for skipped in scan.skip_paths:
-            directory = repository / skipped
-
-            if directory.is_dir() and any(directory.glob("*.csproj")):
-                if not project_has_coverlet(repository, directory):
-                    raise MeasurementError(
-                        f"the csharp test project {skipped} does not reference {COVERLET}"
-                    )
-
-
 def plan(
     repository: Path,
     scans: list[Scan],
@@ -197,7 +153,12 @@ def plan(
     if coverage is not None:
         return [], sources
 
-    check_coverlet(repository, scans)
+    found = probe(repository, scans, {})
+
+    if found.diagnosis is not None:
+        raise Refusal(found.diagnosis)
+
+    PYTHON_BORROWED[:] = found.borrowed
 
     steps = [
         Step(
@@ -317,6 +278,21 @@ def settle(
     if not missing:
         return
 
+    known = known_cause([r.output for r in failed])
+
+    if known is not None:
+        cause, sentence, fix = known
+        diagnosis = diagnose(
+            "coverage-unavailable", f"coverage unavailable: {cause}; {sentence}", fix=fix
+        )
+
+        if diagnoses is None:
+            raise Refusal(diagnosis)
+
+        diagnoses.append(diagnosis)
+
+        return
+
     cause = "the test command left no coverage report"
 
     if names:
@@ -400,17 +376,21 @@ def collect_coverage(
     if not scans:
         return {}
 
-    steps, sources = plan(repository, scans, test_command, coverage)
-    clear_cached_reports(repository, sources)
-
     try:
+        steps, sources = plan(repository, scans, test_command, coverage)
+        clear_cached_reports(repository, sources)
         results = run_steps(repository, steps)
     except Refusal as refusal:
         if diagnoses is None:
             raise
 
+        original = refusal.diagnosis
         diagnoses.append(
-            diagnose("coverage-unavailable", f"coverage unavailable: {refusal.diagnosis['line']}")
+            diagnose(
+                "coverage-unavailable",
+                f"coverage unavailable: {original['line']}",
+                fix=original.get("fix"),
+            )
         )
 
         return {}
