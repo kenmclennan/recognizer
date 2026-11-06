@@ -1,0 +1,12 @@
+{
+  "schema_version": 3,
+  "description": "What the discount change will do.",
+  "commit": null,
+  "plan": true,
+  "steps": [
+    {
+      "kind": "pick",
+      "module": "shop/application/place.py"
+    }
+  ]
+}

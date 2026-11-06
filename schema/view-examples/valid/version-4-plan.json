@@ -1,0 +1,43 @@
+{
+  "schema_version": 4,
+  "description": "What the discount change will do.",
+  "commit": null,
+  "plan": true,
+  "notes": [
+    {
+      "module": "shop/application/discount.py",
+      "text": "Does not exist yet.",
+      "by": "Ken"
+    }
+  ],
+  "proposed": [
+    {
+      "module": "shop/application/discount.py",
+      "kind": "new"
+    },
+    {
+      "module": "shop/application/place.py",
+      "kind": "changes"
+    },
+    {
+      "module": "shop/domain/pricing.py",
+      "kind": "moves",
+      "from": "shop/application/pricing.py"
+    },
+    {
+      "module": "shop/domain/totals.py",
+      "kind": "moves-and-changes",
+      "from": "shop/application/totals.py"
+    },
+    {
+      "module": "shop/domain/legacy.py",
+      "kind": "removed"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "pick",
+      "module": "shop/application/place.py"
+    }
+  ]
+}

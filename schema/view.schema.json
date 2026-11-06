@@ -9,6 +9,12 @@
     "schema_version": { "enum": [1, 2, 3, 4] },
     "ordered": { "type": "boolean" },
     "change": { "$ref": "#/$defs/change" },
+    "plan": { "const": true },
+    "proposed": {
+      "type": "array",
+      "description": "What a plan says will happen to a module. At most one per module; when a file holds several on one module, readers keep the last.",
+      "items": { "$ref": "#/$defs/proposedChange" }
+    },
     "title": { "type": "string", "pattern": "\\S" },
     "description": { "type": "string", "pattern": "\\S" },
     "commit": { "type": ["string", "null"], "minLength": 1 },
@@ -69,8 +75,23 @@
         "required": ["schema_version"]
       },
       "then": {
-        "not": { "anyOf": [{ "required": ["ordered"] }, { "required": ["change"] }] }
+        "not": {
+          "anyOf": [
+            { "required": ["ordered"] },
+            { "required": ["change"] },
+            { "required": ["plan"] },
+            { "required": ["proposed"] }
+          ]
+        }
       }
+    },
+    {
+      "if": { "required": ["proposed"] },
+      "then": { "required": ["plan"] }
+    },
+    {
+      "if": { "required": ["plan"] },
+      "then": { "not": { "required": ["change"] } }
     }
   ],
   "$defs": {
@@ -82,6 +103,28 @@
         "base": { "$ref": "#/$defs/ref" },
         "head": { "$ref": "#/$defs/ref" }
       }
+    },
+    "proposedChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module", "kind"],
+      "properties": {
+        "module": { "$ref": "#/$defs/path" },
+        "kind": {
+          "enum": ["new", "changes", "moves", "moves-and-changes", "removed"]
+        },
+        "from": { "$ref": "#/$defs/path" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "kind": { "enum": ["moves", "moves-and-changes"] } },
+            "required": ["kind"]
+          },
+          "then": { "required": ["from"] },
+          "else": { "not": { "required": ["from"] } }
+        }
+      ]
     },
     "ref": {
       "type": "string",

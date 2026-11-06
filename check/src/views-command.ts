@@ -17,18 +17,25 @@ import {
 } from "./view-staleness.js";
 import {
   lastNotePerPath,
+  lastProposedPerModule,
   migrateView,
+  movesKind,
   noteWarnings,
   orderedStep,
+  PROPOSED_KINDS,
+  type ProposedKind,
+  proposedWarnings,
   type ResolvedView,
   rangeText,
   resolveView,
   serialiseView,
   type View,
   type ViewNote,
+  type ViewProposedChange,
   type ViewStep,
   validateView,
   viewNotes,
+  viewProposed,
 } from "./views.js";
 import { windowOrFail } from "./window-commands.js";
 
@@ -39,6 +46,7 @@ export const VIEW_SUBCOMMANDS = [
   "fold",
   "focus",
   "remove",
+  "change",
   "note",
   "reorder",
   "set",
@@ -70,20 +78,25 @@ const OPTIONS = {
   after: { type: "string" },
   first: { type: "boolean" },
   change: { type: "string" },
+  plan: { type: "boolean" },
+  "no-plan": { type: "boolean" },
+  from: { type: "string" },
+  clear: { type: "boolean" },
 } as const;
 
 export const VIEW_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
 
 const ALLOWED: Record<Subcommand, string[]> = {
-  new: ["description", "from-window", "change"],
-  add: [],
+  new: ["description", "from-window", "change", "plan"],
+  add: ["change", "from"],
   rule: ["folder", "uses", "used-by", "within"],
   fold: [],
   focus: [],
   remove: ["fold", "focus", "rule", "within"],
+  change: ["from", "clear"],
   note: ["by", "remove", "after", "first"],
   reorder: [],
-  set: ["change", "title", "description"],
+  set: ["change", "title", "description", "plan", "no-plan"],
   show: [],
   diff: [],
   list: [],
@@ -92,17 +105,19 @@ const ALLOWED: Record<Subcommand, string[]> = {
 };
 
 const USAGE: Record<Subcommand, string> = {
-  new: "recognizer views new <name> --description <text> [--change <base>..<head>] [--from-window <id>] [--repository <dir>] [--json]",
-  add: "recognizer views add <name> <module>... [--repository <dir>] [--json]",
+  new: "recognizer views new <name> --description <text> [--change <base>..<head> | --plan] [--from-window <id>] [--repository <dir>] [--json]",
+  add: "recognizer views add <name> <module>... [--change new|changes|moves|moves-and-changes|removed [--from <path>]] [--repository <dir>] [--json]",
   rule: "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>] [--repository <dir>] [--json]",
   fold: "recognizer views fold <name> <folder> [--repository <dir>] [--json]",
   focus: "recognizer views focus <name> <folder> [--repository <dir>] [--json]",
   remove:
     "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
+  change:
+    "recognizer views change <name> <module> (new|changes|moves|moves-and-changes|removed [--from <path>] | --clear) [--repository <dir>] [--json]",
   note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>]) [--repository <dir>] [--json]",
   reorder:
     "recognizer views reorder <name> <module-or-folder>... [--repository <dir>] [--json]",
-  set: "recognizer views set <name> [--change <base>..<head>|none] [--title <text>] [--description <text>] [--repository <dir>] [--json]",
+  set: "recognizer views set <name> [--change <base>..<head>|none] [--plan | --no-plan] [--title <text>] [--description <text>] [--repository <dir>] [--json]",
   show: "recognizer views show <name> [--repository <dir>] [--json]",
   diff: "recognizer views diff <name> [--repository <dir>] [--json]",
   list: "recognizer views list [--repository <dir>] [--json]",
@@ -273,6 +288,82 @@ function requireModules(scans: Scan[], paths: string[]): void {
   }
 }
 
+const MODULE_PATH = /^(?!\.\/)(?!\/)[^\\]*[^\\/]$/;
+
+function parseKind(text: string): ProposedKind {
+  const kind = PROPOSED_KINDS.find((entry) => entry === text);
+
+  if (kind === undefined) {
+    throw new InputError([
+      `a proposed change is one of ${PROPOSED_KINDS.join(", ")}, not ${text}`,
+    ]);
+  }
+
+  return kind;
+}
+
+function checkProposed(
+  kind: ProposedKind,
+  module: string,
+  from: string | undefined,
+): ViewProposedChange {
+  if (!MODULE_PATH.test(module)) {
+    throw new InputError([`not a module path: ${module}`]);
+  }
+
+  if (!movesKind(kind)) {
+    if (from !== undefined) {
+      throw new InputError([`--from does not apply to ${kind}`]);
+    }
+
+    return { module, kind };
+  }
+
+  if (from === undefined) {
+    throw new InputError([`${kind} needs --from <path> naming where it was`]);
+  }
+
+  if (!MODULE_PATH.test(from)) {
+    throw new InputError([`not a module path: ${from}`]);
+  }
+
+  if (from === module) {
+    throw new InputError(["--from must differ from the module"]);
+  }
+
+  return { module, kind, from };
+}
+
+function withProposed(
+  view: View,
+  entry: ViewProposedChange | null,
+  module: string,
+): View {
+  const migrated = migrateView(view);
+  const kept = viewProposed(migrated).filter((e) => e.module !== module);
+  const next = entry === null ? kept : [...kept, entry];
+
+  if (next.length === 0) {
+    delete migrated.proposed;
+  } else {
+    migrated.proposed = next;
+  }
+
+  return migrated;
+}
+
+function requirePlan(view: View, what: string): void {
+  if (view.plan !== true) {
+    throw new InputError([`${what} applies only to a plan`]);
+  }
+}
+
+function requireScanFor(scans: Scan[], entry: ViewProposedChange): void {
+  if (entry.kind === "changes" || entry.kind === "removed") {
+    requireModules(scans, [entry.module]);
+  }
+}
+
 function finishMutation(
   c: Context,
   name: string,
@@ -371,6 +462,12 @@ function runNew(argv: string[], io: Io): number {
   }
 
   const changeFlag = c.values.change;
+  const plan = c.values.plan === true;
+
+  if (plan && changeFlag !== undefined) {
+    throw new InputError(["a plan has no change range"]);
+  }
+
   const change =
     typeof changeFlag === "string"
       ? parseChangeFlag(io, c.root, changeFlag)
@@ -384,6 +481,7 @@ function runNew(argv: string[], io: Io): number {
     description,
     commit: resolveCommit(io, c.root),
     ...(change === undefined ? {} : { change }),
+    ...(plan ? { plan: true as const } : {}),
     steps: fromWindow?.steps ?? [],
   };
 
@@ -409,13 +507,46 @@ function runAdd(argv: string[], io: Io): number {
     io,
     (c, view, scans) => {
       const paths = [...new Set(c.positionals.slice(1))];
+      const kindFlag = c.values.change;
+      const fromFlag = c.values.from;
 
-      requireModules(scans, paths);
+      if (kindFlag === undefined && fromFlag !== undefined) {
+        throw new InputError(["--from needs --change"]);
+      }
 
+      let entries: ViewProposedChange[] = [];
+
+      if (typeof kindFlag === "string") {
+        requirePlan(view, "--change");
+
+        const kind = parseKind(kindFlag);
+
+        if (typeof fromFlag === "string" && paths.length !== 1) {
+          throw new InputError(["--from takes exactly one module"]);
+        }
+
+        entries = paths.map((module) =>
+          checkProposed(
+            kind,
+            module,
+            typeof fromFlag === "string" ? fromFlag : undefined,
+          ),
+        );
+
+        for (const entry of entries) {
+          requireScanFor(scans, entry);
+        }
+      } else {
+        requireModules(scans, paths);
+      }
+
+      const known = new Set(moduleNames(scans));
+      const toPick =
+        entries.length === 0 ? paths : paths.filter((p) => known.has(p));
       const picked = new Set(
         view.steps.flatMap((s) => (s.kind === "pick" ? [s.module] : [])),
       );
-      const added = paths.filter((path) => !picked.has(path));
+      const added = toPick.filter((path) => !picked.has(path));
 
       view.steps = view.steps.filter(
         (s) => !(s.kind === "left-out" && paths.includes(s.module)),
@@ -424,9 +555,78 @@ function runAdd(argv: string[], io: Io): number {
         ...added.map((module) => ({ kind: "pick" as const, module })),
       );
 
-      return { view, what: `added ${plural(added.length, "pick")}` };
+      let next = view;
+
+      for (const entry of entries) {
+        next = withProposed(next, entry, entry.module);
+      }
+
+      return {
+        view: next,
+        what:
+          entries.length === 0
+            ? `added ${plural(added.length, "pick")}`
+            : `added ${plural(added.length, "pick")}, set ${plural(entries.length, "proposed change")}`,
+      };
     },
     (count) => count >= 2,
+  );
+}
+
+function runChange(argv: string[], io: Io): number {
+  return mutate(
+    "change",
+    argv,
+    io,
+    (c, view, scans) => {
+      const module = c.positionals[1] as string;
+      const kindText = c.positionals[2];
+      const clearing = c.values.clear === true;
+
+      requirePlan(view, "views change");
+
+      if (clearing === (kindText !== undefined)) {
+        throw usageError("change");
+      }
+
+      const resolved = resolveView(view, scans);
+      const planned = resolved.planned.includes(module);
+
+      if (!planned && !resolved.modules.includes(module)) {
+        throw new InputError([`${module} is not on the view`]);
+      }
+
+      if (clearing) {
+        if (planned) {
+          throw new InputError([
+            `${module} is planned; remove it with views remove`,
+          ]);
+        }
+
+        if (!viewProposed(view).some((entry) => entry.module === module)) {
+          throw new InputError([`no proposed change on ${module}`]);
+        }
+
+        return {
+          view: withProposed(view, null, module),
+          what: `cleared the proposed change on ${module}`,
+        };
+      }
+
+      const entry = checkProposed(
+        parseKind(kindText as string),
+        module,
+        c.values.from as string | undefined,
+      );
+
+      requireScanFor(scans, entry);
+
+      return {
+        view: withProposed(view, entry, module),
+        what: `set the proposed change on ${module} to ${entry.kind}`,
+      };
+    },
+    (count) => count === 2 || count === 3,
   );
 }
 
@@ -610,7 +810,16 @@ function runRemove(argv: string[], io: Io): number {
         return { view, what: `removed rule ${relation} ${of}` };
       }
 
-      if (!resolveView(view, scans).modules.includes(path)) {
+      const before = resolveView(view, scans);
+
+      if (before.planned.includes(path)) {
+        return {
+          view: withProposed(view, null, path),
+          what: `removed the planned module ${path}`,
+        };
+      }
+
+      if (!before.modules.includes(path)) {
         throw new InputError([`${path} is not on the view`]);
       }
 
@@ -622,7 +831,7 @@ function runRemove(argv: string[], io: Io): number {
         view.steps.push({ kind: "left-out", module: path });
       }
 
-      return { view, what: `took ${path} off` };
+      return { view: withProposed(view, null, path), what: `took ${path} off` };
     },
     (count) => count === 2,
   );
@@ -676,7 +885,8 @@ function runNote(argv: string[], io: Io): number {
         };
       }
 
-      const modules = resolveView(view, scans).modules;
+      const resolved = resolveView(view, scans);
+      const modules = [...resolved.modules, ...resolved.planned];
 
       if (path.endsWith("/")) {
         if (!modules.some((module) => under(module, folderPath(path)))) {
@@ -742,13 +952,25 @@ function runSet(argv: string[], io: Io): number {
   const changeFlag = probe.values.change;
   const titleFlag = probe.values.title;
   const descriptionFlag = probe.values.description;
+  const planFlag = probe.values.plan === true;
+  const noPlanFlag = probe.values["no-plan"] === true;
 
   if (
     changeFlag === undefined &&
     titleFlag === undefined &&
-    descriptionFlag === undefined
+    descriptionFlag === undefined &&
+    !planFlag &&
+    !noPlanFlag
   ) {
     throw usageError("set");
+  }
+
+  if (planFlag && noPlanFlag) {
+    throw new InputError(["--plan and --no-plan cannot be combined"]);
+  }
+
+  if (planFlag && typeof changeFlag === "string" && changeFlag !== "none") {
+    throw new InputError(["a view is never both a plan and a change view"]);
   }
 
   if (typeof descriptionFlag === "string" && descriptionFlag.trim() === "") {
@@ -785,7 +1007,38 @@ function runSet(argv: string[], io: Io): number {
         what.push("set the description");
       }
 
-      if (changeFlag !== undefined) {
+      if (planFlag) {
+        if (migrated.change !== undefined && changeFlag !== "none") {
+          throw new InputError([
+            "a view is never both a plan and a change view",
+          ]);
+        }
+
+        if (changeFlag === "none") {
+          delete migrated.change;
+        }
+
+        migrated.plan = true;
+        what.push("made it a plan");
+      }
+
+      if (noPlanFlag && migrated.plan === true) {
+        const dropped = viewProposed(migrated).length;
+
+        delete migrated.plan;
+        delete migrated.proposed;
+        what.push(
+          `cleared the plan, dropped ${plural(dropped, "proposed change")}`,
+        );
+      }
+
+      if (changeFlag !== undefined && !planFlag) {
+        if (change !== undefined && migrated.plan === true) {
+          throw new InputError([
+            "a view is never both a plan and a change view",
+          ]);
+        }
+
         if (change === undefined) {
           delete migrated.change;
           what.push("removed the range");
@@ -813,9 +1066,10 @@ function withNotes(view: View, notes: ViewNote[]): View {
   return migrated;
 }
 
-function resolvedJson(resolved: ResolvedView) {
+function resolvedJson(resolved: ResolvedView, view: View) {
   return {
     modules: resolved.modules,
+    ...(view.plan === true ? { planned: resolved.planned } : {}),
     folded: resolved.folded,
     focus: resolved.focus,
   };
@@ -920,14 +1174,17 @@ function runShow(argv: string[], io: Io): number {
         description: view.description,
         commit: view.commit,
         ...(view.change === undefined ? {} : { change: view.change }),
+        ...(view.plan === true
+          ? { plan: true, proposed: viewProposed(view) }
+          : {}),
         steps: view.steps,
         notes: viewNotes(view).map((note, index) => ({
           ...note,
           number: index + 1,
         })),
-        resolved: resolvedJson(resolved),
+        resolved: resolvedJson(resolved, view),
         unresolved: resolved.unresolved,
-        warnings: noteWarnings(view),
+        warnings: [...noteWarnings(view), ...proposedWarnings(view, resolved)],
       },
       "",
     );
@@ -937,18 +1194,23 @@ function runShow(argv: string[], io: Io): number {
 
   const lines = [
     `${name}: ${view.description}`,
+    ...(view.plan === true ? ["plan"] : []),
     `saved at ${view.commit ?? "none"}`,
     ...(view.change === undefined ? [] : [`change: ${rangeText(view.change)}`]),
     view.steps.length === 0 ? "no steps" : "steps:",
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
     `resolves to ${plural(resolved.modules.length, "module")}`,
     ...resolved.modules.map((module) => `  ${module}`),
+    ...viewProposed(view).map(
+      (entry) =>
+        `  ${entry.kind} ${entry.module}${entry.from === undefined ? "" : ` (from ${entry.from})`}${resolved.planned.includes(entry.module) ? " (planned)" : ""}`,
+    ),
   ];
 
-  const onView = new Set(resolved.modules);
+  const onView = new Set([...resolved.modules, ...resolved.planned]);
   const notedOnView = (path: string) =>
     path.endsWith("/")
-      ? resolved.modules.some((module) => under(module, folderPath(path)))
+      ? [...onView].some((module) => under(module, folderPath(path)))
       : onView.has(path);
   const notes = viewNotes(view);
 
@@ -962,7 +1224,11 @@ function runShow(argv: string[], io: Io): number {
     );
   }
 
-  lines.push(...noteWarnings(view).map((warning) => `warning: ${warning}`));
+  lines.push(
+    ...[...noteWarnings(view), ...proposedWarnings(view, resolved)].map(
+      (warning) => `warning: ${warning}`,
+    ),
+  );
 
   if (resolved.unresolved.length > 0) {
     lines.push(
@@ -1005,6 +1271,7 @@ function runList(argv: string[], io: Io): number {
         commit: view.commit,
         steps: view.steps.length,
         ...(view.change === undefined ? {} : { change: view.change }),
+        ...(view.plan === true ? { plan: true } : {}),
         stale: staleOf(io, c.root, view, scans),
       };
     } catch (error) {
@@ -1020,7 +1287,7 @@ function runList(argv: string[], io: Io): number {
         "error" in row
           ? `${row.name}  invalid: ${row.error}`
           : [
-              `${row.name}  ${row.change === undefined ? "" : `${rangeText(row.change)}  `}${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
+              `${row.name}  ${"plan" in row && row.plan === true ? "plan  " : ""}${row.change === undefined ? "" : `${rangeText(row.change)}  `}${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
               ...row.stale.map(
                 (reason) => `  stale: ${staleReasonText(reason)}`,
               ),
@@ -1132,7 +1399,10 @@ function runCheck(argv: string[], io: Io): number {
         continue;
       }
 
-      const warnings = noteWarnings(view);
+      const warnings = [
+        ...noteWarnings(view),
+        ...proposedWarnings(view, resolveView(view, scans)),
+      ];
 
       const annotate = (current: View): CheckedStep[] =>
         resolveView(current, scans).unresolved.map((u) => {
@@ -1185,6 +1455,18 @@ function runCheck(argv: string[], io: Io): number {
           ...migrateView(view),
           steps,
         };
+
+        if (view.proposed !== undefined) {
+          view.proposed = lastProposedPerModule(
+            view.proposed.map((entry) => ({
+              ...entry,
+              module: renamed.get(entry.module) ?? entry.module,
+              ...(entry.from === undefined
+                ? {}
+                : { from: renamed.get(entry.from) ?? entry.from }),
+            })),
+          );
+        }
 
         if (view.notes !== undefined) {
           view.notes = lastNotePerPath(
@@ -1291,6 +1573,7 @@ const HANDLERS: Record<Subcommand, (argv: string[], io: Io) => number> = {
   fold: runFold,
   focus: runFocus,
   remove: runRemove,
+  change: runChange,
   note: runNote,
   reorder: runReorder,
   set: runSet,

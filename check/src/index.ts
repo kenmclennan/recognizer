@@ -168,11 +168,14 @@ export {
   staleReasonText,
 } from "./view-staleness.js";
 export {
+  type Ghost,
   isValidRef,
   migrateView,
+  movesKind,
   type Note,
   noteWarnings,
   orderedStep,
+  type ProposedKind,
   parseRange,
   type ResolvedView,
   rangeText,
@@ -181,7 +184,9 @@ export {
   type View,
   type ViewChange,
   type ViewNote,
+  type ViewProposedChange,
   type ViewStep,
   validateView,
   viewNotes,
+  viewProposed,
 } from "./views.js";
