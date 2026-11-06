@@ -1,4 +1,3 @@
-import { isPainZone } from "./finding-sentence";
 import {
   type FindingRow,
   orderFindings,
@@ -20,8 +19,6 @@ const FIXED: { key: string; name: string }[] = [
   { key: "kind:orphan", name: "Orphan" },
   { key: "kind:policy_drift", name: "Policy drift" },
   { key: "kind:stable_dependencies", name: "Unstable dependency" },
-  { key: "zone:pain", name: "Pain zone" },
-  { key: "zone:useless", name: "Useless zone" },
   { key: "kind:unused_exports", name: "Unused exports" },
   { key: "kind:duplication", name: "Duplication" },
   { key: "kind:crap", name: "C.R.A.P." },
@@ -45,13 +42,7 @@ export function groupOf(row: FindingRow): { key: string; name: string } {
   }
 
   const kind = row.kind.startsWith("thresholds.") ? "thresholds" : row.kind;
-  const fixedKey =
-    kind === "stable_abstractions"
-      ? isPainZone(row.record)
-        ? "zone:pain"
-        : "zone:useless"
-      : `kind:${kind}`;
-  const fixed = FIXED.find((one) => one.key === fixedKey);
+  const fixed = FIXED.find((one) => one.key === `kind:${kind}`);
 
   return fixed ?? { key: `kind:${row.kind}`, name: kindLabel(row.kind) };
 }

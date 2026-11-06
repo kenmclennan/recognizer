@@ -38,7 +38,6 @@ interface MetricsRow {
 
 interface ScanDescription {
   settings: {
-    distance_threshold?: number;
     entry_points?: string[];
     warnings?: Record<string, boolean>;
   };
@@ -120,13 +119,11 @@ function settingsFrom(description: ScanDescription): StructureSettings {
     orphan: false,
     policy_drift: false,
     stable_dependencies: false,
-    stable_abstractions: false,
     unused_exports: false,
   };
 
   return {
     hub_threshold: 10,
-    distance_threshold: description.settings.distance_threshold ?? 0.3,
     entry_points: description.settings.entry_points ?? [],
     warnings: { ...off, ...description.settings.warnings },
   };
@@ -145,15 +142,20 @@ function runScan(name: string) {
   );
 }
 
-const scans = [...new Set(expected.cases.map((one) => one.scan))].sort();
+const scans = [
+  ...new Set([
+    ...expected.cases.map((one) => one.scan),
+    ...expected.folder_metrics.map((row) => row.scan),
+  ]),
+].sort();
 
 function label(one: Case): string {
   return `${one.id} (${one.expect}, ${one.finding_id})`;
 }
 
 describe("structure corpus", () => {
-  it("holds 36 labelled cases and 17 folder metric rows", () => {
-    expect(expected.cases).toHaveLength(36);
+  it("holds 25 labelled cases and 17 folder metric rows", () => {
+    expect(expected.cases).toHaveLength(25);
     expect(expected.folder_metrics).toHaveLength(17);
   });
 

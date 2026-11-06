@@ -64,7 +64,6 @@ describe("check in repository mode", () => {
         status: "ran",
         settings: {
           hub_threshold: 10,
-          distance_threshold: 0.3,
           entry_points: [],
           warnings: {
             cycle: true,
@@ -73,7 +72,6 @@ describe("check in repository mode", () => {
             orphan: true,
             policy_drift: true,
             stable_dependencies: true,
-            stable_abstractions: true,
             unused_exports: false,
           },
         },

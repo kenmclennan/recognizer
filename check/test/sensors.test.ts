@@ -660,7 +660,6 @@ describe("check running the structure sensor", () => {
     expect(fake.files.has(`${STRUCTURE}.tmp`)).toBe(false);
     expect(document.settings).toEqual({
       hub_threshold: 10,
-      distance_threshold: 0.3,
       entry_points: [],
       warnings: {
         cycle: true,
@@ -669,13 +668,12 @@ describe("check running the structure sensor", () => {
         orphan: true,
         policy_drift: true,
         stable_dependencies: true,
-        stable_abstractions: true,
         unused_exports: false,
       },
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: hub_threshold 10, distance_threshold 0.3, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, stable_abstractions on, unused_exports off",
+      "sensor structure: hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, unused_exports off",
     );
     expect(err).toBe("");
   });
@@ -808,7 +806,6 @@ describe("show and modules read the findings files", () => {
           orphan: true,
           policy_drift: true,
           stable_dependencies: true,
-          stable_abstractions: true,
           unused_exports: false,
         },
       },
@@ -836,7 +833,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("5");
+    expect(written.sensor.version).toBe("6");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -865,8 +862,8 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("5");
-    expect(written.settings.distance_threshold).toBe(0.3);
+    expect(written.sensor.version).toBe("6");
+    expect(written.settings.distance_threshold).toBeUndefined();
   });
 
   it("regenerates when the config's settings differ from the file's", async () => {

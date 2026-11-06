@@ -45,6 +45,7 @@
                   "minimum": 1
                 },
                 "distance_threshold": {
+                  "description": "Retired: accepted and ignored.",
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1
@@ -69,6 +70,7 @@
                       "type": "boolean"
                     },
                     "stable_abstractions": {
+                      "description": "Retired: accepted and ignored.",
                       "type": "boolean"
                     },
                     "unused_exports": {

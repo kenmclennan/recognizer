@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**fix.** Every hand-computed metric (136 values over 17 folders) and 33 of the 34 labelled cases agree with the sensor, and the Python scanner's import graph matches grimp's once re-exports are accounted for; and the structure sensor's cycle, hubs and orphans over lightcycle's scan agree with grimp's graph (run by the driver after merge); but one real defect was found (a ring of three or more folders is not reported, REC-185). The sensor needs that `fix` before it is trusted for cycles.
+**fix.** Every hand-computed metric (136 values over 17 folders) and 22 of the 23 labelled cases agree with the sensor, and the Python scanner's import graph matches grimp's once re-exports are accounted for; and the structure sensor's cycle, hubs and orphans over lightcycle's scan agree with grimp's graph (run by the driver after merge); but one real defect was found (a ring of three or more folders is not reported, REC-185). The sensor needs that `fix` before it is trusted for cycles.
 
 ## Method
 
@@ -15,11 +15,11 @@
 
 ### Warnings against hand labels
 
-34 cases: 5 cycle, 3 hub, 4 folder cycle, 7 orphan, 4 stable dependencies, 11 stable abstractions (pain, useless, exactly at the threshold, null instability, null abstractness, main sequence). For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the folder cycle against a one-way dependency and two nested folders; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability; the worked example at thresholds 0.3 and 0.3333, where `core` has D = 0.3333 and warns only at the lower threshold because the rule is strictly greater.
+23 cases: 5 cycle, 3 hub, 4 folder cycle, 7 orphan, 4 stable dependencies. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the folder cycle against a one-way dependency and two nested folders; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability.
 
 | result | count |
 | --- | --- |
-| cases that agree | 33 |
+| cases that agree | 22 |
 | cases that disagree | 1 (the ring of three folders) |
 | findings the sensor produced that no label expects | 0 |
 
@@ -71,7 +71,7 @@ No one-sided edge is a `TYPE_CHECKING`, dynamic or relative import. Every one-si
 
 ### The structure sensor over lightcycle's scan
 
-Run by the driver on 2026-11-03 over the same clean worktree (`recognizer check`, defaults): 90 warnings, of which 1 cycle, 2 hubs, 4 orphans, 17 folder cycles, 33 unstable dependencies and 22 pain zone. Checked against grimp's graph (the shared edges plus grimp's own):
+Run by the driver on 2026-11-03 over the same clean worktree (`recognizer check`, defaults): 90 warnings, of which 1 cycle, 2 hubs, 4 orphans, 17 folder cycles, 33 unstable dependencies and 22 of a kind since retired. Checked against grimp's graph (the shared edges plus grimp's own):
 
 | finding | sensor | grimp's graph | agrees |
 | --- | --- | --- | --- |

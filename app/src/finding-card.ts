@@ -15,11 +15,7 @@ export type CardModel = {
   rows: CardRowModel[];
 };
 
-const FOLDER_KINDS = new Set([
-  "folder_cycle",
-  "stable_dependencies",
-  "stable_abstractions",
-]);
+const FOLDER_KINDS = new Set(["folder_cycle", "stable_dependencies"]);
 
 function folderOf(path: string): string {
   const at = path.lastIndexOf("/");
@@ -51,10 +47,6 @@ export function folderSubject(record: FindingRecord): string | null {
     return (
       record.id.slice("stable_dependencies:".length).split("->")[0] ?? null
     );
-  }
-
-  if (record.kind === "stable_abstractions") {
-    return record.id.slice("stable_abstractions:".length);
   }
 
   if (
