@@ -1,0 +1,6 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "structure", "version": "8" },
+  "commit": "abc", "modified": false, "settings": {},
+  "findings": [{ "id": "folder_cycle:a,b", "kind": "folder_cycle", "severity": "warning", "principle": "no-cycles", "summary": "s", "evidence": { "modules": ["a/x.py"], "cuts": [{ "from": "a/x.py" }] } }]
+}

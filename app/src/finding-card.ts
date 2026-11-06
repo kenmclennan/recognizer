@@ -99,6 +99,20 @@ export function cardOf(row: FindingRow): CardModel {
   const subject = subjectOf(row);
   const rows: CardRowModel[] = [];
 
+  if (record.kind === "folder_cycle" && record.evidence.cuts !== undefined) {
+    for (const cut of record.evidence.cuts) {
+      rows.push({ kind: "edge", from: cut.from, to: cut.to });
+    }
+
+    return {
+      id: row.id,
+      name: subject.name,
+      folder: subject.folder,
+      sentence: sentenceOf({ record, reported: row.reported }),
+      rows,
+    };
+  }
+
   if (isMemberFinding(record)) {
     for (const member of record.evidence.members ?? []) {
       rows.push({

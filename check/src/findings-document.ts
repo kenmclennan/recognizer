@@ -21,6 +21,8 @@ export interface FindingRecord {
   evidence: {
     modules: string[];
     edges?: FindingEdge[];
+    cuts?: { from: string; to: string }[];
+    split_candidates?: string[];
     members?: {
       module: string;
       name: string;

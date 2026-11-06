@@ -177,7 +177,7 @@
       "id": "folder_cycle",
       "principle": "no-cycles",
       "fix_pattern": "break-folder-cycle",
-      "summary": "folders shop/application, shop/domain, shop/legacy import each other in a cycle (4 edges)",
+      "summary": "3 folders import each other in a cycle; removing 2 of 4 imports breaks it",
       "evidence": {
         "modules": [
           "shop/application/place.py",
@@ -194,6 +194,16 @@
             "from": "shop/domain/money.py",
             "to": "shop/legacy/helpers.py"
           },
+          {
+            "from": "shop/domain/order.py",
+            "to": "shop/application/place.py"
+          },
+          {
+            "from": "shop/legacy/helpers.py",
+            "to": "shop/domain/order.py"
+          }
+        ],
+        "cuts": [
           {
             "from": "shop/domain/order.py",
             "to": "shop/application/place.py"

@@ -298,3 +298,74 @@ describe("check ranks duplication warnings by lines duplicated", () => {
     expect(ids).toEqual(order);
   });
 });
+
+describe("folder cycle cuts in the report", () => {
+  function sixCutScan() {
+    const edges: [string, string][] = [];
+
+    for (let at = 1; at <= 6; at += 1) {
+      edges.push([`a/x${at}.py`, `b/p${at}.py`]);
+    }
+
+    for (let at = 1; at <= 7; at += 1) {
+      edges.push([`b/p${at}.py`, `a/y${at}.py`]);
+    }
+
+    const ids = [...new Set(edges.flat())];
+
+    return {
+      ...checkScan,
+      modules: ids.map((id) => ({
+        id,
+        language: "python",
+        kind: "module",
+        members: [],
+      })),
+      edges: edges.map(([from, to], index) => ({
+        from,
+        to,
+        kind: "depends",
+        line: index + 1,
+      })),
+      foreign: [],
+    };
+  }
+
+  function runOn(...flags: string[]) {
+    const scan = sixCutScan();
+    const fake = fakeIo({
+      commit: COMMIT,
+      files: {
+        ...mountedModules(scan),
+        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(scan),
+      },
+    });
+
+    run(["check", ...flags, "--repository", ROOT], fake.io);
+
+    return fake.out();
+  }
+
+  it("prints at most 5 cuts indented under the warning and counts the rest", () => {
+    const lines = runOn().split("\n");
+    const at = lines.findIndex((line) => line.startsWith("warning: folders a"));
+
+    expect(lines[at]).toContain("removing 6 of 13 imports breaks the cycle");
+    expect(lines.slice(at + 1, at + 6)).toEqual([
+      "  cut a/x1.py -> b/p1.py",
+      "  cut a/x2.py -> b/p2.py",
+      "  cut a/x3.py -> b/p3.py",
+      "  cut a/x4.py -> b/p4.py",
+      "  cut a/x5.py -> b/p5.py",
+    ]);
+    expect(lines[at + 6]).toBe("  and 1 more cuts");
+  });
+
+  it("carries every cut in --json", () => {
+    const warning = JSON.parse(runOn("--json")).warnings.find(
+      (one: { id: string }) => one.id === "folder_cycle",
+    );
+
+    expect(warning.evidence.cuts).toHaveLength(6);
+  });
+});

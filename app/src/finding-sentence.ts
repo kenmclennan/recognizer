@@ -102,6 +102,21 @@ function folderCycle(record: FindingRecord): string | null {
   const through = record.evidence.edges?.length ?? 0;
 
   const imports = `${through} ${plural(through, "import", "imports")}`;
+  const cuts = record.evidence.cuts;
+
+  if (cuts !== undefined) {
+    const lead =
+      folders.length === 2
+        ? `${folders[0]} and ${folders[1]} import each other`
+        : `${folders.slice(0, -1).join(", ")} and ${folders.at(-1)} import each other in a cycle`;
+    const split = record.evidence.split_candidates ?? [];
+    const tail =
+      split.length === 0
+        ? ""
+        : ` ${split.join(", ")} ${split.length === 1 ? "is" : "are"} imported by and ${split.length === 1 ? "imports" : "import"} most of the cycle, so splitting ${split.length === 1 ? "it" : "them"} is likely the real fix.`;
+
+    return `${lead}; removing ${cuts.length} of ${through} ${plural(through, "import", "imports")} breaks the cycle.${tail}`;
+  }
 
   if (folders.length === 2) {
     return `${folders[0]} and ${folders[1]} import each other, through ${imports}.`;
