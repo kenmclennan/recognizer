@@ -1,5 +1,6 @@
 {
   "settings": {
+    "instability_gap": 0,
     "warnings": {
       "stable_dependencies": true
     }

@@ -21,6 +21,8 @@ The structure sensor (`check/src/structure-sensor.ts`) is built in. It is config
 sensors:
   structure:
     hub_threshold: 10
+    instability_gap: 0.2
+    composition_roots: ["cmd/**"]
     warnings:
       cycle: true
       hub: true
@@ -172,12 +174,12 @@ Metrics are computed per module from the scan alone, over distinct modules after
 - `instability`: `efferent / (afferent + efferent)` rounded to four decimals, `null` when both are 0.
 - `abstractness`: 1 when the module's `kind` is `interface`, otherwise 0.
 
-Folder metrics are written beside them as `folder_metrics`, one row per folder (a module id up to its last `/`, or `.`) that holds a kept module, sorted by `id`, always computed whatever the warning switches say; `check <module>` keeps only the folders of the named modules. A subfolder's modules are not part of its parent. The graph is the kept graph of every scan, with self-edges dropped; a foreign target counts as outside.
+Folder metrics are written beside them as `folder_metrics`, one row per folder (a module id up to its last `/`, or `.`) that holds a kept module, sorted by `id`, always computed whatever the warning switches say; `check <module>` keeps only the folders of the named modules. A subfolder's modules are not part of its parent. The graph is the kept graph of every scan, with self-edges dropped; a foreign target counts for nothing, in either coupling.
 
 - `modules`: the kept modules in the folder.
 - `afferent` (Ca): distinct modules outside the folder with an edge to a module inside.
-- `efferent` (Ce): distinct modules inside the folder with an edge to a module outside or to a foreign node.
-- `instability`: `efferent / (afferent + efferent)` rounded to four decimals, `null` when both are 0.
+- `efferent` (Ce): distinct modules inside the folder with an edge to a project module outside; an edge to a foreign node adds nothing.
+- `instability`: `efferent / (afferent + efferent)` rounded to four decimals, `null` when both are 0, so a folder whose only outside imports are foreign and that nothing imports has an unknown instability.
 - `exported_members` and `abstract_members`: the exported members of the folder's modules, and those among them that are abstract members: kind `interface`, kind `class` tagged `abstract`, or kind `type` tagged `abstract`.
 - `abstractness`: `abstract_members / exported_members` rounded to four decimals, `null` when no member is exported (a scan that records no members leaves it unknown).
 - `distance`: `abs(abstractness + instability - 1)` from the unrounded values, rounded to four decimals, `null` when either is `null`.
@@ -199,7 +201,7 @@ A warning is a graph heuristic reported as a candidate with evidence, never a ve
 - `folder_cycle`: two folders (a module id up to its last `/`, or `.`) whose modules import each other in both directions; one finding per folder pair, with the sorted `modules` on those edges and the `edges` in both directions. A ring of three folders with no two-way pair reports nothing here.
 - `orphan`: a module nothing imports that is not an entry point: named literally by a policy entry, a test file by convention (a `test`, `tests` or `__tests__` directory, `test_*.py`, `*_test.py`, `conftest.py`, `*.test.*`, `*.spec.*`, a stem ending `Test` or `Tests`), an `index`, `__init__`, `main`, `mod` or `lib` file, a module its scanner marks as run rather than imported (Python: a package's `__main__.py` or a module with a top-level `__name__` guard), or matched by a glob in `warnings.orphan.entry_points`. The sensor reads no manifest; a repository lists its manifests' mains, bins and scripts there.
 - `policy_drift`: with a policy that has components, one finding per policy glob that matches no scanned module (`evidence.modules` is empty) and one per scanned folder in which no module matches any component.
-- `stable_dependencies`: for each ordered pair of distinct folders where a module of the first imports a module of the second, one finding when the second folder's `instability` is strictly greater than the first's; evidence is the `modules` and `edges` between them and `measures` `source_instability` and `target_instability`. Foreign targets make no pair.
+- `stable_dependencies`: for each ordered pair of distinct folders where a module of the first imports a module of the second, one finding when the second folder's `instability` is strictly greater than the first's, the gap between them (rounded to four decimals) is at least `instability_gap` (default 0.2), and the first folder matches no glob in `composition_roots`; evidence is the `modules` and `edges` between them and `measures` `source_instability` and `target_instability`. Foreign targets make no pair. `composition_roots` is a list of folder-id globs (a folder id is a module id up to its last `/`, or `.` at the top level), default empty; a matching folder is exempt as the depending side only, and a finding that points at it stays. `instability_gap` is a number from 0 to 1, where 0 reports every pair with a strictly greater target.
 - `unused_exports`: off by default, because a library's exports exist for outside callers. One finding per module with a member whose `exported` flag is true that no edge from another module names: a `depends` edge names its `names`, a `depends` edge with none uses every export of its target, `inherits` and `implements` edges use `to_member`, and a dotted member is used through its leading segment; `foreign:` targets and self edges are ignored. Skipped modules are those `orphan` skips (a policy entry named literally, a test file, an index-like file, an `entry_points` match). The summary names the sorted unused names; evidence is `modules` and `members`, each `{module, name}` plus `file` and `lines` for a `module`-kind module (a package member carries `module` and `name` only).
 - `depend-on-stabler-folder`: the fix pattern for `stable_dependencies`.
 - `break-folder-cycle`, `remove-or-wire-orphan`, `update-policy` and `narrow-exports`: the fix patterns for `folder_cycle`, `orphan`, `policy_drift` and `unused_exports`.

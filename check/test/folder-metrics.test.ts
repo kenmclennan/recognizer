@@ -18,11 +18,44 @@ describe("measureFolders", () => {
     expect(rows).toEqual([
       folder("app/adapters", 1, 0, 1, 1, 1, 0, 0, 0),
       folder("app/application", 1, 0, 1, 1, 1, 0, 0, 0),
-      folder("app/contracts", 1, 0, 1, 1, 1, 1, 1, 1),
+      folder("app/contracts", 1, 0, 0, null, 1, 1, 1, null),
       folder("app/domain", 2, 1, 1, 0.5, 2, 0, 0, 0.5),
       folder("app/ports", 1, 2, 0, 0, 2, 2, 1, 0),
-      folder("app/util", 2, 1, 2, 0.6667, 2, 0, 0, 0.3333),
+      folder("app/util", 2, 1, 0, 0, 2, 0, 0, 1),
     ]);
+  });
+
+  it("adds nothing to efferent coupling for a foreign target", () => {
+    const { rows } = measureFolders(
+      [
+        scanOf(
+          [{ id: "c/z.ts" }, { id: "d/w.ts" }, { id: "e/v.ts" }],
+          [
+            ["c/z.ts", "foreign:os"],
+            ["d/w.ts", "foreign:os"],
+            ["e/v.ts", "d/w.ts"],
+          ],
+        ),
+      ],
+      null,
+    );
+
+    expect(row(rows, "c")).toMatchObject({
+      afferent: 0,
+      efferent: 0,
+      instability: null,
+      distance: null,
+    });
+    expect(row(rows, "d")).toMatchObject({
+      afferent: 1,
+      efferent: 0,
+      instability: 0,
+    });
+    expect(row(rows, "e")).toMatchObject({
+      afferent: 0,
+      efferent: 1,
+      instability: 1,
+    });
   });
 
   it("keeps a and a/b as separate folders and uses . for a bare id", () => {
@@ -233,11 +266,11 @@ function folder(
   modules: number,
   afferent: number,
   efferent: number,
-  instability: number,
+  instability: number | null,
   exported: number,
   abstract: number,
   abstractness: number,
-  distance: number,
+  distance: number | null,
 ) {
   return {
     id,

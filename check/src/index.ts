@@ -154,6 +154,7 @@ export type { Diagnosis } from "./sensor-reason.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";
 export {
+  DEFAULT_INSTABILITY_GAP,
   measuredInputs,
   measuredModules,
   resolveStructureSettings,

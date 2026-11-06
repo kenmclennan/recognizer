@@ -1,0 +1,58 @@
+{
+  "settings": {
+    "instability_gap": 0.1668,
+    "warnings": {
+      "stable_dependencies": true
+    }
+  },
+  "modules": [
+    {
+      "id": "p/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "s/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "t/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "t/b.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "q/a.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "r/a.ts",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [
+    [
+      "p/a.ts",
+      "s/a.ts"
+    ],
+    [
+      "s/a.ts",
+      "t/a.ts"
+    ],
+    [
+      "t/a.ts",
+      "q/a.ts"
+    ],
+    [
+      "t/b.ts",
+      "r/a.ts"
+    ]
+  ]
+}

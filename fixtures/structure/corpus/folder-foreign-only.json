@@ -1,0 +1,38 @@
+{
+  "settings": {
+    "warnings": {
+      "stable_dependencies": true
+    }
+  },
+  "modules": [
+    {
+      "id": "c/z.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "d/w.ts",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "e/v.ts",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [
+    [
+      "c/z.ts",
+      "foreign:os"
+    ],
+    [
+      "d/w.ts",
+      "foreign:os"
+    ],
+    [
+      "e/v.ts",
+      "d/w.ts"
+    ]
+  ]
+}

@@ -37,7 +37,7 @@ let disagreements = 0;
 
 for (const row of expected.folder_metrics) {
   const description = JSON.parse(readFileSync(join(corpus, `${row.scan}.json`), "utf8"));
-  const result = structureSensor([scanOf(description)], null, { hub_threshold: 10, entry_points: [], warnings: off }, { commit: "c", modified: false });
+  const result = structureSensor([scanOf(description)], null, { hub_threshold: 10, instability_gap: 0, composition_roots: [], entry_points: [], warnings: off }, { commit: "c", modified: false });
   const got = result.folder_metrics.find((one) => one.id === row.folder);
 
   compact.push(`| ${row.scan} | ${row.folder} | ${cell(row.afferent, got?.afferent)} | ${cell(row.efferent, got?.efferent)} | ${cell(row.instability, got?.instability)} | ${cell(row.abstractness, got?.abstractness)} | ${cell(row.distance, got?.distance)} |`);

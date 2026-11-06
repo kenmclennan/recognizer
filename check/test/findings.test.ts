@@ -34,6 +34,8 @@ function findingsByModule(
     policy,
     {
       hub_threshold: hub,
+      instability_gap: 0.2,
+      composition_roots: [],
       entry_points: [],
       warnings: {
         cycle: true,
@@ -57,7 +59,6 @@ describe("findingsByModuleFrom over the structure document", () => {
     const found = findingsByModule([scan], policy, 3);
 
     expect(found.get("app/domain/money.py")?.map((f) => f.severity)).toEqual([
-      "warning",
       "warning",
       "warning",
     ]);

@@ -52,7 +52,7 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-function round(value: number): number {
+export function round(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
@@ -122,8 +122,6 @@ export function measureFolders(
     const source = folderOf(edge.from);
 
     if (isForeign(edge.to)) {
-      add(outgoing, source, edge.from);
-
       continue;
     }
 

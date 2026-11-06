@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
-import { measureFolders } from "../src/folder-metrics.js";
+import {
+  type FolderMeasures,
+  type FolderMetrics,
+  measureFolders,
+} from "../src/folder-metrics.js";
 import { parsePolicy, validateScan } from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
@@ -354,14 +358,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"hub_threshold":10,"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
+      '{"hub_threshold":10,"instability_gap":0.2,"composition_roots":[],"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("6");
+    expect(document.sensor.version).toBe("7");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, unused_exports off";
+      "hub_threshold 10, instability_gap 0.2, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, unused_exports off";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -370,6 +374,12 @@ describe("structure settings", () => {
         entry_points: ["a", "b"],
       }),
     ).toBe(`${base}, entry_points 2`);
+    expect(
+      describeSettings({
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        composition_roots: ["a", "b", "c"],
+      }),
+    ).toBe(`${base}, composition_roots 3`);
   });
 
   it.each([
@@ -448,10 +458,51 @@ describe("fixtures/check-warnings", () => {
 });
 
 describe("stable_dependencies", () => {
-  const worked = () => measureFolders([foldersOf(WORKED, WORKED_EDGES)], null);
+  const STRICT = { min_gap: 0, composition_roots: [] as string[] };
 
-  it("flags only the worked example's domain to util edge", () => {
-    const found = stableDependenciesFindings(worked());
+  const held = (
+    instabilities: [string, number | null][],
+    pairs: [string, string][],
+  ): FolderMeasures => ({
+    rows: instabilities.map(
+      ([id, instability]): FolderMetrics => ({
+        id,
+        modules: 1,
+        afferent: 1,
+        efferent: 1,
+        instability,
+        exported_members: 0,
+        abstract_members: 0,
+        abstractness: null,
+        distance: null,
+      }),
+    ),
+    between: new Map(
+      pairs.map(([source, target]) => [
+        `${source}\0${target}`,
+        [{ from: `${source}/m.ts`, to: `${target}/m.ts` }],
+      ]),
+    ),
+    modulesOf: new Map(),
+  });
+
+  const fires = (
+    instabilities: [string, number | null][],
+    pairs: [string, string][],
+    options: { min_gap: number; composition_roots: string[] },
+  ) => ids(stableDependenciesFindings(held(instabilities, pairs), options));
+
+  it("flags the less stable target with its full evidence", () => {
+    const found = stableDependenciesFindings(
+      held(
+        [
+          ["app/domain", 0.5],
+          ["app/util", 0.6667],
+        ],
+        [["app/domain", "app/util"]],
+      ),
+      STRICT,
+    );
 
     expect(found).toEqual([
       {
@@ -463,8 +514,8 @@ describe("stable_dependencies", () => {
           "folder app/domain depends on folder app/util, which is less stable (instability 0.5 -> 0.6667)",
         fix_pattern: "depend-on-stabler-folder",
         evidence: {
-          modules: ["app/domain/order.ts", "app/util/fmt.ts"],
-          edges: [{ from: "app/domain/order.ts", to: "app/util/fmt.ts" }],
+          modules: ["app/domain/m.ts", "app/util/m.ts"],
+          edges: [{ from: "app/domain/m.ts", to: "app/util/m.ts" }],
           measures: { source_instability: 0.5, target_instability: 0.6667 },
         },
       },
@@ -491,6 +542,7 @@ describe("stable_dependencies", () => {
         ],
         null,
       ),
+      STRICT,
     );
 
     expect(found).toEqual([]);
@@ -511,6 +563,7 @@ describe("stable_dependencies", () => {
         ],
         null,
       ),
+      STRICT,
     );
 
     expect(ids(found)).toEqual(["stable_dependencies:b->a"]);
@@ -538,6 +591,7 @@ describe("stable_dependencies", () => {
         ],
         null,
       ),
+      STRICT,
     );
 
     expect(ids(found)).toEqual(["stable_dependencies:c->a"]);
@@ -549,9 +603,113 @@ describe("stable_dependencies", () => {
         [foldersOf([{ id: "a/x.ts" }], [["a/x.ts", "foreign:q"]])],
         null,
       ),
+      STRICT,
     );
 
     expect(found).toEqual([]);
+  });
+
+  it("gives the worked example no finding now that foreign imports add nothing", () => {
+    const measures = measureFolders([foldersOf(WORKED, WORKED_EDGES)], null);
+
+    expect(stableDependenciesFindings(measures, STRICT)).toEqual([]);
+  });
+
+  it("fires when the gap is exactly the setting, floating point included", () => {
+    const rows: [string, number][] = [
+      ["a", 0.5],
+      ["b", 0.7],
+    ];
+
+    expect(
+      fires(rows, [["a", "b"]], { min_gap: 0.2, composition_roots: [] }),
+    ).toEqual(["stable_dependencies:a->b"]);
+  });
+
+  it("does not fire when the gap is under the setting", () => {
+    expect(
+      fires(
+        [
+          ["a", 0.5],
+          ["b", 0.69],
+        ],
+        [["a", "b"]],
+        { min_gap: 0.2, composition_roots: [] },
+      ),
+    ).toEqual([]);
+  });
+
+  it("fires on the 0.5 to 0.6667 pair at gap 0 and at exactly 0.1667, not at 0.2", () => {
+    const rows: [string, number][] = [
+      ["a", 0.5],
+      ["b", 0.6667],
+    ];
+    const pairs: [string, string][] = [["a", "b"]];
+
+    expect(fires(rows, pairs, { min_gap: 0.2, composition_roots: [] })).toEqual(
+      [],
+    );
+    expect(fires(rows, pairs, STRICT)).toEqual(["stable_dependencies:a->b"]);
+    expect(
+      fires(rows, pairs, { min_gap: 0.1667, composition_roots: [] }),
+    ).toEqual(["stable_dependencies:a->b"]);
+  });
+
+  it("still needs the target strictly less stable at a gap of 0", () => {
+    expect(
+      fires(
+        [
+          ["a", 0.5],
+          ["b", 0.5],
+          ["c", 0.6],
+        ],
+        [
+          ["a", "b"],
+          ["c", "a"],
+        ],
+        STRICT,
+      ),
+    ).toEqual([]);
+  });
+
+  it("exempts a named root as the depending side and keeps findings that point at it", () => {
+    const rows: [string, number][] = [
+      ["root", 0.4],
+      ["other", 0.4],
+      ["lib", 0.9],
+      ["leaf", 0.1],
+    ];
+    const pairs: [string, string][] = [
+      ["root", "lib"],
+      ["other", "lib"],
+      ["leaf", "root"],
+    ];
+
+    expect(
+      fires(rows, pairs, { min_gap: 0.2, composition_roots: ["root"] }),
+    ).toEqual([
+      "stable_dependencies:leaf->root",
+      "stable_dependencies:other->lib",
+    ]);
+  });
+
+  it("matches a composition root by glob, and . for the top-level folder", () => {
+    const rows: [string, number][] = [
+      ["app/wiring", 0.2],
+      [".", 0.2],
+      ["lib", 0.9],
+    ];
+    const pairs: [string, string][] = [
+      ["app/wiring", "lib"],
+      [".", "lib"],
+    ];
+
+    expect(
+      fires(rows, pairs, { min_gap: 0.2, composition_roots: ["app/**"] }),
+    ).toEqual(["stable_dependencies:.->lib"]);
+    expect(
+      fires(rows, pairs, { min_gap: 0.2, composition_roots: ["."] }),
+    ).toEqual(["stable_dependencies:app/wiring->lib"]);
   });
 });
 
@@ -573,7 +731,7 @@ describe("retired stable_abstractions finding", () => {
     ).toEqual([]);
     expect(
       folder_metrics.find((row) => row.id === "app/contracts"),
-    ).toMatchObject({ abstractness: 1, instability: 1, distance: 1 });
+    ).toMatchObject({ abstractness: 1, instability: null, distance: null });
     expect(
       folder_metrics.filter((row) => (row.distance ?? 0) > 0.3).length,
     ).toBeGreaterThan(0);
@@ -581,7 +739,21 @@ describe("retired stable_abstractions finding", () => {
 });
 
 describe("switches for the package metric warnings", () => {
-  const scan = foldersOf(WORKED, WORKED_EDGES);
+  const scan = foldersOf(
+    [
+      { id: "a/x.ts" },
+      { id: "a/x2.ts" },
+      { id: "b/y.ts" },
+      { id: "c/z.ts" },
+      { id: "d/w.ts" },
+    ],
+    [
+      ["a/x.ts", "b/y.ts"],
+      ["b/y.ts", "c/z.ts"],
+      ["c/z.ts", "a/x.ts"],
+      ["a/x2.ts", "d/w.ts"],
+    ],
+  );
 
   const run = (deps: boolean) =>
     structureSensor(
@@ -589,6 +761,7 @@ describe("switches for the package metric warnings", () => {
       null,
       {
         ...DEFAULT_STRUCTURE_SETTINGS,
+        instability_gap: 0,
         warnings: {
           cycle: false,
           hub: false,
@@ -616,7 +789,7 @@ describe("switches for the package metric warnings", () => {
   it("switches stable dependencies off on its own", () => {
     expect(ids(run(false).document.findings)).toEqual([]);
     expect(ids(run(true).document.findings)).toEqual([
-      "stable_dependencies:app/domain->app/util",
+      "stable_dependencies:c->a",
     ]);
   });
 });
@@ -670,6 +843,46 @@ describe("settings for the package metrics", () => {
     expect(run(retired)).toEqual(run(bare));
   });
 
+  it("defaults instability_gap to 0.2 and composition_roots to none", () => {
+    expect(
+      resolve("sensors:\n  structure:\n    hub_threshold: 6\n"),
+    ).toMatchObject({
+      instability_gap: 0.2,
+      composition_roots: [],
+    });
+    expect(resolveStructureSettings(null)).toMatchObject({
+      instability_gap: 0.2,
+      composition_roots: [],
+    });
+  });
+
+  it("reads instability_gap and composition_roots from a config", () => {
+    expect(
+      resolve(
+        "sensors:\n  structure:\n    instability_gap: 0\n    composition_roots: [cmd/**, .]\n",
+      ),
+    ).toMatchObject({ instability_gap: 0, composition_roots: ["cmd/**", "."] });
+  });
+
+  it("records both in the written settings", () => {
+    const { document } = structureSensor(
+      [scanOf([], ["a.py"])],
+      null,
+      {
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        instability_gap: 0.3,
+        composition_roots: ["cmd"],
+      },
+      CONTEXT,
+    );
+
+    expect(document.settings).toMatchObject({
+      instability_gap: 0.3,
+      composition_roots: ["cmd"],
+    });
+    expect(document.sensor.version).toBe("7");
+  });
+
   it("honours a live key beside a retired one", () => {
     const settings = resolve(
       "sensors:\n  structure:\n    hub_threshold: 6\n    distance_threshold: 0.9\n",
@@ -683,6 +896,10 @@ describe("settings for the package metrics", () => {
     "sensors:\n  structure:\n    distance_threshold: 1.5\n",
     "sensors:\n  structure:\n    distance_threshold: -0.1\n",
     "sensors:\n  structure:\n    warnings: { stable_abstractions: 1 }\n",
+    "sensors:\n  structure:\n    instability_gap: 1.5\n",
+    "sensors:\n  structure:\n    instability_gap: -0.1\n",
+    "sensors:\n  structure:\n    instability_gap: wide\n",
+    "sensors:\n  structure:\n    composition_roots: ['']\n",
   ])("rejects %j", (yaml) => {
     expect(() => parseConfig(yaml)).toThrow(InputError);
   });
@@ -767,10 +984,7 @@ describe("real committed content", () => {
       id.startsWith("stable_"),
     );
 
-    expect(added).toEqual([
-      "stable_dependencies:app/application->app/domain",
-      "stable_dependencies:app/domain->app/adapters",
-    ]);
+    expect(added).toEqual(["stable_dependencies:app/domain->app/adapters"]);
   });
 });
 
@@ -1174,7 +1388,7 @@ describe("unused_exports", () => {
 
   it("prints the switch after stable_dependencies", () => {
     const base =
-      "hub_threshold 10, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on";
+      "hub_threshold 10, instability_gap 0.2, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on";
 
     expect(
       describeSettings({

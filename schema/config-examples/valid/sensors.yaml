@@ -1,6 +1,8 @@
 sensors:
   structure:
     hub_threshold: 6
+    instability_gap: 0.3
+    composition_roots: ["cmd/**", "."]
     warnings:
       cycle: true
       hub: false
