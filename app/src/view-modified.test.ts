@@ -92,4 +92,18 @@ describe("viewModified", () => {
       viewModified(saved, content(["app/a.py"]), [scan]),
     );
   });
+
+  it("is false for a freshly opened plan holding a planned module and a ghost", () => {
+    const saved = {
+      ...view([{ kind: "pick", module: "app/a.py" }]),
+      schema_version: 4,
+      plan: true,
+      proposed: [
+        { module: "app/new.py", kind: "new" },
+        { module: "lib/m.py", kind: "moves", from: "app/b.py" },
+      ],
+    } as View;
+
+    expect(viewModified(saved, content(["app/a.py"]), [scan])).toBe(false);
+  });
 });

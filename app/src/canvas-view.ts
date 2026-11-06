@@ -15,7 +15,7 @@ import {
   type Point,
   type Rect,
 } from "./canvas-layout";
-import type { Scene } from "./canvas-scene";
+import { arrowhead, type Scene } from "./canvas-scene";
 import type { Selection } from "./canvas-state";
 import { button, el } from "./dom";
 import { icon } from "./icons";
@@ -44,6 +44,7 @@ import {
   type NoteBubbleView,
 } from "./note-bubble-view";
 import { bubblePlace, bubbleSize } from "./note-focus";
+import { type PlanOverlay, proposedClass } from "./plan-overlay";
 import type { RemovedBox } from "./removed-boxes";
 import { type BarModel, buildSelectionBar } from "./selection-bar-view";
 import { spinner } from "./spinner-view";
@@ -85,6 +86,7 @@ export type CanvasProps = {
   orientation?: CanvasOrientation | null;
   metrics?: CanvasMetrics | null;
   changes?: ChangeOverlay | null;
+  plan?: PlanOverlay | null;
   heading?: Heading | null;
   describe?: (id: string) => string | null;
 };
@@ -651,7 +653,7 @@ export function buildCanvasView(
     legend.render(
       legendOpen,
       props?.showInferred ?? true,
-      props?.changes != null,
+      props?.plan != null ? "plan" : props?.changes != null ? "change" : "none",
     );
     legendButton.classList.toggle("on", legendOpen);
     metricsView.render(metricsOpen, props?.metrics ?? null);
@@ -767,15 +769,26 @@ export function buildCanvasView(
 
           group.append(node);
         }
+
+        for (const wire of ghostWires(scene)) {
+          group.append(wire);
+        }
       } else {
         for (const box of scene.boxes) {
+          if (box.ghost !== undefined) {
+            group.append(drawGhost(box));
+
+            continue;
+          }
+
           const { rect } = box;
+          const proposed = props?.plan?.proposed.get(box.id);
           const node = svg("g", {
             class: `box ${box.kind}${
               props?.changes?.marks.has(box.id)
                 ? ` mark-${props.changes.marks.get(box.id)}`
                 : ""
-            }`,
+            }${proposed === undefined ? "" : ` ${proposedClass(proposed.kind)}`}`,
             "data-kind": box.kind,
             "data-id": box.id,
           });
@@ -799,6 +812,9 @@ export function buildCanvasView(
               height: rect.height,
               rx: 7,
             }),
+            ...(proposed?.kind === "moves-and-changes"
+              ? splitBorder(rect)
+              : []),
             svg("circle", {
               class: `disc-fill ${box.disc}`,
               cx: rect.x + 14,
@@ -850,6 +866,94 @@ export function buildCanvasView(
     }
 
     world.replaceChildren(...parts);
+  }
+
+  function drawGhost(box: Scene["boxes"][number]): SVGElement {
+    const { rect } = box;
+    const middle = rect.y + BOX_HEIGHT / 2;
+    const node = svg("g", {
+      class: "box ghost",
+      "data-ghost": box.id,
+    });
+
+    node.append(
+      svg("rect", {
+        class: "box-body",
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        rx: 7,
+      }),
+      svg("text", { class: "name", x: rect.x + 12, y: middle - 2 }, box.label),
+      svg(
+        "text",
+        { class: "figure", x: rect.x + 12, y: middle + 11 },
+        box.subline,
+      ),
+    );
+
+    return node;
+  }
+
+  function ghostWires(scene: Scene): SVGElement[] {
+    return scene.boxes.flatMap((ghost) => {
+      const target =
+        ghost.ghost === undefined
+          ? undefined
+          : scene.boxes.find((box) => box.id === ghost.ghost?.to);
+
+      if (ghost.ghost === undefined || target === undefined) {
+        return [];
+      }
+
+      const toRight =
+        target.rect.x + target.rect.width / 2 >
+        ghost.rect.x + ghost.rect.width / 2;
+      const start: Point = {
+        x: toRight ? ghost.rect.x + ghost.rect.width : ghost.rect.x,
+        y: ghost.rect.y + BOX_HEIGHT / 2,
+      };
+      const end: Point = {
+        x: toRight ? target.rect.x - 4 : target.rect.x + target.rect.width + 4,
+        y: target.rect.y + BOX_HEIGHT / 2,
+      };
+      const middleX = (start.x + end.x) / 2;
+      const group = svg("g", {
+        class: "ghost-wire",
+        "data-ghost-wire": ghost.id,
+      });
+
+      group.append(
+        svg("path", {
+          class: "wire",
+          d: `M${start.x} ${start.y} C${middleX} ${start.y} ${middleX} ${end.y} ${end.x} ${end.y}`,
+        }),
+        svg("polygon", {
+          class: "wire-head",
+          points: points(arrowhead([{ x: middleX, y: end.y }, end])),
+        }),
+      );
+
+      return [group];
+    });
+  }
+
+  function splitBorder(rect: Rect): SVGElement[] {
+    const r = 7;
+    const x2 = rect.x + rect.width;
+    const y2 = rect.y + rect.height;
+
+    return [
+      svg("path", {
+        class: "split a",
+        d: `M${rect.x} ${y2 - r} L${rect.x} ${rect.y + r} Q${rect.x} ${rect.y} ${rect.x + r} ${rect.y} L${x2 - r} ${rect.y}`,
+      }),
+      svg("path", {
+        class: "split b",
+        d: `M${x2 - r} ${rect.y} Q${x2} ${rect.y} ${x2} ${rect.y + r} L${x2} ${y2 - r} Q${x2} ${y2} ${x2 - r} ${y2} L${rect.x + r} ${y2} Q${rect.x} ${y2} ${rect.x} ${y2 - r}`,
+      }),
+    ];
   }
 
   function nameBase(box: Scene["boxes"][number]): number {

@@ -417,6 +417,14 @@ function buildPanelView(element: HTMLElement): PanelView {
         text.append(folder);
       }
 
+      if (content.header.from !== undefined) {
+        text.append(el("span", "muted ih-from", `from ${content.header.from}`));
+      }
+
+      if (content.header.proposed !== undefined) {
+        text.append(el("span", "ih-proposed", content.header.proposed));
+      }
+
       head.append(text);
 
       const target = content.header.target;

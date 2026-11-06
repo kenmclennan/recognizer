@@ -364,3 +364,68 @@ describe("selection helpers", () => {
     expect(present.module("lightcycle/application/work/create.py")).toBe(false);
   });
 });
+
+describe("planned boxes and ghosts", () => {
+  const base: Scan = {
+    modules: [
+      { id: "shop/a.py", kind: "module" },
+      { id: "shop/b.py", kind: "module" },
+    ],
+    edges: [],
+    foreign: [],
+  };
+
+  function planned(planned: string[], ghosts: { from: string; to: string }[]) {
+    const modules = [...base.modules.map((m) => m.id), ...planned];
+
+    return graphOf(base, { modules, opened: modules, ghosts });
+  }
+
+  it("gives a planned module a grey box in its folder", () => {
+    const graph = planned(["shop/new.py"], []);
+    const box = graph.boxes.find((one) => one.id === "shop/new.py");
+
+    expect(box?.parent).toBe("shop");
+    expect(box?.kind).toBe("module");
+  });
+
+  it("frames a new folder and counts planned boxes but not ghosts", () => {
+    const graph = planned(
+      ["fresh/one.py", "fresh/two.py"],
+      [{ from: "old/gone.py", to: "fresh/one.py" }],
+    );
+    const fresh = graph.frames.find((frame) => frame.path === "fresh");
+    const old = graph.frames.find((frame) => frame.path === "old");
+
+    expect(fresh).toMatchObject({ open: 2, held: 2 });
+    expect(old).toMatchObject({ open: 0, held: 0 });
+  });
+
+  it("puts a ghost box at the old folder reading where it is moving to", () => {
+    const graph = planned(
+      ["fresh/one.py"],
+      [{ from: "shop/b.py", to: "fresh/one.py" }],
+    );
+    const ghost = graph.boxes.find((one) => one.id === "ghost:shop/b.py");
+
+    expect(ghost?.parent).toBe("shop");
+    expect(ghost?.label).toBe("b.py");
+    expect(ghost && boxSubline(ghost)).toBe("moving to fresh/");
+    expect(graph.boxes.some((one) => one.id === "shop/b.py")).toBe(true);
+  });
+
+  it("draws a ghost whose old path is not in the scan", () => {
+    const graph = planned(
+      ["fresh/one.py"],
+      [{ from: "never/was.py", to: "fresh/one.py" }],
+    );
+
+    expect(graph.boxes.some((one) => one.id === "ghost:never/was.py")).toBe(
+      true,
+    );
+    expect(graph.frames.find((frame) => frame.path === "never")).toMatchObject({
+      open: 0,
+      held: 0,
+    });
+  });
+});

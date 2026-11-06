@@ -34,13 +34,13 @@ const look = (node) => {
   return [style.width, style.height, style.borderRadius, style.borderTopColor, style.backgroundColor].join("|");
 };
 
-legend.render(true, false, false);
+legend.render(true, false, "none");
 
 const box = legend.element.querySelector(".rcheck");
 const unchecked = { look: look(box), aria: box.getAttribute("aria-checked") };
 
 box.click();
-legend.render(true, true, false);
+legend.render(true, true, "none");
 
 const checked = { look: look(box), aria: box.getAttribute("aria-checked") };
 

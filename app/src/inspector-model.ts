@@ -6,6 +6,7 @@ import {
   type ScanEdge,
   type ScanMember,
   type Token,
+  type ViewProposedChange,
 } from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
@@ -25,6 +26,7 @@ import { barTitle, type Tone, tone, valueLabel } from "./metric-bars";
 import { descriptionOf } from "./module-tip";
 import type { MetricDescriptor } from "./overlay-model";
 import { createPicker, type PickerSource } from "./picker-model";
+import { PROPOSED_WORDS } from "./plan-overlay";
 import type { ResponsibilityRow } from "./responsibility-model";
 import { type CheckState, checkState } from "./row-model";
 
@@ -48,6 +50,7 @@ export type InspectorInputs = {
   metrics: readonly MetricDescriptor[];
   metricsOn: boolean;
   limits: FunctionLimits;
+  proposed?: (id: string) => ViewProposedChange | null;
 };
 
 export type Direction = "uses" | "usedBy";
@@ -145,6 +148,8 @@ export type Header = {
   muted: string;
   target: { kind: "module" | "folder"; id: string } | null;
   responsibility: ResponsibilityLineRow | null;
+  proposed?: string;
+  from?: string;
 };
 
 export type InspectorContent = {
@@ -235,6 +240,19 @@ function metricTable(
   };
 }
 export const UNUSED_SHOWN = 8;
+
+function proposedHeader(
+  proposed: ViewProposedChange | null,
+): Pick<Header, "proposed" | "from"> {
+  if (proposed === null) {
+    return {};
+  }
+
+  return {
+    proposed: `Proposed change: ${PROPOSED_WORDS[proposed.kind]}`,
+    ...(proposed.from === undefined ? {} : { from: proposed.from }),
+  };
+}
 
 function findModule(scans: Scan[], id: string) {
   for (const scan of scans) {
@@ -919,6 +937,7 @@ export function inspectorContent(
           id: selection.id,
           ...inputs.responsibility(selection.id),
         },
+        ...proposedHeader(inputs.proposed?.(selection.id) ?? null),
       },
       tabs,
       rows: listed

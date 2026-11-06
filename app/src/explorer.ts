@@ -88,6 +88,7 @@ import {
   pruneTicks,
 } from "./overlay-model";
 import { mountPanelResizers } from "./panel-resizer-view";
+import { type PlanOverlay, planOverlay } from "./plan-overlay";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import { removedPlacement } from "./removed-boxes";
 import {
@@ -324,6 +325,11 @@ export function showExplorer(
   let recentNames: string[] = [];
   let viewFacts = new Map<string, ChangeFacts | null>();
   let changeInfo: ChangeInfo | null = null;
+  let planCache: {
+    view: View;
+    scans: Scan[];
+    value: PlanOverlay | null;
+  } | null = null;
   let overlayCache: {
     info: ChangeInfo;
     scene: Scene;
@@ -454,7 +460,16 @@ export function showExplorer(
       find,
       select,
       takeOff() {
-        state.takeOff(state.selection());
+        const selection = state.selection();
+
+        if (
+          selection?.kind === "module" &&
+          currentPlan()?.planned.includes(selection.id) === true
+        ) {
+          return;
+        }
+
+        state.takeOff(selection);
         changed();
       },
       toggleFold() {
@@ -1136,10 +1151,13 @@ export function showExplorer(
   }
 
   function rebuild() {
+    const plan = currentPlan();
+
     graph = buildCanvasGraph({
       scans,
-      modules: loaded.modules,
-      opened: modules.opened(),
+      modules: [...loaded.modules, ...(plan?.planned ?? [])],
+      opened: [...modules.opened(), ...(plan?.planned ?? [])],
+      ghosts: plan?.ghosts ?? [],
       disc: (path) => described.get(path)?.disc ?? "grey",
       folded: state.folded(),
       focus: state.focus(),
@@ -1153,6 +1171,28 @@ export function showExplorer(
     layoutNoted = notedKey();
     layout.request(toElk(graph, measure, notedBoxes(), barRowCounts()));
     render();
+  }
+
+  function currentPlan(): PlanOverlay | null {
+    const view = openViewValue();
+
+    if (view === null || view.plan !== true) {
+      return null;
+    }
+
+    if (
+      planCache !== null &&
+      planCache.view === view &&
+      planCache.scans === scans
+    ) {
+      return planCache.value;
+    }
+
+    const value = planOverlay(view, resolveView(view, scans));
+
+    planCache = { view, scans, value };
+
+    return value;
   }
 
   function notedBoxes(): ReadonlySet<string> {
@@ -2047,6 +2087,9 @@ export function showExplorer(
       focused: state.focus() === selection.id,
       folded: state.folded().has(selection.id),
       inspectorTab: inspectorOpen ? inspectorTab : null,
+      planned:
+        selection.kind === "module" &&
+        currentPlan()?.planned.includes(selection.id) === true,
     };
   }
 
@@ -2528,6 +2571,7 @@ export function showExplorer(
       names: viewList.map((entry) => entry.name),
       total: viewList.length,
       openChip: openChipOf(),
+      openPlan: openViewValue()?.plan === true,
       canBack: history.canBack(),
       listed: listKnown,
       listProblem,
@@ -3272,6 +3316,7 @@ export function showExplorer(
       orientation: syncOrientation(),
       metrics: canvasMetrics(),
       changes: changeOverlay(),
+      plan: currentPlan(),
       heading: headingNow(),
     });
   }
@@ -3395,6 +3440,7 @@ export function showExplorer(
         metrics: overlayModel.metrics,
         metricsOn: tickedMetrics().length > 0,
         limits: limitsFromText(scanConfig),
+        proposed: (id) => currentPlan()?.proposed.get(id) ?? null,
       });
     };
 

@@ -11,6 +11,7 @@ export type BarModel = {
   focused: boolean;
   folded: boolean;
   inspectorTab: InspectorTab | null;
+  planned?: boolean;
 };
 
 export type BarActions = {
@@ -158,11 +159,17 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         iconButton("external-link", "Open in Editor (⌘⇧E)", () =>
           actions.openInEditor(),
         ),
-        separator(),
-        iconButton("take-off", "Take off the canvas (Backspace)", () =>
-          actions.takeOff(),
-        ),
       );
+
+      if (model.planned !== true) {
+        parts.push(
+          separator(),
+          iconButton("take-off", "Take off the canvas (Backspace)", () =>
+            actions.takeOff(),
+          ),
+        );
+      }
+
       element.replaceChildren(...parts);
     },
   };

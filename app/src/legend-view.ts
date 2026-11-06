@@ -6,8 +6,10 @@ import { buildCheckbox, setCheckState } from "./row-view";
 
 export type LegendView = {
   element: HTMLElement;
-  render: (open: boolean, showInferred: boolean, changes: boolean) => void;
+  render: (open: boolean, showInferred: boolean, mode: LegendMode) => void;
 };
+
+export type LegendMode = "none" | "change" | "plan";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -57,6 +59,15 @@ const CHANGE_MARKS: { mark: string; label: string }[] = [
   { mark: "removed", label: "removed" },
 ];
 
+const PLAN_ROWS: { kind: string; label: string }[] = [
+  { kind: "new", label: "New" },
+  { kind: "changes", label: "Changes" },
+  { kind: "moves", label: "Moves" },
+  { kind: "moves-and-changes", label: "Moves + changes" },
+  { kind: "removed", label: "Removed" },
+  { kind: "moved-from", label: "Where a moved module was" },
+];
+
 export function buildLegendView(
   setShowInferred: (show: boolean) => void,
 ): LegendView {
@@ -100,7 +111,23 @@ export function buildLegendView(
     row.hidden = true;
   }
 
-  rows.push(...changeRows);
+  const planRows: HTMLElement[] = [el("h4", "", "Plan")];
+
+  for (const entry of PLAN_ROWS) {
+    const row = el("div", `legend-row plan-legend-row ${entry.kind}`);
+
+    row.append(
+      el("span", `plan-swatch ${entry.kind}`),
+      el("span", "", entry.label),
+    );
+    planRows.push(row);
+  }
+
+  for (const row of planRows) {
+    row.hidden = true;
+  }
+
+  rows.push(...changeRows, ...planRows);
   rows.push(el("h4", "", "Discs"));
 
   for (const entry of DISCS) {
@@ -127,11 +154,15 @@ export function buildLegendView(
 
   return {
     element,
-    render(open, showInferred, changes) {
+    render(open, showInferred, mode) {
       element.hidden = !open;
 
       for (const row of changeRows) {
-        row.hidden = !changes;
+        row.hidden = mode !== "change";
+      }
+
+      for (const row of planRows) {
+        row.hidden = mode !== "plan";
       }
 
       shown = showInferred;
