@@ -12,6 +12,7 @@ import {
   readResponsibilities,
   stopCauseText,
 } from "./describe-modules.js";
+import { projectionText } from "./describe-projection.js";
 import { describerInEffect } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
@@ -512,6 +513,15 @@ function* scanFlow(
         selection: {
           kind: options.describe === "all" ? "all" : "stale",
           ...(scope === undefined ? {} : { within: scope }),
+        },
+        onProjection: (projection) => {
+          if (json) {
+            io.stdout(
+              `${JSON.stringify({ event: "projection", phase: "describe", ...projection })}\n`,
+            );
+          } else {
+            io.stdout(projectionText(projection));
+          }
         },
         onStart: (total) => {
           if (json) {

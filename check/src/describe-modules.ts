@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import type { Io, Running, RunResult } from "./cli.js";
+import {
+  type DescribeProjection,
+  projectDescribe,
+} from "./describe-projection.js";
 import { InputError } from "./errors.js";
 import { moduleSource } from "./module-source.js";
 import {
@@ -231,6 +235,7 @@ export interface DescribeInput {
   selection: DescribeSelection;
   model: string;
   batchSize: number;
+  onProjection?: (projection: DescribeProjection) => void;
   onStart?: (total: number) => void;
   onEntry?: (entry: RunEntry) => void;
 }
@@ -276,6 +281,15 @@ export async function describeModules(
   let failuresInARow = 0;
   const running = new Set<Running>();
   const threshold = Math.max(input.batchSize, 2);
+
+  input.onProjection?.(
+    projectDescribe(
+      selected
+        .filter((subject) => subject.hash !== null)
+        .map((subject) => buildRequest(scans, modules, subject)),
+      input.model,
+    ),
+  );
 
   input.onStart?.(selected.length);
 
