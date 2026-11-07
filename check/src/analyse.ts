@@ -199,7 +199,13 @@ export function analyse(
 
   for (const edge of edges) {
     if (edge.from !== edge.to && !isForeign(edge.to)) {
-      edgesByTarget.set(edge.to, [...(edgesByTarget.get(edge.to) ?? []), edge]);
+      const group = edgesByTarget.get(edge.to);
+
+      if (group) {
+        group.push(edge);
+      } else {
+        edgesByTarget.set(edge.to, [edge]);
+      }
     }
   }
 
