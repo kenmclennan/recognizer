@@ -67,7 +67,7 @@ pub fn read_overlays(folder: &Path) -> OverlaysRead {
 }
 
 const TEST_DIRECTORIES: [&str; 3] = ["test", "tests", "__tests__"];
-const SCRIPT_EXTENSIONS: [&str; 5] = ["ts", "tsx", "js", "jsx", "mjs"];
+const SCRIPT_EXTENSIONS: [&str; 8] = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
 
 fn stem_of(basename: &str) -> &str {
     match basename.rfind('.') {
@@ -235,6 +235,18 @@ mod tests {
                 "{path}"
             );
         }
+    }
+
+    #[test]
+    fn script_extensions_equal_the_shared_fixture_list() {
+        let text = fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/sensors/test-file-extensions.json"
+        ))
+        .unwrap();
+        let extensions: Vec<String> = serde_json::from_str(&text).unwrap();
+
+        assert_eq!(extensions, SCRIPT_EXTENSIONS.to_vec());
     }
 
     #[test]

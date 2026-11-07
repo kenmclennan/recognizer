@@ -2,8 +2,19 @@ import { compileGlob } from "./glob.js";
 
 const TEST_DIRECTORIES = new Set(["test", "tests", "__tests__"]);
 const INDEX_STEMS = new Set(["index", "__init__", "main", "mod", "lib"]);
-const TEST_BASENAME =
-  /^(?:test_.*\.py|.*_test\.py|conftest\.py|.*\.(?:test|spec)\.(?:ts|tsx|js|jsx|mjs))$/;
+export const SCRIPT_EXTENSIONS = [
+  "ts",
+  "tsx",
+  "mts",
+  "cts",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+];
+const TEST_BASENAME = new RegExp(
+  `^(?:test_.*\\.py|.*_test\\.py|conftest\\.py|.*\\.(?:test|spec)\\.(?:${SCRIPT_EXTENSIONS.join("|")}))$`,
+);
 
 export function isLiteralPath(glob: string): boolean {
   return !glob.includes("*") && !glob.includes("?");
