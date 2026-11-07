@@ -291,6 +291,118 @@ describe("orphan", () => {
   });
 });
 
+describe("orphan actual_of", () => {
+  const scanWith = (
+    edges: [string, string][],
+    modules: string[],
+    actualOf: Record<string, string[]>,
+  ) => {
+    const base = scanOf(edges, modules);
+
+    return {
+      ...base,
+      modules: base.modules.map((module) =>
+        actualOf[module.id] === undefined
+          ? module
+          : { ...module, actual_of: actualOf[module.id] },
+      ),
+    };
+  };
+  const orphansOf = (
+    edges: [string, string][],
+    modules: string[],
+    actualOf: Record<string, string[]>,
+    policy: string | null = null,
+  ) =>
+    ids(
+      orphanFindings(
+        scanWith(edges, modules, actualOf),
+        policy === null ? null : parsePolicy(policy),
+        [],
+      ),
+    );
+
+  it("reaches an actual file whose expect file is imported", () => {
+    expect(
+      orphansOf([["u.kt", "c.kt"]], ["u.kt", "c.kt", "j.kt"], {
+        "j.kt": ["c.kt"],
+      }),
+    ).toEqual(["orphan:u.kt"]);
+  });
+
+  it("reports an actual file and its expect file when nothing imports the expect file", () => {
+    expect(orphansOf([], ["c.kt", "j.kt"], { "j.kt": ["c.kt"] })).toEqual([
+      "orphan:c.kt",
+      "orphan:j.kt",
+    ]);
+  });
+
+  it("passes reachability down a chain of actuals", () => {
+    expect(
+      orphansOf([["u.kt", "c.kt"]], ["u.kt", "a.kt", "b.kt", "c.kt"], {
+        "a.kt": ["b.kt"],
+        "b.kt": ["c.kt"],
+      }),
+    ).toEqual(["orphan:u.kt"]);
+  });
+
+  it("reaches nothing through an id absent from the scan", () => {
+    expect(orphansOf([], ["j.kt"], { "j.kt": ["gone.kt"] })).toEqual([
+      "orphan:j.kt",
+    ]);
+  });
+
+  it("reaches nothing through a policy-ignored expect file", () => {
+    expect(
+      orphansOf(
+        [["u.kt", "vendor/c.kt"]],
+        ["u.kt", "vendor/c.kt", "j.kt"],
+        { "j.kt": ["vendor/c.kt"] },
+        "ignore: [vendor/**]\n",
+      ),
+    ).toEqual(["orphan:j.kt", "orphan:u.kt"]);
+  });
+
+  it("gives today's orphans for a scan without actual_of", () => {
+    expect(orphansOf([], ["c.kt", "j.kt"], {})).toEqual([
+      "orphan:c.kt",
+      "orphan:j.kt",
+    ]);
+  });
+
+  it("reaches an actual file when one of two expect files is imported", () => {
+    expect(
+      orphansOf([["u.kt", "c1.kt"]], ["u.kt", "c1.kt", "c2.kt", "j.kt"], {
+        "j.kt": ["c1.kt", "c2.kt"],
+      }),
+    ).toEqual(["orphan:c2.kt", "orphan:u.kt"]);
+  });
+
+  it("reports an actual file whose two expect files are both unreached", () => {
+    expect(
+      orphansOf([], ["c1.kt", "c2.kt", "j.kt"], {
+        "j.kt": ["c1.kt", "c2.kt"],
+      }),
+    ).toContain("orphan:j.kt");
+  });
+
+  it("ends the summary of a .kt and a .cs orphan with the library hint and leaves .py alone", () => {
+    const kt = orphanFindings(
+      scanOf([], ["a/M.kt", "a/N.cs", "a/p.py"]),
+      null,
+      [],
+    );
+    const hint =
+      "; a library can list its public API in warnings.orphan.entry_points";
+
+    expect(kt.map((finding) => finding.summary)).toEqual([
+      `a/M.kt is imported by no module and is not an entry point${hint}`,
+      `a/N.cs is imported by no module and is not an entry point${hint}`,
+      "a/p.py is imported by no module and is not an entry point",
+    ]);
+  });
+});
+
 describe("policy_drift", () => {
   const POLICY =
     "components:\n  domain: app/domain/**\n  ports: app/ports/**\n";

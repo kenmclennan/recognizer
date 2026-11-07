@@ -191,7 +191,7 @@ class Resolver:
                 for name in sorted(file.uses):
                     if (
                         name in bindings
-                        or name in own
+                        or (name in own and not self.index.only_functions(file.package, name))
                         or name not in names
                         or (file.path, name) in self.index.top
                     ):

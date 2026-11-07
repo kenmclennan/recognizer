@@ -1,0 +1,251 @@
+{
+  "schema_version": 6,
+  "scanner": {
+    "name": "recognizer-scan-kotlin",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "app/Guard.kt",
+      "hash": "d9538826cad29dbccf80ce72d2745f3bdad323d939ff41514206773adb9aa7f0"
+    },
+    {
+      "path": "app/Plain.kt",
+      "hash": "fb3961e929ca88f9bdefed6ad0361170e69eef7e07b508001b7012f07c599780"
+    },
+    {
+      "path": "app/Run.kt",
+      "hash": "82aaf20e5919032968d81555a004b2552ad6292e79942251de8843ba9aa036e5"
+    },
+    {
+      "path": "app/Shout.kt",
+      "hash": "ca2ffe39261485e6164f95037c6a7157030dc4fe27f2d73239aad1c823b959f0"
+    },
+    {
+      "path": "common/Clock.kt",
+      "hash": "1dccb6eccb3b07b809d53e0a9f4039a936a417bc7c7a2bceee490df5a6c31c7c"
+    },
+    {
+      "path": "common/Lonely.kt",
+      "hash": "091d126c411bfeac51850b83cda6c8002568efc8afc4d2c1e1425db6373cdda1"
+    },
+    {
+      "path": "jvm/Clock.jvm.kt",
+      "hash": "ab5fb85861fe35d7507f58a013827903a98283463250783ac6f989bfe83abf89"
+    },
+    {
+      "path": "jvm/Lonely.jvm.kt",
+      "hash": "879b981668ce98de2aaf75e6a05b88d936540a94c2c536f4954a87dbe13575a6"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".kt"
+    ],
+    "skip_directory_names": [
+      "build",
+      "test",
+      "androidTest",
+      "integrationTest",
+      "testFixtures"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      "Test"
+    ],
+    "skip_directories_containing": [],
+    "skip_file_globs": [
+      "*Test.kt",
+      "*Tests.kt"
+    ]
+  },
+  "modules": [
+    {
+      "id": "app/Guard.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "guard",
+          "kind": "function",
+          "line": 3,
+          "exported": true,
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "app/Plain.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Plain",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "app/Run.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "end_line": 5,
+          "params": []
+        }
+      ],
+      "entry_point": true
+    },
+    {
+      "id": "app/Shout.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "shout",
+          "kind": "function",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "end_line": 5,
+          "params": [
+            {
+              "name": "text",
+              "type": "String"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "common/Clock.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Clocks",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        },
+        {
+          "name": "now",
+          "kind": "function",
+          "line": 5,
+          "exported": true,
+          "visibility": "public",
+          "end_line": 5,
+          "params": [],
+          "returns": "Long"
+        }
+      ]
+    },
+    {
+      "id": "common/Lonely.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "lonely",
+          "kind": "function",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "end_line": 3,
+          "params": [],
+          "returns": "Long"
+        }
+      ]
+    },
+    {
+      "id": "jvm/Clock.jvm.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "now",
+          "kind": "function",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "end_line": 3,
+          "params": [],
+          "returns": "Long"
+        }
+      ],
+      "actual_of": [
+        "common/Clock.kt"
+      ]
+    },
+    {
+      "id": "jvm/Lonely.jvm.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "lonely",
+          "kind": "function",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "end_line": 3,
+          "params": [],
+          "returns": "Long"
+        }
+      ],
+      "actual_of": [
+        "common/Lonely.kt"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "app/Guard.kt",
+      "to": "app/Shout.kt",
+      "kind": "depends",
+      "line": 5,
+      "names": [
+        "shout"
+      ]
+    },
+    {
+      "from": "app/Run.kt",
+      "to": "common/Clock.kt",
+      "kind": "depends",
+      "line": 4,
+      "names": [
+        "Clocks"
+      ]
+    }
+  ],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "app/Run.kt::main",
+      "to": "common/Clock.kt::Clocks",
+      "line": 4,
+      "how": "construct"
+    }
+  ],
+  "unresolved_imports": []
+}

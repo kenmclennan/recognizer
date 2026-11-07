@@ -1,0 +1,19 @@
+{
+  "entry_points": [
+    "app/Run.kt"
+  ],
+  "actual_of": {
+    "jvm/Clock.jvm.kt": [
+      "common/Clock.kt"
+    ],
+    "jvm/Lonely.jvm.kt": [
+      "common/Lonely.kt"
+    ]
+  },
+  "orphans": [
+    "app/Guard.kt",
+    "app/Plain.kt",
+    "common/Lonely.kt",
+    "jvm/Lonely.jvm.kt"
+  ]
+}

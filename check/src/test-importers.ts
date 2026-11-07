@@ -37,6 +37,13 @@ export function testImportersOf(scan: Scan): Map<string, TestImporter[]> {
   return importers;
 }
 
+export const LIBRARY_API_HINT =
+  "; a library can list its public API in warnings.orphan.entry_points";
+
+export function libraryApiHint(id: string): string | null {
+  return id.endsWith(".kt") || id.endsWith(".cs") ? LIBRARY_API_HINT : null;
+}
+
 export function testOnlySummary(id: string, importers: TestImporter[]): string {
   const shown = importers
     .slice(0, SUMMARY_TEST_FILES)
@@ -45,5 +52,5 @@ export function testOnlySummary(id: string, importers: TestImporter[]): string {
   const more = importers.length - SUMMARY_TEST_FILES;
   const count = `${importers.length} test ${importers.length === 1 ? "file" : "files"}`;
 
-  return `${id} is imported only by ${count}: ${shown}${more > 0 ? ` and ${more} more` : ""}; it is not an entry point, so if it only supports tests move it next to them rather than deleting it`;
+  return `${id} is imported only by ${count}: ${shown}${more > 0 ? ` and ${more} more` : ""}; it is not an entry point, so if it only supports tests move it next to them rather than deleting it${libraryApiHint(id) ?? ""}`;
 }
