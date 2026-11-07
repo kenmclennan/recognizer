@@ -26,7 +26,7 @@ const RECIPES = [
   "",
   "Plan a change (the user asks what you intend to change before any code exists):",
   "  1. recognizer views new <name> --description <text> --plan makes a plan; it has no range, and a view is never both a plan and a change view.",
-  "  2. recognizer views add <name> <module> --change new|changes|moves|moves-and-changes|removed puts a module on it with its proposed change; a new or moved module need not exist yet, and moves needs --from <old path>. changes and removed need the module in the scan.",
+  "  2. recognizer views add <name> <module> --change new|changes|moves|moves-and-changes|removed puts a module on it with its proposed change; a new or moved module need not exist yet, and moves needs --from <old path>. changes and removed need the module in the scan. A member is named module#Name or module#Class.method and takes new, changes or removed.",
   "  3. recognizer views change <name> <module> <kind> or --clear changes or clears it; recognizer views show <name> reads every proposed change back.",
   "  4. Explain each box with recognizer views note, including a planned module, and end with the view's link as above.",
   "",

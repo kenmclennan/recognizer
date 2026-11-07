@@ -67,6 +67,14 @@ export {
 } from "./link.js";
 export { validateRunRecord } from "./log-document.js";
 export {
+  MEMBER_TEXT_LIMIT,
+  type MemberFile,
+  type MemberMarkKind,
+  type MemberMarksInput,
+  type MemberScan,
+  memberMarks,
+} from "./member-marks.js";
+export {
   classHeadTokens,
   classHeritage,
   constantTokens,
@@ -177,8 +185,11 @@ export {
   orderedStep,
   type ProposedKind,
   parseRange,
+  type ResolvedMemberEntry,
+  type ResolvedMembers,
   type ResolvedView,
   rangeText,
+  resolveMembers,
   resolveView,
   serialiseView,
   type View,
@@ -187,6 +198,8 @@ export {
   type ViewProposedChange,
   type ViewStep,
   validateView,
+  viewMemberProposed,
+  viewModuleProposed,
   viewNotes,
   viewProposed,
 } from "./views.js";
