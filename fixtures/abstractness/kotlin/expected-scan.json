@@ -37,7 +37,8 @@
     "skip_file_globs": [
       "*Test.kt",
       "*Tests.kt"
-    ]
+    ],
+    "input_file_globs": ["build.gradle", "build.gradle.kts", "pom.xml"]
   },
   "modules": [
     {

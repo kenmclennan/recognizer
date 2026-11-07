@@ -16,7 +16,8 @@ fn the_selection_is_the_binding_list() {
             "skip_directory_prefixes": ["."],
             "skip_directory_suffixes": [],
             "skip_directories_containing": [],
-            "skip_file_globs": []
+            "skip_file_globs": [],
+            "input_file_globs": ["Cargo.toml"]
         })
     );
 }

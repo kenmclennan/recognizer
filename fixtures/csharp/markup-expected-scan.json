@@ -87,6 +87,12 @@
     ],
     "skip_paths": [
       "Shop.Tests"
+    ],
+    "input_file_globs": [
+      "*.csproj",
+      "Directory.Build.props",
+      "*.sln",
+      "*.slnx"
     ]
   },
   "modules": [

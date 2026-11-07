@@ -8,6 +8,10 @@
   "modified": null,
   "files": [
     {
+      "path": "app/build.gradle.kts",
+      "hash": "82ee799f7da08f1ff59ae67caadedd38c6892be3cc0b1c8412d45f9726311b6f"
+    },
+    {
       "path": "app/src/main/kotlin/shop/application/PlaceOrder.kt",
       "hash": "0883174955c6ed98b9072b02dc9d5f7a924b3b00d14059ccef65892be5861370"
     },
@@ -69,7 +73,8 @@
     "skip_file_globs": [
       "*Test.kt",
       "*Tests.kt"
-    ]
+    ],
+    "input_file_globs": ["build.gradle", "build.gradle.kts", "pom.xml"]
   },
   "modules": [
     {

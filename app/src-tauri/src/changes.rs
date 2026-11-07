@@ -61,6 +61,10 @@ struct Selection {
     skip_file_globs: Vec<String>,
     #[serde(default)]
     skip_paths: Vec<String>,
+    #[serde(default)]
+    input_file_globs: Vec<String>,
+    #[serde(default)]
+    input_absent_paths: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,26 +157,55 @@ impl Selection {
                 .any(|glob| glob_matches(glob, name))
     }
 
-    fn accepts(&self, relative: &str, folder: &Path) -> bool {
+    fn in_skipped_directory(&self, relative: &str, folder: &Path, own_parent_counts: bool) -> bool {
         let mut parts: Vec<&str> = relative.split('/').collect();
-        let Some(name) = parts.pop() else {
-            return false;
-        };
-        let mut directory = String::new();
+        parts.pop();
 
-        for part in parts {
+        let mut directory = String::new();
+        let last = parts.len().saturating_sub(1);
+
+        for (at, part) in parts.into_iter().enumerate() {
             if !directory.is_empty() {
                 directory.push('/');
             }
 
             directory.push_str(part);
 
-            if self.skips_directory(&directory, folder) {
-                return false;
+            if (own_parent_counts || at != last) && self.skips_directory(&directory, folder) {
+                return true;
             }
         }
 
-        !self.under_skip_path(relative) && self.accepts_file(name)
+        false
+    }
+
+    fn accepts(&self, relative: &str, folder: &Path) -> bool {
+        let name = relative.rsplit('/').next().unwrap_or("");
+
+        !self.in_skipped_directory(relative, folder, true)
+            && !self.under_skip_path(relative)
+            && self.accepts_file(name)
+    }
+
+    fn reads_by_name(&self, relative: &str, folder: &Path) -> bool {
+        let name = relative.rsplit('/').next().unwrap_or("");
+
+        if self.under_skip_path(relative) {
+            return false;
+        }
+
+        if self
+            .skip_directories_containing
+            .iter()
+            .any(|marker| marker == name)
+        {
+            return !self.in_skipped_directory(relative, folder, false);
+        }
+
+        self.input_file_globs
+            .iter()
+            .any(|glob| glob_matches(glob, name))
+            && !self.in_skipped_directory(relative, folder, true)
     }
 }
 
@@ -244,7 +277,7 @@ fn walk(folder: &Path, relative: &str, selections: &[Selection], found: &mut Vec
     }
 }
 
-fn candidates(folder: &Path, selections: &[Selection]) -> Vec<String> {
+fn listing(folder: &Path, selections: &[Selection]) -> Vec<String> {
     let mut paths = if inside_git(folder) {
         git_output(
             folder,
@@ -272,11 +305,50 @@ fn candidates(folder: &Path, selections: &[Selection]) -> Vec<String> {
         found
     };
 
-    paths.retain(|path| covered(selections, path, folder));
     paths.sort();
     paths.dedup();
 
     paths
+}
+
+fn candidates(folder: &Path, selections: &[Selection]) -> Vec<String> {
+    let mut paths = listing(folder, selections);
+
+    paths.retain(|path| covered(selections, path, folder));
+
+    paths
+}
+
+fn inputs_added(
+    folder: &Path,
+    selections: &[Selection],
+    known: &HashMap<String, String>,
+) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+
+    if selections
+        .iter()
+        .any(|s| !s.input_file_globs.is_empty() || !s.skip_directories_containing.is_empty())
+    {
+        found.extend(listing(folder, selections).into_iter().filter(|path| {
+            !known.contains_key(path)
+                && selections
+                    .iter()
+                    .any(|selection| selection.reads_by_name(path, folder))
+        }));
+    }
+
+    for selection in selections {
+        for path in &selection.input_absent_paths {
+            if !known.contains_key(path)
+                && fs::metadata(folder.join(path)).is_ok_and(|m| m.is_file())
+            {
+                found.push(path.clone());
+            }
+        }
+    }
+
+    found
 }
 
 fn hash_of(path: &Path) -> Option<String> {
@@ -384,6 +456,10 @@ pub fn compare(folder: &Path, baseline: &Baseline) -> Changes {
         if !baseline.hashes.contains_key(&path) {
             files.insert(path, ChangeKind::Added);
         }
+    }
+
+    for path in inputs_added(folder, &baseline.selections, &baseline.hashes) {
+        files.entry(path).or_insert(ChangeKind::Added);
     }
 
     Changes {
@@ -542,13 +618,171 @@ mod tests {
         );
     }
 
+    fn sample_of(language: &str) -> (TempDir, Baseline) {
+        let dir = TempDir::new().unwrap();
+
+        copy_tree(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures")
+                .join(language)
+                .join("sample"),
+            dir.path(),
+        );
+        write(
+            dir.path(),
+            &format!(".recognizer/cache/scan.{language}.json"),
+            &expected_scan(language).to_string(),
+        );
+
+        let baseline = adopt(&take_origin(dir.path()), dir.path());
+
+        (dir, baseline)
+    }
+
+    fn baseline_for_selection(dir: &Path, selection: serde_json::Value) -> Baseline {
+        let mut full = serde_json::json!({
+            "extensions": [".py"],
+            "skip_directory_names": ["node_modules"],
+            "skip_directory_prefixes": ["."],
+            "skip_directory_suffixes": [],
+            "skip_directories_containing": [],
+            "skip_file_globs": [],
+        });
+
+        for (key, value) in selection.as_object().unwrap() {
+            full[key] = value.clone();
+        }
+
+        write(
+            dir,
+            ".recognizer/cache/scan.python.json",
+            &serde_json::json!({ "files": [], "selection": full }).to_string(),
+        );
+
+        adopt(&take_origin(dir), dir)
+    }
+
     #[test]
-    fn a_manifest_added_after_the_scan_is_not_reported_yet() {
+    fn a_manifest_added_after_the_scan_is_reported_added() {
         let (dir, baseline) = typescript_sample();
 
         write(dir.path(), "extra/package.json", "{}\n");
 
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("extra/package.json".to_string(), ChangeKind::Added)]
+        );
+    }
+
+    #[test]
+    fn a_page_added_after_the_scan_is_reported_added() {
+        let (dir, baseline) = typescript_sample();
+
+        write(dir.path(), "extra/page.html", "<html></html>\n");
+
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("extra/page.html".to_string(), ChangeKind::Added)]
+        );
+    }
+
+    #[test]
+    fn a_manifest_under_a_skipped_directory_is_not_reported() {
+        let (dir, baseline) = typescript_sample();
+
+        write(dir.path(), "node_modules/x/package.json", "{}\n");
+
         assert!(compare(dir.path(), &baseline).files.is_empty());
+    }
+
+    #[test]
+    fn a_build_file_deleted_from_the_kotlin_sample_is_reported_deleted() {
+        let (dir, baseline) = sample_of("kotlin");
+
+        assert!(compare(dir.path(), &baseline).files.is_empty());
+
+        fs::remove_file(dir.path().join("app/build.gradle.kts")).unwrap();
+
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("app/build.gradle.kts".to_string(), ChangeKind::Deleted)]
+        );
+    }
+
+    #[test]
+    fn a_build_file_added_to_the_kotlin_sample_is_reported_added() {
+        let (dir, baseline) = sample_of("kotlin");
+
+        write(dir.path(), "app/other/build.gradle", "\n");
+
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("app/other/build.gradle".to_string(), ChangeKind::Added)]
+        );
+    }
+
+    #[test]
+    fn an_absent_path_that_appears_is_reported_added_and_one_that_does_not_is_not() {
+        let dir = TempDir::new().unwrap();
+        let baseline = baseline_for_selection(
+            dir.path(),
+            serde_json::json!({ "input_absent_paths": ["setup.cfg"] }),
+        );
+
+        assert!(compare(dir.path(), &baseline).files.is_empty());
+
+        write(dir.path(), "setup.cfg", "[options]\n");
+
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("setup.cfg".to_string(), ChangeKind::Added)]
+        );
+    }
+
+    #[test]
+    fn a_new_skip_marker_is_reported_added() {
+        let dir = repo();
+        let baseline = baseline_for_selection(
+            dir.path(),
+            serde_json::json!({ "skip_directories_containing": ["pyvenv.cfg"] }),
+        );
+
+        write(dir.path(), "env/pyvenv.cfg", "home = /usr\n");
+
+        assert!(paths(&compare(dir.path(), &baseline))
+            .contains(&("env/pyvenv.cfg".to_string(), ChangeKind::Added)));
+    }
+
+    #[test]
+    fn a_scan_without_the_input_keys_reports_no_added_manifest() {
+        let dir = TempDir::new().unwrap();
+        let baseline = baseline_for_selection(dir.path(), serde_json::json!({}));
+
+        write(dir.path(), "extra/package.json", "{}\n");
+        write(dir.path(), "setup.cfg", "\n");
+
+        assert!(compare(dir.path(), &baseline).files.is_empty());
+    }
+
+    #[test]
+    fn candidates_does_not_return_a_manifest_the_input_rule_reports() {
+        let dir = TempDir::new().unwrap();
+        let baseline = baseline_for_selection(
+            dir.path(),
+            serde_json::json!({ "input_file_globs": ["package.json"] }),
+        );
+
+        write(dir.path(), "package.json", "{}\n");
+        write(dir.path(), "a.py", "a = 1\n");
+
+        assert_eq!(
+            candidates(dir.path(), &baseline.selections),
+            vec!["a.py".to_string()]
+        );
+        assert_eq!(
+            inputs_added(dir.path(), &baseline.selections, &baseline.hashes),
+            vec!["package.json".to_string()]
+        );
     }
 
     #[test]
@@ -685,7 +919,10 @@ mod tests {
         write(dir.path(), "venv/pyvenv.cfg", "home = x\n");
         write(dir.path(), "venv/lib/m.py", "x = 1\n");
 
-        assert!(compare(dir.path(), &baseline).files.is_empty());
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("venv/pyvenv.cfg".to_string(), ChangeKind::Added)]
+        );
     }
 
     #[test]
@@ -902,7 +1139,7 @@ mod tests {
 
     #[test]
     fn the_kotlin_fixture_scan_compares_clean_against_its_own_files() {
-        assert_fixture_scan_is_a_clean_baseline("kotlin", 10);
+        assert_fixture_scan_is_a_clean_baseline("kotlin", 11);
     }
 
     #[test]

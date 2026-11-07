@@ -313,6 +313,9 @@ export function scan(
         return [];
       }
     });
+  const absentPaths = tsconfigs
+    .absentPaths()
+    .filter((id) => !listed.some((file) => file.path === id));
   const checker = program.getTypeChecker();
   const edges = new Map<string, ScanEdge>();
   const foreign = new Set<string>();
@@ -477,6 +480,7 @@ export function scan(
     selection: {
       ...selection(),
       ...(skipPaths.length > 0 ? { skip_paths: skipPaths } : {}),
+      ...(absentPaths.length > 0 ? { input_absent_paths: absentPaths } : {}),
     },
     modules: [...modules].sort(compare).map((id) => {
       const members = infos.get(id)?.members ?? [];

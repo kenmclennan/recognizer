@@ -21,7 +21,7 @@ from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
 from recognizer_scan_python.outline import read_members
 from recognizer_scan_python.routes import ModuleNames, Router, named_edges
-from recognizer_scan_python.source_roots import detect_source_roots
+from recognizer_scan_python.source_roots import ROOT_CONFIG_FILES, detect_source_roots
 
 SCANNER_NAME = "recognizer-scan-python"
 
@@ -173,6 +173,9 @@ def scan(
         source_roots = detect_source_roots(root, module_ids)
 
     index = ModuleIndex(module_ids, source_roots, script_folders=detected)
+    probed = ROOT_CONFIG_FILES if detected else ()
+    present_configs = [name for name in probed if (root / name).is_file()]
+    absent_configs = [name for name in probed if name not in present_configs]
 
     parsed = {}
     for module_id in module_ids:
@@ -235,9 +238,9 @@ def scan(
         "modified": modified,
         "files": [
             {"path": path, "hash": hashlib.sha256((root / path).read_bytes()).hexdigest()}
-            for path in module_ids
+            for path in sorted(module_ids + present_configs)
         ],
-        "selection": selection(),
+        "selection": selection(absent_configs),
         "modules": modules,
         "edges": sorted(edges, key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(foreign_names)],

@@ -69,8 +69,8 @@ def test_the_petclinic_scan_is_schema_valid(result):
 
 
 def test_the_petclinic_file_and_module_counts_match_the_baseline(result):
-    assert len(result.document["files"]) == BASELINE["files"] == 134
-    assert len(result.document["modules"]) == BASELINE["modules"] == BASELINE["files"]
+    assert len(result.document["files"]) == BASELINE["files"] == 139
+    assert len(result.document["modules"]) == BASELINE["modules"] == 134
 
 
 def test_the_petclinic_edge_and_damaged_counts_match_the_baseline(result):

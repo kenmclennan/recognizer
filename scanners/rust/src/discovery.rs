@@ -15,6 +15,7 @@ pub fn selection() -> Value {
         "skip_directory_suffixes": [],
         "skip_directories_containing": [],
         "skip_file_globs": [],
+        "input_file_globs": ["Cargo.toml"],
     })
 }
 

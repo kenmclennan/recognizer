@@ -108,6 +108,27 @@ def test_a_project_listed_in_a_solution_whose_csproj_is_missing_falls_back_to_it
     assert document["selection"]["skip_paths"] == ["tests/Foo.Tests"]
 
 
+def test_a_solution_listing_a_missing_csproj_records_it_as_an_absent_path(run):
+    files = {
+        "All.sln": 'Project("{X}") = "Foo.Tests", "tests\\Foo.Tests\\Foo.Tests.csproj", "{1}"\nEndProject\n'
+        'Project("{X}") = "App", "src\\App\\App.csproj", "{2}"\nEndProject\n',
+        "src/App/App.csproj": csproj(),
+        "src/App/A.cs": "namespace App;\npublic class A {}\n",
+    }
+    document = run(files)
+
+    assert document["selection"]["input_absent_paths"] == ["tests/Foo.Tests/Foo.Tests.csproj"]
+    paths = [f["path"] for f in document["files"]]
+    assert "src/App/App.csproj" in paths
+    assert "tests/Foo.Tests/Foo.Tests.csproj" not in paths
+
+
+def test_a_scan_with_no_missing_project_has_no_absent_paths_key(run):
+    document = run({"src/App/App.csproj": csproj(), "src/App/A.cs": "public class A {}\n"})
+
+    assert "input_absent_paths" not in document["selection"]
+
+
 def test_a_solution_in_the_slnx_format_lists_projects_too(run):
     files = {
         "All.slnx": '<Solution><Project Path="tests/Foo.UnitTests/Foo.UnitTests.csproj" /></Solution>',

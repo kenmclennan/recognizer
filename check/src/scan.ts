@@ -87,6 +87,8 @@ export interface ScanSelection {
   skip_directories_containing: string[];
   skip_file_globs: string[];
   skip_paths?: string[];
+  input_file_globs?: string[];
+  input_absent_paths?: string[];
 }
 
 export interface UnresolvedImport {
