@@ -1,3 +1,4 @@
+import { icon } from "./icons";
 import {
   checkDescribing,
   type DescribingValues,
@@ -20,24 +21,87 @@ export type SettingsView = {
   showError: (text: string) => void;
 };
 
-export const EDITOR_HINT =
-  "An app name such as Sublime Text, or a command for a GUI editor such as code or code --goto. Use {file} and {line} to open at a line, for example code -g {file}:{line}; without them the file opens at the top. Terminal editors are not supported.";
+export const EDITOR_INFO =
+  "An app name such as Sublime Text, or a command such as code -g {file}:{line}. Without {file} and {line} the file opens at the top. Terminal editors are not supported.";
 
-function field(label: string, control: HTMLElement): HTMLLabelElement {
-  const node = document.createElement("label");
-  const text = document.createElement("span");
+export const MODEL_INFO =
+  "The model every description uses, for scans started from the app and from a terminal.";
 
-  text.textContent = label;
-  node.append(text, control);
+export const CONFIRM_INFO =
+  "A scan asks before describing when its estimated cost, at API prices, is above this.";
+
+export const EDITOR_HINT = "An app name or a command";
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+
+  node.className = className;
+
+  if (text !== undefined) {
+    node.textContent = text;
+  }
 
   return node;
 }
 
-export const DESCRIBING_HINT =
-  "The model every description uses, and how many modules are described at once. Applies to scans started from the app and from a terminal.";
+function row(
+  label: string,
+  control: HTMLInputElement,
+  options: { info?: string; hint?: string; unit?: string; narrow?: boolean },
+): HTMLDivElement {
+  const node = el("div", "setting");
+  const name = el("div", "row-name");
+  const text = el("label", "row-label", label);
+  const body = el("div", "row-control");
+  const id = `settings-${control.name}`;
 
-export const CONFIRM_HINT =
-  "A scan asks before describing when its API-equivalent estimate is above this.";
+  control.id = id;
+  text.htmlFor = id;
+  name.append(text);
+
+  if (options.info !== undefined) {
+    const tipId = `${id}-tip`;
+    const info = el("button", "setting-info");
+    const tip = el("div", "setting-tip", options.info);
+
+    info.type = "button";
+    info.setAttribute("aria-label", `About ${label}`);
+    info.setAttribute("aria-describedby", tipId);
+    info.append(icon("info"));
+    tip.id = tipId;
+    tip.setAttribute("role", "tooltip");
+    name.append(info, tip);
+  }
+
+  body.append(control);
+  control.classList.toggle("narrow", options.narrow === true);
+
+  if (options.unit !== undefined) {
+    body.append(el("span", "unit", options.unit));
+  }
+
+  if (options.hint !== undefined) {
+    body.append(el("p", "hint", options.hint));
+  }
+
+  node.append(name, body);
+
+  return node;
+}
+
+function section(title: string, rows: HTMLElement[]): HTMLElement {
+  const node = el("section", "section");
+  const group = el("div", "group");
+
+  group.append(...rows);
+  node.append(el("h2", "section-label", title), group);
+
+  return node;
+}
 
 function textInput(placeholder: string, name: string): HTMLInputElement {
   const node = document.createElement("input");
@@ -66,24 +130,12 @@ function numberInput(
   return node;
 }
 
-function hintNode(text: string): HTMLParagraphElement {
-  const node = document.createElement("p");
-
-  node.className = "hint";
-  node.textContent = text;
-
-  return node;
-}
-
 export function buildSettings(
   container: HTMLElement,
   actions: SettingsActions,
 ): SettingsView {
   const form = document.createElement("form");
   const editor = textInput("System default", "editor");
-  const describing = document.createElement("fieldset");
-  const describingLegend = document.createElement("legend");
-  const describingRow = document.createElement("div");
   const model = textInput("haiku", "model");
   const batchSize = numberInput("batch_size", {
     min: 1,
@@ -100,20 +152,6 @@ export function buildSettings(
   const saveButton = document.createElement("button");
   const cancelButton = document.createElement("button");
 
-  describing.className = "describing";
-  describingLegend.textContent = "Describing";
-  describingRow.className = "describing-fields";
-  describingRow.append(
-    field("Model", model),
-    field("Batch size", batchSize),
-    field("Confirm above (USD)", confirmAbove),
-  );
-  describing.append(
-    describingLegend,
-    describingRow,
-    hintNode(DESCRIBING_HINT),
-    hintNode(CONFIRM_HINT),
-  );
   error.className = "error";
   error.setAttribute("role", "alert");
   buttons.className = "buttons";
@@ -144,9 +182,18 @@ export function buildSettings(
   });
 
   form.append(
-    field("Editor", editor),
-    hintNode(EDITOR_HINT),
-    describing,
+    section("Editor", [
+      row("Open files in", editor, { info: EDITOR_INFO, hint: EDITOR_HINT }),
+    ]),
+    section("Describing", [
+      row("Model", model, { info: MODEL_INFO }),
+      row("Batch size", batchSize, { unit: "modules at a time", narrow: true }),
+      row("Ask above", confirmAbove, {
+        info: CONFIRM_INFO,
+        unit: "USD per scan",
+        narrow: true,
+      }),
+    ]),
     error,
     buttons,
   );
