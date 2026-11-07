@@ -1,5 +1,6 @@
 import { type Freshness, type Overlay, validateOverlay } from "recognizer";
 import { ageText } from "./footer-scan";
+import { type ResultRow, stateText } from "./freshness-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type OverlayFileInput = {
@@ -127,6 +128,27 @@ function plural(count: number): string {
   return count.toLocaleString("en-US");
 }
 
+export function freshnessNote(
+  group: OverlayGroup,
+  row: ResultRow | undefined,
+  now: number,
+): GroupNote | null {
+  if (row === undefined || row.state.kind === "current") {
+    return null;
+  }
+
+  const text = `${group.title}: ${stateText(row.state, now).text}`;
+
+  if (row.state.kind === "running") {
+    return { text, tone: "muted" };
+  }
+
+  return {
+    text: `${text}. Run ${group.title} from the Scan panel.`,
+    tone: row.state.kind === "never-run" ? "muted" : "warn",
+  };
+}
+
 export function groupHeader(group: OverlayGroup, now: number): string {
   return group.measuredAt === null
     ? ""
@@ -197,13 +219,6 @@ export function buildOverlayModel(
         tone: "muted",
       });
     } else {
-      if (counts.outOfDate > 0) {
-        notes.push({
-          text: `${title}: ${plural(counts.outOfDate)} of ${plural(counts.total)} modules out of date. Run ${title} to refresh.`,
-          tone: "warn",
-        });
-      }
-
       if (facts?.partial !== undefined) {
         notes.push({
           text: `Partial: ${plural(facts.partial.measured)} of ${plural(facts.partial.total)} functions measured. The rest are uncoloured.`,
@@ -261,17 +276,14 @@ export function buildOverlayModel(
       title: sensor.display,
       measuredAt: nothing ? (status?.modifiedMs ?? null) : null,
       verb: nothing ? "stopped" : "measured",
-      notes: [
-        nothing
-          ? {
+      notes: nothing
+        ? [
+            {
               text: "Stopped before any function finished, so there is nothing to show.",
               tone: "muted",
-            }
-          : {
-              text: `Not run yet. Run ${sensor.display} from the Scan panel.`,
-              tone: "muted",
             },
-      ],
+          ]
+        : [],
       enabled: false,
       tooltip: "",
       outOfDate: 0,
