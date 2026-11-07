@@ -342,11 +342,10 @@ export function showExplorer(
     onCanvas: false,
     needsAttention: false,
   };
-  let overlayModel = buildOverlayModel(
-    loaded.overlays ?? [],
-    freshnessOf(loaded),
-    { sensors: loaded.sensors, shipped: null },
-  );
+  let overlayModel = buildOverlayModel(loaded.overlays ?? [], {
+    sensors: loaded.sensors,
+    shipped: null,
+  });
   let metricTicks = pruneTicks(
     carried?.metricTicks ?? [],
     overlayModel.metrics,
@@ -1936,11 +1935,10 @@ export function showExplorer(
       shippedSensors = { status: "unavailable", reason: String(error) };
     }
 
-    overlayModel = buildOverlayModel(
-      loaded.overlays ?? [],
-      freshnessOf(loaded),
-      { sensors: loaded.sensors, shipped: shippedSensors },
-    );
+    overlayModel = buildOverlayModel(loaded.overlays ?? [], {
+      sensors: loaded.sensors,
+      shipped: shippedSensors,
+    });
 
     overlaysCache = null;
 
@@ -3846,11 +3844,10 @@ export function showExplorer(
       overlaysCache = null;
       health = computeHealth(loaded);
       described = describeTree(root, health);
-      overlayModel = buildOverlayModel(
-        loaded.overlays ?? [],
-        freshnessOf(loaded),
-        { sensors: loaded.sensors, shipped: shippedSensors },
-      );
+      overlayModel = buildOverlayModel(loaded.overlays ?? [], {
+        sensors: loaded.sensors,
+        shipped: shippedSensors,
+      });
       allFindings = findingRows(health.documents);
       hiddenRows = findingRows(health.hidden);
       metricTicks = pruneTicks(metricTicks, overlayModel.metrics);
