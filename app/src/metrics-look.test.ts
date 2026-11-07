@@ -56,7 +56,7 @@ const SHIPPED = SHIPPED_SENSOR_LIST.filter((sensor) => sensor.metrics.length > 0
 const DAY = 86400000;
 const crapOverlay = (commit, inputs = INPUTS) => JSON.stringify({ overlay_version: 1, commit, inputs, modified: false, producer: { name: "crap", version: "0.1.72" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }], values: { complexity: { "app/risk.py::classify": 8 }, coverage: { "app/risk.py::classify": 0.18 }, crap: { "app/risk.py::classify": 40 } } });
 const mutationOverlay = () => JSON.stringify({ overlay_version: 1, inputs: INPUTS, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, producer: { name: "mutation", version: "0.1.0" }, metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({ name, type: "count", granularity: "member", bad: name === "killed" || name === "score" ? "low" : "high" })), values: { killed: { "app/risk.py::classify": 2 }, survived: { "app/risk.py::classify": 3 }, uncovered: {}, score: {} } });
-const status = (name, over) => ({ name, status: "ran", commit: ${JSON.stringify(SCAN_COMMIT)}, findings: 0, ...over });
+const status = (name, over) => ({ name, status: "ran", commit: ${JSON.stringify(SCAN_COMMIT)}, findings: 0, measured: { inputs: INPUTS }, ...over });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -103,6 +103,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 }));
 
 (async () => {
+  const crapHost = () => scanHostOf({ port: fakeSensors({}, {}, {}, SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap", metrics: [] }))) });
   const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, overlay === null ? [] : SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap", metrics: [] }))) }) });
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
@@ -201,7 +202,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     };
   };
   facts.currentState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")]);
-  facts.outOfDateState = await stateOf([{ name: "crap", text: crapOverlay("ffffffffffffffffffffffffffffffffffffffff", ${JSON.stringify(inputsAt(EDITED))}), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff" })]);
+  facts.outOfDateState = await stateOf([{ name: "crap", text: crapOverlay("ffffffffffffffffffffffffffffffffffffffff", ${JSON.stringify(inputsAt(EDITED))}), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff", measured: { inputs: ${JSON.stringify(inputsAt(EDITED))} } })]);
   facts.partialState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
   facts.stoppedNothingState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
   facts.neverRunState = await stateOf([], []);
@@ -226,7 +227,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     metrics: [{ name: "a-very-long-metric", type: "count", granularity: "member", bad: "high" }],
     values: { "a-very-long-metric": { "app/risk.py::classify": 3 } },
   });
-  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "long", text: longOverlay }] }), title: "demo", views: port, post: () => null, carried: null });
+  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "crap", text: longOverlay }], sensors: [status("crap")] }), title: "demo", views: port, post: () => null, carried: null, scanHost: crapHost() });
   await tick();
   for (const folder of ["app", "src", "lib"]) {
     click(q('.tree .row[data-path="' + folder + '"] .reye'));
@@ -234,7 +235,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   }
   click(q(".metrics-toggle"));
   await tick();
-  click(q('.metric-row[data-metric="long/a-very-long-metric"]'));
+  click(q('.metric-row[data-metric="crap/a-very-long-metric"]'));
   await tick();
   facts.long = barsOf("app/risk.py");
 
@@ -254,7 +255,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   const sourcesOf = async (overlay, keys) => {
     explorer.dispose();
     host.replaceChildren();
-    explorer = mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried: null });
+    explorer = mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried: null, scanHost: crapHost() });
     await tick();
     for (const folder of ["app", "src", "lib"]) {
       click(q('.tree .row[data-path="' + folder + '"] .reye'));
@@ -297,7 +298,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   explorer.dispose();
   host.replaceChildren();
   const notedPort = fakeViews({ order: viewFile });
-  explorer = mountExplorer({ container: host, loaded: loadedFor(${JSON.stringify(fresh)}), title: "demo", views: notedPort, post: () => null, carried: facts.carriedTicks });
+  explorer = mountExplorer({ container: host, loaded: loadedFor(${JSON.stringify(fresh)}), title: "demo", views: notedPort, post: () => null, carried: facts.carriedTicks, scanHost: crapHost() });
   await tick();
   click(q(".view-list"));
   click(qa(".view-item")[0]);

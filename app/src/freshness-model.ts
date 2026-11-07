@@ -7,6 +7,7 @@ import {
   MUTATION_KEY,
   type ResultsMode,
   sensorFreshness,
+  staleModules,
 } from "./scan-freshness";
 import type { PanelInput, RowSensor } from "./scan-panel-model";
 
@@ -63,6 +64,8 @@ export type FreshnessModel = {
   ticked: (key: string) => boolean;
   scopeCount: number;
   runModules: number;
+  modules: ReadonlySet<string>;
+  stale: ReadonlyMap<string, ReadonlySet<string>>;
 };
 
 export type StateText = { icon: IconName; text: string };
@@ -578,6 +581,32 @@ function findingsLine(
   };
 }
 
+function staleBySensor(
+  input: PanelInput,
+  sensors: RowSensor[],
+): Map<string, ReadonlySet<string>> {
+  const stale = new Map<string, ReadonlySet<string>>();
+
+  if (input.freshness === undefined) {
+    return stale;
+  }
+
+  for (const one of sensors) {
+    const measured = input.sensors.find(
+      (entry) => entry.name === one.name,
+    )?.measured;
+
+    if (measured !== undefined) {
+      stale.set(
+        one.name,
+        staleModules(input.lines.modules, measured, input.freshness),
+      );
+    }
+  }
+
+  return stale;
+}
+
 export function buildFreshnessModel(
   input: PanelInput,
   sensors: RowSensor[],
@@ -648,5 +677,7 @@ export function buildFreshnessModel(
     ticked,
     scopeCount: modules.length,
     runModules,
+    modules: new Set(input.lines.modules),
+    stale: staleBySensor(input, sensors),
   };
 }
