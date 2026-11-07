@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -350,7 +350,13 @@ fn item_end(data: &[u8], start: usize) -> usize {
     data.len()
 }
 
-fn declared_module(text: &[u8]) -> Option<String> {
+struct ModuleHead {
+    name: String,
+    inline: bool,
+    after: usize,
+}
+
+fn module_head(text: &[u8], start: usize) -> Option<ModuleHead> {
     let n = text.len();
     let skip_space = |mut at: usize| {
         while at < n && is_space(text[at]) {
@@ -359,7 +365,7 @@ fn declared_module(text: &[u8]) -> Option<String> {
 
         at
     };
-    let mut i = skip_space(0);
+    let mut i = skip_space(start);
 
     if text[i..].starts_with(b"pub") {
         let after = i + 3;
@@ -391,31 +397,76 @@ fn declared_module(text: &[u8]) -> Option<String> {
         return None;
     }
 
-    let start = i;
+    let name_start = i;
 
     while i < n && is_identifier_byte(text[i]) {
         i += 1;
     }
 
-    let name = String::from_utf8_lossy(&text[start..i]).into_owned();
+    let name = String::from_utf8_lossy(&text[name_start..i]).into_owned();
 
     i = skip_space(i);
 
-    (i < n && text[i] == b';').then_some(name)
+    if i < n && text[i] == b';' {
+        Some(ModuleHead {
+            name,
+            inline: false,
+            after: i + 1,
+        })
+    } else if i < n && text[i] == b'{' {
+        Some(ModuleHead {
+            name,
+            inline: true,
+            after: i + 1,
+        })
+    } else {
+        None
+    }
+}
+
+fn path_value(inner: &[u8]) -> Option<String> {
+    let text = String::from_utf8_lossy(inner);
+    let rest = text.trim_start().strip_prefix("path")?.trim_start();
+    let rest = rest.strip_prefix('=')?.trim_start().strip_prefix('"')?;
+    let mut end = 0;
+    let bytes = rest.as_bytes();
+
+    while end < bytes.len() {
+        match bytes[end] {
+            b'\\' => end += 2,
+            b'"' => break,
+            _ => end += 1,
+        }
+    }
+
+    if end >= bytes.len() || !rest[end + 1..].trim().is_empty() {
+        return None;
+    }
+
+    Some(rest[..end].to_string())
+}
+
+struct Declaration {
+    scope: Vec<String>,
+    name: String,
+    path: Option<String>,
+    is_test: bool,
 }
 
 struct Scanned {
     items: Vec<(usize, usize)>,
     file_level: bool,
-    modules: Vec<String>,
+    declarations: Vec<Declaration>,
 }
 
 fn scan(data: &[u8]) -> Scanned {
     let mut scanned = Scanned {
         items: Vec::new(),
         file_level: false,
-        modules: Vec::new(),
+        declarations: Vec::new(),
     };
+    let mut scope: Vec<(String, usize)> = Vec::new();
+    let mut depth = 0usize;
     let mut i = 0;
 
     while i < data.len() {
@@ -427,7 +478,7 @@ fn scan(data: &[u8]) -> Scanned {
         if data[i..].starts_with(b"#![") {
             let end = attribute_end(data, i + 3);
 
-            if is_test_attribute(&data[i + 3..end - 1]) {
+            if depth == 0 && is_test_attribute(&data[i + 3..end - 1]) {
                 scanned.file_level = true;
             }
 
@@ -439,16 +490,25 @@ fn scan(data: &[u8]) -> Scanned {
             let start = i;
             let mut end = attribute_end(data, i + 2);
             let mut is_test = is_test_attribute(&data[i + 2..end - 1]);
+            let mut path = path_value(&data[i + 2..end - 1]);
             let mut follow = skip_trivia(data, end);
 
             while data[follow..].starts_with(b"#[") {
                 end = attribute_end(data, follow + 2);
                 is_test = is_test || is_test_attribute(&data[follow + 2..end - 1]);
+                path = path.or_else(|| path_value(&data[follow + 2..end - 1]));
                 follow = skip_trivia(data, end);
             }
 
             if !is_test {
-                i = end;
+                match module_head(data, end) {
+                    None => i = end,
+                    Some(head) => {
+                        i = head.after;
+                        enter(&mut scanned, &mut scope, &mut depth, head, path, false);
+                    }
+                }
+
                 continue;
             }
 
@@ -456,12 +516,32 @@ fn scan(data: &[u8]) -> Scanned {
 
             scanned.items.push((start, stop));
 
-            if let Some(name) = declared_module(&data[end..stop]) {
-                scanned.modules.push(name);
+            if let Some(head) = module_head(&data[end..stop], 0) {
+                if !head.inline {
+                    enter(&mut scanned, &mut scope, &mut depth, head, path, true);
+                }
             }
 
             i = stop.max(end);
             continue;
+        }
+
+        let byte = data[i];
+
+        if byte == b'{' {
+            depth += 1;
+        } else if byte == b'}' {
+            depth = depth.saturating_sub(1);
+
+            if scope.last().is_some_and(|(_, at)| *at == depth) {
+                scope.pop();
+            }
+        } else if (byte == b'm' || byte == b'p') && (i == 0 || !is_identifier_byte(data[i - 1])) {
+            if let Some(head) = module_head(data, i) {
+                i = head.after;
+                enter(&mut scanned, &mut scope, &mut depth, head, None, false);
+                continue;
+            }
         }
 
         i += 1;
@@ -470,39 +550,161 @@ fn scan(data: &[u8]) -> Scanned {
     scanned
 }
 
+fn enter(
+    scanned: &mut Scanned,
+    scope: &mut Vec<(String, usize)>,
+    depth: &mut usize,
+    head: ModuleHead,
+    path: Option<String>,
+    is_test: bool,
+) {
+    if head.inline {
+        scope.push((head.name, *depth));
+        *depth += 1;
+    } else {
+        scanned.declarations.push(Declaration {
+            scope: scope.iter().map(|(name, _)| name.clone()).collect(),
+            name: head.name,
+            path,
+            is_test,
+        });
+    }
+}
+
 fn split_path(path: &str) -> (&str, &str) {
     path.rsplit_once('/').unwrap_or(("", path))
 }
 
-fn stem_of(path: &str) -> &str {
-    let (_, name) = split_path(path);
+fn is_root_file(path: &str) -> bool {
+    let (parent, name) = split_path(path);
 
-    name.strip_suffix(".rs").unwrap_or(name)
+    if matches!(name, "lib.rs" | "main.rs" | "build.rs") {
+        return true;
+    }
+
+    let (grandparent, parent_name) = split_path(parent);
+
+    if matches!(parent_name, "examples" | "benches") {
+        return true;
+    }
+
+    parent_name == "bin" && split_path(grandparent).1 == "src"
 }
 
-fn module_directory(file: &str) -> String {
-    let (parent, _) = split_path(file);
-    let stem = stem_of(file);
+fn normalize(path: &str) -> Option<String> {
+    if path.starts_with('/') {
+        return None;
+    }
 
-    if matches!(stem, "lib" | "main" | "mod") {
-        parent.to_string()
-    } else if parent.is_empty() {
-        stem.to_string()
+    let mut parts: Vec<&str> = Vec::new();
+
+    for segment in path.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            other => parts.push(other),
+        }
+    }
+
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
+fn join_module(base: &str, tail: &str) -> Option<String> {
+    if base.is_empty() {
+        normalize(tail)
     } else {
-        format!("{parent}/{stem}")
+        normalize(&format!("{base}/{tail}"))
     }
 }
 
-fn module_name_of(file: &str) -> &str {
-    let stem = stem_of(file);
+fn module_candidates(file: &str, declaration: &Declaration) -> Vec<String> {
+    let (directory, name) = split_path(file);
 
-    if stem == "mod" {
-        let (parent, _) = split_path(file);
-
-        split_path(parent).1
-    } else {
-        stem
+    if let Some(path) = &declaration.path {
+        return join_module(directory, path).into_iter().collect();
     }
+
+    let stem = name.strip_suffix(".rs").unwrap_or(name);
+    let mut base = if is_root_file(file) || name == "mod.rs" {
+        directory.to_string()
+    } else {
+        join_module(directory, stem).unwrap_or_default()
+    };
+
+    for segment in &declaration.scope {
+        base = join_module(&base, segment).unwrap_or_default();
+    }
+
+    [
+        format!("{}.rs", declaration.name),
+        format!("{}/mod.rs", declaration.name),
+    ]
+    .iter()
+    .filter_map(|tail| join_module(&base, tail))
+    .collect()
+}
+
+fn resolved(file: &str, declaration: &Declaration, index: &BTreeSet<&str>) -> Option<String> {
+    module_candidates(file, declaration)
+        .into_iter()
+        .find(|candidate| index.contains(candidate.as_str()))
+}
+
+fn mark(path: Option<String>, marked: &mut BTreeSet<String>, pending: &mut Vec<String>) {
+    if let Some(path) = path {
+        if marked.insert(path.clone()) {
+            pending.push(path);
+        }
+    }
+}
+
+fn test_file_set(
+    folder: &Path,
+    sources: &[&String],
+    first_pass: &BTreeMap<String, (Vec<u8>, Scanned)>,
+) -> BTreeSet<String> {
+    let index: BTreeSet<&str> = sources.iter().map(|path| path.as_str()).collect();
+    let mut marked: BTreeSet<String> = BTreeSet::new();
+    let mut pending: Vec<String> = Vec::new();
+
+    for (path, (_, scanned)) in first_pass {
+        if scanned.file_level {
+            mark(Some(path.clone()), &mut marked, &mut pending);
+        }
+
+        for declaration in scanned.declarations.iter().filter(|d| d.is_test) {
+            mark(
+                resolved(path, declaration, &index),
+                &mut marked,
+                &mut pending,
+            );
+        }
+    }
+
+    while let Some(file) = pending.pop() {
+        let read;
+        let declarations = match first_pass.get(&file) {
+            Some((_, scanned)) => &scanned.declarations,
+            None => {
+                read = fs::read(folder.join(&file))
+                    .map(|data| scan(&data).declarations)
+                    .unwrap_or_default();
+                &read
+            }
+        };
+        let found: Vec<Option<String>> = declarations
+            .iter()
+            .map(|declaration| resolved(&file, declaration, &index))
+            .collect();
+
+        for path in found {
+            mark(path, &mut marked, &mut pending);
+        }
+    }
+
+    marked
 }
 
 pub fn in_file_test_hashes(
@@ -516,7 +718,7 @@ pub fn in_file_test_hashes(
     sources.dedup();
 
     let mut entries = BTreeMap::new();
-    let mut declared: Vec<(&str, String)> = Vec::new();
+    let mut first_pass: BTreeMap<String, (Vec<u8>, Scanned)> = BTreeMap::new();
 
     for path in &sources {
         if is_test_file(path) {
@@ -537,31 +739,12 @@ pub fn in_file_test_hashes(
             entries.insert(format!("{path}#{number}"), sha256_hex(&data[*start..*stop]));
         }
 
-        if scanned.file_level {
-            entries.insert(format!("{path}#file"), sha256_hex(&data));
-        }
-
-        for name in scanned.modules {
-            declared.push((path.as_str(), name));
-        }
+        first_pass.insert(path.to_string(), (data, scanned));
     }
 
-    for (declaring, name) in declared {
-        let directory = module_directory(declaring);
-        let prefix = if directory.is_empty() {
-            String::new()
-        } else {
-            format!("{directory}/")
-        };
-
-        for path in &sources {
-            if !path.starts_with(&prefix) || module_name_of(path) != name {
-                continue;
-            }
-
-            if let Ok(data) = fs::read(folder.join(path)) {
-                entries.insert(format!("{path}#file"), sha256_hex(&data));
-            }
+    for path in test_file_set(folder, &sources, &first_pass) {
+        if let Ok(data) = fs::read(folder.join(&path)) {
+            entries.insert(format!("{path}#file"), sha256_hex(&data));
         }
     }
 
@@ -851,8 +1034,54 @@ mod tests {
                 ("src/x.rs", "fn a() {}\n"),
                 ("src/deep/x.rs", "fn b() {}\n"),
             ]),
-            vec!["src/deep/x.rs#file", "src/lib.rs#0", "src/x.rs#file"]
+            vec!["src/lib.rs#0", "src/x.rs#file"]
         );
+    }
+
+    #[test]
+    fn a_declared_file_brings_its_descendants_and_not_a_same_named_file() {
+        assert_eq!(
+            entries_of(&[
+                ("src/lib.rs", "#[cfg(test)]\nmod t;\n"),
+                ("src/t.rs", "mod u;\n"),
+                ("src/t/u.rs", "fn a() {}\n"),
+                ("src/a/t.rs", "fn b() {}\n"),
+            ]),
+            vec!["src/lib.rs#0", "src/t.rs#file", "src/t/u.rs#file"]
+        );
+    }
+
+    #[test]
+    fn the_test_files_follow_the_shared_file_cases() {
+        let text =
+            fs::read_to_string(root().join("fixtures/rust-test-gate/file-cases.json")).unwrap();
+        let cases: Vec<Value> = serde_json::from_str(&text).unwrap();
+
+        assert!(cases.len() > 15);
+
+        for case in &cases {
+            let files: Vec<(&str, &str)> = case["files"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(path, content)| (path.as_str(), content.as_str().unwrap()))
+                .collect();
+            let mut found: Vec<String> = entries_of(&files)
+                .into_iter()
+                .filter_map(|key| key.strip_suffix("#file").map(str::to_string))
+                .collect();
+            let mut want: Vec<String> = case["test_files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|path| path.as_str().unwrap().to_string())
+                .collect();
+
+            found.sort();
+            want.sort();
+
+            assert_eq!(found, want, "{}", case["name"]);
+        }
     }
 
     #[test]

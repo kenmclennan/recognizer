@@ -78,7 +78,12 @@ pub fn build(paths: &[String], parsed: &[Parsed], roots: &[usize]) -> Tree {
         }
     }
 
-    let mut test_files: BTreeSet<usize> = BTreeSet::new();
+    let mut test_files: BTreeSet<usize> = parsed
+        .iter()
+        .enumerate()
+        .filter(|(_, source)| source.inner_test)
+        .map(|(file, _)| file)
+        .collect();
 
     for (file, source) in parsed.iter().enumerate() {
         for declaration in &source.test_mods {

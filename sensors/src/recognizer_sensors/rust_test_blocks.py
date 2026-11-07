@@ -1,7 +1,9 @@
 import hashlib
+import posixpath
 import re
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path, PurePosixPath
+from typing import NamedTuple
 
 from recognizer_sensors.mutation.test_files import is_test_file
 
@@ -9,7 +11,22 @@ WHITESPACE = b" \t\n\r\x0b\x0c"
 
 WORD = re.compile(rb"[A-Za-z_][A-Za-z0-9_]*")
 
-ROOT_STEMS = {"lib", "main", "mod"}
+ROOT_NAMES = {"lib.rs", "main.rs", "build.rs"}
+
+PATH_VALUE = re.compile(r'^\s*path\s*=\s*"((?:[^"\\]|\\.)*)"\s*$', re.DOTALL)
+
+
+class Declaration(NamedTuple):
+    scope: tuple[str, ...]
+    name: str
+    path: str | None
+    is_test: bool
+
+
+class Scan(NamedTuple):
+    items: list[tuple[int, int]]
+    file_level: bool
+    declarations: list[Declaration]
 
 
 def is_identifier_byte(byte: int) -> bool:
@@ -317,60 +334,80 @@ def item_end(data: bytes, start: int) -> int:
     return len(data)
 
 
-def declared_module(text: bytes) -> str | None:
-    i = 0
-    n = len(text)
+def module_head(data: bytes, start: int) -> tuple[str, bool, int] | None:
+    n = len(data)
 
     def skip_space(at: int) -> int:
-        while at < n and text[at] in WHITESPACE:
+        while at < n and data[at] in WHITESPACE:
             at += 1
 
         return at
 
-    i = skip_space(i)
+    i = skip_space(start)
 
-    if text.startswith(b"pub", i):
+    if data.startswith(b"pub", i):
         after = i + 3
 
-        if after < n and text[after] == 0x28:
-            close = text.find(b")", after)
+        if after < n and data[after] == 0x28:
+            close = data.find(b")", after)
 
             if close < 0:
                 return None
 
             i = skip_space(close + 1)
-        elif after < n and text[after] in WHITESPACE:
+        elif after < n and data[after] in WHITESPACE:
             i = skip_space(after)
         else:
             return None
 
-    if not text.startswith(b"mod", i):
+    if not data.startswith(b"mod", i):
         return None
 
     after = i + 3
 
-    if after >= n or text[after] not in WHITESPACE:
+    if after >= n or data[after] not in WHITESPACE:
         return None
 
-    i = skip_space(after)
-    match = WORD.match(text, i)
+    match = WORD.match(data, skip_space(after))
 
     if match is None:
         return None
 
     i = skip_space(match.end())
 
-    if i < n and text[i] == 0x3B:
-        return match.group().decode("ascii")
+    if i < n and data[i] == 0x3B:
+        return match.group().decode("ascii"), False, i + 1
+
+    if i < n and data[i] == 0x7B:
+        return match.group().decode("ascii"), True, i + 1
 
     return None
 
 
-def scan(data: bytes) -> tuple[list[tuple[int, int]], bool, list[str]]:
+def path_value(inner: bytes) -> str | None:
+    match = PATH_VALUE.match(inner.decode("latin1"))
+
+    return match.group(1) if match else None
+
+
+def scan(data: bytes) -> Scan:
     items: list[tuple[int, int]] = []
-    modules: list[str] = []
+    declarations: list[Declaration] = []
+    scope: list[tuple[str, int]] = []
     file_level = False
+    depth = 0
     i = 0
+
+    def enter(name: str, inline: bool, path: str | None, is_test: bool) -> None:
+        nonlocal depth
+
+        if inline:
+            scope.append((name, depth))
+            depth += 1
+        else:
+            declarations.append(
+                Declaration(tuple(entry[0] for entry in scope), name, path, is_test)
+            )
 
     while i < len(data):
         skipped = skip_literal(data, i)
@@ -382,7 +419,7 @@ def scan(data: bytes) -> tuple[list[tuple[int, int]], bool, list[str]]:
         if data.startswith(b"#![", i):
             end = attribute_end(data, i + 3)
 
-            if is_test_attribute(attribute_inner(data, i, end, 3)):
+            if depth == 0 and is_test_attribute(attribute_inner(data, i, end, 3)):
                 file_level = True
 
             i = end
@@ -391,48 +428,154 @@ def scan(data: bytes) -> tuple[list[tuple[int, int]], bool, list[str]]:
         if data.startswith(b"#[", i):
             start = i
             end = attribute_end(data, i + 2)
-            is_test = is_test_attribute(attribute_inner(data, i, end, 2))
+            inner = attribute_inner(data, i, end, 2)
+            is_test = is_test_attribute(inner)
+            path = path_value(inner)
             follow = skip_trivia(data, end)
 
             while data.startswith(b"#[", follow):
                 end = attribute_end(data, follow + 2)
-                is_test = is_test or is_test_attribute(attribute_inner(data, follow, end, 2))
+                inner = attribute_inner(data, follow, end, 2)
+                is_test = is_test or is_test_attribute(inner)
+                path = path or path_value(inner)
                 follow = skip_trivia(data, end)
 
             if not is_test:
-                i = end
+                head = module_head(data, end)
+
+                if head is None:
+                    i = end
+                else:
+                    enter(head[0], head[1], path, False)
+                    i = head[2]
+
                 continue
 
             stop = item_end(data, end)
             items.append((start, stop))
-            name = declared_module(data[end:stop])
+            head = module_head(data[end:stop], 0)
 
-            if name is not None:
-                modules.append(name)
+            if head is not None and not head[1]:
+                enter(head[0], False, path, True)
 
             i = max(stop, end)
             continue
 
+        byte = data[i]
+
+        if byte == 0x7B:
+            depth += 1
+        elif byte == 0x7D:
+            depth -= 1
+
+            if scope and scope[-1][1] == depth:
+                scope.pop()
+        elif (byte == 0x6D or byte == 0x70) and (i == 0 or not is_identifier_byte(data[i - 1])):
+            head = module_head(data, i)
+
+            if head is not None:
+                enter(head[0], head[1], None, False)
+                i = head[2]
+                continue
+
         i += 1
 
-    return items, file_level, modules
+    return Scan(items, file_level, declarations)
 
 
-def module_directory(file: PurePosixPath) -> PurePosixPath:
-    if file.stem in ROOT_STEMS:
-        return file.parent
+def is_root_file(path: str) -> bool:
+    file = PurePosixPath(path)
+    parent = file.parent
 
-    return file.parent / file.stem
+    if file.name in ROOT_NAMES:
+        return True
+
+    if parent.name in ("examples", "benches"):
+        return True
+
+    return parent.name == "bin" and parent.parent.name == "src"
 
 
-def module_name_of(file: PurePosixPath) -> str:
-    return file.parent.name if file.stem == "mod" else file.stem
+def module_candidates(
+    file: str,
+    scope: tuple[str, ...],
+    name: str,
+    path: str | None,
+    is_root: bool | None = None,
+) -> list[str]:
+    posix = PurePosixPath(file)
+    directory = "" if str(posix.parent) == "." else str(posix.parent)
+
+    def join(base: str, tail: str) -> str | None:
+        if tail.startswith("/"):
+            return None
+
+        joined = posixpath.normpath(f"{base}/{tail}" if base else tail)
+
+        return None if joined.startswith("..") or joined == "." else joined
+
+    if path is not None:
+        found = join(directory, path)
+
+        return [] if found is None else [found]
+
+    root = is_root_file(file) if is_root is None else is_root
+    base = directory if root or posix.name == "mod.rs" else join(directory, posix.stem) or ""
+
+    for segment in scope:
+        base = join(base, segment) or ""
+
+    return [found for tail in (f"{name}.rs", f"{name}/mod.rs") if (found := join(base, tail))]
+
+
+def resolved_declaration(
+    file: str, declaration: Declaration, exists: Callable[[str], bool], is_root: bool | None = None
+) -> str | None:
+    for candidate in module_candidates(
+        file, declaration.scope, declaration.name, declaration.path, is_root
+    ):
+        if exists(candidate):
+            return candidate
+
+    return None
+
+
+def test_file_set(
+    sources: Collection[str],
+    first_pass: dict[str, Scan],
+    scan_file: Callable[[str], Scan | None],
+) -> set[str]:
+    index = set(sources)
+    marked: set[str] = set()
+    pending: list[str] = []
+
+    def mark(path: str | None) -> None:
+        if path is not None and path not in marked:
+            marked.add(path)
+            pending.append(path)
+
+    for path, found in first_pass.items():
+        if found.file_level:
+            mark(path)
+
+        for declaration in found.declarations:
+            if declaration.is_test:
+                mark(resolved_declaration(path, declaration, index.__contains__))
+
+    while pending:
+        file = pending.pop()
+        found = first_pass.get(file) or scan_file(file)
+
+        for declaration in found.declarations if found else []:
+            mark(resolved_declaration(file, declaration, index.__contains__))
+
+    return marked
 
 
 def in_file_test_hashes(repository: Path, listed: Collection[str]) -> dict[str, str]:
     sources = sorted({path for path in listed if path.endswith(".rs")})
     entries: dict[str, str] = {}
-    declared: list[tuple[PurePosixPath, str]] = []
+    first_pass: dict[str, Scan] = {}
 
     for path in sources:
         if is_test_file(path):
@@ -446,27 +589,22 @@ def in_file_test_hashes(repository: Path, listed: Collection[str]) -> dict[str, 
         if b"test" not in data:
             continue
 
-        items, file_level, modules = scan(data)
+        found = scan(data)
+        first_pass[path] = found
 
-        for number, (start, stop) in enumerate(items):
+        for number, (start, stop) in enumerate(found.items):
             entries[f"{path}#{number}"] = sha256_hex(data[start:stop])
 
-        if file_level:
-            entries[f"{path}#file"] = sha256_hex(data)
+    def scan_file(path: str) -> Scan | None:
+        try:
+            return scan((repository / path).read_bytes())
+        except OSError:
+            return None
 
-        declared.extend((PurePosixPath(path), name) for name in modules)
-
-    for declaring, name in declared:
-        directory = module_directory(declaring)
-        prefix = "" if str(directory) == "." else f"{directory}/"
-
-        for path in sources:
-            if not path.startswith(prefix) or module_name_of(PurePosixPath(path)) != name:
-                continue
-
-            try:
-                entries[f"{path}#file"] = sha256_hex((repository / path).read_bytes())
-            except OSError:
-                continue
+    for path in sorted(test_file_set(sources, first_pass, scan_file)):
+        try:
+            entries[f"{path}#file"] = sha256_hex((repository / path).read_bytes())
+        except OSError:
+            continue
 
     return entries

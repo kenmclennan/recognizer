@@ -46,6 +46,7 @@ pub struct Parsed {
     pub scopes: BTreeMap<Vec<String>, Scope>,
     pub mods: Vec<ModDecl>,
     pub test_mods: Vec<ModDecl>,
+    pub inner_test: bool,
     pub impls: Vec<ImplRef>,
 }
 
@@ -416,6 +417,7 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
         scopes: BTreeMap::new(),
         mods: Vec::new(),
         test_mods: Vec::new(),
+        inner_test: file.attrs.iter().any(is_test_attribute),
         impls: Vec::new(),
     };
     let mut methods: HashMap<String, Vec<Value>> = HashMap::new();

@@ -283,17 +283,28 @@ describe("declared test modules", () => {
     ]);
   });
 
-  it("includes two files of one module name under the directory", () => {
+  it("marks only the file the declaration resolves to", () => {
     const files = {
       "src/lib.rs": "#[cfg(test)]\nmod x;\n",
       "src/x.rs": "fn a() {}\n",
       "src/deep/x.rs": "fn b() {}\n",
     };
 
+    expect(entriesOf(files)).toEqual(["src/lib.rs#0", "src/x.rs#file"]);
+  });
+
+  it("brings the descendants of a declared file and not a same-named file", () => {
+    const files = {
+      "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+      "src/t.rs": "mod u;\n",
+      "src/t/u.rs": "fn a() {}\n",
+      "src/a/t.rs": "fn b() {}\n",
+    };
+
     expect(entriesOf(files)).toEqual([
-      "src/deep/x.rs#file",
       "src/lib.rs#0",
-      "src/x.rs#file",
+      "src/t.rs#file",
+      "src/t/u.rs#file",
     ]);
   });
 });
