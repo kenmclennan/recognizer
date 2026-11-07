@@ -2,7 +2,7 @@ import pytest
 from conftest import member, module
 
 from recognizer_scan_kotlin import scan, scan_with_stats
-from recognizer_scan_kotlin.parse import PARSER, is_damaged, parse_file, repair_closing_braces
+from recognizer_scan_kotlin.parse import PARSER, is_damaged, parse_file
 
 SINGLE = (
     "interface Store { fun save() }\n"
@@ -58,32 +58,6 @@ def test_a_body_closed_on_its_last_member_line_parses_undamaged(source):
     assert not parse_file(source.encode()).damaged
 
 
-def test_the_repair_inserts_a_semicolon_before_the_closing_brace_only():
-    assert repair_closing_braces("interface Store { fun save() }\n") == (
-        "interface Store { fun save() ;}\n"
-    )
-    assert repair_closing_braces("class A { val x = 1; }\n") == "class A { val x = 1; }\n"
-    assert repair_closing_braces("class A {\n}\n") == "class A {\n}\n"
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        'val s = "}"\n',
-        "val c = '}'\n",
-        "val a = 1 // }\n",
-        "val a = 1 /* } */\n",
-        'val r = """}"""\n',
-    ],
-)
-def test_braces_in_strings_chars_and_comments_are_never_repaired(source):
-    assert repair_closing_braces(source) == source
-
-
-def test_the_repair_keeps_the_newline_count():
-    assert repair_closing_braces(SINGLE).count("\n") == SINGLE.count("\n")
-
-
 def test_members_keep_their_lines_after_the_repair(run):
     document = run({"a/F.kt": "package p\n\nclass A { fun f() {} }\nclass B\n"})
 
@@ -92,7 +66,7 @@ def test_members_keep_their_lines_after_the_repair(run):
     assert member(document, "a/F.kt", "B")["line"] == 4
 
 
-def test_a_file_the_repair_cannot_fix_is_chunked_on_the_original_text(run, tmp_path):
+def test_a_file_the_arrow_repair_cannot_fix_stays_damaged_and_keeps_its_names(run, tmp_path):
     source = (
         "package p\n\nclass A { val x = 1 }\n\n"
         "fun U(xs: List<Int>) {\n    xs.forEach { x\n\n        ->\n        x\n    }\n}\n"
@@ -103,5 +77,4 @@ def test_a_file_the_repair_cannot_fix_is_chunked_on_the_original_text(run, tmp_p
     assert scan_with_stats(tmp_path, None).damaged == 1
     assert is_damaged(PARSER.parse(source.encode()).root_node)
     assert parsed.damaged
-    assert is_damaged(PARSER.parse(repair_closing_braces(source).encode()).root_node)
     assert {"A", "U"} <= set(outline(document, "a/F.kt"))

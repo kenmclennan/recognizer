@@ -371,32 +371,6 @@ def read_declarations(roots: list[Node]) -> list[Decl]:
     return found
 
 
-def fill_from_patterns(parsed: Parsed, decls: list[Decl]) -> None:
-    known = {d.name for d in decls}
-
-    for hit in parsed.hits:
-        if hit.name not in known:
-            known.add(hit.name)
-            decls.append(
-                Decl(
-                    hit.name,
-                    hit.kind,
-                    hit.line,
-                    hit.visibility,
-                    None,
-                    is_expect=hit.is_expect,
-                    is_actual=hit.is_actual,
-                )
-            )
-
-    for outer, companion, line in parsed.companions:
-        name = f"{outer}.{companion or COMPANION_NAME}"
-
-        if name not in known:
-            known.add(name)
-            decls.append(Decl(name, "class", line, "public", None, owner=outer, is_object=True))
-
-
 def blank_code(text: str) -> tuple[str, list[tuple[str, int]]]:
     out: list[str] = []
     templates: list[tuple[str, int]] = []
@@ -550,9 +524,6 @@ def read_source(path: str, directory: str, parsed: Parsed, data: bytes) -> Sourc
                         imports.append(found)
 
     decls = read_declarations(parsed.roots)
-
-    if parsed.damaged:
-        fill_from_patterns(parsed, decls)
 
     uses, chains = collect_uses(parsed.roots)
 

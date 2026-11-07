@@ -3,6 +3,7 @@ import json
 from conftest import REPOSITORY, member, validate
 
 from recognizer_scan_kotlin import scan_with_stats
+from recognizer_scan_kotlin.declarations import read_declarations
 from recognizer_scan_kotlin.parse import parse_file, repair_lambda_arrows
 
 FIXTURE = REPOSITORY / "fixtures" / "kotlin" / "modern-syntax"
@@ -47,7 +48,7 @@ def test_a_lambda_arrow_after_a_blank_line_is_still_damaged_and_keeps_its_names(
     parsed = parse_file(LAMBDA_ARROW_AFTER_A_BLANK_LINE.encode())
 
     assert parsed.damaged
-    assert [h.name for h in parsed.hits] == ["A"]
+    assert [d.name for d in read_declarations(parsed.roots)] == ["A"]
 
 
 def test_the_lambda_arrow_repair_moves_the_arrow_up_and_keeps_every_line():
