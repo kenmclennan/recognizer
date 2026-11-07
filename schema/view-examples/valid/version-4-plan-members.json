@@ -1,0 +1,33 @@
+{
+  "schema_version": 4,
+  "description": "What the discount change will do.",
+  "commit": null,
+  "plan": true,
+  "steps": [
+    {
+      "kind": "pick",
+      "module": "orders/order.py"
+    }
+  ],
+  "proposed": [
+    {
+      "module": "orders/order.py",
+      "kind": "changes"
+    },
+    {
+      "module": "orders/order.py",
+      "member": "Order.apply_discount",
+      "kind": "new"
+    },
+    {
+      "module": "orders/order.py",
+      "member": "Order.total",
+      "kind": "changes"
+    },
+    {
+      "module": "orders/order.py",
+      "member": "Order.apply_coupon",
+      "kind": "removed"
+    }
+  ]
+}

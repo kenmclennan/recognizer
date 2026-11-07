@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-range-members"
+description = "Enables the range_members command without any pre-configured scope."
+commands.allow = ["range_members"]
+
+[[permission]]
+identifier = "deny-range-members"
+description = "Denies the range_members command without any pre-configured scope."
+commands.deny = ["range_members"]

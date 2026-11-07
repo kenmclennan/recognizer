@@ -10,6 +10,7 @@ export const BAR_TRACK_HEIGHT = 6;
 export const BAR_LEFT = 44;
 export const BAR_BOTTOM_PAD = 6;
 export const BAR_PAD = 10;
+export const SOURCES_GAP = 6;
 
 export type Tone = "green" | "amber" | "red";
 export type BarRect = { x: number; y: number; width: number; height: number };

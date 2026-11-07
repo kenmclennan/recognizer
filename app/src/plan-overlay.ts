@@ -1,14 +1,18 @@
 import {
   type Ghost,
   type ProposedKind,
+  type ResolvedMemberEntry,
   type ResolvedView,
+  resolveMembers,
+  type Scan,
   type View,
   type ViewProposedChange,
-  viewProposed,
+  viewModuleProposed,
 } from "recognizer";
 
 export type PlanOverlay = {
   proposed: ReadonlyMap<string, ViewProposedChange>;
+  members: ReadonlyMap<string, ResolvedMemberEntry[]>;
   planned: string[];
   ghosts: Ghost[];
 };
@@ -16,6 +20,7 @@ export type PlanOverlay = {
 export function planOverlay(
   view: View | null,
   resolved: ResolvedView,
+  scans: Scan[] = [],
 ): PlanOverlay | null {
   if (view === null || view.plan !== true) {
     return null;
@@ -25,10 +30,11 @@ export function planOverlay(
 
   return {
     proposed: new Map(
-      viewProposed(view)
+      viewModuleProposed(view)
         .filter((entry) => drawn.has(entry.module))
         .map((entry) => [entry.module, entry]),
     ),
+    members: resolveMembers(view, scans).byModule,
     planned: resolved.planned,
     ghosts: resolved.ghosts,
   };

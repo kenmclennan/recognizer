@@ -22,6 +22,11 @@ import {
 } from "./function-length";
 import type { FunctionLimits } from "./function-limits";
 import type { Disc, Finding } from "./health";
+import {
+  type MemberMark,
+  type MemberMarkWord,
+  memberMark,
+} from "./member-mark";
 import { barTitle, type Tone, tone, valueLabel } from "./metric-bars";
 import { descriptionOf } from "./module-tip";
 import type { MetricDescriptor } from "./overlay-model";
@@ -51,13 +56,24 @@ export type InspectorInputs = {
   metricsOn: boolean;
   limits: FunctionLimits;
   proposed?: (id: string) => ViewProposedChange | null;
+  members?: InspectorMembers;
 };
+
+export type InspectorMembers = {
+  mark: (module: string, key: string) => MemberMarkWord | null;
+  planned: (module: string) => string[];
+  start: (module: string) => ScanMember[] | null;
+  note: (module: string) => string | null;
+};
+
+export type MemberLook = "removed" | "planned";
 
 export type Direction = "uses" | "usedBy";
 
 export type Followed = { id: string; relation: Direction };
 
 export type CardLabel =
+  | "Member"
   | "Class"
   | "Interface"
   | "Type"
@@ -72,6 +88,8 @@ export type CardLine = {
   tokens: Token[];
   private: boolean;
   size: CardSize | null;
+  mark?: MemberMark;
+  look?: MemberLook;
 };
 
 export type MetricCell = { text: string; tone: Tone | null; title: string };
@@ -102,6 +120,8 @@ export type CardRow = {
   private: boolean;
   hover: string;
   table: MetricTable | null;
+  mark?: MemberMark;
+  look?: MemberLook;
 };
 
 export type SwitchRow = { kind: "switch"; label: "Show private"; on: boolean };
@@ -329,6 +349,57 @@ function lengthsOf(members: readonly ScanMember[]): number[] {
   });
 }
 
+type MemberContext = {
+  module: string;
+  mark: (module: string, key: string) => MemberMarkWord | null;
+  start: ScanMember[] | null;
+};
+
+function markOf(
+  context: MemberContext | null,
+  key: string,
+): { mark: MemberMark; look?: MemberLook } | Record<string, never> {
+  const word = context?.mark(context.module, key) ?? null;
+
+  if (word === null) {
+    return {};
+  }
+
+  return {
+    mark: memberMark(word),
+    ...(word === "removed" ? { look: "removed" as const } : {}),
+  };
+}
+
+function insertRemoved<T>(
+  existing: { key: string | null; item: T }[],
+  start: { key: string; line: number | null }[],
+  removed: Map<string, T>,
+): T[] {
+  const result = [...existing];
+  const ordered = inFileOrder(
+    start.map((entry) => ({ line: entry.line, item: entry.key })),
+  ).map(({ item }) => item);
+
+  ordered.forEach((key, at) => {
+    const row = removed.get(key);
+
+    if (row === undefined) {
+      return;
+    }
+
+    let after = -1;
+
+    for (let back = at - 1; back >= 0 && after < 0; back -= 1) {
+      after = result.findIndex((entry) => entry.key === ordered[back]);
+    }
+
+    result.splice(after + 1, 0, { key, item: row });
+  });
+
+  return result.map((entry) => entry.item);
+}
+
 function classCard(
   member: ScanMember,
   edges: ScanEdge[],
@@ -336,6 +407,7 @@ function classCard(
   module: string,
   metrics: readonly MetricDescriptor[],
   largest: number,
+  context: MemberContext | null = null,
 ): CardRow {
   const label = member.kind === "interface" ? "Interface" : "Class";
   const outline =
@@ -356,6 +428,7 @@ function classCard(
     private: !member.exported,
     hover: member.name,
     table: null,
+    ...markOf(context, member.name),
   };
 
   if (!outline) {
@@ -384,18 +457,22 @@ function classCard(
     }),
   );
   const methods = (member.methods ?? []).map(
-    (method): Placed<CardLine> => ({
+    (method): Placed<CardLine> & { key: string } => ({
       line: method.line ?? null,
+      key: `${member.name}.${method.name}`,
       item: {
         line: method.line ?? null,
         tokens: methodTokens(method),
         private: method.private === true,
         size: sizeOf(method.line, method.end_line, largest),
+        ...markOf(context, `${member.name}.${method.name}`),
       },
     }),
   );
+  const keyed = new Map(methods.map((method) => [method.item, method.key]));
   const all = inFileOrder([...fields, ...methods]).map(({ item }) => item);
-  const shown = showPrivate ? all : all.filter((line) => !line.private);
+  const visible = showPrivate ? all : all.filter((line) => !line.private);
+  const shown = withRemovedMethods(member, visible, keyed, context, largest);
   const hiddenFields = fields.filter(({ item }) => item.private).length;
   const hiddenMethods = methods.filter(({ item }) => item.private).length;
 
@@ -414,6 +491,50 @@ function classCard(
         })),
     ),
   };
+}
+
+function withRemovedMethods(
+  member: ScanMember,
+  visible: CardLine[],
+  keyed: Map<CardLine, string>,
+  context: MemberContext | null,
+  largest: number,
+): CardLine[] {
+  const before = context?.start?.find((entry) => entry.name === member.name);
+
+  if (context === null || before === undefined) {
+    return visible;
+  }
+
+  const removed = new Map<string, CardLine>();
+  const starts: { key: string; line: number | null }[] = [];
+
+  for (const method of before.methods ?? []) {
+    const key = `${member.name}.${method.name}`;
+
+    starts.push({ key, line: method.line ?? null });
+
+    if (context.mark(context.module, key) === "removed") {
+      removed.set(key, {
+        line: null,
+        tokens: methodTokens(method),
+        private: false,
+        size: sizeOf(null, null, largest),
+        mark: memberMark("removed"),
+        look: "removed",
+      });
+    }
+  }
+
+  if (removed.size === 0) {
+    return visible;
+  }
+
+  return insertRemoved(
+    visible.map((item) => ({ key: keyed.get(item) ?? null, item })),
+    starts,
+    removed,
+  );
 }
 
 function metricOf(
@@ -477,6 +598,7 @@ function plainCard(
   module: string,
   largest: number,
   inputs: InspectorInputs,
+  context: MemberContext | null = null,
 ): CardRow | null {
   const head = memberHeadTokens(member, []);
   const label = PLAIN_LABELS[member.kind ?? ""];
@@ -504,7 +626,81 @@ function plainCard(
     private: !member.exported,
     hover: member.name,
     table: null,
+    ...markOf(context, member.name),
   };
+}
+
+function removedCard(card: CardRow): CardRow {
+  return {
+    ...card,
+    line: null,
+    showsLine: false,
+    size: null,
+    metricsRow: null,
+    table: null,
+    lines: card.lines.map((line) => ({ ...line, line: null, size: null })),
+    mark: memberMark("removed"),
+    look: "removed",
+  };
+}
+
+function plannedLine(name: string): CardLine {
+  return {
+    line: null,
+    tokens: [{ text: name, role: "name" }],
+    private: false,
+    size: null,
+    mark: memberMark("new"),
+    look: "planned",
+  };
+}
+
+function plannedCards(
+  keys: string[],
+  cards: { key: string | null; item: CardRow }[],
+  module: string,
+): CardRow[] {
+  const added: { key: string; card: CardRow }[] = [];
+  const newCard = (name: string): CardRow => ({
+    kind: "card",
+    label: "Member",
+    module,
+    line: null,
+    showsLine: false,
+    size: null,
+    metricsRow: null,
+    head: [{ text: name, role: "name" }],
+    lines: [],
+    hidden: "",
+    private: false,
+    hover: name,
+    table: null,
+    mark: memberMark("new"),
+    look: "planned",
+  });
+
+  for (const key of keys.filter((k) => !k.includes("."))) {
+    if (!cards.some((entry) => entry.key === key)) {
+      added.push({ key, card: newCard(key) });
+    }
+  }
+
+  for (const key of keys.filter((k) => k.includes("."))) {
+    const dot = key.indexOf(".");
+    const owner = key.slice(0, dot);
+    const method = key.slice(dot + 1);
+    const host =
+      cards.find((entry) => entry.key === owner)?.item ??
+      added.find((entry) => entry.key === owner)?.card;
+
+    if (host !== undefined) {
+      host.lines = [...host.lines, plannedLine(method)];
+    } else {
+      added.push({ key, card: newCard(key) });
+    }
+  }
+
+  return added.map((entry) => entry.card);
 }
 
 function moduleContents(module: string, inputs: InspectorInputs): Row[] {
@@ -526,26 +722,72 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
     (member) => inputs.showPrivate || member.exported,
   );
   const largest = Math.max(0, ...lengthsOf(found.members));
-  const cards = inFileOrder(
-    shown.flatMap((member): Placed<CardRow>[] => {
-      const card =
-        member.kind === "class" || member.kind === "interface"
-          ? classCard(
-              member,
-              edges,
-              inputs.showPrivate,
-              module,
-              inputs.metrics,
-              largest,
-            )
-          : plainCard(member, module, largest, inputs);
+  const members = inputs.members;
+  const context: MemberContext | null =
+    members === undefined
+      ? null
+      : {
+          module,
+          mark: members.mark,
+          start: members.start(module),
+        };
+  const build = (member: ScanMember, using: MemberContext | null) =>
+    member.kind === "class" || member.kind === "interface"
+      ? classCard(
+          member,
+          edges,
+          inputs.showPrivate,
+          module,
+          inputs.metrics,
+          largest,
+          using,
+        )
+      : plainCard(member, module, largest, inputs, using);
+  const placed = inFileOrder(
+    shown.flatMap((member): Placed<{ key: string | null; item: CardRow }>[] => {
+      const card = build(member, context);
 
-      return card === null ? [] : [{ line: member.line ?? null, item: card }];
+      return card === null
+        ? []
+        : [
+            {
+              line: member.line ?? null,
+              item: { key: member.name, item: card },
+            },
+          ];
     }),
   ).map(({ item }) => item);
+  const survivors = new Set(found.members.map((member) => member.name));
+  const removed = new Map<string, CardRow>();
+  const starts: { key: string; line: number | null }[] = [];
+
+  for (const member of context?.start ?? []) {
+    starts.push({ key: member.name, line: member.line ?? null });
+
+    if (
+      !survivors.has(member.name) &&
+      context?.mark(module, member.name) === "removed" &&
+      (inputs.showPrivate || member.exported)
+    ) {
+      const card = build(member, null);
+
+      if (card !== null) {
+        removed.set(member.name, removedCard(card));
+      }
+    }
+  }
+
+  const ordered =
+    removed.size === 0
+      ? placed.map((entry) => entry.item)
+      : insertRemoved(placed, starts, removed);
+  const planned = plannedCards(members?.planned(module) ?? [], placed, module);
+  const cards = [...ordered, ...planned];
+  const note = members?.note(module) ?? null;
 
   return [
     { kind: "switch", label: "Show private", on: inputs.showPrivate },
+    ...(note === null ? [] : [{ kind: "note", text: note } as Row]),
     ...(cards.length === 0 ? [{ kind: "none" } as Row] : cards),
   ];
 }

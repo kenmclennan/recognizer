@@ -1675,3 +1675,25 @@ def test_only_mutation_is_handed_a_checkpoint():
     from recognizer_sensors.registry import SHIPPED
 
     assert {name for name, entry in SHIPPED.items() if entry.checkpoints} == {"mutation"}
+
+
+def test_copy_repository_skips_pycache_at_any_depth_and_keeps_skipping_git_and_cache(tmp_path):
+    source = tmp_path / "source"
+    (source / "__pycache__").mkdir(parents=True)
+    (source / "__pycache__" / "top.cpython-313.pyc").write_bytes(b"x")
+    (source / "pkg" / "__pycache__").mkdir(parents=True)
+    (source / "pkg" / "__pycache__" / "mod.cpython-313.pyc").write_bytes(b"x")
+    (source / "pkg" / "mod.py").write_text("x = 1\n")
+    (source / "pkg" / "stray.pyc").write_bytes(b"x")
+    (source / ".git").mkdir()
+    (source / ".git" / "HEAD").write_text("ref")
+    (source / ".recognizer" / "cache").mkdir(parents=True)
+    (source / ".recognizer" / "cache" / "scan.json").write_text("{}")
+    (source / ".recognizer" / "policy.yaml").write_text("a: 1\n")
+
+    destination = tmp_path / "copy"
+    runner.copy_repository(source, destination)
+
+    copied = sorted(str(path.relative_to(destination)) for path in destination.rglob("*"))
+
+    assert copied == [".recognizer", ".recognizer/policy.yaml", "pkg", "pkg/mod.py"]

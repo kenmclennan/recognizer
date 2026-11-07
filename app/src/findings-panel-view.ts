@@ -1,7 +1,8 @@
 import { button, el } from "./dom";
 import type { CardModel, CardRowModel } from "./finding-card";
 import { shortName } from "./finding-sentence";
-import type { FindingGroupModel } from "./findings-groups";
+import type { FindingGroupModel, GroupHelp } from "./findings-groups";
+import { icon } from "./icons";
 
 export type FindingRowActions = {
   toggle: (id: string) => void;
@@ -114,6 +115,44 @@ export function buildFindingCard(
   return node;
 }
 
+function infoControl(
+  group: FindingGroupModel,
+  help: GroupHelp,
+): [HTMLButtonElement, HTMLElement] {
+  const tipId = `finding-tip-${group.key.replace(/[^a-z0-9]+/gi, "-")}`;
+  const info = el("button", "finding-info");
+  const tip = el("div", "finding-tip");
+  const means = el("p", "finding-tip-line");
+  const todo = el("p", "finding-tip-line");
+
+  info.type = "button";
+  info.setAttribute("aria-label", `About ${group.name}`);
+  info.setAttribute("aria-describedby", tipId);
+  info.append(icon("info"));
+  info.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      info.dataset.dismissed = "true";
+    }
+  });
+  info.addEventListener("blur", () => {
+    delete info.dataset.dismissed;
+  });
+  info.addEventListener("pointerleave", () => {
+    delete info.dataset.dismissed;
+  });
+
+  tip.id = tipId;
+  tip.setAttribute("role", "tooltip");
+  means.append(el("span", "finding-tip-label", "What it means"));
+  means.append(el("span", "finding-tip-text", help.means));
+  todo.append(el("span", "finding-tip-label", "What to do"));
+  todo.append(el("span", "finding-tip-text", help.todo));
+  tip.append(means, todo);
+
+  return [info, tip];
+}
+
 export function buildFindingGroup(
   group: FindingGroupModel,
   open: boolean,
@@ -122,19 +161,35 @@ export function buildFindingGroup(
   actions: FindingRowActions & { toggleGroup: (key: string) => void },
 ): HTMLElement {
   const block = el("div", open ? "finding-group open" : "finding-group");
-  const head = button("", "finding-group-head", () =>
-    actions.toggleGroup(group.key),
-  );
+  const line = el("div", "finding-group-line");
+  const head = el("button", "finding-group-head");
 
   block.dataset.group = group.key;
+  head.type = "button";
   head.setAttribute("aria-expanded", String(open));
   head.append(
     el("span", "finding-chevron", "›"),
     el("span", `finding-mark ${group.severity}`),
     el("span", "finding-group-name", group.name),
-    el("span", "finding-group-count", String(group.rows.length)),
   );
-  block.append(head);
+  line.append(head);
+
+  if (group.help !== null) {
+    line.append(...infoControl(group, group.help));
+  }
+
+  line.append(el("span", "finding-group-count", String(group.rows.length)));
+  line.addEventListener("click", (event) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest(".finding-info, .finding-tip")
+    ) {
+      return;
+    }
+
+    actions.toggleGroup(group.key);
+  });
+  block.append(line);
 
   if (open) {
     group.rows.forEach((row, index) => {

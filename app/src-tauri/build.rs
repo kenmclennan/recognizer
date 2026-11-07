@@ -9,6 +9,7 @@ fn main() {
         "open_folder_in_editor",
         "open_in_editor",
         "publish_window_state",
+        "range_members",
         "read_describing",
         "read_findings",
         "read_overlays",

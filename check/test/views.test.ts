@@ -7,6 +7,7 @@ import {
   migrateView,
   noteWarnings,
   proposedWarnings,
+  resolveMembers,
   resolveView,
   serialiseView,
   type View,
@@ -372,8 +373,8 @@ describe("view versions", () => {
   });
 
   it("counts the examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(12);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(38);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(13);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(43);
   });
 });
 
@@ -423,7 +424,9 @@ describe("plan views", () => {
       ),
     ) as Record<string, string>;
     const files = readdirSync(join(EXAMPLES, "valid")).filter(
-      (file) => file !== "version-4-plan.json",
+      (file) =>
+        file !== "version-4-plan.json" &&
+        file !== "version-4-plan-members.json",
     );
 
     expect(Object.keys(pins).sort()).toEqual(files.sort());
@@ -568,6 +571,126 @@ describe("plan views", () => {
 
     expect(proposedWarnings(view, resolveView(view, [scan]))).toEqual([
       `proposed change on ${ORDER} is not drawn: the module is not on the view`,
+    ]);
+  });
+});
+
+describe("member entries in a plan", () => {
+  const ORDER = "shop/domain/order.py";
+  const plan = (proposed: View["proposed"], ...steps: ViewStep[]): View => ({
+    schema_version: 4,
+    description: "p",
+    commit: null,
+    plan: true,
+    proposed,
+    steps,
+  });
+  const pick = (module: string): ViewStep => ({ kind: "pick", module });
+
+  it("keeps member entries through serialise in key order", () => {
+    const example = validateView(
+      JSON.parse(
+        readFileSync(
+          join(EXAMPLES, "valid/version-4-plan-members.json"),
+          "utf8",
+        ),
+      ),
+    );
+    const parsed = JSON.parse(serialiseView(example));
+
+    expect(parsed.proposed).toHaveLength(4);
+    expect(Object.keys(parsed.proposed[1])).toEqual([
+      "module",
+      "member",
+      "kind",
+    ]);
+    expect(serialiseView(validateView(parsed))).toBe(serialiseView(example));
+  });
+
+  it("keeps the last entry on one module and member and warns", () => {
+    const doubled = plan(
+      [
+        { module: ORDER, member: "Order.total", kind: "new" },
+        { module: ORDER, member: "Order.total", kind: "changes" },
+        { module: ORDER, kind: "changes" },
+      ],
+      pick(ORDER),
+    );
+
+    expect(migrateView(doubled).proposed).toEqual([
+      { module: ORDER, member: "Order.total", kind: "changes" },
+      { module: ORDER, kind: "changes" },
+    ]);
+    expect(proposedWarnings(doubled, resolveView(doubled, [scan]))).toEqual([
+      `view holds 1 proposed change on ${ORDER}#Order.total; kept the last on each`,
+    ]);
+  });
+
+  it("draws a changes member in the scan and a new member not in it, and reports only the changes member that is not in the scan", () => {
+    const view = plan(
+      [
+        { module: ORDER, member: "Order.total", kind: "changes" },
+        { module: ORDER, member: "Order.vanished", kind: "changes" },
+        { module: ORDER, member: "Order.apply_discount", kind: "new" },
+      ],
+      pick(ORDER),
+    );
+    const resolved = resolveMembers(view, [scan]);
+
+    expect(resolved.byModule.get(ORDER)).toEqual([
+      { module: ORDER, member: "Order.total", kind: "changes", inScan: true },
+      {
+        module: ORDER,
+        member: "Order.apply_discount",
+        kind: "new",
+        inScan: false,
+      },
+    ]);
+    expect(resolved.warnings).toEqual([
+      `proposed change on ${ORDER}#Order.vanished is not drawn: the member is not in the scan`,
+    ]);
+    expect(resolveView(view, [scan]).unresolved).toEqual([]);
+  });
+
+  it("draws a new member the scan already holds as an ordinary row", () => {
+    const view = plan(
+      [{ module: ORDER, member: "new_order", kind: "new" }],
+      pick(ORDER),
+    );
+
+    expect(resolveMembers(view, [scan]).byModule.get(ORDER)).toEqual([
+      { module: ORDER, member: "new_order", kind: "new", inScan: true },
+    ]);
+  });
+
+  it("ignores a member entry on a planned or wholly removed module with a warning", () => {
+    const view = plan(
+      [
+        { module: "shop/application/discount.py", kind: "new" },
+        {
+          module: "shop/application/discount.py",
+          member: "Discount",
+          kind: "new",
+        },
+        { module: ORDER, kind: "removed" },
+        { module: ORDER, member: "Order", kind: "removed" },
+      ],
+      pick(ORDER),
+    );
+    const resolved = resolveMembers(view, [scan]);
+
+    expect(resolved.byModule.size).toBe(0);
+    expect(resolved.warnings).toEqual([
+      "proposed change on shop/application/discount.py#Discount is not drawn: shop/application/discount.py is planned",
+      `proposed change on ${ORDER}#Order is not drawn: ${ORDER} is wholly removed`,
+    ]);
+  });
+
+  it("warns about a member entry whose module is not on the view", () => {
+    const view = plan([{ module: ORDER, member: "Order", kind: "changes" }]);
+
+    expect(resolveMembers(view, [scan]).warnings).toEqual([
+      `proposed change on ${ORDER}#Order is not drawn: the module is not on the view`,
     ]);
   });
 });
