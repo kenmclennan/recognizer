@@ -113,7 +113,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     const rect = info.querySelector("svg").getBoundingClientRect();
     const probe = (name) => { const n = document.createElement("span"); n.style.color = "var(" + name + ")"; document.body.append(n); const c = getComputedStyle(n).color; n.remove(); return c; };
     facts.info = {
-      icons: m.all(".finding-info").length,
+      icons: m.all(".finding-group-line .finding-info").length,
       svg: info.querySelectorAll("svg").length,
       text: info.textContent,
       width: rect.width,
@@ -374,6 +374,17 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.fresh = { shown: fresh.shown(".findings-fresh") };
 
+  const withPolicy = await mount({ findings: [doc("structure", [violation])], policy: "layers: []\\n" }, null, [{ name: "alpha", status: "ran" }]);
+  click(withPolicy.q(".rail-findings"));
+  await tick();
+  const noPolicyNode = m.q(".findings-policy");
+  const noPolicyInfo = noPolicyNode.querySelector(".finding-info");
+  const noPolicyTip = document.getElementById(noPolicyInfo.getAttribute("aria-describedby"));
+  facts.policy = {
+    without: { shown: m.shown(".findings-policy"), text: noPolicyNode.querySelector(".findings-policy-text").textContent, icon: noPolicyInfo.querySelectorAll("svg").length, tip: noPolicyTip.textContent, banners: m.all(".findings-fresh").length },
+    with: { shown: withPolicy.shown(".findings-policy"), nodes: withPolicy.all(".findings-policy .finding-info").length },
+  };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -414,6 +425,21 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.panel.cards).toBe(0);
     expect(f.panel.freshShown).toBe(false);
     expect(f.panel.ghosts).toBe(0);
+  });
+
+  it("says dependency direction is unchecked when the repository has no policy, and says nothing with one", () => {
+    expect(f.policy.without.shown).toBe(true);
+    expect(f.policy.without.text).toBe(
+      "No policy: dependency direction isn't checked",
+    );
+    expect(f.policy.without.icon).toBe(1);
+    expect(f.policy.without.tip).toContain(".recognizer/policy.yaml");
+    expect(f.policy.without.tip).toContain("inner first");
+    expect(f.policy.without.tip).toContain("policies/hexagonal.yaml");
+    expect(f.policy.without.tip).toContain("policies/vertical-slices.yaml");
+    expect(f.policy.without.banners).toBe(1);
+    expect(f.policy.with.shown).toBe(false);
+    expect(f.policy.with.nodes).toBe(0);
   });
 
   it("shows an info icon only on groups with help, with a tip reachable by keyboard", () => {

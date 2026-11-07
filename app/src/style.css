@@ -3094,6 +3094,16 @@ svg.i.chevron {
   line-height: 1.4;
 }
 
+.findings-policy {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .findings-fresh-icon {
   width: 14px;
   height: 14px;
