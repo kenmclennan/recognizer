@@ -11,8 +11,11 @@ SKIPPED_FILE_PATTERNS = ("*.g.cs", "*.g.i.cs", "*.Designer.cs")
 SOLUTION_EXTENSIONS = (".sln", ".slnx")
 
 
-def selection(skip_paths: list[str] | None = None) -> dict:
-    return {
+INPUT_FILE_GLOBS = ("*.csproj", "Directory.Build.props", "*.sln", "*.slnx")
+
+
+def selection(skip_paths: list[str] | None = None, absent_paths: list[str] | None = None) -> dict:
+    found = {
         "extensions": [*SOURCE_EXTENSIONS, *MARKUP_EXTENSIONS],
         "skip_directory_names": list(SKIPPED_DIRECTORY_NAMES),
         "skip_directory_prefixes": list(SKIPPED_DIRECTORY_PREFIXES),
@@ -20,7 +23,13 @@ def selection(skip_paths: list[str] | None = None) -> dict:
         "skip_directories_containing": [],
         "skip_file_globs": list(SKIPPED_FILE_PATTERNS),
         "skip_paths": list(skip_paths or []),
+        "input_file_globs": list(INPUT_FILE_GLOBS),
     }
+
+    if absent_paths:
+        found["input_absent_paths"] = sorted(absent_paths)
+
+    return found
 
 
 def is_skipped_directory(name: str) -> bool:

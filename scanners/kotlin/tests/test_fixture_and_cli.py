@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -188,6 +189,7 @@ def test_the_selection_equals_the_binding_constants():
         "skip_directory_suffixes": ["Test"],
         "skip_directories_containing": [],
         "skip_file_globs": ["*Test.kt", "*Tests.kt"],
+        "input_file_globs": ["build.gradle", "build.gradle.kts", "pom.xml"],
     }
     assert scan(FIXTURE_ROOT, None)["selection"] == selection()
 
@@ -196,14 +198,33 @@ def test_files_equal_the_shared_selection_parity_tree(tmp_path):
     parity = json.loads((REPOSITORY / "fixtures" / "selection-parity.json").read_text())["kotlin"]
     build_tree(tmp_path, dict.fromkeys(parity["tree"], ""))
 
-    assert [f["path"] for f in scan(tmp_path, None)["files"]] == parity["accepted"]
+    sources = [f["path"] for f in scan(tmp_path, None)["files"] if f["path"].endswith(".kt")]
+
+    assert sources == parity["accepted"]
 
 
-def test_a_build_file_marks_the_build_module_but_is_not_a_file(tmp_path):
-    build_tree(tmp_path, {"app/build.gradle.kts": "", "app/a/A.kt": "package p\n\nclass A\n"})
+def test_a_probed_build_file_is_listed_with_the_hash_of_its_bytes(tmp_path):
+    build_tree(
+        tmp_path,
+        {
+            "a/build.gradle.kts": "plugins {}\n",
+            "a/b/x.kt": "package p\n\nclass X\n",
+            "c/build.gradle.kts": "other\n",
+        },
+    )
     document = scan(tmp_path, None)
+    digest = hashlib.sha256(b"plugins {}\n").hexdigest()
 
-    assert [f["path"] for f in document["files"]] == ["app/a/A.kt"]
+    assert document["files"] == [
+        {"path": "a/b/x.kt", "hash": hashlib.sha256(b"package p\n\nclass X\n").hexdigest()},
+        {"path": "a/build.gradle.kts", "hash": digest},
+    ]
+    assert document["selection"]["input_file_globs"] == [
+        "build.gradle",
+        "build.gradle.kts",
+        "pom.xml",
+    ]
+    assert "input_absent_paths" not in document["selection"]
 
 
 def test_cli_end_to_end(tmp_path):

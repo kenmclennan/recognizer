@@ -24,6 +24,10 @@
       "hash": "ca2ffe39261485e6164f95037c6a7157030dc4fe27f2d73239aad1c823b959f0"
     },
     {
+      "path": "build.gradle.kts",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
       "path": "common/Clock.kt",
       "hash": "1dccb6eccb3b07b809d53e0a9f4039a936a417bc7c7a2bceee490df5a6c31c7c"
     },
@@ -61,7 +65,8 @@
     "skip_file_globs": [
       "*Test.kt",
       "*Tests.kt"
-    ]
+    ],
+    "input_file_globs": ["build.gradle", "build.gradle.kts", "pom.xml"]
   },
   "modules": [
     {
