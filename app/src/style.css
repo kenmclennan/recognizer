@@ -3092,12 +3092,12 @@ svg.i.chevron {
 }
 
 .metric-value {
-  font-size: 9px;
+  font-size: 8px;
   fill: currentColor;
 }
 
 .metric-label {
-  font-size: 9px;
+  font-size: 8px;
   fill: var(--muted);
 }
 

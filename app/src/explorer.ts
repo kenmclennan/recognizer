@@ -1169,7 +1169,9 @@ export function showExplorer(
     );
     endLayoutBusy ??= layoutGate.begin();
     layoutNoted = notedKey();
-    layout.request(toElk(graph, measure, notedBoxes(), barRowCounts()));
+    layout.request(
+      toElk(graph, measure, notedBoxes(), barRowCounts(), sourcedBoxes()),
+    );
     render();
   }
 
@@ -1211,8 +1213,17 @@ export function showExplorer(
     return `${rows}|${[...notedBoxes()].sort().join("\n")}`;
   }
 
+  function foundBars(id: string) {
+    return tickedMetrics().flatMap((metric) => {
+      const value = moduleValue(metric, id);
+
+      return value === null
+        ? []
+        : [{ label: shortMetric(metric), member: value.member }];
+    });
+  }
+
   function barRowCounts(): ReadonlyMap<string, number> {
-    const ticked = tickedMetrics();
     const counts = new Map<string, number>();
 
     for (const box of graph.boxes) {
@@ -1220,13 +1231,7 @@ export function showExplorer(
         continue;
       }
 
-      const found = ticked.flatMap((metric) => {
-        const value = moduleValue(metric, box.id);
-
-        return value === null
-          ? []
-          : [{ label: shortMetric(metric), member: value.member }];
-      });
+      const found = foundBars(box.id);
 
       counts.set(
         box.id,
@@ -1235,6 +1240,17 @@ export function showExplorer(
     }
 
     return counts;
+  }
+
+  function sourcedBoxes(): ReadonlySet<string> {
+    return new Set(
+      graph.boxes
+        .filter(
+          (box) =>
+            box.kind !== "folder" && memberSources(foundBars(box.id)) !== null,
+        )
+        .map((box) => box.id),
+    );
   }
 
   function reveal(selection: Selection) {
@@ -3188,7 +3204,9 @@ export function showExplorer(
         if (notedKey() !== layoutNoted) {
           layoutNoted = notedKey();
           endLayoutBusy ??= layoutGate.begin();
-          layout.request(toElk(graph, measure, notedBoxes(), barRowCounts()));
+          layout.request(
+            toElk(graph, measure, notedBoxes(), barRowCounts(), sourcedBoxes()),
+          );
         }
       });
     }
