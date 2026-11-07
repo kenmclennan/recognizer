@@ -1,6 +1,10 @@
 import { type Freshness, type Overlay, validateOverlay } from "recognizer";
 import { ageText } from "./footer-scan";
-import { type ResultRow, stateText } from "./freshness-model";
+import {
+  type FreshnessModel,
+  type ResultRow,
+  stateText,
+} from "./freshness-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 export type OverlayFileInput = {
@@ -40,8 +44,6 @@ export type OverlayGroup = {
   notes: GroupNote[];
   enabled: boolean;
   tooltip: string;
-  outOfDate: number;
-  total: number;
   metrics: MetricDescriptor[];
 };
 
@@ -155,10 +157,6 @@ export function groupHeader(group: OverlayGroup, now: number): string {
     : `${group.verb} ${ageText(group.measuredAt, now)}`;
 }
 
-function valueKeysOf(overlay: Overlay): string[] {
-  return Object.values(overlay.values).flatMap((values) => Object.keys(values));
-}
-
 function currentValues(
   values: Record<string, MetricValue>,
   overlay: Overlay,
@@ -203,8 +201,6 @@ export function buildOverlayModel(
     }
 
     const title = display.get(file.name) || file.name;
-    const counts = freshness.counts(overlay, valueKeysOf(overlay));
-    const allOutOfDate = counts.total > 0 && counts.outOfDate === counts.total;
     const values = (name: string) =>
       currentValues(overlay.values[name] ?? {}, overlay, freshness);
     const found = context.sensors.find((status) => status.name === file.name);
@@ -233,9 +229,8 @@ export function buildOverlayModel(
       measuredAt: file.modifiedMs ?? null,
       verb: stopped === undefined ? "measured" : "stopped",
       notes,
-      enabled: !nothing && !allOutOfDate,
+      enabled: !nothing,
       tooltip: tooltipOf(overlay),
-      ...counts,
       metrics: overlay.metrics.map((metric) =>
         describe(file.name, metric, values(metric.name)),
       ),
@@ -286,8 +281,6 @@ export function buildOverlayModel(
         : [],
       enabled: false,
       tooltip: "",
-      outOfDate: 0,
-      total: 0,
       metrics: sensor.metrics.map((metric) =>
         describe(sensor.name, metric, {}),
       ),
@@ -298,10 +291,33 @@ export function buildOverlayModel(
 
   return {
     groups,
+    metrics: groups.flatMap((group) => group.metrics),
+    unreadable,
+  };
+}
+
+function holdsValue(group: OverlayGroup): boolean {
+  return group.metrics.some((metric) => Object.keys(metric.values).length > 0);
+}
+
+export function applyFreshness(
+  model: OverlayModel,
+  freshness: FreshnessModel,
+): OverlayModel {
+  const groups = model.groups.map((group) => {
+    const row = freshness.rows.find((entry) => entry.key === group.name);
+    const stale = row !== undefined && row.state.kind === "out-of-date";
+    const enabled = group.enabled && (!stale || holdsValue(group));
+
+    return enabled === group.enabled ? group : { ...group, enabled };
+  });
+
+  return {
+    ...model,
+    groups,
     metrics: groups
       .filter((group) => group.enabled)
       .flatMap((group) => group.metrics),
-    unreadable,
   };
 }
 

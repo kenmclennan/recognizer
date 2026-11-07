@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { NO_CHANGES } from "./footer-scan";
 import { type ResultRow, type ResultState, stateText } from "./freshness-model";
 import {
+  applyFreshness,
   buildOverlayModel,
   currentMetricNamed,
   DESCRIPTIONS,
@@ -133,8 +134,6 @@ describe("a member-granularity overlay judged per module", () => {
     const metric = model.metrics[0] as MetricDescriptor;
 
     expect(group?.enabled).toBe(true);
-    expect(group?.outOfDate).toBe(1);
-    expect(group?.total).toBe(2);
     expect(group?.notes).toEqual([]);
     expect(metric.values).toEqual({ "a.py::f": 3 });
     expect(metric.max).toBe(3);
@@ -152,16 +151,16 @@ describe("a member-granularity overlay judged per module", () => {
     expect(model.metrics[0]?.values).toEqual({ "a.py::f": 3, "b.py::g": 9 });
   });
 
-  it("disables the group when every module is out of date", () => {
+  it("keeps the group enabled and lists its metrics when every module is out of date", () => {
     const model = buildOverlayModel(
       [{ name: "crap", text: mixed({ "a.py": H0, "b.py": H0 }) }],
       FRESH,
     );
 
-    expect(model.groups[0]?.enabled).toBe(false);
+    expect(model.groups[0]?.enabled).toBe(true);
     expect(model.groups[0]?.notes).toEqual([]);
     expect(model.groups[0]?.metrics[0]?.values).toEqual({});
-    expect(model.metrics).toEqual([]);
+    expect(model.metrics).toEqual(model.groups[0]?.metrics);
   });
 
   it("is out of date everywhere when the tests hash differs", () => {
@@ -175,8 +174,8 @@ describe("a member-granularity overlay judged per module", () => {
       FRESH,
     );
 
-    expect(model.groups[0]?.enabled).toBe(false);
-    expect(model.groups[0]?.outOfDate).toBe(2);
+    expect(model.groups[0]?.enabled).toBe(true);
+    expect(model.metrics[0]?.values).toEqual({});
   });
 
   it("is out of date everywhere with no inputs", () => {
@@ -192,10 +191,8 @@ describe("a member-granularity overlay judged per module", () => {
       FRESH,
     );
 
-    expect(model.groups[0]?.enabled).toBe(false);
-    expect(model.groups[0]?.outOfDate).toBe(2);
-    expect(model.groups[0]?.total).toBe(2);
-    expect(model.metrics).toEqual([]);
+    expect(model.groups[0]?.enabled).toBe(true);
+    expect(model.metrics[0]?.values).toEqual({});
   });
 });
 
@@ -254,7 +251,7 @@ describe("the group header model", () => {
 
     expect(group?.title).toBe("C.R.A.P.");
     expect(group?.notes).toEqual([]);
-    expect(group?.enabled).toBe(false);
+    expect(group?.enabled).toBe(true);
   });
 
   it("warns of a budgeted partial result and still says measured", () => {
@@ -349,7 +346,7 @@ describe("the group header model", () => {
     expect(mutation?.enabled).toBe(false);
     expect(mutation?.measuredAt).toBeNull();
     expect(mutation?.notes).toEqual([]);
-    expect(model.metrics).toEqual([]);
+    expect(model.metrics).toEqual(model.groups.flatMap((g) => g.metrics));
   });
 
   it("builds the never-run groups from the real committed list", () => {
@@ -558,7 +555,7 @@ describe("per-module values", () => {
 });
 
 describe("pruneTicks", () => {
-  it("drops removed ticks and those of an out-of-date or disabled group", () => {
+  it("drops removed ticks and keeps those of an out-of-date or disabled group", () => {
     const fresh = buildOverlayModel(
       [
         {
@@ -586,14 +583,19 @@ describe("pruneTicks", () => {
       "a/m2",
       "a/m1",
     ]);
-    expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([]);
+    expect(pruneTicks(["a/m2", "a/m1"], stale.metrics)).toEqual([
+      "a/m2",
+      "a/m1",
+    ]);
 
     const disabled = buildOverlayModel([], FRESH, {
       sensors: [],
       shipped: SHIPPED,
     });
 
-    expect(pruneTicks(["mutation/survived"], disabled.metrics)).toEqual([]);
+    expect(pruneTicks(["mutation/survived"], disabled.metrics)).toEqual([
+      "mutation/survived",
+    ]);
   });
 });
 
@@ -700,8 +702,8 @@ describe("freshnessNote against the Scan panel model", () => {
     edges: [],
     foreign: [],
     files: [
-      { path: "a.py", hash: "ha" },
-      { path: "b.py", hash: "hb" },
+      { path: "a.py", hash: H1 },
+      { path: "b.py", hash: H2 },
     ],
   } as unknown as Scan;
   const shippedList: ShippedSensors = {
@@ -720,7 +722,7 @@ describe("freshnessNote against the Scan panel model", () => {
     status: "ran" as const,
     findings: 0,
     modifiedMs: null,
-    measured: { inputs, tests: "t" },
+    measured: { inputs, tests: TESTS },
   });
   const panel = (sensors: PanelInput["sensors"]) =>
     scanPanel({
@@ -743,7 +745,7 @@ describe("freshnessNote against the Scan panel model", () => {
       now: NOW,
       shipped: shippedList,
       scans: [fileScan],
-      freshness: buildFreshness([fileScan], "t"),
+      freshness: buildFreshness([fileScan], TESTS),
     });
   const groupFor = (name: string, title: string) =>
     ({ name, title }) as OverlayGroup;
@@ -754,7 +756,7 @@ describe("freshnessNote against the Scan panel model", () => {
   };
 
   it("counts the same modules and words the state the same as the row", () => {
-    const model = panel([ranWith("crap", { "a.py": "ha", "b.py": "old" })]);
+    const model = panel([ranWith("crap", { "a.py": H1, "b.py": H0 })]);
     const row = model.freshness.rows.find(({ key }) => key === "crap");
     const state = row?.state;
 
@@ -771,8 +773,8 @@ describe("freshnessNote against the Scan panel model", () => {
 
   it("gives none, the out-of-date note and none for current, out of date and no row", () => {
     const model = panel([
-      ranWith("mutation", { "a.py": "ha", "b.py": "hb" }),
-      ranWith("crap", { "a.py": "ha", "b.py": "old" }),
+      ranWith("mutation", { "a.py": H1, "b.py": H2 }),
+      ranWith("crap", { "a.py": H1, "b.py": H0 }),
     ]);
 
     expect(noteFor(model, "mutation")).toBeNull();
@@ -780,5 +782,180 @@ describe("freshnessNote against the Scan panel model", () => {
       "C.R.A.P.: 1 module out of date. Run C.R.A.P. from the Scan panel.",
     );
     expect(noteFor(model, "stray")).toBeNull();
+  });
+
+  describe("applyFreshness", () => {
+    const FILE_FRESH = buildFreshness([fileScan], TESTS);
+    const values = { complexity: { "a.py::f": 1, "b.py::f": 2 } };
+    const file = (name: string, inputs: Record<string, string>) => ({
+      name,
+      text: overlay([{ name: "complexity" }], values, { inputs, tests: TESTS }),
+    });
+    const build = (
+      files: ReturnType<typeof file>[],
+      shipped: ShippedSensors = shippedList,
+    ) => buildOverlayModel(files, FILE_FRESH, { sensors: [], shipped });
+    const stale = { "a.py": H0, "b.py": H0 };
+    const partly = { "a.py": H1, "b.py": H0 };
+    const whole = { "a.py": H1, "b.py": H2 };
+    const enabledOf = (model: ReturnType<typeof build>, name: string) =>
+      model.groups.find((group) => group.name === name)?.enabled;
+    const rowState = (
+      kind: ResultState["kind"],
+    ): ReturnType<typeof panel>["freshness"] => {
+      const base = panel([]).freshness;
+      const state = {
+        current: { kind: "current", at: null },
+        "never-run": { kind: "never-run" },
+        failed: { kind: "failed", at: null },
+        running: { kind: "running", done: null, total: null },
+        "out-of-date": { kind: "out-of-date", modules: ["a.py"] },
+      }[kind] as ResultState;
+
+      return {
+        ...base,
+        rows: [{ key: "crap", name: "C.R.A.P.", state, tickable: true }],
+      };
+    };
+
+    it("disables a group that is out of date with no current value", () => {
+      const model = build([file("crap", stale)]);
+      const applied = applyFreshness(
+        model,
+        panel([ranWith("crap", stale)]).freshness,
+      );
+
+      expect(enabledOf(applied, "crap")).toBe(false);
+      expect(applied.metrics).toEqual([]);
+    });
+
+    it("enables a group out of date with exactly one current value", () => {
+      const model = build([file("crap", partly)]);
+      const applied = applyFreshness(
+        model,
+        panel([ranWith("crap", partly)]).freshness,
+      );
+
+      expect(enabledOf(applied, "crap")).toBe(true);
+      expect(applied.metrics[0]?.values).toEqual({ "a.py::f": 1 });
+    });
+
+    it("enables a group out of date with several current values", () => {
+      const model = build([file("crap", whole)]);
+      const applied = applyFreshness(model, rowState("out-of-date"));
+
+      expect(enabledOf(applied, "crap")).toBe(true);
+      expect(applied.metrics).toHaveLength(1);
+    });
+
+    it.each(["current", "never-run", "failed", "running"] as const)(
+      "keeps a %s group enabled even with no current value",
+      (kind) => {
+        const model = build([file("crap", stale)]);
+        const applied = applyFreshness(model, rowState(kind));
+
+        expect(enabledOf(applied, "crap")).toBe(true);
+        expect(applied.metrics).toEqual(model.groups[0]?.metrics);
+      },
+    );
+
+    it("leaves a group with no row unchanged", () => {
+      const model = build([file("stray", stale)]);
+      const applied = applyFreshness(model, panel([]).freshness);
+
+      expect(enabledOf(applied, "stray")).toBe(true);
+    });
+
+    it("keeps a shipped sensor with no file disabled whatever its row says", () => {
+      const model = build([], SHIPPED);
+      const applied = applyFreshness(model, rowState("current"));
+
+      expect(enabledOf(model, "crap")).toBe(false);
+      expect(enabledOf(applied, "crap")).toBe(false);
+      expect(applied.metrics).toEqual([]);
+    });
+
+    it("lists exactly the enabled groups' metrics for a mixed model", () => {
+      const model = build([
+        file("crap", stale),
+        file("mutation", partly),
+        file("stray", stale),
+      ]);
+      const applied = applyFreshness(
+        model,
+        panel([ranWith("crap", stale), ranWith("mutation", partly)]).freshness,
+      );
+
+      expect(applied.groups.map((group) => group.enabled)).toEqual([
+        false,
+        true,
+        true,
+      ]);
+      expect(applied.metrics.map((metric) => metric.overlay)).toEqual([
+        "mutation",
+        "stray",
+      ]);
+    });
+
+    it("disables a group exactly when its note says out of date and no value is current", () => {
+      for (const inputs of [stale, partly, whole]) {
+        const model = build([file("crap", inputs)]);
+        const freshness = panel([ranWith("crap", inputs)]).freshness;
+        const applied = applyFreshness(model, freshness);
+        const group = model.groups[0] as OverlayGroup;
+        const row = freshness.rows.find((one) => one.key === "crap");
+        const note = freshnessNote({ ...group, title: "C.R.A.P." }, row, NOW);
+        const outOfDate = row?.state.kind === "out-of-date";
+        const empty = group.metrics.every(
+          (metric) => Object.keys(metric.values).length === 0,
+        );
+
+        expect(enabledOf(applied, "crap")).toBe(!(outOfDate && empty));
+        expect(note === null).toBe(!outOfDate);
+      }
+    });
+
+    it("enables a group whose stale modules are outside the view", () => {
+      const model = build([file("crap", partly)]);
+      const input = panel([ranWith("crap", partly)]).freshness;
+      const scoped = scanPanel({
+        scan: {
+          origin: { branch: "main", commit: "abc1234" },
+          scannedAt: NOW,
+          changes: NO_CHANGES,
+          scanning: null,
+        },
+        config: null,
+        sensors: [ranWith("crap", partly)],
+        lines: {
+          modules: ["a.py"],
+          of: () => ({ kind: "current", line: "x" }),
+        },
+        describedAt: null,
+        ticks: { describe: false, ticked: [], once: [], onlyView: true },
+        view: { name: "v", modules: ["a.py"] } as never,
+        run: NO_RUN,
+        scanning: false,
+        now: NOW,
+        shipped: shippedList,
+        scans: [fileScan],
+        freshness: buildFreshness([fileScan], TESTS),
+      }).freshness;
+      const row = scoped.rows.find((one) => one.key === "crap");
+      const applied = applyFreshness(model, scoped);
+
+      expect(input.rows.find((one) => one.key === "crap")?.state.kind).toBe(
+        "out-of-date",
+      );
+      expect(row?.state.kind).toBe("current");
+      expect(enabledOf(applied, "crap")).toBe(true);
+      expect(
+        freshnessNote(
+          { name: "crap", title: "C.R.A.P." } as OverlayGroup,
+          row,
+          NOW,
+        ),
+      ).toBeNull();
+    });
   });
 });

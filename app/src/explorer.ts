@@ -92,10 +92,12 @@ import {
 import { buildNotesPanelView } from "./notes-panel-view";
 import { createOpenModules } from "./open-modules";
 import {
+  applyFreshness,
   buildOverlayModel,
   freshnessNote,
   type MetricDescriptor,
   moduleValue,
+  type OverlayModel,
   pruneTicks,
 } from "./overlay-model";
 import { mountPanelResizers } from "./panel-resizer-view";
@@ -390,6 +392,7 @@ export function showExplorer(
   let resultsMode: ResultsMode = "bring";
   let runPlanned: PlannedRun | null = null;
   let freshnessCache: FreshnessModel | null = null;
+  let overlaysCache: OverlayModel | null = null;
   let viewList: { name: string; text: string }[] = [];
   let viewNotice: string | null = null;
   let listNotice: string | null = null;
@@ -1331,6 +1334,12 @@ export function showExplorer(
     return freshnessCache;
   }
 
+  function currentOverlays(): OverlayModel {
+    overlaysCache ??= applyFreshness(overlayModel, currentFreshness());
+
+    return overlaysCache;
+  }
+
   function foundBars(id: string) {
     if (currentFreshness().isChanged(id)) {
       return [];
@@ -1932,6 +1941,8 @@ export function showExplorer(
       freshnessOf(loaded),
       { sensors: loaded.sensors, shipped: shippedSensors },
     );
+
+    overlaysCache = null;
 
     postConditions();
     render();
@@ -3435,7 +3446,7 @@ export function showExplorer(
 
   function tickedMetrics(): MetricDescriptor[] {
     return metricTicks.flatMap((key) =>
-      overlayModel.metrics.filter((metric) => metric.key === key),
+      currentOverlays().metrics.filter((metric) => metric.key === key),
     );
   }
 
@@ -3445,7 +3456,7 @@ export function showExplorer(
     const rows = currentFreshness().rows;
 
     return {
-      groups: overlayModel.groups.map((group) => {
+      groups: currentOverlays().groups.map((group) => {
         const note = freshnessNote(
           group,
           rows.find((row) => row.key === group.name),
@@ -3553,6 +3564,7 @@ export function showExplorer(
     const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
 
     freshnessCache = null;
+    overlaysCache = null;
 
     const scanModelNow = scanModel();
 
@@ -3675,7 +3687,7 @@ export function showExplorer(
           state: responsibilityOf(id),
           failure: describing.failure(id),
         }),
-        metrics: overlayModel.metrics,
+        metrics: currentOverlays().metrics,
         metricsOn: tickedMetrics().length > 0,
         limits: limitsFromText(scanConfig),
         proposed: (id) => currentPlan()?.proposed.get(id) ?? null,
@@ -3831,6 +3843,7 @@ export function showExplorer(
     update(next) {
       loaded = next;
       freshnessCache = null;
+      overlaysCache = null;
       health = computeHealth(loaded);
       described = describeTree(root, health);
       overlayModel = buildOverlayModel(
