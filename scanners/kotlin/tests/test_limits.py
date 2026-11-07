@@ -90,3 +90,15 @@ def test_a_kotlin_script_file_is_not_read(run):
     document = run({"build.gradle.kts": "val x = 1\n", "a/A.kt": "class A\n"})
 
     assert [f["path"] for f in document["files"]] == ["a/A.kt"]
+
+
+def test_a_build_file_probed_for_existence_is_not_listed(run):
+    document = run(
+        {
+            "build.gradle.kts": 'plugins { kotlin("jvm") }\n',
+            "pom.xml": "<project/>\n",
+            "src/main/kotlin/A.kt": "package a\n\nclass A\n",
+        }
+    )
+
+    assert [f["path"] for f in document["files"]] == ["src/main/kotlin/A.kt"]

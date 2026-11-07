@@ -82,16 +82,26 @@ fn dependency_tables(table: &Table) -> Vec<&Table> {
     found
 }
 
+pub struct ReadPackages {
+    pub packages: Vec<Package>,
+    pub manifests_read: Vec<(String, Vec<u8>)>,
+}
+
 pub fn read_packages(
     root: &Path,
     manifest_paths: &[String],
     source_files: &HashSet<String>,
-) -> Vec<Package> {
+) -> ReadPackages {
+    let mut manifests_read: Vec<(String, Vec<u8>)> = Vec::new();
     let manifests: Vec<Manifest> = manifest_paths
         .iter()
         .filter_map(|path| {
-            let text = fs::read_to_string(root.join(path)).ok()?;
-            let table = text.parse::<Table>().ok()?;
+            let bytes = fs::read(root.join(path)).ok()?;
+            let text = String::from_utf8(bytes.clone()).ok();
+
+            manifests_read.push((path.clone(), bytes));
+
+            let table = text?.parse::<Table>().ok()?;
 
             Some(Manifest {
                 dir: directory_of(path).to_string(),
@@ -166,7 +176,10 @@ pub fn read_packages(
         }
     }
 
-    packages
+    ReadPackages {
+        packages,
+        manifests_read,
+    }
 }
 
 fn dependency_directory(

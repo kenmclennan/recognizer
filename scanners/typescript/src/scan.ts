@@ -78,6 +78,10 @@ export interface ScanDocument {
 
 const SCANNER_NAME = "recognizer-scan-typescript";
 
+function hashOf(path: string): string {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
@@ -279,6 +283,7 @@ export function scan(
     throw new ScanError(problems);
   }
 
+  const nonSource = new Set<string>();
   const entries = entryPoints(
     real,
     modules,
@@ -288,7 +293,26 @@ export function scan(
       return source ? source.text : null;
     },
     (directory) => tsconfigs.outputMappings(join(real, directory)),
+    (id) => nonSource.add(id),
   );
+
+  for (const id of tsconfigs.readFiles()) {
+    nonSource.add(id);
+  }
+
+  const listed = [...new Set([...modules, ...nonSource])]
+    .sort(compare)
+    .flatMap((id) => {
+      try {
+        return [{ path: id, hash: hashOf(join(real, id)) }];
+      } catch (error) {
+        if (modules.has(id)) {
+          throw error;
+        }
+
+        return [];
+      }
+    });
   const checker = program.getTypeChecker();
   const edges = new Map<string, ScanEdge>();
   const foreign = new Set<string>();
@@ -449,10 +473,7 @@ export function scan(
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
     commit,
     modified,
-    files: files.map((file) => ({
-      path: idOf(file),
-      hash: createHash("sha256").update(readFileSync(file)).digest("hex"),
-    })),
+    files: listed,
     selection: {
       ...selection(),
       ...(skipPaths.length > 0 ? { skip_paths: skipPaths } : {}),

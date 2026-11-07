@@ -8,6 +8,10 @@
   "modified": null,
   "files": [
     {
+      "path": "api/package.json",
+      "hash": "a520691a6eec032549566e3749d0293b7b6de32cfc180a0c5e9ef6c9707cb628"
+    },
+    {
       "path": "api/src/base-store.ts",
       "hash": "5610d09fc153a6b468809608cbb7433621b0ea60ac7a63cfac5aa3d63e3f544d"
     },
@@ -44,6 +48,18 @@
       "hash": "63f4b017442e314a7a61630dfcecf1427c7f9a20df34d79962a1d9141252f0f8"
     },
     {
+      "path": "api/tsconfig.json",
+      "hash": "870c81f0f90ef9dc50b5cb8b4e26fe16440441fbe220b514db5105aa4635b09b"
+    },
+    {
+      "path": "package.json",
+      "hash": "ccdb3033d4f3b75777a441940bd47213a185756267573f0b2895e09917db4285"
+    },
+    {
+      "path": "web/package.json",
+      "hash": "fb92849adc7f72004565f03219b8253457de6d269111fb361808ebc8313890bc"
+    },
+    {
       "path": "web/src/App.tsx",
       "hash": "636c8ee7adc21765c92b1d5e1e20371957e4699c650d1e4196db50736218fa7e"
     },
@@ -66,6 +82,10 @@
     {
       "path": "web/src/util.cjs",
       "hash": "8222b8169ee86f25cdccd84d340340060ae3f0cff55e2ea9d344d7c332733b71"
+    },
+    {
+      "path": "web/tsconfig.json",
+      "hash": "aeadaa4e54264449546f375e3251a8e2e85742414824ac8761894b963d273755"
     }
   ],
   "selection": {

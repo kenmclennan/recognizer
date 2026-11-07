@@ -78,7 +78,7 @@ describe("skipped projects", () => {
     expect(result.status).toBe(0);
     expect(doc.selection.skip_paths).toEqual(["."]);
     expect(doc.modules).toEqual([]);
-    expect(doc.files).toEqual([]);
+    expect(doc.files.map((f) => f.path)).toEqual(["tsconfig.json"]);
   });
 
   it("skips a healthy project nested in a skipped directory", () => {

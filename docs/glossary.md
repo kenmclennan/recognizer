@@ -111,7 +111,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Scanner | A language's standalone command that emits a scan. |
 | Toolchain | The `recognizer` command, the scanners and the app, versioned and installed together. Out of step: the app and the installed `recognizer` command report different versions, which the app reports as a message in the message tray. |
 | Scan | The document a scanner emits: modules, edges and foreign nodes for one language, the files it read and the selection it used. |
-| Scanned file | A file a scanner read, recorded in the scan's `files` with the SHA-256 of its bytes. |
+| Scanned file | A file a scanner read, recorded in the scan's `files` with the SHA-256 of its bytes. The files include the manifests, pages and configs read to decide modules, edges or entry points, not only source. |
 | Selection | A scanner's rule for choosing files, recorded in the scan as data: extensions, skipped directories and skipped file globs. A consumer applies it to a path the scan has not seen. |
 | Baseline | What the viewer holds of a scan's files: each file's recorded hash and the scan's selection, with the commit and branch taken just before the scan. Changed since compares the folder against it. |
 | Changed since | The viewer's report of what differs from the scan on screen: an edited, added or deleted file the scanners read, or a moved commit or branch. An edit undone again does not count. |

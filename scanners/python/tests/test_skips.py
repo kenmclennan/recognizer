@@ -55,3 +55,9 @@ def test_files_equal_the_shared_selection_parity_tree(tmp_path):
     build_tree(tmp_path, dict.fromkeys(parity["tree"], ""))
 
     assert [f["path"] for f in scan(tmp_path, ["."], None)["files"]] == parity["accepted"]
+
+
+def test_a_probed_pyvenv_cfg_is_not_listed(run):
+    document = run({"a.py": "", "myenv/pyvenv.cfg": "home = /usr\n", "myenv/y.py": ""})
+
+    assert [f["path"] for f in document["files"]] == ["a.py"]

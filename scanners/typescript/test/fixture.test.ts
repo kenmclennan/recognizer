@@ -75,8 +75,14 @@ describe("fixture", () => {
   it("lists the fixture's source files with their sha256 and its selection", () => {
     const doc = scan(SAMPLE, null);
 
-    expect(doc.files).toHaveLength(15);
-    expect(doc.files.map((f) => f.path)).toEqual(doc.modules.map((m) => m.id));
+    const listed = doc.files.map((f) => f.path);
+
+    expect(doc.files).toHaveLength(20);
+    expect(listed).toEqual([...listed].sort());
+
+    for (const module of doc.modules) {
+      expect(listed).toContain(module.id);
+    }
 
     for (const entry of doc.files) {
       const bytes = readFileSync(join(SAMPLE, entry.path));

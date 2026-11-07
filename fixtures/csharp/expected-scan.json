@@ -8,6 +8,10 @@
   "modified": null,
   "files": [
     {
+      "path": "Shop.sln",
+      "hash": "a19faad7a7e4581e1e045fa5c42f29c9b5c86360e88e6bcde2c30482968baac0"
+    },
+    {
       "path": "src/Shop.Application/Damaged.cs",
       "hash": "4df5303134753b3d0c9fb658c88f9b00e4ed4785a4e170d31216908d3584410b"
     },
@@ -30,6 +34,10 @@
     {
       "path": "src/Shop.Application/PlaceOrderHandler.cs",
       "hash": "b130de726b463aadde198fbb81f61f0d557f055025ced23390ee37c177dbd895"
+    },
+    {
+      "path": "src/Shop.Application/Shop.Application.csproj",
+      "hash": "655a5e0a1b557ad9d5def1a07b3cb167f08a7e66339eee889c5ebf7b6e91dbe0"
     },
     {
       "path": "src/Shop.Domain/Extensions/OrderExtensions.cs",
@@ -72,8 +80,16 @@
       "hash": "7e2650d1c1b91421e12327cb263bd576f4f3e434343b47abefc046767c00e363"
     },
     {
+      "path": "src/Shop.Domain/Shop.Domain.csproj",
+      "hash": "245ad3a04c51cddf9e88e20a2f64865e21c57319579e92ebafda8f1699fd1b5a"
+    },
+    {
       "path": "src/Shop.Infrastructure/Migrations/InitialCreate.cs",
       "hash": "c7b97492728c1c2c07bf46ca5f857a2a8d24cac44e85977d028aa4fb7db2b2a3"
+    },
+    {
+      "path": "src/Shop.Infrastructure/Shop.Infrastructure.csproj",
+      "hash": "34b0e1df27b5bacf508f4ccd032a56bceba8eb4c74f0708a35c33d619c5c4500"
     },
     {
       "path": "src/Shop.Infrastructure/SqlOrderStore.cs",
@@ -82,6 +98,10 @@
     {
       "path": "src/Shop.Tools/Banner.cs",
       "hash": "be8f99bc3839bd97fc35262e748ac0901483c31ea99b6924a5f395f5a8e1c0f6"
+    },
+    {
+      "path": "src/Shop.Tools/Shop.Tools.csproj",
+      "hash": "e2c08643e21eba9123e4b319840fec508efc44b473a7cab491d6188e5f6905ca"
     },
     {
       "path": "src/Shop.Web/CompositionRoot.cs",
@@ -102,6 +122,34 @@
     {
       "path": "src/Shop.Web/Program.cs",
       "hash": "7c99274291ee5bf05160e8c0e34dab3752bd3125b29ceea0ca2cc034c26e6feb"
+    },
+    {
+      "path": "src/Shop.Web/Shop.Web.csproj",
+      "hash": "aa1678a058118d23e0f06e701af9e55745fbbd69b613f7ad9e5565c9cac59f72"
+    },
+    {
+      "path": "tests/Shop.Checks.Flag/Shop.Checks.Flag.csproj",
+      "hash": "1c4046d4161410959bab808e1dd144bd653b646a44e3b83be3622e3a8f294184"
+    },
+    {
+      "path": "tests/Shop.Checks.MSTest/Shop.Checks.MSTest.csproj",
+      "hash": "793a48ebd990d06faf8338fb66760428fa63e96b88d0bfb39cdb156d480f2e95"
+    },
+    {
+      "path": "tests/Shop.Checks.Mvc/Shop.Checks.Mvc.csproj",
+      "hash": "4ea0394e4f42107b2f77fed16905ad3da122e225897b72d191fd5d44c9914540"
+    },
+    {
+      "path": "tests/Shop.Checks.Sdk/Shop.Checks.Sdk.csproj",
+      "hash": "ecd03676591ddcb01c7b14bc04fe01a914021160e63b69a6887944824d4e5c1f"
+    },
+    {
+      "path": "tests/Shop.Checks.UnitTests/Shop.Checks.UnitTests.csproj",
+      "hash": "cf0c460719a01d5412c3a3a364e697acca852563ec4c2d03e7919dbe96bf5594"
+    },
+    {
+      "path": "tests/Shop.Checks.Xunit/Shop.Checks.Xunit.csproj",
+      "hash": "271863a2c403a6a66dc93183dc27e16a474793746d4723de2bc69d3559f5a609"
     }
   ],
   "selection": {

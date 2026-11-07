@@ -8,8 +8,20 @@
   "modified": null,
   "files": [
     {
+      "path": "Cargo.toml",
+      "hash": "9323c13b031458b7f925d51bf9e52aa8703d2e8f09128fa822a4a87731855f10"
+    },
+    {
+      "path": "pricing/Cargo.toml",
+      "hash": "a0673f41ba447934a1904790dd381cab17e71a42a4f197bf62123d9473f5e48f"
+    },
+    {
       "path": "pricing/src/lib.rs",
       "hash": "78b1634eb2ab90a538ce86875b4165b55b7ee8ef826395afba34c5428d6a10d2"
+    },
+    {
+      "path": "shop/Cargo.toml",
+      "hash": "4a1cd172f426ce25435d4ec1d076a77f5b84ed88c495b848355e1f9821a23fb6"
     },
     {
       "path": "shop/src/adapters.rs",
