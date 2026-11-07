@@ -1,0 +1,169 @@
+[
+  {
+    "name": "declared test module",
+    "files": {
+      "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t.rs"]
+  },
+  {
+    "name": "all with unix is a gate",
+    "files": {
+      "src/lib.rs": "#[cfg(all(test, unix))]\nmod t;\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t.rs"]
+  },
+  {
+    "name": "any with unix is production",
+    "files": {
+      "src/lib.rs": "#[cfg(any(test, unix))]\nmod t;\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": []
+  },
+  {
+    "name": "any of tests only is a gate (boundary)",
+    "files": {
+      "src/lib.rs": "#[cfg(any(test, test))]\nmod t;\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t.rs"]
+  },
+  {
+    "name": "directory form",
+    "files": {
+      "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+      "src/t/mod.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t/mod.rs"]
+  },
+  {
+    "name": "both forms exist, first wins",
+    "files": {
+      "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+      "src/t.rs": "fn a() {}\n",
+      "src/t/mod.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t.rs"]
+  },
+  {
+    "name": "descendants of a test file",
+    "files": {
+      "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+      "src/t.rs": "mod u;\n",
+      "src/t/u.rs": "mod w;\n",
+      "src/t/u/w.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t.rs", "src/t/u.rs", "src/t/u/w.rs"]
+  },
+  {
+    "name": "same name elsewhere stays production",
+    "files": {
+      "src/lib.rs": "mod a;\n#[cfg(test)]\nmod t;\n",
+      "src/a.rs": "mod t;\n",
+      "src/a/t.rs": "fn a() {}\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t.rs"]
+  },
+  {
+    "name": "path attribute on a root",
+    "files": {
+      "src/lib.rs": "#[cfg(test)]\n#[path = \"extra/spec.rs\"]\nmod t;\n",
+      "src/extra/spec.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/extra/spec.rs"]
+  },
+  {
+    "name": "path attribute on a non-root file",
+    "files": {
+      "src/lib.rs": "mod a;\n",
+      "src/a.rs": "#[cfg(test)]\n#[path = \"z.rs\"]\nmod t;\n",
+      "src/z.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/z.rs"]
+  },
+  {
+    "name": "inner test attribute on a production module",
+    "files": {
+      "src/lib.rs": "mod i;\n",
+      "src/i.rs": "#![cfg(test)]\nfn a() {}\n"
+    },
+    "test_files": ["src/i.rs"]
+  },
+  {
+    "name": "inner any with unix is production",
+    "files": {
+      "src/lib.rs": "mod i;\n",
+      "src/i.rs": "#![cfg(any(test, unix))]\nfn a() {}\n"
+    },
+    "test_files": []
+  },
+  {
+    "name": "inner cfg_attr is not a gate",
+    "files": {
+      "src/lib.rs": "mod i;\n",
+      "src/i.rs": "#![cfg_attr(test, allow(dead_code))]\nfn a() {}\n"
+    },
+    "test_files": []
+  },
+  {
+    "name": "inner attribute on an undeclared file",
+    "files": {
+      "src/lib.rs": "fn a() {}\n",
+      "src/orphan.rs": "#![cfg(test)]\nfn a() {}\n"
+    },
+    "test_files": ["src/orphan.rs"]
+  },
+  {
+    "name": "declaration inside an inline module",
+    "files": {
+      "src/lib.rs": "mod a {\n    #[cfg(test)]\n    mod t;\n}\n",
+      "src/a/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/a/t.rs"]
+  },
+  {
+    "name": "declaration in a non-root file",
+    "files": {
+      "src/lib.rs": "mod a;\n",
+      "src/a.rs": "#[cfg(test)]\nmod t;\n",
+      "src/a/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/a/t.rs"]
+  },
+  {
+    "name": "declaration in a mod.rs file",
+    "files": {
+      "src/lib.rs": "mod a;\n",
+      "src/a/mod.rs": "#[cfg(test)]\nmod t;\n",
+      "src/a/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/a/t.rs"]
+  },
+  {
+    "name": "declaration with no file",
+    "files": { "src/lib.rs": "#[cfg(test)]\nmod missing;\n" },
+    "test_files": []
+  },
+  {
+    "name": "declaration in a bin root",
+    "files": {
+      "src/lib.rs": "fn a() {}\n",
+      "src/bin/tool/main.rs": "#[cfg(test)]\nmod t;\n",
+      "src/bin/tool/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/bin/tool/t.rs"]
+  },
+  {
+    "name": "declaration in a build script",
+    "files": {
+      "src/lib.rs": "fn a() {}\n",
+      "build.rs": "#[cfg(test)]\nmod t;\n",
+      "t.rs": "fn a() {}\n"
+    },
+    "test_files": ["t.rs"]
+  }
+]

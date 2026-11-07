@@ -26,7 +26,7 @@ A crate is a Cargo package's library or binary target. Every `Cargo.toml` with a
 
 ## Entry points
 
-A module gets `entry_point: true` in two cases. The first is a Cargo target root: `package.build` (or `build.rs`; none when `build = false`), `src/main.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `examples/*.rs`, `examples/*/main.rs`, `benches/*.rs`, `benches/*/main.rs`, and the `path` of any `[[bin]]`, `[[example]]`, `[[bench]]` or `[[test]]` table that names a scanned file. The second is a file reached only through a `mod x;` declaration gated by a test gate (with or without `#[path]`), together with every file its own `mod y;` declarations name. A test module adds no edge. The library root is not marked, and files under a `tests/` directory are not scanned, so they are not marked.
+A module gets `entry_point: true` in two cases. The first is a Cargo target root: `package.build` (or `build.rs`; none when `build = false`), `src/main.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `examples/*.rs`, `examples/*/main.rs`, `benches/*.rs`, `benches/*/main.rs`, and the `path` of any `[[bin]]`, `[[example]]`, `[[bench]]` or `[[test]]` table that names a scanned file. The second is a test file: a file reached only through a `mod x;` declaration gated by a test gate (with or without `#[path]`), or a file whose own inner attribute (`#![cfg(test)]`) is a test gate, together with every file its own `mod y;` declarations name. The byte-reading sensors (the Tests hash and the In-file test hash) apply the same rule, resolving each declaration from the declaring file, its inline module scope and its `#[path]`. A test module adds no edge. The library root is not marked, and files under a `tests/` directory are not scanned, so they are not marked.
 
 ## Members
 
