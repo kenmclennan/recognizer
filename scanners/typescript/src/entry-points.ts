@@ -99,10 +99,22 @@ function unquote(token: string): string {
     : token;
 }
 
-function manifestTargets(manifest: Record<string, unknown>): string[] {
-  const named = [manifest.main, manifest.bin, manifest.exports].flatMap(leaves);
+function manifestValues(manifest: Record<string, unknown>): string[] {
+  return [manifest.main, manifest.bin, manifest.exports].flatMap(leaves);
+}
 
-  return named.filter((value) => !value.includes("*"));
+function patternOf(resolved: string): RegExp | null {
+  const parts = resolved.split("*");
+
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const escaped = parts.map((part) =>
+    part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"),
+  );
+
+  return new RegExp(`^${escaped[0]}.+${escaped[1]}$`);
 }
 
 function scriptTargets(manifest: Record<string, unknown>): string[] {
@@ -210,6 +222,30 @@ function sourceCandidates(
   return candidates;
 }
 
+function outputsOf(id: string, mappings: OutputMapping[]): string[] {
+  const outputs: string[] = [];
+
+  for (const { outDir, rootDir } of mappings) {
+    if (!isUnder(id, rootDir)) {
+      continue;
+    }
+
+    const relativePath = rootDir === "." ? id : id.slice(rootDir.length + 1);
+
+    for (const [ending, replacements] of OUTPUT_SUFFIXES) {
+      for (const replacement of replacements) {
+        if (relativePath.endsWith(replacement)) {
+          const stem = relativePath.slice(0, -replacement.length);
+
+          outputs.push(posix.normalize(posix.join(outDir, stem + ending)));
+        }
+      }
+    }
+  }
+
+  return outputs;
+}
+
 export function entryPoints(
   root: string,
   files: ReadonlySet<string>,
@@ -234,13 +270,36 @@ export function entryPoints(
 
     const directory = posix.dirname(idOf(root, path));
 
-    const outputs = manifestTargets(manifest);
+    const published = manifest.private !== true;
     let packageMappings: OutputMapping[] | null = null;
 
-    for (const value of outputs) {
+    for (const value of manifestValues(manifest)) {
       const resolved = resolveFrom(directory, value);
 
       if (resolved === null) {
+        continue;
+      }
+
+      if (value.includes("*")) {
+        const pattern = published ? patternOf(resolved) : null;
+
+        if (pattern === null) {
+          continue;
+        }
+
+        packageMappings ??= mappings(directory);
+
+        for (const id of files) {
+          if (
+            pattern.test(id) ||
+            outputsOf(id, packageMappings).some((output) =>
+              pattern.test(output),
+            )
+          ) {
+            mark(id);
+          }
+        }
+
         continue;
       }
 

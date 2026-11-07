@@ -145,6 +145,79 @@ describe("entry point build output mapping", () => {
   });
 });
 
+describe("entry point wildcard exports", () => {
+  const config = '{"compilerOptions":{"outDir":"dist","rootDir":"src"}}';
+
+  it("marks every module a pattern matches through the outDir mapping", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          exports: { "./utils/*": "./dist/utils/*.js" },
+        }),
+        "tsconfig.json": config,
+        "src/utils/a.ts": body,
+        "src/utils/b/c.ts": body,
+        "src/other.ts": body,
+      }),
+    ).toEqual(["src/utils/a.ts", "src/utils/b/c.ts"]);
+  });
+
+  it("matches scanned ids directly when there is no outDir", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          exports: { "./utils/*": "./src/utils/*.ts" },
+        }),
+        "src/utils/a.ts": body,
+        "src/other.ts": body,
+      }),
+    ).toEqual(["src/utils/a.ts"]);
+  });
+
+  it("marks nothing for a private package's pattern", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          private: true,
+          exports: { "./utils/*": "./dist/utils/*.js" },
+        }),
+        "tsconfig.json": config,
+        "src/utils/a.ts": body,
+      }),
+    ).toEqual([]);
+  });
+
+  it("marks nothing and does not fail for a pattern matching no module", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          exports: { "./gone/*": "./dist/gone/*.js" },
+        }),
+        "tsconfig.json": config,
+        "src/utils/a.ts": body,
+      }),
+    ).toEqual([]);
+  });
+
+  it("marks exactly the module a resolving pattern matches among several", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          exports: {
+            "./utils/*": "./dist/utils/*.js",
+            "./gone/*": "./dist/gone/*.js",
+            "./two/*/*": "./dist/two/*/*.js",
+          },
+        }),
+        "tsconfig.json": config,
+        "src/utils/a.ts": body,
+        "src/two/x/y.ts": body,
+        "src/other.ts": body,
+      }),
+    ).toEqual(["src/utils/a.ts"]);
+  });
+});
+
 describe("entry point manifests", () => {
   it("skips package.json files in skipped directories", () => {
     expect(
