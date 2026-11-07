@@ -116,6 +116,44 @@ describe("sentenceOf orphan", () => {
   });
 });
 
+describe("sentenceOf orphan library hint", () => {
+  const hint =
+    "; a library can list its public API in warnings.orphan.entry_points.";
+  const orphanIn = (module: string, tests: number) =>
+    sentence({
+      kind: "orphan",
+      evidence: {
+        modules: [module],
+        ...(tests > 0
+          ? {
+              test_importers: Array.from({ length: tests }, (_, i) => ({
+                file: `t/t${i}.kt`,
+                names: [],
+              })),
+            }
+          : {}),
+      },
+    });
+
+  it("adds the hint to a Kotlin orphan", () => {
+    expect(orphanIn("lib/Api.kt", 0)).toBe(
+      `Api.kt is imported by nothing and is not an entry point${hint}`,
+    );
+  });
+
+  it("adds the hint to a Kotlin orphan only tests import", () => {
+    expect(orphanIn("lib/Api.kt", 1)).toBe(
+      `Api.kt is imported only by 1 test file and is not an entry point; if it only supports tests, move it next to it${hint}`,
+    );
+  });
+
+  it("adds the hint to a C# orphan", () => {
+    expect(orphanIn("lib/Api.cs", 0)).toBe(
+      `Api.cs is imported by nothing and is not an entry point${hint}`,
+    );
+  });
+});
+
 describe("sentenceOf", () => {
   it("names a three-module cycle", () => {
     expect(

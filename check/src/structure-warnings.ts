@@ -7,7 +7,11 @@ import { compileGlob, matchesAny } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
-import { testImportersOf, testOnlySummary } from "./test-importers.js";
+import {
+  libraryApiHint,
+  testImportersOf,
+  testOnlySummary,
+} from "./test-importers.js";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -159,6 +163,42 @@ function policyLiteralPaths(policy: Policy | null): Set<string> {
   return literalPaths;
 }
 
+function reachedModules(
+  scan: Scan,
+  ids: Set<string>,
+  imported: Set<string>,
+  isEntry: (id: string) => boolean,
+): Set<string> {
+  const reached = new Set<string>();
+
+  for (const id of ids) {
+    if (imported.has(id) || isEntry(id)) {
+      reached.add(id);
+    }
+  }
+
+  const actuals = scan.modules.filter(
+    (module) => module.actual_of !== undefined && ids.has(module.id),
+  );
+  let grew = true;
+
+  while (grew) {
+    grew = false;
+
+    for (const module of actuals) {
+      if (
+        !reached.has(module.id) &&
+        (module.actual_of ?? []).some((expect) => reached.has(expect))
+      ) {
+        reached.add(module.id);
+        grew = true;
+      }
+    }
+  }
+
+  return reached;
+}
+
 export function orphanFindings(
   scan: Scan,
   policy: Policy | null,
@@ -174,12 +214,12 @@ export function orphanFindings(
   );
 
   const testImporters = testImportersOf(scan);
+  const reached = reachedModules(scan, ids, imported, (id) =>
+    isEntryPoint(id, literalPaths, entryPoints, scanned.has(id)),
+  );
 
   return [...ids]
-    .filter((id) => !imported.has(id))
-    .filter(
-      (id) => !isEntryPoint(id, literalPaths, entryPoints, scanned.has(id)),
-    )
+    .filter((id) => !reached.has(id))
     .sort(compare)
     .map((id): FindingRecord => {
       const importers = testImporters.get(id) ?? [];
@@ -193,7 +233,7 @@ export function orphanFindings(
       if (importers.length === 0) {
         return {
           ...base,
-          summary: `${id} is imported by no module and is not an entry point`,
+          summary: `${id} is imported by no module and is not an entry point${libraryApiHint(id) ?? ""}`,
           fix_pattern: "remove-or-wire-orphan",
           evidence: { modules: [id] },
         };

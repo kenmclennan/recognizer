@@ -109,3 +109,10 @@ def test_is_declared_recognises_nested_generics_and_explicit_constructors(line, 
 def test_is_declared_does_not_count_a_use_on_the_right_of_an_assignment():
     assert not is_declared(["val x = foo.bar()"], "bar")
     assert not is_declared(["val x = foo.bar()"], "foo")
+
+
+def test_exactly_the_three_petclinic_applications_are_entry_points(result):
+    marked = sorted(m["id"] for m in result.document["modules"] if m.get("entry_point"))
+
+    assert len(marked) == 3
+    assert [Path(m).name for m in marked] == ["IdentityApp.kt", "PetApp.kt", "VetApp.kt"]

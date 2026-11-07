@@ -9,6 +9,8 @@ VALUE_LIMIT = 40
 SHORT_TEMPLATE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 BODIES = ("class_body", "enum_class_body")
 COMPANION_NAME = "Companion"
+IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+PACKAGE_OR_IMPORT = re.compile(r"^\s*(?:package|import)\b")
 
 
 def text_of(node: Node) -> str:
@@ -128,6 +130,9 @@ class Decl:
     owner: str | None = None
     is_object: bool = False
     is_enum: bool = False
+    is_expect: bool = False
+    is_actual: bool = False
+    has_receiver: bool = False
     members: set[str] = field(default_factory=set)
     supertypes: list[list[str]] = field(default_factory=list)
 
@@ -241,7 +246,13 @@ def decl_of(node: Node) -> list[Decl]:
     else:
         found = [Decl(property_name(node) or "", "constant", line_of(node), visibility, node)]
 
+    words = modifier_words(node)
     outer = found[0]
+    outer.is_expect = "expect" in words
+    outer.is_actual = "actual" in words
+    outer.has_receiver = node.type == "function_declaration" and any(
+        c.type == "." for c in node.children
+    )
     body = class_body(node) if node.type in ("class_declaration", "object_declaration") else None
 
     for item in body.children if body else []:
@@ -344,7 +355,17 @@ def fill_from_patterns(parsed: Parsed, decls: list[Decl]) -> None:
     for hit in parsed.hits:
         if hit.name not in known:
             known.add(hit.name)
-            decls.append(Decl(hit.name, hit.kind, hit.line, hit.visibility, None))
+            decls.append(
+                Decl(
+                    hit.name,
+                    hit.kind,
+                    hit.line,
+                    hit.visibility,
+                    None,
+                    is_expect=hit.is_expect,
+                    is_actual=hit.is_actual,
+                )
+            )
 
     for outer, companion, line in parsed.companions:
         name = f"{outer}.{companion or COMPANION_NAME}"
@@ -354,7 +375,143 @@ def fill_from_patterns(parsed: Parsed, decls: list[Decl]) -> None:
             decls.append(Decl(name, "class", line, "public", None, owner=outer, is_object=True))
 
 
-def read_source(path: str, directory: str, parsed: Parsed) -> SourceFile:
+def blank_code(text: str) -> tuple[str, list[tuple[str, int]]]:
+    out: list[str] = []
+    templates: list[tuple[str, int]] = []
+    line = 1
+    index = 0
+    mode = "code"
+    nesting = 0
+
+    def put(char: str) -> None:
+        nonlocal line
+
+        if char == "\n":
+            line += 1
+            out.append("\n")
+        else:
+            out.append(" ")
+
+    def template(start: int, end: int) -> None:
+        for found in SHORT_TEMPLATE.finditer(text, start, end):
+            templates.append((found[1], line + text[start : found.start()].count("\n")))
+
+    while index < len(text):
+        char = text[index]
+        pair = text[index : index + 2]
+
+        if mode == "code":
+            if pair == "//":
+                mode = "line"
+                put(" ")
+            elif pair == "/*":
+                mode = "block"
+                nesting = 1
+                put(" ")
+                put(" ")
+                index += 1
+            elif text.startswith('"""', index):
+                mode = "raw"
+                begin = index + 3
+                put(" ")
+                put(" ")
+                put(" ")
+                index += 2
+            elif char == '"':
+                mode = "string"
+                begin = index + 1
+                put(" ")
+            elif char == "'":
+                mode = "char"
+                put(" ")
+            else:
+                out.append(char)
+
+                if char == "\n":
+                    line += 1
+        elif mode == "line":
+            if char == "\n":
+                mode = "code"
+            put(char)
+        elif mode == "block":
+            if pair == "/*":
+                nesting += 1
+                put(" ")
+                put(" ")
+                index += 1
+            elif pair == "*/":
+                nesting -= 1
+                put(" ")
+                put(" ")
+                index += 1
+
+                if nesting == 0:
+                    mode = "code"
+            else:
+                put(char)
+        elif mode == "raw":
+            if text.startswith('"""', index):
+                template(begin, index)
+                mode = "code"
+                put(" ")
+                put(" ")
+                put(" ")
+                index += 2
+            else:
+                put(char)
+        elif mode == "string":
+            if char == "\\":
+                put(char)
+                index += 1
+
+                if index < len(text):
+                    put(text[index])
+            elif char == '"' or char == "\n":
+                template(begin, index)
+                mode = "code"
+                put(char)
+            else:
+                put(char)
+        else:
+            if char == "\\":
+                put(char)
+                index += 1
+
+                if index < len(text):
+                    put(text[index])
+            elif char == "'" or char == "\n":
+                mode = "code"
+                put(char)
+            else:
+                put(char)
+
+        index += 1
+
+    if mode in ("string", "raw"):
+        template(begin, len(text))
+
+    return "".join(out), templates
+
+
+def recover_uses(data: bytes, uses: dict[str, int]) -> None:
+    code, templates = blank_code(data.decode("utf-8", errors="replace"))
+
+    def note(name: str, line: int) -> None:
+        if name not in uses:
+            uses[name] = line
+
+    for number, text in enumerate(code.split("\n"), start=1):
+        if PACKAGE_OR_IMPORT.match(text):
+            continue
+
+        for found in IDENTIFIER.finditer(text):
+            note(found[0], number)
+
+    for name, number in templates:
+        note(name, number)
+
+
+def read_source(path: str, directory: str, parsed: Parsed, data: bytes) -> SourceFile:
     package = ""
     imports = []
 
@@ -375,5 +532,8 @@ def read_source(path: str, directory: str, parsed: Parsed) -> SourceFile:
         fill_from_patterns(parsed, decls)
 
     uses, chains = collect_uses(parsed.roots)
+
+    if parsed.damaged:
+        recover_uses(data, uses)
 
     return SourceFile(path, directory, package, imports, decls, uses, chains, parsed.damaged)

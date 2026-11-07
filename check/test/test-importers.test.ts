@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { validateScan } from "../src/scan.js";
 import { orphanFindings } from "../src/structure-warnings.js";
-import { testImportersOf, testOnlySummary } from "../src/test-importers.js";
+import {
+  libraryApiHint,
+  testImportersOf,
+  testOnlySummary,
+} from "../src/test-importers.js";
 
 type Records = { from: string; to: string; names?: string[] }[];
 
@@ -217,5 +221,32 @@ describe("orphan test importers", () => {
     expect(testOnlySummary("a/m.py", [{ file: "t/x.py", names: [] }])).toMatch(
       /^a\/m\.py is imported only by 1 test file: t\/x\.py;/,
     );
+  });
+
+  it("ends the test-only summary of a Kotlin or C# id with the library hint", () => {
+    for (const id of ["a/M.kt", "a/M.cs"]) {
+      expect(testOnlySummary(id, [{ file: "t/x.kt", names: [] }])).toMatch(
+        /move it next to them rather than deleting it; a library can list its public API in warnings\.orphan\.entry_points$/,
+      );
+    }
+  });
+
+  it("keeps the test-only summary of other ids unchanged", () => {
+    for (const id of ["a/m.py", "a/m.ts", "a/m.rs"]) {
+      expect(testOnlySummary(id, [{ file: "t/x", names: [] }])).toMatch(
+        /rather than deleting it$/,
+      );
+    }
+  });
+
+  it("returns the hint for .kt and .cs and null for the rest", () => {
+    expect(libraryApiHint("a/M.kt")).toBe(
+      "; a library can list its public API in warnings.orphan.entry_points",
+    );
+    expect(libraryApiHint("a/M.cs")).toBe(libraryApiHint("a/M.kt"));
+
+    for (const id of ["a/m.py", "a/m.ts", "a/m.rs", "a/m.kts"]) {
+      expect(libraryApiHint(id)).toBeNull();
+    }
   });
 });

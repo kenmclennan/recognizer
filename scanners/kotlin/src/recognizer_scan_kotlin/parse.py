@@ -57,6 +57,8 @@ class Hit:
     kind: str
     line: int
     visibility: str
+    is_expect: bool = False
+    is_actual: bool = False
 
 
 @dataclass
@@ -213,7 +215,14 @@ def hit_of(line: str, number: int) -> Hit | None:
     if "fun interface" in (found["mods"] + keyword):
         kind = "interface"
 
-    return Hit(name[1], kind, number + 1, read_visibility(found["mods"]))
+    return Hit(
+        name[1],
+        kind,
+        number + 1,
+        read_visibility(found["mods"]),
+        bool(re.search(r"\bexpect\b", found["mods"])),
+        bool(re.search(r"\bactual\b", found["mods"])),
+    )
 
 
 def parse_whole(data: bytes) -> Parsed:

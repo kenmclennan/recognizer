@@ -117,7 +117,13 @@
         "language": { "enum": ["python", "typescript", "kotlin", "rust", "csharp"] },
         "kind": { "enum": ["module", "package", "interface"] },
         "members": { "type": "array", "items": { "$ref": "#/$defs/member" } },
-        "entry_point": { "type": "boolean", "const": true }
+        "entry_point": { "type": "boolean", "const": true },
+        "actual_of": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/moduleId" }
+        }
       }
     },
     "member": {

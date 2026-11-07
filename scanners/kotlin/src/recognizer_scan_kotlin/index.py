@@ -10,6 +10,8 @@ class Index:
         self.build_of = build_of
         self.packages: dict[str, dict[str, set[str]]] = {}
         self.top: dict[tuple[str, str], Decl] = {}
+        self.kinds: dict[tuple[str, str], set[str]] = {}
+        self.expects: dict[tuple[str, str], set[str]] = {}
         self.prefixes: list[str] = []
 
         for file in files:
@@ -19,6 +21,10 @@ class Index:
                 if decl.owner is None:
                     if decl.visibility != "private":
                         names.setdefault(decl.name, set()).add(file.path)
+                        self.kinds.setdefault((file.package, decl.name), set()).add(decl.kind)
+
+                    if decl.is_expect:
+                        self.expects.setdefault((file.package, decl.name), set()).add(file.path)
 
                     self.top.setdefault((file.path, decl.name), decl)
 
@@ -46,6 +52,23 @@ class Index:
 
     def files_for(self, package: str, name: str) -> set[str]:
         return self.packages.get(package, {}).get(name, set())
+
+    def only_functions(self, package: str, name: str) -> bool:
+        return self.kinds.get((package, name), set()) == {"function"}
+
+    def expect_files_of(self, file: SourceFile) -> list[str]:
+        build = self.build_of[file.path]
+        found: set[str] = set()
+
+        for decl in file.decls:
+            if decl.owner is None and decl.is_actual:
+                found |= {
+                    path
+                    for path in self.expects.get((file.package, decl.name), set())
+                    if path != file.path and self.build_of[path] == build
+                }
+
+        return sorted(found)
 
     def prefer(self, paths: Iterable[str], build: str) -> list[str]:
         found = sorted(paths)

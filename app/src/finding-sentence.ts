@@ -1,4 +1,4 @@
-import type { FindingRecord } from "recognizer";
+import { type FindingRecord, libraryApiHint } from "recognizer";
 
 export type SentenceInput = {
   record: FindingRecord;
@@ -297,12 +297,13 @@ function orphan(record: FindingRecord): string | null {
   }
 
   const tests = record.evidence.test_importers?.length ?? 0;
+  const hint = `${libraryApiHint(module) ?? ""}.`;
 
   if (tests === 0) {
-    return `${shortName(module)} is imported by nothing and is not an entry point.`;
+    return `${shortName(module)} is imported by nothing and is not an entry point${hint}`;
   }
 
-  return `${shortName(module)} is imported only by ${tests === 1 ? "1 test file" : `${tests} test files`} and is not an entry point; if it only supports tests, move it next to ${tests === 1 ? "it" : "them"}.`;
+  return `${shortName(module)} is imported only by ${tests === 1 ? "1 test file" : `${tests} test files`} and is not an entry point; if it only supports tests, move it next to ${tests === 1 ? "it" : "them"}${hint}`;
 }
 
 const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {

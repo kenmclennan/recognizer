@@ -53,13 +53,20 @@ def endpoints_of(module_id: str, members: list[dict]) -> set[str]:
     return found
 
 
+def has_main(file: SourceFile) -> bool:
+    return any(
+        d.owner is None and d.kind == "function" and d.name == "main" and not d.has_receiver
+        for d in file.decls
+    )
+
+
 def read_all(root: Path, paths: list[str]) -> tuple[list[SourceFile], list[dict]]:
     files = []
     hashes = []
 
     for path in paths:
         data = (root / path).read_bytes()
-        files.append(read_source(path, directory_of(path), parse_file(data)))
+        files.append(read_source(path, directory_of(path), parse_file(data), data))
         hashes.append({"path": path, "hash": hashlib.sha256(data).hexdigest()})
 
     return files, hashes
@@ -83,14 +90,22 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
     for file in files:
         members = [member_of(d) for d in file.decls]
         endpoints |= endpoints_of(file.path, members)
-        modules.append(
-            {
-                "id": file.path,
-                "language": "kotlin",
-                "kind": module_kind(members),
-                "members": members,
-            }
-        )
+        module = {
+            "id": file.path,
+            "language": "kotlin",
+            "kind": module_kind(members),
+            "members": members,
+        }
+
+        if has_main(file):
+            module["entry_point"] = True
+
+        expects = index.expect_files_of(file)
+
+        if expects:
+            module["actual_of"] = expects
+
+        modules.append(module)
 
     calls = CallResolver(files, index, resolver, endpoints).scan_calls()
     unresolved = sorted(collected.unresolved, key=lambda u: (u["from"], u["line"], u["import"]))
