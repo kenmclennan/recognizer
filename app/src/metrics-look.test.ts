@@ -106,7 +106,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
   for (const folder of ["app", "src", "lib"]) {
-    click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+    click(q('.tree .row[data-path="' + folder + '"] .reye'));
     await tick();
   }
 
@@ -181,7 +181,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, shippedList) }) });
     await tick();
     for (const folder of ["app", "src", "lib"]) {
-      click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+      click(q('.tree .row[data-path="' + folder + '"] .reye'));
       await tick();
     }
     click(q(".metrics-toggle"));
@@ -227,7 +227,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "long", text: longOverlay }] }), title: "demo", views: port, post: () => null, carried: null });
   await tick();
   for (const folder of ["app", "src", "lib"]) {
-    click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+    click(q('.tree .row[data-path="' + folder + '"] .reye'));
     await tick();
   }
   click(q(".metrics-toggle"));
@@ -255,7 +255,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     explorer = mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried: null });
     await tick();
     for (const folder of ["app", "src", "lib"]) {
-      click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+      click(q('.tree .row[data-path="' + folder + '"] .reye'));
       await tick();
     }
     click(q(".metrics-toggle"));

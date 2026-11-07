@@ -47,8 +47,8 @@ const facts = {};
 
   click(q('.tree .row[data-path="app"] .name'));
   click(q('.tree .row[data-path="lib"] .name'));
-  click(q('.tree .row[data-path="app/hub.py"] .rcheck'));
-  click(q('.tree .row[data-path="lib/a.py"] .rcheck'));
+  click(q('.tree .row[data-path="app/hub.py"] .reye'));
+  click(q('.tree .row[data-path="lib/a.py"] .reye'));
   await tick();
   click(q('.frame-label[data-kind="folder"][data-id="lib"]'));
   await tick();

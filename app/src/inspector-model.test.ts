@@ -15,7 +15,9 @@ import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
 import { DEFAULT_LIMITS } from "./function-limits";
 import { computeHealth } from "./health";
 import {
+  dependencyLabels,
   emphasisedLines,
+  flatRows,
   followableRows,
   type InspectorInputs,
   inspectorContent,
@@ -1072,6 +1074,56 @@ describe("against fixtures/python", () => {
   });
 });
 
+describe("dependency folder labels", () => {
+  const labels = (keys: string[], own: string) =>
+    Object.fromEntries(dependencyLabels(keys, own));
+
+  it("drops the shared top package and names the own folder", () => {
+    expect(
+      labels(
+        [
+          "lightcycle/adapters/sqlite",
+          "lightcycle/domain/feedback",
+          "lightcycle/domain/work",
+          "lightcycle/ports",
+          "lightcycle/adapters",
+        ],
+        "lightcycle/adapters/sqlite",
+      ),
+    ).toEqual({
+      "lightcycle/adapters/sqlite": "this folder",
+      "lightcycle/domain/feedback": "domain/feedback/",
+      "lightcycle/domain/work": "domain/work/",
+      "lightcycle/ports": "ports/",
+      "lightcycle/adapters": "adapters/",
+    });
+  });
+
+  it("drops nothing when the first segments differ", () => {
+    expect(labels(["lib/x", "app/y"], "app/y")).toEqual({
+      "lib/x": "lib/x/",
+      "app/y": "this folder",
+    });
+  });
+
+  it("reads a key equal to the dropped segment as ./", () => {
+    expect(
+      labels(["lightcycle", "lightcycle/ports"], "lightcycle/ports"),
+    ).toEqual({
+      lightcycle: "./",
+      "lightcycle/ports": "this folder",
+    });
+  });
+
+  it("reads the root key as ./ and prevents any drop", () => {
+    expect(labels(["", "lightcycle/ports"], "lightcycle/adapters")).toEqual({
+      "": "./",
+      "lightcycle/ports": "lightcycle/ports/",
+      "lightcycle/adapters": "this folder",
+    });
+  });
+});
+
 describe("dependencies tab", () => {
   const edge = (from: string, to: string, names: string[]): ScanEdge => ({
     from,
@@ -1106,17 +1158,18 @@ describe("dependencies tab", () => {
       }),
     ).rows;
   const moduleRows = (list: Row[]) =>
-    list.filter((row) => row.kind === "module");
+    flatRows(list).filter((row) => row.kind === "module");
   const section = (list: Row[], text: string) => {
-    const start = list.findIndex(
-      (row) => row.kind === "heading" && row.text === text,
+    const panel = list.find(
+      (row) => row.kind === "panel" && `${row.label} ${row.count}` === text,
     );
-    const after = list
-      .slice(start + 1)
-      .findIndex((row) => row.kind === "heading");
 
-    return list.slice(start + 1, after < 0 ? undefined : start + 1 + after);
+    return panel?.kind === "panel" ? panel.rows : [];
   };
+  const labelsOf = (list: Row[]) =>
+    list.flatMap((row) =>
+      row.kind === "module" || row.kind === "folder-label" ? [row.label] : [],
+    );
 
   it("has the tab Dependencies N with N the sum of the two counts", () => {
     const content = inspectorContent(
@@ -1136,33 +1189,40 @@ describe("dependencies tab", () => {
 
     expect(list[0]).toMatchObject({ kind: "filter" });
     expect(
-      list.filter((row) => row.kind === "heading").map((row) => row.text),
+      list.flatMap((row) =>
+        row.kind === "panel" ? [`${row.label} ${row.count}`] : [],
+      ),
     ).toEqual(["Uses 3", "Used by 1"]);
-    expect(list[1]).toEqual({ kind: "heading", text: "Uses 3" });
+    expect(list[1]).toMatchObject({
+      kind: "panel",
+      direction: "uses",
+      caption: "hub.py imports these",
+    });
+    expect(list[2]).toMatchObject({
+      kind: "panel",
+      direction: "usedBy",
+      caption: "these import hub.py",
+    });
+    expect(list[3]).toMatchObject({ kind: "legend" });
   });
 
   it("lists the modules a module uses under folder headings with their full path, then the module rows", () => {
-    const list = moduleRows(section(rows({}), "Uses 3"));
+    const list = section(rows({}), "Uses 3");
 
-    expect(list.map((row) => [row.folder, row.label])).toEqual([
-      [true, "a/"],
-      [false, "x.py"],
-      [false, "y.py"],
-      [true, "b/"],
-      [false, "z.py"],
-    ]);
-    expect(list[0]).toMatchObject({
-      chevron: null,
-      detail: { text: "2" },
+    expect(labelsOf(list)).toEqual(["a/", "x.py", "y.py", "b/", "z.py"]);
+    expect(list[0]).toMatchObject({ kind: "folder-label", count: 2 });
+    expect(list[1]).toMatchObject({
+      indent: true,
+      detail: null,
+      discFirst: true,
     });
-    expect(list[1]).toMatchObject({ indent: true, detail: null });
   });
 
   it("lists the modules that use a module in the Used by section", () => {
-    const list = moduleRows(section(rows({}), "Used by 1"));
+    const list = section(rows({}), "Used by 1");
 
-    expect(list.map((row) => row.label)).toEqual(["./", "caller.py"]);
-    expect(list[0]).toMatchObject({ id: "" });
+    expect(labelsOf(list)).toEqual(["this folder", "caller.py"]);
+    expect(list[0]).toMatchObject({ key: "" });
   });
 
   it("starts with a filter field summing both sections and ticks rows that are on the canvas", () => {
@@ -1172,8 +1232,12 @@ describe("dependencies tab", () => {
       kind: "filter",
       placeholder: "Filter 4 modules",
     });
-    expect(moduleRows(list)[0]).toMatchObject({ state: "partial" });
-    expect(moduleRows(list)[1]).toMatchObject({ state: "checked", bold: true });
+    expect(moduleRows(list)[0]).toMatchObject({ state: "checked", bold: true });
+    expect(moduleRows(list)[1]).toMatchObject({ state: "unchecked" });
+    expect(section(list, "Uses 3")[0]).toMatchObject({
+      kind: "folder-label",
+      allOn: false,
+    });
   });
 
   it("keeps both sections open whatever expanded holds", () => {
@@ -1181,25 +1245,22 @@ describe("dependencies tab", () => {
       expanded: new Set(["dependencies:uses", "dependencies:usedBy"]),
     });
 
-    expect(list.filter((row) => row.kind === "heading").length).toBe(2);
-    expect(moduleRows(section(list, "Uses 3")).length).toBe(5);
-    expect(moduleRows(section(list, "Used by 1")).length).toBe(2);
+    expect(list.filter((row) => row.kind === "panel").length).toBe(2);
+    expect(section(list, "Uses 3").length).toBe(5);
+    expect(section(list, "Used by 1").length).toBe(2);
   });
 
   it("filters both sections by module and by name", () => {
     const list = rows({ filter: "z" });
 
-    expect(moduleRows(section(list, "Uses 3")).map((row) => row.label)).toEqual(
-      ["b/", "z.py"],
-    );
+    expect(labelsOf(section(list, "Uses 3"))).toEqual(["b/", "z.py"]);
     expect(section(list, "Used by 1")).toEqual([
       { kind: "note", text: "Nothing matches." },
     ]);
-    expect(
-      moduleRows(section(rows({ filter: "hub" }), "Used by 1")).map(
-        (row) => row.label,
-      ),
-    ).toEqual(["./", "caller.py"]);
+    expect(labelsOf(section(rows({ filter: "hub" }), "Used by 1"))).toEqual([
+      "this folder",
+      "caller.py",
+    ]);
   });
 
   it("shows None for an empty section", () => {
@@ -1273,12 +1334,12 @@ describe("following dependency rows", () => {
       }),
     ).rows;
   const moduleRows = (rows: Row[]) =>
-    rows.filter(
+    flatRows(rows).filter(
       (row): row is Extract<Row, { kind: "module" }> => row.kind === "module",
     );
 
   it("makes module rows followable in the section they are listed under", () => {
-    const rows = moduleRows(dependencies()).filter((row) => !row.folder);
+    const rows = moduleRows(dependencies());
 
     expect(rows.map((row) => [row.id, row.follow])).toEqual([
       ["partner.py", "uses"],
@@ -1288,14 +1349,15 @@ describe("following dependency rows", () => {
   });
 
   it("leaves folder headings and Contents rows unfollowable", () => {
-    const headings = moduleRows(dependencies()).filter((row) => row.folder);
+    const headings = flatRows(dependencies()).filter(
+      (row) => row.kind === "folder-label",
+    );
     const contents = inspectorContent(
       folder("a"),
       inputsFor([scan], { tab: "contents" }),
     ).rows;
 
     expect(headings.length).toBeGreaterThan(0);
-    expect(headings.every((row) => row.follow === null)).toBe(true);
     expect(moduleRows(contents).every((row) => row.follow === null)).toBe(true);
   });
 

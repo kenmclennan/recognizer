@@ -1,5 +1,6 @@
 import {
   fieldTokens,
+  folderOf,
   memberHeadTokens,
   methodTokens,
   type Scan,
@@ -34,6 +35,7 @@ import { createPicker, type PickerSource } from "./picker-model";
 import { PROPOSED_WORDS } from "./plan-overlay";
 import type { ResponsibilityRow } from "./responsibility-model";
 import { type CheckState, checkState } from "./row-model";
+import { fileLabel } from "./tree-model";
 
 export type InspectorTab = "contents" | "findings" | "dependencies";
 
@@ -137,6 +139,24 @@ export type Row =
   | CardRow
   | SwitchRow
   | { kind: "heading"; text: string }
+  | {
+      kind: "panel";
+      direction: Direction;
+      label: string;
+      count: number;
+      caption: string;
+      rows: Row[];
+    }
+  | {
+      kind: "folder-label";
+      key: string;
+      label: string;
+      own: boolean;
+      count: number;
+      ids: string[];
+      allOn: boolean;
+    }
+  | { kind: "legend"; text: string }
   | { kind: "filter"; value: string; placeholder: string }
   | {
       kind: "module";
@@ -148,6 +168,7 @@ export type Row =
       disc: Disc;
       folder: boolean;
       indent: boolean;
+      discFirst?: boolean;
       chevron: { key: string; open: boolean } | null;
       detail: { text: string; tone?: "private" | "inferred" } | null;
       title: string;
@@ -921,10 +942,38 @@ function pickerFor(
   };
 }
 
+export function dependencyLabels(
+  keys: string[],
+  own: string,
+): Map<string, string> {
+  const all = [...new Set([...keys, own])];
+  const first = (key: string) => key.split("/")[0];
+  const shared =
+    all.every((key) => key !== "") &&
+    all.every((key) => first(key) === first(all[0]));
+  const dropped = shared ? first(all[0]) : null;
+  const labels = new Map<string, string>();
+
+  for (const key of all) {
+    if (key === own) {
+      labels.set(key, "this folder");
+    } else if (key === "" || key === dropped) {
+      labels.set(key, "./");
+    } else if (dropped !== null) {
+      labels.set(key, `${key.slice(dropped.length + 1)}/`);
+    } else {
+      labels.set(key, `${key}/`);
+    }
+  }
+
+  return labels;
+}
+
 function pickerRows(
   picker: ReturnType<typeof createPicker>,
   direction: Direction,
   inputs: InspectorInputs,
+  labels: Map<string, string>,
 ): Row[] {
   const rows: Row[] = [];
 
@@ -940,21 +989,13 @@ function pickerRows(
 
   for (const group of groups) {
     rows.push({
-      kind: "module",
-      id: group.key,
+      kind: "folder-label",
+      key: group.key,
+      label: labels.get(group.key) ?? group.label,
+      own: labels.get(group.key) === "this folder",
+      count: group.count,
       ids: group.ids,
-      label: group.label,
-      state: group.state,
-      bold: false,
-      disc: inputs.disc(group.key),
-      folder: true,
-      indent: false,
-      chevron: null,
-      detail: { text: String(group.count) },
-      title: group.label,
-      description: null,
-      follow: null,
-      followed: false,
+      allOn: group.state === "checked",
     });
 
     for (const row of group.rows) {
@@ -968,6 +1009,7 @@ function pickerRows(
         disc: inputs.disc(row.id),
         folder: false,
         indent: true,
+        discFirst: true,
         chevron: null,
         detail: null,
         title: row.id,
@@ -1010,6 +1052,16 @@ function dependencyRows(
     ...pickerFor(selection, section.direction, inputs),
   }));
   const total = built.reduce((sum, item) => sum + item.picker.rowCount(), 0);
+  const own =
+    selection.kind === "folder" ? selection.id : folderOf(selection.id);
+  const labels = dependencyLabels(
+    built.flatMap((item) => item.picker.groups().map((group) => group.key)),
+    own,
+  );
+  const name =
+    selection.kind === "folder"
+      ? `${inputs.compaction.label(selection.id)}/`
+      : fileLabel(selection.id);
   const rows: Row[] = [
     {
       kind: "filter",
@@ -1019,11 +1071,23 @@ function dependencyRows(
   ];
 
   for (const item of built) {
-    rows.push(
-      { kind: "heading", text: `${item.label} ${item.count}` },
-      ...pickerRows(item.picker, item.direction, inputs),
-    );
+    rows.push({
+      kind: "panel",
+      direction: item.direction,
+      label: item.label,
+      count: item.count,
+      caption:
+        item.direction === "uses"
+          ? `${name} imports these`
+          : `these import ${name}`,
+      rows: pickerRows(item.picker, item.direction, inputs, labels),
+    });
   }
+
+  rows.push({
+    kind: "legend",
+    text: "on the canvas · the eye shows or hides · the name centres the canvas on it",
+  });
 
   return rows;
 }
@@ -1231,8 +1295,12 @@ export function emphasisedLines(
   );
 }
 
+export function flatRows(rows: Row[]): Row[] {
+  return rows.flatMap((row) => (row.kind === "panel" ? row.rows : [row]));
+}
+
 export function followableRows(rows: Row[]): Followed[] {
-  return rows.flatMap((row) =>
+  return flatRows(rows).flatMap((row) =>
     row.kind === "module" && row.follow !== null
       ? [{ id: row.id, relation: row.follow }]
       : [],

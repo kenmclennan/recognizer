@@ -263,6 +263,23 @@ svg.i {
   color: var(--sel);
 }
 
+.tree-legend {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.tree-legend svg.i {
+  width: 13px;
+  height: 13px;
+  color: var(--sel);
+}
+
 .rows {
   flex: 1;
   overflow: auto;
@@ -321,6 +338,40 @@ svg.i.chevron {
 
 .row .detail.inferred {
   color: var(--inf);
+}
+
+.reye {
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  padding: 0;
+  place-content: center;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+}
+
+.reye svg.i {
+  width: 16px;
+  height: 16px;
+}
+
+.reye.checked,
+.reye.partial {
+  color: var(--sel);
+}
+
+.reye:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.row .detail + .reye {
+  margin-left: 4px;
 }
 
 .rcheck {
@@ -1523,6 +1574,93 @@ svg.i.chevron {
   padding-left: 18px;
 }
 
+.dep-panel {
+  margin-top: 10px;
+  padding: 0 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.dep-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0 -6px 2px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dep-head svg.i {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.dep-head .dep-count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.dep-caption {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.dep-folder {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 2px 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.dep-folder svg.i {
+  width: 13px;
+  height: 13px;
+}
+
+.dep-folder.own .dep-path {
+  color: var(--faint);
+}
+
+.dep-all {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sel);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.dep-folder:hover .dep-all,
+.dep-all:focus-visible {
+  visibility: visible;
+}
+
+.dep-legend {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 12px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.dep-legend svg.i {
+  width: 13px;
+  height: 13px;
+  color: var(--sel);
+}
+
 .ifilter {
   box-sizing: border-box;
   width: 100%;
@@ -2065,7 +2203,7 @@ svg.i.chevron {
 .follow-wrap .follow {
   position: absolute;
   top: 2px;
-  right: 2px;
+  right: 28px;
   visibility: hidden;
 }
 

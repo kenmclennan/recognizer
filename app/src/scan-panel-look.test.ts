@@ -319,7 +319,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.scopeNone = { scope: scopeOf(), describe: stateOf("describe") };
   click(sc.q(".rail-files"));
   await tick();
-  click(sc.q(".rcheck"));
+  click(sc.q(".reye"));
   await tick();
   click(sc.q(".rail-scan"));
   await tick();

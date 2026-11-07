@@ -83,7 +83,7 @@ const lineText = () => { const row = lineNode(); return row === null ? null : ro
   click(q('.tree .row[data-path="app"] .name'));
   click(q('.tree .row[data-path="lib"] .name'));
   await tick();
-  click(q('.tree .row[data-path="lib/b.py"] .rcheck'));
+  click(q('.tree .row[data-path="lib/b.py"] .reye'));
   await tick();
   facts.lineAfterUser = lineText();
   facts.backAfterUser = q(".view-back").title;

@@ -47,20 +47,21 @@ const cs = (node) => getComputedStyle(node);
 const treeRow = (p) => document.querySelector('.tree .row[data-path="' + p + '"]');
 const pickRow = (id) => document.querySelector('.inspector-panel .row[data-id="' + id + '"]');
 const count = () => document.getElementById("module-count").textContent;
-const aria = (row) => row.querySelector(".rcheck").getAttribute("aria-checked");
+const aria = (row) => row.querySelector(".reye").getAttribute("aria-pressed");
+const folderLabel = (key) => document.querySelector('.inspector-panel .dep-folder[data-id="' + key + '"]');
 const centre = (node) => { const r = node.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 const off = (id) => { const c = centre(document.querySelector('.box[data-id="' + id + '"]')); const s = centre(document.querySelector(".stage")); return Math.hypot(c.x - s.x, c.y - s.y); };
 const selected = () => [...document.querySelectorAll(".box.selected")].map((n) => n.dataset.id);
 const bar = (label) => document.querySelector('.selection-bar [aria-label^="' + label + '"]');
-const heads = () => [...document.querySelectorAll(".inspector-panel .ohead")];
+const heads = () => [...document.querySelectorAll(".inspector-panel .dep-head")];
 const sectionRows = () => document.querySelectorAll(".inspector-panel .row.file").length;
-const look = (node) => { const c = cs(node.querySelector(".rcheck")); return [c.width, c.height, c.borderTopLeftRadius, c.borderTopWidth, c.borderTopColor, c.backgroundColor].join("|"); };
+const look = (node) => { const c = cs(node.querySelector(".reye")); return [c.width, c.height, c.color].join("|"); };
 const tabs = () => [...document.querySelectorAll(".inspector-panel .itabs button")];
 const facts = {};
 
 click(treeRow("app").querySelector(".name"));
 click(treeRow("lib").querySelector(".name"));
-click(treeRow("app/hub.py").querySelector(".rcheck"));
+click(treeRow("app/hub.py").querySelector(".reye"));
 facts.afterHub = count();
 click(document.querySelector('.box[data-id="app/hub.py"] .box-body'));
 facts.selectedHub = selected();
@@ -75,18 +76,23 @@ key("d");
 facts.afterD = [document.querySelector(".inspector-panel .itabs button.on").textContent, bar("Dependencies").disabled, bar("Dependencies").classList.contains("on")];
 key("u");
 facts.afterU = document.querySelector(".inspector-panel .itabs button.on").textContent;
-facts.sections = heads().map((h) => h.textContent);
+facts.sections = heads().map((h) => ({ label: h.querySelector(".dep-label").textContent, count: h.querySelector(".dep-count").textContent, caption: h.querySelector(".dep-caption").textContent, icon: h.querySelector("svg path").getAttribute("d") }));
 facts.openRows = sectionRows();
 click(heads()[0]);
 const panelChevrons = () => document.querySelectorAll(".inspector-panel svg.chevron").length;
-facts.afterHeadClick = { heads: heads().map((h) => h.textContent), rows: sectionRows(), chevrons: heads().filter((h) => h.querySelector("svg")).length };
-click(document.querySelector(".inspector-panel .row.folder .name"));
+facts.afterHeadClick = { heads: heads().map((h) => h.querySelector(".dep-label").textContent + " " + h.querySelector(".dep-count").textContent), rows: sectionRows(), chevrons: panelChevrons() };
+click(document.querySelector(".inspector-panel .dep-folder .dep-path"));
 facts.afterGroupClick = { rows: sectionRows(), chevrons: panelChevrons() };
-facts.iconTitles = [...document.querySelectorAll("button")].filter((b) => b.querySelector("svg.i")).map((b) => b.title || b.getAttribute("data-label") || "");
+facts.iconTitles = [...document.querySelectorAll("button")].filter((b) => b.querySelector("svg.i") && !b.classList.contains("reye")).map((b) => b.title || b.getAttribute("data-label") || "");
 facts.barText = [...document.querySelectorAll(".selection-bar button")].map((b) => b.textContent);
 
-facts.groupHeads = [...document.querySelectorAll(".inspector-panel .row.folder")].map((r) => r.querySelector(".name").textContent);
-facts.pickOrder = [...pickRow("lib/c.py").children].map((c) => c.classList.contains("rcheck") ? "check" : c.classList.contains("name") ? "name" : c.classList.contains("disc") ? "disc" : c.classList.contains("detail") ? "detail" : "other");
+facts.groupHeads = [...document.querySelectorAll(".inspector-panel .dep-folder .dep-path")].map((r) => r.textContent);
+facts.labelParts = [...document.querySelectorAll(".inspector-panel .dep-folder")].map((n) => ({ rcheck: n.querySelectorAll(".rcheck").length, eye: n.querySelectorAll(".reye").length, disc: n.querySelectorAll(".disc").length, detail: n.querySelectorAll(".detail").length, icon: n.querySelector("svg") !== null, all: n.querySelector(".dep-all").textContent, own: n.classList.contains("own") }));
+facts.panelRowHead = { legends: document.querySelectorAll(".inspector-panel .dep-legend").length, legendText: document.querySelector(".inspector-panel .dep-legend").textContent, legendIcon: document.querySelector(".inspector-panel .dep-legend svg") !== null, legendAfterPanels: document.querySelector(".inspector-panel .dep-legend").previousElementSibling.classList.contains("dep-panel"), titles: document.querySelectorAll(".inspector-panel .dep-panel .row[title], .inspector-panel .dep-panel .dep-folder[title], .inspector-panel .dep-panel .disc[title]").length, expanded: document.querySelectorAll(".inspector-panel .dep-panel .row .detail, .inspector-panel .dep-panel .row.open").length };
+pickRow("lib/c.py").dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+facts.tip = { count: document.querySelectorAll(".module-tip").length, path: document.querySelector(".module-tip .module-tip-path")?.textContent };
+pickRow("lib/c.py").dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+facts.pickOrder = [...pickRow("lib/c.py").children].map((c) => c.classList.contains("reye") ? "eye" : c.classList.contains("name") ? "name" : c.classList.contains("disc") ? "disc" : c.classList.contains("detail") ? "detail" : "other");
 facts.beforeC = { tree: aria(treeRow("lib/c.py")), pick: aria(pickRow("lib/c.py")) };
 const layoutsBefore = layouts;
 click(pickRow("lib/c.py").querySelector(".name"));
@@ -101,23 +107,34 @@ facts.nameOnUnchecked = {
 const layoutsMid = layouts;
 click(pickRow("lib/c.py").querySelector(".name"));
 facts.nameOnChecked = { count: count(), off: off("lib/c.py"), layouts: layouts - layoutsMid };
-facts.groupPartial = aria(pickRow("lib"));
+facts.groupPartial = aria(treeRow("lib"));
+{
+  const hubOff = off("app/hub.py");
+  const hubSelected = selected();
+  click(pickRow("lib/e.py").querySelector(".reye"));
+  facts.eyeInPanel = { count: count(), selected: selected(), hubMoved: Math.abs(off("app/hub.py") - hubOff), hubSelected, state: aria(pickRow("lib/e.py")), tree: aria(treeRow("lib/e.py")) };
+  click(pickRow("lib/e.py").querySelector(".reye"));
+  facts.eyeInPanelBack = { count: count(), selected: selected() };
+}
 facts.looks = {
   checked: [look(treeRow("lib/c.py")), look(pickRow("lib/c.py"))],
   unchecked: [look(treeRow("lib/d.py")), look(pickRow("lib/d.py"))],
-  partial: [look(treeRow("lib")), look(pickRow("lib"))],
+  partial: [look(treeRow("lib")), look(treeRow("lib"))],
 };
-facts.looks.checkedBg = cs(pickRow("lib/c.py").querySelector(".rcheck")).backgroundColor;
-facts.looks.uncheckedBg = cs(pickRow("lib/d.py").querySelector(".rcheck")).backgroundColor;
+facts.looks.checkedBg = cs(pickRow("lib/c.py").querySelector(".reye")).color;
+facts.looks.uncheckedBg = cs(pickRow("lib/d.py").querySelector(".reye")).color;
 const layoutsGroup = layouts;
-click(pickRow("lib").querySelector(".rcheck"));
-facts.groupOn = { count: count(), state: aria(pickRow("lib")), layouts: layouts - layoutsGroup, rows: ["lib/c.py", "lib/d.py", "lib/e.py"].map((id) => aria(pickRow(id))) };
-click(pickRow("lib/d.py").querySelector(".rcheck"));
-facts.untick = { count: count(), tree: aria(treeRow("lib/d.py")), group: aria(pickRow("lib")) };
+click(folderLabel("lib").querySelector(".dep-all"));
+facts.groupOn = { count: count(), state: aria(treeRow("lib")), layouts: layouts - layoutsGroup, rows: ["lib/c.py", "lib/d.py", "lib/e.py"].map((id) => aria(pickRow(id))), selected: selected() };
+const layoutsAgain = layouts;
+click(folderLabel("lib").querySelector(".dep-all"));
+facts.showAllAgain = { count: count(), layouts: layouts - layoutsAgain };
+click(pickRow("lib/d.py").querySelector(".reye"));
+facts.untick = { count: count(), tree: aria(treeRow("lib/d.py")), group: aria(treeRow("lib")) };
 const layoutsFolder = layouts;
-click(treeRow("lib").querySelector(".rcheck"));
+click(treeRow("lib").querySelector(".reye"));
 facts.treeFolderPartialClick = { count: count(), state: aria(treeRow("lib")), layouts: layouts - layoutsFolder };
-click(treeRow("lib").querySelector(".rcheck"));
+click(treeRow("lib").querySelector(".reye"));
 facts.treeFolderCheckedClick = { count: count(), state: aria(treeRow("lib")) };
 click(treeRow("lib").querySelector(".name"));
 facts.folderNameToggled = treeRow("lib/c.py") === null;
@@ -128,7 +145,7 @@ facts.absent = {
   picker: document.querySelectorAll('[class*="picker"]').length,
   ghost: document.querySelectorAll('[class*="ghost"], [data-kind="ghost"]').length,
   platformCheckbox: document.querySelectorAll('.tree input[type="checkbox"]:not(.scan-tick), .inspector-panel input[type="checkbox"]').length,
-  rowButtons: document.querySelectorAll(".tree .row button, .inspector-panel .row button").length,
+  rowButtons: document.querySelectorAll(".tree .row button:not(.reye), .inspector-panel .row button:not(.reye)").length,
   labels: [...document.querySelectorAll("button, [aria-label]")].filter((n) => !n.closest(".notes-panel")).map((n) => (n.getAttribute("aria-label") || "") + "|" + n.textContent).filter((t) => /Find on canvas|Put on the canvas|Tick all|By name|By module|^\\|Add/.test(t)),
   legend: document.querySelector(".tree .legend"),
 };
@@ -139,18 +156,24 @@ key("Backspace");
 facts.backspace = { before, after: count(), selected: selected() };
 
 const takeOffButton = () => document.querySelector('.selection-bar [aria-label="Take off the canvas (Backspace)"]');
-click(treeRow("app/a.py").querySelector(".rcheck"));
+click(treeRow("app/a.py").querySelector(".reye"));
 click(document.querySelector('.box[data-id="app/a.py"] .box-body'));
 const moduleBefore = count();
 click(takeOffButton());
 facts.takeOffModule = { before: moduleBefore, after: count(), selected: selected() };
-click(treeRow("lib").querySelector(".rcheck"));
+click(treeRow("lib").querySelector(".reye"));
 click(document.querySelector('.frame-label[data-id="lib"]'));
 const folderBefore = count();
 const folderBar = [...document.querySelectorAll(".selection-bar > *")].map((n) => n.classList.contains("bar-sep") ? "|" : n.getAttribute("aria-label") || n.textContent);
 facts.takeOffFolder = { bar: folderBar.slice(-2), title: takeOffButton().title, cross: takeOffButton().querySelector("path[d*='M18 6L6 18']") !== null, before: folderBefore };
 click(takeOffButton());
 facts.takeOffFolder.after = count();
+
+click(treeRow("app/hub.py").querySelector(".reye"));
+click(document.querySelector('.box[data-id="app/hub.py"] .box-body'));
+facts.hideSelectedBefore = selected();
+click(treeRow("app/hub.py").querySelector(".reye"));
+facts.hideSelected = { selected: selected(), tree: aria(treeRow("app/hub.py")), box: document.querySelector('.box[data-id="app/hub.py"]') === null };
 
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
@@ -164,7 +187,7 @@ type Facts = {
   stillShown: string;
   afterD: [string, boolean, boolean];
   barFigure: string;
-  sections: string[];
+  sections: { label: string; count: string; caption: string; icon: string }[];
   openRows: number;
   afterHeadClick: { heads: string[]; rows: number; chevrons: number };
   afterGroupClick: { rows: number; chevrons: number };
@@ -172,6 +195,36 @@ type Facts = {
   barText: string[];
   afterU: string;
   groupHeads: string[];
+  labelParts: {
+    rcheck: number;
+    eye: number;
+    disc: number;
+    detail: number;
+    icon: boolean;
+    all: string;
+    own: boolean;
+  }[];
+  panelRowHead: {
+    legends: number;
+    legendText: string;
+    legendIcon: boolean;
+    legendAfterPanels: boolean;
+    titles: number;
+    expanded: number;
+  };
+  tip: { count: number; path: string | undefined };
+  eyeInPanel: {
+    count: string;
+    selected: string[];
+    hubMoved: number;
+    hubSelected: string[];
+    state: string;
+    tree: string;
+  };
+  eyeInPanelBack: { count: string; selected: string[] };
+  showAllAgain: { count: string; layouts: number };
+  hideSelectedBefore: string[];
+  hideSelected: { selected: string[]; tree: string; box: boolean };
   pickOrder: string[];
   beforeC: { tree: string; pick: string };
   nameOnUnchecked: {
@@ -191,7 +244,13 @@ type Facts = {
     checkedBg: string;
     uncheckedBg: string;
   };
-  groupOn: { count: string; state: string; layouts: number; rows: string[] };
+  groupOn: {
+    count: string;
+    state: string;
+    layouts: number;
+    rows: string[];
+    selected: string[];
+  };
   untick: { count: string; tree: string; group: string };
   treeFolderPartialClick: { count: string; state: string; layouts: number };
   treeFolderCheckedClick: { count: string; state: string };
@@ -242,7 +301,16 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
   });
 
   it("lists a Uses and a Used by heading with their counts, always open, with folder groups that never fold", () => {
-    expect(f.sections).toEqual(["Uses 4", "Used by 0"]);
+    expect(f.sections.map((x) => `${x.label} ${x.count}`)).toEqual([
+      "Uses 4",
+      "Used by 0",
+    ]);
+    expect(f.sections.map((x) => x.caption)).toEqual([
+      "hub.py imports these",
+      "these import hub.py",
+    ]);
+    expect(f.sections[0].icon).toBe("M5 12h14M13 6l6 6-6 6");
+    expect(f.sections[1].icon).toBe("M19 12H5");
     expect(f.openRows).toBe(4);
     expect(f.afterHeadClick).toEqual({
       heads: ["Uses 4", "Used by 0"],
@@ -261,9 +329,65 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
     }
   });
 
-  it("groups by folder with the full path, one row each: checkbox, name, disc", () => {
-    expect(f.groupHeads).toEqual(["app/", "lib/"]);
-    expect(f.pickOrder).toEqual(["check", "name", "disc"]);
+  it("groups by folder with quiet labels and one row each: disc, name, eye", () => {
+    expect(f.groupHeads).toEqual(["this folder", "lib/"]);
+    expect(f.pickOrder).toEqual(["disc", "name", "eye"]);
+    expect(f.labelParts).toEqual([
+      {
+        rcheck: 0,
+        eye: 0,
+        disc: 0,
+        detail: 0,
+        icon: true,
+        all: "Show all 1",
+        own: true,
+      },
+      {
+        rcheck: 0,
+        eye: 0,
+        disc: 0,
+        detail: 0,
+        icon: true,
+        all: "Show all 3",
+        own: false,
+      },
+    ]);
+  });
+
+  it("has one legend under the panels, no title attribute and no row expansion, and one module tip on hover", () => {
+    expect(f.panelRowHead).toEqual({
+      legends: 1,
+      legendText:
+        "on the canvas · the eye shows or hides · the name centres the canvas on it",
+      legendIcon: true,
+      legendAfterPanels: true,
+      titles: 0,
+      expanded: 0,
+    });
+    expect(f.tip).toEqual({ count: 1, path: "lib/c.py" });
+  });
+
+  it("clicking an eye in a panel toggles presence without selecting or centring", () => {
+    expect(f.eyeInPanel.count).toBe("3 of 5 modules on the canvas");
+    expect(f.eyeInPanel.state).toBe("true");
+    expect(f.eyeInPanel.tree).toBe("true");
+    expect(f.eyeInPanel.selected).toEqual(f.eyeInPanel.hubSelected);
+    expect(f.eyeInPanel.hubMoved).toBeLessThan(1);
+    expect(f.eyeInPanelBack.count).toBe("2 of 5 modules on the canvas");
+    expect(f.eyeInPanelBack.selected).toEqual(f.eyeInPanel.hubSelected);
+  });
+
+  it("hides the selected module from the tree's eye and clears the selection", () => {
+    expect(f.hideSelectedBefore).toEqual(["app/hub.py"]);
+    expect(f.hideSelected).toEqual({ selected: [], tree: "false", box: true });
+  });
+
+  it("Show all N puts a group on and does nothing when all are on", () => {
+    expect(f.groupOn.selected).toEqual(f.eyeInPanel.hubSelected);
+    expect(f.showAllAgain).toEqual({
+      count: "4 of 5 modules on the canvas",
+      layouts: 0,
+    });
   });
 
   it("clicking an unchecked name puts it on, ticks it in the tree and Dependencies, centres on its box and keeps the selection", () => {
@@ -281,7 +405,7 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
     expect(f.nameOnChecked.off).toBeLessThan(2);
   });
 
-  it("draws the checkbox with the same computed look in the tree and the tab, in each state", () => {
+  it("draws the eye with the same computed look in the tree and the tab, in each state", () => {
     expect(f.groupPartial).toBe("mixed");
     expect(f.looks.checked[0]).toBe(f.looks.checked[1]);
     expect(f.looks.unchecked[0]).toBe(f.looks.unchecked[1]);

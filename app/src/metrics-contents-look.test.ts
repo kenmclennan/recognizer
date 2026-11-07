@@ -77,7 +77,7 @@ async function look() {
       click(q('.tree .row[data-path="app"] .name'));
       await tick();
     }
-    click(q('.tree .row[data-path="app/risk.py"] .rcheck'));
+    click(q('.tree .row[data-path="app/risk.py"] .reye'));
     await tick();
   }
   click(q('.box[data-id="app/risk.py"] .box-body'));

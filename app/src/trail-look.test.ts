@@ -49,7 +49,7 @@ async function mount(width, widths) {
   await tick();
   click(q('.tree .row[data-path="app"] .name'));
   click(q('.tree .row[data-path="lib"] .name'));
-  click(q('.tree .row[data-path="app/hub.py"] .rcheck'));
+  click(q('.tree .row[data-path="app/hub.py"] .reye'));
   await tick();
   click(q('.box[data-id="app/hub.py"] .box-body'));
   await tick();
@@ -89,7 +89,7 @@ const snap = () => ({
   onCanvas: qa(".box").map((n) => n.dataset.id),
   total: Math.round(q(".inspector").getBoundingClientRect().width),
 });
-const checked = (index, id, relation) => rowIn(index, id, relation).querySelector(".rcheck").getAttribute("aria-checked");
+const checked = (index, id, relation) => rowIn(index, id, relation).querySelector(".reye").getAttribute("aria-pressed");
 
 const facts = {};
 
@@ -107,7 +107,7 @@ const facts = {};
     visibility: getComputedStyle(arrow).visibility,
     label: arrow.getAttribute("aria-label"),
     hoverRule: [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).some((rule) => rule.selectorText && /:hover/.test(rule.selectorText) && /\\.follow/.test(rule.selectorText) && rule.style.visibility === "visible"),
-    inRow: q('.row[data-id="lib/a.py"]').querySelectorAll("button").length,
+    inRow: q('.row[data-id="lib/a.py"]').querySelectorAll("button:not(.reye)").length,
   };
   facts.single = snap();
 

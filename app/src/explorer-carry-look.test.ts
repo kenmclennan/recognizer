@@ -33,9 +33,9 @@ const facts = {};
 (async () => {
   const first = mountExplorer({ container: host, loaded: loadedFor(before), title: "demo", onCount: (t) => { counts.text = t; }, views: port, post: (input) => { notes.push(input.text); return null; } });
   await tick();
-  click(q('.tree .row[data-path="app"] .rcheck'));
+  click(q('.tree .row[data-path="app"] .reye'));
   await tick();
-  click(q('.tree .row[data-path="lib"] .rcheck'));
+  click(q('.tree .row[data-path="lib"] .reye'));
   await tick();
   facts.before = counts.text;
 

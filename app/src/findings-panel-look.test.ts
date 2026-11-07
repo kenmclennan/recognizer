@@ -335,7 +335,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   facts.noView = { shown: noView.shown(".findings-scope"), caption: noView.q(".findings-scope-canvas").textContent, before: untitled() };
   click(noView.q(".rail-files"));
   await tick();
-  click(noView.q(".rcheck"));
+  click(noView.q(".reye"));
   await tick();
   click(noView.q(".rail-findings"));
   await tick();

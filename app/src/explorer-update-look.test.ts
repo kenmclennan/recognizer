@@ -65,7 +65,7 @@ const shown = () => ({
   const explorer = mountExplorer({ container: host, loaded: loadedFor(ids, [], []), title: "demo", views: port, post: () => null, carried: null });
   await tick();
   for (const folder of ["app", "src", "lib"]) {
-    click(q('.tree .row[data-path="' + folder + '"] .rcheck'));
+    click(q('.tree .row[data-path="' + folder + '"] .reye'));
     await tick();
   }
   panBy(37, 21);

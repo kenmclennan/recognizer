@@ -82,8 +82,8 @@ facts.tree = {
   folderTitle: rowFor(tree.element, "pkg").title,
 };
 facts.folder = (() => {
-  const folder = rowFor(view.element, "pkg");
-  return folder ? folder.title : null;
+  const label = view.element.querySelector(".dep-folder");
+  return label ? label.hasAttribute("title") : null;
 })();
 
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
@@ -127,8 +127,8 @@ describe.skipIf(webkit === undefined)("the module hover tip", () => {
     });
   }
 
-  it("leaves a folder row with its native title", () => {
-    expect(f.folder).toBe("pkg/");
+  it("gives a Dependencies folder label no native title and leaves a tree folder row without one", () => {
+    expect(f.folder).toBe(false);
     expect(f.tree.folderTitle).toBe("");
   });
 });

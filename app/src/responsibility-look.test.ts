@@ -50,8 +50,8 @@ async function select(id) {
     click(q('.tree .row[data-path="p"] .name'));
     await tick();
   }
-  const check = q('.tree .row[data-path="' + id + '"] .rcheck');
-  if (check.getAttribute("aria-checked") !== "true") {
+  const check = q('.tree .row[data-path="' + id + '"] .reye');
+  if (check.getAttribute("aria-pressed") !== "true") {
     click(check);
     await tick();
   }
