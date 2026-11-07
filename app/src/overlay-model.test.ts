@@ -632,20 +632,20 @@ describe("freshnessNote", () => {
 
   it("warns with the count and the call to action when out of date", () => {
     expect(noteOf({ kind: "out-of-date", modules: ["a", "b"] })).toEqual({
-      text: "C.R.A.P.: 2 modules out of date. Run C.R.A.P. from the Scan panel.",
+      text: "2 modules out of date. Run C.R.A.P. from the Scan panel.",
       tone: "warn",
     });
   });
 
   it("uses the singular for one out-of-date module", () => {
     expect(noteOf({ kind: "out-of-date", modules: ["a"] })?.text).toBe(
-      "C.R.A.P.: 1 module out of date. Run C.R.A.P. from the Scan panel.",
+      "1 module out of date. Run C.R.A.P. from the Scan panel.",
     );
   });
 
   it("mutes the note for a sensor that never ran", () => {
     expect(noteOf({ kind: "never-run" })).toEqual({
-      text: "C.R.A.P.: never run. Run C.R.A.P. from the Scan panel.",
+      text: "Never run. Run C.R.A.P. from the Scan panel.",
       tone: "muted",
     });
   });
@@ -654,26 +654,26 @@ describe("freshnessNote", () => {
     const state: ResultState = { kind: "failed", at: NOW - 120_000 };
 
     expect(noteOf(state)).toEqual({
-      text: `C.R.A.P.: ${stateText(state, NOW).text}. Run C.R.A.P. from the Scan panel.`,
+      text: `F${stateText(state, NOW).text.slice(1)}. Run C.R.A.P. from the Scan panel.`,
       tone: "warn",
     });
-    expect(noteOf(state)?.text).toContain("failed, ");
+    expect(noteOf(state)?.text).toContain("Failed, ");
   });
 
   it("warns for a failed sensor without an age", () => {
     expect(noteOf({ kind: "failed", at: null })).toEqual({
-      text: "C.R.A.P.: failed. Run C.R.A.P. from the Scan panel.",
+      text: "Failed. Run C.R.A.P. from the Scan panel.",
       tone: "warn",
     });
   });
 
   it("says running with no call to action, with or without progress", () => {
     expect(noteOf({ kind: "running", done: null, total: null })).toEqual({
-      text: "C.R.A.P.: running",
+      text: "Running",
       tone: "muted",
     });
     expect(noteOf({ kind: "running", done: 3, total: 10 })?.text).toBe(
-      "C.R.A.P.: 3 of 10",
+      "3 of 10",
     );
   });
 
@@ -684,9 +684,7 @@ describe("freshnessNote", () => {
     };
 
     expect(
-      noteOf(state)?.text.startsWith(
-        `C.R.A.P.: ${stateText(state, NOW).text}.`,
-      ),
+      noteOf(state)?.text.startsWith(`${stateText(state, NOW).text}.`),
     ).toBe(true);
   });
 });
@@ -766,7 +764,7 @@ describe("freshnessNote against the Scan panel model", () => {
     const text = stateText(row?.state as ResultState, NOW).text;
 
     expect(noteFor(model, "crap")?.text).toBe(
-      `C.R.A.P.: ${text}. Run C.R.A.P. from the Scan panel.`,
+      `${text}. Run C.R.A.P. from the Scan panel.`,
     );
     expect(text).toBe(`${modules} module out of date`);
   });
@@ -779,7 +777,7 @@ describe("freshnessNote against the Scan panel model", () => {
 
     expect(noteFor(model, "mutation")).toBeNull();
     expect(noteFor(model, "crap")?.text).toBe(
-      "C.R.A.P.: 1 module out of date. Run C.R.A.P. from the Scan panel.",
+      "1 module out of date. Run C.R.A.P. from the Scan panel.",
     );
     expect(noteFor(model, "stray")).toBeNull();
   });

@@ -139,7 +139,8 @@ export function freshnessNote(
     return null;
   }
 
-  const text = `${group.title}: ${stateText(row.state, now).text}`;
+  const state = stateText(row.state, now).text;
+  const text = state.charAt(0).toUpperCase() + state.slice(1);
 
   if (row.state.kind === "running") {
     return { text, tone: "muted" };

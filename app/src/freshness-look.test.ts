@@ -123,7 +123,7 @@ describe.skipIf(webkit === undefined)(
     it("shows only the edited-free module on the canvas, the Contents tab, the Findings panel and the disc", () => {
       expect(f.matching.rowDisabled).toBe(false);
       expect(f.matching.note).toEqual([
-        "crap: 1 module out of date. Run crap from the Scan panel.",
+        "1 module out of date. Run crap from the Scan panel.",
       ]);
       expect(f.matching.barsA).toBe(1);
       expect(f.matching.barsB).toBe(0);
@@ -140,7 +140,7 @@ describe.skipIf(webkit === undefined)(
     it("shows nothing once the tests hash differs", () => {
       expect(f.changedTests.rowDisabled).toBe(true);
       expect(f.changedTests.note).toEqual([
-        "crap: 2 modules out of date. Run crap from the Scan panel.",
+        "2 modules out of date. Run crap from the Scan panel.",
       ]);
       expect(f.changedTests.barsA).toBe(0);
       expect(f.changedTests.barsB).toBe(0);
