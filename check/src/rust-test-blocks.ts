@@ -7,8 +7,6 @@ const SPACE = new Set([0x20, 0x09, 0x0a, 0x0d, 0x0b, 0x0c]);
 
 const ROOT_STEMS = new Set(["lib", "main", "mod"]);
 
-const WORD = /[A-Za-z_][A-Za-z0-9_]*/g;
-
 type Scanned = {
   items: [number, number][];
   fileLevel: boolean;
@@ -216,30 +214,120 @@ function attributeEnd(data: Buffer, start: number): number {
   return data.length;
 }
 
-function trimSpace(text: string): string {
-  return text.replace(/^[ \t\n\r\v\f]+|[ \t\n\r\v\f]+$/g, "");
+function gateTokens(text: string): string[] | null {
+  const tokens: string[] = [];
+  let i = 0;
+
+  while (i < text.length) {
+    const c = text.charAt(i);
+
+    if (/[ \t\n\r\v\f]/.test(c)) {
+      i += 1;
+    } else if (c === "(" || c === ")" || c === "," || c === "=") {
+      tokens.push(c);
+      i += 1;
+    } else if (/[A-Za-z_]/.test(c)) {
+      let j = i;
+
+      while (j < text.length && /[A-Za-z0-9_]/.test(text.charAt(j))) {
+        j += 1;
+      }
+
+      tokens.push(text.slice(i, j));
+      i = j;
+    } else if (c === '"') {
+      let j = i + 1;
+
+      while (j < text.length && text.charAt(j) !== '"') {
+        j += text.charAt(j) === "\\" ? 2 : 1;
+      }
+
+      if (j >= text.length) {
+        return null;
+      }
+
+      tokens.push('"');
+      i = j + 1;
+    } else {
+      return null;
+    }
+  }
+
+  return tokens;
 }
 
-function isTestAttribute(inner: string): boolean {
+function gatePredicate(
+  tokens: string[],
+  at: number,
+): { next: number; requiresTest: boolean } | null {
+  const name = tokens[at];
+
+  if (name === undefined || !/^[A-Za-z_]/.test(name)) {
+    return null;
+  }
+
+  const after = tokens[at + 1];
+
+  if (after === "=") {
+    return tokens[at + 2] === '"'
+      ? { next: at + 3, requiresTest: false }
+      : null;
+  }
+
+  if (after !== "(") {
+    return { next: at + 1, requiresTest: name === "test" };
+  }
+
+  const results: boolean[] = [];
+  let i = at + 2;
+
+  while (tokens[i] !== ")") {
+    const item = gatePredicate(tokens, i);
+
+    if (item === null) {
+      return null;
+    }
+
+    results.push(item.requiresTest);
+    i = item.next;
+
+    if (tokens[i] === ",") {
+      i += 1;
+    } else if (tokens[i] !== ")") {
+      return null;
+    }
+  }
+
+  let requiresTest = false;
+
+  if (name === "all") {
+    requiresTest = results.some(Boolean);
+  } else if (name === "any") {
+    requiresTest = results.length > 0 && results.every(Boolean);
+  }
+
+  return { next: i + 1, requiresTest };
+}
+
+export function isTestAttribute(inner: string): boolean {
   if (inner.replace(/[ \t\n\r\v\f]/g, "") === "test") {
     return true;
   }
 
-  let rest = trimSpace(inner);
+  const tokens = gateTokens(inner);
 
-  if (!rest.startsWith("cfg")) {
+  if (tokens === null || tokens[0] !== "cfg" || tokens[1] !== "(") {
     return false;
   }
 
-  rest = rest.slice(3).replace(/^[ \t\n\r\v\f]+/, "");
+  const predicate = gatePredicate(tokens, 2);
 
-  if (!(rest.startsWith("(") && rest.endsWith(")"))) {
-    return false;
-  }
-
-  const words: string[] = rest.slice(1, -1).match(WORD) ?? [];
-
-  return words.includes("test") && !words.includes("not");
+  return (
+    predicate !== null &&
+    predicate.next === tokens.length - 1 &&
+    tokens[predicate.next] === ")" &&
+    predicate.requiresTest
+  );
 }
 
 function attributeInner(

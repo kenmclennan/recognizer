@@ -169,25 +169,113 @@ def attribute_end(data: bytes, start: int) -> int:
     return len(data)
 
 
-def is_test_attribute(inner: bytes) -> bool:
-    compact = bytes(byte for byte in inner if byte not in WHITESPACE)
+def gate_tokens(text: str) -> list[str] | None:
+    tokens: list[str] = []
+    i = 0
 
-    if compact == b"test":
+    while i < len(text):
+        c = text[i]
+
+        if c in " \t\n\r\x0b\x0c":
+            i += 1
+        elif c in "(),=":
+            tokens.append(c)
+            i += 1
+        elif c == "_" or ("A" <= c <= "Z") or ("a" <= c <= "z"):
+            j = i
+
+            while j < len(text) and (text[j] == "_" or text[j].isascii() and text[j].isalnum()):
+                j += 1
+
+            tokens.append(text[i:j])
+            i = j
+        elif c == '"':
+            j = i + 1
+
+            while j < len(text) and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+
+            if j >= len(text):
+                return None
+
+            tokens.append('"')
+            i = j + 1
+        else:
+            return None
+
+    return tokens
+
+
+def gate_predicate(tokens: list[str], at: int) -> tuple[int, bool] | None:
+    if at >= len(tokens):
+        return None
+
+    name = tokens[at]
+
+    if not (name[0] == "_" or name[0].isascii() and name[0].isalpha()):
+        return None
+
+    after = tokens[at + 1] if at + 1 < len(tokens) else None
+
+    if after == "=":
+        if at + 2 < len(tokens) and tokens[at + 2] == '"':
+            return at + 3, False
+
+        return None
+
+    if after != "(":
+        return at + 1, name == "test"
+
+    results: list[bool] = []
+    i = at + 2
+
+    while i < len(tokens) and tokens[i] != ")":
+        item = gate_predicate(tokens, i)
+
+        if item is None:
+            return None
+
+        i, requires_test = item
+        results.append(requires_test)
+
+        if i < len(tokens) and tokens[i] == ",":
+            i += 1
+        elif i >= len(tokens) or tokens[i] != ")":
+            return None
+
+    if i >= len(tokens):
+        return None
+
+    if name == "all":
+        return i + 1, any(results)
+
+    if name == "any":
+        return i + 1, bool(results) and all(results)
+
+    return i + 1, False
+
+
+def is_test_attribute_text(inner: str) -> bool:
+    if "".join(ch for ch in inner if ch not in " \t\n\r\x0b\x0c") == "test":
         return True
 
-    rest = inner.strip(WHITESPACE)
+    tokens = gate_tokens(inner)
 
-    if not rest.startswith(b"cfg"):
+    if tokens is None or tokens[:2] != ["cfg", "("]:
         return False
 
-    rest = rest[3:].lstrip(WHITESPACE)
+    predicate = gate_predicate(tokens, 2)
 
-    if not (rest.startswith(b"(") and rest.endswith(b")")):
+    if predicate is None:
         return False
 
-    words = WORD.findall(rest[1:-1])
+    end, requires_test = predicate
 
-    return b"test" in words and b"not" not in words
+    return requires_test and end == len(tokens) - 1 and tokens[end] == ")"
+
+
+def is_test_attribute(inner: bytes) -> bool:
+    return is_test_attribute_text(inner.decode("latin1"))
 
 
 def attribute_inner(data: bytes, start: int, end: int, opener: int) -> bytes:
