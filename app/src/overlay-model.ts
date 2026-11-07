@@ -1,4 +1,4 @@
-import { type Freshness, type Overlay, validateOverlay } from "recognizer";
+import { moduleOf, type Overlay, validateOverlay } from "recognizer";
 import { ageText } from "./footer-scan";
 import {
   type FreshnessModel,
@@ -158,21 +158,8 @@ export function groupHeader(group: OverlayGroup, now: number): string {
     : `${group.verb} ${ageText(group.measuredAt, now)}`;
 }
 
-function currentValues(
-  values: Record<string, MetricValue>,
-  overlay: Overlay,
-  freshness: Freshness,
-): Record<string, MetricValue> {
-  return Object.fromEntries(
-    Object.entries(values).filter(([key]) =>
-      freshness.current(overlay, freshness.moduleOf(key)),
-    ),
-  );
-}
-
 export function buildOverlayModel(
   files: readonly OverlayFileInput[],
-  freshness: Freshness,
   context: OverlayContext = { sensors: [], shipped: null },
 ): OverlayModel {
   const built = new Map<string, OverlayGroup>();
@@ -202,8 +189,7 @@ export function buildOverlayModel(
     }
 
     const title = display.get(file.name) || file.name;
-    const values = (name: string) =>
-      currentValues(overlay.values[name] ?? {}, overlay, freshness);
+    const values = (name: string) => overlay.values[name] ?? {};
     const found = context.sensors.find((status) => status.name === file.name);
     const facts = found?.commit === overlay.commit ? found : undefined;
     const stopped = facts?.stopped;
@@ -301,11 +287,36 @@ function holdsValue(group: OverlayGroup): boolean {
   return group.metrics.some((metric) => Object.keys(metric.values).length > 0);
 }
 
+function keepCurrent(
+  group: OverlayGroup,
+  freshness: FreshnessModel,
+): OverlayGroup {
+  const stale = freshness.stale.get(group.name);
+
+  return {
+    ...group,
+    metrics: group.metrics.map((metric) => {
+      const values = Object.fromEntries(
+        Object.entries(metric.values).filter(([key]) => {
+          const id = moduleOf(key);
+
+          return (
+            stale !== undefined && freshness.modules.has(id) && !stale.has(id)
+          );
+        }),
+      );
+
+      return { ...metric, values, max: largest(values) };
+    }),
+  };
+}
+
 export function applyFreshness(
   model: OverlayModel,
   freshness: FreshnessModel,
 ): OverlayModel {
-  const groups = model.groups.map((group) => {
+  const groups = model.groups.map((filtered) => {
+    const group = keepCurrent(filtered, freshness);
     const row = freshness.rows.find((entry) => entry.key === group.name);
     const stale = row !== undefined && row.state.kind === "out-of-date";
     const enabled = group.enabled && (!stale || holdsValue(group));

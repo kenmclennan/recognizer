@@ -88,6 +88,18 @@ export function sensorFreshness(
   return { kind: "known", outOfDate, missing };
 }
 
+export function staleModules(
+  modules: readonly string[],
+  measured: Measured,
+  freshness: Freshness,
+): Set<string> {
+  if (!freshness.valid(measured)) {
+    return new Set(modules);
+  }
+
+  return new Set(modules.filter((id) => !freshness.current(measured, id)));
+}
+
 export function gapOf(result: SensorFreshness, modules: string[]): string[] {
   if (result.kind === "never-run") {
     return [...modules];
