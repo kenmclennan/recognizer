@@ -21,6 +21,7 @@ from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
 from recognizer_scan_python.outline import read_members
 from recognizer_scan_python.routes import ModuleNames, Router, named_edges
+from recognizer_scan_python.source_roots import detect_source_roots
 
 SCANNER_NAME = "recognizer-scan-python"
 
@@ -160,11 +161,15 @@ def read_test_imports(
 
 
 def scan(
-    root: Path, source_roots: list[str], commit: str | None, modified: bool | None = None
+    root: Path, source_roots: list[str] | None, commit: str | None, modified: bool | None = None
 ) -> dict:
     root = Path(root)
     module_ids = discover(root)
     trees = parse_all(root, module_ids)
+
+    if source_roots is None:
+        source_roots = detect_source_roots(root, module_ids)
+
     index = ModuleIndex(module_ids, source_roots)
 
     parsed = {}
