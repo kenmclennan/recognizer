@@ -266,7 +266,7 @@
       "fan_in": 0,
       "fan_out": 2,
       "afferent": 0,
-      "efferent": 4,
+      "efferent": 2,
       "instability": 1,
       "abstractness": 0
     },
