@@ -1,14 +1,21 @@
 import re
 
 TEST_DIRECTORIES = {"test", "tests", "__tests__"}
+SCRIPT_EXTENSIONS = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"]
+SCRIPT_ALTERNATION = "|".join(SCRIPT_EXTENSIONS)
 TEST_BASENAME = re.compile(
-    r"^(?:test_.*\.py|.*_test\.py|conftest\.py|.*\.(?:test|spec)\.(?:ts|tsx|js|jsx|mjs))$",
+    rf"^(?:test_.*\.py|.*_test\.py|conftest\.py|.*\.(?:test|spec)\.(?:{SCRIPT_ALTERNATION}))$",
     re.DOTALL,
 )
 ENTRY_BASENAME = re.compile(
-    r"^(?:test_.*\.py|.*_test\.py|.*\.(?:test|spec)\.(?:ts|tsx|js|jsx|mjs))$",
+    rf"^(?:test_.*\.py|.*_test\.py|.*\.(?:test|spec)\.(?:{SCRIPT_ALTERNATION}))$",
     re.DOTALL,
 )
+SCRIPT_TEST_SUFFIX = re.compile(rf"\.(test|spec)\.({SCRIPT_ALTERNATION})$")
+
+
+def is_script_test_file(path: str) -> bool:
+    return SCRIPT_TEST_SUFFIX.search(path) is not None
 
 
 def stem_of(basename: str) -> str:

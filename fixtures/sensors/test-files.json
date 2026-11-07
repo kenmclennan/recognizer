@@ -106,5 +106,81 @@
   {
     "path": "Shop.Tests/Cart.kt",
     "test": false
+  },
+  {
+    "path": "src/a.test.ts",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.ts",
+    "test": true
+  },
+  {
+    "path": "src/a.test.tsx",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.tsx",
+    "test": true
+  },
+  {
+    "path": "src/a.test.mts",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.mts",
+    "test": true
+  },
+  {
+    "path": "src/a.test.cts",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.cts",
+    "test": true
+  },
+  {
+    "path": "src/a.test.js",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.js",
+    "test": true
+  },
+  {
+    "path": "src/a.test.jsx",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.jsx",
+    "test": true
+  },
+  {
+    "path": "src/a.test.mjs",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.mjs",
+    "test": true
+  },
+  {
+    "path": "src/a.test.cjs",
+    "test": true
+  },
+  {
+    "path": "src/a.spec.cjs",
+    "test": true
+  },
+  {
+    "path": "src/a.mts",
+    "test": false
+  },
+  {
+    "path": "src/a.test.mtsx",
+    "test": false
+  },
+  {
+    "path": "src/a.test.d.mts",
+    "test": false
   }
 ]

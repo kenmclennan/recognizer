@@ -11,7 +11,7 @@ from pathlib import Path
 from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco
 from recognizer_sensors.crap.lcov import Coverage, normalise_path, parse_lcov
 from recognizer_sensors.hashes import listed_files
-from recognizer_sensors.mutation.test_files import is_test_file
+from recognizer_sensors.mutation.test_files import is_script_test_file, is_test_file
 from recognizer_sensors.parsing import parse
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import (
@@ -48,8 +48,6 @@ from recognizer_sensors.testrun.profiles import (
 LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
 
 CACHE_PREFIX = ".recognizer/"
-
-TS_TEST_FILE = re.compile(r"\.(test|spec)\.(ts|tsx|js|jsx|mjs)$")
 
 BY_FILE_DIRECTORY = ".recognizer/cache/coverage/typescript/by-file"
 
@@ -462,7 +460,7 @@ def python_selection(repository: Path) -> Selection:
 
 
 def typescript_test_files(scan: Scan) -> list[str]:
-    return [path for module in scan.modules for path in module.files if TS_TEST_FILE.search(path)]
+    return [path for module in scan.modules for path in module.files if is_script_test_file(path)]
 
 
 def typescript_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection:

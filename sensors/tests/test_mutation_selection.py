@@ -585,3 +585,23 @@ def test_a_failed_copy_with_no_waiter_does_not_break_a_later_take(tmp_path, monk
     assert first != second
     assert first.is_dir()
     assert second.is_dir()
+
+
+def test_typescript_test_files_select_every_script_form():
+    from recognizer_sensors.scans import Scan, ScanModule
+    from recognizer_sensors.testrun.run import typescript_test_files
+
+    scan = Scan(
+        language="typescript",
+        modules=(
+            ScanModule(id="a", files=("src/a.test.mts", "src/c.test.ts", "src/a.ts")),
+            ScanModule(id="b", files=("src/b.spec.cjs", "src/b.test.d.mts")),
+        ),
+        modified=False,
+    )
+
+    assert sorted(set(typescript_test_files(scan))) == [
+        "src/a.test.mts",
+        "src/b.spec.cjs",
+        "src/c.test.ts",
+    ]
