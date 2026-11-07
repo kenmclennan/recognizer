@@ -485,12 +485,10 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
 
   it("says a running sensor is running, muted, with no call to action", () => {
     const crap = f.runningState.notes.filter((n: { text: string }) =>
-      n.text.startsWith("C.R.A.P."),
+      n.text.startsWith("Running"),
     );
 
-    expect(crap).toEqual([
-      { text: "C.R.A.P.: running", cls: "metric-note muted" },
-    ]);
+    expect(crap).toEqual([{ text: "Running", cls: "metric-note muted" }]);
   });
 
   it("warns amber on an out-of-date group and lists its rows disabled", () => {
@@ -498,7 +496,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
 
     expect(state.headers[0].title).toBe("C.R.A.P.");
     expect(state.notes[0]).toEqual({
-      text: "C.R.A.P.: 3 modules out of date. Run C.R.A.P. from the Scan panel.",
+      text: "3 modules out of date. Run C.R.A.P. from the Scan panel.",
       cls: "metric-note warn",
     });
     expect(state.rows[0].disabled).toBe(true);
@@ -559,8 +557,8 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
       true,
     );
     expect(state.notes.map((n: { text: string }) => n.text)).toEqual([
-      "C.R.A.P.: never run. Run C.R.A.P. from the Scan panel.",
-      "Mutation: never run. Run Mutation from the Scan panel.",
+      "Never run. Run C.R.A.P. from the Scan panel.",
+      "Never run. Run Mutation from the Scan panel.",
     ]);
     expect(
       state.notes.every((n: { cls: string }) => n.cls === "metric-note muted"),
