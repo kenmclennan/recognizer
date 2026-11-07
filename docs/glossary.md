@@ -24,6 +24,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Name | A member's name as another module imports it. |
 | Foreign library | Code outside the repository that a module depends on, such as `sqlite3`. |
 | Source root | A directory under the repository that Python imports are resolved from, such as `src` in a src layout. The Python scanner reads the ones a repository declares, then the repository root; module ids stay repository-relative paths. |
+| Script folder | A directory that holds no `__init__.py`. Python puts a running script's own directory on the import path, so the Python scanner resolves an import of a file beside a module in a script folder when no source root matches; a module inside a package never gets this. |
 | Re-export | A module that makes another module's names importable from itself, such as a Python `__init__.py` or a TypeScript `index.ts`. |
 | Dependency | An edge from a module to the module that defines a name it uses. |
 | Declaration | A `mod x;` the Rust scanner records as a `declares` edge. It makes the child reached for the orphan check and is not a dependency. |

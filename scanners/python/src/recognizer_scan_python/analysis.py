@@ -99,7 +99,7 @@ def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Import
         if isinstance(node, ast.Import):
             for alias in node.names:
                 parts = alias.name.split(".")
-                hit = index.longest(parts)
+                hit = index.longest(parts, importer=module_id)
 
                 if hit:
                     add_edge(hit.module_id, node.lineno)
@@ -122,7 +122,7 @@ def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Import
         if base is None:
             continue
 
-        owner = index.longest(base) if base else None
+        owner = index.longest(base, importer=module_id) if base else None
         exact = owner is not None and owner.length == len(base)
         named = NamedImport(node.lineno, owner.module_id, exact, []) if owner else None
 
@@ -138,7 +138,7 @@ def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Import
 
                 continue
 
-            submodule = index.exact([*base, alias.name])
+            submodule = index.exact([*base, alias.name], importer=module_id)
 
             if submodule:
                 add_edge(submodule, node.lineno)

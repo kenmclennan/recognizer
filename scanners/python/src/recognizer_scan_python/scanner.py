@@ -167,10 +167,12 @@ def scan(
     module_ids = discover(root)
     trees = parse_all(root, module_ids)
 
+    detected = source_roots is None
+
     if source_roots is None:
         source_roots = detect_source_roots(root, module_ids)
 
-    index = ModuleIndex(module_ids, source_roots)
+    index = ModuleIndex(module_ids, source_roots, script_folders=detected)
 
     parsed = {}
     for module_id in module_ids:
