@@ -18,12 +18,7 @@ describe.skipIf(webkit === undefined)("the look page scrollbars", () => {
   let facts: Facts;
 
   beforeAll(async () => {
-    facts = await collectFacts<Facts>(
-      HARNESS,
-      "scrollbar-look",
-      "light",
-      "bare",
-    );
+    facts = await collectFacts<Facts>(HARNESS, "scrollbar-look", "bare");
   });
 
   it("overflows the container", () => {

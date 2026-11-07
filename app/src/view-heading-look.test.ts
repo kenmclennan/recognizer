@@ -219,7 +219,7 @@ describe.skipIf(webkit === undefined)("the view heading", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {
-    f = await collectFacts<Facts>(HARNESS, "view-heading", "light", "app");
+    f = await collectFacts<Facts>(HARNESS, "view-heading", "app");
   }, scaledTimeout(180000));
 
   it("draws no heading on an empty canvas", () => {

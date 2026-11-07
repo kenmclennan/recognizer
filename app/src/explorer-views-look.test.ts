@@ -970,7 +970,7 @@ const facts = {};
 type Facts = ReturnType<typeof JSON.parse>;
 
 async function collect(): Promise<Facts> {
-  return collectFacts<Facts>(HARNESS, "explorer-views", "light", "app");
+  return collectFacts<Facts>(HARNESS, "explorer-views", "app");
 }
 
 describe.skipIf(webkit === undefined)("saved views in the explorer", () => {

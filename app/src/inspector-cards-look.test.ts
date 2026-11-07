@@ -172,36 +172,19 @@ function snap() {
 `;
 
 const PINNED = {
-  light: {
-    class: "#8250df",
-    function: "#0969da",
-    type: "#1a7f37",
-    interface: "#bf3989",
-    constant: "#9a6700",
-    keyword: "#cf222e",
-    name: "#8250df",
-    typeToken: "#0550ae",
-    param: "#953800",
-    value: "#0a3069",
-    punct: "#57606a",
-    bg: "#f6f8fa",
-    border: "#d8dee4",
-  },
-  dark: {
-    class: "#bc8cff",
-    function: "#58a6ff",
-    type: "#3fb950",
-    interface: "#f778ba",
-    constant: "#d29922",
-    keyword: "#ff7b72",
-    name: "#d2a8ff",
-    typeToken: "#79c0ff",
-    param: "#ffa657",
-    value: "#a5d6ff",
-    punct: "#8b949e",
-    bg: "#262c33",
-    border: "#3d444d",
-  },
+  class: "#bc8cff",
+  function: "#58a6ff",
+  type: "#3fb950",
+  interface: "#f778ba",
+  constant: "#d29922",
+  keyword: "#ff7b72",
+  name: "#d2a8ff",
+  typeToken: "#79c0ff",
+  param: "#ffa657",
+  value: "#a5d6ff",
+  punct: "#8b949e",
+  bg: "#262c33",
+  border: "#3d444d",
 };
 
 const rgb = (hex: string) => {
@@ -240,81 +223,74 @@ type Facts = {
 };
 
 describe.skipIf(webkit === undefined)("the Contents cards", () => {
-  const facts = {} as Record<"light" | "dark", Facts>;
+  let facts = {} as Facts;
 
   beforeAll(async () => {
-    facts.light = await collectFacts<Facts>(HARNESS, "cards-light", "light");
-    facts.dark = await collectFacts<Facts>(HARNESS, "cards-dark", "dark");
+    facts = await collectFacts<Facts>(HARNESS, "cards");
   }, scaledTimeout(240000));
 
-  for (const scheme of ["light", "dark"] as const) {
-    const pin = PINNED[scheme];
+  const pin = PINNED;
 
-    it(`lists cards in file order with labels, lines and edge colours in ${scheme}`, () => {
-      const { off } = facts[scheme];
+  it(`lists cards in file order with labels, lines and edge colours`, () => {
+    const { off } = facts;
 
-      expect(off.labels).toEqual([
-        "Constant",
-        "Class",
-        "Function",
-        "Type",
-        "Interface",
-      ]);
-      expect(off.lines).toEqual(["2", "3", null, "13", "16"]);
-      expect(off.edges).toEqual(
-        [pin.constant, pin.class, pin.function, pin.type, pin.interface].map(
-          rgb,
-        ),
-      );
-      expect(off.kinds).toEqual(off.edges);
-      expect(off.switchBeforeCards).toBe(true);
-    });
+    expect(off.labels).toEqual([
+      "Constant",
+      "Class",
+      "Function",
+      "Type",
+      "Interface",
+    ]);
+    expect(off.lines).toEqual(["2", "3", null, "13", "16"]);
+    expect(off.edges).toEqual(
+      [pin.constant, pin.class, pin.function, pin.type, pin.interface].map(rgb),
+    );
+    expect(off.kinds).toEqual(off.edges);
+    expect(off.switchBeforeCards).toBe(true);
+  });
 
-    it(`colours each token role and bolds the name in ${scheme}`, () => {
-      const { tokens } = facts[scheme].off;
+  it(`colours each token role and bolds the name`, () => {
+    const { tokens } = facts.off;
 
-      expect(tokens.keyword?.color).toBe(rgb(pin.keyword));
-      expect(tokens.name?.color).toBe(rgb(pin.name));
-      expect(tokens.name?.weight).toBe("700");
-      expect(tokens.type?.color).toBe(rgb(pin.typeToken));
-      expect(tokens.param?.color).toBe(rgb(pin.param));
-      expect(tokens.value?.color).toBe(rgb(pin.value));
-      expect(tokens.plain?.color).toBe(rgb(pin.punct));
-      expect(facts[scheme].off.builtInText).toBe("void");
-      expect(tokens.builtIn?.color).toBe(rgb(pin.keyword));
-    });
+    expect(tokens.keyword?.color).toBe(rgb(pin.keyword));
+    expect(tokens.name?.color).toBe(rgb(pin.name));
+    expect(tokens.name?.weight).toBe("700");
+    expect(tokens.type?.color).toBe(rgb(pin.typeToken));
+    expect(tokens.param?.color).toBe(rgb(pin.param));
+    expect(tokens.value?.color).toBe(rgb(pin.value));
+    expect(tokens.plain?.color).toBe(rgb(pin.punct));
+    expect(facts.off.builtInText).toBe("void");
+    expect(tokens.builtIn?.color).toBe(rgb(pin.keyword));
+  });
 
-    it(`styles the card surface and label in ${scheme}`, () => {
-      const style = facts[scheme].off.classStyle;
+  it(`styles the card surface and label`, () => {
+    const style = facts.off.classStyle;
 
-      expect(style.bg).toBe(rgb(pin.bg));
-      expect(style.borderColor).toBe(rgb(pin.border));
-      expect(style.borderWidth).toBe("1px");
-      expect(style.edgeWidth).toBe("3px");
-      expect(style.labelSize).toBe("10px");
-      expect(style.labelCase).toBe("uppercase");
-      expect(style.labelWeight).toBe("600");
-    });
-  }
+    expect(style.bg).toBe(rgb(pin.bg));
+    expect(style.borderColor).toBe(rgb(pin.border));
+    expect(style.borderWidth).toBe("1px");
+    expect(style.edgeWidth).toBe("3px");
+    expect(style.labelSize).toBe("10px");
+    expect(style.labelCase).toBe("uppercase");
+    expect(style.labelWeight).toBe("600");
+  });
 
   it("the Contents tab's code card has line-height 1.7", () => {
-    for (const scheme of ["light", "dark"] as const) {
-      const style = facts[scheme].off.classStyle;
+    const style = facts.off.classStyle;
 
-      expect(style.codeFontSize).toBe("11.5px");
-      expect(Number.parseFloat(style.codeLineHeight)).toBeCloseTo(19.55, 3);
-      expect(style.padding).toBe("6px 8px");
-      expect(style.labelWeight).toBe("600");
-      expect(style.borderWidth).toBe("1px");
-    }
+    expect(style.codeFontSize).toBe("11.5px");
+    expect(Number.parseFloat(style.codeLineHeight)).toBeCloseTo(19.55, 3);
+    expect(style.padding).toBe("6px 8px");
+    expect(style.labelWeight).toBe("600");
+    expect(style.borderWidth).toBe("1px");
   });
 
   it("interleaves a class's fields and methods by line", () => {
-    expect(facts.light.on.memberLines).toEqual(["4", "5", "7", "9"]);
+    expect(facts.on.memberLines).toEqual(["4", "5", "7", "9"]);
   });
 
   it("hides private members and counts them while the switch is off", () => {
-    const { off } = facts.light;
+    const { off } = facts;
 
     expect(off.switchOn).toBe("false");
     expect(off.memberLines).toEqual(["4", "5"]);
@@ -324,7 +300,7 @@ describe.skipIf(webkit === undefined)("the Contents cards", () => {
   });
 
   it("shows private members dimmed and marked when the switch is on", () => {
-    const { on } = facts.light;
+    const { on } = facts;
 
     expect(on.switchOn).toBe("true");
     expect(on.hidden).toBeNull();
@@ -335,11 +311,10 @@ describe.skipIf(webkit === undefined)("the Contents cards", () => {
       { opacity: "0.55", mark: "private" },
       { opacity: "0.55", mark: "private" },
     ]);
-    expect(facts.dark.on.privCard?.opacity).toBe("0.55");
   });
 
   it("remembers the switch across modules, windows and launches", () => {
-    const f = facts.light;
+    const f = facts;
 
     expect(f.stored).toBe("true");
     expect(f.otherModule).toBe("true");

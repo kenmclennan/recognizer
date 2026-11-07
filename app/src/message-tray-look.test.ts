@@ -134,7 +134,7 @@ describe.skipIf(webkit === undefined)(
       expect(f.badgeWarning.text).toBe("1");
       expect(f.badgeWarning.hidden).toBe(false);
       expect(f.badgeWarning.quiet).toBe(false);
-      expect(f.badgeWarning.background).toBe("rgb(191, 135, 0)");
+      expect(f.badgeWarning.background).toBe("rgb(210, 153, 34)");
     });
 
     it("keeps a 300-character toast to the 340 px card inside the footer padding", () => {
@@ -152,9 +152,9 @@ describe.skipIf(webkit === undefined)(
     });
 
     it("colours the kind icons amber, red, green and muted", () => {
-      expect(f.iconColors.warning).toBe("rgb(191, 135, 0)");
-      expect(f.iconColors.error).toBe("rgb(207, 34, 46)");
-      expect(f.iconColors.done).toBe("rgb(26, 127, 55)");
+      expect(f.iconColors.warning).toBe("rgb(210, 153, 34)");
+      expect(f.iconColors.error).toBe("rgb(248, 81, 73)");
+      expect(f.iconColors.done).toBe("rgb(63, 185, 80)");
       expect(f.iconColors.info).toBe(f.mutedColor);
     });
 
