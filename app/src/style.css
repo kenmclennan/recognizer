@@ -222,23 +222,6 @@ svg.i {
   color: var(--sel);
 }
 
-.tree-legend {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 10px;
-  border-top: 1px solid var(--line);
-  color: var(--faint);
-  font-size: 11px;
-}
-
-.tree-legend svg.i {
-  width: 13px;
-  height: 13px;
-  color: var(--sel);
-}
-
 .rows {
   flex: 1;
   overflow: auto;

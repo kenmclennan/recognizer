@@ -149,7 +149,6 @@ const hdr = {
 };
 
 const treeText = tree.element.textContent;
-const legends = [...tree.element.querySelectorAll(".tree-legend")].map((n) => ({ text: n.textContent, icon: n.querySelector("svg") !== null, afterRows: n.previousElementSibling === tree.element.querySelector(".rows") }));
 
 calls.length = 0;
 const pick = (path, selector) =>
@@ -173,7 +172,7 @@ const states = { src: describeRow("src").check.aria, lib: describeRow("lib").che
 
 tree.render(props({ filtered: filterTree(root, { ...filter, text: "zzz" }, context), filter: { ...filter, text: "zzz" } }));
 const empty = tree.element.querySelector(".empty").textContent;
-const emptyLegends = tree.element.querySelectorAll(".tree-legend").length;
+const treeLegends = tree.element.querySelectorAll(".tree-legend").length;
 
 const canvasActions = { camera() {}, find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, openInEditor() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7 };
 const canvas = buildCanvasView(canvasActions);
@@ -187,7 +186,7 @@ const shown = {
 };
 
 document.getElementById("out").textContent = btoa(
-  unescape(encodeURIComponent(JSON.stringify({ rows, hdr, treeText, legends, emptyLegends, clicks, empty, probes, shown, checkedFolder, states }))),
+  unescape(encodeURIComponent(JSON.stringify({ rows, hdr, treeText, treeLegends, clicks, empty, probes, shown, checkedFolder, states }))),
 );
 `;
 
@@ -239,8 +238,7 @@ type Facts = {
     chipOffHeight: string;
   };
   treeText: string;
-  legends: { text: string; icon: boolean; afterRows: boolean }[];
-  emptyLegends: number;
+  treeLegends: number;
   states: Record<string, string>;
   checkedFolder: RowFacts;
   clicks: string[];
@@ -382,14 +380,8 @@ describe.skipIf(webkit === undefined)("tree view in a real browser", () => {
     expect(f.rows["src/b.ts"].check.color).not.toBe(f.probes.sel.color);
   });
 
-  it("has one legend line under the rows, kept when nothing matches", () => {
-    expect(f.legends).toHaveLength(1);
-    expect(f.legends[0].icon).toBe(true);
-    expect(f.legends[0].afterRows).toBe(true);
-    expect(f.legends[0].text).toBe(
-      "the eye shows or hides · the name finds it: selects and centres",
-    );
-    expect(f.emptyLegends).toBe(1);
+  it("has no legend line under the rows", () => {
+    expect(f.treeLegends).toBe(0);
   });
 
   it("bolds the name of a row on the canvas and of a folder holding one", () => {
