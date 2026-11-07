@@ -200,38 +200,89 @@ fn attribute_end(data: &[u8], start: usize) -> usize {
     data.len()
 }
 
-fn words(text: &[u8]) -> Vec<&[u8]> {
-    let mut found = Vec::new();
+fn gate_tokens(text: &[u8]) -> Option<Vec<&[u8]>> {
+    let mut tokens: Vec<&[u8]> = Vec::new();
     let mut i = 0;
 
     while i < text.len() {
-        if text[i] == b'_' || text[i].is_ascii_alphabetic() {
+        let c = text[i];
+
+        if is_space(c) {
+            i += 1;
+        } else if matches!(c, b'(' | b')' | b',' | b'=') {
+            tokens.push(&text[i..i + 1]);
+            i += 1;
+        } else if c == b'_' || c.is_ascii_alphabetic() {
             let start = i;
 
             while i < text.len() && is_identifier_byte(text[i]) {
                 i += 1;
             }
 
-            found.push(&text[start..i]);
+            tokens.push(&text[start..i]);
+        } else if c == b'"' {
+            let mut j = i + 1;
+
+            while j < text.len() && text[j] != b'"' {
+                j += if text[j] == b'\\' { 2 } else { 1 };
+            }
+
+            if j >= text.len() {
+                return None;
+            }
+
+            tokens.push(&text[i..i + 1]);
+            i = j + 1;
         } else {
-            i += 1;
+            return None;
         }
     }
 
-    found
+    Some(tokens)
 }
 
-fn trim(text: &[u8]) -> &[u8] {
-    let start = text
-        .iter()
-        .position(|b| !is_space(*b))
-        .unwrap_or(text.len());
-    let end = text
-        .iter()
-        .rposition(|b| !is_space(*b))
-        .map_or(start, |p| p + 1);
+fn gate_predicate(tokens: &[&[u8]], at: usize) -> Option<(usize, bool)> {
+    let name = *tokens.get(at)?;
 
-    &text[start..end]
+    if !(name[0] == b'_' || name[0].is_ascii_alphabetic()) {
+        return None;
+    }
+
+    match tokens.get(at + 1).copied() {
+        Some(b"=") => {
+            return if tokens.get(at + 2).copied() == Some(b"\"") {
+                Some((at + 3, false))
+            } else {
+                None
+            };
+        }
+        Some(b"(") => {}
+        _ => return Some((at + 1, name == b"test")),
+    }
+
+    let mut results: Vec<bool> = Vec::new();
+    let mut i = at + 2;
+
+    while tokens.get(i).copied() != Some(b")") {
+        let (next, requires_test) = gate_predicate(tokens, i)?;
+
+        results.push(requires_test);
+        i = next;
+
+        match tokens.get(i).copied() {
+            Some(b",") => i += 1,
+            Some(b")") => {}
+            _ => return None,
+        }
+    }
+
+    let requires_test = match name {
+        b"all" => results.iter().any(|r| *r),
+        b"any" => !results.is_empty() && results.iter().all(|r| *r),
+        _ => false,
+    };
+
+    Some((i + 1, requires_test))
 }
 
 fn is_test_attribute(inner: &[u8]) -> bool {
@@ -241,25 +292,20 @@ fn is_test_attribute(inner: &[u8]) -> bool {
         return true;
     }
 
-    let rest = trim(inner);
+    let Some(tokens) = gate_tokens(inner) else {
+        return false;
+    };
 
-    if !rest.starts_with(b"cfg") {
+    if tokens.len() < 2 || tokens[0] != b"cfg" || tokens[1] != b"(" {
         return false;
     }
 
-    let rest = &rest[3..];
-    let rest = &rest[rest
-        .iter()
-        .position(|b| !is_space(*b))
-        .unwrap_or(rest.len())..];
-
-    if !(rest.starts_with(b"(") && rest.ends_with(b")")) || rest.len() < 2 {
-        return false;
+    match gate_predicate(&tokens, 2) {
+        Some((end, requires_test)) => {
+            requires_test && end + 1 == tokens.len() && tokens[end] == b")"
+        }
+        None => false,
     }
-
-    let found = words(&rest[1..rest.len() - 1]);
-
-    found.contains(&&b"test"[..]) && !found.contains(&&b"not"[..])
 }
 
 fn item_end(data: &[u8], start: usize) -> usize {
@@ -856,5 +902,39 @@ mod tests {
 
         assert!(!want.is_empty());
         assert_eq!(found, want);
+    }
+
+    fn gate_cases() -> Vec<Value> {
+        let text = fs::read_to_string(root().join("fixtures/rust-test-gate/cases.json")).unwrap();
+
+        serde_json::from_str(&text).unwrap()
+    }
+
+    #[test]
+    fn is_test_attribute_follows_the_shared_test_gate_table() {
+        let cases = gate_cases();
+
+        assert!(cases.len() > 20);
+
+        for case in cases {
+            let attribute = case["attribute"].as_str().unwrap();
+            let inner = &attribute.as_bytes()[2..attribute.len() - 1];
+
+            assert_eq!(
+                is_test_attribute(inner),
+                case["test"].as_bool().unwrap(),
+                "{attribute}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_mixed_file_counts_only_items_that_require_test() {
+        let text = "#[cfg(all(test, unix))]\nfn a() {}\n#[cfg(any(test, unix))]\nfn b() {}\n#[cfg(test)]\nfn c() {}\n";
+
+        assert_eq!(
+            entries_of(&[("src/a.rs", text)]),
+            vec!["src/a.rs#0".to_string(), "src/a.rs#1".to_string()]
+        );
     }
 }

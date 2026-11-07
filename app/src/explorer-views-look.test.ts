@@ -903,6 +903,8 @@ const facts = {};
     { module: "app/hub.py", kind: "changes" },
     { module: "app/fresh.py", kind: "new" },
     { module: "lib/m.py", kind: "moves", from: "app/a.py" },
+    { module: "app/hub.py", member: "Hub.run", kind: "changes" },
+    { module: "app/hub.py", member: "Hub.fresh", kind: "new" },
   ];
   const planNotes = [
     { module: "app/hub.py", text: "First", by: "Ken" },
@@ -1794,6 +1796,8 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
       { module: "app/hub.py", kind: "changes" },
       { module: "app/fresh.py", kind: "new" },
       { module: "lib/m.py", kind: "moves", from: "app/a.py" },
+      { module: "app/hub.py", member: "Hub.run", kind: "changes" },
+      { module: "app/hub.py", member: "Hub.fresh", kind: "new" },
     ];
 
     for (const stage of ["update", "save", "details", "note", "reorder"]) {

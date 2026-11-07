@@ -8,10 +8,7 @@ from tree_sitter import Node
 
 from recognizer_sensors.hashes import digest_of, file_sha256, listed_files
 from recognizer_sensors.parsing import parse
-
-TEST_ATTRIBUTE = re.compile(r"^#\[\s*test\s*\]$")
-
-CFG_ATTRIBUTE = re.compile(r"^#\[\s*cfg\s*\((.*)\)\s*\]$", re.DOTALL)
+from recognizer_sensors.rust_test_blocks import is_test_attribute_text
 
 PATH_ATTRIBUTE = re.compile(r"^#\[\s*path\b")
 
@@ -23,17 +20,10 @@ class UnsoundWalk(Exception):
 
 
 def is_test_attribute(text: str) -> bool:
-    if TEST_ATTRIBUTE.match(text):
-        return True
-
-    cfg = CFG_ATTRIBUTE.match(text)
-
-    if cfg is None:
+    if not (text.startswith("#[") and text.endswith("]")):
         return False
 
-    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", cfg.group(1))
-
-    return "test" in words and "not" not in words
+    return is_test_attribute_text(text[2:-1])
 
 
 def items_with_attributes(parent: Node) -> list[tuple[list[Node], Node]]:

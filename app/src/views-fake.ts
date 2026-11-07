@@ -1,5 +1,10 @@
 import type { Scan } from "recognizer";
-import { type ChangeRange, VIEW_NAME, type ViewsPort } from "./views-port";
+import {
+  type ChangeRange,
+  type RangeMembers,
+  VIEW_NAME,
+  type ViewsPort,
+} from "./views-port";
 
 export type FakeViews = ViewsPort & {
   files: Map<string, string>;
@@ -9,6 +14,8 @@ export type FakeViews = ViewsPort & {
   renamed: { from: string; to: string }[];
   scansByCommit: Map<string, Scan[] | null>;
   ranges: Map<string, ChangeRange | null>;
+  members: Map<string, RangeMembers | null>;
+  memberCalls: string[];
   opened: string[];
   removed: string[];
   rangeCalls: string[];
@@ -33,6 +40,7 @@ export function fakeViews(
   const pending: string[] = [];
   const scansByCommit = new Map<string, Scan[] | null>();
   const ranges = new Map<string, ChangeRange | null>();
+  const members = new Map<string, RangeMembers | null>();
   const opened: string[] = [];
   const waiting: (() => void)[] = [];
   const fake: FakeViews = {
@@ -43,6 +51,8 @@ export function fakeViews(
     renamed: [],
     scansByCommit,
     ranges,
+    members,
+    memberCalls: [],
     opened,
     removed: [],
     rangeCalls: [],
@@ -142,6 +152,11 @@ export function fakeViews(
       }
 
       return scansByCommit.get(commit) ?? null;
+    },
+    async rangeMembers(base, head) {
+      fake.memberCalls.push(`${base}..${head}`);
+
+      return members.get(`${base}..${head}`) ?? null;
     },
     async copy(text) {
       copied.push(text);

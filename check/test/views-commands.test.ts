@@ -1736,3 +1736,192 @@ describe("plan views", () => {
     expect(fake.writes.every((w) => w.startsWith(`${VIEWS}/`))).toBe(true);
   });
 });
+
+describe("member entries in a plan", () => {
+  const ORDER = "shop/domain/order.py";
+  const NEW = "shop/application/discount.py";
+  const planned = (
+    extra: Record<string, unknown> = {},
+    steps: unknown[] = [],
+  ) => noted("p", { plan: true, ...extra }, steps, 4);
+  const pickOrder = [{ kind: "pick", module: ORDER }];
+
+  it("adds a new member that is not in the scan and puts its module on the view", () => {
+    const fake = repository(planned());
+    const result = go(
+      fake,
+      "add",
+      "p",
+      `${ORDER}#Order.apply_discount`,
+      "--change",
+      "new",
+    );
+
+    expect(result.code).toBe(0);
+    expect(saved(fake, "p").steps).toEqual(pickOrder);
+    expect(saved(fake, "p").proposed).toEqual([
+      { module: ORDER, member: "Order.apply_discount", kind: "new" },
+    ]);
+  });
+
+  it("refuses changes on a member that is not in the scan and takes removed for one that is", () => {
+    const fake = repository(planned());
+
+    expect(
+      go(fake, "add", "p", `${ORDER}#Order.gone`, "--change", "changes").code,
+    ).not.toBe(0);
+    expect(fake.err()).toContain(`no such member: ${ORDER}#Order.gone`);
+    expect(
+      go(fake, "add", "p", `${ORDER}#Order.total`, "--change", "removed").code,
+    ).toBe(0);
+    expect(saved(fake, "p").proposed).toEqual([
+      { module: ORDER, member: "Order.total", kind: "removed" },
+    ]);
+  });
+
+  it("refuses --from, moves, and a member on a module that is not in the scan", () => {
+    const fake = repository(planned());
+
+    expect(
+      go(
+        fake,
+        "add",
+        "p",
+        `${ORDER}#Order.total`,
+        "--change",
+        "removed",
+        "--from",
+        "x.py",
+      ).code,
+    ).not.toBe(0);
+    expect(
+      go(fake, "add", "p", `${ORDER}#Order.total`, "--change", "moves").code,
+    ).not.toBe(0);
+    expect(fake.err()).toContain("a member takes new, changes or removed");
+    expect(
+      go(fake, "add", "p", "shop/none.py#f", "--change", "new").code,
+    ).not.toBe(0);
+    expect(fake.err()).toContain("no such module: shop/none.py");
+  });
+
+  it("refuses a member on a planned module and a wholly new module entry on a module holding members", () => {
+    const fake = repository(
+      planned(
+        {
+          proposed: [
+            { module: NEW, kind: "new" },
+            { module: ORDER, member: "Order.total", kind: "changes" },
+          ],
+        },
+        pickOrder,
+      ),
+    );
+
+    expect(
+      go(fake, "add", "p", `${NEW}#Discount`, "--change", "new").code,
+    ).not.toBe(0);
+    expect(fake.err()).toContain(`${NEW} is wholly new; mark the module only`);
+    expect(go(fake, "add", "p", ORDER, "--change", "new").code).not.toBe(0);
+    expect(fake.err()).toContain(
+      `${ORDER} is wholly new; mark the module only`,
+    );
+  });
+
+  it("changes and clears a member entry", () => {
+    const fake = repository(
+      planned(
+        {
+          proposed: [{ module: ORDER, member: "Order.total", kind: "changes" }],
+        },
+        pickOrder,
+      ),
+    );
+
+    expect(
+      go(fake, "change", "p", `${ORDER}#Order.total`, "removed").code,
+    ).toBe(0);
+    expect(saved(fake, "p").proposed[0].kind).toBe("removed");
+    expect(
+      go(fake, "change", "p", `${ORDER}#Order.total`, "--clear").code,
+    ).toBe(0);
+    expect(saved(fake, "p").proposed).toBeUndefined();
+  });
+
+  it("removes one member entry and, with its module, the rest and says how many", () => {
+    const fake = repository(
+      planned(
+        {
+          proposed: [
+            { module: ORDER, kind: "changes" },
+            { module: ORDER, member: "Order.total", kind: "changes" },
+            { module: ORDER, member: "new_order", kind: "removed" },
+          ],
+        },
+        pickOrder,
+      ),
+    );
+
+    expect(go(fake, "remove", "p", `${ORDER}#new_order`).code).toBe(0);
+    expect(saved(fake, "p").proposed).toHaveLength(2);
+
+    const result = go(fake, "remove", "p", ORDER);
+
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("dropped 1 member entry");
+    expect(saved(fake, "p").proposed).toBeUndefined();
+  });
+
+  it("refuses a note on a member reference", () => {
+    const fake = repository(planned({}, pickOrder));
+
+    expect(go(fake, "note", "p", `${ORDER}#Order.total`, "hi").code).not.toBe(
+      0,
+    );
+    expect(fake.err()).toContain(
+      `notes stay at module level: ${ORDER}#Order.total`,
+    );
+  });
+
+  it("shows member entries in text and json and warns about the one not in the scan", () => {
+    const fake = repository(
+      planned(
+        {
+          proposed: [
+            { module: ORDER, kind: "changes" },
+            { module: ORDER, member: "Order.total", kind: "changes" },
+            { module: ORDER, member: "Order.gone", kind: "changes" },
+          ],
+        },
+        pickOrder,
+      ),
+    );
+    const text = go(fake, "show", "p").out;
+    const document = JSON.parse(go(fake, "show", "p", "--json").out);
+
+    expect(text).toContain(`  changes ${ORDER}#Order.total`);
+    expect(text).toContain(
+      `warning: proposed change on ${ORDER}#Order.gone is not drawn: the member is not in the scan`,
+    );
+    expect(document.proposed[1]).toEqual({
+      module: ORDER,
+      member: "Order.total",
+      kind: "changes",
+    });
+    expect(go(fake, "check").code).toBe(0);
+  });
+
+  it("check --fix follows a rename into a member entry", () => {
+    const OLD = "shop/old.py";
+    const fake = repository(
+      planned({ proposed: [{ module: OLD, member: "f", kind: "changes" }] }, [
+        { kind: "pick", module: OLD },
+      ]),
+      `R100\0${OLD}\0${ORDER}\0`,
+    );
+
+    expect(go(fake, "check", "--fix").code).toBe(0);
+    expect(saved(fake, "p").proposed).toEqual([
+      { module: ORDER, member: "f", kind: "changes" },
+    ]);
+  });
+});

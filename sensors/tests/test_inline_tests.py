@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -265,3 +266,39 @@ def test_the_committed_app_crate_reaches_one_test_item_in_each_file_with_a_cfg_t
     }
 
     assert sorted(unit_test_hashes(repository, units)) == sorted(units)
+
+
+GATE_CASES = json.loads(
+    (Path(__file__).parents[2] / "fixtures" / "rust-test-gate" / "cases.json").read_text()
+)
+
+
+def test_the_test_gate_table_is_read():
+    assert len(GATE_CASES) > 20
+
+
+@pytest.mark.parametrize("case", GATE_CASES, ids=[c["attribute"] for c in GATE_CASES])
+def test_is_test_attribute_follows_the_shared_test_gate_table(case):
+    assert is_test_attribute(case["attribute"]) is case["test"]
+
+
+def module_digest(tmp_path, gate):
+    files = {
+        "src/lib.rs": f"pub fn add() {{}}\n\n{gate}\nmod m;\n",
+        "src/m.rs": "#[test]\nfn t() {}\n",
+    }
+
+    return digest(crate(tmp_path, files))
+
+
+def test_an_any_test_module_is_walked_as_production(tmp_path):
+    production = module_digest(tmp_path / "a", "#[cfg(any(test, unix))]")
+    gated = module_digest(tmp_path / "b", "#[cfg(all(test, unix))]")
+
+    assert production != gated
+
+
+def test_an_any_of_only_test_module_is_a_gate(tmp_path):
+    assert module_digest(tmp_path / "a", "#[cfg(any(test, test))]") == module_digest(
+        tmp_path / "b", "#[cfg(all(test, unix))]"
+    )
