@@ -1,5 +1,5 @@
 import { readdirSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 import { isSkippedDirectory } from "./files.js";
 
@@ -63,6 +63,7 @@ export class TsconfigOptions {
   >();
   private readonly problems = new Map<string, string[]>();
   private readonly read = new Set<string>();
+  private readonly missing = new Set<string>();
 
   constructor(private readonly root: string) {}
 
@@ -108,6 +109,32 @@ export class TsconfigOptions {
     return [...this.read]
       .filter((path) => !this.outside(path))
       .map((path) => this.idOf(path));
+  }
+
+  absentPaths(): string[] {
+    return [...this.missing]
+      .filter((path) => !this.outside(path))
+      .map((path) => this.idOf(path))
+      .filter((id) => id.split("/").pop() !== "tsconfig.json")
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  }
+
+  private noteMissingExtends(path: string, text: string): void {
+    const extended = ts.parseConfigFileTextToJson(path, text).config?.extends;
+    const names = Array.isArray(extended) ? extended : [extended];
+
+    for (const name of names) {
+      if (typeof name !== "string" || !/^(\.|\/)/.test(name)) {
+        continue;
+      }
+
+      const target = resolve(dirname(path), name);
+      const file = target.endsWith(".json") ? target : `${target}.json`;
+
+      if (!ts.sys.fileExists(target) && !ts.sys.fileExists(file)) {
+        this.missing.add(file);
+      }
+    }
   }
 
   outputMappings(directory: string): OutputMapping[] {
@@ -316,6 +343,9 @@ export class TsconfigOptions {
 
     if (typeof source.text === "string") {
       this.read.add(path);
+      this.noteMissingExtends(path, source.text);
+    } else {
+      this.missing.add(path);
     }
 
     if (first) {

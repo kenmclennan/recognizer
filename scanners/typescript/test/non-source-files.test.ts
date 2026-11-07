@@ -126,3 +126,45 @@ describe("non-source files in files", () => {
     ]);
   });
 });
+
+describe("absent tsconfig paths in the selection", () => {
+  function absent(root: string): string[] | undefined {
+    const doc = scan(root, null);
+
+    expect(ajvValidate(doc), JSON.stringify(ajvValidate.errors)).toBe(true);
+
+    return doc.selection.input_absent_paths;
+  }
+
+  it("lists a missing extends target", () => {
+    const root = makeTree({
+      "tsconfig.json": JSON.stringify({ extends: "./base.json" }),
+      "a.ts": MODULE,
+    });
+
+    expect(absent(root)).toEqual(["base.json"]);
+  });
+
+  it("does not list a missing tsconfig.json", () => {
+    const root = makeTree({
+      "tsconfig.json": JSON.stringify({ references: [{ path: "./gone" }] }),
+      "a.ts": MODULE,
+    });
+
+    expect(absent(root)).toBeUndefined();
+  });
+
+  it("lists only the missing one of a resolvable and a missing reference", () => {
+    const root = makeTree({
+      "tsconfig.json": JSON.stringify({
+        files: [],
+        references: [{ path: "./present.json" }, { path: "./gone.json" }],
+      }),
+      "present.json": JSON.stringify({ include: ["a.ts"] }),
+      "a.ts": MODULE,
+    });
+
+    expect(absent(root)).toEqual(["gone.json"]);
+    expect(listed(root)).toContain("present.json");
+  });
+});
