@@ -116,7 +116,7 @@ describe("structureSensor ids", () => {
     expect(ids([other])).toEqual(ids([scan]));
   });
 
-  it("records sensor version 11", () => {
+  it("records the current sensor version", () => {
     expect(sense("check-warnings").document.sensor.version).toBe("13");
   });
 
