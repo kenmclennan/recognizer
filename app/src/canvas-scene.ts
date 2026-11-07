@@ -49,7 +49,6 @@ export type SceneLine = {
   style: EdgeStyle;
   dash: string | null;
   count: number;
-  countAt: Point | null;
 };
 
 export type SceneArrow = { lineId: string; points: Point[]; hollow: boolean };
@@ -105,13 +104,6 @@ function boundsOf(rects: Rect[], points: Point[]): Rect {
     width: Math.max(...xs) - x,
     height: Math.max(...ys) - y,
   };
-}
-
-function midpoint(points: Point[]): Point {
-  const a = points[Math.floor((points.length - 1) / 2)] as Point;
-  const b = points[Math.ceil((points.length - 1) / 2)] as Point;
-
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 export function toScene(graph: CanvasGraph, layout: Layout): Scene {
@@ -173,7 +165,6 @@ export function toScene(graph: CanvasGraph, layout: Layout): Scene {
       style: line.style,
       dash: DASH[line.style],
       count: line.count,
-      countAt: line.count > 1 ? midpoint(points) : null,
     });
     arrows.push({
       lineId: line.id,

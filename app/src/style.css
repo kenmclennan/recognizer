@@ -746,11 +746,6 @@ svg.i.chevron {
   fill: var(--sel);
 }
 
-.surface .count-label {
-  font-size: 10px;
-  fill: var(--muted);
-}
-
 .empty-canvas {
   position: absolute;
   top: 45%;

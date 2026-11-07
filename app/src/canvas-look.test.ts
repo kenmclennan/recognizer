@@ -80,7 +80,6 @@ const actions = {
 const rect = (x, y, width, height) => ({ x, y, width, height });
 const line = (id, style, dash, count, points) => ({
   id, points, style, dash, count,
-  countAt: count > 1 ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } : null,
 });
 const arrow = (lineId, hollow) => ({ lineId, hollow, points: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }] });
 const scene = {
@@ -169,8 +168,6 @@ result.edges = {
   plain: edgeOf("plain"), inferred: edgeOf("inferred"), hollow: edgeOf("hollow"), private: edgeOf("private"),
   dimmed: pick(lineGroup("plain"), ["opacity"]),
   arrowPlain: arrowOf("plain"), arrowHollow: arrowOf("hollow"), arrowHi: arrowOf("private"),
-  count: pick(q(".count-label"), ["font-size", "fill"]),
-  countText: q(".count-label").textContent,
   countLabels: canvas.element.querySelectorAll(".count-label").length,
 };
 result.boxes = {
@@ -357,7 +354,6 @@ type Report = {
   tokens: Props;
   window: { body: Props };
   edges: Record<string, Props> & {
-    countText: string;
     countLabels: number;
   };
   boxes: Record<string, unknown> & {
@@ -523,10 +519,7 @@ describe("the canvas, in a real browser", () => {
       expect(edges.private?.["stroke-opacity"]).toBe("1");
       expect(edges.arrowHi?.fill).toBe(colour.sel);
       expect(edges.dimmed?.opacity).toBe("0.35");
-      expect(edges.count?.fill).toBe(colour.muted);
-      expect(edges.count?.["font-size"]).toBe("10px");
-      expect(edges.countText).toBe("2");
-      expect(edges.countLabels).toBe(1);
+      expect(edges.countLabels).toBe(0);
     },
     scaledTimeout(120000),
   );

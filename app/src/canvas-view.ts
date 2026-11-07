@@ -752,20 +752,6 @@ export function buildCanvasView(
             );
           }
 
-          if (line.countAt) {
-            node.append(
-              svg(
-                "text",
-                {
-                  class: "count-label",
-                  x: line.countAt.x + 4,
-                  y: line.countAt.y,
-                },
-                String(line.count),
-              ),
-            );
-          }
-
           node.append(hit);
 
           group.append(node);
