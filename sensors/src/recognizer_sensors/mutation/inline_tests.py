@@ -1,5 +1,4 @@
 import hashlib
-import re
 import sys
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
@@ -8,11 +7,13 @@ from tree_sitter import Node
 
 from recognizer_sensors.hashes import digest_of, file_sha256, listed_files
 from recognizer_sensors.parsing import parse
-from recognizer_sensors.rust_test_blocks import is_test_attribute_text
-
-PATH_ATTRIBUTE = re.compile(r"^#\[\s*path\b")
-
-ROOT_STEMS = {"lib", "main", "mod"}
+from recognizer_sensors.rust_test_blocks import (
+    Declaration,
+    is_root_file,
+    is_test_attribute_text,
+    path_value,
+    resolved_declaration,
+)
 
 
 class UnsoundWalk(Exception):
@@ -44,32 +45,101 @@ def attribute_texts(attributes: list[Node]) -> list[str]:
     return [(a.text or b"").decode("utf-8", errors="replace") for a in attributes]
 
 
-def module_directory(file: PurePosixPath) -> PurePosixPath:
-    if file.stem in ROOT_STEMS:
-        return file.parent
-
-    return file.parent / file.stem
-
-
 def module_name(node: Node) -> str:
     name = node.child_by_field_name("name")
 
     return (name.text or b"").decode("utf-8") if name is not None else ""
 
 
-def read(repository: Path, file: PurePosixPath) -> bytes:
+def read(repository: Path, file: str) -> bytes:
     try:
         return (repository / file).read_bytes()
     except OSError as error:
         raise UnsoundWalk(f"cannot read {file}") from error
 
 
-def resolve(repository: Path, directory: PurePosixPath, name: str) -> PurePosixPath:
-    for candidate in (directory / f"{name}.rs", directory / name / "mod.rs"):
-        if (repository / candidate).is_file():
-            return candidate
+def resolve(
+    repository: Path,
+    file: str,
+    scope: tuple[str, ...],
+    name: str,
+    path: str | None,
+    is_root: bool | None = None,
+) -> str:
+    found = resolved_declaration(
+        file,
+        Declaration(scope, name, path, False),
+        lambda candidate: (repository / candidate).is_file(),
+        is_root,
+    )
 
-    raise UnsoundWalk(f"mod {name} resolves to no file")
+    if found is None:
+        raise UnsoundWalk(f"mod {name} resolves to no file")
+
+    return found
+
+
+def path_of(texts: list[str]) -> str | None:
+    for text in texts:
+        if text.startswith("#[") and text.endswith("]"):
+            found = path_value(text[2:-1].encode("utf-8"))
+
+            if found is not None:
+                return found
+
+    return None
+
+
+def has_inner_test_attribute(root: Node) -> bool:
+    for child in root.children:
+        text = (child.text or b"").decode("utf-8", errors="replace")
+
+        if child.type == "inner_attribute_item" and text.startswith("#![") and text.endswith("]"):
+            if is_test_attribute_text(text[3:-1]):
+                return True
+
+    return False
+
+
+def record_test_file(repository: Path, file: str, entries: dict[str, str]) -> bool:
+    key = f"{file}#file"
+
+    if key in entries:
+        return False
+
+    entries[key] = hashlib.sha256(read(repository, file)).hexdigest()
+
+    return True
+
+
+def walk_test_file(repository: Path, file: str, entries: dict[str, str]) -> None:
+    if not record_test_file(repository, file, entries):
+        return
+
+    root = parse("rust", read(repository, file)).root_node
+
+    for scope, name, path in declarations_of(root, ()):
+        walk_test_file(repository, resolve(repository, file, scope, name, path), entries)
+
+
+def declarations_of(
+    parent: Node, scope: tuple[str, ...]
+) -> list[tuple[tuple[str, ...], str, str | None]]:
+    found: list[tuple[tuple[str, ...], str, str | None]] = []
+
+    for attributes, item in items_with_attributes(parent):
+        if item.type != "mod_item":
+            continue
+
+        body = item.child_by_field_name("body")
+        name = module_name(item)
+
+        if body is None:
+            found.append((scope, name, path_of(attribute_texts(attributes))))
+        else:
+            found.extend(declarations_of(body, (*scope, name)))
+
+    return found
 
 
 def walk_file(
@@ -77,20 +147,30 @@ def walk_file(
     file: PurePosixPath,
     seen: set[PurePosixPath],
     entries: dict[str, str],
+    *,
+    is_root: bool | None = None,
 ) -> None:
     if file in seen:
         return
 
     seen.add(file)
-    source = read(repository, file)
+    source = read(repository, str(file))
+    root = parse("rust", source).root_node
+
+    if has_inner_test_attribute(root):
+        walk_test_file(repository, str(file), entries)
+
+        return
+
     walk_items(
         repository,
         file,
-        parse("rust", source).root_node,
-        module_directory(file),
+        root,
+        (),
         source,
         seen,
         entries,
+        is_root=is_root_file(str(file)) if is_root is None else is_root,
     )
 
 
@@ -98,34 +178,34 @@ def walk_items(
     repository: Path,
     file: PurePosixPath,
     parent: Node,
-    directory: PurePosixPath,
+    scope: tuple[str, ...],
     source: bytes,
     seen: set[PurePosixPath],
     entries: dict[str, str],
+    *,
+    is_root: bool,
 ) -> None:
     for attributes, item in items_with_attributes(parent):
         texts = attribute_texts(attributes)
         is_test = any(is_test_attribute(t) for t in texts)
 
         if item.type == "mod_item":
-            if any(PATH_ATTRIBUTE.match(t) for t in texts):
-                raise UnsoundWalk(f"#[path] on mod {module_name(item)}")
-
             body = item.child_by_field_name("body")
+            name = module_name(item)
 
             if body is None:
-                module = resolve(repository, directory, module_name(item))
+                module = resolve(repository, str(file), scope, name, path_of(texts), is_root)
 
                 if is_test:
-                    entries[f"{module}#file"] = hashlib.sha256(read(repository, module)).hexdigest()
+                    walk_test_file(repository, module, entries)
                 else:
-                    walk_file(repository, module, seen, entries)
+                    walk_file(repository, PurePosixPath(module), seen, entries)
 
                 continue
 
             if not is_test:
                 walk_items(
-                    repository, file, body, directory / module_name(item), source, seen, entries
+                    repository, file, body, (*scope, name), source, seen, entries, is_root=is_root
                 )
 
                 continue
@@ -135,6 +215,29 @@ def walk_items(
             entries[f"{file}#{len(entries)}"] = hashlib.sha256(
                 source[start : item.end_byte]
             ).hexdigest()
+
+
+def walk_undeclared_test_files(
+    repository: Path, root: PurePosixPath, entries: dict[str, str]
+) -> None:
+    prefix = "" if str(root.parent) == "." else f"{root.parent}/"
+
+    for path in listed_files(repository):
+        if not (path.endswith(".rs") and path.startswith(prefix)):
+            continue
+
+        if f"{path}#file" in entries:
+            continue
+
+        source = read(repository, path)
+
+        if b"#![" in source and has_inner_test_attribute(parse("rust", source).root_node):
+            walk_test_file(repository, path, entries)
+
+
+def walk_unit(repository: Path, root: PurePosixPath, entries: dict[str, str]) -> None:
+    walk_file(repository, root, set(), entries, is_root=True)
+    walk_undeclared_test_files(repository, root, entries)
 
 
 def coarse_digest(repository: Path, root: PurePosixPath) -> str:
@@ -152,7 +255,7 @@ def unit_digest(repository: Path, root: str) -> str:
     entries: dict[str, str] = {}
 
     try:
-        walk_file(repository, PurePosixPath(root), set(), entries)
+        walk_unit(repository, PurePosixPath(root), entries)
     except UnsoundWalk as error:
         print(
             f"recognizer-sensors: mutation: in-file tests of {root} not found by module walk "

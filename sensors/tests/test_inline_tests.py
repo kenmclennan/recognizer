@@ -1,13 +1,17 @@
 import json
 import shutil
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 from conftest import git_commit
 
 from recognizer_sensors.hashes import digest_of, support_hash
-from recognizer_sensors.mutation.inline_tests import is_test_attribute, unit_test_hashes
+from recognizer_sensors.mutation.inline_tests import (
+    UnsoundWalk,
+    is_test_attribute,
+    unit_test_hashes,
+)
 
 LIB_UNIT = {"src/lib.rs": ("calc", "lib", "calc")}
 
@@ -142,29 +146,90 @@ def test_a_production_file_module_is_searched_for_nested_tests(tmp_path):
     assert digest(root) == first
 
 
-def test_a_path_attribute_gives_the_coarse_digest_and_one_stderr_line(tmp_path, capsys):
+def test_a_path_attribute_is_followed_and_prints_nothing(tmp_path, capsys):
     root = crate(
         tmp_path,
         {
-            "src/lib.rs": '#[path = "x.rs"]\nmod weird;\n',
-            "src/x.rs": "fn a() {}\n",
-            "src/bin/tool.rs": "fn main() {}\n",
+            "src/lib.rs": '#[cfg(test)]\n#[path = "extra/spec.rs"]\nmod t;\n',
+            "src/extra/spec.rs": "fn a() {}\n",
         },
     )
-    units = {**LIB_UNIT, "src/bin/tool.rs": ("calc", "bin", "tool")}
-    first = unit_test_hashes(root, units)
+    first = digest(root)
 
-    err = capsys.readouterr().err
+    assert capsys.readouterr().err == ""
 
-    assert err.count("not found by module walk") == 1
-    assert "in-file tests of src/lib.rs" in err
-    assert "#[path]" in err
+    (root / "src/extra/spec.rs").write_text("fn a() { 1; }\n")
 
-    (root / "src/x.rs").write_text("fn a() { 1; }\n")
-    second = unit_test_hashes(root, units)
+    assert digest(root) != first
+    assert list(entries(root)) == ["src/extra/spec.rs#file"]
 
-    assert second["src/lib.rs"] != first["src/lib.rs"]
-    assert second["src/bin/tool.rs"] == first["src/bin/tool.rs"]
+
+def entries(root):
+    from recognizer_sensors.mutation.inline_tests import walk_unit
+
+    found = {}
+
+    walk_unit(root, PurePosixPath("src/lib.rs"), found)
+
+    return found
+
+
+def test_an_inner_test_attribute_file_gets_one_entry_and_its_items_are_not_entries(tmp_path):
+    root = crate(
+        tmp_path,
+        {
+            "src/lib.rs": "mod i;\n",
+            "src/i.rs": "#![cfg(test)]\n#[test]\nfn a() {}\n#[test]\nfn b() {}\n",
+        },
+    )
+
+    assert list(entries(root)) == ["src/i.rs#file"]
+
+
+def test_a_gated_module_brings_the_files_it_declares(tmp_path):
+    root = crate(
+        tmp_path,
+        {
+            "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+            "src/t.rs": "mod u;\n",
+            "src/t/u.rs": "fn a() {}\n",
+        },
+    )
+
+    assert sorted(entries(root)) == ["src/t.rs#file", "src/t/u.rs#file"]
+
+
+SKIPPED_FILE_CASES = (
+    "declaration in a bin root",
+    "declaration in a build script",
+)
+
+UNSOUND_FILE_CASES = ("declaration with no file",)
+
+
+def test_the_walk_follows_the_shared_file_cases(tmp_path):
+    cases = json.loads(
+        (Path(__file__).parents[2] / "fixtures" / "rust-test-gate" / "file-cases.json").read_text()
+    )
+
+    assert len(cases) > 15
+
+    for number, case in enumerate(cases):
+        if case["name"] in SKIPPED_FILE_CASES:
+            continue
+
+        root = crate(tmp_path / str(number), case["files"])
+
+        if case["name"] in UNSOUND_FILE_CASES:
+            with pytest.raises(UnsoundWalk):
+                entries(root)
+
+            continue
+
+        found = {key.removesuffix("#file") for key in entries(root) if key.endswith("#file")}
+        expected = set(case["test_files"])
+
+        assert found == expected, case["name"]
 
 
 def test_an_unresolved_module_gives_the_coarse_digest_naming_the_reason(tmp_path, capsys):
