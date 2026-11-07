@@ -50,7 +50,7 @@ export function checkDescribing(
   ) {
     return {
       ok: false,
-      error: `Confirm above must be a number of dollars from 0 to ${MAX_CONFIRM_ABOVE_USD}`,
+      error: `Ask above must be a number of dollars from 0 to ${MAX_CONFIRM_ABOVE_USD}`,
     };
   }
 

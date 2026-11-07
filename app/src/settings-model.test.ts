@@ -35,12 +35,12 @@ describe("checkDescribing", () => {
   });
 
   it.each(["", "-1", "10001", "abc", "NaN"])(
-    "rejects the threshold %j naming Confirm above",
+    "rejects the threshold %j naming Ask above",
     (amount) => {
       const checked = checkDescribing("haiku", "4", amount);
 
       expect(checked.ok).toBe(false);
-      expect(checked.ok ? "" : checked.error).toContain("Confirm above");
+      expect(checked.ok ? "" : checked.error).toContain("Ask above");
     },
   );
 });
