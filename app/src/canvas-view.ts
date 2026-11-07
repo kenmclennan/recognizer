@@ -1,6 +1,10 @@
 import type { Mark } from "recognizer";
 import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
-import { createDescriptionHover, placeDescription } from "./box-description";
+import {
+  BOX_DESCRIPTION_WIDTH,
+  createDescriptionHover,
+  placeDescription,
+} from "./box-description";
 import {
   isEditable,
   type KeyAction,
@@ -334,14 +338,24 @@ export function buildCanvasView(
         ? selectionBar.element.getBoundingClientRect()
         : null;
 
+    const bubble = bubbleViews.get(id)?.element;
+    const note =
+      bubble?.parentElement === noteLayer && !noteLayer.hidden
+        ? bubble.classList.contains("left")
+          ? "left"
+          : "right"
+        : null;
+    const width = placeDescription(body, 0, area, null, note)?.width;
+
     descriptionPanel.textContent = text;
-    descriptionPanel.style.width = `${body.width}px`;
+    descriptionPanel.style.width = `${width ?? BOX_DESCRIPTION_WIDTH}px`;
 
     const place = placeDescription(
       body,
       descriptionPanel.offsetHeight,
       area,
       barRect,
+      note,
     );
 
     if (place === null) {

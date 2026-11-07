@@ -141,20 +141,72 @@ describe("createDescriptionHover", () => {
 });
 
 describe("placeDescription", () => {
-  const area = { top: 0, bottom: 600 };
-  const boxAt = (bottom: number) => ({
-    left: 40,
-    width: 120,
+  const area = { left: 0, right: 1000, top: 0, bottom: 600 };
+  const boxAt = (bottom: number, left = 400, width = 120) => ({
+    left,
+    width,
     top: bottom - 40,
     bottom,
   });
 
-  it("goes below the box when there is room", () => {
+  it("is 320 wide and centred under the box with no note", () => {
     expect(placeDescription(boxAt(200), 40, area, null)).toEqual({
-      left: 40,
-      width: 120,
+      left: 300,
+      width: 320,
       top: 208,
     });
+  });
+
+  it("is 320 wide whatever the box width", () => {
+    expect(placeDescription(boxAt(200, 400, 600), 40, area, null)?.width).toBe(
+      320,
+    );
+  });
+
+  it("is never wider than the canvas less its margins", () => {
+    const narrow = { left: 0, right: 200, top: 0, bottom: 600 };
+
+    expect(placeDescription(boxAt(200, 40, 120), 40, narrow, null)).toEqual({
+      left: 8,
+      width: 184,
+      top: 208,
+    });
+  });
+
+  it("aligns its right edge with the box when the note is on the right", () => {
+    expect(placeDescription(boxAt(200), 40, area, null, "right")).toEqual({
+      left: 200,
+      width: 320,
+      top: 208,
+    });
+  });
+
+  it("aligns its left edge with the box when the note is on the left", () => {
+    expect(placeDescription(boxAt(200), 40, area, null, "left")).toEqual({
+      left: 400,
+      width: 320,
+      top: 208,
+    });
+  });
+
+  it("is pulled back inside the canvas at the left", () => {
+    expect(placeDescription(boxAt(200, 20), 40, area, null)?.left).toBe(8);
+    expect(
+      placeDescription(boxAt(200, 20), 40, area, null, "right")?.left,
+    ).toBe(8);
+  });
+
+  it("is pulled back inside the canvas at the right", () => {
+    expect(placeDescription(boxAt(200, 880), 40, area, null)?.left).toBe(672);
+    expect(
+      placeDescription(boxAt(200, 880), 40, area, null, "left")?.left,
+    ).toBe(672);
+  });
+
+  it("honours a canvas that does not start at zero", () => {
+    const offset = { left: 100, right: 700, top: 0, bottom: 600 };
+
+    expect(placeDescription(boxAt(200, 100), 40, offset, null)?.left).toBe(108);
   });
 
   it("fits below exactly at the boundary", () => {
@@ -162,11 +214,9 @@ describe("placeDescription", () => {
   });
 
   it("flips above one pixel past the boundary", () => {
-    expect(placeDescription(boxAt(545), 40, area, null)).toEqual({
-      left: 40,
-      width: 120,
-      top: 505 - 8 - 40,
-    });
+    expect(placeDescription(boxAt(545), 40, area, null)?.top).toBe(
+      505 - 8 - 40,
+    );
   });
 
   it("goes above the bar for a selected box", () => {
@@ -187,20 +237,12 @@ describe("placeDescription", () => {
 
   it("returns null when neither side fits", () => {
     expect(
-      placeDescription(boxAt(300), 400, { top: 0, bottom: 340 }, null),
+      placeDescription(
+        boxAt(300),
+        400,
+        { left: 0, right: 1000, top: 0, bottom: 340 },
+        null,
+      ),
     ).toBe(null);
-  });
-
-  it("keeps the width of the box in every case", () => {
-    const cases = [
-      placeDescription(boxAt(200), 40, area, null),
-      placeDescription(boxAt(580), 40, area, null),
-      placeDescription(boxAt(580), 40, area, { top: 500 }),
-    ];
-
-    for (const place of cases) {
-      expect(place?.width).toBe(120);
-      expect(place?.left).toBe(40);
-    }
   });
 });
