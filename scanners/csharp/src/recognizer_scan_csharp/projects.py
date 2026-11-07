@@ -97,11 +97,19 @@ def normalise(base: str, include: str) -> str:
     return posixpath.normpath(posixpath.join(base, include.replace("\\", "/")))
 
 
-def read_fragment(path: Path, base: str) -> Fragment | None:
+def read_fragment(path: Path, base: str, reads: set[Path] | None = None) -> Fragment | None:
     try:
         root = ElementTree.parse(path).getroot()
-    except (ElementTree.ParseError, OSError):
+    except ElementTree.ParseError:
+        if reads is not None:
+            reads.add(path)
+
         return None
+    except OSError:
+        return None
+
+    if reads is not None:
+        reads.add(path)
 
     fragment = Fragment(sdk=root.get("Sdk", ""))
 
@@ -142,14 +150,16 @@ def ancestors_of(directory: str) -> list[str]:
         current = posixpath.dirname(current) or "."
 
 
-def merged_fragment(root: Path, directory: str, own: Fragment | None) -> Fragment | None:
+def merged_fragment(
+    root: Path, directory: str, own: Fragment | None, reads: set[Path] | None = None
+) -> Fragment | None:
     merged = Fragment()
 
     for ancestor in ancestors_of(directory):
         candidate = root / ancestor / "Directory.Build.props"
 
         if candidate.is_file():
-            props = read_fragment(candidate, ancestor)
+            props = read_fragment(candidate, ancestor, reads)
 
             if props is not None:
                 merge(merged, props)
@@ -171,7 +181,7 @@ def merge(target: Fragment, source: Fragment) -> None:
     target.usings.extend(source.usings)
 
 
-def listed_projects(root: Path, solutions: list[str]) -> list[str]:
+def listed_projects(root: Path, solutions: list[str], reads: set[Path] | None = None) -> list[str]:
     found = []
 
     for solution in solutions:
@@ -182,6 +192,9 @@ def listed_projects(root: Path, solutions: list[str]) -> list[str]:
             text = (root / solution).read_text(encoding="utf-8-sig", errors="replace")
         except OSError:
             continue
+
+        if reads is not None:
+            reads.add(root / solution)
 
         found.extend(normalise(base, match) for match in pattern.findall(text))
 
@@ -215,16 +228,21 @@ def sdk_parts(fragment: Fragment) -> list[str]:
     return [part.strip() for part in fragment.sdk.split(";") if part.strip()]
 
 
-def load_projects(root: Path, project_paths: list[str], solutions: list[str]) -> dict[str, Project]:
-    keys = sorted(set(project_paths) | set(listed_projects(root, solutions)))
+def load_projects(
+    root: Path,
+    project_paths: list[str],
+    solutions: list[str],
+    reads: set[Path] | None = None,
+) -> dict[str, Project]:
+    keys = sorted(set(project_paths) | set(listed_projects(root, solutions, reads)))
     projects = {}
 
     for key in keys:
         directory = posixpath.dirname(key) or "."
         name = posixpath.basename(key)[: -len(".csproj")]
         path = root / key
-        own = read_fragment(path, directory) if path.is_file() else None
-        fragment = merged_fragment(root, directory, own)
+        own = read_fragment(path, directory, reads) if path.is_file() else None
+        fragment = merged_fragment(root, directory, own, reads)
         project = Project(key, directory, name, fragment is not None)
 
         if fragment is not None:

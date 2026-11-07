@@ -20,7 +20,7 @@ fn tauri_files() -> Vec<String> {
                 if name != "target" && !name.starts_with('.') && name != "node_modules" {
                     visit(&path, &format!("{prefix}{name}/"), found);
                 }
-            } else if name.ends_with(".rs") {
+            } else if name.ends_with(".rs") || name == "Cargo.toml" {
                 found.push(format!("{prefix}{name}"));
             }
         }

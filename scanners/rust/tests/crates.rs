@@ -141,3 +141,64 @@ fn a_file_reachable_from_two_roots_resolves_crate_through_the_first() {
 
     assert_has(&run(&files), "src/shared.rs -> src/lib.rs [Lib]");
 }
+
+fn listed(document: &serde_json::Value) -> Vec<String> {
+    document["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|file| file["path"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+fn every_manifest_read_is_listed_with_the_hash_of_its_bytes() {
+    use sha2::{Digest, Sha256};
+
+    let manifest = "[package]\nname = \"app\"\n";
+    let files = [
+        ("Cargo.toml", manifest),
+        ("src/lib.rs", "pub struct A;\n"),
+        ("node_modules/x/Cargo.toml", "[package]\nname = \"x\"\n"),
+    ];
+    let document = run(&files);
+    let expected: String = Sha256::digest(manifest.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let entry = document["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|file| file["path"] == "Cargo.toml")
+        .unwrap();
+
+    assert_eq!(listed(&document), ["Cargo.toml", "src/lib.rs"]);
+    assert_eq!(entry["hash"].as_str().unwrap(), expected);
+}
+
+#[test]
+fn an_unparseable_manifest_is_listed_and_a_missing_path_dependency_is_not() {
+    let files = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"app\"\n[dependencies]\ngone = { path = \"gone\" }\n",
+        ),
+        ("src/lib.rs", "pub struct A;\n"),
+        ("broken/Cargo.toml", "[package\nname ="),
+        ("broken/src/lib.rs", "pub struct B;\n"),
+    ];
+    let document = run(&files);
+    let paths = listed(&document);
+
+    assert!(paths.contains(&"broken/Cargo.toml".to_string()));
+    assert!(paths.contains(&"Cargo.toml".to_string()));
+    assert!(!paths.iter().any(|path| path.starts_with("gone")));
+
+    let mut sorted = paths.clone();
+
+    sorted.sort();
+    sorted.dedup();
+
+    assert_eq!(paths, sorted);
+}

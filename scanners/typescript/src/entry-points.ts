@@ -42,9 +42,22 @@ function idOf(root: string, path: string): string {
   return relative(root, path).split(sep).join("/");
 }
 
-function readManifest(path: string): Record<string, unknown> | null {
+function readManifest(
+  path: string,
+  onRead: (path: string) => void,
+): Record<string, unknown> | null {
+  let text: string;
+
   try {
-    const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+    text = readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+
+  onRead(path);
+
+  try {
+    const value: unknown = JSON.parse(text);
 
     return typeof value === "object" && value !== null
       ? (value as Record<string, unknown>)
@@ -202,6 +215,7 @@ export function entryPoints(
   files: ReadonlySet<string>,
   sources: (id: string) => string | null,
   mappings: (directory: string) => OutputMapping[],
+  onRead: (id: string) => void = () => {},
 ): Set<string> {
   const marked = new Set<string>();
   const mark = (id: string | null) => {
@@ -212,7 +226,7 @@ export function entryPoints(
   const { manifests, pages } = walk(root);
 
   for (const path of manifests) {
-    const manifest = readManifest(path);
+    const manifest = readManifest(path, (read) => onRead(idOf(root, read)));
 
     if (!manifest) {
       continue;
@@ -253,6 +267,8 @@ export function entryPoints(
     } catch {
       continue;
     }
+
+    onRead(idOf(root, path));
 
     const directory = posix.dirname(idOf(root, path));
 

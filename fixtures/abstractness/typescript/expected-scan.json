@@ -8,6 +8,10 @@
   "modified": null,
   "files": [
     {
+      "path": "package.json",
+      "hash": "78da31755ab913b3901d798f834dfcfe0f3e6b9570e3c3478b6b065d2da3b446"
+    },
+    {
       "path": "src/contracts.ts",
       "hash": "1772606c3f54453ab2716917c1c181878985910907518ec73812e9888119afe6"
     },

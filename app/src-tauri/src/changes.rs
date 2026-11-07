@@ -492,6 +492,65 @@ mod tests {
             .collect()
     }
 
+    fn typescript_sample() -> (TempDir, Baseline) {
+        let dir = TempDir::new().unwrap();
+
+        copy_tree(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/typescript/sample"),
+            dir.path(),
+        );
+        write(
+            dir.path(),
+            ".recognizer/cache/scan.typescript.json",
+            &expected_scan("typescript").to_string(),
+        );
+
+        let baseline = adopt(&take_origin(dir.path()), dir.path());
+
+        (dir, baseline)
+    }
+
+    #[test]
+    fn the_committed_typescript_scan_lists_the_manifests_it_read() {
+        let (dir, baseline) = typescript_sample();
+
+        assert!(compare(dir.path(), &baseline).files.is_empty());
+    }
+
+    #[test]
+    fn editing_a_manifest_the_scan_read_reports_it_modified() {
+        let (dir, baseline) = typescript_sample();
+        let manifest = fs::read_to_string(dir.path().join("api/package.json")).unwrap();
+
+        write(dir.path(), "api/package.json", &format!("{manifest}\n"));
+
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("api/package.json".to_string(), ChangeKind::Modified)]
+        );
+    }
+
+    #[test]
+    fn deleting_a_config_the_scan_read_reports_it_deleted() {
+        let (dir, baseline) = typescript_sample();
+
+        fs::remove_file(dir.path().join("web/tsconfig.json")).unwrap();
+
+        assert_eq!(
+            paths(&compare(dir.path(), &baseline)),
+            vec![("web/tsconfig.json".to_string(), ChangeKind::Deleted)]
+        );
+    }
+
+    #[test]
+    fn a_manifest_added_after_the_scan_is_not_reported_yet() {
+        let (dir, baseline) = typescript_sample();
+
+        write(dir.path(), "extra/package.json", "{}\n");
+
+        assert!(compare(dir.path(), &baseline).files.is_empty());
+    }
+
     #[test]
     fn an_edit_counts() {
         let dir = repo();
@@ -838,7 +897,7 @@ mod tests {
 
     #[test]
     fn the_typescript_fixture_scan_compares_clean_against_its_own_files() {
-        assert_fixture_scan_is_a_clean_baseline("typescript", 15);
+        assert_fixture_scan_is_a_clean_baseline("typescript", 20);
     }
 
     #[test]
@@ -848,7 +907,7 @@ mod tests {
 
     #[test]
     fn the_rust_fixture_scan_compares_clean_against_its_own_files() {
-        assert_fixture_scan_is_a_clean_baseline("rust", 7);
+        assert_fixture_scan_is_a_clean_baseline("rust", 10);
     }
 
     #[test]
@@ -866,7 +925,7 @@ mod tests {
             assert!(check.exists());
         }
 
-        assert_fixture_scan_is_a_clean_baseline("csharp", 24);
+        assert_fixture_scan_is_a_clean_baseline("csharp", 36);
     }
 
     fn assert_selection_matches_the_scanner_parity_tree(language: &str) {

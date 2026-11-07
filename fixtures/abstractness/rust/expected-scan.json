@@ -8,6 +8,10 @@
   "modified": null,
   "files": [
     {
+      "path": "Cargo.toml",
+      "hash": "4ebe3d898d78dc84b65f9c3d4e7509c1f271451275d44cfb4133a72a54934229"
+    },
+    {
       "path": "src/contracts.rs",
       "hash": "5da1c380675c74cfc78161119ff8c74d60382d22483f8aeef9fade4caf5ca212"
     },

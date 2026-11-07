@@ -105,6 +105,24 @@ def read_all(
     return files, hashes
 
 
+def non_source_hashes(root: Path, reads: set[Path], listed: set[str]) -> list[dict]:
+    found = []
+
+    for path in reads:
+        try:
+            relative = path.relative_to(root).as_posix()
+            data = path.read_bytes()
+        except (ValueError, OSError):
+            continue
+
+        if relative.startswith("../") or relative in listed:
+            continue
+
+        found.append({"path": relative, "hash": hashlib.sha256(data).hexdigest()})
+
+    return found
+
+
 def global_usings(files: list[SourceFile]) -> dict[str, list]:
     found: dict[str, list] = {}
 
@@ -120,7 +138,8 @@ def global_usings(files: list[SourceFile]) -> dict[str, list]:
 def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None) -> Scan:
     root = Path(root)
     found = discover(root)
-    projects = load_projects(root, found.projects, found.solutions)
+    reads: set[Path] = set()
+    projects = load_projects(root, found.projects, found.solutions, reads)
     including = including_projects(projects, found.sources)
     paths = [p for p in found.sources if is_scanned(projects, including[p])]
     files, hashes = read_all(root, paths, projects, including)
@@ -147,6 +166,7 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
         )
         hashes.append({"path": path, "hash": hashlib.sha256(data).hexdigest()})
 
+    hashes.extend(non_source_hashes(root, reads, {h["path"] for h in hashes}))
     hashes.sort(key=lambda item: item["path"])
     modules = []
 

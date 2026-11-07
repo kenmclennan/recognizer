@@ -62,6 +62,7 @@ export class TsconfigOptions {
     ts.CompilerOptions
   >();
   private readonly problems = new Map<string, string[]>();
+  private readonly read = new Set<string>();
 
   constructor(private readonly root: string) {}
 
@@ -101,6 +102,12 @@ export class TsconfigOptions {
     }
 
     return this.allowJs(config.options);
+  }
+
+  readFiles(): string[] {
+    return [...this.read]
+      .filter((path) => !this.outside(path))
+      .map((path) => this.idOf(path));
   }
 
   outputMappings(directory: string): OutputMapping[] {
@@ -302,21 +309,31 @@ export class TsconfigOptions {
 
     this.parsed.set(path, null);
 
-    const read = ts.readConfigFile(path, ts.sys.readFile);
+    const source = ts.readJsonConfigFile(path, ts.sys.readFile);
     const diagnostics: ts.Diagnostic[] = [];
+    const first = (source as unknown as { parseDiagnostics: ts.Diagnostic[] })
+      .parseDiagnostics[0];
 
-    if (read.error) {
-      diagnostics.push(read.error);
+    if (typeof source.text === "string") {
+      this.read.add(path);
+    }
+
+    if (first) {
+      diagnostics.push(first);
     }
 
     if (diagnostics.length === 0) {
-      const content = ts.parseJsonConfigFileContent(
-        read.config,
+      const content = ts.parseJsonSourceFileConfigFileContent(
+        source,
         ts.sys,
         dirname(path),
         undefined,
         path,
       );
+
+      for (const extended of source.extendedSourceFiles ?? []) {
+        this.read.add(extended);
+      }
 
       diagnostics.push(...content.errors);
 

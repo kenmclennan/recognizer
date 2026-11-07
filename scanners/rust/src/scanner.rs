@@ -221,7 +221,18 @@ pub fn scan(
         .map(|(position, path)| (path.as_str(), position))
         .collect();
     let source_set: HashSet<String> = paths.iter().cloned().collect();
-    let packages = read_packages(root, &manifests(root), &source_set);
+    let read = read_packages(root, &manifests(root), &source_set);
+    let packages = read.packages;
+    let mut listed: Vec<(String, String)> =
+        paths.iter().cloned().zip(hashes.iter().cloned()).collect();
+
+    for (path, bytes) in &read.manifests_read {
+        if !listed.iter().any(|(existing, _)| existing == path) {
+            listed.push((path.clone(), hex(bytes)));
+        }
+    }
+
+    listed.sort();
     let roots: Vec<usize> = packages
         .iter()
         .flat_map(|p| p.roots.iter())
@@ -360,9 +371,8 @@ pub fn scan(
         "scanner": {"name": SCANNER_NAME, "version": env!("CARGO_PKG_VERSION")},
         "commit": commit,
         "modified": modified,
-        "files": paths
+        "files": listed
             .iter()
-            .zip(&hashes)
             .map(|(path, hash)| json!({"path": path, "hash": hash}))
             .collect::<Vec<Value>>(),
         "selection": selection(),

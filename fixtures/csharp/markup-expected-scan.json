@@ -8,6 +8,10 @@
   "modified": null,
   "files": [
     {
+      "path": "Shop.Tests/Shop.Tests.csproj",
+      "hash": "7e34404dffcda23d1cc5838e65a2bb88b9babd27aeea21f1f677f832547ab235"
+    },
+    {
       "path": "Shop/Models/Basket.cs",
       "hash": "1d4796229722e34313af8852dd4739053b7aded2a073d57ad58c2fd85afab574"
     },
@@ -34,6 +38,10 @@
     {
       "path": "Shop/Services/CartService.cs",
       "hash": "f927692fcc66bfcf442b3a39cbed8dd14a195d55d7872b6d268547c4ea246088"
+    },
+    {
+      "path": "Shop/Shop.csproj",
+      "hash": "6937ee9f481ce56f2fffa118c9d695e9d2daf4e473084ef5a33fcfd83d7f4678"
     },
     {
       "path": "Shop/Views/GlobalUsings.cs",

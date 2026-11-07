@@ -122,10 +122,13 @@ def test_the_eshop_scan_is_schema_valid(result):
 
 
 def test_the_eshop_file_and_module_counts_match_the_baseline(result):
-    assert len(result.document["files"]) == BASELINE["files"] == 572
+    assert len(result.document["files"]) == BASELINE["files"] == 605
     assert BASELINE["markup_files"] == 83
+    assert BASELINE["non_source_files"] == 33
     assert len(result.document["modules"]) == BASELINE["modules"] == 489
-    assert BASELINE["modules"] == BASELINE["files"] - BASELINE["markup_files"]
+    assert BASELINE["modules"] == (
+        BASELINE["files"] - BASELINE["markup_files"] - BASELINE["non_source_files"]
+    )
 
 
 def test_the_eshop_damaged_count_matches_the_baseline(result):

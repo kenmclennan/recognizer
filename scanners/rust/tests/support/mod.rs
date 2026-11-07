@@ -47,8 +47,21 @@ pub fn validate(document: &Value) {
         assert!(ids.contains(&to) || foreign.contains(&to), "edge to {to}");
     }
 
-    for file in document["files"].as_array().unwrap() {
-        assert!(ids.contains(&file["path"].as_str().unwrap()));
+    let listed: Vec<&str> = document["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|file| file["path"].as_str().unwrap())
+        .collect();
+    let mut sorted = listed.clone();
+
+    sorted.sort();
+    sorted.dedup();
+
+    assert_eq!(listed, sorted);
+
+    for id in &ids {
+        assert!(listed.contains(id));
     }
 }
 
