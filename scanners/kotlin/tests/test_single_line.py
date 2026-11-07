@@ -93,7 +93,10 @@ def test_members_keep_their_lines_after_the_repair(run):
 
 
 def test_a_file_the_repair_cannot_fix_is_chunked_on_the_original_text(run, tmp_path):
-    source = "package p\n\nclass A { val x = 1 }\n\n@Singleton\ndata object U\n"
+    source = (
+        "package p\n\nclass A { val x = 1 }\n\n"
+        "fun U(xs: List<Int>) {\n    xs.forEach { x\n\n        ->\n        x\n    }\n}\n"
+    )
     document = run({"a/F.kt": source})
     parsed = parse_file(source.encode())
 

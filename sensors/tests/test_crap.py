@@ -200,6 +200,12 @@ def test_the_worked_examples_pin_the_complexity():
             2,
         ),
         ("kotlin", "fun f(a: Boolean, b: Boolean): Boolean {\n    return a && b\n}\n", 2),
+        ("kotlin", "fun f(a: Boolean, b: Boolean): Boolean {\n    return a || b\n}\n", 2),
+        (
+            "kotlin",
+            "fun f(a: Boolean, b: Boolean, c: Boolean): Boolean {\n    return a && b || c\n}\n",
+            3,
+        ),
         ("rust", 'fn f(a: bool) {\n    if a {\n        println!("x");\n    }\n}\n', 2),
         (
             "rust",

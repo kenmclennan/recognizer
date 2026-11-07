@@ -39,6 +39,12 @@ def sites(grammar: str, source: str) -> list[tuple[str, str]]:
         ("kotlin", "fun f(a: Int) = a > 1 && true", [(">", ">="), ("&&", "||"), ("true", "false")]),
         ("kotlin", "fun f(a: Int) = a * 2 - 1", [("*", "/"), ("-", "+")]),
         (
+            "kotlin",
+            "fun f(a: Boolean) = a || false",
+            [("||", "&&"), ("false", "true")],
+        ),
+        ("kotlin", "fun f(a: Int) = a == 1", [("==", "!=")]),
+        (
             "rust",
             "fn f(a: i32) -> bool { a >= 1 || false }",
             [(">=", ">"), ("||", "&&"), ("false", "true")],

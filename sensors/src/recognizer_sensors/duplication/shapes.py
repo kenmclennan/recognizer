@@ -2,7 +2,8 @@ from tree_sitter import Node
 
 from recognizer_sensors.duplication.normalise import is_comment, is_literal
 
-RETURN_TYPES = {"return_statement", "return_expression"}
+BLOCK_TYPES = {"block", "statements"}
+RETURN_TYPES = {"return_statement", "return_expression", "jump_expression"}
 ASSIGNMENT_TYPES = {"assignment", "assignment_expression"}
 MEMBER_TYPES = {
     "attribute",
@@ -19,6 +20,7 @@ SUBSCRIPT_TYPES = {
     "element_access_expression",
 }
 CALL_TYPES = {"call", "call_expression", "invocation_expression"}
+IDENTIFIER_LEAVES = {"identifier", "simple_identifier", "field_identifier", "property_identifier"}
 SELF_TYPES = {"self", "this", "this_expression"}
 INITIALISER_TYPES = {"shorthand_field_initializer", "field_initializer"}
 
@@ -36,9 +38,9 @@ def statements_of(function: Node) -> list[Node]:
     if body is None:
         return []
 
-    block = next((c for c in body.named_children if c.type == "block"), None)
+    block = next((c for c in body.named_children if c.type in BLOCK_TYPES), None)
 
-    if block is None and body.type == "block":
+    if block is None and body.type in BLOCK_TYPES:
         block = body
 
     if block is None:
@@ -72,7 +74,14 @@ def parameter_names(function: Node) -> set[str]:
             name = parameter
 
         if name is None:
-            name = next((c for c in parameter.named_children if c.type == "identifier"), None)
+            name = next(
+                (
+                    c
+                    for c in parameter.named_children
+                    if c.type in {"identifier", "simple_identifier"}
+                ),
+                None,
+            )
 
         if name is not None and name.type in {"identifier", "simple_identifier"}:
             names.add(name.text.decode("utf-8", "replace"))
@@ -102,13 +111,21 @@ def call_arguments(call: Node) -> list[Node]:
         arguments = next((c for c in call.named_children if c.type == "value_arguments"), None)
 
     if arguments is None:
+        suffix = next((c for c in call.named_children if c.type == "call_suffix"), None)
+        arguments = (
+            next((c for c in suffix.named_children if c.type == "value_arguments"), None)
+            if suffix
+            else None
+        )
+
+    if arguments is None:
         return []
 
     return [unwrap_argument(c) for c in arguments.named_children if not is_comment(c.type)]
 
 
 def subscript_atoms(node: Node) -> list[Node]:
-    if node.type == "bracketed_argument_list":
+    if node.type in {"bracketed_argument_list", "indexing_suffix"}:
         return [unwrap_argument(c) for c in node.named_children if not is_comment(c.type)]
 
     return [node]
@@ -116,9 +133,7 @@ def subscript_atoms(node: Node) -> list[Node]:
 
 def lookup_chain(node: Node) -> bool:
     if node.child_count == 0:
-        return node.type in {"identifier", "field_identifier", "property_identifier"} or is_self(
-            node
-        )
+        return node.type in IDENTIFIER_LEAVES or is_self(node)
 
     if node.type == "this_expression":
         return True
@@ -141,7 +156,7 @@ def lookup_chain(node: Node) -> bool:
 
         return (
             callee is not None
-            and callee.type in MEMBER_TYPES | SUBSCRIPT_TYPES | {"identifier"}
+            and callee.type in MEMBER_TYPES | SUBSCRIPT_TYPES | {"identifier", "simple_identifier"}
             and lookup_chain(callee)
             and all(is_atom(a) for a in call_arguments(node))
         )
@@ -156,6 +171,9 @@ def is_accessor_shape(function: Node) -> bool:
         return False
 
     statement = statements[0]
+
+    if statement.type == "jump_expression" and not statement.text.startswith(b"return"):
+        return False
 
     if statement.type in RETURN_TYPES:
         expression = statement.named_children[0] if statement.named_children else None
@@ -184,6 +202,12 @@ def stores_a_parameter(node: Node, parameters: set[str]) -> bool:
 
     right = node.child_by_field_name("right")
 
+    if right is None and node.type == "assignment" and node.child_count >= 3:
+        if node.children[1].text != b"=":
+            return False
+
+        right = node.children[-1]
+
     return right is not None and is_stored_value(right, parameters)
 
 
@@ -191,7 +215,10 @@ def is_stored_value(node: Node, parameters: set[str]) -> bool:
     if is_literal(node.type):
         return True
 
-    return node.type == "identifier" and node.text.decode("utf-8", "replace") in parameters
+    return (
+        node.type in {"identifier", "simple_identifier"}
+        and node.text.decode("utf-8", "replace") in parameters
+    )
 
 
 def builds_from_parameters(node: Node, parameters: set[str]) -> bool:

@@ -20,14 +20,16 @@ def top_level_types(path) -> list[str]:
 
 
 DAMAGED_COMPANION = "class A {\n companion object { const val K = 1 }\n val = \n}\n"
-DAMAGED_ANNOTATED_OBJECT = "@Singleton\ndata object K\n"
+DAMAGED_ANNOTATED_OBJECT = (
+    "fun K(xs: List<Int>) {\n    xs.forEach { x\n\n        ->\n        x\n    }\n}\n"
+)
 
 
-def test_precondition_a_whole_file_parse_of_stacked_annotations_is_an_annotated_expression():
+def test_precondition_a_whole_file_parse_of_stacked_annotations_is_a_class_declaration():
     types = top_level_types(STACKED)
 
-    assert "annotated_expression" in types
-    assert "class_declaration" not in types
+    assert "annotated_expression" not in types
+    assert "class_declaration" in types
     assert not parse_file(STACKED.read_bytes()).damaged
 
 
@@ -36,8 +38,8 @@ def test_precondition_the_retargeted_triggers_are_damaged():
         assert parse_file(source.encode()).damaged
 
 
-def test_precondition_a_one_line_companion_parses_with_an_error_node():
-    assert PARSER.parse(ONE_LINE.read_bytes()).root_node.has_error
+def test_precondition_a_one_line_companion_parses_without_an_error_node():
+    assert not PARSER.parse(ONE_LINE.read_bytes()).root_node.has_error
 
 
 def test_a_misparsed_declaration_is_recovered_as_a_member_with_its_visibility(run):
@@ -73,7 +75,7 @@ def test_a_damaged_file_keeps_the_names_found_by_pattern(run):
         "B": ("interface", "internal"),
         "helper": ("function", "public"),
     }
-    assert "methods" not in member(document, "a/F.kt", "A")
+    assert member(document, "a/F.kt", "A")["methods"] == []
 
 
 def test_a_damaged_span_in_a_good_declaration_keeps_the_others_outlines(run):
@@ -90,7 +92,7 @@ def test_a_damaged_span_in_a_good_declaration_keeps_the_others_outlines(run):
     assert [m["name"] for m in member(document, "a/F.kt", "Good")["methods"]] == ["f"]
 
 
-def test_a_damaged_body_makes_no_calls(run):
+def test_a_damaged_span_keeps_the_calls_that_still_parse(run):
     document = run(
         {
             "a/F.kt": (
@@ -101,7 +103,9 @@ def test_a_damaged_body_makes_no_calls(run):
         }
     )
 
-    assert document["calls"] == []
+    assert [(c["from"], c["to"]) for c in document["calls"]] == [
+        ("a/F.kt::A.Companion.f", "a/F.kt::target")
+    ]
 
 
 def test_the_fixture_scans_without_damage():

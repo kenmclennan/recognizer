@@ -8,8 +8,8 @@ from recognizer_scan_kotlin.parse import parse_file
 
 BUILD = {"build.gradle.kts": ""}
 GUARD = (
-    "package a\n\nfun run(x: Any) {\n"
-    "    when (x) {\n        is String if x.isNotEmpty() -> shout(x)\n        else -> Unit\n    }\n}\n"
+    "package a\n\nfun run(xs: List<Any>) {\n"
+    "    xs.forEach { x\n\n        ->\n        shout(x)\n    }\n}\n"
 )
 GUARD_TARGET = "package a\n\nfun shout(s: String) {}\n"
 

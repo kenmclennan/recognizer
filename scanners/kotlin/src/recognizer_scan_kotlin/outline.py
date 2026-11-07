@@ -1,10 +1,12 @@
 from tree_sitter import Node
 
 from recognizer_scan_kotlin.declarations import (
+    NAMES,
     Decl,
     child,
     class_body,
     collapse,
+    is_declared_property,
     line_of,
     modifier_words,
     name_of,
@@ -19,7 +21,18 @@ from recognizer_scan_kotlin.declarations import (
 def type_text(owner: Node) -> str | None:
     found = type_node(owner)
 
-    return collapse(text_of(found)) if found else None
+    if found is None:
+        return None
+
+    before = found.prev_sibling
+
+    if before is not None and before.type == "type_modifiers":
+        start = before.start_byte - owner.start_byte
+        end = found.end_byte - owner.start_byte
+
+        return collapse(owner.text[start:end].decode("utf-8", errors="replace"))
+
+    return collapse(text_of(found))
 
 
 def parameter(node: Node) -> dict:
@@ -39,10 +52,9 @@ def parameters(function: Node) -> list[dict]:
 
 
 def bases_of(node: Node) -> list[str]:
-    specifiers = child(node, "delegation_specifiers")
     found = []
 
-    for specifier in specifiers.children if specifiers else []:
+    for specifier in node.children:
         if specifier.type != "delegation_specifier":
             continue
 
@@ -68,11 +80,10 @@ def field_of(name: str, line: int, owner: Node, private: bool) -> dict:
 def fields_of(node: Node) -> list[dict]:
     found = []
     constructor = child(node, "primary_constructor")
-    parameters_node = child(constructor, "class_parameters") if constructor else None
 
-    for item in parameters_node.children if parameters_node else []:
-        if item.type == "class_parameter" and child(item, "val", "var"):
-            identifier = child(item, "identifier")
+    for item in constructor.children if constructor else []:
+        if item.type == "class_parameter" and is_declared_property(item):
+            identifier = child(item, *NAMES)
             found.append(
                 field_of(
                     name_of(item) or "",
@@ -100,7 +111,7 @@ def fields_of(node: Node) -> list[dict]:
 
 
 def method_of(node: Node, interface: bool, static: bool) -> dict:
-    identifier = child(node, "identifier")
+    identifier = child(node, *NAMES)
     method = {
         "name": name_of(node) or "",
         "line": line_of(identifier or node),
