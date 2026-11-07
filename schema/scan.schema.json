@@ -16,7 +16,7 @@
     "foreign"
   ],
   "properties": {
-    "schema_version": { "const": 6 },
+    "schema_version": { "const": 7 },
     "scanner": {
       "type": "object",
       "additionalProperties": false,
@@ -232,7 +232,7 @@
             { "$ref": "#/$defs/foreignId" }
           ]
         },
-        "kind": { "enum": ["depends", "inherits", "implements"] },
+        "kind": { "enum": ["depends", "declares", "inherits", "implements"] },
         "line": { "$ref": "#/$defs/line" },
         "member": { "type": "string", "minLength": 1 },
         "to_member": { "type": "string", "minLength": 1 },
@@ -283,8 +283,22 @@
         }
       },
       "else": {
-        "not": {
-          "anyOf": [{ "required": ["member"] }, { "required": ["to_member"] }]
+        "if": { "properties": { "kind": { "const": "declares" } } },
+        "then": {
+          "not": {
+            "anyOf": [
+              { "required": ["names"] },
+              { "required": ["via"] },
+              { "required": ["inferred"] },
+              { "required": ["member"] },
+              { "required": ["to_member"] }
+            ]
+          }
+        },
+        "else": {
+          "not": {
+            "anyOf": [{ "required": ["member"] }, { "required": ["to_member"] }]
+          }
         }
       }
     },

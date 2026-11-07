@@ -429,3 +429,26 @@ describe("planned boxes and ghosts", () => {
     });
   });
 });
+
+describe("declarations", () => {
+  const scan: Scan = {
+    modules: ["lib.rs", "child.rs", "used.rs"].map((id) => ({
+      id,
+      kind: "module" as const,
+    })),
+    edges: [
+      { from: "lib.rs", to: "child.rs", kind: "declares", line: 1 },
+      { from: "lib.rs", to: "used.rs", kind: "declares", line: 2 },
+      { from: "lib.rs", to: "used.rs", kind: "depends", line: 3 },
+    ],
+    foreign: [],
+  };
+
+  it("draws no line for a declares edge and keeps the depends edge", () => {
+    const graph = graphOf(scan);
+
+    expect(graph.lines.map((line) => [line.from, line.to])).toEqual([
+      ["lib.rs", "used.rs"],
+    ]);
+  });
+});

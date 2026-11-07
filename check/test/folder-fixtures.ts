@@ -32,7 +32,7 @@ export function scanOf(
   extra: { inferred?: [string, string][] } = {},
 ): Scan {
   return validateScan({
-    schema_version: 6,
+    schema_version: 7,
     scanner: { name: "t", version: "0" },
     commit: null,
     modified: false,

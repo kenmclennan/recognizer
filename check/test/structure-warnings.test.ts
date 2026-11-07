@@ -39,7 +39,7 @@ function scanOf(
   const ids = new Set([...modules, ...edges.flat()]);
 
   return validateScan({
-    schema_version: 6,
+    schema_version: 7,
     scanner: { name: "t", version: "0" },
     commit: null,
     modified: false,
@@ -1312,7 +1312,7 @@ interface UnusedEdge {
 
 function unusedScan(modules: UnusedModule[], edges: UnusedEdge[] = []) {
   return validateScan({
-    schema_version: 6,
+    schema_version: 7,
     scanner: { name: "t", version: "0" },
     commit: null,
     modified: false,

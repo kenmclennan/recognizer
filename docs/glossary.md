@@ -26,6 +26,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Source root | A directory under the repository that Python imports are resolved from, such as `src` in a src layout. The Python scanner reads the ones a repository declares, then the repository root; module ids stay repository-relative paths. |
 | Re-export | A module that makes another module's names importable from itself, such as a Python `__init__.py` or a TypeScript `index.ts`. |
 | Dependency | An edge from a module to the module that defines a name it uses. |
+| Declaration | A `mod x;` the Rust scanner records as a `declares` edge. It makes the child reached for the orphan check and is not a dependency. |
 | Dependent | A module on the other end of a dependency: the one that uses. |
 | Route | The re-exports a name passed through on its way from its defining module to the module that imports it. Stored as `via`. |
 | Generic method | A method name too common to identify a class, such as `get`. The scanners ignore an untyped parameter whose called methods are all generic. |

@@ -63,7 +63,7 @@ export interface ScanTestImport {
 }
 
 export interface ScanDocument {
-  schema_version: 6;
+  schema_version: 7;
   scanner: { name: string; version: string };
   commit: string | null;
   modified: boolean | null;
@@ -469,7 +469,7 @@ export function scan(
   });
 
   return {
-    schema_version: 6,
+    schema_version: 7,
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
     commit,
     modified,

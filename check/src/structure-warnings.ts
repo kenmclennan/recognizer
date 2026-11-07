@@ -32,7 +32,7 @@ export function isAncestorFolder(a: string, b: string): boolean {
 }
 
 function moduleEdges(scan: Scan, policy: Policy | null) {
-  const { edges, ids } = keptGraph(scan, policy?.ignore ?? []);
+  const { edges, declarations, ids } = keptGraph(scan, policy?.ignore ?? []);
   const seen = new Set<string>();
   const pairs: { from: string; to: string }[] = [];
 
@@ -49,7 +49,7 @@ function moduleEdges(scan: Scan, policy: Policy | null) {
     }
   }
 
-  return { ids, pairs };
+  return { ids, pairs, declarations };
 }
 
 function splitClause(candidates: string[]): string {
@@ -212,8 +212,11 @@ export function orphanFindings(
   policy: Policy | null,
   entryPoints: string[],
 ): FindingRecord[] {
-  const { ids, pairs } = moduleEdges(scan, policy);
-  const imported = new Set(pairs.map((pair) => pair.to));
+  const { ids, pairs, declarations } = moduleEdges(scan, policy);
+  const imported = new Set([
+    ...pairs.map((pair) => pair.to),
+    ...declarations.map((edge) => edge.to),
+  ]);
   const literalPaths = policyLiteralPaths(policy);
   const scanned = new Set(
     scan.modules
@@ -265,7 +268,9 @@ function usedNames(edges: ScanEdge[]) {
       continue;
     }
 
-    if (edge.kind === "depends") {
+    if (edge.kind === "declares") {
+      whole.add(edge.to);
+    } else if (edge.kind === "depends") {
       if (edge.names !== undefined && edge.names.length > 0) {
         const held = named.get(edge.to) ?? new Set<string>();
 
@@ -297,8 +302,8 @@ export function unusedExportsFindings(
   policy: Policy | null,
   entryPoints: string[],
 ): FindingRecord[] {
-  const { edges, ids } = keptGraph(scan, policy?.ignore ?? []);
-  const { named, whole } = usedNames(edges);
+  const { edges, declarations, ids } = keptGraph(scan, policy?.ignore ?? []);
+  const { named, whole } = usedNames([...edges, ...declarations]);
   const literalPaths = policyLiteralPaths(policy);
   const findings: FindingRecord[] = [];
 

@@ -58,6 +58,7 @@ export {
   metricsLine,
   metricsTable,
 } from "./folder-metrics.js";
+export { dependencyEdges } from "./graph.js";
 export {
   checkLink,
   isLink,

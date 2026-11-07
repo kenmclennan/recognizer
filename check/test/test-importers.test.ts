@@ -16,7 +16,7 @@ function scanOf(
   entryPoints: string[] = [],
 ) {
   return validateScan({
-    schema_version: 6,
+    schema_version: 7,
     scanner: { name: "t", version: "0" },
     commit: null,
     modified: false,

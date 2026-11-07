@@ -73,12 +73,17 @@ fn this_repositorys_tauri_crate_scans_to_the_recorded_shape() {
         .iter()
         .filter(|e| e["kind"] == "implements")
         .count();
+    let declares = tauri_edges
+        .iter()
+        .filter(|e| e["kind"] == "declares")
+        .count();
 
     assert_eq!(files, wanted);
     assert_eq!(files.len() as u64, baseline["files"]);
     assert_eq!(modules as u64, baseline["modules"]);
     assert_eq!(tauri_edges.len() as u64, baseline["edges"]);
     assert_eq!(implements as u64, baseline["implements"]);
+    assert_eq!(declares as u64, baseline["declares"]);
 
     let build = document["modules"]
         .as_array()
@@ -110,7 +115,7 @@ fn lib_declares_each_module_file_and_imports_the_changes_names() {
         .as_array()
         .unwrap()
         .iter()
-        .filter(|e| e["from"] == lib.as_str() && e["kind"] == "depends" && e.get("names").is_none())
+        .filter(|e| e["from"] == lib.as_str() && e["kind"] == "declares")
         .map(|e| e["to"].as_str().unwrap().to_string())
         .filter(|to| to.starts_with(TAURI))
         .collect();

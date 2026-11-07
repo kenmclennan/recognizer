@@ -6,6 +6,7 @@ import { InputError } from "./errors.js";
 import { type Finding, findingsByModuleFrom } from "./findings.js";
 import { measureFolders, metricsLine, metricsTable } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
+import { dependencyEdges } from "./graph.js";
 import { loadFindings, readPolicy } from "./load-findings.js";
 import {
   fieldTokens,
@@ -365,7 +366,7 @@ export function runShow(argv: string[], io: Io): number {
   }
 
   const sets = neighbourSets(
-    loaded.scans.flatMap((scan) => scan.edges),
+    loaded.scans.flatMap((scan) => dependencyEdges(scan.edges)),
     new Set(loaded.modules),
   );
   const counts = moduleCounts(sets, id);
@@ -375,7 +376,7 @@ export function runShow(argv: string[], io: Io): number {
   const { shown, hidden } = shownMembers(
     scanned?.members ?? [],
     loaded.scans.flatMap((scan) =>
-      scan.edges.filter((edge) => edge.from === id),
+      dependencyEdges(scan.edges).filter((edge) => edge.from === id),
     ),
     loaded.values.private === true,
   );
@@ -486,7 +487,7 @@ export function runModules(argv: string[], io: Io): number {
   }
 
   const sets = neighbourSets(
-    loaded.scans.flatMap((scan) => scan.edges),
+    loaded.scans.flatMap((scan) => dependencyEdges(scan.edges)),
     new Set(loaded.modules),
   );
   const findings = findingsOf(loaded, io);

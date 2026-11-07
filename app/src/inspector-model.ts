@@ -1,4 +1,5 @@
 import {
+  dependencyEdges,
   fieldTokens,
   folderOf,
   memberHeadTokens,
@@ -737,7 +738,7 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   }
 
   const edges = inputs.scans.flatMap((scan) =>
-    scan.edges.filter((edge) => edge.from === module),
+    dependencyEdges(scan.edges).filter((edge) => edge.from === module),
   );
   const shown = found.members.filter(
     (member) => inputs.showPrivate || member.exported,

@@ -1,3 +1,4 @@
+import { dependencyEdges } from "./graph.js";
 import type { Scan, ScanEdge } from "./scan.js";
 
 export type NeighbourRow = {
@@ -147,7 +148,7 @@ function rowsFrom(
   const byId = new Map<string, ScanEdge[]>();
 
   for (const scan of scans) {
-    for (const edge of scan.edges) {
+    for (const edge of dependencyEdges(scan.edges)) {
       if (
         edge.from === edge.to ||
         !known.has(edge.from) ||

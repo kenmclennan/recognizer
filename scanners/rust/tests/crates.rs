@@ -106,7 +106,7 @@ fn every_target_root_starts_a_module_tree() {
         ("examples/demo.rs", "examples/extra.rs"),
         ("benches/speed.rs", "benches/data.rs"),
     ] {
-        assert_has(&scanned.document, &format!("{from} -> {to}"));
+        assert_has(&scanned.document, &format!("{from} ~> {to}"));
     }
 }
 
@@ -201,4 +201,49 @@ fn an_unparseable_manifest_is_listed_and_a_missing_path_dependency_is_not() {
     sorted.dedup();
 
     assert_eq!(paths, sorted);
+}
+
+#[test]
+fn a_mod_declaration_is_a_declares_edge_with_no_names_and_a_use_beside_it_stays_depends() {
+    let files = [
+        ("Cargo.toml", "[package]\nname = \"app\"\n"),
+        ("src/lib.rs", "mod x;\nuse self::x::Thing;\n"),
+        ("src/x.rs", "pub struct Thing;\n"),
+    ];
+    let document = run(&files);
+    let all = document["edges"].as_array().unwrap();
+    let declares: Vec<&serde_json::Value> =
+        all.iter().filter(|e| e["kind"] == "declares").collect();
+
+    assert_eq!(declares.len(), 1);
+    assert_eq!(declares[0]["from"], "src/lib.rs");
+    assert_eq!(declares[0]["to"], "src/x.rs");
+    assert_eq!(declares[0]["line"], 1);
+
+    for key in ["names", "via", "member", "to_member"] {
+        assert!(declares[0].get(key).is_none(), "declares carries {key}");
+    }
+
+    assert_has(&document, "src/lib.rs ~> src/x.rs");
+    assert_has(&document, "src/lib.rs -> src/x.rs [Thing]");
+}
+
+#[test]
+fn only_the_declaration_naming_a_scanned_file_gets_a_declares_edge_and_the_other_is_counted() {
+    let files = [
+        ("Cargo.toml", "[package]\nname = \"app\"\n"),
+        ("src/lib.rs", "mod present;\nmod absent;\n"),
+        ("src/present.rs", ""),
+    ];
+    let scanned = run_scan(&files);
+    let declares: Vec<&serde_json::Value> = scanned.document["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["kind"] == "declares")
+        .collect();
+
+    assert_eq!(declares.len(), 1);
+    assert_eq!(declares[0]["to"], "src/present.rs");
+    assert_eq!(scanned.missing_mods, 1);
 }

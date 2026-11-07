@@ -2,5 +2,6 @@
   "files": 22,
   "modules": 21,
   "edges": 146,
-  "implements": 1
+  "implements": 1,
+  "declares": 18
 }

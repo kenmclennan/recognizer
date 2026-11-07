@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "scanner": {
     "name": "recognizer-scan-rust",
     "version": "0.1.0"
@@ -302,7 +302,7 @@
     {
       "from": "shop/src/adapters.rs",
       "to": "shop/src/adapters/sql.rs",
-      "kind": "depends",
+      "kind": "declares",
       "line": 1
     },
     {
@@ -329,19 +329,19 @@
     {
       "from": "shop/src/lib.rs",
       "to": "shop/src/orders.rs",
-      "kind": "depends",
+      "kind": "declares",
       "line": 1
     },
     {
       "from": "shop/src/lib.rs",
       "to": "shop/src/ports/mod.rs",
-      "kind": "depends",
+      "kind": "declares",
       "line": 2
     },
     {
       "from": "shop/src/lib.rs",
       "to": "shop/src/adapters.rs",
-      "kind": "depends",
+      "kind": "declares",
       "line": 3
     },
     {
@@ -397,7 +397,7 @@
     {
       "from": "shop/src/ports/mod.rs",
       "to": "shop/src/ports/memory.rs",
-      "kind": "depends",
+      "kind": "declares",
       "line": 1
     }
   ],

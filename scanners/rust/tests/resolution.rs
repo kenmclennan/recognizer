@@ -94,7 +94,7 @@ fn r1_a_child_module_name_starts_the_path() {
         ("src/a.rs", "pub struct X;\n"),
     ]);
 
-    assert_has(&document, "src/lib.rs -> src/a.rs");
+    assert_has(&document, "src/lib.rs ~> src/a.rs");
     assert_has(&document, "src/lib.rs -> src/a.rs [X]");
     assert_eq!(edges(&document).len(), 2);
 }
@@ -295,7 +295,7 @@ fn r5_a_mod_declaration_is_an_edge_and_an_inline_module_is_not() {
         ("src/a.rs", ""),
     ]);
 
-    assert_eq!(edges(&document), vec!["src/lib.rs -> src/a.rs".to_string()]);
+    assert_eq!(edges(&document), vec!["src/lib.rs ~> src/a.rs".to_string()]);
 }
 
 #[test]
@@ -312,11 +312,11 @@ fn r5_both_layouts_and_the_path_attribute_find_their_files() {
         ("src/elsewhere/odd.rs", ""),
     ]);
 
-    assert_has(&document, "src/lib.rs -> src/flat.rs");
-    assert_has(&document, "src/flat.rs -> src/flat/inner.rs");
-    assert_has(&document, "src/lib.rs -> src/nested/mod.rs");
-    assert_has(&document, "src/nested/mod.rs -> src/nested/inner.rs");
-    assert_has(&document, "src/lib.rs -> src/elsewhere/odd.rs");
+    assert_has(&document, "src/lib.rs ~> src/flat.rs");
+    assert_has(&document, "src/flat.rs ~> src/flat/inner.rs");
+    assert_has(&document, "src/lib.rs ~> src/nested/mod.rs");
+    assert_has(&document, "src/nested/mod.rs ~> src/nested/inner.rs");
+    assert_has(&document, "src/lib.rs ~> src/elsewhere/odd.rs");
 }
 
 #[test]
@@ -337,7 +337,7 @@ fn r5_a_missing_file_is_no_edge_and_is_counted() {
     assert_eq!(scanned.missing_mods, 2);
     assert_eq!(
         edges(&scanned.document),
-        vec!["src/lib.rs -> src/here.rs".to_string()]
+        vec!["src/lib.rs ~> src/here.rs".to_string()]
     );
 }
 
@@ -348,7 +348,7 @@ fn r5_a_mod_inside_an_inline_module_appends_its_name_to_the_directory() {
         ("src/outer/deeper.rs", ""),
     ]);
 
-    assert_has(&document, "src/lib.rs -> src/outer/deeper.rs");
+    assert_has(&document, "src/lib.rs ~> src/outer/deeper.rs");
 }
 
 #[test]
@@ -529,7 +529,7 @@ fn r9_globs_modules_and_mod_declarations_stay_nameless() {
 
     assert_has(&document, "src/g.rs -> src/m.rs");
     assert_has(&document, "src/h.rs -> src/m.rs");
-    assert_has(&document, "src/lib.rs -> src/m.rs");
+    assert_has(&document, "src/lib.rs ~> src/m.rs");
     assert_lacks(&document, "src/g.rs -> src/m.rs [S]");
     assert_lacks(&document, "src/h.rs -> src/m.rs [m]");
 }

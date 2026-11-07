@@ -307,7 +307,7 @@ describe("shippedSensorSettings", () => {
     expect(shippedSensorSettings(broken, "crap")).toBeNull();
   });
 
-  it("reads scan schema version 6", () => {
-    expect(SCAN_SCHEMA_VERSION).toBe(6);
+  it("reads scan schema version 7", () => {
+    expect(SCAN_SCHEMA_VERSION).toBe(7);
   });
 });
