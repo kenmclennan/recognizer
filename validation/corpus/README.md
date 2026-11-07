@@ -25,3 +25,11 @@ Only `recognizer scan` (structure only, no `--describe`, no `--sense`), `recogni
 ## Adding a repository
 
 Append an entry to `manifest.json` with its pinned commit, run `node validation/corpus/snapshot.mjs --only <name>`, and read its snapshot folder before relying on it. The tests in `snapshot.test.mjs` run without network access.
+
+## Comparing Python source roots
+
+```sh
+node validation/corpus/source-roots-compare.mjs [--only <name>[,<name>...]]
+```
+
+For each Python entry in the manifest the script fetches the pinned commit into a temporary folder outside the repository, scans it with `recognizer-scan-python --source-root .` (the old default) and with no flag (detected source roots), runs `recognizer check --scan` on each, and prints one row per repository and run: modules, in-repo edges, foreign self-edges (edges to `foreign:<name>` where `<name>` is a package of the repository), and the `hub` and `orphan` finding counts. The clones are deleted when it finishes. It runs the `recognizer` and `recognizer-scan-python` on `PATH`; nothing from a clone is built, tested, installed or executed. Its offline test is `source-roots-compare.test.mjs`.

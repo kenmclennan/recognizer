@@ -6,7 +6,7 @@ Scans a Python source tree into a scan document, using the standard library `ast
 recognizer-scan-python ROOT [--commit SHA] [--output FILE] [--source-root DIR ...]
 ```
 
-`ROOT` is the repository root and the base of every module id. `--source-root` names a directory under `ROOT` that imports are resolved from, and repeats; the default is `ROOT` itself. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given.
+`ROOT` is the repository root and the base of every module id. `--source-root` names a directory under `ROOT` that imports are resolved from, and repeats; given, the list is used exactly, with no detection and no `ROOT` appended. Without it the scanner detects the source roots the repository declares and appends `ROOT` last, so an absolute import of the repository's own package resolves in a src layout. Detection reads, in order: the root `pyproject.toml` (setuptools `package-dir` and `packages.find where`, hatch wheel `packages` and `sources`), the root `setup.cfg` (`package_dir`, `packages.find where`), then every directory named `src`, at any depth, that holds a package. A declared root that is missing, absolute or contains `..` is ignored, and an unreadable declaration contributes nothing. Nested `pyproject.toml` files and other build backends' declarations are not read. Module ids stay repository-relative paths. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given.
 
 ## Names and routes
 

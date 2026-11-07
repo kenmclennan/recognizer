@@ -1,0 +1,160 @@
+{
+  "schema_version": 6,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "docs/conf.py",
+      "hash": "bfb88623fe78885b3359927dde222bbbcab724605cabcc193fe6c2f40aba9d97"
+    },
+    {
+      "path": "examples/app.py",
+      "hash": "74ac12e7c87e29d10e30b8ba19a9a62cdccc27c6b972ca5a4bfb27a62e84cc52"
+    },
+    {
+      "path": "src/shop/__init__.py",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/shop/helpers.py",
+      "hash": "e99a5475b6d6917e3167235533f66bde48fac2131ff6d35f6c8848a183299c99"
+    },
+    {
+      "path": "src/shop/views.py",
+      "hash": "5182fe792716b0b143f29a765eb34c44116a655292c403e9f9e0a7d82dc0803a"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".py"
+    ],
+    "skip_directory_names": [
+      "__pycache__",
+      "test",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      ".egg-info"
+    ],
+    "skip_directories_containing": [
+      "pyvenv.cfg"
+    ],
+    "skip_file_globs": [
+      "conftest.py"
+    ]
+  },
+  "modules": [
+    {
+      "id": "docs/conf.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "examples/app.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "src/shop/__init__.py",
+      "language": "python",
+      "kind": "package",
+      "members": []
+    },
+    {
+      "id": "src/shop/helpers.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "help",
+          "kind": "function",
+          "line": 1,
+          "exported": true,
+          "end_line": 2,
+          "params": []
+        }
+      ]
+    },
+    {
+      "id": "src/shop/views.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "render",
+          "kind": "function",
+          "line": 5,
+          "exported": true,
+          "end_line": 6,
+          "params": []
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "docs/conf.py",
+      "to": "src/shop/__init__.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "examples/app.py",
+      "to": "src/shop/__init__.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "examples/app.py",
+      "to": "src/shop/views.py",
+      "kind": "depends",
+      "line": 2,
+      "names": [
+        "render"
+      ]
+    },
+    {
+      "from": "src/shop/views.py",
+      "to": "src/shop/helpers.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "src/shop/views.py",
+      "to": "src/shop/helpers.py",
+      "kind": "depends",
+      "line": 2
+    }
+  ],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "src/shop/views.py::render",
+      "to": "src/shop/helpers.py::help",
+      "line": 6,
+      "how": "call"
+    }
+  ],
+  "test_imports": [
+    {
+      "from": "tests/test_views.py",
+      "to": "src/shop/views.py",
+      "names": [
+        "render"
+      ]
+    }
+  ]
+}

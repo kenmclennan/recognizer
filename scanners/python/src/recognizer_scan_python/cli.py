@@ -63,13 +63,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root: Path = args.root
-    source_roots = args.source_root or ["."]
+    source_roots = args.source_root or None
 
     if not root.is_dir():
         print(f"ROOT is not a directory: {root}", file=sys.stderr)
         return 2
 
-    missing = [s for s in source_roots if not (root / s).is_dir()]
+    missing = [s for s in source_roots or [] if not (root / s).is_dir()]
 
     if missing:
         print(f"--source-root is not a directory under ROOT: {', '.join(missing)}", file=sys.stderr)
@@ -80,7 +80,12 @@ def main(argv: list[str] | None = None) -> int:
     modified = args.modified if args.modified is not None else resolve_modified(root)
 
     try:
-        document = scan(root, [Path(s).as_posix() for s in source_roots], commit, modified)
+        document = scan(
+            root,
+            None if source_roots is None else [Path(s).as_posix() for s in source_roots],
+            commit,
+            modified,
+        )
     except ScanError as error:
         print("could not parse:", file=sys.stderr)
         print("\n".join(error.problems), file=sys.stderr)

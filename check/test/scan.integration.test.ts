@@ -143,6 +143,35 @@ describe.skipIf(!HAS_UV)(
     );
 
     it(
+      "resolves a src-layout package's own imports and matches its expected scan",
+      async () => {
+        const srcLayout = mkdtempSync(join(tmpdir(), "recognizer-src-layout-"));
+
+        try {
+          cpSync(join(REPO, "fixtures/python/src-layout/sample"), srcLayout, {
+            recursive: true,
+          });
+
+          expect(await run(["scan", srcLayout], capture().io)).toBe(0);
+          expect(
+            normalised(
+              readScan(join(srcLayout, ".recognizer/cache/scan.python.json")),
+            ),
+          ).toEqual(
+            normalised(
+              readScan(
+                join(REPO, "fixtures/python/src-layout/expected-scan.json"),
+              ),
+            ),
+          );
+        } finally {
+          rmSync(srcLayout, { recursive: true, force: true });
+        }
+      },
+      scaledTimeout(120_000),
+    );
+
+    it(
       "says scans current on a second scan of an unchanged committed repository",
       async () => {
         const git = (...args: string[]) =>
