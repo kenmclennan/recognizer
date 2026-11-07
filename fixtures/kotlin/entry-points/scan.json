@@ -74,7 +74,14 @@
           "kind": "function",
           "line": 3,
           "exported": true,
-          "visibility": "public"
+          "visibility": "public",
+          "end_line": 8,
+          "params": [
+            {
+              "name": "x",
+              "type": "Any"
+            }
+          ]
         }
       ]
     },
@@ -240,6 +247,12 @@
   ],
   "foreign": [],
   "calls": [
+    {
+      "from": "app/Guard.kt::guard",
+      "to": "app/Shout.kt::shout",
+      "line": 5,
+      "how": "call"
+    },
     {
       "from": "app/Run.kt::main",
       "to": "common/Clock.kt::Clocks",

@@ -14,6 +14,7 @@ import {
   archiveEntries,
   buildGrammarWheel,
   exportArguments,
+  GRAMMARS,
   grammarSource,
   mergeRequirements,
   PYTHON_COMMANDS,
@@ -25,6 +26,9 @@ import { makeTempDir } from "./temp-dirs.mjs";
 
 const closure = ["node_modules/ajv", "node_modules/yaml"];
 const PINNED_COMMIT = "f1c7c1ee21f56a33412c12efb8abe0c483f05f0d";
+const KOTLIN_PINNED_COMMIT = "d6af96d2e23ef0a8ff5ab512864378cf08fba311";
+const CSHARP = GRAMMARS.find((g) => g.package === "tree-sitter-c-sharp");
+const KOTLIN = GRAMMARS.find((g) => g.package === "tree-sitter-kotlin");
 const HOMEBREW_PYTHON = "/opt/homebrew/opt/python@3.13/bin/python3.13";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -196,6 +200,7 @@ describe("verifyArchive", () => {
   const entries = [
     ...archiveEntries("1.2.3", closure),
     "python/tree_sitter_c_sharp/__init__.py",
+    "python/tree_sitter_kotlin/__init__.py",
   ];
   const full = `${entries.join("\n")}\n`;
 
@@ -232,6 +237,11 @@ describe("verifyArchive", () => {
       /tree_sitter_c_sharp/,
     ],
     [
+      "the Kotlin grammar package",
+      "python/tree_sitter_kotlin/__init__.py\n",
+      /tree_sitter_kotlin/,
+    ],
+    [
       "the describer",
       "node_modules/recognizer-describe-claude/package.json\n",
       /recognizer-describe-claude/,
@@ -262,15 +272,32 @@ describe("the grammar wheel", () => {
   );
 
   it("reads the pinned commit from the scanner's pyproject", () => {
-    expect(grammarSource(pyproject)).toEqual({
+    expect(grammarSource(pyproject, CSHARP)).toEqual({
       url: "https://github.com/tree-sitter/tree-sitter-c-sharp",
       rev: PINNED_COMMIT,
     });
   });
 
-  it("refuses a pyproject with no pinned git source", () => {
-    expect(() => grammarSource('[project]\nname = "x"\n')).toThrow(
-      /no pinned git source/,
+  it("reads each grammar's pin from its own project's pyproject, the Kotlin scanner and the sensors alike", () => {
+    for (const project of ["scanners/kotlin", "sensors"]) {
+      const text = readFileSync(
+        fileURLToPath(new URL(`../${project}/pyproject.toml`, import.meta.url)),
+        "utf8",
+      );
+
+      expect(grammarSource(text, KOTLIN)).toEqual({
+        url: "https://github.com/fwcd/tree-sitter-kotlin",
+        rev: KOTLIN_PINNED_COMMIT,
+      });
+    }
+  });
+
+  it("refuses a pyproject with no pinned git source, naming the project and package", () => {
+    expect(() => grammarSource('[project]\nname = "x"\n', CSHARP)).toThrow(
+      /scanners\/csharp\/pyproject.toml has no pinned git source for tree-sitter-c-sharp/,
+    );
+    expect(() => grammarSource('[project]\nname = "x"\n', KOTLIN)).toThrow(
+      /scanners\/kotlin\/pyproject.toml has no pinned git source for tree-sitter-kotlin/,
     );
   });
 
@@ -278,6 +305,8 @@ describe("the grammar wheel", () => {
     const args = exportArguments();
 
     expect(args.slice(args.indexOf("--no-emit-package"))).toEqual([
+      "--no-emit-package",
+      "tree-sitter-kotlin",
       "--no-emit-package",
       "tree-sitter-c-sharp",
       "--format",
@@ -295,7 +324,7 @@ describe("the grammar wheel", () => {
         : "";
     };
 
-    buildGrammarWheel(grammarSource(pyproject), "/wheelhouse", exec);
+    buildGrammarWheel(grammarSource(pyproject, CSHARP), "/wheelhouse", exec);
 
     const cwd = calls[0][2];
 
@@ -331,7 +360,7 @@ describe("the grammar wheel", () => {
       command === "git" && args[0] === "rev-parse" ? "deadbeef\n" : "";
 
     expect(() =>
-      buildGrammarWheel(grammarSource(pyproject), "/wheelhouse", exec),
+      buildGrammarWheel(grammarSource(pyproject, CSHARP), "/wheelhouse", exec),
     ).toThrow(/not the pinned/);
   });
 });

@@ -7,7 +7,9 @@ from recognizer_scan_kotlin.declarations import (
     SourceFile,
     child,
     class_body,
+    is_declared_property,
     line_of,
+    member_of_navigation,
     name_of,
     property_name,
     text_of,
@@ -34,10 +36,9 @@ class ClassInfo:
 def property_types_of(node: Node) -> dict[str, list[str]]:
     found = {}
     constructor = child(node, "primary_constructor")
-    parameters = child(constructor, "class_parameters") if constructor else None
 
-    for item in parameters.children if parameters else []:
-        if item.type == "class_parameter" and child(item, "val", "var"):
+    for item in constructor.children if constructor else []:
+        if item.type == "class_parameter" and is_declared_property(item):
             segments = type_segments(type_node(item))
 
             if segments:
@@ -219,16 +220,16 @@ class CallResolver:
             callee = node.children[0]
             line = line_of(callee)
 
-            if callee.type == "identifier":
+            if callee.type == "simple_identifier":
                 self.call_by_name(file, info, text_of(callee), source, line)
-            elif callee.type == "navigation_expression" and len(callee.children) >= 3:
-                left, right = callee.children[0], callee.children[-1]
+            elif callee.type == "navigation_expression" and len(callee.children) >= 2:
+                left = callee.children[0]
+                method = member_of_navigation(callee)
 
-                if left.type != "identifier" or right.type != "identifier":
+                if left.type != "simple_identifier" or method is None:
                     continue
 
                 receiver = text_of(left)
-                method = text_of(right)
                 declared = local.get(receiver) or (
                     info.property_types.get(receiver) if info else None
                 )

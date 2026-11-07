@@ -30,6 +30,8 @@ NODE_TYPES = {
         "do_while_statement",
         "when_entry",
         "catch_block",
+        "conjunction_expression",
+        "disjunction_expression",
     },
     "rust": {"if_expression", "for_expression", "while_expression", "match_arm"},
     "csharp": {
@@ -53,7 +55,6 @@ OPERATOR_NODES = {"binary_expression", "boolean_operator"}
 OPERATORS = {
     "python": {"and", "or"},
     "typescript": {"&&", "||", "??"},
-    "kotlin": {"&&", "||"},
     "rust": {"&&", "||"},
     "csharp": {"&&", "||", "??"},
 }

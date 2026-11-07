@@ -15,11 +15,13 @@ DECLARATIONS = {
 }
 EXPECTED_TOP_LEVEL = DECLARATIONS | {
     "package_header",
-    "import",
+    "import_list",
     "line_comment",
-    "block_comment",
+    "multiline_comment",
     "file_annotation",
     "shebang_line",
+    "getter",
+    "setter",
 }
 MODIFIERS = (
     "public|private|protected|internal|abstract|open|final|sealed|data|enum|annotation|inner|"
@@ -34,6 +36,7 @@ HIT = re.compile(
     r"(?P<keyword>class|interface|object|typealias|fun|val|var)\s+(?P<rest>.*)"
 )
 BARE_MODIFIER_CLASS = re.compile(r"^(\s*)(?:annotation|enum)\s+class\b")
+LEADING_ARROW = re.compile(r"^(\s*)->(.*)$")
 BARE_CONST = re.compile(r"^(\s*)const\s+(?:val|var)\b")
 FUNCTION_NAME = re.compile(r"^(?:<[^>]*>\s*)?(?:[\w<>?,.\s]*?\.)?(\w+)\s*\(")
 PROPERTY_NAME = re.compile(r"^(?:<[^>]*>\s*)?(?:[\w<>?.]+\.)?(\w+)")
@@ -178,6 +181,23 @@ def repair_annotated_bare_modifiers(text: str) -> str:
     return "\n".join(lines)
 
 
+def repair_lambda_arrows(text: str) -> str:
+    lines = text.split("\n")
+
+    for number in range(1, len(lines)):
+        found = LEADING_ARROW.match(lines[number])
+
+        if (
+            found
+            and lines[number - 1].strip()
+            and not lines[number - 1].rstrip().endswith(("{", ";"))
+        ):
+            lines[number - 1] = f"{lines[number - 1].rstrip()} ->"
+            lines[number] = f"{found[1]}  {found[2]}"
+
+    return "\n".join(lines)
+
+
 def chunk_starts(lines: list[str], text: str) -> list[int]:
     states = line_states(text)
     starts = [0]
@@ -266,7 +286,9 @@ def parse_file(data: bytes) -> Parsed:
         return parsed
 
     text = data.decode("utf-8", errors="replace")
-    repaired = parse_whole(repair_annotated_bare_modifiers(repair_closing_braces(text)).encode())
+    repaired = parse_whole(
+        repair_lambda_arrows(repair_annotated_bare_modifiers(repair_closing_braces(text))).encode()
+    )
 
     if not repaired.damaged:
         return repaired

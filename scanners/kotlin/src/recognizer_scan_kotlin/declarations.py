@@ -8,6 +8,7 @@ from recognizer_scan_kotlin.parse import DECLARATIONS, Parsed
 VALUE_LIMIT = 40
 SHORT_TEMPLATE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 BODIES = ("class_body", "enum_class_body")
+NAMES = ("simple_identifier", "type_identifier")
 COMPANION_NAME = "Companion"
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 PACKAGE_OR_IMPORT = re.compile(r"^\s*(?:package|import)\b")
@@ -35,8 +36,22 @@ def line_of(node: Node) -> int:
     return node.start_point[0] + 1
 
 
+def declaration_line(node: Node) -> int:
+    modifiers = child(node, "modifiers")
+
+    if modifiers is None:
+        return line_of(node)
+
+    if any(c.type != "annotation" for c in modifiers.children):
+        return line_of(node)
+
+    after = modifiers.next_sibling
+
+    return line_of(after if after is not None else node)
+
+
 def name_of(node: Node) -> str | None:
-    found = child(node, "identifier")
+    found = child(node, *NAMES)
 
     return text_of(found) if found else None
 
@@ -70,7 +85,11 @@ def property_name(node: Node) -> str | None:
 
 
 def segments_of(node: Node) -> list[str]:
-    return [text_of(c) for c in node.children if c.type == "identifier"]
+    return [text_of(c) for c in node.children if c.type in NAMES]
+
+
+def is_declared_property(parameter: Node) -> bool:
+    return child(parameter, "binding_pattern_kind") is not None
 
 
 def type_node(owner: Node) -> Node | None:
@@ -79,7 +98,7 @@ def type_node(owner: Node) -> Node | None:
     for item in owner.children:
         if item.type == ":":
             seen_colon = True
-        elif seen_colon and item.type not in ("function_body", "="):
+        elif seen_colon and item.type not in ("function_body", "=", "type_modifiers"):
             return item
 
         if item.type in ("function_body", "="):
@@ -150,24 +169,18 @@ class SourceFile:
 
 
 def read_import(node: Node) -> Import | None:
-    qualified = child(node, "qualified_identifier")
+    qualified = child(node, "identifier")
 
     if qualified is None:
         return None
 
-    alias = None
-    seen_as = False
-
-    for item in node.children:
-        if item.type == "as":
-            seen_as = True
-        elif seen_as and item.type == "identifier":
-            alias = text_of(item)
+    aliased = child(node, "import_alias")
+    alias = name_of(aliased) if aliased is not None else None
 
     return Import(
         tuple(segments_of(qualified)),
         alias,
-        any(c.type == "*" for c in node.children),
+        child(node, "wildcard_import") is not None,
         line_of(node),
     )
 
@@ -179,10 +192,9 @@ def class_body(node: Node) -> Node | None:
 def member_names(node: Node) -> set[str]:
     names = set()
     constructor = child(node, "primary_constructor")
-    parameters = child(constructor, "class_parameters") if constructor else None
 
-    for parameter in parameters.children if parameters else []:
-        if parameter.type == "class_parameter" and child(parameter, "val", "var"):
+    for parameter in constructor.children if constructor else []:
+        if parameter.type == "class_parameter" and is_declared_property(parameter):
             names.add(name_of(parameter) or "")
 
     body = class_body(node)
@@ -203,10 +215,9 @@ def member_names(node: Node) -> set[str]:
 
 
 def supertypes_of(node: Node) -> list[list[str]]:
-    specifiers = child(node, "delegation_specifiers")
     found = []
 
-    for specifier in specifiers.children if specifiers else []:
+    for specifier in node.children:
         if specifier.type != "delegation_specifier":
             continue
 
@@ -226,32 +237,32 @@ def decl_of(node: Node) -> list[Decl]:
 
     if node.type == "class_declaration":
         kind = "interface" if child(node, "interface") else "class"
-        decl = Decl(name or "", kind, line_of(child(node, "identifier") or node), visibility, node)
-        decl.is_enum = "enum" in modifier_words(node)
+        decl = Decl(name or "", kind, line_of(child(node, *NAMES) or node), visibility, node)
+        decl.is_enum = child(node, "enum") is not None or "enum" in modifier_words(node)
         decl.members = member_names(node)
         decl.supertypes = supertypes_of(node)
         found = [decl]
     elif node.type == "object_declaration":
-        decl = Decl(
-            name or "", "class", line_of(child(node, "identifier") or node), visibility, node
-        )
+        decl = Decl(name or "", "class", line_of(child(node, *NAMES) or node), visibility, node)
         decl.is_object = True
         decl.members = member_names(node)
         decl.supertypes = supertypes_of(node)
         found = [decl]
     elif node.type == "type_alias":
-        found = [Decl(name or "", "type", line_of(node), visibility, node)]
+        found = [Decl(name or "", "type", declaration_line(node), visibility, node)]
     elif node.type == "function_declaration":
-        found = [Decl(name or "", "function", line_of(node), visibility, node)]
+        found = [Decl(name or "", "function", declaration_line(node), visibility, node)]
     else:
-        found = [Decl(property_name(node) or "", "constant", line_of(node), visibility, node)]
+        found = [
+            Decl(property_name(node) or "", "constant", declaration_line(node), visibility, node)
+        ]
 
     words = modifier_words(node)
     outer = found[0]
     outer.is_expect = "expect" in words
     outer.is_actual = "actual" in words
-    outer.has_receiver = node.type == "function_declaration" and any(
-        c.type == "." for c in node.children
+    outer.has_receiver = (
+        node.type == "function_declaration" and node.child_by_field_name("receiver") is not None
     )
     body = class_body(node) if node.type in ("class_declaration", "object_declaration") else None
 
@@ -284,17 +295,28 @@ def walk(root: Node):
 
 
 def chain_of(node: Node) -> list[str] | None:
-    if node.type == "identifier":
+    if node.type == "simple_identifier":
         return [text_of(node)]
 
-    if node.type == "navigation_expression" and len(node.children) >= 3:
+    if node.type == "navigation_expression" and len(node.children) >= 2:
         left = chain_of(node.children[0])
-        right = node.children[-1]
+        right = member_of_navigation(node)
 
-        if left and right.type == "identifier":
-            return [*left, text_of(right)]
+        if left and right:
+            return [*left, right]
 
     return None
+
+
+def member_of_navigation(node: Node) -> str | None:
+    suffix = node.children[-1]
+
+    if suffix.type != "navigation_suffix":
+        return None
+
+    found = child(suffix, "simple_identifier")
+
+    return text_of(found) if found else None
 
 
 def collect_uses(roots: list[Node]) -> tuple[dict[str, int], list[tuple[int, list[str]]]]:
@@ -311,10 +333,10 @@ def collect_uses(roots: list[Node]) -> tuple[dict[str, int], list[tuple[int, lis
         while pending:
             node, skipped = pending.pop()
 
-            if node.type in ("package_header", "import"):
+            if node.type in ("package_header", "import_list"):
                 continue
 
-            if node.type == "identifier":
+            if node.type in NAMES:
                 note(text_of(node), line_of(node))
             elif node.type == "string_literal":
                 body = text_of(node)
@@ -518,13 +540,14 @@ def read_source(path: str, directory: str, parsed: Parsed, data: bytes) -> Sourc
     for root in parsed.roots:
         for node in root.children:
             if node.type == "package_header":
-                qualified = child(node, "qualified_identifier")
+                qualified = child(node, "identifier")
                 package = ".".join(segments_of(qualified)) if qualified else ""
-            elif node.type == "import":
-                found = read_import(node)
+            elif node.type == "import_list":
+                for header in node.children:
+                    found = read_import(header) if header.type == "import_header" else None
 
-                if found:
-                    imports.append(found)
+                    if found:
+                        imports.append(found)
 
     decls = read_declarations(parsed.roots)
 

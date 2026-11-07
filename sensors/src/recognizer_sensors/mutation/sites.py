@@ -28,6 +28,14 @@ LOGICAL = {"&&", "||"}
 STRICT = {"===", "!=="}
 
 C_LIKE_PARENT = "binary_expression"
+KOTLIN_PARENTS = {
+    "equality_expression": {"==", "!="},
+    "comparison_expression": {"<", "<=", ">", ">="},
+    "additive_expression": {"+", "-"},
+    "multiplicative_expression": {"*", "/"},
+    "conjunction_expression": {"&&"},
+    "disjunction_expression": {"||"},
+}
 TYPESCRIPT = ("typescript", "tsx")
 
 
@@ -48,6 +56,9 @@ def operators_for(grammar: str, parent: str) -> set[str]:
             "binary_operator": ARITHMETIC,
             "boolean_operator": {"and", "or"},
         }.get(parent, set())
+
+    if grammar == "kotlin":
+        return KOTLIN_PARENTS.get(parent, set())
 
     if parent != C_LIKE_PARENT:
         return set()
@@ -95,10 +106,8 @@ def boolean_site(node: Node, grammar: str) -> Site | None:
 
     if grammar == "python":
         valid = node.type in ("true", "false") and node.is_named
-    elif grammar in ("rust", "csharp"):
+    elif grammar in ("rust", "csharp", "kotlin"):
         valid = node.parent is not None and node.parent.type == "boolean_literal"
-    elif grammar == "kotlin":
-        valid = node.type == "identifier" and text in ("true", "false")
     else:
         valid = node.type in ("true", "false") and node.is_named
 
