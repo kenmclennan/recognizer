@@ -2,12 +2,12 @@
 
 ## Verdict
 
-**fix.** Every hand-computed metric (136 values over 17 folders) and 22 of the 23 labelled cases agree with the sensor, and the Python scanner's import graph matches grimp's once re-exports are accounted for; and the structure sensor's cycle, hubs and orphans over lightcycle's scan agree with grimp's graph (run by the driver after merge); but one real defect was found (a ring of three or more folders is not reported, REC-185). The sensor needs that `fix` before it is trusted for cycles.
+**pass.** Every hand-computed metric (160 values over 20 folders) and all 33 labelled cases agree with the sensor, and the Python scanner's import graph matched grimp's once re-exports were accounted for. Over lightcycle's current scan the sensor reports one cycle, two hubs, one orphan, two folder cycles and six unstable dependencies, each traceable to its imports. The two defects this report first found, rings of three or more folders (REC-185) and a source module named `test_*.py` skipped by the Python scanner (REC-195), are both fixed.
 
 ## Method
 
-- Recognizer commit `1dbb09c`; lightcycle commit `c1933e0`.
-- Corpus: `fixtures/structure/corpus/`, eight small hand-written descriptions of a scan (modules with their exported kinds, and edges) and `expected.json`. `check/test/structure-corpus.test.ts` expands each into a scan, runs `structureSensor` with only the warning under test on, and compares the finding ids and `evidence.measures` and the folder metric rows to the hand-computed values. Settings that turn warnings off are the test's, so each scan can only produce its own kind of finding.
+- Recognizer commit `7c0b0aa`; lightcycle commit `4f7b8a27` for the structure run. The grimp comparison below was last run at lightcycle `c1933e0` and is not re-run here; it compares the Python scanner's edges, which the structure changes since then did not touch.
+- Corpus: `fixtures/structure/corpus/`, fourteen small hand-written descriptions of a scan (modules with their exported kinds, and edges) and `expected.json`. `check/test/structure-corpus.test.ts` expands each into a scan, runs `structureSensor` with only the warning under test on, and compares the finding ids and `evidence.measures` and the folder metric rows to the hand-computed values. Settings that turn warnings off are the test's, so each scan can only produce its own kind of finding.
 - Reference tool: grimp 3.18 (`pydeps` was not needed, grimp loaded the package). The Python scanner is `scanners/python`.
 - Scripts: `validation/structure/folder-metrics.mjs` (prints the table below from `check/dist`, so run `npm run build -w recognizer` first) and `validation/structure/grimp_compare.py --repository <path> --package <name> [--source-root <dir>] --scanner "uv run --project scanners/python recognizer-scan-python"`, run with a Python that has grimp.
 
@@ -15,13 +15,13 @@
 
 ### Warnings against hand labels
 
-23 cases: 5 cycle, 3 hub, 4 folder cycle, 7 orphan, 4 stable dependencies. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the folder cycle against a one-way dependency and two nested folders; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability. Since sensor version 7 the stable-dependencies scans also have cases for a gap exactly on `instability_gap` and just under it, a folder named in `composition_roots` as the depending side and as the target, and a folder with only foreign imports, whose instability is unknown.
+33 cases: 5 cycle, 3 hub, 4 folder cycle, 9 orphan, 9 stable dependencies and 3 for declared child modules. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the folder cycle against a one-way dependency and two nested folders; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability. Since sensor version 7 the stable-dependencies scans also have cases for a gap exactly on `instability_gap` and just under it, a folder named in `composition_roots` as the depending side and as the target, and a folder with only foreign imports, whose instability is unknown.
 
-| result | count |
-| --- | --- |
-| cases that agree | 22 |
-| cases that disagree | 1 (the ring of three folders) |
-| findings the sensor produced that no label expects | 0 |
+| result                                             | count |
+| -------------------------------------------------- | ----- |
+| cases that agree                                   | 33    |
+| cases that disagree                                | 0     |
+| findings the sensor produced that no label expects | 0     |
 
 ### Folder metrics, hand-computed beside the sensor's
 
@@ -74,6 +74,10 @@ No one-sided edge is a `TYPE_CHECKING`, dynamic or relative import. Every one-si
 
 ### The structure sensor over lightcycle's scan
 
+Run by the driver on 2026-11-07 at lightcycle `4f7b8a27` (`recognizer scan` then `recognizer check`, with lightcycle's own `.recognizer/policy.yaml`): 12 warnings, of which 1 cycle (`application/feedback/retro.py` with `retro_scope.py`), 2 hubs (`adapters/tui/hub_render.py`, `application/flow/complete_step.py`), 1 orphan (`application/pool/no_op_gates.py`, imported only by tests), 2 folder cycles and 6 unstable dependencies. Since the run below, rings of folders are reported as one finding each, unstable dependencies skip parent and child folders, and pain-zone findings are gone, and lightcycle's policy ignores `tests/**`, which is why the counts fell.
+
+The earlier run, checked against grimp's graph:
+
 Run by the driver on 2026-11-03 over the same clean worktree (`recognizer check`, defaults): 90 warnings, of which 1 cycle, 2 hubs, 4 orphans, 17 folder cycles, 33 unstable dependencies and 22 of a kind since retired. Checked against grimp's graph (the shared edges plus grimp's own):
 
 | finding | sensor | grimp's graph | agrees |
@@ -89,11 +93,8 @@ The hub counts differ only by the re-export rule already classified above; the s
 
 | item | classification | note |
 | --- | --- | --- |
-| ring of three folders `ra -> rb -> rc -> ra`, no two modules cyclic | defect | `folderCycleFindings` reports only pairs of folders that import each other, and `analyse` reports only cycles of modules, so a ring of three or more folders returns no finding (`folder-cycle/ring-of-three-folders`, `known_defect` to be set to REC-185 by that fix) |
 | scanner and grimp differ on re-exported names | definitional | the scanner follows the name to its defining module by design; grimp reports the module imported |
-| `sensors/src/recognizer_sensors/mutation/record.py` imports `recognizer_sensors.mutation.test_files`; the scanner records an edge to `mutation/__init__.py`, grimp to `mutation/test_files.py` | defect (candidate, filed as REC-195 for a decision) | found by running `grimp_compare.py` on the recognizer sensors package; `test_files.py` is a source module whose name matches the scanner's skipped test-file glob `test_*.py`, so it is absent from the scan and the import falls back to the package |
 
 ## Defects to file
 
-1. **Folder cycles through three or more folders are not reported.** Where: `folderCycleFindings` in `check/src/structure-warnings.ts` and `analyse` in `check/src/analyse.ts`. Evidence: the corpus case `folder-cycle/ring-of-three-folders` (six modules, edges `ra/x.ts -> rb/x.ts`, `rb/y.ts -> rc/x.ts`, `rc/y.ts -> ra/y.ts`), run at `1dbb09c`. Suggested size: small to medium (find strongly connected components of the folder graph, then clear the case's `known_defect`). Filed: REC-185.
-2. **A source module named `test_*.py` is skipped by the Python scanner.** Where: the scan selection's `skip_file_globs` (`test_*.py`) as applied by `scanners/python`. Evidence: `sensors/src/recognizer_sensors/mutation/test_files.py` is not a test and is missing from the scan, so the import of it from `record.py` is attributed to the package `__init__.py`. Suggested size: small; the decision is whether to skip by name at all or only in test directories, which is a question for Ken. Filed: REC-195.
+None open. Folder cycles through three or more folders are reported since REC-185, and the Python scanner indexes a source module named `test_*.py` outside a tests directory since REC-195.
