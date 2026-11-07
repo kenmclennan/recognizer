@@ -1416,7 +1416,7 @@ describe("unused_exports", () => {
         unusedOf([expectFile, actualFile], [], [], null, [
           { from: "k/Expect.kt::helper", to: "k/Expect.kt::go" },
         ]),
-      ).toEqual({ "k/Expect.kt": ["go", "helper"] });
+      ).toEqual({ "k/Expect.kt": ["helper"] });
     });
 
     it("clears an actual member whose expect member an edge names", () => {
@@ -1512,6 +1512,90 @@ describe("unused_exports", () => {
           [{ from: "k/Missing.kt::a", to: "k/Missing.kt::go" }],
         ),
       ).toHaveProperty("k/Expect.jvm.kt", ["go"]);
+    });
+  });
+
+  describe("expect files", () => {
+    const expectFile = { id: "k/Expect.kt", exports: ["go", "helper"] };
+    const actualFile = {
+      id: "k/Expect.jvm.kt",
+      exports: ["go"],
+      actual_of: ["k/Expect.kt"],
+    };
+    const called = [{ from: "k/Expect.kt::helper", to: "k/Expect.kt::go" }];
+
+    it("clears an expect member called from another member of its own file", () => {
+      expect(
+        unusedOf([expectFile, actualFile], [], [], null, called),
+      ).toHaveProperty("k/Expect.kt", ["helper"]);
+    });
+
+    it("reports an expect member with no call from another member or only a recursive call", () => {
+      expect(unusedOf([expectFile, actualFile])).toHaveProperty("k/Expect.kt", [
+        "go",
+        "helper",
+      ]);
+      expect(
+        unusedOf([expectFile, actualFile], [], [], null, [
+          { from: "k/Expect.kt::go", to: "k/Expect.kt::go" },
+        ]),
+      ).toHaveProperty("k/Expect.kt", ["go", "helper"]);
+    });
+
+    it("keeps a called ordinary member with no same-named actual and drops a file with every name cleared", () => {
+      const mixed = {
+        id: "k/Expect.kt",
+        exports: ["go", "plain"],
+      };
+
+      expect(
+        unusedOf([mixed, actualFile], [], [], null, [
+          { from: "k/Expect.kt::other", to: "k/Expect.kt::go" },
+          { from: "k/Expect.kt::other", to: "k/Expect.kt::plain" },
+        ]),
+      ).toHaveProperty("k/Expect.kt", ["plain"]);
+
+      const shared = { id: "k/Expect.kt", exports: ["go"] };
+
+      expect(
+        unusedOf([shared, actualFile], [], [], null, called),
+      ).not.toHaveProperty("k/Expect.kt");
+    });
+
+    it("counts nothing from an ignored or absent actual module", () => {
+      expect(
+        unusedOf(
+          [expectFile, actualFile],
+          [],
+          [],
+          "ignore:\n  - k/Expect.jvm.kt\n",
+          called,
+        ),
+      ).toHaveProperty("k/Expect.kt", ["go", "helper"]);
+      expect(unusedOf([expectFile], [], [], null, called)).toHaveProperty(
+        "k/Expect.kt",
+        ["go", "helper"],
+      );
+    });
+
+    it("clears the shared called members of an intermediate module and judges the rest as before", () => {
+      const middle = {
+        id: "k/Expect.mid.kt",
+        exports: ["go", "other"],
+        actual_of: ["k/Expect.kt"],
+      };
+      const leaf = {
+        id: "k/Expect.leaf.kt",
+        exports: ["go"],
+        actual_of: ["k/Expect.mid.kt"],
+      };
+
+      expect(
+        unusedOf([expectFile, middle, leaf], [], [], null, [
+          { from: "k/Expect.kt::helper", to: "k/Expect.kt::go" },
+          { from: "k/Expect.mid.kt::other", to: "k/Expect.mid.kt::go" },
+        ]),
+      ).toEqual({ "k/Expect.kt": ["helper"], "k/Expect.mid.kt": ["other"] });
     });
   });
 
