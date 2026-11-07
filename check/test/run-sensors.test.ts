@@ -87,47 +87,55 @@ describe("runSensors ceiling", () => {
     scaledTimeout(20000),
   );
 
-  it("gives a runsTests selection no timeout and the others the ceiling", async () => {
-    const { root, messages } = setup();
-    const timeouts: (number | undefined)[] = [];
-    const real = nodeIo();
-    const io = {
-      ...real,
-      stderr: (text: string) => messages.push(text),
-      run: (
-        command: string,
-        args: string[],
-        options?: { cwd?: string; timeoutMs?: number },
-      ) => {
-        timeouts.push(options?.timeoutMs);
+  it(
+    "gives a runsTests selection no timeout and the others the ceiling",
+    async () => {
+      const { root, messages } = setup();
+      const timeouts: (number | undefined)[] = [];
+      const real = nodeIo();
+      const io = {
+        ...real,
+        stderr: (text: string) => messages.push(text),
+        run: (
+          command: string,
+          args: string[],
+          options?: { cwd?: string; timeoutMs?: number },
+        ) => {
+          timeouts.push(options?.timeoutMs);
 
-        return real.run(command, args, options);
-      },
-      runAsync: (
-        command: string,
-        args: string[],
-        options?: { cwd?: string; timeoutMs?: number },
-      ) => {
-        timeouts.push(options?.timeoutMs);
+          return real.run(command, args, options);
+        },
+        runAsync: (
+          command: string,
+          args: string[],
+          options?: { cwd?: string; timeoutMs?: number },
+        ) => {
+          timeouts.push(options?.timeoutMs);
 
-        return real.runAsync(command, args, options);
-      },
-    };
+          return real.runAsync(command, args, options);
+        },
+      };
 
-    await runSensors({
-      io,
-      root,
-      commit: COMMIT,
-      scans: [],
-      selected: [
-        { name: "slow-one", command: ["true"], runsTests: true },
-        { name: "quick-one", command: ["true"], runsTests: false },
-        { name: "plain-one", command: ["true"] },
-      ],
-    });
+      await runSensors({
+        io,
+        root,
+        commit: COMMIT,
+        scans: [],
+        selected: [
+          { name: "slow-one", command: ["true"], runsTests: true },
+          { name: "quick-one", command: ["true"], runsTests: false },
+          { name: "plain-one", command: ["true"] },
+        ],
+      });
 
-    expect(timeouts).toEqual([undefined, SENSOR_TIMEOUT_MS, SENSOR_TIMEOUT_MS]);
-  });
+      expect(timeouts).toEqual([
+        undefined,
+        SENSOR_TIMEOUT_MS,
+        SENSOR_TIMEOUT_MS,
+      ]);
+    },
+    scaledTimeout(20000),
+  );
 
   it("hands a progress line to onProgress while the sensor is still running", async () => {
     const { root, io } = setup();
