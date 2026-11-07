@@ -16,7 +16,12 @@ import {
   NOTE_MARK_SIZE,
   toElk,
 } from "./canvas-layout";
-import { BAR_BOTTOM_PAD, BAR_MIN_BOX_WIDTH, BAR_ROW } from "./metric-bars";
+import {
+  BAR_BOTTOM_PAD,
+  BAR_MIN_BOX_WIDTH,
+  BAR_ROW,
+  SOURCES_GAP,
+} from "./metric-bars";
 
 const elk = new ELK();
 const measure = (text: string) => text.length * 7;
@@ -196,6 +201,25 @@ describe("metric bar rows", () => {
 
     expect(byId({ "a/x.py": 1 }, "a/x.py")?.height).toBe(60);
     expect(byId({ b: 2 }, "b", ["b"])?.height).toBe(FOLDER_BOX_HEIGHT);
+  });
+
+  it("grows a box by 6px only when it draws a sources line", () => {
+    const heightOf = (sourced: string[]) =>
+      (
+        toElk(
+          graphOf(),
+          measure,
+          new Set(),
+          new Map([["a/x.py", 3]]),
+          new Set(sourced),
+        ).children ?? []
+      )
+        .flatMap((node) => [node, ...(node.children ?? [])])
+        .find((node) => node.id === "a/x.py")?.height as number;
+
+    expect(SOURCES_GAP).toBe(6);
+    expect(heightOf(["a/x.py"]) - heightOf([])).toBe(6);
+    expect(heightOf(["b/y.py"])).toBe(heightOf([]));
   });
 
   it("sizes each box by its own row count in one call", () => {

@@ -1,6 +1,6 @@
 import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api";
 import { boxSubline, type CanvasGraph, frameFigure } from "./canvas-graph";
-import { BAR_BOTTOM_PAD, BAR_ROW, barWidth } from "./metric-bars";
+import { BAR_BOTTOM_PAD, BAR_ROW, barWidth, SOURCES_GAP } from "./metric-bars";
 
 export const BOX_HEIGHT = 40;
 export const FOLDER_BOX_HEIGHT = 50;
@@ -64,6 +64,7 @@ export function toElk(
   measure: Measure,
   noted: ReadonlySet<string> = new Set(),
   barRows: ReadonlyMap<string, number> = new Map(),
+  sourced: ReadonlySet<string> = new Set(),
 ): ElkNode {
   const nodes = new Map<string, ElkNode>();
 
@@ -120,7 +121,10 @@ export function toElk(
         box.kind === "folder"
           ? FOLDER_BOX_HEIGHT
           : rows > 0
-            ? BOX_HEIGHT + rows * BAR_ROW + BAR_BOTTOM_PAD
+            ? BOX_HEIGHT +
+              rows * BAR_ROW +
+              BAR_BOTTOM_PAD +
+              (sourced.has(box.id) ? SOURCES_GAP : 0)
             : BOX_HEIGHT,
     });
   }
