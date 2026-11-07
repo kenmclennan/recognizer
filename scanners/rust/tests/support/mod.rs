@@ -129,6 +129,7 @@ pub fn edges(document: &Value) -> Vec<String> {
                 match edge["kind"].as_str().unwrap() {
                     "depends" => "->",
                     "implements" => "=>",
+                    "declares" => "~>",
                     other => other,
                 },
                 edge["to"].as_str().unwrap()

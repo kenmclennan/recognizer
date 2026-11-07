@@ -227,7 +227,7 @@ def scan(
     calls = CallResolver(parsed, classes, outlines, index, router).scan_calls()
 
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modified": modified,

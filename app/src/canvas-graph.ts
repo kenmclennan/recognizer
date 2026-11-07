@@ -1,4 +1,5 @@
 import {
+  dependencyEdges,
   folderCounts,
   type Ghost,
   lastSegment,
@@ -101,7 +102,7 @@ function styleOf(
 
 export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const known = new Set(input.modules);
-  const allEdges = input.scans.flatMap((scan) => scan.edges);
+  const allEdges = input.scans.flatMap((scan) => dependencyEdges(scan.edges));
   const members = new Map<string, Map<string, boolean>>();
 
   for (const scan of input.scans) {

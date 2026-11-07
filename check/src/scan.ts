@@ -6,7 +6,7 @@ import schema from "./generated/scan.schema.json" with { type: "json" };
 export interface ScanEdge {
   from: string;
   to: string;
-  kind: "depends" | "inherits" | "implements";
+  kind: "depends" | "declares" | "inherits" | "implements";
   line: number;
   names?: string[];
   via?: string[];

@@ -32,13 +32,13 @@ fn the_fixture_holds_every_relationship_the_design_lists() {
     let ports = "shop/src/ports/mod.rs";
     let orders = "shop/src/orders.rs";
 
-    assert_has(&document, &format!("{lib} -> {orders}"));
-    assert_has(&document, &format!("{lib} -> {ports}"));
-    assert_has(&document, &format!("{lib} -> shop/src/adapters.rs"));
-    assert_has(&document, &format!("{ports} -> shop/src/ports/memory.rs"));
+    assert_has(&document, &format!("{lib} ~> {orders}"));
+    assert_has(&document, &format!("{lib} ~> {ports}"));
+    assert_has(&document, &format!("{lib} ~> shop/src/adapters.rs"));
+    assert_has(&document, &format!("{ports} ~> shop/src/ports/memory.rs"));
     assert_has(
         &document,
-        "shop/src/adapters.rs -> shop/src/adapters/sql.rs",
+        "shop/src/adapters.rs ~> shop/src/adapters/sql.rs",
     );
     assert_has(
         &document,

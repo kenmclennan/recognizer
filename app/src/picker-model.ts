@@ -1,4 +1,5 @@
 import {
+  dependencyEdges,
   edgeNames,
   folderOf,
   folderUsedBy,
@@ -64,7 +65,7 @@ const compare = (a: string, b: string) => a.localeCompare(b);
 
 export function createPicker(input: PickerInput): PickerModel {
   const { source, onCanvas } = input;
-  const allEdges = input.scans.flatMap((scan) => scan.edges);
+  const allEdges = input.scans.flatMap((scan) => dependencyEdges(scan.edges));
   const filter = input.filter.trim().toLowerCase();
 
   const withGroup = (rows: NeighbourRow[]): RawRow[] =>

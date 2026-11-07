@@ -50,7 +50,7 @@ interface ScanDescription {
     exports: string[];
     entry_point?: true;
   }[];
-  edges: [string, string][];
+  edges: ([string, string] | [string, string, "declares"])[];
 }
 
 const expected = JSON.parse(
@@ -73,7 +73,7 @@ function scanFrom(description: ScanDescription): Scan {
   ];
 
   return {
-    schema_version: 6,
+    schema_version: 7,
     scanner: { name: "hand-written", version: "0" },
     commit: null,
     modified: false,
@@ -103,10 +103,10 @@ function scanFrom(description: ScanDescription): Scan {
           : { name: `m${index}`, exported: true, kind, line: index + 1 },
       ),
     })),
-    edges: description.edges.map(([from, to], index) => ({
+    edges: description.edges.map(([from, to, kind], index) => ({
       from,
       to,
-      kind: "depends",
+      kind: kind ?? "depends",
       line: index + 1,
     })),
     foreign: foreign.map((id) => ({ id, name: id.slice(8) })),
@@ -158,8 +158,8 @@ function label(one: Case): string {
 }
 
 describe("structure corpus", () => {
-  it("holds 30 labelled cases and 20 folder metric rows", () => {
-    expect(expected.cases).toHaveLength(30);
+  it("holds 33 labelled cases and 20 folder metric rows", () => {
+    expect(expected.cases).toHaveLength(33);
     expect(expected.folder_metrics).toHaveLength(20);
   });
 

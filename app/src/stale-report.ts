@@ -1,4 +1,5 @@
 import {
+  dependencyEdges,
   moduleNames,
   resolveView,
   type Scan,
@@ -45,7 +46,7 @@ function edgesOf(scans: Scan[]): Map<string, EdgeKey> {
   const edges = new Map<string, EdgeKey>();
 
   for (const scan of scans) {
-    for (const { from, to, kind } of scan.edges) {
+    for (const { from, to, kind } of dependencyEdges(scan.edges)) {
       edges.set(keyOf({ from, to, kind }), { from, to, kind });
     }
   }

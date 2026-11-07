@@ -18,7 +18,7 @@ A crate is a Cargo package's library or binary target. Every `Cargo.toml` with a
 
 ## Edges
 
-- **Module tree.** From each crate root, every `mod name;` names a child file: `<dir>/name.rs` then `<dir>/name/mod.rs`, under the directory of a root or `mod.rs` file, or under `<dir>/<stem>/` for any other file. `#[path]` is honoured. A `mod name;` makes a `depends` edge; an inline `mod name { }` makes none.
+- **Module tree.** From each crate root, every `mod name;` names a child file: `<dir>/name.rs` then `<dir>/name/mod.rs`, under the directory of a root or `mod.rs` file, or under `<dir>/<stem>/` for any other file. `#[path]` is honoured. A `mod name;` makes a `declares` edge, which keeps the child reached for the orphan check and is not a dependency; an inline `mod name { }` makes none. A `use` of the child stays a `depends` edge.
 - **Use paths.** Each leaf of a `use` tree is resolved from `crate`, `self`, `super`, `::dep`, an in-repo dependency, or a child module of the current module. A module leaf makes an edge with no `names`; an item leaf makes one whose `names` holds the item. A glob makes an edge with no `names`.
 - **Re-exports.** A path that arrives at a file where the next name is brought in by a `pub use` is followed to the defining module, and each file passed through is recorded in `via`, in order. A cycle, or a chain deeper than 16, stops at the last file reached.
 - **Foreign.** A first segment naming `std`, `core`, `alloc` or a foreign dependency makes an edge to `foreign:<name>`. A first segment that resolves to nothing makes no edge.

@@ -280,7 +280,7 @@ pub fn scan(
                 edges.push(Edge {
                     from: id.clone(),
                     to: paths[child].clone(),
-                    kind: "depends",
+                    kind: "declares",
                     line: declaration.line,
                     member: None,
                     to_member: None,
@@ -367,7 +367,7 @@ pub fn scan(
     edges.sort_by_key(Edge::order);
 
     let document = json!({
-        "schema_version": 6,
+        "schema_version": 7,
         "scanner": {"name": SCANNER_NAME, "version": env!("CARGO_PKG_VERSION")},
         "commit": commit,
         "modified": modified,

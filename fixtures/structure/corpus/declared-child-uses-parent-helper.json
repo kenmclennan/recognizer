@@ -1,0 +1,29 @@
+{
+  "settings": {
+    "warnings": {
+      "folder_cycle": true
+    }
+  },
+  "modules": [
+    {
+      "id": "src/lib.rs",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "src/helper.rs",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "src/sub/mod.rs",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [
+    ["src/lib.rs", "src/helper.rs", "declares"],
+    ["src/lib.rs", "src/sub/mod.rs", "declares"],
+    ["src/sub/mod.rs", "src/helper.rs"]
+  ]
+}

@@ -11,7 +11,7 @@ function scanOf(description) {
   const foreign = [...new Set(description.edges.map(([, to]) => to).filter((to) => to.startsWith("foreign:")))];
 
   return {
-    schema_version: 6,
+    schema_version: 7,
     scanner: { name: "hand-written", version: "0" },
     commit: null,
     modified: false,

@@ -1,0 +1,26 @@
+{
+  "settings": {
+    "warnings": {
+      "orphan": true
+    }
+  },
+  "modules": [
+    {
+      "id": "c/lib.rs",
+      "kind": "module",
+      "exports": [],
+      "entry_point": true
+    },
+    {
+      "id": "c/child.rs",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "c/stray.rs",
+      "kind": "module",
+      "exports": []
+    }
+  ],
+  "edges": [["c/lib.rs", "c/child.rs", "declares"]]
+}

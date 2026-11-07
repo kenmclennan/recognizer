@@ -264,7 +264,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 1");
-    expect(err).toContain("accepts 6");
+    expect(err).toContain("accepts 7");
   });
 
   it("refuses a version-2 scan naming both versions", async () => {
@@ -274,7 +274,7 @@ describe("recognizer scan: outcomes", () => {
     });
 
     expect(err).toContain("schema_version 2");
-    expect(err).toContain("accepts 6");
+    expect(err).toContain("accepts 7");
   });
 
   it("carries the scanner's stderr", async () => {

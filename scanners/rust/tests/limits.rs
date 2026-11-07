@@ -19,7 +19,7 @@ fn a_path_expression_with_no_use_gives_no_edge() {
     ];
     let document = run(&files);
 
-    assert_eq!(edges(&document), vec!["src/lib.rs -> src/a.rs".to_string()]);
+    assert_eq!(edges(&document), vec!["src/lib.rs ~> src/a.rs".to_string()]);
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn a_cfg_gated_mod_is_read_as_written() {
         ("src/gated.rs", "pub struct G;\n"),
     ]);
 
-    assert_has(&document, "src/lib.rs -> src/gated.rs");
+    assert_has(&document, "src/lib.rs ~> src/gated.rs");
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn macro_bodies_are_not_read() {
         ("src/a.rs", ""),
     ]);
 
-    assert_eq!(edges(&document), vec!["src/lib.rs -> src/a.rs".to_string()]);
+    assert_eq!(edges(&document), vec!["src/lib.rs ~> src/a.rs".to_string()]);
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn use_items_inside_function_bodies_are_not_read() {
         ("src/a.rs", "pub struct X;\n"),
     ]);
 
-    assert_eq!(edges(&document), vec!["src/lib.rs -> src/a.rs".to_string()]);
+    assert_eq!(edges(&document), vec!["src/lib.rs ~> src/a.rs".to_string()]);
 }
 
 #[test]

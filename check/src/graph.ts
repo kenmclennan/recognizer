@@ -7,6 +7,12 @@ export function isForeign(id: string): boolean {
   return id.startsWith(FOREIGN_PREFIX);
 }
 
+export function dependencyEdges<T extends { kind: string }>(
+  edges: readonly T[],
+): T[] {
+  return edges.filter((edge) => edge.kind !== "declares");
+}
+
 export function keptGraph(scan: Scan, ignore: Matcher[]) {
   const dropped = (id: string) => !isForeign(id) && matchesAny(ignore, id);
 
@@ -18,10 +24,12 @@ export function keptGraph(scan: Scan, ignore: Matcher[]) {
     }
   }
 
-  const edges: ScanEdge[] = scan.edges.filter(
+  const kept: ScanEdge[] = scan.edges.filter(
     (edge) =>
       edge.inferred === undefined && !dropped(edge.from) && !dropped(edge.to),
   );
+  const edges = dependencyEdges(kept);
+  const declarations = kept.filter((edge) => edge.kind === "declares");
 
   for (const edge of edges) {
     ids.add(edge.from);
@@ -31,5 +39,5 @@ export function keptGraph(scan: Scan, ignore: Matcher[]) {
     }
   }
 
-  return { edges, ids };
+  return { edges, declarations, ids };
 }
