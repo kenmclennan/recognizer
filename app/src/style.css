@@ -1939,18 +1939,62 @@ svg.i.chevron {
 .settings form {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+
+.settings .section {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
-.settings label {
+.settings .section-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings .group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.settings .setting {
+  position: relative;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.settings .setting + .setting {
+  border-top: 1px solid var(--line);
+}
+
+.settings .row-name {
   display: flex;
-  flex-direction: column;
   gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.settings .row-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  min-width: 0;
 }
 
 .settings input {
+  box-sizing: border-box;
   padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1960,37 +2004,65 @@ svg.i.chevron {
   font-weight: 400;
 }
 
-.settings .describing {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
+.settings input:not(.narrow) {
+  flex: 1 1 100%;
+}
+
+.settings input.narrow {
+  width: 84px;
+}
+
+.settings .unit {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.settings .setting-info {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
   padding: 0;
   border: 0;
+  background: transparent;
+  color: var(--faint);
+  cursor: help;
 }
 
-.settings .describing legend {
-  padding: 0;
-  margin-bottom: 4px;
-  font-size: 13px;
-  font-weight: 600;
+.setting-info .i {
+  width: 14px;
+  height: 14px;
 }
 
-.settings .describing-fields {
-  display: flex;
-  gap: 12px;
+.settings .setting-info:hover,
+.settings .setting-info:focus {
+  color: var(--sel);
 }
 
-.settings .describing-fields label:first-child {
-  flex: 1;
+.settings .setting-tip {
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  left: 12px;
+  z-index: 5;
+  display: none;
+  padding: 8px 10px;
+  border: 1px solid var(--boxline);
+  border-radius: 8px;
+  background: var(--box);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: normal;
 }
 
-.settings .describing-fields label:last-child {
-  width: 110px;
+.settings .setting-info:hover + .setting-tip,
+.settings .setting-info:focus + .setting-tip {
+  display: block;
 }
 
 .settings .hint {
-  margin: 0 0 8px;
+  flex: 1 1 100%;
+  margin: 0;
   font-size: 12px;
   color: var(--muted);
 }

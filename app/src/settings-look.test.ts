@@ -21,11 +21,13 @@ const facts = {};
 
 view.fill({ editor: "", describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 } });
 facts.empty = {
-  labels: [...host.querySelectorAll("label > span")].map((n) => n.textContent),
+  labels: [...host.querySelectorAll(".row-label")].map((n) => n.textContent),
+  sections: [...host.querySelectorAll(".section-label")].map((n) => n.textContent),
+  tips: [...host.querySelectorAll(".setting-tip")].map((n) => n.textContent),
+  units: [...host.querySelectorAll(".unit")].map((n) => n.textContent),
   placeholders: [...host.querySelectorAll('input[type="text"]')].map((n) => n.placeholder),
   values: [...host.querySelectorAll('input[type="text"]')].map((n) => n.value),
   batch: { value: q('input[name="batch_size"]').value, min: q('input[name="batch_size"]').min, max: q('input[name="batch_size"]').max, step: q('input[name="batch_size"]').step },
-  describingLegend: q(".describing legend").textContent,
   scanning: host.querySelector(".scanning, input[type=checkbox]") !== null,
   hints: [...host.querySelectorAll(".hint")].map((n) => n.textContent),
   buttons: [...host.querySelectorAll(".buttons button")].map((n) => n.textContent),
@@ -60,15 +62,34 @@ facts.twoLineErrorHeight = Math.round(q(".error").getBoundingClientRect().height
 const save = q('.buttons button[type="submit"]').getBoundingClientRect();
 facts.saveBottom = Math.round(save.bottom - host.getBoundingClientRect().top);
 facts.saveBottomRaw = save.bottom - host.getBoundingClientRect().top;
+const controls = [...host.querySelectorAll("input")];
+const labels = [...host.querySelectorAll(".row-label")];
 facts.layout = {
-  display: cs(q("form")).display,
-  inputWidth: Math.round(q('input[type="text"]').getBoundingClientRect().width),
+  controlLefts: controls.map((n) => Math.round(n.getBoundingClientRect().left)),
+  labelWraps: labels.map((n) => n.getBoundingClientRect().height > parseFloat(cs(n).lineHeight) * 1.5 || n.scrollWidth > n.clientWidth),
+  labelRights: labels.map((n) => Math.round(n.getBoundingClientRect().right)),
+  rowTops: [...host.querySelectorAll(".setting")].map((n) => Math.round(n.getBoundingClientRect().top)),
+  controlTops: controls.map((n) => n.getBoundingClientRect().top - n.closest(".setting").getBoundingClientRect().top),
+  rowHeights: [...host.querySelectorAll(".setting")].map((n) => n.getBoundingClientRect().height),
+  textWidth: Math.round(q('input[name="editor"]').getBoundingClientRect().width),
+  modelWidth: Math.round(q('input[name="model"]').getBoundingClientRect().width),
+  batchWidth: Math.round(q('input[name="batch_size"]').getBoundingClientRect().width),
+  units: [...host.querySelectorAll(".unit")].map((n) => { const i = n.previousElementSibling.getBoundingClientRect(); const u = n.getBoundingClientRect(); return { sameLine: Math.abs((u.top + u.bottom) / 2 - (i.top + i.bottom) / 2) < 6, after: u.left >= i.right }; }),
+  tipHidden: cs(q(".setting-tip")).display,
+  info: host.querySelectorAll(".setting-info svg").length,
+  sectionLabel: { transform: cs(q(".section-label")).textTransform, color: cs(q(".section-label")).color },
 };
-
 const box = (node) => { const r = node.getBoundingClientRect(); return { name: node.tagName + "." + node.className, top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
 const stack = (parent) => [...parent.children].map(box);
-facts.stacks = [stack(q("form")), stack(q(".describing"))];
-facts.nested = [q(".describing"), q(".describing-fields")].map((parent) => ({ parent: box(parent), children: stack(parent) }));
+facts.stacks = [stack(q("form")), ...[...host.querySelectorAll(".group")].map(stack)];
+facts.covers = [...host.querySelectorAll(".setting")].map((row) => {
+  const r = row.getBoundingClientRect();
+  const parts = [...row.querySelectorAll("label, input, .unit, .hint, .setting-info")].map((n) => n.getBoundingClientRect());
+  return { height: r.height, coversContents: parts.every((p) => p.top >= r.top - 0.5 && p.bottom <= r.bottom + 0.5), cursor: cs(row).cursor, nowrap: cs(row).whiteSpace };
+});
+facts.nested = [...host.querySelectorAll(".group")].map((parent) => ({ parent: box(parent), children: stack(parent) }));
+q(".setting-info").focus();
+facts.tipShown = cs(q(".setting-tip")).display;
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
 
@@ -87,12 +108,13 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
     f = await collectFacts<Facts>(HARNESS, "settings-look");
   }, scaledTimeout(180000));
 
-  it("shows the editor field and a Describing section with its placeholders, hints and buttons and no Scanning section", () => {
+  it("shows an Editor and a Describing section with their labels, units, one hint and buttons", () => {
+    expect(f.empty.sections).toEqual(["Editor", "Describing"]);
     expect(f.empty.labels).toEqual([
-      "Editor",
+      "Open files in",
       "Model",
       "Batch size",
-      "Confirm above (USD)",
+      "Ask above",
     ]);
     expect(f.empty.scanning).toBe(false);
     expect(f.empty.placeholders).toEqual(["System default", "haiku"]);
@@ -103,19 +125,21 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
       max: "16",
       step: "1",
     });
-    expect(f.empty.describingLegend).toBe("Describing");
-    expect(f.empty.hints[0]).toContain("Sublime Text");
-    expect(f.empty.hints[0]).toContain("Terminal editors are not supported");
-    expect(f.empty.hints).toHaveLength(3);
-    expect(f.empty.hints[1]).toContain(
-      "how many modules are described at once",
-    );
-    expect(f.empty.hints[1]).toContain("from a terminal");
-    expect(f.empty.hints[2]).toBe(
-      "A scan asks before describing when its API-equivalent estimate is above this.",
-    );
+    expect(f.empty.hints).toEqual(["An app name or a command"]);
+    expect(f.empty.units).toEqual(["modules at a time", "USD per scan"]);
     expect(f.empty.buttons).toEqual(["Cancel", "Save"]);
     expect(f.empty.error).toBe("");
+  });
+
+  it("puts the long explanations behind info icons", () => {
+    expect(f.empty.tips).toEqual([
+      "An app name such as Sublime Text, or a command such as code -g {file}:{line}. Without {file} and {line} the file opens at the top. Terminal editors are not supported.",
+      "The model every description uses, for scans started from the app and from a terminal.",
+      "A scan asks before describing when its estimated cost, at API prices, is above this.",
+    ]);
+    expect(f.layout.info).toBe(3);
+    expect(f.layout.tipHidden).toBe("none");
+    expect(f.tipShown).toBe("block");
   });
 
   it("fills the fields from the loaded settings", () => {
@@ -145,9 +169,22 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
     expect(f.cancels).toBe(1);
   });
 
-  it("lays the form out as a column of full-width fields", () => {
-    expect(f.layout.display).toBe("flex");
-    expect(f.layout.inputWidth).toBeGreaterThan(300);
+  it("starts every control on one left edge and wraps no label", () => {
+    expect(new Set(f.layout.controlLefts).size).toBe(1);
+    expect(f.layout.labelWraps).toEqual([false, false, false, false]);
+  });
+
+  it("sizes the fields: text fields wide, number fields narrow with their unit after them on the same line", () => {
+    expect(f.layout.textWidth).toBeGreaterThan(250);
+    expect(f.layout.modelWidth).toBe(f.layout.textWidth);
+    expect(f.layout.batchWidth).toBeLessThan(f.layout.textWidth / 2);
+    for (const unit of f.layout.units) {
+      expect(unit).toEqual({ sameLine: true, after: true });
+    }
+  });
+
+  it("styles a section label as small uppercase muted text", () => {
+    expect(f.layout.sectionLabel.transform).toBe("uppercase");
   });
 
   it("stacks each section's parts one below the next without overlap", () => {
@@ -161,7 +198,7 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
     }
   });
 
-  it("keeps the Describing parts inside the section and its row", () => {
+  it("keeps each row inside its group, and the group's border encloses the rows' contents", () => {
     for (const { parent, children } of f.nested) {
       for (const child of children) {
         expect(
@@ -173,6 +210,14 @@ describe.skipIf(webkit === undefined)("the settings window", () => {
           `${child.name} below ${parent.name}`,
         ).toBeLessThanOrEqual(parent.bottom + 0.5);
       }
+    }
+  });
+
+  it("sizes each setting row to cover its contents and applies no tree-row style", () => {
+    for (const cover of f.covers) {
+      expect(cover.coversContents).toBe(true);
+      expect(cover.height).toBeGreaterThan(26);
+      expect(cover.cursor).not.toBe("pointer");
     }
   });
 
