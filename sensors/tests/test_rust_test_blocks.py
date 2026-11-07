@@ -204,14 +204,25 @@ def test_a_file_reached_from_a_non_mod_file_resolves_under_its_stem_directory(tm
     assert entries_of(tmp_path, files) == ["src/outer.rs#0", "src/outer/inner.rs#file"]
 
 
-def test_two_files_of_one_module_name_are_both_included(tmp_path):
+def test_only_the_resolved_file_of_a_module_name_is_included(tmp_path):
     files = {
         "src/lib.rs": "#[cfg(test)]\nmod x;\n",
         "src/x.rs": "fn a() {}\n",
         "src/deep/x.rs": "fn b() {}\n",
     }
 
-    assert entries_of(tmp_path, files) == ["src/deep/x.rs#file", "src/lib.rs#0", "src/x.rs#file"]
+    assert entries_of(tmp_path, files) == ["src/lib.rs#0", "src/x.rs#file"]
+
+
+def test_a_declared_file_brings_its_descendants_and_not_a_same_named_file(tmp_path):
+    files = {
+        "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+        "src/t.rs": "mod u;\n",
+        "src/t/u.rs": "fn a() {}\n",
+        "src/a/t.rs": "fn b() {}\n",
+    }
+
+    assert entries_of(tmp_path, files) == ["src/lib.rs#0", "src/t.rs#file", "src/t/u.rs#file"]
 
 
 def test_real_content_has_one_entry_per_file_with_a_cfg_test_line():
@@ -249,6 +260,27 @@ def test_real_content_has_one_entry_per_file_with_a_cfg_test_line():
 GATE_CASES = json.loads(
     (Path(__file__).parents[2] / "fixtures" / "rust-test-gate" / "cases.json").read_text()
 )
+
+
+FILE_CASES = json.loads(
+    (Path(__file__).parents[2] / "fixtures" / "rust-test-gate" / "file-cases.json").read_text()
+)
+
+
+def test_the_file_case_table_is_read():
+    assert len(FILE_CASES) > 15
+
+
+@pytest.mark.parametrize("case", FILE_CASES, ids=[c["name"] for c in FILE_CASES])
+def test_the_test_files_follow_the_shared_file_cases(tmp_path, case):
+    files = case["files"]
+    found = {
+        key.removesuffix("#file")
+        for key in in_file_test_hashes(repository(tmp_path, files), list(files))
+        if key.endswith("#file")
+    }
+
+    assert found == set(case["test_files"])
 
 
 def test_the_test_gate_table_is_read():
