@@ -1583,21 +1583,6 @@ svg.i.chevron {
   visibility: visible;
 }
 
-.dep-legend {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-top: 12px;
-  color: var(--faint);
-  font-size: 11px;
-}
-
-.dep-legend svg.i {
-  width: 13px;
-  height: 13px;
-  color: var(--sel);
-}
-
 .ifilter {
   box-sizing: border-box;
   width: 100%;

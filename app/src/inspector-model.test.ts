@@ -1203,7 +1203,7 @@ describe("dependencies tab", () => {
       direction: "usedBy",
       caption: "these import hub.py",
     });
-    expect(list[3]).toMatchObject({ kind: "legend" });
+    expect(list.map((row) => row.kind)).not.toContain("legend");
   });
 
   it("lists the modules a module uses under folder headings with their full path, then the module rows", () => {
