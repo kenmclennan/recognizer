@@ -8,18 +8,22 @@ import {
 } from "recognizer";
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
+import {
+  buildFreshnessModel,
+  type FreshnessModel,
+  type ResultState,
+  STRUCTURE_KEY,
+  type StateText,
+  stateText,
+} from "./freshness-model";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
-  type FreshnessReport,
-  freshnessReport,
-  freshnessScope,
-  gapOf,
+  DESCRIBE_KEY,
+  MUTATION_KEY,
   markStale,
   type PlannedRun,
   planFor,
   type ResultsMode,
-  type SensorFreshness,
-  sensorFreshness,
 } from "./scan-freshness";
 import {
   type DescribeAsk,
@@ -27,6 +31,7 @@ import {
   type DescribeStop,
   describeAskText,
   describeStopText,
+  type SensorProgress,
 } from "./scan-progress";
 import { type ScanWhy, whyOf } from "./scan-why";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
@@ -47,7 +52,7 @@ export const NO_RUN: RunState = {
   ranAt: {},
 };
 
-export const DESCRIBE_KEY = "describe";
+export { DESCRIBE_KEY, MUTATION_KEY };
 
 export type ScanTicks = {
   describe: boolean;
@@ -62,8 +67,6 @@ export type ScanPlan = {
   sense: string[];
   modules: string[] | null;
 };
-
-export const MUTATION_KEY = "mutation";
 
 export type PanelView = { name: string | null; modules: string[] };
 
@@ -91,20 +94,22 @@ export type PanelInput = {
   describeStop?: DescribeStop | null;
   describeAsk?: DescribeAsk | null;
   describeSkipped?: boolean;
+  sensorProgress?: SensorProgress | null;
+  extracting?: boolean;
+  runModules?: number;
   now: number;
   shipped: ShippedSensors | null;
   freshness?: Freshness;
 };
 
-export type StateTone = "muted" | "ok" | "warn" | "bad" | "run" | "size";
-
 export type ScanRow = {
   key: string;
   name: string;
-  tickable: true;
+  tickable: boolean;
   ticked: boolean;
   disabled: boolean;
-  state: { text: string; tone: StateTone };
+  state: ResultState;
+  text: StateText;
   note: string | null;
   why: ScanWhy | null;
   title: string;
@@ -118,13 +123,13 @@ export type ReportRow = {
 };
 
 export type ScanPanelModel = {
-  header: { text: string; changed: string | null };
+  header: { text: string; moved: string | null };
   scope: { caption: string; on: boolean; disabled: boolean } | null;
-  mode: { value: ResultsMode; disabled: boolean };
-  report: FreshnessReport | null;
+  freshness: FreshnessModel;
   rows: ScanRow[];
   reports: ReportRow[];
   button: { scanning: boolean; label: string; disabled: boolean };
+  secondary: FreshnessModel["action"]["secondary"];
   planned: PlannedRun | null;
   pending: boolean;
   mark: boolean;
@@ -219,24 +224,6 @@ export function phasesFor(
   };
 }
 
-export function lineCounts(lines: PanelInput["lines"]) {
-  const counts = { current: 0, outOfDate: 0, missing: 0 };
-
-  for (const id of lines.modules) {
-    const kind = lines.of(id).kind;
-
-    if (kind === "current") {
-      counts.current += 1;
-    } else if (kind === "out-of-date") {
-      counts.outOfDate += 1;
-    } else if (kind === "missing") {
-      counts.missing += 1;
-    }
-  }
-
-  return counts;
-}
-
 export function functionCount(scans: Scan[], ids: string[] | null): number {
   const wanted = ids === null ? null : new Set(ids);
   let count = 0;
@@ -264,213 +251,8 @@ function scopedIds(input: PanelInput): string[] | null {
   return input.ticks.onlyView && input.view ? input.view.modules : null;
 }
 
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
-function withAge(text: string, at: number | null | undefined, now: number) {
-  return at === null || at === undefined
-    ? text
-    : `${text}, ${ageText(at, now)}`;
-}
-
-function runningText(key: string, input: PanelInput): string {
-  const describe = input.describeProgress ?? null;
-
-  return key === DESCRIBE_KEY && describe !== null
-    ? `${describe.entries} of ${describe.total}`
-    : "running";
-}
-
-function liveState(
-  key: string,
-  input: PanelInput,
-): { text: string; tone: StateTone } | null {
-  if (!input.scanning || !input.run.running.includes(key)) {
-    return null;
-  }
-
-  return input.run.started === key
-    ? { text: runningText(key, input), tone: "run" }
-    : { text: "waiting", tone: "muted" };
-}
-
-function describeState(input: PanelInput): ScanRow["state"] {
-  const live = liveState(DESCRIBE_KEY, input);
-
-  if (live !== null) {
-    return live;
-  }
-
-  const at = input.run.ranAt[DESCRIBE_KEY] ?? input.describedAt;
-
-  if (input.describeStop != null) {
-    return { text: "stopped", tone: "warn" };
-  }
-
-  if (input.describeSkipped === true) {
-    return { text: "skipped this scan", tone: "warn" };
-  }
-
-  if (input.run.failures[DESCRIBE_KEY] !== undefined) {
-    return {
-      text: withAge("failed", input.run.ranAt[DESCRIBE_KEY], input.now),
-      tone: "warn",
-    };
-  }
-
-  const counts = lineCounts({
-    modules: scopedIds(input) ?? input.lines.modules,
-    of: input.lines.of,
-  });
-  const stale = counts.outOfDate + counts.missing;
-
-  if (stale > 0) {
-    return { text: `${stale} to describe`, tone: "muted" };
-  }
-
-  if (counts.current + counts.outOfDate > 0) {
-    return {
-      text: withAge(
-        `${counts.current} ${counts.current === 1 ? "module" : "modules"} described`,
-        at,
-        input.now,
-      ),
-      tone: "ok",
-    };
-  }
-
-  return { text: "not yet run", tone: "muted" };
-}
-
-function mutationSize(input: PanelInput): ScanRow["state"] | null {
-  if (input.scanning || !input.ticks.once.includes(MUTATION_KEY)) {
-    return null;
-  }
-
-  const count = functionCount(input.scans ?? [], scopedIds(input));
-
-  return count > 0 ? { text: plural(count, "function"), tone: "size" } : null;
-}
-
-function sensorState(name: string, input: PanelInput): ScanRow["state"] {
-  const live = liveState(name, input);
-
-  if (live !== null) {
-    return live;
-  }
-
-  if (name === MUTATION_KEY) {
-    const size = mutationSize(input);
-
-    if (size !== null) {
-      return size;
-    }
-  }
-
-  const status = input.sensors.find((one) => one.name === name);
-
-  const refusal = input.run.diagnoses[name];
-
-  if (input.run.failures[name] !== undefined) {
-    if (refusal !== undefined) {
-      return {
-        text: withAge(
-          refusal.code === "tool-missing" ? "could not run" : "refused",
-          input.run.ranAt[name],
-          input.now,
-        ),
-        tone: "bad",
-      };
-    }
-
-    return {
-      text: withAge("failed", input.run.ranAt[name], input.now),
-      tone: "warn",
-    };
-  }
-
-  if (status?.refusal !== undefined) {
-    const at = status.modifiedMs ?? status.refusal.at;
-
-    if (status.refusal.diagnosis !== undefined) {
-      return {
-        text: withAge(
-          status.refusal.diagnosis.code === "tool-missing"
-            ? "could not run"
-            : "refused",
-          at,
-          input.now,
-        ),
-        tone: "bad",
-      };
-    }
-
-    return { text: withAge("failed", at, input.now), tone: "warn" };
-  }
-
-  if (status?.status === "failed") {
-    return { text: "failed", tone: "warn" };
-  }
-
-  if (
-    (status?.status === "ran" || status?.status === "stale") &&
-    status.diagnosis !== undefined &&
-    status.diagnosis.code !== "tool-missing"
-  ) {
-    return {
-      text: withAge(
-        status.diagnosis.code === "tests-failed"
-          ? "ran, partly"
-          : "complexity only",
-        input.run.ranAt[name] ?? status.modifiedMs,
-        input.now,
-      ),
-      tone: "warn",
-    };
-  }
-
-  if (
-    (status?.status === "ran" || status?.status === "stale") &&
-    status.stopped !== undefined
-  ) {
-    const at = input.run.ranAt[name] ?? status.modifiedMs;
-    const { measured, total } = status.stopped;
-
-    return measured > 0
-      ? {
-          text: withAge(
-            `stopped, ${measured} of ${total} functions measured`,
-            at,
-            input.now,
-          ),
-          tone: "ok",
-        }
-      : {
-          text: withAge("stopped, nothing measured", at, input.now),
-          tone: "muted",
-        };
-  }
-
-  if (
-    (status?.status === "ran" || status?.status === "stale") &&
-    status.findings !== undefined
-  ) {
-    return {
-      text: withAge(
-        plural(status.findings, "finding"),
-        input.run.ranAt[name] ?? status.modifiedMs,
-        input.now,
-      ),
-      tone: "ok",
-    };
-  }
-
-  return { text: "not yet run", tone: "muted" };
-}
-
 function whyFor(name: string, input: PanelInput): ScanWhy | null {
-  if (liveState(name, input) !== null) {
+  if (input.scanning && input.run.running.includes(name)) {
     return null;
   }
 
@@ -499,6 +281,23 @@ function whyFor(name: string, input: PanelInput): ScanWhy | null {
   return null;
 }
 
+function stoppedNote(name: string, input: PanelInput): string | null {
+  const status = input.sensors.find((one) => one.name === name);
+
+  if (
+    (status?.status !== "ran" && status?.status !== "stale") ||
+    status.stopped === undefined
+  ) {
+    return null;
+  }
+
+  const { measured, total } = status.stopped;
+
+  return measured > 0
+    ? `stopped, ${measured} of ${total} functions measured`
+    : "stopped, nothing measured";
+}
+
 function reportRows(sensors: SensorStatus[], now: number): ReportRow[] {
   return sensors
     .filter((one) => one.reported !== undefined)
@@ -518,31 +317,51 @@ function reportRows(sensors: SensorStatus[], now: number): ReportRow[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function movedText(input: PanelInput): string | null {
+  const moved = input.scan?.changes.moved ?? null;
+
+  if (moved === null) {
+    return null;
+  }
+
+  return moved.branch === null
+    ? `Now at ${moved.commit}`
+    : `Now on ${moved.branch} at ${moved.commit}`;
+}
+
 function header(input: PanelInput): ScanPanelModel["header"] {
   if (input.scanning) {
-    return { text: input.progressText ?? "Scanning…", changed: null };
+    return { text: input.progressText ?? "Scanning\u2026", moved: null };
   }
 
   if (input.scan === null) {
-    return { text: "Not scanned yet", changed: null };
+    return { text: "Not scanned yet", moved: null };
   }
-
-  const { files, moved } = input.scan.changes;
-  const changed = files.length > 0 || moved !== null;
 
   return {
     text: `Ran ${ageText(input.scan.scannedAt, input.now)}`,
-    changed: changed ? "files changed since" : null,
+    moved: movedText(input),
   };
 }
 
+function structureTitle(): string {
+  return "Structure always runs";
+}
+
 export function scanPanel(input: PanelInput): ScanPanelModel {
+  const sensors = rowSensors(input.config, input.shipped);
+  const statuses =
+    input.freshness === undefined
+      ? input.sensors
+      : markStale(input.sensors, input.freshness);
+  const judged: PanelInput = { ...input, sensors: statuses };
+  const freshness = buildFreshnessModel(judged, sensors);
+
   if (input.shipped === null) {
     return {
       header: header(input),
       scope: null,
-      mode: modeOf(input),
-      report: null,
+      freshness,
       rows: [],
       reports: [],
       button: {
@@ -550,6 +369,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         label: input.scanning ? "Running" : "Run",
         disabled: input.scanning,
       },
+      secondary: freshness.action.secondary,
       planned: null,
       pending: true,
       mark: panelMark(input),
@@ -557,223 +377,73 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     };
   }
 
-  const sensors = rowSensors(input.config, input.shipped);
-  const statuses =
-    input.freshness === undefined
-      ? input.sensors
-      : markStale(input.sensors, input.freshness);
-  const judged: PanelInput = { ...input, sensors: statuses };
-  const gaps = rowGaps(judged, sensors);
-  const planned = plannedRun(judged, sensors, gaps);
+  const planned = planFor(
+    freshness,
+    input.mode ?? "bring",
+    input.ticks,
+    sensors,
+    scopedIds(input),
+    input.lines.modules,
+  );
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
-  const describing = describeState(judged);
-  const rows: ScanRow[] = [
-    {
-      key: DESCRIBE_KEY,
-      name: "Descriptions",
-      tickable: true,
-      ticked: input.ticks.describe,
-      disabled: input.scanning,
-      state: describing,
+  const titles = new Map<string, string>([
+    [STRUCTURE_KEY, structureTitle()],
+    [DESCRIBE_KEY, DESCRIBE_TITLE],
+    ...sensors.map((one): [string, string] => [one.name, one.title]),
+  ]);
+
+  const rows: ScanRow[] = freshness.rows.map((row) => {
+    const structure = row.key === STRUCTURE_KEY;
+    const sensor = sensors.find((one) => one.name === row.key);
+
+    return {
+      key: row.key,
+      name: row.name,
+      tickable: row.tickable,
+      ticked: structure
+        ? true
+        : row.key === DESCRIBE_KEY
+          ? input.ticks.describe
+          : sensor?.runsTests === true
+            ? input.ticks.once.includes(row.key)
+            : (input.ticks.ticked ?? plain).includes(row.key),
+      disabled: structure || input.scanning,
+      state: row.state,
+      text: stateText(row.state, input.now),
       note:
-        describing.text === "stopped" && judged.describeStop != null
-          ? describeStopText(judged.describeStop)
-          : null,
-      why: null,
-      title: DESCRIBE_TITLE,
-    },
-    ...sensors.map((one) => ({
-      key: one.name,
-      name: one.display,
-      tickable: true as const,
-      disabled: input.scanning,
-      ticked: one.runsTests
-        ? input.ticks.once.includes(one.name)
-        : (input.ticks.ticked ?? plain).includes(one.name),
-      ...rowFreshnessState(one.name, judged, gaps),
-      why: whyFor(one.name, judged),
-      title: one.title,
-    })),
-  ];
+        row.key === DESCRIBE_KEY
+          ? judged.describeStop != null
+            ? describeStopText(judged.describeStop)
+            : judged.describeSkipped === true
+              ? "skipped this scan"
+              : null
+          : stoppedNote(row.key, judged),
+      why:
+        structure || row.key === DESCRIBE_KEY ? null : whyFor(row.key, judged),
+      title: titles.get(row.key) ?? row.name,
+    };
+  });
 
   return {
     header: header(input),
     scope: scopeOf(input),
-    mode: modeOf(input),
-    report: reportOf(judged, rows, gaps),
+    freshness,
     rows,
     reports: reportRows(statuses, input.now),
     button: {
       scanning: input.scanning,
-      label: input.scanning ? "Running" : planned.label,
-      disabled: input.scanning || planned.idle,
+      label: freshness.action.primary.label,
+      disabled: freshness.action.primary.disabled,
     },
+    secondary: freshness.action.secondary,
     planned,
     pending: false,
     mark: panelMark(input),
     confirm:
       input.describeAsk == null ? null : describeAskText(input.describeAsk),
   };
-}
-
-type RowGaps = Map<string, { result: SensorFreshness; gap: string[] }>;
-
-function scopeModules(input: PanelInput): string[] {
-  return scopedIds(input) ?? input.lines.modules;
-}
-
-function rowGaps(input: PanelInput, sensors: RowSensor[]): RowGaps {
-  const gaps: RowGaps = new Map();
-  const freshness = input.freshness;
-
-  if (freshness === undefined) {
-    return gaps;
-  }
-
-  const modules = scopeModules(input);
-  const scope = freshnessScope(modules, input.scans ?? [], freshness);
-
-  const described = modules.filter((id) => {
-    const kind = input.lines.of(id).kind;
-
-    return kind === "out-of-date" || kind === "missing";
-  });
-
-  gaps.set(DESCRIBE_KEY, {
-    result: { kind: "known", outOfDate: described, missing: [] },
-    gap: described,
-  });
-
-  for (const one of sensors) {
-    const status = input.sensors.find((entry) => entry.name === one.name);
-
-    if (status?.status === "failed") {
-      continue;
-    }
-
-    const measured =
-      status === undefined || status.status === "not run"
-        ? null
-        : (status.measured ?? {});
-    const result = sensorFreshness(scope, measured, one.name === MUTATION_KEY);
-
-    gaps.set(one.name, { result, gap: gapOf(result, modules) });
-  }
-
-  return gaps;
-}
-
-function modeOf(input: PanelInput): ScanPanelModel["mode"] {
-  return { value: input.mode ?? "bring", disabled: input.scanning };
-}
-
-function plannedRun(
-  input: PanelInput,
-  sensors: RowSensor[],
-  gaps: RowGaps,
-): PlannedRun {
-  const plain = new Map(
-    [...gaps].map(([name, { result, gap }]) => [
-      name,
-      { gap, neverRun: result.kind === "never-run" },
-    ]),
-  );
-
-  return planFor(
-    input.mode ?? "bring",
-    input.ticks,
-    sensors,
-    plain,
-    scopedIds(input),
-    input.lines.modules,
-  );
-}
-
-function bringNote(name: string, functions: number): string | null {
-  if (name === DESCRIBE_KEY) {
-    return null;
-  }
-
-  return name === MUTATION_KEY
-    ? `${plural(functions, "function")} to run`
-    : "reruns the whole repository";
-}
-
-function rowFreshnessState(
-  name: string,
-  input: PanelInput,
-  gaps: RowGaps,
-): Pick<ScanRow, "state" | "note"> {
-  const state = sensorState(name, input);
-  const found = gaps.get(name);
-  const live = liveState(name, input);
-
-  if (
-    found === undefined ||
-    live !== null ||
-    input.run.failures[name] !== undefined ||
-    input.sensors.find((one) => one.name === name)?.refusal !== undefined ||
-    input.sensors.find((one) => one.name === name)?.status === "failed"
-  ) {
-    return { state, note: null };
-  }
-
-  const functions = (ids: string[] | null) =>
-    functionCount(input.scans ?? [], ids);
-
-  if (found.result.kind === "never-run") {
-    return {
-      state: { text: "never run", tone: "muted" },
-      note:
-        name === MUTATION_KEY
-          ? plural(functions(scopedIds(input)), "function")
-          : null,
-    };
-  }
-
-  if (found.gap.length === 0) {
-    return { state, note: null };
-  }
-
-  const bring = (input.mode ?? "bring") === "bring";
-
-  return {
-    state: {
-      text: `${plural(found.gap.length, "module")} out of date`,
-      tone: "warn",
-    },
-    note: bring ? bringNote(name, functions(found.gap)) : null,
-  };
-}
-
-function reportOf(
-  input: PanelInput,
-  rows: ScanRow[],
-  gaps: RowGaps,
-): FreshnessReport | null {
-  if (input.freshness === undefined) {
-    return null;
-  }
-
-  const where =
-    input.ticks.onlyView && input.view
-      ? (input.view.name ?? "this canvas")
-      : "the repository";
-
-  return freshnessReport(
-    where,
-    scopeModules(input),
-    rows
-      .filter(({ ticked }) => ticked)
-      .map(({ key, name }) => ({
-        name: key,
-        display: name,
-        gap: gaps.get(key)?.gap ?? [],
-        neverRun: gaps.get(key)?.result.kind === "never-run",
-      })),
-  );
 }
 
 function scopeOf(input: PanelInput): ScanPanelModel["scope"] {

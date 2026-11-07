@@ -45,12 +45,18 @@ import { type EditorPort, inertEditor } from "./editor-port";
 import { cardOf } from "./finding-card";
 import { keepsFocus } from "./finding-focus";
 import { litSet } from "./findings-card";
-import { groupsOf, headerLine, staleNote } from "./findings-groups";
+import {
+  groupsOf,
+  headerLine,
+  SENSOR_GROUPS,
+  withEmptyGroups,
+} from "./findings-groups";
 import { badge, findingRows, walkFindings } from "./findings-order";
 import { buildFindingsPanelView } from "./findings-panel-view";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
+import { type FreshnessModel, hiddenText } from "./freshness-model";
 import { limitsFromText } from "./function-limits";
 import { computeHealth, describeTree } from "./health";
 import {
@@ -108,7 +114,6 @@ import {
 } from "./responsibility-model";
 import { nextCheck } from "./row-model";
 import {
-  coverageNote,
   freshnessMessage,
   type PlannedRun,
   type ResultsMode,
@@ -123,7 +128,12 @@ import {
   scanPanel,
 } from "./scan-panel-model";
 import { buildScanPanelView } from "./scan-panel-view";
-import type { DescribeAsk, DescribeStop, ShowTarget } from "./scan-progress";
+import type {
+  DescribeAsk,
+  DescribeStop,
+  SensorProgress,
+  ShowTarget,
+} from "./scan-progress";
 import type { BarModel } from "./selection-bar-view";
 import {
   inertSensors,
@@ -212,6 +222,9 @@ export type ScanHost = {
   runState: () => RunState;
   running: () => boolean;
   progressText: () => string | null;
+  footer?: (text: string | null) => void;
+  sensorProgress?: () => SensorProgress | null;
+  extracting?: () => boolean;
   describeProgress: () => { entries: number; total: number } | null;
   describeStop: () => DescribeStop | null;
   describeAsk: () => DescribeAsk | null;
@@ -374,6 +387,8 @@ export function showExplorer(
   let pickerFilter = "";
   let openView: string | null = null;
   let resultsMode: ResultsMode = "bring";
+  let runPlanned: PlannedRun | null = null;
+  let freshnessCache: FreshnessModel | null = null;
   let viewList: { name: string; text: string }[] = [];
   let viewNotice: string | null = null;
   let listNotice: string | null = null;
@@ -881,7 +896,7 @@ export function showExplorer(
         return;
       }
 
-      scanHost.run(planned.plan.modules, planned);
+      startRun(planned);
     },
     stop: () => scanHost.stop(),
     answerDescribe: (describe) => scanHost.answerDescribe(describe),
@@ -1184,7 +1199,14 @@ export function showExplorer(
     endLayoutBusy ??= layoutGate.begin();
     layoutNoted = notedKey();
     layout.request(
-      toElk(graph, measure, notedBoxes(), barRowCounts(), sourcedBoxes()),
+      toElk(
+        graph,
+        measure,
+        notedBoxes(),
+        barRowCounts(),
+        sourcedBoxes(),
+        changedBoxes(),
+      ),
     );
     render();
   }
@@ -1288,10 +1310,31 @@ export function showExplorer(
       .sort()
       .join("\n");
 
-    return `${rows}|${[...notedBoxes()].sort().join("\n")}`;
+    return `${rows}|${[...notedBoxes()].sort().join("\n")}|${[...changedBoxes()].sort().join("\n")}`;
+  }
+
+  function changedBoxes(): ReadonlySet<string> {
+    return new Set(
+      graph.boxes
+        .filter(
+          (box) =>
+            box.kind !== "folder" && currentFreshness().isChanged(box.id),
+        )
+        .map((box) => box.id),
+    );
+  }
+
+  function currentFreshness(): FreshnessModel {
+    freshnessCache ??= scanModel().freshness;
+
+    return freshnessCache;
   }
 
   function foundBars(id: string) {
+    if (currentFreshness().isChanged(id)) {
+      return [];
+    }
+
     return tickedMetrics().flatMap((metric) => {
       const value = moduleValue(metric, id);
 
@@ -1843,6 +1886,21 @@ export function showExplorer(
       return;
     }
 
+    startRun(planned);
+  }
+
+  function bringFindingsUpToDate() {
+    const { planned, button } = scanModel(findingsOnlyView);
+
+    if (planned === null || button.disabled) {
+      return;
+    }
+
+    startRun(planned);
+  }
+
+  function startRun(planned: PlannedRun) {
+    runPlanned = planned;
     scanHost.run(planned.plan.modules, planned);
   }
 
@@ -1908,6 +1966,9 @@ export function showExplorer(
       run: scanHost.runState(),
       scanning: scanHost.running(),
       progressText: scanHost.progressText(),
+      sensorProgress: scanHost.sensorProgress?.() ?? null,
+      extracting: scanHost.extracting?.() ?? false,
+      runModules: runPlanned?.modules ?? 0,
       describeProgress: scanHost.describeProgress(),
       describeStop: scanHost.describeStop(),
       describeAsk: scanHost.describeAsk(),
@@ -3166,7 +3227,7 @@ export function showExplorer(
       );
     }
 
-    const freshness = freshnessMessage(scanModel(true).report);
+    const freshness = freshnessMessage(scanModel(true).freshness);
 
     if (freshness !== null) {
       found.push(freshness.key);
@@ -3175,7 +3236,7 @@ export function showExplorer(
         text: freshness.text,
         key: freshness.key,
         action: {
-          label: freshness.neverRunOnly ? "Run Mutation" : "Bring up to date",
+          label: freshness.label,
           run: bringCanvasUpToDate,
         },
         extra: { label: "Show in Scan", run: showScanPanel },
@@ -3321,7 +3382,14 @@ export function showExplorer(
           layoutNoted = notedKey();
           endLayoutBusy ??= layoutGate.begin();
           layout.request(
-            toElk(graph, measure, notedBoxes(), barRowCounts(), sourcedBoxes()),
+            toElk(
+              graph,
+              measure,
+              notedBoxes(),
+              barRowCounts(),
+              sourcedBoxes(),
+              changedBoxes(),
+            ),
           );
         }
       });
@@ -3377,7 +3445,8 @@ export function showExplorer(
       groups: overlayModel.groups,
       now: Date.now(),
       ticked,
-      valueOf: (metric, boxId) => moduleValue(metric, boxId),
+      valueOf: (metric, boxId) =>
+        currentFreshness().isChanged(boxId) ? null : moduleValue(metric, boxId),
     };
   }
 
@@ -3450,6 +3519,7 @@ export function showExplorer(
       orientation: syncOrientation(),
       metrics: canvasMetrics(),
       changes: changeOverlay(),
+      changed: (id) => currentFreshness().isChanged(id),
       plan: currentPlan(),
       heading: headingNow(),
     });
@@ -3469,8 +3539,12 @@ export function showExplorer(
     const noteView = openViewValue();
     const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
 
+    freshnessCache = null;
+
     const scanModelNow = scanModel();
 
+    freshnessCache = scanModelNow.freshness;
+    scanHost.footer?.(scanModelNow.freshness.footer);
     scanView.render(scanModelNow);
     viewsPanel.render(
       leftPanel === "views"
@@ -3485,40 +3559,56 @@ export function showExplorer(
       : allFindings;
     const groups = groupsOf(shownFindings);
 
+    const findingsFresh = scanModel(scoped).freshness;
+    const everyChanged =
+      scoped &&
+      modules.count() > 0 &&
+      modules.opened().every((id) => findingsFresh.isChanged(id));
+    const noneYet = (sensor: string) =>
+      findingsFresh.group(sensor) === "none-yet";
+    const shownGroups = everyChanged ? [] : withEmptyGroups(groups, noneYet);
+    const hiddenIn = scoped
+      ? scopedRows(hiddenRows, scopeOf(modules.opened()))
+      : hiddenRows;
+    const hiddenModules = new Set(hiddenIn.map((row) => row.module)).size;
+    const findingsLine =
+      findingsFresh.findings?.kind === "hidden" || hiddenModules === 0
+        ? findingsFresh.findings
+        : {
+            kind: "hidden" as const,
+            text: hiddenText(hiddenModules, !scoped),
+            link: "Update them",
+          };
+    const primary = findingsFresh.action.primary;
+
     findingsView.render({
       scope: {
         caption: scopeCaption(openView, modules.count()),
         on: findingsOnlyView,
       },
       header: headerLine(shownFindings),
-      coverage: coverageNote(
-        scanModel(scoped).report,
-        scoped ? modules.count() : loaded.modules.length,
-      ),
-      stale: staleNote(
-        shownFindings,
-        scoped ? scopedRows(hiddenRows, scopeOf(modules.opened())) : hiddenRows,
-        loaded.sensors
-          .filter(
-            (one) =>
-              one.reported === undefined &&
-              !["structure", "config.yaml", "policy.yaml"].includes(one.name),
-          )
-          .map((one) => ({
-            name: one.name,
-            kind: "registered" as const,
-            chip: one.status,
-          })),
-      ),
-      groups: groups.map((group) => ({
+      freshness:
+        findingsLine === null
+          ? null
+          : {
+              text: findingsLine.text,
+              action: {
+                label: primary.disabled ? "Open Scan" : findingsLine.link,
+                run: primary.disabled ? showScanPanel : bringFindingsUpToDate,
+              },
+            },
+      groups: shownGroups.map((group) => ({
         group,
         open: openGroups.has(group.key),
         cards: openGroups.has(group.key) ? group.rows.map(cardOf) : [],
+        none:
+          group.rows.length === 0 || noneYet(SENSOR_GROUPS[group.key] ?? ""),
       })),
       active: orientedFinding,
       absent: (module) => !boxPresent(module),
-      empty:
-        allFindings.length === 0
+      empty: everyChanged
+        ? "Every module on this canvas changed, so there is nothing current to show."
+        : allFindings.length === 0
           ? "No findings for this scan."
           : shownFindings.length === 0
             ? "No findings on this canvas's modules."
@@ -3726,6 +3816,7 @@ export function showExplorer(
     }),
     update(next) {
       loaded = next;
+      freshnessCache = null;
       health = computeHealth(loaded);
       described = describeTree(root, health);
       overlayModel = buildOverlayModel(

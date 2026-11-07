@@ -43,7 +43,10 @@ const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
 function setScanState(next: ScanState | null) {
   scanState = next;
-  footerView.setScan(next);
+
+  if (next === null) {
+    footerView.setScan(null);
+  }
 }
 
 function adoptedOrigin(origin: ScanOrigin) {
@@ -63,6 +66,9 @@ const scanHost: ScanHost = {
   runState: () => rescanner.runState(),
   running: () => rescanner.running(),
   progressText: () => runningLine,
+  footer: (text) => footerView.setScan(text),
+  sensorProgress: () => rescanner.progress().sensorProgress,
+  extracting: () => rescanner.progress().extract === "run",
   describeProgress: () => {
     const describe = rescanner.progress().describe;
 

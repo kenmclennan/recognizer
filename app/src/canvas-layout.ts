@@ -9,6 +9,7 @@ export const BOX_MIN_WIDTH = 96;
 export const BOX_PAD = 10;
 export const DISC_SIZE = 10;
 export const LABEL_GAP = 6;
+export const CHANGED_LABEL = "changed";
 export const NOTE_MARK_SIZE = 16;
 export const NOTE_MARK_INSET = 6;
 export const FRAME_TOP = 28;
@@ -35,9 +36,13 @@ export function boxWidth(
   label: string,
   subline = "",
   noted = false,
+  changed = false,
 ): number {
   const text =
-    Math.max(measure(label), measure(subline) * SUBLINE_SCALE) +
+    Math.max(
+      measure(label) + (changed ? LABEL_GAP * 2 + measure(CHANGED_LABEL) : 0),
+      measure(subline) * SUBLINE_SCALE,
+    ) +
     DISC_SIZE +
     LABEL_GAP +
     (noted ? NOTE_MARK_SIZE + NOTE_MARK_INSET * 2 : 0);
@@ -65,6 +70,7 @@ export function toElk(
   noted: ReadonlySet<string> = new Set(),
   barRows: ReadonlyMap<string, number> = new Map(),
   sourced: ReadonlySet<string> = new Set(),
+  changed: ReadonlySet<string> = new Set(),
 ): ElkNode {
   const nodes = new Map<string, ElkNode>();
 
@@ -114,6 +120,7 @@ export function toElk(
           box.label,
           boxSubline(box),
           noted.has(box.kind === "folder" ? `${box.id}/` : box.id),
+          box.kind !== "folder" && changed.has(box.id),
         ),
         rows,
       ),

@@ -1,6 +1,6 @@
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { groupsOf, headerLine, staleNote } from "./findings-groups";
+import { groupsOf, headerLine } from "./findings-groups";
 import { findingRows } from "./findings-order";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 
@@ -105,17 +105,6 @@ describe("counts over the shown findings only", () => {
       ["Breaks the policy", 1],
       ["Orphan", 1],
     ]);
-  });
-
-  it("raises the out-of-date notice only for a sensor with hidden findings in scope", () => {
-    const other = rowsOf([record("crap:z", "crap", ["other/z.py"])], "crap");
-    const mine = rowsOf([record("crap:a", "crap", ["app/a.py"])], "crap");
-
-    expect(staleNote(shown, mine, [])).toBe(
-      "Complex and untested findings are out of date.",
-    );
-    expect(staleNote(shown, scopedRows(other, view), [])).toBeNull();
-    expect(staleNote(shown, [], [])).toBeNull();
   });
 });
 

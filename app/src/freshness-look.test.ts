@@ -11,7 +11,7 @@ const OTHER_TESTS = "b".repeat(64);
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
 ${FAKE_WORKER}
 
 const ids = ["app/a.py", "app/b.py"];
@@ -50,9 +50,12 @@ const tablesFor = async (id) => {
   return qa(".inspector-panel .fn-metrics").map((row) => [...row.querySelectorAll(".fn-metric")].map((item) => item.firstChild.textContent + " " + item.querySelector("b").textContent));
 };
 
-async function observe(tests) {
+const changedScan = () => ({ origin: { branch: "main", commit: "abc1234" }, scannedAt: Date.now(), changes: { files: [{ path: "app/b.py", kind: "modified" }], moved: null }, scanning: null });
+
+async function observe(tests, changed = false) {
   host.replaceChildren();
-  const explorer = mountExplorer({ container: host, loaded: loadedFor(tests), title: "demo", post: () => null, carried: null });
+  const scanHost = changed ? scanHostOf({ scan: changedScan }) : scanHostOf({});
+  const explorer = mountExplorer({ container: host, loaded: loadedFor(tests), title: "demo", post: () => null, carried: null, scanHost });
   await tick();
   click(q('.tree .row[data-path="app"] .name'));
   await tick();
@@ -66,8 +69,15 @@ async function observe(tests) {
   const rowDisabled = row.classList.contains("disabled");
   click(row);
   await tick();
+  const boxHeight = (id) => Number(q('.box[data-id="' + id + '"] .box-body').getAttribute("height"));
   const seen = {
     rowDisabled,
+    heightA: boxHeight("app/a.py"),
+    heightB: boxHeight("app/b.py"),
+    labelA: q('.box[data-id="app/a.py"] .changed-label') === null ? null : q('.box[data-id="app/a.py"] .changed-label').textContent,
+    labelB: q('.box[data-id="app/b.py"] .changed-label') === null ? null : q('.box[data-id="app/b.py"] .changed-label').textContent,
+    nameRightB: q('.box[data-id="app/b.py"] .name').getBBox().x + q('.box[data-id="app/b.py"] .name').getBBox().width,
+    labelLeftB: q('.box[data-id="app/b.py"] .changed-label') === null ? null : q('.box[data-id="app/b.py"] .changed-label').getBBox().x,
     note: qa(".metric-note").map((note) => note.textContent),
     barsA: barsOf("app/a.py"),
     barsB: barsOf("app/b.py"),
@@ -81,7 +91,7 @@ async function observe(tests) {
   await tick();
   const line = q(".findings-line");
   seen.line = line === null ? null : line.textContent;
-  const stale = q(".findings-stale");
+  const stale = q(".findings-fresh-text");
   seen.staleLine = stale === null ? null : stale.textContent;
   explorer.dispose();
   return seen;
@@ -90,6 +100,7 @@ async function observe(tests) {
 (async () => {
   facts.matching = await observe(${JSON.stringify(TESTS)});
   facts.changedTests = await observe(${JSON.stringify(OTHER_TESTS)});
+  facts.changedModule = await observe(${JSON.stringify(TESTS)}, true);
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -115,7 +126,9 @@ describe.skipIf(webkit === undefined)(
       expect(f.matching.tablesA).toEqual([["cc 8", "CRAP -", "cov -"]]);
       expect(f.matching.tablesB).toEqual([["cc -", "CRAP -", "cov -"]]);
       expect(f.matching.line).toBe("1 warning");
-      expect(f.matching.staleLine).toBe("Style findings are out of date.");
+      expect(f.matching.staleLine).toBe(
+        "Findings for 1 changed module is hidden.",
+      );
       expect(f.matching.discA).toContain("amber");
       expect(f.matching.discB).toContain("grey");
     });
@@ -130,6 +143,24 @@ describe.skipIf(webkit === undefined)(
       expect(f.changedTests.tablesA).toEqual([]);
       expect(f.changedTests.line).toBe("");
       expect(f.changedTests.discA).toContain("grey");
+    });
+
+    it("draws a changed module's box with no bars, a grey disc and a quiet changed label, no taller than a box with one bar row", () => {
+      expect(f.changedModule.labelB).toBe("changed");
+      expect(f.changedModule.labelA).toBeNull();
+      expect(f.changedModule.barsB).toBe(0);
+      expect(f.changedModule.discB).toContain("grey");
+      expect(f.changedModule.heightB).toBeLessThanOrEqual(
+        f.changedModule.heightA,
+      );
+      expect(f.matching.labelB).toBeNull();
+    });
+
+    it("keeps the changed label clear of a short module name", () => {
+      expect(f.changedModule.labelLeftB).not.toBeNull();
+      expect(f.changedModule.labelLeftB).toBeGreaterThan(
+        f.changedModule.nameRightB,
+      );
     });
   },
 );
