@@ -3597,6 +3597,7 @@ export function showExplorer(
                 run: primary.disabled ? showScanPanel : bringFindingsUpToDate,
               },
             },
+      noPolicy: loaded.policy === null,
       groups: shownGroups.map((group) => ({
         group,
         open: openGroups.has(group.key),

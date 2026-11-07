@@ -22,6 +22,7 @@ export type FindingsPanelModel = {
     text: string;
     action: { label: string; run: () => void } | null;
   } | null;
+  noPolicy: boolean;
   groups: {
     group: FindingGroupModel;
     open: boolean;
@@ -122,8 +123,16 @@ export function buildFindingCard(
   return node;
 }
 
+const NO_POLICY_LINE = "No policy: dependency direction isn't checked";
+
+const NO_POLICY_HELP: GroupHelp = {
+  means:
+    "Dependency direction is only checked against a policy, and this repository has none.",
+  todo: "Add .recognizer/policy.yaml naming the layers, inner first. Examples ship in policies/hexagonal.yaml and policies/vertical-slices.yaml.",
+};
+
 function infoControl(
-  group: FindingGroupModel,
+  group: { key: string; name: string },
   help: GroupHelp,
 ): [HTMLButtonElement, HTMLElement] {
   const tipId = `finding-tip-${group.key.replace(/[^a-z0-9]+/gi, "-")}`;
@@ -134,6 +143,7 @@ function infoControl(
 
   info.type = "button";
   info.setAttribute("aria-label", `About ${group.name}`);
+  info.setAttribute("data-label", `About ${group.name}`);
   info.setAttribute("aria-describedby", tipId);
   info.append(icon("info"));
   info.addEventListener("keydown", (event) => {
@@ -240,11 +250,12 @@ export function buildFindingsPanelView(
   );
   const line = el("p", "findings-line");
   const fresh = el("div", "findings-fresh");
+  const policy = el("div", "findings-policy");
   const list = el("div", "finding-groups");
   const empty = el("p", "findings-empty");
 
   scope.append(canvas, all);
-  element.append(header, scope, fresh, line, list, empty);
+  element.append(header, scope, fresh, policy, line, list, empty);
 
   return {
     element,
@@ -275,6 +286,19 @@ export function buildFindingsPanelView(
             button(action.label, "findings-fresh-link", () => action.run()),
           );
         }
+      }
+
+      policy.hidden = !model.noPolicy;
+      policy.replaceChildren();
+
+      if (model.noPolicy) {
+        policy.append(
+          el("span", "findings-policy-text", NO_POLICY_LINE),
+          ...infoControl(
+            { key: "no-policy", name: "the missing policy" },
+            NO_POLICY_HELP,
+          ),
+        );
       }
 
       empty.textContent = model.empty ?? "";
