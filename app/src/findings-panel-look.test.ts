@@ -59,7 +59,8 @@ async function mount(loaded, picks, status) {
   const fake = fakeSensors({}, { config: CONFIG });
   const editor = fakeEditor();
   const counts = [];
-  const scanHost = scanHostOf({ port: fake });
+  const runs = [];
+  const scanHost = scanHostOf({ port: fake, run: (modules, planned) => runs.push({ modules, planned }) });
   mountExplorer({ container: host, loaded: { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, title: "demo", onCount: (text) => counts.push(text), views: port, post: () => null, storage: { getItem: () => null, setItem: () => {} }, editor, scanHost });
   await tick();
   const q = (selector) => host.querySelector(selector);
@@ -70,7 +71,7 @@ async function mount(loaded, picks, status) {
     click(all(".view-item")[0]);
     await tick();
   }
-  return { host, port, q, all, shown, editor, counts };
+  return { host, port, q, all, shown, editor, counts, runs };
 }
 
 const texts = (m, selector) => m.all(selector).map((n) => n.textContent);
@@ -90,14 +91,14 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     open: m.shown(".findings-panel"),
     files: m.shown(".tree-header"),
     heading: m.q(".findings-header").firstChild.textContent,
-    coverage: m.q(".findings-coverage").textContent,
+    fresh: m.q(".findings-fresh-text") === null ? null : m.q(".findings-fresh-text").textContent,
     line: m.q(".findings-line").textContent,
     chips: m.all(".findings-chip").length,
     groups: texts(m, ".finding-group-name"),
     counts: texts(m, ".finding-group-count"),
     marks: m.all(".finding-group-head .finding-mark").map((n) => n.className.split(" ")[1]),
     cards: m.all(".finding-card").length,
-    stale: m.shown(".findings-stale"),
+    freshShown: m.shown(".findings-fresh"),
     ghosts: m.all(".ghost, .ghost-add").length,
   };
 
@@ -363,15 +364,15 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   const stale = await mount({ findings: [doc("structure", [violation]), doc("alpha", [style], "other")] }, null, [{ name: "alpha", status: "ran" }]);
   click(stale.q(".rail-findings"));
   await tick();
-  facts.stale = { text: stale.q(".findings-stale").textContent, shown: stale.shown(".findings-stale") };
-  click(stale.q(".findings-stale"));
+  facts.stale = { text: stale.q(".findings-fresh-text").textContent, link: stale.q(".findings-fresh-link").textContent, shown: stale.shown(".findings-fresh") };
+  click(stale.q(".findings-fresh-link"));
   await tick();
-  facts.staleClick = { sensors: stale.shown(".scan-panel"), findings: stale.shown(".findings-panel") };
+  facts.staleClick = { ran: stale.runs.length, label: stale.runs[0] ? stale.runs[0].planned.label : null, findings: stale.shown(".findings-panel") };
 
   const fresh = await mount({ findings: [doc("structure", [violation])] }, null, [{ name: "alpha", status: "ran" }]);
   click(fresh.q(".rail-findings"));
   await tick();
-  facts.fresh = { shown: fresh.shown(".findings-stale") };
+  facts.fresh = { shown: fresh.shown(".findings-fresh") };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -400,7 +401,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.panel.open).toBe(true);
     expect(f.panel.files).toBe(false);
     expect(f.panel.heading).toBe("Findings");
-    expect(f.panel.coverage).toBe("from 0 of 3 modules");
+    expect(f.panel.fresh).toBeNull();
     expect(f.panel.line).toBe("1 violation, 2 warnings");
     expect(f.panel.chips).toBe(0);
     expect(f.panel.groups).toEqual([
@@ -411,7 +412,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.panel.counts).toEqual(["1", "1", "1"]);
     expect(f.panel.marks).toEqual(["violation", "warning", "warning"]);
     expect(f.panel.cards).toBe(0);
-    expect(f.panel.stale).toBe(false);
+    expect(f.panel.freshShown).toBe(false);
     expect(f.panel.ghosts).toBe(0);
   });
 
@@ -649,9 +650,14 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.otherCommit).toEqual({ rows: 0, hidden: true });
   });
 
-  it("names the group with a hidden finding and links to the Sensors panel; none when all are current", () => {
-    expect(f.stale.text).toBe("Style findings are out of date.");
-    expect(f.staleClick).toEqual({ sensors: true, findings: false });
+  it("says why findings are hidden with a link that starts the same run as the primary button; nothing when all are current", () => {
+    expect(f.stale.text).toBe("Findings for 1 changed module is hidden.");
+    expect(f.stale.link).toBe("Update them");
+    expect(f.staleClick).toEqual({
+      ran: 1,
+      label: "Update 3 modules",
+      findings: true,
+    });
     expect(f.fresh.shown).toBe(false);
   });
 });

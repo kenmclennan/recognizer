@@ -72,13 +72,18 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     run: (modules, planned) => void wired.rescanner.run(modules, planned),
     stop: () => void wired.rescanner.stop(),
     refresh: () => void wired.rescanner.refresh(),
+    footer: (text) => footer.setScan(text),
+    progressText: () => wired.scanning,
+    describeProgress: () => { const d = wired.rescanner.progress().describe; return d === null ? null : { entries: d.entries.length, total: d.total }; },
+    sensorProgress: () => wired.rescanner.progress().sensorProgress,
+    extracting: () => wired.rescanner.progress().extract === "run",
   });
   const build = (loaded, carried) => {
     wired.current = loaded;
     wired.views = fakeViews(viewFiles);
     return mountExplorer({ container: host, loaded, title: "demo", views: wired.views, post: (input) => { wired.posted.push(input); return null; }, carried, storage: { getItem: () => null, setItem: () => {} }, editor, responsibilities, scanHost });
   };
-  const setScan = (next) => { wired.scanState = next; footer.setScan(next); };
+  const setScan = (next) => { wired.scanState = next; };
   wired.rescanner = createRescanner({
     port: fake,
     registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.shipped())); },
@@ -108,7 +113,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const q = (selector) => root.querySelector(selector);
   const all = (selector) => [...root.querySelectorAll(selector)];
   const visible = (selector) => { const n = q(selector); return n !== null && getComputedStyle(n).display !== "none"; };
-  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: [...r.querySelector(".scan-state").childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(""), note: r.querySelector(".scan-note")?.textContent ?? null, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state svg").length }));
+  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state-text").textContent, note: r.querySelector(".scan-note")?.textContent ?? null, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state .scan-spin").length, logLink: r.querySelector(".scan-log-link")?.textContent ?? null, bar: r.querySelectorAll(".scan-bar").length }));
   const text = (selector) => q(selector)?.textContent ?? "<missing " + selector + ">";
   const scanLineText = () => q(".scan-line").textContent;
   const footerButtons = () => all(".footer button").filter((b) => !b.closest(".message-tray, .message-toast")).map((b) => b.className);
@@ -116,7 +121,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const message = (contains) => all(".message-list .msg").find((m) => m.querySelector(".msg-text").textContent.includes(contains));
   const act = (contains, label) => click([...message(contains).querySelectorAll(".msg-act")].find((b) => b.textContent === label));
   const setTick = async (key, checked) => { const box = q('.scan-row[data-sensor="' + key + '"] .scan-tick'); box.checked = checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
-  const panel = () => ({ header: q(".scan-sub").textContent, amber: q(".scan-sub .warn")?.textContent ?? null, amberColor: q(".scan-sub .warn") ? getComputedStyle(q(".scan-sub .warn")).color : null, rows: rows(), buttons: all(".scan-buttons button").map((b) => ({ text: b.textContent, disabled: b.disabled, spinner: b.querySelectorAll("svg").length })), strays: all(".scan-block, .scan-block-title, .sensor-add, .sensor-remove, .scan-summary, .scan-stop-button, .scan-panel h2, .scan-panel h3, .scan-extract, .scan-describe, .measure-row").length, subLines: all(".scan-row *").filter((n) => n.matches("div")).length });
+  const panel = () => ({ header: q(".scan-sub").textContent, amber: q(".scan-sub .warn")?.textContent ?? null, amberColor: q(".scan-sub .warn") ? getComputedStyle(q(".scan-sub .warn")).color : null, rows: rows(), buttons: all(".scan-buttons button").map((b) => ({ text: b.textContent, disabled: b.disabled, spinner: b.querySelectorAll("svg").length })), summary: q(".summary") ? { shape: q(".summary").dataset.shape, tone: q(".summary").className.replace("summary", "").trim(), head: q(".summary-head").textContent, line: q(".summary-line").textContent, bar: all(".summary-bar").length, spinning: q(".summary .scan-spin") !== null } : null, rowBars: all(".scan-bar").length, strays: all(".scan-block, .scan-block-title, .sensor-add, .sensor-remove, .scan-summary, .scan-stop-button, .scan-panel h2, .scan-panel h3, .scan-extract, .scan-describe, .measure-row").length, subLines: all(".scan-row *").filter((n) => n.matches("div")).length });
 
   return { host, q, all, visible, rows, text, scanLineText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors };
 }
@@ -185,6 +190,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const s = await mount(sfake);
   click(s.q(".rail-scan"));
   await tick();
+  await s.setTick("describe", true);
   click(s.q(".scan-run"));
   await tick();
   facts.stopWhileRunning = { count: s.all(".scan-buttons .scan-stop").length, buttons: s.panel().buttons, order: s.all(".scan-buttons button").map((b) => b.className.split(" ")[0]) };
@@ -198,7 +204,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.stop = { footer: s.scanLineText(), footerButtons: s.footerButtons(), stopAfter: s.all(".scan-stop").length, button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
 
   const changed = await mount(fakeScan());
-  changed.wired.scanState = { ...changed.wired.scanState, scannedAt: Date.now() - 2 * 3600000, changes: { files: ["app/a.py"], moved: null } };
+  changed.wired.scanState = { ...changed.wired.scanState, scannedAt: Date.now() - 2 * 3600000, changes: { files: [{ path: "app/a.py", kind: "modified" }], moved: null } };
   click(changed.q(".rail-scan"));
   await tick();
   changed.wired.explorer.refreshPanel();
@@ -362,15 +368,18 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(fr.q(".rail-scan"));
   await tick();
   await fr.setTick("crap", true);
-  const freshFacts = () => ({ head: fr.q(".scan-fresh-head")?.textContent ?? null, kind: fr.q(".scan-fresh")?.className ?? null, rows: fr.rows().filter((r) => r.key === "crap").map((r) => ({ state: r.state, note: r.note })), legend: fr.q(".scan-fresh-legend")?.textContent ?? null, button: fr.q(".scan-run")?.textContent ?? null, disabled: fr.q(".scan-run")?.disabled ?? null, mode: fr.q(".scan-mode-bring")?.getAttribute("aria-pressed") ?? null });
+  const freshFacts = () => ({ summary: fr.panel().summary, rows: fr.rows().filter((r) => r.key === "crap").map((r) => ({ state: r.state, note: r.note })), rowBars: fr.all(".scan-bar, .summary-bar").length, button: fr.q(".scan-run")?.textContent ?? null, disabled: fr.q(".scan-run")?.disabled ?? null, secondary: fr.q(".scan-secondary")?.textContent ?? null, oldSwitch: fr.all(".scan-mode, .scan-mode-switch").length });
   facts.freshPartial = freshFacts();
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }));
   await fr.wired.rescanner.refresh();
   await tick(); await tick();
   facts.freshComplete = freshFacts();
-  click(fr.q(".scan-mode-rescan"));
+  click(fr.q(".scan-secondary"));
   await tick();
-  facts.freshRescan = { ...freshFacts(), rescanPressed: fr.q(".scan-mode-rescan")?.getAttribute("aria-pressed") ?? null, notes: fr.rows().map((r) => r.note) };
+  facts.freshRescan = { ...freshFacts(), ranBefore: fr.fake.ran.length };
+  click(fr.q(".scan-secondary"));
+  await tick();
+  facts.freshBack = freshFacts();
 
   const ranDoc = (name, diagnosis) => json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [], diagnosis });
   const whyFacts = (m, key) => {
@@ -449,10 +458,11 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 type Facts = ReturnType<typeof JSON.parse>;
 
 const GREEN = "rgb(63, 185, 80)";
-const AMBER = "rgb(210, 153, 34)";
+const RED = "rgb(248, 81, 73)";
 const ACCENT = "rgb(68, 147, 248)";
 const MUTED = "rgb(145, 152, 161)";
 const NAMES = [
+  "Structure",
   "Descriptions",
   "C.R.A.P.",
   "Duplication",
@@ -492,42 +502,54 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeRan.after.disabled).toBe(false);
   });
 
-  it("sizes Descriptions and a ticked Mutation row by the switch and leaves the other rows alone", () => {
-    expect(f.scopeOff.describe).toBe("2 to describe");
+  it("reads Descriptions and a ticked Mutation row as never run under either scope and leaves the other rows alone", () => {
+    expect(f.scopeOff.describe).toBe("never run");
     expect(f.scopeOff.mutation).toBe("never run");
-    expect(f.scopeOff.mutationNote).toBe("3 functions");
-    expect(f.scopeOn.describe).toBe("1 to describe");
-    expect(f.scopeOn.mutationNote).toBe("2 functions");
+    expect(f.scopeOn.describe).toBe("never run");
+    expect(f.scopeOn.mutation).toBe("never run");
     expect(f.scopeOn.crap).toBe(f.scopeOff.crap);
     expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
   });
 
-  it("remembers the switch through the port and sends the view's module ids only when it is on", () => {
+  it("remembers the switch through the port and sends the view's module ids when it is on and starts nothing from an idle panel", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
-    expect(f.scopeOffRan).toEqual([["app/a.py"], null]);
+    expect(f.scopeOffRan).toEqual([["app/a.py"]]);
   });
 
-  it("reports a partial picture with the row's gap, then a complete one once the hashes match", () => {
-    expect(f.freshPartial.head).toBe(
-      "Partial picture: 1 of 2 modules out of date",
-    );
-    expect(f.freshPartial.kind).toContain("warn");
-    expect(f.freshPartial.legend).toBe("1 current · 1 out of date");
+  it("summarises one changed module with no bar and Update 1 module, then everything current with a disabled Up to date once the hashes match", () => {
+    expect(f.freshPartial.summary).toMatchObject({
+      shape: "changed",
+      tone: "warn",
+      head: "1 module changed since it was scanned",
+      bar: 0,
+    });
+    expect(f.freshPartial.rowBars).toBe(0);
     expect(f.freshPartial.rows).toEqual([
-      { state: "1 module out of date", note: "reruns the whole repository" },
+      { state: "1 module out of date", note: null },
     ]);
-    expect(f.freshComplete.head).toBe("Complete picture");
-    expect(f.freshComplete.kind).toContain("ok");
-    expect(f.freshComplete.rows[0].note).toBeNull();
-    expect(f.freshPartial.button).toBe("Bring 1 module up to date");
+    expect(f.freshPartial.button).toBe("Update 1 module");
     expect(f.freshPartial.disabled).toBe(false);
-    expect(f.freshPartial.mode).toBe("true");
+    expect(f.freshPartial.secondary).toBe("Rescan from scratch");
+    expect(f.freshPartial.oldSwitch).toBe(0);
+    expect(f.freshComplete.summary).toMatchObject({
+      shape: "current",
+      tone: "ok",
+      head: "Everything on the repository is current",
+      bar: 0,
+    });
+    expect(f.freshComplete.rowBars).toBe(0);
     expect(f.freshComplete.button).toBe("Up to date");
     expect(f.freshComplete.disabled).toBe(true);
+  });
+
+  it("makes Rescan from scratch the secondary action: it only relabels the primary, never runs, and swaps back", () => {
     expect(f.freshRescan.button).toBe("Rescan 2 modules");
     expect(f.freshRescan.disabled).toBe(false);
-    expect(f.freshRescan.rescanPressed).toBe("true");
+    expect(f.freshRescan.secondary).toBe("Update only what changed");
+    expect(f.freshRescan.ranBefore).toBe(0);
+    expect(f.freshBack.button).toBe("Up to date");
+    expect(f.freshBack.secondary).toBe("Rescan from scratch");
   });
 
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
@@ -544,32 +566,44 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.railLabel).toContain("Scan");
   });
 
-  it("matches the mock's fresh repository: Not scanned yet, one list, nothing ticked, every row never run", () => {
+  it("matches the mock's fresh repository: Not scanned yet, one list, only Structure ticked, every row never run", () => {
     expect(f.fresh.header).toBe("Not scanned yet");
     expect(names(f.fresh)).toEqual(NAMES);
-    expect(states(f.fresh)).toEqual([
-      "2 to describe",
-      ...Array(5).fill("never run"),
-    ]);
-    expect(f.fresh.rows.every((r: Facts) => !r.ticked)).toBe(true);
+    expect(states(f.fresh)).toEqual(Array(7).fill("never run"));
+    expect(
+      f.fresh.rows.filter((r: Facts) => r.ticked).map((r: Facts) => r.key),
+    ).toEqual(["structure"]);
     expect(f.fresh.rows.every((r: Facts) => r.color === MUTED)).toBe(true);
+    expect(f.fresh.summary).toMatchObject({
+      shape: "attention",
+      tone: "warn",
+      head: "Structure has never run",
+      bar: 0,
+    });
+    expect(f.fresh.rowBars).toBe(0);
   });
 
   it("has no heading, sub-line, Remove button, Add block, summary or disabled checkbox, and an accent-coloured checkbox", () => {
     expect(f.fresh.strays).toBe(0);
     expect(f.fresh.subLines).toBe(0);
-    expect(f.fresh.rows.every((r: Facts) => !r.disabled)).toBe(true);
+    expect(
+      f.fresh.rows.filter((r: Facts) => r.disabled).map((r: Facts) => r.key),
+    ).toEqual(["structure"]);
     expect(f.fresh.rows.every((r: Facts) => r.accent === ACCENT)).toBe(true);
   });
 
   it("titles each row with its one-sentence description and prints nothing under it", () => {
-    expect(f.fresh.rows[0].title).toBe(
+    const title = (key: string) =>
+      f.fresh.rows.find((r: Facts) => r.key === key).title;
+
+    expect(title("structure")).toBe("Structure always runs");
+    expect(title("describe")).toBe(
       "Writes one line per module saying what it is responsible for.",
     );
-    expect(f.fresh.rows[1].title).toBe(
+    expect(title("crap")).toBe(
       "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
     );
-    expect(f.fresh.rows[2].title).toBe("Finds repeated structure.");
+    expect(title("duplication")).toBe("Finds repeated structure.");
   });
 
   it("wraps a long status inside the panel's content box and keeps the tip inside the window", () => {
@@ -582,9 +616,10 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.long.tip.bottom).toBeLessThanOrEqual(f.long.viewport.h);
   });
 
-  it("has one primary Scan button alone, with no text beside it", () => {
+  it("has the primary button naming its work with the secondary text button beside it", () => {
     expect(f.fresh.buttons).toEqual([
-      { text: "Run", disabled: false, spinner: 0 },
+      { text: "Run Structure", disabled: false, spinner: 0 },
+      { text: "Rescan from scratch", disabled: false, spinner: 0 },
     ]);
     expect(f.fresh.buttonTitle).toBe("");
   });
@@ -594,23 +629,40 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scanned.amber).toBeNull();
   });
 
-  it("matches the mock with files changed: the phrase after the dot in amber", () => {
-    expect(f.changed.header).toBe("Ran 2 hours ago \u00b7 files changed since");
-    expect(f.changed.amber).toBe("files changed since");
-    expect(f.changed.amberColor).toBe(AMBER);
+  it("carries no amber phrase in the header with files changed, and says so in the summary and the Structure row", () => {
+    expect(f.changed.header).toBe("Ran 2 hours ago");
+    expect(f.changed.amber).toBeNull();
+    expect(f.changed.summary).toMatchObject({
+      shape: "changed",
+      head: "1 module changed since it was scanned",
+      bar: 0,
+    });
+    expect(f.changed.rows.find((r: Facts) => r.key === "structure").state).toBe(
+      "1 module out of date",
+    );
+    expect(f.changed.buttons[0]).toEqual({
+      text: "Update 1 module",
+      disabled: false,
+      spinner: 0,
+    });
   });
 
   it("remembers a tick through the port, never a tests-running sensor, and a reopened window reads it back", () => {
-    expect(f.ticked.rows).toEqual(["describe", "crap", "duplication"]);
+    expect(f.ticked.rows).toEqual([
+      "structure",
+      "describe",
+      "crap",
+      "duplication",
+    ]);
     expect(f.ticked.written).toEqual({
       describe: true,
       ticked: ["duplication"],
       onlyView: false,
     });
-    expect(f.reopened).toEqual(["describe", "duplication"]);
+    expect(f.reopened).toEqual(["structure", "describe", "duplication"]);
   });
 
-  it("matches the mock while running: Scanning…, one running row with a spinner, the rest waiting, a disabled Scanning button and a Stop beside it", () => {
+  it("matches the mock while running: Scanning…, every planned row running, the one summary bar and a row bar, a disabled Running button and a Stop beside it", () => {
     expect(f.run.plans).toEqual([
       {
         describe: true,
@@ -619,54 +671,57 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
         modules: ["app/a.py", "app/b.py"],
       },
     ]);
-    expect(f.run.first.header).toBe("Scanning\u2026");
+    expect(f.run.first.header).toBe(
+      "Running Descriptions, Duplication and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
+    );
     expect(
       f.run.first.rows
         .filter((r: Facts) => r.spinner > 0)
         .map((r: Facts) => r.key),
-    ).toEqual(["describe"]);
-    expect(f.run.first.rows.map((r: Facts) => r.state).slice(0, 3)).toEqual([
+    ).toEqual(["describe", "crap", "duplication"]);
+    expect(f.run.first.rows.map((r: Facts) => r.state).slice(1, 4)).toEqual([
+      "0 of 1",
       "running",
-      "waiting",
-      "waiting",
+      "running",
     ]);
-    expect(f.run.first.rows[0].color).toBe(ACCENT);
-    expect(f.run.first.rows[1].color).toBe(MUTED);
+    expect(f.run.first.rows[1].color).toBe(ACCENT);
+    expect(f.run.first.summary).toMatchObject({
+      shape: "running",
+      tone: "run",
+      head: "Running Descriptions, C.R.A.P. and Duplication on 2 modules",
+      bar: 1,
+      spinning: true,
+    });
+    expect(f.run.first.rowBars).toBe(1);
     expect(f.run.first.buttons).toEqual([
       { text: "Running", disabled: true, spinner: 1 },
       { text: "Stop", disabled: false, spinner: 0 },
     ]);
     expect(f.run.footer.text).toBe(
-      "Bringing 2 modules up to date\u2026 Describing\u2026 0 of 1 modules",
+      "Running Descriptions, Duplication and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
     );
     expect(f.run.footer.buttons).toEqual(["bell"]);
-    expect(f.run.footerAfter.text).toBe("Scanned at cur1234, just now");
+    expect(f.run.footerAfter.text).toBe("");
     expect(f.run.footerAfter.buttons).toEqual(["bell"]);
-    expect(f.run.after.buttons).toEqual([
-      { text: "Bring 2 modules up to date", disabled: false, spinner: 0 },
-    ]);
     expect(f.run.first.rows.every((r: Facts) => r.disabled)).toBe(true);
   });
 
-  it("moves running to the started sensor and leaves finished rows with their results", () => {
+  it("moves each row on as it finishes and draws no bar once the run is over", () => {
     const row = (panel: Facts, key: string) =>
       panel.rows.find((r: Facts) => r.key === key);
 
     expect(row(f.run.afterDescribe, "duplication").state).toBe("running");
-    expect(row(f.run.afterDescribe, "crap").state).toBe("waiting");
+    expect(row(f.run.afterDescribe, "crap").state).toBe("running");
     expect(row(f.run.afterDuplication, "duplication").state).toBe(
-      "0 findings, just now",
+      "current, just now",
     );
     expect(row(f.run.afterDuplication, "duplication").color).toBe(GREEN);
     expect(row(f.run.afterDuplication, "crap").state).toBe("running");
-    expect(row(f.run.after, "describe").state).toMatch(
-      /modules? described|to describe|not yet run/,
-    );
-    expect(row(f.run.after, "duplication").state).toBe("0 findings, just now");
+    expect(row(f.run.after, "duplication").state).toBe("current, just now");
     expect(f.run.after.header).toBe("Ran just now");
-    expect(f.run.after.buttons).toEqual([
-      { text: "Bring 2 modules up to date", disabled: false, spinner: 0 },
-    ]);
+    expect(f.run.after.rowBars).toBe(0);
+    expect(f.run.after.summary.bar).toBe(0);
+    expect(f.run.after.summary.shape).not.toBe("running");
   });
 
   it("clears a tests-running tick after the scan it ran in and never writes it", () => {
@@ -684,13 +739,13 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.plans).toHaveLength(1);
   });
 
-  it("stops a running scan from the Scan panel and leaves the footer reading Scanned", () => {
+  it("stops a running scan from the Scan panel and leaves the footer empty", () => {
     expect(f.stopWhileRunning.order).toEqual(["scan-run", "scan-stop"]);
     expect(f.stopWhileRunning.count).toBe(1);
-    expect(f.stop.footer).toContain("Scanned");
+    expect(f.stop.footer).toBe("");
     expect(f.stop.footerButtons).toEqual(["bell"]);
     expect(f.stop.stopAfter).toBe(0);
-    expect(f.stop.button).toBe("Run");
+    expect(f.stop.button).toBe("Run Descriptions");
     expect(f.stop.disabled).toBe(false);
   });
 
@@ -700,21 +755,25 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.ticksWhileRunning.unchanged).toBe(true);
     expect(f.ticksWhileRunning.stopEnabled).toBe(true);
     expect(f.ticksAfterStop.length).toBeGreaterThan(0);
-    expect(f.ticksAfterStop.some(Boolean)).toBe(false);
+    expect(f.ticksAfterStop.filter(Boolean)).toHaveLength(1);
   });
 
-  it("leaves a failed sensor at failed with its age in amber and posts exactly one tray message", () => {
+  it("leaves a failed sensor at failed with its age and a log link in red and posts exactly one tray message", () => {
     const row = f.failed.rows.find((r: Facts) => r.key === "duplication");
 
     expect(row.state).toBe("failed, just now");
-    expect(row.color).toBe(AMBER);
+    expect(row.color).toBe(RED);
+    expect(row.logLink).toBe("log");
+    expect(f.failed.summary.shape).toBe("attention");
+    expect(f.failed.summary.tone).toBe("bad");
+    expect(f.failed.summary.bar).toBe(0);
     expect(f.failed.posted).toEqual(["duplication failed: broke"]);
     expect(f.failed.amber).toBeNull();
     expect(f.sensorFail.reasonLines).toBe(0);
   });
 
   it("shows a failed sensor row from the message's Show and opens the log from its Open log", () => {
-    expect(f.sensorFail.footer.text).toBe("Scanned at cur1234, just now");
+    expect(f.sensorFail.footer.text).toBe("");
     expect(f.sensorFail.footer.buttons).toEqual(["bell"]);
     expect(f.sensorFail.messages).toEqual([
       {
@@ -753,6 +812,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("lists Descriptions and the third-party rows, none disabled, when the shipped list is unavailable", () => {
     expect(f.down).toEqual([
+      { name: "Structure", disabled: true },
       { name: "Descriptions", disabled: false },
       { name: "alpha", disabled: false },
       { name: "beta", disabled: false },
@@ -766,39 +826,32 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       buttons: 0,
       list: 0,
     });
-    expect(f.loaded.rows).toEqual([
-      "Descriptions",
-      "C.R.A.P.",
-      "Duplication",
-      "Mutation",
-      "alpha",
-      "beta",
-    ]);
-    expect(f.loaded.buttons).toBe(1);
+    expect(f.loaded.rows).toEqual(NAMES);
+    expect(f.loaded.buttons).toBe(2);
   });
 
   it("says why each sensor could not run fully, one second line per mock state", () => {
     const r = f.reasons;
 
-    expect(r.crapRed.state).toMatch(/^ran, partly/);
-    expect(r.crapRed.tone).toBe("warn");
+    expect(r.crapRed.state).toMatch(/^current/);
+    expect(r.crapRed.tone).toBe("ok");
     expect(r.crapRed.why).toBe("3 tests failed, so coverage may read low.");
     expect(r.crapRed).toMatchObject({ copy: null, log: "Show log", chips: [] });
-    expect(r.crapNoCov.state).toMatch(/^complexity only/);
+    expect(r.crapNoCov.state).toMatch(/^current/);
     expect(r.crapNoCov.chips).toEqual(["cargo install cargo-llvm-cov"]);
     expect(r.crapNoCov).toMatchObject({ copy: "Copy", log: null });
-    expect(r.crapNoRun.state).toMatch(/^could not run/);
+    expect(r.crapNoRun.state).toMatch(/^failed/);
     expect(r.crapNoRun.tone).toBe("bad");
     expect(r.crapNoRun.why).toBe(
       "pytest is not in this repository's environment. Add it with uv add --dev pytest.",
     );
     expect(r.crapNoRun.chips).toEqual(["uv add --dev pytest"]);
     expect(r.crapNoRun).toMatchObject({ copy: "Copy", log: null });
-    expect(r.mutationRed.state).toMatch(/^refused/);
+    expect(r.mutationRed.state).toMatch(/^failed/);
     expect(r.mutationRed.tone).toBe("bad");
     expect(r.mutationRed.chips).toEqual(["tests/test_orders.py::test_refund"]);
     expect(r.mutationRed).toMatchObject({ copy: null, log: "Show log" });
-    expect(r.mutationNoCov.state).toMatch(/^refused/);
+    expect(r.mutationNoCov.state).toMatch(/^failed/);
     expect(r.mutationNoCov).toMatchObject({ copy: "Copy", log: null });
   });
 
@@ -827,7 +880,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("shows a refusal remembered from the run log after a restart, with its reason, Copy and Show log, and nothing else changes", () => {
     const r = f.restart;
 
-    expect(r.refused.state).toMatch(/^refused/);
+    expect(r.refused.state).toMatch(/^failed/);
     expect(r.refused.tone).toBe("bad");
     expect(r.refused.why).toBeTruthy();
     expect(r.refused.log).toBe("Show log");
@@ -835,7 +888,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(r.refused.inside).toBe(true);
 
     for (const one of [r.okNewer, r.none, r.older, r.tie]) {
-      expect(one.state).toMatch(/^0 findings/);
+      expect(one.state).toMatch(/^current/);
       expect(one.why).toBeNull();
     }
   });
@@ -847,7 +900,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
     expect(f.report.names).toEqual(NAMES);
-    expect(f.report.listCount).toBe(6);
+    expect(f.report.listCount).toBe(7);
     expect(f.report.ticks).toBe(0);
     expect(f.report.chip).toBe("reported 3 minutes ago");
     expect(f.report.commit).toBe("feed123");

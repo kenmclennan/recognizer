@@ -2,16 +2,14 @@ import { readFileSync } from "node:fs";
 import type { Scan } from "recognizer";
 import { buildFreshness, scanHashes } from "recognizer";
 import { describe, expect, it } from "vitest";
+import type { FreshnessModel, ResultState } from "./freshness-model";
 import {
-  coverageNote,
   freshnessMessage,
-  freshnessReport,
   freshnessScope,
   gapOf,
   markStale,
   modulesWithFunctions,
   planFor,
-  type RowGap,
   sensorFreshness,
 } from "./scan-freshness";
 import type { ScanTicks } from "./scan-panel-model";
@@ -198,59 +196,35 @@ describe("markStale", () => {
   });
 });
 
-describe("freshnessReport", () => {
-  const row = (display: string, gap: string[], neverRun = false) => ({
-    name: display.toLowerCase(),
-    display,
-    gap,
-    neverRun,
-  });
+function stub(
+  states: Record<string, ResultState>,
+  gaps: Record<string, string[]>,
+  changed: string[],
+  label: string,
+  ticked: string[] = Object.keys(states),
+): FreshnessModel {
+  return {
+    rows: Object.entries(states).map(([key, state]) => ({
+      key,
+      name: key === "mutation" ? "Mutation" : key,
+      state,
+      tickable: true,
+    })),
+    gaps: new Map(Object.entries(gaps)),
+    changed,
+    ticked: (key: string) => ticked.includes(key),
+    action: {
+      primary: { label, disabled: label === "Up to date" },
+      secondary: {
+        label: "Rescan from scratch",
+        mode: "rescan",
+        disabled: false,
+      },
+    },
+  } as unknown as FreshnessModel;
+}
 
-  it("is complete when nothing is out of date", () => {
-    expect(
-      freshnessReport("this canvas", MODULES, [row("A", []), row("B", [])]),
-    ).toMatchObject({
-      complete: true,
-      head: "Complete picture",
-      body: "Every result for this canvas is current: 3 modules measured by all 2 sensors.",
-      bar: null,
-    });
-  });
-
-  it("is partial when every module is out of date", () => {
-    expect(
-      freshnessReport("the repository", MODULES, [row("A", MODULES)]),
-    ).toMatchObject({
-      complete: false,
-      head: "Partial picture: 3 of 3 modules out of date",
-      bar: { current: 0, outOfDate: 3 },
-    });
-  });
-
-  it("names the modules, never-run sensors and a bar", () => {
-    const report = freshnessReport("the repository", MODULES, [
-      row("A", ["b.py"]),
-      row("Mutation", MODULES, true),
-    ]);
-
-    expect(report?.head).toBe(
-      "Partial picture: Mutation has not run; 1 of 3 modules out of date",
-    );
-    expect(report?.body).toContain("b.py changed since they were scanned");
-    expect(report?.bar).toEqual({ current: 2, outOfDate: 1 });
-  });
-
-  it("names five modules and counts the rest", () => {
-    const many = ["a", "b", "c", "d", "e", "f", "g"];
-    const report = freshnessReport("x", many, [row("A", many)]);
-
-    expect(report?.body.startsWith("a, b, c, d, e and 2 more")).toBe(true);
-  });
-
-  it("is absent with nothing ticked", () => {
-    expect(freshnessReport("x", MODULES, [])).toBeNull();
-  });
-});
+const CURRENT_STATE: ResultState = { kind: "current", at: null };
 
 describe("planFor", () => {
   const rows = [
@@ -263,20 +237,22 @@ describe("planFor", () => {
     once: ["mutation"],
     onlyView: false,
   };
-  const clean: RowGap = { gap: [], neverRun: false };
-  const gaps = (entries: Record<string, RowGap>) =>
-    new Map(Object.entries(entries));
 
   it("leaves a current sensor out and hands Mutation and Descriptions the union of their gaps", () => {
     const planned = planFor(
+      stub(
+        {
+          describe: { kind: "out-of-date", modules: ["a.py"] },
+          crap: CURRENT_STATE,
+          mutation: { kind: "out-of-date", modules: ["b.py", "c.py"] },
+        },
+        { describe: ["a.py"], crap: [], mutation: ["b.py", "c.py"] },
+        ["a.py", "b.py", "c.py"],
+        "Update 3 modules",
+      ),
       "bring",
       ticks,
       rows,
-      gaps({
-        describe: { gap: ["a.py"], neverRun: false },
-        crap: clean,
-        mutation: { gap: ["b.py", "c.py"], neverRun: false },
-      }),
       null,
       MODULES,
     );
@@ -287,17 +263,23 @@ describe("planFor", () => {
       sense: ["mutation"],
       modules: ["a.py", "b.py", "c.py"],
     });
-    expect(planned.label).toBe("Bring 3 modules up to date");
-    expect(planned.progress).toBe("Bringing 3 modules up to date\u2026");
+    expect(planned.label).toBe("Update 3 modules");
+    expect(planned.progress).toBe("Updating 3 modules\u2026");
+    expect(planned.modules).toBe(3);
     expect(planned.idle).toBe(false);
   });
 
   it("reruns an unscoped sensor whole and sends no module list when no scoped phase runs", () => {
     const planned = planFor(
+      stub(
+        { crap: { kind: "out-of-date", modules: ["b.py"] } },
+        { crap: ["b.py"] },
+        ["b.py"],
+        "Update 1 module",
+      ),
       "bring",
       { ...ticks, describe: false, once: [] },
       rows,
-      gaps({ crap: { gap: ["b.py"], neverRun: false } }),
       null,
       MODULES,
     );
@@ -308,15 +290,52 @@ describe("planFor", () => {
       sense: ["crap"],
       modules: null,
     });
-    expect(planned.label).toBe("Bring 1 module up to date");
+    expect(planned.progress).toBe("Updating 1 module\u2026");
+  });
+
+  it("gives a Structure-only change a runnable extract-only plan", () => {
+    const planned = planFor(
+      stub(
+        {
+          structure: { kind: "out-of-date", modules: ["a.py"] },
+          crap: CURRENT_STATE,
+        },
+        { crap: [] },
+        ["a.py"],
+        "Update 1 module",
+      ),
+      "bring",
+      { ...ticks, describe: false, once: [] },
+      rows,
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: false,
+      describeAll: false,
+      sense: [],
+      modules: null,
+    });
+    expect(planned.idle).toBe(false);
+    expect(planned.modules).toBe(1);
   });
 
   it("is idle and reads Up to date when nothing has a gap", () => {
     const planned = planFor(
+      stub(
+        {
+          describe: CURRENT_STATE,
+          crap: CURRENT_STATE,
+          mutation: CURRENT_STATE,
+        },
+        { describe: [], crap: [], mutation: [] },
+        [],
+        "Up to date",
+      ),
       "bring",
       ticks,
       rows,
-      gaps({ describe: clean, crap: clean, mutation: clean }),
       null,
       MODULES,
     );
@@ -328,27 +347,35 @@ describe("planFor", () => {
     expect(planned.plan.modules).toBeNull();
   });
 
-  it("names a never-run sensor on the button when it is the only work", () => {
+  it("never says Bringing 0 modules when only a never-run sensor runs", () => {
     const planned = planFor(
+      stub(
+        { mutation: { kind: "never-run" } },
+        { mutation: MODULES },
+        [],
+        "Run Mutation",
+      ),
       "bring",
       { ...ticks, describe: false, ticked: [] },
       rows,
-      gaps({ mutation: { gap: MODULES, neverRun: true } }),
       null,
       MODULES,
     );
 
     expect(planned.label).toBe("Run Mutation");
+    expect(planned.progress).toBe("Running Mutation\u2026");
+    expect(planned.progress).not.toContain("Bringing");
     expect(planned.plan.sense).toEqual(["mutation"]);
     expect(planned.plan.modules).toEqual(MODULES);
   });
 
   it("runs every ticked sensor over the scope and describes everything when rescanning", () => {
+    const model = stub({}, {}, [], "Rescan 2 modules");
     const planned = planFor(
+      model,
       "rescan",
       ticks,
       rows,
-      gaps({ describe: clean, crap: clean, mutation: clean }),
       ["a.py", "b.py"],
       MODULES,
     );
@@ -361,18 +388,17 @@ describe("planFor", () => {
     });
     expect(planned.label).toBe("Rescan 2 modules");
     expect(planned.progress).toBe("Rescanning 2 modules\u2026");
-
     expect(
-      planFor("rescan", ticks, rows, gaps({}), null, MODULES).plan.modules,
+      planFor(model, "rescan", ticks, rows, null, MODULES).plan.modules,
     ).toBeNull();
   });
 
   it("keeps the run enabled when nothing is ticked so a plain rescan stays reachable", () => {
     const planned = planFor(
+      stub({}, {}, [], "Rescan 3 modules"),
       "rescan",
       { describe: false, ticked: [], once: [], onlyView: false },
       rows,
-      gaps({}),
       null,
       MODULES,
     );
@@ -381,58 +407,38 @@ describe("planFor", () => {
   });
 });
 
-describe("freshnessMessage and coverageNote", () => {
-  const row = (display: string, gap: string[], neverRun = false) => ({
-    name: display.toLowerCase(),
-    display,
-    gap,
-    neverRun,
-  });
-
-  it("says nothing for a complete picture or no report", () => {
-    expect(freshnessMessage(null)).toBeNull();
+describe("freshnessMessage", () => {
+  it("says nothing when nothing changed and nothing ticked never ran", () => {
     expect(
-      freshnessMessage(freshnessReport("x", MODULES, [row("A", [])])),
+      freshnessMessage(stub({ crap: CURRENT_STATE }, {}, [], "Up to date")),
     ).toBeNull();
   });
 
-  it("counts the out-of-date modules and keys the message by their set", () => {
-    const one = freshnessMessage(
-      freshnessReport("x", MODULES, [row("A", ["b.py"])]),
-    );
+  it("counts the changed modules, keys the message by their set and labels the button", () => {
+    const one = freshnessMessage(stub({}, {}, ["b.py"], "Update 1 module"));
     const two = freshnessMessage(
-      freshnessReport("x", MODULES, [row("A", ["b.py", MODULES[0]])]),
+      stub({}, {}, ["a.py", "b.py"], "Update 2 modules"),
     );
 
     expect(one?.text).toBe(
       "1 module has changed since it was scanned. Its results are hidden, so this picture is partial.",
     );
+    expect(one?.label).toBe("Update 1 module");
     expect(two?.text.startsWith("2 modules have changed")).toBe(true);
-    expect(one?.neverRunOnly).toBe(false);
     expect(one?.key).not.toBe(two?.key);
   });
 
-  it("reports Mutation never run when nothing is out of date", () => {
-    expect(
-      freshnessMessage(
-        freshnessReport("x", MODULES, [row("Mutation", MODULES, true)]),
-      )?.text,
-    ).toBe(
-      "Mutation has not run here yet. Survived-mutant results are missing from this picture.",
-    );
-    expect(
-      freshnessMessage(
-        freshnessReport("x", MODULES, [row("Mutation", MODULES, true)]),
-      )?.neverRunOnly,
-    ).toBe(true);
-  });
+  it("reports a ticked never-run sensor when nothing changed, and ignores an unticked one", () => {
+    const states: Record<string, ResultState> = {
+      mutation: { kind: "never-run" },
+    };
 
-  it("states how many modules the findings cover", () => {
-    const report = freshnessReport("x", MODULES, [row("A", ["b.py"])]);
-
-    expect(coverageNote(report, 3)).toBe("from 2 of 3 modules");
     expect(
-      coverageNote(freshnessReport("x", MODULES, [row("A", [])]), 3),
-    ).toBeNull();
+      freshnessMessage(stub(states, {}, [], "Run Mutation")),
+    )?.toMatchObject({
+      text: "Mutation has not run here yet. Survived-mutant results are missing from this picture.",
+      label: "Run Mutation",
+    });
+    expect(freshnessMessage(stub(states, {}, [], "Up to date", []))).toBeNull();
   });
 });

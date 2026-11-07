@@ -3,8 +3,8 @@ import { resolve } from "node:path";
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
 import groupFile from "./finding-groups.json";
-import { groupsOf, headerLine, staleNote } from "./findings-groups";
-import { findingRows, type StaleRow } from "./findings-order";
+import { groupsOf, headerLine, withEmptyGroups } from "./findings-groups";
+import { findingRows } from "./findings-order";
 
 function record(
   id: string,
@@ -155,70 +155,36 @@ describe("headerLine", () => {
   });
 });
 
-function sensorRow(name: string, chip: string): StaleRow {
-  return { name, kind: "registered", chip };
-}
-
-describe("staleNote", () => {
+describe("withEmptyGroups", () => {
   const rows = findingRows([
     document("structure", [record("hu", "hub")]),
-    document("a", [
-      record("sd", "stable_dependencies"),
-      record("du", "duplication"),
-    ]),
-    document("b", [record("mu", "mutation")]),
+    document("a", [record("du", "duplication")]),
   ]);
 
-  const hiddenOf = (sensor: string) =>
-    rows.filter((row) => row.sensor === sensor);
+  it("adds an empty group for a sensor with no current result, in panel order", () => {
+    const groups = withEmptyGroups(groupsOf(rows), (sensor) =>
+      ["crap", "mutation"].includes(sensor),
+    );
 
-  it("names the groups with a hidden finding in panel order, joined with and", () => {
-    expect(staleNote([], hiddenOf("a"), [])).toBe(
-      "Depends on less stable code and Duplicated code findings are out of date.",
-    );
-    expect(staleNote([], hiddenOf("b"), [])).toBe(
-      "Tests miss changes findings are out of date.",
-    );
-    expect(
-      staleNote(
-        [],
-        [...hiddenOf("a"), ...hiddenOf("b")],
-        [sensorRow("a", "failed")],
-      ),
-    ).toBe(
-      "Depends on less stable code, Duplicated code and Tests miss changes findings are out of date.",
-    );
-  });
-
-  it("joins two names with and alone", () => {
-    const pair = findingRows([
-      document("a", [record("hu", "hub"), record("or", "orphan")]),
+    expect(groups.map((group) => [group.key, group.rows.length])).toEqual([
+      ["kind:hub", 1],
+      ["kind:duplication", 1],
+      ["kind:crap", 0],
+      ["kind:mutation", 0],
     ]);
-
-    expect(staleNote([], pair, [])).toBe(
-      "Hub and Orphan findings are out of date.",
-    );
   });
 
-  it("says nothing when no finding is hidden", () => {
-    expect(staleNote(rows, [], [])).toBeNull();
-    expect(
-      staleNote(
-        rows,
-        [],
-        [
-          sensorRow("a", "stale"),
-          sensorRow("b", "ran 2m ago"),
-          sensorRow("structure", "runs with every scan"),
-        ],
-      ),
-    ).toBeNull();
-  });
+  it("keeps a group that already has findings and adds nothing when every sensor is current", () => {
+    const groups = groupsOf(rows);
 
-  it("still names the groups of a registered sensor that failed", () => {
-    expect(staleNote(rows, [], [sensorRow("b", "failed")])).toBe(
-      "Tests miss changes findings are out of date.",
-    );
+    expect(withEmptyGroups(groups, () => true).map((g) => g.key)).toEqual([
+      "kind:hub",
+      "kind:duplication",
+      "kind:crap",
+      "kind:mutation",
+      "kind:thresholds",
+    ]);
+    expect(withEmptyGroups(groups, () => false)).toEqual(groups);
   });
 });
 

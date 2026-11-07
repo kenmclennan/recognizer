@@ -6,11 +6,15 @@ import {
   absoluteLayout,
   BOX_HEIGHT,
   BOX_MIN_WIDTH,
+  BOX_PAD,
   boxWidth,
+  CHANGED_LABEL,
+  DISC_SIZE,
   FOLDER_BOX_HEIGHT,
   FRAME_PAD,
   FRAME_TOP,
   frameLabelWidth,
+  LABEL_GAP,
   type Layout,
   NOTE_MARK_INSET,
   NOTE_MARK_SIZE,
@@ -100,6 +104,54 @@ describe("frame sizing", () => {
     expect(plain).toBeGreaterThan(BOX_MIN_WIDTH);
     expect(layout.boxes.get(file)?.width).toBe(
       plain + NOTE_MARK_SIZE + NOTE_MARK_INSET * 2,
+    );
+  });
+
+  it("keeps the changed label clear of a short name", () => {
+    const plain = boxWidth(measure, "refund");
+    const changed = boxWidth(measure, "refund", "", false, true);
+
+    expect(changed).toBeGreaterThan(plain);
+    expect(changed).toBeGreaterThanOrEqual(
+      measure("refund") +
+        measure(CHANGED_LABEL) +
+        DISC_SIZE +
+        LABEL_GAP * 3 +
+        BOX_PAD * 2,
+    );
+  });
+
+  it("widens only the changed box in the layout", () => {
+    const scan = scanOf(["refund.py", "other.py"], []);
+    const ids = scan.modules.map((module) => module.id);
+    const graph = buildCanvasGraph({
+      scans: [scan],
+      modules: ids,
+      opened: ids,
+      disc: () => "green",
+      folded: new Set(),
+      focus: null,
+      showInferred: true,
+    });
+    const widths = (changed: string[]) =>
+      new Map(
+        (
+          toElk(
+            graph,
+            measure,
+            new Set(),
+            new Map(),
+            new Set(),
+            new Set(changed),
+          ).children ?? []
+        ).map((node) => [node.id, node.width]),
+      );
+
+    expect(widths(["refund.py"]).get("refund.py")).toBeGreaterThan(
+      widths([]).get("refund.py") ?? 0,
+    );
+    expect(widths(["refund.py"]).get("other.py")).toBe(
+      widths([]).get("other.py"),
     );
   });
 

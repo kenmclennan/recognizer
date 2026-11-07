@@ -1,6 +1,8 @@
 import { button, el } from "./dom";
+import type { ResultState, Summary } from "./freshness-model";
 import { attachHoverTip } from "./hover-tip";
-import type { FreshnessReport, ResultsMode } from "./scan-freshness";
+import { icon } from "./icons";
+import type { ResultsMode } from "./scan-freshness";
 import {
   DESCRIBE_KEY,
   type ReportRow,
@@ -27,28 +29,43 @@ export type ScanPanelView = {
   reveal: (key: string) => void;
 };
 
-const SVG = "http://www.w3.org/2000/svg";
+function stateTone(state: ResultState): string {
+  switch (state.kind) {
+    case "current":
+      return "ok";
+    case "out-of-date":
+      return "warn";
+    case "never-run":
+      return "muted";
+    case "failed":
+      return "bad";
+    case "running":
+      return "run";
+  }
+}
 
-function spinnerIcon(): SVGElement {
-  const svg = document.createElementNS(SVG, "svg");
-  const arc = document.createElementNS(SVG, "path");
+function miniBar(done: number, total: number): HTMLElement {
+  const track = el("span", "scan-bar");
+  const fill = el("i", "scan-bar-fill");
 
-  svg.setAttribute("class", "scan-spin");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("aria-hidden", "true");
-  arc.setAttribute("d", "M21 12a9 9 0 1 1-6.219-8.56");
-  svg.append(arc);
+  fill.style.width = `${total > 0 ? Math.min(100, (done / total) * 100) : 0}%`;
+  track.append(fill);
 
-  return svg;
+  return track;
 }
 
 function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   const node = el("div", "scan-row");
   const label = el("label", "scan-row-label");
   const tick = el("input", "scan-tick");
-  const state = el("span", `scan-state ${row.state.tone}`);
+  const state = el("span", `scan-state ${stateTone(row.state)}`);
+  const glyph = icon(
+    row.text.icon,
+    row.state.kind === "running" ? "scan-spin" : "scan-icon",
+  );
 
   node.dataset.sensor = row.key;
+  node.dataset.state = row.state.kind;
   node.dataset.tip = row.title;
 
   attachHoverTip(node, "scan-tip", (tip) => {
@@ -57,15 +74,23 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   tick.type = "checkbox";
   tick.checked = row.ticked;
   tick.disabled = row.disabled;
+  tick.title = row.tickable ? "" : row.title;
   tick.setAttribute("aria-label", row.name);
   tick.addEventListener("change", () => actions.tick(row.key, tick.checked));
   label.append(tick, row.name);
+  state.append(glyph, el("span", "scan-state-text", row.text.text));
 
-  if (row.state.tone === "run") {
-    state.append(spinnerIcon());
+  if (
+    row.state.kind === "running" &&
+    row.state.done !== null &&
+    row.state.total !== null
+  ) {
+    state.append(miniBar(row.state.done, row.state.total));
   }
 
-  state.append(row.state.text);
+  if (row.state.kind === "failed") {
+    state.append(button("log", "scan-log-link", () => actions.openLog()));
+  }
 
   if (row.note !== null) {
     state.append(el("small", "scan-note", row.note));
@@ -157,58 +182,30 @@ function scopeNode(
   return node;
 }
 
-function modeNode(
-  mode: ScanPanelModel["mode"],
-  actions: ScanPanelActions,
-): HTMLElement {
-  const node = el("div", "scan-mode");
-  const group = el("div", "scan-mode-switch seg");
-  const bring = button("Bring up to date", "scan-mode-bring", () =>
-    actions.setMode("bring"),
+function summaryNode(summary: Summary): HTMLElement {
+  const node = el("div", `summary ${summary.tone}`);
+  const text = el("div", "summary-text");
+
+  node.dataset.shape = summary.shape;
+  text.append(
+    el("div", "summary-head", summary.head),
+    el("div", "summary-line", summary.line),
   );
-  const rescan = button("Rescan from scratch", "scan-mode-rescan", () =>
-    actions.setMode("rescan"),
-  );
-  const on = mode.value === "bring";
 
-  bring.setAttribute("aria-pressed", String(on));
-  rescan.setAttribute("aria-pressed", String(!on));
-  bring.classList.toggle("on", on);
-  rescan.classList.toggle("on", !on);
-  bring.disabled = mode.disabled;
-  rescan.disabled = mode.disabled;
-  group.append(bring, rescan);
-  node.append(el("div", "scan-mode-title", "Results"), group);
+  if (summary.bar !== null) {
+    const track = el("div", "summary-bar");
+    const fill = el("i", "summary-bar-fill");
+    const { done, total } = summary.bar;
 
-  return node;
-}
-
-function freshnessNode(report: FreshnessReport): HTMLElement {
-  const node = el("div", `scan-fresh ${report.complete ? "ok" : "warn"}`);
+    fill.style.width = `${total > 0 ? Math.min(100, (done / total) * 100) : 0}%`;
+    track.append(fill);
+    text.append(track);
+  }
 
   node.append(
-    el("div", "scan-fresh-head", report.head),
-    el("div", "scan-fresh-body", report.body),
+    icon(summary.icon, summary.tone === "run" ? "scan-spin" : "summary-icon"),
+    text,
   );
-
-  if (report.bar !== null) {
-    const total = report.bar.current + report.bar.outOfDate;
-    const meter = el("div", "scan-fresh-meter");
-    const current = el("i", "scan-fresh-current");
-    const out = el("i", "scan-fresh-out");
-
-    current.style.width = `${(report.bar.current / total) * 100}%`;
-    out.style.width = `${(report.bar.outOfDate / total) * 100}%`;
-    meter.append(current, out);
-    node.append(
-      meter,
-      el(
-        "div",
-        "scan-fresh-legend",
-        `${report.bar.current} current · ${report.bar.outOfDate} out of date`,
-      ),
-    );
-  }
 
   return node;
 }
@@ -250,14 +247,13 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
     render(model) {
       sub.replaceChildren(model.header.text);
 
-      if (model.header.changed !== null) {
-        sub.append(" · ", el("span", "warn", model.header.changed));
+      if (model.header.moved !== null) {
+        sub.append(" · ", el("span", "warn", model.header.moved));
       }
 
       list.replaceChildren(
-        ...(model.report === null ? [] : [freshnessNode(model.report)]),
         ...(model.scope === null ? [] : [scopeNode(model.scope, actions)]),
-        ...(model.pending ? [] : [modeNode(model.mode, actions)]),
+        ...(model.pending ? [] : [summaryNode(model.freshness.summary)]),
         ...model.rows.flatMap((row) => [
           rowNode(row, actions),
           ...(row.key === DESCRIBE_KEY && model.confirm !== null
@@ -273,17 +269,14 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         return;
       }
 
-      const run = button("", "scan-run primary", () => actions.run());
+      const run = button(model.button.label, "scan-run primary", () =>
+        actions.run(),
+      );
 
       run.disabled = model.button.disabled;
 
       if (model.button.scanning) {
-        run.append(spinnerIcon());
-      }
-
-      run.append(model.button.label);
-
-      if (model.button.scanning) {
+        run.prepend(icon("loader", "scan-spin"));
         buttons.replaceChildren(
           run,
           button("Stop", "scan-stop", () => actions.stop()),
@@ -292,7 +285,12 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         return;
       }
 
-      buttons.replaceChildren(run);
+      const again = button(model.secondary.label, "scan-secondary", () =>
+        actions.setMode(model.secondary.mode),
+      );
+
+      again.disabled = model.secondary.disabled;
+      buttons.replaceChildren(run, again);
     },
   };
 }

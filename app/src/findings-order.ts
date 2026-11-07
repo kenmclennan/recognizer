@@ -4,12 +4,6 @@ import {
   linesDuplicated,
 } from "recognizer";
 
-export type StaleRow = {
-  name: string;
-  kind: "structure" | "registered";
-  chip: string;
-};
-
 export type FindingRow = {
   id: string;
   module: string;

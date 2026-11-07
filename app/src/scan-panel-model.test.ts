@@ -94,7 +94,7 @@ function run(over: Partial<RunState>): RunState {
 }
 
 const states = (model: ReturnType<typeof scanPanel>) =>
-  model.rows.map((row) => `${row.name}: ${row.state.text}`);
+  model.rows.map((row) => `${row.name}: ${row.text.text}`);
 
 const fresh = input({
   scan: null,
@@ -102,8 +102,9 @@ const fresh = input({
 });
 
 describe("scanPanel rows", () => {
-  it("lists Descriptions, shipped sensors by display name, then third-party sensors in config order", () => {
+  it("lists Structure, Descriptions, shipped sensors by display name, then third-party sensors in config order", () => {
     expect(scanPanel(input()).rows.map((row) => row.name)).toEqual([
+      "Structure",
       "Descriptions",
       "C.R.A.P.",
       "Duplication",
@@ -113,24 +114,34 @@ describe("scanPanel rows", () => {
     ]);
   });
 
-  it("omits a shipped sensor that is not listed and never offers a disabled checkbox", () => {
+  it("omits a shipped sensor that is not listed and makes only Structure untickable", () => {
     const rows = scanPanel(input()).rows;
 
     expect(rows.map((row) => row.key)).not.toContain("thresholds");
-    expect(rows.every((row) => row.tickable)).toBe(true);
+    expect(rows.filter((row) => !row.tickable).map((row) => row.key)).toEqual([
+      "structure",
+    ]);
   });
 
-  it("disables every row while scanning and none otherwise", () => {
-    expect(scanPanel(input()).rows.some((row) => row.disabled)).toBe(false);
-    expect(
-      scanPanel(input({ scanning: true })).rows.every((row) => row.disabled),
-    ).toBe(true);
+  it("keeps Structure ticked and disabled, and disables every other row only while scanning", () => {
+    const idle = scanPanel(input()).rows;
+    const busy = scanPanel(input({ scanning: true })).rows;
+
+    expect(idle.find((row) => row.key === "structure")).toMatchObject({
+      ticked: true,
+      disabled: true,
+      title: "Structure always runs",
+    });
+    expect(idle.filter((row) => row.disabled).map((row) => row.key)).toEqual([
+      "structure",
+    ]);
+    expect(busy.every((row) => row.disabled)).toBe(true);
   });
 
   it("titles a shipped row with the registry's sentence and Descriptions with the mock's wording", () => {
     const rows = scanPanel(input()).rows;
 
-    expect(rows[0]?.title).toBe(
+    expect(rows.find((row) => row.key === "describe")?.title).toBe(
       "Writes one line per module saying what it is responsible for.",
     );
     expect(rows.find((row) => row.key === "crap")?.title).toBe(
@@ -138,12 +149,13 @@ describe("scanPanel rows", () => {
     );
   });
 
-  it("shows Descriptions and third-party rows only when the shipped list is unavailable", () => {
+  it("shows Structure, Descriptions and third-party rows only when the shipped list is unavailable", () => {
     const model = scanPanel(
       input({ shipped: { status: "unavailable", reason: "old" } }),
     );
 
     expect(model.rows.map((row) => row.name)).toEqual([
+      "Structure",
       "Descriptions",
       "alpha",
       "beta",
@@ -170,34 +182,46 @@ describe("scanPanel header", () => {
   it("reads Not scanned yet without a scan", () => {
     expect(scanPanel(fresh).header).toEqual({
       text: "Not scanned yet",
-      changed: null,
+      moved: null,
     });
   });
 
   it("reads Ran with an age and no sha", () => {
     expect(scanPanel(input()).header).toEqual({
       text: "Ran 27 minutes ago",
-      changed: null,
+      moved: null,
     });
   });
 
-  it("adds the amber phrase when files changed or the commit moved", () => {
+  it("carries no amber phrase for changed files, and the moved text when the commit moved", () => {
     const files = scanPanel(
       input({
-        scan: { ...SCAN, changes: { files: ["a.py"], moved: null } as never },
+        scan: {
+          ...SCAN,
+          changes: { files: [{ path: "a.py", kind: "modified" }], moved: null },
+        },
       }),
     );
     const moved = scanPanel(
       input({
         scan: {
           ...SCAN,
-          changes: { files: [], moved: { from: "a", to: "b" } } as never,
+          changes: { files: [], moved: { branch: "main", commit: "9f8e7d6" } },
+        },
+      }),
+    );
+    const detached = scanPanel(
+      input({
+        scan: {
+          ...SCAN,
+          changes: { files: [], moved: { branch: null, commit: "9f8e7d6" } },
         },
       }),
     );
 
-    expect(files.header.changed).toBe("files changed since");
-    expect(moved.header.changed).toBe("files changed since");
+    expect(files.header.moved).toBeNull();
+    expect(moved.header.moved).toBe("Now on main at 9f8e7d6");
+    expect(detached.header.moved).toBe("Now at 9f8e7d6");
   });
 
   it("reads Scanning… while a scan runs with no progress text", () => {
@@ -217,21 +241,22 @@ describe("scanPanel header", () => {
 });
 
 describe("scanPanel row states", () => {
-  it("reads not yet run on a fresh repository", () => {
+  const rowOf = (model: ReturnType<typeof scanPanel>, key: string) =>
+    model.rows.find((row) => row.key === key);
+
+  it("reads never run on a repository nothing has run on, and Structure as never run without a scan", () => {
     expect(states(scanPanel(fresh))).toEqual([
-      "Descriptions: 1 to describe",
-      "C.R.A.P.: not yet run",
-      "Duplication: not yet run",
-      "Mutation: not yet run",
-      "alpha: not yet run",
-      "beta: not yet run",
+      "Structure: never run",
+      "Descriptions: never run",
+      "C.R.A.P.: never run",
+      "Duplication: never run",
+      "Mutation: never run",
+      "alpha: never run",
+      "beta: never run",
     ]);
-    expect(
-      scanPanel(fresh).rows.every((row) => row.state.tone === "muted"),
-    ).toBe(true);
   });
 
-  it("counts current lines and the age from the responsibilities file", () => {
+  it("reads Descriptions current with the age from the responsibilities file", () => {
     const model = scanPanel(
       input({
         describedAt: NOW - 2 * 24 * 60 * MINUTE,
@@ -239,23 +264,19 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(model.rows[0]?.state).toEqual({
-      text: "2 modules described, 2 days ago",
-      tone: "ok",
+    expect(rowOf(model, "describe")).toMatchObject({
+      state: { kind: "current", at: NOW - 2 * 24 * 60 * MINUTE },
+      text: { text: "current, 2 days ago" },
     });
   });
 
-  it("says 1 module described and drops the age when none is known", () => {
-    const model = scanPanel(
-      input({
-        lines: allCurrent(["a.py"]),
-      }),
-    );
+  it("drops the age when none is known", () => {
+    const model = scanPanel(input({ lines: allCurrent(["a.py"]) }));
 
-    expect(model.rows[0]?.state.text).toBe("1 module described");
+    expect(rowOf(model, "describe")?.text.text).toBe("current");
   });
 
-  it("counts every missing or out-of-date module as to describe", () => {
+  it("reads Descriptions out of date for every out-of-date or missing module once one has a line", () => {
     const modules = Array.from({ length: 40 }, (_, at) => `m${at}.py`);
     const model = scanPanel(
       input({
@@ -264,26 +285,14 @@ describe("scanPanel row states", () => {
           of: (id) =>
             id === "m0.py"
               ? { kind: "out-of-date", line: "x", reasons: ["source"] }
-              : { kind: "missing" },
+              : id === "m1.py"
+                ? { kind: "current", line: "x" }
+                : { kind: "missing" },
         },
       }),
     );
 
-    expect(model.rows[0]?.state).toEqual({
-      text: "40 to describe",
-      tone: "muted",
-    });
-  });
-
-  it("keeps the last-run text when no module is stale", () => {
-    const model = scanPanel(
-      input({
-        describedAt: NOW - MINUTE,
-        lines: allCurrent(["a.py", "b.py"]),
-      }),
-    );
-
-    expect(model.rows[0]?.state.text).toBe("2 modules described, 1 minute ago");
+    expect(rowOf(model, "describe")?.text.text).toBe("39 modules out of date");
   });
 
   it("reads the finished of total count for Descriptions while it runs", () => {
@@ -295,7 +304,31 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(model.rows[0]?.state).toEqual({ text: "12 of 40", tone: "run" });
+    expect(rowOf(model, "describe")?.state).toEqual({
+      kind: "running",
+      done: 12,
+      total: 40,
+    });
+    expect(rowOf(model, "describe")?.text.text).toBe("12 of 40");
+  });
+
+  it("reads Mutation running with its mutant count and Structure running while extracting", () => {
+    const model = scanPanel(
+      input({
+        scanning: true,
+        extracting: true,
+        run: run({ running: ["mutation"], started: "mutation" }),
+        sensorProgress: {
+          name: "mutation",
+          step: "mutants",
+          done: 251,
+          total: 1204,
+        },
+      }),
+    );
+
+    expect(rowOf(model, "mutation")?.text.text).toBe("251 of 1,204");
+    expect(rowOf(model, "structure")?.state.kind).toBe("running");
   });
 
   it.each([
@@ -308,7 +341,7 @@ describe("scanPanel row states", () => {
       "Stopped: 4 describing calls failed in a row. 412 described, 1,628 not described. The next scan describes the rest.",
     ],
   ] as const)(
-    "shows the describe stop for %s in the warn tone with its sentence",
+    "keeps the describe stop sentence for %s in the note",
     (cause, note) => {
       const model = scanPanel(
         input({
@@ -322,18 +355,14 @@ describe("scanPanel row states", () => {
         }),
       );
 
-      expect(model.rows[0]?.state).toEqual({ text: "stopped", tone: "warn" });
-      expect(model.rows[0]?.note).toBe(note);
+      expect(rowOf(model, "describe")?.note).toBe(note);
     },
   );
 
-  it("shows skipped this scan in the warn tone after a skip answer", () => {
+  it("keeps skipped this scan in the note after a skip answer", () => {
     const model = scanPanel(input({ describeSkipped: true }));
 
-    expect(model.rows[0]?.state).toEqual({
-      text: "skipped this scan",
-      tone: "warn",
-    });
+    expect(rowOf(model, "describe")?.note).toBe("skipped this scan");
   });
 
   it("carries the confirmation card text only while a question is open", () => {
@@ -356,7 +385,7 @@ describe("scanPanel row states", () => {
     expect(scanPanel(input({})).confirm).toBeNull();
   });
 
-  it("counts findings with the age from the findings file and says 1 finding", () => {
+  it("reads a ran sensor current with the age from the findings file", () => {
     const model = scanPanel(
       input({
         sensors: [
@@ -371,23 +400,8 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(states(model)).toContain("C.R.A.P.: 16 findings, 27 minutes ago");
-    expect(states(model)).toContain("Duplication: 1 finding, just now");
-  });
-
-  it("keeps a findings count in ok tone for an earlier commit", () => {
-    const model = scanPanel(
-      input({
-        sensors: [
-          { name: "alpha", status: "stale", findings: 3, modifiedMs: NOW },
-        ],
-      }),
-    );
-
-    expect(model.rows.find((row) => row.key === "alpha")?.state).toEqual({
-      text: "3 findings, just now",
-      tone: "ok",
-    });
+    expect(states(model)).toContain("C.R.A.P.: current, 27 minutes ago");
+    expect(states(model)).toContain("Duplication: current, just now");
   });
 
   it("prefers the session time over the file's modification time", () => {
@@ -405,26 +419,16 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(states(model)).toContain("alpha: 2 findings, 2 minutes ago");
+    expect(states(model)).toContain("alpha: current, 2 minutes ago");
   });
 
   it.each([
-    { measured: 0, total: 5, text: "stopped, nothing measured", tone: "muted" },
-    {
-      measured: 2,
-      total: 5,
-      text: "stopped, 2 of 5 functions measured",
-      tone: "ok",
-    },
-    {
-      measured: 5,
-      total: 5,
-      text: "stopped, 5 of 5 functions measured",
-      tone: "ok",
-    },
+    { measured: 0, total: 5, note: "stopped, nothing measured" },
+    { measured: 2, total: 5, note: "stopped, 2 of 5 functions measured" },
+    { measured: 5, total: 5, note: "stopped, 5 of 5 functions measured" },
   ])(
-    "reads $text for a stopped document of $measured of $total, ran or stale",
-    ({ measured, total, text, tone }) => {
+    "reads a stopped document of $measured of $total as current and keeps the diagnosis in the note",
+    ({ measured, total, note }) => {
       for (const status of ["ran", "stale"] as const) {
         const model = scanPanel(
           input({
@@ -440,24 +444,21 @@ describe("scanPanel row states", () => {
           }),
         );
 
-        expect(model.rows.find((row) => row.key === "mutation")?.state).toEqual(
-          { text: `${text}, 3 minutes ago`, tone },
-        );
+        expect(rowOf(model, "mutation")?.state.kind).toBe("current");
+        expect(rowOf(model, "mutation")?.note).toBe(note);
       }
     },
   );
 
-  it("reads failed with the age from the held failure, in the warn tone", () => {
+  it("reads failed with the age from the held failure", () => {
     const model = scanPanel(
       input({
         run: run({ failures: { crap: "boom" }, ranAt: { crap: NOW } }),
       }),
     );
 
-    expect(model.rows.find((row) => row.key === "crap")?.state).toEqual({
-      text: "failed, just now",
-      tone: "warn",
-    });
+    expect(rowOf(model, "crap")?.state).toEqual({ kind: "failed", at: NOW });
+    expect(rowOf(model, "crap")?.text.text).toBe("failed, just now");
   });
 
   it("reads failed with no age for a findings file that could not be read", () => {
@@ -469,13 +470,11 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(model.rows.find((row) => row.key === "alpha")?.state).toEqual({
-      text: "failed",
-      tone: "warn",
-    });
+    expect(rowOf(model, "alpha")?.state).toEqual({ kind: "failed", at: null });
+    expect(rowOf(model, "alpha")?.text.text).toBe("failed");
   });
 
-  it("reads running for the started row and waiting for the other planned rows during a scan", () => {
+  it("reads every planned row running during a scan and leaves the others as they were", () => {
     const model = scanPanel(
       input({
         scanning: true,
@@ -483,20 +482,12 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(model.rows.find((row) => row.key === "crap")?.state).toEqual({
-      text: "running",
-      tone: "run",
-    });
-    expect(model.rows.find((row) => row.key === "duplication")?.state).toEqual({
-      text: "waiting",
-      tone: "muted",
-    });
-    expect(model.rows.find((row) => row.key === "mutation")?.state.text).toBe(
-      "not yet run",
-    );
+    expect(rowOf(model, "crap")?.state.kind).toBe("running");
+    expect(rowOf(model, "duplication")?.state.kind).toBe("running");
+    expect(rowOf(model, "mutation")?.text.text).toBe("never run");
   });
 
-  it("falls through to the findings count for a planned row that finished in this scan", () => {
+  it("falls through to current for a planned row that finished in this scan", () => {
     const model = scanPanel(
       input({
         scanning: true,
@@ -511,15 +502,13 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(model.rows.find((row) => row.key === "crap")?.state.text).toBe(
-      "4 findings, just now",
-    );
+    expect(rowOf(model, "crap")?.text.text).toBe("current, just now");
   });
 
-  it("shows the Run button, and a disabled Running one during a scan", () => {
-    expect(scanPanel(input()).button).toEqual({
+  it("offers Run Structure on a repository never scanned, and a disabled Running button during a scan", () => {
+    expect(scanPanel(fresh).button).toEqual({
       scanning: false,
-      label: "Run",
+      label: "Run Structure",
       disabled: false,
     });
     expect(scanPanel(input({ scanning: true })).button).toEqual({
@@ -532,7 +521,11 @@ describe("scanPanel row states", () => {
 
 describe("scanPanel ticks", () => {
   it("shows nothing ticked on a fresh repository", () => {
-    expect(scanPanel(fresh).rows.some((row) => row.ticked)).toBe(false);
+    expect(
+      scanPanel(fresh)
+        .rows.filter((row) => row.ticked)
+        .map((row) => row.key),
+    ).toEqual(["structure"]);
   });
 
   it("ticks a plain sensor from the stored names and a tests-running one from once", () => {
@@ -548,7 +541,7 @@ describe("scanPanel ticks", () => {
     );
     const ticked = model.rows.filter((row) => row.ticked).map((row) => row.key);
 
-    expect(ticked).toEqual(["describe", "crap", "duplication"]);
+    expect(ticked).toEqual(["structure", "describe", "crap", "duplication"]);
   });
 
   it("ticks every plain sensor but no tests-running one when never stored and defaulting on", () => {
@@ -560,8 +553,9 @@ describe("scanPanel ticks", () => {
 
     expect(
       model.rows.filter((row) => row.ticked).map((row) => row.key),
-    ).toEqual(["duplication", "alpha", "beta"]);
+    ).toEqual(["structure", "duplication", "alpha", "beta"]);
   });
+
   it("ticks nothing when a fresh repository defaults to no sensors", () => {
     const model = scanPanel(
       input({
@@ -569,7 +563,9 @@ describe("scanPanel ticks", () => {
       }),
     );
 
-    expect(model.rows.filter((row) => row.ticked)).toEqual([]);
+    expect(
+      model.rows.filter((row) => row.ticked).map((row) => row.key),
+    ).toEqual(["structure"]);
   });
 });
 
@@ -699,7 +695,7 @@ describe("scanPanel only this view", () => {
     ).toBe("This canvas, 1");
   });
 
-  it("scopes an untitled canvas to its open modules when the switch is on", () => {
+  it("scopes the modules the freshness model counts to the open view when the switch is on", () => {
     const untitled = { name: null, modules: ["a.py"] };
     const on = scanPanel(
       input({ view: untitled, scans: SCANS, ticks: ticked(true) }),
@@ -708,8 +704,8 @@ describe("scanPanel only this view", () => {
       input({ view: untitled, scans: SCANS, ticks: ticked(false) }),
     );
 
-    expect(row(on, "mutation")?.state.text).toBe("2 functions");
-    expect(row(off, "mutation")?.state.text).toBe("4 functions");
+    expect(on.freshness.scopeCount).toBe(1);
+    expect(off.freshness.scopeCount).toBe(3);
   });
 
   it("locks the switch while scanning and reflects the stored value", () => {
@@ -724,41 +720,22 @@ describe("scanPanel only this view", () => {
     });
   });
 
-  it("counts stale modules among the view's with the switch on and all of them with it off", () => {
+  it("reads Descriptions from the view's modules with the switch on and from all of them with it off", () => {
     const off = scanPanel(input({ view, ticks: ticked(false) }));
     const on = scanPanel(input({ view, ticks: ticked(true) }));
     const other = scanPanel(
       input({ view: { name: "v", modules: ["c.py"] }, ticks: ticked(true) }),
     );
 
-    expect(row(off, "describe")?.state.text).toBe("1 to describe");
-    expect(row(on, "describe")?.state.text).toBe("1 module described");
-    expect(row(other, "describe")?.state.text).toBe("1 to describe");
+    expect(row(off, "describe")?.text.text).toBe("1 module out of date");
+    expect(row(on, "describe")?.state.kind).toBe("current");
+    expect(row(other, "describe")?.state.kind).toBe("never-run");
   });
 
-  it("keeps the last-run text when the view has no stale module", () => {
-    const model = scanPanel(
-      input({ view, ticks: ticked(true), describedAt: NOW - MINUTE }),
-    );
-
-    expect(row(model, "describe")?.state.text).toBe(
-      "1 module described, 1 minute ago",
-    );
-  });
-
-  it("sizes a ticked Mutation row by the scope and leaves C.R.A.P. and Duplication alone", () => {
+  it("leaves the other rows alone when the scope changes", () => {
     const off = scanPanel(input({ scans: SCANS, ticks: ticked(false) }));
-    const whole = scanPanel(
-      input({ view, scans: SCANS, ticks: ticked(false) }),
-    );
     const on = scanPanel(input({ view, scans: SCANS, ticks: ticked(true) }));
 
-    expect(row(off, "mutation")?.state).toEqual({
-      text: "4 functions",
-      tone: "size",
-    });
-    expect(row(whole, "mutation")?.state.text).toBe("4 functions");
-    expect(row(on, "mutation")?.state.text).toBe("2 functions");
     expect(row(on, "crap")?.state).toEqual(row(off, "crap")?.state);
     expect(row(on, "duplication")?.state).toEqual(
       row(off, "duplication")?.state,
@@ -768,20 +745,8 @@ describe("scanPanel only this view", () => {
   it("ignores the stored switch when no view is open", () => {
     const model = scanPanel(input({ scans: SCANS, ticks: ticked(true) }));
 
-    expect(row(model, "mutation")?.state.text).toBe("4 functions");
+    expect(model.freshness.scopeCount).toBe(3);
     expect(model.scope).toBeNull();
-  });
-
-  it("shows no size for an unticked Mutation row or while scanning", () => {
-    const unticked = scanPanel(
-      input({ scans: SCANS, ticks: { ...ticked(false), once: [] } }),
-    );
-    const busy = scanPanel(
-      input({ scans: SCANS, scanning: true, ticks: ticked(false) }),
-    );
-
-    expect(row(unticked, "mutation")?.state.text).toBe("not yet run");
-    expect(row(busy, "mutation")?.state.text).not.toContain("function");
   });
 });
 
@@ -830,47 +795,59 @@ describe("scanPanel freshness", () => {
     });
     const row = model.rows.find(({ key }) => key === "crap");
 
-    expect(row?.state.text).toBe("1 module out of date");
+    expect(row?.text.text).toBe("1 module out of date");
     expect(row?.why).not.toBeNull();
   });
 
-  it("reports a partial picture, the row count and the whole-repository note, and marks the chip stale", () => {
+  it("summarises the changed module and offers Update 1 module", () => {
     const model = scanPanel(base({ "a.py": "ha", "b.py": "old" }));
     const row = model.rows.find(({ key }) => key === "crap");
 
-    expect(model.report?.head).toBe(
-      "Partial picture: 1 of 2 modules out of date",
+    expect(model.freshness.summary.head).toBe(
+      "1 module changed since it was scanned",
     );
-    expect(model.report?.body).toContain("b.py changed");
-    expect(row?.state.text).toBe("1 module out of date");
-    expect(row?.note).toBe("reruns the whole repository");
+    expect(model.freshness.changed).toEqual(["b.py"]);
+    expect(row?.text.text).toBe("1 module out of date");
+    expect(model.button).toEqual({
+      scanning: false,
+      label: "Update 1 module",
+      disabled: false,
+    });
   });
 
-  it("reports a complete picture when every ticked result is current", () => {
+  it("says everything is current and offers a disabled Up to date when every ticked result is current", () => {
     const model = scanPanel(base({ "a.py": "ha", "b.py": "hb" }));
 
-    expect(model.report?.head).toBe("Complete picture");
-    expect(model.rows.find(({ key }) => key === "crap")?.note).toBeNull();
+    expect(model.freshness.summary.head).toBe(
+      "Everything on the repository is current",
+    );
+    expect(model.button).toEqual({
+      scanning: false,
+      label: "Up to date",
+      disabled: true,
+    });
   });
 
-  it("reads a sensor with no findings document as never run", () => {
+  it("reads a sensor with no findings document as never run and offers to run it", () => {
     const model = scanPanel({ ...base({}), sensors: [] });
 
-    expect(model.report?.head).toBe("Partial picture: C.R.A.P. has not run");
-    expect(model.rows.find(({ key }) => key === "crap")?.state.text).toBe(
+    expect(model.freshness.summary.head).toBe("C.R.A.P. has never run");
+    expect(model.rows.find(({ key }) => key === "crap")?.text.text).toBe(
       "never run",
     );
+    expect(model.button.label).toBe("Run C.R.A.P.");
   });
 
-  it("scopes the report to the open view's modules", () => {
+  it("scopes the summary to the open view's modules", () => {
     const model = scanPanel({
       ...base({ "a.py": "ha", "b.py": "old" }),
       view: { name: "engine", modules: ["a.py"] },
       ticks: { describe: true, ticked: [], once: ["crap"], onlyView: true },
     });
 
-    expect(model.report?.head).toBe("Complete picture");
-    expect(model.report?.body).toContain("engine");
+    expect(model.freshness.summary.head).toBe(
+      "Everything on this canvas is current",
+    );
   });
 });
 
@@ -901,17 +878,14 @@ describe("scanPanel why", () => {
       }),
     ).rows.find((row) => row.key === "crap");
 
-  it("reads could not run in the bad tone for a refusal with tool-missing and offers the fix to copy", () => {
+  it("reads failed for a refusal with tool-missing and offers the fix to copy", () => {
     const row = refusal("crap", {
       code: "tool-missing",
       line: `pytest is missing. Add it with ${FIX}`,
       fix: FIX,
     });
 
-    expect(row?.state).toEqual({
-      text: "could not run, just now",
-      tone: "bad",
-    });
+    expect(row?.state).toEqual({ kind: "failed", at: NOW });
     expect(row?.why).toEqual({
       segments: [
         { text: "pytest is missing. Add it with ", code: false },
@@ -923,19 +897,19 @@ describe("scanPanel why", () => {
     });
   });
 
-  it("reads refused for tests-failed, marks the first failing name and offers the log", () => {
+  it("reads failed for tests-failed, marks the first failing name and offers the log", () => {
     const row = refusal("mutation", {
       code: "tests-failed",
       line: "Suite fails. Failing: t::a and 2 more",
       failing: { count: 3, names: ["t::a"] },
     });
 
-    expect(row?.state).toEqual({ text: "refused, just now", tone: "bad" });
+    expect(row?.state).toEqual({ kind: "failed", at: NOW });
     expect(row?.why?.segments).toContainEqual({ text: "t::a", code: true });
     expect(row?.why).toMatchObject({ copy: null, log: true });
   });
 
-  it("reads refused for coverage-unavailable, with the log only when there is no fix", () => {
+  it("gives coverage-unavailable a refusal with the log only when there is no fix", () => {
     expect(
       refusal("mutation", {
         code: "coverage-unavailable",
@@ -951,28 +925,25 @@ describe("scanPanel why", () => {
     ).toMatchObject({ copy: null, log: true });
   });
 
-  it("reads ran, partly for a completed tests-failed run and keeps the findings", () => {
+  it("reads a completed tests-failed run as current and keeps its diagnosis beneath", () => {
     const row = completed({
       code: "tests-failed",
       line: "3 tests failed, so coverage may read low",
       failing: { count: 3, names: [] },
     });
 
-    expect(row?.state).toEqual({ text: "ran, partly, just now", tone: "warn" });
+    expect(row?.state).toEqual({ kind: "current", at: NOW });
     expect(row?.why).toMatchObject({ copy: null, log: true });
   });
 
-  it("reads complexity only for a completed coverage-unavailable run with a fix to copy", () => {
+  it("reads a completed coverage-unavailable run as current with a fix to copy", () => {
     const row = completed({
       code: "coverage-unavailable",
       line: `No coverage. Install ${FIX}`,
       fix: FIX,
     });
 
-    expect(row?.state).toEqual({
-      text: "complexity only, just now",
-      tone: "warn",
-    });
+    expect(row?.state).toEqual({ kind: "current", at: NOW });
     expect(row?.why).toMatchObject({ copy: FIX, log: false });
   });
 
@@ -983,7 +954,7 @@ describe("scanPanel why", () => {
       }),
     ).rows.find((one) => one.key === "crap");
 
-    expect(row?.state.text).toBe("failed, just now");
+    expect(row?.text.text).toBe("failed, just now");
     expect(row?.why).toBeNull();
   });
 
@@ -1017,7 +988,8 @@ describe("scanPanel why", () => {
       }),
     ).rows.find((one) => one.key === "crap");
 
-    expect(row?.state.text).toBe("ran, partly, 5 minutes ago");
+    expect(row?.text.text).toBe("current, 5 minutes ago");
+    expect(row?.why).not.toBeNull();
   });
 });
 
@@ -1076,32 +1048,28 @@ describe("scanPanel remembered refusal", () => {
       }),
     ).rows.find((row) => row.key === "crap");
 
-  it.each([
-    ["tool-missing", "could not run, 5 minutes ago", "bad"],
-    ["tests-failed", "refused, 5 minutes ago", "bad"],
-    ["coverage-unavailable", "refused, 5 minutes ago", "bad"],
-  ] as const)(
-    "reads a %s refusal as %s with the findings' age",
-    (code, text, tone) => {
+  it.each(["tool-missing", "tests-failed", "coverage-unavailable"] as const)(
+    "reads a %s refusal as failed with the findings' age",
+    (code) => {
       const diagnosis: Diagnosis = { code, line: "why" };
       const row = remembered(diagnosis);
 
-      expect(row?.state).toEqual({ text, tone });
+      expect(row?.text.text).toBe("failed, 5 minutes ago");
       expect(row?.why).toEqual(whyOf(diagnosis));
     },
   );
 
-  it("reads a refusal with no diagnosis as failed in the warn tone with no second line", () => {
+  it("reads a refusal with no diagnosis as failed with no second line", () => {
     const row = remembered(undefined);
 
-    expect(row?.state).toEqual({ text: "failed, 5 minutes ago", tone: "warn" });
+    expect(row?.text.text).toBe("failed, 5 minutes ago");
     expect(row?.why).toBeNull();
   });
 
   it("takes the age from the refusal when the sensor has no document", () => {
     const row = remembered(undefined, {}, null);
 
-    expect(row?.state.text).toBe("failed, 1 minute ago");
+    expect(row?.text.text).toBe("failed, 1 minute ago");
   });
 
   it("lets this session's failure outrank a remembered refusal", () => {
@@ -1116,19 +1084,16 @@ describe("scanPanel remembered refusal", () => {
       },
     );
 
-    expect(row?.state).toEqual({
-      text: "could not run, just now",
-      tone: "bad",
-    });
+    expect(row?.text.text).toBe("failed, just now");
     expect(row?.why).toEqual(whyOf({ code: "tool-missing", line: "new" }));
   });
 
-  it("does not turn a refused row into out of date for a module gap", () => {
+  it("does not turn a failed row into out of date for a module gap", () => {
     const row = remembered(
       { code: "tests-failed", line: "why" },
       { scans: SCANS },
     );
 
-    expect(row?.state.text).toMatch(/^refused/);
+    expect(row?.state.kind).toBe("failed");
   });
 });

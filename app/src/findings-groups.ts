@@ -1,9 +1,5 @@
 import groupFile from "./finding-groups.json";
-import {
-  type FindingRow,
-  orderFindings,
-  type StaleRow,
-} from "./findings-order";
+import { type FindingRow, orderFindings } from "./findings-order";
 
 export type GroupHelp = { means: string; todo: string };
 
@@ -110,31 +106,36 @@ export function headerLine(rows: FindingRow[]): string | null {
   return parts.join(", ");
 }
 
-function joinNames(names: string[]): string {
-  if (names.length <= 2) {
-    return names.join(" and ");
-  }
+export const SENSOR_GROUPS: Record<string, string> = {
+  "kind:duplication": "duplication",
+  "kind:crap": "crap",
+  "kind:mutation": "mutation",
+  "kind:thresholds": "thresholds",
+};
 
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-}
+export function withEmptyGroups(
+  groups: FindingGroupModel[],
+  noneYet: (sensor: string) => boolean,
+): FindingGroupModel[] {
+  const present = new Set(groups.map(({ key }) => key));
+  const added = FIXED.filter((one) => {
+    const sensor = SENSOR_GROUPS[one.key];
 
-export function staleNote(
-  rows: FindingRow[],
-  hidden: FindingRow[],
-  sensors: StaleRow[],
-): string | null {
-  const stale = new Set([
-    ...sensors
-      .filter((row) => row.kind === "registered" && row.chip === "failed")
-      .map((row) => row.name),
-    ...hidden.map((row) => row.sensor),
-  ]);
+    return sensor !== undefined && !present.has(one.key) && noneYet(sensor);
+  }).map(
+    (one): FindingGroupModel => ({
+      key: one.key,
+      name: one.name,
+      help:
+        one.means !== undefined && one.todo !== undefined
+          ? { means: one.means, todo: one.todo }
+          : null,
+      severity: "warning",
+      rows: [],
+    }),
+  );
+  const all = [...groups, ...added];
+  const fixed = FIXED.flatMap((one) => all.filter((g) => g.key === one.key));
 
-  const names = groupsOf([...rows, ...hidden])
-    .filter((group) => group.rows.some((row) => stale.has(row.sensor)))
-    .map((group) => group.name);
-
-  return names.length === 0
-    ? null
-    : `${joinNames(names)} findings are out of date.`;
+  return [...fixed, ...groups.filter((g) => !fixed.includes(g))];
 }

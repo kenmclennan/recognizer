@@ -9,6 +9,7 @@ import {
 } from "./canvas-keys";
 import {
   BOX_HEIGHT,
+  CHANGED_LABEL,
   FOLDER_BOX_HEIGHT,
   NOTE_MARK_INSET,
   NOTE_MARK_SIZE,
@@ -87,6 +88,7 @@ export type CanvasProps = {
   orientation?: CanvasOrientation | null;
   metrics?: CanvasMetrics | null;
   changes?: ChangeOverlay | null;
+  changed?: (id: string) => boolean;
   plan?: PlanOverlay | null;
   heading?: Heading | null;
   describe?: (id: string) => string | null;
@@ -781,6 +783,8 @@ export function buildCanvasView(
           });
 
           const middle = rect.y + nameBase(box) / 2;
+          const changedBox =
+            box.kind !== "folder" && props?.changed?.(box.id) === true;
 
           node.append(
             svg("rect", {
@@ -803,7 +807,7 @@ export function buildCanvasView(
               ? splitBorder(rect)
               : []),
             svg("circle", {
-              class: `disc-fill ${box.disc}`,
+              class: `disc-fill ${changedBox ? "grey" : box.disc}`,
               cx: rect.x + 14,
               cy: middle,
               r: 4,
@@ -818,6 +822,21 @@ export function buildCanvasView(
               box.label,
             ),
           );
+
+          if (changedBox) {
+            node.append(
+              svg(
+                "text",
+                {
+                  class: "changed-label",
+                  x: rect.x + rect.width - 10,
+                  y: box.subline ? middle - 2 : middle + 4,
+                  "text-anchor": "end",
+                },
+                CHANGED_LABEL,
+              ),
+            );
+          }
 
           if (box.subline) {
             node.append(

@@ -33,6 +33,10 @@ export type IconName =
   | "bell"
   | "triangle-alert"
   | "circle-x"
+  | "circle-check"
+  | "circle-alert"
+  | "circle-dashed"
+  | "loader"
   | "check"
   | "info"
   | "rotate-ccw"
@@ -43,6 +47,23 @@ type Shape = [string, Record<string, string>];
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const SHAPES: Record<IconName, Shape[]> = {
+  "circle-check": [
+    ["circle", { cx: "12", cy: "12", r: "10" }],
+    ["path", { d: "m9 12 2 2 4-4" }],
+  ],
+  "circle-alert": [
+    ["circle", { cx: "12", cy: "12", r: "10" }],
+    ["path", { d: "M12 8v4M12 16h.01" }],
+  ],
+  "circle-dashed": [
+    [
+      "path",
+      {
+        d: "M10.1 2.182a10 10 0 0 1 3.8 0M13.9 21.818a10 10 0 0 1-3.8 0M17.609 3.721a10 10 0 0 1 2.69 2.7M2.182 13.9a10 10 0 0 1 0-3.8M20.279 17.609a10 10 0 0 1-2.7 2.69M21.818 10.1a10 10 0 0 1 0 3.8M3.721 6.391a10 10 0 0 1 2.7-2.69M6.391 20.279a10 10 0 0 1-2.69-2.7",
+      },
+    ],
+  ],
+  loader: [["path", { d: "M21 12a9 9 0 1 1-6.219-8.56" }]],
   "chevron-right": [["path", { d: "M9 6l6 6-6 6" }]],
   "chevron-left": [["path", { d: "M15 6l-6 6 6 6" }]],
   "rotate-ccw": [

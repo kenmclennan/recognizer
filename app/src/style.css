@@ -1856,49 +1856,8 @@ svg.i.chevron {
   align-items: center;
 }
 
-.footer .scan-line.amber {
-  color: var(--warn);
-}
-
-.footer .scan-count {
-  color: inherit;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 1px 0;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
 .footer {
   position: relative;
-}
-
-.changes-list {
-  position: absolute;
-  left: 12px;
-  bottom: 100%;
-  max-width: calc(100% - 24px);
-  max-height: 240px;
-  overflow: auto;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 12px;
-}
-
-.changes-row {
-  display: flex;
-  gap: 10px;
-  padding: 1px 0;
-}
-
-.change-kind {
-  min-width: 64px;
-  color: var(--muted);
 }
 
 .panel-resizer {
@@ -2312,7 +2271,6 @@ svg.i.chevron {
 }
 
 .scan-scope,
-.scan-mode-switch,
 .findings-scope {
   display: flex;
   margin: 8px 0 6px;
@@ -2324,8 +2282,6 @@ svg.i.chevron {
 
 .scan-scope-canvas,
 .scan-scope-all,
-.scan-mode-bring,
-.scan-mode-rescan,
 .findings-scope-canvas,
 .findings-scope-all {
   flex: 1;
@@ -2343,22 +2299,13 @@ svg.i.chevron {
 }
 
 .scan-scope .on,
-.scan-mode-switch .on,
 .findings-scope .on {
   background: var(--selbg);
   color: var(--fg);
 }
 
-.scan-mode-title {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .scan-scope-canvas:disabled,
-.scan-scope-all:disabled,
-.scan-mode-bring:disabled,
-.scan-mode-rescan:disabled {
+.scan-scope-all:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -2412,53 +2359,116 @@ svg.i.chevron {
   color: var(--muted);
 }
 
-.scan-fresh {
+.summary {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 8px 0 6px;
+  padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 10px;
 }
 
-.scan-fresh-head {
-  font-weight: 600;
+.summary-icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.scan-fresh.ok .scan-fresh-head {
+.summary.ok {
   color: var(--ok);
 }
 
-.scan-fresh.warn .scan-fresh-head {
+.summary.warn {
   color: var(--warn);
 }
 
-.scan-fresh-body,
-.scan-fresh-legend {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--muted);
+.summary.bad {
+  color: var(--bad);
 }
 
-.scan-fresh-meter {
-  display: flex;
-  height: 5px;
-  margin-top: 8px;
-  border-radius: 3px;
+.summary.run {
+  color: var(--sel);
+}
+
+.summary-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.summary-head {
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.summary-line {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.summary-bar,
+.scan-bar {
+  display: block;
   overflow: hidden;
+  border-radius: 2px;
   background: var(--line);
 }
 
-.scan-fresh-current,
-.scan-fresh-out {
+.summary-bar {
+  height: 4px;
+  margin-top: 7px;
+}
+
+.scan-bar {
+  width: 44px;
+  height: 3px;
+}
+
+.summary-bar-fill,
+.scan-bar-fill {
   display: block;
   height: 100%;
+  background: var(--sel);
 }
 
-.scan-fresh-current {
-  background: var(--ok);
+.scan-icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.scan-fresh-out {
-  background: var(--warn);
+.scan-state.muted {
+  color: var(--muted);
+}
+
+.scan-log-link,
+.scan-secondary {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--sel);
+  cursor: pointer;
+}
+
+.scan-secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .scan-tip {
@@ -2568,6 +2578,12 @@ svg.i.chevron {
   animation: spinner-turn 1s linear infinite;
 }
 
+.summary .scan-spin {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
 .sensor-row {
   display: flex;
   flex-wrap: wrap;
@@ -2611,7 +2627,7 @@ svg.i.chevron {
   gap: 8px;
 }
 
-.scan-panel .scan-buttons button {
+.scan-panel .scan-buttons button:not(.scan-secondary) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2789,12 +2805,6 @@ svg.i.chevron {
   justify-content: space-between;
   font-size: 14px;
   font-weight: 600;
-}
-
-.findings-coverage {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
 }
 
 .findings-line {
@@ -3002,15 +3012,39 @@ svg.i.chevron {
   cursor: pointer;
 }
 
-.findings-stale {
-  padding: 4px 6px;
-  border: 1px solid #b9770e;
-  border-radius: 4px;
-  background: transparent;
-  color: #b9770e;
-  font-size: 11px;
-  text-align: left;
+.findings-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.findings-fresh-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.findings-fresh-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--sel);
   cursor: pointer;
+}
+
+.finding-group-count.none-yet {
+  color: var(--faint);
+  font-style: italic;
 }
 
 .findings-empty {
@@ -3780,4 +3814,9 @@ svg.i.chevron {
 
 .ih-proposed {
   font-weight: 600;
+}
+
+.box .changed-label {
+  fill: var(--faint);
+  font-size: 10px;
 }

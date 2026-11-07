@@ -17,13 +17,6 @@ export type ScanState = {
   scanning: string | null;
 };
 
-export type ScanLine = {
-  kind: "up-to-date" | "files" | "moved" | "scanning";
-  text: string;
-  tone: "muted" | "amber";
-  files: FileChange[];
-};
-
 export const NO_CHANGES: Changes = { files: [], moved: null };
 
 function plural(count: number, noun: string): string {
@@ -48,50 +41,4 @@ export function ageText(scannedAt: number, now: number): string {
   }
 
   return `${plural(Math.floor(hours / 24), "day")} ago`;
-}
-
-export function scanLine(state: ScanState, now: number): ScanLine {
-  if (state.scanning !== null) {
-    return {
-      kind: "scanning",
-      text: state.scanning,
-      tone: "muted",
-      files: [],
-    };
-  }
-
-  const { moved, files } = state.changes;
-
-  if (moved !== null) {
-    return {
-      kind: "moved",
-      text:
-        moved.branch === null
-          ? `Now at ${moved.commit}`
-          : `Now on ${moved.branch} at ${moved.commit}`,
-      tone: "amber",
-      files: [],
-    };
-  }
-
-  if (files.length > 0) {
-    return {
-      kind: "files",
-      text: `${plural(files.length, "file")} changed since`,
-      tone: "amber",
-      files,
-    };
-  }
-
-  const head =
-    state.origin.commit === null
-      ? "Scanned"
-      : `Scanned at ${state.origin.commit},`;
-
-  return {
-    kind: "up-to-date",
-    text: `${head} ${ageText(state.scannedAt, now)}`,
-    tone: "muted",
-    files: [],
-  };
 }

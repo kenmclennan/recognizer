@@ -18,9 +18,16 @@ export type FindingsPanelActions = FindingRowActions & {
 export type FindingsPanelModel = {
   scope: { caption: string; on: boolean } | null;
   header: string | null;
-  coverage: string | null;
-  stale: string | null;
-  groups: { group: FindingGroupModel; open: boolean; cards: CardModel[] }[];
+  freshness: {
+    text: string;
+    action: { label: string; run: () => void } | null;
+  } | null;
+  groups: {
+    group: FindingGroupModel;
+    open: boolean;
+    cards: CardModel[];
+    none: boolean;
+  }[];
   active: string | null;
   absent: (module: string) => boolean;
   empty: string | null;
@@ -157,7 +164,11 @@ export function buildFindingGroup(
   group: FindingGroupModel,
   open: boolean,
   cards: CardModel[],
-  state: { active: string | null; absent: (module: string) => boolean },
+  state: {
+    active: string | null;
+    absent: (module: string) => boolean;
+    none?: boolean;
+  },
   actions: FindingRowActions & { toggleGroup: (key: string) => void },
 ): HTMLElement {
   const block = el("div", open ? "finding-group open" : "finding-group");
@@ -178,7 +189,15 @@ export function buildFindingGroup(
     line.append(...infoControl(group, group.help));
   }
 
-  line.append(el("span", "finding-group-count", String(group.rows.length)));
+  line.append(
+    el(
+      "span",
+      state.none === true
+        ? "finding-group-count none-yet"
+        : "finding-group-count",
+      state.none === true ? "none yet" : String(group.rows.length),
+    ),
+  );
   line.addEventListener("click", (event) => {
     if (
       event.target instanceof Element &&
@@ -212,7 +231,6 @@ export function buildFindingsPanelView(
 ): FindingsPanelView {
   const element = el("div", "findings-panel");
   const header = el("div", "findings-header", "Findings");
-  const coverage = el("span", "findings-coverage");
   const scope = el("div", "findings-scope seg");
   const canvas = button("", "findings-scope-canvas", () =>
     actions.setOnlyThisView(true),
@@ -221,13 +239,12 @@ export function buildFindingsPanelView(
     actions.setOnlyThisView(false),
   );
   const line = el("p", "findings-line");
-  const stale = button("", "findings-stale", () => actions.openSensors());
+  const fresh = el("div", "findings-fresh");
   const list = el("div", "finding-groups");
   const empty = el("p", "findings-empty");
 
   scope.append(canvas, all);
-  header.append(coverage);
-  element.append(header, scope, line, stale, list, empty);
+  element.append(header, scope, fresh, line, list, empty);
 
   return {
     element,
@@ -240,20 +257,35 @@ export function buildFindingsPanelView(
       all.setAttribute("aria-pressed", String(!scopeOn));
       canvas.classList.toggle("on", scopeOn);
       all.classList.toggle("on", !scopeOn);
-      coverage.textContent = model.coverage ?? "";
       line.textContent = model.header ?? "";
       line.hidden = model.header === null;
-      stale.textContent = model.stale ?? "";
-      stale.hidden = model.stale === null;
+      fresh.hidden = model.freshness === null;
+      fresh.replaceChildren();
+
+      if (model.freshness !== null) {
+        const action = model.freshness.action;
+
+        fresh.append(
+          icon("circle-alert", "findings-fresh-icon"),
+          el("span", "findings-fresh-text", model.freshness.text),
+        );
+
+        if (action !== null) {
+          fresh.append(
+            button(action.label, "findings-fresh-link", () => action.run()),
+          );
+        }
+      }
+
       empty.textContent = model.empty ?? "";
       empty.hidden = model.empty === null;
       list.replaceChildren(
-        ...model.groups.map(({ group, open, cards }) =>
+        ...model.groups.map(({ group, open, cards, none }) =>
           buildFindingGroup(
             group,
             open,
             cards,
-            { active: model.active, absent: model.absent },
+            { active: model.active, absent: model.absent, none },
             actions,
           ),
         ),
