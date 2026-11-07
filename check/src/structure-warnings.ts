@@ -312,6 +312,24 @@ function usedThroughExpect(
     }
   }
 
+  const actualNames = new Map<string, Set<string>>();
+
+  for (const module of scan.modules) {
+    if (!ids.has(module.id)) {
+      continue;
+    }
+
+    for (const expectId of module.actual_of ?? []) {
+      const held = actualNames.get(expectId) ?? new Set<string>();
+
+      for (const member of module.members ?? []) {
+        held.add(member.name);
+      }
+
+      actualNames.set(expectId, held);
+    }
+  }
+
   const through = (id: string, name: string, seen: Set<string>): boolean => {
     if (seen.has(id)) {
       return false;
@@ -342,7 +360,9 @@ function usedThroughExpect(
     return false;
   };
 
-  return (id, name) => through(id, name, new Set<string>());
+  return (id, name) =>
+    (actualNames.get(id)?.has(name) === true && called.has(`${id}::${name}`)) ||
+    through(id, name, new Set<string>());
 }
 
 export function unusedExportsFindings(
