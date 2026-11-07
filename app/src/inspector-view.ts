@@ -353,14 +353,6 @@ function rowNode(
     return node;
   }
 
-  if (row.kind === "legend") {
-    const node = el("div", "dep-legend");
-
-    node.append(icon("eye"), row.text);
-
-    return node;
-  }
-
   if (row.kind === "filter") {
     const node = el("input", "ifilter");
 

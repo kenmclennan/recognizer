@@ -88,7 +88,7 @@ facts.barText = [...document.querySelectorAll(".selection-bar button")].map((b) 
 
 facts.groupHeads = [...document.querySelectorAll(".inspector-panel .dep-folder .dep-path")].map((r) => r.textContent);
 facts.labelParts = [...document.querySelectorAll(".inspector-panel .dep-folder")].map((n) => ({ rcheck: n.querySelectorAll(".rcheck").length, eye: n.querySelectorAll(".reye").length, disc: n.querySelectorAll(".disc").length, detail: n.querySelectorAll(".detail").length, icon: n.querySelector("svg") !== null, all: n.querySelector(".dep-all").textContent, own: n.classList.contains("own") }));
-facts.panelRowHead = { legends: document.querySelectorAll(".inspector-panel .dep-legend").length, legendText: document.querySelector(".inspector-panel .dep-legend").textContent, legendIcon: document.querySelector(".inspector-panel .dep-legend svg") !== null, legendAfterPanels: document.querySelector(".inspector-panel .dep-legend").previousElementSibling.classList.contains("dep-panel"), titles: document.querySelectorAll(".inspector-panel .dep-panel .row[title], .inspector-panel .dep-panel .dep-folder[title], .inspector-panel .dep-panel .disc[title]").length, expanded: document.querySelectorAll(".inspector-panel .dep-panel .row .detail, .inspector-panel .dep-panel .row.open").length };
+facts.panelRowHead = { legends: document.querySelectorAll(".inspector-panel .dep-legend").length, titles: document.querySelectorAll(".inspector-panel .dep-panel .row[title], .inspector-panel .dep-panel .dep-folder[title], .inspector-panel .dep-panel .disc[title]").length, expanded: document.querySelectorAll(".inspector-panel .dep-panel .row .detail, .inspector-panel .dep-panel .row.open").length };
 pickRow("lib/c.py").dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
 facts.tip = { count: document.querySelectorAll(".module-tip").length, path: document.querySelector(".module-tip .module-tip-path")?.textContent };
 pickRow("lib/c.py").dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
@@ -206,9 +206,6 @@ type Facts = {
   }[];
   panelRowHead: {
     legends: number;
-    legendText: string;
-    legendIcon: boolean;
-    legendAfterPanels: boolean;
     titles: number;
     expanded: number;
   };
@@ -354,13 +351,9 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
     ]);
   });
 
-  it("has one legend under the panels, no title attribute and no row expansion, and one module tip on hover", () => {
+  it("has no legend row, no title attribute and no row expansion, and one module tip on hover", () => {
     expect(f.panelRowHead).toEqual({
-      legends: 1,
-      legendText:
-        "on the canvas · the eye shows or hides · the name centres the canvas on it",
-      legendIcon: true,
-      legendAfterPanels: true,
+      legends: 0,
       titles: 0,
       expanded: 0,
     });

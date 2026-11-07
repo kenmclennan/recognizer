@@ -157,7 +157,6 @@ export type Row =
       ids: string[];
       allOn: boolean;
     }
-  | { kind: "legend"; text: string }
   | { kind: "filter"; value: string; placeholder: string }
   | {
       kind: "module";
@@ -1084,11 +1083,6 @@ function dependencyRows(
       rows: pickerRows(item.picker, item.direction, inputs, labels),
     });
   }
-
-  rows.push({
-    kind: "legend",
-    text: "on the canvas · the eye shows or hides · the name centres the canvas on it",
-  });
 
   return rows;
 }
