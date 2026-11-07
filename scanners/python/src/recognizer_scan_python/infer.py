@@ -49,7 +49,7 @@ def resolve_base(
     if not path or len(path) < 2:
         return None
 
-    hit = index.longest(path)
+    hit = index.longest(path, importer=module_id)
 
     if hit is None or hit.length != len(path) - 1:
         return None

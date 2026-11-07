@@ -73,7 +73,7 @@ def base_edges(parsed: Parsed, index: ModuleIndex, others: dict[str, Parsed]) ->
             if not path or ".".join(path) in ABSTRACT_BASES:
                 continue
 
-            hit = index.longest(path)
+            hit = index.longest(path, importer=parsed.module_id)
 
             if hit is None or hit.length != len(path) - 1 or hit.module_id == parsed.module_id:
                 continue
@@ -167,10 +167,12 @@ def scan(
     module_ids = discover(root)
     trees = parse_all(root, module_ids)
 
+    detected = source_roots is None
+
     if source_roots is None:
         source_roots = detect_source_roots(root, module_ids)
 
-    index = ModuleIndex(module_ids, source_roots)
+    index = ModuleIndex(module_ids, source_roots, script_folders=detected)
 
     parsed = {}
     for module_id in module_ids:

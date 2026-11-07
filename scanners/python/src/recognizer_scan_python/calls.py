@@ -132,8 +132,8 @@ class CallResolver:
         self.holders = {key: Holders() for key in self.classes}
         self.setup_holders()
 
-    def locate(self, path: list[str]) -> Located | None:
-        hit = self.index.longest(path)
+    def locate(self, path: list[str], importer: str | None = None) -> Located | None:
+        hit = self.index.longest(path, importer=importer)
 
         if hit is None:
             return None
@@ -164,7 +164,7 @@ class CallResolver:
         bindings = self.parsed[module_id].imports.bindings
 
         if root in bindings:
-            return self.locate([*bindings[root].split("."), *attributes])
+            return self.locate([*bindings[root].split("."), *attributes], importer=module_id)
 
         return None
 
