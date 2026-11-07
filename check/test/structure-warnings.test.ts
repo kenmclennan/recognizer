@@ -1300,6 +1300,12 @@ interface UnusedModule {
   exports?: string[];
   hidden?: string[];
   entry_point?: true;
+  actual_of?: string[];
+}
+
+interface UnusedCall {
+  from: string;
+  to: string;
 }
 
 interface UnusedEdge {
@@ -1310,7 +1316,11 @@ interface UnusedEdge {
   to_member?: string;
 }
 
-function unusedScan(modules: UnusedModule[], edges: UnusedEdge[] = []) {
+function unusedScan(
+  modules: UnusedModule[],
+  edges: UnusedEdge[] = [],
+  calls: UnusedCall[] = [],
+) {
   return validateScan({
     schema_version: 7,
     scanner: { name: "t", version: "0" },
@@ -1330,6 +1340,9 @@ function unusedScan(modules: UnusedModule[], edges: UnusedEdge[] = []) {
       language: "python",
       kind: module.kind ?? "module",
       ...(module.entry_point === true ? { entry_point: true } : {}),
+      ...(module.actual_of === undefined
+        ? {}
+        : { actual_of: module.actual_of }),
       members: [
         ...(module.exports ?? []).map((name, index) => ({
           name,
@@ -1355,6 +1368,15 @@ function unusedScan(modules: UnusedModule[], edges: UnusedEdge[] = []) {
         ? {}
         : { member: "Sub", to_member: edge.to_member }),
     })),
+    ...(calls.length === 0
+      ? {}
+      : {
+          calls: calls.map((call, index) => ({
+            ...call,
+            line: index + 1,
+            how: "call",
+          })),
+        }),
     foreign: [],
   });
 }
@@ -1364,9 +1386,10 @@ function unusedOf(
   edges: UnusedEdge[] = [],
   entryPoints: string[] = [],
   policyYaml: string | null = null,
+  calls: UnusedCall[] = [],
 ) {
   const found = unusedExportsFindings(
-    unusedScan(modules, edges),
+    unusedScan(modules, edges, calls),
     policyYaml === null ? null : parsePolicy(policyYaml),
     entryPoints,
   );
@@ -1380,6 +1403,118 @@ function unusedOf(
 }
 
 describe("unused_exports", () => {
+  describe("actual files", () => {
+    const expectFile = { id: "k/Expect.kt", exports: ["go", "helper"] };
+    const actualFile = {
+      id: "k/Expect.jvm.kt",
+      exports: ["go"],
+      actual_of: ["k/Expect.kt"],
+    };
+
+    it("clears an actual member whose expect member another member calls", () => {
+      expect(
+        unusedOf([expectFile, actualFile], [], [], null, [
+          { from: "k/Expect.kt::helper", to: "k/Expect.kt::go" },
+        ]),
+      ).toEqual({ "k/Expect.kt": ["go", "helper"] });
+    });
+
+    it("clears an actual member whose expect member an edge names", () => {
+      expect(
+        unusedOf(
+          [expectFile, actualFile, { id: "k/User.kt", exports: ["u"] }],
+          [{ from: "k/User.kt", to: "k/Expect.kt", names: ["go"] }],
+        ),
+      ).not.toHaveProperty("k/Expect.jvm.kt");
+    });
+
+    it("clears an actual file whose expect file is used whole", () => {
+      expect(
+        unusedOf(
+          [expectFile, actualFile, { id: "k/User.kt", exports: ["u"] }],
+          [{ from: "k/User.kt", to: "k/Expect.kt" }],
+        ),
+      ).not.toHaveProperty("k/Expect.jvm.kt");
+    });
+
+    it("reports an actual member whose expect member is only called recursively or not at all", () => {
+      expect(
+        unusedOf([expectFile, actualFile], [], [], null, [
+          { from: "k/Expect.kt::go", to: "k/Expect.kt::go" },
+        ]),
+      ).toHaveProperty("k/Expect.jvm.kt", ["go"]);
+      expect(unusedOf([expectFile, actualFile])).toHaveProperty(
+        "k/Expect.jvm.kt",
+        ["go"],
+      );
+    });
+
+    it("keeps the names with no called counterpart in a mixed actual file", () => {
+      const mixed = {
+        id: "k/Expect.jvm.kt",
+        exports: ["go", "helper", "extra"],
+        actual_of: ["k/Expect.kt"],
+      };
+
+      expect(
+        unusedOf([expectFile, mixed], [], [], null, [
+          { from: "k/Expect.kt::other", to: "k/Expect.kt::go" },
+        ]),
+      ).toHaveProperty("k/Expect.jvm.kt", ["extra", "helper"]);
+    });
+
+    it("passes use down a chain and terminates on a cycle", () => {
+      const middle = {
+        id: "k/Expect.mid.kt",
+        exports: ["go"],
+        actual_of: ["k/Expect.kt"],
+      };
+      const leaf = {
+        id: "k/Expect.leaf.kt",
+        exports: ["go"],
+        actual_of: ["k/Expect.mid.kt"],
+      };
+      const calls = [{ from: "k/Expect.kt::helper", to: "k/Expect.kt::go" }];
+
+      expect(
+        unusedOf([expectFile, middle, leaf], [], [], null, calls),
+      ).not.toHaveProperty("k/Expect.leaf.kt");
+
+      const cyclic = [
+        { id: "k/A.kt", exports: ["go"], actual_of: ["k/B.kt"] },
+        { id: "k/B.kt", exports: ["go"], actual_of: ["k/A.kt"] },
+      ];
+
+      expect(unusedOf(cyclic)).toEqual({
+        "k/A.kt": ["go"],
+        "k/B.kt": ["go"],
+      });
+    });
+
+    it("counts nothing from an ignored or absent expect id", () => {
+      const calls = [{ from: "k/Expect.kt::helper", to: "k/Expect.kt::go" }];
+
+      expect(
+        unusedOf(
+          [expectFile, actualFile],
+          [],
+          [],
+          "ignore:\n  - k/Expect.kt\n",
+          calls,
+        ),
+      ).toHaveProperty("k/Expect.jvm.kt", ["go"]);
+      expect(
+        unusedOf(
+          [{ ...actualFile, actual_of: ["k/Missing.kt"] }],
+          [],
+          [],
+          null,
+          [{ from: "k/Missing.kt::a", to: "k/Missing.kt::go" }],
+        ),
+      ).toHaveProperty("k/Expect.jvm.kt", ["go"]);
+    });
+  });
+
   it("skips a flagged module and still lists an unflagged one", () => {
     expect(
       unusedOf([

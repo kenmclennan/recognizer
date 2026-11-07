@@ -297,6 +297,54 @@ function isUsed(name: string, used: Set<string>): boolean {
   return used.has(name) || used.has(name.split(".", 1)[0] as string);
 }
 
+function usedThroughExpect(
+  scan: Scan,
+  ids: Set<string>,
+  named: Map<string, Set<string>>,
+  whole: Set<string>,
+): (id: string, name: string) => boolean {
+  const modules = new Map(scan.modules.map((module) => [module.id, module]));
+  const called = new Set<string>();
+
+  for (const call of scan.calls ?? []) {
+    if (call.from !== call.to) {
+      called.add(call.to);
+    }
+  }
+
+  const through = (id: string, name: string, seen: Set<string>): boolean => {
+    if (seen.has(id)) {
+      return false;
+    }
+
+    seen.add(id);
+
+    for (const expectId of modules.get(id)?.actual_of ?? []) {
+      const expectModule = modules.get(expectId);
+
+      if (
+        !ids.has(expectId) ||
+        !(expectModule?.members ?? []).some((member) => member.name === name)
+      ) {
+        continue;
+      }
+
+      if (
+        whole.has(expectId) ||
+        isUsed(name, named.get(expectId) ?? new Set<string>()) ||
+        called.has(`${expectId}::${name}`) ||
+        through(expectId, name, seen)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  return (id, name) => through(id, name, new Set<string>());
+}
+
 export function unusedExportsFindings(
   scan: Scan,
   policy: Policy | null,
@@ -304,6 +352,7 @@ export function unusedExportsFindings(
 ): FindingRecord[] {
   const { edges, declarations, ids } = keptGraph(scan, policy?.ignore ?? []);
   const { named, whole } = usedNames([...edges, ...declarations]);
+  const viaExpect = usedThroughExpect(scan, ids, named, whole);
   const literalPaths = policyLiteralPaths(policy);
   const findings: FindingRecord[] = [];
 
@@ -332,7 +381,7 @@ export function unusedExportsFindings(
     const used = named.get(module.id) ?? new Set<string>();
     const unused = [...first.keys()]
       .sort(compare)
-      .filter((name) => !isUsed(name, used))
+      .filter((name) => !isUsed(name, used) && !viaExpect(module.id, name))
       .map((name) => first.get(name) as ScanMember);
 
     if (unused.length === 0) {
