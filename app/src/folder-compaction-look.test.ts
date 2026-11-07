@@ -73,7 +73,7 @@ const facts = {};
 
   const one = mount({});
   await tick();
-  click(one.q('.tree .row[data-path="core"] .rcheck'));
+  click(one.q('.tree .row[data-path="core"] .reye'));
   await tick();
   click(one.q('.tree .row[data-path="core"] .name'));
   await tick();

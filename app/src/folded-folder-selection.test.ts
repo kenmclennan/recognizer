@@ -46,12 +46,12 @@ const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k,
 const treeRow = (p) => document.querySelector('.tree .row[data-path="' + p + '"]');
 const box = (id) => document.querySelector('.box[data-id="' + id + '"]');
 const bar = (label) => document.querySelector('.selection-bar [aria-label^="' + label + '"]');
-const sectionFigure = (name) => { const h = [...document.querySelectorAll(".inspector-panel .ohead")].find((n) => n.textContent.startsWith(name)); return h ? Number(h.textContent.replace(/\\D+/g, "")) : null; };
+const sectionFigure = (name) => { const h = [...document.querySelectorAll(".inspector-panel .dep-head")].find((n) => n.querySelector(".dep-label").textContent === name); return h ? Number(h.querySelector(".dep-count").textContent) : null; };
 const selected = () => [...document.querySelectorAll(".box.selected")].map((n) => n.dataset.id);
 const facts = {};
 
-click(treeRow("app").querySelector(".rcheck"));
-click(treeRow("lib").querySelector(".rcheck"));
+click(treeRow("app").querySelector(".reye"));
+click(treeRow("lib").querySelector(".reye"));
 click(document.querySelector('.frame-label[data-id="lib"]'));
 key("z");
 facts.foldedKind = box("lib") && box("lib").dataset.kind;

@@ -1,6 +1,6 @@
 import { el } from "./dom";
 import type { Disc } from "./health";
-import { icon } from "./icons";
+import { type IconName, icon } from "./icons";
 import type { CheckState } from "./row-model";
 
 export type RowSpec = {
@@ -10,6 +10,7 @@ export type RowSpec = {
   disc: Disc;
   discHover?: string;
   chevron?: "open" | "closed";
+  discFirst?: boolean;
   detail?: { text: string; tone?: "private" | "inferred" };
   onCheck: () => void;
   onName: () => void;
@@ -53,11 +54,43 @@ export function buildCheckbox(
   return node;
 }
 
+const EYE_ICON: Record<CheckState, IconName> = {
+  checked: "eye",
+  partial: "eye-half",
+  unchecked: "eye-off",
+};
+
+export function buildEye(
+  label: string,
+  state: CheckState,
+  onCheck: () => void,
+): HTMLButtonElement {
+  const node = el("button", `reye ${state}`);
+  const on = state === "unchecked" ? "Show" : "Hide";
+  const where = state === "unchecked" ? "on" : "from";
+
+  node.type = "button";
+  node.setAttribute("aria-label", `${on} ${label} ${where} the canvas`);
+  node.setAttribute("aria-pressed", ARIA[state]);
+  node.append(icon(EYE_ICON[state]));
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onCheck();
+  });
+  node.addEventListener("keydown", (event) => {
+    event.stopPropagation();
+  });
+
+  return node;
+}
+
 export function buildRow(spec: RowSpec): HTMLElement {
   const node = el("div", `row${spec.bold ? " on" : ""}`);
   const disc = el("span", `disc disc-${spec.disc}`);
 
-  disc.title = spec.discHover ?? "";
+  if (spec.discHover !== undefined) {
+    disc.title = spec.discHover;
+  }
 
   if (spec.chevron) {
     const chevron = icon(
@@ -72,11 +105,9 @@ export function buildRow(spec: RowSpec): HTMLElement {
     node.append(chevron);
   }
 
-  node.append(
-    buildCheckbox(spec.label, spec.state, spec.onCheck),
-    el("span", "name", spec.label),
-    disc,
-  );
+  const name = el("span", "name", spec.label);
+
+  node.append(...(spec.discFirst ? [disc, name] : [name, disc]));
 
   if (spec.detail) {
     node.append(
@@ -88,6 +119,7 @@ export function buildRow(spec: RowSpec): HTMLElement {
     );
   }
 
+  node.append(buildEye(spec.label, spec.state, spec.onCheck));
   node.addEventListener("click", () => spec.onName());
 
   return node;

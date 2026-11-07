@@ -98,7 +98,7 @@ const facts = {};
   facts.freshOverlays = { menu: shown(".view-menu"), dialog: shown(".view-dialog") };
   facts.emptyStart = { count: one.count(), view: one.q(".view-name").textContent, bar: one.all(".view-bar button").length, writes: one.win.published.length, spinnerDisplay: getComputedStyle(one.q(".canvas-busy")).display, menuEmpty: (click(one.q(".view-list")), one.q(".view-menu").textContent) };
   click(one.q(".view-list"));
-  click(one.q('.tree .row[data-path="app"] .rcheck'));
+  click(one.q('.tree .row[data-path="app"] .reye'));
   await tick();
   facts.afterPutOn = one.lastCurrent();
   click(one.q(".view-save"));
@@ -117,7 +117,7 @@ const facts = {};
   facts.nameAfterSave = one.q(".view-name").textContent;
   facts.currentAfterSave = one.lastCurrent();
 
-  click(one.q('.tree .row[data-path="app"] .rcheck'));
+  click(one.q('.tree .row[data-path="app"] .reye'));
   await tick();
   facts.cleared = one.count();
   click(one.q(".view-list"));
@@ -240,7 +240,7 @@ const facts = {};
   click(four.q(".view-item"));
   await tick();
   facts.sameCommit = { tray: four.tray().length, count: four.count() };
-  click(four.q('.tree .row[data-path="lib"] .rcheck'));
+  click(four.q('.tree .row[data-path="lib"] .reye'));
   await tick();
   click(four.q(".view-save"));
   await tick();
@@ -279,7 +279,7 @@ const facts = {};
   click(six.q(".view-list"));
   const broken = mount({}, { writeError: "disk full" });
   await tick();
-  click(broken.q('.tree .row[data-path="app"] .rcheck'));
+  click(broken.q('.tree .row[data-path="app"] .reye'));
   await tick();
   click(broken.q(".view-save"));
   typeInto(broken.q(".view-dialog .view-field-name"), "keep");
@@ -397,7 +397,7 @@ const facts = {};
 
   const untitled = mount({ taken: viewText([pick("app/hub.py")], "cur1234") });
   await tick();
-  click(untitled.q('.tree .row[data-path="app"] .rcheck'));
+  click(untitled.q('.tree .row[data-path="app"] .reye'));
   await tick();
   click(untitled.q(".view-name"));
   const uf = (kind) => untitled.q(".view-details-" + kind);
@@ -470,7 +470,7 @@ const facts = {};
   };
   const camera = (ctx) => ctx.q(".canvas .world").getAttribute("transform");
   const zoomIn = (ctx) => click(ctx.all(".canvas .control").find((n) => n.textContent === "+"));
-  const toggleLib = (ctx) => click(ctx.q('.tree .row[data-path="lib"] .rcheck'));
+  const toggleLib = (ctx) => click(ctx.q('.tree .row[data-path="lib"] .reye'));
   const revertRows = (ctx) => ctx.tray().filter((row) => row.text.startsWith("Reverted"));
 
   const rv = mount({ v: viewText([pick("app/hub.py")], "cur1234"), w: viewText([pick("app/a.py")], "cur1234") });
@@ -519,7 +519,7 @@ const facts = {};
 
   const unsaved = mount({});
   await tick();
-  click(unsaved.q('.tree .row[data-path="app"] .rcheck'));
+  click(unsaved.q('.tree .row[data-path="app"] .reye'));
   await tick();
   facts.revert.unsaved = bar(unsaved);
   click(unsaved.q(".view-save"));
@@ -626,7 +626,7 @@ const facts = {};
 
   const cn = mount({});
   await tick();
-  click(cn.q('.tree .row[data-path="app"] .rcheck'));
+  click(cn.q('.tree .row[data-path="app"] .reye'));
   await tick();
   const cnBefore = { count: cn.count(), save: bar(cn).save };
   click(clearBtn(cn));
@@ -809,7 +809,7 @@ const facts = {};
     facts.mg.deleteOpen[modify ? "modified" : "plain"] = { after, saved, undone: { name: nameOf(ctx), count: ctx.count(), marker: bar(ctx).marker, has: ctx.port.files.has("a"), same: ctx.port.files.get("a") === mgA } };
   }
   const dm = await delOpen(false);
-  click(dm.ctx.q('.tree .row[data-path="app"] .rcheck'));
+  click(dm.ctx.q('.tree .row[data-path="app"] .reye'));
   await tick();
   const dmCount = dm.ctx.count();
   undoNow(dm.ctx);
@@ -856,7 +856,7 @@ const facts = {};
   };
   facts.mg.noGuard = {
     unmodified: await unguarded(async () => { const c = mount({ a: mgA, b: mgB }); await tick(); await openFirst(c); await guardOpen(c, "menu"); return c; }),
-    untitled: await unguarded(async () => { const c = mount({ a: mgA, b: mgB }); await tick(); click(c.q('.tree .row[data-path="app"] .rcheck')); await tick(); await guardOpen(c, "menu"); return c; }),
+    untitled: await unguarded(async () => { const c = mount({ a: mgA, b: mgB }); await tick(); click(c.q('.tree .row[data-path="app"] .reye')); await tick(); await guardOpen(c, "menu"); return c; }),
     same: await unguarded(async () => { const c = await modifiedView({ a: mgA, b: mgB }); click(c.q(".view-list")); click(c.all(".view-item").find((n) => n.textContent.startsWith("a"))); await tick(); return c; }),
     socket: await unguarded(async () => { const c = await modifiedView({ a: mgA, b: mgB }); await c.win.drive({ action: "open-view", args: ["b"], options: {}, by: "Claude" }); await tick(); return c; }),
     back: await unguarded(async () => { const c = mount({ a: mgA, b: mgB }); await tick(); await openFirst(c); await guardOpen(c, "menu"); toggleLib(c); await tick(); click(c.q(".view-back")); await tick(); return c; }),

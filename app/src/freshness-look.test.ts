@@ -57,7 +57,7 @@ async function observe(tests) {
   click(q('.tree .row[data-path="app"] .name'));
   await tick();
   for (const id of ids) {
-    click(q('.tree .row[data-path="' + id + '"] .rcheck'));
+    click(q('.tree .row[data-path="' + id + '"] .reye'));
     await tick();
   }
   click(q(".metrics-toggle"));

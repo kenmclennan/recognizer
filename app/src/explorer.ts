@@ -56,6 +56,7 @@ import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
   findingsTone,
+  flatRows,
   followableRows,
   type InspectorContent,
   type InspectorMembers,
@@ -1039,7 +1040,7 @@ export function showExplorer(
     }
 
     if (action === "tick") {
-      const row = rows.find(
+      const row = flatRows(rows).find(
         (candidate) =>
           candidate.kind === "module" &&
           candidate.follow !== null &&

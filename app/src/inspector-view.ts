@@ -317,6 +317,50 @@ function rowNode(
     return el("div", "ohead", row.text);
   }
 
+  if (row.kind === "panel") {
+    const node = el("section", `dep-panel ${row.direction}`);
+    const band = el("div", "dep-head");
+    const count = el("span", "dep-count", String(row.count));
+
+    band.append(
+      icon(row.direction === "uses" ? "arrow-right" : "arrow-left"),
+      el("span", "dep-label", row.label),
+      count,
+      el("span", "dep-caption", row.caption),
+    );
+    node.append(
+      band,
+      ...row.rows.map((inner) => rowNode(inner, actions, focused)),
+    );
+
+    return node;
+  }
+
+  if (row.kind === "folder-label") {
+    const node = el("div", `dep-folder${row.own ? " own" : ""}`);
+    const all = el("button", "dep-all", `Show all ${row.count}`);
+
+    all.type = "button";
+    all.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!row.allOn) {
+        actions.putOnCanvas(row.ids);
+      }
+    });
+    node.append(icon("folder"), el("span", "dep-path", row.label), all);
+    node.dataset.id = row.key;
+
+    return node;
+  }
+
+  if (row.kind === "legend") {
+    const node = el("div", "dep-legend");
+
+    node.append(icon("eye"), row.text);
+
+    return node;
+  }
+
   if (row.kind === "filter") {
     const node = el("input", "ifilter");
 
@@ -338,6 +382,7 @@ function rowNode(
       bold: row.bold,
       disc: row.disc,
       chevron: chevron ? (chevron.open ? "open" : "closed") : undefined,
+      discFirst: row.discFirst,
       detail: row.detail ?? undefined,
       onCheck: () =>
         nextCheck(row.state) === "takeOff"

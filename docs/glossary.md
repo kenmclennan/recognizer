@@ -137,6 +137,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Run log | The record of one run of a registered command (scan or describe, and measure in records written before measurers were retired; a scan record holds its extract, describe and sense phases) under `.recognizer/cache/log/`, read with `recognizer log`; the last fifty are kept. |
 | Editor | The program Open in Editor launches, named in Settings as blank (the system default), an app's name or a shell command; a shell command may use `{file}` and `{line}` placeholders, for example `code -g {file}:{line}`, to open at a line. |
 | Picker | The inspector's Dependencies tab: its Uses and Used by sections list what the selection uses and what uses it, grouped by folder, to put on the canvas. |
+| Eye | The 16px icon at the right end of a module or folder row that shows whether the module is on the canvas and puts it on or takes it off (half for a folder with only some files on); it does nothing else. |
 | Trail | The inspector panels opened by following modules through their Dependencies, one to the right of the next, with breadcrumbs naming each step. |
 | Strip | A narrow vertical column naming a trail panel that is folded out of view, to the left of the shown panels or, once an earlier one is brought back, to their right. Clicking it brings the panel back. |
 | Breadcrumbs | The row above a trail's panels naming each module in the trail and each step's relationship (uses or used by), with the route icon that puts the whole trail on the canvas at its end. |

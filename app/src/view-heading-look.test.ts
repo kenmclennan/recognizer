@@ -184,7 +184,7 @@ const facts = {};
 
   const fresh = mount({});
   await tick();
-  click(fresh.q('.tree .row[data-path="app"] .rcheck'));
+  click(fresh.q('.tree .row[data-path="app"] .reye'));
   await tick();
   click(fresh.q(".view-save"));
   facts.dialog = fresh.all(".view-dialog label .view-field-label").map((n) => n.textContent);
@@ -199,7 +199,7 @@ const facts = {};
 
   const blank = mount({});
   await tick();
-  click(blank.q('.tree .row[data-path="app"] .rcheck'));
+  click(blank.q('.tree .row[data-path="app"] .reye'));
   await tick();
   click(blank.q(".view-save"));
   typeInto(blank.q(".view-dialog .view-field-name"), "blank");

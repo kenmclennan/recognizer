@@ -69,7 +69,7 @@ const cs = (node) => getComputedStyle(node);
 const rowFor = (path) =>
   tree.element.querySelector('.row[data-path="' + path + '"]');
 const kindOf = (child) =>
-  child.classList.contains("rcheck") ? "check"
+  child.classList.contains("reye") ? "eye"
   : child.classList.contains("name") ? "name"
   : child.classList.contains("disc") ? "disc"
   : child.classList.contains("chevron") ? "chevron"
@@ -78,7 +78,7 @@ const describeRow = (path) => {
   const row = rowFor(path);
   const name = row.querySelector(".name");
   const chevron = row.querySelector(".chevron");
-  const check = row.querySelector(".rcheck");
+  const check = row.querySelector(".reye");
   return {
     text: name.textContent,
     classes: row.className,
@@ -88,7 +88,9 @@ const describeRow = (path) => {
     discWidth: cs(row.querySelector(".disc")).width,
     discHeight: cs(row.querySelector(".disc")).height,
     discLeft: row.querySelector(".disc").getBoundingClientRect().left,
-    checkLeft: check.getBoundingClientRect().left,
+    eyeRight: check.getBoundingClientRect().right,
+    rowRight: row.getBoundingClientRect().right,
+    eyeInRow: row.contains(check),
     nameWeight: cs(name).fontWeight,
     nameColor: cs(name).color,
     background: cs(row).backgroundColor,
@@ -101,11 +103,13 @@ const describeRow = (path) => {
         }
       : null,
     check: {
-      role: check.getAttribute("role"),
-      aria: check.getAttribute("aria-checked"),
+      aria: check.getAttribute("aria-pressed"),
+      label: check.getAttribute("aria-label"),
       tag: check.tagName,
-      look: [cs(check).width, cs(check).height, cs(check).borderTopLeftRadius, cs(check).borderTopWidth].join(" "),
-      background: cs(check).backgroundColor,
+      type: check.type,
+      shapes: [...check.querySelector("svg").children].map((c) => c.tagName).join(","),
+      size: [cs(check).width, cs(check).height].join(" "),
+      color: cs(check).color,
     },
     buttons: row.querySelectorAll("button").length,
     inputs: row.querySelectorAll("input").length,
@@ -145,7 +149,7 @@ const hdr = {
 };
 
 const treeText = tree.element.textContent;
-const noLegend = tree.element.querySelector(".legend") === null;
+const legends = [...tree.element.querySelectorAll(".tree-legend")].map((n) => ({ text: n.textContent, icon: n.querySelector("svg") !== null, afterRows: n.previousElementSibling === tree.element.querySelector(".rows") }));
 
 calls.length = 0;
 const pick = (path, selector) =>
@@ -153,23 +157,23 @@ const pick = (path, selector) =>
 tree.render(props({ expanded: new Set(["src", "lib"]), selected: null }));
 pick("src/a.ts", ".name");
 pick("src/b.ts", ".name");
-pick("src/a.ts", ".rcheck");
-pick("src/b.ts", ".rcheck");
-pick("src", ".rcheck");
-pick("lib", ".rcheck");
+pick("src/a.ts", ".reye");
+pick("src/b.ts", ".reye");
+pick("src", ".reye");
+pick("lib", ".reye");
 pick("src", ".name");
 pick("src", ".chevron");
-rowFor("src/a.ts").querySelector(".rcheck").dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
 const allOpen = () => true;
 tree.render(props({ expanded: new Set(["src", "lib"]), selected: null, isOpen: allOpen }));
 const checkedFolder = describeRow("src");
-pick("src", ".rcheck");
+pick("src", ".reye");
 const clicks = calls.map((call) => call.join(":"));
 tree.render(props({ expanded: new Set(["src", "lib"]), selected: null }));
 const states = { src: describeRow("src").check.aria, lib: describeRow("lib").check.aria, a: describeRow("src/a.ts").check.aria, b: describeRow("src/b.ts").check.aria };
 
 tree.render(props({ filtered: filterTree(root, { ...filter, text: "zzz" }, context), filter: { ...filter, text: "zzz" } }));
 const empty = tree.element.querySelector(".empty").textContent;
+const emptyLegends = tree.element.querySelectorAll(".tree-legend").length;
 
 const canvasActions = { camera() {}, find() {}, select() {}, takeOff() {}, openTab() {}, toggleFold() {}, openContents() {}, toggleFocus() {}, openInEditor() {}, clear() {}, setShowInferred() {}, measure: (t) => t.length * 7 };
 const canvas = buildCanvasView(canvasActions);
@@ -183,7 +187,7 @@ const shown = {
 };
 
 document.getElementById("out").textContent = btoa(
-  unescape(encodeURIComponent(JSON.stringify({ rows, hdr, treeText, noLegend, clicks, empty, probes, shown, checkedFolder, states }))),
+  unescape(encodeURIComponent(JSON.stringify({ rows, hdr, treeText, legends, emptyLegends, clicks, empty, probes, shown, checkedFolder, states }))),
 );
 `;
 
@@ -195,7 +199,9 @@ type RowFacts = {
   discWidth: string;
   discHeight: string;
   discLeft: number;
-  checkLeft: number;
+  eyeRight: number;
+  rowRight: number;
+  eyeInRow: boolean;
   nameWeight: string;
   nameColor: string;
   background: string;
@@ -203,11 +209,13 @@ type RowFacts = {
   chevron: { width: string; path: string; inline: string } | null;
   order: string[];
   check: {
-    role: string;
     aria: string;
+    label: string;
     tag: string;
-    look: string;
-    background: string;
+    type: string;
+    shapes: string;
+    size: string;
+    color: string;
   };
   buttons: number;
   inputs: number;
@@ -231,7 +239,8 @@ type Facts = {
     chipOffHeight: string;
   };
   treeText: string;
-  noLegend: boolean;
+  legends: { text: string; icon: boolean; afterRows: boolean }[];
+  emptyLegends: number;
   states: Record<string, string>;
   checkedFolder: RowFacts;
   clicks: string[];
@@ -333,45 +342,54 @@ describe.skipIf(webkit === undefined)("tree view in a real browser", () => {
     expect(f.rows["src/a.ts"].text).toBe("a.ts");
   });
 
-  it("builds every row as chevron, checkbox, name, disc with the chevron on folders only", () => {
-    expect(f.rows.src.order).toEqual(["chevron", "check", "name", "disc"]);
+  it("builds every row as chevron, name, disc, eye with the chevron on folders only", () => {
+    expect(f.rows.src.order).toEqual(["chevron", "name", "disc", "eye"]);
     expect(f.rows["src/deep"].order).toEqual([
       "chevron",
-      "check",
       "name",
       "disc",
+      "eye",
     ]);
-    expect(f.rows["src/a.ts"].order).toEqual(["check", "name", "disc"]);
-    expect(f.rows["src/b.ts"].order).toEqual(["check", "name", "disc"]);
+    expect(f.rows["src/a.ts"].order).toEqual(["name", "disc", "eye"]);
+    expect(f.rows["src/b.ts"].order).toEqual(["name", "disc", "eye"]);
   });
 
-  it("has no eye, target, plus or any button on a row, no platform checkbox and no disc key", () => {
+  it("ends every row with a native eye button, no checkbox and no input", () => {
     for (const row of [f.rows.src, f.rows["src/a.ts"], f.rows["src/b.ts"]]) {
-      expect(row.buttons).toBe(0);
+      expect(row.buttons).toBe(1);
       expect(row.inputs).toBe(0);
-      expect(row.check.tag).toBe("SPAN");
-      expect(row.check.role).toBe("checkbox");
+      expect(row.check.tag).toBe("BUTTON");
+      expect(row.check.type).toBe("button");
+      expect(row.check.label).toMatch(/ (on|from) the canvas$/);
     }
-
-    expect(f.noLegend).toBe(true);
   });
 
-  it("draws a 14px rounded app checkbox, checked, unchecked and partial", () => {
+  it("draws a 16px eye, on, off and half, in the selection colour only when on", () => {
     expect(f.rows["src/a.ts"].check.aria).toBe("true");
     expect(f.rows["src/b.ts"].check.aria).toBe("false");
     expect(f.rows.src.check.aria).toBe("mixed");
     expect(f.checkedFolder.check.aria).toBe("true");
+    expect(f.rows["src/a.ts"].check.shapes).toBe("path,circle");
+    expect(f.rows["src/b.ts"].check.shapes).toBe("path,path,path");
+    expect(f.rows.src.check.shapes).toBe("path,path");
 
     for (const row of [f.rows["src/a.ts"], f.rows["src/b.ts"], f.rows.src]) {
-      expect(row.check.look.startsWith("14px 14px 4px")).toBe(true);
+      expect(row.check.size).toBe("16px 16px");
     }
 
-    expect(f.rows["src/a.ts"].check.background).toBe(
-      f.rows.src.check.background,
+    expect(f.rows["src/a.ts"].check.color).toBe(f.probes.sel.color);
+    expect(f.rows.src.check.color).toBe(f.probes.sel.color);
+    expect(f.rows["src/b.ts"].check.color).not.toBe(f.probes.sel.color);
+  });
+
+  it("has one legend line under the rows, kept when nothing matches", () => {
+    expect(f.legends).toHaveLength(1);
+    expect(f.legends[0].icon).toBe(true);
+    expect(f.legends[0].afterRows).toBe(true);
+    expect(f.legends[0].text).toBe(
+      "the eye shows or hides · the name finds it: selects and centres",
     );
-    expect(f.rows["src/a.ts"].check.background).not.toBe(
-      f.rows["src/b.ts"].check.background,
-    );
+    expect(f.emptyLegends).toBe(1);
   });
 
   it("bolds the name of a row on the canvas and of a folder holding one", () => {
@@ -399,7 +417,7 @@ describe.skipIf(webkit === undefined)("tree view in a real browser", () => {
     expect(f.rows["src/deep/d.ts"].nameColor).not.toBe(f.probes.sel.color);
   });
 
-  it("wires a name click as find, a checkbox click as put on or take off, and a folder name as open and close", () => {
+  it("wires a name click as find, an eye click as put on or take off, and a folder name as open and close", () => {
     expect(f.clicks).toEqual([
       "find:src/a.ts",
       "find:src/b.ts",
@@ -409,7 +427,6 @@ describe.skipIf(webkit === undefined)("tree view in a real browser", () => {
       "putFolderOnCanvas:lib/c.ts",
       "toggleFolder:src",
       "toggleFolder:src",
-      "takeOff:src/a.ts",
       "takeFolderOff:src/deep/d.ts,src/a.ts,src/b.ts",
     ]);
   });
@@ -425,11 +442,18 @@ describe.skipIf(webkit === undefined)("tree view in a real browser", () => {
     expect(f.rows["src/a.ts"].discHeight).toBe("9px");
   });
 
-  it("lines a file's checkbox up under the checkbox of a folder at the same level", () => {
-    expect(f.rows["src/a.ts"].checkLeft).toBe(f.rows["src/deep"].checkLeft);
-    expect(f.rows["src/deep/d.ts"].checkLeft).toBeGreaterThan(
-      f.rows["src/deep"].checkLeft,
-    );
+  it("keeps each eye inside its row, at the right end, whatever the depth", () => {
+    for (const row of [
+      f.rows.src,
+      f.rows["src/a.ts"],
+      f.rows["src/deep/d.ts"],
+    ]) {
+      expect(row.eyeInRow).toBe(true);
+    }
+
+    expect(f.rows["src/a.ts"].eyeRight).toBe(f.rows["src/deep"].eyeRight);
+    expect(f.rows["src/deep/d.ts"].eyeRight).toBe(f.rows.src.eyeRight);
+    expect(f.rows.src.rowRight - f.rows.src.eyeRight).toBeLessThan(10);
   });
 
   it("draws filter chips 24px high, fully rounded, in the selection colours when on", () => {
