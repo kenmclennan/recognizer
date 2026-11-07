@@ -99,6 +99,16 @@
           "type": "array",
           "items": { "$ref": "#/$defs/moduleId" },
           "uniqueItems": true
+        },
+        "input_file_globs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[^/\\\\]+$" },
+          "uniqueItems": true
+        },
+        "input_absent_paths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/moduleId" },
+          "uniqueItems": true
         }
       }
     },
