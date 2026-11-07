@@ -1,6 +1,6 @@
 import { button, el } from "./dom";
 import type { NodeHealth } from "./health";
-import { icon, iconButton } from "./icons";
+import { iconButton } from "./icons";
 import { attachModuleTip } from "./module-tip";
 import { checkState, nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
@@ -70,13 +70,7 @@ export function buildTreeView(actions: TreeActions): TreeView {
   find.addEventListener("input", () => actions.setText(find.value));
   filters.append(onCanvas, attention);
 
-  const legend = el("div", "tree-legend");
-
-  legend.append(
-    icon("eye"),
-    "the eye shows or hides · the name finds it: selects and centres",
-  );
-  element.append(header, find, filters, list, legend);
+  element.append(header, find, filters, list);
 
   function row(node: TreeNode, depth: number, props: TreeProps): HTMLElement[] {
     const health = props.described.get(node.path);
