@@ -200,7 +200,7 @@
       "fan_in": 0,
       "fan_out": 1,
       "afferent": 0,
-      "efferent": 2,
+      "efferent": 1,
       "instability": 1,
       "abstractness": 0
     },

@@ -94,14 +94,29 @@ describe("metrics", () => {
     });
   });
 
-  it("counts a foreign target in efferent but not fan_out", () => {
+  it("a foreign target adds nothing to efferent", () => {
     const result = analysed([
       ["a", "b"],
       ["a", "foreign:x"],
     ]);
 
-    expect(row(result, "a")).toMatchObject({ fan_out: 1, efferent: 2 });
+    expect(row(result, "a")).toMatchObject({ fan_out: 1, efferent: 1 });
     expect(result.metrics.map((metric) => metric.id)).toEqual(["a", "b"]);
+  });
+
+  it("scores foreign-only modules null and project importers by project imports", () => {
+    const result = analysed([
+      ["a", "b"],
+      ["a", "foreign:os"],
+      ["a", "foreign:re"],
+      ["c", "a"],
+      ["d", "foreign:os"],
+    ]);
+
+    expect(row(result, "a")).toMatchObject({ efferent: 1, instability: 0.5 });
+    expect(row(result, "b")).toMatchObject({ efferent: 0, instability: 0 });
+    expect(row(result, "c")).toMatchObject({ efferent: 1, instability: 1 });
+    expect(row(result, "d")).toMatchObject({ efferent: 0, instability: null });
   });
 
   it("reports null instability for a module with no edges", () => {

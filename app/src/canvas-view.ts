@@ -33,6 +33,7 @@ import {
   fraction,
   memberSources,
   tone as metricTone,
+  SOURCES_GAP,
   sourceLabel,
   sourceTitle,
   valueLabel,
@@ -1037,6 +1038,9 @@ export function buildCanvasView(
     sources: ReturnType<typeof memberSources> & object,
   ): SVGElement {
     const track = barRect(box.rect, BOX_HEIGHT, index);
+
+    track.y += SOURCES_GAP;
+
     const group = svg("g", { class: "metric-sources" });
     const glyph = icon("layers");
 

@@ -67,13 +67,15 @@ def ignore_for(repository: Path) -> Callable[[str, list[str]], set[str]]:
     def ignore(directory: str, names: list[str]) -> set[str]:
         here = Path(directory).resolve()
 
+        skipped = {name for name in names if name == "__pycache__" or name.endswith(".pyc")}
+
         if here == root:
-            return {name for name in names if name == ".git"}
+            skipped |= {name for name in names if name == ".git"}
 
         if here == root / ".recognizer":
-            return {name for name in names if name == "cache"}
+            skipped |= {name for name in names if name == "cache"}
 
-        return set()
+        return skipped
 
     return ignore
 

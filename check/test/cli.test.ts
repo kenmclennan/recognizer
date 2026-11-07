@@ -375,7 +375,7 @@ describe("warnings fixture", () => {
       ["app/adapters/audit.py", 0, 1, 1, 1, 0],
       ["app/adapters/clock.py", 0, 1, 1, 1, 0],
       ["app/adapters/memory.py", 1, 1, 1, 0.5, 0],
-      ["app/adapters/sql.py", 0, 1, 2, 1, 0],
+      ["app/adapters/sql.py", 0, 1, 1, 1, 0],
       ["app/application/place.py", 3, 3, 3, 0.5, 0],
       ["app/application/report.py", 0, 1, 1, 1, 0],
       ["app/domain/money.py", 2, 1, 1, 0.3333, 0],

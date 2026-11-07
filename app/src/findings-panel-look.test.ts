@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
+import groupFile from "./finding-groups.json";
 import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 
 const HARNESS = `
@@ -100,6 +101,68 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     ghosts: m.all(".ghost, .ghost-add").length,
   };
 
+  {
+    const lines = m.all(".finding-group-line");
+    const withIcon = lines[0];
+    const withoutIcon = lines[2];
+    const info = withIcon.querySelector(".finding-info");
+    const tip = document.getElementById(info.getAttribute("aria-describedby"));
+    const css = getComputedStyle(document.documentElement);
+    const tipStyle = () => getComputedStyle(tip);
+    const rect = info.querySelector("svg").getBoundingClientRect();
+    const probe = (name) => { const n = document.createElement("span"); n.style.color = "var(" + name + ")"; document.body.append(n); const c = getComputedStyle(n).color; n.remove(); return c; };
+    facts.info = {
+      icons: m.all(".finding-info").length,
+      svg: info.querySelectorAll("svg").length,
+      text: info.textContent,
+      width: rect.width,
+      height: rect.height,
+      restColor: getComputedStyle(info).color,
+      faint: probe("--faint"),
+      noneOnReported: withoutIcon.querySelectorAll(".finding-info").length,
+      sameHeight: withIcon.getBoundingClientRect().height === withoutIcon.getBoundingClientRect().height,
+      label: info.getAttribute("aria-label"),
+      role: tip.getAttribute("role"),
+      hiddenAtRest: tipStyle().display === "none",
+    };
+    info.focus();
+    await tick();
+    const lineTexts = [...tip.querySelectorAll(".finding-tip-line")].map((n) => n.textContent);
+    facts.info.focused = {
+      shown: tipStyle().display !== "none",
+      lines: lineTexts,
+      background: tipStyle().backgroundColor,
+      box: probe("--box"),
+      border: tipStyle().borderTopColor,
+      boxline: probe("--boxline"),
+      color: tipStyle().color,
+      fg: probe("--fg"),
+      focusColor: getComputedStyle(info).color,
+      sel: probe("--sel"),
+    };
+    info.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await tick();
+    facts.info.escaped = { hidden: tipStyle().display === "none", focused: document.activeElement === info };
+    info.blur();
+    info.focus();
+    await tick();
+    facts.info.refocused = tipStyle().display !== "none";
+    info.blur();
+    await tick();
+    facts.info.blurred = tipStyle().display === "none";
+    const open = () => m.all(".finding-group.open").length;
+    const before = { open: open(), expanded: withIcon.querySelector(".finding-group-head").getAttribute("aria-expanded") };
+    click(info);
+    await tick();
+    facts.info.clickIcon = { same: open() === before.open, expanded: m.all(".finding-group-line")[0].querySelector(".finding-group-head").getAttribute("aria-expanded") === before.expanded };
+    click(m.all(".finding-group-line")[0].querySelector(".finding-group-count"));
+    await tick();
+    facts.info.clickCount = open();
+    click(m.all(".finding-group-line")[0].querySelector(".finding-group-name"));
+    await tick();
+    facts.info.clickName = open();
+  }
+
   click(m.all(".finding-group-head")[0]);
   await tick();
   facts.card = {
@@ -174,7 +237,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   facts.bar = { present: findingsButton() !== null, text: findingsButton().textContent, cls: findingsButton().className, order: bar.all(".selection-bar .bar-button").map((b) => b.title).slice(0, 3) };
   click(findingsButton());
   await tick();
-  facts.barTab = { tab: texts(bar, ".itabs button.on"), groups: texts(bar, ".inspector-panel .finding-group-name"), counts: texts(bar, ".inspector-panel .finding-group-count"), closed: bar.all(".inspector-panel .finding-card").length, on: findingsButton().className };
+  facts.barTab = { tab: texts(bar, ".itabs button.on"), groups: texts(bar, ".inspector-panel .finding-group-name"), counts: texts(bar, ".inspector-panel .finding-group-count"), closed: bar.all(".inspector-panel .finding-card").length, on: findingsButton().className, icons: bar.all(".inspector-panel .finding-group-line .finding-info svg").length };
   click(bar.q(".inspector-panel .finding-group-head"));
   await tick();
   facts.barOpened = { groups: bar.all(".inspector-panel .finding-group.open").length, cards: bar.all(".inspector-panel .finding-card").map((r) => r.dataset.id), name: bar.q(".inspector-panel .finding-card .finding-name").textContent, folder: bar.q(".inspector-panel .finding-card .finding-folder").textContent, panelGroupsOpen: bar.all(".findings-panel .finding-group.open").length };
@@ -341,8 +404,8 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.panel.line).toBe("1 violation, 2 warnings");
     expect(f.panel.chips).toBe(0);
     expect(f.panel.groups).toEqual([
-      "Policy violation",
-      "Cyclic dependency",
+      "Breaks the policy",
+      "Import cycle",
       "Style",
     ]);
     expect(f.panel.counts).toEqual(["1", "1", "1"]);
@@ -350,6 +413,44 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.panel.cards).toBe(0);
     expect(f.panel.stale).toBe(false);
     expect(f.panel.ghosts).toBe(0);
+  });
+
+  it("shows an info icon only on groups with help, with a tip reachable by keyboard", () => {
+    expect(f.info.icons).toBe(2);
+    expect(f.info.svg).toBe(1);
+    expect(f.info.text).toBe("");
+    expect(f.info.width).toBe(16);
+    expect(f.info.height).toBe(16);
+    expect(f.info.restColor).toBe(f.info.faint);
+    expect(f.info.noneOnReported).toBe(0);
+    expect(f.info.sameHeight).toBe(true);
+    expect(f.info.label).toBe("About Breaks the policy");
+    expect(f.info.role).toBe("tooltip");
+    expect(f.info.hiddenAtRest).toBe(true);
+    expect(f.info.focused.shown).toBe(true);
+    expect(f.info.focused.lines).toEqual([
+      `What it means${groupFile.groups[0]?.means}`,
+      `What to do${groupFile.groups[0]?.todo}`,
+    ]);
+    expect(f.info.focused.focusColor).toBe(f.info.focused.sel);
+    expect(f.info.blurred).toBe(true);
+  });
+
+  it("hides the tip on Escape while focus stays, and shows it again on the next focus", () => {
+    expect(f.info.escaped).toEqual({ hidden: true, focused: true });
+    expect(f.info.refocused).toBe(true);
+  });
+
+  it("clicking the icon leaves the group alone while the name and count still toggle it", () => {
+    expect(f.info.clickIcon).toEqual({ same: true, expanded: true });
+    expect(f.info.clickCount).toBe(1);
+    expect(f.info.clickName).toBe(0);
+  });
+
+  it("colours the tip with the theme variables", () => {
+    expect(f.info.focused.background).toBe(f.info.focused.box);
+    expect(f.info.focused.border).toBe(f.info.focused.boxline);
+    expect(f.info.focused.color).toBe(f.info.focused.fg);
   });
 
   it("a group is collapsed until clicked", () => {
@@ -422,7 +523,8 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
       "Findings (W)",
     ]);
     expect(f.barTab.tab[0]).toMatch(/^Findings/);
-    expect(f.barTab.groups).toEqual(["Policy violation", "Cyclic dependency"]);
+    expect(f.barTab.groups).toEqual(["Breaks the policy", "Import cycle"]);
+    expect(f.barTab.icons).toBe(2);
     expect(f.barTab.counts).toEqual(["1", "1"]);
     expect(f.barTab.closed).toBe(0);
     expect(f.barTab.on).toContain("on");
@@ -441,10 +543,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
 
   it("groups a folder's findings by kind once each, not under per-module headings", () => {
     expect(f.folderBoxFound).toBe(true);
-    expect(f.folderTab.groups).toEqual([
-      "Policy violation",
-      "Cyclic dependency",
-    ]);
+    expect(f.folderTab.groups).toEqual(["Breaks the policy", "Import cycle"]);
     expect(f.folderTab.headings).toBe(0);
     expect(f.folderCards.groupsOpen).toBe(2);
     expect(f.folderCards.names.sort()).toEqual(["a.py", "a.py"]);
@@ -514,14 +613,14 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.only.caption).toBe("order, 1");
     expect(f.only.before).toEqual({
       line: "1 violation, 2 warnings",
-      groups: ["Policy violation", "Cyclic dependency", "Style"],
+      groups: ["Breaks the policy", "Import cycle", "Style"],
       counts: ["1", "1", "1"],
       checked: "false",
       all: "true",
     });
     expect(f.only.on).toEqual({
       line: "1 violation, 1 warning",
-      groups: ["Policy violation", "Cyclic dependency"],
+      groups: ["Breaks the policy", "Import cycle"],
       counts: ["1", "1"],
       checked: "true",
       all: "false",

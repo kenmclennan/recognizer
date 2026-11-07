@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
+import groupFile from "./finding-groups.json";
 import { groupsOf, headerLine, staleNote } from "./findings-groups";
 import { findingRows, type StaleRow } from "./findings-order";
 
@@ -56,18 +59,18 @@ describe("groupsOf", () => {
     ];
 
     expect(names([document("structure", all)])).toEqual([
-      "Policy violation",
-      "Cyclic dependency",
+      "Breaks the policy",
+      "Import cycle",
       "Folder cycle",
       "Hub",
       "Orphan",
-      "Policy drift",
-      "Unstable dependency",
+      "Policy out of step",
+      "Depends on less stable code",
       "Unused exports",
-      "Duplication",
-      "C.R.A.P.",
-      "Mutation",
-      "Threshold",
+      "Duplicated code",
+      "Complex and untested",
+      "Tests miss changes",
+      "Over a limit",
     ]);
     expect(names([document("structure", [record("hu", "hub")])])).toEqual([
       "Hub",
@@ -94,7 +97,7 @@ describe("groupsOf", () => {
         document("review", [record("r", "cycle")], true),
         document("structure", [record("c", "cycle"), record("a", "alpha")]),
       ]),
-    ).toEqual(["Cyclic dependency", "review", "Alpha", "Zebra"]);
+    ).toEqual(["Import cycle", "review", "Alpha", "Zebra"]);
   });
 
   it("groups thresholds of every metric together", () => {
@@ -124,8 +127,8 @@ describe("groupsOf", () => {
     );
 
     expect(groups.map((group) => [group.name, group.severity])).toEqual([
-      ["Policy violation", "violation"],
-      ["Cyclic dependency", "violation"],
+      ["Breaks the policy", "violation"],
+      ["Import cycle", "violation"],
       ["Hub", "warning"],
     ]);
     expect(groups[1]?.rows.map((row) => row.id)).toEqual(["c1", "c2"]);
@@ -171,10 +174,10 @@ describe("staleNote", () => {
 
   it("names the groups with a hidden finding in panel order, joined with and", () => {
     expect(staleNote([], hiddenOf("a"), [])).toBe(
-      "Unstable dependency and Duplication findings are out of date.",
+      "Depends on less stable code and Duplicated code findings are out of date.",
     );
     expect(staleNote([], hiddenOf("b"), [])).toBe(
-      "Mutation findings are out of date.",
+      "Tests miss changes findings are out of date.",
     );
     expect(
       staleNote(
@@ -183,7 +186,7 @@ describe("staleNote", () => {
         [sensorRow("a", "failed")],
       ),
     ).toBe(
-      "Unstable dependency, Duplication and Mutation findings are out of date.",
+      "Depends on less stable code, Duplicated code and Tests miss changes findings are out of date.",
     );
   });
 
@@ -214,7 +217,90 @@ describe("staleNote", () => {
 
   it("still names the groups of a registered sensor that failed", () => {
     expect(staleNote(rows, [], [sensorRow("b", "failed")])).toBe(
-      "Mutation findings are out of date.",
+      "Tests miss changes findings are out of date.",
     );
+  });
+});
+
+describe("finding-groups.json", () => {
+  const entries = groupFile.groups as {
+    key: string;
+    name: string;
+    means: string;
+    todo: string;
+  }[];
+
+  it("has twelve unique keys and names with plain help sentences", () => {
+    expect(entries.map((one) => one.key)).toEqual([
+      "kind:rule-violation",
+      "kind:cycle",
+      "kind:folder_cycle",
+      "kind:hub",
+      "kind:orphan",
+      "kind:policy_drift",
+      "kind:stable_dependencies",
+      "kind:unused_exports",
+      "kind:duplication",
+      "kind:crap",
+      "kind:mutation",
+      "kind:thresholds",
+    ]);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(12);
+
+    for (const one of entries) {
+      expect(one.name).not.toBe("");
+      expect(one.means).toMatch(/^[A-Z].*\.$/);
+      expect(one.todo).toMatch(/^[A-Z].*\.$/);
+      expect(`${one.means}${one.todo}`).not.toMatch(/[<>]/);
+    }
+  });
+
+  it("is what groupsOf names, orders and explains", () => {
+    const all = entries.map((one, index) =>
+      record(`r${index}`, one.key.slice("kind:".length)),
+    );
+    const groups = groupsOf(findingRows([document("structure", all)]));
+
+    expect(groups.map((g) => g.name)).toEqual(entries.map((one) => one.name));
+    expect(groups.map((g) => g.help)).toEqual(
+      entries.map((one) => ({ means: one.means, todo: one.todo })),
+    );
+  });
+
+  it("gives no help to a reported group or an unknown kind", () => {
+    const rows = findingRows([
+      document("structure", [record("a", "cycle")]),
+      document("alpha", [record("b", "note")], true),
+      document("structure", [
+        record("c", "style"),
+        record("d", "stable_abstractions"),
+      ]),
+    ]);
+    const byName = Object.fromEntries(
+      groupsOf(rows).map((g) => [g.name, g.help]),
+    );
+
+    expect(byName["Import cycle"]).not.toBeNull();
+    expect(byName.alpha).toBeNull();
+    expect(byName.Style).toBeNull();
+    expect(byName["Stable abstractions"]).toBeNull();
+  });
+
+  it("is named by the glossary but its help text is not repeated there", () => {
+    const glossary = readFileSync(
+      resolve(__dirname, "../../docs/glossary.md"),
+      "utf8",
+    );
+    const row = glossary
+      .split("\n")
+      .find((line) => line.startsWith("| Finding group name |"));
+
+    expect(row).toBeDefined();
+
+    for (const one of entries) {
+      expect(row).toContain(one.name);
+      expect(glossary).not.toContain(one.means);
+      expect(glossary).not.toContain(one.todo);
+    }
   });
 });

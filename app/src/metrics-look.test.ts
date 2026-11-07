@@ -426,7 +426,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(f.mixed.text).toBe("from 2 functions");
     expect(f.mixed.title).toBe("cc: heavy\ncov: classify");
     expect(f.mixed.iconSize).toEqual([13, 13]);
-    expect(f.mixed.textY).toBeGreaterThan(f.mixed.lastBarBottom);
+    expect(f.mixed.textY).toBe(f.mixed.lastBarBottom + 14 + 6);
     expect(f.mixed.textY).toBeLessThanOrEqual(f.mixed.boxBottom);
   });
 

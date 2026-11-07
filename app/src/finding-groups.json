@@ -1,0 +1,76 @@
+{
+  "groups": [
+    {
+      "key": "kind:rule-violation",
+      "name": "Breaks the policy",
+      "means": "An import your policy forbids: one layer or component using another it may not, or a module matching a pattern nothing may match.",
+      "todo": "Remove the import, or change the policy if the dependency is intended."
+    },
+    {
+      "key": "kind:cycle",
+      "name": "Import cycle",
+      "means": "Modules that import each other in a loop, so none can be understood or changed alone.",
+      "todo": "Break the loop: move the shared piece out, or invert one import."
+    },
+    {
+      "key": "kind:folder_cycle",
+      "name": "Folder cycle",
+      "means": "Folders whose modules import each other in a loop, so the folders cannot be layered.",
+      "todo": "Cut the imports listed, cheapest first; a folder named as a split candidate is likely the real fix."
+    },
+    {
+      "key": "kind:hub",
+      "name": "Hub",
+      "means": "A module many others import that itself imports many: any change ripples both ways.",
+      "todo": "Check what importers actually use. If most take one small thing, move it out; otherwise split the module."
+    },
+    {
+      "key": "kind:orphan",
+      "name": "Orphan",
+      "means": "A module no other module imports that is not an entry point. When only test files import it, the card says so.",
+      "todo": "If it is dead, delete it. If only tests use it, move it next to them. If a tool or user runs it, list it under entry points."
+    },
+    {
+      "key": "kind:policy_drift",
+      "name": "Policy out of step",
+      "means": "The policy names something the code no longer has, or a folder no policy component covers.",
+      "todo": "Update the policy so it matches the code."
+    },
+    {
+      "key": "kind:stable_dependencies",
+      "name": "Depends on less stable code",
+      "means": "A steadier folder imports a folder that changes more easily, so changes there reach it.",
+      "todo": "Move the imported piece to a steadier folder, or depend on an interface instead. The card names the imports."
+    },
+    {
+      "key": "kind:unused_exports",
+      "name": "Unused exports",
+      "means": "A module exports names that no other module imports. A name only a test file imports still counts as unused.",
+      "todo": "Remove the export, or keep it if code outside this repository uses it."
+    },
+    {
+      "key": "kind:duplication",
+      "name": "Duplicated code",
+      "means": "The same structure written more than once; a fix in one copy can miss the others.",
+      "todo": "Extract the shared part once the copies are truly the same, largest first."
+    },
+    {
+      "key": "kind:crap",
+      "name": "Complex and untested",
+      "means": "A function that is both complex and poorly covered by tests, so changing it is risky.",
+      "todo": "Add tests for it, or simplify it; either lowers the score."
+    },
+    {
+      "key": "kind:mutation",
+      "name": "Tests miss changes",
+      "means": "Recognizer changed this function's code and no test failed, so the tests do not pin its behaviour.",
+      "todo": "Add a test that fails when this function's behaviour changes."
+    },
+    {
+      "key": "kind:thresholds",
+      "name": "Over a limit",
+      "means": "A measure passed a limit set in your config, such as module size.",
+      "todo": "Bring it back under the limit, or raise the limit if it is wrong."
+    }
+  ]
+}

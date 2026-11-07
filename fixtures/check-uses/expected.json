@@ -218,8 +218,8 @@
       "fan_in": 1,
       "fan_out": 3,
       "afferent": 1,
-      "efferent": 4,
-      "instability": 0.8,
+      "efferent": 3,
+      "instability": 0.75,
       "abstractness": 0
     },
     {
