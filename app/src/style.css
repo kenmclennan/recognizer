@@ -1134,6 +1134,69 @@ svg.i.chevron {
   border-left-color: var(--card-constant);
 }
 
+.card-unknown {
+  border-left-color: var(--faint);
+}
+
+.card-unknown .card-kind {
+  color: var(--faint);
+}
+
+.card.marked,
+.card-member.marked {
+  position: relative;
+  padding-right: 26px;
+}
+
+.member-band,
+.member-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--card-bg);
+}
+
+.member-band {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  border-radius: 3px 0 0 3px;
+}
+
+.card-member .member-band {
+  right: -8px;
+}
+
+.member-band svg,
+.member-swatch svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+
+.member-band.plus,
+.member-swatch.plus {
+  background: var(--ok);
+}
+
+.member-band.delta,
+.member-swatch.delta {
+  background: var(--warn);
+}
+
+.member-band.minus,
+.member-swatch.minus {
+  background: var(--bad);
+}
+
+.member-swatch {
+  width: 18px;
+  height: 14px;
+  border-radius: 3px;
+}
+
 .card-label {
   display: flex;
   align-items: baseline;
@@ -1256,6 +1319,16 @@ svg.i.chevron {
     monospace;
   line-height: 1.7;
   overflow-wrap: anywhere;
+}
+
+.marked.removed,
+.marked.removed .card-code {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.marked.planned .card-code {
+  font-style: italic;
 }
 
 .card-member {

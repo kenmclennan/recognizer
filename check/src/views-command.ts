@@ -18,6 +18,8 @@ import {
 import {
   lastNotePerPath,
   lastProposedPerModule,
+  MEMBER_PROPOSED_KINDS,
+  memberReference,
   migrateView,
   movesKind,
   noteWarnings,
@@ -28,12 +30,16 @@ import {
   type ResolvedView,
   rangeText,
   resolveView,
+  scanHoldsMember,
   serialiseView,
+  splitMemberReference,
   type View,
   type ViewNote,
   type ViewProposedChange,
   type ViewStep,
   validateView,
+  viewMemberProposed,
+  viewModuleProposed,
   viewNotes,
   viewProposed,
 } from "./views.js";
@@ -106,14 +112,14 @@ const ALLOWED: Record<Subcommand, string[]> = {
 
 const USAGE: Record<Subcommand, string> = {
   new: "recognizer views new <name> --description <text> [--change <base>..<head> | --plan] [--from-window <id>] [--repository <dir>] [--json]",
-  add: "recognizer views add <name> <module>... [--change new|changes|moves|moves-and-changes|removed [--from <path>]] [--repository <dir>] [--json]",
+  add: "recognizer views add <name> <module>[#<member>]... [--change new|changes|moves|moves-and-changes|removed [--from <path>]] [--repository <dir>] [--json]",
   rule: "recognizer views rule <name> (--folder <folder> | --uses <module> | --used-by <module>) [--within <folder>] [--repository <dir>] [--json]",
   fold: "recognizer views fold <name> <folder> [--repository <dir>] [--json]",
   focus: "recognizer views focus <name> <folder> [--repository <dir>] [--json]",
   remove:
-    "recognizer views remove <name> <path> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
+    "recognizer views remove <name> <path-or-module#member> [--fold | --focus | --rule folder|uses|used-by [--within <folder>]] [--repository <dir>] [--json]",
   change:
-    "recognizer views change <name> <module> (new|changes|moves|moves-and-changes|removed [--from <path>] | --clear) [--repository <dir>] [--json]",
+    "recognizer views change <name> <module>[#<member>] (new|changes|moves|moves-and-changes|removed [--from <path>] | --clear) [--repository <dir>] [--json]",
   note: "recognizer views note <name> <module-or-folder> (<text> [--by <name>] [--after <module-or-folder> | --first] | --remove [--by <name>]) [--repository <dir>] [--json]",
   reorder:
     "recognizer views reorder <name> <module-or-folder>... [--repository <dir>] [--json]",
@@ -338,9 +344,12 @@ function withProposed(
   view: View,
   entry: ViewProposedChange | null,
   module: string,
+  member?: string,
 ): View {
   const migrated = migrateView(view);
-  const kept = viewProposed(migrated).filter((e) => e.module !== module);
+  const kept = viewProposed(migrated).filter(
+    (e) => !(e.module === module && e.member === member),
+  );
   const next = entry === null ? kept : [...kept, entry];
 
   if (next.length === 0) {
@@ -350,6 +359,87 @@ function withProposed(
   }
 
   return migrated;
+}
+
+function withoutMemberEntries(view: View, module: string): [View, number] {
+  const migrated = migrateView(view);
+  const all = viewProposed(migrated);
+  const kept = all.filter(
+    (e) => !(e.module === module && e.member !== undefined),
+  );
+
+  if (kept.length === 0) {
+    delete migrated.proposed;
+  } else {
+    migrated.proposed = kept;
+  }
+
+  return [migrated, all.length - kept.length];
+}
+
+function checkMemberProposed(
+  kind: ProposedKind,
+  reference: string,
+  from: string | undefined,
+): ViewProposedChange {
+  const split = splitMemberReference(reference);
+
+  if (split === null || !MODULE_PATH.test(split.module)) {
+    throw new InputError([`not a member reference: ${reference}`]);
+  }
+
+  if (!MEMBER_PROPOSED_KINDS.some((k) => k === kind)) {
+    throw new InputError(["a member takes new, changes or removed"]);
+  }
+
+  if (from !== undefined) {
+    throw new InputError([`--from does not apply to a member: ${reference}`]);
+  }
+
+  return { module: split.module, member: split.member, kind };
+}
+
+function requireMemberTarget(
+  view: View,
+  scans: Scan[],
+  entry: ViewProposedChange,
+): void {
+  const resolved = resolveView(view, scans);
+  const own = viewModuleProposed(view).find((e) => e.module === entry.module);
+
+  if (resolved.planned.includes(entry.module)) {
+    throw new InputError([
+      `${entry.module} is wholly new; mark the module only`,
+    ]);
+  }
+
+  if (own !== undefined && (own.kind === "new" || own.kind === "removed")) {
+    throw new InputError([
+      `${entry.module} is wholly ${own.kind}; mark the module only`,
+    ]);
+  }
+
+  requireModules(scans, [entry.module]);
+
+  const member = entry.member as string;
+
+  if (entry.kind !== "new" && !scanHoldsMember(scans, entry.module, member)) {
+    throw new InputError([
+      `no such member: ${memberReference(entry.module, member)}`,
+    ]);
+  }
+}
+
+function requireNoMemberEntries(view: View, entry: ViewProposedChange): void {
+  if (
+    entry.member === undefined &&
+    (entry.kind === "new" || entry.kind === "removed") &&
+    viewMemberProposed(view).some((e) => e.module === entry.module)
+  ) {
+    throw new InputError([
+      `${entry.module} is wholly ${entry.kind}; mark the module only`,
+    ]);
+  }
 }
 
 function requirePlan(view: View, what: string): void {
@@ -525,31 +615,46 @@ function runAdd(argv: string[], io: Io): number {
           throw new InputError(["--from takes exactly one module"]);
         }
 
-        entries = paths.map((module) =>
-          checkProposed(
-            kind,
-            module,
-            typeof fromFlag === "string" ? fromFlag : undefined,
-          ),
+        const from = typeof fromFlag === "string" ? fromFlag : undefined;
+
+        entries = paths.map((path) =>
+          path.includes("#")
+            ? checkMemberProposed(kind, path, from)
+            : checkProposed(kind, path, from),
         );
 
         for (const entry of entries) {
-          requireScanFor(scans, entry);
+          if (entry.member === undefined) {
+            requireNoMemberEntries(view, entry);
+            requireScanFor(scans, entry);
+          } else {
+            requireMemberTarget(view, scans, entry);
+          }
         }
       } else {
+        if (paths.some((path) => path.includes("#"))) {
+          throw new InputError([
+            "a member reference needs --change new, changes or removed",
+          ]);
+        }
+
         requireModules(scans, paths);
       }
 
       const known = new Set(moduleNames(scans));
+      const targets =
+        entries.length === 0 ? paths : entries.map((e) => e.module);
       const toPick =
-        entries.length === 0 ? paths : paths.filter((p) => known.has(p));
+        entries.length === 0
+          ? paths
+          : [...new Set(targets)].filter((p) => known.has(p));
       const picked = new Set(
         view.steps.flatMap((s) => (s.kind === "pick" ? [s.module] : [])),
       );
       const added = toPick.filter((path) => !picked.has(path));
 
       view.steps = view.steps.filter(
-        (s) => !(s.kind === "left-out" && paths.includes(s.module)),
+        (s) => !(s.kind === "left-out" && targets.includes(s.module)),
       );
       view.steps.push(
         ...added.map((module) => ({ kind: "pick" as const, module })),
@@ -558,7 +663,7 @@ function runAdd(argv: string[], io: Io): number {
       let next = view;
 
       for (const entry of entries) {
-        next = withProposed(next, entry, entry.module);
+        next = withProposed(next, entry, entry.module, entry.member);
       }
 
       return {
@@ -579,7 +684,7 @@ function runChange(argv: string[], io: Io): number {
     argv,
     io,
     (c, view, scans) => {
-      const module = c.positionals[1] as string;
+      const target = c.positionals[1] as string;
       const kindText = c.positionals[2];
       const clearing = c.values.clear === true;
 
@@ -589,6 +694,43 @@ function runChange(argv: string[], io: Io): number {
         throw usageError("change");
       }
 
+      if (target.includes("#")) {
+        const split = splitMemberReference(target);
+
+        if (split === null) {
+          throw new InputError([`not a member reference: ${target}`]);
+        }
+
+        if (clearing) {
+          if (
+            !viewMemberProposed(view).some(
+              (e) => e.module === split.module && e.member === split.member,
+            )
+          ) {
+            throw new InputError([`no proposed change on ${target}`]);
+          }
+
+          return {
+            view: withProposed(view, null, split.module, split.member),
+            what: `cleared the proposed change on ${target}`,
+          };
+        }
+
+        const memberEntry = checkMemberProposed(
+          parseKind(kindText as string),
+          target,
+          c.values.from as string | undefined,
+        );
+
+        requireMemberTarget(view, scans, memberEntry);
+
+        return {
+          view: withProposed(view, memberEntry, split.module, split.member),
+          what: `set the proposed change on ${target} to ${memberEntry.kind}`,
+        };
+      }
+
+      const module = target;
       const resolved = resolveView(view, scans);
       const planned = resolved.planned.includes(module);
 
@@ -619,6 +761,7 @@ function runChange(argv: string[], io: Io): number {
         c.values.from as string | undefined,
       );
 
+      requireNoMemberEntries(view, entry);
       requireScanFor(scans, entry);
 
       return {
@@ -810,12 +953,35 @@ function runRemove(argv: string[], io: Io): number {
         return { view, what: `removed rule ${relation} ${of}` };
       }
 
+      const split = path.includes("#") ? splitMemberReference(path) : null;
+
+      if (path.includes("#") && split === null) {
+        throw new InputError([`not a member reference: ${path}`]);
+      }
+
+      if (split !== null) {
+        if (
+          !viewMemberProposed(view).some(
+            (e) => e.module === split.module && e.member === split.member,
+          )
+        ) {
+          throw new InputError([`no proposed change on ${path}`]);
+        }
+
+        return {
+          view: withProposed(view, null, split.module, split.member),
+          what: `removed the proposed change on ${path}`,
+        };
+      }
+
       const before = resolveView(view, scans);
 
       if (before.planned.includes(path)) {
+        const [dropped, count] = withoutMemberEntries(view, path);
+
         return {
-          view: withProposed(view, null, path),
-          what: `removed the planned module ${path}`,
+          view: withProposed(dropped, null, path),
+          what: `removed the planned module ${path}${count > 0 ? `, dropped ${plural(count, "member entry")}` : ""}`,
         };
       }
 
@@ -831,7 +997,12 @@ function runRemove(argv: string[], io: Io): number {
         view.steps.push({ kind: "left-out", module: path });
       }
 
-      return { view: withProposed(view, null, path), what: `took ${path} off` };
+      const [stripped, dropped] = withoutMemberEntries(view, path);
+
+      return {
+        view: withProposed(stripped, null, path),
+        what: `took ${path} off${dropped > 0 ? `, dropped ${plural(dropped, "member entry")}` : ""}`,
+      };
     },
     (count) => count === 2,
   );
@@ -860,6 +1031,11 @@ function runNote(argv: string[], io: Io): number {
     (c, view, scans) => {
       const path = c.positionals[1] as string;
       const notes = viewNotes(view);
+
+      if (path.includes("#")) {
+        throw new InputError([`notes stay at module level: ${path}`]);
+      }
+
       const rawBy = c.values.by as string | undefined;
 
       if (removing) {
@@ -1184,7 +1360,10 @@ function runShow(argv: string[], io: Io): number {
         })),
         resolved: resolvedJson(resolved, view),
         unresolved: resolved.unresolved,
-        warnings: [...noteWarnings(view), ...proposedWarnings(view, resolved)],
+        warnings: [
+          ...noteWarnings(view),
+          ...proposedWarnings(view, resolved, scans),
+        ],
       },
       "",
     );
@@ -1201,9 +1380,13 @@ function runShow(argv: string[], io: Io): number {
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
     `resolves to ${plural(resolved.modules.length, "module")}`,
     ...resolved.modules.map((module) => `  ${module}`),
-    ...viewProposed(view).map(
+    ...viewModuleProposed(view).map(
       (entry) =>
         `  ${entry.kind} ${entry.module}${entry.from === undefined ? "" : ` (from ${entry.from})`}${resolved.planned.includes(entry.module) ? " (planned)" : ""}`,
+    ),
+    ...viewMemberProposed(view).map(
+      (entry) =>
+        `  ${entry.kind} ${memberReference(entry.module, entry.member as string)}`,
     ),
   ];
 
@@ -1225,7 +1408,7 @@ function runShow(argv: string[], io: Io): number {
   }
 
   lines.push(
-    ...[...noteWarnings(view), ...proposedWarnings(view, resolved)].map(
+    ...[...noteWarnings(view), ...proposedWarnings(view, resolved, scans)].map(
       (warning) => `warning: ${warning}`,
     ),
   );
@@ -1401,7 +1584,7 @@ function runCheck(argv: string[], io: Io): number {
 
       const warnings = [
         ...noteWarnings(view),
-        ...proposedWarnings(view, resolveView(view, scans)),
+        ...proposedWarnings(view, resolveView(view, scans), scans),
       ];
 
       const annotate = (current: View): CheckedStep[] =>

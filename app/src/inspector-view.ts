@@ -14,6 +14,7 @@ import type {
   ResponsibilityLineRow,
   Row,
 } from "./inspector-model";
+import { bandNode } from "./member-mark-view";
 import { attachModuleTip, descriptionOf } from "./module-tip";
 import { nextCheck } from "./row-model";
 import { buildRow } from "./row-view";
@@ -163,9 +164,10 @@ function openAt(
 }
 
 function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
+  const kind = row.label === "Member" ? "unknown" : row.label.toLowerCase();
   const node = el(
     "div",
-    `card card-${row.label.toLowerCase()}${row.private ? " priv" : ""}`,
+    `card card-${kind}${row.private ? " priv" : ""}${row.mark === undefined ? "" : ` marked ${row.look ?? ""}`}`,
   );
   const label = el("div", "card-label");
   const head = el("div", "card-code");
@@ -187,6 +189,10 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   head.append(...tokenNodes(row.head));
   node.append(label, head);
 
+  if (row.mark !== undefined) {
+    node.append(bandNode(row.mark));
+  }
+
   if (row.metricsRow !== null) {
     const metrics = el("div", "fn-metrics");
 
@@ -206,7 +212,10 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   }
 
   for (const line of row.lines) {
-    const part = el("div", `card-member${line.private ? " priv" : ""}`);
+    const part = el(
+      "div",
+      `card-member${line.private ? " priv" : ""}${line.mark === undefined ? "" : ` marked ${line.look ?? ""}`}`,
+    );
     const code = el("span", "card-code");
 
     code.append(...tokenNodes(line.tokens));
@@ -222,6 +231,10 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
 
     if (line.size !== null) {
       part.append(sizeNode(line.size));
+    }
+
+    if (line.mark !== undefined) {
+      part.append(bandNode(line.mark));
     }
 
     openAt(part, row.module, line.line, actions);
