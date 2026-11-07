@@ -113,6 +113,7 @@ describe("fixture", () => {
       skip_directory_suffixes: [],
       skip_directories_containing: [],
       skip_file_globs: ["*.d.ts", "*.d.mts", "*.d.cts", "*.test.*", "*.spec.*"],
+      input_file_globs: ["package.json", "tsconfig.json", "*.html"],
     });
   });
 

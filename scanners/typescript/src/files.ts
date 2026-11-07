@@ -29,6 +29,7 @@ const SKIPPED_FILE_GLOBS = [
 ];
 const DECLARATION_GLOBS = ["*.d.ts", "*.d.mts", "*.d.cts"];
 const TEST_DIRECTORIES = ["test", "tests", "__tests__"];
+const INPUT_FILE_GLOBS = ["package.json", "tsconfig.json", "*.html"];
 const TEST_FILE_GLOBS = ["*.test.*", "*.spec.*"];
 
 export interface Selection {
@@ -39,6 +40,8 @@ export interface Selection {
   skip_directories_containing: string[];
   skip_file_globs: string[];
   skip_paths?: string[];
+  input_file_globs?: string[];
+  input_absent_paths?: string[];
 }
 
 export function selection(): Selection {
@@ -49,6 +52,7 @@ export function selection(): Selection {
     skip_directory_suffixes: [],
     skip_directories_containing: [],
     skip_file_globs: [...SKIPPED_FILE_GLOBS],
+    input_file_globs: [...INPUT_FILE_GLOBS],
   };
 }
 

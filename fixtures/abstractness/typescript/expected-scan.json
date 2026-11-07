@@ -54,7 +54,8 @@
       "*.d.cts",
       "*.test.*",
       "*.spec.*"
-    ]
+    ],
+    "input_file_globs": ["package.json", "tsconfig.json", "*.html"]
   },
   "modules": [
     {
