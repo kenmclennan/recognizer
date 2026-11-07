@@ -1262,6 +1262,20 @@ async fn scans_at(
 }
 
 #[tauri::command]
+async fn range_members(
+    app: AppHandle,
+    window: WebviewWindow,
+    base: String,
+    head: String,
+) -> Result<Option<views::RangeMembers>, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || views::range_members(&folder, &base, &head))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn watch_views(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1393,6 +1407,7 @@ pub fn run() {
             read_scan_cache,
             read_scan_ticks,
             run_scan,
+            range_members,
             scans_at,
             stop_scan,
             answer_describe,

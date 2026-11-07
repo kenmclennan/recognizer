@@ -7,6 +7,8 @@ import {
   folderUses,
   type MarkedModule,
   type MarkScan,
+  type MemberMarkKind,
+  memberMarks,
   rangeText,
   resolveView,
   type Scan,
@@ -56,6 +58,7 @@ import {
   findingsTone,
   followableRows,
   type InspectorContent,
+  type InspectorMembers,
   type InspectorTab,
   inspectorContent,
   shortMetric,
@@ -261,6 +264,16 @@ type ChangeInfo =
       marked: MarkedModule[];
       unmatched: number;
       at: number;
+      headCommit: string;
+      members: ChangeMembers;
+    };
+
+type ChangeMembers =
+  | "loading"
+  | null
+  | {
+      marks: Map<string, Map<string, MemberMarkKind> | null>;
+      start: Scan[];
     };
 
 function freshnessOf(loaded: Loaded) {
@@ -1188,11 +1201,75 @@ export function showExplorer(
       return planCache.value;
     }
 
-    const value = planOverlay(view, resolveView(view, scans));
+    const value = planOverlay(view, resolveView(view, scans), scans);
 
     planCache = { view, scans, value };
 
     return value;
+  }
+
+  function currentMembers(): InspectorMembers | undefined {
+    const plan = currentPlan();
+
+    if (plan !== null) {
+      return {
+        mark: (module, key) =>
+          plan.members.get(module)?.find((entry) => entry.member === key)
+            ?.kind ?? null,
+        planned: (module) =>
+          (plan.members.get(module) ?? [])
+            .filter((entry) => !entry.inScan)
+            .map((entry) => entry.member),
+        start: () => null,
+        note: () => null,
+      };
+    }
+
+    const info = changeInfo;
+
+    if (info === null || info.state !== "ok" || info.name !== openView) {
+      return undefined;
+    }
+
+    const found = info.members;
+    const modifiedHere = (module: string) =>
+      info.marked.some((one) => one.id === module && one.mark === "modified");
+
+    return {
+      mark: (module, key) =>
+        found === null || found === "loading"
+          ? null
+          : (found.marks.get(module)?.get(key) ?? null),
+      planned: () => [],
+      start: (module) => {
+        if (found === null || found === "loading") {
+          return null;
+        }
+
+        for (const scan of found.start) {
+          const entry = scan.modules.find((one) => one.id === module);
+
+          if (entry !== undefined) {
+            return entry.members ?? null;
+          }
+        }
+
+        return null;
+      },
+      note: (module) => {
+        if (!modifiedHere(module)) {
+          return null;
+        }
+
+        if (found === "loading") {
+          return "Member marks loading";
+        }
+
+        return found === null || found.marks.get(module) === null
+          ? `Member marks need a scan of ${info.headCommit.slice(0, 7)}`
+          : null;
+      },
+    };
   }
 
   function notedBoxes(): ReadonlySet<string> {
@@ -1546,15 +1623,53 @@ export function showExplorer(
       }
     }
 
-    changeInfo = {
+    const anyModified = found.modules.some(
+      (one) => one.mark === "modified" && one.box === "current",
+    );
+    const okInfo = {
       name,
       range,
-      state: "ok",
+      state: "ok" as const,
       marked: found.modules,
       unmatched: found.unmatched,
       at: Date.now(),
+      headCommit: answer.headCommit,
     };
+
+    changeInfo = { ...okInfo, members: anyModified ? "loading" : null };
     rebuild();
+    render();
+
+    if (!anyModified) {
+      return;
+    }
+
+    const fetched = await views
+      .rangeMembers(view.change.base, view.change.head)
+      .catch(() => null);
+
+    if (token !== openToken) {
+      return;
+    }
+
+    changeInfo = {
+      ...okInfo,
+      members:
+        fetched === null
+          ? null
+          : {
+              marks: memberMarks({
+                modules: found.modules,
+                headCommit: answer.headCommit,
+                current: scans as unknown as Parameters<
+                  typeof memberMarks
+                >[0]["current"],
+                base: fetched.baseScans,
+                files: fetched.files,
+              }),
+              start: fetched.baseScans,
+            },
+    };
     render();
   }
 
@@ -3441,6 +3556,7 @@ export function showExplorer(
         metricsOn: tickedMetrics().length > 0,
         limits: limitsFromText(scanConfig),
         proposed: (id) => currentPlan()?.proposed.get(id) ?? null,
+        members: currentMembers(),
       });
     };
 

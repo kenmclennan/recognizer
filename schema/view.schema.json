@@ -110,12 +110,23 @@
       "required": ["module", "kind"],
       "properties": {
         "module": { "$ref": "#/$defs/path" },
+        "member": {
+          "type": "string",
+          "description": "A function, class or method in the module: Name, or Class.method. With member, kind is new, changes or removed and from is not allowed.",
+          "pattern": "^[^#]+$"
+        },
         "kind": {
           "enum": ["new", "changes", "moves", "moves-and-changes", "removed"]
         },
         "from": { "$ref": "#/$defs/path" }
       },
       "allOf": [
+        {
+          "if": { "required": ["member"] },
+          "then": {
+            "properties": { "kind": { "enum": ["new", "changes", "removed"] } }
+          }
+        },
         {
           "if": {
             "properties": { "kind": { "enum": ["moves", "moves-and-changes"] } },
