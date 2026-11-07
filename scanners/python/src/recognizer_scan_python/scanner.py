@@ -15,7 +15,7 @@ from recognizer_scan_python.analysis import (
     read_imports,
 )
 from recognizer_scan_python.calls import CallResolver
-from recognizer_scan_python.discovery import discover, selection
+from recognizer_scan_python.discovery import discover, discover_tests, selection
 from recognizer_scan_python.entry_point import is_entry_point
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
@@ -123,6 +123,42 @@ def import_edges(module_id: str, imports: Imports, router: Router) -> list[dict]
     return edges
 
 
+def read_test_imports(
+    root: Path, index: ModuleIndex, router: Router, module_ids: set[str]
+) -> list[dict]:
+    records = []
+
+    for path in discover_tests(root):
+        try:
+            tree = ast.parse((root / path).read_bytes(), filename=path)
+        except (SyntaxError, ValueError, RecursionError, MemoryError):
+            continue
+
+        whole: set[str] = set()
+        names: dict[str, set[str]] = {}
+
+        for edge in import_edges(path, read_imports(path, tree, index), router):
+            target = edge["to"]
+
+            if target not in module_ids:
+                continue
+
+            names.setdefault(target, set()).update(edge.get("names", []))
+
+            if "names" not in edge:
+                whole.add(target)
+
+        for target in sorted(names):
+            record = {"from": path, "to": target}
+
+            if target not in whole and names[target]:
+                record["names"] = sorted(names[target])
+
+            records.append(record)
+
+    return sorted(records, key=lambda record: (record["from"], record["to"]))
+
+
 def scan(
     root: Path, source_roots: list[str], commit: str | None, modified: bool | None = None
 ) -> dict:
@@ -199,4 +235,5 @@ def scan(
         "edges": sorted(edges, key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(foreign_names)],
         "calls": calls,
+        "test_imports": read_test_imports(root, index, router, set(module_ids)),
     }

@@ -490,3 +490,99 @@ describe("hub importers in the report", () => {
     }
   });
 });
+
+describe("orphan test importers in the report", () => {
+  function orphanScan(testFiles: number, unknownAt = 12) {
+    const test_imports = [];
+
+    for (let at = 1; at <= testFiles; at += 1) {
+      test_imports.push({
+        from: `tests/t${String(at).padStart(2, "0")}.py`,
+        to: "a/lonely.py",
+        ...(at === unknownAt
+          ? {}
+          : { names: at === 10 || at === 11 ? ["Big", "Small"] : ["Small"] }),
+      });
+    }
+
+    return {
+      ...checkScan,
+      modules: [
+        { id: "a/lonely.py", language: "python", kind: "module", members: [] },
+        { id: "a/other.py", language: "python", kind: "module", members: [] },
+      ],
+      edges: [],
+      foreign: [],
+      test_imports,
+    };
+  }
+
+  function runOn(scan: Record<string, unknown>, ...flags: string[]) {
+    const fake = fakeIo({
+      commit: COMMIT,
+      files: {
+        ...mountedModules(scan),
+        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(scan),
+      },
+    });
+
+    run(["check", ...flags, "--repository", ROOT], fake.io);
+
+    return fake.out();
+  }
+
+  function lonely(out: string) {
+    return JSON.parse(out).warnings.find(
+      (one: { id: string; evidence: { modules: string[] } }) =>
+        one.id === "orphan" && one.evidence.modules[0] === "a/lonely.py",
+    );
+  }
+
+  it("prints at most 10 test files with their names and counts the rest", () => {
+    const lines = runOn(orphanScan(12)).split("\n");
+    const at = lines.findIndex((line) =>
+      line.startsWith("warning: a/lonely.py"),
+    );
+
+    expect(lines[at]).toContain(
+      "a/lonely.py is imported only by 12 test files",
+    );
+    expect(lines[at]).toContain(
+      "tests/t01.py, tests/t02.py, tests/t03.py and 9 more",
+    );
+    expect(lines[at + 1]).toBe("  tests/t01.py: Small");
+    expect(lines[at + 10]).toBe("  tests/t10.py: Big, Small");
+    expect(lines[at + 11]).toBe("  and 2 more test files");
+  });
+
+  it("prints several names and names unknown", () => {
+    const out = runOn(orphanScan(2, 2));
+
+    expect(out).toContain("\n  tests/t01.py: Small\n");
+    expect(out).toContain("\n  tests/t02.py: (names unknown)\n");
+    expect(out).not.toContain("more test files");
+    expect(runOn(orphanScan(10))).toContain("  tests/t10.py: Big, Small");
+  });
+
+  it("carries every test importer in --json", () => {
+    const warning = lonely(runOn(orphanScan(12), "--json"));
+
+    expect(warning.fix_pattern).toBe("move-orphan-to-tests");
+    expect(warning.evidence.test_importers).toHaveLength(12);
+    expect(warning.evidence.test_importers[10]).toEqual({
+      file: "tests/t11.py",
+      names: ["Big", "Small"],
+    });
+    expect(warning.evidence.test_importers[11]).toEqual({
+      file: "tests/t12.py",
+      names: [],
+    });
+  });
+
+  it("prints no test file lines for an orphan nothing imports", () => {
+    const out = runOn({ ...orphanScan(0), test_imports: [] });
+
+    expect(out).toContain("a/lonely.py is imported by no module");
+    expect(out).not.toContain("test file");
+  });
+});

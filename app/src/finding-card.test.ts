@@ -193,6 +193,65 @@ describe("cardOf rows", () => {
   });
 });
 
+describe("cardOf orphan test importers", () => {
+  const orphan = (test_importers?: { file: string; names: string[] }[]) =>
+    cardOf(
+      rowOf({
+        kind: "orphan",
+        evidence: {
+          modules: ["app/fake.py"],
+          ...(test_importers ? { test_importers } : {}),
+        },
+      }),
+    );
+
+  it("adds one test row per file after the module row, in order", () => {
+    const card = orphan([
+      { file: "tests/unit/test_a.py", names: ["Fake"] },
+      { file: "tests/test_b.py", names: [] },
+    ]);
+
+    expect(card.sentence).toContain("imported only by 2 test files");
+    expect(card.rows).toEqual([
+      { kind: "module", module: "app/fake.py", name: "fake.py", folder: "app" },
+      {
+        kind: "test",
+        file: "tests/unit/test_a.py",
+        name: "test_a.py",
+        folder: "tests/unit",
+        names: ["Fake"],
+      },
+      {
+        kind: "test",
+        file: "tests/test_b.py",
+        name: "test_b.py",
+        folder: "tests",
+        names: [],
+      },
+    ]);
+  });
+
+  it("never marks a test row absent from the canvas", () => {
+    const rows = orphan([{ file: "tests/test_a.py", names: [] }]).rows;
+
+    expect(rows.map((row) => isAbsent(row, (id) => id, new Set()))).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("keeps today's rows and sentence without test importers", () => {
+    const card = orphan();
+
+    expect(card.rows).toEqual([
+      { kind: "module", module: "app/fake.py", name: "fake.py", folder: "app" },
+    ]);
+    expect(card.sentence).toBe(
+      "fake.py is imported by nothing and is not an entry point.",
+    );
+  });
+});
+
 describe("isAbsent", () => {
   const card = cardOf(
     rowOf({

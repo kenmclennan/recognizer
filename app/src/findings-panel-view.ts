@@ -53,7 +53,7 @@ function itemNode(
     text.append(el("span", "finding-folder", row.folder));
   }
 
-  if (row.kind === "use") {
+  if (row.kind === "use" || row.kind === "test") {
     text.append(
       el(
         "span",
@@ -63,7 +63,7 @@ function itemNode(
     );
   }
 
-  if (absent) {
+  if (absent && row.kind !== "test") {
     node.append(
       button("Add to view", "finding-add", () => actions.addToView(row.module)),
     );
@@ -100,7 +100,9 @@ export function buildFindingCard(
         itemNode(
           row,
           severity,
-          row.kind !== "edge" && state.absent(row.module),
+          row.kind !== "edge" &&
+            row.kind !== "test" &&
+            state.absent(row.module),
           actions,
         ),
       );

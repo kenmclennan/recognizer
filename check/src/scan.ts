@@ -95,6 +95,12 @@ export interface UnresolvedImport {
   line: number;
 }
 
+export interface TestImport {
+  from: string;
+  to: string;
+  names?: string[];
+}
+
 export interface Scan {
   modules: {
     id: string;
@@ -105,6 +111,7 @@ export interface Scan {
   edges: ScanEdge[];
   calls?: ScanCall[];
   unresolved_imports?: UnresolvedImport[];
+  test_imports?: TestImport[];
   foreign: { id: string; name: string }[];
 }
 

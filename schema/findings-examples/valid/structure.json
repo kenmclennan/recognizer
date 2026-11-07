@@ -1,6 +1,6 @@
 {
   "findings_version": 1,
-  "sensor": { "name": "structure", "version": "9" },
+  "sensor": { "name": "structure", "version": "11" },
   "commit": "0123456789abcdef0123456789abcdef01234567",
   "modified": false,
   "settings": {
@@ -95,6 +95,21 @@
       "summary": "app/adapters/audit.py is imported by no module and is not an entry point",
       "fix_pattern": "remove-or-wire-orphan",
       "evidence": { "modules": ["app/adapters/audit.py"] }
+    },
+    {
+      "id": "orphan:app/testing/fake_clock.py",
+      "kind": "orphan",
+      "severity": "warning",
+      "principle": "every-module-is-reachable",
+      "summary": "app/testing/fake_clock.py is imported only by 2 test files: tests/test_clock.py, tests/test_place.py; it is not an entry point, so if it only supports tests move it next to them rather than deleting it",
+      "fix_pattern": "move-orphan-to-tests",
+      "evidence": {
+        "modules": ["app/testing/fake_clock.py"],
+        "test_importers": [
+          { "file": "tests/test_clock.py", "names": ["FakeClock"] },
+          { "file": "tests/test_place.py", "names": [] }
+        ]
+      }
     },
     {
       "id": "policy_drift:entry:app/legacy/**",

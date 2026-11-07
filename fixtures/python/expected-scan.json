@@ -614,5 +614,9 @@
       "line": 6,
       "how": "dispatch"
     }
+  ],
+  "test_imports": [
+    { "from": "shop/conftest.py", "to": "shop/domain/order.py" },
+    { "from": "shop/tests/test_order.py", "to": "shop/domain/order.py" }
   ]
 }

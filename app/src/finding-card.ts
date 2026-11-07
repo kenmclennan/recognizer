@@ -12,7 +12,14 @@ export type CardRowModel =
       folder: string;
       names: string[];
     }
-  | { kind: "edge"; from: string; to: string };
+  | { kind: "edge"; from: string; to: string }
+  | {
+      kind: "test";
+      file: string;
+      name: string;
+      folder: string;
+      names: string[];
+    };
 
 export type CardModel = {
   id: string;
@@ -152,6 +159,18 @@ export function cardOf(row: FindingRow): CardModel {
     }
   }
 
+  if (record.kind === "orphan") {
+    for (const importer of record.evidence.test_importers ?? []) {
+      rows.push({
+        kind: "test",
+        file: importer.file,
+        name: shortName(importer.file),
+        folder: folderOf(importer.file),
+        names: importer.names,
+      });
+    }
+  }
+
   for (const edge of record.evidence.edges ?? []) {
     rows.push({ kind: "edge", from: edge.from, to: edge.to });
   }
@@ -170,5 +189,9 @@ export function isAbsent(
   boxFor: (id: string) => string,
   boxIds: ReadonlySet<string>,
 ): boolean {
-  return row.kind !== "edge" && !boxIds.has(boxFor(row.module));
+  return (
+    row.kind !== "edge" &&
+    row.kind !== "test" &&
+    !boxIds.has(boxFor(row.module))
+  );
 }

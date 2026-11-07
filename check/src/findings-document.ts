@@ -31,8 +31,14 @@ export interface FindingRecord {
     }[];
     measures?: Record<string, number>;
     used_by?: { module: string; names: string[] }[];
+    test_importers?: TestImporter[];
     producer?: string;
   };
+}
+
+export interface TestImporter {
+  file: string;
+  names: string[];
 }
 
 export interface FindingsDocument {

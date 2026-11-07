@@ -120,6 +120,7 @@ describe("findingRows", () => {
       "folder_cycle",
       "hub",
       "orphan",
+      "orphan",
       "policy_drift",
       "policy_drift",
       "stable_dependencies",

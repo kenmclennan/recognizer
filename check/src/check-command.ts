@@ -167,6 +167,34 @@ function importerLines(warning: ReportedWarning): string[] {
   return lines;
 }
 
+const TEST_FILE_LINES_SHOWN = 10;
+
+function testFileLines(warning: ReportedWarning): string[] {
+  const importers =
+    warning.id === "orphan"
+      ? (warning.evidence as FindingRecord["evidence"]).test_importers
+      : undefined;
+
+  if (!importers || importers.length === 0) {
+    return [];
+  }
+
+  const lines = importers
+    .slice(0, TEST_FILE_LINES_SHOWN)
+    .map(
+      (entry) =>
+        `  ${entry.file}: ${entry.names.length === 0 ? "(names unknown)" : entry.names.join(", ")}`,
+    );
+
+  if (importers.length > TEST_FILE_LINES_SHOWN) {
+    lines.push(
+      `  and ${importers.length - TEST_FILE_LINES_SHOWN} more test files`,
+    );
+  }
+
+  return lines;
+}
+
 function summary(
   result: Ranked | null,
   warnings: ReportedWarning[],
@@ -196,6 +224,7 @@ function summary(
         `warning: ${warning.summary}`,
         ...cutLines(warning),
         ...importerLines(warning),
+        ...testFileLines(warning),
       );
     }
   }
