@@ -168,7 +168,7 @@
       "id": "stable_dependencies",
       "principle": "dependencies-point-toward-stability",
       "fix_pattern": "depend-on-stabler-folder",
-      "summary": "folder app/domain depends on folder app/adapters, which is less stable (instability 0.5 -> 0.8)",
+      "summary": "folder app/domain depends on folder app/adapters, which is less stable (instability 0.5 -> 0.8), through 1 import (app/domain/order.py -> app/adapters/memory.py)",
       "evidence": {
         "modules": [
           "app/adapters/memory.py",

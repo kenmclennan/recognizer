@@ -23,6 +23,14 @@ export function folderOf(id: string): string {
   return at < 0 ? "." : id.slice(0, at);
 }
 
+export function isAncestorFolder(a: string, b: string): boolean {
+  if (a === ".") {
+    return b !== ".";
+  }
+
+  return b.startsWith(`${a}/`);
+}
+
 function moduleEdges(scan: Scan, policy: Policy | null) {
   const { edges, ids } = keptGraph(scan, policy?.ignore ?? []);
   const seen = new Set<string>();
@@ -448,6 +456,10 @@ export function stableDependenciesFindings(
     const sourceI = instability.get(source) ?? null;
     const targetI = instability.get(target) ?? null;
 
+    if (isAncestorFolder(source, target) || isAncestorFolder(target, source)) {
+      continue;
+    }
+
     if (sourceI === null || targetI === null || !(targetI > sourceI)) {
       continue;
     }
@@ -466,13 +478,17 @@ export function stableDependenciesFindings(
     const modules = [
       ...new Set(edges.flatMap((edge) => [edge.from, edge.to])),
     ].sort(compare);
+    const through =
+      edges.length === 1
+        ? `through 1 import (${edges[0]?.from} -> ${edges[0]?.to})`
+        : `through ${edges.length} imports`;
 
     findings.push({
       id: `stable_dependencies:${source}->${target}`,
       kind: "stable_dependencies",
       severity: "warning",
       principle: "dependencies-point-toward-stability",
-      summary: `folder ${source} depends on folder ${target}, which is less stable (instability ${fixed(sourceI)} -> ${fixed(targetI)})`,
+      summary: `folder ${source} depends on folder ${target}, which is less stable (instability ${fixed(sourceI)} -> ${fixed(targetI)}), ${through}`,
       fix_pattern: "depend-on-stabler-folder",
       evidence: {
         modules,
