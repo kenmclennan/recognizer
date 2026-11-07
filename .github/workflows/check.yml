@@ -69,7 +69,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked --project scanners/python
