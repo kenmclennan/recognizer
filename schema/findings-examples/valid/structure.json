@@ -134,7 +134,7 @@
       "kind": "stable_dependencies",
       "severity": "warning",
       "principle": "dependencies-point-toward-stability",
-      "summary": "folder app/domain depends on folder app/util, which is less stable (instability 0.5 -> 0.6667)",
+      "summary": "folder app/domain depends on folder app/util, which is less stable (instability 0.5 -> 0.6667), through 1 import (app/domain/order.py -> app/util/fmt.py)",
       "fix_pattern": "depend-on-stabler-folder",
       "evidence": {
         "modules": ["app/domain/order.py", "app/util/fmt.py"],

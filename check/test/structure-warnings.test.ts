@@ -18,6 +18,7 @@ import {
 } from "../src/structure-sensor.js";
 import {
   folderCycleFindings,
+  isAncestorFolder,
   orphanFindings,
   policyDriftFindings,
   stableDependenciesFindings,
@@ -502,7 +503,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"hub_threshold":10,"instability_gap":0.2,"composition_roots":[],"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("12");
+    expect(document.sensor.version).toBe("13");
   });
 
   it("describes the settings with and without entry points", () => {
@@ -653,7 +654,7 @@ describe("stable_dependencies", () => {
         severity: "warning",
         principle: "dependencies-point-toward-stability",
         summary:
-          "folder app/domain depends on folder app/util, which is less stable (instability 0.5 -> 0.6667)",
+          "folder app/domain depends on folder app/util, which is less stable (instability 0.5 -> 0.6667), through 1 import (app/domain/m.ts -> app/util/m.ts)",
         fix_pattern: "depend-on-stabler-folder",
         evidence: {
           modules: ["app/domain/m.ts", "app/util/m.ts"],
@@ -737,6 +738,169 @@ describe("stable_dependencies", () => {
     );
 
     expect(ids(found)).toEqual(["stable_dependencies:c->a"]);
+  });
+
+  it("skips an ancestor pair in both directions", () => {
+    const instabilities: [string, number | null][] = [
+      ["a", 0.2],
+      ["a/b", 0.8],
+    ];
+
+    expect(fires(instabilities, [["a", "a/b"]], STRICT)).toEqual([]);
+    expect(
+      fires(
+        [
+          ["a", 0.8],
+          ["a/b", 0.2],
+        ],
+        [["a/b", "a"]],
+        STRICT,
+      ),
+    ).toEqual([]);
+  });
+
+  it("matches ancestors on a folder boundary only", () => {
+    expect(
+      fires(
+        [
+          ["app/util", 0.2],
+          ["app/utilities", 0.8],
+        ],
+        [["app/util", "app/utilities"]],
+        STRICT,
+      ),
+    ).toEqual(["stable_dependencies:app/util->app/utilities"]);
+    expect(
+      fires(
+        [
+          ["app/util", 0.2],
+          ["app/util/deep", 0.8],
+        ],
+        [["app/util", "app/util/deep"]],
+        STRICT,
+      ),
+    ).toEqual([]);
+    expect(
+      fires(
+        [
+          ["a", 0.2],
+          ["a/b/c", 0.8],
+        ],
+        [["a", "a/b/c"]],
+        STRICT,
+      ),
+    ).toEqual([]);
+  });
+
+  it("treats the top-level folder as the ancestor of every folder", () => {
+    expect(isAncestorFolder(".", "app")).toBe(true);
+    expect(isAncestorFolder("app", ".")).toBe(false);
+    expect(isAncestorFolder(".", ".")).toBe(false);
+    expect(
+      fires(
+        [
+          [".", 0.2],
+          ["app", 0.8],
+        ],
+        [[".", "app"]],
+        STRICT,
+      ),
+    ).toEqual([]);
+    expect(
+      fires(
+        [
+          [".", 0.8],
+          ["app", 0.2],
+        ],
+        [["app", "."]],
+        STRICT,
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps a parent and child that import each other in the folder cycle", () => {
+    const scan = scanOf([
+      ["a/x.py", "a/b/y.py"],
+      ["a/b/y.py", "a/x.py"],
+    ]);
+    const cycles = folderCycleFindings(scan, null, { hub_threshold: 10 });
+
+    expect(ids(cycles)).toEqual(["folder_cycle:a,a/b"]);
+    expect(
+      ids(stableDependenciesFindings(measureFolders([scan], null), STRICT)),
+    ).toEqual([]);
+  });
+
+  const heldEdges = (
+    instabilities: [string, number][],
+    edges: Record<string, [string, string][]>,
+  ): FolderMeasures => ({
+    ...held(instabilities, []),
+    between: new Map(
+      Object.entries(edges).map(([key, list]) => [
+        key,
+        list.map(([from, to]) => ({ from, to })),
+      ]),
+    ),
+  });
+
+  it("counts the imports a finding rests on in its summary", () => {
+    const found = stableDependenciesFindings(
+      heldEdges(
+        [
+          ["a", 0.2],
+          ["b", 0.8],
+        ],
+        {
+          "a\0b": [
+            ["a/x.ts", "b/y.ts"],
+            ["a/x2.ts", "b/y2.ts"],
+            ["a/x3.ts", "b/y3.ts"],
+          ],
+        },
+      ),
+      STRICT,
+    );
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.summary).toBe(
+      "folder a depends on folder b, which is less stable (instability 0.2 -> 0.8), through 3 imports",
+    );
+    expect(found[0]?.evidence.edges).toHaveLength(3);
+  });
+
+  it("lists only the non-ancestor pairs, each with its own suffix", () => {
+    const found = stableDependenciesFindings(
+      heldEdges(
+        [
+          ["p", 0.1],
+          ["p/q", 0.9],
+          ["m", 0.2],
+          ["n", 0.8],
+          ["o", 0.9],
+        ],
+        {
+          "p\0p/q": [["p/x.ts", "p/q/y.ts"]],
+          "m\0n": [["m/a.ts", "n/b.ts"]],
+          "m\0o": [
+            ["m/a.ts", "o/c.ts"],
+            ["m/a2.ts", "o/c.ts"],
+          ],
+        },
+      ),
+      STRICT,
+    );
+
+    expect(found.map((finding) => [finding.id, finding.summary])).toEqual([
+      [
+        "stable_dependencies:m->n",
+        "folder m depends on folder n, which is less stable (instability 0.2 -> 0.8), through 1 import (m/a.ts -> n/b.ts)",
+      ],
+      [
+        "stable_dependencies:m->o",
+        "folder m depends on folder o, which is less stable (instability 0.2 -> 0.9), through 2 imports",
+      ],
+    ]);
   });
 
   it("makes no pair from foreign edges", () => {
@@ -835,22 +999,22 @@ describe("stable_dependencies", () => {
     ]);
   });
 
-  it("matches a composition root by glob, and . for the top-level folder", () => {
+  it("matches a composition root by glob and by exact folder", () => {
     const rows: [string, number][] = [
       ["app/wiring", 0.2],
-      [".", 0.2],
+      ["tools", 0.2],
       ["lib", 0.9],
     ];
     const pairs: [string, string][] = [
       ["app/wiring", "lib"],
-      [".", "lib"],
+      ["tools", "lib"],
     ];
 
     expect(
       fires(rows, pairs, { min_gap: 0.2, composition_roots: ["app/**"] }),
-    ).toEqual(["stable_dependencies:.->lib"]);
+    ).toEqual(["stable_dependencies:tools->lib"]);
     expect(
-      fires(rows, pairs, { min_gap: 0.2, composition_roots: ["."] }),
+      fires(rows, pairs, { min_gap: 0.2, composition_roots: ["tools"] }),
     ).toEqual(["stable_dependencies:app/wiring->lib"]);
   });
 });
@@ -1022,7 +1186,7 @@ describe("settings for the package metrics", () => {
       instability_gap: 0.3,
       composition_roots: ["cmd"],
     });
-    expect(document.sensor.version).toBe("12");
+    expect(document.sensor.version).toBe("13");
   });
 
   it("honours a live key beside a retired one", () => {

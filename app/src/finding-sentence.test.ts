@@ -36,7 +36,7 @@ const PINNED = [
   "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them.",
   "The policy names app/legacy/**, which matches no module.",
   "app/tools is covered by no policy layer.",
-  "app/domain depends on app/util, which changes more often (instability 0.5 against 0.67).",
+  "app/domain depends on app/util, which changes more often (instability 0.5 against 0.67). It rests on one import: order.py -> fmt.py.",
   "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
   "sumWithLevy in pricing.ts repeats the structure of totalWithTax in pricing.ts (10 lines).",
   "grade in rules.py has 2 surviving mutations.",
@@ -78,6 +78,41 @@ describe("the committed findings examples", () => {
       expect(line).not.toMatch(/[a-z]+\/[a-z_]+\.py/);
       expect(line).not.toMatch(/^[a-z_-]+:/);
     }
+  });
+});
+
+describe("sentenceOf stable_dependencies", () => {
+  const unstableOf = (edges?: { from: string; to: string }[]) =>
+    sentence({
+      id: "stable_dependencies:app/domain->app/util",
+      kind: "stable_dependencies",
+      evidence: {
+        modules: [],
+        ...(edges === undefined ? {} : { edges }),
+        measures: { source_instability: 0.5, target_instability: 0.67 },
+      },
+    });
+  const base =
+    "app/domain depends on app/util, which changes more often (instability 0.5 against 0.67).";
+
+  it("names the one import", () => {
+    expect(unstableOf([{ from: "app/domain/a.ts", to: "app/util/b.ts" }])).toBe(
+      `${base} It rests on one import: a.ts -> b.ts.`,
+    );
+  });
+
+  it("counts several imports", () => {
+    expect(
+      unstableOf([
+        { from: "app/domain/a.ts", to: "app/util/b.ts" },
+        { from: "app/domain/c.ts", to: "app/util/b.ts" },
+      ]),
+    ).toBe(`${base} It rests on 2 imports.`);
+  });
+
+  it("leaves the sentence alone with no edges", () => {
+    expect(unstableOf()).toBe(base);
+    expect(unstableOf([])).toBe(base);
   });
 });
 

@@ -153,7 +153,17 @@ function unstable(record: FindingRecord): string | null {
     return null;
   }
 
-  return `${from} depends on ${to}, which changes more often (instability ${num(measures.source_instability)} against ${num(measures.target_instability)}).`;
+  const base = `${from} depends on ${to}, which changes more often (instability ${num(measures.source_instability)} against ${num(measures.target_instability)}).`;
+  const edges = record.evidence.edges ?? [];
+  const [only] = edges;
+
+  if (only === undefined) {
+    return base;
+  }
+
+  return edges.length === 1
+    ? `${base} It rests on one import: ${shortName(only.from)} -> ${shortName(only.to)}.`
+    : `${base} It rests on ${edges.length} imports.`;
 }
 
 function drift(record: FindingRecord): string | null {
