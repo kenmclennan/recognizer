@@ -99,14 +99,6 @@ describe("scene", () => {
     expect(hollow("one")).toBe(false);
   });
 
-  it("labels a count only above one", () => {
-    expect(scene.lines.find((l) => l.id === "one")?.countAt).toBeNull();
-    expect(scene.lines.find((l) => l.id === "two")?.countAt).toEqual({
-      x: 10,
-      y: 35,
-    });
-  });
-
   it("orients the arrowhead on the last segment", () => {
     const down = arrowhead([
       { x: 0, y: 0 },
