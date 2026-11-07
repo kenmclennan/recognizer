@@ -12,6 +12,7 @@ const OTHER_TESTS = "b".repeat(64);
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 ${FAKE_WORKER}
 
 const ids = ["app/a.py", "app/b.py"];
@@ -28,7 +29,10 @@ const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify
 const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }], values: { complexity: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
 const finding = (id, module) => ({ id, kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers " + id, evidence: { modules: [module] } });
 const document_ = { findings_version: 2, sensor: { name: "crap", version: "0.1.0" }, commit: ${JSON.stringify(COMMIT)}, modified: false, settings: {}, inputs, tests: ${JSON.stringify(TESTS)}, findings: [finding("on-a", "app/a.py"), finding("on-b", "app/b.py")] };
-const loadedFor = (tests) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], findings: [document_], sensors: [{ name: "crap", status: "ran" }], tests });
+const loadedFor = (tests) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], findings: [document_], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests });
+
+const SHIPPED = [{ name: "crap", display: "crap", line: "x", defaults: {}, runsTests: true, listed: true, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }] }];
+const port = () => fakeSensors({}, {}, {}, SHIPPED);
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -54,7 +58,7 @@ const changedScan = () => ({ origin: { branch: "main", commit: "abc1234" }, scan
 
 async function observe(tests, changed = false) {
   host.replaceChildren();
-  const scanHost = changed ? scanHostOf({ scan: changedScan }) : scanHostOf({});
+  const scanHost = changed ? scanHostOf({ scan: changedScan, port: port() }) : scanHostOf({ port: port() });
   const explorer = mountExplorer({ container: host, loaded: loadedFor(tests), title: "demo", post: () => null, carried: null, scanHost });
   await tick();
   click(q('.tree .row[data-path="app"] .name'));
@@ -119,7 +123,7 @@ describe.skipIf(webkit === undefined)(
     it("shows only the edited-free module on the canvas, the Contents tab, the Findings panel and the disc", () => {
       expect(f.matching.rowDisabled).toBe(false);
       expect(f.matching.note).toEqual([
-        "crap: 1 of 2 modules out of date. Run crap to refresh.",
+        "crap: 1 module out of date. Run crap from the Scan panel.",
       ]);
       expect(f.matching.barsA).toBe(1);
       expect(f.matching.barsB).toBe(0);
@@ -136,7 +140,7 @@ describe.skipIf(webkit === undefined)(
     it("shows nothing once the tests hash differs", () => {
       expect(f.changedTests.rowDisabled).toBe(true);
       expect(f.changedTests.note).toEqual([
-        "crap: 2 of 2 modules out of date. Run crap to refresh.",
+        "crap: 2 modules out of date. Run crap from the Scan panel.",
       ]);
       expect(f.changedTests.barsA).toBe(0);
       expect(f.changedTests.barsB).toBe(0);

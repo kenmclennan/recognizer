@@ -1,15 +1,20 @@
 import { buildFreshness, type Scan, SHIPPED_SENSOR_LIST } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { NO_CHANGES } from "./footer-scan";
+import { type ResultRow, type ResultState, stateText } from "./freshness-model";
 import {
   buildOverlayModel,
   currentMetricNamed,
   DESCRIPTIONS,
+  freshnessNote,
   groupHeader,
   type MetricDescriptor,
   moduleValue,
+  type OverlayGroup,
   pruneTicks,
   TITLES,
 } from "./overlay-model";
+import { NO_RUN, type PanelInput, scanPanel } from "./scan-panel-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
@@ -130,12 +135,7 @@ describe("a member-granularity overlay judged per module", () => {
     expect(group?.enabled).toBe(true);
     expect(group?.outOfDate).toBe(1);
     expect(group?.total).toBe(2);
-    expect(group?.notes).toEqual([
-      {
-        text: "crap: 1 of 2 modules out of date. Run crap to refresh.",
-        tone: "warn",
-      },
-    ]);
+    expect(group?.notes).toEqual([]);
     expect(metric.values).toEqual({ "a.py::f": 3 });
     expect(metric.max).toBe(3);
     expect(moduleValue(metric, "a.py")?.value).toBe(3);
@@ -159,9 +159,7 @@ describe("a member-granularity overlay judged per module", () => {
     );
 
     expect(model.groups[0]?.enabled).toBe(false);
-    expect(model.groups[0]?.notes[0]?.text).toBe(
-      "crap: 2 of 2 modules out of date. Run crap to refresh.",
-    );
+    expect(model.groups[0]?.notes).toEqual([]);
     expect(model.groups[0]?.metrics[0]?.values).toEqual({});
     expect(model.metrics).toEqual([]);
   });
@@ -251,16 +249,11 @@ describe("the group header model", () => {
     expect(group?.enabled).toBe(true);
   });
 
-  it("warns when out of date and names the sensor's display name", () => {
+  it("writes no freshness note when out of date and names the sensor's display name", () => {
     const group = groupOf("crap", [ran("crap")], EDITED);
 
     expect(group?.title).toBe("C.R.A.P.");
-    expect(group?.notes).toEqual([
-      {
-        text: "C.R.A.P.: 1 of 1 modules out of date. Run C.R.A.P. to refresh.",
-        tone: "warn",
-      },
-    ]);
+    expect(group?.notes).toEqual([]);
     expect(group?.enabled).toBe(false);
   });
 
@@ -320,7 +313,7 @@ describe("the group header model", () => {
     expect(group?.notes).toEqual([]);
   });
 
-  it("puts out of date before partial when both apply", () => {
+  it("keeps only the partial note when both apply", () => {
     const group = groupOf(
       "mutation",
       [ran("mutation", { partial: { measured: 1, total: 3 } })],
@@ -328,7 +321,6 @@ describe("the group header model", () => {
     );
 
     expect(group?.notes.map((note) => note.text)).toEqual([
-      "Mutation: 1 of 1 modules out of date. Run Mutation to refresh.",
       "Partial: 1 of 3 functions measured. The rest are uncoloured.",
     ]);
   });
@@ -356,12 +348,7 @@ describe("the group header model", () => {
 
     expect(mutation?.enabled).toBe(false);
     expect(mutation?.measuredAt).toBeNull();
-    expect(mutation?.notes).toEqual([
-      {
-        text: "Not run yet. Run Mutation from the Scan panel.",
-        tone: "muted",
-      },
-    ]);
+    expect(mutation?.notes).toEqual([]);
     expect(model.metrics).toEqual([]);
   });
 
@@ -394,9 +381,7 @@ describe("the group header model", () => {
 
     expect(crap?.notes).toEqual([]);
     expect(crap?.enabled).toBe(true);
-    expect(mutation?.notes[0]?.text).toBe(
-      "Not run yet. Run Mutation from the Scan panel.",
-    );
+    expect(mutation?.notes).toEqual([]);
   });
 
   it("formats the age from the overlay's time at the 59 second and 1 minute boundary", () => {
@@ -623,5 +608,177 @@ describe("currentMetricNamed", () => {
   it("finds nothing for an unknown or absent name", () => {
     expect(currentMetricNamed("m2", fresh.metrics)).toBeNull();
     expect(currentMetricNamed(undefined, fresh.metrics)).toBeNull();
+  });
+});
+
+describe("freshnessNote", () => {
+  const NOW = 10_000_000;
+  const group = { name: "crap", title: "C.R.A.P." } as OverlayGroup;
+  const rowOf = (state: ResultState): ResultRow => ({
+    key: "crap",
+    name: "C.R.A.P.",
+    state,
+    tickable: true,
+  });
+  const noteOf = (state: ResultState) =>
+    freshnessNote(group, rowOf(state), NOW);
+
+  it("has no note for a current sensor or a group with no row", () => {
+    expect(noteOf({ kind: "current", at: 1 })).toBeNull();
+    expect(freshnessNote(group, undefined, NOW)).toBeNull();
+  });
+
+  it("warns with the count and the call to action when out of date", () => {
+    expect(noteOf({ kind: "out-of-date", modules: ["a", "b"] })).toEqual({
+      text: "C.R.A.P.: 2 modules out of date. Run C.R.A.P. from the Scan panel.",
+      tone: "warn",
+    });
+  });
+
+  it("uses the singular for one out-of-date module", () => {
+    expect(noteOf({ kind: "out-of-date", modules: ["a"] })?.text).toBe(
+      "C.R.A.P.: 1 module out of date. Run C.R.A.P. from the Scan panel.",
+    );
+  });
+
+  it("mutes the note for a sensor that never ran", () => {
+    expect(noteOf({ kind: "never-run" })).toEqual({
+      text: "C.R.A.P.: never run. Run C.R.A.P. from the Scan panel.",
+      tone: "muted",
+    });
+  });
+
+  it("warns for a failed sensor with its age", () => {
+    const state: ResultState = { kind: "failed", at: NOW - 120_000 };
+
+    expect(noteOf(state)).toEqual({
+      text: `C.R.A.P.: ${stateText(state, NOW).text}. Run C.R.A.P. from the Scan panel.`,
+      tone: "warn",
+    });
+    expect(noteOf(state)?.text).toContain("failed, ");
+  });
+
+  it("warns for a failed sensor without an age", () => {
+    expect(noteOf({ kind: "failed", at: null })).toEqual({
+      text: "C.R.A.P.: failed. Run C.R.A.P. from the Scan panel.",
+      tone: "warn",
+    });
+  });
+
+  it("says running with no call to action, with or without progress", () => {
+    expect(noteOf({ kind: "running", done: null, total: null })).toEqual({
+      text: "C.R.A.P.: running",
+      tone: "muted",
+    });
+    expect(noteOf({ kind: "running", done: 3, total: 10 })?.text).toBe(
+      "C.R.A.P.: 3 of 10",
+    );
+  });
+
+  it("states the same text as the freshness model for the same state", () => {
+    const state: ResultState = {
+      kind: "out-of-date",
+      modules: ["a", "b", "c"],
+    };
+
+    expect(
+      noteOf(state)?.text.startsWith(
+        `C.R.A.P.: ${stateText(state, NOW).text}.`,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("freshnessNote against the Scan panel model", () => {
+  const NOW = 5_000_000;
+  const fileScan = {
+    modules: ["a.py", "b.py"].map((id) => ({
+      id,
+      kind: "module",
+      members: [{ name: "f", exported: true, kind: "function" }],
+    })),
+    edges: [],
+    foreign: [],
+    files: [
+      { path: "a.py", hash: "ha" },
+      { path: "b.py", hash: "hb" },
+    ],
+  } as unknown as Scan;
+  const shippedList: ShippedSensors = {
+    status: "ok",
+    sensors: ["crap", "mutation", "duplication"].map((name) => ({
+      name,
+      display: name === "crap" ? "C.R.A.P." : name,
+      line: "x",
+      defaults: {},
+      runsTests: false,
+      listed: true,
+    })),
+  };
+  const ranWith = (name: string, inputs: Record<string, string>) => ({
+    name,
+    status: "ran" as const,
+    findings: 0,
+    modifiedMs: null,
+    measured: { inputs, tests: "t" },
+  });
+  const panel = (sensors: PanelInput["sensors"]) =>
+    scanPanel({
+      scan: {
+        origin: { branch: "main", commit: "abc1234" },
+        scannedAt: NOW,
+        changes: NO_CHANGES,
+        scanning: null,
+      },
+      config: null,
+      sensors,
+      lines: {
+        modules: ["a.py", "b.py"],
+        of: () => ({ kind: "current", line: "x" }),
+      },
+      describedAt: null,
+      ticks: { describe: false, ticked: [], once: [], onlyView: false },
+      run: NO_RUN,
+      scanning: false,
+      now: NOW,
+      shipped: shippedList,
+      scans: [fileScan],
+      freshness: buildFreshness([fileScan], "t"),
+    });
+  const groupFor = (name: string, title: string) =>
+    ({ name, title }) as OverlayGroup;
+  const noteFor = (model: ReturnType<typeof scanPanel>, name: string) => {
+    const row = model.freshness.rows.find((one) => one.key === name);
+
+    return freshnessNote(groupFor(name, row?.name ?? name), row, NOW);
+  };
+
+  it("counts the same modules and words the state the same as the row", () => {
+    const model = panel([ranWith("crap", { "a.py": "ha", "b.py": "old" })]);
+    const row = model.freshness.rows.find(({ key }) => key === "crap");
+    const state = row?.state;
+
+    expect(state?.kind).toBe("out-of-date");
+
+    const modules = state?.kind === "out-of-date" ? state.modules.length : -1;
+    const text = stateText(row?.state as ResultState, NOW).text;
+
+    expect(noteFor(model, "crap")?.text).toBe(
+      `C.R.A.P.: ${text}. Run C.R.A.P. from the Scan panel.`,
+    );
+    expect(text).toBe(`${modules} module out of date`);
+  });
+
+  it("gives none, the out-of-date note and none for current, out of date and no row", () => {
+    const model = panel([
+      ranWith("mutation", { "a.py": "ha", "b.py": "hb" }),
+      ranWith("crap", { "a.py": "ha", "b.py": "old" }),
+    ]);
+
+    expect(noteFor(model, "mutation")).toBeNull();
+    expect(noteFor(model, "crap")?.text).toBe(
+      "C.R.A.P.: 1 module out of date. Run C.R.A.P. from the Scan panel.",
+    );
+    expect(noteFor(model, "stray")).toBeNull();
   });
 });

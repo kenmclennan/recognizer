@@ -93,6 +93,7 @@ import { buildNotesPanelView } from "./notes-panel-view";
 import { createOpenModules } from "./open-modules";
 import {
   buildOverlayModel,
+  freshnessNote,
   type MetricDescriptor,
   moduleValue,
   pruneTicks,
@@ -3440,10 +3441,22 @@ export function showExplorer(
 
   function canvasMetrics(): CanvasMetrics {
     const ticked = tickedMetrics();
+    const now = Date.now();
+    const rows = currentFreshness().rows;
 
     return {
-      groups: overlayModel.groups,
-      now: Date.now(),
+      groups: overlayModel.groups.map((group) => {
+        const note = freshnessNote(
+          group,
+          rows.find((row) => row.key === group.name),
+          now,
+        );
+
+        return note === null
+          ? group
+          : { ...group, notes: [note, ...group.notes] };
+      }),
+      now,
       ticked,
       valueOf: (metric, boxId) =>
         currentFreshness().isChanged(boxId) ? null : moduleValue(metric, boxId),

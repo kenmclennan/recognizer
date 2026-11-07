@@ -33,7 +33,8 @@ const overlayAt = (commit: string, hash = HASH) =>
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 ${FAKE_WORKER}
 
 const members = [
@@ -53,7 +54,8 @@ const scan = {
   edges: [],
   foreign: [],
 };
-const loadedFor = (overlay) => loadedOf({ modules: ["app/risk.py"], scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }] });
+const SHIPPED = [{ name: "crap", display: "crap", line: "x", defaults: {}, runsTests: false, listed: true, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }] }];
+const loadedFor = (overlay) => loadedOf({ modules: ["app/risk.py"], scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], sensors: [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }] });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -63,7 +65,7 @@ const qa = (selector) => [...host.querySelectorAll(selector)];
 const footer = { text: null };
 const facts = {};
 
-const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", post: () => null, carried, showMetrics: (text) => { footer.text = text; } });
+const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, SHIPPED) }), showMetrics: (text) => { footer.text = text; } });
 const bars = () => qa('.box[data-id="app/risk.py"] .metric-bar').map((bar) => ({ metric: bar.dataset.metric, value: bar.querySelector(".metric-value").textContent }));
 const functionRows = () => qa(".inspector-panel .fn-metrics").map((row) => [...row.querySelectorAll(".fn-metric")].map((item) => item.firstChild.textContent + " " + item.querySelector("b").textContent));
 const tables = () => qa(".inspector-panel .card-metrics").map((table) => ({
@@ -163,7 +165,7 @@ describe.skipIf(webkit === undefined)(
         { key: "crap/coverage", disabled: true },
       ]);
       expect(f.staleNotes[0]).toBe(
-        "crap: 1 of 1 modules out of date. Run crap to refresh.",
+        "crap: 1 module out of date. Run crap from the Scan panel.",
       );
       expect(f.staleBarsAfterClick).toEqual([]);
     });

@@ -49,6 +49,7 @@ const loadedFor = (overlay) => loadedOf({
   modules: ids,
   scans: [{ file: "scan.json", scan: scanOf() }],
   overlays: overlay === null ? [] : [{ name: "crap", text: overlay }],
+  sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }],
 });
 
 const SHIPPED = SHIPPED_SENSOR_LIST.filter((sensor) => sensor.metrics.length > 0).map((sensor) => ({ name: sensor.name, display: sensor.display, line: sensor.line, defaults: {}, runsTests: sensor.runs_tests, listed: sensor.listed, metrics: [...sensor.metrics] }));
@@ -102,7 +103,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 }));
 
 (async () => {
-  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried });
+  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, overlay === null ? [] : SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap", metrics: [] }))) }) });
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
   for (const folder of ["app", "src", "lib"]) {
@@ -175,10 +176,10 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   await tick();
   facts.staleClick = barsOf("app/risk.py").length;
 
-  const stateOf = async (overlays, sensors, shippedList = SHIPPED) => {
+  const stateOf = async (overlays, sensors, shippedList = SHIPPED, hostOver = {}) => {
     explorer.dispose();
     host.replaceChildren();
-    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, shippedList) }) });
+    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, shippedList), ...hostOver }) });
     await tick();
     for (const folder of ["app", "src", "lib"]) {
       click(q('.tree .row[data-path="' + folder + '"] .reye'));
@@ -204,6 +205,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   facts.partialState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
   facts.stoppedNothingState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
   facts.neverRunState = await stateOf([], []);
+  facts.runningState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")], SHIPPED, { running: () => true, runState: () => ({ running: ["crap"], started: Date.now(), failures: {}, diagnoses: {}, ranAt: {} }) });
 
   explorer.dispose();
   host.replaceChildren();
@@ -481,12 +483,22 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(state.chips).toBe(0);
   });
 
+  it("says a running sensor is running, muted, with no call to action", () => {
+    const crap = f.runningState.notes.filter((n: { text: string }) =>
+      n.text.startsWith("C.R.A.P."),
+    );
+
+    expect(crap).toEqual([
+      { text: "C.R.A.P.: running", cls: "metric-note muted" },
+    ]);
+  });
+
   it("warns amber on an out-of-date group and lists its rows disabled", () => {
     const state = f.outOfDateState;
 
     expect(state.headers[0].title).toBe("C.R.A.P.");
     expect(state.notes[0]).toEqual({
-      text: "C.R.A.P.: 3 of 3 modules out of date. Run C.R.A.P. to refresh.",
+      text: "C.R.A.P.: 3 modules out of date. Run C.R.A.P. from the Scan panel.",
       cls: "metric-note warn",
     });
     expect(state.rows[0].disabled).toBe(true);
@@ -547,8 +559,8 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
       true,
     );
     expect(state.notes.map((n: { text: string }) => n.text)).toEqual([
-      "Not run yet. Run C.R.A.P. from the Scan panel.",
-      "Not run yet. Run Mutation from the Scan panel.",
+      "C.R.A.P.: never run. Run C.R.A.P. from the Scan panel.",
+      "Mutation: never run. Run Mutation from the Scan panel.",
     ]);
     expect(
       state.notes.every((n: { cls: string }) => n.cls === "metric-note muted"),
