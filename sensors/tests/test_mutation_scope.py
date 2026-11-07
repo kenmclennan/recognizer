@@ -330,3 +330,26 @@ def test_the_overlay_records_the_shared_digest_with_a_lib_and_a_bin_unit(two_mod
 
     assert recorded == hashes.tests_hash(root, [])
     assert hashes.support_hash(hashes.test_hashes(root, [])) == before
+
+
+def test_a_scoped_run_reports_progress_over_the_scope_only(
+    two_modules, tmp_path, capsys, monkeypatch
+):
+    root, commit, script, log = two_modules
+    settings = settings_for(script)
+
+    assert mutate(root, tmp_path, settings) == 0
+
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+    capsys.readouterr()
+
+    assert mutate(root, tmp_path, settings, ["app/second.py"]) == 0
+
+    mutants = [
+        json.loads(line.removeprefix("recognizer-progress "))
+        for line in capsys.readouterr().err.splitlines()
+        if line.startswith("recognizer-progress ")
+    ]
+    mutants = [line for line in mutants if line["step"] == "mutants"]
+
+    assert mutants == [{"step": "mutants", "done": 2, "total": 2}]
