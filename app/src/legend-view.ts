@@ -2,6 +2,8 @@ import type { EdgeStyle } from "./canvas-graph";
 import { DASH } from "./canvas-scene";
 import { el } from "./dom";
 import type { Disc } from "./health";
+import { iconOf, type MemberMarkWord } from "./member-mark";
+import { legendMemberRow } from "./member-mark-view";
 import { buildCheckbox, setCheckState } from "./row-view";
 
 export type LegendView = {
@@ -68,6 +70,29 @@ const PLAN_ROWS: { kind: string; label: string }[] = [
   { kind: "moved-from", label: "Where a moved module was" },
 ];
 
+const PLAN_MEMBER_ROWS: { word: MemberMarkWord; label: string }[] = [
+  { word: "new", label: "New" },
+  { word: "changes", label: "Changes" },
+  { word: "removed", label: "Removed" },
+];
+
+const CHANGE_MEMBER_ROWS: { word: MemberMarkWord; label: string }[] = [
+  { word: "added", label: "Added" },
+  { word: "modified", label: "Modified" },
+  { word: "removed", label: "Removed" },
+];
+
+function memberRows(
+  entries: { word: MemberMarkWord; label: string }[],
+): HTMLElement[] {
+  return [
+    el("h4", "", "Members, in the inspector"),
+    ...entries.map((entry) =>
+      legendMemberRow(iconOf(entry.word), entry.word, entry.label),
+    ),
+  ];
+}
+
 export function buildLegendView(
   setShowInferred: (show: boolean) => void,
 ): LegendView {
@@ -107,6 +132,8 @@ export function buildLegendView(
     changeRows.push(row);
   }
 
+  changeRows.push(...memberRows(CHANGE_MEMBER_ROWS));
+
   for (const row of changeRows) {
     row.hidden = true;
   }
@@ -122,6 +149,8 @@ export function buildLegendView(
     );
     planRows.push(row);
   }
+
+  planRows.push(...memberRows(PLAN_MEMBER_ROWS));
 
   for (const row of planRows) {
     row.hidden = true;

@@ -338,3 +338,15 @@ describe("real committed content", () => {
     );
   });
 });
+
+describe("the test-gate predicate in a mixed file", () => {
+  it("counts only the items that require test", () => {
+    const text =
+      "#[cfg(all(test, unix))]\nfn a() {}\n#[cfg(any(test, unix))]\nfn b() {}\n#[cfg(test)]\nfn c() {}\n";
+
+    expect(entriesOf({ "src/a.rs": text })).toEqual([
+      "src/a.rs#0",
+      "src/a.rs#1",
+    ]);
+  });
+});

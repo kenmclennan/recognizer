@@ -1,0 +1,20 @@
+{
+  "schema_version": 4,
+  "description": "What the discount change will do.",
+  "commit": null,
+  "plan": true,
+  "steps": [
+    {
+      "kind": "pick",
+      "module": "orders/order.py"
+    }
+  ],
+  "proposed": [
+    {
+      "module": "orders/order.py",
+      "member": "Order.total",
+      "kind": "moves",
+      "from": "orders/old.py"
+    }
+  ]
+}

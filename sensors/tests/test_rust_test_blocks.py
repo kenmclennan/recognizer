@@ -7,7 +7,7 @@ import pytest
 from conftest import git_commit
 
 from recognizer_sensors import hashes
-from recognizer_sensors.rust_test_blocks import in_file_test_hashes
+from recognizer_sensors.rust_test_blocks import in_file_test_hashes, is_test_attribute
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "sensors" / "tests-digest"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
@@ -244,3 +244,27 @@ def test_real_content_has_one_entry_per_file_with_a_cfg_test_line():
 
     assert expected
     assert sorted(in_file_test_hashes(repository_root, app)) == expected
+
+
+GATE_CASES = json.loads(
+    (Path(__file__).parents[2] / "fixtures" / "rust-test-gate" / "cases.json").read_text()
+)
+
+
+def test_the_test_gate_table_is_read():
+    assert len(GATE_CASES) > 20
+
+
+@pytest.mark.parametrize("case", GATE_CASES, ids=[c["attribute"] for c in GATE_CASES])
+def test_is_test_attribute_follows_the_shared_test_gate_table(case):
+    assert is_test_attribute(case["attribute"][2:-1].encode("latin1")) is case["test"]
+
+
+def test_a_mixed_file_counts_only_items_that_require_test(tmp_path):
+    text = (
+        "#[cfg(all(test, unix))]\nfn a() {}\n"
+        "#[cfg(any(test, unix))]\nfn b() {}\n"
+        "#[cfg(test)]\nfn c() {}\n"
+    )
+
+    assert entries_of(tmp_path, {"src/a.rs": text}) == ["src/a.rs#0", "src/a.rs#1"]

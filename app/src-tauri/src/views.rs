@@ -331,10 +331,25 @@ pub fn view_author(folder: &Path) -> String {
 }
 
 fn extract_commit(folder: &Path, commit: &str, target: &Path) -> bool {
-    let Ok(mut archive) = Command::new("git")
-        .arg("-C")
-        .arg(folder)
-        .args(["archive", commit])
+    extract_paths(folder, commit, target, &[])
+}
+
+fn extract_paths(folder: &Path, commit: &str, target: &Path, paths: &[String]) -> bool {
+    let mut command = Command::new("git");
+
+    command.arg("-C").arg(folder);
+
+    if !paths.is_empty() {
+        command.arg("--literal-pathspecs");
+    }
+
+    command.args(["archive", commit]);
+
+    if !paths.is_empty() {
+        command.arg("--").args(paths);
+    }
+
+    let Ok(mut archive) = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -443,16 +458,27 @@ pub fn scans_in(
     }
 }
 
-type Comparison = Option<Vec<ScanFile>>;
+type Comparison<T = Vec<ScanFile>> = Option<T>;
 
-#[derive(Default)]
-pub struct Comparisons {
-    flights: Flights<Comparison>,
-    memo: Mutex<VecDeque<(String, Instant, Comparison)>>,
+pub struct Memoised<T: Clone = Vec<ScanFile>> {
+    flights: Flights<Comparison<T>>,
+    memo: Mutex<VecDeque<(String, Instant, Comparison<T>)>>,
 }
 
-impl Comparisons {
-    fn remembered(&self, key: &str) -> Option<Comparison> {
+pub type Comparisons = Memoised<Vec<ScanFile>>;
+pub type MemberRanges = Memoised<RangeMembers>;
+
+impl<T: Clone> Default for Memoised<T> {
+    fn default() -> Self {
+        Memoised {
+            flights: Flights::default(),
+            memo: Mutex::new(VecDeque::new()),
+        }
+    }
+}
+
+impl<T: Clone> Memoised<T> {
+    fn remembered(&self, key: &str) -> Option<Comparison<T>> {
         let mut memo = self.memo.lock().unwrap_or_else(|error| error.into_inner());
 
         memo.retain(|(_, at, found)| {
@@ -469,7 +495,7 @@ impl Comparisons {
             .map(|(_, _, found)| found.clone())
     }
 
-    fn remember(&self, key: String, found: &Comparison) {
+    fn remember(&self, key: String, found: &Comparison<T>) {
         let mut memo = self.memo.lock().unwrap_or_else(|error| error.into_inner());
 
         memo.push_back((key, Instant::now(), found.clone()));
@@ -479,6 +505,26 @@ impl Comparisons {
         }
     }
 
+    fn once(&self, key: String, compute: impl FnOnce() -> Comparison<T>) -> Comparison<T> {
+        if let Some(found) = self.remembered(&key) {
+            return found;
+        }
+
+        self.flights.run(&key, || {
+            if let Some(found) = self.remembered(&key) {
+                return found;
+            }
+
+            let found = compute();
+
+            self.remember(key.clone(), &found);
+
+            found
+        })
+    }
+}
+
+impl Memoised<Vec<ScanFile>> {
     pub fn scans(
         &self,
         root: &Path,
@@ -489,22 +535,126 @@ impl Comparisons {
     ) -> Comparison {
         let key = format!("{}\0{commit}", folder.display());
 
-        if let Some(found) = self.remembered(&key) {
-            return found;
+        self.once(key, || scans_in(root, folder, commit, runner, command))
+    }
+}
+
+impl Memoised<RangeMembers> {
+    pub fn members(
+        &self,
+        root: &Path,
+        folder: &Path,
+        base: &str,
+        head: &str,
+        runner: &ToolRunner,
+        command: &str,
+    ) -> Comparison<RangeMembers> {
+        if !valid_ref(base) || !valid_ref(head) {
+            return None;
         }
 
-        self.flights.run(&key, || {
-            if let Some(found) = self.remembered(&key) {
-                return found;
-            }
+        let base_commit = resolve_ref(folder, base).ok()??;
+        let head_commit = resolve_ref(folder, head).ok()??;
+        let key = format!(
+            "{}\0{base_commit}\0{head_commit}\0members",
+            folder.display()
+        );
 
-            let found = scans_in(root, folder, commit, runner, command);
-
-            self.remember(key.clone(), &found);
-
-            found
+        self.once(key, || {
+            members_in(root, folder, &base_commit, &head_commit, runner, command)
         })
     }
+}
+
+pub const MEMBER_FILE_LIMIT: usize = 200;
+const MEMBER_TEXT_LIMIT: usize = 2 * 1024 * 1024;
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct MemberFileTexts {
+    pub path: String,
+    pub base_text: Option<String>,
+    pub head_text: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RangeMembers {
+    pub base_scans: Vec<ScanFile>,
+    pub files: Vec<MemberFileTexts>,
+}
+
+fn show_text(folder: &Path, commit: &str, path: &str) -> Option<String> {
+    let output = git_in(folder, &["show", &format!("{commit}:{path}")])
+        .filter(|output| output.status.success())?;
+
+    if output.stdout.len() > MEMBER_TEXT_LIMIT {
+        return None;
+    }
+
+    String::from_utf8(output.stdout).ok()
+}
+
+pub fn members_in(
+    root: &Path,
+    folder: &Path,
+    base: &str,
+    head: &str,
+    runner: &ToolRunner,
+    command: &str,
+) -> Option<RangeMembers> {
+    let diff = git_in(
+        folder,
+        &[
+            "diff",
+            "--no-renames",
+            "--name-status",
+            "-z",
+            &format!("{base}...{head}"),
+        ],
+    )
+    .filter(|output| output.status.success())?;
+    let paths: Vec<String> = parse_name_status(&String::from_utf8_lossy(&diff.stdout))
+        .into_iter()
+        .filter(|change| change.status == "M")
+        .map(|change| change.path)
+        .collect();
+
+    if paths.is_empty() || paths.len() > MEMBER_FILE_LIMIT {
+        return None;
+    }
+
+    let temp = TempScan::create(root)?;
+
+    if !extract_paths(folder, base, &temp.0, &paths) {
+        return None;
+    }
+
+    let base_scans = match repository::scan_with(runner, &temp.0, command) {
+        ScanReport::Scanned { scans, .. } if !scans.is_empty() => scans,
+        _ => return None,
+    };
+    let files = paths
+        .into_iter()
+        .map(|path| MemberFileTexts {
+            base_text: show_text(folder, base, &path),
+            head_text: show_text(folder, head, &path),
+            path,
+        })
+        .collect();
+
+    Some(RangeMembers { base_scans, files })
+}
+
+pub fn range_members(folder: &Path, base: &str, head: &str) -> Option<RangeMembers> {
+    static RANGES: OnceLock<MemberRanges> = OnceLock::new();
+
+    RANGES.get_or_init(MemberRanges::default).members(
+        &std::env::temp_dir(),
+        folder,
+        base,
+        head,
+        runner(),
+        repository::RECOGNIZER_COMMAND,
+    )
 }
 
 pub fn scans_at(folder: &Path, commit: &str) -> Option<Vec<ScanFile>> {
@@ -932,6 +1082,90 @@ mod tests {
         assert!(found.iter().all(Option::is_some));
         assert_eq!(starts, 24);
         assert!(peak <= 3, "peak {peak}");
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    fn range_repository(dir: &Path, files_each: usize) -> PathBuf {
+        let root = dir.join("range");
+
+        fs::create_dir_all(root.join("pkg")).unwrap();
+        assert!(git(&root, &["init", "-q"]));
+        fs::write(root.join("pkg/gone.py"), "G = 1\n").unwrap();
+
+        for n in 0..files_each {
+            fs::write(root.join(format!("pkg/keep{n}.py")), "K = 1\n").unwrap();
+        }
+
+        assert!(git(&root, &["add", "."]));
+        assert!(git(&root, &["commit", "-q", "-m", "base"]));
+        assert!(git(&root, &["branch", "-M", "main"]));
+
+        assert!(git(&root, &["checkout", "-q", "-b", "feat"]));
+        fs::remove_file(root.join("pkg/gone.py")).unwrap();
+        fs::write(root.join("pkg/added.py"), "A = 1\n").unwrap();
+
+        for n in 0..files_each {
+            fs::write(root.join(format!("pkg/keep{n}.py")), "K = 2\n").unwrap();
+        }
+
+        assert!(git(&root, &["add", "-A"]));
+        assert!(git(&root, &["commit", "-q", "-m", "feat"]));
+
+        root
+    }
+
+    #[test]
+    fn range_members_scans_only_the_modified_files_and_returns_both_texts() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 2);
+        let command = stub_scanner(dir.path()).display().to_string();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let found = Memoised::<RangeMembers>::default()
+            .members(temp.path(), &root, "main", "feat", &runner, &command)
+            .unwrap();
+
+        assert_eq!(
+            found
+                .base_scans
+                .iter()
+                .map(|scan| scan.text.matches("\"id\"").count())
+                .sum::<usize>(),
+            2
+        );
+        assert_eq!(found.files.len(), 2);
+        assert!(found
+            .files
+            .iter()
+            .all(|file| file.base_text.as_deref() == Some("K = 1\n")
+                && file.head_text.as_deref() == Some("K = 2\n")));
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn range_members_refuses_option_shaped_refs_and_a_range_past_the_file_limit() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 1);
+        let command = stub_scanner(dir.path()).display().to_string();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let memo = Memoised::<RangeMembers>::default();
+
+        assert!(memo
+            .members(temp.path(), &root, "--output=x", "feat", &runner, &command)
+            .is_none());
+        assert!(memo
+            .members(temp.path(), &root, "main", "--output=x", &runner, &command)
+            .is_none());
+        assert!(!root.join("x").exists());
+
+        let other = TempDir::new().unwrap();
+        let many = range_repository(other.path(), MEMBER_FILE_LIMIT + 1);
+        let found = memo.members(temp.path(), &many, "main", "feat", &runner, &command);
+
+        assert!(found.is_none());
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 
