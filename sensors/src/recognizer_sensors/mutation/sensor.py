@@ -766,8 +766,8 @@ def run(
     done: set[str] = set()
     queued = {target.identity for target in queue}
     stopped = False
-    total = len(targets)
-    finished = total - len(queue) - len(unmeasured)
+    total = sum(1 for target in targets if modules is None or target.module in modules)
+    finished = total - len(queue)
 
     report("mutants", finished, total)
 
