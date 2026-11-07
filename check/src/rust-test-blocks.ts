@@ -1,17 +1,28 @@
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import type { Io } from "./cli.js";
 import { isTestFile } from "./entry-points.js";
 
 const SPACE = new Set([0x20, 0x09, 0x0a, 0x0d, 0x0b, 0x0c]);
 
-const ROOT_STEMS = new Set(["lib", "main", "mod"]);
+const ROOT_NAMES = new Set(["lib.rs", "main.rs", "build.rs"]);
+
+const PATH_VALUE = /^\s*path\s*=\s*"((?:[^"\\]|\\.)*)"\s*$/s;
+
+type Declaration = {
+  scope: string[];
+  name: string;
+  path: string | null;
+  isTest: boolean;
+};
 
 type Scanned = {
   items: [number, number][];
   fileLevel: boolean;
-  modules: string[];
+  declarations: Declaration[];
 };
+
+type ModuleHead = { name: string; inline: boolean; after: number };
 
 function isIdentifierByte(byte: number): boolean {
   return (
@@ -380,18 +391,18 @@ function itemEnd(data: Buffer, start: number): number {
   return data.length;
 }
 
-function declaredModule(text: Buffer): string | null {
+function moduleHead(text: Buffer, start: number): ModuleHead | null {
   const n = text.length;
   const skipSpace = (at: number): number => {
-    let i = at;
+    let k = at;
 
-    while (i < n && SPACE.has(text[i] as number)) {
-      i += 1;
+    while (k < n && SPACE.has(text[k] as number)) {
+      k += 1;
     }
 
-    return i;
+    return k;
   };
-  let i = skipSpace(0);
+  let i = skipSpace(start);
 
   if (startsWith(text, "pub", i)) {
     const after = i + 3;
@@ -433,14 +444,48 @@ function declaredModule(text: Buffer): string | null {
 
   i = skipSpace(i + name[0].length);
 
-  return i < n && text[i] === 0x3b ? name[0] : null;
+  if (i < n && text[i] === 0x3b) {
+    return { name: name[0], inline: false, after: i + 1 };
+  }
+
+  if (i < n && text[i] === 0x7b) {
+    return { name: name[0], inline: true, after: i + 1 };
+  }
+
+  return null;
+}
+
+function pathValue(inner: string): string | null {
+  const match = PATH_VALUE.exec(inner);
+
+  return match === null ? null : (match[1] as string);
 }
 
 function scan(data: Buffer): Scanned {
   const items: [number, number][] = [];
-  const modules: string[] = [];
+  const declarations: Declaration[] = [];
+  const scope: [string, number][] = [];
   let fileLevel = false;
+  let depth = 0;
   let i = 0;
+
+  const enter = (
+    head: ModuleHead,
+    path: string | null,
+    isTest: boolean,
+  ): void => {
+    if (head.inline) {
+      scope.push([head.name, depth]);
+      depth += 1;
+    } else {
+      declarations.push({
+        scope: scope.map((entry) => entry[0]),
+        name: head.name,
+        path,
+        isTest,
+      });
+    }
+  };
 
   while (i < data.length) {
     const skipped = skipLiteral(data, i);
@@ -453,7 +498,7 @@ function scan(data: Buffer): Scanned {
     if (startsWith(data, "#![", i)) {
       const end = attributeEnd(data, i + 3);
 
-      if (isTestAttribute(attributeInner(data, i, end, 3))) {
+      if (depth === 0 && isTestAttribute(attributeInner(data, i, end, 3))) {
         fileLevel = true;
       }
 
@@ -464,18 +509,29 @@ function scan(data: Buffer): Scanned {
     if (startsWith(data, "#[", i)) {
       const start = i;
       let end = attributeEnd(data, i + 2);
-      let isTest = isTestAttribute(attributeInner(data, i, end, 2));
+      let inner = attributeInner(data, i, end, 2);
+      let isTest = isTestAttribute(inner);
+      let path = pathValue(inner);
       let follow = skipTrivia(data, end);
 
       while (startsWith(data, "#[", follow)) {
         end = attributeEnd(data, follow + 2);
-        isTest =
-          isTest || isTestAttribute(attributeInner(data, follow, end, 2));
+        inner = attributeInner(data, follow, end, 2);
+        isTest = isTest || isTestAttribute(inner);
+        path = path ?? pathValue(inner);
         follow = skipTrivia(data, end);
       }
 
       if (!isTest) {
-        i = end;
+        const head = moduleHead(data, end);
+
+        if (head === null) {
+          i = end;
+        } else {
+          enter(head, path, false);
+          i = head.after;
+        }
+
         continue;
       }
 
@@ -483,40 +539,112 @@ function scan(data: Buffer): Scanned {
 
       items.push([start, stop]);
 
-      const name = declaredModule(data.subarray(end, stop));
+      const head = moduleHead(data.subarray(end, stop), 0);
 
-      if (name !== null) {
-        modules.push(name);
+      if (head !== null && !head.inline) {
+        enter(head, path, true);
       }
 
       i = Math.max(stop, end);
       continue;
     }
 
+    const byte = data[i] as number;
+
+    if (byte === 0x7b) {
+      depth += 1;
+    } else if (byte === 0x7d) {
+      depth -= 1;
+
+      if (
+        scope.length > 0 &&
+        (scope[scope.length - 1] as [string, number])[1] === depth
+      ) {
+        scope.pop();
+      }
+    } else if (
+      (byte === 0x6d || byte === 0x70) &&
+      (i === 0 || !isIdentifierByte(data[i - 1] as number))
+    ) {
+      const head = moduleHead(data, i);
+
+      if (head !== null) {
+        enter(head, null, false);
+        i = head.after;
+        continue;
+      }
+    }
+
     i += 1;
   }
 
-  return { items, fileLevel, modules };
+  return { items, fileLevel, declarations };
 }
 
-function moduleDirectory(file: string): string {
-  const parts = file.split("/");
-  const name = parts.pop() as string;
-  const stem = name.slice(0, -3);
-  const parent = parts.join("/");
+function isRootFile(path: string): boolean {
+  const name = posix.basename(path);
+  const parent = posix.dirname(path);
 
-  if (ROOT_STEMS.has(stem)) {
-    return parent;
+  if (ROOT_NAMES.has(name)) {
+    return true;
   }
 
-  return parent === "" ? stem : `${parent}/${stem}`;
+  const parentName = posix.basename(parent);
+
+  if (parentName === "examples" || parentName === "benches") {
+    return true;
+  }
+
+  return (
+    parentName === "bin" && posix.basename(posix.dirname(parent)) === "src"
+  );
 }
 
-function moduleNameOf(file: string): string {
-  const parts = file.split("/");
-  const stem = (parts.pop() as string).slice(0, -3);
+function joinModule(base: string, tail: string): string | null {
+  if (tail.startsWith("/")) {
+    return null;
+  }
 
-  return stem === "mod" ? (parts.pop() ?? "") : stem;
+  const joined = posix.normalize(base === "" ? tail : `${base}/${tail}`);
+
+  return joined.startsWith("..") || joined === "." ? null : joined;
+}
+
+function moduleCandidates(file: string, declaration: Declaration): string[] {
+  const parent = posix.dirname(file);
+  const directory = parent === "." ? "" : parent;
+
+  if (declaration.path !== null) {
+    const found = joinModule(directory, declaration.path);
+
+    return found === null ? [] : [found];
+  }
+
+  const name = posix.basename(file);
+  const stem = name.slice(0, -3);
+  let base =
+    isRootFile(file) || name === "mod.rs"
+      ? directory
+      : (joinModule(directory, stem) ?? "");
+
+  for (const segment of declaration.scope) {
+    base = joinModule(base, segment) ?? "";
+  }
+
+  return [`${declaration.name}.rs`, `${declaration.name}/mod.rs`]
+    .map((tail) => joinModule(base, tail))
+    .filter((found): found is string => found !== null);
+}
+
+function resolvedDeclaration(
+  file: string,
+  declaration: Declaration,
+  index: ReadonlySet<string>,
+): string | null {
+  return (
+    moduleCandidates(file, declaration).find((found) => index.has(found)) ??
+    null
+  );
 }
 
 function readOrNull(io: Io, path: string): Buffer | null {
@@ -527,16 +655,12 @@ function readOrNull(io: Io, path: string): Buffer | null {
   }
 }
 
-export function inFileTestHashes(
+function firstPass(
   io: Io,
   root: string,
-  paths: readonly string[],
-): Map<string, string> {
-  const sources = [
-    ...new Set(paths.filter((path) => path.endsWith(".rs"))),
-  ].sort();
-  const entries = new Map<string, string>();
-  const declared: [string, string][] = [];
+  sources: readonly string[],
+): Map<string, { data: Buffer; scanned: Scanned }> {
+  const found = new Map<string, { data: Buffer; scanned: Scanned }>();
 
   for (const path of sources) {
     if (isTestFile(path)) {
@@ -549,35 +673,92 @@ export function inFileTestHashes(
       continue;
     }
 
-    const { items, fileLevel, modules } = scan(data);
+    found.set(path, { data, scanned: scan(data) });
+  }
 
-    items.forEach(([start, stop], number) => {
-      entries.set(`${path}#${number}`, sha256(data.subarray(start, stop)));
-    });
+  return found;
+}
 
-    if (fileLevel) {
-      entries.set(`${path}#file`, sha256(data));
+function testFileSet(
+  io: Io,
+  root: string,
+  sources: readonly string[],
+  first: Map<string, { data: Buffer; scanned: Scanned }>,
+): Set<string> {
+  const index = new Set(sources);
+  const marked = new Set<string>();
+  const pending: string[] = [];
+  const mark = (path: string | null): void => {
+    if (path !== null && !marked.has(path)) {
+      marked.add(path);
+      pending.push(path);
+    }
+  };
+
+  for (const [path, { scanned }] of first) {
+    if (scanned.fileLevel) {
+      mark(path);
     }
 
-    for (const name of modules) {
-      declared.push([path, name]);
+    for (const declaration of scanned.declarations) {
+      if (declaration.isTest) {
+        mark(resolvedDeclaration(path, declaration, index));
+      }
     }
   }
 
-  for (const [declaring, name] of declared) {
-    const directory = moduleDirectory(declaring);
-    const prefix = directory === "" ? "" : `${directory}/`;
+  while (pending.length > 0) {
+    const file = pending.pop() as string;
+    let declarations = first.get(file)?.scanned.declarations;
 
-    for (const path of sources) {
-      if (!path.startsWith(prefix) || moduleNameOf(path) !== name) {
-        continue;
-      }
+    if (declarations === undefined) {
+      const data = readOrNull(io, join(root, file));
 
-      const data = readOrNull(io, join(root, path));
+      declarations = data === null ? [] : scan(data).declarations;
+    }
 
-      if (data !== null) {
-        entries.set(`${path}#file`, sha256(data));
-      }
+    for (const declaration of declarations) {
+      mark(resolvedDeclaration(file, declaration, index));
+    }
+  }
+
+  return marked;
+}
+
+function rustSources(paths: readonly string[]): string[] {
+  return [...new Set(paths.filter((path) => path.endsWith(".rs")))].sort();
+}
+
+export function rustTestFiles(
+  io: Io,
+  root: string,
+  paths: readonly string[],
+): Set<string> {
+  const sources = rustSources(paths);
+
+  return testFileSet(io, root, sources, firstPass(io, root, sources));
+}
+
+export function inFileTestHashes(
+  io: Io,
+  root: string,
+  paths: readonly string[],
+): Map<string, string> {
+  const sources = rustSources(paths);
+  const first = firstPass(io, root, sources);
+  const entries = new Map<string, string>();
+
+  for (const [path, { data, scanned }] of first) {
+    scanned.items.forEach(([start, stop], number) => {
+      entries.set(`${path}#${number}`, sha256(data.subarray(start, stop)));
+    });
+  }
+
+  for (const path of [...testFileSet(io, root, sources, first)].sort()) {
+    const data = readOrNull(io, join(root, path));
+
+    if (data !== null) {
+      entries.set(`${path}#file`, sha256(data));
     }
   }
 
