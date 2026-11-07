@@ -175,7 +175,8 @@
       "tests/Shop.Checks.Sdk",
       "tests/Shop.Checks.UnitTests",
       "tests/Shop.Checks.Xunit"
-    ]
+    ],
+    "input_file_globs": ["*.csproj", "Directory.Build.props", "*.sln", "*.slnx"]
   },
   "modules": [
     {

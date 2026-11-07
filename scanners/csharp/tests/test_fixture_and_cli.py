@@ -87,6 +87,7 @@ def test_the_selection_equals_the_binding_constants():
         "skip_directories_containing": [],
         "skip_file_globs": ["*.g.cs", "*.g.i.cs", "*.Designer.cs"],
         "skip_paths": [],
+        "input_file_globs": ["*.csproj", "Directory.Build.props", "*.sln", "*.slnx"],
     }
 
 

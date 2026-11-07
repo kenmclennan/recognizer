@@ -82,6 +82,12 @@ def skip_paths_of(projects: dict[str, Project]) -> list[str]:
     )
 
 
+def absent_projects_of(root: Path, projects: dict[str, Project]) -> list[str]:
+    return sorted(
+        key for key in projects if not key.startswith(("../", "/")) and not (root / key).is_file()
+    )
+
+
 def read_all(
     root: Path, paths: list[str], projects: dict[str, Project], including: dict[str, set[str]]
 ) -> tuple[list[SourceFile], list[dict]]:
@@ -191,7 +197,7 @@ def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None
         "commit": commit,
         "modified": modified,
         "files": hashes,
-        "selection": selection(skip_paths_of(projects)),
+        "selection": selection(skip_paths_of(projects), absent_projects_of(root, projects)),
         "modules": modules,
         "edges": sorted(collected.edges(), key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(collected.foreign)],
