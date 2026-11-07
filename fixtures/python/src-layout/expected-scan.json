@@ -16,6 +16,10 @@
       "hash": "74ac12e7c87e29d10e30b8ba19a9a62cdccc27c6b972ca5a4bfb27a62e84cc52"
     },
     {
+      "path": "pyproject.toml",
+      "hash": "0ca31339ff1e963bf512aaf72a0ce847eb62b2a3d7d19b1d599ecfd5064202b3"
+    },
+    {
       "path": "src/shop/__init__.py",
       "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
@@ -52,7 +56,8 @@
     ],
     "skip_file_globs": [
       "conftest.py"
-    ]
+    ],
+    "input_absent_paths": ["setup.cfg"]
   },
   "modules": [
     {

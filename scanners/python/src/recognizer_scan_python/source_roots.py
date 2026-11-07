@@ -3,6 +3,7 @@ import tomllib
 from pathlib import Path, PurePosixPath
 
 ROOT = "."
+ROOT_CONFIG_FILES = ("pyproject.toml", "setup.cfg")
 
 
 def as_list(value: object) -> list[str]:

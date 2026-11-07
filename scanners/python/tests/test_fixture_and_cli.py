@@ -53,7 +53,9 @@ def test_fixture_counts_and_calls():
 
 
 def test_cli_end_to_end(tmp_path):
-    result = run_cli(str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false")
+    result = run_cli(
+        str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false", "--source-root", "."
+    )
     document = json.loads(result.stdout)
     wanted = expected()
     wanted["commit"] = "abc1234"
@@ -66,14 +68,24 @@ def test_cli_end_to_end(tmp_path):
 
     output = tmp_path / "scan.json"
     second = run_cli(
-        str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false", "--output", str(output)
+        str(FIXTURE_ROOT),
+        "--commit",
+        "abc1234",
+        "--modified",
+        "false",
+        "--source-root",
+        ".",
+        "--output",
+        str(output),
     )
 
     assert second.returncode == 0
     assert second.stdout == ""
     assert output.read_text() == result.stdout
     assert (
-        run_cli(str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false").stdout
+        run_cli(
+            str(FIXTURE_ROOT), "--commit", "abc1234", "--modified", "false", "--source-root", "."
+        ).stdout
         == result.stdout
     )
     assert result.stdout.endswith("}\n")
@@ -94,7 +106,7 @@ def test_files_are_the_fixture_modules_with_their_sha256():
 
 
 def test_selection_is_the_discovery_constants():
-    assert scan(FIXTURE_ROOT, ["."], None)["selection"] == {
+    assert scan(FIXTURE_ROOT, None, None)["selection"] == {
         "extensions": [".py"],
         "skip_directory_names": [
             "__pycache__",
@@ -109,7 +121,29 @@ def test_selection_is_the_discovery_constants():
         "skip_directory_suffixes": [".egg-info"],
         "skip_directories_containing": ["pyvenv.cfg"],
         "skip_file_globs": ["conftest.py"],
+        "input_absent_paths": ["pyproject.toml", "setup.cfg"],
     }
+
+
+def test_a_present_root_config_is_listed_with_its_hash_and_only_the_other_is_absent(tmp_path):
+    build_tree(tmp_path, {"a.py": "", "pyproject.toml": "[project]\nname = 'x'\n"})
+    document = scan(tmp_path, None, None)
+    digest = hashlib.sha256((tmp_path / "pyproject.toml").read_bytes()).hexdigest()
+
+    assert {"path": "pyproject.toml", "hash": digest} in document["files"]
+    assert [f["path"] for f in document["files"]] == sorted(f["path"] for f in document["files"])
+    assert document["selection"]["input_absent_paths"] == ["setup.cfg"]
+    assert "input_file_globs" not in document["selection"]
+    validate(document)
+
+
+def test_a_given_source_root_records_neither_key_nor_config_files(tmp_path):
+    build_tree(tmp_path, {"a.py": "", "pyproject.toml": "[project]\nname = 'x'\n"})
+    document = scan(tmp_path, ["."], None)
+
+    assert [f["path"] for f in document["files"]] == ["a.py"]
+    assert "input_absent_paths" not in document["selection"]
+    assert "input_file_globs" not in document["selection"]
 
 
 def git_in(path, *args):
