@@ -1,30 +1,23 @@
+import groupFile from "./finding-groups.json";
 import {
   type FindingRow,
   orderFindings,
   type StaleRow,
 } from "./findings-order";
 
+export type GroupHelp = { means: string; todo: string };
+
+type FixedGroup = { key: string; name: string; means?: string; todo?: string };
+
 export type FindingGroupModel = {
   key: string;
   name: string;
+  help: GroupHelp | null;
   severity: "violation" | "warning";
   rows: FindingRow[];
 };
 
-const FIXED: { key: string; name: string }[] = [
-  { key: "kind:rule-violation", name: "Policy violation" },
-  { key: "kind:cycle", name: "Cyclic dependency" },
-  { key: "kind:folder_cycle", name: "Folder cycle" },
-  { key: "kind:hub", name: "Hub" },
-  { key: "kind:orphan", name: "Orphan" },
-  { key: "kind:policy_drift", name: "Policy drift" },
-  { key: "kind:stable_dependencies", name: "Unstable dependency" },
-  { key: "kind:unused_exports", name: "Unused exports" },
-  { key: "kind:duplication", name: "Duplication" },
-  { key: "kind:crap", name: "C.R.A.P." },
-  { key: "kind:mutation", name: "Mutation" },
-  { key: "kind:thresholds", name: "Threshold" },
-];
+const FIXED: FixedGroup[] = groupFile.groups;
 
 export function kindLabel(kind: string): string {
   const words = kind.replace(/[-_]+/g, " ").trim();
@@ -36,15 +29,30 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function groupOf(row: FindingRow): { key: string; name: string } {
+export function groupOf(row: FindingRow): {
+  key: string;
+  name: string;
+  help: GroupHelp | null;
+} {
   if (row.reported) {
-    return { key: `report:${row.sensor}`, name: row.sensor };
+    return { key: `report:${row.sensor}`, name: row.sensor, help: null };
   }
 
   const kind = row.kind.startsWith("thresholds.") ? "thresholds" : row.kind;
   const fixed = FIXED.find((one) => one.key === `kind:${kind}`);
 
-  return fixed ?? { key: `kind:${row.kind}`, name: kindLabel(row.kind) };
+  if (fixed) {
+    return {
+      key: fixed.key,
+      name: fixed.name,
+      help:
+        fixed.means !== undefined && fixed.todo !== undefined
+          ? { means: fixed.means, todo: fixed.todo }
+          : null,
+    };
+  }
+
+  return { key: `kind:${row.kind}`, name: kindLabel(row.kind), help: null };
 }
 
 export function groupsOf(rows: FindingRow[]): FindingGroupModel[] {
@@ -52,10 +60,11 @@ export function groupsOf(rows: FindingRow[]): FindingGroupModel[] {
   const byKey = new Map<string, FindingGroupModel>();
 
   for (const row of ordered) {
-    const { key, name } = groupOf(row);
+    const { key, name, help } = groupOf(row);
     const group = byKey.get(key) ?? {
       key,
       name,
+      help,
       severity: "warning" as const,
       rows: [],
     };

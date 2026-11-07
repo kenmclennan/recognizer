@@ -102,7 +102,7 @@ describe("counts over the shown findings only", () => {
     expect(
       groupsOf(shown).map((group) => [group.name, group.rows.length]),
     ).toEqual([
-      ["Policy violation", 1],
+      ["Breaks the policy", 1],
       ["Orphan", 1],
     ]);
   });
@@ -112,7 +112,7 @@ describe("counts over the shown findings only", () => {
     const mine = rowsOf([record("crap:a", "crap", ["app/a.py"])], "crap");
 
     expect(staleNote(shown, mine, [])).toBe(
-      "C.R.A.P. findings are out of date.",
+      "Complex and untested findings are out of date.",
     );
     expect(staleNote(shown, scopedRows(other, view), [])).toBeNull();
     expect(staleNote(shown, [], [])).toBeNull();

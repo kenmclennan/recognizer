@@ -2642,12 +2642,21 @@ svg.i.chevron {
   border-top: 1px solid var(--line);
 }
 
+.finding-group-line {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
 .finding-group-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  padding: 10px 6px;
+  min-width: 0;
+  padding: 10px 0;
   border: 0;
   background: transparent;
   color: var(--fg);
@@ -2686,6 +2695,64 @@ svg.i.chevron {
 .finding-group-count {
   margin-left: auto;
   color: var(--muted);
+}
+
+.finding-info {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  cursor: help;
+}
+
+.finding-info .i {
+  width: 16px;
+  height: 16px;
+}
+
+.finding-info:hover,
+.finding-info:focus {
+  color: var(--sel);
+}
+
+.finding-tip {
+  position: absolute;
+  top: 100%;
+  right: 6px;
+  left: 6px;
+  z-index: 5;
+  display: none;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--boxline);
+  border-radius: 8px;
+  background: var(--box);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: default;
+}
+
+.finding-info:hover + .finding-tip,
+.finding-info:focus + .finding-tip,
+.finding-tip:hover {
+  display: block;
+}
+
+.finding-info[data-dismissed] + .finding-tip:not(:hover) {
+  display: none;
+}
+
+.finding-tip-line {
+  margin: 0 0 4px;
+}
+
+.finding-tip-label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .finding-card {
