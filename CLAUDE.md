@@ -56,6 +56,7 @@ One repository, a directory per part:
 
 - **The scan document is the contract.** Every scanner emits exactly the schema; nothing language-specific leaks into the document, the policy or the viewer. Every scanner is tested against the shared fixtures.
 - **Recognizer knows no architecture.** Every architectural meaning - component names, which dependencies are permitted, any preset - lives in a repository's policy. A named architecture is a template under `policies/`, copied into a repository and edited there. Hexagonal vocabulary appears only in fixtures, examples and templates. Warnings are principle violations, reported by `recognizer check` as candidates with evidence, never verdicts; each names its principle, its evidence and a stable fix-pattern id, and the coaching text an agent reads lives outside recognizer.
+- **A change to a sensor's rules is measured per repository over `validation/corpus` before the spec PR, not on one repository.**
 - **Recognizer never measures.** Metrics that need something run (tests, mutation, duplication, git history) arrive as overlays, written by the sensors recognizer ships or by a sensor a repository registers; recognizer owns the overlay format, never a metric's meaning.
 - **Derived, never authored.** Nothing on the real diagram is drawn by hand. A proposed structure is a separate artifact, always labelled as not in the code.
 - **No allow list.** The policy cannot mark a violating edge as acceptable. Existing violations live in a baseline that may only shrink.
@@ -94,5 +95,5 @@ A fresh worktree has no `node_modules`. Run `npm ci` at the repository root befo
 
 - No code comments and no docstrings; behaviour is legible from names and tests.
 - Blank lines group related statements; whitespace around multi-line statements.
-- Markdown: hyphens not emdashes, one line per paragraph, formatted with `prettier --prose-wrap=never` and linted with markdownlint (line length is off, `.markdownlint.json`).
+- Markdown: hyphens not emdashes, one line per paragraph, formatted with `prettier --prose-wrap=never` and linted with markdownlint run from the repo root (line length is off, `.markdownlint.json`).
 - This file states conventions and the facts a module's own code and tests cannot carry. A change never adds itself here: no module, command, setting or flag is listed, and a line stays under 600 characters (markdownlint checks it). Update this file only when a convention changes.
