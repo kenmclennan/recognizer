@@ -18,6 +18,7 @@ def selection() -> dict:
         "skip_directory_suffixes": list(SKIPPED_DIRECTORY_SUFFIXES),
         "skip_directories_containing": [],
         "skip_file_globs": list(SKIPPED_FILE_PATTERNS),
+        "input_file_globs": list(BUILD_FILES),
     }
 
 
@@ -64,3 +65,9 @@ def build_module_of(root: Path, directory: str) -> str:
             return "."
 
         current = current.parent
+
+
+def build_files_in(root: Path, module: str) -> list[str]:
+    return [
+        (Path(module) / name).as_posix() for name in BUILD_FILES if (root / module / name).is_file()
+    ]
