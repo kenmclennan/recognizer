@@ -73,7 +73,7 @@ def base_edges(parsed: Parsed, index: ModuleIndex, others: dict[str, Parsed]) ->
             if not path or ".".join(path) in ABSTRACT_BASES:
                 continue
 
-            hit = index.longest(path)
+            hit = index.longest(path, importer=parsed.module_id)
 
             if hit is None or hit.length != len(path) - 1 or hit.module_id == parsed.module_id:
                 continue

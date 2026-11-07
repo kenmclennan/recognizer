@@ -1,6 +1,11 @@
-from conftest import REPOSITORY, build_tree, edge_tuples, validate
+import json
+from importlib.metadata import version
+
+from conftest import REPOSITORY, build_tree, call_tuples, edge_tuples, validate
 
 from recognizer_scan_python import scan
+
+SCRIPT_FOLDER = REPOSITORY / "fixtures" / "python" / "script-folder"
 
 
 def detect(tmp_path, files: dict[str, str]) -> dict:
@@ -30,6 +35,23 @@ def test_sibling_import_and_from_import_resolve(tmp_path):
     ]
     assert next(e for e in document["edges"] if e["line"] == 2)["names"] == ["go"]
     assert document["foreign"] == []
+
+
+def test_sibling_call_and_base_resolve(tmp_path):
+    document = detect(
+        tmp_path,
+        {
+            "scripts/helper.py": "class Base: ...\ndef go(): ...\n",
+            "scripts/run.py": (
+                "import helper\nclass Child(helper.Base): ...\ndef main():\n    helper.go()\n"
+            ),
+        },
+    )
+
+    assert call_tuples(document) == [("scripts/run.py::main", "scripts/helper.py::go", "call")]
+    assert ("scripts/run.py", "scripts/helper.py", "inherits", 2, "Child", "Base") in edge_tuples(
+        document
+    )
 
 
 def test_sibling_package_resolves_deeply(tmp_path):
@@ -116,6 +138,16 @@ def test_sibling_only_the_importer_yields_no_self_edge(tmp_path):
 
     assert document["edges"] == []
     assert document["foreign"] == []
+
+
+def test_script_folder_fixture_matches_expected_scan():
+    actual = scan(SCRIPT_FOLDER / "sample", None, None)
+    wanted = json.loads((SCRIPT_FOLDER / "expected-scan.json").read_text())
+
+    wanted["scanner"]["version"] = version("recognizer-scan-python")
+
+    assert actual == wanted
+    validate(actual)
 
 
 def test_real_content_scripts_resolve_their_common_helper():

@@ -1,0 +1,193 @@
+{
+  "schema_version": 7,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "examples/helper.py",
+      "hash": "62e56d0eeb6ed631faf2f0d54d2b93520bb9e6bfb47fec367025e84224cb992c"
+    },
+    {
+      "path": "examples/run.py",
+      "hash": "5239560ad016d578de613ca2aa98b6190182a125958c9fde4f7f4d4ad443289f"
+    },
+    {
+      "path": "pkg/__init__.py",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "pkg/app.py",
+      "hash": "fe7af4ee321d8cd3492c109137b86d7466cd22ed2e0671d58af7046570028049"
+    },
+    {
+      "path": "pkg/typing.py",
+      "hash": "0abae1e0ae728216ee44993c5a3a755f8b1c387d947fc4c4f72cab0e4a84214b"
+    },
+    {
+      "path": "top.py",
+      "hash": "0e314340363d607ed18252c56d1e1929f523fd0044e76333b37de0bf1026678e"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".py"
+    ],
+    "skip_directory_names": [
+      "__pycache__",
+      "test",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      ".egg-info"
+    ],
+    "skip_directories_containing": [
+      "pyvenv.cfg"
+    ],
+    "skip_file_globs": [
+      "conftest.py"
+    ]
+  },
+  "modules": [
+    {
+      "id": "examples/helper.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "go",
+          "kind": "function",
+          "line": 1,
+          "exported": true,
+          "end_line": 2,
+          "params": []
+        }
+      ]
+    },
+    {
+      "id": "examples/run.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 5,
+          "exported": true,
+          "end_line": 7,
+          "params": []
+        }
+      ]
+    },
+    {
+      "id": "pkg/__init__.py",
+      "language": "python",
+      "kind": "package",
+      "members": []
+    },
+    {
+      "id": "pkg/app.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "f",
+          "kind": "function",
+          "line": 4,
+          "exported": true,
+          "end_line": 5,
+          "params": [
+            {
+              "name": "a",
+              "type": "Any"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pkg/typing.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "X",
+          "kind": "constant",
+          "line": 1,
+          "exported": true,
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "top.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "examples/run.py",
+      "to": "examples/helper.py",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "examples/run.py",
+      "to": "examples/helper.py",
+      "kind": "depends",
+      "line": 2,
+      "names": [
+        "go"
+      ]
+    },
+    {
+      "from": "pkg/app.py",
+      "to": "foreign:typing",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "top.py",
+      "to": "foreign:helper",
+      "kind": "depends",
+      "line": 1
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:helper",
+      "name": "helper"
+    },
+    {
+      "id": "foreign:typing",
+      "name": "typing"
+    }
+  ],
+  "calls": [
+    {
+      "from": "examples/run.py::main",
+      "to": "examples/helper.py::go",
+      "line": 6,
+      "how": "call"
+    },
+    {
+      "from": "examples/run.py::main",
+      "to": "examples/helper.py::go",
+      "line": 7,
+      "how": "call"
+    }
+  ],
+  "test_imports": []
+}
