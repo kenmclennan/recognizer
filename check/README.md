@@ -165,12 +165,12 @@ Stdout holds one JSON document, the human summary goes to stderr.
 
 ## Warnings and metrics
 
-Metrics are computed per module from the scan alone, over distinct modules after `ignore`, with self-edges dropped. Foreign nodes carry no metrics. A ratio with a zero denominator is `null`, never `0`.
+Metrics are computed per module from the scan alone, over distinct modules after `ignore`, with self-edges dropped. Foreign nodes carry no metrics and add to no module's coupling. A ratio with a zero denominator is `null`, never `0`.
 
 - `fan_in`: the number of distinct other modules with an edge to the module.
 - `fan_out`: the number of distinct other modules the module has an edge to, foreign targets excluded.
 - `afferent`: equal to `fan_in`.
-- `efferent`: `fan_out` plus the distinct foreign targets of the module.
+- `efferent`: equal to `fan_out`: foreign targets count for nothing.
 - `instability`: `efferent / (afferent + efferent)` rounded to four decimals, `null` when both are 0.
 - `abstractness`: 1 when the module's `kind` is `interface`, otherwise 0.
 

@@ -121,12 +121,10 @@ export function analyse(
 
   const internal = new Map<string, Set<string>>();
   const incoming = new Map<string, Set<string>>();
-  const foreign = new Map<string, Set<string>>();
 
   for (const id of ids) {
     internal.set(id, new Set());
     incoming.set(id, new Set());
-    foreign.set(id, new Set());
   }
 
   for (const edge of edges) {
@@ -135,11 +133,11 @@ export function analyse(
     }
 
     if (isForeign(edge.to)) {
-      foreign.get(edge.from)?.add(edge.to);
-    } else {
-      internal.get(edge.from)?.add(edge.to);
-      incoming.get(edge.to)?.add(edge.from);
+      continue;
     }
+
+    internal.get(edge.from)?.add(edge.to);
+    incoming.get(edge.to)?.add(edge.from);
   }
 
   const sorted = [...ids].sort(byCodeUnit);
@@ -148,7 +146,7 @@ export function analyse(
     const kind = kinds.get(id) ?? "module";
     const fanIn = incoming.get(id)?.size ?? 0;
     const fanOut = internal.get(id)?.size ?? 0;
-    const efferent = fanOut + (foreign.get(id)?.size ?? 0);
+    const efferent = fanOut;
     const total = fanIn + efferent;
 
     return {
