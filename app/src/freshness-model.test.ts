@@ -413,6 +413,86 @@ describe("the findings line and groups", () => {
   });
 });
 
+describe("the unscoped stale set per sensor", () => {
+  const sorted = (set: ReadonlySet<string> | undefined) => [...(set ?? [])];
+
+  it("holds the same stale modules in every row state", () => {
+    const stale = { "b.py": "old" };
+    const states = {
+      current: {},
+      running: { run: run({ running: ["crap"] }), scanning: true },
+      failed: { run: run({ failures: { crap: "boom" } }) },
+    };
+
+    for (const [kind, over] of Object.entries(states)) {
+      const model = modelOf(IDS, {
+        sensors: [ran("crap", IDS, stale), ran("mutation", IDS)],
+        ...over,
+      });
+
+      expect(kindOf(model, "crap")).toBe(
+        kind === "current" ? "out-of-date" : kind,
+      );
+      expect(sorted(model.stale.get("crap"))).toEqual(["b.py"]);
+    }
+  });
+
+  it("covers modules outside the view when only this view is on", () => {
+    const model = modelOf(IDS, {
+      sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
+      ticks: {
+        describe: true,
+        ticked: [],
+        once: ["crap", "mutation"],
+        onlyView: true,
+      },
+      view: { name: "v", modules: ["a.py"] } as never,
+    });
+
+    expect(kindOf(model, "crap")).toBe("current");
+    expect(sorted(model.stale.get("crap"))).toEqual(["c.py"]);
+    expect([...model.modules]).toEqual(IDS);
+  });
+
+  it("holds every module when the measurement is not valid", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        {
+          ...ran("crap", IDS),
+          measured: { inputs: {}, tests: "other" },
+        },
+        ran("mutation", IDS),
+      ],
+    });
+
+    expect(sorted(model.stale.get("crap")).sort()).toEqual(IDS);
+  });
+
+  it("has no entry for a sensor with no measurement, Descriptions or Structure", () => {
+    const model = modelOf(IDS, { sensors: [ran("mutation", IDS)] });
+
+    expect(model.stale.has("crap")).toBe(false);
+    expect(model.stale.has("describe")).toBe(false);
+    expect(model.stale.has("structure")).toBe(false);
+    expect(model.stale.has("mutation")).toBe(true);
+  });
+
+  it("has no entry at all without a freshness", () => {
+    const model = modelOf(IDS, { freshness: undefined });
+
+    expect(model.stale.size).toBe(0);
+  });
+
+  it("keeps a module stale under one sensor out of the other's set", () => {
+    const model = modelOf(IDS, {
+      sensors: [ran("crap", IDS, { "a.py": "old" }), ran("mutation", IDS)],
+    });
+
+    expect(sorted(model.stale.get("crap"))).toEqual(["a.py"]);
+    expect(sorted(model.stale.get("mutation"))).toEqual([]);
+  });
+});
+
 describe("the model's imports", () => {
   it("takes no port, source or rescanner", () => {
     const source = readFileSync(
