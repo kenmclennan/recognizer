@@ -35,6 +35,18 @@ function expectedScan(language: string): Record<string, unknown> {
   return readScan(join(REPO, "fixtures", language, "expected-scan.json"));
 }
 
+function expectedPythonScan(): Record<string, unknown> {
+  const scan = expectedScan("python");
+
+  return {
+    ...scan,
+    selection: {
+      ...(scan.selection as Record<string, unknown>),
+      input_absent_paths: ["pyproject.toml", "setup.cfg"],
+    },
+  };
+}
+
 function normalised(scan: Record<string, unknown>): Record<string, unknown> {
   return { ...scan, scanner: null, commit: null };
 }
@@ -123,7 +135,7 @@ describe.skipIf(!HAS_UV)(
         );
 
         expect(normalised(readScan(python))).toEqual(
-          normalised(expectedScan("python")),
+          normalised(expectedPythonScan()),
         );
         expect(normalised(readScan(typescript))).toEqual(
           normalised(expectedScan("typescript")),

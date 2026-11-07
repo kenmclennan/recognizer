@@ -20,8 +20,8 @@ SKIPPED_DIRECTORY_SUFFIXES = (".egg-info",)
 SKIPPED_DIRECTORY_MARKERS = ("pyvenv.cfg",)
 
 
-def selection() -> dict:
-    return {
+def selection(absent_paths: list[str] | None = None) -> dict:
+    found = {
         "extensions": list(SOURCE_EXTENSIONS),
         "skip_directory_names": list(SKIPPED_DIRECTORY_NAMES),
         "skip_directory_prefixes": list(SKIPPED_DIRECTORY_PREFIXES),
@@ -29,6 +29,11 @@ def selection() -> dict:
         "skip_directories_containing": list(SKIPPED_DIRECTORY_MARKERS),
         "skip_file_globs": list(SKIPPED_FILE_PATTERNS),
     }
+
+    if absent_paths:
+        found["input_absent_paths"] = sorted(absent_paths)
+
+    return found
 
 
 def is_skipped_directory(path: Path) -> bool:
