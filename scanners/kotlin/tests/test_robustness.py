@@ -5,10 +5,7 @@ from tree_sitter import Language, Parser
 
 from recognizer_scan_kotlin import scan, scan_with_stats
 from recognizer_scan_kotlin.cli import main
-from recognizer_scan_kotlin.parse import (
-    parse_file,
-    repair_annotated_bare_modifiers,
-)
+from recognizer_scan_kotlin.parse import parse_file
 
 PARSER = Parser(Language(tree_sitter_kotlin.language()))
 STACKED = FIXTURE_ROOT / "app/src/main/kotlin/shop/application/UseCase.kt"
@@ -56,7 +53,7 @@ def test_a_misparsed_declaration_is_recovered_as_a_member_with_its_visibility(ru
     assert (found["kind"], found["visibility"], found["exported"]) == ("class", "private", False)
 
 
-def test_a_damaged_file_keeps_the_names_found_by_pattern(run):
+def test_a_damaged_file_keeps_the_names_the_tree_still_holds(run):
     document = run(
         {
             "a/F.kt": (
@@ -161,44 +158,6 @@ REPAIRABLE = [
     "@A\nannotation class U {}\n",
     "@A\nenum class U { X, Y }\n",
 ]
-
-
-def test_the_repair_inserts_public_before_a_bare_modifier_declaration():
-    assert (
-        repair_annotated_bare_modifiers("@A\nconst val K = 1\n") == "@A\npublic const val K = 1\n"
-    )
-    assert (
-        repair_annotated_bare_modifiers("@A\n  const var K = 1\n")
-        == "@A\n  public const var K = 1\n"
-    )
-    assert (
-        repair_annotated_bare_modifiers("@A\nannotation class U\n")
-        == "@A\npublic annotation class U\n"
-    )
-    assert repair_annotated_bare_modifiers("@A\n  enum class E\n") == "@A\n  public enum class E\n"
-
-
-def test_the_repair_leaves_other_text_unchanged():
-    for source in (
-        "@A\ninternal annotation class U\n",
-        "@A\nclass X {\n    annotation class U\n}\n",
-        "/*\nannotation class U\n*/\n",
-        "// x\n// annotation class U\n",
-        'val s = """\nannotation class U\n"""\n',
-        "annotation class U\n",
-        "@A\nprivate const val K = 1\n",
-        "@A\nclass X {\n    const val K = 1\n}\n",
-        "/*\nconst val K = 1\n*/\n",
-        "// x\n// const val K = 1\n",
-        'val s = """\nconst val K = 1\n"""\n',
-    ):
-        assert repair_annotated_bare_modifiers(source) == source
-
-
-def test_the_repair_keeps_the_newline_count():
-    source = "@A\n@B\nannotation class U\nenum class E\n@C\nconst val K = 1\n"
-
-    assert repair_annotated_bare_modifiers(source).count("\n") == source.count("\n")
 
 
 @pytest.mark.parametrize("source", REPAIRABLE)
