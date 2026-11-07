@@ -218,7 +218,7 @@ type Facts = {
 };
 
 async function collect(): Promise<Facts> {
-  return collectFacts<Facts>(HARNESS, "explorer-picker", "light", "app");
+  return collectFacts<Facts>(HARNESS, "explorer-picker", "app");
 }
 
 describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {

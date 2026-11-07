@@ -22,12 +22,11 @@ export const webkit = existsSync(playwright.executablePath())
 
 export function lookBrowserArgs(
   target: string,
-  options: { dark?: boolean; size?: string } = {},
+  options: { size?: string } = {},
 ): string[] {
   return [
     LOOK_BROWSER,
     target,
-    ...(options.dark ? ["--dark"] : []),
     ...(options.size === undefined ? [] : ["--size", options.size]),
   ];
 }
@@ -85,7 +84,6 @@ const SHELLS = {
 export async function collectFacts<T>(
   harness: string,
   prefix: string,
-  scheme: "light" | "dark" = "light",
   shell: "window" | "app" | "bare" = "window",
 ): Promise<T> {
   const dir = mkdtempSync(join(tmpdir(), `${prefix}-`));
@@ -112,7 +110,7 @@ export async function collectFacts<T>(
 
     const run = spawnSync(
       process.execPath,
-      lookBrowserArgs(page, { dark: scheme === "dark", size: "1500x900" }),
+      lookBrowserArgs(page, { size: "1500x900" }),
       { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
     );
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);

@@ -85,7 +85,7 @@ type Facts = {
 };
 
 async function collect(): Promise<Facts> {
-  return collectFacts<Facts>(HARNESS, "folded-folder", "light", "app");
+  return collectFacts<Facts>(HARNESS, "folded-folder", "app");
 }
 
 describe.skipIf(webkit === undefined)("a folded folder's box", () => {

@@ -111,7 +111,7 @@ const facts = {};
 type Facts = ReturnType<typeof JSON.parse>;
 
 async function collect(): Promise<Facts> {
-  return collectFacts<Facts>(HARNESS, "folder-compaction", "light", "app");
+  return collectFacts<Facts>(HARNESS, "folder-compaction", "app");
 }
 
 describe.skipIf(webkit === undefined)(

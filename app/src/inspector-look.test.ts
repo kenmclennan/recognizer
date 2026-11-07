@@ -154,7 +154,6 @@ const measureHead = (id) => {
   };
 };
 const result = {
-  dark: matchMedia("(prefers-color-scheme: dark)").matches,
   app,
   structure: {
     images: document.querySelectorAll(".inspector img").length,
@@ -215,7 +214,6 @@ type ShapeFacts = {
 
 type Styles = Record<string, Record<string, string | boolean>>;
 type Report = {
-  dark: boolean;
   app: Styles;
   structure: {
     images: number;
@@ -242,167 +240,96 @@ type Report = {
   } | null)[];
 };
 
-const EXPECTED: Record<"light" | "dark", Styles> = {
-  light: {
-    rail: {
-      width: "44px",
-      display: "flex",
-      "flex-direction": "column",
-      "align-items": "center",
-      "background-color": "rgb(255, 255, 255)",
-      "box-sizing": "border-box",
-      "padding-top": "12px",
-      "border-left-width": "1px",
-      "border-left-color": "rgb(216, 222, 228)",
-    },
-    railButton: {
-      width: "32px",
-      height: "32px",
-      color: "rgb(89, 99, 110)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-top-left-radius": "4px",
-    },
-    panel: {
-      width: "340px",
-      "box-sizing": "border-box",
-      "background-color": "rgb(255, 255, 255)",
-      "overflow-x": "auto",
-      "overflow-y": "auto",
-      "padding-top": "12px",
-      "padding-right": "12px",
-      "padding-bottom": "12px",
-      "padding-left": "12px",
-      "border-left-width": "1px",
-      "border-left-color": "rgb(216, 222, 228)",
-    },
-    close: {
-      width: "22px",
-      height: "22px",
-      color: "rgb(89, 99, 110)",
-      "border-top-left-radius": "4px",
-      "background-color": "rgba(0, 0, 0, 0)",
-    },
-    tabs: {
-      display: "flex",
-      "column-gap": "0px",
-      "margin-bottom": "8px",
-      "border-bottom-width": "1px",
-      "border-bottom-color": "rgb(216, 222, 228)",
-    },
-    tabOn: {
-      "padding-top": "6px",
-      "padding-left": "10px",
-      color: "rgb(31, 35, 40)",
-      "font-weight": "600",
-      "font-size": "12px",
-      "box-shadow": "rgb(9, 105, 218) 0px -2px 0px 0px inset",
-      "background-color": "rgba(0, 0, 0, 0)",
-    },
-    tabOff: {
-      "padding-top": "6px",
-      "padding-left": "10px",
-      color: "rgb(89, 99, 110)",
-      "font-weight": "400",
-      "font-size": "12px",
-      "box-shadow": "none",
-      "background-color": "rgba(0, 0, 0, 0)",
-    },
+const EXPECTED: Styles = {
+  rail: {
+    width: "44px",
+    display: "flex",
+    "flex-direction": "column",
+    "align-items": "center",
+    "background-color": "rgb(31, 35, 40)",
+    "box-sizing": "border-box",
+    "padding-top": "12px",
+    "border-left-width": "1px",
+    "border-left-color": "rgb(48, 54, 61)",
   },
-  dark: {
-    rail: {
-      width: "44px",
-      display: "flex",
-      "flex-direction": "column",
-      "align-items": "center",
-      "background-color": "rgb(31, 35, 40)",
-      "box-sizing": "border-box",
-      "padding-top": "12px",
-      "border-left-width": "1px",
-      "border-left-color": "rgb(48, 54, 61)",
-    },
-    railButton: {
-      width: "32px",
-      height: "32px",
-      color: "rgb(145, 152, 161)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-top-left-radius": "4px",
-    },
-    panel: {
-      width: "340px",
-      "box-sizing": "border-box",
-      "background-color": "rgb(31, 35, 40)",
-      "overflow-x": "auto",
-      "overflow-y": "auto",
-      "padding-top": "12px",
-      "padding-right": "12px",
-      "padding-bottom": "12px",
-      "padding-left": "12px",
-      "border-left-width": "1px",
-      "border-left-color": "rgb(48, 54, 61)",
-    },
-    close: {
-      width: "22px",
-      height: "22px",
-      color: "rgb(145, 152, 161)",
-      "border-top-left-radius": "4px",
-      "background-color": "rgba(0, 0, 0, 0)",
-    },
-    tabs: {
-      display: "flex",
-      "column-gap": "0px",
-      "margin-bottom": "8px",
-      "border-bottom-width": "1px",
-      "border-bottom-color": "rgb(48, 54, 61)",
-    },
-    tabOn: {
-      "padding-top": "6px",
-      "padding-left": "10px",
-      color: "rgb(230, 237, 243)",
-      "font-weight": "600",
-      "font-size": "12px",
-      "box-shadow": "rgb(68, 147, 248) 0px -2px 0px 0px inset",
-      "background-color": "rgba(0, 0, 0, 0)",
-    },
-    tabOff: {
-      "padding-top": "6px",
-      "padding-left": "10px",
-      color: "rgb(145, 152, 161)",
-      "font-weight": "400",
-      "font-size": "12px",
-      "box-shadow": "none",
-      "background-color": "rgba(0, 0, 0, 0)",
-    },
+  railButton: {
+    width: "32px",
+    height: "32px",
+    color: "rgb(145, 152, 161)",
+    "background-color": "rgba(0, 0, 0, 0)",
+    "border-top-left-radius": "4px",
+  },
+  panel: {
+    width: "340px",
+    "box-sizing": "border-box",
+    "background-color": "rgb(31, 35, 40)",
+    "overflow-x": "auto",
+    "overflow-y": "auto",
+    "padding-top": "12px",
+    "padding-right": "12px",
+    "padding-bottom": "12px",
+    "padding-left": "12px",
+    "border-left-width": "1px",
+    "border-left-color": "rgb(48, 54, 61)",
+  },
+  close: {
+    width: "22px",
+    height: "22px",
+    color: "rgb(145, 152, 161)",
+    "border-top-left-radius": "4px",
+    "background-color": "rgba(0, 0, 0, 0)",
+  },
+  tabs: {
+    display: "flex",
+    "column-gap": "0px",
+    "margin-bottom": "8px",
+    "border-bottom-width": "1px",
+    "border-bottom-color": "rgb(48, 54, 61)",
+  },
+  tabOn: {
+    "padding-top": "6px",
+    "padding-left": "10px",
+    color: "rgb(230, 237, 243)",
+    "font-weight": "600",
+    "font-size": "12px",
+    "box-shadow": "rgb(68, 147, 248) 0px -2px 0px 0px inset",
+    "background-color": "rgba(0, 0, 0, 0)",
+  },
+  tabOff: {
+    "padding-top": "6px",
+    "padding-left": "10px",
+    color: "rgb(145, 152, 161)",
+    "font-weight": "400",
+    "font-size": "12px",
+    "box-shadow": "none",
+    "background-color": "rgba(0, 0, 0, 0)",
   },
 };
 
-async function prepare(scheme: "light" | "dark"): Promise<Report> {
-  return collectFacts<Report>(HARNESS, "inspector-look", scheme, "bare");
+async function prepare(): Promise<Report> {
+  return collectFacts<Report>(HARNESS, "inspector-look", "bare");
 }
 
 describe("the inspector, in a real browser", () => {
-  for (const scheme of ["light", "dark"] as const) {
-    it.skipIf(webkit === undefined)(
-      `computes the designed styles in ${scheme}`,
-      async () => {
-        const report = await prepare(scheme);
+  it.skipIf(webkit === undefined)(
+    "computes the designed styles",
+    async () => {
+      const report = await prepare();
 
-        expect(report.dark).toBe(scheme === "dark");
-
-        for (const name of Object.keys(EXPECTED[scheme])) {
-          expect(report.app[name]).not.toHaveProperty("missing");
-          expect({ [name]: report.app[name] }).toEqual({
-            [name]: EXPECTED[scheme][name],
-          });
-        }
-      },
-      scaledTimeout(120000),
-    );
-  }
+      for (const name of Object.keys(EXPECTED)) {
+        expect(report.app[name]).not.toHaveProperty("missing");
+        expect({ [name]: report.app[name] }).toEqual({
+          [name]: EXPECTED[name],
+        });
+      }
+    },
+    scaledTimeout(120000),
+  );
 
   it.skipIf(webkit === undefined)(
     "cuts a long name to one line with an ellipsis and puts the folder below",
     async () => {
-      const { heads } = await prepare("light");
+      const { heads } = await prepare();
       const long = heads.long as Record<string, number | string>;
       const short = heads.short as Record<string, number | string>;
 
@@ -428,7 +355,7 @@ describe("the inspector, in a real browser", () => {
   it.skipIf(webkit === undefined)(
     "keeps the tab row to one line with three counted tabs, scrolling sideways when narrow",
     async () => {
-      const { tabsRow } = await prepare("light");
+      const { tabsRow } = await prepare();
 
       for (const name of ["default", "folder"]) {
         const row = tabsRow[name];
@@ -458,7 +385,7 @@ describe("the inspector, in a real browser", () => {
   it.skipIf(webkit === undefined)(
     "gives a folder and a module one header shape with the sentence under the name",
     async () => {
-      const { shapes } = await prepare("light");
+      const { shapes } = await prepare();
 
       for (const name of ["module", "folder", "top"]) {
         const shape = shapes[name];
@@ -483,7 +410,7 @@ describe("the inspector, in a real browser", () => {
   it.skipIf(webkit === undefined)(
     "shows no links to other modules in Contents",
     async () => {
-      const report = await prepare("light");
+      const report = await prepare();
 
       expect(report.links).toBe(0);
       expect(report.linkText).toBe(0);
@@ -494,7 +421,7 @@ describe("the inspector, in a real browser", () => {
   it.skipIf(webkit === undefined)(
     "shows a metric table at the foot of the class card, none on a function card and none in the header",
     async () => {
-      const { tables } = await prepare("light");
+      const { tables } = await prepare();
       const klass = tables.find((table) => table?.kind === "Class");
       const func = tables.find((table) => table?.kind === "Function");
 
@@ -520,7 +447,7 @@ describe("the inspector, in a real browser", () => {
   it.skipIf(webkit === undefined)(
     "draws every icon as one inline svg and uses no images or icon fonts",
     async () => {
-      const { structure } = await prepare("light");
+      const { structure } = await prepare();
 
       expect(structure.images).toBe(0);
       expect(structure.iconFonts).toBe(0);

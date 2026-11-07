@@ -85,7 +85,7 @@ type Report = {
 };
 
 async function run(): Promise<Report> {
-  return collectFacts<Report>(HARNESS, "resize-look", "light", "bare");
+  return collectFacts<Report>(HARNESS, "resize-look", "bare");
 }
 
 describe("resizing the side panels in a real browser", () => {

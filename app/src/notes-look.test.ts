@@ -389,7 +389,7 @@ function mount(files, author) {
 type Facts = ReturnType<typeof JSON.parse>;
 
 async function collect(): Promise<Facts> {
-  return collectFacts<Facts>(HARNESS, "notes-look", "light", "app");
+  return collectFacts<Facts>(HARNESS, "notes-look", "app");
 }
 
 describe.skipIf(webkit === undefined)("notes in the explorer", () => {

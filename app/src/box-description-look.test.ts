@@ -168,12 +168,7 @@ describe.skipIf(!webkit)("box description look", () => {
   let facts: Facts;
 
   beforeAll(async () => {
-    facts = await collectFacts<Facts>(
-      HARNESS,
-      "box-description-look",
-      "light",
-      "bare",
-    );
+    facts = await collectFacts<Facts>(HARNESS, "box-description-look", "bare");
   }, 90000);
 
   it("shows under the hovered box once the delay has fired", () => {

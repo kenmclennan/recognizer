@@ -448,10 +448,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
 type Facts = ReturnType<typeof JSON.parse>;
 
-const GREEN = "rgb(26, 127, 55)";
-const AMBER = "rgb(191, 135, 0)";
-const ACCENT = "rgb(9, 105, 218)";
-const MUTED = "rgb(89, 99, 110)";
+const GREEN = "rgb(63, 185, 80)";
+const AMBER = "rgb(210, 153, 34)";
+const ACCENT = "rgb(68, 147, 248)";
+const MUTED = "rgb(145, 152, 161)";
 const NAMES = [
   "Descriptions",
   "C.R.A.P.",
