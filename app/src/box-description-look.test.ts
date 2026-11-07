@@ -108,6 +108,17 @@ facts.leftNote = { shown: showing(), panel: r(panel()), bubble: r(q(".note-bubbl
 
 canvas.render(props());
 hoverShow("bottom");
+facts.longPanel = r(panel());
+panel().style.pointerEvents = "auto";
+const probes = [[0.1, 0.1], [0.5, 0.1], [0.9, 0.1], [0.1, 0.5], [0.5, 0.5], [0.9, 0.5], [0.1, 0.9], [0.5, 0.9], [0.9, 0.9]].map(([fx, fy]) => { const p = r(panel()); const hit = document.elementFromPoint(p.left + p.width * fx, p.top + p.height * fy); return !!hit && hit.closest(".box-description") !== null; });
+facts.topmost = probes;
+const zOf = (node) => { const z = Number.parseInt(getComputedStyle(node).zIndex, 10); return Number.isNaN(z) ? 0 : z; };
+facts.panelZ = zOf(panel());
+facts.otherZ = [...q(".stage").children].filter((n) => n !== panel()).map(zOf);
+for (const node of q(".stage").querySelectorAll("*")) if (node.closest(".box-description") === null) facts.otherZ.push(zOf(node));
+panel().style.pointerEvents = "";
+canvas.render(props());
+hoverShow("bottom");
 facts.bottom = { shown: showing(), panel: r(panel()), box: bodyOf("bottom") };
 
 canvas.render(props({ selection: { kind: "module", id: "bottom" }, bar: moduleBar }));
@@ -153,6 +164,10 @@ type Facts = {
   folder: boolean;
   rightNote: Note;
   leftNote: Note;
+  longPanel: Rect;
+  topmost: boolean[];
+  panelZ: number;
+  otherZ: number[];
   bottom: { shown: boolean; panel: Rect; box: Rect };
   selected: { shown: boolean; panel: Rect; box: Rect; bar: Rect };
   surface: [string, string][];
@@ -176,10 +191,18 @@ describe.skipIf(!webkit)("box description look", () => {
     expect(facts.justBefore).toBe(false);
     expect(facts.shown).toBe(true);
     expect(facts.text).toBe("Parses the input.");
-    expect(facts.panel.left).toBeCloseTo(facts.box.left, 1);
-    expect(facts.panel.width).toBeCloseTo(facts.box.width, 1);
+    expect(facts.panel.left + facts.panel.width / 2).toBeCloseTo(
+      facts.box.left + facts.box.width / 2,
+      1,
+    );
     expect(facts.panel.top - facts.box.bottom).toBeCloseTo(8, 1);
     expect(facts.pointerEvents).toBe("none");
+  });
+
+  it("is 320 wide for a long description and nothing paints over it", () => {
+    expect(facts.longPanel.width).toBeCloseTo(320, 1);
+    expect(facts.topmost.every(Boolean)).toBe(true);
+    expect(facts.panelZ).toBeGreaterThan(Math.max(...facts.otherZ));
   });
 
   it("shows nothing for a box without a description or a folder box", () => {
