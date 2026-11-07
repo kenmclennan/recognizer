@@ -14,6 +14,15 @@ export type ChangeRange = {
   changes: RangeChange[];
 };
 
+export type RangeMembers = {
+  baseScans: Scan[];
+  files: {
+    path: string;
+    base_text: string | null;
+    head_text: string | null;
+  }[];
+};
+
 export type ViewsPort = {
   remove(name: string): Promise<void>;
   changeRange(base: string, head: string): Promise<ChangeRange | null>;
@@ -25,6 +34,7 @@ export type ViewsPort = {
   link(name: string): Promise<string>;
   renamesSince(commit: string): Promise<{ from: string; to: string }[]>;
   scansAt(commit: string): Promise<Scan[] | null>;
+  rangeMembers(base: string, head: string): Promise<RangeMembers | null>;
   takePendingView(): Promise<string | null>;
   copy(text: string): Promise<void>;
   onChanged(run: () => void): () => void;
@@ -42,6 +52,7 @@ export const inertViews: ViewsPort = {
   link: async (name) => name,
   renamesSince: async () => [],
   scansAt: async () => null,
+  rangeMembers: async () => null,
   takePendingView: async () => null,
   copy: async () => {},
   onChanged: () => () => {},

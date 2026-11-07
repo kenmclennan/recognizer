@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Scan } from "recognizer";
-import type { ChangeRange, ViewListing, ViewsPort } from "./views-port";
+import type {
+  ChangeRange,
+  RangeMembers,
+  ViewListing,
+  ViewsPort,
+} from "./views-port";
 
 export const viewsSource: ViewsPort = {
   remove: (name) => invoke<void>("remove_view", { name }),
@@ -25,6 +30,21 @@ export const viewsSource: ViewsPort = {
     return files === null
       ? null
       : files.map(({ text }) => JSON.parse(text) as Scan);
+  },
+  async rangeMembers(base, head) {
+    const found = await invoke<{
+      base_scans: { file: string; text: string }[];
+      files: RangeMembers["files"];
+    } | null>("range_members", { base, head });
+
+    return found === null
+      ? null
+      : {
+          baseScans: found.base_scans.map(
+            ({ text }) => JSON.parse(text) as Scan,
+          ),
+          files: found.files,
+        };
   },
   copy: (text) => navigator.clipboard.writeText(text),
   author: () => invoke<string>("view_author"),
