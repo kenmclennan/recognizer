@@ -199,7 +199,7 @@ def walk_items(
                 if is_test:
                     walk_test_file(repository, module, entries)
                 else:
-                    walk_file(repository, PurePosixPath(module), seen, entries)
+                    walk_file(repository, PurePosixPath(module), seen, entries, is_root=False)
 
                 continue
 
