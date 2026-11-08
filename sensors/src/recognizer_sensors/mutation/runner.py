@@ -2,6 +2,7 @@ import ctypes
 import errno
 import itertools
 import os
+import queue
 import shutil
 import signal
 import subprocess
@@ -9,8 +10,9 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +20,8 @@ from recognizer_sensors.backup import exclude_from_backup
 from recognizer_sensors.testrun.profiles import tool_environment
 
 WORK = Path(".recognizer") / "cache" / "mutation" / "work"
+ENVIRONMENTS = Path(".recognizer") / "cache" / "mutation" / "python-env"
+WARM_COMMAND = ["uv", "sync", "--frozen", "--no-install-project"]
 TAIL_LINES = 20
 PID_FILE = "pid"
 PID_GRACE_SECONDS = 60
@@ -275,8 +279,15 @@ def kill_group(process: subprocess.Popen) -> None:
         process.kill()
 
 
-def run_test_command(command: list[str], cwd: Path, timeout: float | None) -> TestRun:
+def run_test_command(
+    command: list[str], cwd: Path, timeout: float | None, environment: Path | None = None
+) -> TestRun:
     started = time.monotonic()
+    env = (
+        {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment)}
+        if environment is not None
+        else tool_environment(cwd, mark=False)
+    )
 
     try:
         with LIVE_LOCK:
@@ -286,7 +297,7 @@ def run_test_command(command: list[str], cwd: Path, timeout: float | None) -> Te
             process = subprocess.Popen(
                 command,
                 cwd=cwd,
-                env=tool_environment(cwd, mark=False),
+                env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -322,6 +333,53 @@ def output_tail(output: str) -> str:
 NUMBERS = itertools.count()
 
 
+class EnvironmentPool:
+    def __init__(self, repository: Path, work: Path, size: int) -> None:
+        self.repository = repository
+        self.folder = repository / ENVIRONMENTS / work.name
+        self.enabled = (repository / "uv.lock").is_file()
+        self.lock = threading.Lock()
+        self.warmed: set[int] = set()
+        self.free: queue.Queue[int] = queue.Queue()
+
+        for slot in range(size):
+            self.free.put(slot)
+
+    def prepare(self) -> None:
+        with self.lock:
+            if (self.folder / PID_FILE).is_file():
+                return
+
+            self.folder.mkdir(parents=True, exist_ok=True)
+            exclude_from_backup(self.folder.parent)
+            (self.folder / PID_FILE).write_text(str(os.getpid()))
+
+    @contextmanager
+    def lease(self) -> Iterator[Path | None]:
+        if not self.enabled:
+            yield None
+
+            return
+
+        slot = self.free.get()
+
+        try:
+            self.prepare()
+            environment = self.folder / str(slot)
+
+            if slot not in self.warmed:
+                self.warmed.add(slot)
+                run_test_command(WARM_COMMAND, self.repository, None, environment)
+
+            yield environment
+        finally:
+            self.free.put(slot)
+
+
+def leased(environments: EnvironmentPool | None):
+    return environments.lease() if environments is not None else nullcontext(None)
+
+
 def failed_files(output: str, known: Collection[str]) -> frozenset[str] | None:
     found: set[str] = set()
 
@@ -350,6 +408,7 @@ def run_mutant(
     timeout: float,
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
+    environments: EnvironmentPool | None = None,
 ) -> MutantResult:
     copy = work / str(number)
 
@@ -358,7 +417,13 @@ def run_mutant(
         head = mutant.source[: mutant.start_byte]
         tail = mutant.source[mutant.end_byte :]
         (copy / mutant.path).write_bytes(head + mutant.replacement + tail)
-        result = run_test_command(command, copy, timeout)
+
+        with leased(environments) as environment:
+            result = (
+                run_test_command(command, copy, timeout)
+                if environment is None
+                else run_test_command(command, copy, timeout, environment=environment)
+            )
     except OSError:
         return MutantResult("killed")
     finally:
@@ -382,6 +447,7 @@ def run_function(
     plan_for: Callable[[int], tuple[list[str], float]],
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
+    environments: EnvironmentPool | None = None,
 ) -> list[MutantResult] | None:
     results = []
 
@@ -390,7 +456,10 @@ def run_function(
             return None
 
         command, timeout = plan_for(index)
-        result = run_mutant(repository, work, next(NUMBERS), mutant, command, timeout, known, carry)
+        extra = {"environments": environments} if environments is not None else {}
+        result = run_mutant(
+            repository, work, next(NUMBERS), mutant, command, timeout, known, carry, **extra
+        )
 
         if STOP.is_set():
             return None
@@ -497,12 +566,16 @@ def stop_all() -> None:
                 kill_group(process)
 
 
-def install_stop_handler(work: Path) -> Callable[[], None]:
+def install_stop_handler(work: Path, *also: Path) -> Callable[[], None]:
     requested = threading.Event()
 
     def leave() -> None:
         stop_all()
         remove_work_folder(work)
+
+        for folder in also:
+            remove_work_folder(folder)
+
         os._exit(STOPPED_STATUS)
 
     def watchdog() -> None:

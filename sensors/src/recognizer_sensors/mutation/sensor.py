@@ -31,6 +31,7 @@ from recognizer_sensors.mutation.record import (
 from recognizer_sensors.mutation.runner import (
     NUMBERS,
     STOP,
+    EnvironmentPool,
     Mutant,
     MutantResult,
     Stopped,
@@ -38,6 +39,7 @@ from recognizer_sensors.mutation.runner import (
     copy_repository,
     install_coverage_stop_handler,
     install_stop_handler,
+    leased,
     new_work_folder,
     output_tail,
     remove_stale_work_folders,
@@ -362,10 +364,20 @@ class CopyPool:
         return copy
 
 
-def run_baseline(repository: Path, copies: CopyPool, command: list[str], subject: str) -> float:
+def run_baseline(
+    repository: Path,
+    copies: CopyPool,
+    command: list[str],
+    subject: str,
+    environments: EnvironmentPool | None = None,
+) -> float:
     try:
-        with copies.lease() as copy:
-            result = run_test_command(command, copy, None)
+        with copies.lease() as copy, leased(environments) as environment:
+            result = (
+                run_test_command(command, copy, None)
+                if environment is None
+                else run_test_command(command, copy, None, environment=environment)
+            )
     except OSError:
         raise not_installed(command[0]) from None
 
@@ -398,9 +410,15 @@ class Baseline:
 
 class Baselines:
     def __init__(
-        self, repository: Path, work: Path, max_workers: int, carry: tuple[str, ...] = ()
+        self,
+        repository: Path,
+        work: Path,
+        max_workers: int,
+        carry: tuple[str, ...] = (),
+        environments: EnvironmentPool | None = None,
     ) -> None:
         self.repository = repository
+        self.environments = environments
         self.copies = CopyPool(repository, work, max_workers, carry)
         self.lock = threading.Lock()
         self.entries: dict[tuple[str, ...], Baseline] = {}
@@ -417,7 +435,13 @@ class Baselines:
 
         if owner:
             try:
-                entry.seconds = run_baseline(self.repository, self.copies, command, subject)
+                entry.seconds = (
+                    run_baseline(self.repository, self.copies, command, subject)
+                    if self.environments is None
+                    else run_baseline(
+                        self.repository, self.copies, command, subject, self.environments
+                    )
+                )
             except Exception as error:
                 entry.error = error
 
@@ -841,11 +865,13 @@ def run(
         work = new_work_folder(repository)
         remove_stale_work_folders(work)
         labelled = len(commands) > 1
-        restore_handler = install_stop_handler(work)
+        environments = EnvironmentPool(repository, work, settings["max_workers"])
+        remove_stale_work_folders(environments.folder)
+        restore_handler = install_stop_handler(work, environments.folder)
 
         try:
             baselines = Baselines(
-                repository, work, settings["max_workers"], settings.get("carry", ())
+                repository, work, settings["max_workers"], settings.get("carry", ()), environments
             )
             tally_lock = threading.Lock()
 
@@ -921,6 +947,7 @@ def run(
                     plan_for(target),
                     hashes if configured is None and target.language == "python" else None,
                     *([settings["carry"]] if "carry" in settings else []),
+                    **({"environments": environments} if environments.enabled else {}),
                 ),
                 settings["max_workers"],
                 deadline,
@@ -929,9 +956,11 @@ def run(
             )
             stopped = STOP.is_set()
             remove_stale_work_folders(work)
+            remove_stale_work_folders(environments.folder)
         finally:
             restore_handler()
             remove_work_folder(work)
+            remove_work_folder(environments.folder)
 
     outcome, measured, skipped_ids, reused = assemble(done, stopped)
     mutated = len(measured) - reused
