@@ -170,7 +170,11 @@ export {
   type StructureSettings,
   structureSensor,
 } from "./structure-sensor.js";
-export { libraryApiHint } from "./test-importers.js";
+export {
+  LIBRARY_API_HINT,
+  libraryApiHint,
+  unusedTestOnlySentence,
+} from "./test-importers.js";
 export {
   type ChangeFacts,
   type StaleReason,

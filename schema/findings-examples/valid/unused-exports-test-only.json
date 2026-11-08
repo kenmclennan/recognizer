@@ -1,0 +1,24 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "structure", "version": "14" },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": {},
+  "findings": [
+    {
+      "id": "unused_exports:src/plan.py",
+      "kind": "unused_exports",
+      "severity": "warning",
+      "principle": "export-only-what-is-used",
+      "fix_pattern": "narrow-exports",
+      "summary": "src/plan.py exports 2 names no other module imports: build, draft; only tests import build (tests/test_plan.py), so if nothing outside the repository uses it, delete it with its tests; a library can list its public API in warnings.orphan.entry_points",
+      "evidence": {
+        "modules": ["src/plan.py"],
+        "members": [
+          { "module": "src/plan.py", "name": "build", "file": "src/plan.py", "lines": [3, 3], "test_files": ["tests/test_plan.py"] },
+          { "module": "src/plan.py", "name": "draft", "file": "src/plan.py", "lines": [9, 9] }
+        ]
+      }
+    }
+  ]
+}

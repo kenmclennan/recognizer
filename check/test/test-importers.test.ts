@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { validateScan } from "../src/scan.js";
 import { orphanFindings } from "../src/structure-warnings.js";
 import {
+  LIBRARY_API_HINT,
   libraryApiHint,
   testImportersOf,
   testOnlySummary,
+  unusedTestOnlyClause,
+  unusedTestOnlySentence,
 } from "../src/test-importers.js";
 
 type Records = { from: string; to: string; names?: string[] }[];
@@ -248,5 +251,30 @@ describe("orphan test importers", () => {
     for (const id of ["a/m.py", "a/m.ts", "a/m.rs", "a/m.kts"]) {
       expect(libraryApiHint(id)).toBeNull();
     }
+  });
+});
+
+describe("unused-exports test-only wording", () => {
+  it("uses it and its for one name", () => {
+    expect(unusedTestOnlyClause([{ name: "a", testFiles: ["t/x.py"] }])).toBe(
+      `; only tests import a (t/x.py), so if nothing outside the repository uses it, delete it with its tests${LIBRARY_API_HINT}`,
+    );
+    expect(unusedTestOnlySentence([{ name: "a", testFiles: ["t/x.py"] }])).toBe(
+      `Only tests import a: if nothing outside the repository uses it, delete it with its tests${LIBRARY_API_HINT}.`,
+    );
+  });
+
+  it("uses them and their for several names and unions the files", () => {
+    const marked = [
+      { name: "a", testFiles: ["t/y.py", "t/x.py"] },
+      { name: "b", testFiles: ["t/x.py"] },
+    ];
+
+    expect(unusedTestOnlyClause(marked)).toBe(
+      `; only tests import a, b (t/x.py, t/y.py), so if nothing outside the repository uses them, delete them with their tests${LIBRARY_API_HINT}`,
+    );
+    expect(unusedTestOnlySentence(marked)).toContain(
+      "delete them with their tests",
+    );
   });
 });

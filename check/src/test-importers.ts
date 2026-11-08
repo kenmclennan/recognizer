@@ -54,3 +54,45 @@ export function testOnlySummary(id: string, importers: TestImporter[]): string {
 
   return `${id} is imported only by ${count}: ${shown}${more > 0 ? ` and ${more} more` : ""}; it is not an entry point, so if it only supports tests move it next to them rather than deleting it${libraryApiHint(id) ?? ""}`;
 }
+
+export interface TestOnlyName {
+  name: string;
+  testFiles: string[];
+}
+
+function filesClause(files: string[]): string {
+  const shown = files.slice(0, SUMMARY_TEST_FILES).join(", ");
+  const more = files.length - SUMMARY_TEST_FILES;
+
+  return `${shown}${more > 0 ? ` and ${more} more` : ""}`;
+}
+
+function testOnlyWords(marked: TestOnlyName[]): {
+  names: string;
+  them: string;
+  their: string;
+  files: string;
+} {
+  const files = [...new Set(marked.flatMap((entry) => entry.testFiles))].sort(
+    compare,
+  );
+
+  return {
+    names: marked.map((entry) => entry.name).join(", "),
+    them: marked.length === 1 ? "it" : "them",
+    their: marked.length === 1 ? "its" : "their",
+    files: filesClause(files),
+  };
+}
+
+export function unusedTestOnlyClause(marked: TestOnlyName[]): string {
+  const words = testOnlyWords(marked);
+
+  return `; only tests import ${words.names} (${words.files}), so if nothing outside the repository uses ${words.them}, delete ${words.them} with ${words.their} tests${LIBRARY_API_HINT}`;
+}
+
+export function unusedTestOnlySentence(marked: TestOnlyName[]): string {
+  const words = testOnlyWords(marked);
+
+  return `Only tests import ${words.names}: if nothing outside the repository uses ${words.them}, delete ${words.them} with ${words.their} tests${LIBRARY_API_HINT}.`;
+}
