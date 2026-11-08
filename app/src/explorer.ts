@@ -56,7 +56,11 @@ import { buildFindingsPanelView } from "./findings-panel-view";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
-import { type FreshnessModel, hiddenText } from "./freshness-model";
+import {
+  type FreshnessModel,
+  findingsActionOf,
+  hiddenText,
+} from "./freshness-model";
 import { limitsFromText } from "./function-limits";
 import { computeHealth, describeTree } from "./health";
 import {
@@ -851,39 +855,41 @@ export function showExplorer(
         withNoteMoved(view, path, toIndex),
       ),
   });
-  const scanView = buildScanPanelView({
-    tick(key, ticked) {
-      const ticks = scanHost.ticks();
+  function applyTick(key: string, ticked: boolean) {
+    const ticks = scanHost.ticks();
 
-      if (key === DESCRIBE_KEY) {
-        scanHost.setTicks({ ...ticks, describe: ticked });
-        render();
-
-        return;
-      }
-
-      const rows = rowSensors(scanConfig, shippedSensors);
-      const plain = rows
-        .filter(({ runsTests }) => !runsTests)
-        .map(({ name }) => name);
-
-      if (rows.some(({ name, runsTests }) => name === key && runsTests)) {
-        const once = ticks.once.filter((one) => one !== key);
-
-        scanHost.setTicks({ ...ticks, once: ticked ? [...once, key] : once });
-        render();
-
-        return;
-      }
-
-      const rest = (ticks.ticked ?? plain).filter((one) => one !== key);
-
-      scanHost.setTicks({
-        ...ticks,
-        ticked: ticked ? [...rest, key] : rest,
-      });
+    if (key === DESCRIBE_KEY) {
+      scanHost.setTicks({ ...ticks, describe: ticked });
       render();
-    },
+
+      return;
+    }
+
+    const rows = rowSensors(scanConfig, shippedSensors);
+    const plain = rows
+      .filter(({ runsTests }) => !runsTests)
+      .map(({ name }) => name);
+
+    if (rows.some(({ name, runsTests }) => name === key && runsTests)) {
+      const once = ticks.once.filter((one) => one !== key);
+
+      scanHost.setTicks({ ...ticks, once: ticked ? [...once, key] : once });
+      render();
+
+      return;
+    }
+
+    const rest = (ticks.ticked ?? plain).filter((one) => one !== key);
+
+    scanHost.setTicks({
+      ...ticks,
+      ticked: ticked ? [...rest, key] : rest,
+    });
+    render();
+  }
+
+  const scanView = buildScanPanelView({
+    tick: applyTick,
     setOnlyView(on) {
       scanHost.setTicks({ ...scanHost.ticks(), onlyView: on });
       render();
@@ -893,7 +899,16 @@ export function showExplorer(
       render();
     },
     run() {
-      const { planned, button } = scanModel();
+      const first = scanModel();
+
+      if (first.button.tick.length > 0) {
+        for (const key of first.button.tick) {
+          applyTick(key, true);
+        }
+      }
+
+      const { planned, button } =
+        first.button.tick.length > 0 ? scanModel() : first;
 
       if (planned === null || button.disabled) {
         return;
@@ -3604,6 +3619,7 @@ export function showExplorer(
             link: "Update them",
           };
     const primary = findingsFresh.action.primary;
+    const findingsAction = findingsActionOf(primary, findingsLine?.link ?? "");
 
     findingsView.render({
       scope: {
@@ -3617,8 +3633,10 @@ export function showExplorer(
           : {
               text: findingsLine.text,
               action: {
-                label: primary.disabled ? "Open Scan" : findingsLine.link,
-                run: primary.disabled ? showScanPanel : bringFindingsUpToDate,
+                label: findingsAction.label,
+                run: findingsAction.openScan
+                  ? showScanPanel
+                  : bringFindingsUpToDate,
               },
             },
       noPolicy: loaded.policy === null,
