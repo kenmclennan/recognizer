@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from tree_sitter import Node
 
 from recognizer_scan_kotlin.declarations import (
+    NAMES,
     Decl,
     SourceFile,
     child,
@@ -67,6 +68,25 @@ def parameter_types_of(function: Node) -> dict[str, list[str]]:
 
         if segments:
             found[name_of(item) or ""] = segments
+
+    return found
+
+
+def bound_names(root: Node) -> set[str]:
+    found = set()
+
+    for node in walk(root):
+        if node.type in ("parameter", "class_parameter", "variable_declaration"):
+            name = child(node, "simple_identifier")
+        elif node.type == "catch_block":
+            name = child(node, "simple_identifier")
+        elif node.type == "function_declaration" and node is not root:
+            name = child(node, "simple_identifier")
+        else:
+            continue
+
+        if name is not None:
+            found.add(text_of(name))
 
     return found
 
@@ -239,6 +259,78 @@ class CallResolver:
                 else:
                     self.call_on_name(file, receiver, method, source, line)
 
+    def own_file_uses(self, file: SourceFile) -> None:
+        tops = {d.name: d for d in file.decls if d.owner is None}
+
+        for decl in file.decls:
+            if decl.owner is not None or decl.node is None:
+                continue
+
+            shadowed = bound_names(decl.node)
+            top = f"{file.path}::{decl.name}"
+            pending = [(decl.node, top)]
+            seen: set[tuple[str, str]] = set()
+            taken = {(src, ln, tgt) for src, ln, tgt, _ in self.found}
+
+            while pending:
+                node, source = pending.pop()
+
+                for item in reversed(node.children):
+                    pending.append((item, self.method_source(file, decl, node, item, source)))
+
+                target = self.own_target(node, tops, shadowed, decl.name)
+
+                if not target or (source, target) in seen:
+                    continue
+
+                seen.add((source, target))
+                line = line_of(node)
+                ref = f"{file.path}::{target}"
+
+                if (source, line, ref) not in taken:
+                    self.record(source, line, ref, "call")
+
+    def method_source(
+        self, file: SourceFile, decl: Decl, parent: Node, item: Node, source: str
+    ) -> str:
+        if (
+            decl.kind in ("class", "interface")
+            and item.type == "function_declaration"
+            and parent.type == "class_body"
+            and parent.parent is not None
+            and parent.parent.id == decl.node.id
+            and name_of(item)
+        ):
+            return f"{file.path}::{decl.name}.{name_of(item)}"
+
+        return source
+
+    def own_target(
+        self, node: Node, tops: dict[str, Decl], shadowed: set[str], own: str
+    ) -> str | None:
+        if node.type not in NAMES:
+            return None
+
+        name = text_of(node)
+        target = tops.get(name)
+
+        if target is None or name == own or name in shadowed:
+            return None
+
+        parent = node.parent
+
+        if parent is not None and node.type == "simple_identifier":
+            if parent.type == "navigation_suffix":
+                return name if target.kind == "function" and target.has_receiver else None
+
+            if parent.type == "value_argument":
+                following = node.next_sibling
+
+                if following is not None and following.type == "=":
+                    return None
+
+        return name
+
     def scan_file(self, file: SourceFile) -> None:
         for decl in file.decls:
             if decl.node is None:
@@ -291,6 +383,7 @@ class CallResolver:
     def scan_calls(self) -> list[dict]:
         for file in self.files:
             self.scan_file(file)
+            self.own_file_uses(file)
 
         self.add_dispatch()
 

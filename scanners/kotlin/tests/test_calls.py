@@ -137,3 +137,115 @@ def test_a_call_whose_far_end_is_not_a_member_is_dropped(run):
 
     assert document["calls"] == []
     assert edges_of(document, "c/U.kt")[0]["to"] == "foreign:z"
+
+
+def own(document):
+    return [(f, t) for f, t, how in call_tuples(document) if how == "call"]
+
+
+def test_a_constant_read_in_each_kind_of_scope_records_a_call(run):
+    source = (
+        "package p\n\nconst val LIMIT = 1\n\n"
+        "fun a() = LIMIT\n\n"
+        "val b = LIMIT\n\n"
+        "val c = listOf(1).map { it + LIMIT }\n\n"
+        "fun d() {\n    fun inner() = LIMIT\n    inner()\n}\n\n"
+        "class E {\n    val x = LIMIT\n}\n"
+    )
+
+    document = run({"a/K.kt": source})
+
+    assert own(document) == [
+        ("a/K.kt::E", "a/K.kt::LIMIT"),
+        ("a/K.kt::a", "a/K.kt::LIMIT"),
+        ("a/K.kt::b", "a/K.kt::LIMIT"),
+        ("a/K.kt::c", "a/K.kt::LIMIT"),
+        ("a/K.kt::d", "a/K.kt::LIMIT"),
+    ]
+
+
+def test_a_method_body_use_is_attributed_to_the_method(run):
+    document = run(
+        {"a/K.kt": "package p\n\nconst val LIMIT = 1\n\nclass E {\n    fun go() = LIMIT\n}\n"}
+    )
+
+    assert own(document) == [("a/K.kt::E.go", "a/K.kt::LIMIT")]
+
+
+def test_a_type_reference_to_a_same_file_type_records_a_call(run):
+    source = (
+        "package p\n\ninterface Base\n\nclass Sub : Base\n\n"
+        "fun take(x: Base) {}\n\nfun Base.ext() {}\n"
+    )
+
+    document = run({"a/K.kt": source})
+
+    assert own(document) == [
+        ("a/K.kt::Sub", "a/K.kt::Base"),
+        ("a/K.kt::ext", "a/K.kt::Base"),
+        ("a/K.kt::take", "a/K.kt::Base"),
+    ]
+
+
+def test_an_extension_call_by_name_records_a_call_and_a_member_access_does_not(run):
+    source = (
+        "package p\n\nconst val CONST = 1\n\nfun String.ext() = 1\n\n"
+        'fun go(o: Other) {\n    "s".ext()\n    o.CONST\n}\n\nclass Other\n'
+    )
+
+    document = run({"a/K.kt": source})
+
+    assert ("a/K.kt::go", "a/K.kt::ext") in own(document)
+    assert ("a/K.kt::go", "a/K.kt::CONST") not in own(document)
+
+
+def test_a_shadowed_name_records_nothing(run):
+    source = (
+        "package p\n\nconst val X = 1\n\n"
+        "fun a(X: Int) = X\n\n"
+        "fun b() {\n    val X = 2\n    println(X)\n}\n\n"
+        "fun c() = listOf(1).map { X -> X }\n\n"
+        "fun d() {\n    for (X in listOf(1)) println(X)\n}\n\n"
+        "fun e() {\n    try {\n    } catch (X: Exception) {\n        println(X)\n    }\n}\n"
+    )
+
+    document = run({"a/K.kt": source})
+
+    assert own(document) == []
+
+
+def test_a_named_argument_label_records_nothing(run):
+    source = (
+        "package p\n\nconst val name = 1\n\nfun f(name: Int) = name\n\nfun go() = f(name = 2)\n"
+    )
+
+    document = run({"a/K.kt": source})
+
+    assert ("a/K.kt::go", "a/K.kt::name") not in own(document)
+
+
+def test_a_recursive_call_and_a_class_using_its_own_name_record_nothing(run):
+    source = "package p\n\nfun r(n: Int): Int = if (n > 0) r(n - 1) else 0\n\nclass C {\n    fun copy(): C = C()\n}\n"
+
+    document = run({"a/K.kt": source})
+
+    assert own(document) == []
+
+
+def test_only_the_used_member_of_a_file_gets_a_call(run):
+    document = run(
+        {"a/K.kt": "package p\n\nconst val USED = 1\n\nconst val IDLE = 2\n\nfun go() = USED\n"}
+    )
+
+    assert own(document) == [("a/K.kt::go", "a/K.kt::USED")]
+
+
+def test_an_expect_file_records_a_call_for_its_used_member_only(run):
+    document = run(
+        {
+            "common/Env.kt": "package p\n\nexpect val USED: Int\n\nexpect val IDLE: Int\n\nfun go() = USED\n",
+            "jvm/Env.jvm.kt": "package p\n\nactual val USED: Int = 1\n\nactual val IDLE: Int = 2\n",
+        }
+    )
+
+    assert own(document) == [("common/Env.kt::go", "common/Env.kt::USED")]
