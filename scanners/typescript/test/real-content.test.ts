@@ -64,6 +64,7 @@ describe("scanning check/", () => {
       "node:path",
       "node:url",
       "node:util",
+      "smol-toml",
       "yaml",
     ]);
     expect(
