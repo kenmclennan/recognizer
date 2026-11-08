@@ -391,8 +391,8 @@ def mutation_git_copy_run(work):
     return findings, read_overlay(root, "mutation"), survivors
 
 
-def test_the_python_mutation_corpus_through_a_git_copy_matches_expected(mutation_git_copy_run):
-    findings, overlay, survivors = mutation_git_copy_run
+def assert_python_mutation_matches_expected(run):
+    findings, overlay, survivors = run
     cases = [
         c
         for c in load("mutation")["cases"]
@@ -420,3 +420,42 @@ def test_the_python_mutation_corpus_through_a_git_copy_matches_expected(mutation
         assert (finding_named(findings, case["finding_id"]) is not None) == (
             case["expect"] == "finding"
         )
+
+
+def test_the_python_mutation_corpus_through_a_git_copy_matches_expected(mutation_git_copy_run):
+    assert_python_mutation_matches_expected(mutation_git_copy_run)
+
+
+@pytest.fixture(scope="module")
+def mutation_uv_run(work):
+    root = copy_corpus("mutation", work / "mutation-uv", "scan.*.json")
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "corpus"\nversion = "0"\nrequires-python = ">=3.11"\n'
+    )
+    subprocess.run(["uv", "lock", "-q"], cwd=root, check=True, capture_output=True)
+    commit = git_commit(root)
+    cache = root / ".recognizer" / "cache"
+    cache.mkdir(parents=True)
+    shutil.copy(
+        FIXTURES / "mutation" / "corpus" / "scan.python.json",
+        cache / "scan.python.json",
+    )
+    findings = run_sensor(
+        "mutation",
+        root,
+        work / "mutation-uv.json",
+        {
+            "test_command": ["uv", "run", "python", "tests/run.py"],
+            "coverage": "coverage/lcov.info",
+            "max_workers": 2,
+        },
+        commit=commit,
+    )
+    survivors = json.loads((root / ".recognizer/cache/mutation/survivors.json").read_text())
+
+    return findings, read_overlay(root, "mutation"), survivors
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
+def test_the_python_mutation_corpus_through_a_uv_environment_matches_expected(mutation_uv_run):
+    assert_python_mutation_matches_expected(mutation_uv_run)
