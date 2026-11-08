@@ -128,3 +128,26 @@ def test_real_csharp_scanner_cli_is_an_entry_point():
     document = scan(Path(REPOSITORY / "scanners" / "csharp"), None, None)
 
     assert module(document, "src/recognizer_scan_csharp/cli.py")["entry_point"] is True
+
+
+def test_pyproject_without_scripts_is_listed_in_files(run):
+    document = run(
+        {
+            "sub/pyproject.toml": project("[tool.other]\nx = 1"),
+            "sub/pkg/cli.py": "x = 1\n",
+        }
+    )
+
+    assert "sub/pyproject.toml" in [f["path"] for f in document["files"]]
+
+
+def test_malformed_pyproject_is_not_listed_in_files(run):
+    document = run({"sub/pyproject.toml": "[project\nscripts = ", "sub/a.py": "x = 1\n"})
+
+    assert "sub/pyproject.toml" not in [f["path"] for f in document["files"]]
+
+
+def test_selection_carries_the_pyproject_glob(run):
+    document = run({"a.py": "x = 1\n"})
+
+    assert document["selection"]["input_file_globs"] == ["pyproject.toml"]

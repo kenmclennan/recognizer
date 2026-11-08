@@ -86,10 +86,9 @@ def script_entry_points(
         except ValueError:
             continue
 
-        names = script_modules(document)
+        read.append(manifest)
 
-        if names:
-            read.append(manifest)
+        names = script_modules(document)
 
         directory = PurePosixPath(manifest).parent
 

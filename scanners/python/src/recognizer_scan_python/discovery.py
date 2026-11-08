@@ -28,6 +28,7 @@ def selection(absent_paths: list[str] | None = None) -> dict:
         "skip_directory_suffixes": list(SKIPPED_DIRECTORY_SUFFIXES),
         "skip_directories_containing": list(SKIPPED_DIRECTORY_MARKERS),
         "skip_file_globs": list(SKIPPED_FILE_PATTERNS),
+        "input_file_globs": ["pyproject.toml"],
     }
 
     if absent_paths:

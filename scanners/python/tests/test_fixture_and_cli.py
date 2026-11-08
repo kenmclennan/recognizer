@@ -121,6 +121,7 @@ def test_selection_is_the_discovery_constants():
         "skip_directory_suffixes": [".egg-info"],
         "skip_directories_containing": ["pyvenv.cfg"],
         "skip_file_globs": ["conftest.py"],
+        "input_file_globs": ["pyproject.toml"],
         "input_absent_paths": ["pyproject.toml", "setup.cfg"],
     }
 
@@ -133,17 +134,17 @@ def test_a_present_root_config_is_listed_with_its_hash_and_only_the_other_is_abs
     assert {"path": "pyproject.toml", "hash": digest} in document["files"]
     assert [f["path"] for f in document["files"]] == sorted(f["path"] for f in document["files"])
     assert document["selection"]["input_absent_paths"] == ["setup.cfg"]
-    assert "input_file_globs" not in document["selection"]
+    assert document["selection"]["input_file_globs"] == ["pyproject.toml"]
     validate(document)
 
 
-def test_a_given_source_root_records_neither_key_nor_config_files(tmp_path):
+def test_a_given_source_root_records_no_absent_paths_but_still_lists_the_manifest(tmp_path):
     build_tree(tmp_path, {"a.py": "", "pyproject.toml": "[project]\nname = 'x'\n"})
     document = scan(tmp_path, ["."], None)
 
-    assert [f["path"] for f in document["files"]] == ["a.py"]
+    assert [f["path"] for f in document["files"]] == ["a.py", "pyproject.toml"]
     assert "input_absent_paths" not in document["selection"]
-    assert "input_file_globs" not in document["selection"]
+    assert document["selection"]["input_file_globs"] == ["pyproject.toml"]
 
 
 def git_in(path, *args):
