@@ -182,15 +182,12 @@ function compare(
     }
   }
 
-  const marked = [...marks.keys()];
-
   for (const key of parents) {
     const before = start.get(key) as Occurrence[];
     const after = end.get(key) as Occurrence[];
     const withMethods = [...before, ...after].some((o) => o.own !== null);
     const changed = withMethods
-      ? marked.some((k) => k.startsWith(`${key}.`)) ||
-        joinedOwn(before) !== joinedOwn(after)
+      ? joinedOwn(before) !== joinedOwn(after)
       : joined(before) !== joined(after);
 
     if (changed) {

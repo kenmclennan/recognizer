@@ -180,7 +180,30 @@ describe("memberMarks on a class", () => {
     "        2",
   ].join("\n");
 
-  it("marks an added method and its class modified", () => {
+  it("marks only the method when a line inside it changes", () => {
+    const head = base.replace("        1", "        9");
+
+    expect(
+      run(
+        [
+          klass(5, [
+            { name: "a", line: 2, end_line: 3 },
+            { name: "b", line: 4, end_line: 5 },
+          ]),
+        ],
+        [
+          klass(5, [
+            { name: "a", line: 2, end_line: 3 },
+            { name: "b", line: 4, end_line: 5 },
+          ]),
+        ],
+        head,
+        base,
+      ),
+    ).toEqual(new Map([["C.a", "modified"]]));
+  });
+
+  it("marks an added method and not its class", () => {
     const head = `${base}\n    def c(self):\n        3`;
 
     expect(
@@ -201,12 +224,7 @@ describe("memberMarks on a class", () => {
         head,
         base,
       ),
-    ).toEqual(
-      new Map([
-        ["C.c", "added"],
-        ["C", "modified"],
-      ]),
-    );
+    ).toEqual(new Map([["C.c", "added"]]));
   });
 
   it("marks neither method nor the class when two methods are reordered", () => {
