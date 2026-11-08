@@ -68,8 +68,8 @@ describe("groupsOf", () => {
       "Depends on less stable code",
       "Unused exports",
       "Duplicated code",
-      "Complex and untested",
-      "Tests miss changes",
+      "C.R.A.P.",
+      "Mutations",
       "Over a limit",
     ]);
     expect(names([document("structure", [record("hu", "hub")])])).toEqual([

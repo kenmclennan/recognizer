@@ -56,13 +56,13 @@
     },
     {
       "key": "kind:crap",
-      "name": "Complex and untested",
+      "name": "C.R.A.P.",
       "means": "A function that is both complex and poorly covered by tests, so changing it is risky.",
       "todo": "Add tests for it, or simplify it; either lowers the score."
     },
     {
       "key": "kind:mutation",
-      "name": "Tests miss changes",
+      "name": "Mutations",
       "means": "Recognizer changed this function's code and no test failed, so the tests do not pin its behaviour.",
       "todo": "Add a test that fails when this function's behaviour changes."
     },
