@@ -77,7 +77,7 @@ DEFAULTS = {
     "incremental": True,
 }
 
-ALLOWED = {"test_command", "coverage", "max_workers", "max_minutes", *DEFAULTS}
+ALLOWED = {"test_command", "coverage", "max_workers", "max_minutes", "carry", *DEFAULTS}
 
 CLOCK = time.monotonic
 
@@ -123,6 +123,22 @@ class Target:
     entries: list[dict | None] = field(default_factory=list)
     reused: bool = False
     carried: bool = False
+
+
+def parse_carry(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise SettingsError("carry must be a list of paths")
+
+    for item in value:
+        if not isinstance(item, str):
+            raise SettingsError("carry entries must be strings")
+
+        if item.startswith("/") or Path(item).is_absolute() or ".." in Path(item).parts:
+            raise SettingsError(
+                f"carry entry must be a relative path inside the repository: {item}"
+            )
+
+    return tuple(item.rstrip("/") for item in value if item.rstrip("/"))
 
 
 def parse_settings(raw: dict) -> dict:
@@ -173,6 +189,11 @@ def parse_settings(raw: dict) -> dict:
         "overlay": relative_path("overlay", settings["overlay"]),
         "survivors": relative_path("survivors", settings["survivors"]),
     }
+
+    carry = parse_carry(settings.get("carry", []))
+
+    if carry:
+        parsed["carry"] = carry
 
     if command is not None:
         parsed["test_command"] = command
@@ -272,7 +293,10 @@ LOG_LOCK = threading.Lock()
 
 
 class CopyPool:
-    def __init__(self, repository: Path, work: Path, size: int) -> None:
+    def __init__(
+        self, repository: Path, work: Path, size: int, carry: tuple[str, ...] = ()
+    ) -> None:
+        self.carry = carry
         self.repository = repository
         self.work = work
         self.size = size
@@ -323,7 +347,10 @@ class CopyPool:
         copy = self.work / f"baseline-{next(NUMBERS)}"
 
         try:
-            copy_repository(self.repository, copy)
+            if self.carry:
+                copy_repository(self.repository, copy, self.carry)
+            else:
+                copy_repository(self.repository, copy)
         except BaseException:
             with self.lock:
                 self.made -= 1
@@ -370,9 +397,11 @@ class Baseline:
 
 
 class Baselines:
-    def __init__(self, repository: Path, work: Path, max_workers: int) -> None:
+    def __init__(
+        self, repository: Path, work: Path, max_workers: int, carry: tuple[str, ...] = ()
+    ) -> None:
         self.repository = repository
-        self.copies = CopyPool(repository, work, max_workers)
+        self.copies = CopyPool(repository, work, max_workers, carry)
         self.lock = threading.Lock()
         self.entries: dict[tuple[str, ...], Baseline] = {}
 
@@ -815,7 +844,9 @@ def run(
         restore_handler = install_stop_handler(work)
 
         try:
-            baselines = Baselines(repository, work, settings["max_workers"])
+            baselines = Baselines(
+                repository, work, settings["max_workers"], settings.get("carry", ())
+            )
             tally_lock = threading.Lock()
 
             def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
@@ -889,6 +920,7 @@ def run(
                     mutants_for(target, sources),
                     plan_for(target),
                     hashes if configured is None and target.language == "python" else None,
+                    *([settings["carry"]] if "carry" in settings else []),
                 ),
                 settings["max_workers"],
                 deadline,

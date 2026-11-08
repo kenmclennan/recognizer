@@ -80,8 +80,124 @@ def ignore_for(repository: Path) -> Callable[[str, list[str]], set[str]]:
     return ignore
 
 
-def copy_repository(repository: Path, destination: Path) -> None:
-    shutil.copytree(repository, destination, symlinks=True, ignore=ignore_for(repository))
+GRADLE_FILES = {"build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"}
+
+
+def copy_entry(
+    source: Path, destination: Path, ignore: Callable[[str, list[str]], set[str]]
+) -> None:
+    if os.path.lexists(destination):
+        return
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    if source.is_dir() and not source.is_symlink():
+        shutil.copytree(source, destination, symlinks=True, ignore=ignore)
+
+        return
+
+    shutil.copy2(source, destination, follow_symlinks=False)
+
+
+def git_lines(repository: Path, *arguments: str) -> list[str] | None:
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(repository), "ls-files", "-z", *arguments],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+
+    if done.returncode != 0:
+        return None
+
+    return [item.decode("utf-8", "surrogateescape") for item in done.stdout.split(b"\0") if item]
+
+
+def excluded(relative: str) -> bool:
+    parts = Path(relative).parts
+
+    return (
+        parts[:1] == (".git",)
+        or parts[:2] == (".recognizer", "cache")
+        or "__pycache__" in parts
+        or relative.endswith(".pyc")
+    )
+
+
+def carried(relative: str, tracked: set[str], carry: tuple[str, ...]) -> bool:
+    path = Path(relative.rstrip("/"))
+    name = path.name
+    parent = path.parent
+
+    def beside(*matches: str) -> bool:
+        return any(Path(item).parent == parent and Path(item).name in matches for item in tracked)
+
+    if str(path) in carry or name == "node_modules":
+        return True
+
+    if name == "target":
+        return beside("Cargo.toml")
+
+    if name in {"build", ".gradle"}:
+        return beside(*GRADLE_FILES)
+
+    if name in {"bin", "obj"}:
+        return any(Path(item).parent == parent and item.endswith(".csproj") for item in tracked)
+
+    return False
+
+
+def plan_copy(repository: Path, carry: tuple[str, ...]) -> list[str] | None:
+    listed = git_lines(repository, "--cached", "--others", "--exclude-standard")
+
+    if listed is None:
+        return None
+
+    ignored = git_lines(repository, "--others", "--ignored", "--exclude-standard", "--directory")
+
+    if ignored is None:
+        return None
+
+    entries = []
+
+    for relative in dict.fromkeys(listed):
+        if excluded(relative) or not os.path.lexists(repository / relative):
+            continue
+
+        entries.append(relative)
+
+    tracked = {relative for relative in listed}
+
+    for relative in ignored:
+        if excluded(relative.rstrip("/")):
+            continue
+
+        if carried(relative, tracked, carry):
+            entries.append(relative.rstrip("/"))
+
+    for item in carry:
+        if item not in entries and not excluded(item) and os.path.lexists(repository / item):
+            entries.append(item)
+
+    return entries
+
+
+def copy_repository(repository: Path, destination: Path, carry: tuple[str, ...] = ()) -> None:
+    entries = plan_copy(repository, tuple(carry))
+    ignore = ignore_for(repository)
+
+    if entries is None:
+        shutil.copytree(repository, destination, symlinks=True, ignore=ignore)
+
+        return
+
+    destination.mkdir(parents=True, exist_ok=True)
+
+    for relative in entries:
+        copy_entry(repository / relative, destination / relative, ignore)
 
 
 def kill_group(process: subprocess.Popen) -> None:
@@ -165,11 +281,12 @@ def run_mutant(
     command: list[str],
     timeout: float,
     known: Collection[str] | None = None,
+    carry: tuple[str, ...] = (),
 ) -> MutantResult:
     copy = work / str(number)
 
     try:
-        copy_repository(repository, copy)
+        copy_repository(repository, copy, carry) if carry else copy_repository(repository, copy)
         head = mutant.source[: mutant.start_byte]
         tail = mutant.source[mutant.end_byte :]
         (copy / mutant.path).write_bytes(head + mutant.replacement + tail)
@@ -196,6 +313,7 @@ def run_function(
     mutants: list[Mutant],
     plan_for: Callable[[int], tuple[list[str], float]],
     known: Collection[str] | None = None,
+    carry: tuple[str, ...] = (),
 ) -> list[MutantResult] | None:
     results = []
 
@@ -204,7 +322,7 @@ def run_function(
             return None
 
         command, timeout = plan_for(index)
-        result = run_mutant(repository, work, next(NUMBERS), mutant, command, timeout, known)
+        result = run_mutant(repository, work, next(NUMBERS), mutant, command, timeout, known, carry)
 
         if STOP.is_set():
             return None
