@@ -1393,6 +1393,17 @@ export function buildCanvasView(
 
     event.preventDefault();
 
+    const focused = document.activeElement;
+
+    if (
+      focused instanceof HTMLElement &&
+      (focused instanceof HTMLInputElement ||
+        focused instanceof HTMLTextAreaElement ||
+        focused.isContentEditable)
+    ) {
+      focused.blur();
+    }
+
     drag = {
       start: { x: event.clientX, y: event.clientY },
       origin: { x: viewport.x, y: viewport.y },
@@ -1460,7 +1471,10 @@ export function buildCanvasView(
 
     if (!moved) {
       pointerAnchor = null;
-      actions.select(null);
+
+      if (event.type === "pointerup") {
+        actions.select(null);
+      }
     }
   }
 

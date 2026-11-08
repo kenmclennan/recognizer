@@ -316,6 +316,25 @@ result.panEnd = {
   selection: String(getSelection()),
 };
 
+const selected = [];
+selectHook = (selection) => selected.push(selection);
+const field = document.createElement("input");
+document.body.appendChild(field);
+field.focus();
+const focusedBefore = document.activeElement === field;
+q(".surface").dispatchEvent(new PointerEvent("pointerdown", { pointerId: 7, bubbles: true, cancelable: true, button: 0, clientX: emptySpot.x, clientY: emptySpot.y }));
+const focusedAfter = document.activeElement === field;
+pointer(q(".surface"), "pointercancel", emptySpot.x, emptySpot.y);
+const afterCancelSelects = selected.length;
+q(".surface").dispatchEvent(new PointerEvent("pointerdown", { pointerId: 7, bubbles: true, cancelable: true, button: 0, clientX: emptySpot.x, clientY: emptySpot.y }));
+q(".surface").dispatchEvent(new PointerEvent("lostpointercapture", { pointerId: 7, bubbles: true }));
+const afterLostSelects = selected.length;
+q(".surface").dispatchEvent(new PointerEvent("pointerdown", { pointerId: 7, bubbles: true, cancelable: true, button: 0, clientX: emptySpot.x, clientY: emptySpot.y }));
+pointer(q(".surface"), "pointerup", emptySpot.x, emptySpot.y);
+result.pressFocus = { focusedBefore, focusedAfter, afterCancelSelects, afterLostSelects, afterUpSelects: selected.length, cleared: selected[0] };
+field.remove();
+selectHook = null;
+
 const moduleBar = () => bar({ kind: "module", files: null });
 const barEl = () => q(".selection-bar");
 const away = () => barEl().classList.contains("away");
@@ -394,6 +413,14 @@ type Report = {
     held: boolean;
     lostHeld: boolean;
     selection: string;
+  };
+  pressFocus: {
+    focusedBefore: boolean;
+    focusedAfter: boolean;
+    afterCancelSelects: number;
+    afterLostSelects: number;
+    afterUpSelects: number;
+    cleared: unknown;
   };
   pinned: {
     beforePan: { offset: { dx: number; dy: number }; box: number };
@@ -928,6 +955,21 @@ describe("the canvas, in a real browser", () => {
       expect(held).toBe(true);
       expect(lostHeld).toBe(true);
       expect(selection).toBe("");
+    },
+    scaledTimeout(120000),
+  );
+
+  it.skipIf(webkit === undefined)(
+    "blurs a focused text field on a canvas press and clears the selection only on pointerup",
+    () => {
+      const p = r().pressFocus;
+
+      expect(p.focusedBefore).toBe(true);
+      expect(p.focusedAfter).toBe(false);
+      expect(p.afterCancelSelects).toBe(0);
+      expect(p.afterLostSelects).toBe(0);
+      expect(p.afterUpSelects).toBe(1);
+      expect(p.cleared).toBeNull();
     },
     scaledTimeout(120000),
   );
