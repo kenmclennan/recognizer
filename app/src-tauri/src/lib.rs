@@ -35,10 +35,11 @@ use repository::ScanReport;
 use scan_run::{ScanRun, ScanRuns};
 use socket::{Drives, Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use windows::{
-    canonical_folder, cascade_from, keeps_running, label_number, menu_target, pick_window, Claim,
-    Route, WindowState,
+    canonical_folder, cascade_from, keeps_running, label_number, menu_target, pick_window,
+    quit_question, Claim, Route, WindowState, CANCEL, CLOSE_QUESTION, STOP_AND_CLOSE,
+    STOP_AND_QUIT,
 };
 
 const APP_TITLE: &str = "Recognizer";
@@ -605,6 +606,16 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
 
     match event {
         WindowEvent::Focused(true) => state.focused(window.label()),
+        WindowEvent::CloseRequested { api, .. } => {
+            if window
+                .app_handle()
+                .state::<ScanRuns>()
+                .in_progress(window.label())
+            {
+                api.prevent_close();
+                ask_to_close(window);
+            }
+        }
         WindowEvent::Destroyed => {
             state.closed(window.label());
             window
@@ -615,6 +626,97 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
             window.app_handle().state::<ScanRuns>().stop(window.label());
         }
         _ => {}
+    }
+}
+
+fn ask_to_close(window: &tauri::Window) {
+    let app = window.app_handle().clone();
+    let label = window.label().to_string();
+    let state = app.state::<WindowState>();
+
+    if !state.begin_asking(&label) {
+        return;
+    }
+
+    state.dialog_opened();
+
+    let asked = window.clone();
+    let scheduled = app.run_on_main_thread({
+        let app = app.clone();
+
+        move || {
+            let answered = asked.clone();
+
+            app.dialog()
+                .message(CLOSE_QUESTION)
+                .title(APP_TITLE)
+                .kind(MessageDialogKind::Warning)
+                .parent(&asked)
+                .buttons(MessageDialogButtons::OkCancelCustom(
+                    STOP_AND_CLOSE.to_string(),
+                    CANCEL.to_string(),
+                ))
+                .show(move |stop| {
+                    let app = answered.app_handle().clone();
+
+                    app.state::<WindowState>().end_asking(answered.label());
+                    app.state::<WindowState>().dialog_closed();
+
+                    if stop {
+                        app.state::<ScanRuns>().stop(answered.label());
+                        let _ = answered.destroy();
+                    }
+                });
+        }
+    });
+
+    if scheduled.is_err() {
+        state.end_asking(&label);
+        state.dialog_closed();
+    }
+}
+
+fn ask_to_quit(app: &AppHandle, count: usize) {
+    let state = app.state::<WindowState>();
+
+    if !state.begin_quit_question() {
+        return;
+    }
+
+    state.dialog_opened();
+
+    let scheduled = app.run_on_main_thread({
+        let app = app.clone();
+
+        move || {
+            let answered = app.clone();
+
+            app.dialog()
+                .message(quit_question(count))
+                .title(APP_TITLE)
+                .kind(MessageDialogKind::Warning)
+                .buttons(MessageDialogButtons::OkCancelCustom(
+                    STOP_AND_QUIT.to_string(),
+                    CANCEL.to_string(),
+                ))
+                .show(move |stop| {
+                    let state = answered.state::<WindowState>();
+
+                    state.end_quit_question();
+                    state.dialog_closed();
+
+                    if stop {
+                        answered.state::<ScanRuns>().stop_all();
+                        state.confirm_quit();
+                        answered.exit(0);
+                    }
+                });
+        }
+    });
+
+    if scheduled.is_err() {
+        state.end_quit_question();
+        state.dialog_closed();
     }
 }
 
@@ -1437,6 +1539,15 @@ pub fn run() {
                 }
             }
             RunEvent::ExitRequested { code, api, .. } => {
+                let running = app.state::<ScanRuns>().in_progress_labels().len();
+
+                if running > 0 && !app.state::<WindowState>().quit_confirmed() {
+                    api.prevent_exit();
+                    ask_to_quit(app, running);
+
+                    return;
+                }
+
                 if keeps_running(
                     code,
                     app.state::<WindowState>().dialogs_open(),

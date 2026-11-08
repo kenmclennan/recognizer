@@ -154,6 +154,26 @@ impl ScanRuns {
     pub fn running(&self, label: &str) -> bool {
         self.lock().contains_key(label)
     }
+
+    pub fn in_progress(&self, label: &str) -> bool {
+        self.lock().get(label).is_some_and(|handle| !handle.stopped)
+    }
+
+    pub fn in_progress_labels(&self) -> Vec<String> {
+        self.lock()
+            .iter()
+            .filter(|(_, handle)| !handle.stopped)
+            .map(|(label, _)| label.clone())
+            .collect()
+    }
+
+    pub fn stop_all(&self) {
+        let labels: Vec<String> = self.lock().keys().cloned().collect();
+
+        for label in labels {
+            self.stop(&label);
+        }
+    }
 }
 
 pub fn summary_log(line: &str) -> Option<String> {
@@ -380,6 +400,46 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::tool_runner::tests::{runner_with, working_runner};
+
+    #[test]
+    fn a_run_counts_as_in_progress_until_it_is_stopped() {
+        let runs = ScanRuns::default();
+
+        assert!(!runs.in_progress("w-1"));
+
+        runs.begin("w-1").unwrap();
+
+        assert!(runs.in_progress("w-1"));
+
+        runs.stop("w-1");
+
+        assert!(!runs.in_progress("w-1"));
+        assert!(runs.running("w-1"));
+    }
+
+    #[test]
+    fn a_stopped_run_is_not_listed_as_in_progress() {
+        let runs = ScanRuns::default();
+
+        runs.begin("w-1").unwrap();
+        runs.begin("w-2").unwrap();
+        runs.stop("w-2");
+
+        assert_eq!(runs.in_progress_labels(), vec!["w-1".to_string()]);
+    }
+
+    #[test]
+    fn stop_all_stops_every_run() {
+        let runs = ScanRuns::default();
+
+        runs.begin("w-1").unwrap();
+        runs.begin("w-2").unwrap();
+        runs.stop("w-2");
+        runs.stop_all();
+
+        assert!(runs.in_progress_labels().is_empty());
+        assert!(!runs.in_progress("w-1"));
+    }
 
     fn names(list: &[&str]) -> Vec<String> {
         list.iter().map(|name| name.to_string()).collect()
