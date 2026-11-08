@@ -1391,6 +1391,8 @@ export function buildCanvasView(
       return;
     }
 
+    event.preventDefault();
+
     drag = {
       start: { x: event.clientX, y: event.clientY },
       origin: { x: viewport.x, y: viewport.y },
@@ -1443,7 +1445,7 @@ export function buildCanvasView(
     }
   });
 
-  surface.addEventListener("pointerup", (event) => {
+  function endDrag(event: PointerEvent) {
     if (!drag) {
       return;
     }
@@ -1451,13 +1453,20 @@ export function buildCanvasView(
     const moved = drag.moved;
 
     drag = null;
-    surface.releasePointerCapture(event.pointerId);
+
+    if (surface.hasPointerCapture(event.pointerId)) {
+      surface.releasePointerCapture(event.pointerId);
+    }
 
     if (!moved) {
       pointerAnchor = null;
       actions.select(null);
     }
-  });
+  }
+
+  surface.addEventListener("pointerup", endDrag);
+  surface.addEventListener("pointercancel", endDrag);
+  surface.addEventListener("lostpointercapture", endDrag);
 
   surface.addEventListener("click", (event) => {
     const mark = (event.target as Element | null)?.closest<SVGElement>(
