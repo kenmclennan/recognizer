@@ -134,8 +134,23 @@ export function freshnessNote(
   group: OverlayGroup,
   row: ResultRow | undefined,
   now: number,
+  shipped: ShippedSensors | null,
 ): GroupNote | null {
-  if (row === undefined || row.state.kind === "current") {
+  if (row === undefined) {
+    if (shipped === null) {
+      return null;
+    }
+
+    return {
+      text:
+        shipped.status === "unavailable"
+          ? "The sensor list could not be read, so its values are not shown."
+          : "Not written by a sensor this repository runs, so its values are not shown.",
+      tone: "muted",
+    };
+  }
+
+  if (row.state.kind === "current") {
     return null;
   }
 
@@ -319,7 +334,8 @@ export function applyFreshness(
     const group = keepCurrent(filtered, freshness);
     const row = freshness.rows.find((entry) => entry.key === group.name);
     const stale = row !== undefined && row.state.kind === "out-of-date";
-    const enabled = group.enabled && (!stale || holdsValue(group));
+    const enabled =
+      group.enabled && row !== undefined && (!stale || holdsValue(group));
 
     return enabled === group.enabled ? group : { ...group, enabled };
   });
