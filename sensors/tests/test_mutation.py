@@ -1,3 +1,4 @@
+import errno
 import hashlib
 import json
 import os
@@ -1697,3 +1698,189 @@ def test_copy_repository_skips_pycache_at_any_depth_and_keeps_skipping_git_and_c
     copied = sorted(str(path.relative_to(destination)) for path in destination.rglob("*"))
 
     assert copied == [".recognizer", ".recognizer/policy.yaml", "pkg", "pkg/mod.py"]
+
+
+def git_repository(root, tracked, untracked=(), ignore=""):
+    root.mkdir(parents=True, exist_ok=True)
+
+    for relative in (*tracked, *untracked):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(relative)
+
+    (root / ".gitignore").write_text(ignore)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", ".gitignore", *tracked], cwd=root, check=True)
+
+    return root
+
+
+def ignored_file(root, relative):
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("ignored")
+
+
+def copied_files(destination):
+    return sorted(
+        str(path.relative_to(destination))
+        for path in destination.rglob("*")
+        if path.is_file() and not path.is_symlink() or path.is_symlink()
+    )
+
+
+def test_copy_repository_holds_tracked_and_untracked_files_and_leaves_ignored_folders_out(tmp_path):
+    source = git_repository(
+        tmp_path / "source",
+        ["kept.py", "gone.py", "pkg/mod.py"],
+        ["fresh.py"],
+        ".worktrees/\n.venv/\n.pytest_cache/\n",
+    )
+    (source / "gone.py").unlink()
+    ignored_file(source, ".worktrees/x/file")
+    ignored_file(source, ".venv/lib/x")
+    ignored_file(source, ".pytest_cache/y")
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert copied_files(destination) == [".gitignore", "fresh.py", "kept.py", "pkg/mod.py"]
+
+
+def test_copy_repository_carries_node_modules_at_any_depth(tmp_path):
+    source = git_repository(tmp_path / "source", ["a.js", "app/b.js"], (), "node_modules/\n")
+    ignored_file(source, "node_modules/x/index.js")
+    ignored_file(source, "app/node_modules/y/index.js")
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert (destination / "node_modules/x/index.js").exists()
+    assert (destination / "app/node_modules/y/index.js").exists()
+
+
+def test_copy_repository_carries_target_only_beside_a_tracked_cargo_toml(tmp_path):
+    source = git_repository(
+        tmp_path / "source", ["rust/Cargo.toml", "other/a.txt"], (), "target/\n"
+    )
+    ignored_file(source, "rust/target/debug/x")
+    ignored_file(source, "other/target/debug/x")
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert (destination / "rust/target/debug/x").exists()
+    assert not (destination / "other/target").exists()
+
+
+def test_copy_repository_carries_build_beside_a_gradle_settings_file(tmp_path):
+    source = git_repository(
+        tmp_path / "source", ["settings.gradle.kts", "x/a.txt"], (), "build/\n.gradle/\n"
+    )
+    ignored_file(source, "build/classes/x")
+    ignored_file(source, ".gradle/y")
+    ignored_file(source, "x/build/z")
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert (destination / "build/classes/x").exists()
+    assert (destination / ".gradle/y").exists()
+    assert not (destination / "x/build").exists()
+
+
+def test_copy_repository_carries_obj_beside_a_tracked_csproj(tmp_path):
+    source = git_repository(tmp_path / "source", ["App/App.csproj", "Lib/a.cs"], (), "obj/\nbin/\n")
+    ignored_file(source, "App/obj/project.assets.json")
+    ignored_file(source, "Lib/obj/project.assets.json")
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert (destination / "App/obj/project.assets.json").exists()
+    assert not (destination / "Lib/obj").exists()
+
+
+def test_copy_repository_carries_listed_paths_and_skips_missing_ones(tmp_path):
+    source = git_repository(tmp_path / "source", ["a.txt"], (), "gen/\nvendor/\n.venv/\n")
+    ignored_file(source, "gen/one.py")
+    ignored_file(source, "vendor/two.py")
+    ignored_file(source, ".venv/lib/x")
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination, ("gen", "missing", "vendor"))
+
+    assert (destination / "gen/one.py").exists()
+    assert (destination / "vendor/two.py").exists()
+    assert not (destination / ".venv").exists()
+
+
+def test_copy_repository_clones_a_listed_directory_whole(tmp_path):
+    source = git_repository(tmp_path / "source", ["a.txt"])
+    nested = source / "sub"
+    nested.mkdir()
+    (nested / "inner.txt").write_text("inner")
+    subprocess.run(["git", "init", "-q"], cwd=nested, check=True)
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert (destination / "sub/inner.txt").read_text() == "inner"
+
+
+def test_copy_repository_falls_back_to_a_plain_copy_and_stops_trying_to_clone(
+    tmp_path, monkeypatch
+):
+    source = git_repository(tmp_path / "source", ["a.txt", "b.txt", "c/d.txt"])
+    calls = []
+
+    def refuse(*args):
+        calls.append(args)
+
+        return -1
+
+    monkeypatch.setitem(runner.CLONE_STATE, "enabled", True)
+    monkeypatch.setitem(runner.CLONE_STATE, "call", refuse)
+    monkeypatch.setattr(runner.ctypes, "get_errno", lambda: errno.ENOTSUP)
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert copied_files(destination) == [".gitignore", "a.txt", "b.txt", "c/d.txt"]
+    assert len(calls) == 1
+
+
+def test_copy_repository_never_clones_where_cloning_is_disabled(tmp_path, monkeypatch):
+    source = git_repository(tmp_path / "source", ["a.txt"])
+    calls = []
+    monkeypatch.setitem(runner.CLONE_STATE, "enabled", False)
+    monkeypatch.setitem(runner.CLONE_STATE, "call", lambda *args: calls.append(args) or 0)
+
+    runner.copy_repository(source, tmp_path / "copy")
+
+    assert calls == []
+    assert (tmp_path / "copy/a.txt").exists()
+
+
+def test_writing_in_a_copy_leaves_the_original_unchanged(tmp_path):
+    source = git_repository(tmp_path / "source", ["a.txt"], (), "node_modules/\n")
+    ignored_file(source, "node_modules/x/index.js")
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+    (destination / "a.txt").write_text("changed")
+    (destination / "node_modules/x/index.js").write_text("changed")
+
+    assert (source / "a.txt").read_text() == "a.txt"
+    assert (source / "node_modules/x/index.js").read_text() == "ignored"
+
+
+@pytest.mark.parametrize("value", ["gen", ["ok", 3], ["/abs"], ["../up"], ["a/../../b"]])
+def test_carry_setting_rejects_bad_values(value):
+    with pytest.raises(SettingsError):
+        sensor.parse_settings({"carry": value})
+
+
+def test_carry_setting_accepts_relative_paths():
+    assert sensor.parse_settings({"carry": ["gen", "x/y/"]})["carry"] == ("gen", "x/y")
+    assert "carry" not in sensor.parse_settings({})
