@@ -203,7 +203,7 @@ describe("a member-granularity overlay judged per module", () => {
     expect(model.metrics[0]?.values).toEqual({ "a.py::f": 3, "b.py::g": 9 });
   });
 
-  it("keeps the group enabled and lists its metrics when every module is out of date", () => {
+  it("disables the group and lists no metrics when every module is out of date", () => {
     const model = shown({ "a.py": H0, "b.py": H0 });
 
     expect(model.groups[0]?.enabled).toBe(false);
