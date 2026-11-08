@@ -186,7 +186,6 @@ describe.skipIf(webkit === undefined)("member marks in a real browser", () => {
     expect(f.change.bands.map((band) => band.title).sort()).toEqual([
       "added",
       "modified",
-      "modified",
       "removed",
     ]);
     expect(f.change.removedStrike).toEqual(["line-through"]);
