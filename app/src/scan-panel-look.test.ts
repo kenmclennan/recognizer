@@ -47,7 +47,7 @@ const gate = () => { let release = () => {}; const promise = new Promise((resolv
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED), scanned = true, viewFiles = {}) {
+async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED), scanned = true, viewFiles = {}, files = FILES) {
   for (const old of document.querySelectorAll(".mount-root")) old.remove();
   const root = document.createElement("div");
   root.className = "mount-root";
@@ -58,7 +58,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   root.append(host, footerEl);
   document.body.append(root);
   const editor = fakeEditor();
-  const responsibilities = fakeResponsibilities(FILES);
+  const responsibilities = fakeResponsibilities(files);
   const wired = { tray: [], posted: [], explorer: null, current: null, scanState: null, scanning: null, rescanner: null };
   const withProgress = (state) => ({ ...state, scanning: wired.scanning });
   const footer = buildFooter(footerEl);
@@ -364,7 +364,12 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const crapDoc = (hashes) => json({ findings_version: 1, sensor: { name: "crap", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: hashes, findings: [] });
   const fsensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
-  const fr = await mount(fakeScan(), fsensors);
+  for (const name of ["duplication", "mutation", "alpha", "beta"]) fsensors.files.set(name, json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] }));
+  const HA = "a".repeat(64);
+  const HB = "b".repeat(64);
+  const line = (hash) => ({ line: "Does a thing.", source_hash: hash, describer: ["node", "d.js"], version: "v1" });
+  const described = { responsibilities: json({ schema_version: 1, modules: { "app/a.py": line(HA), "app/b.py": line(HB) } }), config: CONFIG + "describer:\\n  command: [node, d.js]\\n  version: v1\\n", refused: [], hashes: { "app/a.py": HA, "app/b.py": HB } };
+  const fr = await mount(fakeScan(), fsensors, true, {}, described);
   click(fr.q(".rail-scan"));
   await tick();
   await fr.setTick("crap", true);
@@ -511,10 +516,10 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
   });
 
-  it("remembers the switch through the port and sends the view's module ids when it is on and starts nothing from an idle panel", () => {
+  it("remembers the switch through the port and sends the view's module ids when it is on, and a click on the Update button runs the unticked rows once the scope is off", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
-    expect(f.scopeOffRan).toEqual([["app/a.py"]]);
+    expect(f.scopeOffRan).toEqual([["app/a.py"], ["app/a.py", "app/b.py"]]);
   });
 
   it("summarises one changed module with no bar and Update 1 module, then everything current with a disabled Up to date once the hashes match", () => {
@@ -577,7 +582,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.summary).toMatchObject({
       shape: "attention",
       tone: "warn",
-      head: "Structure has never run",
+      head: "Structure, Descriptions, C.R.A.P., Duplication, Mutation, alpha and beta have never run",
       bar: 0,
     });
     expect(f.fresh.rowBars).toBe(0);
@@ -633,8 +638,8 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.changed.header).toBe("Ran 2 hours ago");
     expect(f.changed.amber).toBeNull();
     expect(f.changed.summary).toMatchObject({
-      shape: "changed",
-      head: "1 module changed since it was scanned",
+      shape: "attention",
+      head: "Descriptions, C.R.A.P., Duplication, Mutation, alpha and beta have never run",
       bar: 0,
     });
     expect(f.changed.rows.find((r: Facts) => r.key === "structure").state).toBe(

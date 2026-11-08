@@ -510,11 +510,13 @@ describe("scanPanel row states", () => {
       scanning: false,
       label: "Run Structure",
       disabled: false,
+      tick: [],
     });
     expect(scanPanel(input({ scanning: true })).button).toEqual({
       scanning: true,
       label: "Running",
       disabled: true,
+      tick: [],
     });
   });
 });
@@ -773,9 +775,14 @@ describe("scanPanel freshness", () => {
     measured: { inputs, tests: "t" },
   });
 
+  const others = ["duplication", "mutation", "alpha", "beta"].map((name) => ({
+    ...crap({ "a.py": "ha", "b.py": "hb" }),
+    name,
+  }));
+
   const base = (inputs: Record<string, string>) =>
     input({
-      sensors: [crap(inputs)],
+      sensors: [crap(inputs), ...others],
       scans: [freshScan],
       lines: allCurrent(["a.py", "b.py"]),
       ticks: { describe: true, ticked: [], once: ["crap"], onlyView: false },
@@ -812,6 +819,7 @@ describe("scanPanel freshness", () => {
       scanning: false,
       label: "Update 1 module",
       disabled: false,
+      tick: [],
     });
   });
 
@@ -825,11 +833,12 @@ describe("scanPanel freshness", () => {
       scanning: false,
       label: "Up to date",
       disabled: true,
+      tick: [],
     });
   });
 
   it("reads a sensor with no findings document as never run and offers to run it", () => {
-    const model = scanPanel({ ...base({}), sensors: [] });
+    const model = scanPanel({ ...base({}), sensors: others });
 
     expect(model.freshness.summary.head).toBe("C.R.A.P. has never run");
     expect(model.rows.find(({ key }) => key === "crap")?.text.text).toBe(

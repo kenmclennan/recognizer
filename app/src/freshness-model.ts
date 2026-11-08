@@ -32,7 +32,7 @@ export type ResultRow = {
 export type SummaryTone = "ok" | "warn" | "bad" | "run";
 
 export type Summary = {
-  shape: "running" | "attention" | "changed" | "current";
+  shape: "running" | "attention" | "changed" | "behind" | "current";
   tone: SummaryTone;
   icon: IconName;
   head: string;
@@ -41,7 +41,7 @@ export type Summary = {
 };
 
 export type Action = {
-  primary: { label: string; disabled: boolean };
+  primary: { label: string; disabled: boolean; tick?: string[] };
   secondary: { label: string; mode: ResultsMode; disabled: boolean };
 };
 
@@ -426,12 +426,21 @@ function summarize(
     };
   }
 
-  const failed = rows.filter(
-    ({ key, state }) => ticked(key) && state.kind === "failed",
+  const failed = rows.filter(({ state }) => state.kind === "failed");
+  const never = rows.filter(({ state }) => state.kind === "never-run");
+  const behind = rows.filter(
+    ({ key, state }) =>
+      key !== STRUCTURE_KEY && !ticked(key) && state.kind === "out-of-date",
   );
-  const never = rows.filter(
-    ({ key, state }) => ticked(key) && state.kind === "never-run",
-  );
+  const behindSentence =
+    behind.length === 0
+      ? ""
+      : ` ${joinNames(behind.map(({ name }) => name))} ${behind.length === 1 ? "is" : "are"} out of date and not ticked.`;
+  const current = rows.filter(({ state }) => state.kind === "current");
+  const currentSentence =
+    current.length === 0
+      ? ""
+      : ` ${joinNames(current.map(({ name }) => name))} ${current.length === 1 ? "is" : "are"} current.`;
 
   if (failed.length > 0 || never.length > 0) {
     const clauses = [
@@ -444,18 +453,13 @@ function summarize(
           ]
         : []),
     ];
-    const current = rows.filter(({ state }) => state.kind === "current");
-    const currentSentence =
-      current.length === 0
-        ? ""
-        : ` ${joinNames(current.map(({ name }) => name))} ${current.length === 1 ? "is" : "are"} current.`;
 
     return {
       shape: "attention",
       tone: failed.length > 0 ? "bad" : "warn",
       icon: failed.length > 0 ? "circle-x" : "circle-dashed",
       head: clauses.join("; "),
-      line: `Their values and findings are missing.${currentSentence}`,
+      line: `Their values and findings are missing.${currentSentence}${behindSentence}`,
       bar: null,
     };
   }
@@ -466,7 +470,24 @@ function summarize(
       tone: "warn",
       icon: "circle-alert",
       head: `${plural(changed.length, "module")} changed since ${changed.length === 1 ? "it was" : "they were"} scanned`,
-      line: `${changed.length === 1 ? "Its" : "Their"} bars, descriptions and findings are hidden until updated. ${changedList(changed)}.`,
+      line: `${changed.length === 1 ? "Its" : "Their"} bars, descriptions and findings are hidden until updated. ${changedList(changed)}.${behindSentence}`,
+      bar: null,
+    };
+  }
+
+  if (behind.length > 0) {
+    return {
+      shape: "behind",
+      tone: "warn",
+      icon: "circle-alert",
+      head: behind
+        .map(({ name, state }) =>
+          state.kind === "out-of-date"
+            ? `${name} is out of date on ${plural(state.modules.length, "module")}`
+            : name,
+        )
+        .join("; "),
+      line: `Update ${joinNames(behind.map(({ name }) => name))} to bring ${behind.length === 1 ? "it" : "them"} up to date.${currentSentence}`,
       bar: null,
     };
   }
@@ -536,7 +557,36 @@ function actionOf(
     };
   }
 
+  const untickedStale = rows.filter(
+    ({ key, state }) =>
+      key !== STRUCTURE_KEY &&
+      !ticked(key) &&
+      (state.kind === "out-of-date" ||
+        state.kind === "failed" ||
+        state.kind === "never-run"),
+  );
+
+  if (untickedStale.length > 0) {
+    return {
+      primary: {
+        label: `Update ${joinNames(untickedStale.map(({ name }) => name))}`,
+        disabled: false,
+        tick: untickedStale.map(({ key }) => key),
+      },
+      secondary,
+    };
+  }
+
   return { primary: { label: "Up to date", disabled: true }, secondary };
+}
+
+export function findingsActionOf(
+  primary: Action["primary"],
+  link: string,
+): { label: string; openScan: boolean } {
+  const openScan = primary.disabled || (primary.tick?.length ?? 0) > 0;
+
+  return { label: openScan ? "Open Scan" : link, openScan };
 }
 
 export function hiddenText(count: number, whole: boolean): string {
