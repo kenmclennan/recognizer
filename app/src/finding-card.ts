@@ -171,6 +171,26 @@ export function cardOf(row: FindingRow): CardModel {
     }
   }
 
+  if (record.kind === "unused_exports") {
+    const byFile = new Map<string, string[]>();
+
+    for (const member of record.evidence.members ?? []) {
+      for (const file of member.test_files ?? []) {
+        byFile.set(file, [...(byFile.get(file) ?? []), member.name]);
+      }
+    }
+
+    for (const file of [...byFile.keys()].sort()) {
+      rows.push({
+        kind: "test",
+        file,
+        name: shortName(file),
+        folder: folderOf(file),
+        names: byFile.get(file) ?? [],
+      });
+    }
+  }
+
   for (const edge of record.evidence.edges ?? []) {
     rows.push({ kind: "edge", from: edge.from, to: edge.to });
   }

@@ -1,4 +1,8 @@
-import { type FindingRecord, libraryApiHint } from "recognizer";
+import {
+  type FindingRecord,
+  libraryApiHint,
+  unusedTestOnlySentence,
+} from "recognizer";
 
 export type SentenceInput = {
   record: FindingRecord;
@@ -186,7 +190,16 @@ function unusedExports(record: FindingRecord): string | null {
     return null;
   }
 
-  return `${shortName(module)} exports ${names.length} ${plural(names.length, "name", "names")} no other module imports: ${names.join(", ")}.`;
+  const base = `${shortName(module)} exports ${names.length} ${plural(names.length, "name", "names")} no other module imports: ${names.join(", ")}.`;
+  const marked = (record.evidence.members ?? []).flatMap((member) =>
+    member.test_files === undefined
+      ? []
+      : [{ name: member.name, testFiles: member.test_files }],
+  );
+
+  return marked.length === 0
+    ? base
+    : `${base} ${unusedTestOnlySentence(marked)}`;
 }
 
 function sharedPrefix(

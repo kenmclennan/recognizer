@@ -61,6 +61,45 @@ function record(over: Partial<FindingRecord>): FindingRecord {
 const sentence = (over: Partial<FindingRecord>, reported = false) =>
   sentenceOf({ record: record(over), reported });
 
+describe("unused_exports test-only names", () => {
+  const unused = (members: { name: string; test_files?: string[] }[]) =>
+    sentence({
+      kind: "unused_exports",
+      evidence: {
+        modules: ["x/plan.py"],
+        members: members.map((member) => ({ module: "x/plan.py", ...member })),
+      },
+    });
+
+  const hint =
+    "; a library can list its public API in warnings.orphan.entry_points";
+
+  it("names the one marked name in the singular", () => {
+    expect(
+      unused([{ name: "a", test_files: ["t/test_a.py"] }, { name: "b" }]),
+    ).toBe(
+      `plan.py exports 2 names no other module imports: a, b. Only tests import a: if nothing outside the repository uses it, delete it with its tests${hint}.`,
+    );
+  });
+
+  it("names several marked names in the plural", () => {
+    expect(
+      unused([
+        { name: "a", test_files: ["t/test_a.py"] },
+        { name: "b", test_files: ["t/test_a.py"] },
+      ]),
+    ).toBe(
+      `plan.py exports 2 names no other module imports: a, b. Only tests import a, b: if nothing outside the repository uses them, delete them with their tests${hint}.`,
+    );
+  });
+
+  it("leaves an unmarked sentence unchanged", () => {
+    expect(unused([{ name: "a" }])).toBe(
+      "plan.py exports 1 name no other module imports: a.",
+    );
+  });
+});
+
 describe("the committed findings examples", () => {
   it("render exactly the 16 pinned sentences", () => {
     const rows = FILES.flatMap((name) => findingRows([load(name)]));

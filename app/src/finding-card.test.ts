@@ -346,3 +346,50 @@ describe("cardOf hub", () => {
     expect(isAbsent(row, (id) => id, new Set(["b/one.py"]))).toBe(false);
   });
 });
+
+describe("cardOf unused_exports test rows", () => {
+  const unused = (members: { name: string; test_files?: string[] }[]) =>
+    cardOf(
+      rowOf({
+        kind: "unused_exports",
+        evidence: {
+          modules: ["app/plan.py"],
+          members: members.map((member) => ({
+            module: "app/plan.py",
+            ...member,
+          })),
+        },
+      }),
+    );
+
+  it("adds one sorted test row per file with the marked names it imports", () => {
+    const rows = unused([
+      { name: "a", test_files: ["tests/test_b.py", "tests/test_a.py"] },
+      { name: "b", test_files: ["tests/test_b.py"] },
+      { name: "c" },
+    ]).rows.filter((row) => row.kind === "test");
+
+    expect(rows).toEqual([
+      {
+        kind: "test",
+        file: "tests/test_a.py",
+        name: "test_a.py",
+        folder: "tests",
+        names: ["a"],
+      },
+      {
+        kind: "test",
+        file: "tests/test_b.py",
+        name: "test_b.py",
+        folder: "tests",
+        names: ["a", "b"],
+      },
+    ]);
+  });
+
+  it("adds no test row when nothing is marked", () => {
+    expect(
+      unused([{ name: "a" }]).rows.filter((row) => row.kind === "test"),
+    ).toEqual([]);
+  });
+});
