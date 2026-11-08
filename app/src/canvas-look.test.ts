@@ -289,6 +289,33 @@ panBy(-70, 45);
 const rightAfter = { x: barBox().left, y: barBox().top };
 result.pinned = { beforePan, afterPan, afterZoom, rightBefore, rightAfter };
 
+canvas.render(props());
+Element.prototype.setPointerCapture = () => {};
+const pointer = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, { pointerId: 7, bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y }));
+const worldTransform = () => q(".world").getAttribute("transform");
+const atStart = worldTransform();
+const emptySpot = (() => { const b = q(".surface").getBoundingClientRect(); return { x: b.left + 4, y: b.top + 4 }; })();
+const downEvent = new PointerEvent("pointerdown", { pointerId: 7, bubbles: true, cancelable: true, button: 0, clientX: emptySpot.x, clientY: emptySpot.y });
+q(".surface").dispatchEvent(downEvent);
+pointer(q(".surface"), "pointermove", emptySpot.x + 40, emptySpot.y + 25);
+const duringPan = worldTransform();
+canvas.render(props());
+pointer(q(".surface"), "pointercancel", emptySpot.x + 40, emptySpot.y + 25);
+const atCancel = worldTransform();
+pointer(q(".surface"), "pointermove", emptySpot.x + 200, emptySpot.y + 200);
+const afterCancel = worldTransform();
+q(".surface").dispatchEvent(new PointerEvent("pointerdown", { pointerId: 7, bubbles: true, cancelable: true, button: 0, clientX: emptySpot.x, clientY: emptySpot.y }));
+q(".surface").dispatchEvent(new PointerEvent("lostpointercapture", { pointerId: 7, bubbles: true }));
+pointer(q(".surface"), "pointermove", emptySpot.x + 300, emptySpot.y + 300);
+const afterLost = worldTransform();
+result.panEnd = {
+  prevented: downEvent.defaultPrevented,
+  panned: duringPan !== atStart,
+  held: atCancel === afterCancel,
+  lostHeld: afterCancel === afterLost,
+  selection: String(getSelection()),
+};
+
 const moduleBar = () => bar({ kind: "module", files: null });
 const barEl = () => q(".selection-bar");
 const away = () => barEl().classList.contains("away");
@@ -361,6 +388,13 @@ type Report = {
   };
   frames: Record<string, unknown>;
   dimming: Record<string, Props>;
+  panEnd: {
+    prevented: boolean;
+    panned: boolean;
+    held: boolean;
+    lostHeld: boolean;
+    selection: string;
+  };
   pinned: {
     beforePan: { offset: { dx: number; dy: number }; box: number };
     afterPan: {
@@ -880,6 +914,20 @@ describe("the canvas, in a real browser", () => {
       expect(Math.abs(afterZoom.offset.dy - beforePan.offset.dy)).toBeLessThan(
         3,
       );
+    },
+    scaledTimeout(120000),
+  );
+
+  it.skipIf(webkit === undefined)(
+    "stops a pan on pointercancel or a lost capture, starts none natively, and leaves no text selected",
+    () => {
+      const { prevented, panned, held, lostHeld, selection } = r().panEnd;
+
+      expect(prevented).toBe(true);
+      expect(panned).toBe(true);
+      expect(held).toBe(true);
+      expect(lostHeld).toBe(true);
+      expect(selection).toBe("");
     },
     scaledTimeout(120000),
   );
