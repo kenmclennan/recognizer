@@ -8,6 +8,7 @@ on:
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-csharp.yml
+      - .github/actions/install-uv/**
   push:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-csharp.yml
+      - .github/actions/install-uv/**
 
 env:
   RECOGNIZER_REQUIRE_REAL_CONTENT: "1"
@@ -42,7 +44,7 @@ jobs:
           repository: dotnet/eShop
           ref: 913acea66708a59595351174cee9b29f37179d29
           path: eshop
-      - uses: astral-sh/setup-uv@v6
+      - uses: ./.github/actions/install-uv
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked

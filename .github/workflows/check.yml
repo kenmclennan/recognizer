@@ -15,6 +15,7 @@ on:
       - package-lock.json
       - biome.json
       - .github/workflows/check.yml
+      - .github/actions/install-uv/**
   push:
     branches: [main]
     paths:
@@ -30,6 +31,7 @@ on:
       - package-lock.json
       - biome.json
       - .github/workflows/check.yml
+      - .github/actions/install-uv/**
 
 permissions:
   contents: read
@@ -47,7 +49,7 @@ jobs:
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run lint -w check
-      - uses: astral-sh/setup-uv@v6
+      - uses: ./.github/actions/install-uv
       - run: uv sync --locked --project scanners/python
       - run: uv sync --locked --project sensors
       - run: npm run build -w recognizer-scan-typescript
@@ -70,7 +72,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --prefer-offline --no-audit --no-fund
-      - uses: astral-sh/setup-uv@v6
+      - uses: ./.github/actions/install-uv
       - run: uv sync --locked --project scanners/python
       - run: uv sync --locked --project sensors
       - run: npm run build -w recognizer-scan-typescript
