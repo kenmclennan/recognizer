@@ -1,0 +1,1 @@
+{"findings_version": 1, "sensor": {"name":"structure","version":"14"}, "commit":"abc", "modified": false, "settings": {}, "findings": [{"id":"unused_exports:a.py","kind":"unused_exports","severity":"warning","principle":"p","summary":"s","evidence":{"modules":["a.py"],"members":[{"module":"a.py","name":"x","test_files":[""]}]}}]}

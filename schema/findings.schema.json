@@ -127,6 +127,10 @@
                       "minItems": 2,
                       "maxItems": 2,
                       "items": { "type": "integer", "minimum": 1 }
+                    },
+                    "test_files": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 }
                     }
                   }
                 }

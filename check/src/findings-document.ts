@@ -28,6 +28,7 @@ export interface FindingRecord {
       name: string;
       file?: string;
       lines?: [number, number];
+      test_files?: string[];
     }[];
     measures?: Record<string, number>;
     used_by?: { module: string; names: string[] }[];

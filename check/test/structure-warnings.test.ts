@@ -503,7 +503,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"hub_threshold":10,"instability_gap":0.2,"composition_roots":[],"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
     );
-    expect(document.sensor.version).toBe("13");
+    expect(document.sensor.version).toBe("14");
   });
 
   it("describes the settings with and without entry points", () => {
@@ -1186,7 +1186,7 @@ describe("settings for the package metrics", () => {
       instability_gap: 0.3,
       composition_roots: ["cmd"],
     });
-    expect(document.sensor.version).toBe("13");
+    expect(document.sensor.version).toBe("14");
   });
 
   it("honours a live key beside a retired one", () => {
@@ -1320,6 +1320,8 @@ function unusedScan(
   modules: UnusedModule[],
   edges: UnusedEdge[] = [],
   calls: UnusedCall[] = [],
+  testImports: { from: string; to: string; names?: string[] }[] = [],
+  language = "python",
 ) {
   return validateScan({
     schema_version: 7,
@@ -1337,7 +1339,7 @@ function unusedScan(
     },
     modules: modules.map((module) => ({
       id: module.id,
-      language: "python",
+      language,
       kind: module.kind ?? "module",
       ...(module.entry_point === true ? { entry_point: true } : {}),
       ...(module.actual_of === undefined
@@ -1377,6 +1379,7 @@ function unusedScan(
             how: "call",
           })),
         }),
+    ...(testImports.length === 0 ? {} : { test_imports: testImports }),
     foreign: [],
   });
 }
@@ -1401,6 +1404,178 @@ function unusedOf(
     ]),
   );
 }
+
+const HINT =
+  "; a library can list its public API in warnings.orphan.entry_points";
+
+function unusedWithTests(
+  exports: string[],
+  testImports: { from: string; to: string; names?: string[] }[],
+  id = "a/m.py",
+  language = "python",
+) {
+  const found = unusedExportsFindings(
+    unusedScan([{ id, exports }], [], [], testImports, language),
+    null,
+    [],
+  );
+
+  return found[0] as NonNullable<(typeof found)[number]>;
+}
+
+describe("unused_exports test-only names", () => {
+  const imp = (from: string, names?: string[]) => ({
+    from,
+    to: "a/m.py",
+    ...(names === undefined ? {} : { names }),
+  });
+
+  it("marks only the names a test imports, with sorted test files", () => {
+    const finding = unusedWithTests(
+      ["a", "b", "c"],
+      [imp("t/test_z.py", ["b"]), imp("t/test_a.py", ["b"])],
+    );
+
+    expect(finding.evidence.members).toEqual([
+      { module: "a/m.py", name: "a", file: "a/m.py", lines: [10, 10] },
+      {
+        module: "a/m.py",
+        name: "b",
+        file: "a/m.py",
+        lines: [11, 11],
+        test_files: ["t/test_a.py", "t/test_z.py"],
+      },
+      { module: "a/m.py", name: "c", file: "a/m.py", lines: [12, 12] },
+    ]);
+    expect(finding.summary).toBe(
+      `a/m.py exports 3 names no other module imports: a, b, c; only tests import b (t/test_a.py, t/test_z.py), so if nothing outside the repository uses it, delete it with its tests${HINT}`,
+    );
+  });
+
+  it("marks a dotted member through its leading segment", () => {
+    const finding = unusedWithTests(["Foo.bar"], [imp("t/test_a.py", ["Foo"])]);
+
+    expect(finding.evidence.members?.[0]?.test_files).toEqual(["t/test_a.py"]);
+    expect(finding.summary).toContain(
+      "only tests import Foo.bar (t/test_a.py), so if nothing outside the repository uses it, delete it with its tests",
+    );
+  });
+
+  it("marks nothing for a test record with no names", () => {
+    const withTests = unusedWithTests(["a", "b"], [imp("t/test_a.py")]);
+    const without = unusedWithTests(["a", "b"], []);
+
+    expect(withTests).toEqual(without);
+    expect(withTests.summary).toBe(
+      "a/m.py exports 2 names no other module imports: a, b",
+    );
+  });
+
+  it("leaves a name used by a non-test module unlisted even when a test imports it", () => {
+    const found = unusedExportsFindings(
+      unusedScan(
+        [
+          { id: "a/m.py", exports: ["a", "b"] },
+          { id: "a/user.py", exports: [] },
+        ],
+        [{ from: "a/user.py", to: "a/m.py", names: ["a"] }],
+        [],
+        [imp("t/test_a.py", ["a", "b"])],
+      ),
+      null,
+      [],
+    );
+
+    expect(
+      found[0]?.evidence.members?.map((member) => [
+        member.name,
+        member.test_files,
+      ]),
+    ).toEqual([["b", ["t/test_a.py"]]]);
+  });
+
+  it("marks every name and uses plural wording", () => {
+    const finding = unusedWithTests(
+      ["a", "b"],
+      [imp("t/test_a.py", ["a", "b"])],
+    );
+
+    expect(finding.summary).toBe(
+      `a/m.py exports 2 names no other module imports: a, b; only tests import a, b (t/test_a.py), so if nothing outside the repository uses them, delete them with their tests${HINT}`,
+    );
+  });
+
+  it.each([
+    [1, "t/test_0.py"],
+    [3, "t/test_0.py, t/test_1.py, t/test_2.py"],
+    [4, "t/test_0.py, t/test_1.py, t/test_2.py and 1 more"],
+    [5, "t/test_0.py, t/test_1.py, t/test_2.py and 2 more"],
+  ])("shows at most three test files for %i files", (count, shown) => {
+    const finding = unusedWithTests(
+      ["a"],
+      Array.from({ length: count }, (_, at) => imp(`t/test_${at}.py`, ["a"])),
+    );
+
+    expect(finding.summary).toContain(`only tests import a (${shown}), so`);
+  });
+
+  it("leaves a Kotlin module with no test imports unchanged", () => {
+    const finding = unusedWithTests(["a"], [], "a/M.kt", "kotlin");
+
+    expect(finding.summary).toBe(
+      "a/M.kt exports 1 name no other module imports: a",
+    );
+  });
+
+  it("derives the marked count from the committed TypeScript scan", () => {
+    const scan = validateScan(
+      JSON.parse(
+        readFileSync(
+          join(REPO, "fixtures/typescript/expected-scan.json"),
+          "utf8",
+        ),
+      ),
+    );
+    const found = unusedExportsFindings(scan, null, []);
+    const members = found.flatMap((finding) => finding.evidence.members ?? []);
+    const used = (name: string, names: string[]) =>
+      names.includes(name) || names.includes(name.split(".", 1)[0] as string);
+    const expected = members.filter((member) =>
+      (scan.test_imports ?? []).some(
+        (record) =>
+          record.to === member.module && used(member.name, record.names ?? []),
+      ),
+    );
+
+    expect(members.filter((member) => member.test_files !== undefined)).toEqual(
+      expected,
+    );
+
+    for (const member of members) {
+      for (const file of member.test_files ?? []) {
+        expect(
+          (scan.test_imports ?? []).some(
+            (record) =>
+              record.from === file &&
+              record.to === member.module &&
+              used(member.name, record.names ?? []),
+          ),
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("marks nothing over the committed Python scan", () => {
+    const raw = JSON.parse(
+      readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
+    );
+    const { test_imports: _dropped, ...stripped } = raw;
+    const withTests = unusedExportsFindings(validateScan(raw), null, []);
+    const without = unusedExportsFindings(validateScan(stripped), null, []);
+
+    expect(withTests).toEqual(without);
+  });
+});
 
 describe("unused_exports", () => {
   describe("actual files", () => {

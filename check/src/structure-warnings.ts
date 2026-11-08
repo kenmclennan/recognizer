@@ -11,6 +11,7 @@ import {
   libraryApiHint,
   testImportersOf,
   testOnlySummary,
+  unusedTestOnlyClause,
 } from "./test-importers.js";
 
 function compare(a: string, b: string): number {
@@ -374,6 +375,7 @@ export function unusedExportsFindings(
   const { named, whole } = usedNames([...edges, ...declarations]);
   const viaExpect = usedThroughExpect(scan, ids, named, whole);
   const literalPaths = policyLiteralPaths(policy);
+  const testImporters = testImportersOf(scan);
   const findings: FindingRecord[] = [];
 
   for (const module of scan.modules) {
@@ -410,13 +412,32 @@ export function unusedExportsFindings(
 
     const noun = unused.length === 1 ? "name" : "names";
     const names = unused.map((member) => member.name).join(", ");
+    const importers = testImporters.get(module.id) ?? [];
+    const testFiles = new Map<string, string[]>();
+
+    for (const member of unused) {
+      const files = importers
+        .filter((importer) => isUsed(member.name, new Set(importer.names)))
+        .map((importer) => importer.file);
+
+      if (files.length > 0) {
+        testFiles.set(member.name, files);
+      }
+    }
+
+    const marked = unused
+      .filter((member) => testFiles.has(member.name))
+      .map((member) => ({
+        name: member.name,
+        testFiles: testFiles.get(member.name) as string[],
+      }));
 
     findings.push({
       id: `unused_exports:${module.id}`,
       kind: "unused_exports",
       severity: "warning",
       principle: "export-only-what-is-used",
-      summary: `${module.id} exports ${unused.length} ${noun} no other module imports: ${names}`,
+      summary: `${module.id} exports ${unused.length} ${noun} no other module imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
       fix_pattern: "narrow-exports",
       evidence: {
         modules: [module.id],
@@ -425,6 +446,9 @@ export function unusedExportsFindings(
           name: member.name,
           ...(module.kind === "module" && member.line !== undefined
             ? { file: module.id, lines: [member.line, member.line] }
+            : {}),
+          ...(testFiles.has(member.name)
+            ? { test_files: testFiles.get(member.name) }
             : {}),
         })),
       },
