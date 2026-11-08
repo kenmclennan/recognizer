@@ -1,7 +1,20 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
+
+pub const CLOSE_QUESTION: &str = "A run is in progress in this window.";
+pub const STOP_AND_CLOSE: &str = "Stop and Close";
+pub const STOP_AND_QUIT: &str = "Stop and Quit";
+pub const CANCEL: &str = "Cancel";
+
+pub fn quit_question(count: usize) -> String {
+    if count == 1 {
+        "One window has a run in progress.".to_string()
+    } else {
+        format!("{count} windows have a run in progress.")
+    }
+}
 
 pub fn label_for(number: u64) -> String {
     format!("w-{number}")
@@ -82,6 +95,9 @@ pub fn route_for(folders: &HashMap<String, PathBuf>, canonical: &Path) -> Route 
 pub struct WindowState {
     counter: AtomicU64,
     open_dialogs: AtomicUsize,
+    asking: Mutex<HashSet<String>>,
+    quit_asking: AtomicBool,
+    quit_confirmed: AtomicBool,
     focus_order: Mutex<Vec<String>>,
     folders: Mutex<HashMap<String, PathBuf>>,
     pending_views: Mutex<HashMap<String, String>>,
@@ -140,6 +156,30 @@ impl WindowState {
         self.open_dialogs.fetch_sub(1, Ordering::SeqCst);
     }
 
+    pub fn begin_asking(&self, label: &str) -> bool {
+        self.asking.lock().unwrap().insert(label.to_string())
+    }
+
+    pub fn end_asking(&self, label: &str) {
+        self.asking.lock().unwrap().remove(label);
+    }
+
+    pub fn begin_quit_question(&self) -> bool {
+        !self.quit_asking.swap(true, Ordering::SeqCst)
+    }
+
+    pub fn end_quit_question(&self) {
+        self.quit_asking.store(false, Ordering::SeqCst);
+    }
+
+    pub fn confirm_quit(&self) {
+        self.quit_confirmed.store(true, Ordering::SeqCst);
+    }
+
+    pub fn quit_confirmed(&self) -> bool {
+        self.quit_confirmed.load(Ordering::SeqCst)
+    }
+
     pub fn dialogs_open(&self) -> bool {
         self.open_dialogs.load(Ordering::SeqCst) > 0
     }
@@ -195,6 +235,49 @@ mod tests {
         state.dialog_closed();
 
         assert!(!keeps_running(None, state.dialogs_open(), false));
+    }
+
+    #[test]
+    fn quit_question_names_the_count() {
+        assert_eq!(quit_question(1), "One window has a run in progress.");
+        assert_eq!(quit_question(2), "2 windows have a run in progress.");
+        assert_eq!(quit_question(10), "10 windows have a run in progress.");
+    }
+
+    #[test]
+    fn a_second_close_question_for_a_window_is_rejected_until_answered() {
+        let state = WindowState::default();
+
+        assert!(state.begin_asking("w-1"));
+        assert!(!state.begin_asking("w-1"));
+        assert!(state.begin_asking("w-2"));
+
+        state.end_asking("w-1");
+
+        assert!(state.begin_asking("w-1"));
+    }
+
+    #[test]
+    fn a_second_quit_question_is_rejected_until_answered() {
+        let state = WindowState::default();
+
+        assert!(state.begin_quit_question());
+        assert!(!state.begin_quit_question());
+
+        state.end_quit_question();
+
+        assert!(state.begin_quit_question());
+    }
+
+    #[test]
+    fn a_confirmed_quit_is_remembered() {
+        let state = WindowState::default();
+
+        assert!(!state.quit_confirmed());
+
+        state.confirm_quit();
+
+        assert!(state.quit_confirmed());
     }
 
     #[test]
