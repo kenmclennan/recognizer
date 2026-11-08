@@ -467,6 +467,7 @@ fn scan(data: &[u8]) -> Scanned {
     };
     let mut scope: Vec<(String, usize)> = Vec::new();
     let mut depth = 0usize;
+    let mut nesting = 0usize;
     let mut i = 0;
 
     while i < data.len() {
@@ -505,7 +506,14 @@ fn scan(data: &[u8]) -> Scanned {
                     None => i = end,
                     Some(head) => {
                         i = head.after;
-                        enter(&mut scanned, &mut scope, &mut depth, head, path, false);
+                        enter(
+                            &mut scanned,
+                            &mut scope,
+                            (&mut depth, nesting),
+                            head,
+                            path,
+                            false,
+                        );
                     }
                 }
 
@@ -518,7 +526,14 @@ fn scan(data: &[u8]) -> Scanned {
 
             if let Some(head) = module_head(&data[end..stop], 0) {
                 if !head.inline {
-                    enter(&mut scanned, &mut scope, &mut depth, head, path, true);
+                    enter(
+                        &mut scanned,
+                        &mut scope,
+                        (&mut depth, nesting),
+                        head,
+                        path,
+                        true,
+                    );
                 }
             }
 
@@ -536,10 +551,21 @@ fn scan(data: &[u8]) -> Scanned {
             if scope.last().is_some_and(|(_, at)| *at == depth) {
                 scope.pop();
             }
+        } else if byte == b'(' || byte == b'[' {
+            nesting += 1;
+        } else if byte == b')' || byte == b']' {
+            nesting = nesting.saturating_sub(1);
         } else if (byte == b'm' || byte == b'p') && (i == 0 || !is_identifier_byte(data[i - 1])) {
             if let Some(head) = module_head(data, i) {
                 i = head.after;
-                enter(&mut scanned, &mut scope, &mut depth, head, None, false);
+                enter(
+                    &mut scanned,
+                    &mut scope,
+                    (&mut depth, nesting),
+                    head,
+                    None,
+                    false,
+                );
                 continue;
             }
         }
@@ -553,7 +579,7 @@ fn scan(data: &[u8]) -> Scanned {
 fn enter(
     scanned: &mut Scanned,
     scope: &mut Vec<(String, usize)>,
-    depth: &mut usize,
+    (depth, nesting): (&mut usize, usize),
     head: ModuleHead,
     path: Option<String>,
     is_test: bool,
@@ -561,7 +587,7 @@ fn enter(
     if head.inline {
         scope.push((head.name, *depth));
         *depth += 1;
-    } else {
+    } else if *depth == scope.len() && nesting == 0 {
         scanned.declarations.push(Declaration {
             scope: scope.iter().map(|(name, _)| name.clone()).collect(),
             name: head.name,
@@ -589,6 +615,130 @@ fn is_root_file(path: &str) -> bool {
     }
 
     parent_name == "bin" && split_path(grandparent).1 == "src"
+}
+
+struct Roots {
+    roots: BTreeSet<String>,
+    covered: BTreeSet<String>,
+}
+
+impl Roots {
+    fn is_root(&self, path: &str) -> bool {
+        let mut directory = split_path(path).0;
+
+        loop {
+            if self.covered.contains(directory) {
+                return self.roots.contains(path);
+            }
+
+            if directory.is_empty() {
+                return is_root_file(path);
+            }
+
+            directory = split_path(directory).0;
+        }
+    }
+}
+
+fn join_root(directory: &str, relative: &str) -> Option<String> {
+    let mut parts: Vec<&str> = Vec::new();
+    let whole = if directory.is_empty() {
+        relative.to_string()
+    } else {
+        format!("{directory}/{relative}")
+    };
+
+    for part in whole.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            other => parts.push(other),
+        }
+    }
+
+    Some(parts.join("/"))
+}
+
+fn manifest_roots(listed: &[String], read: &dyn Fn(&str) -> Option<String>) -> Roots {
+    let paths: BTreeSet<&str> = listed.iter().map(String::as_str).collect();
+    let mut roots = BTreeSet::new();
+    let mut covered = BTreeSet::new();
+
+    for manifest in paths.iter().filter(|p| split_path(p).1 == "Cargo.toml") {
+        let Some(table) = read(manifest).and_then(|text| text.parse::<toml::Table>().ok()) else {
+            continue;
+        };
+        let package = table.get("package").and_then(toml::Value::as_table);
+
+        if package
+            .and_then(|package| package.get("name"))
+            .and_then(toml::Value::as_str)
+            .is_none()
+        {
+            continue;
+        }
+
+        let directory = split_path(manifest).0;
+
+        covered.insert(directory.to_string());
+
+        let mut declare = |relative: &str| {
+            if let Some(found) = join_root(directory, relative) {
+                if paths.contains(found.as_str()) {
+                    roots.insert(found);
+                }
+            }
+        };
+        let library = table
+            .get("lib")
+            .and_then(toml::Value::as_table)
+            .and_then(|lib| lib.get("path"))
+            .and_then(toml::Value::as_str);
+
+        declare(library.unwrap_or("src/lib.rs"));
+        declare("src/main.rs");
+
+        match package.and_then(|package| package.get("build")) {
+            Some(toml::Value::Boolean(false)) => {}
+            Some(toml::Value::String(path)) => declare(path),
+            _ => declare("build.rs"),
+        }
+
+        for kind in ["bin", "example", "bench", "test"] {
+            let entries = table.get(kind).and_then(toml::Value::as_array);
+
+            for path in entries
+                .into_iter()
+                .flatten()
+                .filter_map(|entry| entry.as_table()?.get("path")?.as_str())
+            {
+                declare(path);
+            }
+        }
+
+        for folder in ["src/bin", "examples", "benches"] {
+            let prefix = if directory.is_empty() {
+                format!("{folder}/")
+            } else {
+                format!("{directory}/{folder}/")
+            };
+
+            for path in paths.iter().filter(|p| p.ends_with(".rs")) {
+                let Some(rest) = path.strip_prefix(prefix.as_str()) else {
+                    continue;
+                };
+                let slashes = rest.matches('/').count();
+
+                if slashes == 0 || (slashes == 1 && rest.ends_with("/main.rs")) {
+                    roots.insert(path.to_string());
+                }
+            }
+        }
+    }
+
+    Roots { roots, covered }
 }
 
 fn normalize(path: &str) -> Option<String> {
@@ -619,7 +769,7 @@ fn join_module(base: &str, tail: &str) -> Option<String> {
     }
 }
 
-fn module_candidates(file: &str, declaration: &Declaration) -> Vec<String> {
+fn module_candidates(file: &str, declaration: &Declaration, roots: &Roots) -> Vec<String> {
     let (directory, name) = split_path(file);
 
     if let Some(path) = &declaration.path {
@@ -627,7 +777,7 @@ fn module_candidates(file: &str, declaration: &Declaration) -> Vec<String> {
     }
 
     let stem = name.strip_suffix(".rs").unwrap_or(name);
-    let mut base = if is_root_file(file) || name == "mod.rs" {
+    let mut base = if roots.is_root(file) || name == "mod.rs" {
         directory.to_string()
     } else {
         join_module(directory, stem).unwrap_or_default()
@@ -646,8 +796,13 @@ fn module_candidates(file: &str, declaration: &Declaration) -> Vec<String> {
     .collect()
 }
 
-fn resolved(file: &str, declaration: &Declaration, index: &BTreeSet<&str>) -> Option<String> {
-    module_candidates(file, declaration)
+fn resolved(
+    file: &str,
+    declaration: &Declaration,
+    index: &BTreeSet<&str>,
+    roots: &Roots,
+) -> Option<String> {
+    module_candidates(file, declaration, roots)
         .into_iter()
         .find(|candidate| index.contains(candidate.as_str()))
 }
@@ -664,6 +819,7 @@ fn test_file_set(
     folder: &Path,
     sources: &[&String],
     first_pass: &BTreeMap<String, (Vec<u8>, Scanned)>,
+    roots: &Roots,
 ) -> BTreeSet<String> {
     let index: BTreeSet<&str> = sources.iter().map(|path| path.as_str()).collect();
     let mut marked: BTreeSet<String> = BTreeSet::new();
@@ -676,7 +832,7 @@ fn test_file_set(
 
         for declaration in scanned.declarations.iter().filter(|d| d.is_test) {
             mark(
-                resolved(path, declaration, &index),
+                resolved(path, declaration, &index, roots),
                 &mut marked,
                 &mut pending,
             );
@@ -696,7 +852,7 @@ fn test_file_set(
         };
         let found: Vec<Option<String>> = declarations
             .iter()
-            .map(|declaration| resolved(&file, declaration, &index))
+            .map(|declaration| resolved(&file, declaration, &index, roots))
             .collect();
 
         for path in found {
@@ -742,7 +898,9 @@ pub fn in_file_test_hashes(
         first_pass.insert(path.to_string(), (data, scanned));
     }
 
-    for path in test_file_set(folder, &sources, &first_pass) {
+    let roots = manifest_roots(listed, &|path| fs::read_to_string(folder.join(path)).ok());
+
+    for path in test_file_set(folder, &sources, &first_pass, &roots) {
         if let Ok(data) = fs::read(folder.join(&path)) {
             entries.insert(format!("{path}#file"), sha256_hex(&data));
         }
@@ -1131,6 +1289,131 @@ mod tests {
 
         assert!(!want.is_empty());
         assert_eq!(found, want);
+    }
+
+    #[test]
+    fn real_content_gives_the_same_entries_with_the_app_manifest_listed() {
+        let root = root();
+        let listed = Command::new("git")
+            .arg("-C")
+            .arg(&root)
+            .args(["ls-files", "--", "app/src-tauri/src"])
+            .output()
+            .unwrap();
+
+        if !listed.status.success() {
+            return;
+        }
+
+        let sources: Vec<String> = String::from_utf8(listed.stdout)
+            .unwrap()
+            .lines()
+            .filter(|path| path.ends_with(".rs"))
+            .map(str::to_string)
+            .collect();
+        let mut with_manifest = sources.clone();
+
+        with_manifest.push("app/src-tauri/Cargo.toml".to_string());
+
+        let hashes =
+            |listed: &[String]| in_file_test_hashes(&root, listed, crate::overlays::is_test_file);
+
+        assert!(!hashes(&sources).is_empty());
+        assert_eq!(hashes(&with_manifest), hashes(&sources));
+    }
+
+    const PACKAGE: &str = "[package]\nname = \"app\"\nversion = \"0.1.0\"\n";
+
+    #[test]
+    fn an_unparseable_manifest_leaves_its_files_to_name_inference() {
+        let found = entries_of(&[
+            ("Cargo.toml", "[package"),
+            ("src/lib.rs", "#[cfg(test)]\nmod t;\n"),
+            ("src/t.rs", "fn a() {}\n"),
+        ]);
+
+        assert!(found.contains(&"src/t.rs#file".to_string()));
+    }
+
+    #[test]
+    fn a_covered_package_and_an_uncovered_directory_resolve_side_by_side() {
+        let covered_manifest = format!("{PACKAGE}[lib]\npath = \"other/mylib.rs\"\n");
+        let mut found: Vec<String> = entries_of(&[
+            ("covered/Cargo.toml", covered_manifest.as_str()),
+            ("covered/other/mylib.rs", "#[cfg(test)]\nmod t;\n"),
+            ("covered/other/t.rs", "fn a() {}\n"),
+            ("bare/lib.rs", "#[cfg(test)]\nmod t;\n"),
+            ("bare/t.rs", "fn a() {}\n"),
+        ])
+        .into_iter()
+        .filter(|key| key.ends_with("#file"))
+        .collect();
+
+        found.sort();
+
+        assert_eq!(found, ["bare/t.rs#file", "covered/other/t.rs#file"]);
+    }
+
+    #[test]
+    fn a_virtual_workspace_manifest_covers_nothing() {
+        let listed = ["Cargo.toml".to_string(), "src/lib.rs".to_string()];
+        let roots = manifest_roots(&listed, &|path| {
+            (path == "Cargo.toml").then(|| "[workspace]\nmembers = []\n".to_string())
+        });
+
+        assert!(roots.covered.is_empty());
+        assert!(roots.is_root("src/lib.rs"));
+    }
+
+    #[test]
+    fn manifest_roots_reads_every_target_the_scanner_does() {
+        let manifest = format!(
+            "{PACKAGE}[[example]]\nname = \"e\"\npath = \"demo/e.rs\"\n[[test]]\nname = \"t\"\npath = \"it/t.rs\"\n"
+        );
+        let listed: Vec<String> = [
+            "p/Cargo.toml",
+            "p/src/lib.rs",
+            "p/src/main.rs",
+            "p/build.rs",
+            "p/demo/e.rs",
+            "p/it/t.rs",
+            "p/src/bin/a.rs",
+            "p/src/bin/b/main.rs",
+            "p/src/bin/b/other.rs",
+            "p/benches/x.rs",
+            "p/lib.rs",
+        ]
+        .iter()
+        .map(|path| path.to_string())
+        .collect();
+        let roots = manifest_roots(&listed, &|path| {
+            (path == "p/Cargo.toml").then(|| manifest.clone())
+        });
+
+        assert_eq!(
+            roots.roots.into_iter().collect::<Vec<_>>(),
+            [
+                "p/benches/x.rs",
+                "p/build.rs",
+                "p/demo/e.rs",
+                "p/it/t.rs",
+                "p/src/bin/a.rs",
+                "p/src/bin/b/main.rs",
+                "p/src/lib.rs",
+                "p/src/main.rs",
+            ]
+        );
+    }
+
+    #[test]
+    fn build_false_declares_no_build_script() {
+        let manifest = PACKAGE.replace("[package]\n", "[package]\nbuild = false\n");
+        let listed = ["Cargo.toml".to_string(), "build.rs".to_string()];
+        let roots = manifest_roots(&listed, &|path| {
+            (path == "Cargo.toml").then(|| manifest.clone())
+        });
+
+        assert!(!roots.roots.contains("build.rs"));
     }
 
     fn gate_cases() -> Vec<Value> {
