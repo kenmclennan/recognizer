@@ -1215,7 +1215,7 @@ mod tests {
             fs::read_to_string(root().join("fixtures/rust-test-gate/file-cases.json")).unwrap();
         let cases: Vec<Value> = serde_json::from_str(&text).unwrap();
 
-        assert!(cases.len() > 15);
+        assert!(cases.len() > 22);
 
         for case in &cases {
             let files: Vec<(&str, &str)> = case["files"]

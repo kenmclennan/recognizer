@@ -20,7 +20,7 @@ const CASES = JSON.parse(
 
 describe("rustTestFiles against the shared file cases", () => {
   it("reads a table with more than fifteen cases", () => {
-    expect(CASES.length).toBeGreaterThan(15);
+    expect(CASES.length).toBeGreaterThan(22);
   });
 
   it.each(CASES.map((c) => [c.name, c] as const))("%s", (_name, entry) => {

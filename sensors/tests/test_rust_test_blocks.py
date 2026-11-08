@@ -272,7 +272,7 @@ FILE_CASES = json.loads(
 
 
 def test_the_file_case_table_is_read():
-    assert len(FILE_CASES) > 15
+    assert len(FILE_CASES) > 22
 
 
 @pytest.mark.parametrize("case", FILE_CASES, ids=[c["name"] for c in FILE_CASES])

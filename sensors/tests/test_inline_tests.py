@@ -213,7 +213,7 @@ def test_the_walk_follows_the_shared_file_cases(tmp_path):
         (Path(__file__).parents[2] / "fixtures" / "rust-test-gate" / "file-cases.json").read_text()
     )
 
-    assert len(cases) > 15
+    assert len(cases) > 22
 
     for number, case in enumerate(cases):
         if case["name"] in SKIPPED_FILE_CASES:
