@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from recognizer_sensors.backup import exclude_from_backup
 from recognizer_sensors.testrun.profiles import tool_environment
 
 WORK = Path(".recognizer") / "cache" / "mutation" / "work"
@@ -285,7 +286,7 @@ def run_test_command(command: list[str], cwd: Path, timeout: float | None) -> Te
             process = subprocess.Popen(
                 command,
                 cwd=cwd,
-                env=tool_environment(cwd),
+                env=tool_environment(cwd, mark=False),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -436,6 +437,7 @@ def run_functions(
 def new_work_folder(repository: Path) -> Path:
     folder = repository / WORK / f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
     folder.mkdir(parents=True)
+    exclude_from_backup(folder.parent)
     (folder / PID_FILE).write_text(str(os.getpid()))
 
     return folder
