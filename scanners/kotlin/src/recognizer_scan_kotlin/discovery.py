@@ -3,7 +3,14 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 SOURCE_EXTENSIONS = (".kt",)
-SKIPPED_DIRECTORY_NAMES = ("build", "test", "androidTest", "integrationTest", "testFixtures")
+SKIPPED_DIRECTORY_NAMES = (
+    "build",
+    "test",
+    "androidTest",
+    "integrationTest",
+    "testFixtures",
+    "test-fixtures",
+)
 SKIPPED_DIRECTORY_PREFIXES = (".",)
 SKIPPED_DIRECTORY_SUFFIXES = ("Test",)
 SKIPPED_FILE_PATTERNS = ("*Test.kt", "*Tests.kt")

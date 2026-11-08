@@ -85,6 +85,7 @@
       "src/androidTest/kotlin/Ui.kt",
       "src/integrationTest/kotlin/It.kt",
       "src/testFixtures/kotlin/Fx.kt",
+      "src/main/test-fixtures/Tf.kt",
       "src/main/kotlin/FooTest/Bar.kt"
     ],
     "accepted": ["a.kt", "src/main/kotlin/Keep.kt"]

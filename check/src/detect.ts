@@ -67,6 +67,7 @@ const SKIP_RULES: Record<Language, SkipRules> = {
       "androidTest",
       "integrationTest",
       "testFixtures",
+      "test-fixtures",
     ],
     directoryPrefixes: ["."],
     directorySuffixes: ["Test"],

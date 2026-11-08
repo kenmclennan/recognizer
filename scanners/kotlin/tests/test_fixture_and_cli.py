@@ -184,7 +184,14 @@ def test_the_fixture_calls_dispatch_through_the_port():
 def test_the_selection_equals_the_binding_constants():
     assert selection() == {
         "extensions": [".kt"],
-        "skip_directory_names": ["build", "test", "androidTest", "integrationTest", "testFixtures"],
+        "skip_directory_names": [
+            "build",
+            "test",
+            "androidTest",
+            "integrationTest",
+            "testFixtures",
+            "test-fixtures",
+        ],
         "skip_directory_prefixes": ["."],
         "skip_directory_suffixes": ["Test"],
         "skip_directories_containing": [],
