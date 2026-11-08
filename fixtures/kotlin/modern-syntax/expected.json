@@ -126,8 +126,20 @@
   "calls": [
     {
       "from": "src/main/kotlin/m/Contexts.kt::Service.run",
+      "to": "src/main/kotlin/m/Contexts.kt::Logger",
+      "line": 13,
+      "how": "call"
+    },
+    {
+      "from": "src/main/kotlin/m/Contexts.kt::Service.run",
       "to": "src/main/kotlin/m/Contexts.kt::report",
       "line": 15,
+      "how": "call"
+    },
+    {
+      "from": "src/main/kotlin/m/Contexts.kt::report",
+      "to": "src/main/kotlin/m/Contexts.kt::Logger",
+      "line": 7,
       "how": "call"
     },
     {

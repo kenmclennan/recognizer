@@ -75,7 +75,11 @@
       "*Test.kt",
       "*Tests.kt"
     ],
-    "input_file_globs": ["build.gradle", "build.gradle.kts", "pom.xml"]
+    "input_file_globs": [
+      "build.gradle",
+      "build.gradle.kts",
+      "pom.xml"
+    ]
   },
   "modules": [
     {
@@ -597,6 +601,12 @@
       "from": "app/src/main/kotlin/shop/application/PlaceOrder.kt::PlaceOrder.execute",
       "to": "app/src/main/kotlin/shop/ports/OrderStore.kt::OrderStore.save",
       "line": 10,
+      "how": "call"
+    },
+    {
+      "from": "app/src/main/kotlin/shop/domain/Order.kt::total",
+      "to": "app/src/main/kotlin/shop/domain/Order.kt::Order",
+      "line": 5,
       "how": "call"
     },
     {

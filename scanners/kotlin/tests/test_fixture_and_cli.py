@@ -163,7 +163,7 @@ def test_the_fixture_calls_dispatch_through_the_port():
     calls = {(c["from"], c["to"], c["how"]) for c in document["calls"]}
     jdbc = f"{MAIN}/persistence/JdbcOrderStore.kt"
 
-    assert len(document["calls"]) == 4
+    assert len(document["calls"]) == 5
     assert (
         f"{MAIN}/application/PlaceOrder.kt::PlaceOrder.execute",
         f"{MAIN}/ports/OrderStore.kt::OrderStore.save",

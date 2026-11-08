@@ -101,7 +101,8 @@ def test_a_damaged_span_keeps_the_calls_that_still_parse(run):
     )
 
     assert [(c["from"], c["to"]) for c in document["calls"]] == [
-        ("a/F.kt::A.Companion.f", "a/F.kt::target")
+        ("a/F.kt::A", "a/F.kt::target"),
+        ("a/F.kt::A.Companion.f", "a/F.kt::target"),
     ]
 
 
