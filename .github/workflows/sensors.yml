@@ -38,6 +38,13 @@ jobs:
       - uses: ./.github/actions/install-uv
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('fixtures/mutation/kotlin/*.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
