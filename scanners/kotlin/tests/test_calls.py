@@ -249,3 +249,72 @@ def test_an_expect_file_records_a_call_for_its_used_member_only(run):
     )
 
     assert own(document) == [("common/Env.kt::go", "common/Env.kt::USED")]
+
+
+ACCESSOR_HEAD = "package p\n\nconst val D = 1\n\nconst val E = 2\n\n"
+
+
+def accessor_calls(run, body):
+    return own(run({"a/K.kt": ACCESSOR_HEAD + body}))
+
+
+def test_a_next_line_getter_of_a_top_level_property_records_its_use(run):
+    found = accessor_calls(run, "val lim: Long\n    get() = D\n")
+
+    assert found == [("a/K.kt::lim", "a/K.kt::D")]
+
+
+def test_an_extension_var_with_a_next_line_getter_records_its_use(run):
+    found = accessor_calls(run, "var String.lim: Long\n    get() = D\n    set(v) {}\n")
+
+    assert ("a/K.kt::lim", "a/K.kt::D") in found
+
+
+def test_a_block_bodied_next_line_getter_records_its_use(run):
+    found = accessor_calls(run, "val lim: Long\n    get() {\n        return D\n    }\n")
+
+    assert found == [("a/K.kt::lim", "a/K.kt::D")]
+
+
+def test_a_next_line_setter_records_its_use(run):
+    found = accessor_calls(run, "var lim: Long = 0\n    set(v) { field = v + D }\n")
+
+    assert found == [("a/K.kt::lim", "a/K.kt::D")]
+
+
+def test_a_getter_after_a_comment_line_records_its_use(run):
+    found = accessor_calls(run, "val lim: Long\n    // note\n    get() = D\n")
+
+    assert found == [("a/K.kt::lim", "a/K.kt::D")]
+
+
+def test_an_annotated_getter_records_its_use(run):
+    found = accessor_calls(run, 'val lim: Long\n    @JvmName("x") get() = D\n')
+
+    assert found == [("a/K.kt::lim", "a/K.kt::D")]
+
+
+def test_a_getter_and_a_setter_record_one_call_per_distinct_target(run):
+    found = accessor_calls(
+        run, "var lim: Long = 0\n    get() = D\n    set(v) { field = v + E + D }\n"
+    )
+
+    assert sorted(found) == [("a/K.kt::lim", "a/K.kt::D"), ("a/K.kt::lim", "a/K.kt::E")]
+
+
+def test_only_the_property_with_an_accessor_records_a_call(run):
+    found = accessor_calls(run, "val a: Long = 0\n\nval b: Long\n    get() = D\n")
+
+    assert found == [("a/K.kt::b", "a/K.kt::D")]
+
+
+def test_a_setter_parameter_named_like_a_constant_shadows_it(run):
+    found = accessor_calls(run, "var lim: Long = 0\n    set(D) { field = D }\n")
+
+    assert found == []
+
+
+def test_a_one_line_accessor_records_exactly_one_call(run):
+    found = accessor_calls(run, "val String.lim: Long get() = D\n")
+
+    assert found == [("a/K.kt::lim", "a/K.kt::D")]

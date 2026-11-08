@@ -72,11 +72,31 @@ def parameter_types_of(function: Node) -> dict[str, list[str]]:
     return found
 
 
-def bound_names(root: Node) -> set[str]:
+def accessor_siblings(node: Node) -> list[Node]:
+    found = []
+    following = node.next_sibling
+
+    while following is not None:
+        if following.type in ("getter", "setter"):
+            found.append(following)
+        elif following.type not in ("line_comment", "multiline_comment"):
+            break
+
+        following = following.next_sibling
+
+    return found
+
+
+def bound_names(root: Node, extra: list[Node] | None = None) -> set[str]:
     found = set()
 
-    for node in walk(root):
-        if node.type in ("parameter", "class_parameter", "variable_declaration"):
+    for node in [n for r in [root, *(extra or [])] for n in walk(r)]:
+        if node.type in (
+            "parameter",
+            "parameter_with_optional_type",
+            "class_parameter",
+            "variable_declaration",
+        ):
             name = child(node, "simple_identifier")
         elif node.type == "catch_block":
             name = child(node, "simple_identifier")
@@ -266,9 +286,12 @@ class CallResolver:
             if decl.owner is not None or decl.node is None:
                 continue
 
-            shadowed = bound_names(decl.node)
+            accessors = (
+                accessor_siblings(decl.node) if decl.node.type == "property_declaration" else []
+            )
+            shadowed = bound_names(decl.node, accessors)
             top = f"{file.path}::{decl.name}"
-            pending = [(decl.node, top)]
+            pending = [(a, top) for a in reversed(accessors)] + [(decl.node, top)]
             seen: set[tuple[str, str]] = set()
             taken = {(src, ln, tgt) for src, ln, tgt, _ in self.found}
 

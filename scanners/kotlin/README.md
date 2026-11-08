@@ -31,7 +31,7 @@ Classes, objects, companion objects (`Outer.Companion`), data, sealed, enum, ann
 
 An `abstract class` member carries the tag `abstract`; no other class, interface or `typealias` is tagged.
 
-A call is recorded when both ends are members: a top-level function or object member by name, a constructor, a method on a receiver whose type is declared (a constructor property, a property, a parameter), and dispatch from an abstract or interface method to each implementation. A method a scanned interface does not declare, when the interface has a supertype declared in no scanned file, resolves to the interface itself. A use a top-level declaration makes of another top-level member of the same file is recorded as a `call` (constants, properties, type references, calls anywhere in the declaration, extension calls by name), except a shadowed name and a self-reference.
+A call is recorded when both ends are members: a top-level function or object member by name, a constructor, a method on a receiver whose type is declared (a constructor property, a property, a parameter), and dispatch from an abstract or interface method to each implementation. A method a scanned interface does not declare, when the interface has a supertype declared in no scanned file, resolves to the interface itself. A use a top-level declaration makes of another top-level member of the same file is recorded as a `call` (constants, properties, type references, calls anywhere in the declaration, extension calls by name), except a shadowed name and a self-reference; a top-level property's accessors are read with the property, including a getter or setter on its own line.
 
 ## Entry points
 
