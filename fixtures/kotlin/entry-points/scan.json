@@ -53,7 +53,8 @@
       "test",
       "androidTest",
       "integrationTest",
-      "testFixtures"
+      "testFixtures",
+      "test-fixtures"
     ],
     "skip_directory_prefixes": [
       "."
