@@ -1,0 +1,22 @@
+name: install-uv
+description: Install uv from PyPI at one pinned version, so no job downloads it from GitHub releases.
+inputs:
+  python-version:
+    description: The Python interpreter uv picks up on a hosted runner.
+    default: "3.11"
+runs:
+  using: composite
+  steps:
+    - if: runner.environment == 'github-hosted'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - if: runner.environment == 'github-hosted'
+      shell: bash
+      run: python -m pip install uv==0.13.7
+    - if: runner.environment != 'github-hosted'
+      shell: bash
+      run: |
+        python3 -m venv "$RUNNER_TEMP/uv-venv"
+        "$RUNNER_TEMP/uv-venv/bin/python" -m pip install uv==0.13.7
+        echo "$RUNNER_TEMP/uv-venv/bin" >> "$GITHUB_PATH"

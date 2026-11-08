@@ -10,6 +10,7 @@ from conftest import git_commit, write_scan_document
 from test_mutation import run_mutate
 
 from recognizer_sensors.mutation import runner, sensor
+from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun import profiles
 from recognizer_sensors.testrun.profiles import (
     KOTLIN_CLASSES,
@@ -362,7 +363,12 @@ def test_real_gradle_selection_on_the_committed_fixture(tmp_path):
     calc = "src/main/kotlin/p/Calc.kt"
     scan = SimpleNamespace(language="kotlin", modules=[SimpleNamespace(files=[calc])])
 
-    _, selection = collect_coverage_with_tests(root, [scan], None)
+    try:
+        _, selection = collect_coverage_with_tests(root, [scan], None)
+    except Refusal as refusal:
+        log = root / ".recognizer" / "cache" / "coverage" / "last-run.log"
+        text = log.read_text(errors="replace") if log.exists() else "no log written"
+        pytest.fail(f"{refusal}\n{text[-6000:]}")
 
     add, many, outer = ADD, MANY, OUTER
     assert selection[calc] == {

@@ -8,6 +8,7 @@ on:
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-kotlin.yml
+      - .github/actions/install-uv/**
   push:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-kotlin.yml
+      - .github/actions/install-uv/**
 
 env:
   RECOGNIZER_REQUIRE_REAL_CONTENT: "1"
@@ -42,7 +44,7 @@ jobs:
           repository: ArnauAregall/micronaut-kotlin-petclinic-clean-architecture
           ref: e6e3b49140a55daa148de19111a060e2f62e32be
           path: petclinic
-      - uses: astral-sh/setup-uv@v6
+      - uses: ./.github/actions/install-uv
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
