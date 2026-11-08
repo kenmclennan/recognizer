@@ -3459,6 +3459,7 @@ export function showExplorer(
           group,
           rows.find((row) => row.key === group.name),
           now,
+          shippedSensors,
         );
 
         return note === null

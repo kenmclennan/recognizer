@@ -641,11 +641,30 @@ describe("freshnessNote", () => {
     tickable: true,
   });
   const noteOf = (state: ResultState) =>
-    freshnessNote(group, rowOf(state), NOW);
+    freshnessNote(group, rowOf(state), NOW, shippedList);
 
   it("has no note for a current sensor or a group with no row", () => {
     expect(noteOf({ kind: "current", at: 1 })).toBeNull();
-    expect(freshnessNote(group, undefined, NOW)).toBeNull();
+    expect(freshnessNote(group, undefined, NOW, null)).toBeNull();
+  });
+
+  it("notes a group with no row as not written by a sensor this repository runs", () => {
+    expect(freshnessNote(group, undefined, NOW, shippedList)).toEqual({
+      text: "Not written by a sensor this repository runs, so its values are not shown.",
+      tone: "muted",
+    });
+  });
+
+  it("notes a group with no row as unreadable when the sensor list is unavailable", () => {
+    expect(
+      freshnessNote(group, undefined, NOW, {
+        status: "unavailable",
+        reason: "failed",
+      }),
+    ).toEqual({
+      text: "The sensor list could not be read, so its values are not shown.",
+      tone: "muted",
+    });
   });
 
   it("warns with the count and the call to action when out of date", () => {
@@ -713,7 +732,12 @@ describe("freshnessNote against the Scan panel model", () => {
   const noteFor = (model: ReturnType<typeof scanPanel>, name: string) => {
     const row = model.freshness.rows.find((one) => one.key === name);
 
-    return freshnessNote(groupFor(name, row?.name ?? name), row, NOW);
+    return freshnessNote(
+      groupFor(name, row?.name ?? name),
+      row,
+      NOW,
+      shippedList,
+    );
   };
 
   it("counts the same modules and words the state the same as the row", () => {
@@ -742,7 +766,7 @@ describe("freshnessNote against the Scan panel model", () => {
     expect(noteFor(model, "crap")?.text).toBe(
       "1 module out of date. Run C.R.A.P. from the Scan panel.",
     );
-    expect(noteFor(model, "stray")).toBeNull();
+    expect(noteFor(model, "stray")?.tone).toBe("muted");
   });
 
   describe("applyFreshness", () => {
@@ -825,11 +849,12 @@ describe("freshnessNote against the Scan panel model", () => {
       },
     );
 
-    it("leaves a group with no row unchanged", () => {
+    it("disables a group with no row", () => {
       const model = build([file("stray", stale)]);
       const applied = applyFreshness(model, panel([]).freshness);
 
-      expect(enabledOf(applied, "stray")).toBe(true);
+      expect(enabledOf(applied, "stray")).toBe(false);
+      expect(applied.metrics).toEqual([]);
     });
 
     it("keeps a shipped sensor with no file disabled whatever its row says", () => {
@@ -855,11 +880,10 @@ describe("freshnessNote against the Scan panel model", () => {
       expect(applied.groups.map((group) => group.enabled)).toEqual([
         false,
         true,
-        true,
+        false,
       ]);
       expect(applied.metrics.map((metric) => metric.overlay)).toEqual([
         "mutation",
-        "stray",
       ]);
     });
 
@@ -870,7 +894,12 @@ describe("freshnessNote against the Scan panel model", () => {
         const applied = applyFreshness(model, freshness);
         const group = model.groups[0] as OverlayGroup;
         const row = freshness.rows.find((one) => one.key === "crap");
-        const note = freshnessNote({ ...group, title: "C.R.A.P." }, row, NOW);
+        const note = freshnessNote(
+          { ...group, title: "C.R.A.P." },
+          row,
+          NOW,
+          shippedList,
+        );
         const outOfDate = row?.state.kind === "out-of-date";
         const empty = applied.groups[0]?.metrics.every(
           (metric) => Object.keys(metric.values).length === 0,
@@ -976,6 +1005,7 @@ describe("freshnessNote against the Scan panel model", () => {
           { name: "crap", title: "C.R.A.P." } as OverlayGroup,
           row,
           NOW,
+          shippedList,
         ),
       ).toBeNull();
     });
