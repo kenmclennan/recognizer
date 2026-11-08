@@ -7,7 +7,11 @@ import pytest
 from conftest import git_commit
 
 from recognizer_sensors import hashes
-from recognizer_sensors.rust_test_blocks import in_file_test_hashes, is_test_attribute
+from recognizer_sensors.rust_test_blocks import (
+    in_file_test_hashes,
+    is_test_attribute,
+    manifest_roots,
+)
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "sensors" / "tests-digest"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
@@ -268,7 +272,7 @@ FILE_CASES = json.loads(
 
 
 def test_the_file_case_table_is_read():
-    assert len(FILE_CASES) > 15
+    assert len(FILE_CASES) > 22
 
 
 @pytest.mark.parametrize("case", FILE_CASES, ids=[c["name"] for c in FILE_CASES])
@@ -300,3 +304,90 @@ def test_a_mixed_file_counts_only_items_that_require_test(tmp_path):
     )
 
     assert entries_of(tmp_path, {"src/a.rs": text}) == ["src/a.rs#0", "src/a.rs#1"]
+
+
+PACKAGE = '[package]\nname = "app"\nversion = "0.1.0"\n'
+
+
+def test_an_unparseable_manifest_leaves_its_files_to_name_inference(tmp_path):
+    files = {
+        "Cargo.toml": "[package",
+        "src/lib.rs": "#[cfg(test)]\nmod t;\n",
+        "src/t.rs": "fn a() {}\n",
+    }
+
+    assert "src/t.rs#file" in in_file_test_hashes(repository(tmp_path, files), list(files))
+
+
+def test_a_covered_package_and_an_uncovered_directory_resolve_side_by_side(tmp_path):
+    files = {
+        "covered/Cargo.toml": PACKAGE + '[lib]\npath = "other/mylib.rs"\n',
+        "covered/other/mylib.rs": "#[cfg(test)]\nmod t;\n",
+        "covered/other/t.rs": "fn a() {}\n",
+        "bare/lib.rs": "#[cfg(test)]\nmod t;\n",
+        "bare/t.rs": "fn a() {}\n",
+    }
+    found = {
+        key.removesuffix("#file")
+        for key in in_file_test_hashes(repository(tmp_path, files), list(files))
+        if key.endswith("#file")
+    }
+
+    assert found == {"covered/other/t.rs", "bare/t.rs"}
+
+
+def test_a_virtual_workspace_manifest_covers_nothing(tmp_path):
+    files = {"Cargo.toml": "[workspace]\nmembers = []\n", "src/lib.rs": "mod a;\n"}
+    roots = manifest_roots(files, lambda path: files[path].encode())
+
+    assert roots.covered == frozenset()
+    assert roots.is_root("src/lib.rs")
+
+
+def test_manifest_roots_reads_every_target_the_scanner_does(tmp_path):
+    files = {
+        "p/Cargo.toml": PACKAGE
+        + '[[example]]\nname = "e"\npath = "demo/e.rs"\n[[test]]\nname = "t"\npath = "it/t.rs"\n',
+        "p/src/lib.rs": "",
+        "p/src/main.rs": "",
+        "p/build.rs": "",
+        "p/demo/e.rs": "",
+        "p/it/t.rs": "",
+        "p/src/bin/a.rs": "",
+        "p/src/bin/b/main.rs": "",
+        "p/src/bin/b/other.rs": "",
+        "p/benches/x.rs": "",
+        "p/lib.rs": "",
+    }
+    roots = manifest_roots(files, lambda path: files[path].encode())
+
+    assert roots.roots == {
+        "p/src/lib.rs",
+        "p/src/main.rs",
+        "p/build.rs",
+        "p/demo/e.rs",
+        "p/it/t.rs",
+        "p/src/bin/a.rs",
+        "p/src/bin/b/main.rs",
+        "p/benches/x.rs",
+    }
+
+
+def test_build_false_declares_no_build_script():
+    files = {
+        "Cargo.toml": PACKAGE.replace("[package]\n", "[package]\nbuild = false\n"),
+        "build.rs": "",
+    }
+
+    assert "build.rs" not in manifest_roots(files, lambda path: files[path].encode()).roots
+
+
+def test_the_real_scanner_listing_gives_the_same_entries_with_and_without_its_manifest():
+    root = Path(__file__).parents[2] / "scanners" / "rust"
+    listed = sorted(str(path.relative_to(root)) for path in (root / "src").rglob("*.rs")) + sorted(
+        str(path.relative_to(root)) for path in (root / "tests").rglob("*.rs")
+    )
+
+    assert set(in_file_test_hashes(root, [*listed, "Cargo.toml"])) == set(
+        in_file_test_hashes(root, listed)
+    )

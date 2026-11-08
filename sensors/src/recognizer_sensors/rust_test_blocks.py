@@ -1,6 +1,7 @@
 import hashlib
 import posixpath
 import re
+import tomllib
 from collections.abc import Callable, Collection
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
@@ -398,13 +399,15 @@ def scan(data: bytes) -> Scan:
     depth = 0
     i = 0
 
+    nesting = 0
+
     def enter(name: str, inline: bool, path: str | None, is_test: bool) -> None:
         nonlocal depth
 
         if inline:
             scope.append((name, depth))
             depth += 1
-        else:
+        elif depth == len(scope) and nesting == 0:
             declarations.append(
                 Declaration(tuple(entry[0] for entry in scope), name, path, is_test)
             )
@@ -470,6 +473,10 @@ def scan(data: bytes) -> Scan:
 
             if scope and scope[-1][1] == depth:
                 scope.pop()
+        elif byte == 0x28 or byte == 0x5B:
+            nesting += 1
+        elif byte == 0x29 or byte == 0x5D:
+            nesting = max(nesting - 1, 0)
         elif (byte == 0x6D or byte == 0x70) and (i == 0 or not is_identifier_byte(data[i - 1])):
             head = module_head(data, i)
 
@@ -494,6 +501,97 @@ def is_root_file(path: str) -> bool:
         return True
 
     return parent.name == "bin" and parent.parent.name == "src"
+
+
+class Roots(NamedTuple):
+    roots: frozenset[str]
+    covered: frozenset[str]
+
+    def is_root(self, path: str) -> bool:
+        parent = PurePosixPath(path).parent
+
+        for directory in (parent, *parent.parents):
+            if ("" if str(directory) == "." else str(directory)) in self.covered:
+                return path in self.roots
+
+        return is_root_file(path)
+
+
+def join_root(directory: str, relative: str) -> str | None:
+    parts: list[str] = []
+
+    for part in (f"{directory}/{relative}" if directory else relative).split("/"):
+        if part in ("", "."):
+            continue
+
+        if part == "..":
+            if not parts:
+                return None
+
+            parts.pop()
+        else:
+            parts.append(part)
+
+    return "/".join(parts)
+
+
+def manifest_roots(listed: Collection[str], read: Callable[[str], bytes | None]) -> Roots:
+    paths = set(listed)
+    sources = sorted(path for path in paths if path.endswith(".rs"))
+    roots: set[str] = set()
+    covered: set[str] = set()
+
+    for manifest in sorted(path for path in paths if PurePosixPath(path).name == "Cargo.toml"):
+        try:
+            table = tomllib.loads((read(manifest) or b"").decode("utf-8"))
+        except (UnicodeDecodeError, tomllib.TOMLDecodeError):
+            continue
+
+        package = table.get("package")
+
+        if not isinstance(package, dict) or not isinstance(package.get("name"), str):
+            continue
+
+        parent = str(PurePosixPath(manifest).parent)
+        directory = "" if parent == "." else parent
+        covered.add(directory)
+
+        def declare(relative: str, directory: str = directory) -> None:
+            found = join_root(directory, relative)
+
+            if found is not None and found in paths:
+                roots.add(found)
+
+        library = table.get("lib")
+        library_path = library.get("path") if isinstance(library, dict) else None
+        declare(library_path if isinstance(library_path, str) else "src/lib.rs")
+        declare("src/main.rs")
+
+        build = package.get("build")
+
+        if build is not False:
+            declare(build if isinstance(build, str) else "build.rs")
+
+        for kind in ("bin", "example", "bench", "test"):
+            entries = table.get(kind)
+
+            for entry in entries if isinstance(entries, list) else []:
+                if isinstance(entry, dict) and isinstance(entry.get("path"), str):
+                    declare(entry["path"])
+
+        for folder in ("src/bin", "examples", "benches"):
+            prefix = f"{directory}/{folder}/" if directory else f"{folder}/"
+
+            for path in sources:
+                if not path.startswith(prefix):
+                    continue
+
+                rest = path[len(prefix) :]
+
+                if "/" not in rest or (rest.count("/") == 1 and rest.endswith("/main.rs")):
+                    roots.add(path)
+
+    return Roots(frozenset(roots), frozenset(covered))
 
 
 def module_candidates(
@@ -544,6 +642,7 @@ def test_file_set(
     sources: Collection[str],
     first_pass: dict[str, Scan],
     scan_file: Callable[[str], Scan | None],
+    is_root: Callable[[str], bool] | None = None,
 ) -> set[str]:
     index = set(sources)
     marked: set[str] = set()
@@ -560,14 +659,28 @@ def test_file_set(
 
         for declaration in found.declarations:
             if declaration.is_test:
-                mark(resolved_declaration(path, declaration, index.__contains__))
+                mark(
+                    resolved_declaration(
+                        path,
+                        declaration,
+                        index.__contains__,
+                        None if is_root is None else is_root(path),
+                    )
+                )
 
     while pending:
         file = pending.pop()
         found = first_pass.get(file) or scan_file(file)
 
         for declaration in found.declarations if found else []:
-            mark(resolved_declaration(file, declaration, index.__contains__))
+            mark(
+                resolved_declaration(
+                    file,
+                    declaration,
+                    index.__contains__,
+                    None if is_root is None else is_root(file),
+                )
+            )
 
     return marked
 
@@ -576,6 +689,14 @@ def in_file_test_hashes(repository: Path, listed: Collection[str]) -> dict[str, 
     sources = sorted({path for path in listed if path.endswith(".rs")})
     entries: dict[str, str] = {}
     first_pass: dict[str, Scan] = {}
+
+    def read_listed(path: str) -> bytes | None:
+        try:
+            return (repository / path).read_bytes()
+        except OSError:
+            return None
+
+    roots = manifest_roots(listed, read_listed)
 
     for path in sources:
         if is_test_file(path):
@@ -601,7 +722,7 @@ def in_file_test_hashes(repository: Path, listed: Collection[str]) -> dict[str, 
         except OSError:
             return None
 
-    for path in sorted(test_file_set(sources, first_pass, scan_file)):
+    for path in sorted(test_file_set(sources, first_pass, scan_file, roots.is_root)):
         try:
             entries[f"{path}#file"] = sha256_hex((repository / path).read_bytes())
         except OSError:

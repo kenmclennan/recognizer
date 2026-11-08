@@ -165,5 +165,69 @@
       "t.rs": "fn a() {}\n"
     },
     "test_files": ["t.rs"]
+  },
+  {
+    "name": "custom lib path resolves its modules",
+    "files": {
+      "Cargo.toml": "[package]\nname = \"app\"\nversion = \"0.1.0\"\n[lib]\npath = \"other/mylib.rs\"\n",
+      "other/mylib.rs": "#[cfg(test)]\nmod t;\n",
+      "other/t.rs": "fn a() {}\n"
+    },
+    "roots": ["other/mylib.rs"],
+    "test_files": ["other/t.rs"]
+  },
+  {
+    "name": "custom bin path resolves its modules",
+    "files": {
+      "Cargo.toml": "[package]\nname = \"app\"\nversion = \"0.1.0\"\n[[bin]]\nname = \"tool\"\npath = \"cmd/entry.rs\"\n",
+      "cmd/entry.rs": "#[cfg(test)]\nmod t;\n",
+      "cmd/t.rs": "fn a() {}\n"
+    },
+    "roots": ["cmd/entry.rs"],
+    "test_files": ["cmd/t.rs"]
+  },
+  {
+    "name": "a lib.rs outside src is not a root",
+    "files": {
+      "Cargo.toml": "[package]\nname = \"app\"\nversion = \"0.1.0\"\n",
+      "src/lib.rs": "mod a;\n",
+      "src/a.rs": "fn a() {}\n",
+      "extra/lib.rs": "#[cfg(test)]\nmod t;\n",
+      "extra/lib/t.rs": "fn a() {}\n",
+      "extra/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["extra/lib/t.rs"]
+  },
+  {
+    "name": "declaration in a function body is not read",
+    "files": {
+      "src/lib.rs": "fn f() {\n    #[cfg(test)]\n    mod t;\n}\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": []
+  },
+  {
+    "name": "declaration in a macro_rules body is not read",
+    "files": {
+      "src/lib.rs": "macro_rules! m { () => { #[cfg(test)] mod t; } }\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": []
+  },
+  {
+    "name": "declaration in a macro invocation is not read",
+    "files": {
+      "src/lib.rs": "m!(\n    #[cfg(test)]\n    mod t;\n);\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": []
+  },
+  {
+    "name": "declaration after a function body is read (boundary)",
+    "files": {
+      "src/lib.rs": "fn f() { let x = [1, (2)]; }\n#[cfg(test)]\nmod t;\n",
+      "src/t.rs": "fn a() {}\n"
+    },
+    "test_files": ["src/t.rs"]
   }
 ]

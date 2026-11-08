@@ -164,12 +164,12 @@ def test_a_path_attribute_is_followed_and_prints_nothing(tmp_path, capsys):
     assert list(entries(root)) == ["src/extra/spec.rs#file"]
 
 
-def entries(root):
+def entries(root, unit="src/lib.rs"):
     from recognizer_sensors.mutation.inline_tests import walk_unit
 
     found = {}
 
-    walk_unit(root, PurePosixPath("src/lib.rs"), found)
+    walk_unit(root, PurePosixPath(unit), found)
 
     return found
 
@@ -202,6 +202,7 @@ def test_a_gated_module_brings_the_files_it_declares(tmp_path):
 SKIPPED_FILE_CASES = (
     "declaration in a bin root",
     "declaration in a build script",
+    "a lib.rs outside src is not a root",
 )
 
 UNSOUND_FILE_CASES = ("declaration with no file",)
@@ -212,7 +213,7 @@ def test_the_walk_follows_the_shared_file_cases(tmp_path):
         (Path(__file__).parents[2] / "fixtures" / "rust-test-gate" / "file-cases.json").read_text()
     )
 
-    assert len(cases) > 15
+    assert len(cases) > 22
 
     for number, case in enumerate(cases):
         if case["name"] in SKIPPED_FILE_CASES:
@@ -226,7 +227,8 @@ def test_the_walk_follows_the_shared_file_cases(tmp_path):
 
             continue
 
-        found = {key.removesuffix("#file") for key in entries(root) if key.endswith("#file")}
+        unit = case.get("roots", ["src/lib.rs"])[0]
+        found = {key.removesuffix("#file") for key in entries(root, unit) if key.endswith("#file")}
         expected = set(case["test_files"])
 
         assert found == expected, case["name"]

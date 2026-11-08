@@ -40,7 +40,7 @@ describe("closureFromLock", () => {
     expect(() => closureFromLock(broken, ["app"])).toThrow(/ghost/);
   });
 
-  it("returns exactly today's seven packages for the real lockfile", () => {
+  it("returns exactly today's eight packages for the real lockfile", () => {
     const real = JSON.parse(
       readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
     );
@@ -51,6 +51,7 @@ describe("closureFromLock", () => {
       ["node_modules/fast-uri", "3.1.8"],
       ["node_modules/json-schema-traverse", "1.0.0"],
       ["node_modules/require-from-string", "2.0.2"],
+      ["node_modules/smol-toml", "1.9.1"],
       ["node_modules/typescript", "5.9.3"],
       ["node_modules/yaml", "2.9.1"],
     ]);

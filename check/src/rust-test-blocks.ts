@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { join, posix } from "node:path";
+import { parse } from "smol-toml";
 import type { Io } from "./cli.js";
 import { isTestFile } from "./entry-points.js";
 
@@ -467,6 +468,7 @@ function scan(data: Buffer): Scanned {
   const scope: [string, number][] = [];
   let fileLevel = false;
   let depth = 0;
+  let nesting = 0;
   let i = 0;
 
   const enter = (
@@ -477,7 +479,7 @@ function scan(data: Buffer): Scanned {
     if (head.inline) {
       scope.push([head.name, depth]);
       depth += 1;
-    } else {
+    } else if (depth === scope.length && nesting === 0) {
       declarations.push({
         scope: scope.map((entry) => entry[0]),
         name: head.name,
@@ -562,6 +564,10 @@ function scan(data: Buffer): Scanned {
       ) {
         scope.pop();
       }
+    } else if (byte === 0x28 || byte === 0x5b) {
+      nesting += 1;
+    } else if (byte === 0x29 || byte === 0x5d) {
+      nesting = Math.max(nesting - 1, 0);
     } else if (
       (byte === 0x6d || byte === 0x70) &&
       (i === 0 || !isIdentifierByte(data[i - 1] as number))
@@ -600,6 +606,150 @@ function isRootFile(path: string): boolean {
   );
 }
 
+export type Roots = {
+  roots: ReadonlySet<string>;
+  covered: ReadonlySet<string>;
+};
+
+function joinRoot(directory: string, relative: string): string | null {
+  const parts: string[] = [];
+
+  for (const part of (directory === ""
+    ? relative
+    : `${directory}/${relative}`
+  ).split("/")) {
+    if (part === "" || part === ".") {
+      continue;
+    }
+
+    if (part === "..") {
+      if (parts.length === 0) {
+        return null;
+      }
+
+      parts.pop();
+    } else {
+      parts.push(part);
+    }
+  }
+
+  return parts.join("/");
+}
+
+function asTable(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function parseManifest(text: string | null): Record<string, unknown> | null {
+  if (text === null) {
+    return null;
+  }
+
+  try {
+    return parse(text) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+export function manifestRoots(
+  listed: readonly string[],
+  read: (path: string) => string | null,
+): Roots {
+  const paths = new Set(listed);
+  const sources = [...paths].filter((path) => path.endsWith(".rs")).sort();
+  const roots = new Set<string>();
+  const covered = new Set<string>();
+
+  for (const manifest of [...paths].sort()) {
+    if (posix.basename(manifest) !== "Cargo.toml") {
+      continue;
+    }
+
+    const table = parseManifest(read(manifest));
+    const packageTable = asTable(table?.package);
+
+    if (table === null || typeof packageTable?.name !== "string") {
+      continue;
+    }
+
+    const parent = posix.dirname(manifest);
+    const directory = parent === "." ? "" : parent;
+
+    covered.add(directory);
+
+    const declare = (relative: string): void => {
+      const found = joinRoot(directory, relative);
+
+      if (found !== null && paths.has(found)) {
+        roots.add(found);
+      }
+    };
+    const libraryPath = asTable(table.lib)?.path;
+
+    declare(typeof libraryPath === "string" ? libraryPath : "src/lib.rs");
+    declare("src/main.rs");
+
+    const build = packageTable.build;
+
+    if (build !== false) {
+      declare(typeof build === "string" ? build : "build.rs");
+    }
+
+    for (const kind of ["bin", "example", "bench", "test"]) {
+      const entries = table[kind];
+
+      for (const entry of Array.isArray(entries) ? entries : []) {
+        const path = asTable(entry)?.path;
+
+        if (typeof path === "string") {
+          declare(path);
+        }
+      }
+    }
+
+    for (const folder of ["src/bin", "examples", "benches"]) {
+      const prefix =
+        directory === "" ? `${folder}/` : `${directory}/${folder}/`;
+
+      for (const path of sources) {
+        if (!path.startsWith(prefix)) {
+          continue;
+        }
+
+        const rest = path.slice(prefix.length);
+        const slashes = rest.split("/").length - 1;
+
+        if (slashes === 0 || (slashes === 1 && rest.endsWith("/main.rs"))) {
+          roots.add(path);
+        }
+      }
+    }
+  }
+
+  return { roots, covered };
+}
+
+function isRootIn(roots: Roots, path: string): boolean {
+  let directory = posix.dirname(path);
+
+  for (;;) {
+    if (roots.covered.has(directory === "." ? "" : directory)) {
+      return roots.roots.has(path);
+    }
+
+    const next = posix.dirname(directory);
+
+    if (next === directory) {
+      return isRootFile(path);
+    }
+
+    directory = next;
+  }
+}
+
 function joinModule(base: string, tail: string): string | null {
   if (tail.startsWith("/")) {
     return null;
@@ -610,7 +760,11 @@ function joinModule(base: string, tail: string): string | null {
   return joined.startsWith("..") || joined === "." ? null : joined;
 }
 
-function moduleCandidates(file: string, declaration: Declaration): string[] {
+function moduleCandidates(
+  file: string,
+  declaration: Declaration,
+  roots: Roots,
+): string[] {
   const parent = posix.dirname(file);
   const directory = parent === "." ? "" : parent;
 
@@ -623,7 +777,7 @@ function moduleCandidates(file: string, declaration: Declaration): string[] {
   const name = posix.basename(file);
   const stem = name.slice(0, -3);
   let base =
-    isRootFile(file) || name === "mod.rs"
+    isRootIn(roots, file) || name === "mod.rs"
       ? directory
       : (joinModule(directory, stem) ?? "");
 
@@ -640,10 +794,12 @@ function resolvedDeclaration(
   file: string,
   declaration: Declaration,
   index: ReadonlySet<string>,
+  roots: Roots,
 ): string | null {
   return (
-    moduleCandidates(file, declaration).find((found) => index.has(found)) ??
-    null
+    moduleCandidates(file, declaration, roots).find((found) =>
+      index.has(found),
+    ) ?? null
   );
 }
 
@@ -684,6 +840,7 @@ function testFileSet(
   root: string,
   sources: readonly string[],
   first: Map<string, { data: Buffer; scanned: Scanned }>,
+  roots: Roots,
 ): Set<string> {
   const index = new Set(sources);
   const marked = new Set<string>();
@@ -702,7 +859,7 @@ function testFileSet(
 
     for (const declaration of scanned.declarations) {
       if (declaration.isTest) {
-        mark(resolvedDeclaration(path, declaration, index));
+        mark(resolvedDeclaration(path, declaration, index, roots));
       }
     }
   }
@@ -718,11 +875,21 @@ function testFileSet(
     }
 
     for (const declaration of declarations) {
-      mark(resolvedDeclaration(file, declaration, index));
+      mark(resolvedDeclaration(file, declaration, index, roots));
     }
   }
 
   return marked;
+}
+
+function readText(io: Io, root: string, path: string): string | null {
+  const data = readOrNull(io, join(root, path));
+
+  return data === null ? null : data.toString("utf8");
+}
+
+function rootsOf(io: Io, root: string, paths: readonly string[]): Roots {
+  return manifestRoots(paths, (path) => readText(io, root, path));
 }
 
 function rustSources(paths: readonly string[]): string[] {
@@ -736,7 +903,13 @@ export function rustTestFiles(
 ): Set<string> {
   const sources = rustSources(paths);
 
-  return testFileSet(io, root, sources, firstPass(io, root, sources));
+  return testFileSet(
+    io,
+    root,
+    sources,
+    firstPass(io, root, sources),
+    rootsOf(io, root, paths),
+  );
 }
 
 export function inFileTestHashes(
@@ -754,7 +927,9 @@ export function inFileTestHashes(
     });
   }
 
-  for (const path of [...testFileSet(io, root, sources, first)].sort()) {
+  for (const path of [
+    ...testFileSet(io, root, sources, first, rootsOf(io, root, paths)),
+  ].sort()) {
     const data = readOrNull(io, join(root, path));
 
     if (data !== null) {
