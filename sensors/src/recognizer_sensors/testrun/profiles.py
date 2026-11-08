@@ -2,6 +2,8 @@ import os
 import shlex
 from pathlib import Path
 
+from recognizer_sensors.backup import exclude_from_backup
+
 PLUGIN_DIRECTORY = Path(__file__).parent / "plugin"
 
 UV_ENVIRONMENT = ".recognizer/cache/python-env"
@@ -113,11 +115,21 @@ def python_runner(repository: Path) -> list[str]:
     return list(PYTHON_RUNNERS[-1][1])
 
 
-def tool_environment(repository: Path) -> dict[str, str] | None:
+MARKED_ENVIRONMENTS: set[Path] = set()
+
+
+def tool_environment(repository: Path, mark: bool = True) -> dict[str, str] | None:
     if not (repository / "uv.lock").is_file():
         return None
 
-    return {**os.environ, "UV_PROJECT_ENVIRONMENT": str(repository / UV_ENVIRONMENT)}
+    environment = repository / UV_ENVIRONMENT
+
+    if mark and not (environment in MARKED_ENVIRONMENTS and environment.is_dir()):
+        environment.mkdir(parents=True, exist_ok=True)
+        exclude_from_backup(environment)
+        MARKED_ENVIRONMENTS.add(environment)
+
+    return {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment)}
 
 
 def fill(command: list[str], runner: list[str] | None, joined: bool) -> list[str]:
