@@ -1,3 +1,4 @@
+import errno
 import hashlib
 import json
 import os
@@ -1812,6 +1813,53 @@ def test_copy_repository_carries_listed_paths_and_skips_missing_ones(tmp_path):
     assert (destination / "gen/one.py").exists()
     assert (destination / "vendor/two.py").exists()
     assert not (destination / ".venv").exists()
+
+
+def test_copy_repository_clones_a_listed_directory_whole(tmp_path):
+    source = git_repository(tmp_path / "source", ["a.txt"])
+    nested = source / "sub"
+    nested.mkdir()
+    (nested / "inner.txt").write_text("inner")
+    subprocess.run(["git", "init", "-q"], cwd=nested, check=True)
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert (destination / "sub/inner.txt").read_text() == "inner"
+
+
+def test_copy_repository_falls_back_to_a_plain_copy_and_stops_trying_to_clone(
+    tmp_path, monkeypatch
+):
+    source = git_repository(tmp_path / "source", ["a.txt", "b.txt", "c/d.txt"])
+    calls = []
+
+    def refuse(*args):
+        calls.append(args)
+
+        return -1
+
+    monkeypatch.setitem(runner.CLONE_STATE, "enabled", True)
+    monkeypatch.setitem(runner.CLONE_STATE, "call", refuse)
+    monkeypatch.setattr(runner.ctypes, "get_errno", lambda: errno.ENOTSUP)
+    destination = tmp_path / "copy"
+
+    runner.copy_repository(source, destination)
+
+    assert copied_files(destination) == [".gitignore", "a.txt", "b.txt", "c/d.txt"]
+    assert len(calls) == 1
+
+
+def test_copy_repository_never_clones_where_cloning_is_disabled(tmp_path, monkeypatch):
+    source = git_repository(tmp_path / "source", ["a.txt"])
+    calls = []
+    monkeypatch.setitem(runner.CLONE_STATE, "enabled", False)
+    monkeypatch.setitem(runner.CLONE_STATE, "call", lambda *args: calls.append(args) or 0)
+
+    runner.copy_repository(source, tmp_path / "copy")
+
+    assert calls == []
+    assert (tmp_path / "copy/a.txt").exists()
 
 
 def test_writing_in_a_copy_leaves_the_original_unchanged(tmp_path):

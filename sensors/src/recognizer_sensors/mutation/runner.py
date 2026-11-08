@@ -1,8 +1,11 @@
+import ctypes
+import errno
 import itertools
 import os
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -80,7 +83,52 @@ def ignore_for(repository: Path) -> Callable[[str, list[str]], set[str]]:
     return ignore
 
 
+CLONE_NOFOLLOW = 1
+
+FALLBACK_ERRNOS = {errno.ENOTSUP, errno.EXDEV, errno.EINVAL}
+
 GRADLE_FILES = {"build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"}
+
+CLONE_STATE = {"enabled": sys.platform == "darwin", "call": None}
+
+
+def clone_call() -> Callable[[bytes, bytes, int], int] | None:
+    if CLONE_STATE["call"] is None:
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            call = libc.clonefile
+            call.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32]
+            call.restype = ctypes.c_int
+        except (OSError, AttributeError):
+            return None
+
+        CLONE_STATE["call"] = call
+
+    return CLONE_STATE["call"]
+
+
+def clone_path(source: Path, destination: Path) -> bool:
+    if not CLONE_STATE["enabled"]:
+        return False
+
+    call = clone_call()
+
+    if call is None:
+        CLONE_STATE["enabled"] = False
+
+        return False
+
+    if call(os.fsencode(source), os.fsencode(destination), CLONE_NOFOLLOW) == 0:
+        return True
+
+    number = ctypes.get_errno()
+
+    if number in FALLBACK_ERRNOS:
+        CLONE_STATE["enabled"] = False
+
+        return False
+
+    raise OSError(number, os.strerror(number), str(source))
 
 
 def copy_entry(
@@ -92,11 +140,30 @@ def copy_entry(
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     if source.is_dir() and not source.is_symlink():
+        if clone_path(source, destination):
+            drop_bytecode(destination)
+
+            return
+
         shutil.copytree(source, destination, symlinks=True, ignore=ignore)
 
         return
 
+    if clone_path(source, destination):
+        return
+
     shutil.copy2(source, destination, follow_symlinks=False)
+
+
+def drop_bytecode(folder: Path) -> None:
+    for here, names, files in os.walk(folder):
+        for name in [name for name in names if name == "__pycache__"]:
+            shutil.rmtree(Path(here) / name, ignore_errors=True)
+            names.remove(name)
+
+        for name in files:
+            if name.endswith(".pyc"):
+                (Path(here) / name).unlink(missing_ok=True)
 
 
 def git_lines(repository: Path, *arguments: str) -> list[str] | None:
