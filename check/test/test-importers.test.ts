@@ -226,10 +226,10 @@ describe("orphan test importers", () => {
     );
   });
 
-  it("ends the test-only summary of a Kotlin or C# id with the library hint", () => {
+  it("ends the test-only summary of a Kotlin or C# id without the library hint", () => {
     for (const id of ["a/M.kt", "a/M.cs"]) {
       expect(testOnlySummary(id, [{ file: "t/x.kt", names: [] }])).toMatch(
-        /move it next to them rather than deleting it; a library can list its public API in warnings\.orphan\.entry_points$/,
+        /rather than deleting it$/,
       );
     }
   });
