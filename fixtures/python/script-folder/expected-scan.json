@@ -57,6 +57,9 @@
     "skip_file_globs": [
       "conftest.py"
     ],
+    "input_file_globs": [
+      "pyproject.toml"
+    ],
     "input_absent_paths": ["pyproject.toml", "setup.cfg"]
   },
   "modules": [

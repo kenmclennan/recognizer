@@ -82,7 +82,8 @@
     "skip_directory_prefixes": ["."],
     "skip_directory_suffixes": [".egg-info"],
     "skip_directories_containing": ["pyvenv.cfg"],
-    "skip_file_globs": ["conftest.py"]
+    "skip_file_globs": ["conftest.py"],
+    "input_file_globs": ["pyproject.toml"]
   },
   "modules": [
     {
