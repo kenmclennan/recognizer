@@ -46,6 +46,15 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-size: 13px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .window {
@@ -605,6 +614,7 @@ svg.i.chevron {
   height: 100%;
   cursor: grab;
   touch-action: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -2735,6 +2745,7 @@ svg.i.chevron {
 .note-row.draggable {
   cursor: grab;
   touch-action: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
