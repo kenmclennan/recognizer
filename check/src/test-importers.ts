@@ -52,7 +52,7 @@ export function testOnlySummary(id: string, importers: TestImporter[]): string {
   const more = importers.length - SUMMARY_TEST_FILES;
   const count = `${importers.length} test ${importers.length === 1 ? "file" : "files"}`;
 
-  return `${id} is imported only by ${count}: ${shown}${more > 0 ? ` and ${more} more` : ""}; it is not an entry point, so if it only supports tests move it next to them rather than deleting it${libraryApiHint(id) ?? ""}`;
+  return `${id} is imported only by ${count}: ${shown}${more > 0 ? ` and ${more} more` : ""}; it is not an entry point, so if it only supports tests move it next to them rather than deleting it`;
 }
 
 export interface TestOnlyName {
