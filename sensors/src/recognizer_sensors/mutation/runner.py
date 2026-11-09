@@ -199,30 +199,41 @@ def excluded(relative: str) -> bool:
     )
 
 
-def carried(relative: str, tracked: set[str], carry: tuple[str, ...]) -> bool:
+def index_tracked(tracked: Collection[str]) -> dict[Path, set[str]]:
+    index: dict[Path, set[str]] = {}
+
+    for item in tracked:
+        path = Path(item)
+        index.setdefault(path.parent, set()).add(path.name)
+
+    return index
+
+
+def carried_by(relative: str, index: dict[Path, set[str]], carry: tuple[str, ...]) -> bool:
     path = Path(relative.rstrip("/"))
     name = path.name
-    parent = path.parent
-
-    def beside(*matches: str) -> bool:
-        return any(Path(item).parent == parent and Path(item).name in matches for item in tracked)
+    names = index.get(path.parent, set())
 
     if str(path) in carry or name == "node_modules":
         return True
 
     if name == "target":
-        return beside("Cargo.toml")
+        return "Cargo.toml" in names
 
     if name in {"build", ".gradle"}:
-        return beside(*GRADLE_FILES)
+        return bool(names & GRADLE_FILES)
 
     if name in {"bin", "obj"}:
-        return any(Path(item).parent == parent and item.endswith(".csproj") for item in tracked)
+        return any(item.endswith(".csproj") for item in names)
 
     return False
 
 
-def plan_copy(repository: Path, carry: tuple[str, ...]) -> list[str] | None:
+def carried(relative: str, tracked: set[str], carry: tuple[str, ...]) -> bool:
+    return carried_by(relative, index_tracked(tracked), carry)
+
+
+def plan_listing(repository: Path, carry: tuple[str, ...]) -> tuple[list[str], set[str]] | None:
     listed = git_lines(repository, "--cached", "--others", "--exclude-standard")
 
     if listed is None:
@@ -242,23 +253,35 @@ def plan_copy(repository: Path, carry: tuple[str, ...]) -> list[str] | None:
         entries.append(relative)
 
     tracked = {relative for relative in listed}
+    index = index_tracked(tracked)
 
     for relative in ignored:
         if excluded(relative.rstrip("/")):
             continue
 
-        if carried(relative, tracked, carry):
+        if carried_by(relative, index, carry):
             entries.append(relative.rstrip("/"))
 
     for item in carry:
         if item not in entries and not excluded(item) and os.path.lexists(repository / item):
             entries.append(item)
 
-    return entries
+    return entries, tracked
 
 
-def copy_repository(repository: Path, destination: Path, carry: tuple[str, ...] = ()) -> None:
-    entries = plan_copy(repository, tuple(carry))
+def plan_copy(repository: Path, carry: tuple[str, ...]) -> list[str] | None:
+    plan = plan_listing(repository, carry)
+
+    return None if plan is None else plan[0]
+
+
+def copy_repository(
+    repository: Path,
+    destination: Path,
+    carry: tuple[str, ...] = (),
+    plan: tuple[list[str], set[str]] | None = None,
+) -> None:
+    entries = plan[0] if plan is not None else plan_copy(repository, tuple(carry))
     ignore = ignore_for(repository)
 
     if entries is None:
@@ -284,7 +307,7 @@ def run_test_command(
 ) -> TestRun:
     started = time.monotonic()
     env = (
-        {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment)}
+        {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment), "UV_NO_EDITABLE": "0"}
         if environment is not None
         else tool_environment(cwd, mark=False)
     )
@@ -376,6 +399,172 @@ class EnvironmentPool:
             self.free.put(slot)
 
 
+class ResetFailed(Exception):
+    pass
+
+
+Stat = tuple[int, int, int]
+
+
+def stat_of(path: Path) -> Stat:
+    info = os.lstat(path)
+
+    return (info.st_mode, info.st_size, info.st_mtime_ns)
+
+
+def remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
+class PooledCopy:
+    def __init__(
+        self,
+        path: Path,
+        repository: Path,
+        carry: tuple[str, ...],
+        plan: tuple[list[str], set[str]],
+    ) -> None:
+        entries, tracked = plan
+        index = index_tracked(tracked)
+
+        self.path = path
+        self.repository = repository
+        self.carry = carry
+        self.index = index
+        self.written: tuple[str, bytes] | None = None
+        self.manifest: dict[str, Stat] = {}
+        self.directories: set[str] = set()
+
+        for relative in entries:
+            parts = Path(relative).parts
+            prefixes = ["/".join(parts[: count + 1]) for count in range(len(parts))]
+
+            if any(carried_by(prefix, index, carry) for prefix in prefixes):
+                continue
+
+            self.manifest[relative] = stat_of(path / relative)
+            self.directories.update(prefixes[:-1])
+
+    def restore(self, relative: str) -> None:
+        target = self.path / relative
+
+        if os.path.lexists(target):
+            remove_path(target)
+
+        copy_entry(self.repository / relative, target, ignore_for(self.repository))
+        self.manifest[relative] = stat_of(target)
+
+    def walk(self, relative: str) -> None:
+        folder = self.path / relative if relative else self.path
+
+        with os.scandir(folder) as scanned:
+            found = list(scanned)
+
+        for entry in found:
+            name = f"{relative}/{entry.name}" if relative else entry.name
+
+            if carried_by(name, self.index, self.carry):
+                continue
+
+            if name in self.manifest:
+                if stat_of(Path(entry.path)) != self.manifest[name]:
+                    self.restore(name)
+            elif name in self.directories and entry.is_dir(follow_symlinks=False):
+                self.walk(name)
+            else:
+                remove_path(Path(entry.path))
+
+    def reset(self) -> None:
+        self.walk("")
+
+        for relative in self.manifest:
+            if not os.path.lexists(self.path / relative):
+                self.restore(relative)
+
+        if self.written is not None:
+            relative, source = self.written
+            (self.path / relative).write_bytes(source)
+            self.manifest[relative] = stat_of(self.path / relative)
+            self.written = None
+
+        for relative, expected in self.manifest.items():
+            if stat_of(self.path / relative) != expected:
+                raise ResetFailed(relative)
+
+
+class MutantSlot:
+    def __init__(self, pool: "MutantCopies", number: int) -> None:
+        self.pool = pool
+        self.number = number
+        self.copy: PooledCopy | None = None
+
+    def prepare(self) -> PooledCopy:
+        if self.copy is not None:
+            try:
+                self.copy.reset()
+
+                return self.copy
+            except (ResetFailed, OSError):
+                self.retire()
+
+        self.copy = self.pool.make(self.number)
+
+        return self.copy
+
+    def retire(self) -> None:
+        if self.copy is not None:
+            shutil.rmtree(self.copy.path, ignore_errors=True)
+
+        self.copy = None
+
+
+class MutantCopies:
+    def __init__(
+        self, repository: Path, work: Path, size: int, carry: tuple[str, ...] = ()
+    ) -> None:
+        self.repository = repository
+        self.work = work
+        self.carry = tuple(carry)
+        self.enabled = plan_listing(repository, self.carry) is not None
+        self.slots = [MutantSlot(self, number) for number in range(size)]
+        self.free: queue.Queue[int] = queue.Queue()
+
+        for number in range(size):
+            self.free.put(number)
+
+    def make(self, number: int) -> PooledCopy:
+        plan = plan_listing(self.repository, self.carry)
+
+        if plan is None:
+            raise OSError("git cannot list the repository's files")
+
+        destination = self.work / f"mutant-{number}"
+
+        try:
+            if self.carry:
+                copy_repository(self.repository, destination, self.carry, plan=plan)
+            else:
+                copy_repository(self.repository, destination, plan=plan)
+
+            return PooledCopy(destination, self.repository, self.carry, plan)
+        except BaseException:
+            shutil.rmtree(destination, ignore_errors=True)
+
+            raise
+
+    @contextmanager
+    def lease(self) -> Iterator[MutantSlot]:
+        number = self.free.get()
+
+        try:
+            yield self.slots[number]
+        finally:
+            self.free.put(number)
+
+
 def leased(environments: EnvironmentPool | None):
     return environments.lease() if environments is not None else nullcontext(None)
 
@@ -409,7 +598,11 @@ def run_mutant(
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
     environments: EnvironmentPool | None = None,
+    copies: MutantCopies | None = None,
 ) -> MutantResult:
+    if copies is not None:
+        return run_pooled(copies, mutant, command, timeout, known, environments)
+
     copy = work / str(number)
 
     try:
@@ -440,6 +633,47 @@ def run_mutant(
     return MutantResult("killed", failed)
 
 
+def run_pooled(
+    copies: MutantCopies,
+    mutant: Mutant,
+    command: list[str],
+    timeout: float,
+    known: Collection[str] | None,
+    environments: EnvironmentPool | None,
+) -> MutantResult:
+    with copies.lease() as slot:
+        try:
+            pooled = slot.prepare()
+            pooled.written = (mutant.path, mutant.source)
+            head = mutant.source[: mutant.start_byte]
+            tail = mutant.source[mutant.end_byte :]
+            (pooled.path / mutant.path).write_bytes(head + mutant.replacement + tail)
+
+            with leased(environments) as environment:
+                result = (
+                    run_test_command(command, pooled.path, timeout)
+                    if environment is None
+                    else run_test_command(command, pooled.path, timeout, environment=environment)
+                )
+        except OSError:
+            slot.retire()
+
+            return MutantResult("killed")
+
+        if result.timed_out or result.exit_code is None or STOP.is_set():
+            slot.retire()
+
+    if result.timed_out:
+        return MutantResult("timeout")
+
+    if result.passed:
+        return MutantResult("survived")
+
+    failed = failed_files(result.output, known) if known is not None else None
+
+    return MutantResult("killed", failed)
+
+
 def run_function(
     repository: Path,
     work: Path,
@@ -450,6 +684,7 @@ def run_function(
     environments: EnvironmentPool | None = None,
     deadline: float | None = None,
     clock: Callable[[], float] = time.monotonic,
+    copies: MutantCopies | None = None,
 ) -> list[MutantResult] | None:
     results = []
 
@@ -463,6 +698,10 @@ def run_function(
             return None
 
         extra = {"environments": environments} if environments is not None else {}
+
+        if copies is not None:
+            extra["copies"] = copies
+
         result = run_mutant(
             repository, work, next(NUMBERS), mutant, command, timeout, known, carry, **extra
         )

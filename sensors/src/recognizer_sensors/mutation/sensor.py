@@ -33,6 +33,7 @@ from recognizer_sensors.mutation.runner import (
     STOP,
     EnvironmentPool,
     Mutant,
+    MutantCopies,
     MutantResult,
     Stopped,
     StoppedBeforeMutation,
@@ -883,6 +884,9 @@ def run(
         remove_stale_work_folders(work)
         labelled = len(commands) > 1
         environments = EnvironmentPool(repository, work, settings["max_workers"])
+        mutant_copies = MutantCopies(
+            repository, work, settings["max_workers"], settings.get("carry", ())
+        )
         remove_stale_work_folders(environments.folder)
         restore_handler = install_stop_handler(work, environments.folder)
 
@@ -989,6 +993,7 @@ def run(
                     hashes if configured is None and target.language == "python" else None,
                     *([settings["carry"]] if "carry" in settings else []),
                     **({"environments": environments} if environments.enabled else {}),
+                    **({"copies": mutant_copies} if mutant_copies.enabled else {}),
                     **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
                 ),
                 settings["max_workers"],
