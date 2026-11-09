@@ -510,13 +510,11 @@ describe("scanPanel row states", () => {
       scanning: false,
       label: "Run Structure",
       disabled: false,
-      tick: [],
     });
     expect(scanPanel(input({ scanning: true })).button).toEqual({
       scanning: true,
       label: "Running",
       disabled: true,
-      tick: [],
     });
   });
 });
@@ -819,7 +817,6 @@ describe("scanPanel freshness", () => {
       scanning: false,
       label: "Update 1 module",
       disabled: false,
-      tick: [],
     });
   });
 
@@ -833,7 +830,6 @@ describe("scanPanel freshness", () => {
       scanning: false,
       label: "Up to date",
       disabled: true,
-      tick: [],
     });
   });
 

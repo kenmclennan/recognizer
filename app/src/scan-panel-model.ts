@@ -132,9 +132,9 @@ export type ScanPanelModel = {
     scanning: boolean;
     label: string;
     disabled: boolean;
-    tick: string[];
   };
   secondary: FreshnessModel["action"]["secondary"];
+  hint: string | null;
   planned: PlannedRun | null;
   pending: boolean;
   mark: boolean;
@@ -373,9 +373,9 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         scanning: input.scanning,
         label: input.scanning ? "Running" : "Run",
         disabled: input.scanning,
-        tick: [],
       },
       secondary: freshness.action.secondary,
+      hint: null,
       planned: null,
       pending: true,
       mark: panelMark(input),
@@ -442,9 +442,9 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       scanning: input.scanning,
       label: freshness.action.primary.label,
       disabled: freshness.action.primary.disabled,
-      tick: freshness.action.primary.tick ?? [],
     },
     secondary: freshness.action.secondary,
+    hint: freshness.action.hint,
     planned,
     pending: false,
     mark: panelMark(input),

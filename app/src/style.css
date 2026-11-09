@@ -2677,6 +2677,13 @@ svg.i.chevron {
   gap: 8px;
 }
 
+.scan-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .scan-panel .scan-buttons button:not(.scan-secondary) {
   display: inline-flex;
   align-items: center;

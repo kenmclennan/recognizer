@@ -519,7 +519,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("remembers the switch through the port and sends the view's module ids when it is on, and a click on the Update button runs the unticked rows once the scope is off", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
-    expect(f.scopeOffRan).toEqual([["app/a.py"], ["app/a.py", "app/b.py"]]);
+    expect(f.scopeOffRan).toEqual([["app/a.py"]]);
   });
 
   it("summarises one changed module with no bar and Update 1 module, then everything current with a disabled Up to date once the hashes match", () => {

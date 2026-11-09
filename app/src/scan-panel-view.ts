@@ -234,8 +234,9 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
   const sub = el("div", "scan-sub");
   const list = el("div", "scan-list");
   const buttons = el("div", "scan-buttons");
+  const hint = el("div", "scan-hint");
 
-  element.append(header, sub, list, buttons);
+  element.append(header, sub, list, buttons, hint);
 
   return {
     element,
@@ -262,6 +263,9 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         ]),
         ...model.reports.map((row) => reportNode(row, actions)),
       );
+
+      hint.textContent = model.pending ? "" : (model.hint ?? "");
+      hint.hidden = hint.textContent === "";
 
       if (model.pending) {
         buttons.replaceChildren();

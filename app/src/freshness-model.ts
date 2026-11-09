@@ -41,8 +41,9 @@ export type Summary = {
 };
 
 export type Action = {
-  primary: { label: string; disabled: boolean; tick?: string[] };
+  primary: { label: string; disabled: boolean };
   secondary: { label: string; mode: ResultsMode; disabled: boolean };
+  hint: string | null;
 };
 
 export type FindingsLine = {
@@ -519,7 +520,11 @@ function actionOf(
   };
 
   if (input.scanning) {
-    return { primary: { label: "Running", disabled: true }, secondary };
+    return {
+      primary: { label: "Running", disabled: true },
+      secondary,
+      hint: null,
+    };
   }
 
   if (rescan) {
@@ -529,6 +534,7 @@ function actionOf(
         disabled: false,
       },
       secondary,
+      hint: null,
     };
   }
 
@@ -539,6 +545,7 @@ function actionOf(
         disabled: false,
       },
       secondary,
+      hint: null,
     };
   }
 
@@ -554,6 +561,7 @@ function actionOf(
         disabled: false,
       },
       secondary,
+      hint: null,
     };
   }
 
@@ -567,24 +575,28 @@ function actionOf(
   );
 
   if (untickedStale.length > 0) {
+    const names = joinNames(untickedStale.map(({ name }) => name));
+    const one = untickedStale.length === 1;
+
     return {
-      primary: {
-        label: `Update ${joinNames(untickedStale.map(({ name }) => name))}`,
-        disabled: false,
-        tick: untickedStale.map(({ key }) => key),
-      },
+      primary: { label: "Nothing ticked to run", disabled: true },
       secondary,
+      hint: `${names} ${one ? "is" : "are"} unticked and not current. Tick ${one ? "it" : "them"} to include ${one ? "it" : "them"} in the next scan.`,
     };
   }
 
-  return { primary: { label: "Up to date", disabled: true }, secondary };
+  return {
+    primary: { label: "Up to date", disabled: true },
+    secondary,
+    hint: null,
+  };
 }
 
 export function findingsActionOf(
   primary: Action["primary"],
   link: string,
 ): { label: string; openScan: boolean } {
-  const openScan = primary.disabled || (primary.tick?.length ?? 0) > 0;
+  const openScan = primary.disabled;
 
   return { label: openScan ? "Open Scan" : link, openScan };
 }
