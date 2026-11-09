@@ -740,6 +740,59 @@ def test_the_budget_worked_examples(budget, ran):
     assert run_three(budget) == ran
 
 
+def plan(index):
+    return (["true"], 1.0)
+
+
+def test_a_function_whose_deadline_passes_between_mutants_returns_none(tmp_path, monkeypatch):
+    ticker = Ticker()
+    ran = []
+
+    def fake_run_mutant(repository, work, number, mutant, command, timeout, *rest, **extra):
+        ran.append(mutant)
+        ticker.now += 60
+
+        return runner.MutantResult("killed")
+
+    monkeypatch.setattr(runner, "run_mutant", fake_run_mutant)
+
+    assert (
+        runner.run_function(tmp_path, tmp_path, ["a", "b", "c"], plan, deadline=90.0, clock=ticker)
+        is None
+    )
+    assert ran == ["a", "b"]
+
+
+def test_a_function_finishes_when_the_deadline_is_never_reached(tmp_path, monkeypatch):
+    ticker = Ticker()
+    monkeypatch.setattr(runner, "run_mutant", lambda *args, **extra: runner.MutantResult("killed"))
+
+    results = runner.run_function(tmp_path, tmp_path, ["a", "b"], plan, deadline=90.0, clock=ticker)
+
+    assert [r.verdict for r in results] == ["killed", "killed"]
+
+
+def test_a_budget_that_passes_mid_function_lists_it_uncovered_by_budget(
+    tmp_path, counting, capsys, monkeypatch
+):
+    settings, _ = counting
+    root, _ = mutate_repository(tmp_path)
+    ticker = Ticker()
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    real = runner.run_mutant
+
+    def slow(*args, **extra):
+        ticker.now += 120
+
+        return real(*args, **extra)
+
+    monkeypatch.setattr(runner, "run_mutant", slow)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1, max_minutes=1)) == 0
+    assert "uncovered-by-budget" in summary(capsys)
+    assert read(root / SURVIVORS)["skipped"]
+
+
 def test_no_deadline_runs_every_function():
     assert runner.run_functions(["a", "b"], lambda i: [i], 1, None, Ticker()) == [["a"], ["b"]]
 
@@ -750,8 +803,21 @@ def test_a_budgeted_run_skips_what_it_could_not_start_and_the_next_run_resumes(
     settings, _ = counting
     root, commit = mutate_repository(tmp_path)
     output = tmp_path / "overlay.json"
-    ticks = iter([0.0, 0.0])
-    monkeypatch.setattr(sensor, "CLOCK", lambda: next(ticks, 1000.0))
+    ticker = Ticker()
+    real = runner.run_function
+    started = []
+
+    def stepping(*args, **extra):
+        started.append(1)
+        result = real(*args, **extra)
+
+        if len(started) == 1:
+            ticker.now = 1000.0
+
+        return result
+
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    monkeypatch.setattr(sensor, "run_function", stepping)
 
     assert run_mutate(root, output, settings(max_workers=1, max_minutes=1)) == 0
     assert summary(capsys) == (
