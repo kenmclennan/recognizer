@@ -763,6 +763,24 @@ def test_a_function_whose_deadline_passes_between_mutants_returns_none(tmp_path,
     assert ran == ["a", "b"]
 
 
+def test_a_function_whose_deadline_passes_while_planning_runs_no_mutant(tmp_path, monkeypatch):
+    ticker = Ticker()
+    ran = []
+
+    def slow_plan(index):
+        ticker.now += 100
+
+        return (["true"], 1.0)
+
+    monkeypatch.setattr(runner, "run_mutant", lambda *args, **extra: ran.append(args))
+
+    assert (
+        runner.run_function(tmp_path, tmp_path, ["a", "b"], slow_plan, deadline=90.0, clock=ticker)
+        is None
+    )
+    assert ran == []
+
+
 def test_a_function_finishes_when_the_deadline_is_never_reached(tmp_path, monkeypatch):
     ticker = Ticker()
     monkeypatch.setattr(runner, "run_mutant", lambda *args, **extra: runner.MutantResult("killed"))

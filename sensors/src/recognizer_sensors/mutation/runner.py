@@ -458,6 +458,10 @@ def run_function(
             return None
 
         command, timeout = plan_for(index)
+
+        if STOP.is_set() or (deadline is not None and clock() >= deadline):
+            return None
+
         extra = {"environments": environments} if environments is not None else {}
         result = run_mutant(
             repository, work, next(NUMBERS), mutant, command, timeout, known, carry, **extra
