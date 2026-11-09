@@ -798,3 +798,69 @@ def test_the_record_key_does_not_depend_on_the_mutation_worker_count(tmp_path, m
             assert any("--maxWorkers=8" in command for command, _ in seen)
 
     assert keys[0] == keys[1]
+
+
+def test_a_baseline_is_not_started_once_the_deadline_has_passed(tmp_path, monkeypatch, capsys):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(
+        monkeypatch,
+        {
+            "app/rules.py": {line: A for line in (1, 2, 3, 4, 5, 6, 9, 10, 13)},
+            "app/other.py": {1: B},
+        },
+    )
+    now = {"value": 0.0}
+    seen = []
+    real = runner.run_test_command
+
+    def spy(command, cwd, timeout):
+        seen.append((list(command), timeout))
+        late = timeout is None and command == SELECTED_COMMAND
+
+        if late:
+            now["value"] = 1000.0
+
+        return real([sys.executable, "-c", "raise SystemExit(1)" if late else ""], cwd, timeout)
+
+    monkeypatch.setattr(sensor, "CLOCK", lambda: now["value"])
+    monkeypatch.setattr(runner, "run_test_command", spy)
+    monkeypatch.setattr(sensor, "run_test_command", spy)
+    settings = json.dumps({"incremental": False, "max_workers": 1, "max_minutes": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    assert (SELECTED_COMMAND, None) in seen
+    assert (WHOLE_COMMAND, None) not in seen
+    assert read(root / SURVIVORS)["unmeasured"]["budget"] >= 1
+    assert "uncovered-by-budget" in capsys.readouterr().err
+
+
+def test_a_whole_suite_baseline_failing_after_the_deadline_keeps_the_earlier_verdicts(
+    tmp_path, monkeypatch, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    now = {"value": 0.0}
+    real = runner.run_test_command
+    selected_b = ["python3", "-m", "pytest", "-rfE", "tests/test_b.py"]
+
+    def spy(command, cwd, timeout):
+        if timeout is None and command == WHOLE_COMMAND:
+            now["value"] = 1000.0
+
+        failing = timeout is None and command in (WHOLE_COMMAND, selected_b)
+
+        return real([sys.executable, "-c", "raise SystemExit(1)" if failing else ""], cwd, timeout)
+
+    monkeypatch.setattr(sensor, "CLOCK", lambda: now["value"])
+    monkeypatch.setattr(runner, "run_test_command", spy)
+    monkeypatch.setattr(sensor, "run_test_command", spy)
+    settings = json.dumps({"incremental": False, "max_workers": 1, "max_minutes": 1})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    survivors = read(root / SURVIVORS)
+
+    assert survivors["complete"] is False
+    assert survivors["unmeasured"]["budget"] >= 1
+    assert "the test suite fails before any mutation" not in capsys.readouterr().err

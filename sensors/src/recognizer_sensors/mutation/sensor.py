@@ -911,6 +911,20 @@ def run(
                 chosen = [target.selections[index] for index in target.to_run]
                 killers = [target.previous.get(index, frozenset()) for index in target.to_run]
 
+                def baseline(
+                    command: list[str], label: str, fallback: bool = False
+                ) -> float | None:
+                    if deadline is not None and CLOCK() >= deadline:
+                        raise Stopped
+
+                    try:
+                        return baselines.seconds(command, label, fallback=fallback)
+                    except Refusal:
+                        if deadline is not None and CLOCK() >= deadline:
+                            raise Stopped from None
+
+                        raise
+
                 def lookup(index: int) -> tuple[list[str], float]:
                     seconds = None
                     command = whole
@@ -931,9 +945,7 @@ def run(
                     )
 
                     if selected is not None and selected != whole:
-                        seconds = baselines.seconds(
-                            selected, "the selected test command", fallback=True
-                        )
+                        seconds = baseline(selected, "the selected test command", fallback=True)
 
                         if seconds is not None:
                             command = selected
@@ -947,7 +959,7 @@ def run(
                             )
 
                     if seconds is None:
-                        seconds = baselines.seconds(whole, subject)
+                        seconds = baseline(whole, subject)
 
                     with tally_lock:
                         ran["selection" if command is not whole else "whole"] += 1
