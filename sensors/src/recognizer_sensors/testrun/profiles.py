@@ -1,3 +1,4 @@
+import json
 import os
 import shlex
 from pathlib import Path
@@ -246,19 +247,65 @@ def rust_selected_command(units: list[tuple[str, str, str]]) -> list[str]:
     return command
 
 
-def mutant_command(repository: Path, language: str) -> list[str]:
+def typescript_bails(repository: Path) -> bool:
+    try:
+        script = json.loads((repository / "package.json").read_text())["scripts"]["test"]
+        words = shlex.split(script)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+    return bool(words) and words[0] in ("jest", "vitest")
+
+
+def kotlin_fail_fast(command: list[str]) -> list[str]:
+    stopped: list[str] = []
+
+    for word in command:
+        stopped.append(word)
+
+        if word == "test" or word.endswith(":test"):
+            stopped.append("--fail-fast")
+
+    return stopped
+
+
+def mutant_command(repository: Path, language: str, stop: bool = False) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
+    command = fill(PROFILES[language]["test_command"], runner, joined=False)
 
-    return fill(PROFILES[language]["test_command"], runner, joined=False)
+    if not stop:
+        return command
 
-
-def selected_command(repository: Path, language: str, files: set[str] | frozenset[str]):
     if language == "python":
-        prefix = [*python_runner(repository), "pytest", "-rfE"]
+        return [*command, "-x"]
+
+    if language == "kotlin":
+        return kotlin_fail_fast(command)
+
+    if language == "typescript" and typescript_bails(repository):
+        return [*command, "--", "--bail=1"]
+
+    return command
+
+
+def killers_first(files: set[str] | frozenset[str], previous: frozenset[str]) -> list[str]:
+    return sorted(files, key=lambda f: (f not in previous, f))
+
+
+def selected_command(
+    repository: Path,
+    language: str,
+    files: set[str] | frozenset[str],
+    stop: bool = False,
+    previous: frozenset[str] = frozenset(),
+):
+    if language == "python":
+        prefix = [*python_runner(repository), "pytest", "-rfE", *(["-x"] if stop else [])]
     elif language == "typescript":
-        prefix = ["npm", "test", "--"]
+        bail = ["--bail=1"] if stop and typescript_bails(repository) else []
+        prefix = ["npm", "test", "--", *bail]
     elif language == "kotlin":
-        return kotlin_command_for(repository, files)
+        return kotlin_command_for(repository, files, stop)
     elif language == "csharp":
         return csharp_command_for(repository, files)
     elif language == "rust":
@@ -267,19 +314,23 @@ def selected_command(repository: Path, language: str, files: set[str] | frozense
         return None
 
     if not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files):
-        return mutant_command(repository, language)
+        return mutant_command(repository, language, stop)
 
-    return [*prefix, *sorted(files)]
+    return [*prefix, *killers_first(files, previous)]
 
 
-def kotlin_command_for(repository: Path, files: set[str] | frozenset[str]) -> list[str]:
+def kotlin_command_for(
+    repository: Path, files: set[str] | frozenset[str], stop: bool = False
+) -> list[str]:
     if not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files):
-        return mutant_command(repository, "kotlin")
+        return mutant_command(repository, "kotlin", stop)
 
     if any(f not in KOTLIN_CLASSES for f in files):
-        return mutant_command(repository, "kotlin")
+        return mutant_command(repository, "kotlin", stop)
 
-    return kotlin_selected_command([pair for f in sorted(files) for pair in KOTLIN_CLASSES[f]])
+    command = kotlin_selected_command([pair for f in sorted(files) for pair in KOTLIN_CLASSES[f]])
+
+    return kotlin_fail_fast(command) if stop else command
 
 
 def csharp_command_for(repository: Path, files: set[str] | frozenset[str]) -> list[str]:

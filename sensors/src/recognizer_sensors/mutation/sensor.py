@@ -118,6 +118,7 @@ class Target:
     covered: list[bool] = field(default_factory=list)
     timeouts: list[Site] = field(default_factory=list)
     selections: list[frozenset[str] | None] = field(default_factory=list)
+    previous: dict[int, frozenset[str]] = field(default_factory=dict)
     verdicts: list[str | None] = field(default_factory=list)
     covers: list[frozenset[str] | None] = field(default_factory=list)
     to_run: list[int] = field(default_factory=list)
@@ -561,6 +562,21 @@ def kept_sites(
     return kept
 
 
+def previous_killers(
+    record: dict | None, target: Target, support: str
+) -> dict[int, frozenset[str]]:
+    entry = recorded_entry(record, target.identity, target.body, support)
+
+    if entry is None or len(entry["sites"]) != len(target.sites):
+        return {}
+
+    return {
+        index: frozenset(site["killer"])
+        for index, site in enumerate(entry["sites"])
+        if isinstance(site, dict) and site.get("killer")
+    }
+
+
 def site_entry_for(
     result: MutantResult,
     cover: frozenset[str] | None,
@@ -807,6 +823,7 @@ def run(
 
         target.kept = kept or {}
         target.to_run = [index for index in wanted if index not in target.kept]
+        target.previous = previous_killers(record, target, support)
 
         if target.to_run:
             pending.append(target)
@@ -879,10 +896,16 @@ def run(
                 whole = commands[target.language]
                 subject = f"the {target.language} test command" if labelled else "the test command"
                 chosen = [target.selections[index] for index in target.to_run]
+                killers = [target.previous.get(index, frozenset()) for index in target.to_run]
 
                 def lookup(index: int) -> tuple[list[str], float]:
                     seconds = None
                     command = whole
+                    stopping = (
+                        whole
+                        if configured is not None
+                        else mutant_command(repository, target.language, True)
+                    )
                     files = chosen[index] if configured is None else None
                     selected = (
                         selected_command(repository, target.language, files)
@@ -897,6 +920,9 @@ def run(
 
                         if seconds is not None:
                             command = selected
+                            stopping = selected_command(
+                                repository, target.language, files, True, killers[index]
+                            )
 
                     if seconds is None:
                         seconds = baselines.seconds(whole, subject)
@@ -904,7 +930,7 @@ def run(
                     with tally_lock:
                         ran["selection" if command is not whole else "whole"] += 1
 
-                    return command, timeout_for(seconds, settings["timeout_factor"])
+                    return stopping, timeout_for(seconds, settings["timeout_factor"])
 
                 return lookup
 
