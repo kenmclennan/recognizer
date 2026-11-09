@@ -531,11 +531,15 @@ def apply_verdicts(target: Target, verdicts: list[str | None]) -> None:
                 target.timeouts.append(site)
 
 
+def file_of(test_id: str) -> str:
+    return test_id.split("::", 1)[0]
+
+
 def cover_of(files: frozenset[str] | None, hashes: dict[str, str]) -> frozenset[str] | None:
-    if not files or any(path not in hashes for path in files):
+    if not files or any(file_of(path) not in hashes for path in files):
         return None
 
-    return with_conftests(files, hashes)
+    return with_conftests({file_of(path) for path in files}, hashes)
 
 
 def kept_sites(

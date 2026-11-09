@@ -100,6 +100,46 @@ def test_the_context_reader_keeps_only_lines_whose_every_context_is_an_existing_
     }
 
 
+def test_a_context_named_by_node_id_is_read_into_the_selection_intact(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text("")
+    parametrised = "tests/test_a.py::TestA::test_one[1-a b]"
+    document = contexts_document(
+        {
+            "1": [parametrised],
+            "2": ["tests/test_a.py::test_two", parametrised],
+            "3": ["tests/missing.py::test_one"],
+        }
+    )
+
+    assert read_contexts(document, tmp_path) == {
+        "app/m.py": {
+            1: frozenset({parametrised}),
+            2: frozenset({"tests/test_a.py::test_two", parametrised}),
+        }
+    }
+
+    assert selected_command(tmp_path, "python", {parametrised})[-1] == parametrised
+
+
+def test_a_python_selection_falls_back_to_files_then_to_the_whole_suite(tmp_path):
+    ids = {f"t/test_{n}.py::test_a{m}" for n in range(3) for m in range(40)}
+    command = selected_command(tmp_path, "python", ids)
+
+    assert command[-3:] == ["t/test_0.py", "t/test_1.py", "t/test_2.py"]
+
+    wide = {f"t/test_{n}.py::test_a" for n in range(profiles.MAX_SELECTED_FILES + 1)}
+
+    assert selected_command(tmp_path, "python", wide) == mutant_command(tmp_path, "python")
+
+
+def test_killers_are_ordered_first_by_their_file(tmp_path):
+    ids = {"t/test_a.py::test_x", "t/test_b.py::test_y"}
+    command = selected_command(tmp_path, "python", ids, True, frozenset({"t/test_b.py"}))
+
+    assert command[-2:] == ["t/test_b.py::test_y", "t/test_a.py::test_x"]
+
+
 @pytest.mark.parametrize("text", ["not json", "[]", '{"files": []}', '{"files": {"a": 1}}'])
 def test_an_unreadable_context_document_selects_nothing(tmp_path, text):
     assert read_contexts(text, tmp_path) == {}
@@ -242,9 +282,9 @@ def test_a_real_python_coverage_pass_attributes_each_line_to_the_test_files_that
     coverage, selection = collect_coverage_with_tests(root, scans, None)
     lines = selection["app/shop.py"]
 
-    assert lines[7] == frozenset({"tests/test_a.py"})
-    assert lines[11] == frozenset({"tests/test_b.py"})
-    assert lines[15] == frozenset({"tests/test_a.py", "tests/test_b.py"})
+    assert lines[7] == frozenset({"tests/test_a.py::test_clamp"})
+    assert lines[11] == frozenset({"tests/test_b.py::test_total"})
+    assert lines[15] == frozenset({"tests/test_a.py::test_shared", "tests/test_b.py::test_shared"})
     assert 1 not in lines
     assert 3 not in lines
     assert 6 not in lines

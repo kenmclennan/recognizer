@@ -444,7 +444,9 @@ def usable_contexts(names: object, repository: Path) -> frozenset[str] | None:
     if not isinstance(names, list) or not names:
         return None
 
-    if not all(isinstance(n, str) and n and (repository / n).is_file() for n in names):
+    if not all(
+        isinstance(n, str) and n and (repository / n.split("::", 1)[0]).is_file() for n in names
+    ):
         return None
 
     return frozenset(names)

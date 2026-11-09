@@ -18,6 +18,13 @@ def switch(name):
         current.switch_context(name)
 
 
+def test_id_of(item):
+    file = test_file_of(item)
+    rest = item.nodeid.partition("::")[2] if file else ""
+
+    return f"{file}::{rest}" if rest else file
+
+
 def test_file_of(item):
     try:
         return Path(item.path).relative_to(Path.cwd()).as_posix()
@@ -27,7 +34,7 @@ def test_file_of(item):
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
-    switch(test_file_of(item))
+    switch(test_id_of(item))
 
     try:
         yield

@@ -301,8 +301,19 @@ def mutant_command(
     return command
 
 
+def test_file_of_id(test_id: str) -> str:
+    return test_id.split("::", 1)[0]
+
+
 def killers_first(files: set[str] | frozenset[str], previous: frozenset[str]) -> list[str]:
-    return sorted(files, key=lambda f: (f not in previous, f))
+    return sorted(files, key=lambda f: (test_file_of_id(f) not in previous, f))
+
+
+def python_targets(files: set[str] | frozenset[str]) -> set[str] | frozenset[str]:
+    if len(files) <= MAX_SELECTED_FILES:
+        return files
+
+    return {test_file_of_id(f) for f in files}
 
 
 def selected_command(
@@ -314,6 +325,7 @@ def selected_command(
     workers: int = 1,
 ):
     if language == "python":
+        files = python_targets(files)
         prefix = [*python_runner(repository), "pytest", "-rfE", *(["-x"] if stop else [])]
     elif language == "typescript":
         prefix = ["npm", "test", "--", *typescript_flags(repository, stop, workers)]
