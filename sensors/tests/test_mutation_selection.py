@@ -8,16 +8,16 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from conftest import make_repository, mutate_repository, mutate_settings
+from coverage import CoverageData
 from test_mutation import COVERAGE, RECORD, SURVIVORS, read, run_mutate
 
 from recognizer_sensors.mutation import runner, sensor
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.testrun import profiles
-from recognizer_sensors.testrun.profiles import mutant_command, selected_command
+from recognizer_sensors.testrun.profiles import PYTHON_DATA, mutant_command, selected_command
 from recognizer_sensors.testrun.run import (
     collect_coverage_with_tests,
     python_selection,
-    read_contexts,
 )
 
 TS_LCOV = ".recognizer/cache/coverage/typescript/lcov.info"
@@ -73,40 +73,50 @@ def test_shared():
 """
 
 
-def contexts_document(lines):
-    return json.dumps({"files": {"app/m.py": {"contexts": lines}}})
+def write_data(root, contexts):
+    data = CoverageData(basename=str(root / PYTHON_DATA))
+    (root / PYTHON_DATA).parent.mkdir(parents=True, exist_ok=True)
+
+    for context, lines in contexts:
+        data.set_context(context)
+        data.add_lines({str(root / "app" / "m.py"): lines})
+
+    data.write()
 
 
 def test_the_context_reader_keeps_only_lines_whose_every_context_is_an_existing_file(tmp_path):
     (tmp_path / "tests").mkdir()
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "m.py").write_text("")
     (tmp_path / "tests" / "test_a.py").write_text("")
     (tmp_path / "tests" / "test_b.py").write_text("")
-    document = contexts_document(
-        {
-            "1": ["tests/test_a.py"],
-            "2": ["tests/test_a.py", "tests/test_b.py"],
-            "3": [""],
-            "4": ["test_a.test_one"],
-            "5": ["tests/missing.py"],
-            "6": ["tests/test_a.py", ""],
-        }
+    write_data(
+        tmp_path,
+        [
+            ("tests/test_a.py", [1, 2, 6]),
+            ("tests/test_b.py", [2]),
+            ("", [3, 6]),
+            ("test_a.test_one", [4]),
+            ("tests/missing.py", [5]),
+        ],
     )
 
-    assert read_contexts(document, tmp_path) == {
-        "app/m.py": {
-            1: frozenset({"tests/test_a.py"}),
-            2: frozenset({"tests/test_a.py", "tests/test_b.py"}),
-        }
+    assert python_selection(tmp_path)["app/m.py"] == {
+        1: frozenset({"tests/test_a.py"}),
+        2: frozenset({"tests/test_a.py", "tests/test_b.py"}),
     }
 
 
-@pytest.mark.parametrize("text", ["not json", "[]", '{"files": []}', '{"files": {"a": 1}}'])
-def test_an_unreadable_context_document_selects_nothing(tmp_path, text):
-    assert read_contexts(text, tmp_path) == {}
+def test_an_unreadable_coverage_data_file_selects_nothing(tmp_path, capsys):
+    (tmp_path / PYTHON_DATA).parent.mkdir(parents=True)
+    (tmp_path / PYTHON_DATA).write_bytes(b"not sqlite")
+
+    assert dict(python_selection(tmp_path)) == {}
+    assert capsys.readouterr().err.count("could not be read") == 1
 
 
 def test_a_missing_context_file_selects_nothing(tmp_path):
-    assert python_selection(tmp_path) == {}
+    assert dict(python_selection(tmp_path)) == {}
 
 
 @pytest.mark.parametrize(
