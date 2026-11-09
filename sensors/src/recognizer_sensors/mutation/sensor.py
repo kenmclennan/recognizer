@@ -71,6 +71,9 @@ from recognizer_sensors.testrun.run import (
     parse_coverage,
     parse_test_command,
 )
+from recognizer_sensors.testrun.run import (
+    suite_size as suite_size_of,
+)
 
 DEFAULTS = {
     "timeout_factor": 10,
@@ -770,7 +773,7 @@ def run(
     shared_tests = digest_of(
         {**test_files, **in_file_test_hashes(repository, listed_files(repository))}
     )
-    suite_size = len({f for lines in selection.values() for files in lines.values() for f in files})
+    suite_size = suite_size_of(selection)
     targets: list[Target] = []
     sources: dict[str, bytes] = {}
     no_covering_test = 0

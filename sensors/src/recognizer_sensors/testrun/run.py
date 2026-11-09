@@ -5,11 +5,12 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ElementTree
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco
-from recognizer_sensors.crap.lcov import Coverage, normalise_path, parse_lcov
+from recognizer_sensors.crap.lcov import Coverage, parse_lcov
 from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.mutation.test_files import is_script_test_file, is_test_file
 from recognizer_sensors.parsing import parse
@@ -21,6 +22,7 @@ from recognizer_sensors.settings import (
     diagnose,
     relative_path,
 )
+from recognizer_sensors.testrun.contexts import ContextSelection, PythonContexts
 from recognizer_sensors.testrun.failures import (
     crap_tests_failed,
     failing_names,
@@ -31,11 +33,12 @@ from recognizer_sensors.testrun.failures import (
 )
 from recognizer_sensors.testrun.probes import probe
 from recognizer_sensors.testrun.profiles import (
-    CONTEXTS_JSON,
     CSHARP_CLASSES,
     KOTLIN_CLASSES,
+    LEGACY_CONTEXTS_PATH,
     PROFILES,
     PYTHON_BORROWED,
+    PYTHON_DATA,
     RUST_UNITS,
     by_file_command,
     coverage_command,
@@ -412,34 +415,6 @@ def collect_coverage(
     return read_reports(repository, sources, scans, steps, results, diagnoses, started)
 
 
-def read_contexts(text: str, repository: Path) -> Selection:
-    try:
-        document = json.loads(text)
-    except ValueError:
-        return {}
-
-    files = document.get("files") if isinstance(document, dict) else None
-    selection: Selection = {}
-
-    if not isinstance(files, dict):
-        return selection
-
-    for raw, entry in files.items():
-        path = normalise_path(raw, repository)
-        contexts = entry.get("contexts") if isinstance(entry, dict) else None
-
-        if path is None or not isinstance(contexts, dict):
-            continue
-
-        for number, names in contexts.items():
-            tests = usable_contexts(names, repository)
-
-            if tests and number.isdigit():
-                selection.setdefault(path, {})[int(number)] = tests
-
-    return selection
-
-
 def usable_contexts(names: object, repository: Path) -> frozenset[str] | None:
     if not isinstance(names, list) or not names:
         return None
@@ -450,13 +425,15 @@ def usable_contexts(names: object, repository: Path) -> frozenset[str] | None:
     return frozenset(names)
 
 
-def python_selection(repository: Path) -> Selection:
-    try:
-        text = (repository / CONTEXTS_JSON).read_text(encoding="utf-8")
-    except (OSError, ValueError):
-        return {}
+def python_selection(repository: Path, eager: Selection | None = None) -> ContextSelection:
+    return ContextSelection(eager or {}, PythonContexts(repository, usable_contexts))
 
-    return read_contexts(text, repository)
+
+def suite_size(selection: Mapping) -> int:
+    if isinstance(selection, ContextSelection):
+        return selection.suite_size
+
+    return len({f for lines in selection.values() for files in lines.values() for f in files})
 
 
 def typescript_test_files(scan: Scan) -> list[str]:
@@ -938,7 +915,7 @@ def rust_selection(repository: Path, whole: Coverage) -> Selection:
 
 def collect_coverage_with_tests(
     repository: Path, scans: list[Scan], coverage: str | None
-) -> tuple[Coverage, Selection]:
+) -> tuple[Coverage, Selection | ContextSelection]:
     if not scans:
         return {}, {}
 
@@ -947,7 +924,8 @@ def collect_coverage_with_tests(
 
     steps, sources = plan(repository, scans, None, None, contexts=True)
     clear_cached_reports(repository, sources)
-    (repository / CONTEXTS_JSON).unlink(missing_ok=True)
+    (repository / PYTHON_DATA).unlink(missing_ok=True)
+    (repository / LEGACY_CONTEXTS_PATH).unlink(missing_ok=True)
     shutil.rmtree(repository / BY_FILE_DIRECTORY, ignore_errors=True)
     shutil.rmtree(repository / KOTLIN_BY_FILE_DIRECTORY, ignore_errors=True)
     shutil.rmtree(repository / CSHARP_BY_FILE_DIRECTORY, ignore_errors=True)
@@ -960,9 +938,11 @@ def collect_coverage_with_tests(
     merged = read_reports(repository, sources, scans, steps, results, None, started)
     selection: Selection = {}
 
+    python = False
+
     for scan in scans:
         if scan.language == "python":
-            selection.update(python_selection(repository))
+            python = True
         elif scan.language == "typescript":
             selection.update(typescript_selection(repository, scan, merged))
         elif scan.language == "kotlin":
@@ -971,5 +951,8 @@ def collect_coverage_with_tests(
             selection.update(csharp_selection(repository, merged))
         elif scan.language == "rust":
             selection.update(rust_selection(repository, merged))
+
+    if python:
+        return merged, python_selection(repository, selection)
 
     return merged, selection

@@ -31,9 +31,6 @@ if args[:2] == ["coverage", "lcov"]:
     pathlib.Path(args[3]).parent.mkdir(parents=True, exist_ok=True)
     pathlib.Path(args[3]).write_text("SF:app/m.py\\nDA:1,1\\nend_of_record\\n")
     sys.exit(int(pathlib.Path(__file__).with_name("lcov.status").read_text()))
-if args[:2] == ["coverage", "json"]:
-    pathlib.Path(args[4]).parent.mkdir(parents=True, exist_ok=True)
-    pathlib.Path(args[4]).write_text("{}")
 """
 
 
@@ -61,13 +58,15 @@ def test_the_python_command_exits_zero_on_a_green_suite_and_reports_a_report_fai
     assert shell_run(tmp_path, PYTHON_COVERAGE, 0, 3)[0] == 3
 
 
-def test_the_contexts_command_reads_contexts_after_a_red_suite_and_keeps_the_status(tmp_path):
+def test_the_contexts_command_writes_the_report_after_a_red_suite_and_writes_no_contexts_json(
+    tmp_path,
+):
     command = PYTHON_COVERAGE_CONTEXTS.format(plugin="/plugin")
     status, work = shell_run(tmp_path, command, 1)
 
     assert status == 1
     assert (work / LCOV).is_file()
-    assert (work / ".recognizer/cache/coverage/python.contexts.json").is_file()
+    assert not (work / ".recognizer/cache/coverage/python.contexts.json").exists()
 
 
 def test_the_rust_coverage_command_ignores_a_red_suite():

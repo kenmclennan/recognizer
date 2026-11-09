@@ -230,6 +230,7 @@ name = "recognizer-sensors"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "coverage" },
     { name = "tree-sitter" },
     { name = "tree-sitter-c-sharp" },
     { name = "tree-sitter-kotlin" },
@@ -240,7 +241,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "coverage" },
     { name = "jsonschema" },
     { name = "pytest" },
     { name = "ruff" },
@@ -248,6 +248,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "coverage", specifier = "==7.17.0" },
     { name = "tree-sitter", specifier = "==0.26.0" },
     { name = "tree-sitter-c-sharp", git = "https://github.com/tree-sitter/tree-sitter-c-sharp?rev=f1c7c1ee21f56a33412c12efb8abe0c483f05f0d" },
     { name = "tree-sitter-kotlin", git = "https://github.com/fwcd/tree-sitter-kotlin?rev=d6af96d2e23ef0a8ff5ab512864378cf08fba311" },
@@ -258,7 +259,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "coverage", specifier = ">=7.3" },
     { name = "jsonschema" },
     { name = "pytest" },
     { name = "ruff" },
