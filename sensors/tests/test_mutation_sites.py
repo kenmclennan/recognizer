@@ -324,7 +324,7 @@ def test_a_record_names_the_files_that_ran_and_the_files_that_killed_each_site(
     assert record["record_version"] == 2
     assert site == {"ran": {"tests/test_a.py": a_hash}, "killer": {"tests/test_a.py": a_hash}}
     assert len(mutants) == 3
-    assert all(command[-2:] == ["-rfE", command[-1]] for command in mutants)
+    assert all(command[-3:] == ["-rfE", "-x", command[-1]] for command in mutants)
 
 
 def test_an_unrelated_test_edit_reruns_no_mutant_and_a_killer_edit_reruns_its_sites(

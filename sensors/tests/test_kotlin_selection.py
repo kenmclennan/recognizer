@@ -165,6 +165,32 @@ def test_a_root_project_selection_runs_gradle_test_with_the_filter(tmp_path):
     KOTLIN_CLASSES.clear()
 
 
+def test_kotlin_stop_adds_fail_fast_after_each_test_task(tmp_path):
+    KOTLIN_CLASSES.clear()
+    KOTLIN_CLASSES["t/XTest.kt"] = [(":a", "p.XTest"), (":b", "q.XTest")]
+
+    assert mutant_command(tmp_path, "kotlin", stop=True) == ["./gradlew", "test", "--fail-fast"]
+    assert selected_command(tmp_path, "kotlin", {"t/XTest.kt"}, stop=True) == [
+        "./gradlew",
+        ":a:test",
+        "--fail-fast",
+        "--tests",
+        "p.XTest",
+        ":b:test",
+        "--fail-fast",
+        "--tests",
+        "q.XTest",
+    ]
+    assert selected_command(tmp_path, "kotlin", {"t/Other.kt"}, stop=True) == [
+        "./gradlew",
+        "test",
+        "--fail-fast",
+    ]
+    assert "--fail-fast" not in selected_command(tmp_path, "kotlin", {"t/XTest.kt"})
+
+    KOTLIN_CLASSES.clear()
+
+
 def test_a_file_missing_from_the_map_or_a_dashed_name_runs_the_whole_suite(tmp_path):
     KOTLIN_CLASSES.clear()
     KOTLIN_CLASSES["t/XTest.kt"] = [("", "p.XTest")]

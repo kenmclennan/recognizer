@@ -135,6 +135,91 @@ def test_typescript_selection_passes_the_files_after_a_separator(tmp_path):
     ]
 
 
+def test_a_previous_killer_file_leads_the_python_selected_command(tmp_path):
+    files = {"tests/a.py", "tests/b.py", "tests/c.py"}
+
+    assert selected_command(
+        tmp_path, "python", files, stop=True, previous=frozenset({"tests/c.py", "tests/b.py"})
+    ) == ["python3", "-m", "pytest", "-rfE", "-x", "tests/b.py", "tests/c.py", "tests/a.py"]
+    assert selected_command(tmp_path, "python", files, previous=frozenset({"tests/c.py"})) == [
+        "python3",
+        "-m",
+        "pytest",
+        "-rfE",
+        "tests/c.py",
+        "tests/a.py",
+        "tests/b.py",
+    ]
+
+
+def test_a_previous_killer_outside_the_selection_is_not_added(tmp_path):
+    assert selected_command(
+        tmp_path, "python", {"tests/a.py"}, previous=frozenset({"tests/z.py"})
+    ) == ["python3", "-m", "pytest", "-rfE", "tests/a.py"]
+
+
+def test_the_stopping_python_whole_suite_command_adds_x_and_the_baseline_does_not(tmp_path):
+    assert mutant_command(tmp_path, "python") == ["python3", "-m", "pytest", "-rfE"]
+    assert mutant_command(tmp_path, "python", stop=True) == [
+        "python3",
+        "-m",
+        "pytest",
+        "-rfE",
+        "-x",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("script", "bails"),
+    [
+        ("jest", True),
+        ("vitest run", True),
+        ("jest --ci", True),
+        ("npm run unit", False),
+        ("node --test", False),
+        ("cross-env CI=1 vitest", False),
+        ("", False),
+    ],
+)
+def test_typescript_bails_only_when_the_test_script_starts_with_jest_or_vitest(
+    tmp_path, script, bails
+):
+    (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": script}}))
+
+    whole = mutant_command(tmp_path, "typescript", stop=True)
+    chosen = selected_command(
+        tmp_path,
+        "typescript",
+        {"w/a.test.ts", "w/b.test.ts"},
+        stop=True,
+        previous=frozenset({"w/b.test.ts"}),
+    )
+
+    assert whole == (["npm", "test", "--", "--bail=1"] if bails else ["npm", "test"])
+    assert chosen == [
+        "npm",
+        "test",
+        "--",
+        *(["--bail=1"] if bails else []),
+        "w/b.test.ts",
+        "w/a.test.ts",
+    ]
+    assert mutant_command(tmp_path, "typescript") == ["npm", "test"]
+
+
+def test_typescript_without_a_readable_package_json_keeps_the_plain_command(tmp_path):
+    assert mutant_command(tmp_path, "typescript", stop=True) == ["npm", "test"]
+
+    (tmp_path / "package.json").write_text("not json")
+
+    assert mutant_command(tmp_path, "typescript", stop=True) == ["npm", "test"]
+
+
+def test_csharp_and_rust_commands_ignore_the_stop_request(tmp_path):
+    for language in ("csharp", "rust"):
+        assert mutant_command(tmp_path, language, stop=True) == mutant_command(tmp_path, language)
+
+
 def test_fifty_one_files_or_a_dashed_name_run_the_whole_suite(tmp_path):
     whole = mutant_command(tmp_path, "python")
     many = {f"tests/test_{n}.py" for n in range(51)}
@@ -198,6 +283,8 @@ B = frozenset({"tests/test_b.py"})
 SELECTED = {"app/rules.py": {2: A, 4: A, 5: A, 6: A, 13: B}}
 SELECTED_COMMAND = ["python3", "-m", "pytest", "-rfE", "tests/test_a.py"]
 WHOLE_COMMAND = ["python3", "-m", "pytest", "-rfE"]
+STOPPING_SELECTED = ["python3", "-m", "pytest", "-rfE", "-x", "tests/test_a.py"]
+STOPPING_WHOLE = ["python3", "-m", "pytest", "-rfE", "-x"]
 
 
 def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once(
@@ -212,8 +299,10 @@ def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once
 
     commands = [command for command, _ in seen]
 
-    assert commands.count(SELECTED_COMMAND) == 3
-    assert commands.count(WHOLE_COMMAND) == 2
+    assert commands.count(SELECTED_COMMAND) == 1
+    assert commands.count(STOPPING_SELECTED) == 2
+    assert commands.count(WHOLE_COMMAND) == 1
+    assert commands.count(STOPPING_WHOLE) == 1
     assert [timeout is None for _, timeout in seen].count(True) == 2
     assert capsys.readouterr().err.splitlines()[-1] == (
         "recognizer-sensors: mutation: 1 functions without a covering test; "
@@ -246,7 +335,9 @@ def test_a_selected_command_whose_baseline_fails_runs_its_mutants_under_the_whol
         " running the whole suite"
     ) in capsys.readouterr().err
     assert seen.count(SELECTED_COMMAND) == 1
-    assert seen.count(WHOLE_COMMAND) == 4
+    assert seen.count(STOPPING_SELECTED) == 0
+    assert seen.count(WHOLE_COMMAND) == 1
+    assert seen.count(STOPPING_WHOLE) == 3
 
 
 def test_a_failing_whole_suite_baseline_still_ends_the_run(tmp_path, monkeypatch, capsys):
@@ -304,7 +395,10 @@ def test_a_coverage_setting_runs_the_whole_suite_for_every_mutant(tmp_path, monk
     settings = json.dumps({"coverage": COVERAGE, "incremental": False, "max_workers": 1})
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
-    assert {tuple(command) for command, _ in seen} == {tuple(WHOLE_COMMAND)}
+    assert {tuple(command) for command, _ in seen} == {
+        tuple(WHOLE_COMMAND),
+        tuple(STOPPING_WHOLE),
+    }
 
 
 @pytest.mark.parametrize("third_read", [1000.0, 60.0])
@@ -456,8 +550,14 @@ def test_a_selection_of_more_than_half_the_suite_runs_the_whole_suite_without_it
     commands = [tuple(command) for command, _ in seen]
     half = ("python3", "-m", "pytest", "-rfE", "tests/test_0.py", "tests/test_1.py")
 
-    assert commands.count(half) == 2
-    assert {c for c in commands if c != half} == {tuple(WHOLE_COMMAND)}
+    stopping_half = ("python3", "-m", "pytest", "-rfE", "-x", "tests/test_0.py", "tests/test_1.py")
+
+    assert commands.count(half) == 1
+    assert commands.count(stopping_half) == 1
+    assert {c for c in commands if c not in (half, stopping_half)} == {
+        tuple(WHOLE_COMMAND),
+        tuple(STOPPING_WHOLE),
+    }
     assert (
         capsys.readouterr()
         .err.splitlines()[-1]
