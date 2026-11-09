@@ -42,7 +42,7 @@ export type Summary = {
 
 export type Action = {
   primary: { label: string; disabled: boolean };
-  secondary: { label: string; mode: ResultsMode; disabled: boolean };
+  mode: { value: ResultsMode; disabled: boolean };
   hint: string | null;
 };
 
@@ -513,18 +513,13 @@ function actionOf(
   scopeCount: number,
 ): Action {
   const rescan = (input.mode ?? "bring") === "rescan";
-  const secondary = {
-    label: rescan ? "Update only what changed" : "Rescan from scratch",
-    mode: (rescan ? "bring" : "rescan") as ResultsMode,
+  const mode = {
+    value: (rescan ? "rescan" : "bring") as ResultsMode,
     disabled: input.scanning,
   };
 
   if (input.scanning) {
-    return {
-      primary: { label: "Running", disabled: true },
-      secondary,
-      hint: null,
-    };
+    return { primary: { label: "Running", disabled: true }, mode, hint: null };
   }
 
   if (rescan) {
@@ -533,7 +528,7 @@ function actionOf(
         label: `Rescan ${plural(scopeCount, "module")}`,
         disabled: false,
       },
-      secondary,
+      mode,
       hint: null,
     };
   }
@@ -544,7 +539,7 @@ function actionOf(
         label: `Update ${plural(changed.length, "module")}`,
         disabled: false,
       },
-      secondary,
+      mode,
       hint: null,
     };
   }
@@ -560,7 +555,7 @@ function actionOf(
         label: `Run ${joinNames(runnable.map(({ name }) => name))}`,
         disabled: false,
       },
-      secondary,
+      mode,
       hint: null,
     };
   }
@@ -580,16 +575,12 @@ function actionOf(
 
     return {
       primary: { label: "Nothing ticked to run", disabled: true },
-      secondary,
+      mode,
       hint: `${names} ${one ? "is" : "are"} unticked and not current. Tick ${one ? "it" : "them"} to include ${one ? "it" : "them"} in the next scan.`,
     };
   }
 
-  return {
-    primary: { label: "Up to date", disabled: true },
-    secondary,
-    hint: null,
-  };
+  return { primary: { label: "Up to date", disabled: true }, mode, hint: null };
 }
 
 export function findingsActionOf(

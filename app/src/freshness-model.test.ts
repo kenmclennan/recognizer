@@ -811,4 +811,20 @@ describe("the Nothing ticked to run state", () => {
       expect(m.action.hint).toBeNull();
     }
   });
+
+  it("follows the mode input and disables it only while scanning", () => {
+    const sensors = [ran("crap", IDS), ran("mutation", IDS)];
+
+    expect(modelOf(IDS, { sensors }).action.mode).toEqual({
+      value: "bring",
+      disabled: false,
+    });
+    expect(modelOf(IDS, { sensors, mode: "rescan" }).action.mode).toEqual({
+      value: "rescan",
+      disabled: false,
+    });
+    expect(modelOf(IDS, { sensors, scanning: true }).action.mode.disabled).toBe(
+      true,
+    );
+  });
 });

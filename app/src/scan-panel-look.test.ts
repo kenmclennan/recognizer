@@ -194,6 +194,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(s.q(".scan-run"));
   await tick();
   facts.stopWhileRunning = { count: s.all(".scan-buttons .scan-stop").length, buttons: s.panel().buttons, order: s.all(".scan-buttons button").map((b) => b.className.split(" ")[0]) };
+  facts.modeWhileRunning = { disabled: s.all(".scan-run-mode button").map((b) => b.disabled), stopEnabled: s.q(".scan-stop").disabled === false };
   const tickedBefore = s.rows().map((r) => r.ticked);
   s.all(".scan-row-label").forEach((label) => click(label));
   await tick();
@@ -361,6 +362,35 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick(); await tick();
   facts.scopeOffRan = scopeFake.ran.map((plan) => plan.modules);
 
+  const emptyFake = fakeScan();
+  const em = await mount(emptyFake, undefined, true, { demo: viewJson([]) });
+  click(em.q(".rail-files"));
+  await tick();
+  click(em.q(".view-list"));
+  await tick();
+  click(em.all(".view-item").find((n) => n.querySelector(".view-item-name").textContent === "demo"));
+  await tick(); await tick();
+  click(em.q(".rail-scan"));
+  await tick();
+  await em.wired.rescanner.setTicks({ ...em.wired.rescanner.ticks(), onlyView: true });
+  await tick(); await tick();
+  const emptyScope = () => ({ canvasDisabled: em.q(".scan-scope-canvas")?.disabled ?? null, canvasTitle: em.q(".scan-scope-canvas")?.title ?? null, canvasPressed: em.q(".scan-scope-canvas")?.getAttribute("aria-pressed") ?? null, allPressed: em.q(".scan-scope-all")?.getAttribute("aria-pressed") ?? null, allDisabled: em.q(".scan-scope-all")?.disabled ?? null, caption: em.q(".scan-scope-canvas")?.textContent ?? null });
+  facts.emptyCanvas = emptyScope();
+  const writtenBefore = emptyFake.written.length;
+  em.q(".scan-scope-canvas").click();
+  await tick();
+  facts.emptyCanvasClick = { writes: emptyFake.written.length - writtenBefore };
+  const beforeIdle = { ran: emptyFake.ran.length, written: emptyFake.written.length };
+  facts.idleButton = { label: em.q(".scan-run").textContent, disabled: em.q(".scan-run").disabled, hint: em.q(".scan-hint").textContent };
+  em.q(".scan-run").click();
+  await tick(); await tick();
+  facts.idleClick = { ran: emptyFake.ran.length - beforeIdle.ran, written: emptyFake.written.length - beforeIdle.written };
+  click(em.q(".scan-run-mode-full"));
+  await tick();
+  click(em.q(".scan-run"));
+  await tick(); await tick();
+  facts.emptyCanvasRun = { modules: emptyFake.ran.map((plan) => plan.modules), onlyView: em.wired.rescanner.ticks().onlyView };
+
   const crapDoc = (hashes) => json({ findings_version: 1, sensor: { name: "crap", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: hashes, findings: [] });
   const fsensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
@@ -373,18 +403,34 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(fr.q(".rail-scan"));
   await tick();
   await fr.setTick("crap", true);
-  const freshFacts = () => ({ summary: fr.panel().summary, rows: fr.rows().filter((r) => r.key === "crap").map((r) => ({ state: r.state, note: r.note })), rowBars: fr.all(".scan-bar, .summary-bar").length, button: fr.q(".scan-run")?.textContent ?? null, disabled: fr.q(".scan-run")?.disabled ?? null, secondary: fr.q(".scan-secondary")?.textContent ?? null, oldSwitch: fr.all(".scan-mode, .scan-mode-switch").length });
+  const freshFacts = () => ({ summary: fr.panel().summary, rows: fr.rows().filter((r) => r.key === "crap").map((r) => ({ state: r.state, note: r.note })), rowBars: fr.all(".scan-bar, .summary-bar").length, button: fr.q(".scan-run")?.textContent ?? null, disabled: fr.q(".scan-run")?.disabled ?? null, secondary: fr.all(".scan-secondary").length, mode: fr.q(".scan-run-mode .on")?.textContent ?? null, modeToggles: fr.all(".scan-run-mode button").map((b) => ({ text: b.textContent, pressed: b.getAttribute("aria-pressed"), disabled: b.disabled })), oldSwitch: fr.all(".scan-mode, .scan-mode-switch").length });
   facts.freshPartial = freshFacts();
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }));
   await fr.wired.rescanner.refresh();
   await tick(); await tick();
   facts.freshComplete = freshFacts();
-  click(fr.q(".scan-secondary"));
+  click(fr.q(".scan-run-mode-full"));
   await tick();
   facts.freshRescan = { ...freshFacts(), ranBefore: fr.fake.ran.length };
-  click(fr.q(".scan-secondary"));
+  click(fr.q(".scan-run-mode-incremental"));
   await tick();
   facts.freshBack = freshFacts();
+  const boxOf = (n) => n.getBoundingClientRect();
+  const panelEl = fr.q(".scan-panel");
+  const panelStyle = getComputedStyle(panelEl);
+  const layoutLastRow = fr.all(".scan-row").at(-1);
+  facts.layout = {
+    order: [...panelEl.children].map((n) => n.className.split(" ")[0]),
+    controls: [...fr.q(".scan-controls").children].map((n) => n.className.split(" ")[0]),
+    rowsBeforeControls: Boolean(layoutLastRow.compareDocumentPosition(fr.q(".scan-controls")) & Node.DOCUMENT_POSITION_FOLLOWING),
+    scopeAboveMode: boxOf(fr.q(".scan-scope")).bottom <= boxOf(fr.q(".scan-run-mode")).top + 0.5,
+    modeAbovePrimary: boxOf(fr.q(".scan-run-mode")).bottom <= boxOf(fr.q(".scan-run")).top + 0.5,
+    runWidth: boxOf(fr.q(".scan-run")).width,
+    contentWidth: panelEl.clientWidth - parseFloat(panelStyle.paddingLeft) - parseFloat(panelStyle.paddingRight),
+    modeClipped: fr.q(".scan-run-mode").scrollWidth > fr.q(".scan-run-mode").clientWidth,
+    hintHidden: fr.q(".scan-hint").hidden,
+    secondaryCss: fr.all(".scan-secondary").length,
+  };
 
   const ranDoc = (name, diagnosis) => json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [], diagnosis });
   const whyFacts = (m, key) => {
@@ -535,7 +581,8 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     ]);
     expect(f.freshPartial.button).toBe("Update 1 module");
     expect(f.freshPartial.disabled).toBe(false);
-    expect(f.freshPartial.secondary).toBe("Rescan from scratch");
+    expect(f.freshPartial.secondary).toBe(0);
+    expect(f.freshPartial.mode).toBe("Incremental");
     expect(f.freshPartial.oldSwitch).toBe(0);
     expect(f.freshComplete.summary).toMatchObject({
       shape: "current",
@@ -548,13 +595,15 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.freshComplete.disabled).toBe(true);
   });
 
-  it("makes Rescan from scratch the secondary action: it only relabels the primary, never runs, and swaps back", () => {
+  it("makes Full the mode toggle: it only relabels the primary, never runs, and swaps back", () => {
     expect(f.freshRescan.button).toBe("Rescan 2 modules");
     expect(f.freshRescan.disabled).toBe(false);
-    expect(f.freshRescan.secondary).toBe("Update only what changed");
+    expect(f.freshRescan.secondary).toBe(0);
+    expect(f.freshRescan.mode).toBe("Full");
     expect(f.freshRescan.ranBefore).toBe(0);
     expect(f.freshBack.button).toBe("Up to date");
-    expect(f.freshBack.secondary).toBe("Rescan from scratch");
+    expect(f.freshBack.secondary).toBe(0);
+    expect(f.freshBack.mode).toBe("Incremental");
   });
 
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
@@ -621,10 +670,13 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.long.tip.bottom).toBeLessThanOrEqual(f.long.viewport.h);
   });
 
-  it("has the primary button naming its work with the secondary text button beside it", () => {
+  it("has the primary button naming its work below the scope and mode toggles", () => {
     expect(f.fresh.buttons).toEqual([
       { text: "Run Structure", disabled: false, spinner: 0 },
-      { text: "Rescan from scratch", disabled: false, spinner: 0 },
+    ]);
+    expect(f.freshPartial.modeToggles).toEqual([
+      { text: "Incremental", pressed: "true", disabled: false },
+      { text: "Full", pressed: "false", disabled: false },
     ]);
     expect(f.fresh.buttonTitle).toBe("");
   });
@@ -744,6 +796,53 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.plans).toHaveLength(1);
   });
 
+  it("lays out the rows, then the scope toggle, the mode toggle, the primary and the hint, with the primary full width and nothing clipped", () => {
+    expect(f.layout.order).toEqual([
+      "scan-header",
+      "scan-sub",
+      "scan-list",
+      "scan-controls",
+      "scan-buttons",
+      "scan-hint",
+    ]);
+    expect(f.layout.controls).toEqual(["scan-scope", "scan-run-mode"]);
+    expect(f.layout.rowsBeforeControls).toBe(true);
+    expect(f.layout.scopeAboveMode).toBe(true);
+    expect(f.layout.modeAbovePrimary).toBe(true);
+    expect(
+      Math.abs(f.layout.runWidth - f.layout.contentWidth),
+    ).toBeLessThanOrEqual(1);
+    expect(f.layout.modeClipped).toBe(false);
+    expect(f.layout.hintHidden).toBe(true);
+    expect(f.layout.secondaryCss).toBe(0);
+  });
+
+  it("disables This canvas with a tooltip at a count of 0 and plans the whole repository without rewriting the tick", () => {
+    expect(f.emptyCanvas).toEqual({
+      canvasDisabled: true,
+      canvasTitle: "The canvas is empty.",
+      canvasPressed: "false",
+      allPressed: "true",
+      allDisabled: false,
+      caption: f.emptyCanvas.caption,
+    });
+    expect(f.emptyCanvasClick.writes).toBe(0);
+    expect(f.emptyCanvasRun.modules).toEqual([null]);
+    expect(f.emptyCanvasRun.onlyView).toBe(true);
+  });
+
+  it("runs nothing and writes no tick when the primary reads Nothing ticked to run", () => {
+    expect(f.idleButton.label).toBe("Nothing ticked to run");
+    expect(f.idleButton.disabled).toBe(true);
+    expect(f.idleButton.hint).toContain("unticked and not current");
+    expect(f.idleClick).toEqual({ ran: 0, written: 0 });
+  });
+
+  it("(non-gating) disables the mode toggle while a scan runs and keeps Stop enabled", () => {
+    expect(f.modeWhileRunning.disabled).toEqual([true, true]);
+    expect(f.modeWhileRunning.stopEnabled).toBe(true);
+  });
+
   it("stops a running scan from the Scan panel and leaves the footer empty", () => {
     expect(f.stopWhileRunning.order).toEqual(["scan-run", "scan-stop"]);
     expect(f.stopWhileRunning.count).toBe(1);
@@ -832,7 +931,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       list: 0,
     });
     expect(f.loaded.rows).toEqual(NAMES);
-    expect(f.loaded.buttons).toBe(2);
+    expect(f.loaded.buttons).toBe(1);
   });
 
   it("says why each sensor could not run fully, one second line per mock state", () => {

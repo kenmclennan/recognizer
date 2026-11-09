@@ -684,6 +684,7 @@ describe("scanPanel only this view", () => {
       caption: "engine-loop, 1",
       on: false,
       disabled: false,
+      canvasEmpty: false,
     });
     expect(
       scanPanel(input({ view: { name: "v", modules: ["a.py", "b.py"] } })).scope
@@ -717,6 +718,7 @@ describe("scanPanel only this view", () => {
       caption: "engine-loop, 1",
       on: true,
       disabled: true,
+      canvasEmpty: false,
     });
   });
 
@@ -1100,5 +1102,17 @@ describe("scanPanel remembered refusal", () => {
     );
 
     expect(row?.state.kind).toBe("failed");
+  });
+});
+
+describe("the scope's canvasEmpty flag", () => {
+  it("is true at exactly 0 modules and false at 1", () => {
+    expect(
+      scanPanel(input({ view: { name: "v", modules: [] } })).scope?.canvasEmpty,
+    ).toBe(true);
+    expect(
+      scanPanel(input({ view: { name: "v", modules: ["a.py"] } })).scope
+        ?.canvasEmpty,
+    ).toBe(false);
   });
 });

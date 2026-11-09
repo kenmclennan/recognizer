@@ -124,7 +124,12 @@ export type ReportRow = {
 
 export type ScanPanelModel = {
   header: { text: string; moved: string | null };
-  scope: { caption: string; on: boolean; disabled: boolean } | null;
+  scope: {
+    caption: string;
+    on: boolean;
+    disabled: boolean;
+    canvasEmpty: boolean;
+  } | null;
   freshness: FreshnessModel;
   rows: ScanRow[];
   reports: ReportRow[];
@@ -133,7 +138,7 @@ export type ScanPanelModel = {
     label: string;
     disabled: boolean;
   };
-  secondary: FreshnessModel["action"]["secondary"];
+  mode: FreshnessModel["action"]["mode"];
   hint: string | null;
   planned: PlannedRun | null;
   pending: boolean;
@@ -374,7 +379,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         label: input.scanning ? "Running" : "Run",
         disabled: input.scanning,
       },
-      secondary: freshness.action.secondary,
+      mode: freshness.action.mode,
       hint: null,
       planned: null,
       pending: true,
@@ -443,7 +448,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       label: freshness.action.primary.label,
       disabled: freshness.action.primary.disabled,
     },
-    secondary: freshness.action.secondary,
+    mode: freshness.action.mode,
     hint: freshness.action.hint,
     planned,
     pending: false,
@@ -462,6 +467,7 @@ function scopeOf(input: PanelInput): ScanPanelModel["scope"] {
     caption: scopeCaption(input.view.name, input.view.modules.length),
     on: input.ticks.onlyView,
     disabled: input.scanning,
+    canvasEmpty: input.view.modules.length === 0,
   };
 }
 

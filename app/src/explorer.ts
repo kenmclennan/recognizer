@@ -1974,7 +1974,10 @@ export function showExplorer(
       describedAt,
       ticks:
         onlyView === undefined
-          ? ticks
+          ? {
+              ...ticks,
+              onlyView: ticks.onlyView && modules.opened().length > 0,
+            }
           : { ...ticks, onlyView, describe: false },
       view: { name: openView, modules: modules.opened() },
       mode: onlyView === undefined ? resultsMode : "bring",
