@@ -68,9 +68,14 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   node.dataset.state = row.state.kind;
   node.dataset.tip = row.title;
 
-  attachHoverTip(node, "scan-tip", (tip) => {
-    tip.textContent = row.title;
-  });
+  attachHoverTip(
+    node,
+    "scan-tip",
+    (tip) => {
+      tip.textContent = row.title;
+    },
+    row.key,
+  );
   tick.type = "checkbox";
   tick.checked = row.ticked;
   tick.disabled = row.disabled;

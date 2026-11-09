@@ -23,11 +23,16 @@ export function descriptionOf(state: {
 
 export function attachModuleTip(row: HTMLElement, tip: ModuleTip): void {
   row.dataset.tipPath = tip.path;
-  attachHoverTip(row, "module-tip", (node) => {
-    node.append(el("div", "module-tip-path", tip.path));
+  attachHoverTip(
+    row,
+    "module-tip",
+    (node) => {
+      node.append(el("div", "module-tip-path", tip.path));
 
-    if (tip.description !== null) {
-      node.append(el("div", "module-tip-description", tip.description));
-    }
-  });
+      if (tip.description !== null) {
+        node.append(el("div", "module-tip-description", tip.description));
+      }
+    },
+    tip.path,
+  );
 }

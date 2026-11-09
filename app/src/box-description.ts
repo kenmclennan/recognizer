@@ -10,6 +10,7 @@ export type DescriptionHover = {
   leave: () => void;
   reset: () => void;
   shown: () => string | null;
+  held: () => string | null;
 };
 
 export type DescriptionBox = {
@@ -77,7 +78,23 @@ export function createDescriptionHover(
       hide();
     },
     shown: () => shown,
+    held: () => shown ?? pendingId,
   };
+}
+
+export function descriptionSurvives(
+  held: string | null,
+  sceneRedrawn: boolean,
+  selectionUnchanged: boolean,
+  previousText: string | null,
+  nextText: string | null,
+): boolean {
+  return (
+    held !== null &&
+    !sceneRedrawn &&
+    selectionUnchanged &&
+    previousText === nextText
+  );
 }
 
 function placeAcross(

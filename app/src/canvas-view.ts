@@ -3,6 +3,7 @@ import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
 import {
   BOX_DESCRIPTION_WIDTH,
   createDescriptionHover,
+  descriptionSurvives,
   placeDescription,
 } from "./box-description";
 import {
@@ -464,6 +465,10 @@ export function buildCanvasView(
 
   function applyViewport() {
     descriptions.reset();
+    writeViewport();
+  }
+
+  function writeViewport() {
     world.setAttribute(
       "transform",
       `translate(${viewport.x} ${viewport.y}) scale(${viewport.k})`,
@@ -1731,8 +1736,28 @@ export function buildCanvasView(
     },
     render(next) {
       const previous = props;
+      const redrawn =
+        next.scene !== previous?.scene ||
+        next.titles !== previous?.titles ||
+        next.notes !== previous?.notes ||
+        next.orientation !== previous?.orientation ||
+        next.changes !== previous?.changes ||
+        next.heading !== previous?.heading;
+      const held = descriptions.held();
 
-      descriptions.reset();
+      if (
+        !descriptionSurvives(
+          held,
+          redrawn,
+          previous?.selection?.kind === next.selection?.kind &&
+            previous?.selection?.id === next.selection?.id,
+          held === null ? null : (previous?.describe?.(held) ?? null),
+          held === null ? null : (next.describe?.(held) ?? null),
+        )
+      ) {
+        descriptions.reset();
+      }
+
       props = next;
       empty.hidden = next.open > 0;
       notice.textContent = next.notice ?? "";
@@ -1742,14 +1767,7 @@ export function buildCanvasView(
       const scene = next.scene;
       const has = (scene?.boxes.length ?? 0) > 0;
 
-      if (
-        scene !== previous?.scene ||
-        next.titles !== previous?.titles ||
-        next.notes !== previous?.notes ||
-        next.orientation !== previous?.orientation ||
-        next.changes !== previous?.changes ||
-        next.heading !== previous?.heading
-      ) {
+      if (redrawn) {
         if (scene) {
           drawScene(scene);
         } else {
@@ -1811,7 +1829,7 @@ export function buildCanvasView(
       drawBubbles();
       selectionBar.render(next.bar);
       refreshChrome();
-      applyViewport();
+      writeViewport();
     },
   };
 }
