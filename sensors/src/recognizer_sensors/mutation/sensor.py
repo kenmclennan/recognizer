@@ -893,7 +893,13 @@ def run(
             tally_lock = threading.Lock()
 
             def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
-                whole = commands[target.language]
+                whole = (
+                    commands[target.language]
+                    if configured is not None
+                    else mutant_command(
+                        repository, target.language, workers=settings["max_workers"]
+                    )
+                )
                 subject = f"the {target.language} test command" if labelled else "the test command"
                 chosen = [target.selections[index] for index in target.to_run]
                 killers = [target.previous.get(index, frozenset()) for index in target.to_run]
@@ -904,11 +910,15 @@ def run(
                     stopping = (
                         whole
                         if configured is not None
-                        else mutant_command(repository, target.language, True)
+                        else mutant_command(
+                            repository, target.language, True, settings["max_workers"]
+                        )
                     )
                     files = chosen[index] if configured is None else None
                     selected = (
-                        selected_command(repository, target.language, files)
+                        selected_command(
+                            repository, target.language, files, workers=settings["max_workers"]
+                        )
                         if files and len(files) * 2 <= suite_size
                         else None
                     )
@@ -921,7 +931,12 @@ def run(
                         if seconds is not None:
                             command = selected
                             stopping = selected_command(
-                                repository, target.language, files, True, killers[index]
+                                repository,
+                                target.language,
+                                files,
+                                True,
+                                killers[index],
+                                settings["max_workers"],
                             )
 
                     if seconds is None:
