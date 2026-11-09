@@ -307,13 +307,22 @@ def test_a_coverage_setting_runs_the_whole_suite_for_every_mutant(tmp_path, monk
     assert {tuple(command) for command, _ in seen} == {tuple(WHOLE_COMMAND)}
 
 
-@pytest.mark.parametrize("third_read", [1000.0, 60.0])
+@pytest.mark.parametrize("after_first", [1000.0, 60.0])
 def test_the_budget_starts_after_setup_and_reports_what_it_left_unmeasured(
-    tmp_path, monkeypatch, third_read
+    tmp_path, monkeypatch, after_first
 ):
     root, _ = mutate_repository(tmp_path)
-    ticks = iter([0.0, 0.0, third_read])
-    monkeypatch.setattr(sensor, "CLOCK", lambda: next(ticks, 1000.0))
+    now = {"value": 0.0}
+    real = sensor.run_function
+
+    def stepping(*args, **extra):
+        result = real(*args, **extra)
+        now["value"] = after_first
+
+        return result
+
+    monkeypatch.setattr(sensor, "CLOCK", lambda: now["value"])
+    monkeypatch.setattr(sensor, "run_function", stepping)
 
     assert (
         run_mutate(

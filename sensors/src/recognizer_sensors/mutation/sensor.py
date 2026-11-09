@@ -948,6 +948,7 @@ def run(
                     hashes if configured is None and target.language == "python" else None,
                     *([settings["carry"]] if "carry" in settings else []),
                     **({"environments": environments} if environments.enabled else {}),
+                    **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
                 ),
                 settings["max_workers"],
                 deadline,

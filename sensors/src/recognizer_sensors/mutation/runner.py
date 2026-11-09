@@ -448,11 +448,13 @@ def run_function(
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
     environments: EnvironmentPool | None = None,
+    deadline: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> list[MutantResult] | None:
     results = []
 
     for index, mutant in enumerate(mutants):
-        if STOP.is_set():
+        if STOP.is_set() or (deadline is not None and clock() >= deadline):
             return None
 
         command, timeout = plan_for(index)
