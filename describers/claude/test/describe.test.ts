@@ -174,6 +174,18 @@ describe("usage errors", () => {
     },
   );
 
+  it("prints its package version without running claude", () => {
+    const box = sandbox();
+    const result = run(box, ["--version"]);
+    const { version } = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    ) as { version: string };
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(`${version}\n`);
+    expect(claudeRan(box)).toBe(false);
+  });
+
   it("prints the prompt version without running claude", () => {
     const box = sandbox();
     const result = run(box, ["--prompt-version"]);

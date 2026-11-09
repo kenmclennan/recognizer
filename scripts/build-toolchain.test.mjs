@@ -3,16 +3,19 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   archiveEntries,
   buildGrammarWheel,
+  COMMAND_LINKS,
   exportArguments,
   GRAMMARS,
   grammarSource,
@@ -21,8 +24,10 @@ import {
   pythonInstallArguments,
   verifyArchive,
   wrapperScript,
+  writeCommandLinks,
 } from "./build-toolchain.mjs";
 import { makeTempDir } from "./temp-dirs.mjs";
+import { verifyCommands } from "./verify-toolchain.mjs";
 
 const closure = ["node_modules/ajv", "node_modules/yaml"];
 const PINNED_COMMIT = "f1c7c1ee21f56a33412c12efb8abe0c483f05f0d";
@@ -53,6 +58,14 @@ describe("archiveEntries", () => {
       "bin/recognizer-scan-csharp",
       "bin/recognizer-sensors",
       "recognizer-scan-rust",
+      "commands/recognizer",
+      "commands/recognizer-scan-typescript",
+      "commands/recognizer-describe-claude",
+      "commands/recognizer-scan-python",
+      "commands/recognizer-scan-kotlin",
+      "commands/recognizer-scan-csharp",
+      "commands/recognizer-sensors",
+      "commands/recognizer-scan-rust",
       "THIRD-PARTY-NOTICES.md",
       "LICENSE",
     ]);
@@ -192,6 +205,53 @@ describe("mergeRequirements", () => {
   it("keeps each requirement once with its own hashes", () => {
     expect(mergeRequirements([kotlin, sensors])).toBe(
       "tree-sitter==0.26.0 \\\n    --hash=sha256:aa \\\n    --hash=sha256:bb\ntree-sitter-kotlin==1.1.0 \\\n    --hash=sha256:cc\ntree-sitter-rust==0.24.2 \\\n    --hash=sha256:dd\n",
+    );
+  });
+});
+
+describe("the commands folder", () => {
+  it("holds the eight commands as links that resolve to executables inside the folder", () => {
+    const folder = makeTempDir("commands-");
+
+    for (const [, target] of COMMAND_LINKS) {
+      const real = join(folder, target.replace("../", ""));
+
+      mkdirSync(dirname(real), { recursive: true });
+      writeFileSync(real, "#!/bin/sh\n");
+      chmodSync(real, 0o755);
+    }
+
+    writeCommandLinks(folder);
+
+    expect(readdirSync(join(folder, "commands")).sort()).toEqual(
+      COMMAND_LINKS.map(([name]) => name).sort(),
+    );
+    expect(COMMAND_LINKS).toHaveLength(8);
+    expect(() => verifyCommands(folder)).not.toThrow();
+  });
+
+  it("fails verification when an entry is missing or points outside", () => {
+    const folder = makeTempDir("commands-bad-");
+    const outside = makeTempDir("commands-out-");
+
+    writeFileSync(join(outside, "tool"), "#!/bin/sh\n");
+    chmodSync(join(outside, "tool"), 0o755);
+
+    for (const [, target] of COMMAND_LINKS) {
+      const real = join(folder, target.replace("../", ""));
+
+      mkdirSync(dirname(real), { recursive: true });
+      writeFileSync(real, "#!/bin/sh\n");
+      chmodSync(real, 0o755);
+    }
+
+    writeCommandLinks(folder);
+    rmSync(join(folder, "commands/recognizer-sensors"));
+    rmSync(join(folder, "commands/recognizer"));
+    symlinkSync(join(outside, "tool"), join(folder, "commands/recognizer"));
+
+    expect(() => verifyCommands(folder)).toThrow(
+      /recognizer points outside.*recognizer-sensors is missing/,
     );
   });
 });

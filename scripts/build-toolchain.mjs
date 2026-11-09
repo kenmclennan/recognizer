@@ -8,6 +8,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,6 +28,7 @@ const OWN_PACKAGES = [
   "recognizer-describe-claude",
 ];
 const RUST_BINARY = "recognizer-scan-rust";
+const COMMANDS_FOLDER = "commands";
 const WHEELHOUSE = "wheelhouse";
 export const GRAMMARS = [
   { package: "tree-sitter-kotlin", project: "scanners/kotlin" },
@@ -58,6 +60,33 @@ export const PYTHON_COMMANDS = [
     project: "sensors",
   },
 ];
+
+export const COMMAND_LINKS = [
+  ["recognizer", "../node_modules/recognizer/dist/bin.js"],
+  [
+    "recognizer-scan-typescript",
+    "../node_modules/recognizer-scan-typescript/dist/bin.js",
+  ],
+  [
+    "recognizer-describe-claude",
+    "../node_modules/recognizer-describe-claude/dist/bin.js",
+  ],
+  ["recognizer-scan-python", "../bin/recognizer-scan-python"],
+  ["recognizer-scan-kotlin", "../bin/recognizer-scan-kotlin"],
+  ["recognizer-scan-csharp", "../bin/recognizer-scan-csharp"],
+  ["recognizer-sensors", "../bin/recognizer-sensors"],
+  ["recognizer-scan-rust", `../${RUST_BINARY}`],
+];
+
+export function writeCommandLinks(folder) {
+  const commands = join(folder, COMMANDS_FOLDER);
+
+  mkdirSync(commands, { recursive: true });
+
+  for (const [name, target] of COMMAND_LINKS) {
+    symlinkSync(target, join(commands, name));
+  }
+}
 
 export function wrapperScript(
   { command, module },
@@ -118,6 +147,7 @@ export function archiveEntries(version, closurePaths) {
     ),
     ...PYTHON_COMMANDS.map(({ command }) => `bin/${command}`),
     RUST_BINARY,
+    ...COMMAND_LINKS.map(([name]) => `${COMMANDS_FOLDER}/${name}`),
     "THIRD-PARTY-NOTICES.md",
     "LICENSE",
   ];
@@ -387,6 +417,8 @@ export function buildToolchain(root, outDir) {
       join(folder, RUST_BINARY),
     );
     chmodSync(join(folder, RUST_BINARY), 0o755);
+
+    writeCommandLinks(folder);
 
     copyFileSync(
       join(root, "THIRD-PARTY-NOTICES.md"),

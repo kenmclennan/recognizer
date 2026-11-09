@@ -67,10 +67,26 @@ describe("renderAll on the committed template", () => {
       "recognizer-scan-rust",
     ]);
 
-    for (const [, source] of binaries) {
+    for (const [, source, target] of binaries) {
       expect(source).toContain(
-        "#{appdir}/Recognizer.app/Contents/Resources/toolchain/",
+        "#{appdir}/Recognizer.app/Contents/Resources/toolchain/commands/",
       );
+      expect(target).toBeUndefined();
     }
+  });
+
+  it("removes a formula's links before linking, one per command", () => {
+    const removals = [
+      ...cask.matchAll(
+        /^\s*remove "\{\{HOMEBREW_PREFIX\}\}\/bin\/([^"]+)", symlink_target_contains: "\/Cellar\/recognizer\/"$/gm,
+      ),
+    ].map(([, name]) => name);
+
+    expect(cask).toContain("preflight_steps do");
+    expect(removals).toEqual(binaries.map(([, source]) => basename(source)));
+    expect(removals).toHaveLength(8);
+    expect(cask.indexOf("preflight_steps")).toBeLessThan(
+      cask.indexOf("binary "),
+    );
   });
 });

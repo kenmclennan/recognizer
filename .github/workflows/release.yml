@@ -115,17 +115,8 @@ jobs:
           tar -xzf dist-release/recognizer.app.tar.gz -C "$smoke"
           toolchain="$smoke/Recognizer.app/Contents/Resources/toolchain"
           node scripts/verify-toolchain.mjs "$toolchain"
-          mkdir "$smoke/bin"
-          ln -s "$toolchain/node_modules/recognizer/dist/bin.js" "$smoke/bin/recognizer"
-          ln -s "$toolchain/node_modules/recognizer-scan-typescript/dist/bin.js" "$smoke/bin/recognizer-scan-typescript"
-          ln -s "$toolchain/node_modules/recognizer-describe-claude/dist/bin.js" "$smoke/bin/recognizer-describe-claude"
-          ln -s "$toolchain/bin/recognizer-scan-python" "$smoke/bin/recognizer-scan-python"
-          ln -s "$toolchain/bin/recognizer-scan-kotlin" "$smoke/bin/recognizer-scan-kotlin"
-          ln -s "$toolchain/bin/recognizer-scan-csharp" "$smoke/bin/recognizer-scan-csharp"
-          ln -s "$toolchain/bin/recognizer-sensors" "$smoke/bin/recognizer-sensors"
-          ln -s "$toolchain/recognizer-scan-rust" "$smoke/bin/recognizer-scan-rust"
-          export PATH="$smoke/bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
-          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sensors; do
+          export PATH="$toolchain/commands:$(dirname "$(command -v node)"):/usr/bin:/bin"
+          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sensors recognizer-describe-claude; do
             got=$("$tool" --version)
             if [ "$got" != "$VERSION" ]; then
               echo "$tool --version printed $got, expected $VERSION" >&2

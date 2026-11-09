@@ -13,6 +13,7 @@ import { promptVersion, readPrompt } from "./prompt.js";
 import { interpretReply, LIMIT_STATUS, LimitError } from "./reply.js";
 
 const TIMEOUT_MS = 120_000;
+const PACKAGE_FILE = new URL("../package.json", import.meta.url);
 const USAGE = "usage: recognizer-describe-claude --model <name> <request-file>";
 
 function claudeArgs(model: string): string[] {
@@ -152,6 +153,15 @@ function parseArguments(args: string[]): { model: string; file: string } {
 }
 
 async function main(args: string[]): Promise<number> {
+  if (args.length === 1 && args[0] === "--version") {
+    const { version } = JSON.parse(readFileSync(PACKAGE_FILE, "utf8")) as {
+      version: string;
+    };
+    process.stdout.write(`${version}\n`);
+
+    return 0;
+  }
+
   if (args.length === 1 && args[0] === "--prompt-version") {
     process.stdout.write(`${promptVersion()}\n`);
 
