@@ -9,7 +9,9 @@ PLUGIN_DIRECTORY = Path(__file__).parent / "plugin"
 
 UV_ENVIRONMENT = ".recognizer/cache/python-env"
 
-CONTEXTS_JSON = ".recognizer/cache/coverage/python.contexts.json"
+PYTHON_DATA = ".recognizer/cache/coverage/python.data"
+
+LEGACY_CONTEXTS_PATH = ".recognizer/cache/coverage/python.contexts.json"
 
 MAX_SELECTED_FILES = 50
 
@@ -35,8 +37,7 @@ PYTHON_COVERAGE_CONTEXTS = (
     " && export PYTHONPATH={plugin}${{PYTHONPATH:+:$PYTHONPATH}}"
     "; {{runner}} coverage run -m pytest -p recognizer_covctx; status=$?"
     "; {{runner}} coverage lcov -o .recognizer/cache/coverage/python.lcov; lcov=$?"
-    "; {{runner}} coverage json --show-contexts -o " + CONTEXTS_JSON + "; json=$?"
-    "; [ $status -ne 0 ] && exit $status; [ $lcov -ne 0 ] && exit $lcov; exit $json"
+    "; [ $status -ne 0 ] && exit $status; exit $lcov"
 )
 
 PYTHON_RUNNERS = (

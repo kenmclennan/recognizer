@@ -15,13 +15,14 @@ dependencies = [
   "tree-sitter-kotlin==0.4.0",
   "tree-sitter-rust==0.24.2",
   "tree-sitter-c-sharp==0.23.5",
+  "coverage==7.17.0",
 ]
 
 [project.scripts]
 recognizer-sensors = "recognizer_sensors.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "jsonschema", "coverage>=7.3"]
+dev = ["pytest", "ruff", "jsonschema"]
 
 [tool.uv.sources]
 tree-sitter-kotlin = { git = "https://github.com/fwcd/tree-sitter-kotlin", rev = "d6af96d2e23ef0a8ff5ab512864378cf08fba311" }
