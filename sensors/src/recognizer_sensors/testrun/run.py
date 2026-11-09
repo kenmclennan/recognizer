@@ -216,6 +216,21 @@ def clear_cached_reports(repository: Path, sources: list[Source]) -> None:
             (repository / source.path).unlink(missing_ok=True)
 
 
+def clear_stale_kotlin_reports(
+    repository: Path, scans: list[Scan], sources: list[Source], steps: list[Step]
+) -> None:
+    if not steps or not any(scan.language == "kotlin" for scan in scans):
+        return
+
+    for source in sources:
+        if source.format != "jacoco" or source.path.startswith(CACHE_PREFIX):
+            continue
+
+        for match in repository.glob(source.path):
+            if match.is_file():
+                match.unlink(missing_ok=True)
+
+
 def not_installed(program: str) -> Refusal:
     return Refusal(diagnose("tool-missing", f"{program} is not installed"))
 
@@ -395,6 +410,7 @@ def collect_coverage(
     try:
         steps, sources = plan(repository, scans, test_command, coverage)
         clear_cached_reports(repository, sources)
+        clear_stale_kotlin_reports(repository, scans, sources, steps)
         started = time.time() if steps else None
         results = run_steps(repository, steps)
     except Refusal as refusal:
@@ -924,6 +940,7 @@ def collect_coverage_with_tests(
 
     steps, sources = plan(repository, scans, None, None, contexts=True)
     clear_cached_reports(repository, sources)
+    clear_stale_kotlin_reports(repository, scans, sources, steps)
     (repository / PYTHON_DATA).unlink(missing_ok=True)
     (repository / LEGACY_CONTEXTS_PATH).unlink(missing_ok=True)
     shutil.rmtree(repository / BY_FILE_DIRECTORY, ignore_errors=True)

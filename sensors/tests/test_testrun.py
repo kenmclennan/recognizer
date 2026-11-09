@@ -9,7 +9,7 @@ import pytest
 from conftest import git_commit, make_repository
 
 from recognizer_sensors.cli import main
-from recognizer_sensors.scans import read_scans
+from recognizer_sensors.scans import Scan, ScanModule, read_scans
 from recognizer_sensors.testrun.profiles import (
     PROFILES,
     coverage_command,
@@ -226,6 +226,84 @@ def test_a_jacoco_report_written_by_the_run_is_read(tmp_path):
     )
 
     assert coverage == {"app/m.py": {1: 4}}
+
+
+KOTLIN_REPORT = "build/reports/jacoco/test/jacocoTestReport.xml"
+
+KOTLIN_JACOCO = (
+    '<report><package name="app"><sourcefile name="M.kt">'
+    '<line nr="1" mi="0" ci="4"/></sourcefile></package></report>'
+)
+
+
+def kotlin_repository(tmp_path):
+    root = repository(tmp_path, {"app/M.kt": "class M\n"})
+    scans = [Scan("kotlin", (ScanModule("app", ("app/M.kt",)),), False)]
+
+    return root, scans
+
+
+def test_a_stale_kotlin_report_is_deleted_before_a_command_that_leaves_it_untouched(tmp_path):
+    root, scans = kotlin_repository(tmp_path)
+    report = root / KOTLIN_REPORT
+    report.parent.mkdir(parents=True)
+    report.write_text(KOTLIN_JACOCO)
+    seen = root / "seen.txt"
+    probe = script(
+        root,
+        "p.py",
+        "import pathlib, sys\n"
+        f"pathlib.Path({str(seen)!r}).write_text(str(pathlib.Path({str(report)!r}).exists()))\n",
+    )
+    diagnoses: list[dict] = []
+
+    coverage = collect_coverage(root, scans, [sys.executable, probe], None, diagnoses)
+
+    assert seen.read_text() == "False"
+    assert not report.exists()
+    assert coverage == {}
+    assert diagnoses[0]["code"] == "coverage-unavailable"
+
+
+def test_a_kotlin_report_written_by_the_command_is_read(tmp_path):
+    root, scans = kotlin_repository(tmp_path)
+    stale = root / KOTLIN_REPORT
+    stale.parent.mkdir(parents=True)
+    stale.write_text(KOTLIN_JACOCO.replace('ci="4"', 'ci="1"'))
+    writer = script(
+        root,
+        "w.py",
+        "import pathlib, sys\np = pathlib.Path(sys.argv[1])\np.parent.mkdir(parents=True, exist_ok=True)\n"
+        f"p.write_text({KOTLIN_JACOCO!r})\n",
+    )
+
+    coverage = collect_coverage(root, scans, [sys.executable, writer, KOTLIN_REPORT], None, [])
+
+    assert coverage == {"app/M.kt": {1: 4}}
+
+
+def test_a_configured_kotlin_coverage_path_is_deleted_before_the_command_runs(tmp_path):
+    root, scans = kotlin_repository(tmp_path)
+    report = root / "cov/jacoco.xml"
+    report.parent.mkdir(parents=True)
+    report.write_text(KOTLIN_JACOCO)
+    nothing = script(root, "n.py", NOTHING)
+
+    collect_coverage(root, scans, [sys.executable, nothing], "cov/jacoco.xml", [])
+
+    assert not report.exists()
+
+
+def test_a_kotlin_report_is_kept_when_no_command_runs(tmp_path):
+    root, scans = kotlin_repository(tmp_path)
+    report = root / "cov/jacoco.xml"
+    report.parent.mkdir(parents=True)
+    report.write_text(KOTLIN_JACOCO)
+
+    coverage = collect_coverage(root, scans, None, "cov/jacoco.xml", [])
+
+    assert report.exists()
+    assert coverage == {"app/M.kt": {1: 4}}
 
 
 def sentence(capsys):
