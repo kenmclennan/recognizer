@@ -1,17 +1,208 @@
 use std::collections::HashMap;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
-use crate::repository::OUTPUT_MARK;
+use crate::repository::{missing_hint, OUTPUT_MARK};
 use crate::scan_run::kill_group;
 
 const ENVIRONMENT_SCRIPT: &str = r#"printf '\n@@recognizer-output@@\n'; env -0"#;
 const RESOLVE_TIMEOUT: Duration = Duration::from_secs(15);
 const RETRY_WINDOW: Duration = Duration::from_secs(30);
 const MAX_BOUND: usize = 4;
+const BUNDLE_FIX: &str = "brew reinstall --cask kenmclennan/tap/recognizer";
+
+pub const COMMANDS: [&str; 8] = [
+    "recognizer",
+    "recognizer-scan-typescript",
+    "recognizer-describe-claude",
+    "recognizer-scan-python",
+    "recognizer-scan-kotlin",
+    "recognizer-scan-csharp",
+    "recognizer-sensors",
+    "recognizer-scan-rust",
+];
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Toolchain {
+    Bundled { folder: PathBuf },
+    Override { folder: PathBuf },
+    Path,
+    Unchecked,
+}
+
+pub fn is_packaged(executable: &Path) -> bool {
+    let Some(macos) = executable.parent() else {
+        return false;
+    };
+    let contents = macos.parent();
+    let app = contents.and_then(Path::parent);
+
+    macos.file_name().is_some_and(|name| name == "MacOS")
+        && contents.is_some_and(|dir| dir.file_name().is_some_and(|name| name == "Contents"))
+        && app.is_some_and(|dir| dir.extension().is_some_and(|ext| ext == "app"))
+}
+
+impl Toolchain {
+    pub fn choose(
+        executable: &Path,
+        resource_dir: Option<&Path>,
+        override_var: Option<&str>,
+        dir_exists: impl Fn(&Path) -> bool,
+    ) -> Toolchain {
+        if is_packaged(executable) {
+            let base = resource_dir.unwrap_or_else(|| Path::new(""));
+
+            return Toolchain::Bundled {
+                folder: base.join("toolchain").join("commands"),
+            };
+        }
+
+        if let Some(dir) = override_var.map(Path::new).filter(|dir| dir.is_absolute()) {
+            let folder = dir.join("commands");
+
+            if dir_exists(&folder) {
+                return Toolchain::Override { folder };
+            }
+        }
+
+        Toolchain::Path
+    }
+
+    fn folder(&self) -> Option<&Path> {
+        match self {
+            Toolchain::Bundled { folder } | Toolchain::Override { folder } => Some(folder),
+            _ => None,
+        }
+    }
+
+    fn unchecked(&self) -> bool {
+        matches!(self, Toolchain::Unchecked)
+    }
+
+    fn fix(&self, expected: &str) -> String {
+        match self {
+            Toolchain::Bundled { .. } => BUNDLE_FIX.to_string(),
+            Toolchain::Override { folder } => format!(
+                "rebuild the toolchain at {}",
+                folder.parent().unwrap_or(folder).display()
+            ),
+            _ => format!(
+                "put a {expected} toolchain first on PATH, or set RECOGNIZER_TOOLCHAIN to a built toolchain folder"
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ToolFault {
+    Missing {
+        tool: String,
+    },
+    Mismatch {
+        tool: String,
+        found: String,
+        expected: String,
+        path: PathBuf,
+        fix: String,
+    },
+    Incomplete {
+        path: PathBuf,
+    },
+}
+
+pub fn mismatch_message(expected: &str, tool: &str, found: &str, path: &Path, fix: &str) -> String {
+    format!(
+        "Recognizer {expected} cannot scan with {tool} {found} ({}). Run: {fix}",
+        path.display()
+    )
+}
+
+impl ToolFault {
+    pub fn message(&self) -> String {
+        match self {
+            ToolFault::Missing { .. } => missing_hint(),
+            ToolFault::Mismatch {
+                tool,
+                found,
+                expected,
+                path,
+                fix,
+            } => mismatch_message(expected, tool, found, path, fix),
+            ToolFault::Incomplete { path } => format!(
+                "This installation of Recognizer is incomplete: {} is missing. Run: {BUNDLE_FIX}",
+                path.display()
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Stamp {
+    link: Option<(u64, SystemTime)>,
+    target: Option<(u64, SystemTime)>,
+    canonical: Option<PathBuf>,
+}
+
+fn stamp_of(path: &Path) -> Stamp {
+    let facts = |metadata: std::fs::Metadata| Some((metadata.len(), metadata.modified().ok()?));
+    let canonical = std::fs::canonicalize(path).ok();
+
+    Stamp {
+        link: std::fs::symlink_metadata(path).ok().and_then(facts),
+        target: canonical
+            .as_deref()
+            .and_then(|real| std::fs::metadata(real).ok())
+            .and_then(facts),
+        canonical,
+    }
+}
+
+fn bounded_output(mut process: Command, timeout: Duration) -> Option<(Option<i32>, Vec<u8>)> {
+    process
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        process.process_group(0);
+    }
+
+    let mut child = process.spawn().ok()?;
+    let mut stdout = child.stdout.take()?;
+    let reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+
+        let _ = stdout.read_to_end(&mut bytes);
+
+        bytes
+    });
+    let deadline = Instant::now() + timeout;
+
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            _ => {
+                kill_group(child.id());
+
+                let _ = child.kill();
+                let _ = child.wait();
+
+                return None;
+            }
+        }
+    };
+
+    Some((status.code(), reader.join().ok()?))
+}
 
 fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|error| error.into_inner())
@@ -237,25 +428,52 @@ pub struct ToolRunner {
     state: Mutex<EnvironmentState>,
     resolved: Condvar,
     limiter: Limiter,
-    flights: Flights<Option<Captured>>,
+    flights: Flights<Result<Captured, ToolFault>>,
+    toolchain: Toolchain,
+    expected: String,
+    verified: Mutex<HashMap<PathBuf, Stamp>>,
 }
 
 pub fn runner() -> &'static ToolRunner {
     static RUNNER: OnceLock<ToolRunner> = OnceLock::new();
 
     RUNNER.get_or_init(|| {
+        let executable = std::env::current_exe().unwrap_or_default();
+        let resources = executable
+            .parent()
+            .and_then(Path::parent)
+            .map(|contents| contents.join("Resources"));
+        let toolchain = Toolchain::choose(
+            &executable,
+            resources.as_deref(),
+            std::env::var("RECOGNIZER_TOOLCHAIN").ok().as_deref(),
+            |dir| dir.is_dir(),
+        );
+
         ToolRunner::new(
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string()),
             RESOLVE_TIMEOUT,
             RETRY_WINDOW,
             default_bound(),
+            toolchain,
+            env!("CARGO_PKG_VERSION"),
         )
     })
 }
 
 impl ToolRunner {
-    pub fn new(shell: String, timeout: Duration, window: Duration, bound: usize) -> Self {
+    pub fn new(
+        shell: String,
+        timeout: Duration,
+        window: Duration,
+        bound: usize,
+        toolchain: Toolchain,
+        expected: &str,
+    ) -> Self {
         ToolRunner {
+            toolchain,
+            expected: expected.to_string(),
+            verified: Mutex::new(HashMap::new()),
             shell,
             timeout,
             window,
@@ -269,48 +487,9 @@ impl ToolRunner {
     fn resolve_environment(&self) -> Option<Environment> {
         let mut process = Command::new(&self.shell);
 
-        process
-            .args(["-ilc", ENVIRONMENT_SCRIPT])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+        process.args(["-ilc", ENVIRONMENT_SCRIPT]);
 
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::CommandExt;
-
-            process.process_group(0);
-        }
-
-        let mut child = process.spawn().ok()?;
-        let mut stdout = child.stdout.take()?;
-        let reader = std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-
-            let _ = stdout.read_to_end(&mut bytes);
-
-            bytes
-        });
-        let deadline = Instant::now() + self.timeout;
-
-        loop {
-            match child.try_wait() {
-                Ok(Some(_)) => break,
-                Ok(None) if Instant::now() < deadline => {
-                    std::thread::sleep(Duration::from_millis(10));
-                }
-                _ => {
-                    kill_group(child.id());
-
-                    let _ = child.kill();
-                    let _ = child.wait();
-
-                    return None;
-                }
-            }
-        }
-
-        let bytes = reader.join().ok()?;
+        let (_, bytes) = bounded_output(process, self.timeout)?;
 
         Environment::parse(&String::from_utf8_lossy(&bytes))
     }
@@ -359,26 +538,157 @@ impl ToolRunner {
         }
     }
 
-    pub fn command(&self, command: &str) -> Option<Command> {
-        let environment = self.environment()?;
+    fn environment_for(&self) -> Option<Arc<Environment>> {
+        if let Some(environment) = self.environment() {
+            return Some(environment);
+        }
 
-        match environment.find(command) {
-            Some(program) => {
-                let mut process = Command::new(program);
+        self.toolchain.folder()?;
 
-                process.env_clear().envs(environment.pairs.iter().cloned());
+        let pairs: Vec<(String, String)> = std::env::vars().collect();
+        let path = std::env::var("PATH").unwrap_or_default();
 
-                Some(process)
+        Some(Arc::new(Environment { pairs, path }))
+    }
+
+    fn pairs_for(&self, environment: &Environment) -> Vec<(String, String)> {
+        let Some(folder) = self.toolchain.folder() else {
+            return environment.pairs.clone();
+        };
+        let front = folder.display().to_string();
+        let mut pairs: Vec<(String, String)> = environment
+            .pairs
+            .iter()
+            .filter(|(name, _)| name != "PATH")
+            .cloned()
+            .collect();
+        let path = if environment.path.is_empty() {
+            front
+        } else {
+            format!("{front}:{}", environment.path)
+        };
+
+        pairs.push(("PATH".to_string(), path));
+
+        pairs
+    }
+
+    fn resolve(&self, name: &str, environment: &Environment) -> Result<PathBuf, ToolFault> {
+        match self.toolchain.folder() {
+            Some(folder) => {
+                let path = folder.join(name);
+
+                executable(path.clone()).ok_or(ToolFault::Incomplete { path })
             }
-            None => {
-                self.forget_stale_environment();
-
-                None
-            }
+            None => environment.find(name).ok_or_else(|| ToolFault::Missing {
+                tool: name.to_string(),
+            }),
         }
     }
 
-    fn run_captured(&self, command: &str, args: &[String]) -> Option<Captured> {
+    fn verify(
+        &self,
+        name: &str,
+        program: &Path,
+        pairs: &[(String, String)],
+    ) -> Result<(), ToolFault> {
+        if self.toolchain.unchecked() {
+            return Ok(());
+        }
+
+        let stamp = stamp_of(program);
+
+        if locked(&self.verified).get(program) == Some(&stamp) {
+            return Ok(());
+        }
+
+        let mut process = Command::new(program);
+
+        process
+            .arg("--version")
+            .env_clear()
+            .envs(pairs.iter().cloned());
+
+        let found = self
+            .limiter
+            .run(|| bounded_output(process, self.timeout))
+            .filter(|(code, _)| *code == Some(0))
+            .map(|(_, bytes)| String::from_utf8_lossy(&bytes).trim().to_string())
+            .filter(|text| !text.is_empty())
+            .unwrap_or_else(|| "no version".to_string());
+
+        if found == self.expected {
+            locked(&self.verified).insert(program.to_path_buf(), stamp);
+
+            return Ok(());
+        }
+
+        Err(ToolFault::Mismatch {
+            tool: name.to_string(),
+            found,
+            expected: self.expected.clone(),
+            path: program.to_path_buf(),
+            fix: self.toolchain.fix(&self.expected),
+        })
+    }
+
+    pub fn command(&self, command: &str) -> Result<Command, ToolFault> {
+        let environment = self.environment_for().ok_or_else(|| ToolFault::Missing {
+            tool: command.to_string(),
+        })?;
+        let program = self.resolve(command, &environment).inspect_err(|fault| {
+            if matches!(fault, ToolFault::Missing { .. }) {
+                self.forget_stale_environment();
+            }
+        })?;
+        let pairs = self.pairs_for(&environment);
+
+        self.verify(command, &program, &pairs)?;
+
+        let mut process = Command::new(program);
+
+        process.env_clear().envs(pairs);
+
+        Ok(process)
+    }
+
+    pub fn check_all(&self) -> Result<(), ToolFault> {
+        if self.toolchain.unchecked() {
+            return Ok(());
+        }
+
+        let results: Vec<Result<Command, ToolFault>> = std::thread::scope(|scope| {
+            let handles: Vec<_> = COMMANDS
+                .iter()
+                .map(|name| scope.spawn(move || self.command(name)))
+                .collect();
+
+            handles
+                .into_iter()
+                .zip(COMMANDS)
+                .map(|(handle, name)| {
+                    handle.join().unwrap_or_else(|_| {
+                        Err(ToolFault::Missing {
+                            tool: name.to_string(),
+                        })
+                    })
+                })
+                .collect()
+        });
+
+        for (name, result) in COMMANDS.iter().zip(results) {
+            match result {
+                Err(ToolFault::Missing { .. })
+                    if self.toolchain == Toolchain::Path && *name != COMMANDS[0] => {}
+                Err(fault) => return Err(fault),
+                Ok(_) => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    fn run_captured(&self, command: &str, args: &[String]) -> Result<Captured, ToolFault> {
         let mut process = self.command(command)?;
 
         self.limiter.run(|| {
@@ -386,16 +696,23 @@ impl ToolRunner {
                 .args(args)
                 .stdin(Stdio::null())
                 .output()
-                .ok()
                 .map(|output| Captured {
                     code: output.status.code(),
                     stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
                     stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
                 })
+                .map_err(|_| ToolFault::Missing {
+                    tool: command.to_string(),
+                })
         })
     }
 
-    pub fn capture(&self, command: &str, args: &[String], shared: bool) -> Option<Captured> {
+    pub fn capture(
+        &self,
+        command: &str,
+        args: &[String],
+        shared: bool,
+    ) -> Result<Captured, ToolFault> {
         if !shared {
             return self.run_captured(command, args);
         }
@@ -453,7 +770,14 @@ pub mod tests {
         window: Duration,
         bound: usize,
     ) -> ToolRunner {
-        ToolRunner::new(shell.display().to_string(), timeout, window, bound)
+        ToolRunner::new(
+            shell.display().to_string(),
+            timeout,
+            window,
+            bound,
+            Toolchain::Unchecked,
+            "0.0.0",
+        )
     }
 
     pub fn working_runner(dir: &Path) -> ToolRunner {
@@ -461,6 +785,48 @@ pub mod tests {
         let shell = shell_running_the_script(dir, &counter);
 
         runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4)
+    }
+
+    pub fn fake_commands(dir: &Path, version: &str) -> PathBuf {
+        let folder = dir.join("commands");
+
+        fs::create_dir_all(&folder).unwrap();
+
+        for name in COMMANDS {
+            fake_command(dir, &folder, name, version);
+        }
+
+        folder
+    }
+
+    pub fn fake_command(dir: &Path, folder: &Path, name: &str, version: &str) -> PathBuf {
+        script(
+            folder,
+            name,
+            &format!(
+                "if [ \"$1\" = \"--version\" ]; then echo x >> '{dir}/{name}.version-runs'; echo '{version}'; else echo x >> '{dir}/{name}.scan-runs'; echo ran-{name}; fi",
+                dir = dir.display()
+            ),
+        )
+    }
+
+    pub fn bundled_runner(dir: &Path, folder: &Path, path: &str) -> ToolRunner {
+        let shell = shell_with_path(dir, path);
+
+        ToolRunner::new(
+            shell.display().to_string(),
+            Duration::from_secs(10),
+            Duration::from_secs(30),
+            4,
+            Toolchain::Bundled {
+                folder: folder.to_path_buf(),
+            },
+            "1.2.3",
+        )
+    }
+
+    pub fn runs_of(dir: &Path, name: &str, kind: &str) -> usize {
+        lines(&dir.join(format!("{name}.{kind}")))
     }
 
     fn lines(path: &Path) -> usize {
@@ -526,7 +892,7 @@ pub mod tests {
                 scope.spawn(move || {
                     let args = vec![format!("verb-{}", round % 5)];
 
-                    assert!(runner.capture(command, &args, false).is_some());
+                    assert!(runner.capture(command, &args, false).is_ok());
                 });
             }
         });
@@ -554,16 +920,16 @@ pub mod tests {
         let command = tool.display().to_string();
         let started = Instant::now();
 
-        assert!(runner.capture(&command, &[], false).is_none());
+        assert!(runner.capture(&command, &[], false).is_err());
         assert!(started.elapsed() < Duration::from_secs(3));
         assert_eq!(lines(&counter), 1);
 
-        assert!(runner.capture(&command, &[], false).is_none());
+        assert!(runner.capture(&command, &[], false).is_err());
         assert_eq!(lines(&counter), 1);
 
         std::thread::sleep(Duration::from_millis(1600));
 
-        assert!(runner.capture(&command, &[], false).is_none());
+        assert!(runner.capture(&command, &[], false).is_err());
         assert_eq!(lines(&counter), 2);
     }
 
@@ -574,10 +940,10 @@ pub mod tests {
         let shell = shell_with_path(dir.path(), &empty.path().display().to_string());
         let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
 
-        assert!(runner.capture("recognizer", &[], false).is_none());
+        assert!(runner.capture("recognizer", &[], false).is_err());
         assert!(runner
             .capture("/nonexistent/recognizer", &[], false)
-            .is_none());
+            .is_err());
     }
 
     #[test]
@@ -601,7 +967,7 @@ pub mod tests {
 
         script(second.path(), "recognizer", "echo 1.2.3");
 
-        assert!(runner.capture("recognizer", &[], false).is_none());
+        assert!(runner.capture("recognizer", &[], false).is_err());
 
         fs::write(&chosen, second.path().display().to_string()).unwrap();
 
@@ -662,5 +1028,262 @@ pub mod tests {
             .contains(&("MULTI".to_string(), "one\ntwo".to_string())));
         assert!(Environment::parse("PATH=/a\0").is_none());
         assert!(Environment::parse(&format!("{OUTPUT_MARK}\nHOME=/h\0")).is_none());
+    }
+
+    #[test]
+    fn the_toolchain_chooser_prefers_the_bundle_then_the_override_then_the_path() {
+        let packaged = Path::new("/Applications/Recognizer.app/Contents/MacOS/recognizer-app");
+        let resources = Path::new("/Applications/Recognizer.app/Contents/Resources");
+        let dev = Path::new("/work/target/debug/recognizer-app");
+        let exists = |_: &Path| true;
+
+        assert_eq!(
+            Toolchain::choose(packaged, Some(resources), Some("/built"), exists),
+            Toolchain::Bundled {
+                folder: resources.join("toolchain/commands")
+            }
+        );
+        assert_eq!(
+            Toolchain::choose(dev, Some(resources), Some("/built"), exists),
+            Toolchain::Override {
+                folder: PathBuf::from("/built/commands")
+            }
+        );
+        assert_eq!(
+            Toolchain::choose(dev, Some(resources), None, exists),
+            Toolchain::Path
+        );
+        assert_eq!(
+            Toolchain::choose(dev, None, Some("relative/dir"), exists),
+            Toolchain::Path
+        );
+        assert_eq!(
+            Toolchain::choose(dev, None, Some("/built"), |_| false),
+            Toolchain::Path
+        );
+    }
+
+    #[test]
+    fn a_packaged_run_uses_the_bundle_even_when_the_path_holds_another_recognizer() {
+        let dir = TempDir::new().unwrap();
+        let elsewhere = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        script(
+            elsewhere.path(),
+            "recognizer",
+            "if [ \"$1\" = \"--version\" ]; then echo 0.1.108; else echo from-path; fi",
+        );
+
+        let runner = bundled_runner(dir.path(), &folder, &elsewhere.path().display().to_string());
+        let captured = runner.capture("recognizer", &[], false).unwrap();
+
+        assert_eq!(captured.stdout.trim(), "ran-recognizer");
+        assert_eq!(runs_of(dir.path(), "recognizer", "scan-runs"), 1);
+    }
+
+    #[test]
+    fn a_packaged_run_hands_the_tool_a_path_that_starts_with_the_bundle_folder() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin:/bin");
+        let process = runner.command("recognizer").unwrap();
+        let path = process
+            .get_envs()
+            .find(|(name, _)| *name == "PATH")
+            .and_then(|(_, value)| value)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+
+        assert_eq!(path, format!("{}:/usr/bin:/bin", folder.display()));
+    }
+
+    #[test]
+    fn a_packaged_run_with_a_missing_entry_is_incomplete_and_never_consults_the_path() {
+        let dir = TempDir::new().unwrap();
+        let elsewhere = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        fs::remove_file(folder.join("recognizer-sensors")).unwrap();
+        script(elsewhere.path(), "recognizer-sensors", "echo 1.2.3");
+
+        let runner = bundled_runner(dir.path(), &folder, &elsewhere.path().display().to_string());
+        let fault = runner
+            .capture("recognizer-sensors", &[], false)
+            .unwrap_err();
+
+        assert_eq!(
+            fault,
+            ToolFault::Incomplete {
+                path: folder.join("recognizer-sensors")
+            }
+        );
+        assert!(fault.message().contains("incomplete"));
+        assert!(fault
+            .message()
+            .contains("brew reinstall --cask kenmclennan/tap/recognizer"));
+    }
+
+    #[test]
+    fn a_tool_that_prints_another_version_is_a_mismatch_naming_both_versions_the_tool_and_the_fix()
+    {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        fake_command(dir.path(), &folder, "recognizer", "0.1.108");
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let fault = runner.capture("recognizer", &[], false).unwrap_err();
+        let message = fault.message();
+
+        assert!(matches!(fault, ToolFault::Mismatch { .. }));
+        assert_eq!(
+            message,
+            format!(
+                "Recognizer 1.2.3 cannot scan with recognizer 0.1.108 ({}). Run: brew reinstall --cask kenmclennan/tap/recognizer",
+                folder.join("recognizer").display()
+            )
+        );
+        assert_eq!(runs_of(dir.path(), "recognizer", "scan-runs"), 0);
+    }
+
+    #[test]
+    fn a_tool_that_prints_nothing_or_exits_non_zero_is_a_mismatch_showing_no_version() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        script(&folder, "recognizer", "exit 0");
+        script(&folder, "recognizer-sensors", "echo 1.2.3\nexit 3");
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+
+        for name in ["recognizer", "recognizer-sensors"] {
+            let message = runner.capture(name, &[], false).unwrap_err().message();
+
+            assert!(message.contains(&format!("{name} no version")), "{message}");
+        }
+    }
+
+    #[test]
+    fn a_development_path_tool_of_another_version_is_refused_with_the_path_fix() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "0.1.108");
+        let shell = shell_with_path(dir.path(), &folder.display().to_string());
+        let runner = ToolRunner::new(
+            shell.display().to_string(),
+            Duration::from_secs(10),
+            Duration::from_secs(30),
+            4,
+            Toolchain::Path,
+            "1.2.3",
+        );
+        let message = runner
+            .capture("recognizer", &[], false)
+            .unwrap_err()
+            .message();
+
+        assert!(message.contains(
+            "put a 1.2.3 toolchain first on PATH, or set RECOGNIZER_TOOLCHAIN to a built toolchain folder"
+        ));
+    }
+
+    #[test]
+    fn an_override_toolchain_of_another_version_says_to_rebuild_it() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "0.1.108");
+        let shell = shell_with_path(dir.path(), "/usr/bin");
+        let runner = ToolRunner::new(
+            shell.display().to_string(),
+            Duration::from_secs(10),
+            Duration::from_secs(30),
+            4,
+            Toolchain::Override {
+                folder: folder.clone(),
+            },
+            "1.2.3",
+        );
+        let message = runner
+            .capture("recognizer", &[], false)
+            .unwrap_err()
+            .message();
+
+        assert!(message.contains(&format!(
+            "rebuild the toolchain at {}",
+            dir.path().display()
+        )));
+    }
+
+    #[test]
+    fn a_passing_check_is_remembered_until_the_file_changes_and_a_failure_is_not() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+
+        assert!(runner.capture("recognizer", &[], false).is_ok());
+        assert!(runner.capture("recognizer", &[], false).is_ok());
+        assert_eq!(runs_of(dir.path(), "recognizer", "version-runs"), 1);
+
+        std::thread::sleep(Duration::from_millis(20));
+        fake_command(dir.path(), &folder, "recognizer", "1.2.3 ");
+
+        assert!(runner.capture("recognizer", &[], false).is_ok());
+        assert_eq!(runs_of(dir.path(), "recognizer", "version-runs"), 2);
+
+        fake_command(dir.path(), &folder, "recognizer-sensors", "9.9.9");
+
+        assert!(runner.capture("recognizer-sensors", &[], false).is_err());
+        assert!(runner.capture("recognizer-sensors", &[], false).is_err());
+        assert_eq!(runs_of(dir.path(), "recognizer-sensors", "version-runs"), 2);
+    }
+
+    #[test]
+    fn checking_every_command_refuses_on_the_one_that_disagrees() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        fake_command(dir.path(), &folder, "recognizer-scan-kotlin", "0.1.108");
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let fault = runner.check_all().unwrap_err();
+
+        assert!(matches!(
+            &fault,
+            ToolFault::Mismatch { tool, found, expected, .. }
+                if tool == "recognizer-scan-kotlin" && found == "0.1.108" && expected == "1.2.3"
+        ));
+
+        for name in COMMANDS {
+            assert_eq!(runs_of(dir.path(), name, "scan-runs"), 0);
+        }
+    }
+
+    #[test]
+    fn checking_every_command_passes_when_all_eight_agree() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+
+        assert!(runner.check_all().is_ok());
+    }
+
+    #[test]
+    fn a_development_path_without_a_scanner_still_checks_the_ones_it_has() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        fs::remove_file(folder.join("recognizer-scan-rust")).unwrap();
+
+        let shell = shell_with_path(dir.path(), &folder.display().to_string());
+        let runner = ToolRunner::new(
+            shell.display().to_string(),
+            Duration::from_secs(10),
+            Duration::from_secs(30),
+            4,
+            Toolchain::Path,
+            "1.2.3",
+        );
+
+        assert!(runner.check_all().is_ok());
     }
 }

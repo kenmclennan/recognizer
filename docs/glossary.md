@@ -118,7 +118,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Command table | `COMMANDS` in `check/src/commands.ts`: the one list `recognizer` dispatches from and generates its help from. |
 | Freshness | Whether the cached scans can be used: they were taken at the current commit from a clean working tree, and the scanned files still hash the same. Otherwise `recognizer scan` runs first. |
 | Scanner | A language's standalone command that emits a scan. |
-| Toolchain | The `recognizer` command, the scanners and the app, versioned and installed together. Out of step: the app and the installed `recognizer` command report different versions, which the app reports as a message in the message tray. |
+| Toolchain | The `recognizer` command, the scanners and the app, versioned and installed together. Out of step: a tool the app is about to run reports a version other than the app's own; the app refuses the scan and names both versions and the fix. |
+| Bundled toolchain | The folder inside the app, `Contents/Resources/toolchain/commands`, holding one entry per shipped command; a packaged app runs its tools from it by absolute path and never through `PATH`. |
+| Nothing ran | A scan that exited without error but ran none of a phase the user asked for (describe, measure or sense), reported with the reason instead of shown as finished. |
 | Scan | The document a scanner emits: modules, edges and foreign nodes for one language, the files it read and the selection it used. |
 | Scanned file | A file a scanner read, recorded in the scan's `files` with the SHA-256 of its bytes. The files include the manifests, pages and configs read to decide modules, edges or entry points, not only source. |
 | Selection | A scanner's rule for choosing files, recorded in the scan as data: extensions, skipped directories and skipped file globs, and the non-source files it reads by name or path. A consumer applies it to a path the scan has not seen. |

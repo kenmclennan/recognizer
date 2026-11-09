@@ -503,6 +503,25 @@ describe("createRescanner", () => {
     expect(failed.log).toContain("blocked:bad flag");
   });
 
+  it("shows the detail of a scan that ran nothing it was asked to run", async () => {
+    const { log, updates, rescanner } = harness(
+      fakeScan({
+        result: {
+          status: "nothing-ran",
+          phases: ["sense"],
+          detail: "sense did not run: the folder has no commit",
+        },
+      }),
+    );
+
+    await rescanner.run();
+
+    expect(log).toContain(
+      "blocked:sense did not run: the folder has no commit",
+    );
+    expect(updates.at(-1)?.scanning).toBeNull();
+  });
+
   it("keeps the old explorer when the viewer refuses the scan", async () => {
     const { log, rescanner } = harness(
       fakeScan({ steps: [extract, summary] }),

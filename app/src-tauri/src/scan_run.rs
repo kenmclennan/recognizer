@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::fs_safe::write_atomic;
 use crate::repository::{missing_hint, scan_args, strip_escapes, Describe};
-use crate::tool_runner::ToolRunner;
+use crate::tool_runner::{ToolFault, ToolRunner};
 
 const LOG: &str = ".recognizer/cache/log";
 const MODULES_DIR: &str = ".recognizer/cache";
@@ -63,6 +63,10 @@ pub enum ScanRun {
     },
     Refused {
         reason: String,
+    },
+    NothingRan {
+        phases: Vec<String>,
+        detail: String,
     },
 }
 
@@ -188,7 +192,101 @@ pub fn summary_log(line: &str) -> Option<String> {
     Some(format!("{LOG}/{id}.json"))
 }
 
-fn result_for(exit: Option<i32>, stopped: bool, stderr: String, log: Option<String>) -> ScanRun {
+pub fn summary_event(line: &str) -> Option<serde_json::Value> {
+    let event: serde_json::Value = serde_json::from_str(line).ok()?;
+
+    (event.get("event")?.as_str()? == "summary").then_some(event)
+}
+
+pub fn requested_phases(
+    describe: Describe,
+    measure: &[String],
+    sense: &[String],
+) -> Vec<&'static str> {
+    let mut phases = Vec::new();
+
+    if describe != Describe::Off {
+        phases.push("describe");
+    }
+
+    if !measure.is_empty() {
+        phases.push("measure");
+    }
+
+    if !sense.is_empty() {
+        phases.push("sense");
+    }
+
+    phases
+}
+
+pub fn nothing_ran(
+    requested: &[&str],
+    summary: Option<&serde_json::Value>,
+) -> Option<(Vec<String>, String)> {
+    let ran = |phase: &str| {
+        summary
+            .and_then(|event| event.get("phases")?.as_array())
+            .is_some_and(|phases| {
+                phases.iter().any(|entry| {
+                    entry.get("phase").and_then(|name| name.as_str()) == Some(phase)
+                        && entry
+                            .get("entries")
+                            .and_then(|entries| entries.as_array())
+                            .is_some_and(|entries| !entries.is_empty())
+                })
+            })
+    };
+    let committed = summary
+        .and_then(|event| event.get("commit"))
+        .is_some_and(|commit| !commit.is_null());
+    let idle: Vec<&str> = requested
+        .iter()
+        .copied()
+        .filter(|phase| !ran(phase))
+        .collect();
+
+    if idle.is_empty() {
+        return None;
+    }
+
+    let detail = idle
+        .iter()
+        .map(|phase| {
+            let cause = if summary.is_none() {
+                "it printed no summary"
+            } else if *phase != "describe" && !committed {
+                "the folder has no commit"
+            } else {
+                "it ran no entries"
+            };
+
+            format!("{phase} did not run: {cause}")
+        })
+        .collect::<Vec<_>>()
+        .join("; ");
+
+    Some((idle.iter().map(|phase| phase.to_string()).collect(), detail))
+}
+
+fn refusal(fault: ToolFault) -> ScanRun {
+    match fault {
+        ToolFault::Missing { .. } => ScanRun::CommandMissing {
+            hint: fault.message(),
+        },
+        other => ScanRun::Refused {
+            reason: other.message(),
+        },
+    }
+}
+
+fn result_for(
+    exit: Option<i32>,
+    stopped: bool,
+    stderr: String,
+    log: Option<String>,
+    idle: Option<(Vec<String>, String)>,
+) -> ScanRun {
     if stopped {
         return ScanRun::Stopped;
     }
@@ -197,6 +295,11 @@ fn result_for(exit: Option<i32>, stopped: bool, stderr: String, log: Option<Stri
         Some(127) => ScanRun::CommandMissing {
             hint: missing_hint(),
         },
+        Some(0 | 1) if idle.is_some() => {
+            let (phases, detail) = idle.unwrap_or_default();
+
+            ScanRun::NothingRan { phases, detail }
+        }
         Some(code @ (0 | 1)) => ScanRun::Finished {
             exit_code: code,
             stderr,
@@ -228,6 +331,10 @@ pub fn run_with(
         if let Err(reason) = check_modules(ids) {
             return ScanRun::Refused { reason };
         }
+    }
+
+    if let Err(fault) = runner.check_all() {
+        return refusal(fault);
     }
 
     if let Err(reason) = runs.begin(label) {
@@ -296,10 +403,9 @@ fn spawn_and_stream(
     confirm_above: Option<f64>,
     emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
-    let Some(mut process) = runner.command(command) else {
-        return ScanRun::CommandMissing {
-            hint: missing_hint(),
-        };
+    let mut process = match runner.command(command) {
+        Ok(process) => process,
+        Err(fault) => return refusal(fault),
     };
 
     process
@@ -349,6 +455,7 @@ fn spawn_and_stream(
     let stderr = child.stderr.take();
 
     let mut log = None;
+    let mut summary = None;
 
     let (stderr_text, status) = std::thread::scope(|scope| {
         let collected = scope.spawn(move || {
@@ -373,6 +480,10 @@ fn spawn_and_stream(
                         log = Some(found);
                     }
 
+                    if let Some(event) = summary_event(&line) {
+                        summary = Some(event);
+                    }
+
                     emit(line);
                 }
             }
@@ -386,7 +497,12 @@ fn spawn_and_stream(
     let stopped = runs.lock().get(label).is_some_and(|handle| handle.stopped);
     let exit = status.ok().and_then(|status| status.code());
 
-    result_for(exit, stopped, stderr_text, log)
+    let idle = nothing_ran(
+        &requested_phases(describe, measure, sense),
+        summary.as_ref(),
+    );
+
+    result_for(exit, stopped, stderr_text, log, idle)
 }
 
 #[cfg(test)]
@@ -680,9 +796,12 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let command = fake_command(
             dir.path(),
-            r#"for last; do :; done; echo "$@"; cat "$last""#,
+            r#"for last; do :; done; echo "$@"; cat "$last"; echo; echo '{"event":"summary","commit":"c","phases":[{"phase":"describe","entries":[{}]}],"log":null}'"#,
         );
-        let (result, lines) = collect_scoped(dir.path(), &command, &names(&["a.py", "b/c.py"]));
+        let (result, mut lines) = collect_scoped(dir.path(), &command, &names(&["a.py", "b/c.py"]));
+
+        lines.pop();
+
         let file = dir.path().join(".recognizer/cache/scan-modules-w-1.json");
 
         assert!(matches!(result, ScanRun::Finished { exit_code: 0, .. }));
@@ -851,7 +970,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let command = fake_command(
             dir.path(),
-            "echo waiting; read answer; echo \"got $answer\"",
+            "echo waiting; read answer; echo \"got $answer\"; echo '{\"event\":\"summary\",\"commit\":\"c\",\"phases\":[{\"phase\":\"describe\",\"entries\":[{}]}],\"log\":null}'",
         );
         let runs = Arc::new(ScanRuns::default());
         let runner = Arc::new(working_runner(dir.path()));
@@ -944,5 +1063,169 @@ mod tests {
         assert!(runs.begin("w-1").is_ok());
         assert!(runs.begin("w-1").is_err());
         assert!(!runs.finish("w-1"));
+    }
+
+    fn requested(names: &[&'static str]) -> Vec<&'static str> {
+        names.to_vec()
+    }
+
+    fn summary_with(commit: &str, phases: &str) -> serde_json::Value {
+        summary_event(&format!(
+            r#"{{"event":"summary","commit":{commit},"phases":{phases},"log":null}}"#
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn nothing_ran_is_decided_per_requested_phase_from_the_summary() {
+        let full = summary_with(
+            r#""abc""#,
+            r#"[{"phase":"describe","entries":[{}]},{"phase":"sense","entries":[{}]}]"#,
+        );
+
+        assert_eq!(
+            nothing_ran(&requested(&["describe", "sense"]), Some(&full)),
+            None
+        );
+        assert_eq!(nothing_ran(&[], None), None);
+
+        let absent = summary_with(r#""abc""#, r#"[{"phase":"describe","entries":[{}]}]"#);
+
+        assert_eq!(
+            nothing_ran(&requested(&["describe", "sense"]), Some(&absent)),
+            Some((
+                vec!["sense".to_string()],
+                "sense did not run: it ran no entries".to_string()
+            ))
+        );
+
+        let empty = summary_with(r#""abc""#, r#"[{"phase":"measure","entries":[]}]"#);
+
+        assert_eq!(
+            nothing_ran(&requested(&["measure"]), Some(&empty)),
+            Some((
+                vec!["measure".to_string()],
+                "measure did not run: it ran no entries".to_string()
+            ))
+        );
+
+        let uncommitted = summary_with("null", "[]");
+
+        assert_eq!(
+            nothing_ran(&requested(&["sense"]), Some(&uncommitted)),
+            Some((
+                vec!["sense".to_string()],
+                "sense did not run: the folder has no commit".to_string()
+            ))
+        );
+        assert_eq!(
+            nothing_ran(&requested(&["describe"]), Some(&uncommitted)),
+            Some((
+                vec!["describe".to_string()],
+                "describe did not run: it ran no entries".to_string()
+            ))
+        );
+        assert_eq!(
+            nothing_ran(&requested(&["describe", "sense"]), None),
+            Some((
+                vec!["describe".to_string(), "sense".to_string()],
+                "describe did not run: it printed no summary; sense did not run: it printed no summary"
+                    .to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn the_requested_phases_follow_the_describe_mode_and_the_lists() {
+        assert!(requested_phases(Describe::Off, &[], &[]).is_empty());
+        assert_eq!(
+            requested_phases(Describe::Stale, &names(&["m"]), &names(&["s"])),
+            vec!["describe", "measure", "sense"]
+        );
+    }
+
+    #[test]
+    fn a_stopped_run_stays_stopped_and_only_an_exit_of_zero_or_one_is_nothing_ran() {
+        let idle = || Some((vec!["sense".to_string()], "d".to_string()));
+
+        assert_eq!(
+            result_for(Some(0), true, String::new(), None, idle()),
+            ScanRun::Stopped
+        );
+        assert!(matches!(
+            result_for(Some(1), false, String::new(), None, idle()),
+            ScanRun::NothingRan { .. }
+        ));
+        assert!(matches!(
+            result_for(Some(2), false, String::new(), None, idle()),
+            ScanRun::Failed { .. }
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_scan_that_exits_zero_with_no_summary_for_a_requested_sense_phase_is_nothing_ran() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(
+            dir.path(),
+            r#"echo '{"event":"summary","commit":null,"phases":[],"log":null}'"#,
+        );
+        let (result, _) = collect(
+            &ScanRuns::default(),
+            dir.path(),
+            &command,
+            Describe::Off,
+            &[],
+            &names(&["duplication"]),
+        );
+
+        assert_eq!(
+            result,
+            ScanRun::NothingRan {
+                phases: vec!["sense".to_string()],
+                detail: "sense did not run: the folder has no commit".to_string()
+            }
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_refused_scan_starts_no_process_and_leaves_the_window_free() {
+        use crate::tool_runner::tests::{bundled_runner, fake_command, fake_commands, runs_of};
+
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        fake_command(dir.path(), &folder, "recognizer-scan-python", "0.1.108");
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let runs = ScanRuns::default();
+        let result = run_with(
+            &runs,
+            "w-1",
+            dir.path(),
+            &runner,
+            "recognizer",
+            Describe::Off,
+            &[],
+            &[],
+            None,
+            None,
+            || panic!("prepare must not run"),
+            &|_| {},
+        );
+
+        match result {
+            ScanRun::Refused { reason } => {
+                assert!(reason.contains("1.2.3"));
+                assert!(reason.contains("0.1.108"));
+                assert!(reason.contains("recognizer-scan-python"));
+                assert!(reason.contains("brew reinstall --cask kenmclennan/tap/recognizer"));
+            }
+            other => panic!("expected Refused, got {other:?}"),
+        }
+
+        assert!(!runs.running("w-1"));
+        assert_eq!(runs_of(dir.path(), "recognizer", "scan-runs"), 0);
     }
 }
