@@ -9,6 +9,7 @@ import pytest
 from conftest import REPOSITORY, git_commit, write_scans
 
 from recognizer_sensors.cli import main
+from recognizer_sensors.mutation import runner
 
 FIXTURES = REPOSITORY / "fixtures"
 OVERLAYS = Path(".recognizer") / "cache" / "overlays"
@@ -361,8 +362,34 @@ def test_mutation_counts_and_survivors_match_the_reading_of_the_tests(mutation_r
     )
 
 
+POOLED_COPIES: dict[str, int] = {}
+
+
+def counting_pooled_copies(name: str):
+    real = runner.copy_repository
+    POOLED_COPIES[name] = 0
+
+    def counted(*args, **kwargs):
+        if kwargs.get("plan") is not None:
+            POOLED_COPIES[name] += 1
+
+        return real(*args, **kwargs)
+
+    patch = pytest.MonkeyPatch()
+    patch.setattr(runner, "copy_repository", counted)
+
+    return patch
+
+
+def mutants_run(overlay: dict) -> int:
+    values = overlay["values"]
+
+    return sum(sum(values[name].values()) for name in ("killed", "survived"))
+
+
 @pytest.fixture(scope="module")
 def mutation_git_copy_run(work):
+    patch = counting_pooled_copies("git-copy")
     root = copy_corpus("mutation", work / "mutation-git-copy", "scan.*.json")
     (root / ".gitignore").write_text(".worktrees/\n")
     stray = root / ".worktrees" / "checkout"
@@ -386,6 +413,7 @@ def mutation_git_copy_run(work):
         },
         commit=commit,
     )
+    patch.undo()
     survivors = json.loads((root / ".recognizer/cache/mutation/survivors.json").read_text())
 
     return findings, read_overlay(root, "mutation"), survivors
@@ -426,8 +454,18 @@ def test_the_python_mutation_corpus_through_a_git_copy_matches_expected(mutation
     assert_python_mutation_matches_expected(mutation_git_copy_run)
 
 
+def test_the_git_copy_corpus_run_makes_fewer_mutant_copies_than_it_runs_mutants(
+    mutation_git_copy_run,
+):
+    _, overlay, _ = mutation_git_copy_run
+
+    assert 0 < POOLED_COPIES["git-copy"] <= 2
+    assert POOLED_COPIES["git-copy"] < mutants_run(overlay)
+
+
 @pytest.fixture(scope="module")
 def mutation_uv_run(work):
+    patch = counting_pooled_copies("uv")
     root = copy_corpus("mutation", work / "mutation-uv", "scan.*.json")
     (root / "pyproject.toml").write_text(
         '[project]\nname = "corpus"\nversion = "0"\nrequires-python = ">=3.11"\n'
@@ -451,6 +489,7 @@ def mutation_uv_run(work):
         },
         commit=commit,
     )
+    patch.undo()
     survivors = json.loads((root / ".recognizer/cache/mutation/survivors.json").read_text())
 
     return findings, read_overlay(root, "mutation"), survivors
@@ -459,3 +498,11 @@ def mutation_uv_run(work):
 @pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
 def test_the_python_mutation_corpus_through_a_uv_environment_matches_expected(mutation_uv_run):
     assert_python_mutation_matches_expected(mutation_uv_run)
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
+def test_the_uv_corpus_run_makes_fewer_mutant_copies_than_it_runs_mutants(mutation_uv_run):
+    _, overlay, _ = mutation_uv_run
+
+    assert 0 < POOLED_COPIES["uv"] <= 2
+    assert POOLED_COPIES["uv"] < mutants_run(overlay)

@@ -1425,11 +1425,11 @@ def record_after_each_function(tmp_path, monkeypatch, gaps):
     gaps = iter(gaps)
     real = runner.run_function
 
-    def run_function(*args):
+    def run_function(*args, **extra):
         ticker.now += next(gaps)
         records.append(sorted(read(path)["functions"]) if path.exists() else None)
 
-        return real(*args)
+        return real(*args, **extra)
 
     monkeypatch.setattr(sensor, "run_function", run_function)
     settings = mutate_settings("tests/strong.py", max_workers=1)
@@ -1550,14 +1550,14 @@ def test_a_run_killed_after_a_checkpoint_keeps_it_and_the_rerun_does_only_the_re
     real = runner.run_function
     calls = []
 
-    def killed_from_the_second(*args):
+    def killed_from_the_second(*args, **extra):
         calls.append(1)
         ticker.now += sensor.CHECKPOINT_SECONDS
 
         if len(calls) >= 2:
             raise RuntimeError("killed")
 
-        return real(*args)
+        return real(*args, **extra)
 
     monkeypatch.setattr(sensor, "run_function", killed_from_the_second)
     settings = mutate_settings("tests/strong.py", max_workers=1)
@@ -1573,7 +1573,9 @@ def test_a_run_killed_after_a_checkpoint_keeps_it_and_the_rerun_does_only_the_re
     assert list(read(root / OVERLAY)["values"]["killed"]) == [ALPHA]
 
     calls.clear()
-    monkeypatch.setattr(sensor, "run_function", lambda *args: (calls.append(1), real(*args))[1])
+    monkeypatch.setattr(
+        sensor, "run_function", lambda *args, **extra: (calls.append(1), real(*args, **extra))[1]
+    )
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
     assert len(calls) == 2
@@ -1590,11 +1592,11 @@ def test_each_checkpoint_counts_only_settled_functions_and_the_last_is_complete(
     seen = []
     findings = tmp_path / "findings-overlay.json"
 
-    def stepping(*args):
+    def stepping(*args, **extra):
         ticker.now += sensor.CHECKPOINT_SECONDS
         seen.append(read(findings).get("partial") if findings.exists() else None)
 
-        return real(*args)
+        return real(*args, **extra)
 
     monkeypatch.setattr(sensor, "run_function", stepping)
     settings = mutate_settings("tests/strong.py", max_workers=1)
@@ -1631,11 +1633,11 @@ def test_a_checkpoint_writes_only_once_the_gap_reaches_the_interval(tmp_path, mo
     gaps = iter([interval - 1, 1, interval])
     seen = []
 
-    def stepping(*args):
+    def stepping(*args, **extra):
         ticker.now += next(gaps)
         seen.append(len(writes))
 
-        return real(*args)
+        return real(*args, **extra)
 
     monkeypatch.setattr(sensor, "run_function", stepping)
 
@@ -1709,11 +1711,11 @@ def test_the_worked_example_counts_reused_and_uncovered_targets_as_measured(tmp_
     real = runner.run_function
     ran = []
 
-    def stepping(*args):
+    def stepping(*args, **extra):
         ticker.now += sensor.CHECKPOINT_SECONDS
         ran.append(len(writes))
 
-        return real(*args)
+        return real(*args, **extra)
 
     monkeypatch.setattr(sensor, "run_function", stepping)
 
@@ -1743,10 +1745,10 @@ def test_a_scoped_run_keeps_the_out_of_scope_functions_in_the_total(tmp_path, mo
     writes = findings_writes(monkeypatch, tmp_path / "findings-overlay.json")
     real = runner.run_function
 
-    def stepping(*args):
+    def stepping(*args, **extra):
         ticker.now += sensor.CHECKPOINT_SECONDS
 
-        return real(*args)
+        return real(*args, **extra)
 
     monkeypatch.setattr(sensor, "run_function", stepping)
     settings = mutate_settings("tests/strong.py", max_workers=1)
