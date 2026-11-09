@@ -714,3 +714,77 @@ def test_typescript_test_files_select_every_script_form():
         "src/b.spec.cjs",
         "src/c.test.ts",
     ]
+
+
+@pytest.mark.parametrize(
+    ("script", "capped"), [("jest", True), ("vitest run", True), ("node --test", False)]
+)
+def test_typescript_commands_cap_test_workers_only_with_several_mutation_workers(
+    tmp_path, monkeypatch, script, capped
+):
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": script}}))
+    files = {"w/a.test.ts"}
+
+    def commands(workers):
+        return (
+            mutant_command(tmp_path, "typescript", workers=workers),
+            mutant_command(tmp_path, "typescript", True, workers),
+            selected_command(tmp_path, "typescript", files, workers=workers),
+        )
+
+    cap = ["--maxWorkers=2"] if capped else []
+    bail = ["--bail=1"] if capped else []
+
+    assert commands(4) == (
+        ["npm", "test", *(["--", *cap] if capped else [])],
+        ["npm", "test", *(["--", *bail, *cap] if capped else [])],
+        ["npm", "test", "--", *cap, "w/a.test.ts"],
+    )
+    assert commands(1)[0] == ["npm", "test"]
+    assert commands(1)[2] == ["npm", "test", "--", "w/a.test.ts"]
+
+
+def test_the_typescript_worker_cap_never_falls_below_one(tmp_path, monkeypatch):
+    monkeypatch.setattr("os.cpu_count", lambda: 2)
+    (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": "vitest"}}))
+
+    assert mutant_command(tmp_path, "typescript", workers=8) == [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=1",
+    ]
+
+
+def test_other_languages_ignore_the_worker_count(tmp_path):
+    for language in ("python", "rust", "csharp", "kotlin"):
+        assert mutant_command(tmp_path, language, workers=4) == mutant_command(tmp_path, language)
+
+
+def test_the_record_key_does_not_depend_on_the_mutation_worker_count(tmp_path, monkeypatch):
+    real = sensor.mutant_command
+
+    def capping(repository, language, stop=False, workers=1):
+        command = real(repository, language, stop)
+
+        return [*command, f"--maxWorkers={workers}"] if workers > 1 else command
+
+    monkeypatch.setattr(sensor, "mutant_command", capping)
+    fake_selection(monkeypatch, SELECTED)
+
+    keys = []
+
+    for workers in (1, 8):
+        root, _ = mutate_repository(tmp_path / str(workers))
+        seen = spy_commands(monkeypatch)
+        settings = json.dumps({"incremental": False, "max_workers": workers})
+
+        assert run_mutate(root, tmp_path / f"overlay-{workers}.json", settings) == 0
+
+        keys.append(read(root / RECORD)["command"])
+
+        if workers > 1:
+            assert any("--maxWorkers=8" in command for command, _ in seen)
+
+    assert keys[0] == keys[1]

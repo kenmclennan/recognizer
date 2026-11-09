@@ -257,6 +257,15 @@ def typescript_bails(repository: Path) -> bool:
     return bool(words) and words[0] in ("jest", "vitest")
 
 
+def typescript_flags(repository: Path, stop: bool, workers: int) -> list[str]:
+    if not typescript_bails(repository):
+        return []
+
+    cap = [f"--maxWorkers={max(1, (os.cpu_count() or 1) // workers)}"] if workers > 1 else []
+
+    return [*(["--bail=1"] if stop else []), *cap]
+
+
 def kotlin_fail_fast(command: list[str]) -> list[str]:
     stopped: list[str] = []
 
@@ -269,9 +278,16 @@ def kotlin_fail_fast(command: list[str]) -> list[str]:
     return stopped
 
 
-def mutant_command(repository: Path, language: str, stop: bool = False) -> list[str]:
+def mutant_command(
+    repository: Path, language: str, stop: bool = False, workers: int = 1
+) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
     command = fill(PROFILES[language]["test_command"], runner, joined=False)
+
+    if language == "typescript":
+        flags = typescript_flags(repository, stop, workers)
+
+        return [*command, "--", *flags] if flags else command
 
     if not stop:
         return command
@@ -281,9 +297,6 @@ def mutant_command(repository: Path, language: str, stop: bool = False) -> list[
 
     if language == "kotlin":
         return kotlin_fail_fast(command)
-
-    if language == "typescript" and typescript_bails(repository):
-        return [*command, "--", "--bail=1"]
 
     return command
 
@@ -298,12 +311,12 @@ def selected_command(
     files: set[str] | frozenset[str],
     stop: bool = False,
     previous: frozenset[str] = frozenset(),
+    workers: int = 1,
 ):
     if language == "python":
         prefix = [*python_runner(repository), "pytest", "-rfE", *(["-x"] if stop else [])]
     elif language == "typescript":
-        bail = ["--bail=1"] if stop and typescript_bails(repository) else []
-        prefix = ["npm", "test", "--", *bail]
+        prefix = ["npm", "test", "--", *typescript_flags(repository, stop, workers)]
     elif language == "kotlin":
         return kotlin_command_for(repository, files, stop)
     elif language == "csharp":
@@ -314,7 +327,7 @@ def selected_command(
         return None
 
     if not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files):
-        return mutant_command(repository, language, stop)
+        return mutant_command(repository, language, stop, workers)
 
     return [*prefix, *killers_first(files, previous)]
 
