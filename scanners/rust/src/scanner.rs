@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
 use crate::crates::{read_packages, Package};
-use crate::discovery::{manifests, selection, source_files};
+use crate::discovery::{git_listing, manifests_in, selection, source_files_in};
 use crate::items::{self, Parsed};
 use crate::resolve::{Env, Final, Resolver};
 use crate::tree;
@@ -186,7 +186,8 @@ pub fn scan(
     commit: Option<String>,
     modified: Option<bool>,
 ) -> Result<Scan, ScanError> {
-    let paths = source_files(root);
+    let listing = git_listing(root);
+    let paths = source_files_in(root, &listing);
     let mut parsed: Vec<Parsed> = Vec::new();
     let mut hashes: Vec<String> = Vec::new();
     let mut problems = Vec::new();
@@ -221,7 +222,7 @@ pub fn scan(
         .map(|(position, path)| (path.as_str(), position))
         .collect();
     let source_set: HashSet<String> = paths.iter().cloned().collect();
-    let read = read_packages(root, &manifests(root), &source_set);
+    let read = read_packages(root, &manifests_in(root, &listing), &source_set);
     let packages = read.packages;
     let mut listed: Vec<(String, String)> =
         paths.iter().cloned().zip(hashes.iter().cloned()).collect();
