@@ -2,15 +2,23 @@ import os
 import tomllib
 from pathlib import Path, PurePosixPath
 
-from recognizer_scan_python.discovery import is_skipped_directory
+from recognizer_scan_python.discovery import (
+    UNREAD,
+    Listing,
+    _Unread,
+    is_listed,
+    is_skipped_directory,
+    resolve_listing,
+)
 from recognizer_scan_python.index import ModuleIndex
 
 MANIFEST = "pyproject.toml"
 SCRIPT_TABLES = ("scripts", "gui-scripts")
 
 
-def find_manifests(root: Path) -> list[str]:
+def find_manifests(root: Path, listing: Listing | _Unread = UNREAD) -> list[str]:
     found = []
+    listing = resolve_listing(root, listing)
 
     for current, directories, files in os.walk(root):
         current_path = Path(current)
@@ -19,7 +27,10 @@ def find_manifests(root: Path) -> list[str]:
         )
 
         if MANIFEST in files:
-            found.append((current_path / MANIFEST).relative_to(root).as_posix())
+            relative = (current_path / MANIFEST).relative_to(root).as_posix()
+
+            if is_listed(listing, relative):
+                found.append(relative)
 
     return sorted(found)
 
@@ -69,13 +80,16 @@ def resolve(
 
 
 def script_entry_points(
-    root: Path, index: ModuleIndex, module_ids: list[str]
+    root: Path,
+    index: ModuleIndex,
+    module_ids: list[str],
+    listing: Listing | _Unread = UNREAD,
 ) -> tuple[set[str], list[str]]:
     known = set(module_ids)
     marked: set[str] = set()
     read: list[str] = []
 
-    for manifest in find_manifests(root):
+    for manifest in find_manifests(root, listing):
         try:
             text = (root / manifest).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

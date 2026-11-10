@@ -15,7 +15,15 @@ from recognizer_scan_python.analysis import (
     read_imports,
 )
 from recognizer_scan_python.calls import CallResolver
-from recognizer_scan_python.discovery import discover, discover_tests, selection
+from recognizer_scan_python.discovery import (
+    UNREAD,
+    Listing,
+    _Unread,
+    discover,
+    discover_tests,
+    git_listing,
+    selection,
+)
 from recognizer_scan_python.entry_point import is_entry_point
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
@@ -126,11 +134,15 @@ def import_edges(module_id: str, imports: Imports, router: Router) -> list[dict]
 
 
 def read_test_imports(
-    root: Path, index: ModuleIndex, router: Router, module_ids: set[str]
+    root: Path,
+    index: ModuleIndex,
+    router: Router,
+    module_ids: set[str],
+    listing: Listing | _Unread = UNREAD,
 ) -> list[dict]:
     records = []
 
-    for path in discover_tests(root):
+    for path in discover_tests(root, listing):
         try:
             tree = ast.parse((root / path).read_bytes(), filename=path)
         except (SyntaxError, ValueError, RecursionError, MemoryError):
@@ -165,7 +177,8 @@ def scan(
     root: Path, source_roots: list[str] | None, commit: str | None, modified: bool | None = None
 ) -> dict:
     root = Path(root)
-    module_ids = discover(root)
+    listing = git_listing(root)
+    module_ids = discover(root, listing)
     trees = parse_all(root, module_ids)
 
     detected = source_roots is None
@@ -178,7 +191,7 @@ def scan(
     present_configs = [name for name in probed if (root / name).is_file()]
     absent_configs = [name for name in probed if name not in present_configs]
 
-    scripted, manifests = script_entry_points(root, index, module_ids)
+    scripted, manifests = script_entry_points(root, index, module_ids, listing)
 
     parsed = {}
     for module_id in module_ids:
@@ -248,5 +261,5 @@ def scan(
         "edges": sorted(edges, key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(foreign_names)],
         "calls": calls,
-        "test_imports": read_test_imports(root, index, router, set(module_ids)),
+        "test_imports": read_test_imports(root, index, router, set(module_ids), listing),
     }
