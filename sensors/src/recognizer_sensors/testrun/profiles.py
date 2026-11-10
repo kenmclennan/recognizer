@@ -35,7 +35,9 @@ PYTHON_COVERAGE_CONTEXTS = (
     " && export PYTHONPATH={plugin}${{PYTHONPATH:+:$PYTHONPATH}}"
     "; {{runner}} coverage run -m pytest -p recognizer_covctx; status=$?"
     "; {{runner}} coverage lcov -o .recognizer/cache/coverage/python.lcov; lcov=$?"
-    "; {{runner}} coverage json --show-contexts -o " + CONTEXTS_JSON + "; json=$?"
+    "; {{python}} -m recognizer_covctx_export .recognizer/cache/coverage/python.data "
+    + CONTEXTS_JSON
+    + "; json=$?"
     "; [ $status -ne 0 ] && exit $status; [ $lcov -ne 0 ] && exit $lcov; exit $json"
 )
 
@@ -148,13 +150,17 @@ def fill(command: list[str], runner: list[str] | None, joined: bool) -> list[str
     return filled
 
 
+def python_interpreter(runner: list[str]) -> list[str]:
+    return runner[:-1] if runner[-1] == "-m" else [*runner, "python"]
+
+
 def coverage_command(repository: Path, language: str, contexts: bool = False) -> list[str]:
     runner = python_runner(repository) if language == "python" else None
     command = PROFILES[language]["coverage_command"]
 
     if contexts and language == "python":
         script = PYTHON_COVERAGE_CONTEXTS.format(plugin=shlex.quote(str(PLUGIN_DIRECTORY)))
-        command = ["sh", "-c", script]
+        command = ["sh", "-c", script.replace("{python}", " ".join(python_interpreter(runner)))]
 
     if contexts and language == "csharp":
         command = [*command, *CSHARP_TRX_LOGGER]

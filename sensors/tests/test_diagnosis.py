@@ -31,9 +31,9 @@ if args[:2] == ["coverage", "lcov"]:
     pathlib.Path(args[3]).parent.mkdir(parents=True, exist_ok=True)
     pathlib.Path(args[3]).write_text("SF:app/m.py\\nDA:1,1\\nend_of_record\\n")
     sys.exit(int(pathlib.Path(__file__).with_name("lcov.status").read_text()))
-if args[:2] == ["coverage", "json"]:
-    pathlib.Path(args[4]).parent.mkdir(parents=True, exist_ok=True)
-    pathlib.Path(args[4]).write_text("{}")
+if args[:2] == ["python", "-m"]:
+    pathlib.Path(args[-1]).parent.mkdir(parents=True, exist_ok=True)
+    pathlib.Path(args[-1]).write_text("{}")
 """
 
 
@@ -43,7 +43,8 @@ def shell_run(tmp_path, command, run_status, lcov_status=0):
     (tmp_path / "lcov.status").write_text(str(lcov_status))
     work = tmp_path / "work"
     work.mkdir(exist_ok=True)
-    script = command.replace("{runner}", f"{sys.executable} {tmp_path / 'stub.py'}")
+    stub = f"{sys.executable} {tmp_path / 'stub.py'}"
+    script = command.replace("{runner}", stub).replace("{python}", f"{stub} python")
     result = subprocess.run(["sh", "-c", script], cwd=work, check=False)
 
     return result.returncode, work
