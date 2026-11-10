@@ -2,6 +2,7 @@ import type { ScanPlan } from "./scan-panel-model";
 import type {
   DescribingSettings,
   ExternalEvent,
+  FixResult,
   ScanPort,
   ScanRunResult,
   StoredTicks,
@@ -20,6 +21,8 @@ export type FakeScan = ScanPort & {
   ran: ScanPlan[];
   stopped: number;
   answers: boolean[];
+  fixed: string[];
+  fixFailures: Record<string, string>;
   written: WrittenTicks[];
   onStep: (index: number) => void;
   emitExternal: (event: ExternalEvent) => void;
@@ -46,6 +49,8 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     ran: [],
     stopped: 0,
     answers: [],
+    fixed: [],
+    fixFailures: {},
     written: [],
     onStep: () => {},
     watching: 0,
@@ -109,6 +114,13 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     async stop() {
       fake.stopped += 1;
       pending?.stop();
+    },
+    async fix(id): Promise<FixResult> {
+      fake.fixed.push(id);
+
+      const reason = fake.fixFailures[id];
+
+      return reason === undefined ? { ok: true } : { ok: false, reason };
     },
     async answerDescribe(describe) {
       fake.answers.push(describe);

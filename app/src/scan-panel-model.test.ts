@@ -13,6 +13,7 @@ import {
   rowSensors,
   scanPanel,
 } from "./scan-panel-model";
+import { describeStopText } from "./scan-progress";
 import { whyOf } from "./scan-why";
 import type { ShippedSensor, ShippedSensors } from "./sensor-run";
 
@@ -367,7 +368,7 @@ describe("scanPanel row states", () => {
     ],
     [
       "failures",
-      "Stopped: 4 describing calls failed in a row. 412 described, 1,628 not described. The next scan describes the rest.",
+      "Stopped: 4 describing calls failed in a row (last: out of quota). 412 described, 1,628 not described. The next scan describes the rest.",
     ],
   ] as const)(
     "keeps the describe stop sentence for %s in the note",
@@ -1143,5 +1144,29 @@ describe("the scope's canvasEmpty flag", () => {
       scanPanel(input({ view: { name: "v", modules: ["a.py"] } })).scope
         ?.canvasEmpty,
     ).toBe(false);
+  });
+});
+
+describe("describeStopText for a failures stop", () => {
+  const stop = {
+    cause: "failures",
+    reason: "",
+    described: 1,
+    notDescribed: 2,
+    threshold: 4,
+  } as const;
+
+  it("includes the last reason when there is one", () => {
+    expect(
+      describeStopText({ ...stop, reason: "unknown option --model" }),
+    ).toBe(
+      "Stopped: 4 describing calls failed in a row (last: unknown option --model). 1 described, 2 not described. The next scan describes the rest.",
+    );
+  });
+
+  it("prints the earlier text when the reason is empty", () => {
+    expect(describeStopText(stop)).toBe(
+      "Stopped: 4 describing calls failed in a row. 1 described, 2 not described. The next scan describes the rest.",
+    );
   });
 });
