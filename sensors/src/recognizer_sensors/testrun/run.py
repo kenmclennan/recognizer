@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco
+from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco, project_of_report
 from recognizer_sensors.crap.lcov import Coverage, parse_lcov
 from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.mutation.test_files import is_script_test_file, is_test_file
@@ -475,7 +475,7 @@ def read_source(
             continue
 
         part = (
-            parse_jacoco(text, files)
+            parse_jacoco(text, files, project_of_report(repository, match))
             if source.format == "jacoco"
             else parse_lcov(text, repository, source.prefix)
         )
@@ -723,7 +723,11 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         if not reports:
             return kotlin_fallback(f"no coverage report for {file}")
 
-        part = parse_jacoco(reports[0].read_text(encoding="utf-8", errors="replace"), scanned)
+        part = parse_jacoco(
+            reports[0].read_text(encoding="utf-8", errors="replace"),
+            scanned,
+            project_of_report(repository, reports[0]),
+        )
 
         if part is None:
             return kotlin_fallback(f"no coverage report for {file}")
