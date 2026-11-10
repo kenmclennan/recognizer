@@ -47,10 +47,13 @@ from recognizer_sensors.testrun.profiles import (
     rust_by_target_command,
     tool_environment,
 )
+from recognizer_sensors.testrun.selection import Selection, SelectionBuilder
 
 LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
 
 CACHE_PREFIX = ".recognizer/"
+
+TYPESCRIPT_RAW_DIRECTORY = ".recognizer/cache/coverage/typescript/tmp"
 
 BY_FILE_DIRECTORY = ".recognizer/cache/coverage/typescript/by-file"
 
@@ -88,8 +91,6 @@ RUST_LIB_KINDS = {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"}
 REASON_LIMIT = 200
 
 DECORATION = re.compile(r"^[=!\-\s]*$")
-
-Selection = dict[str, dict[int, frozenset[str]]]
 
 
 @dataclass(frozen=True)
@@ -428,7 +429,10 @@ def collect_coverage(
 
         return {}
 
-    return read_reports(repository, sources, scans, steps, results, diagnoses, started)
+    try:
+        return read_reports(repository, sources, scans, steps, results, diagnoses, started)
+    finally:
+        shutil.rmtree(repository / TYPESCRIPT_RAW_DIRECTORY, ignore_errors=True)
 
 
 def usable_contexts(names: object, repository: Path) -> frozenset[str] | None:
@@ -462,52 +466,42 @@ def typescript_selection(repository: Path, scan: Scan, whole: Coverage) -> Selec
     if not tests:
         return {}
 
-    steps = [
-        Step(f"typescript {file}", by_file_command(file, number))
-        for number, file in enumerate(tests)
-    ]
+    builder = SelectionBuilder()
 
     try:
-        run_steps(repository, steps, "a", strict=True)
-    except MeasurementError as error:
-        print(
-            f"recognizer-sensors: mutation: {error}; running the whole suite for typescript",
-            file=sys.stderr,
-        )
+        for number, file in enumerate(tests):
+            step = Step(f"typescript {file}", by_file_command(file, number))
 
-        return {}
+            try:
+                run_steps(repository, [step], "a", strict=True)
+            except MeasurementError as error:
+                print(
+                    f"recognizer-sensors: mutation: {error}; "
+                    "running the whole suite for typescript",
+                    file=sys.stderr,
+                )
 
-    executed: dict[str, dict[int, set[str]]] = {}
+                return {}
 
-    for number, file in enumerate(tests):
-        report = repository / BY_FILE_REPORT.format(number=number)
+            report = repository / BY_FILE_REPORT.format(number=number)
 
-        try:
-            part = parse_lcov(report.read_text(encoding="utf-8"), repository)
-        except (OSError, ValueError):
-            print(
-                f"recognizer-sensors: mutation: no coverage report for {file}; "
-                "running the whole suite for typescript",
-                file=sys.stderr,
-            )
+            try:
+                part = parse_lcov(report.read_text(encoding="utf-8"), repository)
+            except (OSError, ValueError):
+                print(
+                    f"recognizer-sensors: mutation: no coverage report for {file}; "
+                    "running the whole suite for typescript",
+                    file=sys.stderr,
+                )
 
-            return {}
+                return {}
 
-        for path, lines in part.items():
-            for number_, hits in lines.items():
-                if hits > 0:
-                    executed.setdefault(path, {}).setdefault(number_, set()).add(file)
+            shutil.rmtree(repository / BY_FILE_DIRECTORY / str(number), ignore_errors=True)
+            builder.add(file, part)
 
-    selection: Selection = {}
-
-    for path, lines in whole.items():
-        for number_, hits in lines.items():
-            files = executed.get(path, {}).get(number_)
-
-            if hits > 0 and files:
-                selection.setdefault(path, {})[number_] = frozenset(files)
-
-    return selection
+        return builder.build(whole)
+    finally:
+        shutil.rmtree(repository / BY_FILE_DIRECTORY, ignore_errors=True)
 
 
 def kotlin_project_of(result: Path, repository: Path) -> str:
@@ -596,9 +590,9 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         return {}
 
     scanned = [path for module in scan.modules for path in module.files]
-    executed: dict[str, dict[int, set[str]]] = {}
+    builder = SelectionBuilder()
 
-    for number, file in enumerate(sorted(mapped)):
+    for file in sorted(mapped):
         pairs = mapped[file]
         project = pairs[0][0]
 
@@ -616,31 +610,16 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         if not reports:
             return kotlin_fallback(f"no coverage report for {file}")
 
-        target = repository / KOTLIN_BY_FILE_DIRECTORY / str(number) / "jacocoTestReport.xml"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(reports[0], target)
-        part = parse_jacoco(target.read_text(encoding="utf-8", errors="replace"), scanned)
+        part = parse_jacoco(reports[0].read_text(encoding="utf-8", errors="replace"), scanned)
 
         if part is None:
             return kotlin_fallback(f"no coverage report for {file}")
 
-        for path, lines in part.items():
-            for line, hits in lines.items():
-                if hits > 0:
-                    executed.setdefault(path, {}).setdefault(line, set()).add(file)
-
-    selection: Selection = {}
-
-    for path, lines in whole.items():
-        for line, hits in lines.items():
-            files = executed.get(path, {}).get(line)
-
-            if hits > 0 and files:
-                selection.setdefault(path, {})[line] = frozenset(files)
+        builder.add(file, part)
 
     KOTLIN_CLASSES.update(mapped)
 
-    return selection
+    return builder.build(whole)
 
 
 def csharp_trx_classes(directory: Path) -> set[str] | None:
@@ -953,6 +932,7 @@ def collect_coverage_with_tests(
     started = time.time() if steps else None
     results = run_steps(repository, steps)
     merged = read_reports(repository, sources, scans, steps, results, None, started)
+    shutil.rmtree(repository / TYPESCRIPT_RAW_DIRECTORY, ignore_errors=True)
     selection: Selection = {}
 
     python = False

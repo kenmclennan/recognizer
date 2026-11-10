@@ -251,7 +251,7 @@ def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, m
     assert len(runs) == 4
     assert "test --rerun --tests p.MulTest --tests p.NegTest jacocoTestReport" in runs
     assert KOTLIN_CLASSES[MANY] == [("", "p.MulTest"), ("", "p.NegTest")]
-    assert (root / ".recognizer/cache/coverage/kotlin/by-file/0/jacocoTestReport.xml").is_file()
+    assert not (root / ".recognizer/cache/coverage/kotlin/by-file").exists()
 
 
 def test_the_per_file_run_deletes_no_report_and_ignores_one_it_did_not_write(tmp_path, monkeypatch):
