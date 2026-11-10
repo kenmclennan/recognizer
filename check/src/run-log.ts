@@ -168,10 +168,13 @@ export function buildPhasedRecord(
   phases: RunPhase[],
   running: boolean,
   skipped: SkippedPhase[] = [],
+  refused = false,
 ): RunRecord {
-  const failed = phases.some((phase) =>
-    phase.entries.some((entry) => entry.outcome === "failed"),
-  );
+  const failed =
+    refused ||
+    phases.some((phase) =>
+      phase.entries.some((entry) => entry.outcome === "failed"),
+    );
 
   return {
     log_version: 1,
@@ -282,7 +285,7 @@ export interface OpenPhasedRunLog {
   id(): string | null;
   skip(skipped: SkippedPhase): void;
   update(phases: RunPhase[]): void;
-  finish(phases: RunPhase[]): void;
+  finish(phases: RunPhase[], refused?: boolean): void;
 }
 
 function openWriter(
@@ -345,7 +348,7 @@ export function openPhasedRunLog(
           skipped,
         ),
       ),
-    finish: (phases) =>
+    finish: (phases, refused = false) =>
       write(
         buildPhasedRecord(
           io,
@@ -355,6 +358,7 @@ export function openPhasedRunLog(
           snapshot(phases),
           false,
           skipped,
+          refused,
         ),
       ),
   };

@@ -20,7 +20,9 @@ import { describerInEffect } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
+import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
+import { earlyGaps } from "./preflight.js";
 import {
   entryFrom,
   openPhasedRunLog,
@@ -388,10 +390,6 @@ function* scanFlow(
       }
     };
 
-    if (options.sense !== null && commit === null) {
-      throw new InputError(["not a git repository, or no commit"]);
-    }
-
     const modified = commit === null ? null : isDirty(io, root);
     const detected = detectLanguages(io, root);
     const json = options.json;
@@ -443,6 +441,54 @@ function* scanFlow(
 
     if (detected.length === 0) {
       io.stderr("no languages detected\n");
+    }
+
+    const refuse = (gaps: Gap[]): number => {
+      const reason = `preflight found ${gaps.length} ${gaps.length === 1 ? "gap" : "gaps"}`;
+
+      emit(preflightLine({ state: "gaps", gaps }));
+
+      if (!json) {
+        for (const gap of gaps) {
+          io.stderr(`${gapText(gap)}\n`);
+        }
+      }
+
+      if (options.describe !== false) {
+        skip("describe", reason);
+      }
+
+      if (options.sense !== null) {
+        skip("sense", reason);
+      }
+
+      runLog?.finish(phases, true);
+
+      emit(
+        summaryLine({
+          repository: root,
+          commit,
+          modified,
+          exit: 4,
+          phases: phases.map((one) => ({
+            phase: one.phase,
+            entries: summary.get(one.phase) ?? [],
+          })),
+          removed,
+          skipped: skippedPhases,
+          log: runLog?.id() ?? null,
+        }),
+      );
+
+      return 4;
+    };
+
+    emit(preflightLine({ state: "run" }));
+
+    const early = earlyGaps({ commit, sensors: selected });
+
+    if (early.length > 0) {
+      return refuse(early);
     }
 
     const decision = decideExtraction(
@@ -533,6 +579,8 @@ function* scanFlow(
     const scans = detected
       .map((language) => readCachedScan(io, root, language))
       .filter((scan): scan is RecordedScan => scan !== null);
+
+    emit(preflightLine({ state: "ok" }));
 
     if (runStructure(io, root, scans)) {
       failed = true;
@@ -634,7 +682,7 @@ function* scanFlow(
       }
     }
 
-    if (options.sense !== null && commit !== null) {
+    if (options.sense !== null) {
       const phase = startPhase("sense");
 
       emit(phaseLine("sense", { total: selected.length }));
@@ -652,7 +700,7 @@ function* scanFlow(
                 : one.command,
             runsTests: runsTests(one.command),
           })),
-          commit,
+          commit: commit ?? "",
           scans,
           onStart: (name) => {
             emit(startLine("sense", name));

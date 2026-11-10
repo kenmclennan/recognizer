@@ -443,6 +443,7 @@ describe("recognizer scan: summary", () => {
     const { out } = await scan(options, "--json");
 
     expect(lines(out)).toEqual([
+      { event: "preflight", state: "run" },
       {
         event: "phase",
         phase: "extract",
@@ -466,6 +467,7 @@ describe("recognizer scan: summary", () => {
         modules: 3,
         edges: 2,
       },
+      { event: "preflight", state: "ok" },
       {
         event: "summary",
         repository: ROOT,
@@ -687,7 +689,7 @@ describe("recognizer scan: phases", () => {
     }
 
     const { out, fake } = await scan(merged, "--json");
-    const first = lines(out)[0];
+    const first = lines(out)[1];
 
     expect(first).toMatchObject({ state: "run", reason });
     expect(
@@ -701,7 +703,7 @@ describe("recognizer scan: phases", () => {
   it("extracts with --extract on a current tree", async () => {
     const { out, fake } = await scan(setup(), "--extract", "--json");
 
-    expect(lines(out)[0]).toMatchObject({ state: "run", reason: "forced" });
+    expect(lines(out)[1]).toMatchObject({ state: "run", reason: "forced" });
     expect(extractCalls(fake)).toHaveLength(1);
     expect(extractCalls(fake)[0]).toContain("--output");
   });
@@ -1097,15 +1099,18 @@ describe("recognizer scan: phases", () => {
     expect(out).not.toContain('"event":"start"');
   });
 
-  it("is exit 2 for --sense with no commit", async () => {
-    const { code, err } = await scan(
+  it("is exit 4 with a no-commit gap for --sense with no commit", async () => {
+    const { code, err, fake } = await scan(
       { ...setup({}, { [CONFIG]: SENSORS }), commit: undefined },
       "--sense",
       "all",
     );
 
-    expect(code).toBe(2);
-    expect(err).toContain("not a git repository, or no commit");
+    expect(code).toBe(4);
+    expect(err).toContain(
+      "the folder has no git commit (first, second): make the first commit (git add the files, then git commit)",
+    );
+    expect(extractCalls(fake)).toEqual([]);
   });
 
   function describing() {
@@ -1218,7 +1223,9 @@ describe("recognizer scan: phases", () => {
     const events = lines(out);
 
     expect(events.map((one) => [one.event, one.phase ?? null])).toEqual([
+      ["preflight", null],
       ["phase", "extract"],
+      ["preflight", null],
       ["projection", "describe"],
       ["phase", "describe"],
       ["entry", "describe"],
@@ -1228,19 +1235,19 @@ describe("recognizer scan: phases", () => {
       ["entry", "sense"],
       ["summary", null],
     ]);
-    expect(events[0]).toEqual({
+    expect(events[1]).toEqual({
       event: "phase",
       phase: "extract",
       state: "current",
       commit: COMMIT,
     });
-    expect(events[2]).toEqual({ event: "phase", phase: "describe", total: 2 });
-    expect(events[6]).toEqual({
+    expect(events[4]).toEqual({ event: "phase", phase: "describe", total: 2 });
+    expect(events[8]).toEqual({
       event: "start",
       phase: "sense",
       name: "first",
     });
-    expect(events[7]).toEqual({
+    expect(events[9]).toEqual({
       event: "entry",
       phase: "sense",
       name: "first",
@@ -1298,7 +1305,9 @@ describe("recognizer scan: phases", () => {
       expect(
         events.map((one) => [one.event, one.step ?? one.name ?? null]),
       ).toEqual([
+        ["preflight", null],
         ["phase", null],
+        ["preflight", null],
         ["phase", null],
         ["start", "mutation"],
         ["progress", "coverage"],
@@ -1307,13 +1316,13 @@ describe("recognizer scan: phases", () => {
         ["entry", "mutation"],
         ["summary", null],
       ]);
-      expect(events[3]).toEqual({
+      expect(events[5]).toEqual({
         event: "progress",
         phase: "sense",
         name: "mutation",
         step: "coverage",
       });
-      expect(events[5]).toEqual({
+      expect(events[7]).toEqual({
         event: "progress",
         phase: "sense",
         name: "mutation",
