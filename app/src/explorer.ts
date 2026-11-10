@@ -107,6 +107,7 @@ import {
 import { mountPanelResizers } from "./panel-resizer-view";
 import { type PlanOverlay, planOverlay } from "./plan-overlay";
 import { NO_PREFLIGHT, type PreflightState } from "./preflight-model";
+import { changedKeys, type ProgressKeys, progressKeys } from "./progress-keys";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import { removedPlacement } from "./removed-boxes";
 import {
@@ -399,6 +400,7 @@ export function showExplorer(
   let openView: string | null = null;
   let resultsMode: ResultsMode = "bring";
   let runPlanned: PlannedRun | null = null;
+  let lastKeys: ProgressKeys | null = null;
   let freshnessCache: FreshnessModel | null = null;
   let overlaysCache: OverlayModel | null = null;
   let viewList: { name: string; text: string }[] = [];
@@ -3779,11 +3781,84 @@ export function showExplorer(
       scrollTarget = null;
     }
 
+    lastKeys = progressKeys(progressInput(findingsInputs()));
     publish();
+  }
+
+  function progressInput(findings: ReturnType<typeof findingsInputs>) {
+    return {
+      findings: {
+        line:
+          findings.findingsLine === null
+            ? null
+            : {
+                text: findings.findingsLine.text,
+                link: findings.findingsLine.link ?? "",
+              },
+        action: {
+          label: findings.findingsAction.label,
+          openScan: findings.findingsAction.openScan,
+        },
+        none: findings.shownGroups.map(
+          (group) =>
+            group.rows.length === 0 ||
+            findings.noneYet(SENSOR_GROUPS[group.key] ?? ""),
+        ),
+        everyChanged: findings.everyChanged,
+        empty: findingsEmpty(findings),
+      },
+      overlays: {
+        changed: [...changedBoxes()],
+        groups: canvasMetrics().groups.map((group) => ({
+          name: group.name,
+          enabled: group.enabled,
+          notes: group.notes,
+        })),
+      },
+    };
   }
 
   function noteTotalOf(view: ReturnType<typeof openViewValue>) {
     return view === null ? 0 : viewNotes(view).length;
+  }
+
+  function renderProgress() {
+    if (lastKeys === null || scrollTarget !== null) {
+      render();
+
+      return;
+    }
+
+    freshnessCache = null;
+    overlaysCache = null;
+
+    const scanModelNow = scanModel();
+
+    freshnessCache = scanModelNow.freshness;
+    scanHost.footer?.(scanModelNow.freshness.footer);
+    scanView.render(scanModelNow);
+
+    const findings = findingsInputs();
+    const keys = progressKeys(progressInput(findings));
+    const changed = changedKeys(lastKeys, keys);
+
+    if (changed.findings) {
+      renderFindings(findings);
+    }
+
+    rail.render({
+      panel: leftPanel,
+      notes: noteTotalOf(openViewValue()),
+      scanFailed: scanModelNow.mark,
+      findings: badge(allFindings),
+    });
+
+    if (changed.overlays) {
+      renderCanvas();
+      renderInspector();
+    }
+
+    lastKeys = keys;
   }
 
   function resume(snap: Snapshot) {
@@ -3887,7 +3962,7 @@ export function showExplorer(
     openSelectedInEditor,
     openLinkedView: () => void openLinkedView(),
     refreshResponsibilities: () => void readResponsibilities(),
-    refreshPanel: () => render(),
+    refreshPanel: () => renderProgress(),
     show: showTarget,
     carry: () => ({
       history,
