@@ -67,16 +67,19 @@ def passes_script(repository: Path, directory: str) -> bool:
     return isinstance(script, str) and bool(script)
 
 
+PYTHON_CONFIG = ("pyproject.toml", "setup.cfg", "pytest.ini")
+
+
 def python_directories(files: list[str]) -> list[str]:
     present = set(files)
-    candidates = holding(files, "pyproject.toml")
-    nested = [
-        directory
-        for directory in candidates
-        if directory
-        and (f"{directory}/uv.lock" in present or f"{directory}/poetry.lock" in present)
-    ]
-    root = any(name in present for name in ("pyproject.toml", "uv.lock", "poetry.lock"))
+    nested = sorted(
+        {
+            parent_of(path)
+            for path in files
+            if PurePosixPath(path).name in PYTHON_CONFIG and parent_of(path)
+        }
+    )
+    root = any(name in present for name in (*PYTHON_CONFIG, "uv.lock", "poetry.lock"))
 
     return ["", *nested] if root or not nested else nested
 

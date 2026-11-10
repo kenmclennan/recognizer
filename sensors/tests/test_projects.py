@@ -226,7 +226,7 @@ def test_the_nested_lock_decides_whether_a_nested_pyproject_is_a_project(tmp_pat
     root = build(tmp_path / "plain", files)
     scan = scan_of("python", ["m.py", "sub/m.py"])
 
-    assert directories(root, scan) == [""]
+    assert directories(root, scan) == ["", "sub"]
 
     locked = build(tmp_path / "locked", {**files, "sub/uv.lock": ""})
 
@@ -246,9 +246,45 @@ def test_the_nested_lock_decides_whether_a_nested_pyproject_is_a_project(tmp_pat
         },
     )
 
-    assert directories(ancestor, scan_of("python", ["mid/deep/m.py"])) == [""]
+    assert directories(ancestor, scan_of("python", ["mid/deep/m.py"])) == ["mid/deep"]
     assert python_runner(ancestor, "mid/deep") == ["uv", "run"]
     assert (ancestor / "uv.lock").is_file()
+
+
+def test_a_nested_python_project_without_a_lock_or_root_config_is_the_only_project(tmp_path):
+    root = build(
+        tmp_path,
+        {
+            "tools/foo/pyproject.toml": PYPROJECT,
+            "tools/foo/src/foo/m.py": "x = 1\n",
+            "tools/foo/tests/test_m.py": "",
+        },
+    )
+    scan = scan_of("python", ["tools/foo/src/foo/m.py"])
+
+    assert directories(root, scan) == ["tools/foo"]
+
+    steps, sources = plan(root, [scan], None, None)
+
+    assert [step.directory for step in steps] == ["tools/foo"]
+    assert [s.prefix for s in sources] == ["tools/foo"]
+    assert python_runner(root, "tools/foo") == python_runner(tmp_path / "bare", "")
+
+
+def test_a_nested_setup_cfg_or_pytest_ini_makes_a_python_project(tmp_path):
+    for name in ("setup.cfg", "pytest.ini"):
+        root = build(tmp_path / name, {f"sub/{name}": "", "sub/m.py": "x = 1\n", "top.py": ""})
+
+        assert directories(root, scan_of("python", ["sub/m.py"])) == ["sub"]
+
+
+def test_a_root_without_python_config_is_no_project_beside_nested_ones(tmp_path):
+    root = build(
+        tmp_path,
+        {"a/pyproject.toml": PYPROJECT, "a/m.py": "", "b/pytest.ini": "", "b/m.py": "", "x.py": ""},
+    )
+
+    assert directories(root, scan_of("python", ["a/m.py", "b/m.py", "x.py"])) == ["a", "b"]
 
 
 def test_a_configured_test_command_replaces_discovery_and_coverage_replaces_only_the_pass(
