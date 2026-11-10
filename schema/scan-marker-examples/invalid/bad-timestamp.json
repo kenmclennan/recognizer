@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pid": 4242,
+  "started_at": "yesterday",
+  "started_by": "cli",
+  "repository": "/work/shop",
+  "sensors": [],
+  "describe": false
+}

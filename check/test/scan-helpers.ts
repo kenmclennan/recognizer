@@ -36,6 +36,8 @@ export interface FakeOptions {
   stdin?: string;
   lines?: (string | null)[];
   linesRead?: { count: number };
+  alivePids?: number[];
+  pid?: number;
 }
 
 export interface Fake {
@@ -54,6 +56,7 @@ export interface Fake {
 }
 
 export const ROOT = "/repo";
+export const FAKE_PID = 1000;
 export const APP_CONFIG = "/app-config";
 export const PYTHON = "recognizer-scan-python";
 export const TYPESCRIPT = "recognizer-scan-typescript";
@@ -95,6 +98,10 @@ export function scanJson(
   };
 
   return `${JSON.stringify(scan, null, spacing)}\n\n`;
+}
+
+function isMarkerFile(path: string): boolean {
+  return /\/scan-running(\.progress\.jsonl|\.json)$/.test(path);
 }
 
 export function fakeIo(options: FakeOptions = {}): Fake {
@@ -263,8 +270,27 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     },
     writeFile: (path, content) => {
       files.set(path, content);
-      writes.push(path);
+
+      if (!isMarkerFile(path)) {
+        writes.push(path);
+      }
     },
+    createExclusive: (path, content) => {
+      if (files.has(path)) {
+        return false;
+      }
+
+      files.set(path, content);
+
+      return true;
+    },
+    append: (path, content) => {
+      files.set(path, (files.get(path) ?? "") + content);
+    },
+    pid: () => options.pid ?? FAKE_PID,
+    pidAlive: (pid) =>
+      pid === (options.pid ?? FAKE_PID) ||
+      (options.alivePids ?? []).includes(pid),
     rename: (from, to) => {
       const content = files.get(from);
 
@@ -293,7 +319,10 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     },
     remove: (path) => {
       files.delete(path);
-      removed.push(path);
+
+      if (!isMarkerFile(path)) {
+        removed.push(path);
+      }
     },
     makeTempDir: () => {
       const path = `/tmp/fake-${temps.length}`;

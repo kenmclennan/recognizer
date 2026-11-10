@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/scan-marker.schema.json",
+  "title": "Recognizer scan marker",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "pid",
+    "started_at",
+    "started_by",
+    "repository",
+    "sensors",
+    "describe"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "started_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "started_by": {
+      "enum": [
+        "cli",
+        "app"
+      ]
+    },
+    "repository": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sensors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "describe": {
+      "type": "boolean"
+    }
+  }
+}

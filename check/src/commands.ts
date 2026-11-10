@@ -199,6 +199,11 @@ export const COMMANDS: Command[] = [
         meaning:
           "bad input - an unknown sensor name, --sense with no sensors registered, --sense with no git commit, --describe with no describer registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, or an unknown flag",
       },
+      {
+        code: 3,
+        meaning:
+          "another scan is already running on the repository; the reason on stderr names who started it, when, and its process id",
+      },
     ],
     examples: [
       {

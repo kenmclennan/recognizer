@@ -15,6 +15,7 @@ for (const name of [
   "config",
   "findings",
   "log",
+  "scan-marker",
   "overlay",
 ]) {
   const schema = JSON.parse(

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "pid": 4242,
+  "started_at": "2026-11-10T09:00:00.000Z",
+  "started_by": "cli",
+  "repository": "/Users/ken/projects/shop",
+  "sensors": [
+    "crap",
+    "mutation"
+  ],
+  "describe": false
+}

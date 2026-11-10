@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -16,6 +17,7 @@ import { COMMANDS } from "./commands.js";
 import { InputError } from "./errors.js";
 import { fullHelp, shortHelp } from "./help.js";
 import { promotePending } from "./pending-checkpoints.js";
+import { releaseHeldMarkers } from "./scan-marker.js";
 
 const CEILING_EXIT = 124;
 
@@ -98,6 +100,10 @@ export interface Io {
   request(socket: string, text: string): RequestResult;
   env(name: string): string | undefined;
   now(): number;
+  pid(): number;
+  pidAlive(pid: number): boolean;
+  createExclusive(path: string, content: string): boolean;
+  append(path: string, content: string): void;
   stdout(text: string): void;
   stderr(text: string): void;
 }
@@ -127,6 +133,8 @@ const liveChildren = new Set<ChildProcess>();
 const liveTempDirs = new Set<string>();
 
 export function stopEverything(): void {
+  releaseHeldMarkers();
+
   for (const child of liveChildren) {
     child.kill("SIGTERM");
   }
@@ -379,6 +387,32 @@ export function nodeIo(): Io {
     },
     env: (name) => process.env[name],
     now: () => Date.now(),
+    pid: () => process.pid,
+    pidAlive: (pid) => {
+      try {
+        process.kill(pid, 0);
+
+        return true;
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === "EPERM";
+      }
+    },
+    createExclusive: (path, content) => {
+      mkdirSync(dirname(path), { recursive: true });
+
+      try {
+        writeFileSync(path, content, { flag: "wx" });
+
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+          return false;
+        }
+
+        throw error;
+      }
+    },
+    append: (path, content) => appendFileSync(path, content),
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
   };
