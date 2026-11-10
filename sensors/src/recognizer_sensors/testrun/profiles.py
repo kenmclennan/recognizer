@@ -4,7 +4,8 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
-from recognizer_sensors.testrun.gradle import gradle_environment, is_gradle
+from recognizer_sensors.testrun.gradle import WRAPPER, gradle_environment, is_gradle
+from recognizer_sensors.testrun.kotlin_store import prepare_listener
 from recognizer_sensors.testrun.projects import Project, ancestors, slugify
 
 PLUGIN_DIRECTORY = Path(__file__).parent / "plugin"
@@ -255,6 +256,12 @@ def coverage_command(
     if contexts and language == "python":
         script = PYTHON_COVERAGE_CONTEXTS.format(plugin=shlex.quote(str(PLUGIN_DIRECTORY)))
         command = ["sh", "-c", script]
+
+    if contexts and language == "kotlin":
+        arguments = prepare_listener(repository)
+
+        if arguments:
+            return [WRAPPER, *arguments, "test", "--rerun", "jacocoTestReport"]
 
     if contexts and language == "csharp":
         command = [*command, *CSHARP_TRX_LOGGER]

@@ -1,0 +1,106 @@
+def recognizerDumps = System.getProperty('recognizer.dumps')
+def recognizerSource = System.getProperty('recognizer.listener')
+
+if (recognizerDumps != null && recognizerSource != null) {
+    allprojects { project ->
+        def projectKey = project.path == ':' ? '~' : project.path.replace(':', '~')
+        def classesDir = new File(recognizerSource, 'classes-' + projectKey.replace('~', '_'))
+
+        def reportTask = project.tasks.register('recognizerReduceDumps') {
+            doLast {
+                def folder = new File(recognizerDumps, projectKey)
+                def dumps = folder.isDirectory() ? folder.listFiles().findAll { it.name.endsWith('.exec') } : []
+
+                if (dumps.isEmpty()) {
+                    return
+                }
+
+                project.ant.taskdef(
+                    name: 'recognizerJacocoReport',
+                    classname: 'org.jacoco.ant.ReportTask',
+                    classpath: project.configurations.getByName('jacocoAnt').asPath)
+
+                dumps.each { dump ->
+                    def xmlFile = new File(folder, dump.name.replaceAll(/\.exec$/, '.xml'))
+
+                    try {
+                        project.ant.recognizerJacocoReport {
+                            executiondata {
+                                project.ant.file(file: dump.absolutePath)
+                            }
+                            structure(name: 'recognizer') {
+                                classfiles {
+                                    project.sourceSets.main.output.classesDirs.findAll { it.isDirectory() }.each {
+                                        project.ant.fileset(dir: it.absolutePath)
+                                    }
+                                }
+                                sourcefiles {
+                                    project.sourceSets.main.allSource.srcDirs.findAll { it.isDirectory() }.each {
+                                        project.ant.fileset(dir: it.absolutePath)
+                                    }
+                                }
+                            }
+                            xml(destfile: xmlFile.absolutePath)
+                        }
+
+                        def factory = javax.xml.parsers.SAXParserFactory.newInstance()
+                        factory.setFeature('http://apache.org/xml/features/nonvalidating/load-external-dtd', false)
+                        def root = new groovy.xml.XmlSlurper(factory.newSAXParser()).parse(xmlFile)
+                        def out = new StringBuilder()
+
+                        root.'package'.each { pkg ->
+                            pkg.sourcefile.each { source ->
+                                def covered = source.line.findAll { it.@ci.toInteger() > 0 }.collect { it.@nr.toString() }
+
+                                if (!covered.isEmpty()) {
+                                    out << pkg.@name.toString() << '/' << source.@name.toString() << '\t' << covered.join(',') << '\n'
+                                }
+                            }
+                        }
+
+                        new File(folder, dump.name.replaceAll(/\.exec$/, '.lines')).text = out.toString()
+                    } finally {
+                        dump.delete()
+                        xmlFile.delete()
+                    }
+                }
+            }
+        }
+
+        project.plugins.withId('jacoco') {
+            project.tasks.withType(Test).matching { it.name == 'test' }.configureEach { testTask ->
+
+                testTask.systemProperty 'recognizer.dumps', recognizerDumps
+                testTask.systemProperty 'recognizer.project', project.path
+                testTask.systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
+
+                testTask.doFirst {
+                    try {
+                        def jars = testTask.classpath.files.findAll { it.name.startsWith('junit-platform-') }
+                        def launcher = jars.find { it.name.startsWith('junit-platform-launcher') }
+                        def compiler = javax.tools.ToolProvider.getSystemJavaCompiler()
+
+                        if (launcher != null && compiler != null) {
+                            def services = new File(classesDir, 'META-INF/services')
+                            services.mkdirs()
+                            new File(services, 'org.junit.platform.launcher.TestExecutionListener').text = 'RecognizerListener\n'
+                            def status = compiler.run(
+                                null, null, null,
+                                '-d', classesDir.absolutePath,
+                                '-cp', jars.collect { it.absolutePath }.join(File.pathSeparator),
+                                new File(recognizerSource, 'RecognizerListener.java').absolutePath)
+
+                            if (status == 0) {
+                                testTask.classpath = testTask.classpath + project.files(classesDir)
+                            }
+                        }
+                    } catch (Throwable error) {
+                        project.logger.warn('recognizer: the coverage listener is unavailable: ' + error)
+                    }
+                }
+
+                testTask.finalizedBy(reportTask)
+            }
+        }
+    }
+}

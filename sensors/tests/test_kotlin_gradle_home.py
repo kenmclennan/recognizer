@@ -7,7 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 from test_kotlin_selection import (
+    ADD,
     ALL_CLASSES,
+    CALC,
+    MANY,
+    OUTER,
     SOURCES,
     make,
 )
@@ -113,12 +117,22 @@ def homes_of(tmp_path):
 
 
 def test_the_coverage_and_per_file_runs_carry_the_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKE_LISTENER_FAIL", "1")
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
 
     collect_coverage_with_tests(root, [scan], None)
 
     assert len(runs_of(tmp_path)) == 4
     assert homes_of(tmp_path) == {str(gradle.gradle_home(root))}
+
+
+def test_the_listener_run_carries_the_home(tmp_path, monkeypatch):
+    root, scan = make(tmp_path, monkeypatch=monkeypatch)
+
+    collect_coverage_with_tests(root, [scan], None)
+
+    assert homes_of(tmp_path) == {str(gradle.gradle_home(root))}
+    assert (gradle.gradle_home(root) / "gradle.properties").is_file()
 
 
 def test_the_probe_environment_carries_the_home(tmp_path, monkeypatch):
@@ -423,7 +437,18 @@ def test_the_selection_merges_the_store_with_eager_selections(tmp_path):
     assert suite_size(selection) == 5
 
 
+def test_the_listener_run_selection_reads_through_the_store(tmp_path, monkeypatch):
+    root, scan = make(tmp_path, monkeypatch=monkeypatch)
+
+    _, selection = collect_coverage_with_tests(root, [scan], None)
+
+    assert suite_size(selection) == 3
+    assert selection.get(CALC)[8] == frozenset({MANY, OUTER})
+    assert selection.get(CALC)[4] == frozenset({ADD, OUTER})
+
+
 def test_both_steps_failing_leaves_the_whole_suite_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FAKE_LISTENER_FAIL", "1")
     monkeypatch.setenv("FAKE_FAIL", "1")
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
 
@@ -431,3 +456,36 @@ def test_both_steps_failing_leaves_the_whole_suite_message(tmp_path, monkeypatch
 
     assert selection == {}
     assert "running the whole suite for kotlin" in capsys.readouterr().err
+
+
+def test_a_listener_run_that_misses_a_class_falls_back_to_the_per_file_passes(
+    tmp_path, monkeypatch
+):
+    root, scan = make(tmp_path, monkeypatch=monkeypatch)
+    original = (root / "gradlew").read_text()
+    (root / "gradlew").write_text(original.replace("p.NegTest.lines", "p.Other.lines"))
+
+    _, selection = collect_coverage_with_tests(root, [scan], None)
+
+    assert selection.get(CALC)[12] == frozenset({MANY})
+    assert len(runs_of(tmp_path)) == 4
+
+
+def test_the_listener_command_names_the_init_script_in_the_cache(tmp_path, monkeypatch):
+    root, scan = make(tmp_path, monkeypatch=monkeypatch)
+
+    collect_coverage_with_tests(root, [scan], None)
+
+    script = root / ".recognizer/cache/gradle/recognizer-coverage.init.gradle"
+
+    assert script.is_file()
+    assert (root / ".recognizer/cache/gradle/RecognizerListener.java").is_file()
+    assert str(script) in runs_of(tmp_path)[0]
+
+
+def test_the_crap_coverage_command_does_not_carry_the_listener(tmp_path):
+    assert profiles.coverage_command(tmp_path, "kotlin") == [
+        "./gradlew",
+        "test",
+        "jacocoTestReport",
+    ]

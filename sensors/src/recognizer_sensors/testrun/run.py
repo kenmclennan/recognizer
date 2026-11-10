@@ -32,8 +32,11 @@ from recognizer_sensors.testrun.failures import (
     suite_failed,
 )
 from recognizer_sensors.testrun.kotlin_store import (
+    DUMPS_DIRECTORY,
     STORE_DIRECTORY,
     KotlinStore,
+    dumped_classes,
+    parse_lines,
     write_store,
 )
 from recognizer_sensors.testrun.probes import probe
@@ -723,6 +726,34 @@ def kotlin_fallback(reason: str) -> Selection:
 Executed = dict[str, dict[int, set[str]]]
 
 
+def kotlin_from_listener(
+    repository: Path, mapped: dict[str, list[tuple[str, str]]], scanned: list[str]
+) -> Executed | None:
+    dumped = dumped_classes(repository)
+    executed: Executed = {}
+
+    if not dumped:
+        return None
+
+    for file in sorted(mapped):
+        for pair in mapped[file]:
+            lines = dumped.get(pair)
+
+            if lines is None:
+                return None
+
+            try:
+                part = parse_lines(lines.read_text(encoding="utf-8", errors="replace"), scanned)
+            except OSError:
+                return None
+
+            for path, numbers in part.items():
+                for number in numbers:
+                    executed.setdefault(path, {}).setdefault(number, set()).add(file)
+
+    return executed
+
+
 def kotlin_per_file(
     repository: Path, mapped: dict[str, list[tuple[str, str]]], scanned: list[str]
 ) -> Executed | None:
@@ -781,13 +812,22 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
             file=sys.stderr,
         )
 
+        shutil.rmtree(repository / DUMPS_DIRECTORY, ignore_errors=True)
+
         return {}
 
     if not mapped:
+        shutil.rmtree(repository / DUMPS_DIRECTORY, ignore_errors=True)
+
         return {}
 
     scanned = [path for module in scan.modules for path in module.files]
-    executed = kotlin_per_file(repository, mapped, scanned)
+    executed = kotlin_from_listener(repository, mapped, scanned)
+    from_listener = executed is not None
+    shutil.rmtree(repository / DUMPS_DIRECTORY, ignore_errors=True)
+
+    if executed is None:
+        executed = kotlin_per_file(repository, mapped, scanned)
 
     if executed is None:
         return {}
@@ -798,7 +838,7 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         for line, hits in lines.items():
             files = executed.get(path, {}).get(line)
 
-            if hits > 0 and files:
+            if (hits > 0 or from_listener) and files:
                 kept.setdefault(path, {})[line] = files
 
     KOTLIN_CLASSES.update(mapped)

@@ -76,6 +76,20 @@ case " $* " in
       for n in 4 8 12; do echo "<line nr=\\"$n\\" mi=\\"0\\" ci=\\"1\\"/>"; done
       echo '</sourcefile></package></report>'
     } > build/reports/jacoco/test/jacocoTestReport.xml
+    dumps=""
+    for arg in "$@"; do
+      case "$arg" in
+        -Drecognizer.dumps=*) dumps="${arg#-Drecognizer.dumps=}" ;;
+      esac
+    done
+    if [ -n "$dumps" ] && [ -z "$FAKE_LISTENER_FAIL" ]; then
+      mkdir -p "$dumps/~"
+      printf 'p/Calc.kt\t4\n' > "$dumps/~/p.AddTest.lines"
+      printf 'p/Calc.kt\t8\n' > "$dumps/~/p.MulTest.lines"
+      printf 'p/Calc.kt\t8,12\n' > "$dumps/~/p.NegTest.lines"
+      printf 'p/Calc.kt\t4,8\n' > "$dumps/~/p.OuterTest.lines"
+      printf 'p/Calc.kt\t4\n' > "$dumps/~/p.AddTest.exec"
+    fi
     ;;
 esac
 """
@@ -250,9 +264,9 @@ def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, m
 
     runs = (tmp_path / "log").read_text().splitlines()
 
-    assert runs[0] == "test jacocoTestReport"
-    assert len(runs) == 4
-    assert "test --rerun --tests p.MulTest --tests p.NegTest jacocoTestReport" in runs
+    assert len(runs) == 1
+    assert "--init-script" in runs[0]
+    assert runs[0].endswith("test --rerun jacocoTestReport")
     assert KOTLIN_CLASSES[MANY] == [("", "p.MulTest"), ("", "p.NegTest")]
     assert leftovers(root) == []
 
@@ -265,8 +279,30 @@ def leftovers(root):
     ) + [p.name for p in cache.rglob("by-file")]
 
 
+def test_the_per_file_fallback_attributes_each_line_and_leaves_nothing_behind(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("FAKE_LISTENER_FAIL", "1")
+    root, scan = make(tmp_path, monkeypatch=monkeypatch)
+
+    _, selection = collect_coverage_with_tests(root, [scan], None)
+
+    assert selection[CALC] == {
+        4: frozenset({ADD, OUTER}),
+        8: frozenset({MANY, OUTER}),
+        12: frozenset({MANY}),
+    }
+
+    runs = (tmp_path / "log").read_text().splitlines()
+
+    assert len(runs) == 4
+    assert "test --rerun --tests p.MulTest --tests p.NegTest jacocoTestReport" in runs
+    assert leftovers(root) == []
+
+
 def test_the_per_file_run_deletes_no_report_and_ignores_one_it_did_not_write(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_NO_REPORT", "1")
+    monkeypatch.setenv("FAKE_LISTENER_FAIL", "1")
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
 
     _, selection = collect_coverage_with_tests(root, [scan], None)
@@ -303,7 +339,7 @@ def test_a_class_with_no_file_leaves_no_selection_and_names_it(tmp_path, monkeyp
     assert not KOTLIN_CLASSES
 
 
-def test_two_files_declaring_one_class_in_one_project_or_a_package_less_file_fall_back(
+def test_two_files_declaring_one_class_or_a_package_less_file_fall_back(
     tmp_path, monkeypatch, capsys
 ):
     files = {**SOURCES, "src/test/kotlin/p/AddTest2.kt": SOURCES[ADD]}
@@ -324,6 +360,7 @@ def test_a_failing_or_reportless_run_leaves_no_selection(tmp_path, monkeypatch, 
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
     whole = (root / "gradlew").read_text()
     monkeypatch.setenv(variable, "1")
+    monkeypatch.setenv("FAKE_LISTENER_FAIL", "1")
 
     _, selection = collect_coverage_with_tests(root, [scan], None)
 

@@ -4,11 +4,48 @@ import shutil
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
+LISTENER_RESOURCES = Path(__file__).parent / "listener"
+
+LISTENER_FILES = ("RecognizerListener.java", "recognizer-coverage.init.gradle")
+
+LISTENER_DIRECTORY = ".recognizer/cache/gradle"
+
+DUMPS_DIRECTORY = ".recognizer/cache/coverage/kotlin/dumps"
+
 STORE_DIRECTORY = ".recognizer/cache/coverage/kotlin/selection"
 
 HEADER = "tests.json"
 
+ROOT_PROJECT_DIRECTORY = "~"
+
 Lines = dict[int, frozenset[str]]
+
+
+def prepare_listener(repository: Path) -> list[str] | None:
+    target = repository / LISTENER_DIRECTORY
+    dumps = repository / DUMPS_DIRECTORY
+
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+
+        for name in LISTENER_FILES:
+            shutil.copyfile(LISTENER_RESOURCES / name, target / name)
+
+        shutil.rmtree(dumps, ignore_errors=True)
+        dumps.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+
+    return [
+        "--init-script",
+        str(target / LISTENER_FILES[1]),
+        f"-Drecognizer.listener={target}",
+        f"-Drecognizer.dumps={dumps}",
+    ]
+
+
+def project_of_directory(name: str) -> str:
+    return "" if name == ROOT_PROJECT_DIRECTORY else name.replace("~", ":")
 
 
 def parse_lines(text: str, files: list[str]) -> dict[str, list[int]]:
@@ -28,6 +65,17 @@ def parse_lines(text: str, files: list[str]) -> dict[str, list[int]]:
                 found.append(int(number))
 
     return covered
+
+
+def dumped_classes(repository: Path) -> dict[tuple[str, str], Path]:
+    found: dict[tuple[str, str], Path] = {}
+    root = repository / DUMPS_DIRECTORY
+
+    for folder in sorted(p for p in root.glob("*") if p.is_dir()):
+        for lines in sorted(folder.glob("*.lines")):
+            found[(project_of_directory(folder.name), lines.name[: -len(".lines")])] = lines
+
+    return found
 
 
 def record_name(path: str) -> str:
