@@ -1,4 +1,4 @@
-import type { Diagnosis } from "recognizer";
+import { type Diagnosis, type Gap, isGap } from "recognizer";
 
 export type ScanEvent =
   | {
@@ -20,7 +20,9 @@ export type ScanEvent =
   | ({ event: "progress"; phase: "sense"; name: string } & SensorStep)
   | ({ event: "stopped"; phase: "describe" } & DescribeStop)
   | ({ event: "confirm"; phase: "describe" } & DescribeAsk)
-  | { event: "summary" };
+  | { event: "preflight"; state: "run" | "ok" }
+  | { event: "preflight"; state: "gaps"; gaps: Gap[] }
+  | { event: "summary"; exit?: number };
 
 export type DescribeAsk = {
   modules: number;
@@ -105,7 +107,11 @@ export function parseScanLine(text: string): ScanEvent | null {
 
   switch (line.event) {
     case "summary":
-      return { event: "summary" };
+      return typeof line.exit === "number"
+        ? { event: "summary", exit: line.exit }
+        : { event: "summary" };
+    case "preflight":
+      return preflightEvent(line);
     case "phase":
       return phaseEvent(line);
     case "stopped":
@@ -123,6 +129,26 @@ export function parseScanLine(text: string): ScanEvent | null {
     default:
       return null;
   }
+}
+
+function preflightEvent(line: Record<string, unknown>): ScanEvent | null {
+  if (line.state === "run") {
+    return { event: "preflight", state: "run" };
+  }
+
+  if (line.state === "ok") {
+    return { event: "preflight", state: "ok" };
+  }
+
+  if (line.state === "gaps" && Array.isArray(line.gaps)) {
+    return {
+      event: "preflight",
+      state: "gaps",
+      gaps: line.gaps.filter(isGap),
+    };
+  }
+
+  return null;
 }
 
 function isCount(value: unknown): value is number {
@@ -312,6 +338,8 @@ export function foldProgress(
 
       return { ...state, sensorProgress };
     }
+    case "preflight":
+      return state;
     case "summary":
       return { ...state, extractSettled: true, done: true };
     case "stopped": {
@@ -416,7 +444,9 @@ export function describeStopText(stop: DescribeStop): string {
   const counts = `${count(stop.described)} described, ${count(stop.notDescribed)} not described. The next scan describes the rest.`;
 
   if (stop.cause === "failures") {
-    return `Stopped: ${stop.threshold} describing calls failed in a row. ${counts}`;
+    const last = stop.reason === "" ? "" : ` (last: ${stop.reason})`;
+
+    return `Stopped: ${stop.threshold} describing calls failed in a row${last}. ${counts}`;
   }
 
   const reason = stop.reason === "" ? "" : `: ${stop.reason}`;

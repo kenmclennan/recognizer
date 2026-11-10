@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -16,6 +16,7 @@ const MODULES_DIR: &str = ".recognizer/cache";
 const MARKER: &str = ".recognizer/cache/scan-running.json";
 const MARKER_PROGRESS: &str = ".recognizer/cache/scan-running.progress.jsonl";
 const REFUSED_EXIT: i32 = 3;
+const PREFLIGHT_EXIT: i32 = 4;
 const STARTED_BY: &str = "RECOGNIZER_STARTED_BY";
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -223,6 +224,44 @@ fn modules_file(folder: &Path, label: &str) -> PathBuf {
         .join(format!("scan-modules-{safe}.json"))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FixKind {
+    Repository,
+    Outside,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Fix {
+    pub text: String,
+    pub command: Option<Vec<String>>,
+    pub cwd: String,
+    pub env: BTreeMap<String, String>,
+    pub kind: FixKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GapProject {
+    pub language: String,
+    pub directory: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Gap {
+    pub id: String,
+    pub line: String,
+    pub needs: Vec<String>,
+    pub project: Option<GapProject>,
+    pub fix: Fix,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FixResult {
+    pub ok: bool,
+    pub reason: Option<String>,
+}
+
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(
     tag = "status",
@@ -250,6 +289,9 @@ pub enum ScanRun {
         phases: Vec<String>,
         detail: String,
     },
+    Gaps {
+        gaps: Vec<Gap>,
+    },
 }
 
 #[derive(Default)]
@@ -260,7 +302,10 @@ struct Handle {
 }
 
 #[derive(Default)]
-pub struct ScanRuns(Mutex<HashMap<String, Handle>>);
+pub struct ScanRuns {
+    handles: Mutex<HashMap<String, Handle>>,
+    gaps: Mutex<HashMap<String, Vec<Gap>>>,
+}
 
 pub fn kill_group(pid: u32) {
     let _ = Command::new("/bin/kill")
@@ -274,7 +319,27 @@ pub fn kill_group(pid: u32) {
 
 impl ScanRuns {
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Handle>> {
-        self.0.lock().unwrap_or_else(|error| error.into_inner())
+        self.handles
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
+    pub fn set_gaps(&self, label: &str, gaps: Vec<Gap>) {
+        let mut held = self.gaps.lock().unwrap_or_else(|error| error.into_inner());
+
+        if gaps.is_empty() {
+            held.remove(label);
+        } else {
+            held.insert(label.to_string(), gaps);
+        }
+    }
+
+    pub fn gap(&self, label: &str, id: &str) -> Option<Gap> {
+        self.gaps
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get(label)
+            .and_then(|gaps| gaps.iter().find(|gap| gap.id == id).cloned())
     }
 
     pub fn begin(&self, label: &str) -> Result<(), String> {
@@ -451,6 +516,48 @@ pub fn nothing_ran(
     Some((idle.iter().map(|phase| phase.to_string()).collect(), detail))
 }
 
+pub fn preflight_gaps(line: &str) -> Option<Vec<Gap>> {
+    let event: serde_json::Value = serde_json::from_str(line).ok()?;
+
+    if event.get("event")?.as_str()? != "preflight" || event.get("state")?.as_str()? != "gaps" {
+        return None;
+    }
+
+    serde_json::from_value(event.get("gaps")?.clone()).ok()
+}
+
+fn fault_gap(fault: &ToolFault, needs: Vec<String>) -> Gap {
+    let (id, text) = fault.gap_parts();
+
+    Gap {
+        id,
+        line: fault.message(),
+        needs,
+        project: None,
+        fix: Fix {
+            text,
+            command: None,
+            cwd: String::new(),
+            env: BTreeMap::new(),
+            kind: FixKind::Outside,
+        },
+    }
+}
+
+fn ticked(describe: Describe, measure: &[String], sense: &[String]) -> Vec<String> {
+    let mut names: Vec<String> = measure.iter().chain(sense).cloned().collect();
+
+    if describe != Describe::Off {
+        names.push("describe".to_string());
+    }
+
+    if names.is_empty() {
+        names.push("scan".to_string());
+    }
+
+    names
+}
+
 fn refusal(fault: ToolFault) -> ScanRun {
     match fault {
         ToolFault::Missing { .. } => ScanRun::CommandMissing {
@@ -519,8 +626,14 @@ pub fn run_with(
     }
 
     if let Err(fault) = runner.check_all() {
-        return refusal(fault);
+        let gaps = vec![fault_gap(&fault, ticked(describe, measure, sense))];
+
+        runs.set_gaps(label, gaps.clone());
+
+        return ScanRun::Gaps { gaps };
     }
+
+    runs.set_gaps(label, Vec::new());
 
     if let Some(marker) = live_marker(folder) {
         return ScanRun::Refused {
@@ -557,7 +670,7 @@ pub fn run_with(
         }
     }
 
-    let result = spawn_and_stream(
+    let mut result = spawn_and_stream(
         runs,
         label,
         folder,
@@ -577,7 +690,123 @@ pub fn run_with(
 
     runs.finish(label);
 
+    if let ScanRun::Gaps { gaps } = &mut result {
+        runs.set_gaps(label, gaps.clone());
+    }
+
     result
+}
+
+fn resolve_fix_path(folder: &Path, relative: &str) -> Option<PathBuf> {
+    let path = Path::new(relative);
+
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return None;
+    }
+
+    Some(folder.join(path))
+}
+
+pub fn run_fix_with(
+    runs: &ScanRuns,
+    label: &str,
+    folder: &Path,
+    runner: &ToolRunner,
+    gap_id: &str,
+) -> FixResult {
+    let refuse = |reason: &str| FixResult {
+        ok: false,
+        reason: Some(reason.to_string()),
+    };
+    let Some(gap) = runs.gap(label, gap_id) else {
+        return refuse("no such fix is held for this window");
+    };
+    let fix = gap.fix;
+
+    if fix.kind != FixKind::Repository {
+        return refuse("this fix runs outside the repository, so it is run by hand");
+    }
+
+    let Some((program, args)) = fix.command.as_deref().and_then(|argv| argv.split_first()) else {
+        return refuse("this fix has no command to run");
+    };
+    let Some(cwd) = resolve_fix_path(folder, &fix.cwd) else {
+        return refuse("the fix folder is outside the repository");
+    };
+    let Some(mut process) = runner.plain_command(program) else {
+        return refuse(&format!("{program} was not found"));
+    };
+
+    for (name, value) in &fix.env {
+        let resolved = if value.starts_with(".recognizer/") {
+            match resolve_fix_path(folder, value) {
+                Some(path) => path.display().to_string(),
+                None => return refuse("a fix path is outside the repository"),
+            }
+        } else {
+            value.clone()
+        };
+
+        process.env(name, resolved);
+    }
+
+    process
+        .args(args)
+        .current_dir(&cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        process.process_group(0);
+    }
+
+    if let Err(reason) = runs.begin(label) {
+        return refuse(&reason);
+    }
+
+    let outcome = match process.spawn() {
+        Ok(mut child) => {
+            runs.started(label, child.id());
+
+            let mut bytes = Vec::new();
+
+            if let Some(mut stderr) = child.stderr.take() {
+                let _ = stderr.read_to_end(&mut bytes);
+            }
+
+            child.wait().map(|status| (status, bytes))
+        }
+        Err(error) => Err(error),
+    };
+    let stopped = runs.finish(label);
+
+    match outcome {
+        Ok((status, _)) if status.success() && !stopped => FixResult {
+            ok: true,
+            reason: None,
+        },
+        Ok((_, _)) if stopped => refuse("the fix was stopped"),
+        Ok((status, bytes)) => {
+            let text = strip_escapes(&String::from_utf8_lossy(&bytes));
+            let last = text
+                .lines()
+                .rev()
+                .find(|line| !line.trim().is_empty())
+                .map(|line| line.trim().to_string())
+                .unwrap_or_else(|| format!("the fix exited with {status}"));
+
+            refuse(&last)
+        }
+        Err(error) => refuse(&error.to_string()),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -648,6 +877,7 @@ fn spawn_and_stream(
 
     let mut log = None;
     let mut summary = None;
+    let mut gaps = None;
 
     let (stderr_text, status) = std::thread::scope(|scope| {
         let collected = scope.spawn(move || {
@@ -676,6 +906,10 @@ fn spawn_and_stream(
                         summary = Some(event);
                     }
 
+                    if let Some(found) = preflight_gaps(&line) {
+                        gaps = Some(found);
+                    }
+
                     emit(line);
                 }
             }
@@ -688,6 +922,16 @@ fn spawn_and_stream(
 
     let stopped = runs.lock().get(label).is_some_and(|handle| handle.stopped);
     let exit = status.ok().and_then(|status| status.code());
+
+    if exit == Some(PREFLIGHT_EXIT) && !stopped {
+        return match gaps {
+            Some(gaps) => ScanRun::Gaps { gaps },
+            None => ScanRun::Failed {
+                exit_code: PREFLIGHT_EXIT,
+                stderr: stderr_text,
+            },
+        };
+    }
 
     let idle = nothing_ran(
         &requested_phases(describe, measure, sense),
@@ -1407,14 +1651,22 @@ mod tests {
             &|_| {},
         );
 
-        match result {
-            ScanRun::Refused { reason } => {
-                assert!(reason.contains("1.2.3"));
-                assert!(reason.contains("0.1.108"));
-                assert!(reason.contains("recognizer-scan-python"));
-                assert!(reason.contains("brew reinstall --cask kenmclennan/tap/recognizer"));
+        match &result {
+            ScanRun::Gaps { gaps } => {
+                assert_eq!(gaps.len(), 1);
+                assert_eq!(gaps[0].id, "toolchain:recognizer-scan-python");
+                assert_eq!(gaps[0].needs, vec!["scan".to_string()]);
+                assert!(gaps[0].line.contains("1.2.3"));
+                assert!(gaps[0].line.contains("0.1.108"));
+                assert!(gaps[0].line.contains("recognizer-scan-python"));
+                assert_eq!(
+                    gaps[0].fix.text,
+                    "brew reinstall --cask kenmclennan/tap/recognizer"
+                );
+                assert_eq!(gaps[0].fix.kind, FixKind::Outside);
+                assert_eq!(gaps[0].fix.command, None);
             }
-            other => panic!("expected Refused, got {other:?}"),
+            other => panic!("expected Gaps, got {other:?}"),
         }
 
         assert!(!runs.running("w-1"));
@@ -1620,6 +1872,223 @@ mod tests {
             ),
             ScanRun::Refused {
                 reason: "a scan is already running".to_string()
+            }
+        );
+    }
+
+    fn gap(id: &str, kind: FixKind, command: Option<Vec<&str>>) -> Gap {
+        Gap {
+            id: id.to_string(),
+            line: "coverage and pytest are not installed".to_string(),
+            needs: vec!["crap".to_string()],
+            project: Some(GapProject {
+                language: "python".to_string(),
+                directory: "sensors".to_string(),
+            }),
+            fix: Fix {
+                text: "uv sync".to_string(),
+                command: command.map(|argv| argv.into_iter().map(String::from).collect()),
+                cwd: "sub".to_string(),
+                env: BTreeMap::from([(
+                    "UV_PROJECT_ENVIRONMENT".to_string(),
+                    ".recognizer/cache/python-envs/sensors".to_string(),
+                )]),
+                kind,
+            },
+        }
+    }
+
+    #[test]
+    fn gaps_serialise_with_a_status_and_the_gap_shape() {
+        let value = serde_json::to_value(ScanRun::Gaps {
+            gaps: vec![gap("a", FixKind::Repository, Some(vec!["uv", "sync"]))],
+        })
+        .unwrap();
+
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "status": "gaps",
+                "gaps": [{
+                    "id": "a",
+                    "line": "coverage and pytest are not installed",
+                    "needs": ["crap"],
+                    "project": {"language": "python", "directory": "sensors"},
+                    "fix": {
+                        "text": "uv sync",
+                        "command": ["uv", "sync"],
+                        "cwd": "sub",
+                        "env": {"UV_PROJECT_ENVIRONMENT": ".recognizer/cache/python-envs/sensors"},
+                        "kind": "repository"
+                    }
+                }]
+            })
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exit_four_with_a_preflight_event_is_gaps_and_without_one_is_failed() {
+        let dir = TempDir::new().unwrap();
+        let event = serde_json::json!({
+            "event": "preflight",
+            "state": "gaps",
+            "gaps": [gap("a", FixKind::Repository, Some(vec!["uv", "sync"]))]
+        });
+        let with = fake_command(dir.path(), &format!("echo '{event}'\nexit 4"));
+        let runs = ScanRuns::default();
+        let (result, _) = collect(
+            &runs,
+            dir.path(),
+            &with,
+            Describe::Off,
+            &[],
+            &names(&["crap"]),
+        );
+
+        match result {
+            ScanRun::Gaps { gaps } => assert_eq!(gaps[0].id, "a"),
+            other => panic!("expected Gaps, got {other:?}"),
+        }
+
+        assert!(runs.gap("w-1", "a").is_some());
+
+        let without = fake_command(dir.path(), "echo oops >&2\nexit 4");
+        let (result, _) = collect(
+            &runs,
+            dir.path(),
+            &without,
+            Describe::Off,
+            &[],
+            &names(&["crap"]),
+        );
+
+        assert!(matches!(result, ScanRun::Failed { exit_code: 4, .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_last_gaps_are_replaced_by_the_next_run() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+
+        runs.set_gaps(
+            "w-1",
+            vec![gap("old", FixKind::Repository, Some(vec!["uv", "sync"]))],
+        );
+
+        let command = fake_command(dir.path(), "echo ran");
+        let (result, _) = collect(&runs, dir.path(), &command, Describe::Off, &[], &[]);
+
+        assert!(matches!(result, ScanRun::Finished { .. }));
+        assert!(runs.gap("w-1", "old").is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_fix_refuses_an_unknown_id_an_outside_fix_and_a_command_less_fix() {
+        let dir = TempDir::new().unwrap();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let runs = ScanRuns::default();
+
+        runs.set_gaps(
+            "w-1",
+            vec![
+                gap("outside", FixKind::Outside, Some(vec!["touch", "x"])),
+                gap("manual", FixKind::Repository, None),
+            ],
+        );
+
+        for id in ["missing", "outside", "manual"] {
+            let result = run_fix_with(&runs, "w-1", dir.path(), &runner, id);
+
+            assert!(!result.ok, "{id}");
+        }
+
+        assert!(!dir.path().join("x").exists());
+        assert!(!runs.running("w-1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_fix_runs_a_held_repository_fix_in_the_window_folder() {
+        let dir = TempDir::new().unwrap();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let runs = ScanRuns::default();
+
+        fs::create_dir(dir.path().join("sub")).unwrap();
+        runs.set_gaps(
+            "w-1",
+            vec![gap(
+                "fix",
+                FixKind::Repository,
+                Some(vec![
+                    "sh",
+                    "-c",
+                    "pwd > ran.txt; echo $UV_PROJECT_ENVIRONMENT > env.txt",
+                ]),
+            )],
+        );
+
+        let result = run_fix_with(&runs, "w-1", dir.path(), &runner, "fix");
+        let root = fs::canonicalize(dir.path()).unwrap();
+
+        assert_eq!(
+            result,
+            FixResult {
+                ok: true,
+                reason: None
+            }
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("sub/ran.txt"))
+                .unwrap()
+                .trim(),
+            root.join("sub").display().to_string()
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("sub/env.txt"))
+                .unwrap()
+                .trim(),
+            dir.path()
+                .join(".recognizer/cache/python-envs/sensors")
+                .display()
+                .to_string()
+        );
+        assert!(!runs.running("w-1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_fix_reports_the_last_line_of_stderr() {
+        let dir = TempDir::new().unwrap();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let runs = ScanRuns::default();
+
+        fs::create_dir(dir.path().join("sub")).unwrap();
+        runs.set_gaps(
+            "w-1",
+            vec![gap(
+                "fix",
+                FixKind::Repository,
+                Some(vec![
+                    "sh",
+                    "-c",
+                    "echo first >&2; echo no network >&2; exit 1",
+                ]),
+            )],
+        );
+
+        let result = run_fix_with(&runs, "w-1", dir.path(), &runner, "fix");
+
+        assert_eq!(
+            result,
+            FixResult {
+                ok: false,
+                reason: Some("no network".to_string())
             }
         );
     }

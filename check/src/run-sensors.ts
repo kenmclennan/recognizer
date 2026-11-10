@@ -18,6 +18,11 @@ import { measuredInputs } from "./structure-sensor.js";
 
 export const SENSOR_TIMEOUT_MS = 60_000;
 
+const UNMEASURED = new Set<Diagnosis["code"]>([
+  "tool-missing",
+  "coverage-unavailable",
+]);
+
 export interface RunSensorsInput {
   io: Io;
   root: string;
@@ -110,6 +115,14 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       } catch (error) {
         reason = `could not record inputs: ${(error as Error).message}`;
       }
+    }
+
+    if (
+      reason === null &&
+      diagnosis !== undefined &&
+      UNMEASURED.has(diagnosis.code)
+    ) {
+      reason = diagnosis.line;
     }
 
     const entry = entryFrom(name, {

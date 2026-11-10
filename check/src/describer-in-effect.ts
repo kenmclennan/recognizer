@@ -12,6 +12,19 @@ export interface DescriberInEffect extends Describer {
 }
 
 export function describerInEffect(io: Io, root: string): DescriberInEffect {
+  const found = findDescriber(io, root);
+
+  if (found === null) {
+    throw new InputError([NONE_REGISTERED]);
+  }
+
+  return found;
+}
+
+const NONE_REGISTERED =
+  "no describer is registered: add one to .recognizer/config.yaml and recognizer-describe-claude is not installed";
+
+export function findDescriber(io: Io, root: string): DescriberInEffect | null {
   const configured = readConfig(io, root)?.describer;
 
   if (configured !== undefined) {
@@ -28,9 +41,7 @@ export function describerInEffect(io: Io, root: string): DescriberInEffect {
   const version = run.started && run.status === 0 ? firstLine(run.stdout) : "";
 
   if (version === "") {
-    throw new InputError([
-      "no describer is registered: add one to .recognizer/config.yaml and recognizer-describe-claude is not installed",
-    ]);
+    return null;
   }
 
   const shipped = { command: [...SHIPPED_DESCRIBER_COMMAND], version };

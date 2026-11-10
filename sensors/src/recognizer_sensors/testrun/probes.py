@@ -9,7 +9,12 @@ from pathlib import Path
 from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import diagnose
-from recognizer_sensors.testrun.profiles import python_lock, tool_environment, vitest_project
+from recognizer_sensors.testrun.profiles import (
+    environment_folder,
+    python_lock,
+    tool_environment,
+    vitest_project,
+)
 from recognizer_sensors.testrun.projects import Project, ancestors, resolve
 
 COVERLET = "coverlet.collector"
@@ -35,6 +40,18 @@ TEST_SCRIPT_FIX = "add a test script to package.json"
 
 PROBE_SECONDS = 120
 
+PREFLIGHT_SECONDS = 30
+
+WOULD_CREATE = "Would create project environment"
+
+
+class ProbeTimedOut(Exception):
+    def __init__(self, command: list[str], seconds: int) -> None:
+        super().__init__(" ".join(command))
+
+        self.command = command
+        self.seconds = seconds
+
 
 @dataclass(frozen=True)
 class Probe:
@@ -51,25 +68,36 @@ def not_installed(tool: str, fix: str) -> Probe:
 
 
 def answers(
-    command: list[str], repository: Path, directory: str = ""
+    command: list[str],
+    repository: Path,
+    directory: str = "",
+    bound: int | None = None,
+    environment: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess | None:
     try:
         return subprocess.run(
             command,
             cwd=repository / directory,
-            env=tool_environment(repository, directory),
+            env=environment if environment is not None else tool_environment(repository, directory),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             check=False,
-            timeout=PROBE_SECONDS,
+            timeout=PROBE_SECONDS if bound is None else bound,
         )
+    except subprocess.TimeoutExpired:
+        if bound is not None:
+            raise ProbeTimedOut(command, bound) from None
+
+        return None
     except (OSError, subprocess.SubprocessError):
         return None
 
 
-def missing_modules(python: list[str], repository: Path, directory: str = "") -> list[str] | None:
-    result = answers([*python, "-c", FIND_SPEC], repository, directory)
+def missing_modules(
+    python: list[str], repository: Path, directory: str = "", bound: int | None = None
+) -> list[str] | None:
+    result = answers([*python, "-c", FIND_SPEC], repository, directory, bound)
 
     if result is None or result.returncode != 0:
         return None
@@ -84,12 +112,27 @@ def noun(names: list[str]) -> tuple[str, str]:
     return f"{' and '.join(names)} are", "them"
 
 
-def probe_python(repository: Path, directory: str = "") -> Probe:
+def environment_absent(repository: Path, directory: str, bound: int) -> bool:
+    environment = {
+        **os.environ,
+        "UV_PROJECT_ENVIRONMENT": str(environment_folder(repository, directory, None)),
+    }
+    result = answers(
+        ["uv", "sync", "--frozen", "--dry-run"], repository, directory, bound, environment
+    )
+
+    return result is not None and WOULD_CREATE in f"{result.stdout}\n{result.stderr}"
+
+
+def probe_python(repository: Path, directory: str = "", bound: int | None = None) -> Probe:
     lock = python_lock(repository, directory)
 
     if lock == "uv.lock":
         if shutil.which("uv") is None:
             return not_installed("uv", "brew install uv")
+
+        if bound is not None:
+            return Probe()
 
         absent = missing_modules(["uv", "run", "python"], repository, directory)
         names = list(PYTHON_MODULES) if absent is None else absent
@@ -107,7 +150,7 @@ def probe_python(repository: Path, directory: str = "") -> Probe:
 
         python, fix = ["python3"], "python3 -m pip install"
 
-    absent = missing_modules(python, repository, directory)
+    absent = missing_modules(python, repository, directory, bound)
 
     if not absent:
         return Probe()
@@ -198,11 +241,11 @@ def probe_kotlin(repository: Path, directory: str = "") -> Probe:
     return Probe()
 
 
-def probe_rust(repository: Path, directory: str = "") -> Probe:
+def probe_rust(repository: Path, directory: str = "", bound: int | None = None) -> Probe:
     if shutil.which("cargo") is None:
         return not_installed("cargo", "brew install rustup")
 
-    result = answers(["cargo", "llvm-cov", "--version"], repository, directory)
+    result = answers(["cargo", "llvm-cov", "--version"], repository, directory, bound)
 
     if result is None or result.returncode != 0:
         return not_installed("cargo-llvm-cov", "cargo install cargo-llvm-cov")
@@ -233,13 +276,13 @@ def project_has_coverlet(repository: Path, directory: Path) -> bool:
         current = current.parent
 
 
-def probe_csharp(repository: Path, scan: Scan) -> Probe:
+def probe_csharp(repository: Path, scan: Scan, bound: int | None = None) -> Probe:
     fix = "brew install --cask dotnet-sdk"
 
     if shutil.which("dotnet") is None:
         return not_installed("dotnet", fix)
 
-    result = answers(["dotnet", "--version"], repository)
+    result = answers(["dotnet", "--version"], repository, bound=bound)
 
     if result is None or result.returncode != 0:
         return not_installed("dotnet", fix)
@@ -260,9 +303,11 @@ def probe_csharp(repository: Path, scan: Scan) -> Probe:
     return Probe()
 
 
-def probe_language(repository: Path, scan: Scan, directory: str = "") -> Probe:
+def probe_language(
+    repository: Path, scan: Scan, directory: str = "", bound: int | None = None
+) -> Probe:
     if scan.language == "python":
-        return probe_python(repository, directory)
+        return probe_python(repository, directory, bound)
 
     if scan.language == "typescript":
         return probe_typescript(repository, directory)
@@ -271,10 +316,10 @@ def probe_language(repository: Path, scan: Scan, directory: str = "") -> Probe:
         return probe_kotlin(repository, directory)
 
     if scan.language == "rust":
-        return probe_rust(repository, directory)
+        return probe_rust(repository, directory, bound)
 
     if scan.language == "csharp":
-        return probe_csharp(repository, scan)
+        return probe_csharp(repository, scan, bound)
 
     return Probe()
 

@@ -475,3 +475,41 @@ describe("the describe confirmation", () => {
     ).toBeNull();
   });
 });
+
+describe("parseScanLine preflight and summary exit", () => {
+  const gap = {
+    id: "g",
+    line: "x is missing",
+    needs: ["crap"],
+    project: null,
+    fix: { text: "fix it", command: null, cwd: "", env: {}, kind: "outside" },
+  };
+
+  it("reads the run, ok and gaps states and drops a malformed gap", () => {
+    expect(parseScanLine('{"event":"preflight","state":"run"}')).toEqual({
+      event: "preflight",
+      state: "run",
+    });
+    expect(parseScanLine('{"event":"preflight","state":"ok"}')).toEqual({
+      event: "preflight",
+      state: "ok",
+    });
+    expect(
+      parseScanLine(
+        JSON.stringify({
+          event: "preflight",
+          state: "gaps",
+          gaps: [gap, { id: 1 }],
+        }),
+      ),
+    ).toEqual({ event: "preflight", state: "gaps", gaps: [gap] });
+    expect(parseScanLine('{"event":"preflight","state":"x"}')).toBeNull();
+  });
+
+  it("carries the summary exit when there is one", () => {
+    expect(parseScanLine('{"event":"summary","exit":4}')).toEqual({
+      event: "summary",
+      exit: 4,
+    });
+  });
+});

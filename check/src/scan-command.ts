@@ -1,5 +1,5 @@
 import { join, relative, resolve } from "node:path";
-import { readDescribing } from "./app-settings.js";
+import { type Describing, readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
@@ -16,11 +16,13 @@ import {
   type DescribeProjection,
   projectionText,
 } from "./describe-projection.js";
-import { describerInEffect } from "./describer-in-effect.js";
+import { findDescriber } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
+import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
+import { earlyGaps, projectGaps } from "./preflight.js";
 import {
   entryFrom,
   openPhasedRunLog,
@@ -340,9 +342,14 @@ function* scanFlow(
   let describer: Describer | undefined;
 
   if (options.describe !== false) {
-    const { source: _source, ...found } = describerInEffect(io, root);
+    const found = findDescriber(io, root);
 
-    describer = found;
+    if (found !== null) {
+      const { source: _source, ...rest } = found;
+
+      describer = rest;
+    }
+
     readResponsibilities(io, root);
   }
 
@@ -379,6 +386,10 @@ function* scanFlow(
     DescribeResult | undefined
   > {
     const commit = resolveCommit(io, root);
+    const scoped = (command: string[]): string[] =>
+      options.modules !== undefined && isScoped(command)
+        ? [...command, "--modules", resolve(options.modules)]
+        : command;
 
     const emit = (line: string) => {
       taken?.append(line);
@@ -387,10 +398,6 @@ function* scanFlow(
         io.stdout(line);
       }
     };
-
-    if (options.sense !== null && commit === null) {
-      throw new InputError(["not a git repository, or no commit"]);
-    }
 
     const modified = commit === null ? null : isDirty(io, root);
     const detected = detectLanguages(io, root);
@@ -402,7 +409,13 @@ function* scanFlow(
       detected.length > 0 || wantsConfig
         ? openPhasedRunLog(io, root, startedAt, options.by, argv)
         : null;
+    const skippedPhases: { phase: string; reason: string }[] = [];
     let failed = false;
+
+    const skip = (phase: string, reason: string) => {
+      skippedPhases.push({ phase, reason });
+      runLog?.skip({ phase, reason });
+    };
 
     const startPhase = (phase: RunPhase["phase"]): RunPhase => {
       const one: RunPhase = { phase, entries: [] };
@@ -437,6 +450,69 @@ function* scanFlow(
 
     if (detected.length === 0) {
       io.stderr("no languages detected\n");
+    }
+
+    const ticked = selected.map(({ name, command }) => ({
+      name,
+      command: scoped(command),
+    }));
+    const describing: Describing | null =
+      options.describe !== false ? readDescribing(io) : null;
+
+    const refuse = (gaps: Gap[]): number => {
+      const reason = `preflight found ${gaps.length} ${gaps.length === 1 ? "gap" : "gaps"}`;
+
+      emit(preflightLine({ state: "gaps", gaps }));
+
+      if (!json) {
+        for (const gap of gaps) {
+          io.stderr(`${gapText(gap)}\n`);
+        }
+      }
+
+      if (options.describe !== false) {
+        skip("describe", reason);
+      }
+
+      if (options.sense !== null) {
+        skip("sense", reason);
+      }
+
+      runLog?.finish(phases, true);
+
+      emit(
+        summaryLine({
+          repository: root,
+          commit,
+          modified,
+          exit: 4,
+          phases: phases.map((one) => ({
+            phase: one.phase,
+            entries: summary.get(one.phase) ?? [],
+          })),
+          removed,
+          skipped: skippedPhases,
+          log: runLog?.id() ?? null,
+        }),
+      );
+
+      return 4;
+    };
+
+    emit(preflightLine({ state: "run" }));
+
+    const early = earlyGaps({
+      io,
+      root,
+      commit,
+      sensors: ticked,
+      describe: options.describe !== false,
+      describer: describer ?? null,
+      model: describing?.model ?? "",
+    });
+
+    if (early.length > 0) {
+      return refuse(early);
     }
 
     const decision = decideExtraction(
@@ -528,6 +604,14 @@ function* scanFlow(
       .map((language) => readCachedScan(io, root, language))
       .filter((scan): scan is RecordedScan => scan !== null);
 
+    const later = commit === null ? [] : projectGaps(io, root, commit, ticked);
+
+    if (later.length > 0) {
+      return refuse(later);
+    }
+
+    emit(preflightLine({ state: "ok" }));
+
     if (runStructure(io, root, scans)) {
       failed = true;
     }
@@ -538,10 +622,11 @@ function* scanFlow(
       for (const language of detected) {
         if (readCachedScan(io, root, language) === null) {
           io.stderr(`skipped: no scan for ${language}\n`);
+          skip("describe", `no scan for ${language}`);
         }
       }
 
-      const { model, batch_size: batchSize } = readDescribing(io);
+      const { model, batch_size: batchSize } = describing as Describing;
       const result = (yield {
         kind: "describe",
         input: {
@@ -627,7 +712,7 @@ function* scanFlow(
       }
     }
 
-    if (options.sense !== null && commit !== null) {
+    if (options.sense !== null) {
       const phase = startPhase("sense");
 
       emit(phaseLine("sense", { total: selected.length }));
@@ -639,13 +724,10 @@ function* scanFlow(
           root,
           selected: selected.map((one) => ({
             ...one,
-            command:
-              options.modules !== undefined && isScoped(one.command)
-                ? [...one.command, "--modules", resolve(options.modules)]
-                : one.command,
+            command: scoped(one.command),
             runsTests: runsTests(one.command),
           })),
-          commit,
+          commit: commit ?? "",
           scans,
           onStart: (name) => {
             emit(startLine("sense", name));
@@ -681,6 +763,7 @@ function* scanFlow(
           entries: summary.get(one.phase) ?? [],
         })),
         removed,
+        skipped: skippedPhases,
         log: runLog?.id() ?? null,
       }),
     );

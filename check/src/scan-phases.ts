@@ -320,9 +320,10 @@ export function summaryLine(summary: {
   repository: string;
   commit: string | null;
   modified: boolean | null;
-  exit: 0 | 1;
+  exit: 0 | 1 | 4;
   phases: { phase: PhaseName; entries: EventEntry[] }[];
   removed: string[];
+  skipped: { phase: string; reason: string }[];
   log: string | null;
 }): string {
   return `${JSON.stringify({ event: "summary", ...summary })}\n`;

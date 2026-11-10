@@ -3891,3 +3891,61 @@ svg.i.chevron {
   fill: var(--faint);
   font-size: 10px;
 }
+
+.scan-preflight {
+  margin-top: 10px;
+}
+
+.preflight-box {
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preflight-box-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.preflight-box-count {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.preflight-gap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preflight-gap-where {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.preflight-gap-failure {
+  color: var(--bad);
+  font-size: 0.9em;
+}
+
+.preflight-gap-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preflight-gap-command {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.preflight-gap-fixed {
+  color: var(--ok);
+}

@@ -14,6 +14,7 @@ import { interpretReply, LIMIT_STATUS, LimitError } from "./reply.js";
 
 const TIMEOUT_MS = 120_000;
 const PACKAGE_FILE = new URL("../package.json", import.meta.url);
+const CHECK_FLAG = "--check";
 const USAGE = "usage: recognizer-describe-claude --model <name> <request-file>";
 
 function claudeArgs(model: string): string[] {
@@ -169,7 +170,15 @@ async function main(args: string[]): Promise<number> {
   }
 
   try {
-    const { model, file } = parseArguments(args);
+    const { file } = parseArguments(args);
+
+    if (file === CHECK_FLAG) {
+      process.stdout.write("ok\n");
+
+      return 0;
+    }
+
+    const { model } = parseArguments(args);
 
     let text: string;
 
