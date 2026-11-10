@@ -3,7 +3,6 @@ import os
 import shlex
 from pathlib import Path
 
-from recognizer_sensors.backup import exclude_from_backup
 from recognizer_sensors.testrun.projects import Project, ancestors, slugify
 
 PLUGIN_DIRECTORY = Path(__file__).parent / "plugin"
@@ -147,9 +146,6 @@ def coverage_runner(runner: list[str], interpreter: Path) -> list[str]:
     return [*isolated(runner), "python", wrapper, shlex.quote(str(interpreter)), "-m"]
 
 
-MARKED_ENVIRONMENTS: set[Path] = set()
-
-
 def environment_folder(repository: Path, directory: str, slug: str | None) -> Path:
     if not directory:
         return repository / UV_ENVIRONMENT
@@ -158,17 +154,14 @@ def environment_folder(repository: Path, directory: str, slug: str | None) -> Pa
 
 
 def tool_environment(
-    repository: Path, directory: str = "", mark: bool = True, slug: str | None = None
+    repository: Path, directory: str = "", slug: str | None = None
 ) -> dict[str, str] | None:
     if python_lock(repository, directory) != "uv.lock":
         return None
 
     environment = environment_folder(repository, directory, slug)
 
-    if mark and not (environment in MARKED_ENVIRONMENTS and environment.is_dir()):
-        environment.mkdir(parents=True, exist_ok=True)
-        exclude_from_backup(environment)
-        MARKED_ENVIRONMENTS.add(environment)
+    environment.mkdir(parents=True, exist_ok=True)
 
     return {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment)}
 

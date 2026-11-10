@@ -16,7 +16,6 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
-from recognizer_sensors.backup import exclude_from_backup
 from recognizer_sensors.testrun.profiles import python_lock, tool_environment
 from recognizer_sensors.testrun.projects import slugify
 
@@ -310,7 +309,7 @@ def run_test_command(
     env = (
         {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment), "UV_NO_EDITABLE": "0"}
         if environment is not None
-        else tool_environment(cwd, mark=False)
+        else tool_environment(cwd)
     )
 
     try:
@@ -389,7 +388,6 @@ class EnvironmentPool:
                 return
 
             self.folder.mkdir(parents=True, exist_ok=True)
-            exclude_from_backup(self.folder.parent)
             (self.folder / PID_FILE).write_text(str(os.getpid()))
 
     @contextmanager
@@ -778,7 +776,6 @@ def run_functions(
 def new_work_folder(repository: Path) -> Path:
     folder = repository / WORK / f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
     folder.mkdir(parents=True)
-    exclude_from_backup(folder.parent)
     (folder / PID_FILE).write_text(str(os.getpid()))
 
     return folder

@@ -68,12 +68,6 @@ exit 0
 """
 
 
-@pytest.fixture(autouse=True)
-def no_backup_marking(monkeypatch):
-    monkeypatch.setattr(profiles, "exclude_from_backup", lambda folder: None)
-    monkeypatch.setattr(runner, "exclude_from_backup", lambda folder: None)
-
-
 def scan_of(language: str, files: list[str], skip: tuple[str, ...] = ()) -> Scan:
     return Scan(language, tuple(ScanModule(f, (f,)) for f in files), False, skip_paths=skip)
 
@@ -188,7 +182,7 @@ def test_a_root_only_repository_keeps_every_command_path_and_environment(tmp_pat
 
     (root / "uv.lock").write_text("")
 
-    assert tool_environment(root, mark=False) == {
+    assert tool_environment(root) == {
         **os.environ,
         "UV_PROJECT_ENVIRONMENT": str(root / ".recognizer/cache/python-env"),
     }
