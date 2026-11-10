@@ -1,5 +1,9 @@
 import hashlib
+import json
+import signal
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from test_kotlin_selection import (
@@ -7,7 +11,9 @@ from test_kotlin_selection import (
 )
 
 from recognizer_sensors import cli
-from recognizer_sensors.testrun import gradle, profiles
+from recognizer_sensors.mutation import runner, sensor
+from recognizer_sensors.settings import MeasurementError
+from recognizer_sensors.testrun import gradle, memory, profiles
 from recognizer_sensors.testrun.run import (
     collect_coverage_with_tests,
 )
@@ -180,3 +186,117 @@ def test_a_tests_running_sensor_stops_the_daemons_when_it_ends_or_fails(
         object.__setattr__(sensor_entry, "run", original)
 
     assert stopped == [root]
+
+
+def test_the_coverage_stop_signal_stops_the_daemons(tmp_path, monkeypatch):
+    stopped = []
+    monkeypatch.setattr(runner, "stop_daemons", lambda repository: stopped.append(repository))
+    runner.STOP.clear()
+    restore = runner.install_coverage_stop_handler(tmp_path)
+
+    try:
+        with pytest.raises(runner.StoppedBeforeMutation):
+            signal.raise_signal(signal.SIGTERM)
+    finally:
+        restore()
+        runner.STOP.clear()
+
+    assert stopped == [tmp_path]
+
+
+def test_the_mutation_stop_path_stops_the_daemons_before_exiting(tmp_path, monkeypatch):
+    stopped = []
+    codes = []
+    monkeypatch.setattr(runner, "stop_daemons", lambda repository: stopped.append(repository))
+    monkeypatch.setattr(runner.os, "_exit", lambda code: codes.append(code))
+    watchdog_started = threading.Event()
+    never = threading.Event()
+
+    def park_the_watchdog(_seconds):
+        watchdog_started.set()
+        never.wait()
+
+    monkeypatch.setattr(runner.time, "sleep", park_the_watchdog)
+    work = tmp_path / "work"
+    work.mkdir()
+    runner.STOP.clear()
+    restore = runner.install_stop_handler(work, repository=tmp_path)
+
+    try:
+        signal.raise_signal(signal.SIGTERM)
+        signal.raise_signal(signal.SIGTERM)
+    finally:
+        restore()
+        runner.STOP.clear()
+
+    assert watchdog_started.wait(5)
+    assert stopped == [tmp_path]
+    assert codes == [runner.STOPPED_STATUS]
+
+
+def test_the_default_worker_count_follows_free_memory_for_kotlin():
+    gib = 1024**3
+
+    assert memory.kotlin_workers(8, 6 * gib) == 2
+    assert memory.kotlin_workers(8, None) == 8
+    assert memory.kotlin_workers(8, 1 * gib) == 1
+    assert memory.kotlin_workers(2, 64 * gib) == 2
+
+
+def test_the_memory_readers_parse_sample_text():
+    assert memory.parse_meminfo("MemTotal: 10 kB\nMemAvailable:    2048 kB\n") == 2048 * 1024
+    assert memory.parse_meminfo("MemTotal: 10 kB\n") is None
+
+    vm_stat = (
+        "Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+        "Pages free:                               100.\n"
+        "Pages active:                             999.\n"
+        "Pages inactive:                           200.\n"
+        "Pages speculative:                         50.\n"
+    )
+
+    assert memory.parse_vm_stat(vm_stat) == 350 * 16384
+    assert memory.parse_vm_stat("nothing") is None
+
+
+def settings_of(raw):
+    return sensor.parse_settings(raw)
+
+
+def test_an_unset_worker_count_is_marked_default_and_an_explicit_one_is_not():
+    assert isinstance(settings_of({})["max_workers"], sensor.DefaultWorkers)
+    assert not isinstance(settings_of({"max_workers": 4})["max_workers"], sensor.DefaultWorkers)
+    assert json.dumps(settings_of({})["max_workers"]).isdigit()
+
+
+def run_with_workers(tmp_path, monkeypatch, raw, language):
+    seen = {}
+    monkeypatch.setattr(sensor, "free_memory", lambda: 6 * 1024**3)
+    monkeypatch.setattr(sensor.os, "cpu_count", lambda: 8)
+
+    def stop_early(repository, scans, coverage):
+        seen["settings"] = True
+        raise MeasurementError("stop")
+
+    monkeypatch.setattr(sensor, "collect_coverage_with_tests", stop_early)
+    parsed = sensor.parse_settings(raw)
+    captured = {}
+    real = sensor.kotlin_workers
+
+    def spy(cores, free):
+        captured["workers"] = real(cores, free)
+
+        return captured["workers"]
+
+    monkeypatch.setattr(sensor, "kotlin_workers", spy)
+
+    with pytest.raises(MeasurementError):
+        sensor.run(tmp_path, [SimpleNamespace(language=language)], parsed, "abc")
+
+    return captured.get("workers")
+
+
+def test_kotlin_workers_default_by_memory_and_an_explicit_setting_is_kept(tmp_path, monkeypatch):
+    assert run_with_workers(tmp_path, monkeypatch, {}, "kotlin") == 2
+    assert run_with_workers(tmp_path, monkeypatch, {"max_workers": 4}, "kotlin") is None
+    assert run_with_workers(tmp_path, monkeypatch, {}, "python") is None

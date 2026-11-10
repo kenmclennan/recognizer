@@ -16,6 +16,7 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
+from recognizer_sensors.testrun.gradle import stop_daemons
 from recognizer_sensors.testrun.profiles import python_lock, tool_environment
 from recognizer_sensors.testrun.projects import slugify
 
@@ -835,7 +836,9 @@ def stop_all() -> None:
                 kill_group(process)
 
 
-def install_stop_handler(work: Path, *also: Path) -> Callable[[], None]:
+def install_stop_handler(
+    work: Path, *also: Path, repository: Path | None = None
+) -> Callable[[], None]:
     requested = threading.Event()
 
     def leave() -> None:
@@ -844,6 +847,9 @@ def install_stop_handler(work: Path, *also: Path) -> Callable[[], None]:
 
         for folder in also:
             remove_work_folder(folder)
+
+        if repository is not None:
+            stop_daemons(repository)
 
         os._exit(STOPPED_STATUS)
 
@@ -873,12 +879,15 @@ def install_stop_handler(work: Path, *also: Path) -> Callable[[], None]:
     return restore
 
 
-def install_coverage_stop_handler() -> Callable[[], None]:
+def install_coverage_stop_handler(repository: Path | None = None) -> Callable[[], None]:
     def on_signal(_signum: int, _frame: object) -> None:
         if STOP.is_set():
             return
 
         STOP.set()
+
+        if repository is not None:
+            stop_daemons(repository)
 
         raise StoppedBeforeMutation
 

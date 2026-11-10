@@ -184,6 +184,35 @@ def test_build_output_beside_a_manifest_survives_and_other_new_paths_do_not(tmp_
         remove_work_folder(folder)
 
 
+def test_gradle_build_and_cache_folders_beside_a_build_file_survive(tmp_path, work):
+    root = make_repository(
+        tmp_path / "r",
+        {"build.gradle.kts": "plugins {}\n", "m.py": MODULE, "test_m.py": TESTS},
+    )
+    git_commit(root)
+    folder = new_work_folder(root)
+    copies = MutantCopies(root, folder, 1)
+    script = [
+        sys.executable,
+        "-c",
+        "import os; os.makedirs('build/classes'); open('build/classes/a','w').write('x');"
+        "os.makedirs('.gradle/v'); open('.gradle/v/b','w').write('x');"
+        "os.makedirs('elsewhere'); open('elsewhere/c','w').write('x')",
+    ]
+
+    try:
+        run_mutant(root, folder, 0, SURVIVING, script, 60.0, copies=copies)
+
+        with copies.lease() as slot:
+            copy = slot.prepare()
+
+            assert (copy.path / "build" / "classes" / "a").read_text() == "x"
+            assert (copy.path / ".gradle" / "v" / "b").read_text() == "x"
+            assert not (copy.path / "elsewhere").exists()
+    finally:
+        remove_work_folder(folder)
+
+
 def test_a_timed_out_run_retires_the_copy(project, work):
     copies = MutantCopies(project, work, 1)
     slow = [sys.executable, "-c", "import time; time.sleep(30)"]

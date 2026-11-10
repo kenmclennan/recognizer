@@ -62,6 +62,7 @@ from recognizer_sensors.settings import (
     relative_path,
 )
 from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed
+from recognizer_sensors.testrun.memory import free_memory, kotlin_workers
 from recognizer_sensors.testrun.profiles import (
     RUST_UNITS,
     USER_COMMANDS,
@@ -156,6 +157,10 @@ def parse_carry(value: object) -> tuple[str, ...]:
     return tuple(item.rstrip("/") for item in value if item.rstrip("/"))
 
 
+class DefaultWorkers(int):
+    pass
+
+
 def parse_settings(raw: dict) -> dict:
     unknown = sorted(set(raw) - ALLOWED)
 
@@ -173,7 +178,7 @@ def parse_settings(raw: dict) -> dict:
     if not factor > 0:
         raise SettingsError("timeout_factor must be above 0")
 
-    workers = settings.get("max_workers", os.cpu_count() or 1)
+    workers = settings.get("max_workers", DefaultWorkers(os.cpu_count() or 1))
 
     if isinstance(workers, bool) or not isinstance(workers, int):
         raise SettingsError("max_workers must be an integer")
@@ -811,12 +816,20 @@ def run(
 ) -> Outcome:
     configured = settings.get("test_command")
 
+    if isinstance(settings["max_workers"], DefaultWorkers) and any(
+        scan.language == "kotlin" for scan in scans
+    ):
+        settings = {
+            **settings,
+            "max_workers": kotlin_workers(int(settings["max_workers"]), free_memory()),
+        }
+
     USER_COMMANDS.clear()
 
     if configured is not None:
         USER_COMMANDS.add(tuple(configured))
 
-    restore_coverage_handler = install_coverage_stop_handler()
+    restore_coverage_handler = install_coverage_stop_handler(repository)
 
     report("coverage")
 
@@ -979,7 +992,7 @@ def run(
             repository, work, settings["max_workers"], settings.get("carry", ())
         )
         remove_stale_work_folders(environments.folder)
-        restore_handler = install_stop_handler(work, environments.folder)
+        restore_handler = install_stop_handler(work, environments.folder, repository=repository)
 
         try:
             baselines = Baselines(
