@@ -418,6 +418,42 @@ describe("runSensors diagnosis", () => {
     });
   });
 
+  for (const code of ["tool-missing", "coverage-unavailable"]) {
+    it(`fails an exit-zero sensor whose diagnosis is ${code} with the diagnosis line as the reason`, async () => {
+      const { root, io } = setup();
+      const diagnosis = {
+        code,
+        line: "coverage and pytest are not installed",
+        fix: "uv sync",
+      };
+      const [entry] = await runSensors({
+        io,
+        root,
+        commit: COMMIT,
+        scans: [],
+        selected: [
+          {
+            name: "quick",
+            command: [
+              process.execPath,
+              "-e",
+              WRITES_DIAGNOSIS,
+              "{commit}",
+              "{output}",
+              JSON.stringify(diagnosis),
+            ],
+          },
+        ],
+      });
+
+      expect(entry).toMatchObject({
+        outcome: "failed",
+        reason: diagnosis.line,
+        diagnosis,
+      });
+    });
+  }
+
   for (const [label, reason] of [
     ["not valid JSON", "recognizer-reason {nope"],
     [

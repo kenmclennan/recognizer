@@ -402,7 +402,13 @@ function* scanFlow(
       detected.length > 0 || wantsConfig
         ? openPhasedRunLog(io, root, startedAt, options.by, argv)
         : null;
+    const skippedPhases: { phase: string; reason: string }[] = [];
     let failed = false;
+
+    const skip = (phase: string, reason: string) => {
+      skippedPhases.push({ phase, reason });
+      runLog?.skip({ phase, reason });
+    };
 
     const startPhase = (phase: RunPhase["phase"]): RunPhase => {
       const one: RunPhase = { phase, entries: [] };
@@ -538,6 +544,7 @@ function* scanFlow(
       for (const language of detected) {
         if (readCachedScan(io, root, language) === null) {
           io.stderr(`skipped: no scan for ${language}\n`);
+          skip("describe", `no scan for ${language}`);
         }
       }
 
@@ -681,6 +688,7 @@ function* scanFlow(
           entries: summary.get(one.phase) ?? [],
         })),
         removed,
+        skipped: skippedPhases,
         log: runLog?.id() ?? null,
       }),
     );

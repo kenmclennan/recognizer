@@ -25,6 +25,11 @@ export interface RunPhase {
   entries: RunEntry[];
 }
 
+export interface SkippedPhase {
+  phase: string;
+  reason: string;
+}
+
 export interface RunRecord {
   log_version: 1;
   kind: RunKind;
@@ -36,6 +41,7 @@ export interface RunRecord {
   exit: 0 | 1;
   entries?: RunEntry[];
   phases?: RunPhase[];
+  skipped?: SkippedPhase[];
 }
 
 export function entriesOf(record: RunRecord): RunEntry[] {
@@ -161,6 +167,7 @@ export function buildPhasedRecord(
   argv: string[],
   phases: RunPhase[],
   running: boolean,
+  skipped: SkippedPhase[] = [],
 ): RunRecord {
   const failed = phases.some((phase) =>
     phase.entries.some((entry) => entry.outcome === "failed"),
@@ -176,6 +183,7 @@ export function buildPhasedRecord(
     outcome: running ? "running" : failed ? "failed" : "ok",
     exit: running ? 0 : failed ? 1 : 0,
     phases,
+    ...(skipped.length === 0 ? {} : { skipped: [...skipped] }),
   };
 }
 
@@ -272,6 +280,7 @@ export interface OpenRunLog {
 
 export interface OpenPhasedRunLog {
   id(): string | null;
+  skip(skipped: SkippedPhase): void;
   update(phases: RunPhase[]): void;
   finish(phases: RunPhase[]): void;
 }
@@ -315,15 +324,38 @@ export function openPhasedRunLog(
   const snapshot = (phases: RunPhase[]): RunPhase[] =>
     phases.map((one) => ({ phase: one.phase, entries: [...one.entries] }));
 
+  const skipped: SkippedPhase[] = [];
+
   write(buildPhasedRecord(io, startedAt, by, argv, [], true));
 
   return {
     id,
+    skip: (one) => {
+      skipped.push(one);
+    },
     update: (phases) =>
-      write(buildPhasedRecord(io, startedAt, by, argv, snapshot(phases), true)),
+      write(
+        buildPhasedRecord(
+          io,
+          startedAt,
+          by,
+          argv,
+          snapshot(phases),
+          true,
+          skipped,
+        ),
+      ),
     finish: (phases) =>
       write(
-        buildPhasedRecord(io, startedAt, by, argv, snapshot(phases), false),
+        buildPhasedRecord(
+          io,
+          startedAt,
+          by,
+          argv,
+          snapshot(phases),
+          false,
+          skipped,
+        ),
       ),
   };
 }

@@ -323,6 +323,7 @@ export function summaryLine(summary: {
   exit: 0 | 1;
   phases: { phase: PhaseName; entries: EventEntry[] }[];
   removed: string[];
+  skipped: { phase: string; reason: string }[];
   log: string | null;
 }): string {
   return `${JSON.stringify({ event: "summary", ...summary })}\n`;

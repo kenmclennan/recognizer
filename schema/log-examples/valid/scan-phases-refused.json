@@ -1,0 +1,45 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-10T09:00:00.000Z",
+  "finished": "2026-11-10T09:00:02.000Z",
+  "by": "ken",
+  "arguments": [
+    "/work/shop",
+    "--describe",
+    "--sense",
+    "all"
+  ],
+  "outcome": "failed",
+  "exit": 1,
+  "phases": [
+    {
+      "phase": "extract",
+      "entries": [
+        {
+          "name": "python",
+          "command": [
+            "recognizer-scan-python",
+            "/work/shop",
+            "--output",
+            "/tmp/recognizer-scan-x/scan.python.json"
+          ],
+          "status": 0,
+          "outcome": "ok",
+          "duration_ms": 2400,
+          "stderr": ""
+        }
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "phase": "describe",
+      "reason": "preflight found 2 gaps"
+    },
+    {
+      "phase": "sense",
+      "reason": "preflight found 2 gaps"
+    }
+  ]
+}

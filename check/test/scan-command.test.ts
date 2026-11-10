@@ -482,6 +482,7 @@ describe("recognizer scan: summary", () => {
           },
         ],
         removed: [],
+        skipped: [],
         log: "20261102T000000001Z-scan",
       },
     ]);
