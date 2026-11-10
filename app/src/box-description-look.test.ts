@@ -20,9 +20,10 @@ const TEXT = { left: "Parses the input.", right: "Writes the output.", bottom: L
 const moduleBar = { kind: "module", dependencies: 0, notes: null, findings: null, files: null, focused: false, folded: false, inspectorTab: null };
 const keys = { notesOpen: false, noteActive: false, findingsOpen: false };
 const noteOn = (id) => ({ marks: new Set([id]), active: id, bubbles: [{ path: id, text: "A note.", by: null, editing: false, focused: true }], keys });
+const titles = new Map();
 const describe = (id) => (id === "dir" ? null : TEXT[id] ?? null);
 const props = (over) => ({
-  scene, selection: null, highlight: null, bar: null, titles: new Map(), open: 5, total: 5,
+  scene, selection: null, highlight: null, bar: null, titles, open: 5, total: 5,
   showInferred: true, notice: null, describe, ...over,
 });
 
@@ -90,9 +91,28 @@ hoverShow("left");
 q(".stage").dispatchEvent(new WheelEvent("wheel", { deltaX: 0, deltaY: 5, bubbles: true, cancelable: true }));
 facts.afterWheel = showing();
 
+const classChanges = [];
+const classWatch = new MutationObserver((records) => { for (const m of records) classChanges.push(m.attributeName); });
+const leftNode = nodeOf("left");
 hoverShow("left");
+classWatch.observe(panel(), { attributes: true, attributeFilter: ["class"] });
 canvas.render(props());
-facts.afterRender = showing();
+facts.keptSame = { shown: showing(), sameNode: nodeOf("left") === leftNode, changes: classChanges.length };
+canvas.render(props({ describe: (id) => (id === "right" ? "Changed." : describe(id)) }));
+facts.keptOtherChanged = showing();
+classWatch.disconnect();
+canvas.render(props({ describe: (id) => (id === "left" ? "Changed." : describe(id)) }));
+facts.afterOwnText = showing();
+canvas.render(props());
+
+hoverShow("left");
+canvas.render(props({ selection: { kind: "module", id: "left" }, bar: moduleBar }));
+facts.afterSelection = showing();
+canvas.render(props());
+
+hoverShow("left");
+canvas.render(props({ scene: { ...scene } }));
+facts.afterScene = showing();
 
 hoverShow("plain");
 facts.noDescription = showing();
@@ -159,7 +179,11 @@ type Facts = {
   afterLeave: boolean;
   afterPointerDown: boolean;
   afterWheel: boolean;
-  afterRender: boolean;
+  keptSame: { shown: boolean; sameNode: boolean; changes: number };
+  keptOtherChanged: boolean;
+  afterOwnText: boolean;
+  afterSelection: boolean;
+  afterScene: boolean;
   noDescription: boolean;
   folder: boolean;
   rightNote: Note;
@@ -210,11 +234,23 @@ describe.skipIf(!webkit)("box description look", () => {
     expect(facts.folder).toBe(false);
   });
 
-  it("goes away on leave, pointerdown, wheel and render", () => {
+  it("goes away on leave, pointerdown and wheel", () => {
     expect(facts.afterLeave).toBe(false);
     expect(facts.afterPointerDown).toBe(false);
     expect(facts.afterWheel).toBe(false);
-    expect(facts.afterRender).toBe(false);
+  });
+
+  it("stays shown across a render that changes nothing about its box", () => {
+    expect(facts.keptSame.shown).toBe(true);
+    expect(facts.keptSame.sameNode).toBe(true);
+    expect(facts.keptSame.changes).toBe(0);
+    expect(facts.keptOtherChanged).toBe(true);
+  });
+
+  it("goes away on a render that changes its text, the selection or the scene", () => {
+    expect(facts.afterOwnText).toBe(false);
+    expect(facts.afterSelection).toBe(false);
+    expect(facts.afterScene).toBe(false);
   });
 
   it("stays disjoint from the note bubble on both sides", () => {

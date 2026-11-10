@@ -3,6 +3,7 @@ import type { Scheduler } from "./bar-hover";
 import {
   BOX_DESCRIPTION_DELAY_MS,
   createDescriptionHover,
+  descriptionSurvives,
   placeDescription,
 } from "./box-description";
 
@@ -244,5 +245,47 @@ describe("placeDescription", () => {
         null,
       ),
     ).toBe(null);
+  });
+});
+
+describe("descriptionSurvives", () => {
+  it("keeps a held description when nothing relevant changed", () => {
+    expect(descriptionSurvives("a", false, true, "t", "t")).toBe(true);
+  });
+
+  it("resets when nothing is held", () => {
+    expect(descriptionSurvives(null, false, true, null, null)).toBe(false);
+  });
+
+  it("resets when the scene was redrawn", () => {
+    expect(descriptionSurvives("a", true, true, "t", "t")).toBe(false);
+  });
+
+  it("resets when the selection changed", () => {
+    expect(descriptionSurvives("a", false, false, "t", "t")).toBe(false);
+  });
+
+  it("resets when the held box's text changed", () => {
+    expect(descriptionSurvives("a", false, true, "t", "u")).toBe(false);
+  });
+});
+
+describe("DescriptionHover.held", () => {
+  it("reports the pending id, the shown id and null after leave", () => {
+    const { clock, hover } = hoverWith();
+
+    expect(hover.held()).toBeNull();
+
+    hover.enter("a");
+
+    expect(hover.held()).toBe("a");
+
+    clock.fire();
+
+    expect(hover.held()).toBe("a");
+
+    hover.leave();
+
+    expect(hover.held()).toBeNull();
   });
 });

@@ -74,6 +74,68 @@ facts.afterMove = [tips(), document.querySelector(".module-tip .module-tip-path"
 leave(rowB);
 facts.afterLeave = tips();
 
+const removals = [];
+const watch = new MutationObserver((records) => {
+  for (const r of records) for (const n of r.removedNodes) if (n.classList && n.classList.contains("module-tip")) removals.push(1);
+});
+watch.observe(document.body, { childList: true });
+const host = document.createElement("div");
+document.body.append(host);
+const make = (path, description) => {
+  const r = document.createElement("div");
+  r.style.cssText = "position:fixed;left:20px;width:200px;height:24px;top:300px";
+  attachModuleTip(r, { path, description });
+  return r;
+};
+const first = make("pkg/k.py", "Old text.");
+host.append(first);
+enter(first);
+const tipNode = document.querySelector(".module-tip");
+const second2 = make("pkg/k.py", "New text.");
+host.replaceChildren(second2);
+await flush();
+enter(second2);
+await flush();
+facts.follow = {
+  count: tips(),
+  same: document.querySelector(".module-tip") === tipNode,
+  removals: removals.length,
+  text: tipNode.textContent,
+};
+
+const other = make("pkg/other.py", "Other.");
+host.replaceChildren(other);
+await flush();
+facts.differentKey = tips();
+
+const third = make("pkg/k.py", "Again.");
+host.replaceChildren(third);
+enter(third);
+host.replaceChildren();
+await flush();
+facts.noReplacement = tips();
+
+const fourth = make("pkg/k.py", "Four.");
+host.append(fourth);
+enter(fourth);
+const decoy = make("pkg/decoy.py", "Decoy.");
+const fifth = make("pkg/k.py", "Five.");
+host.replaceChildren(decoy, fifth);
+await flush();
+facts.mixedFollow = [tips(), document.querySelector(".module-tip").textContent];
+leave(fifth);
+facts.leaveReplacement = tips();
+
+const sixth = make("pkg/k.py", "Six.");
+host.replaceChildren(sixth);
+enter(sixth);
+const seventh = make("pkg/k.py", "Seven.");
+host.replaceChildren(seventh);
+await flush();
+seventh.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+facts.pointerdownReplacement = tips();
+watch.disconnect();
+
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message); });
 `;
@@ -92,9 +154,34 @@ describe.skipIf(webkit === undefined)("the hover tip", () => {
     expect(f.treeAfterRemoval).toBe(0);
   });
 
-  it("closes a Scan panel row's tip when a re-render replaces the row", () => {
+  it("keeps a Scan panel row's tip open when a re-render replaces the row", () => {
     expect(f.scanOpen).toBe(1);
-    expect(f.scanAfterRerender).toBe(0);
+    expect(f.scanAfterRerender).toBe(1);
+  });
+
+  it("keeps the same tip node open when its anchor is replaced for the same key", () => {
+    expect(f.follow.count).toBe(1);
+    expect(f.follow.same).toBe(true);
+    expect(f.follow.removals).toBe(0);
+  });
+
+  it("shows the replacement's own content in the followed tip", () => {
+    expect(f.follow.text).toContain("New text.");
+    expect(f.follow.text).not.toContain("Old text.");
+  });
+
+  it("closes the tip when the replacement is for a different key or there is none", () => {
+    expect(f.differentKey).toBe(0);
+    expect(f.noReplacement).toBe(0);
+  });
+
+  it("follows the same-key element when a different-key one is also present", () => {
+    expect(f.mixedFollow).toEqual([1, expect.stringContaining("Five.")]);
+  });
+
+  it("closes the tip on mouseleave or pointerdown on the replacement", () => {
+    expect(f.leaveReplacement).toBe(0);
+    expect(f.pointerdownReplacement).toBe(0);
   });
 
   it("keeps at most one tip open, across both kinds", () => {
