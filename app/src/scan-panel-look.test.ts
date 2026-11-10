@@ -561,7 +561,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
   });
 
-  it("remembers the switch through the port and sends the view's module ids when it is on, and a click on the Update button runs the unticked rows once the scope is off", () => {
+  it("remembers the switch through the port and sends the view's module ids when it is on, and a click on Run with the scope off starts no further run", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
     expect(f.scopeOffRan).toEqual([["app/a.py"]]);
