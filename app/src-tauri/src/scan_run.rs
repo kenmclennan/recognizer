@@ -256,6 +256,13 @@ pub struct Gap {
 }
 
 #[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FixResult {
+    pub ok: bool,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
 #[serde(
     tag = "status",
     rename_all = "kebab-case",
@@ -688,6 +695,118 @@ pub fn run_with(
     }
 
     result
+}
+
+fn resolve_fix_path(folder: &Path, relative: &str) -> Option<PathBuf> {
+    let path = Path::new(relative);
+
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return None;
+    }
+
+    Some(folder.join(path))
+}
+
+pub fn run_fix_with(
+    runs: &ScanRuns,
+    label: &str,
+    folder: &Path,
+    runner: &ToolRunner,
+    gap_id: &str,
+) -> FixResult {
+    let refuse = |reason: &str| FixResult {
+        ok: false,
+        reason: Some(reason.to_string()),
+    };
+    let Some(gap) = runs.gap(label, gap_id) else {
+        return refuse("no such fix is held for this window");
+    };
+    let fix = gap.fix;
+
+    if fix.kind != FixKind::Repository {
+        return refuse("this fix runs outside the repository, so it is run by hand");
+    }
+
+    let Some((program, args)) = fix.command.as_deref().and_then(|argv| argv.split_first()) else {
+        return refuse("this fix has no command to run");
+    };
+    let Some(cwd) = resolve_fix_path(folder, &fix.cwd) else {
+        return refuse("the fix folder is outside the repository");
+    };
+    let Some(mut process) = runner.plain_command(program) else {
+        return refuse(&format!("{program} was not found"));
+    };
+
+    for (name, value) in &fix.env {
+        let resolved = if value.starts_with(".recognizer/") {
+            match resolve_fix_path(folder, value) {
+                Some(path) => path.display().to_string(),
+                None => return refuse("a fix path is outside the repository"),
+            }
+        } else {
+            value.clone()
+        };
+
+        process.env(name, resolved);
+    }
+
+    process
+        .args(args)
+        .current_dir(&cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        process.process_group(0);
+    }
+
+    if let Err(reason) = runs.begin(label) {
+        return refuse(&reason);
+    }
+
+    let outcome = match process.spawn() {
+        Ok(mut child) => {
+            runs.started(label, child.id());
+
+            let mut bytes = Vec::new();
+
+            if let Some(mut stderr) = child.stderr.take() {
+                let _ = stderr.read_to_end(&mut bytes);
+            }
+
+            child.wait().map(|status| (status, bytes))
+        }
+        Err(error) => Err(error),
+    };
+    let stopped = runs.finish(label);
+
+    match outcome {
+        Ok((status, _)) if status.success() && !stopped => FixResult {
+            ok: true,
+            reason: None,
+        },
+        Ok((_, _)) if stopped => refuse("the fix was stopped"),
+        Ok((status, bytes)) => {
+            let text = strip_escapes(&String::from_utf8_lossy(&bytes));
+            let last = text
+                .lines()
+                .rev()
+                .find(|line| !line.trim().is_empty())
+                .map(|line| line.trim().to_string())
+                .unwrap_or_else(|| format!("the fix exited with {status}"));
+
+            refuse(&last)
+        }
+        Err(error) => refuse(&error.to_string()),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1863,5 +1982,114 @@ mod tests {
 
         assert!(matches!(result, ScanRun::Finished { .. }));
         assert!(runs.gap("w-1", "old").is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_fix_refuses_an_unknown_id_an_outside_fix_and_a_command_less_fix() {
+        let dir = TempDir::new().unwrap();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let runs = ScanRuns::default();
+
+        runs.set_gaps(
+            "w-1",
+            vec![
+                gap("outside", FixKind::Outside, Some(vec!["touch", "x"])),
+                gap("manual", FixKind::Repository, None),
+            ],
+        );
+
+        for id in ["missing", "outside", "manual"] {
+            let result = run_fix_with(&runs, "w-1", dir.path(), &runner, id);
+
+            assert!(!result.ok, "{id}");
+        }
+
+        assert!(!dir.path().join("x").exists());
+        assert!(!runs.running("w-1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_fix_runs_a_held_repository_fix_in_the_window_folder() {
+        let dir = TempDir::new().unwrap();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let runs = ScanRuns::default();
+
+        fs::create_dir(dir.path().join("sub")).unwrap();
+        runs.set_gaps(
+            "w-1",
+            vec![gap(
+                "fix",
+                FixKind::Repository,
+                Some(vec![
+                    "sh",
+                    "-c",
+                    "pwd > ran.txt; echo $UV_PROJECT_ENVIRONMENT > env.txt",
+                ]),
+            )],
+        );
+
+        let result = run_fix_with(&runs, "w-1", dir.path(), &runner, "fix");
+        let root = fs::canonicalize(dir.path()).unwrap();
+
+        assert_eq!(
+            result,
+            FixResult {
+                ok: true,
+                reason: None
+            }
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("sub/ran.txt"))
+                .unwrap()
+                .trim(),
+            root.join("sub").display().to_string()
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("sub/env.txt"))
+                .unwrap()
+                .trim(),
+            dir.path()
+                .join(".recognizer/cache/python-envs/sensors")
+                .display()
+                .to_string()
+        );
+        assert!(!runs.running("w-1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_fix_reports_the_last_line_of_stderr() {
+        let dir = TempDir::new().unwrap();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let runs = ScanRuns::default();
+
+        fs::create_dir(dir.path().join("sub")).unwrap();
+        runs.set_gaps(
+            "w-1",
+            vec![gap(
+                "fix",
+                FixKind::Repository,
+                Some(vec![
+                    "sh",
+                    "-c",
+                    "echo first >&2; echo no network >&2; exit 1",
+                ]),
+            )],
+        );
+
+        let result = run_fix_with(&runs, "w-1", dir.path(), &runner, "fix");
+
+        assert_eq!(
+            result,
+            FixResult {
+                ok: false,
+                reason: Some("no network".to_string())
+            }
+        );
     }
 }

@@ -662,6 +662,16 @@ impl ToolRunner {
         Ok(process)
     }
 
+    pub fn plain_command(&self, program: &str) -> Option<Command> {
+        let environment = self.environment_for()?;
+        let path = environment.find(program)?;
+        let mut process = Command::new(path);
+
+        process.env_clear().envs(self.pairs_for(&environment));
+
+        Some(process)
+    }
+
     pub fn check_all(&self) -> Result<(), ToolFault> {
         if self.toolchain.unchecked() {
             return Ok(());

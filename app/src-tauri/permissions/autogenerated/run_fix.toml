@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-run-fix"
+description = "Enables the run_fix command without any pre-configured scope."
+commands.allow = ["run_fix"]
+
+[[permission]]
+identifier = "deny-run-fix"
+description = "Denies the run_fix command without any pre-configured scope."
+commands.deny = ["run_fix"]
