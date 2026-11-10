@@ -16,9 +16,12 @@ from recognizer_sensors import cli
 from recognizer_sensors.mutation import runner, sensor
 from recognizer_sensors.settings import MeasurementError
 from recognizer_sensors.testrun import gradle, memory, profiles
+from recognizer_sensors.testrun.contexts import ContextSelection
+from recognizer_sensors.testrun.kotlin_store import STORE_DIRECTORY, KotlinStore, write_store
 from recognizer_sensors.testrun.run import (
     collect_coverage_with_tests,
     kotlin_class_map,
+    suite_size,
 )
 
 REAL_CACHE_ROOT = gradle.cache_root
@@ -351,3 +354,80 @@ def test_a_class_declared_by_two_files_of_one_project_still_has_no_single_file(
     (results / "TEST-p.XTest.xml").write_text("")
 
     assert kotlin_class_map(root) == "p.XTest"
+
+
+def synthetic(tests: int) -> dict:
+    names = [f"t/T{n}Test.kt" for n in range(tests)]
+
+    return {
+        "m/A.kt": {line: set(names[line % 2 :: 2]) for line in range(1, 40)},
+        "m/B.kt": {line: set(names) for line in range(1, 20)},
+    }
+
+
+def test_the_store_file_count_does_not_grow_with_the_test_files(tmp_path):
+    small = tmp_path / "small"
+    large = tmp_path / "large"
+    small.mkdir()
+    large.mkdir()
+
+    write_store(small, synthetic(4))
+    write_store(large, synthetic(8))
+
+    def count(root):
+        return len(list((root / STORE_DIRECTORY).iterdir()))
+
+    assert count(small) == count(large) == 3
+
+
+def test_a_record_stores_equal_index_lists_once(tmp_path):
+    write_store(tmp_path, synthetic(8))
+    folder = tmp_path / STORE_DIRECTORY
+    record = next(
+        json.loads(p.read_text())
+        for p in folder.glob("*.json")
+        if p.name != "tests.json" and json.loads(p.read_text())["path"] == "m/B.kt"
+    )
+
+    assert len(record["sets"]) == 1
+    assert len(record["lines"]) == 19
+    assert "t/T0Test.kt" not in json.dumps(record)
+
+
+def test_a_get_reads_one_record_and_the_suite_size_reads_none(tmp_path):
+    store = write_store(tmp_path, synthetic(6))
+    fresh = KotlinStore(tmp_path)
+
+    assert fresh.suite_files == store.suite_files
+    assert len(fresh.suite_files) == 6
+    assert fresh.reads == 0
+
+    lines = fresh["m/B.kt"]
+    fresh["m/B.kt"]
+
+    assert fresh.reads == 1
+    assert lines[3] == frozenset(f"t/T{n}Test.kt" for n in range(6))
+
+    with pytest.raises(KeyError):
+        fresh["missing.kt"]
+
+
+def test_the_selection_merges_the_store_with_eager_selections(tmp_path):
+    store = write_store(tmp_path, synthetic(4))
+    selection = ContextSelection({"x.ts": {1: frozenset({"x.test.ts"})}}, None, [store])
+
+    assert selection.get("m/A.kt") == store["m/A.kt"]
+    assert selection.get("x.ts") == {1: frozenset({"x.test.ts"})}
+    assert selection.get("nope") is None
+    assert sorted(selection) == ["m/A.kt", "m/B.kt", "x.ts"]
+    assert suite_size(selection) == 5
+
+
+def test_both_steps_failing_leaves_the_whole_suite_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FAKE_FAIL", "1")
+    root, scan = make(tmp_path, monkeypatch=monkeypatch)
+
+    _, selection = collect_coverage_with_tests(root, [scan], None)
+
+    assert selection == {}
+    assert "running the whole suite for kotlin" in capsys.readouterr().err

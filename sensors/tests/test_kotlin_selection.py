@@ -254,7 +254,15 @@ def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, m
     assert len(runs) == 4
     assert "test --rerun --tests p.MulTest --tests p.NegTest jacocoTestReport" in runs
     assert KOTLIN_CLASSES[MANY] == [("", "p.MulTest"), ("", "p.NegTest")]
-    assert not (root / ".recognizer/cache/coverage/kotlin/by-file").exists()
+    assert leftovers(root) == []
+
+
+def leftovers(root):
+    cache = root / ".recognizer/cache"
+
+    return sorted(
+        p.name for p in cache.rglob("*") if p.is_file() and p.suffix in (".exec", ".lines", ".xml")
+    ) + [p.name for p in cache.rglob("by-file")]
 
 
 def test_the_per_file_run_deletes_no_report_and_ignores_one_it_did_not_write(tmp_path, monkeypatch):
@@ -265,7 +273,7 @@ def test_the_per_file_run_deletes_no_report_and_ignores_one_it_did_not_write(tmp
 
     assert (root / REPORT).is_file()
     assert selection == {}
-    assert not (root / ".recognizer/cache/coverage/kotlin/by-file").exists()
+    assert leftovers(root) == []
 
 
 def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):

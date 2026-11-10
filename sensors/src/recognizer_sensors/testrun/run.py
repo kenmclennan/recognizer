@@ -31,6 +31,11 @@ from recognizer_sensors.testrun.failures import (
     named,
     suite_failed,
 )
+from recognizer_sensors.testrun.kotlin_store import (
+    STORE_DIRECTORY,
+    KotlinStore,
+    write_store,
+)
 from recognizer_sensors.testrun.probes import probe
 from recognizer_sensors.testrun.profiles import (
     COVERAGE_ROOT,
@@ -548,14 +553,17 @@ def usable_contexts(names: object, repository: Path) -> frozenset[str] | None:
 
 
 def python_selection(
-    repository: Path, eager: Selection | None = None, projects: list[Project] | None = None
+    repository: Path,
+    eager: Selection | None = None,
+    projects: list[Project] | None = None,
+    stores: list[KotlinStore] | None = None,
 ) -> ContextSelection:
     readers = [
         PythonContexts(repository, usable_contexts, project.directory, python_data_path(project))
         for project in projects or [Project("python")]
     ]
 
-    return ContextSelection(eager or {}, readers)
+    return ContextSelection(eager or {}, readers, stores or [])
 
 
 def single_root(projects: list[Project]) -> bool:
@@ -712,8 +720,58 @@ def kotlin_fallback(reason: str) -> Selection:
     return {}
 
 
-def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection:
+Executed = dict[str, dict[int, set[str]]]
+
+
+def kotlin_per_file(
+    repository: Path, mapped: dict[str, list[tuple[str, str]]], scanned: list[str]
+) -> Executed | None:
+    executed: Executed = {}
+
+    for file in sorted(mapped):
+        pairs = mapped[file]
+        project = pairs[0][0]
+
+        step = Step(
+            f"kotlin {file}",
+            kotlin_by_file_command(project, [n for _, n in pairs]),
+            "kotlin",
+        )
+
+        started = time.time()
+
+        try:
+            run_steps(repository, [step], "a", strict=True)
+        except MeasurementError as error:
+            kotlin_fallback(str(error))
+
+            return None
+
+        reports = fresh_reports(repository, KOTLIN_REPORT_GLOB, started)
+
+        if not reports:
+            kotlin_fallback(f"no coverage report for {file}")
+
+            return None
+
+        part = parse_jacoco(reports[0].read_text(encoding="utf-8", errors="replace"), scanned)
+
+        if part is None:
+            kotlin_fallback(f"no coverage report for {file}")
+
+            return None
+
+        for path, lines in part.items():
+            for line, hits in lines.items():
+                if hits > 0:
+                    executed.setdefault(path, {}).setdefault(line, set()).add(file)
+
+    return executed
+
+
+def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection | KotlinStore:
     KOTLIN_CLASSES.clear()
+    shutil.rmtree(repository / STORE_DIRECTORY, ignore_errors=True)
     mapped = kotlin_class_map(repository)
 
     if isinstance(mapped, str):
@@ -729,38 +787,23 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         return {}
 
     scanned = [path for module in scan.modules for path in module.files]
-    builder = SelectionBuilder()
+    executed = kotlin_per_file(repository, mapped, scanned)
 
-    for file in sorted(mapped):
-        pairs = mapped[file]
-        project = pairs[0][0]
+    if executed is None:
+        return {}
 
-        step = Step(
-            f"kotlin {file}", kotlin_by_file_command(project, [n for _, n in pairs]), "kotlin"
-        )
+    kept: Executed = {}
 
-        started = time.time()
+    for path, lines in whole.items():
+        for line, hits in lines.items():
+            files = executed.get(path, {}).get(line)
 
-        try:
-            run_steps(repository, [step], "a", strict=True)
-        except MeasurementError as error:
-            return kotlin_fallback(str(error))
-
-        reports = fresh_reports(repository, KOTLIN_REPORT_GLOB, started)
-
-        if not reports:
-            return kotlin_fallback(f"no coverage report for {file}")
-
-        part = parse_jacoco(reports[0].read_text(encoding="utf-8", errors="replace"), scanned)
-
-        if part is None:
-            return kotlin_fallback(f"no coverage report for {file}")
-
-        builder.add(file, part)
+            if hits > 0 and files:
+                kept.setdefault(path, {})[line] = files
 
     KOTLIN_CLASSES.update(mapped)
 
-    return builder.build(whole)
+    return write_store(repository, kept)
 
 
 def csharp_trx_classes(directory: Path) -> set[str] | None:
@@ -1054,6 +1097,7 @@ def collect_coverage_with_tests(
     shutil.rmtree(repository / COVERAGE_ROOT / "projects", ignore_errors=True)
     shutil.rmtree(repository / BY_FILE_DIRECTORY, ignore_errors=True)
     shutil.rmtree(repository / KOTLIN_BY_FILE_DIRECTORY, ignore_errors=True)
+    shutil.rmtree(repository / STORE_DIRECTORY, ignore_errors=True)
     shutil.rmtree(repository / CSHARP_BY_FILE_DIRECTORY, ignore_errors=True)
 
     for stale in (repository / CSHARP_DIRECTORY).glob("results_*.trx"):
@@ -1064,6 +1108,7 @@ def collect_coverage_with_tests(
     merged = read_reports(repository, sources, scans, steps, results, None, started)
     shutil.rmtree(repository / TYPESCRIPT_RAW_DIRECTORY, ignore_errors=True)
     selection: Selection = {}
+    stores: list[KotlinStore] = []
 
     python = False
 
@@ -1077,13 +1122,21 @@ def collect_coverage_with_tests(
         elif scan.language == "typescript":
             selection.update(typescript_selection(repository, scan, merged))
         elif scan.language == "kotlin":
-            selection.update(kotlin_selection(repository, scan, merged))
+            found = kotlin_selection(repository, scan, merged)
+
+            if isinstance(found, KotlinStore):
+                stores.append(found)
+            else:
+                selection.update(found)
         elif scan.language == "csharp":
             selection.update(csharp_selection(repository, merged))
         elif scan.language == "rust":
             selection.update(rust_selection(repository, merged))
 
     if python:
-        return merged, python_selection(repository, selection, projects["python"])
+        return merged, python_selection(repository, selection, projects["python"], stores)
+
+    if stores:
+        return merged, ContextSelection(selection, None, stores)
 
     return merged, selection

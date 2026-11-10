@@ -1,5 +1,5 @@
 import sys
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 
 from coverage import CoverageData
@@ -105,31 +105,30 @@ class PythonContexts:
 
 
 class ContextSelection(Mapping):
-    def __init__(self, eager: dict[str, Lines], python: "PythonContexts | list[PythonContexts]"):
+    def __init__(
+        self,
+        eager: dict[str, Lines],
+        python: "PythonContexts | list[PythonContexts] | None" = None,
+        stores: Sequence[Mapping] = (),
+    ):
         self.eager = eager
-        self.readers = python if isinstance(python, list) else [python]
+        self.readers = python if isinstance(python, list) else ([] if python is None else [python])
+        self.stores = list(stores)
 
     @property
-    def python(self) -> PythonContexts:
-        return self.readers[0]
+    def python(self) -> "PythonContexts | None":
+        return self.readers[0] if self.readers else None
 
     def reader_of(self, path: str) -> "PythonContexts | None":
         return next((reader for reader in self.readers if path in reader.raw), None)
 
-    def __getitem__(self, path: str) -> Lines:
-        if path in self.eager:
-            return self.eager[path]
-
-        reader = self.reader_of(path)
-
-        if reader is not None:
-            return reader.lines(path)
-
-        raise KeyError(path)
-
     def get(self, path, default=None):
         if path in self.eager:
             return self.eager[path]
+
+        for store in self.stores:
+            if path in store:
+                return store[path]
 
         reader = self.reader_of(path)
 
@@ -138,19 +137,39 @@ class ContextSelection(Mapping):
 
         return default
 
-    def __iter__(self) -> Iterator[str]:
-        yield from self.eager
+    def __getitem__(self, path: str) -> Lines:
+        found = self.get(path)
+
+        if found is None:
+            raise KeyError(path)
+
+        return found
+
+    def paths(self) -> list[str]:
+        seen = dict.fromkeys(self.eager)
+
+        for store in self.stores:
+            seen.update(dict.fromkeys(store))
 
         for reader in self.readers:
-            for path in reader.paths:
-                if path not in self.eager:
-                    yield path
+            seen.update(dict.fromkeys(reader.paths))
+
+        return list(seen)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.paths())
 
     def __len__(self) -> int:
-        return len(set(self.eager) | {path for reader in self.readers for path in reader.raw})
+        return len(self.paths())
 
     @property
     def suite_size(self) -> int:
         names = {f for lines in self.eager.values() for files in lines.values() for f in files}
 
-        return len(names.union(*(reader.suite_files for reader in self.readers)))
+        for store in self.stores:
+            names |= store.suite_files
+
+        for reader in self.readers:
+            names |= reader.suite_files
+
+        return len(names)
