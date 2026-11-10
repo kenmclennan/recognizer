@@ -16,6 +16,12 @@ import {
   type StateText,
   stateText,
 } from "./freshness-model";
+import {
+  buildPreflight,
+  NO_PREFLIGHT,
+  type PreflightModel,
+  type PreflightState,
+} from "./preflight-model";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
   DESCRIBE_KEY,
@@ -101,6 +107,7 @@ export type PanelInput = {
   now: number;
   shipped: ShippedSensors | null;
   freshness?: Freshness;
+  preflight?: PreflightState;
 };
 
 export type ScanRow = {
@@ -132,6 +139,8 @@ export type ScanPanelModel = {
     canvasEmpty: boolean;
   } | null;
   freshness: FreshnessModel;
+  summary: FreshnessModel["summary"];
+  preflight: PreflightModel | null;
   rows: ScanRow[];
   reports: ReportRow[];
   button: {
@@ -372,6 +381,8 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       header: header(input),
       scope: null,
       freshness,
+      summary: freshness.summary,
+      preflight: null,
       rows: [],
       reports: [],
       button: {
@@ -436,17 +447,50 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     };
   });
 
+  const ticked = new Set(
+    rows
+      .filter((row) => row.ticked && row.key !== STRUCTURE_KEY)
+      .map((row) => row.key),
+  );
+  const preflight = buildPreflight(
+    input.preflight ?? NO_PREFLIGHT,
+    ticked,
+    (name) => rows.find((row) => row.key === name)?.name ?? name,
+  );
+
   return {
     header: header(input),
     scope: scopeOf(input),
     freshness,
+    summary:
+      preflight === null
+        ? freshness.summary
+        : {
+            shape: preflight.state === "running" ? "running" : "attention",
+            tone: preflight.state === "running" ? "run" : "bad",
+            icon: preflight.state === "running" ? "loader" : "circle-alert",
+            head: preflight.card.head,
+            line: preflight.card.line,
+            bar: null,
+          },
+    preflight,
     rows,
     reports: reportRows(statuses, input.now),
-    button: {
-      scanning: input.scanning && input.external !== true,
-      label: freshness.action.primary.label,
-      disabled: freshness.action.primary.disabled,
-    },
+    button:
+      preflight === null
+        ? {
+            scanning: input.scanning && input.external !== true,
+            label: freshness.action.primary.label,
+            disabled: freshness.action.primary.disabled,
+          }
+        : {
+            scanning:
+              preflight.state === "running" &&
+              input.scanning &&
+              input.external !== true,
+            label: preflight.button.label,
+            disabled: preflight.button.disabled,
+          },
     mode: freshness.action.mode,
     planned,
     pending: false,
