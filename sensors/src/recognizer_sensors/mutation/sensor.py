@@ -542,6 +542,20 @@ def cover_of(files: frozenset[str] | None, hashes: dict[str, str]) -> frozenset[
     return with_conftests(files, hashes)
 
 
+def shared_cover(
+    files: frozenset[str] | None,
+    hashes: dict[str, str],
+    known: dict[frozenset[str], frozenset[str] | None],
+) -> frozenset[str] | None:
+    if files is None:
+        return None
+
+    if files not in known:
+        known[files] = cover_of(files, hashes)
+
+    return known[files]
+
+
 def kept_sites(
     target: Target, record: dict | None, hashes: dict[str, str], tests: str, support: str
 ) -> dict[int, tuple[str, dict]] | None:
@@ -574,11 +588,19 @@ def previous_killers(
     if entry is None or len(entry["sites"]) != len(target.sites):
         return {}
 
-    return {
-        index: frozenset(site["killer"])
-        for index, site in enumerate(entry["sites"])
-        if isinstance(site, dict) and site.get("killer")
-    }
+    pooled: dict[int, frozenset[str]] = {}
+    killers: dict[int, frozenset[str]] = {}
+
+    for index, site in enumerate(entry["sites"]):
+        if isinstance(site, dict) and site.get("killer"):
+            killer = site["killer"]
+
+            if id(killer) not in pooled:
+                pooled[id(killer)] = frozenset(killer)
+
+            killers[index] = pooled[id(killer)]
+
+    return killers
 
 
 def site_entry_for(
@@ -775,6 +797,7 @@ def run(
     )
     suite_size = suite_size_of(selection)
     targets: list[Target] = []
+    covers_by_selection: dict[frozenset[str], frozenset[str] | None] = {}
     sources: dict[str, bytes] = {}
     no_covering_test = 0
 
@@ -799,7 +822,9 @@ def run(
                 chosen.get(covering_line(site, target, lines)) if covered else None
                 for site, covered in zip(target.sites, target.covered, strict=True)
             ]
-            target.covers = [cover_of(files, hashes) for files in target.selections]
+            target.covers = [
+                shared_cover(files, hashes, covers_by_selection) for files in target.selections
+            ]
 
             if target.sites and not any(target.covered):
                 no_covering_test += 1

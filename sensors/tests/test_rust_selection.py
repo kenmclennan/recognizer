@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import git_commit, write_scan_document
-from test_mutation import RECORD, read, run_mutate
+from test_mutation import RECORD, read, read_resolved, run_mutate
 
 from recognizer_sensors.testrun import profiles
 from recognizer_sensors.testrun.profiles import (
@@ -482,7 +482,7 @@ def test_a_test_target_edit_reruns_only_the_sites_it_covers_and_a_unit_site_reru
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
-    functions = read(root / RECORD)["functions"]
+    functions = read_resolved(root / RECORD)["functions"]
     sites = {name.rsplit("::", 1)[1]: len(entry["sites"]) for name, entry in functions.items()}
 
     assert sites["add"] > 0
@@ -537,7 +537,7 @@ def test_an_in_file_test_edit_reruns_the_sites_its_unit_group_covers_and_a_delet
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
-    functions = read(root / RECORD)["functions"]
+    functions = read_resolved(root / RECORD)["functions"]
     sites = {name.rsplit("::", 1)[1]: len(entry["sites"]) for name, entry in functions.items()}
     ran = functions[next(n for n in functions if n.endswith("::sub"))]["sites"][0]["ran"]
 

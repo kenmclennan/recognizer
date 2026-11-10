@@ -4,6 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from recognizer_sensors.mutation.record import (
+    RECORD_VERSION,
+    build_record,
+    command_hash,
+    read_record,
+)
 from recognizer_sensors.mutation.runner import StoppedBeforeMutation
 from recognizer_sensors.settings import MeasurementError
 from recognizer_sensors.testrun import run
@@ -228,3 +234,86 @@ def test_doubling_the_test_files_over_the_same_lines_keeps_the_selection_the_sam
 
     assert large_objects == small_objects == 1
     assert large < small * 1.1
+
+
+def sites(count, ran, killer=None):
+    return [{"ran": dict(ran), "killer": dict(killer or ran)} for _ in range(count)]
+
+
+def written(functions, tmp_path):
+    import json
+
+    record = build_record("cmd", "c", "s", functions, [])
+    path = tmp_path / "record.json"
+    path.write_text(json.dumps(record))
+
+    return record, path
+
+
+def test_a_record_stores_each_pair_and_each_set_once_however_many_sites_use_them(tmp_path):
+    files = {f"tests/t{n}.py": f"h{n}" for n in range(20)}
+    functions = {
+        f"f{k}": {"body": "b", "verdicts": ["killed"] * 5, "sites": sites(5, files)}
+        for k in range(30)
+    }
+    record, path = written(functions, tmp_path)
+
+    assert record["record_version"] == RECORD_VERSION == 3
+    assert len(record["files"]) == 20
+    assert len(record["sets"]) == 1
+    assert record["functions"]["f0"]["sites"][0] == {"ran": 0, "killer": 0}
+
+    read = read_record(path, "cmd")
+
+    assert read["functions"]["f29"]["sites"][4]["ran"] == files
+    assert read["functions"]["f0"]["sites"][0]["ran"] is read["functions"]["f29"]["sites"][4]["ran"]
+
+
+def test_a_record_round_trips_empty_null_and_timeout_sites(tmp_path):
+    functions = {
+        "f": {
+            "body": "b",
+            "verdicts": ["killed", "survived", "killed", None],
+            "sites": [
+                {"ran": {}, "killer": {}},
+                {"ran": {"t.py": "h"}, "killer": None},
+                {"ran": None, "killer": None, "tests": "x"},
+                None,
+            ],
+        }
+    }
+    record, path = written(functions, tmp_path)
+    sites_ = record["functions"]["f"]["sites"]
+
+    assert sites_[0]["ran"] == sites_[0]["killer"]
+    assert read_record(path, "cmd")["functions"] == functions
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        lambda r: r["functions"]["f"]["sites"][0].update(ran=9),
+        lambda r: r["functions"]["f"]["sites"][0].update(ran="0"),
+        lambda r: r["functions"]["f"]["sites"][0].update(ran=True),
+        lambda r: r["sets"].append([7]),
+        lambda r: r.pop("files"),
+        lambda r: r.update(record_version=2),
+    ],
+    ids=["out-of-range", "non-integer", "boolean", "missing-file", "no-files", "version-two"],
+)
+def test_a_record_with_an_unresolvable_id_reads_as_none_whole(tmp_path, damage):
+    import json
+
+    functions = {
+        "f": {
+            "body": "b",
+            "verdicts": ["killed", "killed"],
+            "sites": sites(1, {"t.py": "h"}) + sites(1, {"u.py": "g"}),
+        }
+    }
+    record, path = written(functions, tmp_path)
+    damage(record)
+    path.write_text(json.dumps(record))
+
+    assert command_hash("cmd") == record["command"]
+    assert read_record(path, "cmd") is None
