@@ -43,7 +43,6 @@ export type Summary = {
 export type Action = {
   primary: { label: string; disabled: boolean };
   mode: { value: ResultsMode; disabled: boolean };
-  hint: string | null;
 };
 
 export type FindingsLine = {
@@ -519,7 +518,7 @@ function actionOf(
   };
 
   if (input.scanning) {
-    return { primary: { label: "Running", disabled: true }, mode, hint: null };
+    return { primary: { label: "Running", disabled: true }, mode };
   }
 
   if (rescan) {
@@ -529,7 +528,6 @@ function actionOf(
         disabled: false,
       },
       mode,
-      hint: null,
     };
   }
 
@@ -540,7 +538,6 @@ function actionOf(
         disabled: false,
       },
       mode,
-      hint: null,
     };
   }
 
@@ -556,7 +553,6 @@ function actionOf(
         disabled: false,
       },
       mode,
-      hint: null,
     };
   }
 
@@ -570,17 +566,13 @@ function actionOf(
   );
 
   if (untickedStale.length > 0) {
-    const names = joinNames(untickedStale.map(({ name }) => name));
-    const one = untickedStale.length === 1;
-
     return {
       primary: { label: "Nothing ticked to run", disabled: true },
       mode,
-      hint: `${names} ${one ? "is" : "are"} unticked and not current. Tick ${one ? "it" : "them"} to include ${one ? "it" : "them"} in the next scan.`,
     };
   }
 
-  return { primary: { label: "Up to date", disabled: true }, mode, hint: null };
+  return { primary: { label: "Up to date", disabled: true }, mode };
 }
 
 export function findingsActionOf(

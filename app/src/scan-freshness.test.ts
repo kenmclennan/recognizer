@@ -216,7 +216,6 @@ function stub(
     action: {
       primary: { label, disabled: label === "Up to date" },
       mode: { value: "bring", disabled: false },
-      hint: null,
     },
   } as unknown as FreshnessModel;
 }

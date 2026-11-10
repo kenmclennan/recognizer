@@ -381,7 +381,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   facts.emptyCanvasClick = { writes: emptyFake.written.length - writtenBefore };
   const beforeIdle = { ran: emptyFake.ran.length, written: emptyFake.written.length };
-  facts.idleButton = { label: em.q(".scan-run").textContent, disabled: em.q(".scan-run").disabled, hint: em.q(".scan-hint").textContent };
+  facts.idleButton = { label: em.q(".scan-run").textContent, disabled: em.q(".scan-run").disabled, text: em.q(".scan-panel").textContent };
   em.q(".scan-run").click();
   await tick(); await tick();
   facts.idleClick = { ran: emptyFake.ran.length - beforeIdle.ran, written: emptyFake.written.length - beforeIdle.written };
@@ -428,7 +428,6 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     runWidth: boxOf(fr.q(".scan-run")).width,
     contentWidth: panelEl.clientWidth - parseFloat(panelStyle.paddingLeft) - parseFloat(panelStyle.paddingRight),
     modeClipped: fr.q(".scan-run-mode").scrollWidth > fr.q(".scan-run-mode").clientWidth,
-    hintHidden: fr.q(".scan-hint").hidden,
     secondaryCss: fr.all(".scan-secondary").length,
   };
 
@@ -796,14 +795,13 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.plans).toHaveLength(1);
   });
 
-  it("lays out the rows, then the scope toggle, the mode toggle, the primary and the hint, with the primary full width and nothing clipped", () => {
+  it("lays out the rows, then the scope toggle, the mode toggle, the primary, with the primary full width and nothing clipped", () => {
     expect(f.layout.order).toEqual([
       "scan-header",
       "scan-sub",
       "scan-list",
       "scan-controls",
       "scan-buttons",
-      "scan-hint",
     ]);
     expect(f.layout.controls).toEqual(["scan-scope", "scan-run-mode"]);
     expect(f.layout.rowsBeforeControls).toBe(true);
@@ -813,7 +811,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       Math.abs(f.layout.runWidth - f.layout.contentWidth),
     ).toBeLessThanOrEqual(1);
     expect(f.layout.modeClipped).toBe(false);
-    expect(f.layout.hintHidden).toBe(true);
     expect(f.layout.secondaryCss).toBe(0);
   });
 
@@ -834,7 +831,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("runs nothing and writes no tick when the primary reads Nothing ticked to run", () => {
     expect(f.idleButton.label).toBe("Nothing ticked to run");
     expect(f.idleButton.disabled).toBe(true);
-    expect(f.idleButton.hint).toContain("unticked and not current");
+    expect(f.idleButton.text).not.toMatch(/include (it|them) in the next scan/);
     expect(f.idleClick).toEqual({ ran: 0, written: 0 });
   });
 

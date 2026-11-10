@@ -562,9 +562,6 @@ describe("freshness model counts every row, ticked or not", () => {
       label: "Nothing ticked to run",
       disabled: true,
     });
-    expect(model.action.hint).toBe(
-      "Mutation is unticked and not current. Tick it to include it in the next scan.",
-    );
   });
 
   it("reads one module in the singular, and Update 1 module once ticked", () => {
@@ -574,10 +571,9 @@ describe("freshness model counts every row, ticked or not", () => {
 
     expect(unticked.summary.head).toBe("Mutation is out of date on 1 module");
     expect(ticked.action.primary.label).toBe("Update 1 module");
-    expect(ticked.action.hint).toBeNull();
   });
 
-  it("names two unticked out-of-date rows in the hint, in row order", () => {
+  it("reads two unticked out-of-date rows as nothing to run", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS, { "a.py": "old" }),
@@ -593,9 +589,6 @@ describe("freshness model counts every row, ticked or not", () => {
       label: "Nothing ticked to run",
       disabled: true,
     });
-    expect(model.action.hint).toBe(
-      "C.R.A.P. and Mutation are unticked and not current. Tick them to include them in the next scan.",
-    );
   });
 
   it("reads an unticked failed sensor as attention", () => {
@@ -614,9 +607,6 @@ describe("freshness model counts every row, ticked or not", () => {
     expect(model.action.primary.label).toBe("Nothing ticked to run");
     expect(model.action.primary.disabled).toBe(true);
     expect(model.action.primary).not.toHaveProperty("tick");
-    expect(model.action.hint).toContain(
-      "Mutation is unticked and not current.",
-    );
   });
 
   it("reads an unticked never-run sensor as attention", () => {
@@ -646,7 +636,6 @@ describe("freshness model counts every row, ticked or not", () => {
       "Mutation is out of date and not ticked.",
     );
     expect(model.action.primary.label).toBe("Update 1 module");
-    expect(model.action.hint).toBeNull();
     expect(model.changed).toEqual(["a.py"]);
   });
 
@@ -682,7 +671,6 @@ describe("freshness model counts every row, ticked or not", () => {
     });
 
     expect(model.action.primary.label).toBe("Rescan 3 modules");
-    expect(model.action.hint).toBeNull();
   });
 
   it("never shows Up to date beside a non-current headline, across every combination", () => {
@@ -770,9 +758,6 @@ describe("the Nothing ticked to run state", () => {
       label: "Nothing ticked to run",
       disabled: true,
     });
-    expect(model.action.hint).toContain(
-      "Mutation is unticked and not current.",
-    );
   });
 
   it("gives the same for every optional row unticked and out of date (issue 514)", () => {
@@ -788,10 +773,9 @@ describe("the Nothing ticked to run state", () => {
       label: "Nothing ticked to run",
       disabled: true,
     });
-    expect(model.action.hint).toContain("are unticked and not current");
   });
 
-  it("keeps each other primary label with a null hint", () => {
+  it("keeps each other primary label", () => {
     const current = [ran("crap", IDS), ran("mutation", IDS)];
     const running = modelOf(IDS, { sensors: current, scanning: true });
     const rescan = modelOf(IDS, { sensors: current, mode: "rescan" });
@@ -806,10 +790,6 @@ describe("the Nothing ticked to run state", () => {
     expect(update.action.primary.label).toBe("Update 1 module");
     expect(run1.action.primary.label).toBe("Run Mutation");
     expect(upToDate.action.primary.label).toBe("Up to date");
-
-    for (const m of [running, rescan, update, run1, upToDate]) {
-      expect(m.action.hint).toBeNull();
-    }
   });
 
   it("follows the mode input and disables it only while scanning", () => {
