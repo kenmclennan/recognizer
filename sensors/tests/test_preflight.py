@@ -1,10 +1,12 @@
+import json
 import shutil
 import subprocess
 
 import pytest
-from conftest import git_commit, make_repository
+from conftest import SENSOR_LIST, SHIPPED, git_commit, make_repository
 from test_probes import only_path, repository
 
+from recognizer_sensors.cli import main
 from recognizer_sensors.scans import Scan, ScanModule
 from recognizer_sensors.testrun import preflight as preflight_module
 from recognizer_sensors.testrun.preflight import gaps
@@ -151,3 +153,46 @@ def test_a_uv_project_with_no_managed_environment_gives_the_uv_sync_gap(tmp_path
         "kind": "repository",
     }
     assert not (root / ".recognizer" / "cache" / "python-env").exists()
+
+
+def test_the_preflight_flag_prints_gaps_runs_no_tests_and_writes_nothing(
+    monkeypatch, tmp_path, capsys
+):
+    log = tmp_path / "ran"
+    only_path(monkeypatch, tmp_path, cargo=f'echo ran >> "{log}"; exit 1')
+    root = repository(tmp_path)
+    (root / "Cargo.toml").write_text("")
+    before = sorted(path.name for path in root.iterdir())
+
+    status = main(["crap", "--repository", str(root), "--preflight"])
+    printed = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert printed["gaps"] == [] or printed["gaps"][0]["line"] == "cargo-llvm-cov is not installed"
+    assert sorted(path.name for path in root.iterdir()) == before
+
+
+def test_the_preflight_flag_needs_no_commit(tmp_path, capsys):
+    root = repository(tmp_path)
+
+    assert main(["duplication", "--repository", str(root), "--preflight"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"gaps": []}
+
+
+def test_only_crap_and_mutation_probe():
+    from recognizer_sensors.registry import SHIPPED as REGISTRY
+
+    listed = json.loads(SENSOR_LIST.read_text())
+    probing = sorted(name for name, sensor in REGISTRY.items() if sensor.runs_tests)
+
+    assert probing == ["crap", "mutation"]
+    assert sorted(entry["name"] for entry in listed if entry["runs_tests"]) == probing
+    assert sorted(json.loads(SHIPPED.read_text())) == sorted(REGISTRY)
+
+
+@pytest.mark.parametrize("name", ["duplication", "thresholds"])
+def test_a_sensor_without_runs_tests_prints_no_gaps(name, tmp_path, capsys):
+    root = repository(tmp_path)
+
+    assert main([name, "--repository", str(root), "--preflight"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"gaps": []}

@@ -186,6 +186,22 @@ describe("usage errors", () => {
     expect(claudeRan(box)).toBe(false);
   });
 
+  it("accepts --model with --check and exits 0 without running claude", () => {
+    const box = sandbox();
+    const result = run(box, ["--model", "sonnet", "--check"]);
+
+    expect(result.status).toBe(0);
+    expect(claudeRan(box)).toBe(false);
+  });
+
+  it("rejects --check without a model", () => {
+    const box = sandbox();
+    const result = run(box, ["--check"]);
+
+    expect(result.status).toBe(2);
+    expect(claudeRan(box)).toBe(false);
+  });
+
   it("prints the prompt version without running claude", () => {
     const box = sandbox();
     const result = run(box, ["--prompt-version"]);

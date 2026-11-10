@@ -17,6 +17,7 @@ from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError, Refusal, SettingsError
+from recognizer_sensors.testrun.preflight import gaps
 
 RECURSION_LIMIT = 20000
 
@@ -47,6 +48,7 @@ def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--settings", default="{}")
     parser.add_argument("--modules", type=Path)
+    parser.add_argument("--preflight", action="store_true")
     parser.add_argument("--version", action="version", version=package_version)
 
     return parser
@@ -93,6 +95,13 @@ def is_dirty(root: Path) -> bool:
     return result.returncode != 0 or bool(result.stdout.strip())
 
 
+def preflight(name: str, sensor, repository: Path, settings: dict) -> int:
+    found = gaps(repository, read_scans(repository), settings, name) if sensor.runs_tests else []
+    sys.stdout.write(json.dumps({"gaps": found}) + "\n")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     package_version = version("recognizer-sensors")
     args = build_parser(package_version).parse_args(argv)
@@ -124,6 +133,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.repository.is_dir():
         return fail(f"--repository is not a directory: {args.repository}")
+
+    if args.preflight:
+        return preflight(args.name, sensor, args.repository, settings)
 
     commit = args.commit if args.commit else resolve_commit(args.repository)
 
