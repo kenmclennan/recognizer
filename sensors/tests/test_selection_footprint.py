@@ -108,6 +108,85 @@ def test_a_stopped_typescript_run_leaves_no_tree(monkeypatch, tmp_path):
     assert not (root / run.BY_FILE_DIRECTORY).exists()
 
 
+def rust_writer(command):
+    Path(option(command, "--output-path")).write_text(lcov([1, 2, 3]))
+
+
+def rust_run(monkeypatch, tmp_path, count, **kwargs):
+    root = tmp_path / f"u{count}"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    units = {f"t{n}": ("pkg", "test", f"t{n}") for n in range(count)}
+    monkeypatch.setattr(run, "rust_units", lambda repository: units)
+    sizes = []
+    fake_steps(monkeypatch, root, run.RUST_BY_TARGET_DIRECTORY, rust_writer, sizes, **kwargs)
+
+    return root, sizes, run.rust_selection(root, whole_of([1, 2, 3]))
+
+
+def test_rust_by_target_reports_are_deleted_as_they_are_read(monkeypatch, tmp_path):
+    root4, sizes4, selection4 = rust_run(monkeypatch, tmp_path, 4)
+    root8, sizes8, selection8 = rust_run(monkeypatch, tmp_path, 8)
+
+    assert not (root4 / run.RUST_BY_TARGET_DIRECTORY).exists()
+    assert not (root8 / run.RUST_BY_TARGET_DIRECTORY).exists()
+    assert max(sizes4) == max(sizes8)
+    assert len(selection8["src/lib.ts"][3]) == 8
+    assert len(selection4["src/lib.ts"][3]) == 4
+
+
+def test_a_failing_rust_step_leaves_no_tree_and_no_selection(monkeypatch, tmp_path):
+    root, _, selection = rust_run(monkeypatch, tmp_path, 4, fail_at=2)
+
+    assert selection == {}
+    assert not (root / run.RUST_BY_TARGET_DIRECTORY).exists()
+
+
+def csharp_writer(command):
+    directory = Path(option(command, "--results-directory"))
+    (directory / "guid").mkdir(parents=True, exist_ok=True)
+    (directory / "guid" / "coverage.info").write_text(lcov([1, 2, 3]))
+
+
+def csharp_run(monkeypatch, tmp_path, count, **kwargs):
+    root = tmp_path / f"c{count}"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    mapped = {f"T{n}.cs": [f"C{n}"] for n in range(count)}
+    names = sorted(mapped)
+
+    def classes(directory):
+        if directory.name.isdigit():
+            return set(mapped[names[int(directory.name)]])
+
+        return {c for value in mapped.values() for c in value}
+
+    monkeypatch.setattr(run, "csharp_trx_classes", classes)
+    monkeypatch.setattr(run, "csharp_class_map", lambda repository, found: mapped)
+    sizes = []
+    fake_steps(monkeypatch, root, run.CSHARP_BY_FILE_DIRECTORY, csharp_writer, sizes, **kwargs)
+
+    return root, sizes, run.csharp_selection(root, whole_of([1, 2, 3]))
+
+
+def test_csharp_by_file_results_are_deleted_as_they_are_read(monkeypatch, tmp_path):
+    root4, sizes4, selection4 = csharp_run(monkeypatch, tmp_path, 4)
+    root8, sizes8, selection8 = csharp_run(monkeypatch, tmp_path, 8)
+
+    assert not (root4 / run.CSHARP_BY_FILE_DIRECTORY).exists()
+    assert not (root8 / run.CSHARP_BY_FILE_DIRECTORY).exists()
+    assert max(sizes4) == max(sizes8)
+    assert len(selection8["src/lib.ts"][1]) == 8
+    assert len(selection4["src/lib.ts"][1]) == 4
+
+
+def test_a_failing_csharp_step_leaves_no_tree_and_no_selection(monkeypatch, tmp_path):
+    root, _, selection = csharp_run(monkeypatch, tmp_path, 4, fail_at=1)
+
+    assert selection == {}
+    assert not (root / run.CSHARP_BY_FILE_DIRECTORY).exists()
+
+
 def test_the_selection_builder_shares_one_frozenset_per_distinct_set():
     builder = SelectionBuilder()
     builder.add("a", {"m": {1: 1, 2: 1, 3: 0}})

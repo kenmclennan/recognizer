@@ -739,51 +739,46 @@ def csharp_selection(repository: Path, whole: Coverage) -> Selection:
     if isinstance(mapped, str):
         return csharp_fallback(f"test class {mapped} has no single test file")
 
-    executed: dict[str, dict[int, set[str]]] = {}
+    builder = SelectionBuilder()
 
-    for number, file in enumerate(sorted(mapped)):
-        directory = repository / CSHARP_BY_FILE_DIRECTORY / str(number)
-        shutil.rmtree(directory, ignore_errors=True)
-        step = Step(f"csharp {file}", csharp_by_file_command(number, mapped[file]))
+    try:
+        for number, file in enumerate(sorted(mapped)):
+            directory = repository / CSHARP_BY_FILE_DIRECTORY / str(number)
+            shutil.rmtree(directory, ignore_errors=True)
+            step = Step(f"csharp {file}", csharp_by_file_command(number, mapped[file]))
 
-        try:
-            run_steps(repository, [step], "a", strict=True)
-        except MeasurementError as error:
-            return csharp_fallback(str(error))
-
-        ran = csharp_trx_classes(directory)
-
-        if ran != set(mapped[file]):
-            return csharp_fallback(f"the csharp run for {file} did not execute exactly its classes")
-
-        reports = sorted(directory.glob("*/coverage.info"))
-
-        if not reports:
-            return csharp_fallback(f"no coverage report for {file}")
-
-        for report in reports:
             try:
-                part = parse_lcov(report.read_text(encoding="utf-8"), repository)
-            except (OSError, ValueError):
+                run_steps(repository, [step], "a", strict=True)
+            except MeasurementError as error:
+                return csharp_fallback(str(error))
+
+            ran = csharp_trx_classes(directory)
+
+            if ran != set(mapped[file]):
+                return csharp_fallback(
+                    f"the csharp run for {file} did not execute exactly its classes"
+                )
+
+            reports = sorted(directory.glob("*/coverage.info"))
+
+            if not reports:
                 return csharp_fallback(f"no coverage report for {file}")
 
-            for path, lines in part.items():
-                for line, hits in lines.items():
-                    if hits > 0:
-                        executed.setdefault(path, {}).setdefault(line, set()).add(file)
+            for report in reports:
+                try:
+                    part = parse_lcov(report.read_text(encoding="utf-8"), repository)
+                except (OSError, ValueError):
+                    return csharp_fallback(f"no coverage report for {file}")
 
-    selection: Selection = {}
+                builder.add(file, part)
 
-    for path, lines in whole.items():
-        for line, hits in lines.items():
-            files = executed.get(path, {}).get(line)
+            shutil.rmtree(directory, ignore_errors=True)
 
-            if hits > 0 and files:
-                selection.setdefault(path, {})[line] = frozenset(files)
+        CSHARP_CLASSES.update(mapped)
 
-    CSHARP_CLASSES.update(mapped)
-
-    return selection
+        return builder.build(whole)
+    finally:
+        shutil.rmtree(repository / CSHARP_BY_FILE_DIRECTORY, ignore_errors=True)
 
 
 def rust_target_kind(kinds: list) -> str | None:
@@ -872,40 +867,32 @@ def rust_selection(repository: Path, whole: Coverage) -> Selection:
         return {}
 
     (repository / RUST_BY_TARGET_DIRECTORY).mkdir(parents=True, exist_ok=True)
-    executed: dict[str, dict[int, set[str]]] = {}
+    builder = SelectionBuilder()
 
-    for number, name in enumerate(sorted(units)):
-        step = Step(f"rust {name}", rust_by_target_command(number, units[name]))
+    try:
+        for number, name in enumerate(sorted(units)):
+            step = Step(f"rust {name}", rust_by_target_command(number, units[name]))
 
-        try:
-            run_steps(repository, [step], "a", strict=True)
-        except MeasurementError as error:
-            return rust_fallback(str(error))
+            try:
+                run_steps(repository, [step], "a", strict=True)
+            except MeasurementError as error:
+                return rust_fallback(str(error))
 
-        report = repository / RUST_BY_TARGET_DIRECTORY / f"{number}.lcov"
+            report = repository / RUST_BY_TARGET_DIRECTORY / f"{number}.lcov"
 
-        try:
-            part = parse_lcov(report.read_text(encoding="utf-8"), repository)
-        except (OSError, ValueError):
-            return rust_fallback(f"no coverage report for {name}")
+            try:
+                part = parse_lcov(report.read_text(encoding="utf-8"), repository)
+            except (OSError, ValueError):
+                return rust_fallback(f"no coverage report for {name}")
 
-        for path, lines in part.items():
-            for line, hits in lines.items():
-                if hits > 0:
-                    executed.setdefault(path, {}).setdefault(line, set()).add(name)
+            report.unlink(missing_ok=True)
+            builder.add(name, part)
 
-    selection: Selection = {}
+        RUST_UNITS.update(units)
 
-    for path, lines in whole.items():
-        for line, hits in lines.items():
-            names = executed.get(path, {}).get(line)
-
-            if hits > 0 and names:
-                selection.setdefault(path, {})[line] = frozenset(names)
-
-    RUST_UNITS.update(units)
-
-    return selection
+        return builder.build(whole)
+    finally:
+        shutil.rmtree(repository / RUST_BY_TARGET_DIRECTORY, ignore_errors=True)
 
 
 def collect_coverage_with_tests(
