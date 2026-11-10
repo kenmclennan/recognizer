@@ -36,6 +36,12 @@ import {
   validateScan,
 } from "./scan.js";
 import {
+  acquireMarker,
+  type HeldMarker,
+  REFUSED_EXIT,
+  refusalText,
+} from "./scan-marker.js";
+import {
   type EventEntry,
   entryLine,
   extractionNeeded,
@@ -310,6 +316,7 @@ type ScanStep =
 function* scanFlow(
   argv: string[],
   io: Io,
+  takeMarker: boolean,
 ): Generator<ScanStep, number, DescribeResult | undefined> {
   const options = parseScanArgs(argv);
 
@@ -347,73 +354,102 @@ function* scanFlow(
           options.sense,
           shippedSensorNames(),
         );
-  const commit = resolveCommit(io, root);
+  let marker: HeldMarker | null = null;
 
-  if (options.sense !== null && commit === null) {
-    throw new InputError(["not a git repository, or no commit"]);
+  if (takeMarker) {
+    const acquired = acquireMarker(io, root, {
+      sensors: selected.map((one) => one.name),
+      describe: options.describe !== false,
+    });
+
+    if (!acquired.ok) {
+      io.stderr(refusalText(acquired.marker, acquired.path));
+
+      return REFUSED_EXIT;
+    }
+
+    marker = acquired.held;
   }
 
-  const modified = commit === null ? null : isDirty(io, root);
-  const detected = detectLanguages(io, root);
-  const json = options.json;
-  const removed: string[] = [];
-  const phases: RunPhase[] = [];
-  const summary = new Map<RunPhase["phase"], EventEntry[]>();
-  const runLog =
-    detected.length > 0 || wantsConfig
-      ? openPhasedRunLog(io, root, startedAt, options.by, argv)
-      : null;
-  let failed = false;
+  const taken = marker;
 
-  const startPhase = (phase: RunPhase["phase"]): RunPhase => {
-    const one: RunPhase = { phase, entries: [] };
+  function* scanRest(): Generator<
+    ScanStep,
+    number,
+    DescribeResult | undefined
+  > {
+    const commit = resolveCommit(io, root);
 
-    phases.push(one);
-    summary.set(phase, []);
+    const emit = (line: string) => {
+      taken?.append(line);
 
-    if (!json) {
-      io.stdout(`${phase}\n`);
+      if (options.json) {
+        io.stdout(line);
+      }
+    };
+
+    if (options.sense !== null && commit === null) {
+      throw new InputError(["not a git repository, or no commit"]);
     }
 
-    return one;
-  };
+    const modified = commit === null ? null : isDirty(io, root);
+    const detected = detectLanguages(io, root);
+    const json = options.json;
+    const removed: string[] = [];
+    const phases: RunPhase[] = [];
+    const summary = new Map<RunPhase["phase"], EventEntry[]>();
+    const runLog =
+      detected.length > 0 || wantsConfig
+        ? openPhasedRunLog(io, root, startedAt, options.by, argv)
+        : null;
+    let failed = false;
 
-  const finishEntry = (
-    phase: RunPhase,
-    entry: RunEntry,
-    extra: Partial<EventEntry> = {},
-  ) => {
-    const shown = { ...eventEntry(entry), ...extra };
+    const startPhase = (phase: RunPhase["phase"]): RunPhase => {
+      const one: RunPhase = { phase, entries: [] };
 
-    phase.entries.push(entry);
-    summary.get(phase.phase)?.push(shown);
-    runLog?.update(phases);
+      phases.push(one);
+      summary.set(phase, []);
 
-    if (json) {
-      io.stdout(entryLine(phase.phase, shown));
+      if (!json) {
+        io.stdout(`${phase}\n`);
+      }
+
+      return one;
+    };
+
+    const finishEntry = (
+      phase: RunPhase,
+      entry: RunEntry,
+      extra: Partial<EventEntry> = {},
+    ) => {
+      const shown = { ...eventEntry(entry), ...extra };
+
+      phase.entries.push(entry);
+      summary.get(phase.phase)?.push(shown);
+      runLog?.update(phases);
+
+      emit(entryLine(phase.phase, shown));
+
+      if (entry.outcome === "failed") {
+        failed = true;
+      }
+    };
+
+    if (detected.length === 0) {
+      io.stderr("no languages detected\n");
     }
 
-    if (entry.outcome === "failed") {
-      failed = true;
-    }
-  };
+    const decision = decideExtraction(
+      io,
+      root,
+      detected,
+      options.extract,
+      commit,
+      modified === true,
+    );
+    const extract = startPhase("extract");
 
-  if (detected.length === 0) {
-    io.stderr("no languages detected\n");
-  }
-
-  const decision = decideExtraction(
-    io,
-    root,
-    detected,
-    options.extract,
-    commit,
-    modified === true,
-  );
-  const extract = startPhase("extract");
-
-  if (json) {
-    io.stdout(
+    emit(
       phaseLine(
         "extract",
         decision.run
@@ -421,15 +457,62 @@ function* scanFlow(
           : { state: "current", commit: decision.commit },
       ),
     );
-  } else if (!decision.run) {
-    io.stdout(`scans current at ${decision.commit}\n`);
-  }
 
-  for (const spec of SCANNERS) {
-    const file = cacheFile(root, spec.language);
-    const shown = relative(root, file);
+    if (!json && !decision.run) {
+      io.stdout(`scans current at ${decision.commit}\n`);
+    }
 
-    if (!detected.includes(spec.language)) {
+    for (const spec of SCANNERS) {
+      const file = cacheFile(root, spec.language);
+      const shown = relative(root, file);
+
+      if (!detected.includes(spec.language)) {
+        const before = removed.length;
+
+        removeIfPresent(io, file, removed);
+
+        if (removed.length > before) {
+          io.stderr(`${spec.language}: removed stale ${shown}\n`);
+        }
+
+        continue;
+      }
+
+      if (!decision.run) {
+        continue;
+      }
+
+      const scanned = runScanner(io, spec.language, root, commit, modified);
+      const { outcome } = scanned;
+      const entry = entryFrom(spec.language, {
+        command: scanned.command,
+        status: scanned.status,
+        stderr: scanned.stderr,
+        duration_ms: scanned.duration_ms,
+        ...(outcome.ok
+          ? {}
+          : { reason: `${outcome.reason} - ${outcome.message}` }),
+      });
+
+      if (outcome.ok) {
+        io.writeFile(file, outcome.bytes);
+
+        if (!json) {
+          io.stdout(
+            `${spec.language}: ${outcome.modules} modules, ${outcome.edges} edges -> ${shown}\n`,
+          );
+        }
+
+        finishEntry(extract, entry, {
+          modules: outcome.modules,
+          edges: outcome.edges,
+        });
+
+        continue;
+      }
+
+      io.stderr(`${spec.language}: ${outcome.reason} - ${outcome.message}\n`);
+
       const before = removed.length;
 
       removeIfPresent(io, file, removed);
@@ -438,137 +521,89 @@ function* scanFlow(
         io.stderr(`${spec.language}: removed stale ${shown}\n`);
       }
 
-      continue;
+      finishEntry(extract, entry);
     }
 
-    if (!decision.run) {
-      continue;
+    const scans = detected
+      .map((language) => readCachedScan(io, root, language))
+      .filter((scan): scan is RecordedScan => scan !== null);
+
+    if (runStructure(io, root, scans)) {
+      failed = true;
     }
 
-    const scanned = runScanner(io, spec.language, root, commit, modified);
-    const { outcome } = scanned;
-    const entry = entryFrom(spec.language, {
-      command: scanned.command,
-      status: scanned.status,
-      stderr: scanned.stderr,
-      duration_ms: scanned.duration_ms,
-      ...(outcome.ok
-        ? {}
-        : { reason: `${outcome.reason} - ${outcome.message}` }),
-    });
+    if (describer !== undefined && options.describe !== false) {
+      const phase = startPhase("describe");
 
-    if (outcome.ok) {
-      io.writeFile(file, outcome.bytes);
-
-      if (!json) {
-        io.stdout(
-          `${spec.language}: ${outcome.modules} modules, ${outcome.edges} edges -> ${shown}\n`,
-        );
+      for (const language of detected) {
+        if (readCachedScan(io, root, language) === null) {
+          io.stderr(`skipped: no scan for ${language}\n`);
+        }
       }
 
-      finishEntry(extract, entry, {
-        modules: outcome.modules,
-        edges: outcome.edges,
-      });
+      const { model, batch_size: batchSize } = readDescribing(io);
+      const result = (yield {
+        kind: "describe",
+        input: {
+          io,
+          root,
+          scans,
+          describer,
+          model,
+          batchSize,
+          selection: {
+            kind: options.describe === "all" ? "all" : "stale",
+            ...(scope === undefined ? {} : { within: scope }),
+          },
+          ...(options.confirmAbove === undefined
+            ? {}
+            : {
+                confirm: async (projection: DescribeProjection) => {
+                  const limit = options.confirmAbove as number;
 
-      continue;
-    }
+                  if (
+                    projection.modules === 0 ||
+                    (projection.cost_usd !== null &&
+                      projection.cost_usd <= limit)
+                  ) {
+                    return true;
+                  }
 
-    io.stderr(`${spec.language}: ${outcome.reason} - ${outcome.message}\n`);
+                  io.stdout(
+                    `${JSON.stringify({ event: "confirm", phase: "describe", ...projection })}\n`,
+                  );
 
-    const before = removed.length;
-
-    removeIfPresent(io, file, removed);
-
-    if (removed.length > before) {
-      io.stderr(`${spec.language}: removed stale ${shown}\n`);
-    }
-
-    finishEntry(extract, entry);
-  }
-
-  const scans = detected
-    .map((language) => readCachedScan(io, root, language))
-    .filter((scan): scan is RecordedScan => scan !== null);
-
-  if (runStructure(io, root, scans)) {
-    failed = true;
-  }
-
-  if (describer !== undefined && options.describe !== false) {
-    const phase = startPhase("describe");
-
-    for (const language of detected) {
-      if (readCachedScan(io, root, language) === null) {
-        io.stderr(`skipped: no scan for ${language}\n`);
-      }
-    }
-
-    const { model, batch_size: batchSize } = readDescribing(io);
-    const result = (yield {
-      kind: "describe",
-      input: {
-        io,
-        root,
-        scans,
-        describer,
-        model,
-        batchSize,
-        selection: {
-          kind: options.describe === "all" ? "all" : "stale",
-          ...(scope === undefined ? {} : { within: scope }),
-        },
-        ...(options.confirmAbove === undefined
-          ? {}
-          : {
-              confirm: async (projection: DescribeProjection) => {
-                const limit = options.confirmAbove as number;
-
-                if (
-                  projection.modules === 0 ||
-                  (projection.cost_usd !== null && projection.cost_usd <= limit)
-                ) {
-                  return true;
-                }
-
-                io.stdout(
-                  `${JSON.stringify({ event: "confirm", phase: "describe", ...projection })}\n`,
-                );
-
-                return (await io.readLine())?.trim() === "describe";
-              },
-            }),
-        onProjection: (projection) => {
-          if (json) {
-            io.stdout(
+                  return (await io.readLine())?.trim() === "describe";
+                },
+              }),
+          onProjection: (projection) => {
+            emit(
               `${JSON.stringify({ event: "projection", phase: "describe", ...projection })}\n`,
             );
-          } else {
-            io.stdout(projectionText(projection));
-          }
+
+            if (!json) {
+              io.stdout(projectionText(projection));
+            }
+          },
+          onStart: (total) => {
+            emit(phaseLine("describe", { total }));
+          },
+          onEntry: (entry) => {
+            finishEntry(phase, entry);
+
+            if (!json && entry.outcome === "ok") {
+              io.stdout(`described ${entry.name}\n`);
+            }
+          },
         },
-        onStart: (total) => {
-          if (json) {
-            io.stdout(phaseLine("describe", { total }));
-          }
-        },
-        onEntry: (entry) => {
-          finishEntry(phase, entry);
+      }) as DescribeResult;
 
-          if (!json && entry.outcome === "ok") {
-            io.stdout(`described ${entry.name}\n`);
-          }
-        },
-      },
-    }) as DescribeResult;
+      const stop = result.stopped;
 
-    const stop = result.stopped;
+      if (stop !== null) {
+        failed = true;
 
-    if (stop !== null) {
-      failed = true;
-
-      if (json) {
-        io.stdout(
+        emit(
           `${JSON.stringify({
             event: "stopped",
             phase: "describe",
@@ -579,71 +614,63 @@ function* scanFlow(
             threshold: stop.threshold,
           })}\n`,
         );
-      } else {
-        io.stderr(
-          `stopped: ${stopCauseText(stop)}; ${stop.not_described.length} modules not described\n`,
-        );
+
+        if (!json) {
+          io.stderr(
+            `stopped: ${stopCauseText(stop)}; ${stop.not_described.length} modules not described\n`,
+          );
+        }
+      }
+
+      if (!json) {
+        io.stdout(describeSummaryText(result));
       }
     }
 
-    if (!json) {
-      io.stdout(describeSummaryText(result));
-    }
-  }
+    if (options.sense !== null && commit !== null) {
+      const phase = startPhase("sense");
 
-  if (options.sense !== null && commit !== null) {
-    const phase = startPhase("sense");
+      emit(phaseLine("sense", { total: selected.length }));
 
-    if (json) {
-      io.stdout(phaseLine("sense", { total: selected.length }));
-    }
+      yield {
+        kind: "sense",
+        input: {
+          io,
+          root,
+          selected: selected.map((one) => ({
+            ...one,
+            command:
+              options.modules !== undefined && isScoped(one.command)
+                ? [...one.command, "--modules", resolve(options.modules)]
+                : one.command,
+            runsTests: runsTests(one.command),
+          })),
+          commit,
+          scans,
+          onStart: (name) => {
+            emit(startLine("sense", name));
+          },
+          onProgress: (name: string, progress: SensorProgress) => {
+            emit(progressLine("sense", name, progress));
+          },
+          onEntry: (entry) => {
+            finishEntry(phase, entry);
 
-    yield {
-      kind: "sense",
-      input: {
-        io,
-        root,
-        selected: selected.map((one) => ({
-          ...one,
-          command:
-            options.modules !== undefined && isScoped(one.command)
-              ? [...one.command, "--modules", resolve(options.modules)]
-              : one.command,
-          runsTests: runsTests(one.command),
-        })),
-        commit,
-        scans,
-        onStart: (name) => {
-          if (json) {
-            io.stdout(startLine("sense", name));
-          }
-        },
-        ...(json
-          ? {
-              onProgress: (name: string, progress: SensorProgress) => {
-                io.stdout(progressLine("sense", name, progress));
-              },
+            if (!json) {
+              io.stdout(
+                `${entry.outcome === "ok" ? "ran" : "failed"} ${entry.name}\n`,
+              );
             }
-          : {}),
-        onEntry: (entry) => {
-          finishEntry(phase, entry);
-
-          if (!json) {
-            io.stdout(
-              `${entry.outcome === "ok" ? "ran" : "failed"} ${entry.name}\n`,
-            );
-          }
+          },
         },
-      },
-    };
-  }
+      };
+    }
 
-  runLog?.finish(phases);
+    runLog?.finish(phases);
 
-  const exit = failed ? 1 : 0;
+    const exit = failed ? 1 : 0;
 
-  if (json) {
-    io.stdout(
+    emit(
       summaryLine({
         repository: root,
         commit,
@@ -657,13 +684,19 @@ function* scanFlow(
         log: runLog?.id() ?? null,
       }),
     );
+
+    return exit;
   }
 
-  return exit;
+  try {
+    return yield* scanRest();
+  } finally {
+    taken?.release();
+  }
 }
 
 export function runScanSync(argv: string[], io: Io): number {
-  const flow = scanFlow(argv, io);
+  const flow = scanFlow(argv, io, false);
   const step = flow.next();
 
   if (!step.done) {
@@ -674,19 +707,24 @@ export function runScanSync(argv: string[], io: Io): number {
 }
 
 export async function runScan(argv: string[], io: Io): Promise<number> {
-  const flow = scanFlow(argv, io);
-  let step = flow.next();
+  const flow = scanFlow(argv, io, true);
 
-  while (!step.done) {
-    if (step.value.kind === "sense") {
-      await runSensors(step.value.input);
-      step = flow.next(undefined);
-    } else {
-      step = flow.next(await describeModules(step.value.input));
+  try {
+    let step = flow.next();
+
+    while (!step.done) {
+      if (step.value.kind === "sense") {
+        await runSensors(step.value.input);
+        step = flow.next(undefined);
+      } else {
+        step = flow.next(await describeModules(step.value.input));
+      }
     }
-  }
 
-  return step.value;
+    return step.value;
+  } finally {
+    flow.return(0);
+  }
 }
 
 function runStructure(io: Io, root: string, scans: Scan[]): boolean {

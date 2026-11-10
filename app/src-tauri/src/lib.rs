@@ -46,6 +46,7 @@ const APP_TITLE: &str = "Recognizer";
 const SETTINGS_LABEL: &str = "settings";
 const RECENT_PREFIX: &str = "recent:";
 const CHANGES_POLL: Duration = Duration::from_secs(2);
+const EXTERNAL_SCAN_POLL: Duration = Duration::from_secs(1);
 
 #[derive(Default)]
 struct WindowBaseline {
@@ -996,6 +997,66 @@ fn adopt_scan(app: AppHandle, window: WebviewWindow) -> Result<ScanOrigin, Strin
 }
 
 #[tauri::command]
+fn watch_external_scan(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let label = window_label(&window);
+
+    let first = WATCHING_EXTERNAL
+        .lock()
+        .map_err(|error| error.to_string())?
+        .get_or_insert_with(HashSet::new)
+        .insert(label.clone());
+
+    if !first {
+        return Ok(());
+    }
+
+    std::thread::spawn(move || {
+        let mut seen = scan_run::ExternalSeen::default();
+
+        loop {
+            std::thread::sleep(EXTERNAL_SCAN_POLL);
+
+            if app.get_webview_window(&label).is_none() {
+                break;
+            }
+
+            let folder = app.state::<WindowState>().folder_of(&label);
+            let own = app.state::<ScanRuns>().running(&label);
+            let mut closed = false;
+
+            for emission in scan_run::external_tick(folder.as_deref(), own, &mut seen) {
+                let sent = match emission {
+                    scan_run::ExternalEmission::Scan(scan) => {
+                        app.emit_to(&label, "external-scan", scan)
+                    }
+                    scan_run::ExternalEmission::Line(line) => {
+                        app.emit_to(&label, "external-scan-line", line)
+                    }
+                };
+
+                if sent.is_err() {
+                    closed = true;
+
+                    break;
+                }
+            }
+
+            if closed {
+                break;
+            }
+        }
+
+        if let Ok(mut watching) = WATCHING_EXTERNAL.lock() {
+            if let Some(set) = watching.as_mut() {
+                set.remove(&label);
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
 fn watch_changes(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1066,6 +1127,7 @@ fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf
 }
 
 static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+static WATCHING_EXTERNAL: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_RESPONSIBILITIES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_SENSOR_INPUTS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
@@ -1517,6 +1579,7 @@ pub fn run() {
             view_author,
             view_link,
             watch_changes,
+            watch_external_scan,
             watch_responsibilities,
             watch_sensor_inputs,
             watch_views,

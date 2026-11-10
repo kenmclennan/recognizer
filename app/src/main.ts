@@ -65,6 +65,7 @@ const scanHost: ScanHost = {
   setTicks: (next) => rescanner.setTicks(next),
   runState: () => rescanner.runState(),
   running: () => rescanner.running(),
+  external: () => rescanner.external(),
   progressText: () => runningLine,
   footer: (text) => footerView.setScan(text),
   sensorProgress: () => rescanner.progress().sensorProgress,
@@ -181,6 +182,10 @@ const rescanner = createRescanner<Carried>({
         footerView.post({ kind: "error", text: String(error) }),
       );
   },
+});
+
+void scanSource.watchExternal().catch((error: unknown) => {
+  footerView.post({ kind: "error", text: String(error) });
 });
 
 async function start(): Promise<void> {

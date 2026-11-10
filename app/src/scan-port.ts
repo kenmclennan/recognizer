@@ -27,6 +27,18 @@ export type DescribingSettings = {
   confirmAboveUsd: number;
 };
 
+export type ExternalScan = {
+  origin: "cli" | "app";
+  pid: number;
+  startedAt: string;
+  sensors: string[];
+  describe: boolean;
+};
+
+export type ExternalEvent =
+  | { kind: "scan"; scan: ExternalScan | null }
+  | { kind: "line"; line: string };
+
 export type ScanPort = {
   run(plan: ScanPlan): Promise<ScanRunResult>;
   stop(): Promise<void>;
@@ -36,6 +48,8 @@ export type ScanPort = {
   writeTicks(ticks: WrittenTicks): Promise<void>;
   readDescribing(): Promise<DescribingSettings>;
   onLine(handler: (line: string) => void): () => void;
+  watchExternal(): Promise<void>;
+  onExternal(handler: (event: ExternalEvent) => void): () => void;
 };
 
 export const inertScan: ScanPort = {
@@ -62,4 +76,6 @@ export const inertScan: ScanPort = {
     confirmAboveUsd: 5,
   }),
   onLine: () => () => {},
+  watchExternal: async () => {},
+  onExternal: () => () => {},
 };

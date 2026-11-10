@@ -34,6 +34,7 @@ fn main() {
         "view_author",
         "view_link",
         "watch_changes",
+        "watch_external_scan",
         "watch_sensor_inputs",
         "watch_views",
         "window_folder",

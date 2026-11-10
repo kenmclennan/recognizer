@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::Mutex;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::fs_safe::write_atomic;
 use crate::repository::{missing_hint, scan_args, strip_escapes, Describe};
@@ -13,6 +13,188 @@ use crate::tool_runner::{ToolFault, ToolRunner};
 
 const LOG: &str = ".recognizer/cache/log";
 const MODULES_DIR: &str = ".recognizer/cache";
+const MARKER: &str = ".recognizer/cache/scan-running.json";
+const MARKER_PROGRESS: &str = ".recognizer/cache/scan-running.progress.jsonl";
+const REFUSED_EXIT: i32 = 3;
+const STARTED_BY: &str = "RECOGNIZER_STARTED_BY";
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScanMarker {
+    pub version: u32,
+    pub pid: u32,
+    pub started_at: String,
+    pub started_by: String,
+    pub repository: String,
+    pub sensors: Vec<String>,
+    pub describe: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalScan {
+    pub origin: String,
+    pub pid: u32,
+    pub started_at: String,
+    pub sensors: Vec<String>,
+    pub describe: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExternalEmission {
+    Scan(Option<ExternalScan>),
+    Line(String),
+}
+
+#[derive(Default)]
+pub struct ExternalSeen {
+    folder: Option<PathBuf>,
+    pid: Option<u32>,
+    offset: u64,
+}
+
+pub fn parse_marker(text: &str) -> Option<ScanMarker> {
+    let marker: ScanMarker = serde_json::from_str(text).ok()?;
+
+    if marker.version != 1
+        || marker.pid == 0
+        || marker.repository.is_empty()
+        || !matches!(marker.started_by.as_str(), "cli" | "app")
+        || !timestamp_ok(&marker.started_at)
+    {
+        return None;
+    }
+
+    Some(marker)
+}
+
+fn timestamp_ok(text: &str) -> bool {
+    let shape = b"dddd-dd-ddTdd:dd:dd.dddZ";
+
+    text.len() == shape.len()
+        && text.bytes().zip(shape).all(|(byte, kind)| match kind {
+            b'd' => byte.is_ascii_digit(),
+            other => byte == *other,
+        })
+}
+
+pub fn pid_alive(pid: u32) -> bool {
+    Command::new("/bin/kill")
+        .args(["-0"])
+        .arg(pid.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+pub fn live_marker(folder: &Path) -> Option<ScanMarker> {
+    let text = fs::read_to_string(folder.join(MARKER)).ok()?;
+    let marker = parse_marker(&text)?;
+
+    pid_alive(marker.pid).then_some(marker)
+}
+
+pub fn refusal_text(marker: &ScanMarker, folder: &Path) -> String {
+    let who = if marker.started_by == "app" {
+        "the app"
+    } else {
+        "the command line"
+    };
+
+    format!(
+        "a scan is already running on {}: started from {who} at {}, process {}; remove {} if that process is not a scan",
+        marker.repository,
+        marker.started_at,
+        marker.pid,
+        folder.join(MARKER).display()
+    )
+}
+
+fn external_of(marker: &ScanMarker) -> ExternalScan {
+    ExternalScan {
+        origin: marker.started_by.clone(),
+        pid: marker.pid,
+        started_at: marker.started_at.clone(),
+        sensors: marker.sensors.clone(),
+        describe: marker.describe,
+    }
+}
+
+fn appended_lines(folder: &Path, offset: u64) -> (Vec<String>, u64) {
+    let Ok(mut file) = fs::File::open(folder.join(MARKER_PROGRESS)) else {
+        return (Vec::new(), offset);
+    };
+    let length = file.metadata().map(|meta| meta.len()).unwrap_or(0);
+    let from = if length < offset { 0 } else { offset };
+
+    if file.seek(SeekFrom::Start(from)).is_err() {
+        return (Vec::new(), from);
+    }
+
+    let mut bytes = Vec::new();
+
+    if file.read_to_end(&mut bytes).is_err() {
+        return (Vec::new(), from);
+    }
+
+    let Some(end) = bytes.iter().rposition(|byte| *byte == b'\n') else {
+        return (Vec::new(), from);
+    };
+    let lines = String::from_utf8_lossy(&bytes[..end])
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(strip_escapes)
+        .collect();
+
+    (lines, from + end as u64 + 1)
+}
+
+pub fn external_tick(
+    folder: Option<&Path>,
+    own_running: bool,
+    seen: &mut ExternalSeen,
+) -> Vec<ExternalEmission> {
+    let mut out = Vec::new();
+
+    if seen.folder.as_deref() != folder {
+        if seen.pid.take().is_some() {
+            out.push(ExternalEmission::Scan(None));
+        }
+
+        seen.folder = folder.map(Path::to_path_buf);
+        seen.offset = 0;
+    }
+
+    let live = match folder {
+        Some(folder) if !own_running => live_marker(folder),
+        _ => None,
+    };
+
+    match (live, folder) {
+        (Some(marker), Some(folder)) => {
+            if seen.pid != Some(marker.pid) {
+                seen.pid = Some(marker.pid);
+                seen.offset = 0;
+                out.push(ExternalEmission::Scan(Some(external_of(&marker))));
+            }
+
+            let (lines, offset) = appended_lines(folder, seen.offset);
+
+            seen.offset = offset;
+            out.extend(lines.into_iter().map(ExternalEmission::Line));
+        }
+        _ => {
+            if seen.pid.take().is_some() {
+                seen.offset = 0;
+                out.push(ExternalEmission::Scan(None));
+            }
+        }
+    }
+
+    out
+}
 
 pub fn check_modules(modules: &[String]) -> Result<(), String> {
     if modules.is_empty() {
@@ -295,6 +477,9 @@ fn result_for(
         Some(127) => ScanRun::CommandMissing {
             hint: missing_hint(),
         },
+        Some(REFUSED_EXIT) => ScanRun::Refused {
+            reason: stderr.trim().to_string(),
+        },
         Some(0 | 1) if idle.is_some() => {
             let (phases, detail) = idle.unwrap_or_default();
 
@@ -335,6 +520,12 @@ pub fn run_with(
 
     if let Err(fault) = runner.check_all() {
         return refusal(fault);
+    }
+
+    if let Some(marker) = live_marker(folder) {
+        return ScanRun::Refused {
+            reason: refusal_text(&marker, folder),
+        };
     }
 
     if let Err(reason) = runs.begin(label) {
@@ -409,6 +600,7 @@ fn spawn_and_stream(
     };
 
     process
+        .env(STARTED_BY, "app")
         .args(scan_args(folder, describe, measure, sense))
         .args(
             modules_file
@@ -1227,5 +1419,208 @@ mod tests {
 
         assert!(!runs.running("w-1"));
         assert_eq!(runs_of(dir.path(), "recognizer", "scan-runs"), 0);
+    }
+
+    fn marker_text(pid: u32, started_by: &str) -> String {
+        format!(
+            r#"{{"version":1,"pid":{pid},"started_at":"2026-11-10T09:00:00.000Z","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true}}"#
+        )
+    }
+
+    fn write_marker(folder: &Path, pid: u32, started_by: &str) {
+        let cache = folder.join(MODULES_DIR);
+
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(folder.join(MARKER), marker_text(pid, started_by)).unwrap();
+        fs::write(folder.join(MARKER_PROGRESS), "").unwrap();
+    }
+
+    fn append_progress(folder: &Path, text: &str) {
+        let mut file = fs::OpenOptions::new()
+            .append(true)
+            .open(folder.join(MARKER_PROGRESS))
+            .unwrap();
+
+        file.write_all(text.as_bytes()).unwrap();
+    }
+
+    fn dead_pid() -> u32 {
+        let mut child = Command::new("/usr/bin/true").spawn().unwrap();
+        let pid = child.id();
+
+        child.wait().unwrap();
+
+        pid
+    }
+
+    fn examples(kind: &str) -> Vec<String> {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../schema/scan-marker-examples")
+            .join(kind);
+        let mut texts: Vec<String> = fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect();
+
+        texts.sort();
+
+        texts
+    }
+
+    #[test]
+    fn every_valid_example_marker_parses_and_every_invalid_one_is_rejected() {
+        let valid = examples("valid");
+        let invalid = examples("invalid");
+
+        assert_eq!(valid.len(), 2);
+        assert_eq!(invalid.len(), 6);
+        assert!(valid.iter().all(|text| parse_marker(text).is_some()));
+        assert!(invalid.iter().all(|text| parse_marker(text).is_none()));
+
+        let pids: Vec<u32> = valid
+            .iter()
+            .map(|text| parse_marker(text).unwrap().pid)
+            .collect();
+
+        assert_eq!(pids, vec![4242, 77]);
+    }
+
+    #[test]
+    fn a_live_marker_from_another_process_is_external_with_its_progress_replayed() {
+        let dir = TempDir::new().unwrap();
+        let mut child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
+        let mut seen = ExternalSeen::default();
+
+        write_marker(dir.path(), child.id(), "cli");
+        append_progress(dir.path(), "{\"event\":\"phase\"}\n{\"event\":\"st");
+
+        let first = external_tick(Some(dir.path()), false, &mut seen);
+
+        assert_eq!(
+            first,
+            vec![
+                ExternalEmission::Scan(Some(ExternalScan {
+                    origin: "cli".to_string(),
+                    pid: child.id(),
+                    started_at: "2026-11-10T09:00:00.000Z".to_string(),
+                    sensors: vec!["crap".to_string()],
+                    describe: true,
+                })),
+                ExternalEmission::Line("{\"event\":\"phase\"}".to_string()),
+            ]
+        );
+
+        append_progress(dir.path(), "art\"}\n");
+
+        assert_eq!(
+            external_tick(Some(dir.path()), false, &mut seen),
+            vec![ExternalEmission::Line("{\"event\":\"start\"}".to_string())]
+        );
+        assert!(external_tick(Some(dir.path()), false, &mut seen).is_empty());
+
+        fs::remove_file(dir.path().join(MARKER)).unwrap();
+
+        assert_eq!(
+            external_tick(Some(dir.path()), false, &mut seen),
+            vec![ExternalEmission::Scan(None)]
+        );
+        assert!(external_tick(Some(dir.path()), false, &mut seen).is_empty());
+
+        child.kill().unwrap();
+        child.wait().unwrap();
+    }
+
+    #[test]
+    fn a_marker_whose_process_is_dead_is_not_external() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = ExternalSeen::default();
+
+        write_marker(dir.path(), dead_pid(), "cli");
+
+        assert!(external_tick(Some(dir.path()), false, &mut seen).is_empty());
+    }
+
+    #[test]
+    fn a_window_ignores_the_marker_while_its_own_scan_runs() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = ExternalSeen::default();
+
+        write_marker(dir.path(), std::process::id(), "app");
+
+        assert!(external_tick(Some(dir.path()), true, &mut seen).is_empty());
+        assert_eq!(external_tick(Some(dir.path()), false, &mut seen).len(), 1);
+        assert_eq!(
+            external_tick(Some(dir.path()), true, &mut seen),
+            vec![ExternalEmission::Scan(None)]
+        );
+    }
+
+    #[test]
+    fn leaving_the_folder_ends_the_external_scan() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = ExternalSeen::default();
+
+        write_marker(dir.path(), std::process::id(), "cli");
+        external_tick(Some(dir.path()), false, &mut seen);
+
+        assert_eq!(
+            external_tick(None, false, &mut seen),
+            vec![ExternalEmission::Scan(None)]
+        );
+    }
+
+    #[test]
+    fn run_scan_refuses_while_a_live_marker_exists_before_taking_a_baseline() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let prepared = Mutex::new(false);
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+
+        write_marker(dir.path(), std::process::id(), "app");
+
+        let result = run_with(
+            &runs,
+            "w-1",
+            dir.path(),
+            &runner,
+            "recognizer",
+            Describe::Off,
+            &[],
+            &[],
+            None,
+            None,
+            || *prepared.lock().unwrap() = true,
+            &|_| {},
+        );
+
+        assert_eq!(
+            result,
+            ScanRun::Refused {
+                reason: format!(
+                    "a scan is already running on /work/shop: started from the app at 2026-11-10T09:00:00.000Z, process {}; remove {} if that process is not a scan",
+                    std::process::id(),
+                    dir.path().join(MARKER).display()
+                )
+            }
+        );
+        assert!(!*prepared.lock().unwrap());
+        assert!(!runs.running("w-1"));
+    }
+
+    #[test]
+    fn exit_code_three_is_a_refusal_carrying_the_stderr() {
+        assert_eq!(
+            result_for(
+                Some(3),
+                false,
+                "a scan is already running\n".to_string(),
+                None,
+                None
+            ),
+            ScanRun::Refused {
+                reason: "a scan is already running".to_string()
+            }
+        );
     }
 }
