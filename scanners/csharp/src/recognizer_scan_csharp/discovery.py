@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -12,6 +14,62 @@ SOLUTION_EXTENSIONS = (".sln", ".slnx")
 
 
 INPUT_FILE_GLOBS = ("*.csproj", "Directory.Build.props", "*.sln", "*.slnx")
+
+
+Listing = frozenset[str] | None
+
+
+class _Unread:
+    pass
+
+
+UNREAD = _Unread()
+
+
+def git_listing(root: Path) -> Listing:
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", errors="replace").strip()
+
+        if "not a git repository" not in message:
+            first = message.splitlines()[0] if message else "exit " + str(result.returncode)
+            print(
+                f"recognizer-scan-csharp: git could not list files ({first}); scanning every file",
+                file=sys.stderr,
+            )
+
+        return None
+
+    return frozenset(
+        entry.decode("utf-8", errors="surrogateescape")
+        for entry in result.stdout.split(b"\0")
+        if entry
+    )
+
+
+def resolve_listing(root: Path, listing: "Listing | _Unread") -> Listing:
+    return git_listing(root) if isinstance(listing, _Unread) else listing
+
+
+def is_listed(listing: Listing, relative: str) -> bool:
+    return listing is None or relative in listing
 
 
 def selection(skip_paths: list[str] | None = None, absent_paths: list[str] | None = None) -> dict:
@@ -49,8 +107,9 @@ class Discovered:
         self.left_out: dict[str, int] = {extension: 0 for extension in LEFT_OUT_EXTENSIONS}
 
 
-def discover(root: Path) -> Discovered:
+def discover(root: Path, listing: Listing | _Unread = UNREAD) -> Discovered:
     found = Discovered()
+    listing = resolve_listing(root, listing)
 
     for current, directories, files in os.walk(root):
         current_path = Path(current)
@@ -58,6 +117,9 @@ def discover(root: Path) -> Discovered:
 
         for name in sorted(files):
             relative = (current_path / name).relative_to(root).as_posix()
+
+            if not is_listed(listing, relative):
+                continue
 
             if name.endswith(SOURCE_EXTENSIONS):
                 if not is_skipped_file(name):
