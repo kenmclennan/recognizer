@@ -32,6 +32,12 @@ FIND_SPEC = (
     "print(*[m for m in ('coverage','pytest') if u.find_spec(m) is None])"
 )
 
+STDLIB_SPEC = "import sysconfig;print(sysconfig.get_path('stdlib'))"
+
+EXTERNALLY_MANAGED = "EXTERNALLY-MANAGED"
+
+VENV_PYTHON = ".venv/bin/python"
+
 GRADLE_FILE = re.compile(r"(\.gradle(\.kts)?|\.versions\.toml)$")
 
 JACOCO_FIX = 'apply the jacoco plugin: id("jacoco")'
@@ -105,6 +111,27 @@ def missing_modules(
     return [name for name in result.stdout.split() if name in PYTHON_MODULES]
 
 
+def externally_managed(
+    python: list[str], repository: Path, directory: str, bound: int | None
+) -> bool:
+    result = answers([*python, "-c", STDLIB_SPEC], repository, directory, bound)
+
+    if result is None or result.returncode != 0 or not result.stdout.strip():
+        return False
+
+    return (Path(result.stdout.strip()) / EXTERNALLY_MANAGED).exists()
+
+
+def environment_fix(repository: Path, directory: str, names: list[str]) -> str:
+    modules = " ".join(names)
+    install = f"{VENV_PYTHON} -m pip install {modules}"
+
+    if (repository / directory / VENV_PYTHON).exists():
+        return install
+
+    return f"python3 -m venv .venv && {install}"
+
+
 def noun(names: list[str]) -> tuple[str, str]:
     if len(names) == 1:
         return f"{names[0]} is", "it"
@@ -157,6 +184,9 @@ def probe_python(repository: Path, directory: str = "", bound: int | None = None
 
     subject, pronoun = noun(absent)
     command = f"{fix} {' '.join(absent)}"
+
+    if python == ["python3"] and externally_managed(python, repository, directory, bound):
+        command = environment_fix(repository, directory, absent)
 
     return missing(f"{subject} not installed; install {pronoun} with {command}", command)
 

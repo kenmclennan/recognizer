@@ -132,6 +132,49 @@ def test_a_plain_python_repository_names_the_one_missing_module(monkeypatch, tmp
     }
 
 
+def managed_python(tmp_path):
+    stdlib = tmp_path / "stdlib"
+    stdlib.mkdir(exist_ok=True)
+
+    return stdlib, (f'case "$2" in *sysconfig*) echo "{stdlib}";; *) echo "coverage pytest";; esac')
+
+
+def test_an_externally_managed_python_gets_the_venv_fix(monkeypatch, tmp_path):
+    stdlib, text = managed_python(tmp_path)
+    (stdlib / "EXTERNALLY-MANAGED").write_text("")
+    only_path(monkeypatch, tmp_path, python3=text)
+    found = result("python", repository(tmp_path))
+    fix = "python3 -m venv .venv && .venv/bin/python -m pip install coverage pytest"
+
+    assert found.diagnosis == {
+        "code": "tool-missing",
+        "line": f"coverage and pytest are not installed; install them with {fix}",
+        "fix": fix,
+    }
+
+
+def test_an_externally_managed_python_with_a_project_venv_installs_into_it(monkeypatch, tmp_path):
+    stdlib, text = managed_python(tmp_path)
+    (stdlib / "EXTERNALLY-MANAGED").write_text("")
+    only_path(monkeypatch, tmp_path, python3=text)
+    root = repository(tmp_path)
+    (root / ".venv" / "bin").mkdir(parents=True)
+    (root / ".venv" / "bin" / "python").write_text("")
+
+    assert result("python", root).diagnosis["fix"] == (
+        ".venv/bin/python -m pip install coverage pytest"
+    )
+
+
+def test_a_python_without_the_marker_keeps_the_pip_fix(monkeypatch, tmp_path):
+    _, text = managed_python(tmp_path)
+    only_path(monkeypatch, tmp_path, python3=text)
+
+    assert result("python", repository(tmp_path)).diagnosis["fix"] == (
+        "python3 -m pip install coverage pytest"
+    )
+
+
 def test_a_plain_python_repository_with_both_modules_passes(monkeypatch, tmp_path):
     only_path(monkeypatch, tmp_path, python3="echo")
 
