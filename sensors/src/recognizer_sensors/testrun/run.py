@@ -33,6 +33,7 @@ from recognizer_sensors.testrun.failures import (
 )
 from recognizer_sensors.testrun.probes import probe
 from recognizer_sensors.testrun.profiles import (
+    COVERAGE_ROOT,
     CSHARP_CLASSES,
     KOTLIN_CLASSES,
     LEGACY_CONTEXTS_PATH,
@@ -44,9 +45,12 @@ from recognizer_sensors.testrun.profiles import (
     coverage_command,
     csharp_by_file_command,
     kotlin_by_file_command,
+    python_data_path,
+    report_path,
     rust_by_target_command,
     tool_environment,
 )
+from recognizer_sensors.testrun.projects import Project, resolve
 from recognizer_sensors.testrun.selection import Selection, SelectionBuilder
 
 LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
@@ -98,6 +102,8 @@ class Step:
     label: str | None
     command: list[str]
     language: str | None = None
+    directory: str = ""
+    slug: str = ""
 
 
 @dataclass(frozen=True)
@@ -111,6 +117,8 @@ class StepResult:
 class Source:
     path: str
     format: str
+    prefix: str = ""
+    label: str | None = None
 
 
 def parse_test_command(raw: dict) -> list[str] | None:
@@ -137,41 +145,72 @@ def format_of(path: str) -> str:
     return "jacoco" if path.endswith(".xml") else "lcov"
 
 
+def project_map(repository: Path, scans: list[Scan]) -> dict[str, list[Project]]:
+    files = listed_files(repository)
+
+    return {scan.language: resolve(repository, scan, files) for scan in scans}
+
+
+def label_of(project: Project, total: int) -> str | None:
+    if total == 1:
+        return None
+
+    return f"{project.language} {project.directory}" if project.directory else project.language
+
+
 def plan(
     repository: Path,
     scans: list[Scan],
     test_command: list[str] | None,
     coverage: str | None,
     contexts: bool = False,
+    projects: dict[str, list[Project]] | None = None,
 ) -> tuple[list[Step], list[Source]]:
     languages = [scan.language for scan in scans]
 
     if coverage is not None:
-        sources = [Source(coverage, format_of(coverage))]
-    else:
-        sources = [Source(PROFILES[name]["report"], PROFILES[name]["format"]) for name in languages]
+        return ([Step(None, test_command)] if test_command is not None else []), [
+            Source(coverage, format_of(coverage))
+        ]
 
     if test_command is not None:
-        return [Step(None, test_command)], sources
-
-    if coverage is not None:
-        return [], sources
+        return [Step(None, test_command)], [
+            Source(PROFILES[name]["report"], PROFILES[name]["format"]) for name in languages
+        ]
 
     found = probe(repository, scans, {})
 
     if found.diagnosis is not None:
         raise Refusal(found.diagnosis)
 
-    PYTHON_BORROWED[:] = found.borrowed
+    PYTHON_BORROWED.clear()
+    PYTHON_BORROWED.update(found.borrowed)
 
-    steps = [
-        Step(
-            language if len(languages) > 1 else None,
-            coverage_command(repository, language, contexts),
-            language,
-        )
-        for language in languages
-    ]
+    discovered = projects if projects is not None else project_map(repository, scans)
+    total = sum(len(discovered[language]) for language in languages)
+    steps: list[Step] = []
+    sources: list[Source] = []
+
+    for language in languages:
+        for project in discovered[language]:
+            label = label_of(project, total)
+            steps.append(
+                Step(
+                    label,
+                    coverage_command(repository, language, contexts, project),
+                    language,
+                    project.directory,
+                    project.slug,
+                )
+            )
+            sources.append(
+                Source(
+                    report_path(language, project),
+                    PROFILES[language]["format"],
+                    project.directory,
+                    label if project.directory else None,
+                )
+            )
 
     return steps, sources
 
@@ -255,8 +294,8 @@ def run_steps(
             try:
                 result = subprocess.run(
                     step.command,
-                    cwd=repository,
-                    env=tool_environment(repository),
+                    cwd=repository / step.directory,
+                    env=tool_environment(repository, step.directory, slug=step.slug or None),
                     stdin=subprocess.DEVNULL,
                     stdout=stream,
                     stderr=subprocess.STDOUT,
@@ -287,7 +326,11 @@ def settle(
     diagnoses: list[dict] | None,
 ) -> None:
     failed = [r for r in results if suite_failed(r.step.language, r.returncode, r.output)]
-    names = [n for r in failed for n in failing_names(repository, r.step.language, r.output)]
+    names = [
+        n
+        for r in failed
+        for n in failing_names(repository, r.step.language, r.output, r.step.directory, r.step.slug)
+    ]
 
     if failed and (names or not missing):
         if diagnoses is None:
@@ -313,12 +356,13 @@ def settle(
 
         return
 
-    cause = "the test command left no coverage report"
+    subject = f"the {missing[0].label} test command" if missing[0].label else "the test command"
+    cause = f"{subject} left no coverage report"
 
     if names:
         cause = f"{cause} after {named(names)} failed"
     elif failed:
-        cause = f"the test command exited {failed[0].returncode} and left no coverage report"
+        cause = f"{subject} exited {failed[0].returncode} and left no coverage report"
 
     diagnosis = diagnose(
         "coverage-unavailable",
@@ -389,7 +433,9 @@ def read_source(
             continue
 
         part = (
-            parse_jacoco(text, files) if source.format == "jacoco" else parse_lcov(text, repository)
+            parse_jacoco(text, files)
+            if source.format == "jacoco"
+            else parse_lcov(text, repository, source.prefix)
         )
 
         if part is not None:
@@ -445,8 +491,33 @@ def usable_contexts(names: object, repository: Path) -> frozenset[str] | None:
     return frozenset(names)
 
 
-def python_selection(repository: Path, eager: Selection | None = None) -> ContextSelection:
-    return ContextSelection(eager or {}, PythonContexts(repository, usable_contexts))
+def python_selection(
+    repository: Path, eager: Selection | None = None, projects: list[Project] | None = None
+) -> ContextSelection:
+    readers = [
+        PythonContexts(repository, usable_contexts, project.directory, python_data_path(project))
+        for project in projects or [Project("python")]
+    ]
+
+    return ContextSelection(eager or {}, readers)
+
+
+def single_root(projects: list[Project]) -> bool:
+    return len(projects) == 1 and not projects[0].directory
+
+
+def projects_dropped(language: str, projects: list[Project]) -> Selection:
+    if len(projects) > 1:
+        reason = f"{language} has {len(projects)} projects"
+    else:
+        reason = f"{language} runs from {projects[0].directory}"
+
+    print(
+        f"recognizer-sensors: mutation: {reason}; running the whole suite for {language}",
+        file=sys.stderr,
+    )
+
+    return {}
 
 
 def suite_size(selection: Mapping) -> int:
@@ -904,11 +975,13 @@ def collect_coverage_with_tests(
     if coverage is not None:
         return collect_coverage(repository, scans, None, coverage), {}
 
-    steps, sources = plan(repository, scans, None, None, contexts=True)
+    projects = project_map(repository, scans)
+    steps, sources = plan(repository, scans, None, None, contexts=True, projects=projects)
     clear_cached_reports(repository, sources)
     clear_stale_kotlin_reports(repository, scans, sources, steps)
     (repository / PYTHON_DATA).unlink(missing_ok=True)
     (repository / LEGACY_CONTEXTS_PATH).unlink(missing_ok=True)
+    shutil.rmtree(repository / COVERAGE_ROOT / "projects", ignore_errors=True)
     shutil.rmtree(repository / BY_FILE_DIRECTORY, ignore_errors=True)
     shutil.rmtree(repository / KOTLIN_BY_FILE_DIRECTORY, ignore_errors=True)
     shutil.rmtree(repository / CSHARP_BY_FILE_DIRECTORY, ignore_errors=True)
@@ -925,8 +998,12 @@ def collect_coverage_with_tests(
     python = False
 
     for scan in scans:
+        found = projects[scan.language]
+
         if scan.language == "python":
             python = True
+        elif not single_root(found):
+            selection.update(projects_dropped(scan.language, found))
         elif scan.language == "typescript":
             selection.update(typescript_selection(repository, scan, merged))
         elif scan.language == "kotlin":
@@ -937,6 +1014,6 @@ def collect_coverage_with_tests(
             selection.update(rust_selection(repository, merged))
 
     if python:
-        return merged, python_selection(repository, selection)
+        return merged, python_selection(repository, selection, projects["python"])
 
     return merged, selection

@@ -11,6 +11,7 @@ from conftest import git_commit, make_repository
 from recognizer_sensors.cli import main
 from recognizer_sensors.scans import Scan, ScanModule, read_scans
 from recognizer_sensors.testrun.profiles import (
+    PLUGIN_DIRECTORY,
     PROFILES,
     coverage_command,
     mutant_command,
@@ -110,12 +111,24 @@ def test_the_python_runner_follows_the_lockfile(tmp_path, lockfiles, runner):
 
     shell = coverage_command(tmp_path, "python")[2]
     words = " ".join(runner)
+    interpreter = f"{tmp_path}/.recognizer/cache/python-env/bin/python"
+    tail = (
+        f"env -u UV_PROJECT_ENVIRONMENT python {PLUGIN_DIRECTORY}/borrowed_python.py {interpreter} -m"
+        if runner[0] == "uv"
+        else ""
+    )
+    words = f"{words} {tail}".strip()
 
     assert f"; {words} coverage run -m pytest; status=$?" in shell
     assert f"; {words} coverage lcov -o {LCOV}; lcov=$?" in shell
     assert shell.endswith("; [ $status -ne 0 ] && exit $status; exit $lcov")
     assert shell.startswith("export COVERAGE_FILE=.recognizer/cache/coverage/python.data")
-    assert mutant_command(tmp_path, "python") == [*runner, "pytest", "-rfE"]
+    assert mutant_command(tmp_path, "python") == [
+        *runner,
+        *(["env", "-u", "UV_PROJECT_ENVIRONMENT"] if runner[0] == "uv" else []),
+        "pytest",
+        "-rfE",
+    ]
 
 
 def test_the_python_profile_command_is_spliced_not_joined(tmp_path):

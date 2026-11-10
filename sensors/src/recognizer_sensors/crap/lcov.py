@@ -30,7 +30,11 @@ def parse_da(payload: str) -> tuple[int, int] | None:
     return int(line), int(hits)
 
 
-def parse_lcov(text: str, repository: Path) -> Coverage:
+def prefixed(raw: str, path: str, prefix: str) -> str:
+    return f"{prefix}/{path}" if prefix and not raw.startswith("/") else path
+
+
+def parse_lcov(text: str, repository: Path, prefix: str = "") -> Coverage:
     coverage: Coverage = {}
     current: dict[int, int] | None = None
 
@@ -38,7 +42,9 @@ def parse_lcov(text: str, repository: Path) -> Coverage:
         line = raw.strip()
 
         if line.startswith("SF:"):
-            path = normalise_path(line[3:].strip(), repository)
+            raw_path = line[3:].strip()
+            path = normalise_path(raw_path, repository)
+            path = prefixed(raw_path, path, prefix) if path is not None else None
             current = coverage.setdefault(path, {}) if path is not None else {}
         elif line == "end_of_record":
             current = None

@@ -121,7 +121,9 @@ def test_a_pass_that_never_starts_removes_the_stale_data_and_legacy_json(tmp_pat
 
     from recognizer_sensors.scans import read_scans
 
-    monkeypatch.setattr(profiles, "python_runner", lambda repository: ["/nonexistent-runner"])
+    monkeypatch.setattr(
+        profiles, "python_runner", lambda repository, directory="": ["/nonexistent-runner"]
+    )
     root = make_repository(tmp_path / "r", {"app/shop.py": "X = 1\n", "tests/test_a.py": ""})
     (root / PYTHON_DATA).parent.mkdir(parents=True, exist_ok=True)
     (root / PYTHON_DATA).write_bytes(b"stale")

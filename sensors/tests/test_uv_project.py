@@ -7,7 +7,10 @@ from conftest import git_commit, make_repository
 
 from recognizer_sensors.cli import main
 
-pytestmark = pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
+pytestmark = [
+    pytest.mark.real_probes,
+    pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH"),
+]
 
 PYPROJECT = '[project]\nname = "t"\nversion = "0"\nrequires-python = ">=3.11"\n'
 
@@ -119,3 +122,57 @@ def test_crap_leaves_an_existing_venv_byte_for_byte_unchanged(green_project, tmp
     assert status == 0
     assert snapshot(green_project / ".venv") == before
     assert (green_project / ".recognizer/cache/python-env").is_dir()
+
+
+ENVIRONMENT_TESTS = """import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def test_the_interpreter_is_the_project_environments():
+    assert ".recognizer/cache/python-env" in Path(sys.executable).as_posix()
+
+
+def test_a_child_uv_venv_runs_in_a_temporary_folder():
+    assert "UV_PROJECT_ENVIRONMENT" not in os.environ
+
+    with tempfile.TemporaryDirectory() as scratch:
+        subprocess.run(["uv", "venv", "-q"], cwd=scratch, check=True, capture_output=True)
+
+        assert (Path(scratch) / ".venv").is_dir()
+"""
+
+
+def test_crap_runs_a_projects_tests_in_its_own_interpreter_without_the_sensors_uv_variable(
+    tmp_path,
+):
+    root = make_repository(
+        tmp_path / "p",
+        {
+            "pyproject.toml": PYPROJECT,
+            "m.py": MODULE,
+            "test_m.py": TESTS.replace("g(1) == 2", "g(1) == 1"),
+            "test_environment.py": ENVIRONMENT_TESTS,
+        },
+    )
+    subprocess.run(["uv", "lock", "-q"], cwd=root, check=True, capture_output=True)
+    git_commit(root)
+    output = tmp_path / "findings.json"
+
+    status = main(
+        [
+            "crap",
+            "--repository",
+            str(root),
+            "--output",
+            str(output),
+            "--settings",
+            "{}",
+        ]
+    )
+    diagnosis = json.loads(output.read_text()).get("diagnosis")
+
+    assert status == 0
+    assert diagnosis is None

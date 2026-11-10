@@ -83,7 +83,7 @@ def test_a_uv_repository_borrows_only_the_modules_its_environment_lacks(
     found = result("python", root)
 
     assert found.diagnosis is None
-    assert found.borrowed == borrowed
+    assert found.borrowed == {"": borrowed}
 
 
 def test_the_borrowed_modules_reach_the_uv_runner_and_leave_other_runners_alone(
@@ -91,7 +91,7 @@ def test_the_borrowed_modules_reach_the_uv_runner_and_leave_other_runners_alone(
 ):
     root = repository(tmp_path)
     (root / "uv.lock").write_text("")
-    monkeypatch.setattr(profiles, "PYTHON_BORROWED", ["--with", "coverage"])
+    monkeypatch.setattr(profiles, "PYTHON_BORROWED", {"": ["--with", "coverage"]})
 
     assert profiles.python_runner(root) == ["uv", "run", "--with", "coverage"]
 
@@ -331,3 +331,30 @@ def test_an_unknown_failure_with_no_report_points_at_the_log(tmp_path):
 
     assert "fix" not in diagnoses[-1]
     assert ".recognizer/cache/coverage/last-run.log" in diagnoses[-1]["line"]
+
+
+def test_a_uv_coverage_command_runs_coverage_through_the_environments_python_without_the_sensors_variable(
+    monkeypatch, tmp_path
+):
+    root = repository(tmp_path)
+    (root / "uv.lock").write_text("")
+    monkeypatch.setattr(profiles, "PYTHON_BORROWED", {"": ["--with", "coverage"]})
+
+    script = profiles.coverage_command(root, "python")[2]
+    runner = (
+        "uv run --with coverage env -u UV_PROJECT_ENVIRONMENT python "
+        f"{profiles.PLUGIN_DIRECTORY}/borrowed_python.py "
+        f"{root}/.recognizer/cache/python-env/bin/python -m"
+    )
+
+    assert f"; {runner} coverage run -m pytest;" in script
+    assert f"; {runner} coverage lcov -o" in script
+    assert profiles.mutant_command(root, "python")[:7] == [
+        "uv",
+        "run",
+        "--with",
+        "coverage",
+        "env",
+        "-u",
+        "UV_PROJECT_ENVIRONMENT",
+    ]

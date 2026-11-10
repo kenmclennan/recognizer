@@ -12,8 +12,16 @@ Lines = dict[int, frozenset[str]]
 
 
 class PythonContexts:
-    def __init__(self, repository: Path, usable: Callable[[object, Path], frozenset[str] | None]):
+    def __init__(
+        self,
+        repository: Path,
+        usable: Callable[[object, Path], frozenset[str] | None],
+        directory: str = "",
+        data: str = PYTHON_DATA,
+    ):
         self.repository = repository
+        self.directory = directory
+        self.data_path = data
         self.usable = usable
         self.data: CoverageData | None = None
         self.raw: dict[str, str] = {}
@@ -22,7 +30,7 @@ class PythonContexts:
         self.open()
 
     def open(self) -> None:
-        data = CoverageData(basename=str(self.repository / PYTHON_DATA))
+        data = CoverageData(basename=str(self.repository / self.data_path))
 
         try:
             data.read()
@@ -50,7 +58,10 @@ class PythonContexts:
         lines: Lines = {}
 
         for number, names in self.data.contexts_by_lineno(raw).items():
-            tests = self.usable(names, self.repository)
+            tests = self.usable(names, self.repository / self.directory)
+
+            if tests and self.directory:
+                tests = frozenset(f"{self.directory}/{name}" for name in tests)
 
             if tests:
                 lines[number] = shared.setdefault(tests, tests)
@@ -94,16 +105,25 @@ class PythonContexts:
 
 
 class ContextSelection(Mapping):
-    def __init__(self, eager: dict[str, Lines], python: PythonContexts):
+    def __init__(self, eager: dict[str, Lines], python: "PythonContexts | list[PythonContexts]"):
         self.eager = eager
-        self.python = python
+        self.readers = python if isinstance(python, list) else [python]
+
+    @property
+    def python(self) -> PythonContexts:
+        return self.readers[0]
+
+    def reader_of(self, path: str) -> "PythonContexts | None":
+        return next((reader for reader in self.readers if path in reader.raw), None)
 
     def __getitem__(self, path: str) -> Lines:
         if path in self.eager:
             return self.eager[path]
 
-        if path in self.python.raw:
-            return self.python.lines(path)
+        reader = self.reader_of(path)
+
+        if reader is not None:
+            return reader.lines(path)
 
         raise KeyError(path)
 
@@ -111,23 +131,26 @@ class ContextSelection(Mapping):
         if path in self.eager:
             return self.eager[path]
 
-        if path in self.python.raw:
-            return self.python.lines(path)
+        reader = self.reader_of(path)
+
+        if reader is not None:
+            return reader.lines(path)
 
         return default
 
     def __iter__(self) -> Iterator[str]:
         yield from self.eager
 
-        for path in self.python.paths:
-            if path not in self.eager:
-                yield path
+        for reader in self.readers:
+            for path in reader.paths:
+                if path not in self.eager:
+                    yield path
 
     def __len__(self) -> int:
-        return len(set(self.eager) | set(self.python.raw))
+        return len(set(self.eager) | {path for reader in self.readers for path in reader.raw})
 
     @property
     def suite_size(self) -> int:
         names = {f for lines in self.eager.values() for files in lines.values() for f in files}
 
-        return len(names | self.python.suite_files)
+        return len(names.union(*(reader.suite_files for reader in self.readers)))

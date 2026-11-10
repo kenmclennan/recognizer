@@ -10,14 +10,15 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Collection, Iterator
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
 from recognizer_sensors.backup import exclude_from_backup
-from recognizer_sensors.testrun.profiles import tool_environment
+from recognizer_sensors.testrun.profiles import python_lock, tool_environment
+from recognizer_sensors.testrun.projects import slugify
 
 WORK = Path(".recognizer") / "cache" / "mutation" / "work"
 ENVIRONMENTS = Path(".recognizer") / "cache" / "mutation" / "python-env"
@@ -357,16 +358,30 @@ NUMBERS = itertools.count()
 
 
 class EnvironmentPool:
-    def __init__(self, repository: Path, work: Path, size: int) -> None:
+    def __init__(
+        self,
+        repository: Path,
+        work: Path,
+        size: int,
+        directories: Iterable[str] = ("",),
+        slugs: Mapping[str, str] | None = None,
+    ) -> None:
         self.repository = repository
         self.folder = repository / ENVIRONMENTS / work.name
-        self.enabled = (repository / "uv.lock").is_file()
+        self.slugs = slugs or {}
         self.lock = threading.Lock()
-        self.warmed: set[int] = set()
+        self.warmed: set[tuple[str, int]] = set()
         self.free: queue.Queue[int] = queue.Queue()
+        self.enabled = any(self.enabled_for(directory) for directory in directories)
 
         for slot in range(size):
             self.free.put(slot)
+
+    def enabled_for(self, directory: str) -> bool:
+        return python_lock(self.repository, directory) == "uv.lock"
+
+    def slug_of(self, directory: str) -> str:
+        return self.slugs.get(directory, slugify(directory))
 
     def prepare(self) -> None:
         with self.lock:
@@ -378,8 +393,8 @@ class EnvironmentPool:
             (self.folder / PID_FILE).write_text(str(os.getpid()))
 
     @contextmanager
-    def lease(self) -> Iterator[Path | None]:
-        if not self.enabled:
+    def lease(self, directory: str = "") -> Iterator[Path | None]:
+        if not self.enabled_for(directory):
             yield None
 
             return
@@ -388,11 +403,12 @@ class EnvironmentPool:
 
         try:
             self.prepare()
-            environment = self.folder / str(slot)
+            base = self.folder / self.slug_of(directory) if directory else self.folder
+            environment = base / str(slot)
 
-            if slot not in self.warmed:
-                self.warmed.add(slot)
-                run_test_command(WARM_COMMAND, self.repository, None, environment)
+            if (directory, slot) not in self.warmed:
+                self.warmed.add((directory, slot))
+                run_test_command(WARM_COMMAND, self.repository / directory, None, environment)
 
             yield environment
         finally:
@@ -565,11 +581,14 @@ class MutantCopies:
             self.free.put(number)
 
 
-def leased(environments: EnvironmentPool | None):
-    return environments.lease() if environments is not None else nullcontext(None)
+def leased(environments: EnvironmentPool | None, directory: str = ""):
+    if environments is None:
+        return nullcontext(None)
+
+    return environments.lease(directory) if directory else environments.lease()
 
 
-def failed_files(output: str, known: Collection[str]) -> frozenset[str] | None:
+def failed_files(output: str, known: Collection[str], directory: str = "") -> frozenset[str] | None:
     found: set[str] = set()
 
     for line in output.splitlines():
@@ -579,6 +598,7 @@ def failed_files(output: str, known: Collection[str]) -> frozenset[str] | None:
             continue
 
         path = rest.split("::", 1)[0].split(" - ", 1)[0].strip()
+        path = f"{directory}/{path}" if directory else path
 
         if path not in known:
             return None
@@ -599,9 +619,10 @@ def run_mutant(
     carry: tuple[str, ...] = (),
     environments: EnvironmentPool | None = None,
     copies: MutantCopies | None = None,
+    directory: str = "",
 ) -> MutantResult:
     if copies is not None:
-        return run_pooled(copies, mutant, command, timeout, known, environments)
+        return run_pooled(copies, mutant, command, timeout, known, environments, directory)
 
     copy = work / str(number)
 
@@ -611,11 +632,12 @@ def run_mutant(
         tail = mutant.source[mutant.end_byte :]
         (copy / mutant.path).write_bytes(head + mutant.replacement + tail)
 
-        with leased(environments) as environment:
+        with leased(environments, directory) as environment:
+            where = copy / directory
             result = (
-                run_test_command(command, copy, timeout)
+                run_test_command(command, where, timeout)
                 if environment is None
-                else run_test_command(command, copy, timeout, environment=environment)
+                else run_test_command(command, where, timeout, environment=environment)
             )
     except OSError:
         return MutantResult("killed")
@@ -628,7 +650,7 @@ def run_mutant(
     if result.passed:
         return MutantResult("survived")
 
-    failed = failed_files(result.output, known) if known is not None else None
+    failed = failed_files(result.output, known, directory) if known is not None else None
 
     return MutantResult("killed", failed)
 
@@ -640,6 +662,7 @@ def run_pooled(
     timeout: float,
     known: Collection[str] | None,
     environments: EnvironmentPool | None,
+    directory: str = "",
 ) -> MutantResult:
     with copies.lease() as slot:
         try:
@@ -649,11 +672,12 @@ def run_pooled(
             tail = mutant.source[mutant.end_byte :]
             (pooled.path / mutant.path).write_bytes(head + mutant.replacement + tail)
 
-            with leased(environments) as environment:
+            with leased(environments, directory) as environment:
+                where = pooled.path / directory
                 result = (
-                    run_test_command(command, pooled.path, timeout)
+                    run_test_command(command, where, timeout)
                     if environment is None
-                    else run_test_command(command, pooled.path, timeout, environment=environment)
+                    else run_test_command(command, where, timeout, environment=environment)
                 )
         except OSError:
             slot.retire()
@@ -669,7 +693,7 @@ def run_pooled(
     if result.passed:
         return MutantResult("survived")
 
-    failed = failed_files(result.output, known) if known is not None else None
+    failed = failed_files(result.output, known, directory) if known is not None else None
 
     return MutantResult("killed", failed)
 
@@ -685,6 +709,7 @@ def run_function(
     deadline: float | None = None,
     clock: Callable[[], float] = time.monotonic,
     copies: MutantCopies | None = None,
+    directory: str = "",
 ) -> list[MutantResult] | None:
     results = []
 
@@ -701,6 +726,8 @@ def run_function(
 
         if copies is not None:
             extra["copies"] = copies
+        if directory:
+            extra["directory"] = directory
 
         result = run_mutant(
             repository, work, next(NUMBERS), mutant, command, timeout, known, carry, **extra
