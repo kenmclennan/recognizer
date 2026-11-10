@@ -1132,3 +1132,154 @@ describe("createRescanner", () => {
     });
   });
 });
+
+const GAP = {
+  id: "crap:python:sensors:environment",
+  line: "coverage and pytest are not installed",
+  needs: ["mut"],
+  project: { language: "python", directory: "sensors" },
+  fix: {
+    text: "uv sync",
+    command: ["uv", "sync"],
+    cwd: "sensors",
+    env: {},
+    kind: "repository" as const,
+  },
+};
+
+const OUTSIDE = {
+  ...GAP,
+  id: "mutation:rust:root:cargo",
+  line: "cargo-llvm-cov is not installed",
+  project: null,
+  fix: {
+    ...GAP.fix,
+    text: "cargo install cargo-llvm-cov",
+    kind: "outside" as const,
+  },
+};
+
+describe("the preflight flow", () => {
+  const gapsResult = {
+    status: "gaps" as const,
+    gaps: [GAP, OUTSIDE],
+  };
+
+  async function refused() {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      result: gapsResult,
+    });
+    const made = harness(scan);
+
+    await made.rescanner.run();
+
+    return { ...made, scan };
+  }
+
+  it("is running while the scan starts and idle once preflight passes", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [
+        line({ event: "preflight", state: "run" }),
+        line({ event: "preflight", state: "ok" }),
+        extract,
+        summary,
+      ],
+    });
+    const made = harness(scan);
+    const seen: string[] = [];
+
+    made.scan.onStep = () => seen.push(made.rescanner.preflight().state);
+    await made.rescanner.run();
+
+    expect(seen.slice(0, 2)).toEqual(["running", "idle"]);
+    expect(made.updates[0]?.preflight?.state).toBe("running");
+    expect(made.rescanner.preflight().state).toBe("idle");
+  });
+
+  it("holds the gaps of a refused scan, unfixed, with no blocked message", async () => {
+    const { rescanner, log } = await refused();
+
+    expect(rescanner.preflight()).toEqual({
+      state: "gaps",
+      gaps: [
+        { gap: GAP, fixed: false, failure: null },
+        { gap: OUTSIDE, fixed: false, failure: null },
+      ],
+    });
+    expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
+    expect(rescanner.running()).toBe(false);
+  });
+
+  it("calls fix(id) once and marks the gap fixed", async () => {
+    const { rescanner, scan } = await refused();
+
+    await rescanner.fix(GAP.id);
+    await rescanner.fix(GAP.id);
+
+    expect(scan.fixed).toEqual([GAP.id]);
+    expect(rescanner.preflight().gaps[0]).toMatchObject({
+      fixed: true,
+      failure: null,
+    });
+  });
+
+  it("keeps a gap open with the failure when its fix fails", async () => {
+    const { rescanner, scan } = await refused();
+
+    scan.fixFailures[GAP.id] = "uv: no network";
+    await rescanner.fix(GAP.id);
+
+    expect(rescanner.preflight().gaps[0]).toMatchObject({
+      fixed: false,
+      failure: "uv: no network",
+    });
+  });
+
+  it("marks an outside gap installed without calling fix", async () => {
+    const { rescanner, scan } = await refused();
+
+    rescanner.installed(OUTSIDE.id);
+
+    expect(scan.fixed).toEqual([]);
+    expect(rescanner.preflight().gaps[1]?.fixed).toBe(true);
+  });
+
+  it("keeps a once-ticked sensor ticked after a refusal so Check again and run includes it", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      result: gapsResult,
+    });
+    const { rescanner } = harness(scan);
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({ ...rescanner.ticks(), once: ["mut"] });
+    await rescanner.run();
+
+    expect(rescanner.ticks().once).toEqual(["mut"]);
+
+    scan.result = { status: "finished", exitCode: 0, stderr: "", log: null };
+    await rescanner.run();
+
+    expect(scan.ran[1]?.sense).toContain("mut");
+    expect(rescanner.ticks().once).toEqual([]);
+    expect(rescanner.preflight().state).toBe("idle");
+  });
+
+  it("returns to idle with no gaps when the user stops the scan", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [new Promise<void>(() => {})],
+    });
+    const { rescanner } = harness(scan);
+    const running = rescanner.run();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rescanner.preflight().state).toBe("running");
+    await rescanner.stop();
+    await running;
+
+    expect(rescanner.preflight()).toEqual({ state: "idle", gaps: [] });
+  });
+});

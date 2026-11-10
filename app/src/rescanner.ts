@@ -1,7 +1,12 @@
-import type { Diagnosis } from "recognizer";
+import type { Diagnosis, Gap } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
+import {
+  type GapState,
+  NO_PREFLIGHT,
+  type PreflightState,
+} from "./preflight-model";
 import type { PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
@@ -15,6 +20,7 @@ import {
 import type {
   ExternalEvent,
   ExternalScan,
+  FixResult,
   ScanPort,
   ScanRunResult,
 } from "./scan-port";
@@ -33,7 +39,10 @@ import type { ScanReport } from "./scan-report";
 
 export type Registered = Pick<RowSensor, "name" | "display" | "runsTests">[];
 
-export type ProgressUpdate = { scanning: string | null };
+export type ProgressUpdate = {
+  scanning: string | null;
+  preflight?: PreflightState;
+};
 
 export type RescanPorts<Carried> = {
   port: ScanPort;
@@ -68,6 +77,9 @@ export type Rescanner = {
   running: () => boolean;
   external: () => boolean;
   progress: () => ScanProgress;
+  preflight: () => PreflightState;
+  fix: (id: string) => Promise<void>;
+  installed: (id: string) => void;
 };
 
 const DEFAULT_TICKS: ScanTicks = {
@@ -94,6 +106,10 @@ function failureText(result: ScanRunResult): string | null {
   }
 }
 
+function gapStates(gaps: Gap[]): GapState[] {
+  return gaps.map((gap) => ({ gap, fixed: false, failure: null }));
+}
+
 export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
@@ -111,11 +127,13 @@ export function createRescanner<Carried>(
   let failureIds: number[] = [];
   let lastUpdate: ProgressUpdate = { scanning: null };
   let external: ExternalScan | null = null;
+  let preflight: PreflightState = NO_PREFLIGHT;
+  let keepOnce = false;
   let externalQueue: Promise<void> = Promise.resolve();
 
-  function emit(update: ProgressUpdate) {
-    lastUpdate = update;
-    ports.progress(update);
+  function emit(update: { scanning: string | null }) {
+    lastUpdate = { ...update, preflight };
+    ports.progress(lastUpdate);
   }
 
   function publish() {
@@ -299,6 +317,14 @@ export function createRescanner<Carried>(
 
     progress = foldProgress(progress, event);
 
+    if (event.event === "preflight") {
+      if (event.state === "run") {
+        preflight = { state: "running", gaps: [] };
+      } else if (event.state === "ok") {
+        preflight = NO_PREFLIGHT;
+      }
+    }
+
     if (event.event === "phase" && event.phase === "describe") {
       run = { ...run, started: DESCRIBE_KEY };
 
@@ -470,7 +496,8 @@ export function createRescanner<Carried>(
     try {
       await executeScan(modules, planned);
     } finally {
-      ticks = { ...ticks, once: [] };
+      ticks = keepOnce ? ticks : { ...ticks, once: [] };
+      keepOnce = false;
       heading = null;
     }
   }
@@ -517,6 +544,7 @@ export function createRescanner<Carried>(
     };
 
     progress = NO_PROGRESS;
+    preflight = { state: "running", gaps: [] };
     publish();
 
     let queue: Promise<void> = Promise.resolve();
@@ -534,6 +562,18 @@ export function createRescanner<Carried>(
     await queue;
     stopListening();
     run = { ...run, running: [], started: null };
+
+    if (result.status === "gaps") {
+      keepOnce = true;
+      progress = NO_PROGRESS;
+      preflight = { state: "gaps", gaps: gapStates(result.gaps) };
+      emit({ scanning: null });
+      ports.settled();
+
+      return;
+    }
+
+    preflight = NO_PREFLIGHT;
 
     const text = failureText(result);
 
@@ -665,5 +705,41 @@ export function createRescanner<Carried>(
     running: () => busy || external !== null,
     external: () => external !== null,
     progress: () => progress,
+    preflight: () => preflight,
+    async fix(id) {
+      const found = preflight.gaps.find((one) => one.gap.id === id);
+
+      if (found === undefined || found.fixed) {
+        return;
+      }
+
+      let outcome: FixResult;
+
+      try {
+        outcome = await ports.port.fix(id);
+      } catch (error) {
+        outcome = { ok: false, reason: String(error) };
+      }
+
+      updateGap(
+        id,
+        outcome.ok
+          ? { fixed: true, failure: null }
+          : { failure: outcome.reason },
+      );
+    },
+    installed(id) {
+      updateGap(id, { fixed: true, failure: null });
+    },
   };
+
+  function updateGap(id: string, change: Partial<GapState>) {
+    preflight = {
+      ...preflight,
+      gaps: preflight.gaps.map((one) =>
+        one.gap.id === id ? { ...one, ...change } : one,
+      ),
+    };
+    emit({ scanning: lastUpdate.scanning });
+  }
 }
