@@ -78,7 +78,11 @@ def answers(
         return subprocess.run(
             command,
             cwd=repository / directory,
-            env=environment if environment is not None else tool_environment(repository, directory),
+            env=(
+                environment
+                if environment is not None
+                else tool_environment(repository, directory, command=command)
+            ),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,

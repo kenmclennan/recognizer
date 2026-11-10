@@ -295,7 +295,12 @@ def run_steps(
                 result = subprocess.run(
                     step.command,
                     cwd=repository / step.directory,
-                    env=tool_environment(repository, step.directory, slug=step.slug or None),
+                    env=tool_environment(
+                        repository,
+                        step.directory,
+                        slug=step.slug or None,
+                        command=step.command if step.language == "kotlin" else None,
+                    ),
                     stdin=subprocess.DEVNULL,
                     stdout=stream,
                     stderr=subprocess.STDOUT,
@@ -709,7 +714,9 @@ def kotlin_selection(repository: Path, scan: Scan, whole: Coverage) -> Selection
         pairs = mapped[file]
         project = pairs[0][0]
 
-        step = Step(f"kotlin {file}", kotlin_by_file_command(project, [n for _, n in pairs]))
+        step = Step(
+            f"kotlin {file}", kotlin_by_file_command(project, [n for _, n in pairs]), "kotlin"
+        )
 
         started = time.time()
 

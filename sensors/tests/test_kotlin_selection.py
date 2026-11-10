@@ -36,7 +36,9 @@ OUTER = "src/test/kotlin/p/Outer.kt"
 
 FAKE_GRADLE = """#!/bin/sh
 echo "$@" >> "$FAKE_LOG"
+echo "$GRADLE_USER_HOME" >> "$FAKE_HOMES"
 case " $* " in
+  *" --stop "*) [ -n "$FAKE_STOP_FAIL" ] && exit 1; exit 0 ;;
   *" --tests "*)
     mkdir -p build/reports/jacoco/test
     lines=""
@@ -101,6 +103,7 @@ def make(tmp_path, files=None, classes=ALL_CLASSES, monkeypatch=None):
     gradlew.chmod(gradlew.stat().st_mode | stat.S_IEXEC)
     git_commit(root)
     monkeypatch.setenv("FAKE_LOG", str(tmp_path / "log"))
+    monkeypatch.setenv("FAKE_HOMES", str(tmp_path / "homes"))
     monkeypatch.setenv("FAKE_CLASSES", classes)
     scan = SimpleNamespace(
         language="kotlin",

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from recognizer_sensors.cli import main
+from recognizer_sensors.testrun import gradle
 from recognizer_sensors.testrun import run as testrun
 from recognizer_sensors.testrun.probes import Probe
 
@@ -156,3 +157,13 @@ def exports_module(module_id: str, *names: str, hidden: tuple[str, ...] = ()) ->
 def probes_off(request, monkeypatch):
     if request.node.get_closest_marker("real_probes") is None:
         monkeypatch.setattr(testrun, "probe", lambda repository, scans, settings: Probe())
+
+
+@pytest.fixture(autouse=True)
+def cache_root_in_tmp(tmp_path_factory, monkeypatch):
+    root = tmp_path_factory.mktemp("cache-root")
+    monkeypatch.setattr(gradle, "cache_root", lambda: root)
+
+    yield
+
+    shutil.rmtree(root, ignore_errors=True)

@@ -17,6 +17,7 @@ from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError, Refusal, SettingsError
+from recognizer_sensors.testrun.gradle import stop_daemons
 from recognizer_sensors.testrun.preflight import gaps
 
 RECURSION_LIMIT = 20000
@@ -190,11 +191,15 @@ def main(argv: list[str] | None = None) -> int:
         if sensor.checkpoints:
             extra["checkpoint"] = lambda partial: emit(partial, False)
 
-        outcome = (
-            sensor.run(args.repository, scans, settings, commit, **extra)
-            if sensor.needs_commit
-            else sensor.run(args.repository, scans, settings, **extra)
-        )
+        try:
+            outcome = (
+                sensor.run(args.repository, scans, settings, commit, **extra)
+                if sensor.needs_commit
+                else sensor.run(args.repository, scans, settings, **extra)
+            )
+        finally:
+            if sensor.runs_tests:
+                stop_daemons(args.repository)
     except Refusal as refusal:
         print(f"{REASON_PREFIX}{json.dumps(refusal.diagnosis)}", file=sys.stderr)
         print(str(refusal), file=sys.stderr)

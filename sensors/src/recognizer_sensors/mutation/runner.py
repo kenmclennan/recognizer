@@ -309,7 +309,7 @@ def run_test_command(
     env = (
         {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment), "UV_NO_EDITABLE": "0"}
         if environment is not None
-        else tool_environment(cwd)
+        else tool_environment(cwd, command=command)
     )
 
     try:

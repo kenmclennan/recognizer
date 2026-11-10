@@ -62,7 +62,12 @@ from recognizer_sensors.settings import (
     relative_path,
 )
 from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed
-from recognizer_sensors.testrun.profiles import RUST_UNITS, mutant_command, selected_command
+from recognizer_sensors.testrun.profiles import (
+    RUST_UNITS,
+    USER_COMMANDS,
+    mutant_command,
+    selected_command,
+)
 from recognizer_sensors.testrun.projects import owner_of
 from recognizer_sensors.testrun.run import (
     LOG,
@@ -805,6 +810,11 @@ def run(
     checkpoint: Callable[[Outcome], None] | None = None,
 ) -> Outcome:
     configured = settings.get("test_command")
+
+    USER_COMMANDS.clear()
+
+    if configured is not None:
+        USER_COMMANDS.add(tuple(configured))
 
     restore_coverage_handler = install_coverage_stop_handler()
 

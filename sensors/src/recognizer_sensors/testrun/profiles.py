@@ -4,6 +4,7 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
+from recognizer_sensors.testrun.gradle import gradle_environment, is_gradle
 from recognizer_sensors.testrun.projects import Project, ancestors, slugify
 
 PLUGIN_DIRECTORY = Path(__file__).parent / "plugin"
@@ -154,9 +155,24 @@ def environment_folder(repository: Path, directory: str, slug: str | None) -> Pa
     return repository / UV_ENVIRONMENTS / (slugify(directory) if slug is None else slug)
 
 
+USER_COMMANDS: set[tuple[str, ...]] = set()
+
+
 def tool_environment(
-    repository: Path, directory: str = "", slug: str | None = None
+    repository: Path,
+    directory: str = "",
+    slug: str | None = None,
+    command: list[str] | None = None,
 ) -> dict[str, str] | None:
+    base = python_environment(repository, directory, slug)
+
+    if command is not None and is_gradle(command) and tuple(command) not in USER_COMMANDS:
+        return gradle_environment(repository, base)
+
+    return base
+
+
+def python_environment(repository: Path, directory: str, slug: str | None) -> dict[str, str] | None:
     if python_lock(repository, directory) != "uv.lock":
         return None
 
