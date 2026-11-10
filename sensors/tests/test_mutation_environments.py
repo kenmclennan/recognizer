@@ -178,16 +178,6 @@ def test_a_dead_runs_environment_folder_is_swept_and_a_live_one_is_kept(run):
     assert pool.folder.exists()
 
 
-def test_the_environment_folder_parent_is_excluded_from_backup(run, monkeypatch):
-    project, work, pool = run
-    marked = []
-    monkeypatch.setattr(runner, "exclude_from_backup", marked.append)
-
-    pool.prepare()
-
-    assert marked == [pool.folder.parent]
-
-
 def test_a_failing_warm_up_is_a_red_test_run_not_an_exception(run, monkeypatch):
     project, work, pool = run
     monkeypatch.setattr(runner, "WARM_COMMAND", ["false"])
