@@ -1,5 +1,5 @@
 import { join, relative, resolve } from "node:path";
-import { readDescribing } from "./app-settings.js";
+import { type Describing, readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
@@ -16,7 +16,7 @@ import {
   type DescribeProjection,
   projectionText,
 } from "./describe-projection.js";
-import { describerInEffect } from "./describer-in-effect.js";
+import { findDescriber } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
@@ -342,9 +342,14 @@ function* scanFlow(
   let describer: Describer | undefined;
 
   if (options.describe !== false) {
-    const { source: _source, ...found } = describerInEffect(io, root);
+    const found = findDescriber(io, root);
 
-    describer = found;
+    if (found !== null) {
+      const { source: _source, ...rest } = found;
+
+      describer = rest;
+    }
+
     readResponsibilities(io, root);
   }
 
@@ -483,9 +488,20 @@ function* scanFlow(
       return 4;
     };
 
+    const describing: Describing | null =
+      options.describe !== false ? readDescribing(io) : null;
+
     emit(preflightLine({ state: "run" }));
 
-    const early = earlyGaps({ commit, sensors: selected });
+    const early = earlyGaps({
+      io,
+      root,
+      commit,
+      sensors: selected,
+      describe: options.describe !== false,
+      describer: describer ?? null,
+      model: describing?.model ?? "",
+    });
 
     if (early.length > 0) {
       return refuse(early);
@@ -596,7 +612,7 @@ function* scanFlow(
         }
       }
 
-      const { model, batch_size: batchSize } = readDescribing(io);
+      const { model, batch_size: batchSize } = describing as Describing;
       const result = (yield {
         kind: "describe",
         input: {

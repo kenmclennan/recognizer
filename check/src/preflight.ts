@@ -1,4 +1,7 @@
-import { type Fix, type Gap } from "./gap.js";
+import { dirname, isAbsolute, relative } from "node:path";
+import type { Io } from "./cli.js";
+import type { Describer } from "./describe-modules.js";
+import type { Fix, Gap } from "./gap.js";
 
 export interface PreflightSensor {
   name: string;
@@ -6,15 +9,139 @@ export interface PreflightSensor {
 }
 
 export interface EarlyInput {
+  io: Io;
+  root: string;
   commit: string | null;
   sensors: PreflightSensor[];
+  describe: boolean;
+  describer: Describer | null;
+  model: string;
 }
+
+const BREW_FIX = "brew install --cask kenmclennan/tap/recognizer";
+
+const REFERENCE_PROGRAM = "recognizer-describe-claude";
+
+const IN_TREE_DESCRIBER = "describers/claude/dist/bin.js";
 
 const NO_COMMIT_FIX =
   "make the first commit (git add the files, then git commit)";
 
 function outside(text: string, cwd = ""): Fix {
   return { text, command: null, cwd, env: {}, kind: "outside" };
+}
+
+function installFix(): Fix {
+  return {
+    text: BREW_FIX,
+    command: BREW_FIX.split(" "),
+    cwd: "",
+    env: {},
+    kind: "outside",
+  };
+}
+
+function fillDescriber(
+  item: string,
+  root: string,
+  model: string,
+  request: string,
+): string {
+  return item
+    .split("{repository}")
+    .join(root)
+    .split("{model}")
+    .join(model)
+    .split("{request}")
+    .join(request);
+}
+
+function isReference(command: string[]): boolean {
+  return (
+    command[0] === REFERENCE_PROGRAM ||
+    command.some((item) => item.endsWith(IN_TREE_DESCRIBER))
+  );
+}
+
+function describerArgumentsGap(
+  io: Io,
+  input: EarlyInput,
+  describer: Describer,
+): Gap | null {
+  const filled = describer.command.map((item) =>
+    fillDescriber(item, input.root, input.model, "--check"),
+  );
+  const [program, ...rest] = filled as [string, ...string[]];
+  const result = io.run(program, rest, { cwd: input.root });
+
+  if (result.started && result.status === 0) {
+    return null;
+  }
+
+  const tree = filled.find((item) => item.endsWith(IN_TREE_DESCRIBER));
+  const packageDirectory =
+    tree === undefined ? null : relative(input.root, dirname(dirname(tree)));
+  const inRepository =
+    packageDirectory !== null &&
+    !packageDirectory.startsWith("..") &&
+    !isAbsolute(packageDirectory);
+
+  return {
+    id: "describe:arguments",
+    line: "the describer rejects the arguments the scan passes",
+    needs: ["describe"],
+    project: null,
+    fix: inRepository
+      ? {
+          text: "npm run build",
+          command: ["npm", "run", "build"],
+          cwd: packageDirectory,
+          env: {},
+          kind: "repository",
+        }
+      : installFix(),
+  };
+}
+
+function describerGaps(input: EarlyInput): Gap[] {
+  if (!input.describe) {
+    return [];
+  }
+
+  const { io, describer } = input;
+
+  if (describer === null) {
+    return [
+      {
+        id: "describe:missing",
+        line: "no describer is registered and recognizer-describe-claude is not installed",
+        needs: ["describe"],
+        project: null,
+        fix: installFix(),
+      },
+    ];
+  }
+
+  if (isReference(describer.command)) {
+    const gap = describerArgumentsGap(io, input, describer);
+
+    return gap === null ? [] : [gap];
+  }
+
+  const program = describer.command[0] as string;
+  const started = io.run(program, ["--version"], { cwd: input.root }).started;
+
+  return started
+    ? []
+    : [
+        {
+          id: "describe:program",
+          line: `the describer program ${program} does not start`,
+          needs: ["describe"],
+          project: null,
+          fix: outside(`install ${program}`),
+        },
+      ];
 }
 
 export function earlyGaps(input: EarlyInput): Gap[] {
@@ -29,6 +156,8 @@ export function earlyGaps(input: EarlyInput): Gap[] {
       fix: outside(NO_COMMIT_FIX),
     });
   }
+
+  gaps.push(...describerGaps(input));
 
   return gaps;
 }

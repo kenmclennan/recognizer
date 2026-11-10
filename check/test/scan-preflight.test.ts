@@ -15,6 +15,8 @@ const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const LOG = `${ROOT}/.recognizer/cache/log`;
 const REFERENCE =
   'describer:\n  command: [recognizer-describe-claude, --model, "{model}", "{request}"]\n  version: "v1"\n';
+const IN_TREE =
+  'describer:\n  command: [node, "{repository}/describers/claude/dist/bin.js", --model, "{model}", "{request}"]\n  version: "v1"\n';
 const CUSTOM =
   'describer:\n  command: [custom-describer, "{module}"]\n  version: "v1"\n';
 
@@ -98,7 +100,13 @@ describe("scan preflight: the early stage", () => {
   });
 
   it("refuses with exit 4, a line per gap on stderr and the skipped phases recorded", async () => {
-    const options = { ...setup(REFERENCE), commit: undefined };
+    const options = {
+      ...setup(REFERENCE),
+      commit: undefined,
+      programs: {
+        "recognizer-describe-claude": () => ({ stdout: "ok\n" }),
+      },
+    };
     const json = await scan(options, "--describe", "--sense", "crap", "--json");
     const [record] = records(json.fake);
     const all = events(json.out);
@@ -122,6 +130,95 @@ describe("scan preflight: the early stage", () => {
     expect(plain.err).toContain(
       "the folder has no git commit (crap): make the first commit (git add the files, then git commit)",
     );
+  });
+
+  it("gives the describer gap for a reference describer whose --check fails", async () => {
+    const calls: string[][] = [];
+    const options = setup(REFERENCE, {
+      programs: {
+        "recognizer-describe-claude": (args) => {
+          calls.push(args);
+
+          return args.includes("--check")
+            ? { status: 2, stderr: "usage" }
+            : { stdout: "a line\n" };
+        },
+      },
+    });
+    const { code, err } = await scan(options, "--describe");
+
+    expect(code).toBe(4);
+    expect(err).toContain(
+      "the describer rejects the arguments the scan passes (describe): brew install --cask kenmclennan/tap/recognizer",
+    );
+    expect(calls).toEqual([["--model", "sonnet", "--check"]]);
+  });
+
+  it("gives an npm run build fix for the in-tree describer", async () => {
+    const options = setup(IN_TREE, {
+      programs: { node: () => ({ status: 2 }) },
+    });
+    const { out } = await scan(options, "--describe", "--json");
+    const gap = events(out).find(
+      (one) => one.event === "preflight" && one.gaps,
+    ) as {
+      gaps: { fix: unknown; id: string }[];
+    };
+
+    expect(gap.gaps).toEqual([
+      expect.objectContaining({
+        id: "describe:arguments",
+        fix: {
+          text: "npm run build",
+          command: ["npm", "run", "build"],
+          cwd: "describers/claude",
+          env: {},
+          kind: "repository",
+        },
+      }),
+    ]);
+  });
+
+  it("gives no gap for a reference describer whose --check passes", async () => {
+    const options = setup(REFERENCE, {
+      programs: { "recognizer-describe-claude": () => ({ stdout: "ok\n" }) },
+    });
+
+    expect((await scan(options, "--describe")).code).toBe(0);
+  });
+
+  it("only start-checks a describer that is not a reference describer", async () => {
+    const calls: string[][] = [];
+    const options = setup(CUSTOM, {
+      programs: {
+        "custom-describer": (args) => {
+          calls.push(args);
+
+          return { stdout: "a line\n" };
+        },
+      },
+    });
+
+    expect((await scan(options, "--describe")).code).toBe(0);
+    expect(calls[0]).toEqual(["--version"]);
+
+    const absent = setup(CUSTOM, {
+      programs: { "custom-describer": () => ({ started: false }) },
+    });
+    const refused = await scan(absent, "--describe");
+
+    expect(refused.code).toBe(4);
+    expect(refused.err).toContain(
+      "the describer program custom-describer does not start",
+    );
+  });
+
+  it("reports nothing for a describer that is not ticked", async () => {
+    const options = setup(REFERENCE, {
+      programs: { "recognizer-describe-claude": () => ({ status: 2 }) },
+    });
+
+    expect((await scan(options)).code).toBe(0);
   });
 });
 

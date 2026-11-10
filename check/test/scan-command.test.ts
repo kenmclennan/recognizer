@@ -774,6 +774,10 @@ describe("recognizer scan: phases", () => {
         {
           programs: {
             describer: (args) => {
+              if (args[0] === "--version") {
+                return { stdout: "1\n" };
+              }
+
               calls.push(args[0] as string);
 
               return args[0] === "m0.py"
@@ -1041,19 +1045,31 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)).toEqual([]);
   });
 
-  it.each([
-    ["--sense with no sensors registered", ["--sense", "all"], ""],
-    [
-      "--describe with no describer registered and no recognizer-describe-claude to start",
-      ["--describe"],
-      "",
-    ],
-  ])("is exit 2 for %s", async (_, args, config) => {
-    const { code, fake } = await scan(setup({}, { [CONFIG]: config }), ...args);
+  it.each([["--sense with no sensors registered", ["--sense", "all"], ""]])(
+    "is exit 2 for %s",
+    async (_, args, config) => {
+      const { code, fake } = await scan(
+        setup({}, { [CONFIG]: config }),
+        ...args,
+      );
 
-    expect(code).toBe(2);
+      expect(code).toBe(2);
+      expect(extractCalls(fake)).toEqual([]);
+      expect(records(fake)).toEqual([]);
+    },
+  );
+
+  it("is exit 4 with a describer gap for --describe with no describer registered and no recognizer-describe-claude to start", async () => {
+    const { code, fake, err } = await scan(
+      setup({}, { [CONFIG]: "" }),
+      "--describe",
+    );
+
+    expect(code).toBe(4);
+    expect(err).toContain(
+      "no describer is registered and recognizer-describe-claude is not installed (describe): brew install --cask kenmclennan/tap/recognizer",
+    );
     expect(extractCalls(fake)).toEqual([]);
-    expect(records(fake)).toEqual([]);
   });
 
   it("describes with the shipped fallback when no describer is registered", async () => {

@@ -197,7 +197,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown sensor name, --sense with no sensors registered, --describe with no describer registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, or an unknown flag",
+          "bad input - an unknown sensor name, --sense with no sensors registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, or an unknown flag",
       },
       {
         code: 3,
