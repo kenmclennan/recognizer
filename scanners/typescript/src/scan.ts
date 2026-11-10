@@ -7,6 +7,7 @@ import { entryPoints } from "./entry-points.js";
 import { ScanError } from "./errors.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
 import {
+  gitListing,
   listSourceFiles,
   listTestFiles,
   type Selection,
@@ -188,7 +189,8 @@ export function scan(
 
   const real = realpathSync(root);
   const idOf = (file: string) => relative(real, file).split(sep).join("/");
-  const tsconfigs = new TsconfigOptions(real);
+  const listing = gitListing(real);
+  const tsconfigs = new TsconfigOptions(real, listing);
   const skipped = tsconfigs.skippedProjects();
   const skipPaths = skipped
     .map((project) => project.directory)
@@ -208,12 +210,16 @@ export function scan(
     );
   }
 
-  const files = listSourceFiles(real)
+  const files = listSourceFiles(real, listing)
     .filter((file) => !skipPaths.some((path) => isUnder(idOf(file), path)))
     .sort(compare);
   const modules = new Set(files.map(idOf));
 
-  const resolver = new Resolver(real, modules, discoverWorkspaces(real));
+  const resolver = new Resolver(
+    real,
+    modules,
+    discoverWorkspaces(real, listing),
+  );
   const optionsByFile = new Map<string, ts.CompilerOptions>();
 
   for (const file of files) {
@@ -294,6 +300,7 @@ export function scan(
     },
     (directory) => tsconfigs.outputMappings(join(real, directory)),
     (id) => nonSource.add(id),
+    listing,
   );
 
   for (const id of tsconfigs.readFiles()) {
@@ -459,7 +466,7 @@ export function scan(
   });
 
   const testImports = readTestImports({
-    testFiles: listTestFiles(real)
+    testFiles: listTestFiles(real, listing)
       .filter((file) => !skipPaths.some((path) => isUnder(idOf(file), path)))
       .sort(compare),
     idOf,

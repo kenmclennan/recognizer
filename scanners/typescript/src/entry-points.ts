@@ -1,6 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, posix, relative, sep } from "node:path";
-import { isSkippedDirectory } from "./files.js";
+import {
+  isListed,
+  isSkippedDirectory,
+  type Listing,
+  resolveListing,
+} from "./files.js";
 import { isUnder, type OutputMapping } from "./tsconfig-options.js";
 
 const CONFIG_NAME = /^.+\.config\.(ts|mts|cts|js|mjs|cjs)$/;
@@ -14,8 +19,9 @@ interface Found {
   pages: string[];
 }
 
-function walk(root: string): Found {
+function walk(root: string, listing: Listing | undefined): Found {
   const found: Found = { manifests: [], pages: [] };
+  const listed = resolveListing(root, listing);
 
   const visit = (directory: string) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -25,10 +31,12 @@ function walk(root: string): Found {
         if (!isSkippedDirectory(entry.name)) {
           visit(path);
         }
-      } else if (entry.name === "package.json") {
-        found.manifests.push(path);
-      } else if (entry.name.endsWith(".html")) {
-        found.pages.push(path);
+      } else if (isListed(listed, root, path)) {
+        if (entry.name === "package.json") {
+          found.manifests.push(path);
+        } else if (entry.name.endsWith(".html")) {
+          found.pages.push(path);
+        }
       }
     }
   };
@@ -252,6 +260,7 @@ export function entryPoints(
   sources: (id: string) => string | null,
   mappings: (directory: string) => OutputMapping[],
   onRead: (id: string) => void = () => {},
+  listing?: Listing,
 ): Set<string> {
   const marked = new Set<string>();
   const mark = (id: string | null) => {
@@ -259,7 +268,7 @@ export function entryPoints(
       marked.add(id);
     }
   };
-  const { manifests, pages } = walk(root);
+  const { manifests, pages } = walk(root, listing);
 
   for (const path of manifests) {
     const manifest = readManifest(path, (read) => onRead(idOf(root, read)));

@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -15,6 +17,62 @@ SKIPPED_DIRECTORY_PREFIXES = (".",)
 SKIPPED_DIRECTORY_SUFFIXES = ("Test",)
 SKIPPED_FILE_PATTERNS = ("*Test.kt", "*Tests.kt")
 BUILD_FILES = ("build.gradle", "build.gradle.kts", "pom.xml")
+
+
+Listing = frozenset[str] | None
+
+
+class _Unread:
+    pass
+
+
+UNREAD = _Unread()
+
+
+def git_listing(root: Path) -> Listing:
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", errors="replace").strip()
+
+        if "not a git repository" not in message:
+            first = message.splitlines()[0] if message else "exit " + str(result.returncode)
+            print(
+                f"recognizer-scan-kotlin: git could not list files ({first}); scanning every file",
+                file=sys.stderr,
+            )
+
+        return None
+
+    return frozenset(
+        entry.decode("utf-8", errors="surrogateescape")
+        for entry in result.stdout.split(b"\0")
+        if entry
+    )
+
+
+def resolve_listing(root: Path, listing: "Listing | _Unread") -> Listing:
+    return git_listing(root) if isinstance(listing, _Unread) else listing
+
+
+def is_listed(listing: Listing, relative: str) -> bool:
+    return listing is None or relative in listing
 
 
 def selection() -> dict:
@@ -41,8 +99,9 @@ def is_skipped_file(name: str) -> bool:
     return any(fnmatch(name, pattern) for pattern in SKIPPED_FILE_PATTERNS)
 
 
-def discover(root: Path) -> list[str]:
+def discover(root: Path, listing: Listing | _Unread = UNREAD) -> list[str]:
     found = []
+    listing = resolve_listing(root, listing)
 
     for current, directories, files in os.walk(root):
         current_path = Path(current)
@@ -50,7 +109,10 @@ def discover(root: Path) -> list[str]:
 
         for name in files:
             if name.endswith(SOURCE_EXTENSIONS) and not is_skipped_file(name):
-                found.append((current_path / name).relative_to(root).as_posix())
+                relative = (current_path / name).relative_to(root).as_posix()
+
+                if is_listed(listing, relative):
+                    found.append(relative)
 
     return sorted(found)
 

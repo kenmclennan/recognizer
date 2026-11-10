@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -13,12 +14,33 @@ const SKIPPED_DIRECTORIES = new Set([
   "__tests__",
 ]);
 
+function listedFiles(root: string): Set<string> {
+  const output = execFileSync(
+    "git",
+    [
+      "-C",
+      root,
+      "ls-files",
+      "-z",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+    ],
+    { encoding: "utf8" },
+  );
+
+  return new Set(output.split("\0").filter((path) => path !== ""));
+}
+
 function scannedFiles(root: string): string[] {
+  const listed = listedFiles(root);
+
   return (readdirSync(root, { recursive: true }) as string[]).filter((path) => {
     const parts = path.split(sep);
     const name = parts[parts.length - 1];
 
     return (
+      listed.has(parts.join("/")) &&
       SOURCE_EXTENSION.test(name) &&
       !name.endsWith(".d.ts") &&
       !name.endsWith(".d.mts") &&

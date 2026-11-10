@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { Io } from "./cli.js";
 
 export type Language = "python" | "typescript" | "kotlin" | "rust" | "csharp";
@@ -156,8 +156,41 @@ function skipsFile(language: Language, fileName: string): boolean {
   );
 }
 
+function gitListing(io: Io, root: string): Set<string> | null {
+  const result = io.run("git", [
+    "-C",
+    root,
+    "ls-files",
+    "-z",
+    "--cached",
+    "--others",
+    "--exclude-standard",
+  ]);
+
+  if (!result.started) {
+    return null;
+  }
+
+  if (result.status !== 0) {
+    const message = result.stderr.trim();
+
+    if (!message.includes("not a git repository")) {
+      const first = message.split("\n")[0] || `exit ${result.status}`;
+
+      io.stderr(
+        `recognizer: git could not list files (${first}); scanning every file\n`,
+      );
+    }
+
+    return null;
+  }
+
+  return new Set(result.stdout.split("\0").filter((entry) => entry !== ""));
+}
+
 export function detectLanguages(io: Io, root: string): Language[] {
   const found = new Set<Language>();
+  const listing = gitListing(io, root);
 
   function walk(directory: string, active: Language[]): void {
     const entries = io.readDir(directory);
@@ -195,7 +228,9 @@ export function detectLanguages(io: Io, root: string): Language[] {
         if (
           language &&
           here.includes(language) &&
-          !skipsFile(language, entry.name)
+          !skipsFile(language, entry.name) &&
+          (listing === null ||
+            listing.has(relative(root, join(directory, entry.name))))
         ) {
           found.add(language);
         }

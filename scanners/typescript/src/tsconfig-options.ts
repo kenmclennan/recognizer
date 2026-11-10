@@ -1,7 +1,12 @@
 import { readdirSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
-import { isSkippedDirectory } from "./files.js";
+import {
+  isListed,
+  isSkippedDirectory,
+  type Listing,
+  resolveListing,
+} from "./files.js";
 
 const NO_INPUTS = 18003;
 const DECLARATION = /\.d\.[mc]?ts$/;
@@ -65,7 +70,10 @@ export class TsconfigOptions {
   private readonly read = new Set<string>();
   private readonly missing = new Set<string>();
 
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly listing?: Listing,
+  ) {}
 
   optionsFor(file: string): ts.CompilerOptions {
     const configPath = this.nearestConfig(dirname(file));
@@ -250,6 +258,7 @@ export class TsconfigOptions {
 
   private projectDirectories(): string[] {
     const found: string[] = [];
+    const listed = resolveListing(this.root, this.listing);
 
     const walk = (directory: string) => {
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -257,7 +266,10 @@ export class TsconfigOptions {
           if (!isSkippedDirectory(entry.name)) {
             walk(join(directory, entry.name));
           }
-        } else if (entry.name === "tsconfig.json") {
+        } else if (
+          entry.name === "tsconfig.json" &&
+          isListed(listed, this.root, join(directory, entry.name))
+        ) {
           found.push(directory);
         }
       }
