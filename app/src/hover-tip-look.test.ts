@@ -27,7 +27,7 @@ facts.treeAfterRemoval = tips();
 
 const row = (key, ticked) => ({ key, name: key, tickable: true, ticked, disabled: false, state: { kind: "never-run" }, text: { icon: "circle-dashed", text: "never run" }, note: null, why: null, title: "About " + key });
 const model = (ticked) => ({
-  header: { text: "Scan", moved: null }, scope: null, mode: { value: "bring", disabled: false }, hint: null,
+  header: { text: "Scan", moved: null }, scope: null, mode: { value: "bring", disabled: false },
   freshness: { summary: { shape: "current", tone: "ok", icon: "circle-check", head: "Everything on the repository is current", line: "", bar: null } },
   rows: [row("alpha", ticked === "alpha"), row("beta", ticked === "beta")],
   reports: [], button: { scanning: false, label: "Scan", disabled: false }, planned: null, pending: false, mark: false,

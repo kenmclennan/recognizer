@@ -140,7 +140,6 @@ export type ScanPanelModel = {
     disabled: boolean;
   };
   mode: FreshnessModel["action"]["mode"];
-  hint: string | null;
   planned: PlannedRun | null;
   pending: boolean;
   mark: boolean;
@@ -381,7 +380,6 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         disabled: input.scanning,
       },
       mode: freshness.action.mode,
-      hint: null,
       planned: null,
       pending: true,
       mark: panelMark(input),
@@ -450,7 +448,6 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       disabled: freshness.action.primary.disabled,
     },
     mode: freshness.action.mode,
-    hint: freshness.action.hint,
     planned,
     pending: false,
     mark: panelMark(input),

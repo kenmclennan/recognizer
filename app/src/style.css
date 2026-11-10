@@ -2694,13 +2694,6 @@ svg.i.chevron {
   margin-top: 0;
 }
 
-.scan-hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
 .scan-panel .scan-buttons button.primary {
   border-color: var(--sel);
   background: var(--selbg);
