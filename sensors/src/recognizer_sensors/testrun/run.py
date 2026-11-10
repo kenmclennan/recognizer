@@ -541,7 +541,7 @@ def typescript_selection(repository: Path, scan: Scan, whole: Coverage) -> Selec
 
     try:
         for number, file in enumerate(tests):
-            step = Step(f"typescript {file}", by_file_command(file, number))
+            step = Step(f"typescript {file}", by_file_command(repository, file, number))
 
             try:
                 run_steps(repository, [step], "a", strict=True)

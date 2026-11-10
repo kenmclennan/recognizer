@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+from dataclasses import dataclass
 from pathlib import Path
 
 from recognizer_sensors.testrun.projects import Project, ancestors, slugify
@@ -232,6 +233,9 @@ def coverage_command(
     )
     command = PROFILES[language]["coverage_command"]
 
+    if language == "typescript" and vitest_project(repository, directory) is not None:
+        command = vitest_command(COVERAGE_ROOT + "/typescript", [])
+
     if contexts and language == "python":
         script = PYTHON_COVERAGE_CONTEXTS.format(plugin=shlex.quote(str(PLUGIN_DIRECTORY)))
         command = ["sh", "-c", script]
@@ -242,7 +246,64 @@ def coverage_command(
     return fill(with_cache(command, coverage_directory(repository, project)), runner, joined=True)
 
 
-def by_file_command(file: str, number: int) -> list[str]:
+@dataclass(frozen=True)
+class VitestProject:
+    version: str
+    has_coverage: bool
+
+
+def typescript_runner(repository: Path) -> str | None:
+    try:
+        script = json.loads((repository / "package.json").read_text())["scripts"]["test"]
+        words = shlex.split(script)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+    return words[0] if words and words[0] in ("jest", "vitest") else None
+
+
+def installed_version(package: Path) -> str | None:
+    try:
+        version = json.loads(package.read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError, AttributeError):
+        return None
+
+    return version if isinstance(version, str) else None
+
+
+def vitest_project(repository: Path, directory: str) -> VitestProject | None:
+    if typescript_runner(repository / directory) != "vitest":
+        return None
+
+    folders = [repository / current / "node_modules" for current in ancestors(directory)]
+    versions = [v for v in (installed_version(f / "vitest" / "package.json") for f in folders) if v]
+
+    if not versions:
+        return None
+
+    return VitestProject(
+        versions[0],
+        any((f / "@vitest" / "coverage-v8" / "package.json").is_file() for f in folders),
+    )
+
+
+def vitest_command(reports: str, files: list[str]) -> list[str]:
+    return [
+        "npm",
+        "test",
+        "--",
+        "--coverage.enabled",
+        "--coverage.provider=v8",
+        "--coverage.reporter=lcovonly",
+        f"--coverage.reportsDirectory={reports}",
+        *files,
+    ]
+
+
+def by_file_command(repository: Path, file: str, number: int) -> list[str]:
+    if vitest_project(repository, "") is not None:
+        return vitest_command(f".recognizer/cache/coverage/typescript/by-file/{number}", [file])
+
     command = list(PROFILES["typescript"]["coverage_command"])
     command[command.index("--reports-dir") + 1] = (
         f".recognizer/cache/coverage/typescript/by-file/{number}"
@@ -327,18 +388,8 @@ def rust_selected_command(units: list[tuple[str, str, str]]) -> list[str]:
     return command
 
 
-def typescript_bails(repository: Path) -> bool:
-    try:
-        script = json.loads((repository / "package.json").read_text())["scripts"]["test"]
-        words = shlex.split(script)
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
-
-    return bool(words) and words[0] in ("jest", "vitest")
-
-
 def typescript_flags(repository: Path, stop: bool, workers: int) -> list[str]:
-    if not typescript_bails(repository):
+    if typescript_runner(repository) is None:
         return []
 
     cap = [f"--maxWorkers={max(1, (os.cpu_count() or 1) // workers)}"] if workers > 1 else []
