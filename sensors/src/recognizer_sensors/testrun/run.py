@@ -324,6 +324,7 @@ def settle(
     merged: Coverage,
     missing: list[Source],
     diagnoses: list[dict] | None,
+    empty: list[tuple[Source, str | None]] | None = None,
 ) -> None:
     failed = [r for r in results if suite_failed(r.step.language, r.returncode, r.output)]
     names = [
@@ -339,6 +340,8 @@ def settle(
         diagnoses.append(crap_tests_failed(names))
 
     if not missing:
+        report_empty(empty or [], failed, diagnoses)
+
         return
 
     known = known_cause([r.output for r in failed])
@@ -375,6 +378,39 @@ def settle(
     diagnoses.append(diagnosis)
 
 
+def report_empty(
+    empty: list[tuple[Source, str | None]], failed: list[StepResult], diagnoses: list[dict] | None
+) -> None:
+    if failed or not empty:
+        return
+
+    source, language = empty[0]
+    name = source.label or language
+    subject = f"the {name} test command" if name else "the test command"
+    diagnosis = diagnose(
+        "coverage-unavailable",
+        f"coverage unavailable: {subject} produced an empty coverage report; see {LOG.as_posix()}",
+    )
+
+    if diagnoses is None:
+        raise Refusal(diagnosis)
+
+    diagnoses.append(diagnosis)
+
+
+def covers_nothing(part: Coverage, source: Source, language: str | None, scans: list[Scan]) -> bool:
+    expected = {
+        path
+        for scan in scans
+        if language is None or scan.language == language
+        for module in scan.modules
+        for path in module.files
+        if not source.prefix or path.startswith(f"{source.prefix}/")
+    }
+
+    return bool(expected) and not expected & part.keys()
+
+
 def read_reports(
     repository: Path,
     sources: list[Source],
@@ -387,14 +423,20 @@ def read_reports(
     files = [path for scan in scans for module in scan.modules for path in module.files]
     merged: Coverage = {}
     missing: list[Source] = []
+    empty: list[tuple[Source, str | None]] = []
+    paired = len(steps) == len(sources)
 
-    for source in sources:
+    for index, source in enumerate(sources):
         part = read_source(repository, source, files, since)
 
         if part is None:
             missing.append(source)
         else:
             merge_coverage(merged, part)
+            language = steps[index].language if paired else None
+
+            if steps and covers_nothing(part, source, language, scans):
+                empty.append((source, language))
 
     if not steps:
         if missing:
@@ -402,7 +444,7 @@ def read_reports(
 
         return merged
 
-    settle(repository, results, merged, missing, diagnoses)
+    settle(repository, results, merged, missing, diagnoses, empty)
 
     return merged
 

@@ -300,8 +300,8 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 mkdir -p "$directory/aaa" "$directory/bbb"
-printf 'SF:%s/src/A/One.cs\\nDA:1,1\\nDA:2,0\\nend_of_record\\nSF:%s/src/A/Shared.cs\\nDA:1,2\\nend_of_record\\n' "$PWD" "$PWD" > "$directory/aaa/coverage.info"
-printf 'SF:%s/src/A/Shared.cs\\nDA:1,3\\nend_of_record\\nSF:/_/outside/Other.cs\\nDA:1,1\\nend_of_record\\n' "$PWD" > "$directory/bbb/coverage.info"
+printf 'SF:%s/src/Shop.Domain/Order.cs\\nDA:1,1\\nDA:2,0\\nend_of_record\\nSF:%s/src/Shop.Domain/Product.cs\\nDA:1,2\\nend_of_record\\n' "$PWD" "$PWD" > "$directory/aaa/coverage.info"
+printf 'SF:%s/src/Shop.Domain/Product.cs\\nDA:1,3\\nend_of_record\\nSF:/_/outside/Other.cs\\nDA:1,1\\nend_of_record\\n' "$PWD" > "$directory/bbb/coverage.info"
 """
 
 
@@ -335,8 +335,8 @@ def test_two_project_reports_merge_to_repository_relative_paths_and_drop_outside
     (root / "tests/T/T.csproj").write_text('<PackageReference Include="coverlet.collector" />')
     coverage = collect_coverage(root, read_scans(root), None, None)
 
-    assert coverage["src/A/One.cs"] == {1: 1, 2: 0}
-    assert coverage["src/A/Shared.cs"] == {1: 5}
+    assert coverage["src/Shop.Domain/Order.cs"] == {1: 1, 2: 0}
+    assert coverage["src/Shop.Domain/Product.cs"] == {1: 5}
     assert all(not path.startswith("/") for path in coverage)
     assert not any("Other.cs" in path for path in coverage)
 
@@ -390,9 +390,11 @@ def test_the_preflight_is_skipped_when_a_test_command_or_coverage_is_set(monkeyp
     )
 
     report = root / "cov.info"
-    report.write_text("SF:src/A/One.cs\nDA:1,1\nend_of_record\n")
+    report.write_text("SF:src/Shop.Domain/Order.cs\nDA:1,1\nend_of_record\n")
 
-    assert collect_coverage(root, read_scans(root), None, "cov.info") == {"src/A/One.cs": {1: 1}}
+    assert collect_coverage(root, read_scans(root), None, "cov.info") == {
+        "src/Shop.Domain/Order.cs": {1: 1}
+    }
 
 
 def test_a_missing_dotnet_ends_with_the_not_installed_line(monkeypatch, tmp_path):

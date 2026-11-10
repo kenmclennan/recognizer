@@ -10,6 +10,7 @@ from conftest import git_commit, make_repository
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.scans import Scan, ScanModule, read_scans
+from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun.profiles import (
     PLUGIN_DIRECTORY,
     PROFILES,
@@ -595,3 +596,82 @@ def test_tool_environment_points_uv_at_the_cache_only_when_a_uv_lock_exists(tmp_
     assert tool_environment(tmp_path)["UV_PROJECT_ENVIRONMENT"] == str(
         tmp_path / ".recognizer/cache/python-env"
     )
+
+
+EMPTY_REPORT = "the test command produced an empty coverage report"
+
+LANGUAGE_FILES = {
+    "python": ("app/m.py", "app/m.py"),
+    "typescript": ("web/a.ts", "web/a.ts"),
+    "rust": ("src/lib.rs", "src/lib.rs"),
+    "csharp": ("src/M.cs", "src/M.cs"),
+}
+
+
+@pytest.mark.parametrize("language", sorted(LANGUAGE_FILES))
+def test_an_empty_lcov_report_is_a_diagnosis_naming_the_language(tmp_path, language):
+    path = LANGUAGE_FILES[language][0]
+    root = repository(tmp_path, {path: BODY})
+    empty = script(
+        root,
+        "e.py",
+        "import pathlib, sys\npathlib.Path(sys.argv[1]).parent.mkdir(parents=True, exist_ok=True)\npathlib.Path(sys.argv[1]).write_text('')\n",
+    )
+    scan = Scan(language, (ScanModule(path, (path,)),), False)
+    diagnoses: list[dict] = []
+
+    coverage = collect_coverage(
+        root,
+        [scan],
+        [sys.executable, empty, PROFILES[language]["report"]],
+        None,
+        diagnoses,
+    )
+
+    assert coverage == {}
+    assert [d["code"] for d in diagnoses] == ["coverage-unavailable"]
+    assert EMPTY_REPORT in diagnoses[0]["line"]
+
+
+def test_an_empty_report_makes_mutation_refuse(tmp_path):
+    root = repository(tmp_path)
+    empty = script(
+        root,
+        "e.py",
+        "import pathlib, sys\npathlib.Path(sys.argv[1]).parent.mkdir(parents=True, exist_ok=True)\npathlib.Path(sys.argv[1]).write_text('')\n",
+    )
+
+    with pytest.raises(Refusal) as refusal:
+        collect_coverage(root, read_scans(root), [sys.executable, empty, LCOV], None)
+
+    assert EMPTY_REPORT in refusal.value.diagnosis["line"]
+
+
+def test_a_report_covering_other_files_only_is_empty_for_the_scan(tmp_path):
+    root = repository(tmp_path)
+    other = script(
+        root,
+        "o.py",
+        WRITE_LCOV.replace("SF:app/m.py", "SF:elsewhere/x.py"),
+    )
+    diagnoses: list[dict] = []
+
+    collect_coverage(root, read_scans(root), [sys.executable, other, LCOV], None, diagnoses)
+
+    assert EMPTY_REPORT in diagnoses[0]["line"]
+
+
+def test_a_language_with_no_modules_is_exempt_from_the_empty_report_check(tmp_path):
+    root = repository(tmp_path)
+    empty = script(
+        root,
+        "e.py",
+        "import pathlib, sys\npathlib.Path(sys.argv[1]).parent.mkdir(parents=True, exist_ok=True)\npathlib.Path(sys.argv[1]).write_text('')\n",
+    )
+    diagnoses: list[dict] = []
+
+    collect_coverage(
+        root, [Scan("python", (), False)], [sys.executable, empty, LCOV], None, diagnoses
+    )
+
+    assert diagnoses == []
