@@ -6,7 +6,9 @@ from recognizer_sensors.settings import MAX_FAILING_NAMES, diagnose
 
 KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
 
-CSHARP_RESULTS_DIRECTORY = ".recognizer/cache/coverage/csharp"
+COVERAGE_ROOT = ".recognizer/cache/coverage"
+
+CSHARP_RESULTS_DIRECTORY = f"{COVERAGE_ROOT}/csharp"
 
 PYTEST_FAILURE = re.compile(r"^(?:FAILED|ERROR) (.+?)(?: - .*)?$", re.MULTILINE)
 
@@ -27,10 +29,10 @@ def log_names(language: str | None, output: str) -> list[str]:
     return names
 
 
-def kotlin_names(repository: Path) -> list[str]:
+def kotlin_names(repository: Path, directory: str = "") -> list[str]:
     names: list[str] = []
 
-    for result in sorted(repository.glob(KOTLIN_RESULTS_GLOB)):
+    for result in sorted((repository / directory).glob(KOTLIN_RESULTS_GLOB)):
         try:
             root = ElementTree.parse(result).getroot()
         except (OSError, ElementTree.ParseError):
@@ -61,12 +63,20 @@ def csharp_names(directory: Path) -> list[str]:
     return names
 
 
-def failing_names(repository: Path, language: str | None, output: str) -> list[str]:
+def failing_names(
+    repository: Path, language: str | None, output: str, directory: str = "", slug: str = ""
+) -> list[str]:
     if language == "kotlin":
-        return kotlin_names(repository)
+        return kotlin_names(repository, directory)
 
     if language == "csharp":
-        return csharp_names(repository / CSHARP_RESULTS_DIRECTORY)
+        folder = (
+            CSHARP_RESULTS_DIRECTORY
+            if not directory
+            else CSHARP_RESULTS_DIRECTORY.replace(COVERAGE_ROOT, f"{COVERAGE_ROOT}/projects/{slug}")
+        )
+
+        return csharp_names(repository / folder)
 
     return log_names(language, output)
 

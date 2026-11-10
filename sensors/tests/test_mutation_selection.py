@@ -121,7 +121,11 @@ def test_a_missing_context_file_selects_nothing(tmp_path):
 
 @pytest.mark.parametrize(
     ("lockfile", "runner_words"),
-    [("uv.lock", ["uv", "run"]), ("poetry.lock", ["poetry", "run"]), (None, ["python3", "-m"])],
+    [
+        ("uv.lock", ["uv", "run", "env", "-u", "UV_PROJECT_ENVIRONMENT"]),
+        ("poetry.lock", ["poetry", "run"]),
+        (None, ["python3", "-m"]),
+    ],
 )
 def test_python_selection_follows_the_runner(tmp_path, lockfile, runner_words):
     if lockfile:
@@ -242,7 +246,9 @@ def test_fifty_one_files_or_a_dashed_name_run_the_whole_suite(tmp_path):
 def test_a_real_python_coverage_pass_attributes_each_line_to_the_test_files_that_ran_it(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setattr(profiles, "python_runner", lambda repository: [sys.executable, "-m"])
+    monkeypatch.setattr(
+        profiles, "python_runner", lambda repository, directory="": [sys.executable, "-m"]
+    )
     root = make_repository(
         tmp_path / "r",
         {"app/shop.py": SHOP, "tests/test_a.py": TEST_A, "tests/test_b.py": TEST_B},
@@ -492,7 +498,12 @@ def typescript_repository(tmp_path):
 
 
 def fake_c8(root, failing=None):
+    real = subprocess.run
+
     def fake(command, **kwargs):
+        if command[0] == "git":
+            return real(command, **kwargs)
+
         if command[0] != "npx":
             raise AssertionError(command)
 
@@ -775,8 +786,8 @@ def test_other_languages_ignore_the_worker_count(tmp_path):
 def test_the_record_key_does_not_depend_on_the_mutation_worker_count(tmp_path, monkeypatch):
     real = sensor.mutant_command
 
-    def capping(repository, language, stop=False, workers=1):
-        command = real(repository, language, stop)
+    def capping(repository, language, stop=False, workers=1, directory=""):
+        command = real(repository, language, stop, directory=directory)
 
         return [*command, f"--maxWorkers={workers}"] if workers > 1 else command
 

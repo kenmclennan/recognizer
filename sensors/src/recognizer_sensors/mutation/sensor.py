@@ -63,6 +63,7 @@ from recognizer_sensors.settings import (
 )
 from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed
 from recognizer_sensors.testrun.profiles import RUST_UNITS, mutant_command, selected_command
+from recognizer_sensors.testrun.projects import owner_of
 from recognizer_sensors.testrun.run import (
     LOG,
     collect_coverage,
@@ -70,6 +71,7 @@ from recognizer_sensors.testrun.run import (
     not_installed,
     parse_coverage,
     parse_test_command,
+    project_map,
 )
 from recognizer_sensors.testrun.run import (
     suite_size as suite_size_of,
@@ -130,6 +132,7 @@ class Target:
     entries: list[dict | None] = field(default_factory=list)
     reused: bool = False
     carried: bool = False
+    project: str = ""
 
 
 def parse_carry(value: object) -> tuple[str, ...]:
@@ -375,13 +378,15 @@ def run_baseline(
     command: list[str],
     subject: str,
     environments: EnvironmentPool | None = None,
+    directory: str = "",
 ) -> float:
     try:
-        with copies.lease() as copy, leased(environments) as environment:
+        with copies.lease() as copy, leased(environments, directory) as environment:
+            where = copy / directory
             result = (
-                run_test_command(command, copy, None)
+                run_test_command(command, where, None)
                 if environment is None
-                else run_test_command(command, copy, None, environment=environment)
+                else run_test_command(command, where, None, environment=environment)
             )
     except OSError:
         raise not_installed(command[0]) from None
@@ -428,8 +433,10 @@ class Baselines:
         self.lock = threading.Lock()
         self.entries: dict[tuple[str, ...], Baseline] = {}
 
-    def seconds(self, command: list[str], subject: str, fallback: bool = False) -> float | None:
-        key = tuple(command)
+    def seconds(
+        self, command: list[str], subject: str, fallback: bool = False, directory: str = ""
+    ) -> float | None:
+        key = (directory, *command)
 
         with self.lock:
             entry = self.entries.get(key)
@@ -440,11 +447,17 @@ class Baselines:
 
         if owner:
             try:
+                extra = {"directory": directory} if directory else {}
                 entry.seconds = (
-                    run_baseline(self.repository, self.copies, command, subject)
+                    run_baseline(self.repository, self.copies, command, subject, **extra)
                     if self.environments is None
                     else run_baseline(
-                        self.repository, self.copies, command, subject, self.environments
+                        self.repository,
+                        self.copies,
+                        command,
+                        subject,
+                        self.environments,
+                        **extra,
                     )
                 )
             except Exception as error:
@@ -665,14 +678,29 @@ def queue_order(pending: list[Target], skipped: list[str]) -> list[Target]:
     return sorted(pending, key=lambda t: (t.identity not in earlier, t.identity))
 
 
+def command_key(language: str, directory: str) -> str:
+    return f"{language}@{directory}" if directory else language
+
+
 def commands_for(
-    repository: Path, scans: list[Scan], configured: list[str] | None
+    repository: Path,
+    scans: list[Scan],
+    configured: list[str] | None,
+    directories: dict[str, list[str]] | None = None,
 ) -> dict[str, list[str]]:
+    if configured is not None:
+        return {scan.language: configured for scan in scans}
+
+    found = directories or {}
+
     return {
-        scan.language: configured
-        if configured is not None
-        else mutant_command(repository, scan.language)
+        command_key(scan.language, directory): (
+            mutant_command(repository, scan.language, directory=directory)
+            if directory
+            else mutant_command(repository, scan.language)
+        )
         for scan in scans
+        for directory in found.get(scan.language) or [""]
     }
 
 
@@ -801,11 +829,18 @@ def run(
     sources: dict[str, bytes] = {}
     no_covering_test = 0
 
+    projects = project_map(repository, scans)
+    directories: dict[str, set[str]] = {
+        language: {project.directory for project in found} for language, found in projects.items()
+    }
+
     for scan in scans:
         found, scan_sources = collect_targets(repository, scan)
         sources.update(scan_sources)
 
         for target in found:
+            owner = owner_of(projects[scan.language], target.file)
+            target.project = owner.directory if owner is not None else ""
             lines = coverage.get(target.file)
             known = function_coverage(lines, target.start_line, target.end_line)
 
@@ -813,6 +848,7 @@ def run(
                 continue
 
             targets.append(target)
+            directories[scan.language].add(target.project)
             target.covered = [
                 known > 0 and site_is_covered(site, target, lines) for site in target.sites
             ]
@@ -829,7 +865,9 @@ def run(
             if target.sites and not any(target.covered):
                 no_covering_test += 1
 
-    commands = commands_for(repository, scans, configured)
+    commands = commands_for(
+        repository, scans, configured, {k: sorted(v) for k, v in directories.items()}
+    )
     key = record_key(configured, commands)
     record = read_record(repository / settings["record"], key)
     reuse = record if settings["incremental"] else None
@@ -911,7 +949,11 @@ def run(
         work = new_work_folder(repository)
         remove_stale_work_folders(work)
         labelled = len(commands) > 1
-        environments = EnvironmentPool(repository, work, settings["max_workers"])
+        every = sorted({directory for found in directories.values() for directory in found})
+        slugs = {
+            project.directory: project.slug for found in projects.values() for project in found
+        }
+        environments = EnvironmentPool(repository, work, settings["max_workers"], every, slugs)
         mutant_copies = MutantCopies(
             repository, work, settings["max_workers"], settings.get("carry", ())
         )
@@ -925,25 +967,30 @@ def run(
             tally_lock = threading.Lock()
 
             def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
+                where = target.project
+                extra = {"directory": where} if where else {}
                 whole = (
                     commands[target.language]
                     if configured is not None
                     else mutant_command(
-                        repository, target.language, workers=settings["max_workers"]
+                        repository, target.language, workers=settings["max_workers"], **extra
                     )
                 )
-                subject = f"the {target.language} test command" if labelled else "the test command"
+                name = f"{target.language} {where}" if where else target.language
+                subject = f"the {name} test command" if labelled else "the test command"
                 chosen = [target.selections[index] for index in target.to_run]
                 killers = [target.previous.get(index, frozenset()) for index in target.to_run]
 
                 def baseline(
-                    command: list[str], label: str, fallback: bool = False
+                    command: list[str], label: str, fallback: bool = False, directory: str = ""
                 ) -> float | None:
                     if deadline is not None and CLOCK() >= deadline:
                         raise Stopped
 
                     try:
-                        return baselines.seconds(command, label, fallback=fallback)
+                        return baselines.seconds(
+                            command, label, fallback=fallback, directory=directory
+                        )
                     except Refusal:
                         if deadline is not None and CLOCK() >= deadline:
                             raise Stopped from None
@@ -957,20 +1004,26 @@ def run(
                         whole
                         if configured is not None
                         else mutant_command(
-                            repository, target.language, True, settings["max_workers"]
+                            repository, target.language, True, settings["max_workers"], **extra
                         )
                     )
                     files = chosen[index] if configured is None else None
                     selected = (
                         selected_command(
-                            repository, target.language, files, workers=settings["max_workers"]
+                            repository,
+                            target.language,
+                            files,
+                            workers=settings["max_workers"],
+                            **extra,
                         )
                         if files and len(files) * 2 <= suite_size
                         else None
                     )
 
                     if selected is not None and selected != whole:
-                        seconds = baseline(selected, "the selected test command", fallback=True)
+                        seconds = baseline(
+                            selected, "the selected test command", fallback=True, **extra
+                        )
 
                         if seconds is not None:
                             command = selected
@@ -981,10 +1034,11 @@ def run(
                                 True,
                                 killers[index],
                                 settings["max_workers"],
+                                **extra,
                             )
 
                     if seconds is None:
-                        seconds = baseline(whole, subject)
+                        seconds = baseline(whole, subject, **extra)
 
                     with tally_lock:
                         ran["selection" if command is not whole else "whole"] += 1
@@ -1035,6 +1089,7 @@ def run(
                     **({"environments": environments} if environments.enabled else {}),
                     **({"copies": mutant_copies} if mutant_copies.enabled else {}),
                     **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
+                    **({"directory": target.project} if target.project else {}),
                 ),
                 settings["max_workers"],
                 deadline,
