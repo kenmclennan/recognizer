@@ -295,7 +295,7 @@ def test_a_class_with_no_file_leaves_no_selection_and_names_it(tmp_path, monkeyp
     assert not KOTLIN_CLASSES
 
 
-def test_two_files_declaring_one_class_or_a_package_less_file_fall_back(
+def test_two_files_declaring_one_class_in_one_project_or_a_package_less_file_fall_back(
     tmp_path, monkeypatch, capsys
 ):
     files = {**SOURCES, "src/test/kotlin/p/AddTest2.kt": SOURCES[ADD]}
@@ -344,7 +344,7 @@ def test_the_class_map_over_the_committed_kotlin_sample(tmp_path, monkeypatch):
     root = tmp_path / "s"
     shutil.copytree(sample, root)
     git_commit(root)
-    results = root / "build/test-results/test"
+    results = root / "app/build/test-results/test"
     results.mkdir(parents=True)
     (results / "TEST-shop.web.OrderControllerTest.xml").write_text("")
 
@@ -352,7 +352,7 @@ def test_the_class_map_over_the_committed_kotlin_sample(tmp_path, monkeypatch):
     [(file, pairs)] = mapped.items()
 
     assert file.endswith("OrderControllerTest.kt")
-    assert pairs == [("", "shop.web.OrderControllerTest")]
+    assert pairs == [(":app", "shop.web.OrderControllerTest")]
 
 
 def test_a_subproject_result_directory_names_its_gradle_project(tmp_path, monkeypatch):

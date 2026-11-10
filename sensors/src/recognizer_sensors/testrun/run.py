@@ -78,6 +78,15 @@ KOTLIN_DECLARATION = re.compile(
     re.MULTILINE,
 )
 
+JAVA_PACKAGE = re.compile(r"^package\s+([\w.]+)\s*;", re.MULTILINE)
+
+JAVA_DECLARATION = re.compile(
+    r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:public|protected|private|abstract|final|static|sealed|strictfp)\s+)*"
+    r"(?:class|interface)\s+(\w+)",
+    re.MULTILINE,
+)
+
 CSHARP_DIRECTORY = ".recognizer/cache/coverage/csharp"
 
 CSHARP_BY_FILE_DIRECTORY = ".recognizer/cache/coverage/csharp/by-file"
@@ -639,11 +648,22 @@ def kotlin_result_classes(repository: Path) -> dict[tuple[str, str], set[str]]:
     return found
 
 
-def kotlin_declarations(repository: Path) -> dict[str, list[str]]:
-    declared: dict[str, list[str]] = {}
+def kotlin_project_of_path(path: str) -> str:
+    *directories, _ = path.split("/")
+
+    if "src" not in directories:
+        return ""
+
+    return "".join(f":{part}" for part in directories[: directories.index("src")])
+
+
+def kotlin_declarations(repository: Path) -> dict[tuple[str, str], list[str]]:
+    declared: dict[tuple[str, str], list[str]] = {}
 
     for path in sorted(set(listed_files(repository))):
-        if not path.endswith(".kt") or not is_test_file(path):
+        java = path.endswith(".java")
+
+        if not (path.endswith(".kt") or java) or not is_test_file(path):
             continue
 
         try:
@@ -651,15 +671,16 @@ def kotlin_declarations(repository: Path) -> dict[str, list[str]]:
         except OSError:
             continue
 
-        package = KOTLIN_PACKAGE.search(text)
+        package = (JAVA_PACKAGE if java else KOTLIN_PACKAGE).search(text)
 
         if package is None:
             continue
 
         prefix = package.group(1).replace("`", "")
+        project = kotlin_project_of_path(path)
 
-        for match in KOTLIN_DECLARATION.finditer(text):
-            declared.setdefault(f"{prefix}.{match.group(1)}", []).append(path)
+        for match in (JAVA_DECLARATION if java else KOTLIN_DECLARATION).finditer(text):
+            declared.setdefault((project, f"{prefix}.{match.group(1)}"), []).append(path)
 
     return declared
 
@@ -669,7 +690,7 @@ def kotlin_class_map(repository: Path) -> dict[str, list[tuple[str, str]]] | str
     mapped: dict[str, list[tuple[str, str]]] = {}
 
     for project, name in sorted(kotlin_result_classes(repository)):
-        files = declared.get(name, [])
+        files = declared.get((project, name), [])
 
         if len(files) != 1:
             return name

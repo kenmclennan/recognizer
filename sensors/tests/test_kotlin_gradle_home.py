@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 from test_kotlin_selection import (
+    ALL_CLASSES,
+    SOURCES,
     make,
 )
 
@@ -16,6 +18,7 @@ from recognizer_sensors.settings import MeasurementError
 from recognizer_sensors.testrun import gradle, memory, profiles
 from recognizer_sensors.testrun.run import (
     collect_coverage_with_tests,
+    kotlin_class_map,
 )
 
 REAL_CACHE_ROOT = gradle.cache_root
@@ -300,3 +303,51 @@ def test_kotlin_workers_default_by_memory_and_an_explicit_setting_is_kept(tmp_pa
     assert run_with_workers(tmp_path, monkeypatch, {}, "kotlin") == 2
     assert run_with_workers(tmp_path, monkeypatch, {"max_workers": 4}, "kotlin") is None
     assert run_with_workers(tmp_path, monkeypatch, {}, "python") is None
+
+
+def test_a_class_map_includes_java_test_classes(tmp_path, monkeypatch):
+    files = {
+        **SOURCES,
+        "src/test/java/p/JTest.java": "package p;\n\npublic class JTest {\n}\n",
+    }
+    root, _ = make(tmp_path, files=files, classes=ALL_CLASSES + " p.JTest", monkeypatch=monkeypatch)
+    import subprocess
+
+    subprocess.run([str(root / "gradlew")], cwd=root, check=True)
+
+    mapped = kotlin_class_map(root)
+
+    assert mapped["src/test/java/p/JTest.java"] == [("", "p.JTest")]
+
+
+def test_one_class_name_in_two_gradle_projects_maps_to_two_files(tmp_path, monkeypatch):
+    files = {
+        "a/src/test/kotlin/p/XTest.kt": "package p\n\nclass XTest\n",
+        "b/src/test/kotlin/p/XTest.kt": "package p\n\nclass XTest\n",
+    }
+    root, _ = make(tmp_path, files=files, monkeypatch=monkeypatch)
+
+    for project in ("a", "b"):
+        results = root / project / "build/test-results/test"
+        results.mkdir(parents=True)
+        (results / "TEST-p.XTest.xml").write_text("")
+
+    assert kotlin_class_map(root) == {
+        "a/src/test/kotlin/p/XTest.kt": [(":a", "p.XTest")],
+        "b/src/test/kotlin/p/XTest.kt": [(":b", "p.XTest")],
+    }
+
+
+def test_a_class_declared_by_two_files_of_one_project_still_has_no_single_file(
+    tmp_path, monkeypatch
+):
+    files = {
+        "a/src/test/kotlin/p/XTest.kt": "package p\n\nclass XTest\n",
+        "a/src/test/kotlin/q/XTest.kt": "package p\n\nclass XTest\n",
+    }
+    root, _ = make(tmp_path, files=files, monkeypatch=monkeypatch)
+    results = root / "a/build/test-results/test"
+    results.mkdir(parents=True)
+    (results / "TEST-p.XTest.xml").write_text("")
+
+    assert kotlin_class_map(root) == "p.XTest"
