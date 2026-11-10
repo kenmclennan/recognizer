@@ -121,6 +121,16 @@ pub fn mismatch_message(expected: &str, tool: &str, found: &str, path: &Path, fi
 }
 
 impl ToolFault {
+    pub fn gap_parts(&self) -> (String, String) {
+        match self {
+            ToolFault::Missing { tool } => (format!("toolchain:{tool}"), missing_hint()),
+            ToolFault::Mismatch { tool, fix, .. } => (format!("toolchain:{tool}"), fix.clone()),
+            ToolFault::Incomplete { .. } => {
+                ("toolchain:incomplete".to_string(), BUNDLE_FIX.to_string())
+            }
+        }
+    }
+
     pub fn message(&self) -> String {
         match self {
             ToolFault::Missing { .. } => missing_hint(),
