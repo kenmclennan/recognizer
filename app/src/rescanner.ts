@@ -63,6 +63,7 @@ export type RescanPorts<Carried> = {
   attach: (id: number, extra: MessageAction) => void;
   openLog: (log: string) => void;
   show: (target: ShowTarget) => void;
+  now?: () => number;
 };
 
 export type Rescanner = {
@@ -106,6 +107,47 @@ function failureText(result: ScanRunResult): string | null {
   }
 }
 
+export function durationText(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+function refusedText(gaps: Gap[]): string {
+  const first = gaps[0];
+  const count = `${gaps.length} ${gaps.length === 1 ? "tool" : "tools"} missing`;
+
+  return first === undefined ? count : `${count}: ${first.line}`;
+}
+
+function startedText(names: string, scope: string | null): string {
+  const parts = [names, scope ?? ""].filter((part) => part !== "");
+
+  return parts.length === 0
+    ? "Scan started"
+    : `Scan started - ${parts.join(", ")}`;
+}
+
+function failedReason(progress: ScanProgress, exit: number): string {
+  const entries = [
+    ...progress.extractEntries,
+    ...(progress.describe?.entries ?? []),
+    ...(progress.sense?.entries ?? []),
+  ];
+  const first = entries.find((entry) => entry.outcome === "failed");
+
+  return first === undefined
+    ? `recognizer scan exited ${exit}`
+    : `${first.name}: ${first.reason ?? "failed"}`;
+}
+
 function gapStates(gaps: Gap[]): GapState[] {
   return gaps.map((gap) => ({ gap, fixed: false, failure: null }));
 }
@@ -127,8 +169,10 @@ export function createRescanner<Carried>(
   let failureIds: number[] = [];
   let lastUpdate: ProgressUpdate = { scanning: null };
   let external: ExternalScan | null = null;
+  let externalGaps: Gap[] = [];
   let preflight: PreflightState = NO_PREFLIGHT;
   let keepOnce = false;
+  const now = ports.now ?? Date.now;
   let externalQueue: Promise<void> = Promise.resolve();
 
   function emit(update: { scanning: string | null }) {
@@ -142,6 +186,10 @@ export function createRescanner<Carried>(
     emit({
       scanning: text === null || heading === null ? text : `${heading} ${text}`,
     });
+  }
+
+  function names(display: string[], describe: boolean): string {
+    return [...display, ...(describe ? ["describe"] : [])].join(", ");
   }
 
   async function writeTicks(registered: Registered) {
@@ -411,6 +459,11 @@ export function createRescanner<Carried>(
     ).concat(scan.sensors.map((name) => ({ key: name, display: name })));
 
     external = scan;
+    externalGaps = [];
+    ports.post({
+      kind: "info",
+      text: startedText(names(scan.sensors, scan.describe), null),
+    });
     rows = registeredRows;
     heading = externalHeading(scan);
     progress = NO_PROGRESS;
@@ -432,6 +485,10 @@ export function createRescanner<Carried>(
     }
 
     progress = foldProgress(progress, event);
+
+    if (event.event === "preflight" && event.state === "gaps") {
+      externalGaps = event.gaps;
+    }
 
     if (event.event === "phase" && event.phase === "describe") {
       run = { ...run, started: DESCRIBE_KEY };
@@ -457,7 +514,33 @@ export function createRescanner<Carried>(
       );
     }
 
+    if (event.event === "summary") {
+      postExternalEnd(external, event.exit ?? 0);
+    }
+
     publish();
+  }
+
+  function postExternalEnd(scan: ExternalScan, exit: number) {
+    const began = Date.parse(scan.startedAt);
+    const elapsed = Number.isNaN(began) ? 0 : now() - began;
+
+    if (exit === 0) {
+      ports.post({
+        kind: "done",
+        text: `Scan complete - ${durationText(elapsed)}`,
+      });
+    } else if (exit === 4) {
+      ports.post({
+        kind: "warning",
+        text: `Scan refused - ${refusedText(externalGaps)}`,
+      });
+    } else {
+      ports.post({
+        kind: "error",
+        text: `Scan failed - ${failedReason(progress, exit)}`,
+      });
+    }
   }
 
   async function endExternal() {
@@ -547,6 +630,23 @@ export function createRescanner<Carried>(
     preflight = { state: "running", gaps: [] };
     publish();
 
+    const startedAt = now();
+
+    ports.post({
+      kind: "info",
+      text: startedText(
+        names(
+          rows
+            .filter(({ key }) => key !== DESCRIBE_KEY)
+            .map(({ display }) => display),
+          plan.describe,
+        ),
+        plan.modules === null
+          ? "Whole repository"
+          : `${plan.modules.length} modules`,
+      ),
+    });
+
     let queue: Promise<void> = Promise.resolve();
     const stopListening = ports.port.onLine((line) => {
       queue = queue.then(() => handle(line)).catch(() => {});
@@ -568,6 +668,10 @@ export function createRescanner<Carried>(
       progress = NO_PROGRESS;
       preflight = { state: "gaps", gaps: gapStates(result.gaps) };
       emit({ scanning: null });
+      ports.post({
+        kind: "warning",
+        text: `Scan refused - ${refusedText(result.gaps)}`,
+      });
       ports.settled();
 
       return;
@@ -580,6 +684,10 @@ export function createRescanner<Carried>(
     if (text !== null) {
       progress = NO_PROGRESS;
       emit({ scanning: null });
+      ports.post({
+        kind: result.status === "refused" ? "warning" : "error",
+        text: `Scan ${result.status === "refused" ? "refused" : "failed"} - ${text}`,
+      });
       ports.blocked(text);
       ports.settled();
 
@@ -609,6 +717,20 @@ export function createRescanner<Carried>(
     progress = { ...progress, done: true };
     postDescribed();
     publish();
+
+    if (result.status === "finished") {
+      ports.post(
+        result.exitCode === 0
+          ? {
+              kind: "done",
+              text: `Scan complete - ${durationText(now() - startedAt)}`,
+            }
+          : {
+              kind: "error",
+              text: `Scan failed - ${failedReason(progress, result.exitCode)}`,
+            },
+      );
+    }
 
     if (result.status === "finished" && result.log !== null) {
       const { log } = result;

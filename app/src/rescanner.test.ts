@@ -54,6 +54,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
   const log: string[] = [];
   const updates: ProgressUpdate[] = [];
   const posted: MessageInput[] = [];
+  const lifecycle: MessageInput[] = [];
   const attached: { id: number; extra: MessageAction }[] = [];
   const ports: RescanPorts<string> = {
     port: scan,
@@ -93,6 +94,12 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
     settled: () => log.push("settled"),
     blocked: (text) => log.push(`blocked:${text}`),
     post: (input) => {
+      if (/^Scan (started|complete|failed|refused)/.test(input.text)) {
+        lifecycle.push(input);
+
+        return null;
+      }
+
       posted.push(input);
       log.push(`post:${input.kind}:${input.text}`);
 
@@ -108,6 +115,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
     log,
     updates,
     posted,
+    lifecycle,
     attached,
     scan,
     rescanner: createRescanner(ports),
@@ -1158,6 +1166,180 @@ const OUTSIDE = {
     kind: "outside" as const,
   },
 };
+
+describe("scan notifications", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  function timed(
+    scan = fakeScan({ defaults: { describe: true, sensors: true } }),
+  ) {
+    let clock = 1_000_000;
+
+    return {
+      clock: (ms: number) => {
+        clock += ms;
+      },
+      made: harness(scan, { now: () => clock }),
+    };
+  }
+
+  it("posts Scan started naming the sensors and scope, and Scan complete with its duration", async () => {
+    const scan = fakeScan({
+      defaults: { describe: true, sensors: true },
+      steps: [extract, entry("extract", "python"), summary],
+    });
+    const { clock, made } = timed(scan);
+
+    scan.onStep = (index) => {
+      if (index === 1) {
+        clock(192_000);
+      }
+    };
+    await made.rescanner.run();
+
+    expect(made.lifecycle).toEqual([
+      {
+        kind: "info",
+        text: "Scan started - Alpha, Beta, describe, Whole repository",
+      },
+      { kind: "done", text: "Scan complete - 3m 12s" },
+    ]);
+  });
+
+  it("reads seconds alone under a minute", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [extract, summary],
+    });
+    const { clock, made } = timed(scan);
+
+    scan.onStep = (index) => {
+      if (index === 0) {
+        clock(45_000);
+      }
+    };
+    await made.rescanner.run();
+
+    expect(made.lifecycle.at(-1)).toEqual({
+      kind: "done",
+      text: "Scan complete - 45s",
+    });
+  });
+
+  it("posts the failure with its reason and no Scan complete", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      result: {
+        status: "failed",
+        exitCode: 2,
+        stderr: "boom",
+        log: null,
+      } as never,
+    });
+    const { made } = timed(scan);
+
+    await made.rescanner.run();
+
+    expect(made.lifecycle.map((one) => one.text)).toEqual([
+      "Scan started - Alpha, Beta, Whole repository",
+      "Scan failed - boom",
+    ]);
+  });
+
+  it("posts a failed run that finished with exit 1 as Scan failed with the first failed entry", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [extract, entry("sense", "alpha", "no coverage"), summary],
+      result: { status: "finished", exitCode: 1, stderr: "", log: null },
+    });
+    const { made } = timed(scan);
+
+    await made.rescanner.run();
+
+    expect(made.lifecycle.at(-1)).toEqual({
+      kind: "error",
+      text: "Scan failed - alpha: no coverage",
+    });
+  });
+
+  it("posts a warning for a gaps result and never Scan complete", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      result: { status: "gaps", gaps: [GAP, OUTSIDE] },
+    });
+    const { made } = timed(scan);
+
+    await made.rescanner.run();
+
+    expect(made.lifecycle.at(-1)).toEqual({
+      kind: "warning",
+      text: "Scan refused - 2 tools missing: coverage and pytest are not installed",
+    });
+    expect(
+      made.lifecycle.some((one) => one.text.startsWith("Scan complete")),
+    ).toBe(false);
+  });
+
+  it("posts a refusal for the live marker as a warning", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      result: { status: "refused", reason: "another scan is running" },
+    });
+    const { made } = timed(scan);
+
+    await made.rescanner.run();
+
+    expect(made.lifecycle.at(-1)).toEqual({
+      kind: "warning",
+      text: "Scan refused - another scan is running",
+    });
+  });
+
+  it("posts the same start, completion, failure and refusal for a scan another process runs", async () => {
+    const cli = {
+      origin: "cli" as const,
+      pid: 7,
+      startedAt: new Date(1_000_000 - 90_000).toISOString(),
+      sensors: ["alpha"],
+      describe: true,
+    };
+
+    for (const [exit, expected] of [
+      [0, { kind: "done", text: "Scan complete - 1m 30s" }],
+      [1, { kind: "error", text: "Scan failed - recognizer scan exited 1" }],
+      [
+        4,
+        {
+          kind: "warning",
+          text: "Scan refused - 1 tool missing: coverage and pytest are not installed",
+        },
+      ],
+    ] as const) {
+      const made = harness(fakeScan(), { now: () => 1_000_000 });
+
+      made.scan.emitExternal({ kind: "scan", scan: cli });
+      await flush();
+
+      if (exit === 4) {
+        made.scan.emitExternal({
+          kind: "line",
+          line: line({ event: "preflight", state: "gaps", gaps: [GAP] }),
+        });
+      }
+
+      made.scan.emitExternal({
+        kind: "line",
+        line: line({ event: "summary", exit }),
+      });
+      await flush();
+
+      expect(made.lifecycle).toEqual([
+        { kind: "info", text: "Scan started - alpha, describe" },
+        expected,
+      ]);
+    }
+  });
+});
 
 describe("the preflight flow", () => {
   const gapsResult = {
