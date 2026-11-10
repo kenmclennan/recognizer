@@ -1,5 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 
 const SOURCE_EXTENSIONS = [
   ".ts",
@@ -98,8 +99,60 @@ function isTestFile(name: string, insideTests: boolean): boolean {
   return insideTests || TEST_FILE_GLOBS.some((glob) => matchesGlob(name, glob));
 }
 
-export function listTestFiles(root: string): string[] {
+export type Listing = Set<string> | null;
+
+export function gitListing(root: string): Listing {
+  const result = spawnSync(
+    "git",
+    [
+      "-C",
+      root,
+      "ls-files",
+      "-z",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+    ],
+    { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
+  );
+
+  if (result.error || result.status !== 0) {
+    const message = (result.stderr ?? "").trim();
+
+    if (!result.error && !message.includes("not a git repository")) {
+      const first = message.split("\n")[0] || `exit ${result.status}`;
+
+      process.stderr.write(
+        `recognizer-scan-typescript: git could not list files (${first}); scanning every file\n`,
+      );
+    }
+
+    return null;
+  }
+
+  return new Set(result.stdout.split("\0").filter((entry) => entry !== ""));
+}
+
+export function isListed(
+  listing: Listing,
+  root: string,
+  path: string,
+): boolean {
+  return (
+    listing === null || listing.has(relative(root, path).split(sep).join("/"))
+  );
+}
+
+export function resolveListing(
+  root: string,
+  listing: Listing | undefined,
+): Listing {
+  return listing === undefined ? gitListing(root) : listing;
+}
+
+export function listTestFiles(root: string, listing?: Listing): string[] {
   const found: string[] = [];
+  const listed = resolveListing(root, listing);
 
   const walk = (directory: string, insideTests: boolean) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -110,7 +163,10 @@ export function listTestFiles(root: string): string[] {
           walk(path, insideTests || TEST_DIRECTORIES.includes(entry.name));
         }
       } else if (entry.isFile() || isFileSymlink(entry, path)) {
-        if (isTestFile(entry.name, insideTests)) {
+        if (
+          isTestFile(entry.name, insideTests) &&
+          isListed(listed, root, path)
+        ) {
           found.push(path);
         }
       }
@@ -122,8 +178,9 @@ export function listTestFiles(root: string): string[] {
   return found;
 }
 
-export function listSourceFiles(root: string): string[] {
+export function listSourceFiles(root: string, listing?: Listing): string[] {
   const found: string[] = [];
+  const listed = resolveListing(root, listing);
 
   const walk = (directory: string) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -134,7 +191,7 @@ export function listSourceFiles(root: string): string[] {
           walk(path);
         }
       } else if (entry.isFile() || isFileSymlink(entry, path)) {
-        if (isSourceFile(entry.name)) {
+        if (isSourceFile(entry.name) && isListed(listed, root, path)) {
           found.push(path);
         }
       }

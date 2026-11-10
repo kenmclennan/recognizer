@@ -1,6 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { isSkippedDirectory } from "./files.js";
+import {
+  isListed,
+  isSkippedDirectory,
+  type Listing,
+  resolveListing,
+} from "./files.js";
 
 function readJson(path: string): Record<string, unknown> | null {
   try {
@@ -43,8 +48,12 @@ function globToRegExp(pattern: string): RegExp {
   return new RegExp(`^${body}$`);
 }
 
-function packageDirectories(root: string): string[] {
+function packageDirectories(
+  root: string,
+  listing: Listing | undefined,
+): string[] {
   const found: string[] = [];
+  const listed = resolveListing(root, listing);
 
   const walk = (directory: string) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -54,7 +63,9 @@ function packageDirectories(root: string): string[] {
 
       const path = join(directory, entry.name);
 
-      if (existsSync(join(path, "package.json"))) {
+      const manifest = join(path, "package.json");
+
+      if (existsSync(manifest) && isListed(listed, root, manifest)) {
         found.push(path);
       }
 
@@ -67,7 +78,10 @@ function packageDirectories(root: string): string[] {
   return found;
 }
 
-export function discoverWorkspaces(root: string): Map<string, string> {
+export function discoverWorkspaces(
+  root: string,
+  listing?: Listing,
+): Map<string, string> {
   const workspaces = new Map<string, string>();
   const manifest = readJson(join(root, "package.json"));
 
@@ -89,7 +103,7 @@ export function discoverWorkspaces(root: string): Map<string, string> {
     .filter((pattern) => !pattern.startsWith("!"))
     .map(globToRegExp);
 
-  for (const directory of packageDirectories(root)) {
+  for (const directory of packageDirectories(root, listing)) {
     const path = relative(root, directory).split("\\").join("/");
 
     if (!includes.some((regexp) => regexp.test(path))) {
