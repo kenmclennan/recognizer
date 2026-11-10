@@ -510,13 +510,11 @@ describe("scanPanel row states", () => {
       scanning: false,
       label: "Run Structure",
       disabled: false,
-      tick: [],
     });
     expect(scanPanel(input({ scanning: true })).button).toEqual({
       scanning: true,
       label: "Running",
       disabled: true,
-      tick: [],
     });
   });
 });
@@ -686,6 +684,7 @@ describe("scanPanel only this view", () => {
       caption: "engine-loop, 1",
       on: false,
       disabled: false,
+      canvasEmpty: false,
     });
     expect(
       scanPanel(input({ view: { name: "v", modules: ["a.py", "b.py"] } })).scope
@@ -719,6 +718,7 @@ describe("scanPanel only this view", () => {
       caption: "engine-loop, 1",
       on: true,
       disabled: true,
+      canvasEmpty: false,
     });
   });
 
@@ -819,7 +819,6 @@ describe("scanPanel freshness", () => {
       scanning: false,
       label: "Update 1 module",
       disabled: false,
-      tick: [],
     });
   });
 
@@ -833,7 +832,6 @@ describe("scanPanel freshness", () => {
       scanning: false,
       label: "Up to date",
       disabled: true,
-      tick: [],
     });
   });
 
@@ -1104,5 +1102,17 @@ describe("scanPanel remembered refusal", () => {
     );
 
     expect(row?.state.kind).toBe("failed");
+  });
+});
+
+describe("the scope's canvasEmpty flag", () => {
+  it("is true at exactly 0 modules and false at 1", () => {
+    expect(
+      scanPanel(input({ view: { name: "v", modules: [] } })).scope?.canvasEmpty,
+    ).toBe(true);
+    expect(
+      scanPanel(input({ view: { name: "v", modules: ["a.py"] } })).scope
+        ?.canvasEmpty,
+    ).toBe(false);
   });
 });

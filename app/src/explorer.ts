@@ -899,16 +899,7 @@ export function showExplorer(
       render();
     },
     run() {
-      const first = scanModel();
-
-      if (first.button.tick.length > 0) {
-        for (const key of first.button.tick) {
-          applyTick(key, true);
-        }
-      }
-
-      const { planned, button } =
-        first.button.tick.length > 0 ? scanModel() : first;
+      const { planned, button } = scanModel();
 
       if (planned === null || button.disabled) {
         return;
@@ -1983,7 +1974,10 @@ export function showExplorer(
       describedAt,
       ticks:
         onlyView === undefined
-          ? ticks
+          ? {
+              ...ticks,
+              onlyView: ticks.onlyView && modules.opened().length > 0,
+            }
           : { ...ticks, onlyView, describe: false },
       view: { name: openView, modules: modules.opened() },
       mode: onlyView === undefined ? resultsMode : "bring",

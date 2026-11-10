@@ -41,8 +41,9 @@ export type Summary = {
 };
 
 export type Action = {
-  primary: { label: string; disabled: boolean; tick?: string[] };
-  secondary: { label: string; mode: ResultsMode; disabled: boolean };
+  primary: { label: string; disabled: boolean };
+  mode: { value: ResultsMode; disabled: boolean };
+  hint: string | null;
 };
 
 export type FindingsLine = {
@@ -512,14 +513,13 @@ function actionOf(
   scopeCount: number,
 ): Action {
   const rescan = (input.mode ?? "bring") === "rescan";
-  const secondary = {
-    label: rescan ? "Update only what changed" : "Rescan from scratch",
-    mode: (rescan ? "bring" : "rescan") as ResultsMode,
+  const mode = {
+    value: (rescan ? "rescan" : "bring") as ResultsMode,
     disabled: input.scanning,
   };
 
   if (input.scanning) {
-    return { primary: { label: "Running", disabled: true }, secondary };
+    return { primary: { label: "Running", disabled: true }, mode, hint: null };
   }
 
   if (rescan) {
@@ -528,7 +528,8 @@ function actionOf(
         label: `Rescan ${plural(scopeCount, "module")}`,
         disabled: false,
       },
-      secondary,
+      mode,
+      hint: null,
     };
   }
 
@@ -538,7 +539,8 @@ function actionOf(
         label: `Update ${plural(changed.length, "module")}`,
         disabled: false,
       },
-      secondary,
+      mode,
+      hint: null,
     };
   }
 
@@ -553,7 +555,8 @@ function actionOf(
         label: `Run ${joinNames(runnable.map(({ name }) => name))}`,
         disabled: false,
       },
-      secondary,
+      mode,
+      hint: null,
     };
   }
 
@@ -567,24 +570,24 @@ function actionOf(
   );
 
   if (untickedStale.length > 0) {
+    const names = joinNames(untickedStale.map(({ name }) => name));
+    const one = untickedStale.length === 1;
+
     return {
-      primary: {
-        label: `Update ${joinNames(untickedStale.map(({ name }) => name))}`,
-        disabled: false,
-        tick: untickedStale.map(({ key }) => key),
-      },
-      secondary,
+      primary: { label: "Nothing ticked to run", disabled: true },
+      mode,
+      hint: `${names} ${one ? "is" : "are"} unticked and not current. Tick ${one ? "it" : "them"} to include ${one ? "it" : "them"} in the next scan.`,
     };
   }
 
-  return { primary: { label: "Up to date", disabled: true }, secondary };
+  return { primary: { label: "Up to date", disabled: true }, mode, hint: null };
 }
 
 export function findingsActionOf(
   primary: Action["primary"],
   link: string,
 ): { label: string; openScan: boolean } {
-  const openScan = primary.disabled || (primary.tick?.length ?? 0) > 0;
+  const openScan = primary.disabled;
 
   return { label: openScan ? "Open Scan" : link, openScan };
 }

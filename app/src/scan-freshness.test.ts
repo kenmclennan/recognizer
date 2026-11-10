@@ -215,11 +215,8 @@ function stub(
     ticked: (key: string) => ticked.includes(key),
     action: {
       primary: { label, disabled: label === "Up to date" },
-      secondary: {
-        label: "Rescan from scratch",
-        mode: "rescan",
-        disabled: false,
-      },
+      mode: { value: "bring", disabled: false },
+      hint: null,
     },
   } as unknown as FreshnessModel;
 }

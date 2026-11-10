@@ -2321,6 +2321,7 @@ svg.i.chevron {
 }
 
 .scan-scope,
+.scan-run-mode,
 .findings-scope {
   display: flex;
   margin: 8px 0 6px;
@@ -2332,6 +2333,8 @@ svg.i.chevron {
 
 .scan-scope-canvas,
 .scan-scope-all,
+.scan-run-mode-incremental,
+.scan-run-mode-full,
 .findings-scope-canvas,
 .findings-scope-all {
   flex: 1;
@@ -2349,13 +2352,16 @@ svg.i.chevron {
 }
 
 .scan-scope .on,
+.scan-run-mode .on,
 .findings-scope .on {
   background: var(--selbg);
   color: var(--fg);
 }
 
 .scan-scope-canvas:disabled,
-.scan-scope-all:disabled {
+.scan-scope-all:disabled,
+.scan-run-mode-incremental:disabled,
+.scan-run-mode-full:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -2505,8 +2511,7 @@ svg.i.chevron {
   color: var(--muted);
 }
 
-.scan-log-link,
-.scan-secondary {
+.scan-log-link {
   padding: 0;
   border: 0;
   background: none;
@@ -2514,11 +2519,6 @@ svg.i.chevron {
   font-size: 12px;
   color: var(--sel);
   cursor: pointer;
-}
-
-.scan-secondary:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 .scan-tip {
@@ -2677,12 +2677,28 @@ svg.i.chevron {
   gap: 8px;
 }
 
-.scan-panel .scan-buttons button:not(.scan-secondary) {
+.scan-panel .scan-buttons button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 16px;
   white-space: nowrap;
+}
+
+.scan-panel .scan-buttons .scan-run {
+  flex: 1;
+  justify-content: center;
+}
+
+.scan-controls .scan-run-mode {
+  margin-top: 0;
+}
+
+.scan-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .scan-panel .scan-buttons button.primary {

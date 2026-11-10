@@ -124,7 +124,12 @@ export type ReportRow = {
 
 export type ScanPanelModel = {
   header: { text: string; moved: string | null };
-  scope: { caption: string; on: boolean; disabled: boolean } | null;
+  scope: {
+    caption: string;
+    on: boolean;
+    disabled: boolean;
+    canvasEmpty: boolean;
+  } | null;
   freshness: FreshnessModel;
   rows: ScanRow[];
   reports: ReportRow[];
@@ -132,9 +137,9 @@ export type ScanPanelModel = {
     scanning: boolean;
     label: string;
     disabled: boolean;
-    tick: string[];
   };
-  secondary: FreshnessModel["action"]["secondary"];
+  mode: FreshnessModel["action"]["mode"];
+  hint: string | null;
   planned: PlannedRun | null;
   pending: boolean;
   mark: boolean;
@@ -373,9 +378,9 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         scanning: input.scanning,
         label: input.scanning ? "Running" : "Run",
         disabled: input.scanning,
-        tick: [],
       },
-      secondary: freshness.action.secondary,
+      mode: freshness.action.mode,
+      hint: null,
       planned: null,
       pending: true,
       mark: panelMark(input),
@@ -442,9 +447,9 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       scanning: input.scanning,
       label: freshness.action.primary.label,
       disabled: freshness.action.primary.disabled,
-      tick: freshness.action.primary.tick ?? [],
     },
-    secondary: freshness.action.secondary,
+    mode: freshness.action.mode,
+    hint: freshness.action.hint,
     planned,
     pending: false,
     mark: panelMark(input),
@@ -462,6 +467,7 @@ function scopeOf(input: PanelInput): ScanPanelModel["scope"] {
     caption: scopeCaption(input.view.name, input.view.modules.length),
     on: input.ticks.onlyView,
     disabled: input.scanning,
+    canvasEmpty: input.view.modules.length === 0,
   };
 }
 

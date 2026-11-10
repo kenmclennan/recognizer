@@ -175,9 +175,38 @@ function scopeNode(
   all.setAttribute("aria-pressed", String(!scope.on));
   canvas.classList.toggle("on", scope.on);
   all.classList.toggle("on", !scope.on);
-  canvas.disabled = scope.disabled;
+  canvas.disabled = scope.disabled || scope.canvasEmpty;
+
+  if (scope.canvasEmpty) {
+    canvas.title = "The canvas is empty.";
+  }
+
   all.disabled = scope.disabled;
   node.append(canvas, all);
+
+  return node;
+}
+
+function modeNode(
+  mode: ScanPanelModel["mode"],
+  actions: ScanPanelActions,
+): HTMLElement {
+  const node = el("div", "scan-run-mode seg");
+  const incremental = button("Incremental", "scan-run-mode-incremental", () =>
+    actions.setMode("bring"),
+  );
+  const full = button("Full", "scan-run-mode-full", () =>
+    actions.setMode("rescan"),
+  );
+  const rescan = mode.value === "rescan";
+
+  incremental.setAttribute("aria-pressed", String(!rescan));
+  full.setAttribute("aria-pressed", String(rescan));
+  incremental.classList.toggle("on", !rescan);
+  full.classList.toggle("on", rescan);
+  incremental.disabled = mode.disabled;
+  full.disabled = mode.disabled;
+  node.append(incremental, full);
 
   return node;
 }
@@ -233,9 +262,11 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
   const header = el("div", "scan-header", "Scan");
   const sub = el("div", "scan-sub");
   const list = el("div", "scan-list");
+  const controls = el("div", "scan-controls");
   const buttons = el("div", "scan-buttons");
+  const hint = el("div", "scan-hint");
 
-  element.append(header, sub, list, buttons);
+  element.append(header, sub, list, controls, buttons, hint);
 
   return {
     element,
@@ -252,7 +283,6 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       }
 
       list.replaceChildren(
-        ...(model.scope === null ? [] : [scopeNode(model.scope, actions)]),
         ...(model.pending ? [] : [summaryNode(model.freshness.summary)]),
         ...model.rows.flatMap((row) => [
           rowNode(row, actions),
@@ -262,6 +292,13 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         ]),
         ...model.reports.map((row) => reportNode(row, actions)),
       );
+
+      controls.replaceChildren(
+        ...(model.scope === null ? [] : [scopeNode(model.scope, actions)]),
+        ...(model.pending ? [] : [modeNode(model.mode, actions)]),
+      );
+      hint.textContent = model.pending ? "" : (model.hint ?? "");
+      hint.hidden = hint.textContent === "";
 
       if (model.pending) {
         buttons.replaceChildren();
@@ -285,12 +322,7 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         return;
       }
 
-      const again = button(model.secondary.label, "scan-secondary", () =>
-        actions.setMode(model.secondary.mode),
-      );
-
-      again.disabled = model.secondary.disabled;
-      buttons.replaceChildren(run, again);
+      buttons.replaceChildren(run);
     },
   };
 }
