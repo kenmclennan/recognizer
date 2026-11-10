@@ -28,5 +28,8 @@
     "smol-toml": "^1.9.1",
     "yaml": "^2.9.1"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.5"
+  }
 }

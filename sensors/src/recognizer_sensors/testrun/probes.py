@@ -9,7 +9,7 @@ from pathlib import Path
 from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import diagnose
-from recognizer_sensors.testrun.profiles import python_lock, tool_environment
+from recognizer_sensors.testrun.profiles import python_lock, tool_environment, vitest_project
 from recognizer_sensors.testrun.projects import Project, ancestors, resolve
 
 COVERLET = "coverlet.collector"
@@ -154,6 +154,14 @@ def probe_typescript(repository: Path, directory: str = "") -> Probe:
     if declared and not installed_modules(repository, directory):
         return missing(
             "dependencies are not installed; install them with npm install", "npm install"
+        )
+
+    vitest = vitest_project(repository, directory)
+
+    if vitest is not None and not vitest.has_coverage:
+        return missing(
+            "@vitest/coverage-v8 is not installed",
+            f"npm install --save-dev @vitest/coverage-v8@{vitest.version}",
         )
 
     return Probe()
