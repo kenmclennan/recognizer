@@ -22,7 +22,7 @@ import { InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
-import { earlyGaps } from "./preflight.js";
+import { earlyGaps, projectGaps } from "./preflight.js";
 import {
   entryFrom,
   openPhasedRunLog,
@@ -386,6 +386,10 @@ function* scanFlow(
     DescribeResult | undefined
   > {
     const commit = resolveCommit(io, root);
+    const scoped = (command: string[]): string[] =>
+      options.modules !== undefined && isScoped(command)
+        ? [...command, "--modules", resolve(options.modules)]
+        : command;
 
     const emit = (line: string) => {
       taken?.append(line);
@@ -448,6 +452,13 @@ function* scanFlow(
       io.stderr("no languages detected\n");
     }
 
+    const ticked = selected.map(({ name, command }) => ({
+      name,
+      command: scoped(command),
+    }));
+    const describing: Describing | null =
+      options.describe !== false ? readDescribing(io) : null;
+
     const refuse = (gaps: Gap[]): number => {
       const reason = `preflight found ${gaps.length} ${gaps.length === 1 ? "gap" : "gaps"}`;
 
@@ -488,16 +499,13 @@ function* scanFlow(
       return 4;
     };
 
-    const describing: Describing | null =
-      options.describe !== false ? readDescribing(io) : null;
-
     emit(preflightLine({ state: "run" }));
 
     const early = earlyGaps({
       io,
       root,
       commit,
-      sensors: selected,
+      sensors: ticked,
       describe: options.describe !== false,
       describer: describer ?? null,
       model: describing?.model ?? "",
@@ -595,6 +603,12 @@ function* scanFlow(
     const scans = detected
       .map((language) => readCachedScan(io, root, language))
       .filter((scan): scan is RecordedScan => scan !== null);
+
+    const later = commit === null ? [] : projectGaps(io, root, commit, ticked);
+
+    if (later.length > 0) {
+      return refuse(later);
+    }
 
     emit(preflightLine({ state: "ok" }));
 
@@ -710,10 +724,7 @@ function* scanFlow(
           root,
           selected: selected.map((one) => ({
             ...one,
-            command:
-              options.modules !== undefined && isScoped(one.command)
-                ? [...one.command, "--modules", resolve(options.modules)]
-                : one.command,
+            command: scoped(one.command),
             runsTests: runsTests(one.command),
           })),
           commit: commit ?? "",

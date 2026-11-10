@@ -21,7 +21,13 @@ export type Program = (
   files: Map<string, string>,
 ) => ProgramEffect | undefined;
 
+export interface SensorsPreflight {
+  version?: ProgramEffect;
+  run?: (args: string[]) => ProgramEffect;
+}
+
 export interface FakeOptions {
+  sensorsPreflight?: SensorsPreflight;
   programs?: Record<string, Program>;
   files?: Record<string, string>;
   symlinks?: string[];
@@ -162,6 +168,24 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         ? { command, args }
         : { command, args, cwd: runOptions.cwd },
     );
+
+    if (
+      command === "recognizer-sensors" &&
+      (args.includes("--version") || args.includes("--preflight"))
+    ) {
+      const effect = args.includes("--version")
+        ? (options.sensorsPreflight?.version ?? { stdout: "0.0.0\n" })
+        : (options.sensorsPreflight?.run?.(args) ?? {
+            stdout: `${JSON.stringify({ gaps: [] })}\n`,
+          });
+
+      return {
+        started: effect.started ?? true,
+        status: effect.started === false ? null : (effect.status ?? 0),
+        stdout: effect.stdout ?? "",
+        stderr: effect.stderr ?? "",
+      };
+    }
 
     const program = options.programs?.[command];
 

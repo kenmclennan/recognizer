@@ -1,7 +1,8 @@
 import { dirname, isAbsolute, relative } from "node:path";
 import type { Io } from "./cli.js";
 import type { Describer } from "./describe-modules.js";
-import type { Fix, Gap } from "./gap.js";
+import { type Fix, type Gap, isGap } from "./gap.js";
+import { runsTests } from "./shipped-sensors.js";
 
 export interface PreflightSensor {
   name: string;
@@ -18,7 +19,11 @@ export interface EarlyInput {
   model: string;
 }
 
+export const PROJECT_STAGE_TIMEOUT_MS = 600_000;
+
 const BREW_FIX = "brew install --cask kenmclennan/tap/recognizer";
+
+const SENSORS_PROGRAM = "recognizer-sensors";
 
 const REFERENCE_PROGRAM = "recognizer-describe-claude";
 
@@ -39,6 +44,10 @@ function installFix(): Fix {
     env: {},
     kind: "outside",
   };
+}
+
+function isShipped(sensor: PreflightSensor): boolean {
+  return sensor.command[0] === SENSORS_PROGRAM;
 }
 
 function fillDescriber(
@@ -144,6 +153,28 @@ function describerGaps(input: EarlyInput): Gap[] {
       ];
 }
 
+function sensorProgramGaps(input: EarlyInput): Gap[] {
+  const shipped = input.sensors.filter(isShipped);
+
+  if (shipped.length === 0) {
+    return [];
+  }
+
+  const result = input.io.run(SENSORS_PROGRAM, ["--version"]);
+
+  return result.started && result.status === 0
+    ? []
+    : [
+        {
+          id: "sensors:missing",
+          line: `${SENSORS_PROGRAM} is not installed`,
+          needs: shipped.map((one) => one.name),
+          project: null,
+          fix: installFix(),
+        },
+      ];
+}
+
 export function earlyGaps(input: EarlyInput): Gap[] {
   const gaps: Gap[] = [];
 
@@ -157,7 +188,66 @@ export function earlyGaps(input: EarlyInput): Gap[] {
     });
   }
 
-  gaps.push(...describerGaps(input));
+  gaps.push(...describerGaps(input), ...sensorProgramGaps(input));
+
+  return gaps;
+}
+
+function withoutOutput(command: string[]): string[] {
+  const at = command.indexOf("--output");
+
+  return at === -1
+    ? command
+    : [...command.slice(0, at), ...command.slice(at + 2)];
+}
+
+function parseGaps(stdout: string): Gap[] {
+  const last = stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .pop();
+
+  if (last === undefined) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(last) as { gaps?: unknown };
+
+    return Array.isArray(parsed.gaps) ? parsed.gaps.filter(isGap) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function projectGaps(
+  io: Io,
+  root: string,
+  commit: string,
+  sensors: PreflightSensor[],
+): Gap[] {
+  const gaps: Gap[] = [];
+
+  for (const sensor of sensors) {
+    if (!runsTests(sensor.command)) {
+      continue;
+    }
+
+    const filled = [...withoutOutput(sensor.command), "--preflight"].map(
+      (item) =>
+        item.split("{repository}").join(root).split("{commit}").join(commit),
+    );
+    const [program, ...rest] = filled as [string, ...string[]];
+    const result = io.run(program, rest, {
+      cwd: root,
+      timeoutMs: PROJECT_STAGE_TIMEOUT_MS,
+    });
+
+    if (result.started && result.status === 0) {
+      gaps.push(...parseGaps(result.stdout));
+    }
+  }
 
   return gaps;
 }

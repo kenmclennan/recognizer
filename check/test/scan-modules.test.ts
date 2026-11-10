@@ -84,7 +84,10 @@ function describeTotal(out: string): unknown {
 
 function senseArgs(fake: ReturnType<typeof fakeIo>, name: string) {
   return fake.calls.find(
-    (call) => call.command === "recognizer-sensors" && call.args[0] === name,
+    (call) =>
+      call.command === "recognizer-sensors" &&
+      call.args[0] === name &&
+      !call.args.includes("--preflight"),
   )?.args;
 }
 

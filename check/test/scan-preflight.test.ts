@@ -6,6 +6,7 @@ import {
   fakeIo,
   PYTHON,
   ROOT,
+  type SensorsPreflight,
   scanJson,
 } from "./scan-helpers.js";
 
@@ -20,6 +21,20 @@ const IN_TREE =
 const CUSTOM =
   'describer:\n  command: [custom-describer, "{module}"]\n  version: "v1"\n';
 
+const GAP = {
+  id: "crap:python:sensors:environment",
+  line: "coverage and pytest are not installed",
+  needs: ["crap"],
+  project: { language: "python", directory: "sensors" },
+  fix: {
+    text: "uv sync",
+    command: ["uv", "sync"],
+    cwd: "sensors",
+    env: {},
+    kind: "repository",
+  },
+};
+
 function current(): string {
   return scanJson(2, 1, {
     commit: COMMIT,
@@ -31,7 +46,11 @@ function current(): string {
   });
 }
 
-function setup(config: string, more: FakeOptions = {}): FakeOptions {
+function setup(
+  config: string,
+  preflight?: SensorsPreflight,
+  more: FakeOptions = {},
+): FakeOptions {
   return {
     commit: COMMIT,
     files: {
@@ -42,6 +61,24 @@ function setup(config: string, more: FakeOptions = {}): FakeOptions {
       [CONFIG]: config,
     },
     scanners: { [PYTHON]: { output: current() } },
+    programs: {
+      "recognizer-sensors": (args, files) => {
+        files.set(
+          args[args.indexOf("--output") + 1] as string,
+          JSON.stringify({
+            findings_version: 1,
+            sensor: { name: args[0], version: "1" },
+            commit: COMMIT,
+            modified: false,
+            settings: {},
+            findings: [],
+          }),
+        );
+
+        return undefined;
+      },
+    },
+    ...(preflight === undefined ? {} : { sensorsPreflight: preflight }),
     ...more,
   };
 }
@@ -65,6 +102,21 @@ function records(fake: ReturnType<typeof fakeIo>) {
     .filter((key) => key.startsWith(`${LOG}/`))
     .map((key) => JSON.parse(fake.files.get(key) as string));
 }
+
+function sensorRuns(fake: ReturnType<typeof fakeIo>) {
+  return fake.calls.filter(
+    (call) =>
+      call.command === "recognizer-sensors" &&
+      !call.args.includes("--preflight") &&
+      !call.args.includes("--version"),
+  );
+}
+
+const gapsFor = (...needs: string[]): SensorsPreflight => ({
+  run: () => ({
+    stdout: `${JSON.stringify({ gaps: [{ ...GAP, needs }] })}\n`,
+  }),
+});
 
 describe("scan preflight: the early stage", () => {
   it("is a no-commit gap with --sense", async () => {
@@ -99,42 +151,9 @@ describe("scan preflight: the early stage", () => {
     expect(code).toBe(0);
   });
 
-  it("refuses with exit 4, a line per gap on stderr and the skipped phases recorded", async () => {
-    const options = {
-      ...setup(REFERENCE),
-      commit: undefined,
-      programs: {
-        "recognizer-describe-claude": () => ({ stdout: "ok\n" }),
-      },
-    };
-    const json = await scan(options, "--describe", "--sense", "crap", "--json");
-    const [record] = records(json.fake);
-    const all = events(json.out);
-    const plain = await scan(options, "--sense", "crap");
-
-    expect(json.code).toBe(4);
-    expect(all.map((one) => [one.event, one.state ?? null])).toEqual([
-      ["preflight", "run"],
-      ["preflight", "gaps"],
-      ["summary", null],
-    ]);
-    expect(all[2]).toMatchObject({
-      exit: 4,
-      skipped: [
-        { phase: "describe", reason: "preflight found 1 gap" },
-        { phase: "sense", reason: "preflight found 1 gap" },
-      ],
-    });
-    expect(record.skipped).toEqual(all[2]?.skipped);
-    expect(record.outcome).toBe("failed");
-    expect(plain.err).toContain(
-      "the folder has no git commit (crap): make the first commit (git add the files, then git commit)",
-    );
-  });
-
   it("gives the describer gap for a reference describer whose --check fails", async () => {
     const calls: string[][] = [];
-    const options = setup(REFERENCE, {
+    const options = setup(REFERENCE, undefined, {
       programs: {
         "recognizer-describe-claude": (args) => {
           calls.push(args);
@@ -155,7 +174,7 @@ describe("scan preflight: the early stage", () => {
   });
 
   it("gives an npm run build fix for the in-tree describer", async () => {
-    const options = setup(IN_TREE, {
+    const options = setup(IN_TREE, undefined, {
       programs: { node: () => ({ status: 2 }) },
     });
     const { out } = await scan(options, "--describe", "--json");
@@ -180,7 +199,7 @@ describe("scan preflight: the early stage", () => {
   });
 
   it("gives no gap for a reference describer whose --check passes", async () => {
-    const options = setup(REFERENCE, {
+    const options = setup(REFERENCE, undefined, {
       programs: { "recognizer-describe-claude": () => ({ stdout: "ok\n" }) },
     });
 
@@ -189,7 +208,7 @@ describe("scan preflight: the early stage", () => {
 
   it("only start-checks a describer that is not a reference describer", async () => {
     const calls: string[][] = [];
-    const options = setup(CUSTOM, {
+    const options = setup(CUSTOM, undefined, {
       programs: {
         "custom-describer": (args) => {
           calls.push(args);
@@ -202,7 +221,7 @@ describe("scan preflight: the early stage", () => {
     expect((await scan(options, "--describe")).code).toBe(0);
     expect(calls[0]).toEqual(["--version"]);
 
-    const absent = setup(CUSTOM, {
+    const absent = setup(CUSTOM, undefined, {
       programs: { "custom-describer": () => ({ started: false }) },
     });
     const refused = await scan(absent, "--describe");
@@ -213,8 +232,20 @@ describe("scan preflight: the early stage", () => {
     );
   });
 
+  it("gives a sensors gap when recognizer-sensors does not start", async () => {
+    const { code, err, fake } = await scan(
+      setup("", { version: { started: false } }),
+      "--sense",
+      "duplication",
+    );
+
+    expect(code).toBe(4);
+    expect(err).toContain("recognizer-sensors is not installed (duplication)");
+    expect(sensorRuns(fake)).toEqual([]);
+  });
+
   it("reports nothing for a describer that is not ticked", async () => {
-    const options = setup(REFERENCE, {
+    const options = setup(REFERENCE, undefined, {
       programs: { "recognizer-describe-claude": () => ({ status: 2 }) },
     });
 
@@ -222,9 +253,115 @@ describe("scan preflight: the early stage", () => {
   });
 });
 
-describe("scan preflight: skipped phases", () => {
+describe("scan preflight: the project stage", () => {
+  it("probes only ticked sensors that run tests", async () => {
+    const { code, fake } = await scan(setup(""), "--sense", "duplication,crap");
+    const probes = fake.calls.filter((call) =>
+      call.args.includes("--preflight"),
+    );
+
+    expect(code).toBe(0);
+    expect(probes.map((call) => call.args[0])).toEqual(["crap"]);
+    expect(probes[0]?.args).not.toContain("--output");
+  });
+
+  it("makes no probe for an unticked sensor, so its gap cannot block", async () => {
+    const { code, fake } = await scan(
+      setup("", gapsFor("crap")),
+      "--sense",
+      "duplication",
+    );
+
+    expect(code).toBe(0);
+    expect(fake.calls.some((call) => call.args.includes("--preflight"))).toBe(
+      false,
+    );
+  });
+
+  it("is exit 4 with the gap, no sensor run, no describer call, and the skipped phases recorded", async () => {
+    const described: string[][] = [];
+    const options = setup(CUSTOM, gapsFor("crap"), {
+      programs: {
+        "custom-describer": (args) => {
+          described.push(args);
+
+          return { stdout: "a line\n" };
+        },
+        "recognizer-sensors": () => ({}),
+      },
+    });
+    const { code, out, fake } = await scan(
+      options,
+      "--describe",
+      "--sense",
+      "crap",
+      "--json",
+    );
+    const all = events(out);
+    const [record] = records(fake);
+
+    expect(code).toBe(4);
+    expect(sensorRuns(fake)).toEqual([]);
+    expect(described).toEqual([["--version"]]);
+    expect(
+      all.map((one) => [one.event, one.phase ?? one.state ?? null]),
+    ).toEqual([
+      ["preflight", "run"],
+      ["phase", "extract"],
+      ["preflight", "gaps"],
+      ["summary", null],
+    ]);
+    expect(all[2]).toMatchObject({ gaps: [GAP] });
+    expect(all[3]).toMatchObject({
+      exit: 4,
+      skipped: [
+        { phase: "describe", reason: "preflight found 1 gap" },
+        { phase: "sense", reason: "preflight found 1 gap" },
+      ],
+    });
+    expect(record.skipped).toEqual(all[3]?.skipped);
+    expect(record.outcome).toBe("failed");
+  });
+
+  it("lists each gap on stderr without --json", async () => {
+    const { code, err } = await scan(
+      setup("", gapsFor("crap")),
+      "--sense",
+      "crap",
+    );
+
+    expect(code).toBe(4);
+    expect(err).toContain(
+      "coverage and pytest are not installed (crap, python project sensors/): uv sync",
+    );
+  });
+
+  it("emits preflight ok on the passing path", async () => {
+    const { code, out } = await scan(
+      setup(""),
+      "--sense",
+      "duplication",
+      "--json",
+    );
+
+    expect(code).toBe(0);
+    expect(events(out).map((one) => one.event)).toEqual([
+      "preflight",
+      "phase",
+      "preflight",
+      "phase",
+      "start",
+      "entry",
+      "summary",
+    ]);
+    expect(events(out)[2]).toEqual({ event: "preflight", state: "ok" });
+    expect(events(out).at(-1)).toMatchObject({ skipped: [] });
+  });
+});
+
+describe("scan preflight: skipped phases and stopped runs", () => {
   it("records the describe per-language skip", async () => {
-    const options = setup(CUSTOM, {
+    const options = setup(CUSTOM, undefined, {
       files: {
         [`${ROOT}/a.py`]: "",
         [CONFIG]: CUSTOM,
@@ -242,5 +379,17 @@ describe("scan preflight: skipped phases", () => {
     expect(record.skipped).toEqual([
       { phase: "describe", reason: "no scan for python" },
     ]);
+  });
+
+  it("never exits 4 for a describe run that the failure threshold stopped", async () => {
+    const options = setup(CUSTOM, undefined, {
+      programs: {
+        "custom-describer": (args) =>
+          args[0] === "--version" ? {} : { status: 1, stderr: "nope" },
+      },
+    });
+    const { code } = await scan(options, "--describe");
+
+    expect(code).toBe(1);
   });
 });
