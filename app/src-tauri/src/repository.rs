@@ -208,10 +208,10 @@ pub fn shipped_describer_with(
     folder: &Path,
 ) -> ShippedDescriber {
     match runner.capture(command, &describer_args(folder), true) {
-        None => ShippedDescriber::Unavailable {
-            reason: missing_hint(),
+        Err(fault) => ShippedDescriber::Unavailable {
+            reason: fault.message(),
         },
-        Some(Captured {
+        Ok(Captured {
             code,
             stdout,
             stderr,
@@ -395,10 +395,10 @@ pub fn shipped_sensors() -> ShippedSensors {
 
 pub fn shipped_sensors_with(runner: &ToolRunner, command: &str) -> ShippedSensors {
     match runner.capture(command, &sensors_args(), true) {
-        None => ShippedSensors::Unavailable {
-            reason: missing_hint(),
+        Err(fault) => ShippedSensors::Unavailable {
+            reason: fault.message(),
         },
-        Some(Captured {
+        Ok(Captured {
             code,
             stdout,
             stderr,
@@ -408,10 +408,10 @@ pub fn shipped_sensors_with(runner: &ToolRunner, command: &str) -> ShippedSensor
 
 pub fn scan_with(runner: &ToolRunner, folder: &Path, command: &str) -> ScanReport {
     match runner.capture(command, &plain_scan_args(folder), false) {
-        None => ScanReport::CommandMissing {
-            hint: missing_hint(),
+        Err(fault) => ScanReport::CommandMissing {
+            hint: fault.message(),
         },
-        Some(Captured { code, stderr, .. }) => report_for(code, stderr, || read_cache(folder)),
+        Ok(Captured { code, stderr, .. }) => report_for(code, stderr, || read_cache(folder)),
     }
 }
 

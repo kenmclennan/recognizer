@@ -1,6 +1,14 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
+import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { COMMAND_LINKS } from "./build-toolchain.mjs";
 import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
 
 const OWN = new Set([
@@ -44,6 +52,32 @@ export function verifyToolchainDir(dir, lock) {
   verifyVendored(lock, versions);
 }
 
+export function verifyCommands(dir) {
+  const root = realpathSync(dir);
+  const problems = [];
+
+  for (const [name] of COMMAND_LINKS) {
+    const path = join(dir, "commands", name);
+
+    try {
+      const resolved = realpathSync(path);
+
+      if (!resolved.startsWith(`${root}${sep}`)) {
+        problems.push(`${name} points outside the toolchain`);
+        continue;
+      }
+
+      accessSync(resolved, constants.X_OK);
+    } catch {
+      problems.push(`${name} is missing or not executable`);
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(`toolchain commands are wrong: ${problems.join(", ")}`);
+  }
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const lock = JSON.parse(
     readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
@@ -51,6 +85,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
   try {
     verifyToolchainDir(process.argv[2], lock);
+    verifyCommands(process.argv[2]);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exit(1);

@@ -81,6 +81,8 @@ function failureText(result: ScanRunResult): string | null {
         : result.stderr.trim();
     case "refused":
       return result.reason;
+    case "nothing-ran":
+      return result.detail;
     default:
       return null;
   }

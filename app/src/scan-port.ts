@@ -6,7 +6,8 @@ export type ScanRunResult =
   | { status: "stopped" }
   | { status: "command-missing"; hint: string }
   | { status: "failed"; exitCode: number; stderr: string }
-  | { status: "refused"; reason: string };
+  | { status: "refused"; reason: string }
+  | { status: "nothing-ran"; phases: string[]; detail: string };
 
 export type StoredTicks = {
   describe: boolean;
