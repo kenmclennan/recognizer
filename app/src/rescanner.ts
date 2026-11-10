@@ -12,7 +12,12 @@ import {
   type RunState,
   type ScanTicks,
 } from "./scan-panel-model";
-import type { ScanPort, ScanRunResult } from "./scan-port";
+import type {
+  ExternalEvent,
+  ExternalScan,
+  ScanPort,
+  ScanRunResult,
+} from "./scan-port";
 import {
   answeredProgress,
   foldProgress,
@@ -61,6 +66,7 @@ export type Rescanner = {
   setTicks: (next: ScanTicks) => void;
   runState: () => RunState;
   running: () => boolean;
+  external: () => boolean;
   progress: () => ScanProgress;
 };
 
@@ -104,6 +110,8 @@ export function createRescanner<Carried>(
   let heading: string | null = null;
   let failureIds: number[] = [];
   let lastUpdate: ProgressUpdate = { scanning: null };
+  let external: ExternalScan | null = null;
+  let externalQueue: Promise<void> = Promise.resolve();
 
   function emit(update: ProgressUpdate) {
     lastUpdate = update;
@@ -365,6 +373,99 @@ export function createRescanner<Carried>(
     }
   }
 
+  function externalHeading(scan: ExternalScan): string {
+    return scan.origin === "cli"
+      ? "Started from the command line:"
+      : "Started in another window:";
+  }
+
+  function beginExternal(scan: ExternalScan) {
+    const registeredRows = (
+      scan.describe ? [{ key: DESCRIBE_KEY, display: "Descriptions" }] : []
+    ).concat(scan.sensors.map((name) => ({ key: name, display: name })));
+
+    external = scan;
+    rows = registeredRows;
+    heading = externalHeading(scan);
+    progress = NO_PROGRESS;
+    run = {
+      running: [...(scan.describe ? [DESCRIBE_KEY] : []), ...scan.sensors],
+      started: null,
+      failures: run.failures,
+      diagnoses: run.diagnoses,
+      ranAt: run.ranAt,
+    };
+    publish();
+  }
+
+  function foldExternal(line: string) {
+    const event = parseScanLine(line);
+
+    if (external === null || event === null) {
+      return;
+    }
+
+    progress = foldProgress(progress, event);
+
+    if (event.event === "phase" && event.phase === "describe") {
+      run = { ...run, started: DESCRIBE_KEY };
+    }
+
+    if (event.event === "phase" && event.phase === "sense") {
+      run = {
+        ...run,
+        started: run.running.find((one) => one !== DESCRIBE_KEY) ?? null,
+      };
+    }
+
+    if (event.event === "start") {
+      run = { ...run, started: event.name };
+    }
+
+    if (event.event === "entry" && event.phase === "sense") {
+      finished(
+        event.name,
+        event.outcome === "ok",
+        event.reason ?? "failed",
+        event.diagnosis ?? null,
+      );
+    }
+
+    publish();
+  }
+
+  async function endExternal() {
+    external = null;
+    heading = null;
+    run = { ...run, running: [], started: null };
+    progress = NO_PROGRESS;
+    emit({ scanning: null });
+
+    try {
+      await settle();
+    } catch (error) {
+      ports.post({ kind: "error", text: String(error) });
+    }
+  }
+
+  function onExternal(event: ExternalEvent) {
+    externalQueue = externalQueue
+      .then(async () => {
+        if (event.kind === "line") {
+          foldExternal(event.line);
+        } else if (event.scan === null) {
+          if (external !== null) {
+            await endExternal();
+          }
+        } else if (external?.pid !== event.scan.pid) {
+          beginExternal(event.scan);
+        }
+      })
+      .catch(() => {});
+  }
+
+  ports.port.onExternal(onExternal);
+
   async function execute(modules: string[] | null, planned?: PlannedRun) {
     try {
       await executeScan(modules, planned);
@@ -499,7 +600,7 @@ export function createRescanner<Carried>(
 
   return {
     run(modules = null, planned) {
-      if (busy) {
+      if (busy || external !== null) {
         return Promise.resolve();
       }
 
@@ -539,7 +640,7 @@ export function createRescanner<Carried>(
       }
     },
     async refresh() {
-      if (busy) {
+      if (busy || external !== null) {
         return;
       }
 
@@ -561,7 +662,8 @@ export function createRescanner<Carried>(
       void ports.registered().then((registered) => writeTicks(registered));
     },
     runState: () => run,
-    running: () => busy,
+    running: () => busy || external !== null,
+    external: () => external !== null,
     progress: () => progress,
   };
 }

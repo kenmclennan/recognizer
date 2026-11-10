@@ -89,6 +89,7 @@ export type PanelInput = {
   scans?: Scan[];
   run: RunState;
   scanning: boolean;
+  external?: boolean;
   progressText?: string | null;
   describeProgress?: { entries: number; total: number } | null;
   describeStop?: DescribeStop | null;
@@ -375,7 +376,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       rows: [],
       reports: [],
       button: {
-        scanning: input.scanning,
+        scanning: input.scanning && input.external !== true,
         label: input.scanning ? "Running" : "Run",
         disabled: input.scanning,
       },
@@ -444,7 +445,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     rows,
     reports: reportRows(statuses, input.now),
     button: {
-      scanning: input.scanning,
+      scanning: input.scanning && input.external !== true,
       label: freshness.action.primary.label,
       disabled: freshness.action.primary.disabled,
     },

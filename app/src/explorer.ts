@@ -228,6 +228,7 @@ export type ScanHost = {
   setTicks: (next: ScanTicks) => void;
   runState: () => RunState;
   running: () => boolean;
+  external?: () => boolean;
   progressText: () => string | null;
   footer?: (text: string | null) => void;
   sensorProgress?: () => SensorProgress | null;
@@ -1984,6 +1985,7 @@ export function showExplorer(
       scans,
       run: scanHost.runState(),
       scanning: scanHost.running(),
+      external: scanHost.external?.() ?? false,
       progressText: scanHost.progressText(),
       sensorProgress: scanHost.sensorProgress?.() ?? null,
       extracting: scanHost.extracting?.() ?? false,

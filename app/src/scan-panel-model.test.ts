@@ -178,6 +178,35 @@ describe("scanPanel rows", () => {
   });
 });
 
+describe("scanPanel while another process scans", () => {
+  const external = () =>
+    scanPanel(
+      input({
+        scanning: true,
+        external: true,
+        view: { name: "v", modules: ["a.py"] },
+        run: run({ running: ["crap"], started: "crap" }),
+      }),
+    );
+
+  it("disables the rows, both toggles and the primary button", () => {
+    const model = external();
+
+    expect(model.rows.every((row) => row.disabled)).toBe(true);
+    expect(model.scope?.disabled).toBe(true);
+    expect(model.freshness.action.mode.disabled).toBe(true);
+    expect(model.button).toMatchObject({ label: "Running", disabled: true });
+  });
+
+  it("offers no Stop because the scan is not this window's", () => {
+    expect(external().button.scanning).toBe(false);
+    expect(
+      scanPanel(input({ scanning: true, run: run({ running: ["crap"] }) }))
+        .button.scanning,
+    ).toBe(true);
+  });
+});
+
 describe("scanPanel header", () => {
   it("reads Not scanned yet without a scan", () => {
     expect(scanPanel(fresh).header).toEqual({

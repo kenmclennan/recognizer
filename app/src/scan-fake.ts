@@ -1,6 +1,7 @@
 import type { ScanPlan } from "./scan-panel-model";
 import type {
   DescribingSettings,
+  ExternalEvent,
   ScanPort,
   ScanRunResult,
   StoredTicks,
@@ -21,10 +22,13 @@ export type FakeScan = ScanPort & {
   answers: boolean[];
   written: WrittenTicks[];
   onStep: (index: number) => void;
+  emitExternal: (event: ExternalEvent) => void;
+  watching: number;
 };
 
 export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
   const handlers = new Set<(line: string) => void>();
+  const externals = new Set<(event: ExternalEvent) => void>();
   let remembered: StoredTicks | null = null;
   let pending: { stop: () => void } | null = null;
   const fake: FakeScan = {
@@ -44,6 +48,20 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     answers: [],
     written: [],
     onStep: () => {},
+    watching: 0,
+    emitExternal(event) {
+      for (const handler of externals) {
+        handler(event);
+      }
+    },
+    async watchExternal() {
+      fake.watching += 1;
+    },
+    onExternal(handler) {
+      externals.add(handler);
+
+      return () => externals.delete(handler);
+    },
     async run(plan) {
       if (pending !== null) {
         return { status: "refused", reason: "a scan is already running" };

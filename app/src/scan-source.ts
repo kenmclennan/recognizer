@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   DescribingSettings,
+  ExternalScan,
   ScanPort,
   ScanRunResult,
   StoredTicks,
@@ -34,5 +35,19 @@ export const scanSource: ScanPort = {
     );
 
     return () => void pending.then((stop) => stop());
+  },
+  watchExternal: () => invoke<void>("watch_external_scan"),
+  onExternal(handler) {
+    const scans = listen<ExternalScan | null>("external-scan", (event) =>
+      handler({ kind: "scan", scan: event.payload }),
+    );
+    const lines = listen<string>("external-scan-line", (event) =>
+      handler({ kind: "line", line: event.payload }),
+    );
+
+    return () => {
+      void scans.then((stop) => stop());
+      void lines.then((stop) => stop());
+    };
   },
 };

@@ -1040,4 +1040,95 @@ describe("createRescanner", () => {
       expect(rescanner.progress().describeAsk).toBeNull();
     });
   });
+
+  describe("a scan another process started", () => {
+    const cli = {
+      origin: "cli" as const,
+      pid: 4242,
+      startedAt: "2026-11-10T09:00:00.000Z",
+      sensors: ["alpha", "mut"],
+      describe: true,
+    };
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    async function observed() {
+      const made = harness();
+
+      made.scan.emitExternal({ kind: "scan", scan: cli });
+      made.scan.emitExternal({ kind: "line", line: describing(2) });
+      made.scan.emitExternal({ kind: "line", line: sensing(2) });
+      await flush();
+
+      return made;
+    }
+
+    it("shows the scan's rows and progress under the command-line heading", async () => {
+      const { rescanner, updates } = await observed();
+
+      expect(rescanner.running()).toBe(true);
+      expect(rescanner.external()).toBe(true);
+      expect(rescanner.runState().running).toEqual([
+        "describe",
+        "alpha",
+        "mut",
+      ]);
+
+      const latest = texts(updates).at(-1);
+
+      expect(latest).toContain("Started from the command line:");
+    });
+
+    it("labels a scan started by another window", async () => {
+      const made = harness();
+
+      made.scan.emitExternal({
+        kind: "scan",
+        scan: { ...cli, origin: "app" },
+      });
+      await flush();
+
+      expect(texts(made.updates).at(-1)).toContain(
+        "Started in another window:",
+      );
+    });
+
+    it("starts nothing and takes no side-effecting branch for its lines", async () => {
+      const { rescanner, scan, posted, log } = await observed();
+
+      await rescanner.run();
+      scan.emitExternal({
+        kind: "line",
+        line: entry("sense", "alpha", "boom"),
+      });
+      await flush();
+
+      expect(scan.ran).toEqual([]);
+      expect(posted).toEqual([]);
+      expect(log).not.toContain("described");
+      expect(rescanner.runState().failures).toEqual({ alpha: "boom" });
+    });
+
+    it("leaves Running and reloads the results once when the marker goes", async () => {
+      const { rescanner, scan, log, updates } = await observed();
+
+      scan.emitExternal({ kind: "scan", scan: null });
+      await flush();
+
+      expect(rescanner.running()).toBe(false);
+      expect(rescanner.runState().running).toEqual([]);
+      expect(log.filter((one) => one === "sense")).toHaveLength(1);
+      expect(log).toContain(`adopted:${ORIGIN.commit}`);
+      expect(texts(updates).at(-1)).toBeNull();
+    });
+
+    it("ignores a repeated announcement of the same scan", async () => {
+      const { scan, rescanner } = await observed();
+      const before = rescanner.progress();
+
+      scan.emitExternal({ kind: "scan", scan: cli });
+      await flush();
+
+      expect(rescanner.progress()).toBe(before);
+    });
+  });
 });
