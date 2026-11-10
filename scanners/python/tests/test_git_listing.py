@@ -1,9 +1,13 @@
+import json
 import os
 import stat
 import subprocess
+import sys
+from pathlib import Path
 
 from recognizer_scan_python.discovery import discover, git_listing
 
+CONSOLE_SCRIPT = Path(sys.executable).parent / "recognizer-scan-python"
 IGNORED = "out"
 SOURCE = "src/a.py"
 SIBLING = "src/b.py"
@@ -193,3 +197,17 @@ def test_the_repository_scan_equals_the_walk_filtered_by_git_ls_files():
         path.startswith(("node_modules/", "dist/", ".recognizer/cache/"))
         for path in discover(REPOSITORY)
     )
+
+
+def test_the_cli_extracts_the_tracked_and_untracked_modules_and_not_the_ignored_copy(tmp_path):
+    make_repository(
+        tmp_path,
+        {SOURCE: "x = 1\n"},
+        {UNTRACKED: "x = 1\n", f"{IGNORED}/a.py": "x = 1\n", f"{IGNORED}/new.py": "x = 1\n"},
+    )
+
+    result = subprocess.run(
+        [str(CONSOLE_SCRIPT), str(tmp_path)], capture_output=True, text=True, check=True
+    )
+
+    assert sorted(m["id"] for m in json.loads(result.stdout)["modules"]) == [SOURCE, UNTRACKED]
