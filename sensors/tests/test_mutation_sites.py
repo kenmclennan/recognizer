@@ -4,7 +4,7 @@ import sys
 
 import pytest
 from conftest import git_commit
-from test_mutation import RECORD, read, run_mutate
+from test_mutation import RECORD, read, read_resolved, run_mutate
 
 from recognizer_sensors import hashes as hash_module
 from recognizer_sensors.mutation import runner, sensor
@@ -307,7 +307,7 @@ def go(root, tmp_path, *extra):
 
 
 def sites_of(root, identity):
-    return read(root / RECORD)["functions"][identity]["sites"]
+    return read_resolved(root / RECORD)["functions"][identity]["sites"]
 
 
 def test_a_record_names_the_files_that_ran_and_the_files_that_killed_each_site(
@@ -317,11 +317,11 @@ def test_a_record_names_the_files_that_ran_and_the_files_that_killed_each_site(
 
     assert go(root, tmp_path) == 0
 
-    record = read(root / RECORD)
+    record = read_resolved(root / RECORD)
     a_hash = hash_module.file_sha256(root / "tests/test_a.py")
     [site] = record["functions"]["app/one.py::inc"]["sites"]
 
-    assert record["record_version"] == 2
+    assert record["record_version"] == 3
     assert site == {"ran": {"tests/test_a.py": a_hash}, "killer": {"tests/test_a.py": a_hash}}
     assert len(mutants) == 3
     assert all(command[-3:] == ["-rfE", "-x", command[-1]] for command in mutants)

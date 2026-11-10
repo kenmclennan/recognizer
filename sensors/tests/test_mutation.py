@@ -21,6 +21,7 @@ from jsonschema import Draft202012Validator
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.mutation import runner, sensor
+from recognizer_sensors.mutation.record import resolve_set_list, resolve_site
 from recognizer_sensors.mutation.runner import new_work_folder, remove_stale_work_folders
 from recognizer_sensors.settings import SettingsError
 
@@ -49,6 +50,16 @@ def run_mutate(root, output, settings, *extra):
         output.write_text(overlay.read_text())
 
     return code
+
+
+def read_resolved(path):
+    document = json.loads(path.read_text())
+    sets = resolve_set_list(document)
+
+    for entry in document["functions"].values():
+        entry["sites"] = [resolve_site(site, sets) for site in entry["sites"]]
+
+    return document
 
 
 def read(path):
@@ -496,7 +507,7 @@ def test_an_unchanged_rerun_reuses_every_function_and_runs_no_test_command(
     first_overlay = read(output)
     record = read(root / RECORD)
 
-    assert record["record_version"] == 2
+    assert record["record_version"] == 3
     assert record["skipped"] == []
     assert record["functions"]["app/rules.py::grade"]["verdicts"] == ["killed", "killed"]
     assert record["functions"]["app/rules.py::total"]["verdicts"] == [None]
@@ -533,7 +544,7 @@ def test_a_changed_body_re_mutates_only_that_function(tmp_path, counting, capsys
     "damage",
     [
         lambda path: path.write_text("not json"),
-        lambda path: path.write_text(json.dumps({**read(path), "record_version": 3})),
+        lambda path: path.write_text(json.dumps({**read(path), "record_version": 4})),
         lambda path: path.write_text(json.dumps({**read(path), "commit": 7})),
         lambda path: path.unlink(),
     ],
