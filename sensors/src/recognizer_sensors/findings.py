@@ -18,6 +18,7 @@ def build_document(
     inputs: dict[str, str] | None = None,
     tests: str | None = None,
     diagnosis: dict | None = None,
+    counts: dict | None = None,
 ) -> dict:
     document = {
         "findings_version": 2,
@@ -40,6 +41,9 @@ def build_document(
 
     if partial is not None:
         document["partial"] = partial
+
+    if counts is not None:
+        document["counts"] = counts
 
     return document
 

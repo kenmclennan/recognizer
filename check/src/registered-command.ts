@@ -23,11 +23,59 @@ export function fill(
     .join(output);
 }
 
+type Counted = {
+  counts?: { measured?: number };
+  stopped?: { measured?: number };
+  partial?: { measured?: number };
+};
+
+function measuredOf(document: Counted): number | null {
+  const measured =
+    document.counts?.measured ??
+    document.stopped?.measured ??
+    document.partial?.measured;
+
+  return typeof measured === "number" ? measured : null;
+}
+
+function protectsOutput(
+  io: Io,
+  output: string,
+  checkpoint: Counted,
+  validate: (document: unknown, anyCommit?: boolean) => void,
+): boolean {
+  if (!io.exists(output)) {
+    return false;
+  }
+
+  try {
+    const existing = JSON.parse(io.readFile(output)) as Counted | null;
+
+    validate(existing, true);
+
+    if (
+      existing === null ||
+      typeof existing !== "object" ||
+      existing.partial !== undefined ||
+      existing.stopped !== undefined
+    ) {
+      return false;
+    }
+
+    const kept = measuredOf(existing);
+    const incoming = measuredOf(checkpoint);
+
+    return kept !== null && incoming !== null && incoming < kept;
+  } catch {
+    return false;
+  }
+}
+
 function promoteCheckpoint(
   io: Io,
   written: string,
   output: string,
-  validate: (document: unknown) => void,
+  validate: (document: unknown, anyCommit?: boolean) => void,
 ): void {
   if (!io.exists(written)) {
     return;
@@ -49,6 +97,10 @@ function promoteCheckpoint(
       throw new Error("not a checkpoint");
     }
 
+    if (protectsOutput(io, output, document as Counted, validate)) {
+      throw new Error("checkpoint measured less than the complete output");
+    }
+
     io.rename(written, output);
   } catch {
     io.remove(written);
@@ -68,7 +120,7 @@ function prepare(
   command: string[],
   commit: string,
   output: string,
-  validate: (document: unknown) => void,
+  validate: (document: unknown, anyCommit?: boolean) => void,
 ): Prepared {
   const written = `${output}.tmp`;
 
@@ -87,7 +139,7 @@ export function runRegistered(
   commit: string,
   output: string,
   what: string,
-  validate: (document: unknown) => void,
+  validate: (document: unknown, anyCommit?: boolean) => void,
   timeoutMs?: number,
   keepStderr: (stderr: string) => string = (stderr) => stderr,
 ): RegisteredRun {
@@ -123,7 +175,7 @@ export async function runRegisteredAsync(
   commit: string,
   output: string,
   what: string,
-  validate: (document: unknown) => void,
+  validate: (document: unknown, anyCommit?: boolean) => void,
   options: Omit<RunOptions, "cwd">,
   keepStderr: (stderr: string) => string,
 ): Promise<RegisteredRun> {
@@ -158,7 +210,7 @@ function conclude(
   result: RunResult,
   output: string,
   what: string,
-  validate: (document: unknown) => void,
+  validate: (document: unknown, anyCommit?: boolean) => void,
 ): RegisteredRun {
   const stderr = result.stderr.trim();
   const ran = (reason: string | null): RegisteredRun => ({

@@ -51,6 +51,7 @@ export interface FindingsDocument {
   reported_at?: string;
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
+  counts?: { measured: number; total: number };
   findings: FindingRecord[];
   inputs?: Record<string, string>;
   tests?: string;

@@ -1357,6 +1357,115 @@ def test_a_run_stopped_before_its_first_function_finishes_reports_nothing_measur
     assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
 
 
+def carry_settings(tmp_path, stop_at, **extra):
+    script = tmp_path / "stop_after_first.py"
+    script.write_text(STOP_AFTER_THE_FIRST_FUNCTION)
+
+    return json.dumps(
+        {
+            "test_command": [
+                sys.executable,
+                str(script),
+                str(tmp_path / "counter-carry.txt"),
+                "strong.py",
+                str(stop_at),
+            ],
+            "coverage": COVERAGE,
+            "max_workers": 1,
+            **extra,
+        }
+    )
+
+
+def change_gamma(root):
+    rules = root / "app" / "rules.py"
+    rules.write_text(
+        rules.read_text().replace(
+            "def gamma(a, b):\n    return a and b", "def gamma(a, b):\n    return b and a"
+        )
+    )
+
+
+def test_a_stopped_run_carries_the_previous_verdicts_of_the_functions_it_did_not_reach(tmp_path):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+
+    assert run_mutate(root, tmp_path / "overlay.json", carry_settings(tmp_path, 5)) == 0
+
+    complete = read(tmp_path / "findings-overlay.json")
+    first = read(root / RECORD)
+
+    assert complete["counts"] == {"measured": 3, "total": 3}
+    assert "stopped" not in complete
+    assert "partial" not in complete
+
+    change_gamma(root)
+
+    assert (
+        start_sensor(root, tmp_path, carry_settings(tmp_path, 5, incremental=False)).wait(
+            timeout=60
+        )
+        == 143
+    )
+
+    record = read(root / RECORD)
+
+    assert record["functions"][BETA] == first["functions"][BETA]
+    assert GAMMA not in record["functions"]
+    assert record["skipped"] == [BETA, GAMMA]
+
+    findings = read(tmp_path / "findings.json")
+
+    assert findings["counts"] == {"measured": 1, "total": 3}
+    assert findings["stopped"] == {"measured": 1, "total": 3}
+    assert list(read(root / OVERLAY)["values"]["killed"]) == [ALPHA]
+    assert [entry["identity"] for entry in read(root / SURVIVORS)["skipped"]] == [BETA, GAMMA]
+
+
+def test_a_budget_ended_run_carries_the_previous_verdicts_of_the_functions_it_did_not_reach(
+    tmp_path, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
+
+    assert run_mutate(root, tmp_path / "overlay.json", carry_settings(tmp_path, 5)) == 0
+
+    first = read(root / RECORD)
+
+    change_gamma(root)
+
+    ticker = Ticker()
+    real = runner.run_function
+    started = []
+
+    def stepping(*args, **extra):
+        started.append(1)
+        result = real(*args, **extra)
+
+        if len(started) == 1:
+            ticker.now = 1000.0
+
+        return result
+
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    monkeypatch.setattr(sensor, "run_function", stepping)
+
+    settings = carry_settings(tmp_path, 5, incremental=False, max_minutes=1)
+
+    assert run_mutate(root, tmp_path / "overlay2.json", settings) == 0
+
+    record = read(root / RECORD)
+    unreached = record["skipped"]
+
+    assert unreached == [BETA, GAMMA]
+    assert record["functions"][BETA] == first["functions"][BETA]
+    assert GAMMA not in record["functions"]
+
+    findings = read(tmp_path / "findings-overlay2.json")
+
+    assert findings["counts"] == {"measured": 1, "total": 3}
+    assert findings["partial"] == {"measured": 1, "total": 3}
+    assert "stopped" not in findings
+
+
 HOLD_THE_PIPE_WHEN_STOPPING = """
 import os, subprocess, sys, time
 

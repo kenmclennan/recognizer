@@ -65,8 +65,8 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
 
       return stripReason(stderr);
     };
-    const validate = (document: unknown) => {
-      validateFindings(document, { name, commit });
+    const validate = (document: unknown, anyCommit?: boolean) => {
+      validateFindings(document, anyCommit ? { name } : { name, commit });
     };
     const run =
       runsTests === true

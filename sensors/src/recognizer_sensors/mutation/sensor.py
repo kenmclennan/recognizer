@@ -756,6 +756,7 @@ def record_for(
     queued: set[str],
     done: set[str],
     unmeasured: dict[str, bool] | None = None,
+    previous: dict | None = None,
 ) -> dict:
     absent = unmeasured or {}
     finished = [
@@ -765,14 +766,24 @@ def record_for(
     ]
     previously_skipped = [identity for identity, was_skipped in absent.items() if was_skipped]
 
+    functions = {
+        t.identity: {"body": t.body, "verdicts": t.verdicts, "sites": t.entries} for t in finished
+    }
+
+    for target in targets:
+        if target.identity in absent or target.identity not in queued - done:
+            continue
+
+        carried = recorded_entry(previous, target.identity, target.body, support)
+
+        if carried is not None:
+            functions[target.identity] = carried
+
     return build_record(
         key,
         commit,
         support,
-        {
-            t.identity: {"body": t.body, "verdicts": t.verdicts, "sites": t.entries}
-            for t in finished
-        },
+        functions,
         sorted((queued - done) | set(previously_skipped)),
     )
 
@@ -924,7 +935,7 @@ def run(
         documents = [
             (
                 repository / settings["record"],
-                record_for(key, commit, support, targets, queued, done, unmeasured),
+                record_for(key, commit, support, targets, queued, done, unmeasured, record),
             ),
             (
                 repository / settings["survivors"],
@@ -1069,7 +1080,9 @@ def run(
                     if checkpoint is None:
                         write_checkpoint(
                             repository / settings["record"],
-                            record_for(key, commit, support, targets, queued, done, unmeasured),
+                            record_for(
+                                key, commit, support, targets, queued, done, unmeasured, record
+                            ),
                         )
                     else:
                         try:

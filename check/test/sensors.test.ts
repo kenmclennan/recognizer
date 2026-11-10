@@ -287,6 +287,161 @@ describe("scan --sense running a registered sensor", () => {
     expect(other.files.has(`${FAKE}.tmp`)).toBe(false);
   });
 
+  describe("a checkpoint over a complete output", () => {
+    const COUNTED = fakeDocument({ counts: { measured: 10, total: 10 } });
+    const checkpoint = (measured: number, changes = {}) =>
+      fakeDocument({
+        stopped: { measured, total: 12 },
+        partial: { measured, total: 12 },
+        ...changes,
+      });
+
+    it("never replaces a complete output that measured more", async () => {
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: { [FAKE]: COUNTED, [`${FAKE}.tmp`]: checkpoint(0) },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(COUNTED);
+      expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
+    });
+
+    it("keeps the complete output when a stopped run's pending checkpoint measured less", async () => {
+      const stopped: Program = (args, files) => {
+        files.set(args[args.length - 1] as string, checkpoint(0));
+        stopEverything();
+
+        return { status: 1, stderr: "killed" };
+      };
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": stopped },
+        files: { [FAKE]: COUNTED },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(COUNTED);
+      expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
+    });
+
+    it("keeps the complete output when a timed-out run's checkpoint measured less", async () => {
+      const timedOut: Program = (args, files) => {
+        files.set(args[args.length - 1] as string, checkpoint(0));
+
+        return { status: 1, stderr: "slow", timedOut: true };
+      };
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": timedOut },
+        files: { [FAKE]: COUNTED },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(COUNTED);
+      expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
+    });
+
+    it("promotes a checkpoint that measured more", async () => {
+      const incoming = checkpoint(11);
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: { [FAKE]: COUNTED, [`${FAKE}.tmp`]: incoming },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(incoming);
+    });
+
+    it("promotes a checkpoint that measured exactly as many", async () => {
+      const incoming = checkpoint(10);
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: { [FAKE]: COUNTED, [`${FAKE}.tmp`]: incoming },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(incoming);
+    });
+
+    it("promotes a checkpoint over a complete output of unknown count", async () => {
+      const incoming = checkpoint(0);
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: { [FAKE]: fakeDocument(), [`${FAKE}.tmp`]: incoming },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(incoming);
+    });
+
+    it("promotes a smaller checkpoint over the committed legacy mutation findings", async () => {
+      const legacy = read("schema/findings-examples/valid/mutation.json");
+      const incoming = checkpoint(0);
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: { [FAKE]: legacy, [`${FAKE}.tmp`]: incoming },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(incoming);
+    });
+
+    it("promotes a checkpoint over an output that is itself partial", async () => {
+      const incoming = checkpoint(0);
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: {
+          [FAKE]: fakeDocument({ partial: { measured: 5, total: 12 } }),
+          [`${FAKE}.tmp`]: incoming,
+        },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(incoming);
+    });
+
+    it("never replaces a complete output from another commit that measured more", async () => {
+      const earlier = fakeDocument({
+        commit: "other",
+        counts: { measured: 10, total: 10 },
+      });
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: { [FAKE]: earlier, [`${FAKE}.tmp`]: checkpoint(0) },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(earlier);
+      expect(fake.files.has(`${FAKE}.tmp`)).toBe(false);
+    });
+
+    it("promotes a checkpoint over a complete output from another sensor", async () => {
+      const incoming = checkpoint(0);
+      const fake = setup(REGISTER, {
+        programs: { "fake-sensor": sensor(null, 1) },
+        files: {
+          [FAKE]: fakeDocument({
+            sensor: { name: "other-sensor", version: "1" },
+            counts: { measured: 10, total: 10 },
+          }),
+          [`${FAKE}.tmp`]: incoming,
+        },
+      });
+
+      await sense(fake, "all", "--json");
+
+      expect(fake.files.get(FAKE)).toBe(incoming);
+    });
+  });
+
   it("promotes the checkpoint of a sensor that times out", async () => {
     const timedOut: Program = (args, files) => {
       files.set(args[args.length - 1] as string, PARTIAL);
