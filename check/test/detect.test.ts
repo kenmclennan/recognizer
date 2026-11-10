@@ -1,6 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
+import { nodeIo } from "../src/cli.js";
 import { detectLanguages } from "../src/detect.js";
 import { REPO } from "./helpers.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
@@ -172,5 +175,157 @@ describe("detectLanguages", () => {
       "csharp",
     ]);
     expect(fake.readDirCalls()).toBe(1);
+  });
+});
+
+describe("git listing", () => {
+  function detectListed(
+    files: string[],
+    tracked: string[] | undefined,
+    extra: Parameters<typeof fakeIo>[0] = {},
+  ) {
+    const fake = fakeIo({
+      files: Object.fromEntries(files.map((file) => [`${ROOT}/${file}`, ""])),
+      tracked,
+      ...extra,
+    });
+
+    return { languages: detectLanguages(fake.io, ROOT), fake };
+  }
+
+  it("detects no language that is present only in an ignored folder", () => {
+    const { languages } = detectListed(
+      ["bin/A.kt", "src/a.py"],
+      ["src/a.py", ".gitignore"],
+    );
+
+    expect(languages).toEqual(["python"]);
+  });
+
+  it("detects a language from an untracked file git still lists", () => {
+    expect(detectListed(["new.kt"], ["new.kt"]).languages).toEqual(["kotlin"]);
+  });
+
+  it("detects a language from a tracked file the gitignore also names", () => {
+    expect(
+      detectListed(["out/a.cs"], ["out/a.cs", ".gitignore"]).languages,
+    ).toEqual(["csharp"]);
+  });
+
+  it("detects nothing for a tracked file deleted from disk", () => {
+    expect(
+      detectListed(["readme.md"], ["gone.kt", "readme.md"]).languages,
+    ).toEqual([]);
+  });
+
+  it("detects exactly the languages of listed files in a mixed tree", () => {
+    const { languages } = detectListed(
+      ["a.py", "n.kt", "bin/A.rs", "src/e.cs"],
+      ["a.py", "n.kt", "gone.ts", ".gitignore"],
+    );
+
+    expect(languages).toEqual(["python", "kotlin"]);
+  });
+
+  it("walks every file when there is no listing", () => {
+    expect(detectListed(["bin/A.kt"], undefined).languages).toEqual(["kotlin"]);
+  });
+
+  it("walks every file and warns when git refuses for another reason", () => {
+    const { languages, fake } = detectListed(["bin/A.kt"], undefined, {
+      listing: {
+        status: 128,
+        stderr: "fatal: detected dubious ownership in repository\nmore\n",
+      },
+    });
+
+    expect(languages).toEqual(["kotlin"]);
+    expect(fake.err()).toBe(
+      "recognizer: git could not list files (fatal: detected dubious ownership in repository); scanning every file\n",
+    );
+  });
+
+  it("walks every file without a warning when git is not installed", () => {
+    const { languages, fake } = detectListed(["bin/A.kt"], undefined, {
+      listing: { started: false },
+    });
+
+    expect(languages).toEqual(["kotlin"]);
+    expect(fake.err()).toBe("");
+  });
+});
+
+describe("git listing in real repositories", () => {
+  function write(root: string, files: Record<string, string>) {
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      writeFileSync(join(root, path), content);
+    }
+  }
+
+  function git(root: string, args: string[]) {
+    execFileSync(
+      "git",
+      ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args],
+      { cwd: root, stdio: "ignore" },
+    );
+  }
+
+  function initRepository(files: Record<string, string>) {
+    const root = makeTempDir("recognizer-detect-git-");
+    write(root, files);
+    git(root, ["init", "-q"]);
+    git(root, ["add", "."]);
+    git(root, ["commit", "-q", "-m", "init"]);
+
+    return root;
+  }
+
+  it("detects nothing from a nested repository and does not fail", () => {
+    const root = initRepository({ "readme.md": "" });
+    write(root, { "inner/A.kt": "" });
+    git(join(root, "inner"), ["init", "-q"]);
+
+    expect(detectLanguages(nodeIo(), root)).toEqual([]);
+  });
+
+  it("detects a subfolder root from its own tracked files only", () => {
+    const root = initRepository({
+      ".gitignore": "sub/bin/\n",
+      "sub/src/a.py": "",
+      "other/B.kt": "",
+    });
+    write(root, { "sub/bin/C.rs": "" });
+
+    expect(detectLanguages(nodeIo(), join(root, "sub"))).toEqual(["python"]);
+  });
+
+  it("detects this checkout's languages from the files git lists", () => {
+    const listed = execFileSync(
+      "git",
+      [
+        "-C",
+        REPO,
+        "ls-files",
+        "-z",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+      ],
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    )
+      .split("\0")
+      .filter((entry) => entry !== "");
+
+    const expected = detectLanguages(
+      fakeIo({
+        files: Object.fromEntries(
+          listed.map((file) => [`${ROOT}/${file}`, ""]),
+        ),
+      }).io,
+      ROOT,
+    );
+
+    expect(detectLanguages(nodeIo(), REPO)).toEqual(expected);
   });
 });

@@ -28,6 +28,8 @@ export interface FakeOptions {
   scanners?: Record<string, ScannerBehaviour>;
   env?: Record<string, string>;
   commit?: string;
+  tracked?: string[];
+  listing?: { started?: boolean; status?: number; stderr?: string };
   status?: string;
   diff?: string;
   launchFails?: string;
@@ -157,6 +159,34 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     args: string[],
     runOptions?: { cwd?: string },
   ): RunResult {
+    if (command === "git" && args.includes("ls-files")) {
+      if (options.listing) {
+        return {
+          started: options.listing.started ?? true,
+          status:
+            options.listing.started === false
+              ? null
+              : (options.listing.status ?? 0),
+          stdout: "",
+          stderr: options.listing.stderr ?? "",
+        };
+      }
+
+      return options.tracked
+        ? {
+            started: true,
+            status: 0,
+            stdout: options.tracked.map((path) => `${path}\0`).join(""),
+            stderr: "",
+          }
+        : {
+            started: true,
+            status: 128,
+            stdout: "",
+            stderr: "fatal: not a git repository",
+          };
+    }
+
     calls.push(
       runOptions?.cwd === undefined
         ? { command, args }

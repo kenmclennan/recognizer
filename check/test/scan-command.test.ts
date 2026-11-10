@@ -392,6 +392,24 @@ describe("recognizer scan: stale files", () => {
     );
   });
 
+  it("removes the cached scan of a language whose only files are in an ignored folder", async () => {
+    const KT_CACHE = `${ROOT}/.recognizer/cache/scan.kotlin.json`;
+    const { fake, err } = await scan({
+      files: {
+        [`${ROOT}/a.py`]: "",
+        [`${ROOT}/bin/A.kt`]: "",
+        [KT_CACHE]: "old",
+      },
+      tracked: ["a.py", ".gitignore"],
+      scanners: { [PYTHON]: okPython },
+    });
+
+    expect(err).toContain(
+      "kotlin: removed stale .recognizer/cache/scan.kotlin.json\n",
+    );
+    expect(fake.files.has(KT_CACHE)).toBe(false);
+  });
+
   it("exits 0 with no languages, creates no directory and still removes stale files", async () => {
     const { fake, code, err } = await scan({
       files: { [`${ROOT}/readme.md`]: "", [PY_CACHE]: "old" },
@@ -665,6 +683,13 @@ describe("recognizer scan: phases", () => {
       [],
     ],
     ["a dirty tree", { ...setup(), status: " M a.py\n" }, {}, "dirty", []],
+    [
+      "an edited gitignore",
+      { ...setup(), status: " M .gitignore\n" },
+      {},
+      "dirty",
+      [],
+    ],
     [
       "a different scanner version",
       {
