@@ -99,7 +99,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     progress: (update) => { wired.scanning = update.scanning; if (wired.scanState !== null) setScan(withProgress(wired.scanState)); wired.explorer?.refreshPanel(); },
     settled: () => {},
     blocked: (text) => { footer.post({ kind: "error", text: "Rescan failed: " + text }); },
-    post: (input) => { wired.tray.push(input); return footer.post(input); },
+    post: (input) => { if (/^Scan (started|complete|failed|refused)/.test(input.text)) return null; wired.tray.push(input); return footer.post(input); },
     attach: (id, extra) => footer.attach(id, extra),
     openLog: (log) => { void editor.openFile(log); },
     show: (target) => wired.explorer.show(target),

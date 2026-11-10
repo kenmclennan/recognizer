@@ -29,6 +29,8 @@ const row = (key, ticked) => ({ key, name: key, tickable: true, ticked, disabled
 const model = (ticked) => ({
   header: { text: "Scan", moved: null }, scope: null, mode: { value: "bring", disabled: false },
   freshness: { summary: { shape: "current", tone: "ok", icon: "circle-check", head: "Everything on the repository is current", line: "", bar: null } },
+  summary: { shape: "current", tone: "ok", icon: "circle-check", head: "Everything on the repository is current", line: "", bar: null },
+  preflight: null,
   rows: [row("alpha", ticked === "alpha"), row("beta", ticked === "beta")],
   reports: [], button: { scanning: false, label: "Scan", disabled: false }, planned: null, pending: false, mark: false,
 });
