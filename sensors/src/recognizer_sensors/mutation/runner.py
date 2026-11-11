@@ -323,6 +323,44 @@ def descendants(pid: int) -> list[int]:
     return tree_of(process_table(), pid)
 
 
+class PeakSampler:
+    def __init__(self, interval: float = 0.25) -> None:
+        self.interval = interval
+        self.peak_bytes = 0
+        self.finished = threading.Event()
+        self.thread = threading.Thread(target=self.watch, daemon=True)
+
+    def __enter__(self) -> "PeakSampler":
+        self.thread.start()
+
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.finished.set()
+        self.thread.join()
+
+    def sample(self) -> None:
+        with LIVE_LOCK:
+            roots = [process.pid for process in LIVE]
+
+        if not roots:
+            return
+
+        table = process_table()
+        total = 0
+
+        for root in roots:
+            for pid in [root, *tree_of(table, root)]:
+                if pid in table:
+                    total += table[pid][1]
+
+        self.peak_bytes = max(self.peak_bytes, total * 1024)
+
+    def watch(self) -> None:
+        while not self.finished.wait(self.interval):
+            self.sample()
+
+
 def kill_group(process: subprocess.Popen) -> None:
     below = descendants(process.pid)
 

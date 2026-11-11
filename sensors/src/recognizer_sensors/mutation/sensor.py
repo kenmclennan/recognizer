@@ -1,4 +1,3 @@
-import os
 import queue
 import sys
 import threading
@@ -21,6 +20,7 @@ from recognizer_sensors.hashes import (
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.commands import RUST_UNITS, mutant_command, selected_command
 from recognizer_sensors.mutation.inline_tests import unit_test_hashes
+from recognizer_sensors.mutation.memory import available_bytes, core_count, default_workers
 from recognizer_sensors.mutation.record import (
     body_hash,
     build_record,
@@ -35,6 +35,7 @@ from recognizer_sensors.mutation.runner import (
     Mutant,
     MutantCopies,
     MutantResult,
+    PeakSampler,
     Stopped,
     StoppedBeforeMutation,
     copy_repository,
@@ -159,13 +160,14 @@ def parse_settings(raw: dict) -> dict:
     if not factor > 0:
         raise SettingsError("timeout_factor must be above 0")
 
-    workers = settings.get("max_workers", os.cpu_count() or 1)
+    workers = settings.get("max_workers")
 
-    if isinstance(workers, bool) or not isinstance(workers, int):
-        raise SettingsError("max_workers must be an integer")
+    if workers is not None:
+        if isinstance(workers, bool) or not isinstance(workers, int):
+            raise SettingsError("max_workers must be an integer")
 
-    if workers < 1:
-        raise SettingsError("max_workers must be at least 1")
+        if workers < 1:
+            raise SettingsError("max_workers must be at least 1")
 
     incremental = settings["incremental"]
 
@@ -826,6 +828,20 @@ def run(
         remove_work_folder(work)
 
 
+def sized_workers(peak: int) -> tuple[int, str]:
+    cpus = core_count()
+    available = available_bytes()
+    workers = default_workers(cpus, available, peak)
+
+    detail = (
+        "available memory unreadable"
+        if available is None
+        else f"cores {cpus}, available {available // 1_000_000} MB, one run {peak // 1_000_000} MB"
+    )
+
+    return workers, f"recognizer-sensors: mutation: workers: {workers} ({detail})"
+
+
 def measure(
     repository: Path,
     scans: list[Scan],
@@ -841,13 +857,14 @@ def measure(
     report("coverage")
 
     try:
-        coverage, selection = coverage_run(
-            repository,
-            scans,
-            suites,
-            work,
-            **({"carry": settings["carry"]} if "carry" in settings else {}),
-        )
+        with PeakSampler() as sampler:
+            coverage, selection = coverage_run(
+                repository,
+                scans,
+                suites,
+                work,
+                **({"carry": settings["carry"]} if "carry" in settings else {}),
+            )
     except (StoppedBeforeMutation, MeasurementError):
         if not STOP.is_set():
             raise
@@ -855,6 +872,12 @@ def measure(
         return Outcome([], None, [], True, 0, 0)
     finally:
         restore_coverage_handler()
+
+    sizing_line = None
+
+    if settings["max_workers"] is None:
+        workers, sizing_line = sized_workers(sampler.peak_bytes)
+        settings = {**settings, "max_workers": workers}
 
     rust_entries = rust_test_entries(repository)
     test_files = test_hashes(repository, scans, rust_entries)
@@ -1113,6 +1136,9 @@ def measure(
 
     outcome, measured, skipped_ids, reused = assemble(done, stopped)
     mutated = len(measured) - reused
+
+    if sizing_line is not None:
+        print(sizing_line, file=sys.stderr)
 
     print(
         f"recognizer-sensors: mutation: {reused} of {len(targets)} functions reused, "

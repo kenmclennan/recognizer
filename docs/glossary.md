@@ -115,7 +115,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Mutant | A single token of a covered function replaced by its one counterpart (`>=` by `>`, `and` by `or`, `true` by `false`), written into a Mutant copy and run through the Test suite's login shell. A failing, unstartable or timed-out run kills it. |
 | Mutant copy | The per-worker copy of the repository, made of the git-listed files and the folders on the Carry list, reset to its tracked state before each Mutant. It lives in the Scratch folder until the run ends or it is retired after a timeout or a failed reset. |
 | Carry list | The `carry` setting under `sensors.mutation`: the exact untracked repository folders (such as `frontend/node_modules`) a copy takes, with no built-in list; a folder not listed is not in the copy. |
-| Warm-up copy | The one copy of the repository the Mutation sensor runs each configured Test suite in before any Mutant, to read its coverage and its per-test contexts. |
+| Warm-up copy | The one copy of the repository the Mutation sensor runs each configured Test suite in before any Mutant, to read its coverage and its per-test contexts; the warm-up also measures the Run memory. |
+| Run memory | The peak resident memory of the process tree of one test run, measured during the warm-up and used to size the default worker count. |
 | Survivor | A Mutant whose test run passed: the tests did not notice the change. |
 | Producer | The tool that wrote an Overlay file, named with its version in the file's `producer`. |
 | Metric declaration | A metric's `name`, `type`, `granularity` and `bad` direction, registered in the Config and repeated in the Overlay file. |
