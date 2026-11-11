@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig, shippedSensorSettings } from "../src/config-parse.js";
+import { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
+import { selectSensors } from "../src/scan-phases.js";
 import {
   expandShortForms,
   isScoped,
@@ -309,5 +311,73 @@ describe("shippedSensorSettings", () => {
 
   it("reads scan schema version 7", () => {
     expect(SCAN_SCHEMA_VERSION).toBe(7);
+  });
+});
+
+describe("the tests list", () => {
+  const example = (path: string) =>
+    readFileSync(join(REPO, "schema/config-examples", path), "utf8");
+  const settingsOf = (entry: unknown): Record<string, unknown> => {
+    const command = (entry as { command: string[] }).command;
+
+    return JSON.parse(command.at(-1) ?? "{}");
+  };
+
+  it.each([
+    "valid/tests-python-activate.yaml",
+    "valid/tests-typescript-vitest.yaml",
+    "valid/tests-typescript-jest.yaml",
+    "valid/tests-five-languages.yaml",
+  ])("accepts %s", (path) => {
+    expect(parseConfig(example(path)).tests?.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    "invalid/tests-empty.yaml",
+    "invalid/tests-unknown-language.yaml",
+    "invalid/tests-typescript-without-runner.yaml",
+    "invalid/tests-runner-on-python.yaml",
+    "invalid/tests-bad-coverage-format.yaml",
+    "invalid/tests-missing-coverage.yaml",
+    "invalid/tests-unknown-key.yaml",
+    "invalid/tests-absolute-directory.yaml",
+  ])("rejects %s", (path) => {
+    expect(() => parseConfig(example(path))).toThrow(InputError);
+  });
+
+  it("rejects a duplicate suite name, naming it", () => {
+    const text = `${example("valid/tests-python-activate.yaml")}${example("valid/tests-python-activate.yaml").split("\n").slice(1).join("\n")}`;
+
+    expect(() => parseConfig(text)).toThrow(
+      /test suite name api is used twice/,
+    );
+  });
+
+  it("hands the list to a crap short form and to no other sensor", () => {
+    const config = parseConfig(
+      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap: {}\n  mutation: {}\n`,
+    );
+
+    expect(settingsOf(config.sensors?.crap).tests).toEqual(config.tests);
+    expect(settingsOf(config.sensors?.mutation)).toEqual({});
+  });
+
+  it("hands the list to a requested crap that is not registered", () => {
+    const suites = [{ name: "api" }];
+    const selected = selectSensors(
+      [],
+      ["crap", "mutation"],
+      SHIPPED_SENSORS,
+      suites,
+    );
+
+    expect(settingsOf(selected[0])).toEqual({ tests: suites });
+    expect(settingsOf(selected[1])).toEqual({});
+  });
+
+  it("builds a requested crap with no tests key when the config has none", () => {
+    const selected = selectSensors([], ["crap"], SHIPPED_SENSORS);
+
+    expect(settingsOf(selected[0])).toEqual({});
   });
 });

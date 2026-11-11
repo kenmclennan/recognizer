@@ -17,7 +17,7 @@ DEFAULTS = {
     "overlay": ".recognizer/cache/overlays/crap.json",
 }
 
-OPTIONAL = {"test_command", "coverage"}
+OPTIONAL = {"test_command", "coverage", "tests"}
 
 PRINCIPLE = "Complex code needs tests"
 FIX_PATTERN = "simplify-or-test"

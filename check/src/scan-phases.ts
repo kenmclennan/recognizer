@@ -171,6 +171,7 @@ export function selectSensors(
   registered: { name: string; command: string[] }[],
   requested: "all" | string[],
   shipped: readonly string[] = [],
+  suites?: readonly unknown[],
 ): { name: string; command: string[] }[] {
   if (requested === "all") {
     if (registered.length === 0) {
@@ -200,7 +201,13 @@ export function selectSensors(
     ...requested
       .filter((name, index) => requested.indexOf(name) === index)
       .filter((name) => !names.includes(name))
-      .map((name) => ({ name, command: shippedCommand(name, {}) })),
+      .map((name) => ({
+        name,
+        command: shippedCommand(
+          name,
+          name === "crap" && suites !== undefined ? { tests: suites } : {},
+        ),
+      })),
   ];
 }
 

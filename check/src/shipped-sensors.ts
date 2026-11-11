@@ -168,6 +168,7 @@ export function shippedCommand(
 export function expandShortForms(
   entries: Record<string, unknown> | undefined,
   shipped: readonly string[],
+  suites?: readonly unknown[],
 ): Record<string, unknown> | undefined {
   if (entries === undefined) {
     return entries;
@@ -176,7 +177,17 @@ export function expandShortForms(
   return Object.fromEntries(
     Object.entries(entries).map(([name, entry]) =>
       shipped.includes(name) && isSettingsMapping(entry)
-        ? [name, { command: shippedCommand(name, entry) }]
+        ? [
+            name,
+            {
+              command: shippedCommand(
+                name,
+                name === "crap" && suites !== undefined
+                  ? { ...entry, tests: suites }
+                  : entry,
+              ),
+            },
+          ]
         : [name, entry],
     ),
   );
