@@ -279,25 +279,34 @@ def copy_repository(
         copy_entry(repository / relative, destination / relative, ignore)
 
 
-def descendants(pid: int) -> list[int]:
+def process_table() -> dict[int, tuple[int, int]]:
     try:
         listing = subprocess.run(
-            ["ps", "-axo", "pid=,ppid="],
+            ["ps", "-axo", "pid=,ppid=,rss="],
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             check=False,
         ).stdout
     except OSError:
-        return []
+        return {}
 
-    children: dict[int, list[int]] = {}
+    table: dict[int, tuple[int, int]] = {}
 
     for line in listing.splitlines():
         parts = line.split()
 
-        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
-            children.setdefault(int(parts[1]), []).append(int(parts[0]))
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            table[int(parts[0])] = (int(parts[1]), int(parts[2]))
+
+    return table
+
+
+def tree_of(table: dict[int, tuple[int, int]], pid: int) -> list[int]:
+    children: dict[int, list[int]] = {}
+
+    for child, (parent, _) in table.items():
+        children.setdefault(parent, []).append(child)
 
     found: list[int] = []
     pending = [pid]
@@ -308,6 +317,10 @@ def descendants(pid: int) -> list[int]:
             pending.append(child)
 
     return found
+
+
+def descendants(pid: int) -> list[int]:
+    return tree_of(process_table(), pid)
 
 
 def kill_group(process: subprocess.Popen) -> None:
