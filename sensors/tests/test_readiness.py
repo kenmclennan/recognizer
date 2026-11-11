@@ -604,6 +604,16 @@ def test_only_crap_and_mutation_have_a_test_check():
     )
 
 
+def test_the_guide_of_mutation_names_carry_and_the_import_path_fix_in_recognizer_config(capsys):
+    status, out = run_cli(["mutation", "--guide"], capsys)
+
+    assert status == 0
+    assert "carry" in out
+    assert "PYTHONPATH" in out
+    assert "pythonpath" not in out
+    assert "pyproject.toml" not in out
+
+
 def test_run_alone_is_exit_two(tmp_path, capsys):
     status, _ = run_cli(["crap", "--repository", str(tmp_path), "--run"], capsys)
 
