@@ -90,7 +90,7 @@ describe("parseConfig", () => {
         file !== "sensors-crap-short.yaml" &&
         file !== "sensors-mutation-short.yaml" &&
         file !== "sensors-thresholds-short.yaml" &&
-        file !== "sensors-mutation-test-command.yaml",
+        file !== "sensors-mutation-carry.yaml",
     ),
   )("parses %s", (file) => {
     const text = readFileSync(join(CONFIGS, "valid", file), "utf8");

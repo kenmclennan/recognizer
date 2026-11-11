@@ -1,9 +1,9 @@
 import tracemalloc
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
+from recognizer_sensors.mutation import warmup
 from recognizer_sensors.mutation.record import (
     RECORD_VERSION,
     build_record,
@@ -12,7 +12,6 @@ from recognizer_sensors.mutation.record import (
 )
 from recognizer_sensors.mutation.runner import StoppedBeforeMutation
 from recognizer_sensors.settings import MeasurementError
-from recognizer_sensors.testrun import run
 from recognizer_sensors.testrun.selection import SelectionBuilder
 
 MODULE = "src/lib.py"
@@ -39,79 +38,25 @@ def whole_of(lines):
     return {"src/lib.ts": {n: 1 for n in lines}}
 
 
-def fake_steps(monkeypatch, root, base, writer, sizes, fail_at=None, stop_at=None):
+def fake_steps(monkeypatch, copy, base, writer, sizes, fail_at=None, stop_at=None):
     count = {"n": 0}
 
-    def fake(repository, steps, mode="w", strict=False):
-        for step in steps:
-            sizes.append(tree_bytes(root / base))
-            number = count["n"]
-            count["n"] += 1
+    def fake(repository, where, suite, label, command):
+        sizes.append(tree_bytes(copy / base))
+        number = count["n"]
+        count["n"] += 1
 
-            if stop_at == number:
-                raise StoppedBeforeMutation
+        if stop_at == number:
+            raise StoppedBeforeMutation
 
-            if fail_at == number:
-                raise MeasurementError("the test command exited 1")
+        if fail_at == number:
+            raise MeasurementError("the test command exited 1")
 
-            writer(step.command)
+        writer(command)
 
-        return []
+        return ""
 
-    monkeypatch.setattr(run, "run_steps", fake)
-
-
-def typescript_writer(command):
-    directory = Path(option(command, "--reports-dir"))
-    (directory / "tmp").mkdir(parents=True, exist_ok=True)
-    (directory / "tmp" / "coverage-1.json").write_text("x" * 5000)
-    (directory / "lcov.info").write_text(lcov([1, 2, 3]))
-
-
-def scan_of(files):
-    return SimpleNamespace(language="typescript", modules=[SimpleNamespace(files=files)])
-
-
-def typescript_run(monkeypatch, tmp_path, count, **kwargs):
-    root = tmp_path / f"r{count}"
-    root.mkdir()
-    monkeypatch.chdir(root)
-    sizes = []
-    fake_steps(monkeypatch, root, run.BY_FILE_DIRECTORY, typescript_writer, sizes, **kwargs)
-    files = [f"test/t{n}.test.ts" for n in range(count)]
-    selection = run.typescript_selection(root, scan_of(files), whole_of([1, 2, 3]))
-
-    return root, sizes, selection
-
-
-def test_typescript_by_file_reports_are_deleted_as_they_are_read(monkeypatch, tmp_path):
-    root4, sizes4, selection4 = typescript_run(monkeypatch, tmp_path, 4)
-    root8, sizes8, selection8 = typescript_run(monkeypatch, tmp_path, 8)
-
-    assert not (root4 / run.BY_FILE_DIRECTORY).exists()
-    assert not (root8 / run.BY_FILE_DIRECTORY).exists()
-    assert max(sizes4) == max(sizes8)
-    assert len(selection8["src/lib.ts"][1]) == 8
-    assert selection4["src/lib.ts"][2] == frozenset(f"test/t{n}.test.ts" for n in range(4))
-
-
-def test_a_failing_typescript_step_leaves_no_tree_and_no_selection(monkeypatch, tmp_path):
-    root, _, selection = typescript_run(monkeypatch, tmp_path, 4, fail_at=1)
-
-    assert selection == {}
-    assert not (root / run.BY_FILE_DIRECTORY).exists()
-
-
-def test_a_stopped_typescript_run_leaves_no_tree(monkeypatch, tmp_path):
-    root = tmp_path / "r"
-    root.mkdir()
-    monkeypatch.chdir(root)
-    fake_steps(monkeypatch, root, run.BY_FILE_DIRECTORY, typescript_writer, [], stop_at=1)
-
-    with pytest.raises(StoppedBeforeMutation):
-        run.typescript_selection(root, scan_of(["test/a.test.ts", "test/b.test.ts"]), whole_of([1]))
-
-    assert not (root / run.BY_FILE_DIRECTORY).exists()
+    monkeypatch.setattr(warmup, "warm_step", fake)
 
 
 def rust_writer(command):
@@ -119,23 +64,23 @@ def rust_writer(command):
 
 
 def rust_run(monkeypatch, tmp_path, count, **kwargs):
-    root = tmp_path / f"u{count}"
-    root.mkdir()
-    monkeypatch.chdir(root)
+    copy = tmp_path / f"u{count}"
+    copy.mkdir()
+    monkeypatch.chdir(copy)
     units = {f"t{n}": ("pkg", "test", f"t{n}") for n in range(count)}
-    monkeypatch.setattr(run, "rust_units", lambda repository: units)
+    monkeypatch.setattr(warmup, "rust_units", lambda where, suite: units)
     sizes = []
-    fake_steps(monkeypatch, root, run.RUST_BY_TARGET_DIRECTORY, rust_writer, sizes, **kwargs)
+    fake_steps(monkeypatch, copy, warmup.RUST_BY_TARGET_DIRECTORY, rust_writer, sizes, **kwargs)
 
-    return root, sizes, run.rust_selection(root, whole_of([1, 2, 3]))
+    return copy, sizes, warmup.rust_selection(copy, copy, None, whole_of([1, 2, 3]))
 
 
 def test_rust_by_target_reports_are_deleted_as_they_are_read(monkeypatch, tmp_path):
     root4, sizes4, selection4 = rust_run(monkeypatch, tmp_path, 4)
     root8, sizes8, selection8 = rust_run(monkeypatch, tmp_path, 8)
 
-    assert not (root4 / run.RUST_BY_TARGET_DIRECTORY).exists()
-    assert not (root8 / run.RUST_BY_TARGET_DIRECTORY).exists()
+    assert not (root4 / warmup.RUST_BY_TARGET_DIRECTORY).exists()
+    assert not (root8 / warmup.RUST_BY_TARGET_DIRECTORY).exists()
     assert max(sizes4) == max(sizes8)
     assert len(selection8["src/lib.ts"][3]) == 8
     assert len(selection4["src/lib.ts"][3]) == 4
@@ -145,42 +90,46 @@ def test_a_failing_rust_step_leaves_no_tree_and_no_selection(monkeypatch, tmp_pa
     root, _, selection = rust_run(monkeypatch, tmp_path, 4, fail_at=2)
 
     assert selection == {}
-    assert not (root / run.RUST_BY_TARGET_DIRECTORY).exists()
+    assert not (root / warmup.RUST_BY_TARGET_DIRECTORY).exists()
 
 
 def csharp_writer(command):
     directory = Path(option(command, "--results-directory"))
     (directory / "guid").mkdir(parents=True, exist_ok=True)
     (directory / "guid" / "coverage.info").write_text(lcov([1, 2, 3]))
+    (directory / "results_a.trx").write_text("")
 
 
 def csharp_run(monkeypatch, tmp_path, count, **kwargs):
-    root = tmp_path / f"c{count}"
-    root.mkdir()
-    monkeypatch.chdir(root)
+    copy = tmp_path / f"c{count}"
+    (copy / "TestResults").mkdir(parents=True)
+    (copy / "TestResults" / "results_all.trx").write_text("")
+    monkeypatch.chdir(copy)
     mapped = {f"T{n}.cs": [f"C{n}"] for n in range(count)}
     names = sorted(mapped)
 
-    def classes(directory):
-        if directory.name.isdigit():
-            return set(mapped[names[int(directory.name)]])
+    def classes(files):
+        parent = files[0].parent.name if files else ""
+
+        if parent.isdigit():
+            return set(mapped[names[int(parent)]])
 
         return {c for value in mapped.values() for c in value}
 
-    monkeypatch.setattr(run, "csharp_trx_classes", classes)
-    monkeypatch.setattr(run, "csharp_class_map", lambda repository, found: mapped)
+    monkeypatch.setattr(warmup, "csharp_trx_classes", classes)
+    monkeypatch.setattr(warmup, "csharp_class_map", lambda repository, found: mapped)
     sizes = []
-    fake_steps(monkeypatch, root, run.CSHARP_BY_FILE_DIRECTORY, csharp_writer, sizes, **kwargs)
+    fake_steps(monkeypatch, copy, warmup.CSHARP_BY_FILE_DIRECTORY, csharp_writer, sizes, **kwargs)
 
-    return root, sizes, run.csharp_selection(root, whole_of([1, 2, 3]))
+    return copy, sizes, warmup.csharp_selection(copy, copy, None, whole_of([1, 2, 3]), 0.0)
 
 
 def test_csharp_by_file_results_are_deleted_as_they_are_read(monkeypatch, tmp_path):
     root4, sizes4, selection4 = csharp_run(monkeypatch, tmp_path, 4)
     root8, sizes8, selection8 = csharp_run(monkeypatch, tmp_path, 8)
 
-    assert not (root4 / run.CSHARP_BY_FILE_DIRECTORY).exists()
-    assert not (root8 / run.CSHARP_BY_FILE_DIRECTORY).exists()
+    assert not (root4 / warmup.CSHARP_BY_FILE_DIRECTORY).exists()
+    assert not (root8 / warmup.CSHARP_BY_FILE_DIRECTORY).exists()
     assert max(sizes4) == max(sizes8)
     assert len(selection8["src/lib.ts"][1]) == 8
     assert len(selection4["src/lib.ts"][1]) == 4
@@ -190,7 +139,7 @@ def test_a_failing_csharp_step_leaves_no_tree_and_no_selection(monkeypatch, tmp_
     root, _, selection = csharp_run(monkeypatch, tmp_path, 4, fail_at=1)
 
     assert selection == {}
-    assert not (root / run.CSHARP_BY_FILE_DIRECTORY).exists()
+    assert not (root / warmup.CSHARP_BY_FILE_DIRECTORY).exists()
 
 
 def test_the_selection_builder_shares_one_frozenset_per_distinct_set():

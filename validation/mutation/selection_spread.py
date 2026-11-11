@@ -6,8 +6,8 @@ from pathlib import Path
 from coverage import CoverageData
 
 from recognizer_sensors.crap.lcov import normalise_path
-from recognizer_sensors.testrun.profiles import MAX_SELECTED_FILES
-from recognizer_sensors.testrun.run import usable_contexts
+from recognizer_sensors.mutation.commands import MAX_SELECTED_FILES
+from recognizer_sensors.testrun.contexts import usable_contexts
 
 
 def spread(data_path: Path, repository: Path) -> dict:

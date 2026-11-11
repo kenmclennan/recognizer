@@ -3,6 +3,7 @@ import errno
 import itertools
 import os
 import queue
+import shlex
 import shutil
 import signal
 import subprocess
@@ -10,18 +11,15 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from recognizer_sensors.testrun.profiles import python_lock, tool_environment
-from recognizer_sensors.testrun.projects import slugify
+from recognizer_sensors.testrun.suites import Suite, directory_of, login_shell, shell_script
 
 WORK = Path(".recognizer") / "cache" / "mutation" / "work"
-ENVIRONMENTS = Path(".recognizer") / "cache" / "mutation" / "python-env"
-WARM_COMMAND = ["uv", "sync", "--frozen", "--no-install-project"]
 TAIL_LINES = 20
 PID_FILE = "pid"
 PID_GRACE_SECONDS = 60
@@ -91,8 +89,6 @@ def ignore_for(repository: Path) -> Callable[[str, list[str]], set[str]]:
 CLONE_NOFOLLOW = 1
 
 FALLBACK_ERRNOS = {errno.ENOTSUP, errno.EXDEV, errno.EINVAL}
-
-GRADLE_FILES = {"build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"}
 
 CLONE_STATE = {"enabled": sys.platform == "darwin", "call": None}
 
@@ -210,23 +206,7 @@ def index_tracked(tracked: Collection[str]) -> dict[Path, set[str]]:
 
 
 def carried_by(relative: str, index: dict[Path, set[str]], carry: tuple[str, ...]) -> bool:
-    path = Path(relative.rstrip("/"))
-    name = path.name
-    names = index.get(path.parent, set())
-
-    if str(path) in carry or name == "node_modules":
-        return True
-
-    if name == "target":
-        return "Cargo.toml" in names
-
-    if name in {"build", ".gradle"}:
-        return bool(names & GRADLE_FILES)
-
-    if name in {"bin", "obj"}:
-        return any(item.endswith(".csproj") for item in names)
-
-    return False
+    return str(Path(relative.rstrip("/"))) in carry
 
 
 def carried(relative: str, tracked: set[str], carry: tuple[str, ...]) -> bool:
@@ -295,21 +275,66 @@ def copy_repository(
         copy_entry(repository / relative, destination / relative, ignore)
 
 
+def descendants(pid: int) -> list[int]:
+    try:
+        listing = subprocess.run(
+            ["ps", "-axo", "pid=,ppid="],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+    except OSError:
+        return []
+
+    children: dict[int, list[int]] = {}
+
+    for line in listing.splitlines():
+        parts = line.split()
+
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            children.setdefault(int(parts[1]), []).append(int(parts[0]))
+
+    found: list[int] = []
+    pending = [pid]
+
+    while pending:
+        for child in children.get(pending.pop(), []):
+            found.append(child)
+            pending.append(child)
+
+    return found
+
+
 def kill_group(process: subprocess.Popen) -> None:
+    below = descendants(process.pid)
+
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except OSError:
         process.kill()
 
+    for pid in below:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            continue
+
 
 def run_test_command(
-    command: list[str], cwd: Path, timeout: float | None, environment: Path | None = None
+    command: list[str] | str,
+    cwd: Path,
+    timeout: float | None,
+    suite: Suite | None = None,
+    extra: dict[str, str] | None = None,
 ) -> TestRun:
     started = time.monotonic()
-    env = (
-        {**os.environ, "UV_PROJECT_ENVIRONMENT": str(environment), "UV_NO_EDITABLE": "0"}
-        if environment is not None
-        else tool_environment(cwd)
+    words = command if isinstance(command, str) else shlex.join(command)
+    env = {**os.environ, **(suite.env if suite is not None else {}), **(extra or {})}
+    argv = (
+        [login_shell(), "-ilc", shell_script(suite, words)]
+        if suite is not None
+        else (shlex.split(command) if isinstance(command, str) else command)
     )
 
     try:
@@ -318,7 +343,7 @@ def run_test_command(
                 return TestRun(None, False, 0.0, "")
 
             process = subprocess.Popen(
-                command,
+                argv,
                 cwd=cwd,
                 env=env,
                 stdin=subprocess.DEVNULL,
@@ -337,6 +362,11 @@ def run_test_command(
         kill_group(process)
         output, _ = process.communicate()
         timed_out = True
+    except BaseException:
+        kill_group(process)
+        process.wait()
+
+        raise
     finally:
         with LIVE_LOCK:
             LIVE.discard(process)
@@ -354,63 +384,6 @@ def output_tail(output: str) -> str:
 
 
 NUMBERS = itertools.count()
-
-
-class EnvironmentPool:
-    def __init__(
-        self,
-        repository: Path,
-        work: Path,
-        size: int,
-        directories: Iterable[str] = ("",),
-        slugs: Mapping[str, str] | None = None,
-    ) -> None:
-        self.repository = repository
-        self.folder = repository / ENVIRONMENTS / work.name
-        self.slugs = slugs or {}
-        self.lock = threading.Lock()
-        self.warmed: set[tuple[str, int]] = set()
-        self.free: queue.Queue[int] = queue.Queue()
-        self.enabled = any(self.enabled_for(directory) for directory in directories)
-
-        for slot in range(size):
-            self.free.put(slot)
-
-    def enabled_for(self, directory: str) -> bool:
-        return python_lock(self.repository, directory) == "uv.lock"
-
-    def slug_of(self, directory: str) -> str:
-        return self.slugs.get(directory, slugify(directory))
-
-    def prepare(self) -> None:
-        with self.lock:
-            if (self.folder / PID_FILE).is_file():
-                return
-
-            self.folder.mkdir(parents=True, exist_ok=True)
-            (self.folder / PID_FILE).write_text(str(os.getpid()))
-
-    @contextmanager
-    def lease(self, directory: str = "") -> Iterator[Path | None]:
-        if not self.enabled_for(directory):
-            yield None
-
-            return
-
-        slot = self.free.get()
-
-        try:
-            self.prepare()
-            base = self.folder / self.slug_of(directory) if directory else self.folder
-            environment = base / str(slot)
-
-            if (directory, slot) not in self.warmed:
-                self.warmed.add((directory, slot))
-                run_test_command(WARM_COMMAND, self.repository / directory, None, environment)
-
-            yield environment
-        finally:
-            self.free.put(slot)
 
 
 class ResetFailed(Exception):
@@ -579,13 +552,6 @@ class MutantCopies:
             self.free.put(number)
 
 
-def leased(environments: EnvironmentPool | None, directory: str = ""):
-    if environments is None:
-        return nullcontext(None)
-
-    return environments.lease(directory) if directory else environments.lease()
-
-
 def failed_files(output: str, known: Collection[str], directory: str = "") -> frozenset[str] | None:
     found: set[str] = set()
 
@@ -613,14 +579,13 @@ def run_mutant(
     mutant: Mutant,
     command: list[str],
     timeout: float,
+    suite: Suite,
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
-    environments: EnvironmentPool | None = None,
     copies: MutantCopies | None = None,
-    directory: str = "",
 ) -> MutantResult:
     if copies is not None:
-        return run_pooled(copies, mutant, command, timeout, known, environments, directory)
+        return run_pooled(copies, mutant, command, timeout, suite, known)
 
     copy = work / str(number)
 
@@ -629,19 +594,16 @@ def run_mutant(
         head = mutant.source[: mutant.start_byte]
         tail = mutant.source[mutant.end_byte :]
         (copy / mutant.path).write_bytes(head + mutant.replacement + tail)
-
-        with leased(environments, directory) as environment:
-            where = copy / directory
-            result = (
-                run_test_command(command, where, timeout)
-                if environment is None
-                else run_test_command(command, where, timeout, environment=environment)
-            )
+        result = run_test_command(command, copy, timeout, suite=suite)
     except OSError:
         return MutantResult("killed")
     finally:
         shutil.rmtree(copy, ignore_errors=True)
 
+    return verdict_of(result, known, directory_of(suite))
+
+
+def verdict_of(result: TestRun, known: Collection[str] | None, directory: str) -> MutantResult:
     if result.timed_out:
         return MutantResult("timeout")
 
@@ -658,9 +620,8 @@ def run_pooled(
     mutant: Mutant,
     command: list[str],
     timeout: float,
+    suite: Suite,
     known: Collection[str] | None,
-    environments: EnvironmentPool | None,
-    directory: str = "",
 ) -> MutantResult:
     with copies.lease() as slot:
         try:
@@ -669,14 +630,7 @@ def run_pooled(
             head = mutant.source[: mutant.start_byte]
             tail = mutant.source[mutant.end_byte :]
             (pooled.path / mutant.path).write_bytes(head + mutant.replacement + tail)
-
-            with leased(environments, directory) as environment:
-                where = pooled.path / directory
-                result = (
-                    run_test_command(command, where, timeout)
-                    if environment is None
-                    else run_test_command(command, where, timeout, environment=environment)
-                )
+            result = run_test_command(command, pooled.path, timeout, suite=suite)
         except OSError:
             slot.retire()
 
@@ -685,15 +639,7 @@ def run_pooled(
         if result.timed_out or result.exit_code is None or STOP.is_set():
             slot.retire()
 
-    if result.timed_out:
-        return MutantResult("timeout")
-
-    if result.passed:
-        return MutantResult("survived")
-
-    failed = failed_files(result.output, known, directory) if known is not None else None
-
-    return MutantResult("killed", failed)
+    return verdict_of(result, known, directory_of(suite))
 
 
 def run_function(
@@ -701,13 +647,12 @@ def run_function(
     work: Path,
     mutants: list[Mutant],
     plan_for: Callable[[int], tuple[list[str], float]],
+    suite: Suite,
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
-    environments: EnvironmentPool | None = None,
     deadline: float | None = None,
     clock: Callable[[], float] = time.monotonic,
     copies: MutantCopies | None = None,
-    directory: str = "",
 ) -> list[MutantResult] | None:
     results = []
 
@@ -720,15 +665,17 @@ def run_function(
         if STOP.is_set() or (deadline is not None and clock() >= deadline):
             return None
 
-        extra = {"environments": environments} if environments is not None else {}
-
-        if copies is not None:
-            extra["copies"] = copies
-        if directory:
-            extra["directory"] = directory
-
         result = run_mutant(
-            repository, work, next(NUMBERS), mutant, command, timeout, known, carry, **extra
+            repository,
+            work,
+            next(NUMBERS),
+            mutant,
+            command,
+            timeout,
+            suite,
+            known,
+            carry,
+            copies,
         )
 
         if STOP.is_set():
@@ -835,16 +782,12 @@ def stop_all() -> None:
                 kill_group(process)
 
 
-def install_stop_handler(work: Path, *also: Path) -> Callable[[], None]:
+def install_stop_handler(work: Path) -> Callable[[], None]:
     requested = threading.Event()
 
     def leave() -> None:
         stop_all()
         remove_work_folder(work)
-
-        for folder in also:
-            remove_work_folder(folder)
-
         os._exit(STOPPED_STATUS)
 
     def watchdog() -> None:

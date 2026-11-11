@@ -9,10 +9,7 @@ from conftest import git_commit, make_repository
 
 from recognizer_sensors.cli import main
 
-pytestmark = [
-    pytest.mark.real_probes,
-    pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH"),
-]
+pytestmark = pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
 
 PYPROJECT = '[project]\nname = "t"\nversion = "0"\nrequires-python = ">=3.11"\n'
 
@@ -80,16 +77,28 @@ def test_crap_keeps_its_results_over_a_red_uv_project(red_project, tmp_path):
     assert diagnosis["failing"] == {"count": 1, "names": ["test_m.py::test_g"]}
 
 
-def test_mutation_refuses_over_a_red_uv_project_before_any_work_folder(
-    red_project, tmp_path, capsys
-):
+def test_mutation_refuses_over_a_red_suite_and_leaves_no_work_folder(red_project, tmp_path, capsys):
     output = tmp_path / "findings.json"
+    python = shlex.quote(sys.executable)
+    settings = json.loads(suite_settings())
+    settings["tests"][0]["command"] = (
+        f"{python} -m pytest -rf --cov=. --cov-report=lcov:coverage/lcov.info"
+    )
 
     status = main(
-        ["mutation", "--repository", str(red_project), "--output", str(output), "--settings", "{}"]
+        [
+            "mutation",
+            "--repository",
+            str(red_project),
+            "--output",
+            str(output),
+            "--settings",
+            json.dumps(settings),
+        ]
     )
     lines = capsys.readouterr().err.splitlines()
-    reason = json.loads(lines[0].removeprefix("recognizer-reason "))
+    reason_line = next(line for line in lines if line.startswith("recognizer-reason "))
+    reason = json.loads(reason_line.removeprefix("recognizer-reason "))
 
     assert status == 2
     assert reason["code"] == "tests-failed"

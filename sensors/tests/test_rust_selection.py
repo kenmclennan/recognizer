@@ -9,15 +9,48 @@ import pytest
 from conftest import git_commit, write_scan_document
 from test_mutation import RECORD, read, read_resolved, run_mutate
 
-from recognizer_sensors.testrun import profiles
-from recognizer_sensors.testrun.profiles import (
+from recognizer_sensors.mutation import commands
+from recognizer_sensors.mutation.commands import (
     RUST_UNITS,
     mutant_command,
     rust_by_target_command,
     rust_selected_command,
     selected_command,
 )
-from recognizer_sensors.testrun.run import collect_coverage_with_tests, rust_units
+from recognizer_sensors.mutation.warmup import coverage_run, rust_units
+from recognizer_sensors.testrun.suites import parse_suites
+
+
+def suite_raw(tmp_path=None):
+    return {
+        "name": "calc",
+        "language": "rust",
+        "directory": ".",
+        **({"activate": f"export PATH={tmp_path / 'bin'}:$PATH"} if tmp_path else {}),
+        "command": "cargo llvm-cov --lcov --output-path rust.lcov --ignore-run-fail",
+        "coverage": {"path": "rust.lcov", "format": "lcov"},
+    }
+
+
+def suite_of(tmp_path=None):
+    return parse_suites([suite_raw(tmp_path)])[0]
+
+
+def settings_for(tmp_path, **extra):
+    return json.dumps({"tests": [suite_raw(tmp_path)], **extra})
+
+
+def collect(root, scan, tmp_path):
+    work = tmp_path / "work"
+    work.mkdir(exist_ok=True)
+
+    return coverage_run(root, [scan], [suite_of(tmp_path)], work)
+
+
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
+
 
 LIB = "src/lib.rs"
 
@@ -33,7 +66,7 @@ FAKE_CARGO = """#!/bin/sh
 echo "$@" >> "$FAKE_LOG"
 if [ "$1" = "metadata" ]; then
   [ -n "$FAKE_METADATA_FAIL" ] && exit 101
-  cat "$FAKE_METADATA"
+  sed "s#@ROOT@#$PWD#g" "$FAKE_METADATA"
   exit 0
 fi
 output=""
@@ -85,7 +118,6 @@ exit 0
 
 
 def metadata(root, targets, **extra):
-    resolved = root.resolve()
     members = [
         {
             "id": "calc 0.1.0",
@@ -94,7 +126,7 @@ def metadata(root, targets, **extra):
                 {
                     "kind": [kind],
                     "name": name,
-                    "src_path": str(resolved / path),
+                    "src_path": f"@ROOT@/{path}",
                     "test": test,
                     **({"required-features": ["x"]} if gated else {}),
                 }
@@ -207,7 +239,7 @@ def test_the_selected_command_repeats_packages_once_and_sorts_its_flags(units, e
 def test_units_are_the_default_members_runnable_targets_named_by_path(tmp_path, monkeypatch):
     root, _ = make(tmp_path, monkeypatch)
 
-    assert rust_units(root) == {
+    assert rust_units(root, suite_of(tmp_path)) == {
         LIB: ("calc", "lib", "calc"),
         TOOL: ("calc", "bin", "tool"),
         ADD: ("calc", "test", "add_tests"),
@@ -226,7 +258,7 @@ def test_gated_untested_bench_and_example_targets_are_not_units(tmp_path, monkey
     ]
     root, _ = make(tmp_path, monkeypatch, targets)
 
-    assert rust_units(root) == {MANY: ("calc", "test", "many")}
+    assert rust_units(root, suite_of(tmp_path)) == {MANY: ("calc", "test", "many")}
 
 
 @pytest.mark.parametrize(
@@ -243,14 +275,14 @@ def test_gated_untested_bench_and_example_targets_are_not_units(tmp_path, monkey
 def test_an_unusable_target_makes_the_reader_name_why(tmp_path, monkeypatch, targets, reason):
     root, _ = make(tmp_path, monkeypatch, targets)
 
-    assert reason in rust_units(root)
+    assert reason in rust_units(root, suite_of(tmp_path))
 
 
 @pytest.mark.parametrize("document", ["not json", "{}", "[]"])
 def test_unparsable_metadata_falls_back(tmp_path, monkeypatch, capsys, document):
     root, scan = make(tmp_path, monkeypatch, document=document)
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "running the whole suite for rust" in capsys.readouterr().err
 
 
@@ -258,7 +290,7 @@ def test_failing_metadata_falls_back(tmp_path, monkeypatch, capsys):
     root, scan = make(tmp_path, monkeypatch)
     monkeypatch.setenv("FAKE_METADATA_FAIL", "1")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "cargo metadata exited" in capsys.readouterr().err
 
 
@@ -266,14 +298,14 @@ def test_a_unit_outside_the_repository_is_named_and_drops_selection(tmp_path, mo
     targets = [*TARGETS[:2], ("test", "far", "../far.rs", True, False)]
     root, scan = make(tmp_path, monkeypatch, targets)
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "far.rs is outside the repository" in capsys.readouterr().err
 
 
 def test_the_pass_credits_each_line_to_the_units_whose_run_hit_it(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch)
 
-    coverage, selection = collect_coverage_with_tests(root, [scan], None)
+    coverage, selection = collect(root, scan, tmp_path)
 
     assert selection[LIB] == {
         1: frozenset({TOOL, ADD}),
@@ -290,9 +322,9 @@ def test_the_pass_credits_each_line_to_the_units_whose_run_hit_it(tmp_path, monk
 
 def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch)
-    collect_coverage_with_tests(root, [scan], None)
+    collect(root, scan, tmp_path)
 
-    assert selected_command(root, "rust", {MANY, DIRT}) == [
+    assert selected_command(suite_of(), {MANY, DIRT}) == [
         "cargo",
         "test",
         "-p",
@@ -302,7 +334,7 @@ def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
         "--test",
         "many",
     ]
-    assert selected_command(root, "rust", {MANY, LIB}) == [
+    assert selected_command(suite_of(), {MANY, LIB}) == [
         "cargo",
         "test",
         "-p",
@@ -315,26 +347,26 @@ def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
 
 def test_an_unmapped_empty_dashed_or_oversized_set_runs_the_whole_suite(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch)
-    collect_coverage_with_tests(root, [scan], None)
-    whole = mutant_command(root, "rust")
+    collect(root, scan, tmp_path)
+    whole = mutant_command(suite_of())
 
-    assert selected_command(root, "rust", {"nope.rs"}) == whole
-    assert selected_command(root, "rust", set()) == whole
-    assert selected_command(root, "rust", {"-x"}) == whole
+    assert selected_command(suite_of(), {"nope.rs"}) == whole
+    assert selected_command(suite_of(), set()) == whole
+    assert selected_command(suite_of(), {"-x"}) == whole
 
-    many = {f"t{n}.rs" for n in range(profiles.MAX_SELECTED_FILES + 1)}
+    many = {f"t{n}.rs" for n in range(commands.MAX_SELECTED_FILES + 1)}
 
     for name in many:
         RUST_UNITS[name] = ("calc", "test", "x")
 
-    assert selected_command(root, "rust", many) == whole
+    assert selected_command(suite_of(), many) == whole
 
 
 def test_a_failing_unit_run_falls_back(tmp_path, monkeypatch, capsys):
     root, scan = make(tmp_path, monkeypatch)
     monkeypatch.setenv("FAKE_FAIL", "many")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "running the whole suite for rust" in capsys.readouterr().err
     assert RUST_UNITS == {}
 
@@ -343,7 +375,7 @@ def test_a_missing_report_falls_back(tmp_path, monkeypatch, capsys):
     root, scan = make(tmp_path, monkeypatch)
     monkeypatch.setenv("FAKE_NO_REPORT", "dirt")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "no coverage report for tests/dirt/main.rs" in capsys.readouterr().err
 
 
@@ -351,7 +383,7 @@ def test_an_unreadable_report_falls_back(tmp_path, monkeypatch, capsys):
     root, scan = make(tmp_path, monkeypatch)
     monkeypatch.setenv("FAKE_BAD_REPORT", "dirt")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "no coverage report for tests/dirt/main.rs" in capsys.readouterr().err
     assert RUST_UNITS == {}
 
@@ -361,7 +393,7 @@ def test_a_repository_with_no_units_has_no_selection_and_prints_nothing(
 ):
     root, scan = make(tmp_path, monkeypatch, targets=[])
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert capsys.readouterr().err == ""
 
 
@@ -377,7 +409,7 @@ def test_the_reader_over_the_committed_rust_scanner_finds_every_unit():
     if probe.returncode != 0:
         pytest.skip("cargo metadata is not available")
 
-    units = rust_units(root)
+    units = rust_units(root, suite_of())
 
     assert sorted(units) == sorted(
         [
@@ -452,12 +484,12 @@ def test_a_covering_set_of_two_of_five_units_is_selected_and_three_run_the_whole
         ],
     )
 
-    assert run_mutate(root, tmp_path / "overlay.json", json.dumps({"max_workers": 1})) == 0
+    assert run_mutate(root, tmp_path / "overlay.json", settings_for(tmp_path, max_workers=1)) == 0
 
     assert sorted(RUST_UNITS) == sorted([ADD, TOOL, MANY, DIRT, LIB])
 
     commands = set(mutation_commands(tmp_path))
-    whole = " ".join(mutant_command(root, "rust")[1:])
+    whole = " ".join(mutant_command(suite_of())[1:])
 
     assert commands == {
         "test -p calc --bin tool --test add_tests",
@@ -478,7 +510,7 @@ def test_a_test_target_edit_reruns_only_the_sites_it_covers_and_a_unit_site_reru
             (SUB_LINES, ["lib"]),
         ],
     )
-    settings = json.dumps({"max_workers": 1})
+    settings = settings_for(tmp_path, max_workers=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
@@ -533,7 +565,7 @@ def test_an_in_file_test_edit_reruns_the_sites_its_unit_group_covers_and_a_delet
         ],
     )
     with_unit_tests(root, tmp_path, 2)
-    settings = json.dumps({"max_workers": 1})
+    settings = settings_for(tmp_path, max_workers=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
@@ -577,7 +609,7 @@ def test_a_record_written_with_no_unit_hash_reruns_its_unit_sites_once_and_keeps
             (SUB_LINES, ["lib"]),
         ],
     )
-    settings = json.dumps({"max_workers": 1})
+    settings = settings_for(tmp_path, max_workers=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
@@ -597,3 +629,11 @@ def test_a_record_written_with_no_unit_hash_reruns_its_unit_sites_once_and_keeps
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
     assert mutation_commands(tmp_path).count("test -p calc --lib") == sites["sub"]
     assert len(mutation_commands(tmp_path)) == sites["sub"]
+
+
+def test_metadata_document_skips_shell_noise_before_the_document():
+    from recognizer_sensors.mutation.warmup import metadata_document
+
+    noise = "sh: 0: can't access tty; job control turned off\n"
+
+    assert metadata_document(noise + '{"packages": []}\n') == {"packages": []}

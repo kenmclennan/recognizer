@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 import pytest
-from conftest import MUTATE_FIXTURE, git_commit
+from conftest import MUTATE_FIXTURE, git_commit, suite_settings
 
 from recognizer_sensors import hashes
 from recognizer_sensors.cli import main
@@ -69,14 +69,7 @@ def two_modules(tmp_path, monkeypatch):
 
 
 def settings_for(script, **extra):
-    return json.dumps(
-        {
-            "test_command": [sys.executable, str(script)],
-            "coverage": COVERAGE,
-            "max_workers": 1,
-            **extra,
-        }
-    )
+    return suite_settings([sys.executable, str(script)], max_workers=1, **extra)
 
 
 def scope_file(tmp_path, modules):
@@ -308,7 +301,7 @@ def test_a_scoped_run_keeps_a_carried_module_in_inputs(two_modules, tmp_path):
 
 
 def test_the_overlay_records_the_shared_digest_with_a_lib_and_a_bin_unit(two_modules, tmp_path):
-    from recognizer_sensors.testrun.profiles import RUST_UNITS
+    from recognizer_sensors.mutation.commands import RUST_UNITS
 
     root, _, script, _ = two_modules
     (root / "src" / "bin").mkdir(parents=True)

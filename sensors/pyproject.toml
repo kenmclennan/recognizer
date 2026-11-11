@@ -22,7 +22,7 @@ dependencies = [
 recognizer-sensors = "recognizer_sensors.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "jsonschema"]
+dev = ["pytest", "pytest-cov", "ruff", "jsonschema"]
 
 [tool.uv.sources]
 tree-sitter-kotlin = { git = "https://github.com/fwcd/tree-sitter-kotlin", rev = "d6af96d2e23ef0a8ff5ab512864378cf08fba311" }
@@ -40,7 +40,6 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 tmp_path_retention_policy = "failed"
-markers = ["real_probes: run the tool probes instead of the stub the suite installs"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]

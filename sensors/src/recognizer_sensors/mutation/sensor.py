@@ -5,7 +5,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from recognizer_sensors.crap.lcov import function_coverage
@@ -19,6 +19,7 @@ from recognizer_sensors.hashes import (
     test_hashes,
 )
 from recognizer_sensors.identity import assign_identities
+from recognizer_sensors.mutation.commands import RUST_UNITS, mutant_command, selected_command
 from recognizer_sensors.mutation.inline_tests import unit_test_hashes
 from recognizer_sensors.mutation.record import (
     body_hash,
@@ -31,7 +32,6 @@ from recognizer_sensors.mutation.record import (
 from recognizer_sensors.mutation.runner import (
     NUMBERS,
     STOP,
-    EnvironmentPool,
     Mutant,
     MutantCopies,
     MutantResult,
@@ -40,7 +40,6 @@ from recognizer_sensors.mutation.runner import (
     copy_repository,
     install_coverage_stop_handler,
     install_stop_handler,
-    leased,
     new_work_folder,
     output_tail,
     remove_stale_work_folders,
@@ -50,6 +49,8 @@ from recognizer_sensors.mutation.runner import (
     run_test_command,
 )
 from recognizer_sensors.mutation.sites import Site, find_sites
+from recognizer_sensors.mutation.warmup import coverage_run
+from recognizer_sensors.mutation.warmup import suite_size as suite_size_of
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.progress import report
@@ -59,23 +60,14 @@ from recognizer_sensors.settings import (
     MeasurementError,
     Refusal,
     SettingsError,
+    diagnose,
     relative_path,
 )
-from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed
-from recognizer_sensors.testrun.profiles import RUST_UNITS, mutant_command, selected_command
-from recognizer_sensors.testrun.projects import owner_of
-from recognizer_sensors.testrun.run import (
-    LOG,
-    collect_coverage,
-    collect_coverage_with_tests,
-    not_installed,
-    parse_coverage,
-    parse_test_command,
-    project_map,
-)
-from recognizer_sensors.testrun.run import (
-    suite_size as suite_size_of,
-)
+from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed, not_installed
+from recognizer_sensors.testrun.reports import LOG
+from recognizer_sensors.testrun.suites import Suite, directory_of, parse_suites
+
+NO_AFFECTED = "No affected test files found"
 
 DEFAULTS = {
     "timeout_factor": 10,
@@ -85,7 +77,7 @@ DEFAULTS = {
     "incremental": True,
 }
 
-ALLOWED = {"test_command", "coverage", "max_workers", "max_minutes", "carry", *DEFAULTS}
+ALLOWED = {"tests", "max_workers", "max_minutes", "carry", *DEFAULTS}
 
 CLOCK = time.monotonic
 
@@ -132,7 +124,7 @@ class Target:
     entries: list[dict | None] = field(default_factory=list)
     reused: bool = False
     carried: bool = False
-    project: str = ""
+    suite: str = ""
 
 
 def parse_carry(value: object) -> tuple[str, ...]:
@@ -157,8 +149,7 @@ def parse_settings(raw: dict) -> dict:
     if unknown:
         raise SettingsError(f"unknown setting: {', '.join(unknown)}")
 
-    command = parse_test_command(raw)
-    coverage = parse_coverage(raw)
+    suites = [asdict(s) for s in parse_suites(raw["tests"])] if "tests" in raw else None
     settings = {**DEFAULTS, **raw}
     factor = settings["timeout_factor"]
 
@@ -200,16 +191,25 @@ def parse_settings(raw: dict) -> dict:
         "survivors": relative_path("survivors", settings["survivors"]),
     }
 
+    seen: set[tuple[str, str]] = set()
+
+    for item in suites or []:
+        key = (item["language"], directory_of(Suite(**item)))
+
+        if key in seen:
+            raise SettingsError(
+                f"two test suites run {key[0]} from {key[1] or '.'}; "
+                "Mutation cannot tell them apart"
+            )
+
+        seen.add(key)
+
     carry = parse_carry(settings.get("carry", []))
 
     if carry:
         parsed["carry"] = carry
 
-    if command is not None:
-        parsed["test_command"] = command
-
-    if coverage is not None:
-        parsed["coverage"] = coverage
+    parsed["suites"] = suites
 
     return parsed
 
@@ -372,27 +372,25 @@ class CopyPool:
         return copy
 
 
+class NoSelectedTests(Exception):
+    pass
+
+
 def run_baseline(
     repository: Path,
     copies: CopyPool,
     command: list[str],
     subject: str,
-    environments: EnvironmentPool | None = None,
-    directory: str = "",
+    suite: Suite,
 ) -> float:
-    try:
-        with copies.lease() as copy, leased(environments, directory) as environment:
-            where = copy / directory
-            result = (
-                run_test_command(command, where, None)
-                if environment is None
-                else run_test_command(command, where, None, environment=environment)
-            )
-    except OSError:
-        raise not_installed(command[0]) from None
+    with copies.lease() as copy:
+        result = run_test_command(command, copy, None, suite=suite)
 
     if STOP.is_set():
         raise Stopped
+
+    if result.passed and NO_AFFECTED in result.output:
+        raise NoSelectedTests("no affected test files found")
 
     if result.passed:
         return result.seconds
@@ -425,18 +423,16 @@ class Baselines:
         work: Path,
         max_workers: int,
         carry: tuple[str, ...] = (),
-        environments: EnvironmentPool | None = None,
     ) -> None:
         self.repository = repository
-        self.environments = environments
         self.copies = CopyPool(repository, work, max_workers, carry)
         self.lock = threading.Lock()
         self.entries: dict[tuple[str, ...], Baseline] = {}
 
     def seconds(
-        self, command: list[str], subject: str, fallback: bool = False, directory: str = ""
+        self, command: list[str], subject: str, suite: Suite, fallback: bool = False
     ) -> float | None:
-        key = (directory, *command)
+        key = (suite.name, *command)
 
         with self.lock:
             entry = self.entries.get(key)
@@ -447,19 +443,7 @@ class Baselines:
 
         if owner:
             try:
-                extra = {"directory": directory} if directory else {}
-                entry.seconds = (
-                    run_baseline(self.repository, self.copies, command, subject, **extra)
-                    if self.environments is None
-                    else run_baseline(
-                        self.repository,
-                        self.copies,
-                        command,
-                        subject,
-                        self.environments,
-                        **extra,
-                    )
-                )
+                entry.seconds = run_baseline(self.repository, self.copies, command, subject, suite)
             except Exception as error:
                 entry.error = error
 
@@ -678,34 +662,27 @@ def queue_order(pending: list[Target], skipped: list[str]) -> list[Target]:
     return sorted(pending, key=lambda t: (t.identity not in earlier, t.identity))
 
 
-def command_key(language: str, directory: str) -> str:
-    return f"{language}@{directory}" if directory else language
+def record_key(suites: list[dict]) -> object:
+    return {"suites": suites, "selection": 3}
 
 
-def commands_for(
-    repository: Path,
-    scans: list[Scan],
-    configured: list[str] | None,
-    directories: dict[str, list[str]] | None = None,
-) -> dict[str, list[str]]:
-    if configured is not None:
-        return {scan.language: configured for scan in scans}
+def within(path: str, directory: str) -> bool:
+    return directory == "" or path == directory or path.startswith(f"{directory}/")
 
-    found = directories or {}
 
-    return {
-        command_key(scan.language, directory): (
-            mutant_command(repository, scan.language, directory=directory)
-            if directory
-            else mutant_command(repository, scan.language)
+def owner_suite(suites: list[Suite], file: str) -> Suite | None:
+    owners = [suite for suite in suites if within(file, directory_of(suite))]
+
+    return max(owners, key=lambda suite: len(directory_of(suite)), default=None)
+
+
+def no_suites(languages: list[str]) -> Refusal:
+    return Refusal(
+        diagnose(
+            "coverage-unavailable",
+            f"coverage unavailable: no test suite is configured for {', '.join(languages)}",
         )
-        for scan in scans
-        for directory in found.get(scan.language) or [""]
-    }
-
-
-def record_key(configured: list[str] | None, commands: dict[str, list[str]]) -> object:
-    return configured if configured is not None else {"commands": commands, "selection": 2}
+    )
 
 
 def describe(survivor: dict) -> str:
@@ -804,20 +781,73 @@ def run(
     modules: set[str] | None = None,
     checkpoint: Callable[[Outcome], None] | None = None,
 ) -> Outcome:
-    configured = settings.get("test_command")
+    raw_suites = settings.get("suites")
 
+    if raw_suites is None:
+        raise Refusal(
+            diagnose(
+                "coverage-unavailable",
+                "coverage unavailable: no test suites are configured; "
+                "add a tests list to .recognizer/config.yaml",
+            )
+        )
+
+    suites = [Suite(**item) for item in raw_suites]
+    unconfigured = [
+        scan.language for scan in scans if not any(s.language == scan.language for s in suites)
+    ]
+
+    if scans and len(unconfigured) == len(scans):
+        raise no_suites(unconfigured)
+
+    for language in unconfigured:
+        print(
+            f"recognizer-sensors: mutation: no test suite is configured for {language}; "
+            "its files are not measured",
+            file=sys.stderr,
+        )
+
+    work = new_work_folder(repository)
+
+    try:
+        remove_stale_work_folders(work)
+
+        return measure(
+            repository,
+            [scan for scan in scans if scan.language not in unconfigured],
+            settings,
+            commit,
+            suites,
+            work,
+            modules,
+            checkpoint,
+        )
+    finally:
+        remove_work_folder(work)
+
+
+def measure(
+    repository: Path,
+    scans: list[Scan],
+    settings: dict,
+    commit: str,
+    suites: list[Suite],
+    work: Path,
+    modules: set[str] | None,
+    checkpoint: Callable[[Outcome], None] | None,
+) -> Outcome:
     restore_coverage_handler = install_coverage_stop_handler()
 
     report("coverage")
 
     try:
-        if configured is None:
-            coverage, selection = collect_coverage_with_tests(
-                repository, scans, settings.get("coverage")
-            )
-        else:
-            coverage = collect_coverage(repository, scans, None, settings.get("coverage"))
-            selection = {}
+        coverage, selection = coverage_run(
+            repository,
+            scans,
+            suites,
+            work,
+            **({"carry": settings["carry"]} if "carry" in settings else {}),
+        )
     except (StoppedBeforeMutation, MeasurementError):
         if not STOP.is_set():
             raise
@@ -840,18 +870,20 @@ def run(
     sources: dict[str, bytes] = {}
     no_covering_test = 0
 
-    projects = project_map(repository, scans)
-    directories: dict[str, set[str]] = {
-        language: {project.directory for project in found} for language, found in projects.items()
-    }
+    by_name = {suite.name: suite for suite in suites}
 
     for scan in scans:
         found, scan_sources = collect_targets(repository, scan)
         sources.update(scan_sources)
+        language_suites = [suite for suite in suites if suite.language == scan.language]
 
         for target in found:
-            owner = owner_of(projects[scan.language], target.file)
-            target.project = owner.directory if owner is not None else ""
+            owner = owner_suite(language_suites, target.file)
+
+            if owner is None:
+                continue
+
+            target.suite = owner.name
             lines = coverage.get(target.file)
             known = function_coverage(lines, target.start_line, target.end_line)
 
@@ -859,7 +891,6 @@ def run(
                 continue
 
             targets.append(target)
-            directories[scan.language].add(target.project)
             target.covered = [
                 known > 0 and site_is_covered(site, target, lines) for site in target.sites
             ]
@@ -876,10 +907,7 @@ def run(
             if target.sites and not any(target.covered):
                 no_covering_test += 1
 
-    commands = commands_for(
-        repository, scans, configured, {k: sorted(v) for k, v in directories.items()}
-    )
-    key = record_key(configured, commands)
+    key = record_key(settings["suites"])
     record = read_record(repository / settings["record"], key)
     reuse = record if settings["incremental"] else None
     earlier_skipped = reuse["skipped"] if reuse else []
@@ -957,51 +985,39 @@ def run(
         return outcome, measured, skipped_ids, reused
 
     if queue:
-        work = new_work_folder(repository)
-        remove_stale_work_folders(work)
-        labelled = len(commands) > 1
-        every = sorted({directory for found in directories.values() for directory in found})
-        slugs = {
-            project.directory: project.slug for found in projects.values() for project in found
-        }
-        environments = EnvironmentPool(repository, work, settings["max_workers"], every, slugs)
+        labelled = len(suites) > 1
         mutant_copies = MutantCopies(
             repository, work, settings["max_workers"], settings.get("carry", ())
         )
-        remove_stale_work_folders(environments.folder)
-        restore_handler = install_stop_handler(work, environments.folder)
+        restore_handler = install_stop_handler(work)
 
         try:
             baselines = Baselines(
-                repository, work, settings["max_workers"], settings.get("carry", ()), environments
+                repository, work, settings["max_workers"], settings.get("carry", ())
             )
             tally_lock = threading.Lock()
+            workers = settings["max_workers"]
 
             def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
-                where = target.project
-                extra = {"directory": where} if where else {}
-                whole = (
-                    commands[target.language]
-                    if configured is not None
-                    else mutant_command(
-                        repository, target.language, workers=settings["max_workers"], **extra
-                    )
+                suite = by_name[target.suite]
+                whole = mutant_command(suite, workers=workers)
+                subject = f"the {suite.name} test command" if labelled else "the test command"
+                selected_subject = (
+                    f"the selected test command for {target.file}"
+                    if suite.language == "typescript"
+                    else "the selected test command"
                 )
-                name = f"{target.language} {where}" if where else target.language
-                subject = f"the {name} test command" if labelled else "the test command"
                 chosen = [target.selections[index] for index in target.to_run]
                 killers = [target.previous.get(index, frozenset()) for index in target.to_run]
 
                 def baseline(
-                    command: list[str], label: str, fallback: bool = False, directory: str = ""
+                    command: list[str], label: str, fallback: bool = False
                 ) -> float | None:
                     if deadline is not None and CLOCK() >= deadline:
                         raise Stopped
 
                     try:
-                        return baselines.seconds(
-                            command, label, fallback=fallback, directory=directory
-                        )
+                        return baselines.seconds(command, label, suite, fallback=fallback)
                     except Refusal:
                         if deadline is not None and CLOCK() >= deadline:
                             raise Stopped from None
@@ -1011,45 +1027,27 @@ def run(
                 def lookup(index: int) -> tuple[list[str], float]:
                     seconds = None
                     command = whole
-                    stopping = (
-                        whole
-                        if configured is not None
-                        else mutant_command(
-                            repository, target.language, True, settings["max_workers"], **extra
-                        )
-                    )
-                    files = chosen[index] if configured is None else None
-                    selected = (
-                        selected_command(
-                            repository,
-                            target.language,
-                            files,
-                            workers=settings["max_workers"],
-                            **extra,
-                        )
-                        if files and len(files) * 2 <= suite_size
-                        else None
-                    )
+                    stopping = mutant_command(suite, True, workers)
+                    files = chosen[index]
+
+                    if suite.language == "typescript":
+                        selected = selected_command(suite, None, workers=workers, file=target.file)
+                    elif files and len(files) * 2 <= suite_size:
+                        selected = selected_command(suite, files, workers=workers)
+                    else:
+                        selected = None
 
                     if selected is not None and selected != whole:
-                        seconds = baseline(
-                            selected, "the selected test command", fallback=True, **extra
-                        )
+                        seconds = baseline(selected, selected_subject, fallback=True)
 
                         if seconds is not None:
                             command = selected
                             stopping = selected_command(
-                                repository,
-                                target.language,
-                                files,
-                                True,
-                                killers[index],
-                                settings["max_workers"],
-                                **extra,
+                                suite, files, True, killers[index], workers, file=target.file
                             )
 
                     if seconds is None:
-                        seconds = baseline(whole, subject, **extra)
+                        seconds = baseline(whole, subject)
 
                     with tally_lock:
                         ran["selection" if command is not whole else "whole"] += 1
@@ -1097,12 +1095,11 @@ def run(
                     work,
                     mutants_for(target, sources),
                     plan_for(target),
-                    hashes if configured is None and target.language == "python" else None,
-                    *([settings["carry"]] if "carry" in settings else []),
-                    **({"environments": environments} if environments.enabled else {}),
+                    by_name[target.suite],
+                    hashes if target.language == "python" else None,
+                    settings.get("carry", ()),
                     **({"copies": mutant_copies} if mutant_copies.enabled else {}),
                     **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
-                    **({"directory": target.project} if target.project else {}),
                 ),
                 settings["max_workers"],
                 deadline,
@@ -1111,11 +1108,8 @@ def run(
             )
             stopped = STOP.is_set()
             remove_stale_work_folders(work)
-            remove_stale_work_folders(environments.folder)
         finally:
             restore_handler()
-            remove_work_folder(work)
-            remove_work_folder(environments.folder)
 
     outcome, measured, skipped_ids, reused = assemble(done, stopped)
     mutated = len(measured) - reused

@@ -6,16 +6,37 @@ from coverage import CoverageData
 from coverage.exceptions import CoverageException
 
 from recognizer_sensors.crap.lcov import normalise_path
-from recognizer_sensors.testrun.profiles import PYTHON_DATA
+
+PYTHON_DATA = ".recognizer/cache/coverage/python.data"
 
 Lines = dict[int, frozenset[str]]
+
+
+def usable_contexts(names: object, directory: Path) -> frozenset[str] | None:
+    if not isinstance(names, list | set | tuple | frozenset):
+        return None
+
+    files: set[str] = set()
+
+    for name in names:
+        if not isinstance(name, str) or name == "":
+            continue
+
+        path = name.split("|", 1)[0].split("::", 1)[0]
+
+        if not path or not (directory / path).is_file():
+            return None
+
+        files.add(path)
+
+    return frozenset(files) if files else None
 
 
 class PythonContexts:
     def __init__(
         self,
         repository: Path,
-        usable: Callable[[object, Path], frozenset[str] | None],
+        usable: Callable[[object, Path], frozenset[str] | None] = usable_contexts,
         directory: str = "",
         data: str = PYTHON_DATA,
     ):

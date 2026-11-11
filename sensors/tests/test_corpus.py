@@ -1,4 +1,5 @@
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -6,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from conftest import REPOSITORY, git_commit, write_scans
+from conftest import REPOSITORY, git_commit, shim_suite, write_scans
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.mutation import runner
@@ -305,18 +306,27 @@ def node_strips_types() -> bool:
     return result.returncode == 0
 
 
-MUTATION_COMMANDS = {
-    "python": [sys.executable, "tests/run.py"],
-    "typescript": ["node", "--experimental-strip-types", "--no-warnings", "tests/run.ts"],
-    "csharp": [sys.executable, "tests/run_csharp.py"],
-}
+def mutation_suites(**shim):
+    python = shlex.quote(sys.executable)
+    node = "node --experimental-strip-types --no-warnings tests/run.ts"
+
+    return {
+        "python": shim_suite(f"{python} tests/run.py", **shim),
+        "typescript": shim_suite(node, tool="npx", language="typescript", runner="vitest", **shim),
+        "csharp": shim_suite(
+            f"{python} tests/run_csharp.py", tool="dotnet", language="csharp", **shim
+        ),
+    }
+
+
+MUTATION_SUITES = mutation_suites()
 
 
 @pytest.fixture(scope="module")
 def mutation_runs(work):
     runs = {}
 
-    for language, command in MUTATION_COMMANDS.items():
+    for language, suite in MUTATION_SUITES.items():
         if language == "typescript" and not node_strips_types():
             continue
 
@@ -332,7 +342,7 @@ def mutation_runs(work):
             "mutation",
             root,
             work / f"mutation-{language}.json",
-            {"test_command": command, "coverage": "coverage/lcov.info", "max_workers": 2},
+            {"tests": [suite], "max_workers": 2},
             commit=commit,
         )
         survivors = json.loads((root / ".recognizer/cache/mutation/survivors.json").read_text())
@@ -439,11 +449,7 @@ def mutation_git_copy_run(work):
         "mutation",
         root,
         work / "mutation-git-copy.json",
-        {
-            "test_command": MUTATION_COMMANDS["python"],
-            "coverage": "coverage/lcov.info",
-            "max_workers": 2,
-        },
+        {"tests": [MUTATION_SUITES["python"]], "max_workers": 2},
         commit=commit,
     )
     patch.undo()
@@ -497,13 +503,11 @@ def test_the_git_copy_corpus_run_makes_fewer_mutant_copies_than_it_runs_mutants(
 
 
 @pytest.fixture(scope="module")
-def mutation_uv_run(work):
-    patch = counting_pooled_copies("uv")
-    root = copy_corpus("mutation", work / "mutation-uv", "scan.*.json")
-    (root / "pyproject.toml").write_text(
-        '[project]\nname = "corpus"\nversion = "0"\nrequires-python = ">=3.11"\n'
-    )
-    subprocess.run(["uv", "lock", "-q"], cwd=root, check=True, capture_output=True)
+def mutation_suite_run(work):
+    patch = counting_pooled_copies("suite")
+    root = copy_corpus("mutation", work / "mutation-suite", "scan.*.json")
+    (root / ".gitignore").write_text(".venv/\n")
+    subprocess.run(["uv", "venv", "-q"], cwd=root, check=True, capture_output=True)
     commit = git_commit(root)
     cache = root / ".recognizer" / "cache"
     cache.mkdir(parents=True)
@@ -511,15 +515,12 @@ def mutation_uv_run(work):
         FIXTURES / "mutation" / "corpus" / "scan.python.json",
         cache / "scan.python.json",
     )
+    suite = mutation_suites(prefix=". .venv/bin/activate && ")["python"]
     findings = run_sensor(
         "mutation",
         root,
-        work / "mutation-uv.json",
-        {
-            "test_command": ["uv", "run", "python", "tests/run.py"],
-            "coverage": "coverage/lcov.info",
-            "max_workers": 2,
-        },
+        work / "mutation-suite.json",
+        {"tests": [suite], "carry": [".venv"], "max_workers": 2},
         commit=commit,
     )
     patch.undo()
@@ -529,13 +530,13 @@ def mutation_uv_run(work):
 
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
-def test_the_python_mutation_corpus_through_a_uv_environment_matches_expected(mutation_uv_run):
-    assert_python_mutation_matches_expected(mutation_uv_run)
+def test_the_python_mutation_corpus_through_a_suite_matches_expected(mutation_suite_run):
+    assert_python_mutation_matches_expected(mutation_suite_run)
 
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
-def test_the_uv_corpus_run_makes_fewer_mutant_copies_than_it_runs_mutants(mutation_uv_run):
-    _, overlay, _ = mutation_uv_run
+def test_the_suite_corpus_run_makes_fewer_mutant_copies_than_it_runs_mutants(mutation_suite_run):
+    _, overlay, _ = mutation_suite_run
 
-    assert 0 < POOLED_COPIES["uv"] <= 2
-    assert POOLED_COPIES["uv"] < mutants_run(overlay)
+    assert 0 < POOLED_COPIES["suite"] <= 2
+    assert POOLED_COPIES["suite"] < mutants_run(overlay)

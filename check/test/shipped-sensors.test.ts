@@ -220,18 +220,25 @@ describe("the sensor config examples", () => {
     );
   });
 
-  it("accepts test_command and max_minutes under sensors.mutation", () => {
-    const config = parseConfig(
-      example("valid/sensors-mutation-test-command.yaml"),
-    );
+  it("accepts carry and max_minutes under sensors.mutation", () => {
+    const config = parseConfig(example("valid/sensors-mutation-carry.yaml"));
     const entry = config.sensors?.mutation as { command: string[] };
     const command = entry.command;
 
     expect(command[1]).toBe("mutation");
     expect(JSON.parse(command.at(-1) ?? "")).toEqual({
-      test_command: ["npm", "test"],
+      carry: ["frontend/node_modules"],
       max_minutes: 5,
     });
+  });
+
+  it.each([
+    "invalid/sensors-mutation-test-command.yaml",
+    "invalid/sensors-mutation-coverage.yaml",
+  ])("refuses the retired mutation setting in %s", (path) => {
+    expect(() => parseConfig(example(path))).toThrow(
+      /config\/sensors\/mutation/,
+    );
   });
 
   it("accepts the new mutation and crap keys", () => {
@@ -354,26 +361,42 @@ describe("the tests list", () => {
     );
   });
 
-  it("hands the list to a crap short form and to no other sensor", () => {
+  it("hands the list to the crap and mutation short forms and to no other sensor", () => {
     const config = parseConfig(
-      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap: {}\n  mutation: {}\n`,
+      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap: {}\n  mutation: {}\n  duplication: {}\n  thresholds: {}\n`,
     );
 
     expect(settingsOf(config.sensors?.crap).tests).toEqual(config.tests);
+    expect(settingsOf(config.sensors?.mutation).tests).toEqual(config.tests);
+    expect(settingsOf(config.sensors?.duplication)).toEqual({});
+    expect(settingsOf(config.sensors?.thresholds)).toEqual({});
+  });
+
+  it("hands no list to a mutation short form when the config has none", () => {
+    const config = parseConfig("sensors:\n  mutation: {}\n");
+
     expect(settingsOf(config.sensors?.mutation)).toEqual({});
   });
 
-  it("hands the list to a requested crap that is not registered", () => {
+  it("hands the list to a requested crap and mutation that are not registered", () => {
     const suites = [{ name: "api" }];
     const selected = selectSensors(
       [],
-      ["crap", "mutation"],
+      ["crap", "mutation", "duplication", "thresholds"],
       SHIPPED_SENSORS,
       suites,
     );
 
     expect(settingsOf(selected[0])).toEqual({ tests: suites });
-    expect(settingsOf(selected[1])).toEqual({});
+    expect(settingsOf(selected[1])).toEqual({ tests: suites });
+    expect(settingsOf(selected[2])).toEqual({});
+    expect(settingsOf(selected[3])).toEqual({});
+  });
+
+  it("builds a requested mutation with no tests key when the config has none", () => {
+    const selected = selectSensors([], ["mutation"], SHIPPED_SENSORS);
+
+    expect(settingsOf(selected[0])).toEqual({});
   });
 
   it("builds a requested crap with no tests key when the config has none", () => {

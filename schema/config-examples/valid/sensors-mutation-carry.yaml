@@ -1,0 +1,4 @@
+sensors:
+  mutation:
+    carry: [frontend/node_modules]
+    max_minutes: 5

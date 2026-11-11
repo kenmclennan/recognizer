@@ -64,27 +64,6 @@ def parse_settings(raw: dict) -> dict:
     return parsed
 
 
-def suite_gaps(repository: Path, scans: list[Scan], settings: dict, sensor: str) -> list[dict]:
-    if settings.get("suites") is not None:
-        return []
-
-    return [
-        {
-            "id": "crap:no-test-suites",
-            "line": "no test suites are configured",
-            "needs": ["crap"],
-            "project": None,
-            "fix": {
-                "text": "add a tests list to .recognizer/config.yaml",
-                "command": None,
-                "cwd": "",
-                "env": {},
-                "kind": "outside",
-            },
-        }
-    ]
-
-
 def crap_score(complexity: int, coverage: float) -> float:
     return complexity**2 * (1 - coverage) ** 3 + complexity
 

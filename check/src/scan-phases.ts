@@ -2,7 +2,7 @@ import { InputError } from "./errors.js";
 import type { PhaseName } from "./run-log.js";
 import type { SensorProgress } from "./sensor-progress.js";
 import type { Diagnosis } from "./sensor-reason.js";
-import { shippedCommand } from "./shipped-sensors.js";
+import { receivesSuites, shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
   "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--confirm-above <usd>] [--by <name>] [--json]";
@@ -205,7 +205,7 @@ export function selectSensors(
         name,
         command: shippedCommand(
           name,
-          name === "crap" && suites !== undefined ? { tests: suites } : {},
+          receivesSuites(name) && suites !== undefined ? { tests: suites } : {},
         ),
       })),
   ];

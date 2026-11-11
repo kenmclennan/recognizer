@@ -2,7 +2,7 @@ import re
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
-from recognizer_sensors.settings import MAX_FAILING_NAMES, diagnose
+from recognizer_sensors.settings import MAX_FAILING_NAMES, Refusal, diagnose
 
 KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
 
@@ -124,25 +124,5 @@ def mutation_tests_failed(names: list[str]) -> dict:
     return diagnose("tests-failed", line, failing=failing_object(names))
 
 
-SIGNATURES = (
-    (
-        re.compile(r"llvm-tools", re.IGNORECASE),
-        "llvm-tools is not installed",
-        "install it with rustup component add llvm-tools-preview",
-        "rustup component add llvm-tools-preview",
-    ),
-    (
-        re.compile(r"npx canceled|npm (?:error|ERR!) network|ENOTFOUND|EAI_AGAIN"),
-        "c8 could not be fetched",
-        "check the network, c8 is fetched by npx",
-        "check the network, c8 is fetched by npx",
-    ),
-)
-
-
-def known_cause(outputs: list[str]) -> tuple[str, str, str] | None:
-    for pattern, cause, sentence, fix in SIGNATURES:
-        if any(pattern.search(output) for output in outputs):
-            return cause, sentence, fix
-
-    return None
+def not_installed(program: str) -> Refusal:
+    return Refusal(diagnose("tool-missing", f"{program} is not installed"))

@@ -1,11 +1,10 @@
 import json
 import shlex
-import subprocess
 import sys
 
-from conftest import FINDINGS_SCHEMA, git_commit, make_repository, mutate_repository
+from conftest import FINDINGS_SCHEMA, git_commit, make_repository, mutate_repository, python_suite
 from jsonschema import Draft202012Validator
-from test_mutation import COVERAGE, run_mutate
+from test_mutation import run_mutate
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.settings import MeasurementError, Refusal, diagnose
@@ -17,64 +16,10 @@ from recognizer_sensors.testrun.failures import (
     mutation_tests_failed,
     suite_failed,
 )
-from recognizer_sensors.testrun.profiles import PROFILES, PYTHON_COVERAGE, PYTHON_COVERAGE_CONTEXTS
 
 BODY = "def f(a):\n    if a:\n        return 1\n    return 2\n"
 
 LCOV = ".recognizer/cache/coverage/python.lcov"
-
-COVERAGE_STUB = """
-import pathlib, sys
-args = sys.argv[1:]
-if args[:2] == ["coverage", "run"]:
-    sys.exit(int(pathlib.Path(__file__).with_name("run.status").read_text()))
-if args[:2] == ["coverage", "lcov"]:
-    pathlib.Path(args[3]).parent.mkdir(parents=True, exist_ok=True)
-    pathlib.Path(args[3]).write_text("SF:app/m.py\\nDA:1,1\\nend_of_record\\n")
-    sys.exit(int(pathlib.Path(__file__).with_name("lcov.status").read_text()))
-"""
-
-
-def shell_run(tmp_path, command, run_status, lcov_status=0):
-    (tmp_path / "stub.py").write_text(COVERAGE_STUB)
-    (tmp_path / "run.status").write_text(str(run_status))
-    (tmp_path / "lcov.status").write_text(str(lcov_status))
-    work = tmp_path / "work"
-    work.mkdir(exist_ok=True)
-    script = command.replace("{runner}", f"{sys.executable} {tmp_path / 'stub.py'}")
-    result = subprocess.run(["sh", "-c", script], cwd=work, check=False)
-
-    return result.returncode, work
-
-
-def test_the_python_command_writes_its_report_after_a_red_suite_and_keeps_the_status(tmp_path):
-    status, work = shell_run(tmp_path, PYTHON_COVERAGE, 1)
-
-    assert status == 1
-    assert (work / LCOV).is_file()
-
-
-def test_the_python_command_exits_zero_on_a_green_suite_and_reports_a_report_failure(tmp_path):
-    assert shell_run(tmp_path, PYTHON_COVERAGE, 0)[0] == 0
-    assert shell_run(tmp_path, PYTHON_COVERAGE, 0, 3)[0] == 3
-
-
-def test_the_contexts_command_writes_the_report_after_a_red_suite_and_writes_no_contexts_json(
-    tmp_path,
-):
-    command = PYTHON_COVERAGE_CONTEXTS.format(plugin="/plugin")
-    status, work = shell_run(tmp_path, command, 1)
-
-    assert status == 1
-    assert (work / LCOV).is_file()
-    assert not (work / ".recognizer/cache/coverage/python.contexts.json").exists()
-
-
-def test_the_rust_coverage_command_ignores_a_red_suite():
-    command = PROFILES["rust"]["coverage_command"]
-
-    assert command[:3] == ["cargo", "llvm-cov", "--lcov"]
-    assert "--ignore-run-fail" in command
 
 
 def test_a_log_with_three_failures_yields_three_names():
@@ -187,12 +132,12 @@ def test_a_complexity_only_document_still_warns_and_validates(tmp_path, monkeypa
     Draft202012Validator(schema).validate(document)
 
 
-def test_mutation_over_a_red_suite_refuses_before_any_work_folder(tmp_path, capsys):
+def test_mutation_over_a_red_suite_refuses_and_leaves_no_work_folder(tmp_path, capsys):
     root, _ = mutate_repository(tmp_path)
     failing = tmp_path / "f.py"
     failing.write_text("import sys; print('FAILED t/a.py::bad - x'); sys.exit(1)")
     output = tmp_path / "overlay.json"
-    settings = json.dumps({"test_command": [sys.executable, str(failing)], "coverage": COVERAGE})
+    settings = json.dumps({"tests": [python_suite(str(failing))]})
 
     status = run_mutate(root, output, settings)
     lines = capsys.readouterr().err.splitlines()

@@ -1,4 +1,5 @@
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -7,8 +8,6 @@ from pathlib import Path
 import pytest
 
 from recognizer_sensors.cli import main
-from recognizer_sensors.testrun import run as testrun
-from recognizer_sensors.testrun.probes import Probe
 
 REPOSITORY = Path(__file__).parents[2]
 FIXTURE = REPOSITORY / "fixtures" / "duplication" / "sample"
@@ -120,10 +119,45 @@ def mutate_repository(tmp_path: Path, fixture: Path = MUTATE_FIXTURE) -> tuple[P
     return root, commit
 
 
+def shim_suite(
+    body: str,
+    name: str = "sample",
+    directory: str = ".",
+    tool: str = "pytest",
+    language: str = "python",
+    prefix: str = "",
+    **extra,
+) -> dict:
+    return {
+        "name": name,
+        "language": language,
+        "directory": directory,
+        "activate": f'{prefix}{tool}() {{ {body} "$@"; }}',
+        "command": "touch coverage/lcov.info #",
+        "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+        **extra,
+    }
+
+
+def command_suite(words: list[str], **extra) -> dict:
+    return shim_suite(shlex.join(words), **extra)
+
+
+def python_suite(script: str, **extra) -> dict:
+    return command_suite([sys.executable, script], **extra)
+
+
+def suite_settings(command: list[str], **extra) -> str:
+    return json.dumps({"tests": [command_suite(command)], **extra})
+
+
 def mutate_settings(script: str, **extra) -> str:
-    return json.dumps(
-        {"test_command": [sys.executable, script], "coverage": "coverage/lcov.info", **extra}
-    )
+    return json.dumps({"tests": [python_suite(script)], **extra})
+
+
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
 
 
 def write_scan_document(
@@ -150,9 +184,3 @@ def exports_module(module_id: str, *names: str, hidden: tuple[str, ...] = ()) ->
     ]
 
     return {"id": module_id, "members": members}
-
-
-@pytest.fixture(autouse=True)
-def probes_off(request, monkeypatch):
-    if request.node.get_closest_marker("real_probes") is None:
-        monkeypatch.setattr(testrun, "probe", lambda repository, scans, settings: Probe())

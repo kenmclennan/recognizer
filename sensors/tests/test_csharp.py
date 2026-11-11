@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import stat
-import sys
 
 import pytest
 from conftest import REPOSITORY, git_commit
@@ -14,17 +13,22 @@ from recognizer_sensors.duplication.normalise import normalise
 from recognizer_sensors.duplication.shapes import is_accessor_shape, is_constructor_shape
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.mutation.sites import find_sites
+from recognizer_sensors.mutation.warmup import coverage_run
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import read_scans
-from recognizer_sensors.settings import MeasurementError
-from recognizer_sensors.testrun.run import collect_coverage
-
-pytestmark = pytest.mark.real_probes
+from recognizer_sensors.testrun.suites import parse_suites
 
 SAMPLE = REPOSITORY / "fixtures" / "csharp" / "sample"
 EXPECTED_SCAN = REPOSITORY / "fixtures" / "csharp" / "expected-scan.json"
 FINDINGS_SCHEMA = REPOSITORY / "schema" / "findings.schema.json"
-REPORT = ".recognizer/cache/coverage/csharp"
+
+DOTNET_SUITE = {
+    "name": "shop",
+    "language": "csharp",
+    "directory": ".",
+    "command": "dotnet test --results-directory out",
+    "coverage": {"path": "out/*/coverage.info", "format": "lcov"},
+}
 
 
 def functions(source: str) -> dict[str, object]:
@@ -333,79 +337,19 @@ def test_two_project_reports_merge_to_repository_relative_paths_and_drop_outside
     install_dotnet(monkeypatch, tmp_path)
     root = csharp_repository(tmp_path)
     (root / "tests/T/T.csproj").write_text('<PackageReference Include="coverlet.collector" />')
-    coverage = collect_coverage(root, read_scans(root), None, None)
+    work = tmp_path / "work"
+    work.mkdir()
+    coverage, _ = coverage_run(
+        root,
+        read_scans(root),
+        parse_suites([{**DOTNET_SUITE, "activate": f"export PATH={tmp_path / 'bin'}:$PATH"}]),
+        work,
+    )
 
     assert coverage["src/Shop.Domain/Order.cs"] == {1: 1, 2: 0}
     assert coverage["src/Shop.Domain/Product.cs"] == {1: 5}
     assert all(not path.startswith("/") for path in coverage)
     assert not any("Other.cs" in path for path in coverage)
-
-
-def test_a_second_run_does_not_merge_the_first_runs_reports(monkeypatch, tmp_path):
-    install_dotnet(monkeypatch, tmp_path)
-    root = csharp_repository(tmp_path)
-    (root / "tests/T/T.csproj").write_text("coverlet.collector")
-    stale = root / REPORT / "old" / "coverage.info"
-    stale.parent.mkdir(parents=True)
-    stale.write_text(f"SF:{root}/src/A/Stale.cs\nDA:1,1\nend_of_record\n")
-    coverage = collect_coverage(root, read_scans(root), None, None)
-
-    assert "src/A/Stale.cs" not in coverage
-    assert not stale.exists()
-
-
-def test_a_test_project_without_coverlet_stops_before_dotnet_starts(monkeypatch, tmp_path):
-    install_dotnet(
-        monkeypatch, tmp_path, '#!/bin/sh\n[ "$1" = --version ] && exit 0\ntouch started\n'
-    )
-    root = csharp_repository(tmp_path)
-    (root / "tests/T/T.csproj").write_text('<Project Sdk="Microsoft.NET.Sdk" />')
-
-    with pytest.raises(MeasurementError) as raised:
-        collect_coverage(root, read_scans(root), None, None)
-
-    assert str(raised.value) == (
-        "the csharp test project tests/T does not reference coverlet.collector; "
-        "add it with dotnet add tests/T package coverlet.collector"
-    )
-    assert not (root / "started").exists()
-
-
-def test_coverlet_named_in_a_directory_build_props_above_the_project_passes(monkeypatch, tmp_path):
-    install_dotnet(monkeypatch, tmp_path)
-    root = csharp_repository(tmp_path, "tests/unit/T")
-    (root / "tests/unit/T/T.csproj").write_text("<Project />")
-    (root / "tests/Directory.Build.props").write_text("<coverlet.collector />")
-
-    assert collect_coverage(root, read_scans(root), None, None)
-
-
-def test_the_preflight_is_skipped_when_a_test_command_or_coverage_is_set(monkeypatch, tmp_path):
-    install_dotnet(monkeypatch, tmp_path)
-    root = csharp_repository(tmp_path)
-    (root / "tests/T/T.csproj").write_text("<Project />")
-
-    assert collect_coverage(
-        root, read_scans(root), ["dotnet", "test", "--results-directory", REPORT], None
-    )
-
-    report = root / "cov.info"
-    report.write_text("SF:src/Shop.Domain/Order.cs\nDA:1,1\nend_of_record\n")
-
-    assert collect_coverage(root, read_scans(root), None, "cov.info") == {
-        "src/Shop.Domain/Order.cs": {1: 1}
-    }
-
-
-def test_a_missing_dotnet_ends_with_the_not_installed_line(monkeypatch, tmp_path):
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    monkeypatch.setenv("PATH", str(empty))
-    root = csharp_repository(tmp_path)
-    (root / "tests/T/T.csproj").write_text("coverlet.collector")
-
-    with pytest.raises(MeasurementError, match="dotnet is not installed"):
-        collect_coverage(root, read_scans(root), None, None)
 
 
 def run_sensor(name, root, tmp_path, settings, commit=None):
@@ -429,28 +373,17 @@ def run_sensor(name, root, tmp_path, settings, commit=None):
 
 
 @pytest.mark.parametrize("sensor", ["crap", "mutation"])
-def test_crap_and_mutation_exit_2_naming_dotnet_when_it_is_missing(
-    sensor, monkeypatch, tmp_path, capsys
-):
-    empty = tmp_path / "empty"
-    empty.mkdir()
+def test_crap_and_mutation_exit_2_without_a_tests_list(sensor, tmp_path, capsys):
     root = csharp_repository(tmp_path)
     (root / "tests/T/T.csproj").write_text("coverlet.collector")
     commit = git_commit(root)
-    monkeypatch.setenv("PATH", str(empty))
-    status, output = run_sensor(sensor, root, tmp_path, {}, commit)
+    status, _ = run_sensor(sensor, root, tmp_path, {}, commit)
 
-    if sensor == "mutation":
-        assert status == 2
-        assert capsys.readouterr().err.splitlines()[-1] == (
-            "dotnet is not installed; install it with brew install --cask dotnet-sdk"
-        )
-    else:
-        assert status == 2
-        assert capsys.readouterr().err.splitlines()[-1] == (
-            "coverage unavailable: no test suites are configured; "
-            "add a tests list to .recognizer/config.yaml"
-        )
+    assert status == 2
+    assert capsys.readouterr().err.splitlines()[-1] == (
+        "coverage unavailable: no test suites are configured; "
+        "add a tests list to .recognizer/config.yaml"
+    )
 
 
 def valid(output):
@@ -499,7 +432,8 @@ def test_crap_and_thresholds_run_on_the_fixture_with_a_coverlet_shaped_report(
     valid(output)
 
 
-def test_mutation_runs_on_the_fixture_with_a_runner_script(tmp_path):
+def test_mutation_runs_on_the_fixture_with_a_runner_script(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
     root = csharp_repository(tmp_path)
     (root / "cov.info").write_text(
         "SF:src/Shop.Domain/Pricing.cs\n"
@@ -508,8 +442,16 @@ def test_mutation_runs_on_the_fixture_with_a_runner_script(tmp_path):
     )
     commit = git_commit(root)
     settings = {
-        "test_command": [sys.executable, "-c", "import sys; sys.exit(0)"],
-        "coverage": "cov.info",
+        "tests": [
+            {
+                "name": "shop",
+                "language": "csharp",
+                "directory": ".",
+                "activate": "dotnet() { true; }",
+                "command": "touch cov.info #",
+                "coverage": {"path": "cov.info", "format": "lcov"},
+            }
+        ]
     }
     status, output = run_sensor("mutation", root, tmp_path, settings, commit)
 
