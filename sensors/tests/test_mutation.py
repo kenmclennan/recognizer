@@ -378,7 +378,7 @@ def test_settings_defaults():
     assert settings == {
         "suites": None,
         "timeout_factor": 10.0,
-        "max_workers": os.cpu_count() or 1,
+        "max_workers": None,
         "overlay": OVERLAY,
         "survivors": ".recognizer/cache/mutation/survivors.json",
         "record": ".recognizer/cache/mutation/record.json",

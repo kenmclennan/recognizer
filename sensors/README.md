@@ -76,7 +76,7 @@ Mutation reads the `tests` list the core hands it from the config's top-level `t
 | `tests` | none | the suites, handed over by the core; never written under `sensors.mutation` |
 | `carry` | none | repository-relative folders, with no trailing slash, that a copy takes although git does not list them (a venv, `node_modules`, build output); each entry names the exact folder, never a name matched at any depth, and nothing is carried by name when it is absent |
 | `timeout_factor` | `10` | a mutant's timeout is `max(2, timeout_factor * baseline seconds)` of the baseline of the command that mutant runs; a timed-out run is killed |
-| `max_workers` | the core count | integer >= 1, mutants run at once |
+| `max_workers` | the smaller of the core count and the available memory divided by one measured run's peak, at least 1 | integer >= 1, mutants run at once; an explicit value wins and reads no memory |
 | `overlay` | `.recognizer/cache/overlays/mutation.json` | relative path the overlay is written to |
 | `survivors` | `.recognizer/cache/mutation/survivors.json` | relative path the survivors file is written to |
 | `record` | `.recognizer/cache/mutation/record.json` | relative path the mutation record is written to |
