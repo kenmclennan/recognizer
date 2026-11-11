@@ -1197,7 +1197,7 @@ describe("the preflight panel", () => {
 
     expect(model.summary).toMatchObject({
       head: "Nothing ran",
-      line: "Some tools the ticked sensors need are missing. Fix them below, then scan.",
+      line: "Some tools the ticked sensors need are missing. Set them up as below, then scan again.",
     });
     expect(model.preflight?.box).toMatchObject({
       title: "Before this scan can run",

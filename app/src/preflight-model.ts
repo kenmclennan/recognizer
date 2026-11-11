@@ -39,7 +39,7 @@ export const RUNNING_TEXT = "Running pre-flight checks";
 export const NOTHING_RAN_TEXT = "Nothing ran";
 
 export const MISSING_TEXT =
-  "Some tools the ticked sensors need are missing. Fix them below, then scan.";
+  "Some tools the ticked sensors need are missing. Set them up as below, then scan again.";
 
 export const BOX_TITLE = "Before this scan can run";
 
