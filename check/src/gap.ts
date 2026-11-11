@@ -10,7 +10,6 @@ export interface Gap {
   id: string;
   line: string;
   needs: string[];
-  project: { language: string; directory: string } | null;
   fix: Fix;
 }
 
@@ -39,7 +38,6 @@ export function isGap(value: unknown): value is Gap {
   }
 
   const gap = value as Record<string, unknown>;
-  const project = gap.project as Record<string, unknown> | null;
 
   return (
     typeof gap.id === "string" &&
@@ -47,21 +45,12 @@ export function isGap(value: unknown): value is Gap {
     Array.isArray(gap.needs) &&
     gap.needs.length > 0 &&
     gap.needs.every((item) => typeof item === "string") &&
-    (project === null ||
-      (typeof project === "object" &&
-        typeof project.language === "string" &&
-        typeof project.directory === "string")) &&
     isFix(gap.fix)
   );
 }
 
 export function gapText(gap: Gap): string {
-  const project =
-    gap.project === null
-      ? ""
-      : `, ${gap.project.language} project ${gap.project.directory === "" ? "." : gap.project.directory}/`;
-
-  return `${gap.line} (${gap.needs.join(", ")}${project}): ${gap.fix.text}`;
+  return `${gap.line} (${gap.needs.join(", ")}): ${gap.fix.text}`;
 }
 
 export function preflightLine(
