@@ -371,6 +371,7 @@ def test_defaults_are_recorded_in_order():
     assert list(parse_settings({}).items()) == [
         ("threshold", 30.0),
         ("overlay", ".recognizer/cache/overlays/crap.json"),
+        ("suites", None),
     ]
 
 
@@ -383,19 +384,45 @@ def sample(tmp_path) -> Path:
     return root
 
 
-def with_coverage(extra):
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
+
+
+def scanned_languages(root):
+    return sorted(
+        p.name.split(".")[1] for p in (root / ".recognizer" / "cache").glob("scan.*.json")
+    )
+
+
+def suites_for(root, coverage=COVERAGE, command=None):
+    return [
+        {
+            "name": language,
+            "language": language,
+            "directory": ".",
+            "command": command or f"touch {coverage}",
+            "coverage": {"path": coverage, "format": "lcov"},
+            **({"runner": "vitest"} if language == "typescript" else {}),
+        }
+        for language in scanned_languages(root)
+    ]
+
+
+def with_suites(root, extra, coverage=COVERAGE, command=None):
     args = list(extra)
+    tests = {"tests": suites_for(root, coverage, command)}
 
     if "--settings" in args:
         at = args.index("--settings") + 1
-        args[at] = json.dumps({"coverage": COVERAGE, **json.loads(args[at])})
+        args[at] = json.dumps({**tests, **json.loads(args[at])})
     else:
-        args += ["--settings", json.dumps({"coverage": COVERAGE})]
+        args += ["--settings", json.dumps(tests)]
 
     return args
 
 
-def run_crap(root, output, *extra):
+def run_crap(root, output, *extra, coverage=COVERAGE, command=None):
     return main(
         [
             "crap",
@@ -405,14 +432,14 @@ def run_crap(root, output, *extra):
             "c1",
             "--output",
             str(output),
-            *with_coverage(extra),
+            *with_suites(root, extra, coverage, command),
         ]
     )
 
 
-def produced(root, tmp_path, *extra):
+def produced(root, tmp_path, *extra, **named):
     output = tmp_path / "findings.json"
-    status = run_crap(root, output, *extra)
+    status = run_crap(root, output, *extra, **named)
     overlay_path = root / ".recognizer" / "cache" / "overlays" / "crap.json"
 
     return status, json.loads(output.read_text()), json.loads(overlay_path.read_text())
@@ -426,11 +453,10 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
     assert capsys.readouterr().err == ""
     Draft202012Validator(json.loads(FINDINGS_SCHEMA.read_text())).validate(document)
     Draft202012Validator(json.loads(OVERLAY_SCHEMA.read_text())).validate(overlay)
-    assert document["settings"] == {
-        "threshold": 30.0,
-        "coverage": "coverage/lcov.info",
-        "overlay": ".recognizer/cache/overlays/crap.json",
-    }
+    assert list(document["settings"]) == ["threshold", "overlay", "suites"]
+    assert document["settings"]["threshold"] == 30.0
+    assert document["settings"]["overlay"] == ".recognizer/cache/overlays/crap.json"
+    assert [suite["name"] for suite in document["settings"]["suites"]] == ["python", "typescript"]
     assert [f["id"] for f in document["findings"]] == [
         "crap:app/risk.py::classify",
         "crap:app/risk.py::gate",
@@ -544,7 +570,7 @@ def test_a_file_with_a_record_but_no_line_in_range_is_unknown(tmp_path):
 
 
 @pytest.mark.parametrize("kind", ["missing", "directory"])
-def test_an_unreadable_coverage_file_is_one_sentence_and_exit_two(tmp_path, capsys, kind):
+def test_a_suite_report_that_does_not_exist_is_coverage_unavailable(tmp_path, capsys, kind):
     root = python_repository(tmp_path, branches(1))
     target = root / "coverage" / "lcov.info"
     target.unlink()
@@ -552,12 +578,16 @@ def test_an_unreadable_coverage_file_is_one_sentence_and_exit_two(tmp_path, caps
     if kind == "directory":
         target.mkdir()
 
-    output = tmp_path / "findings.json"
+    status, document, overlay = produced(root, tmp_path, command="true")
 
-    assert run_crap(root, output) == 2
-    assert capsys.readouterr().err == f"the coverage file is missing: {COVERAGE}\n"
-    assert not output.exists()
-    assert not (root / ".recognizer" / "cache" / "overlays" / "crap.json").exists()
+    assert status == 0
+    assert capsys.readouterr().err == ""
+    assert document["diagnosis"]["code"] == "coverage-unavailable"
+    assert document["diagnosis"]["line"] == (
+        "coverage unavailable: the python suite left no coverage report at "
+        "coverage/lcov.info; see .recognizer/cache/coverage/last-run.log"
+    )
+    assert overlay["values"]["coverage"] == {}
 
 
 def test_a_binary_coverage_file_leaves_every_function_unknown(tmp_path, capsys):
@@ -570,15 +600,6 @@ def test_a_binary_coverage_file_leaves_every_function_unknown(tmp_path, capsys):
     assert capsys.readouterr().err == ""
     assert overlay["values"]["complexity"] == {"app/m.py::f": 2}
     assert overlay["values"]["coverage"] == {}
-
-
-def test_the_coverage_setting_may_name_no_file(tmp_path, capsys):
-    root = python_repository(tmp_path, branches(1))
-
-    status = run_crap(root, tmp_path / "o.json", "--settings", '{"coverage":"nothing/here.info"}')
-
-    assert status == 2
-    assert capsys.readouterr().err == "the coverage file is missing: nothing/here.info\n"
 
 
 def test_an_empty_coverage_file_is_not_an_error(tmp_path, capsys):
@@ -622,7 +643,10 @@ def test_only_the_findings_and_the_overlay_are_written(sample, tmp_path):
     after = tree_state(sample)
     changed = {k for k in after if before.get(k) != after[k]}
 
-    assert changed == {".recognizer/cache/overlays/crap.json"}
+    assert changed == {
+        ".recognizer/cache/overlays/crap.json",
+        ".recognizer/cache/coverage/last-run.log",
+    }
     assert (tmp_path / "out.json").exists()
 
 
@@ -648,9 +672,9 @@ def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
         subprocess.run(
             [sys.executable, "-m", "recognizer_sensors", "crap", "--repository", str(sample)]
             + ["--commit", "c1", "--output", str(tmp_path / name)]
-            + ["--settings", json.dumps({"coverage": COVERAGE})],
+            + ["--settings", json.dumps({"tests": suites_for(sample)})],
             check=True,
-            env={"PYTHONHASHSEED": seed, "PATH": ""},
+            env={"PYTHONHASHSEED": seed, "PATH": "/usr/bin:/bin", "SHELL": "/bin/sh"},
         )
 
         return (tmp_path / name).read_bytes(), (
@@ -691,7 +715,7 @@ def test_a_committed_repository_keeps_the_commit(sample, tmp_path):
 
     main(
         ["crap", "--repository", str(sample), "--output", str(tmp_path / "o.json")]
-        + with_coverage([])
+        + with_suites(sample, [])
     )
 
     assert json.loads((tmp_path / "o.json").read_text())["commit"] == sha
@@ -707,3 +731,23 @@ def test_crap_writes_version_two_with_inputs_from_the_scan_and_the_tests_hash(sa
     assert overlay["inputs"] != {}
     assert set(overlay["inputs"].values()) == {"0" * 64}
     assert overlay["tests"] == document["tests"] == hashes.tests_hash(sample, [])
+
+
+def test_a_crap_run_with_no_tests_list_exits_two_and_leaves_a_prior_overlay(
+    sample, tmp_path, capsys
+):
+    overlay_path = sample / ".recognizer" / "cache" / "overlays" / "crap.json"
+    overlay_path.parent.mkdir(parents=True)
+    overlay_path.write_text("prior")
+    output = tmp_path / "findings.json"
+
+    status = main(["crap", "--repository", str(sample), "--commit", "c1", "--output", str(output)])
+
+    assert status == 2
+    assert capsys.readouterr().err.splitlines()[-1] == (
+        "coverage unavailable: no test suites are configured; "
+        "add a tests list to .recognizer/config.yaml"
+    )
+    assert not output.exists()
+    assert overlay_path.read_text() == "prior"
+    assert not (sample / ".recognizer" / "cache" / "coverage").exists()

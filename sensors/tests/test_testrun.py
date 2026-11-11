@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import pytest
 from conftest import git_commit, make_repository
 
 from recognizer_sensors.cli import main
+from recognizer_sensors.crap.lcov import function_coverage
 from recognizer_sensors.scans import Scan, ScanModule, read_scans
 from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun.profiles import (
@@ -19,6 +21,7 @@ from recognizer_sensors.testrun.profiles import (
     python_runner,
 )
 from recognizer_sensors.testrun.run import collect_coverage, exit_reason
+from recognizer_sensors.testrun.suites import collect_suites, parse_suites
 
 LCOV = ".recognizer/cache/coverage/python.lcov"
 TS_LCOV = ".recognizer/cache/coverage/typescript/lcov.info"
@@ -51,6 +54,38 @@ time.sleep(60)
 """
 
 BODY = "def f(a):\n    if a:\n        return 1\n    return 2\n"
+
+
+REPORT = "out/lcov.info"
+
+NO_SUITES = (
+    "coverage unavailable: no test suites are configured; "
+    "add a tests list to .recognizer/config.yaml"
+)
+
+
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
+
+
+def command(*words):
+    return shlex.join([sys.executable, *words])
+
+
+def suite(language="python", run="true", path=REPORT, name="api", directory="."):
+    return {
+        "name": name,
+        "language": language,
+        "directory": directory,
+        "command": run,
+        "coverage": {"path": path, "format": "lcov"},
+        **({"runner": "vitest"} if language == "typescript" else {}),
+    }
+
+
+def suites(run, path=REPORT):
+    return {"tests": [suite("python", run, path)]}
 
 
 def script(root, name, text):
@@ -137,15 +172,16 @@ def test_the_python_profile_command_is_spliced_not_joined(tmp_path):
     assert coverage_command(tmp_path, "python")[:2] == ["sh", "-c"]
 
 
-def test_a_test_command_ignores_the_lockfiles(tmp_path):
+def test_a_suite_runs_in_its_login_shell_whatever_the_lockfiles(tmp_path):
     root = repository(tmp_path)
     (root / "uv.lock").write_text("")
     writer = script(root, "w.py", WRITE_LCOV)
 
-    status, _ = crap(root, tmp_path, {"test_command": [sys.executable, writer, LCOV]})
+    status, _ = crap(root, tmp_path, suites(command(writer, REPORT)))
 
     assert status == 0
-    assert "uv" not in (root / LOG).read_text().split("\n")[0].split()
+    assert (root / LOG).read_text().split("\n")[0].startswith("== api: ")
+    assert not (root / ".recognizer/cache/python-env").exists()
 
 
 def test_one_scanned_language_runs_exactly_its_coverage_command(tmp_path):
@@ -157,31 +193,27 @@ def test_one_scanned_language_runs_exactly_its_coverage_command(tmp_path):
     assert coverage_command(root, "python")[0] == "sh"
 
 
-def test_test_command_runs_once_and_reads_each_default_report(tmp_path):
+def test_each_suite_runs_once_and_its_named_report_is_read(tmp_path):
     root = repository(tmp_path)
     writer = script(root, "w.py", WRITE_LCOV)
 
-    coverage = collect_coverage(root, read_scans(root), [sys.executable, writer, LCOV], None)
+    coverage, diagnosis = collect_suites(
+        root, read_scans(root), parse_suites(suites(command(writer, REPORT))["tests"])
+    )
 
     assert coverage == {"app/m.py": {1: 1, 2: 1, 3: 0}}
-    assert (root / LOG).read_text().count("== test command") == 1
+    assert diagnosis is None
+    assert (root / LOG).read_text().count("== api") == 1
 
 
-def test_coverage_alone_runs_nothing_and_reads_the_file(tmp_path):
-    root = repository(tmp_path, {"app/m.py": BODY, "cov/lcov.info": "SF:app/m.py\nDA:1,2\n"})
-
-    coverage = collect_coverage(root, read_scans(root), None, "cov/lcov.info")
-
-    assert coverage == {"app/m.py": {1: 2}}
-    assert not (root / LOG).exists()
-
-
-def test_coverage_with_test_command_runs_then_reads(tmp_path):
+def test_a_suite_runs_then_its_report_is_read(tmp_path):
     root = repository(tmp_path)
     writer = script(root, "w.py", WRITE_LCOV)
 
-    coverage = collect_coverage(
-        root, read_scans(root), [sys.executable, writer, "out/c.info"], "out/c.info"
+    coverage, _ = collect_suites(
+        root,
+        read_scans(root),
+        parse_suites(suites(command(writer, "out/c.info"), path="out/c.info")["tests"]),
     )
 
     assert coverage == {"app/m.py": {1: 1, 2: 1, 3: 0}}
@@ -204,26 +236,6 @@ def test_an_xml_coverage_file_is_read_as_jacoco(tmp_path):
     assert collect_coverage(root, read_scans(root), None, "cov/jacoco.xml") == {"app/m.py": {1: 3}}
 
 
-def test_a_jacoco_report_older_than_the_run_is_ignored_and_kept(tmp_path):
-    stale = '<report><package name="app"><sourcefile name="m.py"><line nr="1" mi="0" ci="9"/></sourcefile></package></report>'
-    root = repository(tmp_path, {"app/m.py": BODY})
-    report = root / "build/reports/jacoco/test/jacocoTestReport.xml"
-    report.parent.mkdir(parents=True)
-    report.write_text(stale)
-    old = time.time() - 3600
-    os.utime(report, (old, old))
-    steps = [sys.executable, script(root, "n.py", NOTHING)]
-    diagnoses: list[dict] = []
-
-    coverage = collect_coverage(
-        root, read_scans(root), steps, "build/reports/jacoco/test/jacocoTestReport.xml", diagnoses
-    )
-
-    assert coverage == {}
-    assert diagnoses[0]["code"] == "coverage-unavailable"
-    assert report.read_text() == stale
-
-
 def test_a_jacoco_report_written_by_the_run_is_read(tmp_path):
     fresh = '<report><package name="app"><sourcefile name="m.py"><line nr="1" mi="0" ci="4"/></sourcefile></package></report>'
     root = repository(tmp_path, {"app/m.py": BODY})
@@ -235,9 +247,7 @@ def test_a_jacoco_report_written_by_the_run_is_read(tmp_path):
     )
     target = "build/reports/jacoco/test/jacocoTestReport.xml"
 
-    coverage = collect_coverage(
-        root, read_scans(root), [sys.executable, writer, target], target, []
-    )
+    coverage = collect_coverage(root, read_scans(root), [sys.executable, writer, target], target)
 
     assert coverage == {"app/m.py": {1: 4}}
 
@@ -257,28 +267,6 @@ def kotlin_repository(tmp_path):
     return root, scans
 
 
-def test_a_stale_kotlin_report_is_deleted_before_a_command_that_leaves_it_untouched(tmp_path):
-    root, scans = kotlin_repository(tmp_path)
-    report = root / KOTLIN_REPORT
-    report.parent.mkdir(parents=True)
-    report.write_text(KOTLIN_JACOCO)
-    seen = root / "seen.txt"
-    probe = script(
-        root,
-        "p.py",
-        "import pathlib, sys\n"
-        f"pathlib.Path({str(seen)!r}).write_text(str(pathlib.Path({str(report)!r}).exists()))\n",
-    )
-    diagnoses: list[dict] = []
-
-    coverage = collect_coverage(root, scans, [sys.executable, probe], None, diagnoses)
-
-    assert seen.read_text() == "False"
-    assert not report.exists()
-    assert coverage == {}
-    assert diagnoses[0]["code"] == "coverage-unavailable"
-
-
 def test_a_kotlin_report_written_by_the_command_is_read(tmp_path):
     root, scans = kotlin_repository(tmp_path)
     stale = root / KOTLIN_REPORT
@@ -291,21 +279,9 @@ def test_a_kotlin_report_written_by_the_command_is_read(tmp_path):
         f"p.write_text({KOTLIN_JACOCO!r})\n",
     )
 
-    coverage = collect_coverage(root, scans, [sys.executable, writer, KOTLIN_REPORT], None, [])
+    coverage = collect_coverage(root, scans, [sys.executable, writer, KOTLIN_REPORT], None)
 
     assert coverage == {"app/M.kt": {1: 4}}
-
-
-def test_a_configured_kotlin_coverage_path_is_deleted_before_the_command_runs(tmp_path):
-    root, scans = kotlin_repository(tmp_path)
-    report = root / "cov/jacoco.xml"
-    report.parent.mkdir(parents=True)
-    report.write_text(KOTLIN_JACOCO)
-    nothing = script(root, "n.py", NOTHING)
-
-    collect_coverage(root, scans, [sys.executable, nothing], "cov/jacoco.xml", [])
-
-    assert not report.exists()
 
 
 def test_a_kotlin_report_is_kept_when_no_command_runs(tmp_path):
@@ -314,7 +290,7 @@ def test_a_kotlin_report_is_kept_when_no_command_runs(tmp_path):
     report.parent.mkdir(parents=True)
     report.write_text(KOTLIN_JACOCO)
 
-    coverage = collect_coverage(root, scans, None, "cov/jacoco.xml", [])
+    coverage = collect_coverage(root, scans, None, "cov/jacoco.xml")
 
     assert report.exists()
     assert coverage == {"app/M.kt": {1: 4}}
@@ -332,12 +308,12 @@ def test_a_failing_command_with_no_report_is_complexity_only_with_the_exit_in_th
     root = repository(tmp_path)
     failing = script(root, "f.py", FAIL)
 
-    status, output = crap(root, tmp_path, {"test_command": [sys.executable, failing, "1"]})
+    status, output = crap(root, tmp_path, suites(command(failing, "1")))
 
     assert status == 0
     assert diagnosis_of(output) == {
         "code": "coverage-unavailable",
-        "line": f"coverage unavailable: the test command exited 1 and left no coverage report; see {LOG}",
+        "line": f"coverage unavailable: the api suite exited 1 and left no coverage report at {REPORT}; see {LOG}",
     }
 
     overlay = json.loads((root / OVERLAY).read_text())
@@ -353,7 +329,7 @@ def test_a_failing_command_keeps_the_report_it_wrote_and_says_the_tests_failed(t
     body = WRITE_LCOV + "\nsys.exit(1)\n"
     writer = script(root, "w.py", body)
 
-    status, output = crap(root, tmp_path, {"test_command": [sys.executable, writer, LCOV]})
+    status, output = crap(root, tmp_path, suites(command(writer, REPORT)))
 
     assert status == 0
     assert diagnosis_of(output) == {
@@ -369,7 +345,7 @@ def test_failing_pytest_lines_give_the_count_and_at_most_five_names(tmp_path):
     lines = "".join(f"print('FAILED {name} - assert 1 == 2')\n" for name in names)
     writer = script(root, "w.py", WRITE_LCOV + lines + "sys.exit(1)\n")
 
-    status, output = crap(root, tmp_path, {"test_command": [sys.executable, writer, LCOV]})
+    status, output = crap(root, tmp_path, suites(command(writer, REPORT)))
     diagnosis = diagnosis_of(output)
 
     assert status == 0
@@ -394,43 +370,46 @@ def test_a_refusal_or_a_missing_coverage_file_leaves_a_prior_overlay_untouched(t
     root = repository(tmp_path)
     writer = script(root, "w.py", WRITE_LCOV)
 
-    assert crap(root, tmp_path, {"test_command": [sys.executable, writer, LCOV]})[0] == 0
+    assert crap(root, tmp_path, suites(command(writer, REPORT)))[0] == 0
 
     before = (root / OVERLAY).read_bytes()
 
-    assert crap(root, tmp_path, {"coverage": "coverage/missing.info"})[0] == 2
+    assert crap(root, tmp_path, {})[0] == 2
     assert (root / OVERLAY).read_bytes() == before
 
 
 def test_a_command_that_does_not_start_is_complexity_only_naming_the_program(tmp_path):
     root = repository(tmp_path)
 
-    status, output = crap(root, tmp_path, {"test_command": ["/no/such/program"]})
+    status, output = crap(root, tmp_path, suites("/no/such/program"))
 
     assert status == 0
-    assert diagnosis_of(output)["line"] == "coverage unavailable: /no/such/program is not installed"
+    assert diagnosis_of(output)["line"] == (
+        f"coverage unavailable: the api suite exited 127 and left no coverage report at {REPORT}; see {LOG}"
+    )
+    assert "/no/such/program" in (root / LOG).read_text()
 
 
 def test_a_command_that_leaves_no_report_is_complexity_only_naming_the_log(tmp_path):
     root = repository(tmp_path)
     nothing = script(root, "n.py", NOTHING)
 
-    status, output = crap(root, tmp_path, {"test_command": [sys.executable, nothing]})
+    status, output = crap(root, tmp_path, suites(command(nothing)))
 
     assert status == 0
     assert diagnosis_of(output) == {
         "code": "coverage-unavailable",
-        "line": f"coverage unavailable: the test command left no coverage report; see {LOG}",
+        "line": f"coverage unavailable: the api suite left no coverage report at {REPORT}; see {LOG}",
     }
 
 
 def test_a_missing_coverage_file_with_no_command_has_its_own_sentence(tmp_path, capsys):
     root = repository(tmp_path)
 
-    status, _ = crap(root, tmp_path, {"coverage": "coverage/lcov.info"})
+    status, _ = crap(root, tmp_path, {})
 
     assert status == 2
-    assert sentence(capsys) == "the coverage file is missing: coverage/lcov.info\n"
+    assert sentence(capsys).splitlines()[-1] == NO_SUITES
 
 
 def two_languages(tmp_path):
@@ -442,41 +421,29 @@ def two_languages(tmp_path):
     return root
 
 
-def test_two_languages_run_in_order_and_a_failing_one_does_not_hide_the_other(
-    tmp_path, capsys, monkeypatch
-):
+def test_two_languages_run_in_order_and_a_failing_one_does_not_hide_the_other(tmp_path):
     root = two_languages(tmp_path)
-    calls = []
+    writer = script(
+        root, "w.py", WRITE_LCOV.replace("sys.argv[1]", "'out/py.info'") + "\nsys.exit(3)\n"
+    )
+    failing = script(root, "f.py", FAIL)
+    settings = {
+        "tests": [
+            suite("python", command(writer), path="out/py.info", name="py"),
+            suite("typescript", command(failing, "3"), path="out/ts.info", name="ts"),
+        ]
+    }
 
-    real = subprocess.run
+    status, output = crap(root, tmp_path, settings)
 
-    def fake(command, **kwargs):
-        if command[0] not in ("sh", "npx"):
-            return real(command, **kwargs)
-
-        calls.append(command[0])
-        kwargs["stdout"].write("out\n")
-
-        if command[0] == "npx":
-            return subprocess.CompletedProcess(command, 3)
-
-        (root / LCOV).parent.mkdir(parents=True, exist_ok=True)
-        (root / LCOV).write_text("SF:app/m.py\nDA:1,1\nend_of_record\n")
-
-        return subprocess.CompletedProcess(command, 0)
-
-    monkeypatch.setattr("recognizer_sensors.testrun.run.subprocess.run", fake)
-
-    status, output = crap(root, tmp_path, {})
-
-    assert calls == ["sh", "npx"]
     assert status == 0
     assert diagnosis_of(output)["code"] == "coverage-unavailable"
+    assert "the ts suite exited 3 and left no coverage report" in diagnosis_of(output)["line"]
     assert json.loads((root / OVERLAY).read_text())["values"]["coverage"]
 
     log = (root / LOG).read_text()
 
-    assert log.index("== python") < log.index("== typescript")
+    assert log.index("== py") < log.index("== ts")
 
 
 def test_two_languages_merge_their_reports_by_path(tmp_path, monkeypatch):
@@ -507,18 +474,20 @@ def test_two_languages_merge_their_reports_by_path(tmp_path, monkeypatch):
 
 def test_a_stale_report_does_not_stand_in_for_a_missing_one(tmp_path, capsys):
     root = repository(tmp_path)
-    (root / LCOV).parent.mkdir(parents=True)
-    (root / LCOV).write_text("SF:app/m.py\nDA:1,1\nend_of_record\n")
+    (root / REPORT).parent.mkdir(parents=True)
+    (root / REPORT).write_text("SF:app/m.py\nDA:1,1\nend_of_record\n")
+    old = time.time() - 3600
+    os.utime(root / REPORT, (old, old))
     nothing = script(root, "n.py", NOTHING)
 
-    status, output = crap(root, tmp_path, {"test_command": [sys.executable, nothing]})
+    status, output = crap(root, tmp_path, suites(command(nothing)))
 
     assert status == 0
     assert "left no coverage report" in diagnosis_of(output)["line"]
     assert json.loads((root / OVERLAY).read_text())["values"]["coverage"] == {}
 
 
-def test_killing_the_sensors_group_ends_the_test_command(tmp_path):
+def test_killing_the_sensors_group_ends_the_suite(tmp_path):
     root = repository(tmp_path)
     pid_file = root / "pid.txt"
     sleeper = script(root, "s.py", SLEEP)
@@ -535,8 +504,9 @@ def test_killing_the_sensors_group_ends_the_test_command(tmp_path):
             "--output",
             str(tmp_path / "o.json"),
             "--settings",
-            json.dumps({"test_command": [sys.executable, sleeper, str(pid_file)]}),
+            json.dumps(suites(command(sleeper, str(pid_file)))),
         ],
+        env={**os.environ, "SHELL": "/bin/sh"},
         start_new_session=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -573,17 +543,14 @@ def test_the_python_profile_runs_coverage_py_for_real(tmp_path):
     os.environ["PATH"] = env_path
 
     try:
-        status, _ = crap(root, tmp_path, {})
+        coverage = collect_coverage(root, read_scans(root), None, None)
     finally:
         os.environ["PATH"] = old
 
-    overlay = json.loads((root / OVERLAY).read_text())
+    used = function_coverage(coverage["pkg/calc.py"], 1, 4)
+    unused = function_coverage(coverage["pkg/calc.py"], 7, 10)
 
-    assert status == 0
-    assert (
-        overlay["values"]["coverage"]["pkg/calc.py::used"]
-        > overlay["values"]["coverage"]["pkg/calc.py::unused"]
-    )
+    assert used > unused
 
 
 def test_tool_environment_points_uv_at_the_cache_only_when_a_uv_lock_exists(tmp_path):
@@ -608,31 +575,6 @@ LANGUAGE_FILES = {
 }
 
 
-@pytest.mark.parametrize("language", sorted(LANGUAGE_FILES))
-def test_an_empty_lcov_report_is_a_diagnosis_naming_the_language(tmp_path, language):
-    path = LANGUAGE_FILES[language][0]
-    root = repository(tmp_path, {path: BODY})
-    empty = script(
-        root,
-        "e.py",
-        "import pathlib, sys\npathlib.Path(sys.argv[1]).parent.mkdir(parents=True, exist_ok=True)\npathlib.Path(sys.argv[1]).write_text('')\n",
-    )
-    scan = Scan(language, (ScanModule(path, (path,)),), False)
-    diagnoses: list[dict] = []
-
-    coverage = collect_coverage(
-        root,
-        [scan],
-        [sys.executable, empty, PROFILES[language]["report"]],
-        None,
-        diagnoses,
-    )
-
-    assert coverage == {}
-    assert [d["code"] for d in diagnoses] == ["coverage-unavailable"]
-    assert EMPTY_REPORT in diagnoses[0]["line"]
-
-
 def test_an_empty_report_makes_mutation_refuse(tmp_path):
     root = repository(tmp_path)
     empty = script(
@@ -645,33 +587,3 @@ def test_an_empty_report_makes_mutation_refuse(tmp_path):
         collect_coverage(root, read_scans(root), [sys.executable, empty, LCOV], None)
 
     assert EMPTY_REPORT in refusal.value.diagnosis["line"]
-
-
-def test_a_report_covering_other_files_only_is_empty_for_the_scan(tmp_path):
-    root = repository(tmp_path)
-    other = script(
-        root,
-        "o.py",
-        WRITE_LCOV.replace("SF:app/m.py", "SF:elsewhere/x.py"),
-    )
-    diagnoses: list[dict] = []
-
-    collect_coverage(root, read_scans(root), [sys.executable, other, LCOV], None, diagnoses)
-
-    assert EMPTY_REPORT in diagnoses[0]["line"]
-
-
-def test_a_language_with_no_modules_is_exempt_from_the_empty_report_check(tmp_path):
-    root = repository(tmp_path)
-    empty = script(
-        root,
-        "e.py",
-        "import pathlib, sys\npathlib.Path(sys.argv[1]).parent.mkdir(parents=True, exist_ok=True)\npathlib.Path(sys.argv[1]).write_text('')\n",
-    )
-    diagnoses: list[dict] = []
-
-    collect_coverage(
-        root, [Scan("python", (), False)], [sys.executable, empty, LCOV], None, diagnoses
-    )
-
-    assert diagnoses == []

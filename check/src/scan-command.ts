@@ -360,6 +360,7 @@ function* scanFlow(
           registeredSensors(config),
           options.sense,
           shippedSensorNames(),
+          config?.tests,
         );
   let marker: HeldMarker | null = null;
 

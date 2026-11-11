@@ -1,0 +1,3 @@
+sensors:
+  crap:
+    test_command: [npm, test]

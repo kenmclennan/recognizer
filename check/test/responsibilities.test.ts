@@ -143,7 +143,7 @@ describe("parseConfig", () => {
         "--output",
         "{output}",
         "--settings",
-        '{"threshold":20,"test_command":["npm","test"],"coverage":"build/lcov.info"}',
+        '{"threshold":20}',
       ],
     });
   });

@@ -1,4 +1,5 @@
 import json
+import shlex
 import subprocess
 import sys
 
@@ -160,13 +161,19 @@ def crap_document(tmp_path, settings):
     return status, json.loads(output.read_text())
 
 
-def test_a_complexity_only_document_still_warns_and_validates(tmp_path):
+def test_a_complexity_only_document_still_warns_and_validates(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
     nothing = tmp_path / "n.py"
     nothing.write_text("print('no report')")
+    suite = {
+        "name": "api",
+        "language": "python",
+        "directory": ".",
+        "command": f"{shlex.quote(sys.executable)} {shlex.quote(str(nothing))}",
+        "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+    }
 
-    status, document = crap_document(
-        tmp_path, {"test_command": [sys.executable, str(nothing)], "threshold": 2}
-    )
+    status, document = crap_document(tmp_path, {"tests": [suite], "threshold": 2})
 
     assert status == 0
     assert document["diagnosis"]["code"] == "coverage-unavailable"

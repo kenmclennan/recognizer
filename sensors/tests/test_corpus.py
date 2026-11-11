@@ -87,12 +87,30 @@ def crap_runs(work):
     )
     write_scans(root)
     runs = {}
+    reports = {
+        "lcov": (("python", "typescript", "rust", "csharp"), "coverage/lcov.info", "lcov"),
+        "jacoco": (("kotlin",), "coverage/jacoco.xml", "jacoco"),
+    }
 
-    for run, coverage in (("lcov", "coverage/lcov.info"), ("jacoco", "coverage/jacoco.xml")):
-        findings = run_sensor(
-            "crap", root, work / f"crap-{run}.json", {"coverage": coverage}, commit="c1"
-        )
-        runs[run] = (findings, read_overlay(root, "crap"))
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("SHELL", "/bin/sh")
+
+        for run, (languages, report, format_) in reports.items():
+            tests = [
+                {
+                    "name": language,
+                    "language": language,
+                    "directory": ".",
+                    "command": f"touch {report}",
+                    "coverage": {"path": report, "format": format_},
+                    **({"runner": "vitest"} if language == "typescript" else {}),
+                }
+                for language in languages
+            ]
+            findings = run_sensor(
+                "crap", root, work / f"crap-{run}.json", {"tests": tests}, commit="c1"
+            )
+            runs[run] = (findings, read_overlay(root, "crap"))
 
     return runs
 
@@ -154,12 +172,27 @@ def thresholds_repository(work):
     root = copy_corpus("thresholds", work / "thresholds", "overlays")
     write_scans(root)
     commit = git_commit(root)
-    run_sensor(
-        "crap",
-        root,
-        work / "thresholds-crap.json",
-        {"coverage": "coverage/lcov.info", "threshold": 1000000},
-    )
+    scanned = sorted(p.name.split(".")[1] for p in (root / OVERLAYS.parent).glob("scan.*.json"))
+    tests = [
+        {
+            "name": language,
+            "language": language,
+            "directory": ".",
+            "command": "touch coverage/lcov.info",
+            "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+            **({"runner": "vitest"} if language == "typescript" else {}),
+        }
+        for language in scanned
+    ]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("SHELL", "/bin/sh")
+        run_sensor(
+            "crap",
+            root,
+            work / "thresholds-crap.json",
+            {"tests": tests, "threshold": 1000000},
+        )
 
     return root, commit
 

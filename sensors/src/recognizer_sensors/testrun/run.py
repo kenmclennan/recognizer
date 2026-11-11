@@ -24,7 +24,6 @@ from recognizer_sensors.settings import (
 )
 from recognizer_sensors.testrun.contexts import ContextSelection, PythonContexts
 from recognizer_sensors.testrun.failures import (
-    crap_tests_failed,
     failing_names,
     known_cause,
     mutation_tests_failed,
@@ -51,11 +50,16 @@ from recognizer_sensors.testrun.profiles import (
     tool_environment,
 )
 from recognizer_sensors.testrun.projects import Project, resolve
+from recognizer_sensors.testrun.reports import (
+    CACHE_PREFIX,
+    LOG,
+    Source,
+    covers_nothing,
+    exit_reason,
+    fresh_reports,
+    read_source,
+)
 from recognizer_sensors.testrun.selection import Selection, SelectionBuilder
-
-LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
-
-CACHE_PREFIX = ".recognizer/"
 
 TYPESCRIPT_RAW_DIRECTORY = ".recognizer/cache/coverage/typescript/tmp"
 
@@ -92,10 +96,6 @@ RUST_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
 
 RUST_LIB_KINDS = {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"}
 
-REASON_LIMIT = 200
-
-DECORATION = re.compile(r"^[=!\-\s]*$")
-
 
 @dataclass(frozen=True)
 class Step:
@@ -111,14 +111,6 @@ class StepResult:
     step: Step
     returncode: int
     output: str
-
-
-@dataclass(frozen=True)
-class Source:
-    path: str
-    format: str
-    prefix: str = ""
-    label: str | None = None
 
 
 def parse_test_command(raw: dict) -> list[str] | None:
@@ -221,26 +213,8 @@ def sentence(step: Step, what: str) -> str:
     return f"{subject} {what}"
 
 
-def last_meaningful_line(text: str) -> str | None:
-    for line in reversed(text.splitlines()):
-        if not DECORATION.match(line):
-            return " ".join(line.strip("=!- \t").split())
-
-    return None
-
-
 def failure_reason(step: Step, returncode: int, output: str) -> str:
     return exit_reason(sentence(step, ""), returncode, output)
-
-
-def exit_reason(subject: str, returncode: int, output: str) -> str:
-    reason = f"{subject.strip()} exited {returncode}"
-    last = last_meaningful_line(output)
-
-    if last:
-        reason = f"{reason}: {last[:REASON_LIMIT]}"
-
-    return f"{reason} (see {LOG.as_posix()})"
 
 
 def clear_cached_reports(repository: Path, sources: list[Source]) -> None:
@@ -323,7 +297,6 @@ def settle(
     results: list[StepResult],
     merged: Coverage,
     missing: list[Source],
-    diagnoses: list[dict] | None,
     empty: list[tuple[Source, str | None]] | None = None,
 ) -> None:
     failed = [r for r in results if suite_failed(r.step.language, r.returncode, r.output)]
@@ -334,13 +307,10 @@ def settle(
     ]
 
     if failed and (names or not missing):
-        if diagnoses is None:
-            raise Refusal(mutation_tests_failed(names))
-
-        diagnoses.append(crap_tests_failed(names))
+        raise Refusal(mutation_tests_failed(names))
 
     if not missing:
-        report_empty(empty or [], failed, diagnoses)
+        report_empty(empty or [], failed)
 
         return
 
@@ -348,16 +318,10 @@ def settle(
 
     if known is not None:
         cause, sentence, fix = known
-        diagnosis = diagnose(
-            "coverage-unavailable", f"coverage unavailable: {cause}; {sentence}", fix=fix
+
+        raise Refusal(
+            diagnose("coverage-unavailable", f"coverage unavailable: {cause}; {sentence}", fix=fix)
         )
-
-        if diagnoses is None:
-            raise Refusal(diagnosis)
-
-        diagnoses.append(diagnosis)
-
-        return
 
     subject = f"the {missing[0].label} test command" if missing[0].label else "the test command"
     cause = f"{subject} left no coverage report"
@@ -367,48 +331,26 @@ def settle(
     elif failed:
         cause = f"{subject} exited {failed[0].returncode} and left no coverage report"
 
-    diagnosis = diagnose(
-        "coverage-unavailable",
-        f"coverage unavailable: {cause}; see {LOG.as_posix()}",
+    raise Refusal(
+        diagnose("coverage-unavailable", f"coverage unavailable: {cause}; see {LOG.as_posix()}")
     )
 
-    if diagnoses is None:
-        raise Refusal(diagnosis)
 
-    diagnoses.append(diagnosis)
-
-
-def report_empty(
-    empty: list[tuple[Source, str | None]], failed: list[StepResult], diagnoses: list[dict] | None
-) -> None:
+def report_empty(empty: list[tuple[Source, str | None]], failed: list[StepResult]) -> None:
     if failed or not empty:
         return
 
     source, language = empty[0]
     name = source.label or language
     subject = f"the {name} test command" if name else "the test command"
-    diagnosis = diagnose(
-        "coverage-unavailable",
-        f"coverage unavailable: {subject} produced an empty coverage report; see {LOG.as_posix()}",
+
+    raise Refusal(
+        diagnose(
+            "coverage-unavailable",
+            f"coverage unavailable: {subject} produced an empty coverage report; "
+            f"see {LOG.as_posix()}",
+        )
     )
-
-    if diagnoses is None:
-        raise Refusal(diagnosis)
-
-    diagnoses.append(diagnosis)
-
-
-def covers_nothing(part: Coverage, source: Source, language: str | None, scans: list[Scan]) -> bool:
-    expected = {
-        path
-        for scan in scans
-        if language is None or scan.language == language
-        for module in scan.modules
-        for path in module.files
-        if not source.prefix or path.startswith(f"{source.prefix}/")
-    }
-
-    return bool(expected) and not expected & part.keys()
 
 
 def read_reports(
@@ -417,7 +359,6 @@ def read_reports(
     scans: list[Scan],
     steps: list[Step],
     results: list[StepResult],
-    diagnoses: list[dict] | None,
     since: float | None = None,
 ) -> Coverage:
     files = [path for scan in scans for module in scan.modules for path in module.files]
@@ -444,44 +385,7 @@ def read_reports(
 
         return merged
 
-    settle(repository, results, merged, missing, diagnoses, empty)
-
-    return merged
-
-
-def fresh_reports(repository: Path, pattern: str, since: float | None) -> list[Path]:
-    matches = sorted(p for p in repository.glob(pattern) if p.is_file())
-
-    if since is None or pattern.startswith(CACHE_PREFIX):
-        return matches
-
-    return [p for p in matches if p.stat().st_mtime >= since]
-
-
-def read_source(
-    repository: Path, source: Source, files: list[str], since: float | None = None
-) -> Coverage | None:
-    matches = fresh_reports(repository, source.path, since)
-
-    if not matches:
-        return None
-
-    merged: Coverage = {}
-
-    for match in matches:
-        try:
-            text = match.read_text(encoding="utf-8")
-        except (OSError, ValueError):
-            continue
-
-        part = (
-            parse_jacoco(text, files)
-            if source.format == "jacoco"
-            else parse_lcov(text, repository, source.prefix)
-        )
-
-        if part is not None:
-            merge_coverage(merged, part)
+    settle(repository, results, merged, missing, empty)
 
     return merged
 
@@ -491,34 +395,18 @@ def collect_coverage(
     scans: list[Scan],
     test_command: list[str] | None,
     coverage: str | None,
-    diagnoses: list[dict] | None = None,
 ) -> Coverage:
     if not scans:
         return {}
 
-    try:
-        steps, sources = plan(repository, scans, test_command, coverage)
-        clear_cached_reports(repository, sources)
-        clear_stale_kotlin_reports(repository, scans, sources, steps)
-        started = time.time() if steps else None
-        results = run_steps(repository, steps)
-    except Refusal as refusal:
-        if diagnoses is None:
-            raise
-
-        original = refusal.diagnosis
-        diagnoses.append(
-            diagnose(
-                "coverage-unavailable",
-                f"coverage unavailable: {original['line']}",
-                fix=original.get("fix"),
-            )
-        )
-
-        return {}
+    steps, sources = plan(repository, scans, test_command, coverage)
+    clear_cached_reports(repository, sources)
+    clear_stale_kotlin_reports(repository, scans, sources, steps)
+    started = time.time() if steps else None
+    results = run_steps(repository, steps)
 
     try:
-        return read_reports(repository, sources, scans, steps, results, diagnoses, started)
+        return read_reports(repository, sources, scans, steps, results, started)
     finally:
         shutil.rmtree(repository / TYPESCRIPT_RAW_DIRECTORY, ignore_errors=True)
 
@@ -1033,7 +921,7 @@ def collect_coverage_with_tests(
 
     started = time.time() if steps else None
     results = run_steps(repository, steps)
-    merged = read_reports(repository, sources, scans, steps, results, None, started)
+    merged = read_reports(repository, sources, scans, steps, results, started)
     shutil.rmtree(repository / TYPESCRIPT_RAW_DIRECTORY, ignore_errors=True)
     selection: Selection = {}
 

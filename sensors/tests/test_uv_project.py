@@ -1,6 +1,8 @@
 import json
+import shlex
 import shutil
 import subprocess
+import sys
 
 import pytest
 from conftest import git_commit, make_repository
@@ -19,6 +21,33 @@ MODULE = "def f(a):\n    if a:\n        return 1\n    return 2\n\n\ndef g(a):\n 
 TESTS = "from m import f, g\n\n\ndef test_f():\n    assert f(1) == 1\n\n\ndef test_g():\n    assert g(1) == 2\n"
 
 
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
+
+
+def suite_settings():
+    python = shlex.quote(sys.executable)
+    command = (
+        f"{python} -m coverage run -m pytest -rf; status=$?; "
+        f"{python} -m coverage lcov -o coverage/lcov.info; exit $status"
+    )
+
+    return json.dumps(
+        {
+            "tests": [
+                {
+                    "name": "project",
+                    "language": "python",
+                    "directory": ".",
+                    "command": command,
+                    "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+                }
+            ]
+        }
+    )
+
+
 @pytest.fixture
 def red_project(tmp_path):
     root = make_repository(
@@ -34,7 +63,15 @@ def test_crap_keeps_its_results_over_a_red_uv_project(red_project, tmp_path):
     output = tmp_path / "findings.json"
 
     status = main(
-        ["crap", "--repository", str(red_project), "--output", str(output), "--settings", "{}"]
+        [
+            "crap",
+            "--repository",
+            str(red_project),
+            "--output",
+            str(output),
+            "--settings",
+            suite_settings(),
+        ]
     )
     diagnosis = json.loads(output.read_text())["diagnosis"]
 
@@ -85,7 +122,7 @@ def snapshot(root):
     }
 
 
-def test_crap_builds_its_uv_environment_under_the_cache_and_leaves_no_venv(green_project, tmp_path):
+def test_crap_builds_no_environment_and_leaves_no_venv(green_project, tmp_path):
     status = main(
         [
             "crap",
@@ -94,13 +131,13 @@ def test_crap_builds_its_uv_environment_under_the_cache_and_leaves_no_venv(green
             "--output",
             str(tmp_path / "f.json"),
             "--settings",
-            "{}",
+            suite_settings(),
         ]
     )
 
     assert status == 0
     assert not (green_project / ".venv").exists()
-    assert (green_project / ".recognizer/cache/python-env").is_dir()
+    assert not (green_project / ".recognizer/cache/python-env").exists()
 
 
 def test_crap_leaves_an_existing_venv_byte_for_byte_unchanged(green_project, tmp_path):
@@ -115,13 +152,13 @@ def test_crap_leaves_an_existing_venv_byte_for_byte_unchanged(green_project, tmp
             "--output",
             str(tmp_path / "f.json"),
             "--settings",
-            "{}",
+            suite_settings(),
         ]
     )
 
     assert status == 0
     assert snapshot(green_project / ".venv") == before
-    assert (green_project / ".recognizer/cache/python-env").is_dir()
+    assert not (green_project / ".recognizer/cache/python-env").exists()
 
 
 ENVIRONMENT_TESTS = """import os
@@ -131,8 +168,8 @@ import tempfile
 from pathlib import Path
 
 
-def test_the_interpreter_is_the_project_environments():
-    assert ".recognizer/cache/python-env" in Path(sys.executable).as_posix()
+def test_the_interpreter_is_not_a_managed_environment():
+    assert ".recognizer/cache/python-env" not in Path(sys.executable).as_posix()
 
 
 def test_a_child_uv_venv_runs_in_a_temporary_folder():
@@ -169,7 +206,7 @@ def test_crap_runs_a_projects_tests_in_its_own_interpreter_without_the_sensors_u
             "--output",
             str(output),
             "--settings",
-            "{}",
+            suite_settings(),
         ]
     )
     diagnosis = json.loads(output.read_text()).get("diagnosis")

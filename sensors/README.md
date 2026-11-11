@@ -18,18 +18,22 @@ A sensor reports nothing for a file its grammars do not parse: a file with an ex
 
 Scores each function or method by change risk: `crap = cc^2 * (1 - coverage)^3 + cc`, as crap4j and unclebob/crapper do (references, never dependencies). `cc` is the cyclomatic complexity from the syntax tree: one plus each `if`, `elif`, loop, `case`/`when`/match arm, `catch`/`except`, conditional expression, `&&`/`||` (`and`/`or` in Python) and, in TypeScript, each `??` and `?.`. Coverage is the share of a function's instrumented lines (merged by path) that were hit.
 
-It runs the repository's tests under the language's coverage tool in the same run (see Language profiles below), so it runs the repository's code in the working tree. `modified` is taken before the tests start.
+It runs the test suites listed under `tests:` in `.recognizer/config.yaml` in the same run, each in the user's login shell, so it runs the repository's code in the working tree. `modified` is taken before the tests start. With no `tests:` list it does not run: it exits `2` with `coverage unavailable: no test suites are configured; add a tests list to .recognizer/config.yaml` and leaves a prior overlay untouched. `recognizer-sensors crap --preflight` prints one gap, `crap:no-test-suites`, when the list is absent and none when it is set.
 
 | setting | default | meaning |
 | --- | --- | --- |
 | `threshold` | `30` | a number above 0; a function at or above it is a warning |
-| `test_command` | the language profile | non-empty array of non-empty strings; replaces the profile and runs once |
-| `coverage` | none | relative path to a coverage report the repository already produces; `.xml` is read as JaCoCo, anything else as LCOV |
 | `overlay` | `.recognizer/cache/overlays/crap.json` | relative path inside the repository the overlay is written to |
+
+The `tests` list reaches the sensor as `--settings` JSON, put there by `recognizer` from the config's top-level `tests:` key; it is not a setting a user writes under `sensors.crap`, and `test_command` and `coverage` are no longer `crap` settings.
+
+**Test suites.** Each suite has `name`, `language`, `directory`, `command`, an optional `activate` and `env`, and `coverage {path, format}` (`lcov` or `jacoco`); a TypeScript suite also names its `runner`. A suite runs as `$SHELL -ilc 'cd <directory> && <activate> && <command>'` (`/bin/zsh` when `SHELL` is unset) with the suite's `env`, from the repository, one after another in list order, with its output in `.recognizer/cache/coverage/last-run.log`. The sensor adds no flag, plugin, wrapper or environment variable, creates no environment and installs nothing. After a suite ends, its report is the files matching `<directory>/<coverage.path>` modified at or after the moment the suite started; nothing is deleted and an older report never counts. A suite whose language has no scan in the run is skipped. A suite that fails after writing its report keeps its coverage (diagnosis `tests-failed`); a suite that leaves no fresh report, or an empty one, gives `coverage-unavailable` naming the suite; a scanned language with no suite has unknown coverage and a `coverage-unavailable` diagnosis naming the language.
 
 Unknown is never zero: a function whose file has no entry in the report has no `coverage` or `crap` overlay value and warns only when `cc` alone is at or above the threshold (summary `CRAP at least <cc>`). Findings are warnings with the id `crap:<module>::<function>` and the fix pattern `simplify-or-test`. The sensor also writes the overlay with the metrics `complexity`, `coverage` and `crap`, all at member granularity, keyed `module::function` or `module::Class.method`.
 
 ### Language profiles
+
+Mutation still uses the Language profiles, Test projects and probes below until it moves onto the configured test suites; the CRAP sensor uses none of them.
 
 A repository's languages are the ones with a scan in the cache, taken in the order python, typescript, kotlin, rust, csharp. Each language runs its profile's command once per Test project, in turn, and a failing project does not stop the later ones. Reports are merged by repository-relative path.
 

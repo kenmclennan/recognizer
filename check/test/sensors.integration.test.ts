@@ -297,7 +297,23 @@ describe.skipIf(!HAS_UV)(
       );
     }
 
-    function useCrapFixture(sensors: string): void {
+    const CRAP_SUITES = [
+      "tests:",
+      "  - name: sample",
+      "    language: python",
+      "    directory: .",
+      "    command: touch coverage/lcov.info",
+      "    coverage: {path: coverage/lcov.info, format: lcov}",
+      "  - name: sample-web",
+      "    language: typescript",
+      "    directory: .",
+      "    command: touch coverage/lcov.info",
+      "    runner: vitest",
+      "    coverage: {path: coverage/lcov.info, format: lcov}",
+      "",
+    ].join("\n");
+
+    function useCrapFixture(sensors: string, suites = CRAP_SUITES): void {
       rmSync(repository, { recursive: true, force: true });
       mkdirSync(repository, { recursive: true });
       cpSync(join(REPO, "fixtures/crap/sample"), repository, {
@@ -306,7 +322,7 @@ describe.skipIf(!HAS_UV)(
       mkdirSync(join(repository, ".recognizer"), { recursive: true });
       writeFileSync(
         join(repository, ".recognizer/config.yaml"),
-        `sensors:\n  crap: ${sensors}\n`,
+        `${suites}sensors:\n  crap: ${sensors}\n`,
       );
       commit();
     }
@@ -314,7 +330,7 @@ describe.skipIf(!HAS_UV)(
     it(
       "finds the two planted risks and writes the overlay for crap",
       async () => {
-        useCrapFixture("{coverage: coverage/lcov.info}");
+        useCrapFixture("{}");
 
         expect(
           await run(["scan", repository, "--sense", "crap"], capture().io),
@@ -374,17 +390,17 @@ describe.skipIf(!HAS_UV)(
     );
 
     it(
-      "fails with one sentence and writes nothing when the coverage file is missing",
+      "fails with one sentence and writes nothing when no test suites are configured",
       async () => {
-        useCrapFixture("{coverage: missing/lcov.info}");
+        useCrapFixture("{}", "");
 
         const captured = capture();
 
         expect(
           await run(["scan", repository, "--sense", "crap"], captured.io),
-        ).toBe(1);
+        ).toBe(4);
         expect(captured.err()).toContain(
-          "the coverage file is missing: missing/lcov.info",
+          "no test suites are configured (crap): add a tests list to .recognizer/config.yaml",
         );
         expect(
           existsSync(join(repository, ".recognizer/cache/overlays/crap.json")),
