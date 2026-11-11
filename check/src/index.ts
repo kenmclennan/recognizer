@@ -35,6 +35,7 @@ export {
   parseConfig,
   registeredSensors,
   shippedSensorSettings,
+  type TestSuite,
 } from "./config-parse.js";
 export { describerVersion } from "./describer-version.js";
 export { InputError } from "./errors.js";

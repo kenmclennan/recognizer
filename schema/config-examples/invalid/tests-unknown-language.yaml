@@ -1,0 +1,8 @@
+tests:
+  - name: api
+    language: ruby
+    directory: .
+    command: rspec
+    coverage:
+      path: coverage/lcov.info
+      format: lcov

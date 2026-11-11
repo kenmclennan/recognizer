@@ -1,0 +1,9 @@
+tests:
+  - name: web
+    language: typescript
+    directory: web
+    command: npx jest --coverage
+    runner: jest
+    coverage:
+      path: coverage/lcov.info
+      format: lcov

@@ -1,0 +1,5 @@
+tests:
+  - name: api
+    language: python
+    directory: .
+    command: pytest

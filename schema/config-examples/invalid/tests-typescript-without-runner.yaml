@@ -1,0 +1,8 @@
+tests:
+  - name: web
+    language: typescript
+    directory: .
+    command: npx vitest run --coverage
+    coverage:
+      path: coverage/lcov.info
+      format: lcov

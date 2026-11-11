@@ -1,0 +1,9 @@
+tests:
+  - name: api
+    language: python
+    directory: .
+    command: pytest
+    timeout: 60
+    coverage:
+      path: coverage/lcov.info
+      format: lcov
