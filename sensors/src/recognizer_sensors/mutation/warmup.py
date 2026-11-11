@@ -245,7 +245,11 @@ def kotlin_selection(
         if not reports:
             return kotlin_fallback(f"no coverage report for {file}")
 
-        part = parse_jacoco(reports[0].read_text(encoding="utf-8", errors="replace"), scanned)
+        part = parse_jacoco(
+            reports[0].read_text(encoding="utf-8", errors="replace"),
+            scanned,
+            reports[0].relative_to(copy).as_posix(),
+        )
 
         if part is None:
             return kotlin_fallback(f"no coverage report for {file}")

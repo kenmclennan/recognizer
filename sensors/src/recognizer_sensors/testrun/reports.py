@@ -84,7 +84,7 @@ def read_source(
             continue
 
         part = (
-            parse_jacoco(text, files)
+            parse_jacoco(text, files, match.relative_to(repository).as_posix())
             if source.format == "jacoco"
             else parse_lcov(text, repository, source.prefix)
         )
