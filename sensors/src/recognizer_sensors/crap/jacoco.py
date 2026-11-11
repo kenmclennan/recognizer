@@ -1,3 +1,4 @@
+import io
 import sys
 import xml.etree.ElementTree as ElementTree
 
@@ -50,42 +51,60 @@ def break_tie(matches: list[str], prefix: str | None) -> str | None:
     return None
 
 
-def parse_jacoco(text: str, files: list[str], report: str | None = None) -> Coverage | None:
-    try:
-        root = ElementTree.fromstring(text)
-    except ElementTree.ParseError:
-        return None
+def index_suffixes(files: list[str]) -> dict[str, list[str]]:
+    index: dict[str, list[str]] = {}
 
+    for path in files:
+        parts = path.split("/")
+
+        for start in range(len(parts)):
+            index.setdefault("/".join(parts[start:]), []).append(path)
+
+    return index
+
+
+def read_source(source: ElementTree.Element, lines: dict[int, int]) -> None:
+    for line in source.findall("line"):
+        try:
+            number = int(line.get("nr", ""))
+            missed = int(line.get("mi", "0"))
+            covered = int(line.get("ci", "0"))
+        except ValueError:
+            continue
+
+        if covered > 0:
+            lines[number] = lines.get(number, 0) + covered
+        elif missed > 0:
+            lines.setdefault(number, 0)
+
+
+def parse_jacoco(text: str, files: list[str], report: str | None = None) -> Coverage | None:
     coverage: Coverage = {}
     prefix = module_prefix(report)
+    index = index_suffixes(files)
     total = 0
     unmatched: list[str] = []
 
-    for package in root.iter("package"):
-        for source in package.findall("sourcefile"):
-            suffix = f"{package.get('name', '')}/{source.get('name', '')}".lstrip("/")
-            matches = [f for f in files if f == suffix or f.endswith("/" + suffix)]
-            total += 1
-            chosen = matches[0] if len(matches) == 1 else break_tie(matches, prefix)
-
-            if chosen is None:
-                unmatched.append(suffix)
+    try:
+        for _, package in ElementTree.iterparse(io.StringIO(text), events=("end",)):
+            if package.tag != "package":
                 continue
 
-            lines = coverage.setdefault(chosen, {})
+            for source in package.findall("sourcefile"):
+                suffix = f"{package.get('name', '')}/{source.get('name', '')}".lstrip("/")
+                matches = index.get(suffix, [])
+                total += 1
+                chosen = matches[0] if len(matches) == 1 else break_tie(matches, prefix)
 
-            for line in source.findall("line"):
-                try:
-                    number = int(line.get("nr", ""))
-                    missed = int(line.get("mi", "0"))
-                    covered = int(line.get("ci", "0"))
-                except ValueError:
+                if chosen is None:
+                    unmatched.append(suffix)
                     continue
 
-                if covered > 0:
-                    lines[number] = lines.get(number, 0) + covered
-                elif missed > 0:
-                    lines.setdefault(number, 0)
+                read_source(source, coverage.setdefault(chosen, {}))
+
+            package.clear()
+    except ElementTree.ParseError:
+        return None
 
     if unmatched and len(unmatched) < total:
         examples = ", ".join(unmatched[:EXAMPLE_LIMIT])

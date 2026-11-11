@@ -111,3 +111,29 @@ def test_an_ambiguous_leftover_is_counted_and_attributed_to_no_file(capsys):
         "jacoco: 1 of 2 source files matched no single scanned file (e.g. com/shop/A.kt)"
         in capsys.readouterr().err
     )
+
+
+class CountingFiles(list):
+    scans = 0
+
+    def __iter__(self):
+        CountingFiles.scans += 1
+
+        return super().__iter__()
+
+
+def test_a_report_of_many_files_scans_the_file_list_once():
+    count = 300
+    names = [f"src/main/kotlin/com/shop/F{n}.kt" for n in range(count)]
+    sources = "".join(
+        f'<sourcefile name="F{n}.kt"><line nr="1" mi="0" ci="1"/></sourcefile>'
+        for n in range(count)
+    )
+    text = f'<report><package name="com/shop">{sources}</package></report>'
+    files = CountingFiles(names)
+    CountingFiles.scans = 0
+
+    coverage = parse_jacoco(text, files)
+
+    assert CountingFiles.scans == 1
+    assert coverage == {name: {1: 1} for name in names}
