@@ -1496,6 +1496,52 @@ def test_a_second_sigterm_during_a_stalled_wind_down_exits_at_once(tmp_path):
                 pass
 
 
+def test_a_group_sigterm_twice_leaves_no_sensor_behind(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    pid_file = tmp_path / "pid.txt"
+    script = tmp_path / "hang.py"
+    script.write_text(SLEEP_WHEN_STOPPING)
+    settings = suite_settings(
+        [sys.executable, str(script), "baseline", str(pid_file)], timeout_factor=100
+    )
+    process = start_sensor(root, tmp_path, settings)
+    deadline = time.monotonic() + 30
+
+    while not pid_file.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+
+    pid = int(pid_file.read_text())
+    os.killpg(process.pid, signal.SIGTERM)
+    time.sleep(0.2)
+
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except OSError:
+        pass
+
+    started = time.monotonic()
+
+    try:
+        assert process.wait(timeout=runner.STOP_GRACE_SECONDS) == 143
+        assert time.monotonic() - started < runner.STOP_GRACE_SECONDS
+
+        deadline = time.monotonic() + 10
+
+        while time.monotonic() < deadline:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+
+            time.sleep(0.05)
+
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+    finally:
+        if process.poll() is None:
+            process.kill()
+
+
 def test_a_completed_run_writes_no_stopped_key(tmp_path):
     root, _ = mutate_repository(tmp_path)
     output = tmp_path / "overlay.json"
