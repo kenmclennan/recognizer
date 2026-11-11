@@ -1,9 +1,9 @@
-import type { Diagnosis, Gap, Scan } from "recognizer";
+import type { Diagnosis, Scan } from "recognizer";
 import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
-import type { GapState, PreflightState } from "./preflight-model";
+import type { PreflightGap, PreflightState } from "./preflight-model";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
   functionCount,
@@ -1148,39 +1148,21 @@ describe("the scope's canvasEmpty flag", () => {
   });
 });
 
-const GAP_PY: Gap = {
+const GAP_PY: PreflightGap = {
   id: "crap:python:sensors:environment",
   line: "coverage and pytest are not installed",
   needs: ["crap"],
-  project: { language: "python", directory: "sensors" },
-  fix: {
-    text: "uv sync",
-    command: ["uv", "sync"],
-    cwd: "sensors",
-    env: {},
-    kind: "repository",
-  },
 };
 
-const GAP_RUST: Gap = {
+const GAP_RUST: PreflightGap = {
   id: "mutation:rust:root:cargo-llvm-cov-is-not-installed",
   line: "cargo-llvm-cov is not installed",
   needs: ["mutation"],
-  project: null,
-  fix: {
-    text: "cargo install cargo-llvm-cov",
-    command: ["cargo", "install", "cargo-llvm-cov"],
-    cwd: "",
-    env: {},
-    kind: "outside",
-  },
 };
 
-function gaps(...list: GapState[]): PreflightState {
+function gaps(...list: PreflightGap[]): PreflightState {
   return { state: "gaps", gaps: list };
 }
-
-const open = (gap: Gap): GapState => ({ gap, fixed: false, failure: null });
 
 const bothTicked = {
   describe: false,
@@ -1209,7 +1191,7 @@ describe("the preflight panel", () => {
     const model = scanPanel(
       input({
         ticks: bothTicked,
-        preflight: gaps(open(GAP_PY), open(GAP_RUST)),
+        preflight: gaps(GAP_PY, GAP_RUST),
       }),
     );
 
@@ -1219,89 +1201,48 @@ describe("the preflight panel", () => {
     });
     expect(model.preflight?.box).toMatchObject({
       title: "Before this scan can run",
-      count: "2 of 2 left",
-      left: 2,
-      total: 2,
     });
     expect(
       model.preflight?.box?.items.map((item) => [item.line, item.where]),
     ).toEqual([
-      [
-        "coverage and pytest are not installed",
-        "C.R.A.P. \u00b7 Python project sensors/",
-      ],
+      ["coverage and pytest are not installed", "C.R.A.P."],
       ["cargo-llvm-cov is not installed", "Mutation"],
     ]);
   });
 
-  it("gives a repository fix a Fix control and an outside fix Copy and installed", () => {
-    const items = scanPanel(
-      input({
-        ticks: bothTicked,
-        preflight: gaps(open(GAP_PY), open(GAP_RUST)),
-      }),
-    ).preflight?.box?.items;
-
-    expect(items?.map((item) => [item.command, item.runnable])).toEqual([
-      ["uv sync", true],
-      ["cargo install cargo-llvm-cov", false],
-    ]);
-  });
-
-  it("counts a fixed gap off, then offers Check again and run once every one is fixed", () => {
-    const one = scanPanel(
-      input({
-        ticks: bothTicked,
-        preflight: gaps({ ...open(GAP_PY), fixed: true }, open(GAP_RUST)),
-      }),
+  it("offers Check again and run, enabled, whenever gaps are held", () => {
+    const model = scanPanel(
+      input({ ticks: bothTicked, preflight: gaps(GAP_PY, GAP_RUST) }),
     );
 
-    expect(one.preflight?.box).toMatchObject({ count: "1 of 2 left", left: 1 });
-    expect(one.button).toEqual({
-      scanning: false,
-      label: "1 to fix before scanning",
-      disabled: true,
-    });
-
-    const all = scanPanel(
-      input({
-        ticks: bothTicked,
-        preflight: gaps(
-          { ...open(GAP_PY), fixed: true },
-          { ...open(GAP_RUST), fixed: true },
-        ),
-      }),
-    );
-
-    expect(all.button).toEqual({
+    expect(model.button).toEqual({
       scanning: false,
       label: "Check again and run",
       disabled: false,
     });
   });
 
-  it("drops a gap whose only sensor is unticked, from the list and the counts", () => {
+  it("drops a gap whose only sensor is unticked, from the list and the help lines", () => {
     const model = scanPanel(
       input({
         ticks: { ...bothTicked, once: ["mutation"] },
-        preflight: gaps(open(GAP_PY), open(GAP_RUST)),
+        preflight: gaps(GAP_PY, GAP_RUST),
       }),
     );
 
     expect(model.preflight?.box?.items.map((item) => item.id)).toEqual([
       GAP_RUST.id,
     ]);
-    expect(model.preflight?.box).toMatchObject({
-      count: "1 of 1 left",
-      total: 1,
-    });
+    expect(model.preflight?.box?.help.map((line) => line.sensor)).toEqual([
+      "mutation",
+    ]);
   });
 
   it("does not block on a gap in an unticked sensor", () => {
     const model = scanPanel(
       input({
         ticks: { ...bothTicked, once: [] },
-        preflight: gaps(open(GAP_PY), open(GAP_RUST)),
+        preflight: gaps(GAP_PY, GAP_RUST),
       }),
     );
 
@@ -1311,32 +1252,66 @@ describe("the preflight panel", () => {
   });
 
   it("keeps a gap whose needs still hold a ticked sensor and names only the ticked one", () => {
-    const shared: Gap = { ...GAP_PY, needs: ["crap", "mutation"] };
+    const shared: PreflightGap = { ...GAP_PY, needs: ["crap", "mutation"] };
     const model = scanPanel(
       input({
         ticks: { ...bothTicked, once: ["mutation"] },
-        preflight: gaps(open(shared)),
+        preflight: gaps(shared),
       }),
     );
 
-    expect(model.preflight?.box?.items[0]?.where).toBe(
-      "Mutation \u00b7 Python project sensors/",
-    );
+    expect(model.preflight?.box?.items[0]?.where).toBe("Mutation");
   });
 
-  it("shows a failed Fix under the gap and keeps it open", () => {
-    const model = scanPanel(
+  it("names a help line for each sensor that reported a gap and for no other gap", () => {
+    const ticks = {
+      describe: true,
+      ticked: [],
+      once: ["crap", "mutation"],
+      onlyView: false,
+    };
+    const others: PreflightGap[] = [
+      { id: "no-commit", line: "no commit", needs: ["crap", "mutation"] },
+      { id: "describe:arguments", line: "bad arguments", needs: ["describe"] },
+      { id: "toolchain:uv", line: "uv is missing", needs: ["scan"] },
+    ];
+    const mixed = scanPanel(
       input({
-        ticks: bothTicked,
-        preflight: gaps({ ...open(GAP_PY), failure: "uv: no network" }),
+        ticks,
+        preflight: gaps(
+          { id: "crap:api:pytest-cov-missing", line: "a", needs: ["crap"] },
+          { id: "crap:config:no-suites", line: "b", needs: ["crap"] },
+          {
+            id: "mutation:api:pytest-cov-missing",
+            line: "c",
+            needs: ["mutation"],
+          },
+          ...others,
+        ),
       }),
     );
 
-    expect(model.preflight?.box?.items[0]).toMatchObject({
-      failure: "uv: no network",
-      fixed: false,
-    });
-    expect(model.preflight?.box?.left).toBe(1);
+    expect(mixed.preflight?.box?.items.length).toBeGreaterThanOrEqual(4);
+    expect(mixed.preflight?.box?.help).toEqual([
+      {
+        sensor: "crap",
+        text: "To set this up with an agent:",
+        command: "recognizer help sensors crap",
+      },
+      {
+        sensor: "mutation",
+        text: "To set this up with an agent:",
+        command: "recognizer help sensors mutation",
+      },
+    ]);
+
+    const none = scanPanel(input({ ticks, preflight: gaps(...others) }));
+
+    expect(none.preflight?.box?.items.map((item) => item.id)).toEqual([
+      "no-commit",
+      "describe:arguments",
+    ]);
+    expect(none.preflight?.box?.help).toEqual([]);
   });
 
   it("is the normal panel when preflight is idle", () => {

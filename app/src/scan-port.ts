@@ -1,4 +1,4 @@
-import type { Gap } from "recognizer";
+import type { PreflightGap } from "./preflight-model";
 import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { ScanReport } from "./scan-report";
 
@@ -9,9 +9,7 @@ export type ScanRunResult =
   | { status: "failed"; exitCode: number; stderr: string }
   | { status: "refused"; reason: string }
   | { status: "nothing-ran"; phases: string[]; detail: string }
-  | { status: "gaps"; gaps: Gap[] };
-
-export type FixResult = { ok: true } | { ok: false; reason: string };
+  | { status: "gaps"; gaps: PreflightGap[] };
 
 export type StoredTicks = {
   describe: boolean;
@@ -46,7 +44,6 @@ export type ExternalEvent =
 export type ScanPort = {
   run(plan: ScanPlan): Promise<ScanRunResult>;
   stop(): Promise<void>;
-  fix(id: string): Promise<FixResult>;
   answerDescribe(describe: boolean): Promise<void>;
   readCache(): Promise<ScanReport>;
   readTicks(): Promise<StoredTicks>;
@@ -60,7 +57,6 @@ export type ScanPort = {
 export const inertScan: ScanPort = {
   run: async () => ({ status: "finished", exitCode: 0, stderr: "", log: null }),
   stop: async () => {},
-  fix: async () => ({ ok: true }),
   answerDescribe: async () => {},
   readCache: async () => ({
     status: "scanned",

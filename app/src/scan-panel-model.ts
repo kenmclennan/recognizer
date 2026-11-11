@@ -456,6 +456,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     input.preflight ?? NO_PREFLIGHT,
     ticked,
     (name) => rows.find((row) => row.key === name)?.name ?? name,
+    new Set([...ticked].filter((key) => key !== DESCRIBE_KEY)),
   );
 
   return {

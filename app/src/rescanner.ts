@@ -1,10 +1,10 @@
-import type { Diagnosis, Gap } from "recognizer";
+import type { Diagnosis } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
 import {
-  type GapState,
   NO_PREFLIGHT,
+  type PreflightGap,
   type PreflightState,
 } from "./preflight-model";
 import type { PlannedRun } from "./scan-freshness";
@@ -20,7 +20,6 @@ import {
 import type {
   ExternalEvent,
   ExternalScan,
-  FixResult,
   ScanPort,
   ScanRunResult,
 } from "./scan-port";
@@ -79,8 +78,6 @@ export type Rescanner = {
   external: () => boolean;
   progress: () => ScanProgress;
   preflight: () => PreflightState;
-  fix: (id: string) => Promise<void>;
-  installed: (id: string) => void;
 };
 
 const DEFAULT_TICKS: ScanTicks = {
@@ -120,7 +117,7 @@ export function durationText(ms: number): string {
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
-function refusedText(gaps: Gap[]): string {
+function refusedText(gaps: PreflightGap[]): string {
   const first = gaps[0];
   const count = `${gaps.length} ${gaps.length === 1 ? "tool" : "tools"} missing`;
 
@@ -148,10 +145,6 @@ function failedReason(progress: ScanProgress, exit: number): string {
     : `${first.name}: ${first.reason ?? "failed"}`;
 }
 
-function gapStates(gaps: Gap[]): GapState[] {
-  return gaps.map((gap) => ({ gap, fixed: false, failure: null }));
-}
-
 export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
@@ -169,7 +162,7 @@ export function createRescanner<Carried>(
   let failureIds: number[] = [];
   let lastUpdate: ProgressUpdate = { scanning: null };
   let external: ExternalScan | null = null;
-  let externalGaps: Gap[] = [];
+  let externalGaps: PreflightGap[] = [];
   let preflight: PreflightState = NO_PREFLIGHT;
   let keepOnce = false;
   const now = ports.now ?? Date.now;
@@ -666,7 +659,7 @@ export function createRescanner<Carried>(
     if (result.status === "gaps") {
       keepOnce = true;
       progress = NO_PROGRESS;
-      preflight = { state: "gaps", gaps: gapStates(result.gaps) };
+      preflight = { state: "gaps", gaps: result.gaps };
       emit({ scanning: null });
       ports.post({
         kind: "warning",
@@ -828,40 +821,5 @@ export function createRescanner<Carried>(
     external: () => external !== null,
     progress: () => progress,
     preflight: () => preflight,
-    async fix(id) {
-      const found = preflight.gaps.find((one) => one.gap.id === id);
-
-      if (found === undefined || found.fixed) {
-        return;
-      }
-
-      let outcome: FixResult;
-
-      try {
-        outcome = await ports.port.fix(id);
-      } catch (error) {
-        outcome = { ok: false, reason: String(error) };
-      }
-
-      updateGap(
-        id,
-        outcome.ok
-          ? { fixed: true, failure: null }
-          : { failure: outcome.reason },
-      );
-    },
-    installed(id) {
-      updateGap(id, { fixed: true, failure: null });
-    },
   };
-
-  function updateGap(id: string, change: Partial<GapState>) {
-    preflight = {
-      ...preflight,
-      gaps: preflight.gaps.map((one) =>
-        one.gap.id === id ? { ...one, ...change } : one,
-      ),
-    };
-    emit({ scanning: lastUpdate.scanning });
-  }
 }

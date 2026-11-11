@@ -3912,11 +3912,6 @@ svg.i.chevron {
   font-weight: 600;
 }
 
-.preflight-box-count {
-  font-weight: 400;
-  color: var(--muted);
-}
-
 .preflight-gap {
   display: flex;
   flex-direction: column;
@@ -3928,24 +3923,9 @@ svg.i.chevron {
   font-size: 0.9em;
 }
 
-.preflight-gap-failure {
-  color: var(--bad);
+.preflight-help {
+  margin-top: 6px;
+  color: var(--muted);
   font-size: 0.9em;
-}
-
-.preflight-gap-controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.preflight-gap-command {
-  flex: 1;
-  min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.preflight-gap-fixed {
-  color: var(--ok);
 }

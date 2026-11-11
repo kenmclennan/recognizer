@@ -121,13 +121,12 @@ pub fn mismatch_message(expected: &str, tool: &str, found: &str, path: &Path, fi
 }
 
 impl ToolFault {
-    pub fn gap_parts(&self) -> (String, String) {
+    pub fn gap_id(&self) -> String {
         match self {
-            ToolFault::Missing { tool } => (format!("toolchain:{tool}"), missing_hint()),
-            ToolFault::Mismatch { tool, fix, .. } => (format!("toolchain:{tool}"), fix.clone()),
-            ToolFault::Incomplete { .. } => {
-                ("toolchain:incomplete".to_string(), BUNDLE_FIX.to_string())
+            ToolFault::Missing { tool } | ToolFault::Mismatch { tool, .. } => {
+                format!("toolchain:{tool}")
             }
+            ToolFault::Incomplete { .. } => "toolchain:incomplete".to_string(),
         }
     }
 
@@ -660,16 +659,6 @@ impl ToolRunner {
         process.env_clear().envs(pairs);
 
         Ok(process)
-    }
-
-    pub fn plain_command(&self, program: &str) -> Option<Command> {
-        let environment = self.environment_for()?;
-        let path = environment.find(program)?;
-        let mut process = Command::new(path);
-
-        process.env_clear().envs(self.pairs_for(&environment));
-
-        Some(process)
     }
 
     pub fn check_all(&self) -> Result<(), ToolFault> {
