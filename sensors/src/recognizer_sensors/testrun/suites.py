@@ -1,9 +1,22 @@
 import os
 import re
 import shlex
+import subprocess
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
-from recognizer_sensors.settings import SettingsError, relative_path
+from recognizer_sensors.crap.jacoco import merge_coverage
+from recognizer_sensors.crap.lcov import Coverage
+from recognizer_sensors.scans import Scan
+from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
+from recognizer_sensors.testrun.failures import crap_tests_failed, failing_names, suite_failed
+from recognizer_sensors.testrun.reports import (
+    LOG,
+    Source,
+    covers_nothing,
+    read_source,
+)
 
 LANGUAGES = ("python", "typescript", "kotlin", "rust", "csharp")
 
@@ -134,3 +147,109 @@ def shell_script(suite: Suite) -> str:
 
 def login_shell() -> str:
     return os.environ.get("SHELL") or DEFAULT_SHELL
+
+
+def report_pattern(suite: Suite) -> str:
+    if suite.directory in ("", "."):
+        return suite.coverage_path
+
+    return f"{suite.directory.rstrip('/')}/{suite.coverage_path}"
+
+
+def source_of(suite: Suite) -> Source:
+    prefix = "" if suite.directory in ("", ".") else suite.directory.strip("/")
+
+    return Source(report_pattern(suite), suite.coverage_format, prefix, suite.name)
+
+
+def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
+    stream.write(f"== {suite.name}: {suite.command}\n")
+    stream.flush()
+    offset = stream.tell()
+    shell = login_shell()
+
+    try:
+        result = subprocess.run(
+            [shell, "-ilc", shell_script(suite)],
+            cwd=repository,
+            env={**os.environ, **suite.env},
+            stdin=subprocess.DEVNULL,
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    except OSError:
+        raise Refusal(diagnose("tool-missing", f"{shell} could not be started")) from None
+
+    stream.flush()
+
+    with (repository / LOG).open("rb") as written:
+        written.seek(offset)
+        output = written.read().decode("utf-8", errors="replace")
+
+    return result.returncode, output
+
+
+def unavailable(cause: str) -> dict:
+    return diagnose("coverage-unavailable", f"coverage unavailable: {cause}; see {LOG.as_posix()}")
+
+
+def collect_suites(
+    repository: Path, scans: list[Scan], suites: tuple[Suite, ...]
+) -> tuple[Coverage, dict | None]:
+    if not scans:
+        return {}, None
+
+    scanned = [scan.language for scan in scans]
+    files = [path for scan in scans for module in scan.modules for path in module.files]
+    uncovered = [
+        language for language in scanned if not any(s.language == language for s in suites)
+    ]
+    runnable = [suite for suite in suites if suite.language in scanned]
+    merged: Coverage = {}
+    diagnosis: dict | None = None
+    log = repository / LOG
+    log.parent.mkdir(parents=True, exist_ok=True)
+
+    with log.open("w", encoding="utf-8") as stream:
+        for suite in runnable:
+            started = time.time()
+            returncode, output = run_suite(repository, suite, stream)
+            source = source_of(suite)
+            part = read_source(repository, source, files, started)
+            failed = suite_failed(suite.language, returncode, output)
+            where = report_pattern(suite)
+
+            if part is None:
+                cause = f"the {suite.name} suite left no coverage report at {where}"
+
+                if failed:
+                    cause = (
+                        f"the {suite.name} suite exited {returncode} "
+                        f"and left no coverage report at {where}"
+                    )
+
+                diagnosis = unavailable(cause)
+
+                continue
+
+            merge_coverage(merged, part)
+
+            if covers_nothing(part, source, suite.language, scans):
+                diagnosis = unavailable(f"the {suite.name} suite produced an empty coverage report")
+
+            if failed:
+                names = (
+                    []
+                    if suite.language == "csharp"
+                    else failing_names(repository, suite.language, output, suite.directory)
+                )
+                diagnosis = crap_tests_failed(names)
+
+    if uncovered:
+        diagnosis = diagnose(
+            "coverage-unavailable",
+            f"coverage unavailable: no test suite is configured for {', '.join(uncovered)}",
+        )
+
+    return merged, diagnosis

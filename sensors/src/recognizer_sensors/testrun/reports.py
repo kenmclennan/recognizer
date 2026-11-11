@@ -12,6 +12,8 @@ CACHE_PREFIX = ".recognizer/"
 
 REASON_LIMIT = 200
 
+NANOSECONDS = 1_000_000_000
+
 DECORATION = re.compile(r"^[=!\-\s]*$")
 
 
@@ -60,7 +62,9 @@ def fresh_reports(repository: Path, pattern: str, since: float | None) -> list[P
     if since is None or pattern.startswith(CACHE_PREFIX):
         return matches
 
-    return [p for p in matches if p.stat().st_mtime >= since]
+    floor = int(since * NANOSECONDS)
+
+    return [p for p in matches if p.stat().st_mtime_ns >= floor]
 
 
 def read_source(
