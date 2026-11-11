@@ -2,15 +2,13 @@ import json
 import shutil
 import stat
 import subprocess
-import sys
 
 import pytest
 from conftest import REPOSITORY
 
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.testrun import profiles
-from recognizer_sensors.testrun.probes import Probe, names_jacoco, probe
-from recognizer_sensors.testrun.run import collect_coverage
+from recognizer_sensors.testrun.probes import names_jacoco, probe
 
 pytestmark = pytest.mark.real_probes
 
@@ -282,55 +280,6 @@ def test_a_setting_that_replaces_the_tool_skips_its_probe(monkeypatch, tmp_path)
 
     assert probe(root, [scan("rust")], {"test_command": ["x"]}).diagnosis is None
     assert probe(root, [scan("rust")], {"coverage": "x.info"}).diagnosis is None
-
-
-def test_a_missing_tool_leaves_complexity_alone_for_the_sensor_that_records_it(
-    monkeypatch, tmp_path
-):
-    only_path(monkeypatch, tmp_path, cargo="exit 1")
-    root = repository(tmp_path)
-    diagnoses = []
-
-    assert collect_coverage(root, [scan("rust")], None, None, diagnoses) == {}
-    assert diagnoses == [
-        {
-            "code": "coverage-unavailable",
-            "line": "coverage unavailable: cargo-llvm-cov is not installed; "
-            "install it with cargo install cargo-llvm-cov",
-            "fix": "cargo install cargo-llvm-cov",
-        }
-    ]
-    assert not (root / ".recognizer").exists()
-
-
-@pytest.mark.parametrize(
-    ("log", "fix"),
-    [
-        ("error: failed to find llvm-tools-preview", "rustup component add llvm-tools-preview"),
-        ("npm error network request failed", "check the network, c8 is fetched by npx"),
-    ],
-)
-def test_a_known_log_signature_with_no_report_names_its_fix(log, fix, tmp_path, monkeypatch):
-    monkeypatch.setattr("recognizer_sensors.testrun.run.probe", lambda *args: Probe())
-    root = repository(tmp_path)
-    command = [sys.executable, "-c", f"import sys; print({log!r}); sys.exit(1)"]
-    diagnoses = []
-
-    collect_coverage(root, [scan("rust")], command, None, diagnoses)
-
-    assert diagnoses[-1]["code"] == "coverage-unavailable"
-    assert diagnoses[-1]["fix"] == fix
-
-
-def test_an_unknown_failure_with_no_report_points_at_the_log(tmp_path):
-    root = repository(tmp_path)
-    command = [sys.executable, "-c", "import sys; sys.exit(1)"]
-    diagnoses = []
-
-    collect_coverage(root, [scan("rust")], command, None, diagnoses)
-
-    assert "fix" not in diagnoses[-1]
-    assert ".recognizer/cache/coverage/last-run.log" in diagnoses[-1]["line"]
 
 
 def test_a_uv_coverage_command_runs_coverage_through_the_environments_python_without_the_sensors_variable(

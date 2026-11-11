@@ -366,6 +366,18 @@ def test_the_exit_sentence_keeps_the_summary_line_and_the_log_path():
     )
 
 
+def test_a_refusal_or_a_missing_coverage_file_leaves_a_prior_overlay_untouched(tmp_path):
+    root = repository(tmp_path)
+    writer = script(root, "w.py", WRITE_LCOV)
+
+    assert crap(root, tmp_path, suites(command(writer, REPORT)))[0] == 0
+
+    before = (root / OVERLAY).read_bytes()
+
+    assert crap(root, tmp_path, {})[0] == 2
+    assert (root / OVERLAY).read_bytes() == before
+
+
 def test_a_command_that_does_not_start_is_complexity_only_naming_the_program(tmp_path):
     root = repository(tmp_path)
 
@@ -389,6 +401,15 @@ def test_a_command_that_leaves_no_report_is_complexity_only_naming_the_log(tmp_p
         "code": "coverage-unavailable",
         "line": f"coverage unavailable: the api suite left no coverage report at {REPORT}; see {LOG}",
     }
+
+
+def test_a_missing_coverage_file_with_no_command_has_its_own_sentence(tmp_path, capsys):
+    root = repository(tmp_path)
+
+    status, _ = crap(root, tmp_path, {})
+
+    assert status == 2
+    assert sentence(capsys).splitlines()[-1] == NO_SUITES
 
 
 def two_languages(tmp_path):

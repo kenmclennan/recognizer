@@ -1,5 +1,7 @@
 import os
 import shlex
+import subprocess
+import sys
 import time
 from types import SimpleNamespace
 
@@ -335,3 +337,22 @@ def test_a_scan_with_no_files_still_reports_its_language_uncovered(tmp_path):
 
     assert coverage == {}
     assert diagnosis["line"] == "coverage unavailable: no test suite is configured for rust"
+
+
+def test_crap_imports_none_of_the_inference_modules():
+    program = (
+        "import sys, recognizer_sensors.crap.sensor\n"
+        "banned = ['projects', 'profiles', 'probes', 'preflight', 'run', 'selection', 'contexts']\n"
+        "found = [n for n in banned if f'recognizer_sensors.testrun.{n}' in sys.modules]\n"
+        "print(found)\n"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", program],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
+    )
+
+    assert result.stdout.strip() == "[]"

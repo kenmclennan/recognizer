@@ -10,7 +10,6 @@ from recognizer_sensors.hashes import listed_files
 from recognizer_sensors.mutation import runner, sensor
 from recognizer_sensors.mutation.runner import EnvironmentPool, new_work_folder, remove_work_folder
 from recognizer_sensors.scans import Scan, ScanModule
-from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun import profiles
 from recognizer_sensors.testrun.probes import probe
 from recognizer_sensors.testrun.profiles import (
@@ -25,7 +24,6 @@ from recognizer_sensors.testrun.projects import Project, discover, owner_of, res
 from recognizer_sensors.testrun.run import (
     Source,
     collect_coverage,
-    collect_coverage_with_tests,
     plan,
     projects_dropped,
     read_source,
@@ -195,25 +193,6 @@ def test_a_root_only_repository_keeps_every_command_path_and_environment(tmp_pat
         },
         "selection": 2,
     }
-
-
-def test_a_failing_project_keeps_the_other_projects_coverage_and_is_named(tmp_path, monkeypatch):
-    root, scan = two_python_projects(tmp_path)
-    (root / "b" / "FAIL").write_text("")
-    stub(monkeypatch, tmp_path, uv=STUB_UV)
-    diagnoses: list[dict] = []
-
-    coverage = collect_coverage(root, [scan], None, None, diagnoses)
-
-    assert sorted(coverage) == ["a/pkg/m.py"]
-    assert len(diagnoses) == 1
-    assert diagnoses[0]["code"] == "coverage-unavailable"
-    assert "python b" in diagnoses[0]["line"]
-
-    with pytest.raises(Refusal) as refusal:
-        collect_coverage_with_tests(root, [scan], None)
-
-    assert "python b" in refusal.value.diagnosis["line"]
 
 
 def test_the_nested_lock_decides_whether_a_nested_pyproject_is_a_project(tmp_path):

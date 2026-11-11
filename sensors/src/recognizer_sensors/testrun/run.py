@@ -24,7 +24,6 @@ from recognizer_sensors.settings import (
 )
 from recognizer_sensors.testrun.contexts import ContextSelection, PythonContexts
 from recognizer_sensors.testrun.failures import (
-    crap_tests_failed,
     failing_names,
     known_cause,
     mutation_tests_failed,
@@ -298,7 +297,6 @@ def settle(
     results: list[StepResult],
     merged: Coverage,
     missing: list[Source],
-    diagnoses: list[dict] | None,
     empty: list[tuple[Source, str | None]] | None = None,
 ) -> None:
     failed = [r for r in results if suite_failed(r.step.language, r.returncode, r.output)]
@@ -309,13 +307,10 @@ def settle(
     ]
 
     if failed and (names or not missing):
-        if diagnoses is None:
-            raise Refusal(mutation_tests_failed(names))
-
-        diagnoses.append(crap_tests_failed(names))
+        raise Refusal(mutation_tests_failed(names))
 
     if not missing:
-        report_empty(empty or [], failed, diagnoses)
+        report_empty(empty or [], failed)
 
         return
 
@@ -323,16 +318,10 @@ def settle(
 
     if known is not None:
         cause, sentence, fix = known
-        diagnosis = diagnose(
-            "coverage-unavailable", f"coverage unavailable: {cause}; {sentence}", fix=fix
+
+        raise Refusal(
+            diagnose("coverage-unavailable", f"coverage unavailable: {cause}; {sentence}", fix=fix)
         )
-
-        if diagnoses is None:
-            raise Refusal(diagnosis)
-
-        diagnoses.append(diagnosis)
-
-        return
 
     subject = f"the {missing[0].label} test command" if missing[0].label else "the test command"
     cause = f"{subject} left no coverage report"
@@ -342,35 +331,26 @@ def settle(
     elif failed:
         cause = f"{subject} exited {failed[0].returncode} and left no coverage report"
 
-    diagnosis = diagnose(
-        "coverage-unavailable",
-        f"coverage unavailable: {cause}; see {LOG.as_posix()}",
+    raise Refusal(
+        diagnose("coverage-unavailable", f"coverage unavailable: {cause}; see {LOG.as_posix()}")
     )
 
-    if diagnoses is None:
-        raise Refusal(diagnosis)
 
-    diagnoses.append(diagnosis)
-
-
-def report_empty(
-    empty: list[tuple[Source, str | None]], failed: list[StepResult], diagnoses: list[dict] | None
-) -> None:
+def report_empty(empty: list[tuple[Source, str | None]], failed: list[StepResult]) -> None:
     if failed or not empty:
         return
 
     source, language = empty[0]
     name = source.label or language
     subject = f"the {name} test command" if name else "the test command"
-    diagnosis = diagnose(
-        "coverage-unavailable",
-        f"coverage unavailable: {subject} produced an empty coverage report; see {LOG.as_posix()}",
+
+    raise Refusal(
+        diagnose(
+            "coverage-unavailable",
+            f"coverage unavailable: {subject} produced an empty coverage report; "
+            f"see {LOG.as_posix()}",
+        )
     )
-
-    if diagnoses is None:
-        raise Refusal(diagnosis)
-
-    diagnoses.append(diagnosis)
 
 
 def read_reports(
@@ -379,7 +359,6 @@ def read_reports(
     scans: list[Scan],
     steps: list[Step],
     results: list[StepResult],
-    diagnoses: list[dict] | None,
     since: float | None = None,
 ) -> Coverage:
     files = [path for scan in scans for module in scan.modules for path in module.files]
@@ -406,7 +385,7 @@ def read_reports(
 
         return merged
 
-    settle(repository, results, merged, missing, diagnoses, empty)
+    settle(repository, results, merged, missing, empty)
 
     return merged
 
@@ -416,34 +395,18 @@ def collect_coverage(
     scans: list[Scan],
     test_command: list[str] | None,
     coverage: str | None,
-    diagnoses: list[dict] | None = None,
 ) -> Coverage:
     if not scans:
         return {}
 
-    try:
-        steps, sources = plan(repository, scans, test_command, coverage)
-        clear_cached_reports(repository, sources)
-        clear_stale_kotlin_reports(repository, scans, sources, steps)
-        started = time.time() if steps else None
-        results = run_steps(repository, steps)
-    except Refusal as refusal:
-        if diagnoses is None:
-            raise
-
-        original = refusal.diagnosis
-        diagnoses.append(
-            diagnose(
-                "coverage-unavailable",
-                f"coverage unavailable: {original['line']}",
-                fix=original.get("fix"),
-            )
-        )
-
-        return {}
+    steps, sources = plan(repository, scans, test_command, coverage)
+    clear_cached_reports(repository, sources)
+    clear_stale_kotlin_reports(repository, scans, sources, steps)
+    started = time.time() if steps else None
+    results = run_steps(repository, steps)
 
     try:
-        return read_reports(repository, sources, scans, steps, results, diagnoses, started)
+        return read_reports(repository, sources, scans, steps, results, started)
     finally:
         shutil.rmtree(repository / TYPESCRIPT_RAW_DIRECTORY, ignore_errors=True)
 
@@ -958,7 +921,7 @@ def collect_coverage_with_tests(
 
     started = time.time() if steps else None
     results = run_steps(repository, steps)
-    merged = read_reports(repository, sources, scans, steps, results, None, started)
+    merged = read_reports(repository, sources, scans, steps, results, started)
     shutil.rmtree(repository / TYPESCRIPT_RAW_DIRECTORY, ignore_errors=True)
     selection: Selection = {}
 
