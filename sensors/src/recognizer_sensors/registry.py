@@ -6,11 +6,12 @@ from recognizer_sensors.crap import sensor as crap
 from recognizer_sensors.duplication import sensor as duplication
 from recognizer_sensors.mutation import sensor as mutation
 from recognizer_sensors.outcome import Outcome
-from recognizer_sensors.testrun.suites import suite_gaps
+from recognizer_sensors.testrun.guide import guide
+from recognizer_sensors.testrun.readiness import check
 from recognizer_sensors.thresholds import sensor as thresholds
 
 
-def no_gaps(repository: Path, scans: list, settings: dict, sensor: str) -> list[dict]:
+def no_gaps(repository: Path, settings: dict, run: bool) -> list[dict]:
     return []
 
 
@@ -22,7 +23,8 @@ class Sensor:
     runs_tests: bool = False
     scoped: bool = False
     checkpoints: bool = False
-    preflight: Callable[[Path, list, dict, str], list[dict]] = no_gaps
+    check: Callable[[Path, dict, bool], list[dict]] = no_gaps
+    guide: Callable[[], str] | None = None
 
 
 SHIPPED = {
@@ -33,7 +35,7 @@ SHIPPED = {
             inputs=duplication.measured_modules(repository, scans),
         ),
     ),
-    "crap": Sensor(crap.parse_settings, crap.run, runs_tests=True, preflight=suite_gaps),
+    "crap": Sensor(crap.parse_settings, crap.run, runs_tests=True, check=check, guide=guide),
     "mutation": Sensor(
         mutation.parse_settings,
         mutation.run,
@@ -41,7 +43,8 @@ SHIPPED = {
         runs_tests=True,
         scoped=True,
         checkpoints=True,
-        preflight=suite_gaps,
+        check=check,
+        guide=guide,
     ),
     "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }

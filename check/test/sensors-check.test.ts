@@ -1,0 +1,300 @@
+import { describe, expect, it } from "vitest";
+import { run } from "../src/cli.js";
+import { CHECK_TIMEOUT_MS, checkArguments } from "../src/sensors-check.js";
+import { fakeIo, ROOT } from "./scan-helpers.js";
+
+const CONFIG = `${ROOT}/.recognizer/config.yaml`;
+
+const API_GAP = {
+  code: "pytest-cov-missing",
+  suite: "api",
+  line: "suite api: pytest-cov is not installed in the activated environment",
+};
+
+const WEB_GAP = {
+  code: "vitest-missing",
+  suite: "web",
+  line: "suite web: vitest is not installed",
+};
+
+const REGISTERED = [
+  "tests:",
+  "  - name: api",
+  "    language: python",
+  "    directory: .",
+  "    command: pytest",
+  "    coverage: { path: coverage/lcov.info, format: lcov }",
+  "sensors:",
+  "  crap: {}",
+  "  mutation: {}",
+  "",
+].join("\n");
+
+function gapsBy(table: Record<string, unknown[]>) {
+  return (args: string[]) => ({
+    stdout: `${JSON.stringify({ gaps: table[args[0] as string] ?? [] })}\n`,
+  });
+}
+
+function setup(
+  config: string,
+  answer: (args: string[]) => {
+    stdout?: string;
+    stderr?: string;
+    status?: number;
+    started?: boolean;
+    timedOut?: boolean;
+  },
+) {
+  return fakeIo({
+    files: { [CONFIG]: config },
+    sensorsPreflight: { run: answer },
+  });
+}
+
+function check(fake: ReturnType<typeof fakeIo>, ...argv: string[]) {
+  return run(["sensors", "check", "--repository", ROOT, ...argv], fake.io);
+}
+
+function checks(fake: ReturnType<typeof fakeIo>) {
+  return fake.calls.filter((call) => call.args.includes("--check"));
+}
+
+describe("recognizer sensors check", () => {
+  it("prints each sensor's sentences as given and exits 1 while a gap remains", () => {
+    const fake = setup(REGISTERED, gapsBy({ crap: [API_GAP, WEB_GAP] }));
+
+    expect(check(fake)).toBe(1);
+    expect(fake.out()).toBe(
+      [
+        "crap: 2 gaps",
+        `  ${API_GAP.line}`,
+        `  ${WEB_GAP.line}`,
+        "mutation: ready",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("says 1 gap for a single gap and exits 0 when every sensor is ready", () => {
+    const one = setup(REGISTERED, gapsBy({ crap: [API_GAP] }));
+
+    check(one);
+
+    expect(one.out()).toContain("crap: 1 gap\n");
+
+    const none = setup(REGISTERED, gapsBy({}));
+
+    expect(check(none)).toBe(0);
+    expect(none.out()).toBe("crap: ready\nmutation: ready\n");
+  });
+
+  it("prints --json with ready and each sensor's gaps", () => {
+    const fake = setup(REGISTERED, gapsBy({ mutation: [API_GAP] }));
+
+    expect(check(fake, "--json")).toBe(1);
+    expect(JSON.parse(fake.out())).toEqual({
+      ready: false,
+      sensors: [
+        { name: "crap", ready: true, gaps: [] },
+        { name: "mutation", ready: false, gaps: [API_GAP] },
+      ],
+    });
+  });
+
+  it("checks only the named sensor, registered or not", () => {
+    const fake = setup("", gapsBy({ crap: [API_GAP] }));
+
+    expect(check(fake, "crap")).toBe(1);
+    expect(checks(fake).map((call) => call.args[0])).toEqual(["crap"]);
+  });
+
+  it("hands a shipped sensor that is not registered the tests list the scan would pass", () => {
+    const fake = setup(REGISTERED.replace("  mutation: {}\n", ""), gapsBy({}));
+
+    check(fake, "mutation");
+
+    const settings = JSON.parse(
+      checks(fake)[0]?.args[
+        (checks(fake)[0]?.args.indexOf("--settings") as number) + 1
+      ] as string,
+    );
+
+    expect(settings.tests[0].name).toBe("api");
+  });
+
+  it("exits 2 for an unknown name, for no registered sensors with no name, and for check's extra word", () => {
+    expect(check(setup("", gapsBy({})), "nope")).toBe(2);
+    expect(check(setup("", gapsBy({})))).toBe(2);
+    expect(check(setup(REGISTERED, gapsBy({})), "crap", "extra")).toBe(2);
+  });
+
+  it("keeps listing the shipped sensors and rejects --run without check", () => {
+    const listed = fakeIo();
+
+    expect(run(["sensors"], listed.io)).toBe(0);
+    expect(listed.out()).toContain("duplication");
+    expect(run(["sensors", "--run"], fakeIo().io)).toBe(2);
+    expect(run(["sensors", "extra"], fakeIo().io)).toBe(2);
+  });
+
+  it("reports check-failed for a sensor whose check exits non-zero, with its first stderr line", () => {
+    const fake = setup(REGISTERED, () => ({
+      status: 1,
+      stderr: "boom\nand more",
+    }));
+
+    expect(check(fake, "crap")).toBe(1);
+    expect(fake.out()).toBe(
+      "crap: 1 gap\n  the readiness check of crap did not answer: boom\n",
+    );
+  });
+
+  it("reports check-failed for junk, for no output and for a timeout", () => {
+    const junk = setup(REGISTERED, () => ({ stdout: "not json\n" }));
+    const silent = setup(REGISTERED, () => ({ stdout: "" }));
+    const slow = setup(REGISTERED, () => ({ status: 1, timedOut: true }));
+
+    check(junk, "crap", "--json");
+    check(silent, "crap", "--json");
+    check(slow, "crap", "--json");
+
+    for (const fake of [junk, silent, slow]) {
+      expect(JSON.parse(fake.out()).sensors[0].gaps[0].code).toBe(
+        "check-failed",
+      );
+    }
+  });
+
+  it("reports sensors-missing when recognizer-sensors does not start", () => {
+    const fake = setup(REGISTERED, () => ({ started: false }));
+
+    expect(check(fake, "crap", "--json")).toBe(1);
+    expect(JSON.parse(fake.out()).sensors[0].gaps).toEqual([
+      {
+        code: "sensors-missing",
+        suite: null,
+        line: "recognizer-sensors is not installed",
+      },
+    ]);
+  });
+
+  it("lists a registered sensor with a custom command as having no readiness check and counts it ready", () => {
+    const fake = setup(
+      `${REGISTERED}  custom:\n    command: [custom-sensor, "{repository}"]\n`,
+      gapsBy({}),
+    );
+
+    expect(check(fake)).toBe(0);
+    expect(fake.out()).toContain("custom: no readiness check\n");
+    expect(fake.calls.some((call) => call.command === "custom-sensor")).toBe(
+      false,
+    );
+  });
+
+  it("passes --run through with no timeout and gives the call without it the ceiling", () => {
+    const withRun = setup(REGISTERED, gapsBy({}));
+    const without = setup(REGISTERED, gapsBy({}));
+
+    check(withRun, "crap", "--run");
+    check(without, "crap");
+
+    expect(checks(withRun)[0]?.args).toContain("--run");
+    expect(checks(withRun)[0]?.timeoutMs).toBeUndefined();
+    expect(checks(without)[0]?.args).not.toContain("--run");
+    expect(checks(without)[0]?.timeoutMs).toBe(CHECK_TIMEOUT_MS);
+    expect(CHECK_TIMEOUT_MS).toBe(600_000);
+  });
+
+  it("calls the sensor with --check, the settings and the tests list, and no commit, output, modules or preflight", () => {
+    const fake = setup(REGISTERED, gapsBy({}));
+
+    check(fake, "crap");
+
+    const [call] = checks(fake);
+    const args = call?.args as string[];
+
+    expect(call?.cwd).toBe(ROOT);
+    expect(args).toContain("--check");
+    expect(args).toContain(ROOT);
+
+    for (const dropped of [
+      "--commit",
+      "--output",
+      "--modules",
+      "{repository}",
+      "{commit}",
+      "{output}",
+    ]) {
+      expect(args).not.toContain(dropped);
+    }
+
+    expect(JSON.parse(args[args.indexOf("--settings") + 1] as string)).toEqual({
+      tests: expect.any(Array),
+    });
+  });
+});
+
+describe("checkArguments", () => {
+  it("drops the commit, output and modules pairs and fills the repository", () => {
+    expect(
+      checkArguments(
+        [
+          "recognizer-sensors",
+          "mutation",
+          "--repository",
+          "{repository}",
+          "--commit",
+          "{commit}",
+          "--output",
+          "{output}",
+          "--modules",
+          "{modules}",
+        ],
+        "/r",
+        true,
+      ),
+    ).toEqual([
+      "recognizer-sensors",
+      "mutation",
+      "--repository",
+      "/r",
+      "--check",
+      "--run",
+    ]);
+  });
+});
+
+describe("recognizer help sensors <name>", () => {
+  const guided = (stdout: string) =>
+    fakeIo({
+      files: { [CONFIG]: REGISTERED },
+      programs: { "recognizer-sensors": () => ({ stdout }) },
+    });
+
+  it("prints the guide the sensor supplies, verbatim", () => {
+    const fake = guided("the guide\nsecond line\n");
+
+    expect(run(["help", "sensors", "crap"], fake.io)).toBe(0);
+    expect(fake.out()).toBe("the guide\nsecond line\n");
+    expect(fake.calls[0]?.args).toContain("--guide");
+    expect(fake.calls[0]?.args).not.toContain("--check");
+  });
+
+  it("says a sensor that prints nothing supplies no setup guide", () => {
+    const fake = guided("");
+
+    expect(run(["help", "sensors", "duplication"], fake.io)).toBe(0);
+    expect(fake.out()).toBe("duplication supplies no setup guide\n");
+  });
+
+  it("exits 2 for an unknown sensor and leaves help sensors alone unchanged", () => {
+    expect(run(["help", "sensors", "nope"], guided("x").io)).toBe(2);
+
+    const plain = guided("x");
+
+    expect(run(["help", "sensors"], plain.io)).toBe(0);
+    expect(plain.out()).toContain("recognizer sensors");
+    expect(plain.calls).toEqual([]);
+  });
+});

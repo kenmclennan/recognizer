@@ -47,7 +47,9 @@ def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--settings", default="{}")
     parser.add_argument("--modules", type=Path)
-    parser.add_argument("--preflight", action="store_true")
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--run", action="store_true")
+    parser.add_argument("--guide", action="store_true")
     parser.add_argument("--version", action="version", version=package_version)
 
     return parser
@@ -94,13 +96,15 @@ def is_dirty(root: Path) -> bool:
     return result.returncode != 0 or bool(result.stdout.strip())
 
 
-def preflight(name: str, sensor, repository: Path, settings: dict) -> int:
-    found = (
-        sensor.preflight(repository, read_scans(repository), settings, name)
-        if sensor.runs_tests
-        else []
-    )
-    sys.stdout.write(json.dumps({"gaps": found}) + "\n")
+def check(sensor, repository: Path, settings: dict, run: bool) -> int:
+    sys.stdout.write(json.dumps({"gaps": sensor.check(repository, settings, run)}) + "\n")
+
+    return 0
+
+
+def config_gap(error: SettingsError) -> int:
+    gap = {"code": "config", "suite": None, "line": str(error)}
+    sys.stdout.write(json.dumps({"gaps": [gap]}) + "\n")
 
     return 0
 
@@ -112,6 +116,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if sensor is None:
         return fail(f"unknown sensor: {args.name}")
+
+    if args.run and not args.check:
+        return fail("--run is valid only with --check")
+
+    if args.guide:
+        if sensor.guide is not None:
+            sys.stdout.write(sensor.guide())
+
+        return 0
 
     if args.modules is not None and not sensor.scoped:
         return fail(f"{args.name} takes no module scope")
@@ -132,13 +145,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         settings = sensor.parse_settings(raw)
     except SettingsError as error:
+        if args.check and args.repository.is_dir():
+            return config_gap(error)
+
         return fail(str(error))
 
     if not args.repository.is_dir():
         return fail(f"--repository is not a directory: {args.repository}")
 
-    if args.preflight:
-        return preflight(args.name, sensor, args.repository, settings)
+    if args.check:
+        return check(sensor, args.repository, settings, args.run)
 
     commit = args.commit if args.commit else resolve_commit(args.repository)
 

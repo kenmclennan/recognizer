@@ -3,7 +3,14 @@ import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 
-const DENY_RULES = ["Read(**/.recognizer/**)", "Edit(**/.recognizer/**)"];
+const BASE_RULES = ["Read(**/.recognizer/**)", "Edit(**/.recognizer/**)"];
+
+const CARVE_OUTS = [
+  "Read(!**/.recognizer/config.yaml)",
+  "Edit(!**/.recognizer/config.yaml)",
+];
+
+const DENY_RULES = [...BASE_RULES, ...CARVE_OUTS];
 
 const SKILL_TEXT = [
   "---",
@@ -87,19 +94,42 @@ function denyList(settings: Settings): string[] {
     []) as string[];
 }
 
-function install(location: Paths, io: Io): string[] {
-  const settings = readSettings(location.settings, io);
-  const present = denyList(settings);
-  const missing = DENY_RULES.filter((rule) => !present.includes(rule));
+function arranged(present: string[]): { deny: string[]; changes: string[] } {
+  const deny = [...present];
   const changes: string[] = [];
 
-  if (missing.length > 0) {
+  for (const rule of BASE_RULES.filter((one) => !deny.includes(one))) {
+    deny.push(rule);
+    changes.push(`added deny rule ${rule}`);
+  }
+
+  for (const rule of CARVE_OUTS) {
+    const at = deny.indexOf(rule);
+    const lastBase = Math.max(...BASE_RULES.map((one) => deny.indexOf(one)));
+
+    if (at === -1) {
+      deny.push(rule);
+      changes.push(`added deny rule ${rule}`);
+    } else if (at < lastBase) {
+      deny.splice(at, 1);
+      deny.push(rule);
+      changes.push(`moved deny rule ${rule}`);
+    }
+  }
+
+  return { deny, changes };
+}
+
+function install(location: Paths, io: Io): string[] {
+  const settings = readSettings(location.settings, io);
+  const { deny, changes } = arranged(denyList(settings));
+
+  if (changes.length > 0) {
     const permissions = (settings.permissions ?? {}) as Settings;
 
-    permissions.deny = [...present, ...missing];
+    permissions.deny = deny;
     settings.permissions = permissions;
     writeSettings(location.settings, settings, io);
-    changes.push(...missing.map((rule) => `added deny rule ${rule}`));
   }
 
   const existed = io.exists(location.skill);

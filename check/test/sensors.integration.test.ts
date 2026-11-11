@@ -16,7 +16,11 @@ import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { capture, REPO } from "./helpers.js";
 
-const VARIABLES = ["RECOGNIZER_SCAN_PYTHON", "RECOGNIZER_SCAN_TYPESCRIPT"];
+const VARIABLES = [
+  "RECOGNIZER_SCAN_PYTHON",
+  "RECOGNIZER_SCAN_TYPESCRIPT",
+  "SHELL",
+];
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
 const TYPESCRIPT_BIN = join(REPO, "scanners/typescript/dist/bin.js");
 
@@ -111,6 +115,16 @@ describe.skipIf(!HAS_UV)(
         launchers,
         "recognizer-sensors",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
+      );
+      process.env.SHELL = launcher(
+        launchers,
+        "shell.sh",
+        [
+          'case "$2" in',
+          '  *"recognizer-check: start"*) echo "recognizer-check: start"; exit 0;;',
+          "esac",
+          'exec sh -c "$2"',
+        ].join("\n"),
       );
       process.env.PATH = `${launchers}:${savedPath}`;
     });
@@ -400,7 +414,7 @@ describe.skipIf(!HAS_UV)(
           await run(["scan", repository, "--sense", "crap"], captured.io),
         ).toBe(4);
         expect(captured.err()).toContain(
-          "no test suites are configured (crap): add a tests list to .recognizer/config.yaml",
+          "no test suites are configured in .recognizer/config.yaml (crap): recognizer help sensors crap",
         );
         expect(
           existsSync(join(repository, ".recognizer/cache/overlays/crap.json")),

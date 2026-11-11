@@ -14,11 +14,24 @@ Install with `uvx --from ./sensors recognizer-sensors` or `pipx install ./sensor
 
 A sensor reports nothing for a file its grammars do not parse: a file with an extension no grammar covers is skipped, and so is a function whose syntax tree has an error node.
 
+## Readiness check and setup guide
+
+```sh
+recognizer-sensors NAME --repository P --settings JSON --check [--run]
+recognizer-sensors NAME --guide
+```
+
+`--check` prints one JSON line, `{"gaps": [{"code", "suite", "line"}]}`, and exits `0` whether or not there are gaps (`2` for bad arguments). It needs no commit, writes nothing in the repository and starts no test run. `--run` is valid only with `--check`: it also runs each suite that has no gap once and reports `coverage-missing` or `coverage-unreadable` when its coverage report is absent or does not parse; a failing suite that leaves a parseable report is not a gap. A settings error is one gap, `config`, never exit `2`. `duplication` and `thresholds` have no check and print `{"gaps": []}`.
+
+`crap` and `mutation` share one check of the `tests:` suites: with none, `no-test-suites`; per suite, the directory exists (`directory-missing`), then `activate` runs in the user's login shell from the suite's directory (`activate-failed` when it does not, bounded by 60 seconds), then the mandated tools of its language are present: Python `pytest`, `coverage` and `pytest-cov` importable; TypeScript the one runner's packages (`vitest` with `@vitest/coverage-v8` or `@vitest/coverage-istanbul`, or `jest`; both runners in `package.json` is `runner-conflict`); Kotlin an executable `gradlew` and the JaCoCo plugin with its XML report; Rust `cargo llvm-cov` and a `llvm-tools` component in `rustup component list --installed`; C# `coverlet.collector` in every test project. Each gap is one sentence naming the suite, such as `suite api: pytest-cov is not installed in the activated environment`. No install command is offered or run.
+
+`--guide` prints the sensor's setup guide as plain text, empty for a sensor with none. The core prints it for `recognizer help sensors <name>`.
+
 ## crap
 
 Scores each function or method by change risk: `crap = cc^2 * (1 - coverage)^3 + cc`, as crap4j and unclebob/crapper do (references, never dependencies). `cc` is the cyclomatic complexity from the syntax tree: one plus each `if`, `elif`, loop, `case`/`when`/match arm, `catch`/`except`, conditional expression, `&&`/`||` (`and`/`or` in Python) and, in TypeScript, each `??` and `?.`. Coverage is the share of a function's instrumented lines (merged by path) that were hit.
 
-It runs the test suites listed under `tests:` in `.recognizer/config.yaml` in the same run, each in the user's login shell, so it runs the repository's code in the working tree. `modified` is taken before the tests start. With no `tests:` list it does not run: it exits `2` with `coverage unavailable: no test suites are configured; add a tests list to .recognizer/config.yaml` and leaves a prior overlay untouched. `recognizer-sensors crap --preflight` prints one gap, `crap:no-test-suites`, when the list is absent and none when it is set.
+It runs the test suites listed under `tests:` in `.recognizer/config.yaml` in the same run, each in the user's login shell, so it runs the repository's code in the working tree. `modified` is taken before the tests start. With no `tests:` list it does not run: it exits `2` with `coverage unavailable: no test suites are configured; add a tests list to .recognizer/config.yaml` and leaves a prior overlay untouched. Its readiness check reports `no-test-suites` when the list is absent.
 
 | setting | default | meaning |
 | --- | --- | --- |
@@ -56,7 +69,7 @@ Cost: scoring is quadratic in the number of functions per language, narrowed by 
 
 Mutates each covered function and runs the repository's tests against every mutant, as unclebob/mutator and clj-mutate do (references, never dependencies), then warns on each function with a surviving mutant, naming each mutation and its line (`line 2 >= to >`), with the fix pattern `strengthen-tests`. One run does it all: the coverage run, the mutants, and the writes.
 
-Mutation reads the `tests` list the core hands it from the config's top-level `tests:` key, as C.R.A.P. does, and runs every command it starts in the user's login shell (`$SHELL -ilc 'cd <directory> && <activate> && <command>'`) with the suite's `env`, inside a copy of the repository. It builds no environment and installs nothing: each language mandates dev-only tools that the repository installs itself (`pytest` with `coverage` and `pytest-cov`; `vitest` with `@vitest/coverage-v8` or `@vitest/coverage-istanbul`, or `jest`; the Gradle wrapper with the JaCoCo plugin and its XML report; `cargo-llvm-cov` with the `llvm-tools-preview` component; `coverlet.collector` in each C# test project). A missing tool fails the run with the tool's own output in `.recognizer/cache/coverage/last-run.log`. With no `tests:` list it exits `2` with the C.R.A.P. sentence, and `recognizer-sensors mutation --preflight` prints one gap, `mutation:no-test-suites`. A file belongs to the suite of its language whose `directory` is the longest prefix of its path; a file under no suite is not mutated and has no overlay value, and a scanned language with no suite prints one stderr line and is not measured. Two suites of one language and directory are a settings error.
+Mutation reads the `tests` list the core hands it from the config's top-level `tests:` key, as C.R.A.P. does, and runs every command it starts in the user's login shell (`$SHELL -ilc 'cd <directory> && <activate> && <command>'`) with the suite's `env`, inside a copy of the repository. It builds no environment and installs nothing: each language mandates dev-only tools that the repository installs itself (`pytest` with `coverage` and `pytest-cov`; `vitest` with `@vitest/coverage-v8` or `@vitest/coverage-istanbul`, or `jest`; the Gradle wrapper with the JaCoCo plugin and its XML report; `cargo-llvm-cov` with the `llvm-tools` component of rustup; `coverlet.collector` in each C# test project). A missing tool fails the run with the tool's own output in `.recognizer/cache/coverage/last-run.log`. With no `tests:` list it exits `2` with the C.R.A.P. sentence, and its readiness check reports `no-test-suites`. A file belongs to the suite of its language whose `directory` is the longest prefix of its path; a file under no suite is not mutated and has no overlay value, and a scanned language with no suite prints one stderr line and is not measured. Two suites of one language and directory are a settings error.
 
 | setting | default | meaning |
 | --- | --- | --- |

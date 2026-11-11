@@ -1,7 +1,9 @@
+import { resolve } from "node:path";
 import { agentGuide } from "./agent-guide.js";
 import type { Io } from "./cli.js";
 import { COMMANDS, type Command } from "./commands.js";
 import { InputError } from "./errors.js";
+import { guideText, sensorsToCheck } from "./sensors-check.js";
 
 export function shortHelp(commands: Command[] = COMMANDS): string {
   const width = Math.max(...commands.map((command) => command.name.length));
@@ -55,6 +57,28 @@ export function fullHelp(command: Command): string {
   ].join("\n");
 }
 
+function runSensorGuide(sensor: string, io: Io): number {
+  const root = resolve(".");
+  const [selected] = sensorsToCheck(io, root, sensor) as [
+    { name: string; command: string[] },
+  ];
+  const guide = guideText(io, root, selected);
+
+  if ("failure" in guide) {
+    io.stderr(`${guide.failure}\n`);
+
+    return 1;
+  }
+
+  io.stdout(
+    guide.text.trim() === ""
+      ? `${selected.name} supplies no setup guide\n`
+      : guide.text,
+  );
+
+  return 0;
+}
+
 export function runHelp(argv: string[], io: Io): number {
   const [name, ...rest] = argv;
 
@@ -68,6 +92,10 @@ export function runHelp(argv: string[], io: Io): number {
     io.stdout(agentGuide());
 
     return 0;
+  }
+
+  if (name === "sensors" && rest.length === 1) {
+    return runSensorGuide(rest[0] as string, io);
   }
 
   const command = COMMANDS.find((entry) => entry.name === name);
