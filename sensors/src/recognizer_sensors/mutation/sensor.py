@@ -4,7 +4,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from recognizer_sensors.crap.lcov import function_coverage
@@ -39,6 +39,7 @@ from recognizer_sensors.mutation.runner import (
     Stopped,
     StoppedBeforeMutation,
     copy_repository,
+    git_lines,
     install_coverage_stop_handler,
     install_stop_handler,
     new_work_folder,
@@ -50,7 +51,7 @@ from recognizer_sensors.mutation.runner import (
     run_test_command,
 )
 from recognizer_sensors.mutation.sites import Site, find_sites
-from recognizer_sensors.mutation.warmup import coverage_run
+from recognizer_sensors.mutation.warmup import CARRY_HINT, coverage_run
 from recognizer_sensors.mutation.warmup import suite_size as suite_size_of
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
@@ -65,7 +66,6 @@ from recognizer_sensors.settings import (
     relative_path,
 )
 from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed, not_installed
-from recognizer_sensors.testrun.reports import LOG
 from recognizer_sensors.testrun.suites import Suite, directory_of, parse_suites
 
 NO_AFFECTED = "No affected test files found"
@@ -303,6 +303,8 @@ def timeout_for(baseline_seconds: float, factor: float) -> float:
 
 LOG_LOCK = threading.Lock()
 
+BASELINE_LOG = Path(".recognizer") / "cache" / "mutation" / "baseline.log"
+
 
 class CopyPool:
     def __init__(
@@ -378,6 +380,18 @@ class NoSelectedTests(Exception):
     pass
 
 
+def omitted_paths(repository: Path, carry: tuple[str, ...]) -> list[str]:
+    listed = git_lines(repository, "--others", "--ignored", "--exclude-standard", "--directory")
+
+    return [
+        path
+        for path in listed or []
+        if path.rstrip("/") not in carry
+        and path.rstrip("/") != ".git"
+        and not path.startswith(".recognizer/cache")
+    ]
+
+
 def run_baseline(
     repository: Path,
     copies: CopyPool,
@@ -388,6 +402,8 @@ def run_baseline(
     with copies.lease() as copy:
         result = run_test_command(command, copy, None, suite=suite)
 
+    carry = copies.carry
+
     if STOP.is_set():
         raise Stopped
 
@@ -397,13 +413,17 @@ def run_baseline(
     if result.passed:
         return result.seconds
 
-    log = repository / LOG
+    log = repository / BASELINE_LOG
+    omitted = omitted_paths(repository, carry)
 
     with LOG_LOCK:
         log.parent.mkdir(parents=True, exist_ok=True)
 
         with log.open("a", encoding="utf-8") as stream:
             stream.write(f"== baseline {' '.join(command)}\n{output_tail(result.output)}\n")
+            stream.write(f"== omitted from the copy: {', '.join(omitted) or 'none'}\n")
+
+    print(CARRY_HINT, file=sys.stderr)
 
     if result.exit_code is None:
         raise not_installed(command[0])
@@ -430,6 +450,14 @@ class Baselines:
         self.copies = CopyPool(repository, work, max_workers, carry)
         self.lock = threading.Lock()
         self.entries: dict[tuple[str, ...], Baseline] = {}
+
+    def prime(self, command: list[str], suite: Suite, seconds: float) -> None:
+        entry = Baseline()
+        entry.seconds = seconds
+        entry.done.set()
+
+        with self.lock:
+            self.entries[(suite.name, *command)] = entry
 
     def seconds(
         self, command: list[str], subject: str, suite: Suite, fallback: bool = False
@@ -878,6 +906,7 @@ def measure(
     restore_coverage_handler = install_coverage_stop_handler()
 
     report("coverage")
+    warmup_seconds: dict[str, float] = {}
 
     try:
         with PeakSampler() as sampler:
@@ -886,6 +915,7 @@ def measure(
                 scans,
                 suites,
                 work,
+                seconds=warmup_seconds,
                 **({"carry": settings["carry"]} if "carry" in settings else {}),
             )
     except (StoppedBeforeMutation, MeasurementError):
@@ -994,6 +1024,7 @@ def measure(
     done: set[str] = set()
     queued = {target.identity for target in queue}
     stopped = False
+    refused: Refusal | None = None
     total = sum(1 for target in targets if modules is None or target.module in modules)
     finished = total - len(queue)
 
@@ -1056,6 +1087,14 @@ def measure(
             )
             tally_lock = threading.Lock()
             workers = settings["max_workers"]
+
+            for suite in {
+                by_name[target.suite].name: by_name[target.suite] for target in queue
+            }.values():
+                if suite.name in warmup_seconds:
+                    baselines.prime(
+                        mutant_command(suite, workers=workers), suite, warmup_seconds[suite.name]
+                    )
 
             def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
                 suite = by_name[target.suite]
@@ -1147,30 +1186,46 @@ def measure(
                         except OSError:
                             return
 
-            run_functions(
-                queue,
-                lambda target: run_function(
-                    repository,
-                    work,
-                    mutants_for(target, sources),
-                    plan_for(target),
-                    by_name[target.suite],
-                    hashes if target.language == "python" else None,
-                    settings.get("carry", ()),
-                    **({"copies": mutant_copies} if mutant_copies.enabled else {}),
-                    **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
-                ),
-                settings["max_workers"],
-                deadline,
-                CLOCK,
-                finish,
-            )
+            try:
+                run_functions(
+                    queue,
+                    lambda target: run_function(
+                        repository,
+                        work,
+                        mutants_for(target, sources),
+                        plan_for(target),
+                        by_name[target.suite],
+                        hashes if target.language == "python" else None,
+                        settings.get("carry", ()),
+                        **({"copies": mutant_copies} if mutant_copies.enabled else {}),
+                        **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
+                    ),
+                    settings["max_workers"],
+                    deadline,
+                    CLOCK,
+                    finish,
+                )
+            except Refusal as refusal:
+                if not done:
+                    raise
+
+                refused = refusal
             stopped = STOP.is_set()
             remove_stale_work_folders(work)
         finally:
             restore_handler()
 
     outcome, measured, skipped_ids, reused = assemble(done, stopped)
+
+    if refused is not None:
+        outcome = replace(
+            outcome,
+            refused=True,
+            diagnosis={
+                **refused.diagnosis,
+                "line": f"the run ended early: {refused.diagnosis['line']}",
+            },
+        )
     mutated = len(measured) - reused
 
     if sizing_line is not None:

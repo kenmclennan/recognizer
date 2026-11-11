@@ -2,11 +2,13 @@ import json
 import shlex
 import sys
 
+import pytest
 from conftest import FINDINGS_SCHEMA, git_commit, make_repository, mutate_repository, python_suite
 from jsonschema import Draft202012Validator
 from test_mutation import run_mutate
 
 from recognizer_sensors.cli import main
+from recognizer_sensors.mutation.warmup import CARRY_HINT
 from recognizer_sensors.settings import MeasurementError, Refusal, diagnose
 from recognizer_sensors.testrun.failures import (
     crap_tests_failed,
@@ -132,6 +134,7 @@ def test_a_complexity_only_document_still_warns_and_validates(tmp_path, monkeypa
     Draft202012Validator(schema).validate(document)
 
 
+@pytest.mark.usefixtures("unprimed")
 def test_mutation_over_a_red_suite_refuses_and_leaves_no_work_folder(tmp_path, capsys):
     root, _ = mutate_repository(tmp_path)
     failing = tmp_path / "f.py"
@@ -140,7 +143,7 @@ def test_mutation_over_a_red_suite_refuses_and_leaves_no_work_folder(tmp_path, c
     settings = json.dumps({"tests": [python_suite(str(failing))]})
 
     status = run_mutate(root, output, settings)
-    lines = capsys.readouterr().err.splitlines()
+    lines = [line for line in capsys.readouterr().err.splitlines() if line != CARRY_HINT]
 
     assert status == 2
     assert json.loads(lines[0].removeprefix("recognizer-reason "))["code"] == "tests-failed"

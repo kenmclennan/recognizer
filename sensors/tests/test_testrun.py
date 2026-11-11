@@ -432,3 +432,31 @@ def test_an_empty_report_makes_mutation_refuse(tmp_path):
         coverage_run(root, read_scans(root), suites, work)
 
     assert EMPTY_REPORT in refusal.value.diagnosis["line"]
+
+
+def test_the_warm_up_records_the_seconds_each_suite_took(tmp_path):
+    root = repository(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    py = script(root, "p.py", WRITE_LCOV)
+    suites_found = parse_suites([suite("python", command(py, "out/py.info"), path="out/py.info")])
+    recorded: dict[str, float] = {}
+
+    coverage_run(root, read_scans(root), suites_found, work, seconds=recorded)
+
+    assert list(recorded) == [suites_found[0].name]
+    assert recorded[suites_found[0].name] > 0
+
+
+def test_a_failing_warm_up_suite_leaves_no_recorded_seconds(tmp_path):
+    root = repository(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    failing = script(root, "f.py", FAIL)
+    suites_found = parse_suites([suite("python", command(failing, "1"), path="out/py.info")])
+    recorded: dict[str, float] = {}
+
+    with pytest.raises(Refusal):
+        coverage_run(root, read_scans(root), suites_found, work, seconds=recorded)
+
+    assert recorded == {}

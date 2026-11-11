@@ -227,4 +227,10 @@ def main(argv: list[str] | None = None) -> int:
 
     emit(outcome, True)
 
+    if outcome.refused:
+        print(f"{REASON_PREFIX}{json.dumps(outcome.diagnosis)}", file=sys.stderr)
+        print(outcome.diagnosis["line"], file=sys.stderr)
+
+        return 2
+
     return STOPPED_STATUS if outcome.stopped else 0

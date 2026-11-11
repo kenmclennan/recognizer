@@ -21,3 +21,4 @@ class Outcome:
     tests: str | None = None
     diagnosis: dict | None = None
     excluded: dict | None = None
+    refused: bool = False

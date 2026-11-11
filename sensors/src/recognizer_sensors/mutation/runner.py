@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from recognizer_sensors.settings import MeasurementError
 from recognizer_sensors.testrun.suites import Suite, directory_of, login_shell, shell_script
 
 WORK = Path(".recognizer") / "cache" / "mutation" / "work"
@@ -760,6 +761,7 @@ def run_functions(
 ) -> list[list | None]:
     spent = threading.Event()
     done_lock = threading.Lock()
+    refusals: list[MeasurementError] = []
 
     def take(item: object) -> list | None:
         if spent.is_set() or STOP.is_set() or (deadline is not None and clock() >= deadline):
@@ -771,6 +773,13 @@ def run_functions(
             verdicts = run_item(item)
         except Stopped:
             return None
+        except MeasurementError as error:
+            with done_lock:
+                refusals.append(error)
+
+            spent.set()
+
+            return None
 
         if verdicts is not None and on_done is not None:
             with done_lock:
@@ -781,7 +790,12 @@ def run_functions(
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [pool.submit(take, item) for item in items]
 
-        return [future.result() for future in futures]
+        results = [future.result() for future in futures]
+
+    if refusals:
+        raise refusals[0]
+
+    return results
 
 
 def new_work_folder(repository: Path) -> Path:
