@@ -90,7 +90,7 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
   it("lists each gap with its sensor and no count", () => {
     expect(f.gaps.head).toBe("Nothing ran");
     expect(f.gaps.line).toBe(
-      "Some tools the ticked sensors need are missing. Fix them below, then scan.",
+      "Some tools the ticked sensors need are missing. Set them up as below, then scan again.",
     );
     expect(f.gaps.title).toBe("Before this scan can run");
     expect(f.gaps.count).toBeNull();
