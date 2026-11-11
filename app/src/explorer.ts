@@ -107,6 +107,7 @@ import {
 import { mountPanelResizers } from "./panel-resizer-view";
 import { type PlanOverlay, planOverlay } from "./plan-overlay";
 import { NO_PREFLIGHT, type PreflightState } from "./preflight-model";
+import { changedKeys, type ProgressKeys, progressKeys } from "./progress-keys";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import { removedPlacement } from "./removed-boxes";
 import {
@@ -399,6 +400,7 @@ export function showExplorer(
   let openView: string | null = null;
   let resultsMode: ResultsMode = "bring";
   let runPlanned: PlannedRun | null = null;
+  let lastKeys: ProgressKeys | null = null;
   let freshnessCache: FreshnessModel | null = null;
   let overlaysCache: OverlayModel | null = null;
   let viewList: { name: string; text: string }[] = [];
@@ -3566,35 +3568,7 @@ export function showExplorer(
     });
   }
 
-  function render() {
-    const filtered = filterTree(root, filter, context);
-    const selection = state.selection();
-
-    syncTrail(selection);
-    body.classList.toggle("tree-hidden", leftPanel === null);
-    tree.element.classList.toggle("views-open", leftPanel === "views");
-    tree.element.classList.toggle("notes-open", leftPanel === "notes");
-    tree.element.classList.toggle("scan-open", leftPanel === "scan");
-    tree.element.classList.toggle("findings-open", leftPanel === "findings");
-
-    const noteView = openViewValue();
-    const noteTotal = noteView === null ? 0 : viewNotes(noteView).length;
-
-    freshnessCache = null;
-    overlaysCache = null;
-
-    const scanModelNow = scanModel();
-
-    freshnessCache = scanModelNow.freshness;
-    scanHost.footer?.(scanModelNow.freshness.footer);
-    scanView.render(scanModelNow);
-    viewsPanel.render(
-      leftPanel === "views"
-        ? viewsPanelModel(viewList, scans, viewFacts)
-        : null,
-      openView,
-    );
-
+  function findingsInputs() {
     const scoped = findingsOnlyView;
     const shownFindings = scoped
       ? scopedRows(allFindings, scopeOf(modules.opened()))
@@ -3624,6 +3598,36 @@ export function showExplorer(
     const primary = findingsFresh.action.primary;
     const findingsAction = findingsActionOf(primary, findingsLine?.link ?? "");
 
+    return {
+      scoped,
+      shownFindings,
+      shownGroups,
+      noneYet,
+      everyChanged,
+      findingsLine,
+      findingsAction,
+    };
+  }
+
+  function findingsEmpty(inputs: ReturnType<typeof findingsInputs>) {
+    return inputs.everyChanged
+      ? "Every module on this canvas changed, so there is nothing current to show."
+      : allFindings.length === 0
+        ? "No findings for this scan."
+        : inputs.shownFindings.length === 0
+          ? "No findings on this canvas's modules."
+          : null;
+  }
+
+  function renderFindings(inputs = findingsInputs()) {
+    const {
+      shownFindings,
+      shownGroups,
+      noneYet,
+      findingsLine,
+      findingsAction,
+    } = inputs;
+
     findingsView.render({
       scope: {
         caption: scopeCaption(openView, modules.count()),
@@ -3652,38 +3656,11 @@ export function showExplorer(
       })),
       active: orientedFinding,
       absent: (module) => !boxPresent(module),
-      empty: everyChanged
-        ? "Every module on this canvas changed, so there is nothing current to show."
-        : allFindings.length === 0
-          ? "No findings for this scan."
-          : shownFindings.length === 0
-            ? "No findings on this canvas's modules."
-            : null,
+      empty: findingsEmpty(inputs),
     });
-    rail.render({
-      panel: leftPanel,
-      notes: noteTotal,
-      scanFailed: scanModelNow.mark,
-      findings: badge(allFindings),
-    });
-    tree.render({
-      title,
-      moduleCount: loaded.modules.length,
-      filtered,
-      described,
-      description: (id) => descriptionOf(responsibilityOf(id)),
-      expanded,
-      selected:
-        selection === null || selection.kind === "edge" ? null : selection.id,
-      isOpen: modules.isOpen,
-      filter,
-    });
-    body.classList.toggle("inspector-open", inspectorOpen);
-    renderCanvas();
-    notesPanel.render({
-      hasView: noteView !== null,
-      rows: noteRowsNow(),
-    });
+  }
+
+  function renderInspector() {
     const contentOf = (index: number) => {
       const panel = trail.panels[index];
       const root = index === 0;
@@ -3741,13 +3718,147 @@ export function showExplorer(
       focused: trail.panels.map((panel) => panel.focusedRow),
       canPut: missingFromCanvas(trail, modules.isOpen).length > 0,
     });
+  }
+
+  function render() {
+    const filtered = filterTree(root, filter, context);
+    const selection = state.selection();
+
+    syncTrail(selection);
+    body.classList.toggle("tree-hidden", leftPanel === null);
+    tree.element.classList.toggle("views-open", leftPanel === "views");
+    tree.element.classList.toggle("notes-open", leftPanel === "notes");
+    tree.element.classList.toggle("scan-open", leftPanel === "scan");
+    tree.element.classList.toggle("findings-open", leftPanel === "findings");
+
+    const noteView = openViewValue();
+    const noteTotal = noteTotalOf(noteView);
+
+    freshnessCache = null;
+    overlaysCache = null;
+
+    const scanModelNow = scanModel();
+
+    freshnessCache = scanModelNow.freshness;
+    scanHost.footer?.(scanModelNow.freshness.footer);
+    scanView.render(scanModelNow);
+    viewsPanel.render(
+      leftPanel === "views"
+        ? viewsPanelModel(viewList, scans, viewFacts)
+        : null,
+      openView,
+    );
+
+    renderFindings();
+    rail.render({
+      panel: leftPanel,
+      notes: noteTotal,
+      scanFailed: scanModelNow.mark,
+      findings: badge(allFindings),
+    });
+    tree.render({
+      title,
+      moduleCount: loaded.modules.length,
+      filtered,
+      described,
+      description: (id) => descriptionOf(responsibilityOf(id)),
+      expanded,
+      selected:
+        selection === null || selection.kind === "edge" ? null : selection.id,
+      isOpen: modules.isOpen,
+      filter,
+    });
+    body.classList.toggle("inspector-open", inspectorOpen);
+    renderCanvas();
+    notesPanel.render({
+      hasView: noteView !== null,
+      rows: noteRowsNow(),
+    });
+    renderInspector();
 
     if (scrollTarget !== null) {
       tree.scrollTo(scrollTarget);
       scrollTarget = null;
     }
 
+    lastKeys = progressKeys(progressInput(findingsInputs()));
     publish();
+  }
+
+  function progressInput(findings: ReturnType<typeof findingsInputs>) {
+    return {
+      findings: {
+        line:
+          findings.findingsLine === null
+            ? null
+            : {
+                text: findings.findingsLine.text,
+                link: findings.findingsLine.link ?? "",
+              },
+        action: {
+          label: findings.findingsAction.label,
+          openScan: findings.findingsAction.openScan,
+        },
+        none: findings.shownGroups.map(
+          (group) =>
+            group.rows.length === 0 ||
+            findings.noneYet(SENSOR_GROUPS[group.key] ?? ""),
+        ),
+        everyChanged: findings.everyChanged,
+        empty: findingsEmpty(findings),
+      },
+      overlays: {
+        changed: [...changedBoxes()],
+        groups: canvasMetrics().groups.map((group) => ({
+          name: group.name,
+          enabled: group.enabled,
+          notes: group.notes,
+        })),
+      },
+    };
+  }
+
+  function noteTotalOf(view: ReturnType<typeof openViewValue>) {
+    return view === null ? 0 : viewNotes(view).length;
+  }
+
+  function renderProgress() {
+    if (lastKeys === null || scrollTarget !== null) {
+      render();
+
+      return;
+    }
+
+    freshnessCache = null;
+    overlaysCache = null;
+
+    const scanModelNow = scanModel();
+
+    freshnessCache = scanModelNow.freshness;
+    scanHost.footer?.(scanModelNow.freshness.footer);
+    scanView.render(scanModelNow);
+
+    const findings = findingsInputs();
+    const keys = progressKeys(progressInput(findings));
+    const changed = changedKeys(lastKeys, keys);
+
+    if (changed.findings) {
+      renderFindings(findings);
+    }
+
+    rail.render({
+      panel: leftPanel,
+      notes: noteTotalOf(openViewValue()),
+      scanFailed: scanModelNow.mark,
+      findings: badge(allFindings),
+    });
+
+    if (changed.overlays) {
+      renderCanvas();
+      renderInspector();
+    }
+
+    lastKeys = keys;
   }
 
   function resume(snap: Snapshot) {
@@ -3851,7 +3962,7 @@ export function showExplorer(
     openSelectedInEditor,
     openLinkedView: () => void openLinkedView(),
     refreshResponsibilities: () => void readResponsibilities(),
-    refreshPanel: () => render(),
+    refreshPanel: () => renderProgress(),
     show: showTarget,
     carry: () => ({
       history,
