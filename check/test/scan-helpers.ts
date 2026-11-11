@@ -53,7 +53,12 @@ export interface Fake {
   out: () => string;
   err: () => string;
   files: Map<string, string>;
-  calls: { command: string; args: string[]; cwd?: string }[];
+  calls: {
+    command: string;
+    args: string[];
+    cwd?: string;
+    timeoutMs?: number;
+  }[];
   launches: { command: string; args: string[] }[];
   removed: string[];
   writes: string[];
@@ -120,7 +125,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     }),
   );
   const symlinks = new Set(options.symlinks ?? []);
-  const calls: { command: string; args: string[]; cwd?: string }[] = [];
+  const calls: Fake["calls"] = [];
   const launches: { command: string; args: string[] }[] = [];
   const removed: string[] = [];
   const writes: string[] = [];
@@ -163,7 +168,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   function runNow(
     command: string,
     args: string[],
-    runOptions?: { cwd?: string },
+    runOptions?: { cwd?: string; timeoutMs?: number },
   ): RunResult {
     if (command === "git" && args.includes("ls-files")) {
       if (options.listing) {
@@ -193,15 +198,18 @@ export function fakeIo(options: FakeOptions = {}): Fake {
           };
     }
 
-    calls.push(
-      runOptions?.cwd === undefined
-        ? { command, args }
-        : { command, args, cwd: runOptions.cwd },
-    );
+    calls.push({
+      command,
+      args,
+      ...(runOptions?.cwd === undefined ? {} : { cwd: runOptions.cwd }),
+      ...(runOptions?.timeoutMs === undefined
+        ? {}
+        : { timeoutMs: runOptions.timeoutMs }),
+    });
 
     if (
       command === "recognizer-sensors" &&
-      (args.includes("--version") || args.includes("--preflight"))
+      (args.includes("--version") || args.includes("--check"))
     ) {
       const effect = args.includes("--version")
         ? (options.sensorsPreflight?.version ?? { stdout: "0.0.0\n" })

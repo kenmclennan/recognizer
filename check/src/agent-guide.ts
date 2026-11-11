@@ -3,7 +3,7 @@ import { COMMANDS, type Command } from "./commands.js";
 const RULES = [
   "Rules:",
   "  - The command line is your only interface.",
-  "  - Never read, write or list anything under .recognizer/, including scans, views, config and the cache.",
+  "  - Never read, write or list anything under .recognizer/ except config.yaml, including scans, views and the cache.",
   "  - Never write a view file by hand; build views with recognizer views.",
   "  - When a scan or describe fails, run recognizer log --last (add --kind describe or scan) for what ran and why it failed; never read the files under .recognizer/ by hand.",
   "  - recognizer check --scan replays a scan produced elsewhere and is for CI and fixtures only; an agent never uses it.",

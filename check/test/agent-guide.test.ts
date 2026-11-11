@@ -13,10 +13,12 @@ describe("agent guide", () => {
     expect(fake.out()).toBe(agentGuide());
   });
 
-  it("says .recognizer/ is never touched and check --scan is not for agents", () => {
+  it("says .recognizer/ is never touched except config.yaml and check --scan is not for agents", () => {
     const guide = agentGuide();
 
-    expect(guide).toMatch(/Never[^\n]*\.recognizer\//);
+    expect(guide).toMatch(
+      /Never read, write or list anything under \.recognizer\/ except config\.yaml/,
+    );
     expect(guide).toMatch(/check --scan[^\n]*CI and fixtures/);
   });
 

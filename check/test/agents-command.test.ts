@@ -10,6 +10,9 @@ const SETTINGS = `${HOME}/.claude/settings.json`;
 const SKILL = `${HOME}/.claude/skills/recognizer/SKILL.md`;
 const READ = "Read(**/.recognizer/**)";
 const EDIT = "Edit(**/.recognizer/**)";
+const READ_EXCEPT = "Read(!**/.recognizer/config.yaml)";
+const EDIT_EXCEPT = "Edit(!**/.recognizer/config.yaml)";
+const FOUR = [READ, EDIT, READ_EXCEPT, EDIT_EXCEPT];
 
 function setup(files: Record<string, string> = {}, env = { HOME }) {
   return fakeIo({ files, env });
@@ -29,17 +32,16 @@ const EXISTING = {
 };
 
 describe("agents install", () => {
-  it("writes the skill and exactly the two rules into an empty home", () => {
+  it("writes the skill and exactly the four rules into an empty home", () => {
     const fake = setup();
 
     expect(call(fake, "install")).toBe(0);
     expect(fake.files.get(SKILL)).toContain("recognizer help agents");
-    expect(settingsOf(fake).permissions.deny).toEqual([READ, EDIT]);
+    expect(settingsOf(fake).permissions.deny).toEqual(FOUR);
     expect(fake.out()).toBe(
       [
         `wrote ${SKILL}`,
-        `added deny rule ${READ}`,
-        `added deny rule ${EDIT}`,
+        ...FOUR.map((rule) => `added deny rule ${rule}`),
         "",
       ].join("\n"),
     );
@@ -54,7 +56,7 @@ describe("agents install", () => {
 
     expect(settings.theme).toBe("dark");
     expect(settings.permissions.allow).toEqual(["Bash(ls)"]);
-    expect(settings.permissions.deny).toEqual(["Read(.env)", READ, EDIT]);
+    expect(settings.permissions.deny).toEqual(["Read(.env)", ...FOUR]);
   });
 
   it("is idempotent", () => {
@@ -83,7 +85,7 @@ describe("agents install", () => {
 
     expect(fake.out()).toContain(`added deny rule ${EDIT}`);
     expect(fake.out()).not.toContain(`added deny rule ${READ}`);
-    expect(settingsOf(fake).permissions.deny).toEqual([READ, EDIT]);
+    expect(settingsOf(fake).permissions.deny).toEqual(FOUR);
   });
 
   it("adds exactly one rule when only the Edit rule is present", () => {
@@ -99,7 +101,45 @@ describe("agents install", () => {
         .out()
         .split("\n")
         .filter((line) => line.startsWith("added")),
-    ).toEqual([`added deny rule ${READ}`]);
+    ).toEqual([
+      `added deny rule ${READ}`,
+      `added deny rule ${READ_EXCEPT}`,
+      `added deny rule ${EDIT_EXCEPT}`,
+    ]);
+  });
+
+  it("gains exactly the two negations after the two old rules", () => {
+    const fake = setup({
+      [SETTINGS]: JSON.stringify({ permissions: { deny: [READ, EDIT] } }),
+      [SKILL]: "x",
+    });
+
+    call(fake, "install");
+
+    expect(settingsOf(fake).permissions.deny).toEqual(FOUR);
+    expect(
+      fake
+        .out()
+        .split("\n")
+        .filter((line) => line.startsWith("added")),
+    ).toEqual([
+      `added deny rule ${READ_EXCEPT}`,
+      `added deny rule ${EDIT_EXCEPT}`,
+    ]);
+  });
+
+  it("moves a negation listed before the rule it narrows to after it", () => {
+    const fake = setup({
+      [SETTINGS]: JSON.stringify({
+        permissions: { deny: [READ_EXCEPT, READ, EDIT_EXCEPT, EDIT] },
+      }),
+      [SKILL]: "x",
+    });
+
+    call(fake, "install");
+
+    expect(settingsOf(fake).permissions.deny).toEqual(FOUR);
+    expect(fake.out()).toContain(`moved deny rule ${READ_EXCEPT}`);
   });
 
   it("reports a differing skill as updated", () => {
@@ -141,8 +181,7 @@ describe("agents install", () => {
     expect(JSON.parse(fake.out())).toEqual({
       changes: [
         `wrote ${SKILL}`,
-        `added deny rule ${READ}`,
-        `added deny rule ${EDIT}`,
+        ...FOUR.map((rule) => `added deny rule ${rule}`),
       ],
     });
   });
@@ -205,8 +244,7 @@ describe("agents uninstall", () => {
     expect(JSON.parse(fake.out().slice(before))).toEqual({
       changes: [
         `removed ${SKILL}`,
-        `removed deny rule ${READ}`,
-        `removed deny rule ${EDIT}`,
+        ...FOUR.map((rule) => `removed deny rule ${rule}`),
       ],
     });
   });
@@ -227,7 +265,7 @@ describe("agents on the real filesystem", () => {
       readFileSync(join(home, ".claude", "settings.json"), "utf8"),
     );
 
-    expect(settings.permissions.deny).toEqual([READ, EDIT]);
+    expect(settings.permissions.deny).toEqual(FOUR);
     expect(
       readFileSync(
         join(home, ".claude", "skills", "recognizer", "SKILL.md"),

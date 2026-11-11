@@ -164,27 +164,6 @@ def source_of(suite: Suite) -> Source:
     return Source(report_pattern(suite), suite.coverage_format, directory_of(suite), suite.name)
 
 
-def suite_gaps(repository: Path, scans: list[Scan], settings: dict, sensor: str) -> list[dict]:
-    if settings.get("suites") is not None:
-        return []
-
-    return [
-        {
-            "id": f"{sensor}:no-test-suites",
-            "line": "no test suites are configured",
-            "needs": [sensor],
-            "project": None,
-            "fix": {
-                "text": "add a tests list to .recognizer/config.yaml",
-                "command": None,
-                "cwd": "",
-                "env": {},
-                "kind": "outside",
-            },
-        }
-    ]
-
-
 def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
     stream.write(f"== {suite.name}: {suite.command}\n")
     stream.flush()

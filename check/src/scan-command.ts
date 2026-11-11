@@ -22,7 +22,7 @@ import { InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
-import { earlyGaps, projectGaps } from "./preflight.js";
+import { earlyGaps, readinessGaps } from "./preflight.js";
 import {
   entryFrom,
   openPhasedRunLog,
@@ -605,7 +605,7 @@ function* scanFlow(
       .map((language) => readCachedScan(io, root, language))
       .filter((scan): scan is RecordedScan => scan !== null);
 
-    const later = commit === null ? [] : projectGaps(io, root, commit, ticked);
+    const later = commit === null ? [] : readinessGaps(io, root, ticked);
 
     if (later.length > 0) {
       return refuse(later);

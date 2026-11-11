@@ -737,22 +737,54 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "sensors",
-    summary: "list the shipped sensors, with what each judges",
-    usage: "recognizer sensors [--json]",
-    arguments: [],
-    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    summary:
+      "list the shipped sensors, with what each judges, and check their readiness",
+    usage:
+      "recognizer sensors [--json]\nrecognizer sensors check [name] [--run] [--json] [--repository <dir>]",
+    arguments: [
+      {
+        name: "check [name]",
+        description:
+          "ask each sensor that is not off, or the named one, to check its own readiness and report what is missing; nothing is installed or fixed",
+      },
+    ],
+    options: [
+      { flag: "--json", description: "print JSON instead of text" },
+      {
+        flag: "--run",
+        description:
+          "with check: also run each ready suite once and confirm its coverage report appears and parses",
+      },
+      {
+        flag: "--repository <dir>",
+        description:
+          "with check: the repository to check; default the current directory",
+      },
+    ],
     output: {
-      text: "one `<name>  <line>` line per shipped sensor",
-      json: "[{ name, display, line, defaults, runs_tests, listed, metrics }]: display is the panel name, line one sentence, defaults the settings the short form `<name>: {}` runs with, runs_tests whether the sensor runs the repository's tests, listed false for a sensor that is configuration only, metrics the overlay metrics it writes",
+      text: "one `<name>  <line>` line per shipped sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
+      json: "[{ name, display, line, defaults, runs_tests, listed, metrics }]; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }] }] }",
     },
     exitCodes: [
-      { code: 0, meaning: "the list was printed" },
-      { code: 2, meaning: "bad arguments" },
+      { code: 0, meaning: "the list was printed, or every sensor is ready" },
+      { code: 1, meaning: "check found a gap" },
+      {
+        code: 2,
+        meaning: "bad arguments, an unknown sensor, or no sensors registered",
+      },
     ],
     examples: [
       {
         command: "recognizer sensors --json",
         note: "the shipped sensors and their default settings",
+      },
+      {
+        command: "recognizer sensors check crap --run",
+        note: "what is missing before C.R.A.P. can run, with each suite run once",
+      },
+      {
+        command: "recognizer help sensors crap",
+        note: "the setup guide the sensor supplies",
       },
     ],
     run: runSensors,

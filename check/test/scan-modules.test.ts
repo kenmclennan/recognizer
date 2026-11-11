@@ -87,7 +87,7 @@ function senseArgs(fake: ReturnType<typeof fakeIo>, name: string) {
     (call) =>
       call.command === "recognizer-sensors" &&
       call.args[0] === name &&
-      !call.args.includes("--preflight"),
+      !call.args.includes("--check"),
   )?.args;
 }
 

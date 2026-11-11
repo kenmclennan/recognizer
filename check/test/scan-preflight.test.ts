@@ -21,17 +21,23 @@ const IN_TREE =
 const CUSTOM =
   'describer:\n  command: [custom-describer, "{module}"]\n  version: "v1"\n';
 
+const SENSOR_GAP = {
+  code: "pytest-cov-missing",
+  suite: "api",
+  line: "suite api: pytest-cov is not installed in the activated environment",
+};
+
 const GAP = {
-  id: "crap:python:sensors:environment",
-  line: "coverage and pytest are not installed",
+  id: "crap:api:pytest-cov-missing",
+  line: SENSOR_GAP.line,
   needs: ["crap"],
-  project: { language: "python", directory: "sensors" },
+  project: null,
   fix: {
-    text: "uv sync",
-    command: ["uv", "sync"],
-    cwd: "sensors",
+    text: "recognizer help sensors crap",
+    command: null,
+    cwd: "",
     env: {},
-    kind: "repository",
+    kind: "outside",
   },
 };
 
@@ -107,14 +113,14 @@ function sensorRuns(fake: ReturnType<typeof fakeIo>) {
   return fake.calls.filter(
     (call) =>
       call.command === "recognizer-sensors" &&
-      !call.args.includes("--preflight") &&
+      !call.args.includes("--check") &&
       !call.args.includes("--version"),
   );
 }
 
-const gapsFor = (...needs: string[]): SensorsPreflight => ({
-  run: () => ({
-    stdout: `${JSON.stringify({ gaps: [{ ...GAP, needs }] })}\n`,
+const gapsFor = (name: string): SensorsPreflight => ({
+  run: (args) => ({
+    stdout: `${JSON.stringify({ gaps: args[0] === name ? [SENSOR_GAP] : [] })}\n`,
   }),
 });
 
@@ -254,18 +260,21 @@ describe("scan preflight: the early stage", () => {
 });
 
 describe("scan preflight: the project stage", () => {
-  it("probes only ticked sensors that run tests", async () => {
+  it("checks only ticked sensors", async () => {
     const { code, fake } = await scan(setup(""), "--sense", "duplication,crap");
-    const probes = fake.calls.filter((call) =>
-      call.args.includes("--preflight"),
-    );
+    const checks = fake.calls.filter((call) => call.args.includes("--check"));
 
     expect(code).toBe(0);
-    expect(probes.map((call) => call.args[0])).toEqual(["crap"]);
-    expect(probes[0]?.args).not.toContain("--output");
+    expect(checks.map((call) => call.args[0])).toEqual(["duplication", "crap"]);
+
+    for (const check of checks) {
+      expect(check.args).not.toContain("--output");
+      expect(check.args).not.toContain("--commit");
+      expect(check.args).not.toContain("--run");
+    }
   });
 
-  it("makes no probe for an unticked sensor, so its gap cannot block", async () => {
+  it("makes no check for an unticked sensor, so its gap cannot block", async () => {
     const { code, fake } = await scan(
       setup("", gapsFor("crap")),
       "--sense",
@@ -273,9 +282,11 @@ describe("scan preflight: the project stage", () => {
     );
 
     expect(code).toBe(0);
-    expect(fake.calls.some((call) => call.args.includes("--preflight"))).toBe(
-      false,
-    );
+    expect(
+      fake.calls.some(
+        (call) => call.args.includes("--check") && call.args[0] === "crap",
+      ),
+    ).toBe(false);
   });
 
   it("is exit 4 with the gap, no sensor run, no describer call, and the skipped phases recorded", async () => {
@@ -332,8 +343,33 @@ describe("scan preflight: the project stage", () => {
 
     expect(code).toBe(4);
     expect(err).toContain(
-      "coverage and pytest are not installed (crap, python project sensors/): uv sync",
+      "suite api: pytest-cov is not installed in the activated environment (crap): recognizer help sensors crap",
     );
+  });
+
+  it("is a check-failed gap when the sensor's check does not answer", async () => {
+    const { code, err, out, fake } = await scan(
+      setup("", { run: () => ({ status: 2, stderr: "boom\nmore" }) }),
+      "--sense",
+      "crap",
+      "--json",
+    );
+    const gaps = events(out).find(
+      (one) => one.event === "preflight" && one.gaps,
+    );
+
+    expect(code).toBe(4);
+    expect(err).toBe("");
+    expect(gaps).toMatchObject({
+      gaps: [
+        {
+          id: "crap:config:check-failed",
+          line: "the readiness check of crap did not answer: boom",
+          fix: { kind: "outside", command: null },
+        },
+      ],
+    });
+    expect(sensorRuns(fake)).toEqual([]);
   });
 
   it("emits preflight ok on the passing path", async () => {
