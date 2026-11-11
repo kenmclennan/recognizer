@@ -31,7 +31,6 @@ const GAP = {
   id: "crap:api:pytest-cov-missing",
   line: SENSOR_GAP.line,
   needs: ["crap"],
-  project: null,
   fix: {
     text: "recognizer help sensors crap",
     command: null,

@@ -97,7 +97,6 @@ function describerArgumentsGap(
     id: "describe:arguments",
     line: "the describer rejects the arguments the scan passes",
     needs: ["describe"],
-    project: null,
     fix: inRepository
       ? {
           text: "npm run build",
@@ -123,7 +122,6 @@ function describerGaps(input: EarlyInput): Gap[] {
         id: "describe:missing",
         line: "no describer is registered and recognizer-describe-claude is not installed",
         needs: ["describe"],
-        project: null,
         fix: installFix(),
       },
     ];
@@ -145,7 +143,6 @@ function describerGaps(input: EarlyInput): Gap[] {
           id: "describe:program",
           line: `the describer program ${program} does not start`,
           needs: ["describe"],
-          project: null,
           fix: outside(`install ${program}`),
         },
       ];
@@ -167,7 +164,6 @@ function sensorProgramGaps(input: EarlyInput): Gap[] {
           id: "sensors:missing",
           line: `${SENSORS_PROGRAM} is not installed`,
           needs: shipped.map((one) => one.name),
-          project: null,
           fix: installFix(),
         },
       ];
@@ -181,7 +177,6 @@ export function earlyGaps(input: EarlyInput): Gap[] {
       id: "no-commit",
       line: "the folder has no git commit",
       needs: input.sensors.map((one) => one.name),
-      project: null,
       fix: outside(NO_COMMIT_FIX),
     });
   }
@@ -201,7 +196,6 @@ export function readinessGaps(
       id: `${report.name}:${gap.suite ?? "config"}:${gap.code}`,
       line: gap.line,
       needs: [report.name],
-      project: null,
       fix: outside(`recognizer help sensors ${report.name}`),
     })),
   );
