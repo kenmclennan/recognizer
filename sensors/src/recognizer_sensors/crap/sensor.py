@@ -9,8 +9,7 @@ from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
-from recognizer_sensors.settings import SettingsError, relative_path
-from recognizer_sensors.testrun.run import collect_coverage, parse_coverage, parse_test_command
+from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
 from recognizer_sensors.testrun.suites import Suite, collect_suites, parse_suites
 
 DEFAULTS = {
@@ -18,7 +17,7 @@ DEFAULTS = {
     "overlay": ".recognizer/cache/overlays/crap.json",
 }
 
-OPTIONAL = {"test_command", "coverage", "tests"}
+OPTIONAL = {"tests"}
 
 PRINCIPLE = "Complex code needs tests"
 FIX_PATTERN = "simplify-or-test"
@@ -60,19 +59,30 @@ def parse_settings(raw: dict) -> dict:
         "threshold": float(threshold),
         "overlay": relative_path("overlay", settings["overlay"]),
     }
-    command = parse_test_command(raw)
-    coverage = parse_coverage(raw)
-
-    if command is not None:
-        parsed["test_command"] = command
-
-    if coverage is not None:
-        parsed["coverage"] = coverage
-
-    if "tests" in raw:
-        parsed["suites"] = [asdict(s) for s in parse_suites(raw["tests"])]
+    parsed["suites"] = [asdict(s) for s in parse_suites(raw["tests"])] if "tests" in raw else None
 
     return parsed
+
+
+def suite_gaps(repository: Path, scans: list[Scan], settings: dict, sensor: str) -> list[dict]:
+    if settings.get("suites") is not None:
+        return []
+
+    return [
+        {
+            "id": "crap:no-test-suites",
+            "line": "no test suites are configured",
+            "needs": ["crap"],
+            "project": None,
+            "fix": {
+                "text": "add a tests list to .recognizer/config.yaml",
+                "command": None,
+                "cwd": "",
+                "env": {},
+                "kind": "outside",
+            },
+        }
+    ]
 
 
 def crap_score(complexity: int, coverage: float) -> float:
@@ -184,17 +194,18 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
 
 
 def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
-    diagnoses: list[dict] = []
+    if settings.get("suites") is None:
+        raise Refusal(
+            diagnose(
+                "coverage-unavailable",
+                "coverage unavailable: no test suites are configured; "
+                "add a tests list to .recognizer/config.yaml",
+            )
+        )
 
-    if "suites" in settings:
-        coverage, diagnosis = collect_suites(
-            repository, scans, tuple(Suite(**item) for item in settings["suites"])
-        )
-        diagnoses = [diagnosis] if diagnosis else []
-    else:
-        coverage = collect_coverage(
-            repository, scans, settings.get("test_command"), settings.get("coverage"), diagnoses
-        )
+    coverage, diagnosis = collect_suites(
+        repository, scans, tuple(Suite(**item) for item in settings["suites"])
+    )
 
     findings = []
     values: dict[str, dict[str, float]] = {"complexity": {}, "coverage": {}, "crap": {}}
@@ -221,5 +232,5 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
         overlay,
         inputs=frozenset(inputs),
         tests=tests_hash(repository, scans),
-        diagnosis=diagnoses[-1] if diagnoses else None,
+        diagnosis=diagnosis,
     )

@@ -17,7 +17,6 @@ from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError, Refusal, SettingsError
-from recognizer_sensors.testrun.preflight import gaps
 
 RECURSION_LIMIT = 20000
 
@@ -96,7 +95,11 @@ def is_dirty(root: Path) -> bool:
 
 
 def preflight(name: str, sensor, repository: Path, settings: dict) -> int:
-    found = gaps(repository, read_scans(repository), settings, name) if sensor.runs_tests else []
+    found = (
+        sensor.preflight(repository, read_scans(repository), settings, name)
+        if sensor.runs_tests
+        else []
+    )
     sys.stdout.write(json.dumps({"gaps": found}) + "\n")
 
     return 0

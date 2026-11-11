@@ -341,6 +341,7 @@ describe("the tests list", () => {
     "invalid/tests-missing-coverage.yaml",
     "invalid/tests-unknown-key.yaml",
     "invalid/tests-absolute-directory.yaml",
+    "invalid/sensors-crap-test-command.yaml",
   ])("rejects %s", (path) => {
     expect(() => parseConfig(example(path))).toThrow(InputError);
   });

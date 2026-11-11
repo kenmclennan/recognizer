@@ -446,8 +446,11 @@ def test_crap_and_mutation_exit_2_naming_dotnet_when_it_is_missing(
             "dotnet is not installed; install it with brew install --cask dotnet-sdk"
         )
     else:
-        assert status == 0
-        assert json.loads(output.read_text())["diagnosis"]["code"] == "coverage-unavailable"
+        assert status == 2
+        assert capsys.readouterr().err.splitlines()[-1] == (
+            "coverage unavailable: no test suites are configured; "
+            "add a tests list to .recognizer/config.yaml"
+        )
 
 
 def valid(output):
@@ -470,12 +473,22 @@ def test_duplication_runs_without_dotnet_on_the_fixture(monkeypatch, tmp_path):
     assert valid(output) == []
 
 
-def test_crap_and_thresholds_run_on_the_fixture_with_a_coverlet_shaped_report(tmp_path):
+def test_crap_and_thresholds_run_on_the_fixture_with_a_coverlet_shaped_report(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SHELL", "/bin/sh")
     root = csharp_repository(tmp_path)
     (root / "cov.info").write_text(
         f"SF:{root}/src/Shop.Domain/Pricing.cs\nDA:7,1\nDA:8,0\nend_of_record\n"
     )
-    status, output = run_sensor("crap", root, tmp_path, {"coverage": "cov.info"}, "c1")
+    suite = {
+        "name": "shop",
+        "language": "csharp",
+        "directory": ".",
+        "command": "touch cov.info",
+        "coverage": {"path": "cov.info", "format": "lcov"},
+    }
+    status, output = run_sensor("crap", root, tmp_path, {"tests": [suite]}, "c1")
 
     assert status == 0
     valid(output)

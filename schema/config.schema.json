@@ -193,18 +193,6 @@
                   "type": "number",
                   "exclusiveMinimum": 0
                 },
-                "test_command": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "coverage": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "overlay": {
                   "type": "string",
                   "minLength": 1

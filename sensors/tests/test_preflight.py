@@ -121,7 +121,7 @@ def test_a_test_command_or_coverage_setting_gives_no_gaps(setting, monkeypatch, 
     root = repository(tmp_path)
     (root / "Cargo.toml").write_text("")
 
-    assert gaps(root, [Scan("rust", (), False)], setting, "crap") == []
+    assert gaps(root, [Scan("rust", (), False)], setting, "mutation") == []
 
 
 def test_a_probe_that_times_out_is_a_gap(monkeypatch, tmp_path):
@@ -164,7 +164,7 @@ def test_the_preflight_flag_prints_gaps_runs_no_tests_and_writes_nothing(
     (root / "Cargo.toml").write_text("")
     before = sorted(path.name for path in root.iterdir())
 
-    status = main(["crap", "--repository", str(root), "--preflight"])
+    status = main(["mutation", "--repository", str(root), "--preflight"])
     printed = json.loads(capsys.readouterr().out)
 
     assert status == 0
