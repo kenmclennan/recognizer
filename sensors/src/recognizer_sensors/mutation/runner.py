@@ -25,6 +25,8 @@ PID_FILE = "pid"
 PID_GRACE_SECONDS = 60
 STOPPED_STATUS = 143
 STOP_GRACE_SECONDS = 30
+STOP_POLL_SECONDS = 0.05
+LIVE_LOCK_WAIT_SECONDS = 2.0
 
 STOP = threading.Event()
 
@@ -33,6 +35,7 @@ KOTLIN_JVM_OPTIONS = (
     "-Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process",
 )
 LIVE_LOCK = threading.Lock()
+LEAVING = threading.Lock()
 LIVE: set[subprocess.Popen] = set()
 
 
@@ -837,37 +840,53 @@ def remove_work_folder(folder: Path) -> None:
 
 
 def stop_all() -> None:
-    with LIVE_LOCK:
-        for process in list(LIVE):
-            if process.returncode is None:
-                kill_group(process)
+    took = LIVE_LOCK.acquire(timeout=LIVE_LOCK_WAIT_SECONDS)
+
+    try:
+        processes = list(LIVE)
+    finally:
+        if took:
+            LIVE_LOCK.release()
+
+    for process in processes:
+        if process.returncode is None:
+            kill_group(process)
 
 
 def install_stop_handler(work: Path) -> Callable[[], None]:
-    requested = threading.Event()
+    signals: list[int] = []
 
     def leave() -> None:
+        if not LEAVING.acquire(blocking=False):
+            return
+
         stop_all()
         remove_work_folder(work)
         os._exit(STOPPED_STATUS)
 
-    def watchdog() -> None:
-        time.sleep(STOP_GRACE_SECONDS)
-        leave()
-
     def stop() -> None:
-        requested.wait()
+        while not signals:
+            time.sleep(STOP_POLL_SECONDS)
+
         STOP.set()
         stop_all()
-        threading.Thread(target=watchdog, daemon=True).start()
+
+    def reap() -> None:
+        while not signals:
+            time.sleep(STOP_POLL_SECONDS)
+
+        deadline = time.monotonic() + STOP_GRACE_SECONDS
+
+        while len(signals) < 2 and time.monotonic() < deadline:
+            time.sleep(STOP_POLL_SECONDS)
+
+        leave()
 
     def on_signal(_signum: int, _frame: object) -> None:
-        if requested.is_set():
-            leave()
-
-        requested.set()
+        signals.append(1)
 
     threading.Thread(target=stop, daemon=True).start()
+    threading.Thread(target=reap, daemon=True).start()
     previous = signal.signal(signal.SIGTERM, on_signal)
 
     def restore() -> None:
