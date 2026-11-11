@@ -14,15 +14,14 @@ const SHIPPED = {
     { name: "mutation", display: "Mutation", line: "Mutates.", defaults: {}, runsTests: true, listed: true },
   ],
 };
-const py = { id: "crap:python:sensors:environment", line: "coverage and pytest are not installed", needs: ["crap"], project: { language: "python", directory: "sensors" }, fix: { text: "uv sync", command: ["uv", "sync"], cwd: "sensors", env: {}, kind: "repository" } };
-const rust = { id: "mutation:rust:root:cargo", line: "cargo-llvm-cov is not installed", needs: ["mutation"], project: null, fix: { text: "cargo install cargo-llvm-cov", command: null, cwd: "", env: {}, kind: "outside" } };
-const calls = { fix: [], installed: [], copy: [], run: 0 };
+const py = { id: "crap:python:sensors:environment", line: "coverage and pytest are not installed", needs: ["crap"] };
+const py2 = { id: "crap:config:no-suites", line: "no test suites are configured", needs: ["crap"] };
+const rust = { id: "mutation:rust:root:cargo", line: "cargo-llvm-cov is not installed", needs: ["mutation"] };
+const calls = { run: 0 };
 const view = buildScanPanelView({
   tick() {}, setOnlyView() {}, setMode() {}, stop() {}, answerDescribe() {}, clearReport() {}, openLog() {},
   run: () => { calls.run += 1; },
-  copy: (text) => calls.copy.push(text),
-  fix: (id) => calls.fix.push(id),
-  installed: (id) => calls.installed.push(id),
+  copy() {},
 });
 const host = document.createElement("div");
 host.style.cssText = "width:360px;display:flex;flex-direction:column";
@@ -44,38 +43,26 @@ const snapshot = () => ({
   head: q(".summary-head")?.textContent ?? null,
   line: q(".summary-line")?.textContent ?? null,
   count: q(".preflight-box-count")?.textContent ?? null,
+  controls: all(".preflight-gap button, .preflight-gap code, .preflight-fix, .preflight-copy, .preflight-installed").length,
+  order: [...(q(".scan-preflight")?.parentNode?.children ?? [])].map((c) => c.className.split(" ")[0]),
+  panelOrder: [...(q(".scan-preflight")?.children ?? [])].map((c) => c.className),
+  help: all(".preflight-help").map((h) => ({ sensor: h.dataset.sensor, text: h.textContent, code: h.querySelector("code")?.textContent ?? null })),
   title: q(".preflight-box-title")?.textContent ?? null,
   button: q(".scan-run")?.textContent ?? null,
   disabled: q(".scan-run")?.disabled ?? null,
-  gaps: all(".preflight-gap").map((g) => ({ line: g.querySelector(".preflight-gap-line").textContent, where: g.querySelector(".preflight-gap-where").textContent, command: g.querySelector(".preflight-gap-command").textContent, buttons: [...g.querySelectorAll("button")].map((b) => b.textContent), fixed: g.querySelector(".preflight-gap-fixed")?.textContent ?? null, failure: g.querySelector(".preflight-gap-failure")?.textContent ?? null })),
+  gaps: all(".preflight-gap").map((g) => ({ line: g.querySelector(".preflight-gap-line").textContent, where: g.querySelector(".preflight-gap-where").textContent })),
   layout: q(".preflight-box") ? { box: box(q(".preflight-box")), run: box(q(".scan-run")), panel: box(view.element), controls: box(q(".scan-controls")) } : null,
 });
 
 (async () => {
   const facts = {};
-  const open = (gap) => ({ gap, fixed: false, failure: null });
-
   render({ state: "running", gaps: [] }, true);
   facts.running = snapshot();
 
-  render({ state: "gaps", gaps: [open(py), open(rust)] });
+  render({ state: "gaps", gaps: [py, py2, rust] });
   facts.gaps = snapshot();
-
-  q(".preflight-fix").click();
-  q(".preflight-copy").click();
-  q(".preflight-installed").click();
-  facts.calls = { fix: calls.fix, copy: calls.copy, installed: calls.installed };
-
-  render({ state: "gaps", gaps: [{ gap: py, fixed: true, failure: null }, open(rust)] });
-  facts.oneFixed = snapshot();
-
-  render({ state: "gaps", gaps: [{ gap: py, fixed: true, failure: null }, { gap: rust, fixed: true, failure: null }] });
-  facts.allFixed = snapshot();
   q(".scan-run").click();
-  facts.calls.run = calls.run;
-
-  render({ state: "gaps", gaps: [{ gap: py, fixed: false, failure: "uv: no network" }, open(rust)] });
-  facts.failed = snapshot();
+  facts.calls = { run: calls.run };
 
   render({ state: "idle", gaps: [] });
   facts.idle = { box: q(".preflight-box") !== null, head: q(".summary-head")?.textContent ?? null };
@@ -100,53 +87,63 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
     expect(f.running.gaps).toEqual([]);
   });
 
-  it("lists each gap with its sensor and project, and the count", () => {
+  it("lists each gap with its sensor and no count", () => {
     expect(f.gaps.head).toBe("Nothing ran");
     expect(f.gaps.line).toBe(
       "Some tools the ticked sensors need are missing. Fix them below, then scan.",
     );
     expect(f.gaps.title).toBe("Before this scan can run");
-    expect(f.gaps.count).toBe("2 of 2 left");
+    expect(f.gaps.count).toBeNull();
     expect(f.gaps.gaps.map((g: Facts) => [g.line, g.where])).toEqual([
-      [
-        "coverage and pytest are not installed",
-        "C.R.A.P. · Python project sensors/",
-      ],
+      ["coverage and pytest are not installed", "C.R.A.P."],
+      ["no test suites are configured", "C.R.A.P."],
       ["cargo-llvm-cov is not installed", "Mutation"],
     ]);
   });
 
-  it("gives a repository fix a Fix button and an outside fix Copy and I've installed it", () => {
-    expect(f.gaps.gaps[0].buttons).toEqual(["Fix"]);
-    expect(f.gaps.gaps[1].buttons).toEqual(["Copy", "I've installed it"]);
-    expect(f.calls.fix).toEqual(["crap:python:sensors:environment"]);
-    expect(f.calls.copy).toEqual(["cargo install cargo-llvm-cov"]);
-    expect(f.calls.installed).toEqual(["mutation:rust:root:cargo"]);
+  it("offers no Fix, Copy or installed control on any gap", () => {
+    expect(f.gaps.controls).toBe(0);
   });
 
-  it("disables the button as N to fix before scanning, then offers Check again and run", () => {
-    expect(f.gaps.button).toBe("2 to fix before scanning");
-    expect(f.gaps.disabled).toBe(true);
-    expect(f.oneFixed.count).toBe("1 of 2 left");
-    expect(f.oneFixed.button).toBe("1 to fix before scanning");
-    expect(f.oneFixed.gaps[0].fixed).toBe("Fixed");
-    expect(f.oneFixed.gaps[0].buttons).toEqual([]);
-    expect(f.allFixed.button).toBe("Check again and run");
-    expect(f.allFixed.disabled).toBe(false);
+  it("offers Check again and run, enabled, when gaps are listed", () => {
+    expect(f.gaps.button).toBe("Check again and run");
+    expect(f.gaps.disabled).toBe(false);
     expect(f.calls.run).toBe(1);
+  });
+
+  it("shows the help line under the box, one per reporting sensor", () => {
+    expect(f.gaps.help).toEqual([
+      {
+        sensor: "crap",
+        text: "To set this up with an agent: recognizer help sensors crap",
+        code: "recognizer help sensors crap",
+      },
+      {
+        sensor: "mutation",
+        text: "To set this up with an agent: recognizer help sensors mutation",
+        code: "recognizer help sensors mutation",
+      },
+    ]);
   });
 
   it("puts the box above a full-width button inside the panel", () => {
     const { box, run, panel } = f.gaps.layout;
 
+    expect(f.gaps.panelOrder).toEqual([
+      "preflight-box",
+      "preflight-help",
+      "preflight-help",
+    ]);
+    expect(f.gaps.order.indexOf("scan-preflight")).toBeLessThan(
+      f.gaps.order.indexOf("scan-buttons"),
+    );
     expect(box.bottom).toBeLessThanOrEqual(run.top);
     expect(Math.abs(run.width - box.width)).toBeLessThanOrEqual(2);
     expect(run.left).toBeGreaterThanOrEqual(panel.left);
     expect(run.right).toBeLessThanOrEqual(panel.right);
   });
 
-  it("shows a failed Fix under the gap and nothing when idle", () => {
-    expect(f.failed.gaps[0].failure).toBe("uv: no network");
+  it("shows nothing when idle", () => {
     expect(f.idle.box).toBe(false);
     expect(f.idle.head).not.toBe("Nothing ran");
   });

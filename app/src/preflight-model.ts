@@ -1,14 +1,12 @@
-import type { Gap } from "recognizer";
-
-export type GapState = {
-  gap: Gap;
-  fixed: boolean;
-  failure: string | null;
+export type PreflightGap = {
+  id: string;
+  line: string;
+  needs: string[];
 };
 
 export type PreflightState = {
   state: "idle" | "running" | "gaps";
-  gaps: GapState[];
+  gaps: PreflightGap[];
 };
 
 export const NO_PREFLIGHT: PreflightState = { state: "idle", gaps: [] };
@@ -17,10 +15,12 @@ export type GapItem = {
   id: string;
   line: string;
   where: string;
+};
+
+export type HelpLine = {
+  sensor: string;
+  text: string;
   command: string;
-  runnable: boolean;
-  fixed: boolean;
-  failure: string | null;
 };
 
 export type PreflightModel = {
@@ -28,20 +28,10 @@ export type PreflightModel = {
   card: { head: string; line: string };
   box: {
     title: string;
-    left: number;
-    total: number;
-    count: string;
     items: GapItem[];
+    help: HelpLine[];
   } | null;
   button: { label: string; disabled: boolean };
-};
-
-const LANGUAGES: Record<string, string> = {
-  python: "Python",
-  typescript: "TypeScript",
-  kotlin: "Kotlin",
-  csharp: "C#",
-  rust: "Rust",
 };
 
 export const RUNNING_TEXT = "Running pre-flight checks";
@@ -55,38 +45,26 @@ export const BOX_TITLE = "Before this scan can run";
 
 export const AGAIN_TEXT = "Check again and run";
 
-function languageName(language: string): string {
-  return (
-    LANGUAGES[language] ??
-    `${language.slice(0, 1).toUpperCase()}${language.slice(1)}`
-  );
-}
+export const HELP_TEXT = "To set this up with an agent:";
 
-function whereText(
-  gap: Gap,
-  needs: string[],
-  displayOf: (name: string) => string,
-): string {
-  const sensors = needs.map(displayOf).join(", ");
+function sensorOf(
+  gap: PreflightGap,
+  sensors: ReadonlySet<string>,
+): string | null {
+  const [only] = gap.needs;
 
-  if (gap.project === null) {
-    return sensors;
+  if (gap.needs.length !== 1 || only === undefined) {
+    return null;
   }
 
-  const directory =
-    gap.project.directory === "" ? "" : ` ${gap.project.directory}/`;
-
-  return `${sensors} · ${languageName(gap.project.language)} project${directory}`;
-}
-
-export function runnableFix(gap: Gap): boolean {
-  return gap.fix.kind === "repository" && gap.fix.command !== null;
+  return sensors.has(only) && gap.id.startsWith(`${only}:`) ? only : null;
 }
 
 export function buildPreflight(
   input: PreflightState,
   ticked: ReadonlySet<string>,
   displayOf: (name: string) => string,
+  sensors: ReadonlySet<string>,
 ): PreflightModel | null {
   if (input.state === "running") {
     return {
@@ -105,9 +83,9 @@ export function buildPreflight(
   }
 
   const kept = input.gaps
-    .map((one) => ({
-      ...one,
-      needs: one.gap.needs.filter((name) => ticked.has(name)),
+    .map((gap) => ({
+      gap,
+      needs: gap.needs.filter((name) => ticked.has(name)),
     }))
     .filter((one) => one.needs.length > 0);
 
@@ -115,29 +93,26 @@ export function buildPreflight(
     return null;
   }
 
-  const left = kept.filter((one) => !one.fixed).length;
+  const named = kept
+    .map((one) => sensorOf(one.gap, sensors))
+    .filter((name): name is string => name !== null);
 
   return {
     state: "gaps",
     card: { head: NOTHING_RAN_TEXT, line: MISSING_TEXT },
     box: {
       title: BOX_TITLE,
-      left,
-      total: kept.length,
-      count: `${left} of ${kept.length} left`,
       items: kept.map((one) => ({
         id: one.gap.id,
         line: one.gap.line,
-        where: whereText(one.gap, one.needs, displayOf),
-        command: one.gap.fix.text,
-        runnable: runnableFix(one.gap),
-        fixed: one.fixed,
-        failure: one.failure,
+        where: one.needs.map(displayOf).join(", "),
+      })),
+      help: [...new Set(named)].map((sensor) => ({
+        sensor,
+        text: HELP_TEXT,
+        command: `recognizer help sensors ${sensor}`,
       })),
     },
-    button:
-      left > 0
-        ? { label: `${left} to fix before scanning`, disabled: true }
-        : { label: AGAIN_TEXT, disabled: false },
+    button: { label: AGAIN_TEXT, disabled: false },
   };
 }

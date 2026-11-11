@@ -830,24 +830,6 @@ async fn shipped_describer(
 }
 
 #[tauri::command]
-async fn run_fix(
-    app: AppHandle,
-    window: WebviewWindow,
-    gap_id: String,
-) -> Result<scan_run::FixResult, String> {
-    let folder = window_folder_path(&app, &window)?;
-    let label = window_label(&window);
-
-    tauri::async_runtime::spawn_blocking(move || {
-        let runs = app.state::<ScanRuns>();
-
-        scan_run::run_fix_with(&runs, &label, &folder, tool_runner::runner(), &gap_id)
-    })
-    .await
-    .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 async fn run_scan(
     app: AppHandle,
     window: WebviewWindow,
@@ -1591,7 +1573,6 @@ pub fn run() {
             run_scan,
             range_members,
             scans_at,
-            run_fix,
             stop_scan,
             answer_describe,
             take_pending_view,

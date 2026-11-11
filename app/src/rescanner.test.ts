@@ -1145,6 +1145,10 @@ const GAP = {
   id: "crap:python:sensors:environment",
   line: "coverage and pytest are not installed",
   needs: ["mut"],
+};
+
+const CLI_GAP = {
+  ...GAP,
   project: { language: "python", directory: "sensors" },
   fix: {
     text: "uv sync",
@@ -1159,12 +1163,6 @@ const OUTSIDE = {
   ...GAP,
   id: "mutation:rust:root:cargo",
   line: "cargo-llvm-cov is not installed",
-  project: null,
-  fix: {
-    ...GAP.fix,
-    text: "cargo install cargo-llvm-cov",
-    kind: "outside" as const,
-  },
 };
 
 describe("scan notifications", () => {
@@ -1323,7 +1321,7 @@ describe("scan notifications", () => {
       if (exit === 4) {
         made.scan.emitExternal({
           kind: "line",
-          line: line({ event: "preflight", state: "gaps", gaps: [GAP] }),
+          line: line({ event: "preflight", state: "gaps", gaps: [CLI_GAP] }),
         });
       }
 
@@ -1380,52 +1378,15 @@ describe("the preflight flow", () => {
     expect(made.rescanner.preflight().state).toBe("idle");
   });
 
-  it("holds the gaps of a refused scan, unfixed, with no blocked message", async () => {
+  it("holds the gaps of a refused scan, with no blocked message", async () => {
     const { rescanner, log } = await refused();
 
     expect(rescanner.preflight()).toEqual({
       state: "gaps",
-      gaps: [
-        { gap: GAP, fixed: false, failure: null },
-        { gap: OUTSIDE, fixed: false, failure: null },
-      ],
+      gaps: [GAP, OUTSIDE],
     });
     expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
     expect(rescanner.running()).toBe(false);
-  });
-
-  it("calls fix(id) once and marks the gap fixed", async () => {
-    const { rescanner, scan } = await refused();
-
-    await rescanner.fix(GAP.id);
-    await rescanner.fix(GAP.id);
-
-    expect(scan.fixed).toEqual([GAP.id]);
-    expect(rescanner.preflight().gaps[0]).toMatchObject({
-      fixed: true,
-      failure: null,
-    });
-  });
-
-  it("keeps a gap open with the failure when its fix fails", async () => {
-    const { rescanner, scan } = await refused();
-
-    scan.fixFailures[GAP.id] = "uv: no network";
-    await rescanner.fix(GAP.id);
-
-    expect(rescanner.preflight().gaps[0]).toMatchObject({
-      fixed: false,
-      failure: "uv: no network",
-    });
-  });
-
-  it("marks an outside gap installed without calling fix", async () => {
-    const { rescanner, scan } = await refused();
-
-    rescanner.installed(OUTSIDE.id);
-
-    expect(scan.fixed).toEqual([]);
-    expect(rescanner.preflight().gaps[1]?.fixed).toBe(true);
   });
 
   it("keeps a once-ticked sensor ticked after a refusal so Check again and run includes it", async () => {

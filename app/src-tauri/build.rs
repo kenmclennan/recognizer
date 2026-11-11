@@ -25,7 +25,6 @@ fn main() {
         "renames_since",
         "read_scan_cache",
         "read_scan_ticks",
-        "run_fix",
         "run_scan",
         "scans_at",
         "shipped_sensors",

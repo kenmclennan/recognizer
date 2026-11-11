@@ -2,7 +2,7 @@ import { button, el } from "./dom";
 import type { ResultState, Summary } from "./freshness-model";
 import { attachHoverTip } from "./hover-tip";
 import { icon } from "./icons";
-import type { GapItem, PreflightModel } from "./preflight-model";
+import type { GapItem, HelpLine, PreflightModel } from "./preflight-model";
 import type { ResultsMode } from "./scan-freshness";
 import {
   DESCRIBE_KEY,
@@ -22,8 +22,6 @@ export type ScanPanelActions = {
   clearReport: (name: string) => void;
   copy: (text: string) => void;
   openLog: () => void;
-  fix: (id: string) => void;
-  installed: (id: string) => void;
 };
 
 export type ScanPanelView = {
@@ -247,62 +245,37 @@ function summaryNode(summary: Summary): HTMLElement {
   return node;
 }
 
-function gapNode(item: GapItem, actions: ScanPanelActions): HTMLElement {
+function gapNode(item: GapItem): HTMLElement {
   const node = el("div", "preflight-gap");
-  const text = el("div", "preflight-gap-text");
-  const controls = el("div", "preflight-gap-controls");
 
   node.dataset.gap = item.id;
-  node.dataset.fixed = String(item.fixed);
-  text.append(
+  node.append(
     el("div", "preflight-gap-line", item.line),
     el("div", "preflight-gap-where", item.where),
   );
 
-  if (item.failure !== null) {
-    text.append(el("div", "preflight-gap-failure", item.failure));
-  }
+  return node;
+}
 
-  controls.append(el("code", "preflight-gap-command", item.command));
+function preflightBox(box: NonNullable<PreflightModel["box"]>): HTMLElement {
+  const node = el("div", "preflight-box");
+  const head = el("div", "preflight-box-head");
 
-  if (item.fixed) {
-    controls.append(
-      el("span", "preflight-gap-fixed", item.runnable ? "Fixed" : "Installed"),
-    );
-  } else if (item.runnable) {
-    const fix = button("Fix", "preflight-fix primary", () => {
-      fix.disabled = true;
-      actions.fix(item.id);
-    });
-
-    controls.append(fix);
-  } else {
-    controls.append(
-      button("Copy", "preflight-copy", () => actions.copy(item.command)),
-      button("I've installed it", "preflight-installed", () =>
-        actions.installed(item.id),
-      ),
-    );
-  }
-
-  node.append(text, controls);
+  head.append(el("span", "preflight-box-title", box.title));
+  node.setAttribute("role", "group");
+  node.append(head, ...box.items.map((item) => gapNode(item)));
 
   return node;
 }
 
-function preflightBox(
-  box: NonNullable<PreflightModel["box"]>,
-  actions: ScanPanelActions,
-): HTMLElement {
-  const node = el("div", "preflight-box");
-  const head = el("div", "preflight-box-head");
+function helpNode(line: HelpLine): HTMLElement {
+  const node = el("div", "preflight-help");
 
-  head.append(
-    el("span", "preflight-box-title", box.title),
-    el("span", "preflight-box-count", box.count),
+  node.dataset.sensor = line.sensor;
+  node.append(
+    `${line.text} `,
+    el("code", "preflight-help-command", line.command),
   );
-  node.setAttribute("role", "group");
-  node.append(head, ...box.items.map((item) => gapNode(item, actions)));
 
   return node;
 }
@@ -369,7 +342,10 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       if (model.preflight?.box == null) {
         gaps.remove();
       } else {
-        gaps.replaceChildren(preflightBox(model.preflight.box, actions));
+        gaps.replaceChildren(
+          preflightBox(model.preflight.box),
+          ...model.preflight.box.help.map(helpNode),
+        );
         buttons.before(gaps);
       }
 
