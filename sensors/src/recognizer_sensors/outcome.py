@@ -20,3 +20,4 @@ class Outcome:
     inputs: frozenset[str] = frozenset()
     tests: str | None = None
     diagnosis: dict | None = None
+    excluded: dict | None = None

@@ -842,9 +842,9 @@ describe("scanPanel freshness", () => {
     const row = model.rows.find(({ key }) => key === "crap");
 
     expect(model.freshness.summary.head).toBe(
-      "1 module changed since it was scanned",
+      "C.R.A.P. is out of date on 1 module",
     );
-    expect(model.freshness.changed).toEqual(["b.py"]);
+    expect(model.freshness.update).toEqual(["b.py"]);
     expect(row?.text.text).toBe("1 module out of date");
     expect(model.button).toEqual({
       scanning: false,

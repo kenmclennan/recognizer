@@ -19,6 +19,7 @@ def build_document(
     tests: str | None = None,
     diagnosis: dict | None = None,
     counts: dict | None = None,
+    excluded: dict | None = None,
 ) -> dict:
     document = {
         "findings_version": 2,
@@ -44,6 +45,9 @@ def build_document(
 
     if counts is not None:
         document["counts"] = counts
+
+    if excluded is not None:
+        document["excluded"] = excluded
 
     return document
 
