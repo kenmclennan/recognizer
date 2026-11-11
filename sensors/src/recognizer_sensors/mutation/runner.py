@@ -28,6 +28,10 @@ STOP_GRACE_SECONDS = 30
 
 STOP = threading.Event()
 
+KOTLIN_JVM_OPTIONS = (
+    "-Dorg.gradle.daemon=false",
+    "-Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process",
+)
 LIVE_LOCK = threading.Lock()
 LIVE: set[subprocess.Popen] = set()
 
@@ -331,6 +335,12 @@ def run_test_command(
     started = time.monotonic()
     words = command if isinstance(command, str) else shlex.join(command)
     env = {**os.environ, **(suite.env if suite is not None else {}), **(extra or {})}
+
+    if suite is not None and suite.language == "kotlin":
+        env["GRADLE_OPTS"] = " ".join(
+            word for word in (env.get("GRADLE_OPTS", ""), *KOTLIN_JVM_OPTIONS) if word
+        )
+
     argv = (
         [login_shell(), "-ilc", shell_script(suite, words)]
         if suite is not None
