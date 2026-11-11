@@ -474,7 +474,12 @@ def site_entry(site: Site) -> dict:
 
 
 def survivors_document(
-    commit: str, targets: list[Target], skipped: list[str], reused: int, no_covering_test: int
+    commit: str,
+    targets: list[Target],
+    skipped: list[str],
+    reused: int,
+    no_covering_test: int,
+    excluded: list[Target] | None = None,
 ) -> dict:
     functions = {
         target.identity: {
@@ -498,7 +503,25 @@ def survivors_document(
             {"identity": identity, "reason": "uncovered-by-budget"} for identity in sorted(skipped)
         ],
         "unmeasured": {"budget": len(skipped), "no-covering-test": no_covering_test},
+        "excluded": [
+            {
+                "identity": target.identity,
+                "file": target.file,
+                "reason": "not-in-coverage-report",
+            }
+            for target in sorted(excluded or [], key=lambda t: t.identity)
+        ],
         "functions": functions,
+    }
+
+
+def excluded_document(excluded: list[Target]) -> dict | None:
+    if not excluded:
+        return None
+
+    return {
+        "functions": len(excluded),
+        "modules": sorted({target.module for target in excluded}),
     }
 
 
@@ -889,6 +912,7 @@ def measure(
     )
     suite_size = suite_size_of(selection)
     targets: list[Target] = []
+    excluded: list[Target] = []
     covers_by_selection: dict[frozenset[str], frozenset[str] | None] = {}
     sources: dict[str, bytes] = {}
     no_covering_test = 0
@@ -908,6 +932,11 @@ def measure(
 
             target.suite = owner.name
             lines = coverage.get(target.file)
+
+            if lines is None:
+                excluded.append(target)
+                continue
+
             known = function_coverage(lines, target.start_line, target.end_line)
 
             if known is None:
@@ -990,10 +1019,13 @@ def measure(
             ),
             (
                 repository / settings["survivors"],
-                survivors_document(commit, measured, skipped_ids, reused, no_covering_test),
+                survivors_document(
+                    commit, measured, skipped_ids, reused, no_covering_test, excluded
+                ),
             ),
         ]
         findings = [finding_for(t, values) for t in measured if t.survived > 0]
+        targeted = {target.module for target in targets}
         outcome = Outcome(
             findings,
             overlay,
@@ -1001,8 +1033,12 @@ def measure(
             stopped,
             len(measured),
             len(targets),
-            frozenset(target.module for target in measured),
+            frozenset(
+                {target.module for target in measured}
+                | {target.module for target in excluded if target.module not in targeted}
+            ),
             shared_tests,
+            excluded=excluded_document(excluded),
         )
 
         return outcome, measured, skipped_ids, reused
@@ -1159,6 +1195,14 @@ def measure(
             f"recognizer-sensors: mutation: scoped to {len(modules)} modules; "
             f"{carried_count} functions carried from the record, "
             f"{len(unmeasured)} outside the scope have no result",
+            file=sys.stderr,
+        )
+
+    if excluded:
+        print(
+            f"recognizer-sensors: mutation: {len(excluded)} functions in "
+            f"{len({target.module for target in excluded})} modules not tested because "
+            "their files are not in the coverage report",
             file=sys.stderr,
         )
 
