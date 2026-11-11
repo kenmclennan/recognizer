@@ -146,6 +146,42 @@ describe("sensorFreshness", () => {
   });
 });
 
+describe("sensorFreshness with an excluded module in inputs", () => {
+  const one = freshnessScope(
+    ["a.py"],
+    [scanOf({ "a.py": "ha" }, ["a.py"])],
+    FRESH,
+  );
+
+  it("is neither missing nor out of date while its hash is current", () => {
+    const measured = { inputs: { "a.py": "ha" }, tests: "t1" };
+    const result = sensorFreshness(one, measured, true);
+
+    expect(result).toEqual({ kind: "known", outOfDate: [], missing: [] });
+    expect(gapOf(result, ["a.py"])).toEqual([]);
+  });
+
+  it("is out of date once its hash changed", () => {
+    const measured = { inputs: { "a.py": "old" }, tests: "t1" };
+
+    expect(sensorFreshness(one, measured, true)).toEqual({
+      kind: "known",
+      outOfDate: ["a.py"],
+      missing: [],
+    });
+  });
+
+  it("is missing when the document predates the change and lists no inputs", () => {
+    const measured = { inputs: {}, tests: "t1" };
+
+    expect(sensorFreshness(one, measured, true)).toEqual({
+      kind: "known",
+      outOfDate: [],
+      missing: ["a.py"],
+    });
+  });
+});
+
 describe("sensorFreshness on committed content", () => {
   it("leaves no module of the committed Mutation sample counted missing when its inputs list every module with a function", () => {
     const scan = JSON.parse(
@@ -202,6 +238,7 @@ function stub(
   changed: string[],
   label: string,
   ticked: string[] = Object.keys(states),
+  update: string[] = changed,
 ): FreshnessModel {
   return {
     rows: Object.entries(states).map(([key, state]) => ({
@@ -212,6 +249,7 @@ function stub(
     })),
     gaps: new Map(Object.entries(gaps)),
     changed,
+    update,
     ticked: (key: string) => ticked.includes(key),
     action: {
       primary: { label, disabled: label === "Up to date" },
@@ -400,6 +438,40 @@ describe("planFor", () => {
     );
 
     expect(planned.idle).toBe(false);
+  });
+});
+
+describe("a sensor-only gap", () => {
+  const rows = [{ name: "crap", display: "C.R.A.P.", runsTests: false }];
+  const gap = (changed: string[], update: string[]) =>
+    stub(
+      { crap: { kind: "out-of-date", modules: ["c.py"] } },
+      { crap: ["c.py"] },
+      changed,
+      "Update 1 module",
+      ["crap"],
+      update,
+    );
+  const ticks: ScanTicks = {
+    describe: false,
+    ticked: ["crap"],
+    once: [],
+    onlyView: false,
+  };
+
+  it("plans one module and shows no canvas banner", () => {
+    const model = gap([], ["c.py"]);
+    const planned = planFor(model, "bring", ticks, rows, null, MODULES);
+
+    expect(planned.modules).toBe(1);
+    expect(planned.progress).toBe("Updating 1 module\u2026");
+    expect(freshnessMessage(model)).toBeNull();
+  });
+
+  it("names one changed module in the banner when Structure changed it", () => {
+    const message = freshnessMessage(gap(["a.py"], ["a.py", "c.py"]));
+
+    expect(message?.text.startsWith("1 module has changed")).toBe(true);
   });
 });
 

@@ -283,7 +283,7 @@ export function planFor(
     }
   }
 
-  const changed = model.changed.length;
+  const changed = model.update.length;
   const names = [
     ...(describe ? ["Descriptions"] : []),
     ...sense.map((name) => display.get(name) ?? name),

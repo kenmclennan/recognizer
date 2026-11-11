@@ -567,11 +567,11 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeOffRan).toEqual([["app/a.py"]]);
   });
 
-  it("summarises one changed module with no bar and Update 1 module, then everything current with a disabled Up to date once the hashes match", () => {
+  it("summarises one sensor-out-of-date module with no bar and Update 1 module, then everything current with a disabled Up to date once the hashes match", () => {
     expect(f.freshPartial.summary).toMatchObject({
-      shape: "changed",
+      shape: "behind",
       tone: "warn",
-      head: "1 module changed since it was scanned",
+      head: "C.R.A.P. is out of date on 1 module",
       bar: 0,
     });
     expect(f.freshPartial.rowBars).toBe(0);

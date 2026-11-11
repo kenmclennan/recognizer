@@ -53,8 +53,10 @@ function ran(
   name: string,
   ids: string[],
   hashes: Record<string, string> = {},
+  excluded?: { functions: number; modules: string[] },
 ): PanelInput["sensors"][number] {
   return {
+    ...(excluded !== undefined ? { excluded } : {}),
     name,
     status: "ran",
     findings: 0,
@@ -219,13 +221,14 @@ describe("freshness model wording", () => {
 });
 
 describe("freshness model changed modules", () => {
-  it("leaves a never-run row out of changed and counts a ticked out-of-date row", () => {
+  it("leaves a never-run row out of changed and counts a ticked out-of-date row in update", () => {
     const model = modelOf(IDS, {
       sensors: [ran("crap", IDS, { "c.py": "old" })],
     });
 
     expect(kindOf(model, "mutation")).toBe("never-run");
-    expect(model.changed).toEqual(["c.py"]);
+    expect(model.update).toEqual(["c.py"]);
+    expect(model.changed).toEqual([]);
   });
 
   it("leaves an unticked out-of-date row out of changed", () => {
@@ -250,7 +253,92 @@ describe("freshness model changed modules", () => {
 
     expect(model.isChanged("a.py")).toBe(true);
     expect(model.isChanged("c.py")).toBe(false);
-    expect(model.changed).toEqual(["a.py", "c.py"]);
+    expect(model.changed).toEqual(["a.py"]);
+    expect(model.update).toEqual(["a.py", "c.py"]);
+  });
+});
+
+describe("freshness model sensor gaps and excluded modules", () => {
+  const MUTATION_NO_RESULT = "Mutation has no result for";
+
+  it("reads a sensor-only gap as behind, not changed, and offers the update", () => {
+    const model = modelOf(IDS, {
+      sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
+    });
+
+    expect(model.changed).toEqual([]);
+    expect(model.update).toEqual(["c.py"]);
+    expect(model.summary.shape).toBe("behind");
+    expect(model.summary.head).not.toContain("changed since");
+    expect(model.action.primary.label).toBe("Update 1 module");
+  });
+
+  it("says changed only of Structure's modules and updates both", () => {
+    const model = modelOf(IDS, {
+      scan: scanState([{ path: "a.py", kind: "modified" }]),
+      sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
+    });
+
+    expect(model.summary.head).toBe("1 module changed since it was scanned");
+    expect(model.action.primary.label).toBe("Update 2 modules");
+  });
+
+  it("settles a fully excluded module and names it with the reason", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS),
+        ran("mutation", IDS, {}, { functions: 2, modules: ["a.py"] }),
+      ],
+    });
+
+    expect(model.update).toEqual([]);
+    expect(model.action.primary.label).toBe("Up to date");
+    expect(model.summary.shape).toBe("current");
+    expect(
+      model.summary.line.endsWith(
+        `${MUTATION_NO_RESULT} a.py: its suite's coverage report does not include it.`,
+      ),
+    ).toBe(true);
+  });
+
+  it("names only the excluded modules in scope and not in the gap", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS),
+        ran(
+          "mutation",
+          IDS,
+          { "c.py": "old" },
+          { functions: 3, modules: ["a.py", "gone.py", "c.py"] },
+        ),
+      ],
+    });
+
+    expect(model.noResult).toEqual([{ sensor: "Mutation", modules: ["a.py"] }]);
+    expect(model.update).toEqual(["c.py"]);
+    expect(model.summary.line).toContain(`${MUTATION_NO_RESULT} a.py:`);
+    expect(model.summary.line).not.toContain("c.py:");
+  });
+
+  it("uses the plural sentence for two excluded modules", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS),
+        ran("mutation", IDS, {}, { functions: 2, modules: ["a.py", "b.py"] }),
+      ],
+    });
+
+    expect(model.summary.line).toContain(
+      "Mutation has no result for a.py and b.py: their suites' coverage reports do not include them.",
+    );
+  });
+
+  it("says nothing about excluded modules when the sensor never ran", () => {
+    const model = modelOf(IDS, { sensors: [ran("crap", IDS)] });
+
+    expect(kindOf(model, "mutation")).toBe("never-run");
+    expect(model.noResult).toEqual([]);
+    expect(model.summary.line).not.toContain("has no result");
   });
 });
 
@@ -631,12 +719,12 @@ describe("freshness model counts every row, ticked or not", () => {
       ticks: MUTATION_ONLY,
     });
 
-    expect(model.summary.shape).toBe("changed");
+    expect(model.summary.shape).toBe("behind");
     expect(model.summary.line).toContain(
-      "Mutation is out of date and not ticked.",
+      "Update C.R.A.P. to bring it up to date.",
     );
     expect(model.action.primary.label).toBe("Update 1 module");
-    expect(model.changed).toEqual(["a.py"]);
+    expect(model.update).toEqual(["a.py"]);
   });
 
   it("names an unticked out-of-date row beside a ticked failed one", () => {

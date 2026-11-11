@@ -1,3 +1,4 @@
+import { scanHashes } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import {
@@ -51,9 +52,13 @@ export type FindingsLine = {
   link: string;
 } | null;
 
+export type NoResult = { sensor: string; modules: string[] };
+
 export type FreshnessModel = {
   rows: ResultRow[];
   changed: string[];
+  update: string[];
+  noResult: NoResult[];
   summary: Summary;
   action: Action;
   findings: FindingsLine;
@@ -372,6 +377,7 @@ function summarize(
   ticked: (key: string) => boolean,
   scopeCount: number,
   runModules: number,
+  noResult: NoResult[],
 ): Summary {
   const running = rows.filter(({ state }) => state.kind === "running");
 
@@ -428,6 +434,17 @@ function summarize(
 
   const failed = rows.filter(({ state }) => state.kind === "failed");
   const never = rows.filter(({ state }) => state.kind === "never-run");
+  const noResultSentence = noResult
+    .map(({ sensor, modules }) =>
+      modules.length === 1
+        ? ` ${sensor} has no result for ${changedList(modules)}: its suite's coverage report does not include it.`
+        : ` ${sensor} has no result for ${changedList(modules)}: their suites' coverage reports do not include them.`,
+    )
+    .join("");
+  const tickedBehind = rows.filter(
+    ({ key, state }) =>
+      key !== STRUCTURE_KEY && ticked(key) && state.kind === "out-of-date",
+  );
   const behind = rows.filter(
     ({ key, state }) =>
       key !== STRUCTURE_KEY && !ticked(key) && state.kind === "out-of-date",
@@ -459,7 +476,7 @@ function summarize(
       tone: failed.length > 0 ? "bad" : "warn",
       icon: failed.length > 0 ? "circle-x" : "circle-dashed",
       head: clauses.join("; "),
-      line: `Their values and findings are missing.${currentSentence}${behindSentence}`,
+      line: `Their values and findings are missing.${currentSentence}${behindSentence}${noResultSentence}`,
       bar: null,
     };
   }
@@ -470,24 +487,26 @@ function summarize(
       tone: "warn",
       icon: "circle-alert",
       head: `${plural(changed.length, "module")} changed since ${changed.length === 1 ? "it was" : "they were"} scanned`,
-      line: `${changed.length === 1 ? "Its" : "Their"} bars, descriptions and findings are hidden until updated. ${changedList(changed)}.${behindSentence}`,
+      line: `${changed.length === 1 ? "Its" : "Their"} bars, descriptions and findings are hidden until updated. ${changedList(changed)}.${behindSentence}${noResultSentence}`,
       bar: null,
     };
   }
 
-  if (behind.length > 0) {
+  const lagging = tickedBehind.length > 0 ? tickedBehind : behind;
+
+  if (lagging.length > 0) {
     return {
       shape: "behind",
       tone: "warn",
       icon: "circle-alert",
-      head: behind
+      head: lagging
         .map(({ name, state }) =>
           state.kind === "out-of-date"
             ? `${name} is out of date on ${plural(state.modules.length, "module")}`
             : name,
         )
         .join("; "),
-      line: `Update ${joinNames(behind.map(({ name }) => name))} to bring ${behind.length === 1 ? "it" : "them"} up to date.${currentSentence}`,
+      line: `Update ${joinNames(lagging.map(({ name }) => name))} to bring ${lagging.length === 1 ? "it" : "them"} up to date.${currentSentence}${noResultSentence}`,
       bar: null,
     };
   }
@@ -499,7 +518,7 @@ function summarize(
     tone: "ok",
     icon: "circle-check",
     head: `Everything on ${whole ? "the repository" : "this canvas"} is current`,
-    line: `Scanned and measured since the last change to ${scopeCount === 1 ? "this module" : `these ${scopeCount} modules`}.`,
+    line: `Scanned and measured since the last change to ${scopeCount === 1 ? "this module" : `these ${scopeCount} modules`}.${noResultSentence}`,
     bar: null,
   };
 }
@@ -507,7 +526,7 @@ function summarize(
 function actionOf(
   input: PanelInput,
   rows: ResultRow[],
-  changed: string[],
+  update: string[],
   ticked: (key: string) => boolean,
   scopeCount: number,
 ): Action {
@@ -531,10 +550,10 @@ function actionOf(
     };
   }
 
-  if (changed.length > 0) {
+  if (update.length > 0) {
     return {
       primary: {
-        label: `Update ${plural(changed.length, "module")}`,
+        label: `Update ${plural(update.length, "module")}`,
         disabled: false,
       },
       mode,
@@ -652,6 +671,45 @@ function staleBySensor(
   return stale;
 }
 
+function noResultOf(
+  input: PanelInput,
+  sensors: RowSensor[],
+  rows: ResultRow[],
+  modules: string[],
+): NoResult[] {
+  const hashes = scanHashes(input.scans ?? []);
+  const inScope = new Set(modules);
+  const found: NoResult[] = [];
+
+  for (const one of sensors) {
+    const excluded = input.sensors.find(
+      (entry) => entry.name === one.name,
+    )?.excluded;
+    const state = rows.find(({ key }) => key === one.name)?.state;
+
+    if (
+      excluded === undefined ||
+      (state?.kind !== "current" && state?.kind !== "out-of-date")
+    ) {
+      continue;
+    }
+
+    const gap = new Set(state.kind === "out-of-date" ? state.modules : []);
+    const named = excluded.modules.filter(
+      (id) => inScope.has(id) && hashes.has(id) && !gap.has(id),
+    );
+
+    if (named.length > 0) {
+      found.push({
+        sensor: one.display,
+        modules: inScopeOrder(modules, new Set(named)),
+      });
+    }
+  }
+
+  return found;
+}
+
 export function buildFreshnessModel(
   input: PanelInput,
   sensors: RowSensor[],
@@ -692,15 +750,19 @@ export function buildFreshnessModel(
     }
   }
 
-  const changed = inScopeOrder(modules, wanted);
+  const update = inScopeOrder(modules, wanted);
   const structureSet = new Set(structureIds);
   const sensorKind = new Map(rows.map(({ key, state }) => [key, state.kind]));
+  const changed = inScopeOrder(modules, structureSet);
+  const noResult = noResultOf(input, sensors, rows, modules);
   const runModules = input.runModules ?? 0;
   const whole = !(input.ticks.onlyView && input.view);
 
   return {
     rows,
     changed,
+    update,
+    noResult,
     summary: summarize(
       input,
       rows,
@@ -708,9 +770,10 @@ export function buildFreshnessModel(
       ticked,
       modules.length,
       runModules,
+      noResult,
     ),
-    action: actionOf(input, rows, changed, ticked, modules.length),
-    findings: findingsLine(rows, inScopeOrder(modules, structureSet), whole),
+    action: actionOf(input, rows, update, ticked, modules.length),
+    findings: findingsLine(rows, changed, whole),
     group: (sensor) => {
       const kind = sensorKind.get(sensor);
 

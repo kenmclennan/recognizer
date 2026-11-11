@@ -178,16 +178,11 @@ describe.skipIf(webkit === undefined)("explorer messages in the tray", () => {
     expect(f.baselineTwice).toHaveLength(1);
   });
 
-  it("posts one out-of-date message with Update 1 module and Show in Scan, not again for the same set", () => {
+  it("posts no changed-since message for a sensor-only gap, then or again for the same set", () => {
     expect(f.freshnessEmptyCanvas).toEqual([]);
-    expect(f.freshness.rows).toEqual([
-      "1 module has changed since it was scanned. Its results are hidden, so this picture is partial.",
-    ]);
-    expect(f.freshness.actions.filter((t: string) => t !== "Undo")).toEqual([
-      "Update 1 module",
-      "Show in Scan",
-    ]);
-    expect(f.freshnessAgain).toHaveLength(1);
+    expect(f.freshness.rows).toEqual([]);
+    expect(f.freshness.actions.filter((t: string) => t !== "Undo")).toEqual([]);
+    expect(f.freshnessAgain).toEqual([]);
   });
 
   it("posts the baseline message again after Clear", () => {
