@@ -3,7 +3,7 @@ import os
 import sys
 
 import pytest
-from conftest import git_commit
+from conftest import git_commit, python_suite
 from test_mutation import RECORD, read, read_resolved, run_mutate
 
 from recognizer_sensors import hashes as hash_module
@@ -264,14 +264,14 @@ def make_world(tmp_path, monkeypatch, selection, coverage=None):
     state = {"selection": selection, "coverage": coverage or {p: dict(LINES) for p in APP}}
     monkeypatch.setattr(
         sensor,
-        "collect_coverage_with_tests",
-        lambda repository, scans, coverage: (state["coverage"], state["selection"]),
+        "coverage_run",
+        lambda repository, scans, suites, work, **_: (state["coverage"], state["selection"]),
     )
     mutants = []
     real = runner.run_test_command
 
-    def spy(command, cwd, timeout):
-        result = real([sys.executable, "tests/check.py"], cwd, timeout)
+    def spy(command, cwd, timeout, suite=None, extra=None):
+        result = real([sys.executable, "tests/check.py"], cwd, timeout, suite=suite)
 
         if timeout is None:
             return result
@@ -303,7 +303,12 @@ def scope(tmp_path, modules):
 
 
 def go(root, tmp_path, *extra):
-    return run_mutate(root, tmp_path / "overlay.json", json.dumps({"max_workers": 1}), *extra)
+    return run_mutate(
+        root,
+        tmp_path / "overlay.json",
+        json.dumps({"tests": [python_suite("x")], "max_workers": 1}),
+        *extra,
+    )
 
 
 def sites_of(root, identity):
@@ -489,8 +494,8 @@ def test_an_unreadable_failure_summary_makes_the_killer_the_whole_ran_set(tmp_pa
     root, _, _ = make_world(tmp_path, monkeypatch, selection_of(one=A | B, two=B, three=A))
     real = runner.run_test_command
 
-    def silent(command, cwd, timeout):
-        result = real(command, cwd, timeout)
+    def silent(command, cwd, timeout, suite=None, extra=None):
+        result = real(command, cwd, timeout, suite=suite)
 
         return runner.TestRun(result.exit_code, result.timed_out, result.seconds, "no summary\n")
 

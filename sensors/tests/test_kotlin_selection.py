@@ -9,20 +9,43 @@ import pytest
 from conftest import git_commit, write_scan_document
 from test_mutation import run_mutate
 
-from recognizer_sensors.mutation import runner, sensor
-from recognizer_sensors.settings import Refusal
-from recognizer_sensors.testrun import profiles
-from recognizer_sensors.testrun.profiles import (
+from recognizer_sensors.mutation import commands, runner, sensor
+from recognizer_sensors.mutation.commands import (
     KOTLIN_CLASSES,
-    kotlin_by_file_command,
+    kotlin_class_command,
     kotlin_selected_command,
     mutant_command,
     selected_command,
 )
-from recognizer_sensors.testrun.run import (
-    collect_coverage_with_tests,
-    kotlin_class_map,
-)
+from recognizer_sensors.mutation.warmup import coverage_run, kotlin_class_map
+from recognizer_sensors.settings import Refusal
+from recognizer_sensors.testrun.suites import parse_suites
+
+KOTLIN_SUITE_RAW = {
+    "name": "app",
+    "language": "kotlin",
+    "directory": ".",
+    "command": "./gradlew test jacocoTestReport",
+    "coverage": {
+        "path": "**/build/reports/jacoco/test/jacocoTestReport.xml",
+        "format": "jacoco",
+    },
+}
+
+KSUITE = parse_suites([KOTLIN_SUITE_RAW])[0]
+
+
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
+
+
+def collect(root, scan):
+    work = root.parent / "work"
+    work.mkdir(exist_ok=True)
+
+    return coverage_run(root, [scan], [KSUITE], work)
+
 
 REPORT = "build/reports/jacoco/test/jacocoTestReport.xml"
 
@@ -113,13 +136,18 @@ def make(tmp_path, files=None, classes=ALL_CLASSES, monkeypatch=None):
 @pytest.mark.parametrize(
     ("project", "classes", "expected"),
     [
-        ("", ["p.A"], ["./gradlew", "test", "--rerun", "--tests", "p.A", "jacocoTestReport"]),
+        (
+            "",
+            ["p.A"],
+            ["./gradlew", "test", "--no-daemon", "--rerun", "--tests", "p.A", "jacocoTestReport"],
+        ),
         (
             ":a:b",
             ["p.A", "p.B"],
             [
                 "./gradlew",
                 ":a:b:test",
+                "--no-daemon",
                 "--rerun",
                 "--tests",
                 "p.A",
@@ -131,13 +159,14 @@ def make(tmp_path, files=None, classes=ALL_CLASSES, monkeypatch=None):
     ],
 )
 def test_the_by_file_command_puts_the_filters_after_the_test_task(project, classes, expected):
-    assert kotlin_by_file_command(project, classes) == expected
+    assert kotlin_class_command(project, classes) == expected
 
 
 def test_the_selected_command_joins_projects_in_sorted_order():
     assert kotlin_selected_command([(":b", "b.B"), ("", "r.R"), (":a", "z.Z"), (":a", "a.A")]) == [
         "./gradlew",
         "test",
+        "--no-daemon",
         "--tests",
         "r.R",
         ":a:test",
@@ -151,13 +180,14 @@ def test_the_selected_command_joins_projects_in_sorted_order():
     ]
 
 
-def test_a_root_project_selection_runs_gradle_test_with_the_filter(tmp_path):
+def test_a_root_project_selection_runs_gradle_test_with_the_filter():
     KOTLIN_CLASSES.clear()
     KOTLIN_CLASSES["t/XTest.kt"] = [("", "p.XTest")]
 
-    assert selected_command(tmp_path, "kotlin", {"t/XTest.kt"}) == [
+    assert selected_command(KSUITE, {"t/XTest.kt"}) == [
         "./gradlew",
         "test",
+        "--no-daemon",
         "--tests",
         "p.XTest",
     ]
@@ -165,14 +195,20 @@ def test_a_root_project_selection_runs_gradle_test_with_the_filter(tmp_path):
     KOTLIN_CLASSES.clear()
 
 
-def test_kotlin_stop_adds_fail_fast_after_each_test_task(tmp_path):
+def test_kotlin_stop_adds_fail_fast_after_each_test_task():
     KOTLIN_CLASSES.clear()
     KOTLIN_CLASSES["t/XTest.kt"] = [(":a", "p.XTest"), (":b", "q.XTest")]
 
-    assert mutant_command(tmp_path, "kotlin", stop=True) == ["./gradlew", "test", "--fail-fast"]
-    assert selected_command(tmp_path, "kotlin", {"t/XTest.kt"}, stop=True) == [
+    assert mutant_command(KSUITE, stop=True) == [
+        "./gradlew",
+        "test",
+        "--no-daemon",
+        "--fail-fast",
+    ]
+    assert selected_command(KSUITE, {"t/XTest.kt"}, stop=True) == [
         "./gradlew",
         ":a:test",
+        "--no-daemon",
         "--fail-fast",
         "--tests",
         "p.XTest",
@@ -181,50 +217,53 @@ def test_kotlin_stop_adds_fail_fast_after_each_test_task(tmp_path):
         "--tests",
         "q.XTest",
     ]
-    assert selected_command(tmp_path, "kotlin", {"t/Other.kt"}, stop=True) == [
+    assert selected_command(KSUITE, {"t/Other.kt"}, stop=True) == [
         "./gradlew",
         "test",
+        "--no-daemon",
         "--fail-fast",
     ]
-    assert "--fail-fast" not in selected_command(tmp_path, "kotlin", {"t/XTest.kt"})
+    assert "--fail-fast" not in selected_command(KSUITE, {"t/XTest.kt"})
 
     KOTLIN_CLASSES.clear()
 
 
-def test_a_file_missing_from_the_map_or_a_dashed_name_runs_the_whole_suite(tmp_path):
+def test_a_file_missing_from_the_map_or_a_dashed_name_runs_the_whole_suite():
     KOTLIN_CLASSES.clear()
     KOTLIN_CLASSES["t/XTest.kt"] = [("", "p.XTest")]
-    whole = mutant_command(tmp_path, "kotlin")
+    whole = mutant_command(KSUITE)
 
-    assert selected_command(tmp_path, "kotlin", {"t/Other.kt"}) == whole
-    assert selected_command(tmp_path, "kotlin", {"t/XTest.kt", "t/Other.kt"}) == whole
-    assert selected_command(tmp_path, "kotlin", set()) == whole
-    assert selected_command(tmp_path, "kotlin", {"-x"}) == whole
+    assert selected_command(KSUITE, {"t/Other.kt"}) == whole
+    assert selected_command(KSUITE, {"t/XTest.kt", "t/Other.kt"}) == whole
+    assert selected_command(KSUITE, set()) == whole
+    assert selected_command(KSUITE, {"-x"}) == whole
 
     KOTLIN_CLASSES.clear()
 
 
-def test_more_than_the_file_limit_runs_the_whole_suite(tmp_path):
+def test_more_than_the_file_limit_runs_the_whole_suite():
     KOTLIN_CLASSES.clear()
-    many = {f"t/T{n}Test.kt" for n in range(profiles.MAX_SELECTED_FILES + 1)}
+    many = {f"t/T{n}Test.kt" for n in range(commands.MAX_SELECTED_FILES + 1)}
 
     for name in many:
         KOTLIN_CLASSES[name] = [("", name)]
 
-    assert selected_command(tmp_path, "kotlin", many) == mutant_command(tmp_path, "kotlin")
+    assert selected_command(KSUITE, many) == mutant_command(KSUITE)
 
     KOTLIN_CLASSES.clear()
 
 
-def test_rust_selected_command_falls_back_to_the_whole_suite_for_an_unmapped_file(tmp_path):
-    assert selected_command(tmp_path, "rust", {"a"}) == ["cargo", "test"]
+def test_rust_selected_command_falls_back_to_the_whole_suite_for_an_unmapped_file():
+    rust = parse_suites([{**KOTLIN_SUITE_RAW, "language": "rust", "name": "r"}])[0]
+
+    assert selected_command(rust, {"a"}) == ["cargo", "test"]
 
 
 def test_nested_classes_belong_to_their_outermost_files_run(tmp_path, monkeypatch):
     root, _ = make(tmp_path, monkeypatch=monkeypatch)
     subprocess.run([str(root / "gradlew")], cwd=root, check=True)
 
-    mapped = kotlin_class_map(root)
+    mapped = kotlin_class_map(root, root)
 
     assert mapped == {
         ADD: [("", "p.AddTest")],
@@ -236,7 +275,7 @@ def test_nested_classes_belong_to_their_outermost_files_run(tmp_path, monkeypatc
 def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
 
-    coverage, selection = collect_coverage_with_tests(root, [scan], None)
+    coverage, selection = collect(root, scan)
 
     assert selection[CALC] == {
         4: frozenset({ADD, OUTER}),
@@ -249,29 +288,28 @@ def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, m
 
     assert runs[0] == "test jacocoTestReport"
     assert len(runs) == 4
-    assert "test --rerun --tests p.MulTest --tests p.NegTest jacocoTestReport" in runs
+    assert "test --no-daemon --rerun --tests p.MulTest --tests p.NegTest jacocoTestReport" in runs
     assert KOTLIN_CLASSES[MANY] == [("", "p.MulTest"), ("", "p.NegTest")]
-    assert not (root / ".recognizer/cache/coverage/kotlin/by-file").exists()
 
 
 def test_the_per_file_run_deletes_no_report_and_ignores_one_it_did_not_write(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_NO_REPORT", "1")
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
 
-    _, selection = collect_coverage_with_tests(root, [scan], None)
+    _, selection = collect(root, scan)
 
-    assert (root / REPORT).is_file()
+    assert (root.parent / "work" / "warmup" / REPORT).is_file()
     assert selection == {}
-    assert not (root / ".recognizer/cache/coverage/kotlin/by-file").exists()
 
 
 def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch=monkeypatch)
-    collect_coverage_with_tests(root, [scan], None)
+    collect(root, scan)
 
-    assert selected_command(root, "kotlin", {MANY}) == [
+    assert selected_command(KSUITE, {MANY}) == [
         "./gradlew",
         "test",
+        "--no-daemon",
         "--tests",
         "p.MulTest",
         "--tests",
@@ -282,7 +320,7 @@ def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
 def test_a_class_with_no_file_leaves_no_selection_and_names_it(tmp_path, monkeypatch, capsys):
     root, scan = make(tmp_path, classes=ALL_CLASSES + " p.Ghost", monkeypatch=monkeypatch)
 
-    _, selection = collect_coverage_with_tests(root, [scan], None)
+    _, selection = collect(root, scan)
 
     assert selection == {}
     assert (
@@ -298,13 +336,13 @@ def test_two_files_declaring_one_class_or_a_package_less_file_fall_back(
     files = {**SOURCES, "src/test/kotlin/p/AddTest2.kt": SOURCES[ADD]}
     root, scan = make(tmp_path, files=files, monkeypatch=monkeypatch)
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan)[1] == {}
     assert "p.AddTest has no single test file" in capsys.readouterr().err
 
     files = {**SOURCES, ADD: "class AddTest {\n}\n"}
     root, scan = make(tmp_path / "b", files=files, monkeypatch=monkeypatch)
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan)[1] == {}
     assert "p.AddTest has no single test file" in capsys.readouterr().err
 
 
@@ -314,7 +352,7 @@ def test_a_failing_or_reportless_run_leaves_no_selection(tmp_path, monkeypatch, 
     whole = (root / "gradlew").read_text()
     monkeypatch.setenv(variable, "1")
 
-    _, selection = collect_coverage_with_tests(root, [scan], None)
+    _, selection = collect(root, scan)
 
     assert (root / "gradlew").read_text() == whole
     assert selection == {}
@@ -327,7 +365,7 @@ def test_an_unmapped_class_among_three_files_names_that_class(tmp_path, monkeypa
     (root / "src/test/kotlin/p/Weird.kt").write_text("package p\nclass A; class Weird\n")
     git_commit_again(root)
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan)[1] == {}
     assert "p.Weird" in capsys.readouterr().err
 
 
@@ -345,7 +383,7 @@ def test_the_class_map_over_the_committed_kotlin_sample(tmp_path, monkeypatch):
     results.mkdir(parents=True)
     (results / "TEST-shop.web.OrderControllerTest.xml").write_text("")
 
-    mapped = kotlin_class_map(root)
+    mapped = kotlin_class_map(root, root)
     [(file, pairs)] = mapped.items()
 
     assert file.endswith("OrderControllerTest.kt")
@@ -361,7 +399,7 @@ def test_a_subproject_result_directory_names_its_gradle_project(tmp_path, monkey
     results.mkdir(parents=True)
     (results / "TEST-p.XTest.xml").write_text("")
 
-    assert kotlin_class_map(root) == {"a/src/test/kotlin/p/XTest.kt": [(":a", "p.XTest")]}
+    assert kotlin_class_map(root, root) == {"a/src/test/kotlin/p/XTest.kt": [(":a", "p.XTest")]}
 
 
 @pytest.fixture(autouse=True)
@@ -390,7 +428,7 @@ def test_real_gradle_selection_on_the_committed_fixture(tmp_path):
     scan = SimpleNamespace(language="kotlin", modules=[SimpleNamespace(files=[calc])])
 
     try:
-        _, selection = collect_coverage_with_tests(root, [scan], None)
+        _, selection = collect(root, scan)
     except Refusal as refusal:
         log = root / ".recognizer" / "cache" / "coverage" / "last-run.log"
         text = log.read_text(errors="replace") if log.exists() else "no log written"
@@ -432,26 +470,27 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
     }
     monkeypatch.setattr(
         sensor,
-        "collect_coverage_with_tests",
-        lambda repository, scans, coverage: ({KT_CALC: {4: 1, 8: 1, 12: 1}}, selection),
+        "coverage_run",
+        lambda repository, scans, suites, work, **_: ({KT_CALC: {4: 1, 8: 1, 12: 1}}, selection),
     )
     seen = []
 
-    def spy(command, cwd, timeout):
+    def spy(command, cwd, timeout, suite=None, extra=None):
         seen.append(list(command))
 
         return runner.TestRun(0, False, 0.1, "")
 
     monkeypatch.setattr(runner, "run_test_command", spy)
     monkeypatch.setattr(sensor, "run_test_command", spy)
-    settings = json.dumps({"incremental": False, "max_workers": 1})
+    settings = json.dumps({"tests": [KOTLIN_SUITE_RAW], "incremental": False, "max_workers": 1})
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
-    half = ["./gradlew", "test", "--tests", "p.T0Test", "--tests", "p.T1Test"]
-    whole = mutant_command(root, "kotlin")
+    half = ["./gradlew", "test", "--no-daemon", "--tests", "p.T0Test", "--tests", "p.T1Test"]
+    whole = mutant_command(KSUITE)
 
     assert half in seen
     assert whole in seen
     assert not any("p.T2Test" in command for command in seen)
     assert all(command[:2] == ["./gradlew", "test"] for command in seen)
+    assert all("--no-daemon" in command for command in seen)

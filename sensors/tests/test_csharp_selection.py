@@ -9,22 +9,49 @@ import pytest
 from conftest import git_commit, write_scan_document
 from test_mutation import run_mutate
 
-from recognizer_sensors.mutation import runner, sensor
-from recognizer_sensors.testrun import profiles
-from recognizer_sensors.testrun.profiles import (
+from recognizer_sensors.mutation import commands, runner, sensor
+from recognizer_sensors.mutation.commands import (
     CSHARP_CLASSES,
-    coverage_command,
-    csharp_by_file_command,
+    csharp_class_command,
     csharp_filter,
     csharp_selected_command,
     mutant_command,
     selected_command,
 )
-from recognizer_sensors.testrun.run import (
-    collect_coverage_with_tests,
+from recognizer_sensors.mutation.warmup import (
+    coverage_run,
     csharp_class_map,
     csharp_declarations,
 )
+from recognizer_sensors.testrun.suites import parse_suites
+
+
+def suite_raw(tmp_path=None):
+    return {
+        "name": "shop",
+        "language": "csharp",
+        "directory": ".",
+        **({"activate": f"export PATH={tmp_path / 'bin'}:$PATH"} if tmp_path else {}),
+        "command": 'dotnet test --collect:"XPlat Code Coverage;Format=lcov"'
+        " --results-directory TestResults",
+        "coverage": {"path": "TestResults/*/coverage.info", "format": "lcov"},
+    }
+
+
+CSUITE = parse_suites([suite_raw()])[0]
+
+
+def collect(root, scan, tmp_path):
+    work = tmp_path / "work"
+    work.mkdir(exist_ok=True)
+
+    return coverage_run(root, [scan], parse_suites([suite_raw(tmp_path)]), work)
+
+
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/sh")
+
 
 CALC = "src/Calc.cs"
 
@@ -139,7 +166,7 @@ def test_the_filter_ends_every_clause_in_a_dot_and_sorts_them(classes, expected)
 
 
 def test_the_by_file_command_is_an_argument_vector():
-    assert csharp_by_file_command(3, ["P.A", "P.A+B"]) == [
+    assert csharp_class_command(3, ["P.A", "P.A+B"]) == [
         "dotnet",
         "test",
         "--collect:XPlat Code Coverage;Format=lcov",
@@ -161,40 +188,29 @@ def test_the_selected_command_carries_only_the_filter():
     ]
 
 
-def test_only_the_selection_pass_carries_the_trx_logger(tmp_path):
-    plain = coverage_command(tmp_path, "csharp")
-
-    assert plain == profiles.PROFILES["csharp"]["coverage_command"]
-    assert coverage_command(tmp_path, "csharp", contexts=True) == [
-        *plain,
-        "--logger",
-        "trx;LogFilePrefix=results",
-    ]
-
-
-def test_a_mapped_file_selects_its_classes_and_anything_else_the_whole_suite(tmp_path):
+def test_a_mapped_file_selects_its_classes_and_anything_else_the_whole_suite():
     CSHARP_CLASSES["t/X.cs"] = ["P.X"]
-    whole = mutant_command(tmp_path, "csharp")
+    whole = mutant_command(CSUITE)
 
-    assert selected_command(tmp_path, "csharp", {"t/X.cs"}) == [
+    assert selected_command(CSUITE, {"t/X.cs"}) == [
         "dotnet",
         "test",
         "--filter",
         "FullyQualifiedName~P.X.",
     ]
-    assert selected_command(tmp_path, "csharp", {"t/Y.cs"}) == whole
-    assert selected_command(tmp_path, "csharp", {"t/X.cs", "t/Y.cs"}) == whole
-    assert selected_command(tmp_path, "csharp", set()) == whole
-    assert selected_command(tmp_path, "csharp", {"-x"}) == whole
+    assert selected_command(CSUITE, {"t/Y.cs"}) == whole
+    assert selected_command(CSUITE, {"t/X.cs", "t/Y.cs"}) == whole
+    assert selected_command(CSUITE, set()) == whole
+    assert selected_command(CSUITE, {"-x"}) == whole
 
 
-def test_more_than_the_file_limit_runs_the_whole_suite(tmp_path):
-    many = {f"t/T{n}.cs" for n in range(profiles.MAX_SELECTED_FILES + 1)}
+def test_more_than_the_file_limit_runs_the_whole_suite():
+    many = {f"t/T{n}.cs" for n in range(commands.MAX_SELECTED_FILES + 1)}
 
     for name in many:
         CSHARP_CLASSES[name] = ["P.T"]
 
-    assert selected_command(tmp_path, "csharp", many) == mutant_command(tmp_path, "csharp")
+    assert selected_command(CSUITE, many) == mutant_command(CSUITE)
 
 
 def test_declarations_read_block_and_file_scoped_namespaces_and_nesting(tmp_path):
@@ -234,7 +250,7 @@ def test_the_class_map_groups_classes_by_declaring_file(tmp_path, monkeypatch):
 def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch)
 
-    coverage, selection = collect_coverage_with_tests(root, [scan], None)
+    coverage, selection = collect(root, scan, tmp_path)
 
     assert selection[CALC] == {
         5: frozenset({ADD, OUTER}),
@@ -256,9 +272,9 @@ def test_the_pass_attributes_each_line_to_the_files_whose_run_hit_it(tmp_path, m
 
 def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
     root, scan = make(tmp_path, monkeypatch)
-    collect_coverage_with_tests(root, [scan], None)
+    collect(root, scan, tmp_path)
 
-    assert selected_command(root, "csharp", {MANY}) == [
+    assert selected_command(CSUITE, {MANY}) == [
         "dotnet",
         "test",
         "--filter",
@@ -271,7 +287,7 @@ def test_a_repository_with_no_tests_has_no_selection_and_prints_nothing(
 ):
     root, scan = make(tmp_path, monkeypatch, classes="")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert capsys.readouterr().err == ""
 
 
@@ -281,7 +297,7 @@ def test_a_class_with_no_file_or_an_odd_name_names_itself_and_falls_back(
 ):
     root, scan = make(tmp_path, monkeypatch, classes=f"{ALL_CLASSES} {extra}")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert (
         f"recognizer-sensors: mutation: test class {extra} has no single test file; "
         "running the whole suite for csharp"
@@ -293,7 +309,7 @@ def test_a_partial_class_in_two_files_falls_back(tmp_path, monkeypatch, capsys):
     files = {**SOURCES, "tests/Calc.Tests/Add2.cs": SOURCES[ADD]}
     root, scan = make(tmp_path, monkeypatch, files=files)
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "P.Tests.AddTests has no single test file" in capsys.readouterr().err
 
 
@@ -301,7 +317,7 @@ def test_a_failing_per_file_run_falls_back(tmp_path, monkeypatch, capsys):
     root, scan = make(tmp_path, monkeypatch)
     monkeypatch.setenv("FAKE_FAIL", "1")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "running the whole suite for csharp" in capsys.readouterr().err
     assert not CSHARP_CLASSES
 
@@ -310,7 +326,7 @@ def test_a_run_that_executed_another_class_falls_back(tmp_path, monkeypatch, cap
     root, scan = make(tmp_path, monkeypatch)
     monkeypatch.setenv("FAKE_EXTRA", "Other.P.Tests.AddTests")
 
-    assert collect_coverage_with_tests(root, [scan], None)[1] == {}
+    assert collect(root, scan, tmp_path)[1] == {}
     assert "did not execute exactly its classes; running the whole suite for csharp" in (
         capsys.readouterr().err
     )
@@ -356,7 +372,7 @@ def test_real_dotnet_selection_on_the_committed_fixture(tmp_path, monkeypatch):
     )
     add, many, outer = (f"Calc.Tests/{n}.cs" for n in ("AddTests", "Many", "Outer"))
 
-    _, selection = collect_coverage_with_tests(root, [scan], None)
+    _, selection = collect(root, scan, tmp_path)
 
     assert selection[calc] == {
         5: frozenset({add, outer}),
@@ -398,24 +414,24 @@ def test_a_selection_of_half_the_suite_is_used_and_one_more_file_runs_the_whole_
     }
     monkeypatch.setattr(
         sensor,
-        "collect_coverage_with_tests",
-        lambda repository, scans, coverage: ({CS_CALC: {3: 1, 6: 1, 9: 1}}, selection),
+        "coverage_run",
+        lambda repository, scans, suites, work, **_: ({CS_CALC: {3: 1, 6: 1, 9: 1}}, selection),
     )
     seen = []
 
-    def spy(command, cwd, timeout):
+    def spy(command, cwd, timeout, suite=None, extra=None):
         seen.append(list(command))
 
         return runner.TestRun(0, False, 0.1, "")
 
     monkeypatch.setattr(runner, "run_test_command", spy)
     monkeypatch.setattr(sensor, "run_test_command", spy)
-    settings = json.dumps({"incremental": False, "max_workers": 1})
+    settings = json.dumps({"tests": [suite_raw()], "incremental": False, "max_workers": 1})
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
     half = ["dotnet", "test", "--filter", "FullyQualifiedName~P.T0.|FullyQualifiedName~P.T1."]
 
     assert half in seen
-    assert mutant_command(root, "csharp") in seen
+    assert mutant_command(CSUITE) in seen
     assert not any("P.T2." in " ".join(command) for command in seen)

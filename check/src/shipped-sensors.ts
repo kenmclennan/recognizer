@@ -165,6 +165,12 @@ export function shippedCommand(
   ];
 }
 
+export function receivesSuites(name: string): boolean {
+  return SHIPPED_SENSOR_LIST.some(
+    (entry) => entry.runs_tests && entry.name === name,
+  );
+}
+
 export function expandShortForms(
   entries: Record<string, unknown> | undefined,
   shipped: readonly string[],
@@ -182,7 +188,7 @@ export function expandShortForms(
             {
               command: shippedCommand(
                 name,
-                name === "crap" && suites !== undefined
+                receivesSuites(name) && suites !== undefined
                   ? { ...entry, tests: suites }
                   : entry,
               ),

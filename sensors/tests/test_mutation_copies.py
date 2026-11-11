@@ -1,6 +1,5 @@
 import os
 import shutil
-import subprocess
 import sys
 import threading
 
@@ -9,15 +8,17 @@ from conftest import git_commit, make_repository
 
 from recognizer_sensors.mutation import runner
 from recognizer_sensors.mutation.runner import (
-    EnvironmentPool,
     Mutant,
     MutantCopies,
     ResetFailed,
+    copy_repository,
     new_work_folder,
     remove_stale_work_folders,
     remove_work_folder,
-    run_mutant,
 )
+from recognizer_sensors.testrun.suites import Suite
+
+SUITE = Suite("t", "python", ".", "true", None, {}, "cov.info", "lcov", None)
 
 PYPROJECT = '[project]\nname = "t"\nversion = "0"\nrequires-python = ">=3.11"\n'
 
@@ -27,9 +28,11 @@ TESTS = "from m import f, g\n\n\ndef test_f():\n    assert f(1) == 1\n\n\ndef te
 
 PLAIN = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
 
-UV = ["uv", "run", "pytest", "-q", "-p", "no:cacheprovider"]
 
-needs_uv = pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv on PATH")
+def run_mutant(project, work, number, item, command, timeout, copies=None, carry=()):
+    return runner.run_mutant(
+        project, work, number, item, command, timeout, SUITE, carry=carry, copies=copies
+    )
 
 
 def mutant(old: str, new: str, source: str = MODULE) -> Mutant:
@@ -62,12 +65,9 @@ def work(project):
     remove_work_folder(folder)
 
 
-def verdicts(project, work, order, command, copies, environments=None):
+def verdicts(project, work, order, command, copies):
     return [
-        run_mutant(
-            project, work, 0, item, command, 120.0, copies=copies, environments=environments
-        ).verdict
-        for item in order
+        run_mutant(project, work, 0, item, command, 120.0, copies=copies).verdict for item in order
     ]
 
 
@@ -80,21 +80,6 @@ def test_a_verdict_never_depends_on_the_mutant_before_it_in_a_pooled_copy(projec
     copies = MutantCopies(project, work, 1)
 
     assert verdicts(project, work, order, PLAIN, copies) == expected(order)
-
-
-@needs_uv
-@pytest.mark.parametrize("order", [(KILLING, SURVIVING), (SURVIVING, KILLING)])
-def test_a_verdict_never_depends_on_the_mutant_before_it_in_a_pooled_uv_copy(project, work, order):
-    subprocess.run(["uv", "lock", "-q"], cwd=project, check=True, capture_output=True)
-    git_commit(project)
-
-    copies = MutantCopies(project, work, 1)
-    pool = EnvironmentPool(project, work, 1)
-
-    try:
-        assert verdicts(project, work, order, UV, copies, pool) == expected(order)
-    finally:
-        remove_work_folder(pool.folder)
 
 
 def test_a_same_size_mutant_straight_after_another_is_not_hidden_by_stale_bytecode(tmp_path):
@@ -158,28 +143,87 @@ def test_reset_leaves_an_untouched_file_alone(project, work):
 
 
 def test_build_output_beside_a_manifest_survives_and_other_new_paths_do_not(tmp_path, work):
-    root = make_repository(
-        tmp_path / "r",
-        {"Cargo.toml": "[package]\n", "m.py": MODULE, "test_m.py": TESTS},
-    )
+    root = make_repository(tmp_path / "r", {"m.py": MODULE, "test_m.py": TESTS})
     git_commit(root)
     folder = new_work_folder(root)
-    copies = MutantCopies(root, folder, 1)
+    copies = MutantCopies(root, folder, 1, ("build",))
     script = [
         sys.executable,
         "-c",
-        "import os; os.makedirs('target/debug'); open('target/debug/a','w').write('x');"
+        "import os; os.makedirs('build/debug'); open('build/debug/a','w').write('x');"
         "os.makedirs('elsewhere'); open('elsewhere/b','w').write('x')",
     ]
 
     try:
-        run_mutant(root, folder, 0, SURVIVING, script, 60.0, copies=copies)
+        run_mutant(root, folder, 0, SURVIVING, script, 60.0, copies=copies, carry=("build",))
 
         with copies.lease() as slot:
             copy = slot.prepare()
 
-            assert (copy.path / "target" / "debug" / "a").read_text() == "x"
+            assert (copy.path / "build" / "debug" / "a").read_text() == "x"
             assert not (copy.path / "elsewhere").exists()
+    finally:
+        remove_work_folder(folder)
+
+
+def carry_repository(tmp_path):
+    root = make_repository(
+        tmp_path / "c",
+        {
+            "m.py": MODULE,
+            ".gitignore": "node_modules/\ntarget/\n",
+            "node_modules/dep/index.js": "x",
+            "frontend/node_modules/dep/index.js": "y",
+            "target/debug/a": "z",
+        },
+    )
+    (root / ".gitignore").write_text("node_modules/\ntarget/\n")
+    git_commit(root)
+
+    return root
+
+
+def test_a_repository_with_no_carry_copies_exactly_its_git_listed_files(tmp_path):
+    root = carry_repository(tmp_path)
+    copy = tmp_path / "copy"
+
+    copy_repository(root, copy)
+
+    assert not (copy / "node_modules").exists()
+    assert not (copy / "frontend" / "node_modules").exists()
+    assert not (copy / "target").exists()
+    assert (copy / "m.py").is_file()
+
+
+def test_a_carry_entry_names_the_exact_folder_and_nothing_at_other_depths(tmp_path):
+    root = carry_repository(tmp_path)
+    copy = tmp_path / "copy"
+
+    copy_repository(root, copy, ("frontend/node_modules",))
+
+    assert (copy / "frontend" / "node_modules" / "dep" / "index.js").is_file()
+    assert not (copy / "node_modules").exists()
+    assert not (copy / "target").exists()
+
+
+def test_a_carried_folder_is_in_the_copy_and_a_reset_leaves_it_untouched(tmp_path):
+    root = carry_repository(tmp_path)
+    folder = new_work_folder(root)
+    copies = MutantCopies(root, folder, 1, ("node_modules",))
+
+    try:
+        with copies.lease() as slot:
+            copy = slot.prepare()
+            marker = copy.path / "node_modules" / "dep" / "index.js"
+            marker.write_text("edited by a run")
+
+        with copies.lease() as slot:
+            copy = slot.prepare()
+
+            assert (
+                copy.path / "node_modules" / "dep" / "index.js"
+            ).read_text() == "edited by a run"
+            assert not (copy.path / "target").exists()
     finally:
         remove_work_folder(folder)
 
@@ -194,10 +238,12 @@ def test_a_timed_out_run_retires_the_copy(project, work):
     assert verdicts(project, work, [KILLING], PLAIN, copies) == ["killed"]
 
 
-def test_a_command_that_cannot_start_retires_the_copy(project, work):
+def test_a_command_that_cannot_start_retires_the_copy(project, work, monkeypatch):
     copies = MutantCopies(project, work, 1)
 
-    run_mutant(project, work, 0, SURVIVING, ["/nonexistent/tool"], 5.0, copies=copies)
+    monkeypatch.setenv("SHELL", "/nonexistent/shell")
+    run_mutant(project, work, 0, SURVIVING, ["tool"], 5.0, copies=copies)
+    monkeypatch.setenv("SHELL", "/bin/sh")
 
     assert copies.slots[0].copy is None
     assert verdicts(project, work, [SURVIVING], PLAIN, copies) == ["survived"]
@@ -206,7 +252,7 @@ def test_a_command_that_cannot_start_retires_the_copy(project, work):
 def test_a_stop_while_leased_retires_the_copy(project, work, monkeypatch):
     copies = MutantCopies(project, work, 1)
 
-    def stopping(command, cwd, timeout, environment=None):
+    def stopping(command, cwd, timeout, suite=None, extra=None):
         runner.STOP.set()
 
         return runner.TestRun(0, False, 0.0, "")
@@ -360,43 +406,3 @@ def test_the_stop_handler_leave_removes_pooled_copies(project, work):
         restore()
 
     assert not (work / "mutant-0").exists()
-
-
-@needs_uv
-def test_the_editable_override_is_set_exactly_when_an_environment_is_leased(
-    project, work, monkeypatch
-):
-    subprocess.run(["uv", "lock", "-q"], cwd=project, check=True, capture_output=True)
-    git_commit(project)
-
-    monkeypatch.setenv("UV_NO_EDITABLE", "1")
-
-    seen = []
-    real = subprocess.Popen
-
-    def spy(*args, **kwargs):
-        if "env" in kwargs:
-            seen.append(
-                (kwargs["env"].get("UV_NO_EDITABLE"), "UV_PROJECT_ENVIRONMENT" in kwargs["env"])
-            )
-
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(runner.subprocess, "Popen", spy)
-
-    copies = MutantCopies(project, work, 1)
-    pool = EnvironmentPool(project, work, 1)
-
-    try:
-        order = [KILLING, SURVIVING]
-
-        assert verdicts(project, work, order, UV, copies, pool) == expected(order)
-    finally:
-        remove_work_folder(pool.folder)
-
-    assert seen and set(seen) == {("0", True)}
-
-    seen.clear()
-    run_mutant(project, work, 0, SURVIVING, PLAIN, 120.0, copies=copies)
-
-    assert [flag for flag, _ in seen] == ["1"]

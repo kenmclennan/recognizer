@@ -1,26 +1,48 @@
 import hashlib
 import json
-import subprocess
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict
 
 import pytest
-from conftest import make_repository, mutate_repository, mutate_settings
+from conftest import git_commit, make_repository, mutate_repository, mutate_settings, python_suite
 from coverage import CoverageData
-from test_mutation import COVERAGE, RECORD, SURVIVORS, read, run_mutate
+from test_mutation import RECORD, SURVIVORS, read, run_mutate
 
 from recognizer_sensors.mutation import runner, sensor
+from recognizer_sensors.mutation.commands import mutant_command, selected_command
+from recognizer_sensors.mutation.warmup import coverage_run
 from recognizer_sensors.scans import read_scans
-from recognizer_sensors.testrun import profiles
-from recognizer_sensors.testrun.profiles import PYTHON_DATA, mutant_command, selected_command
-from recognizer_sensors.testrun.run import (
-    collect_coverage_with_tests,
-    python_selection,
-)
+from recognizer_sensors.testrun.contexts import PYTHON_DATA, ContextSelection, PythonContexts
+from recognizer_sensors.testrun.suites import parse_suites
 
-TS_LCOV = ".recognizer/cache/coverage/typescript/lcov.info"
+
+def suite_of(language="python", runner_name=None, directory=".", **extra):
+    raw = {
+        "name": "api",
+        "language": language,
+        "directory": directory,
+        "command": "true",
+        "coverage": {"path": "cov.info", "format": "lcov"},
+        **extra,
+    }
+
+    if runner_name:
+        raw["runner"] = runner_name
+
+    return parse_suites([raw])[0]
+
+
+SUITE = suite_of()
+
+SUITES = [asdict(parse_suites([python_suite("tests/strong.py")])[0])]
+
+
+def strong_settings(**extra):
+    return json.dumps({"tests": [python_suite("tests/strong.py")], **extra})
+
 
 SHOP = """import os
 
@@ -101,9 +123,10 @@ def test_the_context_reader_keeps_only_lines_whose_every_context_is_an_existing_
         ],
     )
 
-    assert python_selection(tmp_path)["app/m.py"] == {
+    assert ContextSelection({}, PythonContexts(tmp_path))["app/m.py"] == {
         1: frozenset({"tests/test_a.py"}),
         2: frozenset({"tests/test_a.py", "tests/test_b.py"}),
+        6: frozenset({"tests/test_a.py"}),
     }
 
 
@@ -111,28 +134,16 @@ def test_an_unreadable_coverage_data_file_selects_nothing(tmp_path, capsys):
     (tmp_path / PYTHON_DATA).parent.mkdir(parents=True)
     (tmp_path / PYTHON_DATA).write_bytes(b"not sqlite")
 
-    assert dict(python_selection(tmp_path)) == {}
+    assert dict(ContextSelection({}, PythonContexts(tmp_path))) == {}
     assert capsys.readouterr().err.count("could not be read") == 1
 
 
 def test_a_missing_context_file_selects_nothing(tmp_path):
-    assert dict(python_selection(tmp_path)) == {}
+    assert dict(ContextSelection({}, PythonContexts(tmp_path))) == {}
 
 
-@pytest.mark.parametrize(
-    ("lockfile", "runner_words"),
-    [
-        ("uv.lock", ["uv", "run", "env", "-u", "UV_PROJECT_ENVIRONMENT"]),
-        ("poetry.lock", ["poetry", "run"]),
-        (None, ["python3", "-m"]),
-    ],
-)
-def test_python_selection_follows_the_runner(tmp_path, lockfile, runner_words):
-    if lockfile:
-        (tmp_path / lockfile).write_text("")
-
-    assert selected_command(tmp_path, "python", {"tests/b.py", "tests/a.py"}) == [
-        *runner_words,
+def test_python_selection_is_pytest_on_the_covering_files():
+    assert selected_command(SUITE, {"tests/b.py", "tests/a.py"}) == [
         "pytest",
         "-rfE",
         "tests/a.py",
@@ -140,24 +151,50 @@ def test_python_selection_follows_the_runner(tmp_path, lockfile, runner_words):
     ]
 
 
-def test_typescript_selection_passes_the_files_after_a_separator(tmp_path):
-    assert selected_command(tmp_path, "typescript", {"web/a.test.ts"}) == [
-        "npm",
-        "test",
-        "--",
-        "web/a.test.ts",
+def test_python_selection_names_files_relative_to_the_suite_directory():
+    nested = suite_of(directory="service")
+
+    assert selected_command(nested, {"service/tests/b.py", "service/tests/a.py"}) == [
+        "pytest",
+        "-rfE",
+        "tests/a.py",
+        "tests/b.py",
     ]
+    assert selected_command(nested, {"other/tests/a.py"}) == mutant_command(nested)
 
 
-def test_a_previous_killer_file_leads_the_python_selected_command(tmp_path):
+def test_typescript_selection_is_the_runners_related_command():
+    vitest = suite_of("typescript", "vitest")
+    jest = suite_of("typescript", "jest")
+
+    assert selected_command(vitest, None, file="web/a.ts") == [
+        "npx",
+        "--no",
+        "--",
+        "vitest",
+        "related",
+        "web/a.ts",
+        "--run",
+    ]
+    assert selected_command(jest, None, file="web/a.ts") == [
+        "npx",
+        "--no",
+        "--",
+        "jest",
+        "--findRelatedTests",
+        "web/a.ts",
+    ]
+    assert mutant_command(vitest) == ["npx", "--no", "--", "vitest", "run"]
+    assert mutant_command(jest) == ["npx", "--no", "--", "jest"]
+
+
+def test_a_previous_killer_file_leads_the_python_selected_command():
     files = {"tests/a.py", "tests/b.py", "tests/c.py"}
 
     assert selected_command(
-        tmp_path, "python", files, stop=True, previous=frozenset({"tests/c.py", "tests/b.py"})
-    ) == ["python3", "-m", "pytest", "-rfE", "-x", "tests/b.py", "tests/c.py", "tests/a.py"]
-    assert selected_command(tmp_path, "python", files, previous=frozenset({"tests/c.py"})) == [
-        "python3",
-        "-m",
+        SUITE, files, stop=True, previous=frozenset({"tests/c.py", "tests/b.py"})
+    ) == ["pytest", "-rfE", "-x", "tests/b.py", "tests/c.py", "tests/a.py"]
+    assert selected_command(SUITE, files, previous=frozenset({"tests/c.py"})) == [
         "pytest",
         "-rfE",
         "tests/c.py",
@@ -166,104 +203,79 @@ def test_a_previous_killer_file_leads_the_python_selected_command(tmp_path):
     ]
 
 
-def test_a_previous_killer_outside_the_selection_is_not_added(tmp_path):
-    assert selected_command(
-        tmp_path, "python", {"tests/a.py"}, previous=frozenset({"tests/z.py"})
-    ) == ["python3", "-m", "pytest", "-rfE", "tests/a.py"]
-
-
-def test_the_stopping_python_whole_suite_command_adds_x_and_the_baseline_does_not(tmp_path):
-    assert mutant_command(tmp_path, "python") == ["python3", "-m", "pytest", "-rfE"]
-    assert mutant_command(tmp_path, "python", stop=True) == [
-        "python3",
-        "-m",
+def test_a_previous_killer_outside_the_selection_is_not_added():
+    assert selected_command(SUITE, {"tests/a.py"}, previous=frozenset({"tests/z.py"})) == [
         "pytest",
         "-rfE",
-        "-x",
+        "tests/a.py",
     ]
+
+
+def test_the_stopping_python_whole_suite_command_adds_x_and_the_baseline_does_not():
+    assert mutant_command(SUITE) == ["pytest", "-rfE"]
+    assert mutant_command(SUITE, stop=True) == ["pytest", "-rfE", "-x"]
 
 
 @pytest.mark.parametrize(
-    ("script", "bails"),
-    [
-        ("jest", True),
-        ("vitest run", True),
-        ("jest --ci", True),
-        ("npm run unit", False),
-        ("node --test", False),
-        ("cross-env CI=1 vitest", False),
-        ("", False),
-    ],
+    ("runner_name", "flag"),
+    [("vitest", "--bail=1"), ("jest", "--bail")],
 )
-def test_typescript_bails_only_when_the_test_script_starts_with_jest_or_vitest(
-    tmp_path, script, bails
-):
-    (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": script}}))
+def test_typescript_bails_with_the_suites_runner(runner_name, flag):
+    suite = suite_of("typescript", runner_name)
 
-    whole = mutant_command(tmp_path, "typescript", stop=True)
-    chosen = selected_command(
-        tmp_path,
-        "typescript",
-        {"w/a.test.ts", "w/b.test.ts"},
-        stop=True,
-        previous=frozenset({"w/b.test.ts"}),
-    )
-
-    assert whole == (["npm", "test", "--", "--bail=1"] if bails else ["npm", "test"])
-    assert chosen == [
-        "npm",
-        "test",
-        "--",
-        *(["--bail=1"] if bails else []),
-        "w/b.test.ts",
-        "w/a.test.ts",
-    ]
-    assert mutant_command(tmp_path, "typescript") == ["npm", "test"]
+    assert mutant_command(suite, stop=True)[-1] == flag
+    assert flag not in mutant_command(suite)
+    assert selected_command(suite, None, stop=True, file="w/a.ts")[-1] == flag
+    assert flag not in selected_command(suite, None, file="w/a.ts")
 
 
-def test_typescript_without_a_readable_package_json_keeps_the_plain_command(tmp_path):
-    assert mutant_command(tmp_path, "typescript", stop=True) == ["npm", "test"]
-
-    (tmp_path / "package.json").write_text("not json")
-
-    assert mutant_command(tmp_path, "typescript", stop=True) == ["npm", "test"]
-
-
-def test_csharp_and_rust_commands_ignore_the_stop_request(tmp_path):
+def test_csharp_and_rust_commands_ignore_the_stop_request():
     for language in ("csharp", "rust"):
-        assert mutant_command(tmp_path, language, stop=True) == mutant_command(tmp_path, language)
+        suite = suite_of(language)
+
+        assert mutant_command(suite, stop=True) == mutant_command(suite)
 
 
-def test_fifty_one_files_or_a_dashed_name_run_the_whole_suite(tmp_path):
-    whole = mutant_command(tmp_path, "python")
+def test_fifty_one_files_or_a_dashed_name_run_the_whole_suite():
+    whole = mutant_command(SUITE)
     many = {f"tests/test_{n}.py" for n in range(51)}
 
-    assert selected_command(tmp_path, "python", many) == whole
-    assert selected_command(tmp_path, "python", set(list(many)[:50])) != whole
-    assert selected_command(tmp_path, "python", {"-x.py"}) == whole
+    assert selected_command(SUITE, many) == whole
+    assert selected_command(SUITE, set(list(many)[:50])) != whole
+    assert selected_command(SUITE, {"-x.py"}) == whole
 
 
 def test_a_real_python_coverage_pass_attributes_each_line_to_the_test_files_that_ran_it(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setattr(
-        profiles, "python_runner", lambda repository, directory="": [sys.executable, "-m"]
-    )
+    pytest.importorskip("pytest_cov")
     root = make_repository(
         tmp_path / "r",
         {"app/shop.py": SHOP, "tests/test_a.py": TEST_A, "tests/test_b.py": TEST_B},
     )
+    git_commit(root)
+    work = tmp_path / "work"
+    work.mkdir()
     scans = [scan for scan in read_scans(root) if scan.language == "python"]
+    suites = parse_suites(
+        [
+            {
+                "name": "api",
+                "language": "python",
+                "directory": ".",
+                "command": f"{sys.executable} -m pytest -q -p no:cacheprovider --cov=app"
+                " --cov-report=lcov:coverage/lcov.info",
+                "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+            }
+        ]
+    )
 
-    coverage, selection = collect_coverage_with_tests(root, scans, None)
+    coverage, selection = coverage_run(root, scans, suites, work)
     lines = selection["app/shop.py"]
 
     assert lines[7] == frozenset({"tests/test_a.py"})
     assert lines[11] == frozenset({"tests/test_b.py"})
     assert lines[15] == frozenset({"tests/test_a.py", "tests/test_b.py"})
-    assert 1 not in lines
-    assert 3 not in lines
-    assert 6 not in lines
     assert 19 not in lines
     assert coverage["app/shop.py"][19] == 0
 
@@ -271,8 +283,8 @@ def test_a_real_python_coverage_pass_attributes_each_line_to_the_test_files_that
 def fake_selection(monkeypatch, selection):
     monkeypatch.setattr(
         sensor,
-        "collect_coverage_with_tests",
-        lambda repository, scans, coverage: (
+        "coverage_run",
+        lambda repository, scans, suites, work, **_: (
             {"app/rules.py": {1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 9: 1, 10: 1, 13: 0, 14: 0}},
             selection,
         ),
@@ -283,10 +295,10 @@ def spy_commands(monkeypatch):
     seen = []
     real = runner.run_test_command
 
-    def spy(command, cwd, timeout):
+    def spy(command, cwd, timeout, suite=None, extra=None):
         seen.append((list(command), timeout))
 
-        return real([sys.executable, "tests/strong.py"], cwd, timeout)
+        return real([sys.executable, "tests/strong.py"], cwd, timeout, suite=suite)
 
     monkeypatch.setattr(runner, "run_test_command", spy)
     monkeypatch.setattr(sensor, "run_test_command", spy)
@@ -297,10 +309,10 @@ def spy_commands(monkeypatch):
 A = frozenset({"tests/test_a.py"})
 B = frozenset({"tests/test_b.py"})
 SELECTED = {"app/rules.py": {2: A, 4: A, 5: A, 6: A, 13: B}}
-SELECTED_COMMAND = ["python3", "-m", "pytest", "-rfE", "tests/test_a.py"]
-WHOLE_COMMAND = ["python3", "-m", "pytest", "-rfE"]
-STOPPING_SELECTED = ["python3", "-m", "pytest", "-rfE", "-x", "tests/test_a.py"]
-STOPPING_WHOLE = ["python3", "-m", "pytest", "-rfE", "-x"]
+SELECTED_COMMAND = ["pytest", "-rfE", "tests/test_a.py"]
+WHOLE_COMMAND = ["pytest", "-rfE"]
+STOPPING_SELECTED = ["pytest", "-rfE", "-x", "tests/test_a.py"]
+STOPPING_WHOLE = ["pytest", "-rfE", "-x"]
 
 
 def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once(
@@ -309,7 +321,7 @@ def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once
     root, _ = mutate_repository(tmp_path)
     fake_selection(monkeypatch, SELECTED)
     seen = spy_commands(monkeypatch)
-    settings = json.dumps({"incremental": False, "max_workers": 1})
+    settings = strong_settings(incremental=False, max_workers=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
@@ -334,15 +346,20 @@ def test_a_selected_command_whose_baseline_fails_runs_its_mutants_under_the_whol
     seen = []
     real = runner.run_test_command
 
-    def spy(command, cwd, timeout):
+    def spy(command, cwd, timeout, suite=None, extra=None):
         seen.append(list(command))
         failing = command == SELECTED_COMMAND and timeout is None
 
-        return real([sys.executable, "-c", "raise SystemExit(1)" if failing else ""], cwd, timeout)
+        return real(
+            [sys.executable, "-c", "raise SystemExit(1)" if failing else ""],
+            cwd,
+            timeout,
+            suite=suite,
+        )
 
     monkeypatch.setattr(runner, "run_test_command", spy)
     monkeypatch.setattr(sensor, "run_test_command", spy)
-    settings = json.dumps({"incremental": False, "max_workers": 1})
+    settings = strong_settings(incremental=False, max_workers=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
@@ -363,9 +380,11 @@ def test_a_failing_whole_suite_baseline_still_ends_the_run(tmp_path, monkeypatch
     monkeypatch.setattr(
         sensor,
         "run_test_command",
-        lambda c, cwd, t: real([sys.executable, "-c", "exit(1)"], cwd, t),
+        lambda c, cwd, t, suite=None, extra=None: real(
+            [sys.executable, "-c", "exit(1)"], cwd, t, suite=suite
+        ),
     )
-    settings = json.dumps({"incremental": False, "max_workers": 1})
+    settings = strong_settings(incremental=False, max_workers=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
     assert capsys.readouterr().err.strip().splitlines()[-1] == (
@@ -373,48 +392,19 @@ def test_a_failing_whole_suite_baseline_still_ends_the_run(tmp_path, monkeypatch
     )
 
 
-def test_a_configured_command_replaces_selection_and_keeps_its_record_key(tmp_path, monkeypatch):
-    root, _ = mutate_repository(tmp_path)
-    fake_selection(monkeypatch, SELECTED)
-    seen = spy_commands(monkeypatch)
-    configured = [sys.executable, "tests/strong.py"]
-
-    assert run_mutate(root, tmp_path / "overlay.json", mutate_settings("tests/strong.py")) == 0
-
-    assert {tuple(command) for command, _ in seen} == {tuple(configured)}
-
-    expected = hashlib.sha256(json.dumps(configured, separators=(",", ":")).encode()).hexdigest()
-
-    assert read(root / RECORD)["command"] == expected
-
-
-def test_the_record_key_without_a_configured_command_carries_the_selection_marker(
-    tmp_path, monkeypatch
-):
+def test_the_record_key_is_the_suites_and_the_selection_marker(tmp_path, monkeypatch):
     root, _ = mutate_repository(tmp_path)
     fake_selection(monkeypatch, SELECTED)
     spy_commands(monkeypatch)
 
-    assert run_mutate(root, tmp_path / "overlay.json", json.dumps({})) == 0
+    assert run_mutate(root, tmp_path / "overlay.json", strong_settings()) == 0
 
-    key = {"commands": {"python": WHOLE_COMMAND}, "selection": 2}
+    key = {"suites": SUITES, "selection": 3}
     expected = hashlib.sha256(
         json.dumps(key, separators=(",", ":"), sort_keys=True).encode()
     ).hexdigest()
 
     assert read(root / RECORD)["command"] == expected
-
-
-def test_a_coverage_setting_runs_the_whole_suite_for_every_mutant(tmp_path, monkeypatch):
-    root, _ = mutate_repository(tmp_path)
-    seen = spy_commands(monkeypatch)
-    settings = json.dumps({"coverage": COVERAGE, "incremental": False, "max_workers": 1})
-
-    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
-    assert {tuple(command) for command, _ in seen} == {
-        tuple(WHOLE_COMMAND),
-        tuple(STOPPING_WHOLE),
-    }
 
 
 @pytest.mark.parametrize("after_first", [1000.0, 60.0])
@@ -484,78 +474,6 @@ def test_the_progress_total_counts_a_function_without_a_covering_test_on_every_r
     assert totals() == first == {3}
 
 
-def typescript_repository(tmp_path):
-    root = make_repository(
-        tmp_path / "r",
-        {
-            "web/lib.ts": "export const a = 1;\nexport const b = 2;\nexport const c = 3;\n",
-            "web/a.test.ts": "",
-            "web/b.test.ts": "",
-        },
-    )
-
-    return root
-
-
-def fake_c8(root, failing=None):
-    real = subprocess.run
-
-    def fake(command, **kwargs):
-        if command[0] == "git":
-            return real(command, **kwargs)
-
-        if command[0] != "npx":
-            raise AssertionError(command)
-
-        directory = command[command.index("--reports-dir") + 1]
-        by_file = command[-1] if "--" in command else None
-        number = directory.rsplit("/", 1)[-1]
-        body = {
-            None: "SF:web/lib.ts\nDA:1,1\nDA:2,1\nDA:3,1\nend_of_record\n",
-            "0": "SF:web/lib.ts\nDA:1,1\nDA:2,1\nDA:3,0\nend_of_record\n",
-            "1": "SF:web/lib.ts\nDA:1,1\nDA:2,0\nDA:3,1\nend_of_record\n",
-        }[number if by_file else None]
-        (root / directory).mkdir(parents=True, exist_ok=True)
-        (root / directory / "lcov.info").write_text(body)
-        code = 1 if failing is not None and by_file == failing else 0
-
-        return subprocess.CompletedProcess(command, code)
-
-    return fake
-
-
-def test_typescript_runs_one_coverage_pass_per_test_file_and_reads_each_report(
-    tmp_path, monkeypatch
-):
-    root = typescript_repository(tmp_path)
-    monkeypatch.setattr("recognizer_sensors.testrun.run.subprocess.run", fake_c8(root))
-
-    _, selection = collect_coverage_with_tests(root, read_scans(root), None)
-
-    assert selection == {
-        "web/lib.ts": {
-            1: frozenset({"web/a.test.ts", "web/b.test.ts"}),
-            2: frozenset({"web/a.test.ts"}),
-            3: frozenset({"web/b.test.ts"}),
-        }
-    }
-
-
-def test_one_failing_per_file_run_drops_typescript_selection_for_the_run(
-    tmp_path, monkeypatch, capsys
-):
-    root = typescript_repository(tmp_path)
-    monkeypatch.setattr(
-        "recognizer_sensors.testrun.run.subprocess.run", fake_c8(root, failing="web/b.test.ts")
-    )
-
-    coverage, selection = collect_coverage_with_tests(root, read_scans(root), None)
-
-    assert selection == {}
-    assert coverage == {"web/lib.ts": {1: 1, 2: 1, 3: 1}}
-    assert "running the whole suite for typescript" in capsys.readouterr().err
-
-
 def sized_selection(*sizes):
     names = [f"tests/test_{n}.py" for n in range(4)]
     lines = [2, 4, 5, 6]
@@ -573,14 +491,14 @@ def test_a_selection_of_more_than_half_the_suite_runs_the_whole_suite_without_it
     root, _ = mutate_repository(tmp_path)
     fake_selection(monkeypatch, sized_selection(2, 3, 3, 4))
     seen = spy_commands(monkeypatch)
-    settings = json.dumps({"incremental": False, "max_workers": 1})
+    settings = strong_settings(incremental=False, max_workers=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
     commands = [tuple(command) for command, _ in seen]
-    half = ("python3", "-m", "pytest", "-rfE", "tests/test_0.py", "tests/test_1.py")
+    half = ("pytest", "-rfE", "tests/test_0.py", "tests/test_1.py")
 
-    stopping_half = ("python3", "-m", "pytest", "-rfE", "-x", "tests/test_0.py", "tests/test_1.py")
+    stopping_half = ("pytest", "-rfE", "-x", "tests/test_0.py", "tests/test_1.py")
 
     assert commands.count(half) == 1
     assert commands.count(stopping_half) == 1
@@ -610,7 +528,7 @@ def test_baseline_copies_are_shared_up_to_max_workers(tmp_path, monkeypatch):
     ran = []
     meeting = threading.Barrier(2, timeout=10)
 
-    def fake_run(command, cwd, timeout):
+    def fake_run(command, cwd, timeout, suite=None, extra=None):
         ran.append(command[-1])
 
         if command[-1] in "ab":
@@ -622,7 +540,9 @@ def test_baseline_copies_are_shared_up_to_max_workers(tmp_path, monkeypatch):
     baselines = sensor.Baselines(root, work, 2)
 
     with ThreadPoolExecutor(5) as pool:
-        seconds = list(pool.map(lambda n: baselines.seconds(["x", n], "the command"), "abcdeabc"))
+        seconds = list(
+            pool.map(lambda n: baselines.seconds(["x", n], "the command", SUITE), "abcdeabc")
+        )
 
     assert seconds == [0.1] * 8
     assert len(copies) == 2
@@ -634,15 +554,15 @@ def test_a_failing_baseline_in_a_reused_copy_falls_back_to_the_whole_suite(tmp_p
     work = tmp_path / "work"
     work.mkdir()
 
-    def fake_run(command, cwd, timeout):
+    def fake_run(command, cwd, timeout, suite=None, extra=None):
         return runner.TestRun(1 if command[-1] == "bad" else 0, False, 0.1, "")
 
     monkeypatch.setattr(sensor, "run_test_command", fake_run)
     baselines = sensor.Baselines(root, work, 1)
 
-    assert baselines.seconds(["x", "ok"], "the command") == 0.1
-    assert baselines.seconds(["x", "bad"], "the command", fallback=True) is None
-    assert baselines.seconds(["x", "ok"], "the command") == 0.1
+    assert baselines.seconds(["x", "ok"], "the command", SUITE) == 0.1
+    assert baselines.seconds(["x", "bad"], "the command", SUITE, fallback=True) is None
+    assert baselines.seconds(["x", "ok"], "the command", SUITE) == 0.1
     assert len(list(work.iterdir())) == 1
 
 
@@ -717,77 +637,62 @@ def test_a_failed_copy_with_no_waiter_does_not_break_a_later_take(tmp_path, monk
     assert second.is_dir()
 
 
-def test_typescript_test_files_select_every_script_form():
-    from recognizer_sensors.scans import Scan, ScanModule
-    from recognizer_sensors.testrun.run import typescript_test_files
-
-    scan = Scan(
-        language="typescript",
-        modules=(
-            ScanModule(id="a", files=("src/a.test.mts", "src/c.test.ts", "src/a.ts")),
-            ScanModule(id="b", files=("src/b.spec.cjs", "src/b.test.d.mts")),
-        ),
-        modified=False,
-    )
-
-    assert sorted(set(typescript_test_files(scan))) == [
-        "src/a.test.mts",
-        "src/b.spec.cjs",
-        "src/c.test.ts",
-    ]
-
-
-@pytest.mark.parametrize(
-    ("script", "capped"), [("jest", True), ("vitest run", True), ("node --test", False)]
-)
+@pytest.mark.parametrize(("runner_name", "bail"), [("jest", "--bail"), ("vitest", "--bail=1")])
 def test_typescript_commands_cap_test_workers_only_with_several_mutation_workers(
-    tmp_path, monkeypatch, script, capped
+    monkeypatch, runner_name, bail
 ):
     monkeypatch.setattr("os.cpu_count", lambda: 8)
-    (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": script}}))
-    files = {"w/a.test.ts"}
+    suite = suite_of("typescript", runner_name)
 
     def commands(workers):
         return (
-            mutant_command(tmp_path, "typescript", workers=workers),
-            mutant_command(tmp_path, "typescript", True, workers),
-            selected_command(tmp_path, "typescript", files, workers=workers),
+            mutant_command(suite, workers=workers),
+            mutant_command(suite, True, workers),
+            selected_command(suite, None, workers=workers, file="w/a.ts"),
         )
 
-    cap = ["--maxWorkers=2"] if capped else []
-    bail = ["--bail=1"] if capped else []
+    run = ["run"] if runner_name == "vitest" else []
+    related = (
+        ["vitest", "related", "w/a.ts", "--run"]
+        if runner_name == "vitest"
+        else ["jest", "--findRelatedTests", "w/a.ts"]
+    )
+    base = ["npx", "--no", "--"]
 
     assert commands(4) == (
-        ["npm", "test", *(["--", *cap] if capped else [])],
-        ["npm", "test", *(["--", *bail, *cap] if capped else [])],
-        ["npm", "test", "--", *cap, "w/a.test.ts"],
+        [*base, runner_name, *run, "--maxWorkers=2"],
+        [*base, runner_name, *run, bail, "--maxWorkers=2"],
+        [*base, *related, "--maxWorkers=2"],
     )
-    assert commands(1)[0] == ["npm", "test"]
-    assert commands(1)[2] == ["npm", "test", "--", "w/a.test.ts"]
+    assert commands(1)[0] == [*base, runner_name, *run]
+    assert commands(1)[2] == [*base, *related]
 
 
-def test_the_typescript_worker_cap_never_falls_below_one(tmp_path, monkeypatch):
+def test_the_typescript_worker_cap_never_falls_below_one(monkeypatch):
     monkeypatch.setattr("os.cpu_count", lambda: 2)
-    (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": "vitest"}}))
 
-    assert mutant_command(tmp_path, "typescript", workers=8) == [
-        "npm",
-        "test",
+    assert mutant_command(suite_of("typescript", "vitest"), workers=8) == [
+        "npx",
+        "--no",
         "--",
+        "vitest",
+        "run",
         "--maxWorkers=1",
     ]
 
 
-def test_other_languages_ignore_the_worker_count(tmp_path):
+def test_other_languages_ignore_the_worker_count():
     for language in ("python", "rust", "csharp", "kotlin"):
-        assert mutant_command(tmp_path, language, workers=4) == mutant_command(tmp_path, language)
+        suite = suite_of(language)
+
+        assert mutant_command(suite, workers=4) == mutant_command(suite)
 
 
 def test_the_record_key_does_not_depend_on_the_mutation_worker_count(tmp_path, monkeypatch):
     real = sensor.mutant_command
 
-    def capping(repository, language, stop=False, workers=1, directory=""):
-        command = real(repository, language, stop, directory=directory)
+    def capping(suite, stop=False, workers=1):
+        command = real(suite, stop)
 
         return [*command, f"--maxWorkers={workers}"] if workers > 1 else command
 
@@ -799,7 +704,7 @@ def test_the_record_key_does_not_depend_on_the_mutation_worker_count(tmp_path, m
     for workers in (1, 8):
         root, _ = mutate_repository(tmp_path / str(workers))
         seen = spy_commands(monkeypatch)
-        settings = json.dumps({"incremental": False, "max_workers": workers})
+        settings = strong_settings(incremental=False, max_workers=workers)
 
         assert run_mutate(root, tmp_path / f"overlay-{workers}.json", settings) == 0
 
@@ -824,19 +729,24 @@ def test_a_baseline_is_not_started_once_the_deadline_has_passed(tmp_path, monkey
     seen = []
     real = runner.run_test_command
 
-    def spy(command, cwd, timeout):
+    def spy(command, cwd, timeout, suite=None, extra=None):
         seen.append((list(command), timeout))
         late = timeout is None and command == SELECTED_COMMAND
 
         if late:
             now["value"] = 1000.0
 
-        return real([sys.executable, "-c", "raise SystemExit(1)" if late else ""], cwd, timeout)
+        return real(
+            [sys.executable, "-c", "raise SystemExit(1)" if late else ""],
+            cwd,
+            timeout,
+            suite=suite,
+        )
 
     monkeypatch.setattr(sensor, "CLOCK", lambda: now["value"])
     monkeypatch.setattr(runner, "run_test_command", spy)
     monkeypatch.setattr(sensor, "run_test_command", spy)
-    settings = json.dumps({"incremental": False, "max_workers": 1, "max_minutes": 1})
+    settings = strong_settings(incremental=False, max_workers=1, max_minutes=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
@@ -853,20 +763,25 @@ def test_a_whole_suite_baseline_failing_after_the_deadline_keeps_the_earlier_ver
     fake_selection(monkeypatch, SELECTED)
     now = {"value": 0.0}
     real = runner.run_test_command
-    selected_b = ["python3", "-m", "pytest", "-rfE", "tests/test_b.py"]
+    selected_b = ["pytest", "-rfE", "tests/test_b.py"]
 
-    def spy(command, cwd, timeout):
+    def spy(command, cwd, timeout, suite=None, extra=None):
         if timeout is None and command == WHOLE_COMMAND:
             now["value"] = 1000.0
 
         failing = timeout is None and command in (WHOLE_COMMAND, selected_b)
 
-        return real([sys.executable, "-c", "raise SystemExit(1)" if failing else ""], cwd, timeout)
+        return real(
+            [sys.executable, "-c", "raise SystemExit(1)" if failing else ""],
+            cwd,
+            timeout,
+            suite=suite,
+        )
 
     monkeypatch.setattr(sensor, "CLOCK", lambda: now["value"])
     monkeypatch.setattr(runner, "run_test_command", spy)
     monkeypatch.setattr(sensor, "run_test_command", spy)
-    settings = json.dumps({"incremental": False, "max_workers": 1, "max_minutes": 1})
+    settings = strong_settings(incremental=False, max_workers=1, max_minutes=1)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 

@@ -134,15 +134,19 @@ def parse_suites(raw: object) -> tuple[Suite, ...]:
     return suites
 
 
-def shell_script(suite: Suite) -> str:
+def shell_script(suite: Suite, command: str | None = None) -> str:
     steps = [f"cd {shlex.quote(suite.directory)}"]
 
     if suite.activate:
         steps.append(suite.activate)
 
-    steps.append(suite.command)
+    steps.append(suite.command if command is None else command)
 
     return " && ".join(steps)
+
+
+def directory_of(suite: Suite) -> str:
+    return "" if suite.directory in ("", ".") else suite.directory.strip("/")
 
 
 def login_shell() -> str:
@@ -157,9 +161,28 @@ def report_pattern(suite: Suite) -> str:
 
 
 def source_of(suite: Suite) -> Source:
-    prefix = "" if suite.directory in ("", ".") else suite.directory.strip("/")
+    return Source(report_pattern(suite), suite.coverage_format, directory_of(suite), suite.name)
 
-    return Source(report_pattern(suite), suite.coverage_format, prefix, suite.name)
+
+def suite_gaps(repository: Path, scans: list[Scan], settings: dict, sensor: str) -> list[dict]:
+    if settings.get("suites") is not None:
+        return []
+
+    return [
+        {
+            "id": f"{sensor}:no-test-suites",
+            "line": "no test suites are configured",
+            "needs": [sensor],
+            "project": None,
+            "fix": {
+                "text": "add a tests list to .recognizer/config.yaml",
+                "command": None,
+                "cwd": "",
+                "env": {},
+                "kind": "outside",
+            },
+        }
+    ]
 
 
 def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:

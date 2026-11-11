@@ -224,9 +224,8 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "test_command": {
+                "carry": {
                   "type": "array",
-                  "minItems": 1,
                   "items": {
                     "type": "string",
                     "minLength": 1
@@ -252,10 +251,6 @@
                   "minLength": 1
                 },
                 "survivors": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "coverage": {
                   "type": "string",
                   "minLength": 1
                 },

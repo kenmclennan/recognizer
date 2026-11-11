@@ -1,17 +1,18 @@
 import gc
 import weakref
 
+import pytest
 from coverage import CoverageData
 
-from recognizer_sensors.testrun import profiles
-from recognizer_sensors.testrun.contexts import ContextSelection, PythonContexts
-from recognizer_sensors.testrun.profiles import PYTHON_COVERAGE_CONTEXTS, PYTHON_DATA
-from recognizer_sensors.testrun.run import (
-    LEGACY_CONTEXTS_PATH,
-    collect_coverage_with_tests,
-    suite_size,
+from recognizer_sensors.mutation.warmup import coverage_run, suite_size
+from recognizer_sensors.settings import Refusal
+from recognizer_sensors.testrun.contexts import (
+    PYTHON_DATA,
+    ContextSelection,
+    PythonContexts,
     usable_contexts,
 )
+from recognizer_sensors.testrun.suites import parse_suites
 
 
 class Lines(dict):
@@ -100,43 +101,77 @@ def test_the_suite_counts_only_names_on_kept_lines(tmp_path):
     for context, lines in [
         ("tests/a.py", [1]),
         ("tests/b.py", [2]),
-        ("", [2]),
+        ("", [4]),
         ("tests/c.py", [3]),
+        ("tests/gone.py", [5]),
     ]:
         data.set_context(context)
         data.add_lines({str(tmp_path / "m.py"): lines})
 
     data.write()
 
-    assert PythonContexts(tmp_path, usable_contexts).suite_files == {"tests/a.py", "tests/c.py"}
+    assert PythonContexts(tmp_path, usable_contexts).suite_files == {
+        "tests/a.py",
+        "tests/b.py",
+        "tests/c.py",
+    }
 
 
-def test_the_command_has_no_json_step():
-    assert "show-contexts" not in PYTHON_COVERAGE_CONTEXTS
-    assert "coverage json" not in PYTHON_COVERAGE_CONTEXTS
-
-
-def test_a_pass_that_never_starts_removes_the_stale_data_and_legacy_json(tmp_path, monkeypatch):
+def test_a_warm_up_that_never_starts_leaves_no_data_file_behind(tmp_path, monkeypatch):
     from conftest import make_repository
 
     from recognizer_sensors.scans import read_scans
 
-    monkeypatch.setattr(
-        profiles, "python_runner", lambda repository, directory="": ["/nonexistent-runner"]
-    )
+    monkeypatch.setenv("SHELL", "/bin/sh")
     root = make_repository(tmp_path / "r", {"app/shop.py": "X = 1\n", "tests/test_a.py": ""})
-    (root / PYTHON_DATA).parent.mkdir(parents=True, exist_ok=True)
-    (root / PYTHON_DATA).write_bytes(b"stale")
-    (root / LEGACY_CONTEXTS_PATH).write_text("{}")
+    work = tmp_path / "work"
+    work.mkdir()
     scans = [s for s in read_scans(root) if s.language == "python"]
+    suites = parse_suites(
+        [
+            {
+                "name": "api",
+                "language": "python",
+                "directory": ".",
+                "command": "/nonexistent-runner",
+                "coverage": {"path": "out/lcov.info", "format": "lcov"},
+            }
+        ]
+    )
 
-    try:
-        collect_coverage_with_tests(root, scans, None)
-    except Exception:
-        pass
+    with pytest.raises(Refusal):
+        coverage_run(root, scans, suites, work)
 
-    assert not (root / PYTHON_DATA).exists()
-    assert not (root / LEGACY_CONTEXTS_PATH).exists()
+    assert not (work / "warmup" / PYTHON_DATA).exists()
+
+
+def test_context_names_become_the_test_files_that_exist(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text("")
+
+    run = ["tests/test_a.py::test_x|run"]
+    setup = ["tests/test_a.py::test_y[1-2]|setup"]
+
+    assert usable_contexts(run, tmp_path) == {"tests/test_a.py"}
+    assert usable_contexts(setup, tmp_path) == {"tests/test_a.py"}
+    assert usable_contexts([""], tmp_path) is None
+    assert usable_contexts(["", *run], tmp_path) == {"tests/test_a.py"}
+    assert usable_contexts([*run, "tests/test_gone.py::test_x|run"], tmp_path) is None
+
+
+def test_names_under_a_suite_directory_carry_the_directory_prefix(tmp_path):
+    (tmp_path / "service" / "tests").mkdir(parents=True)
+    (tmp_path / "service" / "tests" / "test_a.py").write_text("")
+    (tmp_path / PYTHON_DATA).parent.mkdir(parents=True)
+    data = CoverageData(basename=str(tmp_path / PYTHON_DATA))
+    (tmp_path / "service" / "m.py").write_text("")
+    data.set_context("tests/test_a.py::test_x|run")
+    data.add_lines({str(tmp_path / "service" / "m.py"): [1]})
+    data.write()
+
+    reader = PythonContexts(tmp_path, directory="service")
+
+    assert reader.lines("service/m.py") == {1: frozenset({"service/tests/test_a.py"})}
 
 
 def test_the_selection_answers_from_the_eager_dict_and_the_reader(tmp_path):

@@ -1,5 +1,4 @@
 import errno
-import hashlib
 import json
 import os
 import shutil
@@ -16,6 +15,8 @@ from conftest import (
     STOP_FIXTURE,
     mutate_repository,
     mutate_settings,
+    python_suite,
+    suite_settings,
 )
 from jsonschema import Draft202012Validator
 
@@ -273,7 +274,7 @@ def test_a_failing_or_unstartable_baseline_is_exit_two_and_writes_nothing(
 ):
     root, _ = mutate_repository(tmp_path)
     output = tmp_path / "overlay.json"
-    settings = json.dumps({"test_command": command, "coverage": COVERAGE})
+    settings = suite_settings(command)
 
     assert run_mutate(root, output, settings) == 2
     assert capsys.readouterr().err.strip().splitlines()[-1] in {
@@ -291,7 +292,7 @@ def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_pat
         "import sys; print('FAILED tests/test_a.py::test_x - assert 1 == 2');"
         "print('=== 1 failed, 4 passed in 0.31s ==='); sys.exit(2)"
     )
-    settings = json.dumps({"test_command": ["python3", "-c", script], "coverage": COVERAGE})
+    settings = suite_settings(["python3", "-c", script])
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
     lines = capsys.readouterr().err.splitlines()
@@ -307,7 +308,7 @@ def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_pat
 def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_path, capsys):
     root, _ = mutate_repository(tmp_path)
     script = "import sys; print('\\n'.join(str(i) for i in range(40))); sys.exit(3)"
-    settings = json.dumps({"test_command": ["python3", "-c", script], "coverage": COVERAGE})
+    settings = suite_settings(["python3", "-c", script])
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
     assert capsys.readouterr().err.splitlines()[-1] == "the test suite fails before any mutation"
@@ -322,9 +323,13 @@ def test_a_missing_coverage_file_is_exit_two_with_one_sentence(tmp_path, capsys)
     root, _ = mutate_repository(tmp_path)
     (root / "coverage" / "lcov.info").unlink()
     output = tmp_path / "overlay.json"
+    settings = json.dumps({"tests": [python_suite("tests/weak.py", command="true #")]})
 
-    assert run_mutate(root, output, mutate_settings("tests/weak.py")) == 2
-    assert capsys.readouterr().err == f"the coverage file is missing: {COVERAGE}\n"
+    assert run_mutate(root, output, settings) == 2
+    assert capsys.readouterr().err.splitlines()[-1] == (
+        "coverage unavailable: the sample suite left no coverage report at "
+        f"{COVERAGE}; see .recognizer/cache/coverage/last-run.log"
+    )
     assert not output.exists()
     assert not (root / SURVIVORS).exists()
 
@@ -343,20 +348,17 @@ def test_an_uncovered_line_is_never_run(tmp_path):
 @pytest.mark.parametrize(
     "raw",
     [
-        {"test_command": []},
-        {"test_command": "pytest"},
-        {"test_command": ["pytest", 3]},
-        {"test_command": ["pytest", ""]},
-        {"test_command": ["t"], "timeout_factor": 0},
-        {"test_command": ["t"], "timeout_factor": -1},
-        {"test_command": ["t"], "timeout_factor": "10"},
-        {"test_command": ["t"], "max_workers": 0},
-        {"test_command": ["t"], "max_workers": "2"},
-        {"test_command": ["t"], "max_workers": 1.5},
-        {"test_command": ["t"], "coverage": "/abs/lcov"},
-        {"test_command": ["t"], "crap" + "_overlay": "../crap.json"},
-        {"test_command": ["t"], "survivors": ""},
-        {"test_command": ["t"], "nope": 1},
+        {"tests": []},
+        {"tests": "pytest"},
+        {"timeout_factor": 0},
+        {"timeout_factor": -1},
+        {"timeout_factor": "10"},
+        {"max_workers": 0},
+        {"max_workers": "2"},
+        {"max_workers": 1.5},
+        {"crap" + "_overlay": "../crap.json"},
+        {"survivors": ""},
+        {"nope": 1},
     ],
 )
 def test_bad_settings_are_rejected(raw):
@@ -371,10 +373,10 @@ def test_bad_settings_exit_two_through_the_cli(tmp_path):
 
 
 def test_settings_defaults():
-    settings = sensor.parse_settings({"test_command": ["t"]})
+    settings = sensor.parse_settings({})
 
     assert settings == {
-        "test_command": ["t"],
+        "suites": None,
         "timeout_factor": 10.0,
         "max_workers": os.cpu_count() or 1,
         "overlay": OVERLAY,
@@ -449,13 +451,7 @@ def counting(tmp_path, monkeypatch):
     monkeypatch.setenv("RUN_LOG", str(log))
 
     def settings(test="strong.py", **extra):
-        return json.dumps(
-            {
-                "test_command": [sys.executable, str(script), test],
-                "coverage": COVERAGE,
-                **extra,
-            }
-        )
+        return suite_settings([sys.executable, str(script), test], **extra)
 
     def runs():
         return len(log.read_text().splitlines()) if log.exists() else 0
@@ -564,14 +560,7 @@ def test_a_changed_command_argument_means_a_full_run(tmp_path, counting, capsys)
     settings, runs = counting
     root, _, output, after_first = first_run(tmp_path, counting, capsys)
 
-    assert (
-        run_mutate(
-            root,
-            output,
-            settings("strong.py", max_workers=1).replace('"strong.py"', '"strong.py", "extra"'),
-        )
-        == 0
-    )
+    assert run_mutate(root, output, settings("weak.py", max_workers=1)) == 0
     assert summary(capsys).startswith("0 of 3 functions reused")
 
 
@@ -768,7 +757,9 @@ def test_a_function_whose_deadline_passes_between_mutants_returns_none(tmp_path,
     monkeypatch.setattr(runner, "run_mutant", fake_run_mutant)
 
     assert (
-        runner.run_function(tmp_path, tmp_path, ["a", "b", "c"], plan, deadline=90.0, clock=ticker)
+        runner.run_function(
+            tmp_path, tmp_path, ["a", "b", "c"], plan, None, deadline=90.0, clock=ticker
+        )
         is None
     )
     assert ran == ["a", "b"]
@@ -786,7 +777,9 @@ def test_a_function_whose_deadline_passes_while_planning_runs_no_mutant(tmp_path
     monkeypatch.setattr(runner, "run_mutant", lambda *args, **extra: ran.append(args))
 
     assert (
-        runner.run_function(tmp_path, tmp_path, ["a", "b"], slow_plan, deadline=90.0, clock=ticker)
+        runner.run_function(
+            tmp_path, tmp_path, ["a", "b"], slow_plan, None, deadline=90.0, clock=ticker
+        )
         is None
     )
     assert ran == []
@@ -796,7 +789,9 @@ def test_a_function_finishes_when_the_deadline_is_never_reached(tmp_path, monkey
     ticker = Ticker()
     monkeypatch.setattr(runner, "run_mutant", lambda *args, **extra: runner.MutantResult("killed"))
 
-    results = runner.run_function(tmp_path, tmp_path, ["a", "b"], plan, deadline=90.0, clock=ticker)
+    results = runner.run_function(
+        tmp_path, tmp_path, ["a", "b"], plan, None, deadline=90.0, clock=ticker
+    )
 
     assert [r.verdict for r in results] == ["killed", "killed"]
 
@@ -916,19 +911,17 @@ def test_a_timed_out_mutant_is_a_kill_named_in_timeouts_and_not_a_survivor(tmp_p
 @pytest.mark.parametrize("bad", [0, -1, True, "5"])
 def test_a_bad_max_minutes_is_rejected(bad):
     with pytest.raises(SettingsError):
-        sensor.parse_settings({"test_command": ["t"], "max_minutes": bad})
+        sensor.parse_settings({"max_minutes": bad})
 
 
 @pytest.mark.parametrize("bad", [1, "yes", None])
 def test_a_non_boolean_incremental_is_rejected(bad):
     with pytest.raises(SettingsError):
-        sensor.parse_settings({"test_command": ["t"], "incremental": bad})
+        sensor.parse_settings({"incremental": bad})
 
 
 def test_the_new_settings_are_accepted():
-    settings = sensor.parse_settings(
-        {"test_command": ["t"], "max_minutes": 2, "incremental": False, "record": "r/x.json"}
-    )
+    settings = sensor.parse_settings({"max_minutes": 2, "incremental": False, "record": "r/x.json"})
 
     assert settings["max_minutes"] == 2.0
     assert settings["incremental"] is False
@@ -1030,27 +1023,10 @@ def test_a_failing_run_leaves_a_prior_overlay_alone(tmp_path):
     root, _ = mutate_repository(tmp_path)
     findings_of(root, tmp_path, "tests/weak.py")
     before = (root / OVERLAY).read_bytes()
-    settings = json.dumps(
-        {
-            "test_command": ["python3", "-c", "raise SystemExit(1)"],
-            "coverage": COVERAGE,
-            "incremental": False,
-        }
-    )
+    settings = suite_settings(["python3", "-c", "raise SystemExit(1)"], incremental=False)
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
     assert (root / OVERLAY).read_bytes() == before
-
-
-def test_the_record_hash_for_a_set_test_command_is_the_hash_of_the_array(tmp_path):
-    root, _ = mutate_repository(tmp_path)
-    command = [sys.executable, "tests/weak.py"]
-
-    findings_of(root, tmp_path, "tests/weak.py")
-
-    expected = hashlib.sha256(json.dumps(command, separators=(",", ":")).encode()).hexdigest()
-
-    assert read(root / RECORD)["command"] == expected
 
 
 def test_the_defaults_match_the_registry():
@@ -1081,17 +1057,31 @@ def test_each_language_runs_its_own_mutant_command(tmp_path, monkeypatch):
     seen = []
     real = runner.run_test_command
 
-    def spy(command, cwd, timeout):
+    def spy(command, cwd, timeout, suite=None, extra=None):
         seen.append(command)
 
-        return real([sys.executable, "tests/weak.py"], cwd, timeout)
+        return real([sys.executable, "tests/weak.py"], cwd, timeout, suite=suite)
 
     monkeypatch.setattr(sensor, "run_test_command", spy)
-    settings = json.dumps({"coverage": COVERAGE, "incremental": False, "max_workers": 1})
+    web = {
+        "name": "web",
+        "language": "typescript",
+        "directory": ".",
+        "runner": "vitest",
+        "command": "touch coverage/lcov.info",
+        "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+    }
+    settings = json.dumps(
+        {
+            "tests": [python_suite("tests/weak.py"), web],
+            "incremental": False,
+            "max_workers": 1,
+        }
+    )
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
-    assert ["npm", "test"] in seen
-    assert any("pytest" in command for command in seen)
+    assert ["npx", "--no", "--", "vitest", "related", "app/view.ts", "--run"] in seen
+    assert ["pytest", "-rfE"] in seen
 
 
 @pytest.mark.parametrize(
@@ -1154,12 +1144,8 @@ def stop_the_sensor_while_hung(tmp_path, where):
     pid_file = tmp_path / "pid.txt"
     script = tmp_path / "hang.py"
     script.write_text(SLEEP_WHEN_STOPPING)
-    settings = mutate_settings(str(script), timeout_factor=100)
-    settings = json.dumps(
-        {
-            **json.loads(settings),
-            "test_command": [sys.executable, str(script), where, str(pid_file)],
-        }
+    settings = suite_settings(
+        [sys.executable, str(script), where, str(pid_file)], timeout_factor=100
     )
     process = start_sensor(root, tmp_path, settings)
     deadline = time.monotonic() + 30
@@ -1208,11 +1194,11 @@ def test_sigterm_during_the_coverage_pass_writes_a_stopped_document_with_nothing
     marker = tmp_path / "hung.txt"
     fake = tmp_path / "bin"
     fake.mkdir()
-    runner_stub = fake / "python3"
+    runner_stub = fake / "hangtool"
     runner_stub.write_text(f"#!/bin/sh\necho hung > {marker}\nexec sleep 60\n")
     runner_stub.chmod(0o755)
-    env = {**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"}
-    settings = json.dumps({"test_command": [sys.executable, "-c", "pass"]})
+    env = {**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}", "SHELL": "/bin/sh"}
+    settings = json.dumps({"tests": [python_suite("tests/weak.py", command="hangtool #")]})
     process = start_sensor(root, tmp_path, settings, env)
     deadline = time.monotonic() + 30
 
@@ -1269,7 +1255,13 @@ if "/work/" in here and "baseline" not in here:
         count = len(handle.read().splitlines())
 
     if count == stop_at:
-        os.killpg(os.getpgid(os.getppid()), signal.SIGTERM)
+        import subprocess
+
+        shell = os.getppid()
+        listing = subprocess.run(
+            ["ps", "-o", "ppid=", "-p", str(shell)], capture_output=True, text=True
+        ).stdout
+        os.killpg(os.getpgid(int(listing)), signal.SIGTERM)
         time.sleep(60)
 
 runpy.run_path(os.path.join(here, "tests", test), run_name="__main__")
@@ -1284,18 +1276,9 @@ def test_a_stopped_run_keeps_the_function_it_finished_and_the_next_run_resumes(t
     root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
     script = tmp_path / "stop_after_first.py"
     script.write_text(STOP_AFTER_THE_FIRST_FUNCTION)
-    settings = json.dumps(
-        {
-            "test_command": [
-                sys.executable,
-                str(script),
-                str(tmp_path / "counter.txt"),
-                "strong.py",
-                "2",
-            ],
-            "coverage": COVERAGE,
-            "max_workers": 1,
-        }
+    settings = suite_settings(
+        [sys.executable, str(script), str(tmp_path / "counter.txt"), "strong.py", "2"],
+        max_workers=1,
     )
 
     assert start_sensor(root, tmp_path, settings).wait(timeout=60) == 143
@@ -1331,18 +1314,9 @@ def test_a_run_stopped_before_its_first_function_finishes_reports_nothing_measur
     root, _ = mutate_repository(tmp_path, STOP_FIXTURE)
     script = tmp_path / "stop_in_the_first.py"
     script.write_text(STOP_AFTER_THE_FIRST_FUNCTION)
-    settings = json.dumps(
-        {
-            "test_command": [
-                sys.executable,
-                str(script),
-                str(tmp_path / "counter.txt"),
-                "strong.py",
-                "1",
-            ],
-            "coverage": COVERAGE,
-            "max_workers": 1,
-        }
+    settings = suite_settings(
+        [sys.executable, str(script), str(tmp_path / "counter.txt"), "strong.py", "1"],
+        max_workers=1,
     )
 
     assert start_sensor(root, tmp_path, settings).wait(timeout=60) == 143
@@ -1361,19 +1335,16 @@ def carry_settings(tmp_path, stop_at, **extra):
     script = tmp_path / "stop_after_first.py"
     script.write_text(STOP_AFTER_THE_FIRST_FUNCTION)
 
-    return json.dumps(
-        {
-            "test_command": [
-                sys.executable,
-                str(script),
-                str(tmp_path / "counter-carry.txt"),
-                "strong.py",
-                str(stop_at),
-            ],
-            "coverage": COVERAGE,
-            "max_workers": 1,
-            **extra,
-        }
+    return suite_settings(
+        [
+            sys.executable,
+            str(script),
+            str(tmp_path / "counter-carry.txt"),
+            "strong.py",
+            str(stop_at),
+        ],
+        max_workers=1,
+        **extra,
     )
 
 
@@ -1473,12 +1444,16 @@ pid_file = sys.argv[1]
 here = os.getcwd()
 
 if "/work/" in here and "baseline" not in here:
-    holder = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True
-    )
+    if os.fork() == 0:
+        os.setsid()
 
-    with open(pid_file, "w") as handle:
-        handle.write(str(holder.pid))
+        if os.fork() == 0:
+            with open(pid_file, "w") as handle:
+                handle.write(str(os.getpid()))
+
+            time.sleep(60)
+
+        os._exit(0)
 
     time.sleep(60)
 """
@@ -1489,13 +1464,7 @@ def test_a_second_sigterm_during_a_stalled_wind_down_exits_at_once(tmp_path):
     pid_file = tmp_path / "holder.txt"
     script = tmp_path / "hold.py"
     script.write_text(HOLD_THE_PIPE_WHEN_STOPPING)
-    settings = json.dumps(
-        {
-            "test_command": [sys.executable, str(script), str(pid_file)],
-            "coverage": COVERAGE,
-            "max_workers": 1,
-        }
-    )
+    settings = suite_settings([sys.executable, str(script), str(pid_file)], max_workers=1)
     process = start_sensor(root, tmp_path, settings)
     holder = None
 
@@ -1953,58 +1922,39 @@ def test_copy_repository_holds_tracked_and_untracked_files_and_leaves_ignored_fo
     assert copied_files(destination) == [".gitignore", "fresh.py", "kept.py", "pkg/mod.py"]
 
 
-def test_copy_repository_carries_node_modules_at_any_depth(tmp_path):
-    source = git_repository(tmp_path / "source", ["a.js", "app/b.js"], (), "node_modules/\n")
-    ignored_file(source, "node_modules/x/index.js")
-    ignored_file(source, "app/node_modules/y/index.js")
-    destination = tmp_path / "copy"
-
-    runner.copy_repository(source, destination)
-
-    assert (destination / "node_modules/x/index.js").exists()
-    assert (destination / "app/node_modules/y/index.js").exists()
-
-
-def test_copy_repository_carries_target_only_beside_a_tracked_cargo_toml(tmp_path):
+def test_copy_repository_carries_no_folder_by_name(tmp_path):
     source = git_repository(
-        tmp_path / "source", ["rust/Cargo.toml", "other/a.txt"], (), "target/\n"
+        tmp_path / "source",
+        ["a.js", "app/b.js", "rust/Cargo.toml", "settings.gradle.kts", "Dotnet/App.csproj"],
+        (),
+        "node_modules/\ntarget/\nbuild/\n.gradle/\nobj/\nbin/\n",
     )
-    ignored_file(source, "rust/target/debug/x")
-    ignored_file(source, "other/target/debug/x")
+
+    for folder in (
+        "node_modules/x/index.js",
+        "app/node_modules/y/index.js",
+        "rust/target/debug/x",
+        "build/classes/x",
+        ".gradle/y",
+        "Dotnet/obj/project.assets.json",
+        "Dotnet/bin/z",
+    ):
+        ignored_file(source, folder)
+
     destination = tmp_path / "copy"
 
     runner.copy_repository(source, destination)
 
-    assert (destination / "rust/target/debug/x").exists()
-    assert not (destination / "other/target").exists()
-
-
-def test_copy_repository_carries_build_beside_a_gradle_settings_file(tmp_path):
-    source = git_repository(
-        tmp_path / "source", ["settings.gradle.kts", "x/a.txt"], (), "build/\n.gradle/\n"
+    assert copied_files(destination) == sorted(
+        [
+            ".gitignore",
+            "Dotnet/App.csproj",
+            "a.js",
+            "app/b.js",
+            "rust/Cargo.toml",
+            "settings.gradle.kts",
+        ]
     )
-    ignored_file(source, "build/classes/x")
-    ignored_file(source, ".gradle/y")
-    ignored_file(source, "x/build/z")
-    destination = tmp_path / "copy"
-
-    runner.copy_repository(source, destination)
-
-    assert (destination / "build/classes/x").exists()
-    assert (destination / ".gradle/y").exists()
-    assert not (destination / "x/build").exists()
-
-
-def test_copy_repository_carries_obj_beside_a_tracked_csproj(tmp_path):
-    source = git_repository(tmp_path / "source", ["App/App.csproj", "Lib/a.cs"], (), "obj/\nbin/\n")
-    ignored_file(source, "App/obj/project.assets.json")
-    ignored_file(source, "Lib/obj/project.assets.json")
-    destination = tmp_path / "copy"
-
-    runner.copy_repository(source, destination)
-
-    assert (destination / "App/obj/project.assets.json").exists()
-    assert not (destination / "Lib/obj").exists()
 
 
 def test_copy_repository_carries_listed_paths_and_skips_missing_ones(tmp_path):
@@ -2073,7 +2023,7 @@ def test_writing_in_a_copy_leaves_the_original_unchanged(tmp_path):
     ignored_file(source, "node_modules/x/index.js")
     destination = tmp_path / "copy"
 
-    runner.copy_repository(source, destination)
+    runner.copy_repository(source, destination, ("node_modules",))
     (destination / "a.txt").write_text("changed")
     (destination / "node_modules/x/index.js").write_text("changed")
 

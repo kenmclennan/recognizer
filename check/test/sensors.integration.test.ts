@@ -554,7 +554,18 @@ describe.skipIf(!HAS_UV)(
       mkdirSync(join(repository, ".recognizer"), { recursive: true });
       writeFileSync(
         join(repository, ".recognizer/config.yaml"),
-        "sensors:\n  mutation: {test_command: [python3, tests/strong.py], coverage: coverage/lcov.info, max_workers: 1}\n",
+        [
+          "tests:",
+          "  - name: sample",
+          "    language: python",
+          "    directory: .",
+          "    activate: 'pytest() { python3 tests/strong.py \"$@\"; }'",
+          "    command: 'touch coverage/lcov.info #'",
+          "    coverage: {path: coverage/lcov.info, format: lcov}",
+          "sensors:",
+          "  mutation: {max_workers: 1}",
+          "",
+        ].join("\n"),
       );
       process.env.RECOGNIZER_SCAN_PYTHON = launcher(
         launchers,
