@@ -648,7 +648,7 @@ export function showExplorer(
     }
 
     describing.read(responsibilityOf);
-    render();
+    renderDescribed();
   }
 
   async function describerFallback(
@@ -3756,18 +3756,7 @@ export function showExplorer(
       scanFailed: scanModelNow.mark,
       findings: badge(allFindings),
     });
-    tree.render({
-      title,
-      moduleCount: loaded.modules.length,
-      filtered,
-      described,
-      description: (id) => descriptionOf(responsibilityOf(id)),
-      expanded,
-      selected:
-        selection === null || selection.kind === "edge" ? null : selection.id,
-      isOpen: modules.isOpen,
-      filter,
-    });
+    renderTree(filtered, selection);
     body.classList.toggle("inspector-open", inspectorOpen);
     renderCanvas();
     notesPanel.render({
@@ -3783,6 +3772,24 @@ export function showExplorer(
 
     lastKeys = progressKeys(progressInput(findingsInputs()));
     publish();
+  }
+
+  function renderTree(
+    filtered: ReturnType<typeof filterTree>,
+    selection: ReturnType<typeof state.selection>,
+  ) {
+    tree.render({
+      title,
+      moduleCount: loaded.modules.length,
+      filtered,
+      described,
+      description: (id) => descriptionOf(responsibilityOf(id)),
+      expanded,
+      selected:
+        selection === null || selection.kind === "edge" ? null : selection.id,
+      isOpen: modules.isOpen,
+      filter,
+    });
   }
 
   function progressInput(findings: ReturnType<typeof findingsInputs>) {
@@ -3857,6 +3864,42 @@ export function showExplorer(
       renderCanvas();
       renderInspector();
     }
+
+    lastKeys = keys;
+  }
+
+  function renderDescribed() {
+    if (lastKeys === null || scrollTarget !== null) {
+      render();
+
+      return;
+    }
+
+    freshnessCache = null;
+    overlaysCache = null;
+
+    const scanModelNow = scanModel();
+
+    freshnessCache = scanModelNow.freshness;
+    scanHost.footer?.(scanModelNow.freshness.footer);
+    scanView.render(scanModelNow);
+
+    const findings = findingsInputs();
+    const keys = progressKeys(progressInput(findings));
+
+    if (changedKeys(lastKeys, keys).findings) {
+      renderFindings(findings);
+    }
+
+    rail.render({
+      panel: leftPanel,
+      notes: noteTotalOf(openViewValue()),
+      scanFailed: scanModelNow.mark,
+      findings: badge(allFindings),
+    });
+    renderTree(filterTree(root, filter, context), state.selection());
+    renderCanvas();
+    renderInspector();
 
     lastKeys = keys;
   }
