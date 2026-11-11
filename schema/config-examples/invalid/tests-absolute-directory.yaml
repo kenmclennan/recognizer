@@ -1,0 +1,8 @@
+tests:
+  - name: api
+    language: python
+    directory: /srv/api
+    command: pytest
+    coverage:
+      path: coverage/lcov.info
+      format: lcov

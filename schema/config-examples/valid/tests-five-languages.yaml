@@ -1,0 +1,43 @@
+tests:
+  - name: api
+    language: python
+    directory: api
+    activate: source .venv/bin/activate
+    command: pytest --cov=app --cov-report=lcov:coverage/lcov.info
+    env:
+      APP_ENV: test
+    coverage:
+      path: coverage/lcov.info
+      format: lcov
+  - name: web
+    language: typescript
+    directory: web
+    command: npx vitest run --coverage
+    runner: vitest
+    coverage:
+      path: coverage/lcov.info
+      format: lcov
+  - name: jvm
+    language: kotlin
+    directory: jvm
+    activate: sdk env
+    command: ./gradlew test jacocoTestReport
+    env:
+      CI: "true"
+    coverage:
+      path: build/reports/jacoco/test/jacocoTestReport.xml
+      format: jacoco
+  - name: engine
+    language: rust
+    directory: engine
+    command: cargo llvm-cov --lcov --output-path coverage/lcov.info
+    coverage:
+      path: coverage/lcov.info
+      format: lcov
+  - name: shop
+    language: csharp
+    directory: shop
+    command: dotnet test --collect:"XPlat Code Coverage"
+    coverage:
+      path: "**/coverage.cobertura.xml"
+      format: jacoco

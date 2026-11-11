@@ -1,0 +1,9 @@
+tests:
+  - name: api
+    language: python
+    directory: service
+    activate: source .venv/bin/activate
+    command: pytest --cov=app --cov-report=lcov:coverage/lcov.info
+    coverage:
+      path: coverage/lcov.info
+      format: lcov

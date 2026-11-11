@@ -24,9 +24,21 @@ export interface StructureSettingsInput {
 
 export type SensorEntry = SensorRegistration | StructureSettingsInput | "off";
 
+export interface TestSuite {
+  name: string;
+  language: "python" | "typescript" | "kotlin" | "rust" | "csharp";
+  directory: string;
+  command: string;
+  activate?: string;
+  env?: Record<string, string>;
+  coverage: { path: string; format: "lcov" | "jacoco" };
+  runner?: "vitest" | "jest";
+}
+
 export interface Config {
   describer?: { command: string[]; version: string };
   sensors?: Record<string, SensorEntry>;
+  tests?: TestSuite[];
 }
 
 export function registeredSensors(
@@ -101,6 +113,26 @@ function rejectRetiredOverlays(document: unknown): void {
   }
 }
 
+function rejectDuplicateSuites(document: unknown): void {
+  if (!isPlainObject(document) || !Array.isArray(document.tests)) {
+    return;
+  }
+
+  const seen = new Set<string>();
+
+  for (const suite of document.tests as { name?: unknown }[]) {
+    const name = typeof suite?.name === "string" ? suite.name : "";
+
+    if (name !== "" && seen.has(name)) {
+      throw new InputError([
+        `config/tests the test suite name ${name} is used twice`,
+      ]);
+    }
+
+    seen.add(name);
+  }
+}
+
 export function parseConfig(text: string): Config {
   let document: unknown;
 
@@ -115,6 +147,8 @@ export function parseConfig(text: string): Config {
   rejectRetiredOverlays(document);
 
   if (validate(document)) {
+    rejectDuplicateSuites(document);
+
     return expandConfig(document) as Config;
   }
 
