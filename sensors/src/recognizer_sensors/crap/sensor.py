@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
@@ -11,6 +11,7 @@ from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import SettingsError, relative_path
 from recognizer_sensors.testrun.run import collect_coverage, parse_coverage, parse_test_command
+from recognizer_sensors.testrun.suites import Suite, collect_suites, parse_suites
 
 DEFAULTS = {
     "threshold": 30,
@@ -67,6 +68,9 @@ def parse_settings(raw: dict) -> dict:
 
     if coverage is not None:
         parsed["coverage"] = coverage
+
+    if "tests" in raw:
+        parsed["suites"] = [asdict(s) for s in parse_suites(raw["tests"])]
 
     return parsed
 
@@ -181,9 +185,16 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
 
 def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
     diagnoses: list[dict] = []
-    coverage = collect_coverage(
-        repository, scans, settings.get("test_command"), settings.get("coverage"), diagnoses
-    )
+
+    if "suites" in settings:
+        coverage, diagnosis = collect_suites(
+            repository, scans, tuple(Suite(**item) for item in settings["suites"])
+        )
+        diagnoses = [diagnosis] if diagnosis else []
+    else:
+        coverage = collect_coverage(
+            repository, scans, settings.get("test_command"), settings.get("coverage"), diagnoses
+        )
 
     findings = []
     values: dict[str, dict[str, float]] = {"complexity": {}, "coverage": {}, "crap": {}}
