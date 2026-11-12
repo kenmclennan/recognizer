@@ -3,6 +3,7 @@ import { type Freshness, type Measured, scanHashes } from "recognizer";
 import type { FreshnessModel } from "./freshness-model";
 import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { SensorStatus } from "./sensor-run";
+import { type SuiteRef, suitePlan } from "./suite-ticks";
 
 export type ResultsMode = "bring" | "rescan";
 
@@ -133,7 +134,11 @@ export type FreshnessMessage = {
   label: string;
 };
 
-export type PlanRow = { name: string; runsTests: boolean };
+export type PlanRow = {
+  name: string;
+  runsTests: boolean;
+  suites?: SuiteRef[];
+};
 
 export type PlannedRun = {
   plan: ScanPlan;
@@ -145,7 +150,13 @@ export type PlannedRun = {
 };
 
 export const OPEN_RUN: PlannedRun = {
-  plan: { describe: false, describeAll: false, sense: [], modules: null },
+  plan: {
+    describe: false,
+    describeAll: false,
+    sense: [],
+    modules: null,
+    suites: {},
+  },
   dropped: [],
   modules: 0,
   idle: true,
@@ -202,7 +213,12 @@ export function freshnessMessage(
 export function tickedPhases(
   ticks: ScanTicks,
   rows: PlanRow[],
-): { describe: boolean; sense: string[]; dropped: string[] } {
+): {
+  describe: boolean;
+  sense: string[];
+  suites: Record<string, string[]>;
+  dropped: string[];
+} {
   const testing = rows
     .filter(({ runsTests }) => runsTests)
     .map(({ name }) => name);
@@ -211,13 +227,19 @@ export function tickedPhases(
     .map(({ name }) => name);
   const wanted = ticks.ticked ?? plain;
   const known = [...plain, ...testing];
+  const planned = suitePlan(
+    ticks,
+    rows.filter(({ runsTests }) => runsTests),
+    ticks.once,
+  );
 
   return {
     describe: ticks.describe,
     sense: [
       ...wanted.filter((name) => plain.includes(name)),
-      ...testing.filter((name) => ticks.once.includes(name)),
+      ...testing.filter((name) => planned.sense.includes(name)),
     ],
+    suites: planned.suites,
     dropped: wanted.filter((name) => !known.includes(name)),
   };
 }
@@ -250,6 +272,7 @@ export function planFor(
         describeAll: true,
         sense: phases.sense,
         modules: scope !== null && any ? scope : null,
+        suites: phases.suites,
       },
       dropped: phases.dropped,
       modules: total,
@@ -295,6 +318,9 @@ export function planFor(
       describeAll: false,
       sense,
       modules: scopedIds.size === 0 ? null : inOrder(scopedIds, order),
+      suites: Object.fromEntries(
+        Object.entries(phases.suites).filter(([name]) => sense.includes(name)),
+      ),
     },
     dropped: phases.dropped,
     modules: changed,

@@ -133,7 +133,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         repository: "/work/repo",
         sensors: plan.sense,
         describe: plan.describe,
-        suites: {},
+        suites: plan.suites,
         commit: "abc1234",
         ran: null,
         ...fake.record,
@@ -260,12 +260,20 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
           ...fake.defaults,
           ticked: fake.defaults.sensors ? null : [],
           remembered: false,
+          suites: {},
+          folds: [],
         }
       );
     },
     async writeTicks(ticks) {
       fake.written.push(ticks);
-      remembered = { ...ticks, sensors: true, remembered: true };
+      remembered = {
+        ...ticks,
+        sensors: true,
+        remembered: true,
+        suites: ticks.suites,
+        folds: ticks.folds,
+      };
     },
     async readDescribing() {
       return fake.describing;

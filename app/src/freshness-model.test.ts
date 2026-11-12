@@ -89,6 +89,8 @@ function modelOf(
       ticked: [],
       once: ["crap", "mutation"],
       onlyView: false,
+      suites: {},
+      folds: [],
     },
     run: NO_RUN,
     scanning: false,
@@ -241,6 +243,8 @@ describe("freshness model changed modules", () => {
         ticked: [],
         once: ["mutation"],
         onlyView: false,
+        suites: {},
+        folds: [],
       },
     });
 
@@ -511,7 +515,14 @@ describe("the four situations of the mock", () => {
   it("counts only the canvas modules for a canvas scope", () => {
     const model = modelOf(nine, {
       view: { name: "x", modules: nine.slice(0, 2) },
-      ticks: { describe: true, ticked: [], once: [], onlyView: true },
+      ticks: {
+        describe: true,
+        ticked: [],
+        once: [],
+        onlyView: true,
+        suites: {},
+        folds: [],
+      },
       sensors: [],
     });
 
@@ -627,6 +638,8 @@ describe("the unscoped stale set per sensor", () => {
         ticked: [],
         once: ["crap", "mutation"],
         onlyView: true,
+        suites: {},
+        folds: [],
       },
       view: { name: "v", modules: ["a.py"] } as never,
     });
@@ -721,6 +734,8 @@ describe("freshness model counts every row, ticked or not", () => {
     ticked: [],
     once: ["crap"],
     onlyView: false,
+    suites: {},
+    folds: [],
   };
   const stale = (count: number) =>
     Array.from({ length: count }, (_, at) => `m${at}.py`);
@@ -760,7 +775,14 @@ describe("freshness model counts every row, ticked or not", () => {
         ran("crap", IDS, { "a.py": "old" }),
         ran("mutation", IDS, { "b.py": "old" }),
       ],
-      ticks: { describe: true, ticked: [], once: [], onlyView: false },
+      ticks: {
+        describe: true,
+        ticked: [],
+        once: [],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
     });
 
     expect(model.summary.head).toBe(
@@ -868,13 +890,29 @@ describe("freshness model counts every row, ticked or not", () => {
       },
     ];
     const tickSets = [
-      { describe: true, ticked: [], once: [] as string[], onlyView: false },
-      { describe: false, ticked: [], once: ["crap"], onlyView: false },
+      {
+        describe: true,
+        ticked: [],
+        once: [] as string[],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
+      {
+        describe: false,
+        ticked: [],
+        once: ["crap"],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
       {
         describe: true,
         ticked: [],
         once: ["crap", "mutation"],
         onlyView: false,
+        suites: {},
+        folds: [],
       },
     ];
 
@@ -897,7 +935,14 @@ describe("the Findings panel action", () => {
         ran("crap", ids),
         ran("mutation", ids, Object.fromEntries(ids.map((id) => [id, "old"]))),
       ],
-      ticks: { describe: true, ticked: [], once: ["crap"], onlyView: false },
+      ticks: {
+        describe: true,
+        ticked: [],
+        once: ["crap"],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
     });
 
     expect(model.action.primary.disabled).toBe(true);
@@ -923,6 +968,8 @@ describe("the Nothing ticked to run state", () => {
     ticked: [],
     once: ["crap"],
     onlyView: false,
+    suites: {},
+    folds: [],
   };
 
   it("gives a disabled primary with no tick list for a failed unticked Mutation with everything else current (issue 517)", () => {
@@ -947,7 +994,14 @@ describe("the Nothing ticked to run state", () => {
         ran("crap", IDS, { "a.py": "old" }),
         ran("mutation", IDS, { "b.py": "old" }),
       ],
-      ticks: { describe: false, ticked: [], once: [], onlyView: false },
+      ticks: {
+        describe: false,
+        ticked: [],
+        once: [],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
     });
 
     expect(model.action.primary).toEqual({

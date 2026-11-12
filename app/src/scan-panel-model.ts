@@ -36,6 +36,24 @@ import {
 import { type RunInput, type RunModel, runModel } from "./scan-run-model";
 import { type ScanWhy, whyOf } from "./scan-why";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
+import {
+  foldSummary,
+  type SuiteRowModel,
+  type SuiteRunning,
+  type SuiteTone,
+  shortAge,
+  suiteRows,
+  tickedResults,
+} from "./suite-results";
+import {
+  type SuiteRef,
+  type SuiteTickEntry,
+  sensorArmed,
+  sensorTickState,
+  suitePlan,
+  type TickState,
+  tickedSuites,
+} from "./suite-ticks";
 
 export type RunState = {
   running: string[];
@@ -60,6 +78,8 @@ export type ScanTicks = {
   ticked: string[] | null;
   once: string[];
   onlyView: boolean;
+  suites: Record<string, SuiteTickEntry>;
+  folds: string[];
 };
 
 export type ScanPlan = {
@@ -67,6 +87,7 @@ export type ScanPlan = {
   describeAll: boolean;
   sense: string[];
   modules: string[] | null;
+  suites: Record<string, string[]>;
 };
 
 export type PanelView = { name: string | null; modules: string[] };
@@ -76,6 +97,7 @@ export type RowSensor = {
   display: string;
   title: string;
   runsTests: boolean;
+  suites?: SuiteRef[];
 };
 
 export type PanelInput = {
@@ -116,6 +138,15 @@ export type ScanRow = {
   note: string | null;
   why: ScanWhy | null;
   title: string;
+  stateTitle: string;
+  tick: TickState;
+  tone: SuiteTone | null;
+  fold: FoldModel | null;
+};
+
+export type FoldModel = {
+  open: boolean;
+  suites: SuiteRowModel[];
 };
 
 export type ReportRow = {
@@ -176,11 +207,19 @@ function titleFor(one: { name: string; line: string }): string {
   return expansion === undefined ? one.line : `${expansion} ${one.line}`;
 }
 
+function suitesOf(config: string | null): SuiteRef[] {
+  return (readConfig(config)?.tests ?? []).map(({ name, language }) => ({
+    name,
+    language,
+  }));
+}
+
 export function rowSensors(
   config: string | null,
   shipped: ShippedSensors | null,
 ): RowSensor[] {
   const rows: RowSensor[] = [];
+  const suites = suitesOf(config);
 
   if (shipped?.status === "ok") {
     const listed = shipped.sensors
@@ -193,6 +232,7 @@ export function rowSensors(
         display: one.display,
         title: titleFor(one),
         runsTests: one.runsTests,
+        ...(one.runsTests && suites.length > 0 ? { suites } : {}),
       });
     }
   }
@@ -213,11 +253,16 @@ export function rowSensors(
 
 export function phasesFor(
   ticks: ScanTicks,
-  rows: Pick<RowSensor, "name" | "runsTests">[],
+  rows: Pick<RowSensor, "name" | "runsTests" | "suites">[],
 ): { plan: ScanPlan; dropped: string[] } {
   const testing = rows
     .filter(({ runsTests }) => runsTests)
     .map(({ name }) => name);
+  const planned = suitePlan(
+    ticks,
+    rows.filter(({ runsTests }) => runsTests),
+    ticks.once,
+  );
   const plain = rows
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
@@ -225,7 +270,7 @@ export function phasesFor(
   const known = [...plain, ...testing];
   const sense = [
     ...wanted.filter((name) => plain.includes(name)),
-    ...testing.filter((name) => ticks.once.includes(name)),
+    ...testing.filter((name) => planned.sense.includes(name)),
   ];
 
   return {
@@ -234,6 +279,7 @@ export function phasesFor(
       describeAll: false,
       sense,
       modules: null,
+      suites: planned.suites,
     },
     dropped: wanted.filter((name) => !known.includes(name)),
   };
@@ -424,7 +470,10 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       : key === DESCRIBE_KEY
         ? input.ticks.describe
         : runsTests === true
-          ? input.ticks.once.includes(key)
+          ? sensorArmed(
+              input.ticks,
+              sensors.find((one) => one.name === key) ?? { name: key },
+            )
           : (input.ticks.ticked ?? plain).includes(key);
   const tickedKeys = new Set(
     freshness.rows
@@ -448,38 +497,105 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   );
   const locked = input.scanning || run?.active === true;
 
+  const progress =
+    input.runView?.progress.sensorProgress ?? input.sensorProgress;
+  const sensing = input.runView?.progress.sensing ?? null;
+
   const rows: ScanRow[] = freshness.rows.map((row) => {
     const structure = row.key === STRUCTURE_KEY;
     const sensor = sensors.find((one) => one.name === row.key);
-
-    return {
+    const names = (sensor?.suites ?? []).map(({ name }) => name);
+    const foldable = sensor?.runsTests === true && names.length > 0;
+    const full = stateText(row.state, input.now);
+    const note =
+      row.key === DESCRIBE_KEY
+        ? judged.describeStop != null
+          ? describeStopText(judged.describeStop)
+          : judged.describeSkipped === true
+            ? "skipped this scan"
+            : null
+        : stoppedNote(row.key, judged);
+    const why =
+      structure || row.key === DESCRIBE_KEY ? null : whyFor(row.key, judged);
+    const titled = [
+      full.text,
+      ...(why === null ? [] : [why.segments.map(({ text }) => text).join("")]),
+      ...(note === null ? [] : [note]),
+    ].join(": ");
+    const base = {
       key: row.key,
       name: row.name,
       tickable: row.tickable,
-      ticked: structure
-        ? true
-        : row.key === DESCRIBE_KEY
-          ? input.ticks.describe
-          : sensor?.runsTests === true
-            ? input.ticks.once.includes(row.key)
-            : (input.ticks.ticked ?? plain).includes(row.key),
       disabled: structure || locked,
       state: row.state,
+      note,
+      why,
+      title: titles.get(row.key) ?? row.name,
+    };
+
+    if (foldable && sensor !== undefined) {
+      const ticked = tickedSuites(input.ticks.suites, row.key, names);
+      const results = statuses.find((one) => one.name === row.key)?.suites;
+      const live =
+        (input.scanning || run?.active === true) &&
+        progress != null &&
+        progress.name === row.key &&
+        (sensing === null || sensing === row.key)
+          ? runningOf(progress)
+          : null;
+      const summary = foldSummary({
+        all: names.length,
+        results: tickedResults(sensor.suites ?? [], ticked, results),
+        running: live,
+        now: input.now,
+      });
+      const tick = sensorTickState(input.ticks, row.key, names);
+
+      return {
+        ...base,
+        ticked: tick === "on",
+        tick,
+        tone: summary.tone,
+        text: { icon: summary.icon, text: summary.text },
+        stateTitle: `${summary.text}`,
+        fold: {
+          open: input.ticks.folds.includes(row.key),
+          suites: suiteRows({
+            sensor: row.key,
+            suites: sensor.suites ?? [],
+            ticked,
+            results,
+            running: live,
+            locked,
+            now: input.now,
+          }),
+        },
+      };
+    }
+
+    const current =
+      row.state.kind === "current" && row.state.at !== null
+        ? { icon: full.icon, text: shortAge(input.now - row.state.at) }
+        : full;
+    const isTicked = structure
+      ? true
+      : row.key === DESCRIBE_KEY
+        ? input.ticks.describe
+        : sensor?.runsTests === true
+          ? input.ticks.once.includes(row.key)
+          : (input.ticks.ticked ?? plain).includes(row.key);
+
+    return {
+      ...base,
+      ticked: isTicked,
+      tick: isTicked ? "on" : "off",
+      tone: null,
       text:
         run?.partial?.sensor === row.key
           ? { icon: "circle-dashed", text: run.partial.text }
-          : stateText(row.state, input.now),
-      note:
-        row.key === DESCRIBE_KEY
-          ? judged.describeStop != null
-            ? describeStopText(judged.describeStop)
-            : judged.describeSkipped === true
-              ? "skipped this scan"
-              : null
-          : stoppedNote(row.key, judged),
-      why:
-        structure || row.key === DESCRIBE_KEY ? null : whyFor(row.key, judged),
-      title: titles.get(row.key) ?? row.name,
+          : current,
+      stateTitle: titled,
+      fold: null,
     };
   });
 
@@ -499,6 +615,16 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     confirm:
       input.describeAsk == null ? null : describeAskText(input.describeAsk),
   };
+}
+
+function runningOf(progress: SensorProgress): SuiteRunning | null {
+  if (progress.suite === undefined) {
+    return null;
+  }
+
+  return progress.step === "mutants"
+    ? { suite: progress.suite, done: progress.done, total: progress.total }
+    : { suite: progress.suite, done: null, total: null };
 }
 
 function buttonOf(

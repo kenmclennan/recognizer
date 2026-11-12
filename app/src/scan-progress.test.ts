@@ -350,7 +350,7 @@ describe("sensor progress", () => {
     ).toBeNull();
   });
 
-  it("shows measuring coverage, then the function count, with no estimate", () => {
+  it("shows the suite on coverage, then the suite and count, with no estimate", () => {
     expect(scanningText(rows, "mutation", running)).toBe(
       "Running Mutation\u2026 2 of 2",
     );
@@ -363,6 +363,20 @@ describe("sensor progress", () => {
     expect(
       scanningText(rows, "mutation", fold([mutants(229, 229)], running)),
     ).toBe("Mutation: 229 of 229 functions");
+    expect(
+      scanningText(
+        rows,
+        "mutation",
+        fold([{ ...coverage, suite: "unit" }], running),
+      ),
+    ).toBe("Mutation: unit coverage");
+    expect(
+      scanningText(
+        rows,
+        "mutation",
+        fold([{ ...mutants(11, 29), suite: "unit" }], running),
+      ),
+    ).toBe("Mutation: unit \u00b7 11/29");
   });
 
   it("ignores another sensor's stored progress", () => {

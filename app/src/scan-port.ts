@@ -16,6 +16,8 @@ export type StoredTicks = {
   ticked: string[] | null;
   onlyView?: boolean;
   remembered: boolean;
+  suites?: ScanTicks["suites"];
+  folds?: string[];
 };
 
 export type WrittenTicks = Omit<ScanTicks, "ticked" | "once"> & {
@@ -60,6 +62,8 @@ export const inertScan: ScanPort = {
     sensors: false,
     ticked: null,
     remembered: false,
+    suites: {},
+    folds: [],
   }),
   writeTicks: async () => {},
   readDescribing: async () => ({

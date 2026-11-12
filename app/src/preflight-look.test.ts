@@ -36,7 +36,7 @@ function runView(over) {
 function render(over, scanning = false) {
   const model = scanPanel({
     scan: null, config: null, sensors: [], lines: { modules: [], of: () => ({ kind: "missing" }) },
-    describedAt: null, ticks: { describe: false, ticked: [], once: ["crap", "mutation"], onlyView: false },
+    describedAt: null, ticks: { describe: false, ticked: [], once: ["crap", "mutation"], onlyView: false, suites: {}, folds: [] },
     run: NO_RUN, scanning, now: 0, shipped: SHIPPED, runView: runView(over),
   });
   view.render(model);
@@ -45,7 +45,7 @@ const q = (selector) => view.element.querySelector(selector);
 const all = (selector) => [...view.element.querySelectorAll(selector)];
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width }; };
 const snapshot = () => ({
-  head: q(".summary-head")?.textContent ?? null,
+  head: (q(".summary-head-text") ?? q(".summary-head"))?.textContent ?? null,
   line: q(".summary-line")?.textContent ?? null,
   count: q(".preflight-box-count")?.textContent ?? null,
   controls: all(".preflight-gap button, .preflight-gap code, .preflight-fix, .preflight-copy, .preflight-installed").length,
@@ -72,7 +72,7 @@ const snapshot = () => ({
   facts.calls = { run: calls.run };
 
   render(null);
-  facts.idle = { card: q(".summary[data-shape=run-card]") !== null, head: q(".summary-head")?.textContent ?? null };
+  facts.idle = { card: q(".summary[data-shape=run-card]") !== null, head: (q(".summary-head-text") ?? q(".summary-head"))?.textContent ?? null };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -88,7 +88,7 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
   }, scaledTimeout(120000));
 
   it("reads Checking before the scan on the card and Stop as the only button", () => {
-    expect(f.running.head).toBe("Checking before the scan");
+    expect(f.running.head).toBe("Checking tools");
     expect(f.running.stopButton).toBe("Stop");
     expect(f.running.runButtons).toBe(0);
     expect(f.running.gaps).toEqual([]);
@@ -97,7 +97,7 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
 
   it("lists each gap with its sensor and no count", () => {
     expect(f.gaps.head).toBe("Nothing ran");
-    expect(f.gaps.line).toBe("Set these up, then scan again.");
+    expect(f.gaps.line).toBe("Set it up or untick the suite.");
     expect(f.gaps.count).toBeNull();
     expect(f.gaps.title).toBeNull();
     expect(f.gaps.gaps.map((g: Facts) => [g.line, g.where])).toEqual([

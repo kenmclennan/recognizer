@@ -24,9 +24,14 @@ const OK: Loaded = {
   sensors: [],
 };
 
+const SUITE_TICKS = {
+  mut: { ticked: ["unit", "web"], known: ["unit", "web"] },
+};
+
 const line = (value: object) => JSON.stringify(value);
 const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
   version: 5,
+  suites: {},
   run_id: "run-1",
   pid: 4242,
   pgid: 4242,
@@ -35,7 +40,6 @@ const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
   repository: "/work/repo",
   sensors: ["alpha", "mut"],
   describe: true,
-  suites: {},
   phase: "running",
   ended_at: null,
   exit: null,
@@ -163,6 +167,7 @@ describe("createRescanner", () => {
         describeAll: false,
         sense: ["alpha", "beta"],
         modules: null,
+        suites: {},
       },
     ]);
     expect(scan.written).toEqual([
@@ -170,6 +175,8 @@ describe("createRescanner", () => {
         describe: true,
         ticked: ["alpha", "beta"],
         onlyView: false,
+        suites: {},
+        folds: [],
       },
     ]);
 
@@ -194,6 +201,7 @@ describe("createRescanner", () => {
       describeAll: false,
       sense: [],
       modules: null,
+      suites: {},
     });
     expect(scan.written).toEqual(written);
     expect(rescanner.ticks()).toEqual(before);
@@ -777,8 +785,14 @@ describe("createRescanner", () => {
         ...rescanner.ticks(),
         once: ["mut"],
         onlyView: false,
+        suites: SUITE_TICKS,
+        folds: ["mut"],
       });
       await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(Object.keys(rescanner.ticks().suites)).not.toEqual([]);
+      expect(rescanner.ticks().folds).not.toEqual([]);
+
       await rescanner.run();
 
       expect(scan.ran[0].sense).toContain("mut");
@@ -786,6 +800,10 @@ describe("createRescanner", () => {
         true,
       );
       expect(rescanner.ticks().once).toEqual([]);
+      expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
+      expect(rescanner.ticks().folds).toEqual(["mut"]);
+      expect(scan.written.at(-1)?.suites).toEqual(SUITE_TICKS);
+      expect(scan.written.at(-1)?.folds).toEqual(["mut"]);
     }
   });
 
@@ -812,11 +830,64 @@ describe("createRescanner", () => {
         ...rescanner.ticks(),
         once: ["mut"],
         onlyView: false,
+        suites: SUITE_TICKS,
+        folds: ["mut"],
       });
+
+      expect(Object.keys(rescanner.ticks().suites)).not.toEqual([]);
+
       await rescanner.run();
 
       expect(rescanner.ticks().once).toEqual([]);
+      expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
+      expect(rescanner.ticks().folds).toEqual(["mut"]);
     }
+  });
+
+  it("clears only the armed sensor's once entry and keeps both sensors' suite ticks", async () => {
+    const scan = fakeScan({ steps: [current, summary] });
+    const { rescanner } = harness(scan, {
+      registered: async () => [
+        {
+          name: "crap",
+          display: "C.R.A.P.",
+          runsTests: true,
+          suites: [
+            { name: "unit", language: "python" },
+            { name: "web", language: "typescript" },
+          ],
+        },
+        {
+          name: "mut",
+          display: "Mutation",
+          runsTests: true,
+          suites: [{ name: "unit", language: "python" }],
+        },
+      ],
+    });
+    const suites = {
+      crap: { ticked: ["unit", "web"], known: ["unit", "web"] },
+      mut: { ticked: ["unit"], known: ["unit"] },
+    };
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({
+      ...rescanner.ticks(),
+      once: ["crap"],
+      suites,
+      folds: ["crap", "mut"],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(Object.keys(rescanner.ticks().suites)).toEqual(["crap", "mut"]);
+
+    await rescanner.run();
+
+    expect(scan.ran[0]?.sense).toEqual(["crap"]);
+    expect(scan.ran[0]?.suites).toEqual({ crap: ["unit", "web"] });
+    expect(rescanner.ticks().once).toEqual([]);
+    expect(rescanner.ticks().suites).toEqual(suites);
+    expect(rescanner.ticks().folds).toEqual(["crap", "mut"]);
   });
 
   it("sends the module scope in the plan and remembers the switch", async () => {
@@ -870,17 +941,27 @@ describe("createRescanner", () => {
       ticked: null,
       once: [],
       onlyView: false,
+      suites: {},
+      folds: [],
     });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(scan.written).toEqual([
-      { describe: true, ticked: ["alpha", "beta"], onlyView: false },
+      {
+        describe: true,
+        ticked: ["alpha", "beta"],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
     ]);
     expect(rescanner.ticks()).toEqual({
       describe: true,
       ticked: null,
       once: [],
       onlyView: false,
+      suites: {},
+      folds: [],
     });
   });
 
@@ -985,6 +1066,7 @@ describe("createRescanner", () => {
         describeAll: true,
         sense: ["alpha"],
         modules: ["a.py"],
+        suites: {},
       },
       dropped: [],
       modules: 1,

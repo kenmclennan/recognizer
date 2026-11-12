@@ -152,6 +152,11 @@ import {
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { currentCommit, hasEntries, staleReport } from "./stale-report";
 import {
+  afterFoldToggle,
+  afterSensorTick,
+  afterSuiteTick,
+} from "./suite-ticks";
+import {
   bringBack,
   CANVAS_FLOOR,
   close as closeTrail,
@@ -249,7 +254,14 @@ export type ScanHost = {
 export const inertScanHost: ScanHost = {
   port: inertSensors,
   scan: () => null,
-  ticks: () => ({ describe: false, ticked: null, once: [], onlyView: false }),
+  ticks: () => ({
+    describe: false,
+    ticked: null,
+    once: [],
+    onlyView: false,
+    suites: {},
+    folds: [],
+  }),
   setTicks: () => {},
   runState: () => NO_RUN,
   running: () => false,
@@ -875,7 +887,20 @@ export function showExplorer(
       .filter(({ runsTests }) => !runsTests)
       .map(({ name }) => name);
 
-    if (rows.some(({ name, runsTests }) => name === key && runsTests)) {
+    const testing = rows.find(
+      ({ name, runsTests }) => name === key && runsTests,
+    );
+
+    if (testing !== undefined) {
+      const all = (testing.suites ?? []).map(({ name }) => name);
+
+      if (all.length > 0) {
+        scanHost.setTicks(afterSensorTick(ticks, key, all));
+        render();
+
+        return;
+      }
+
       const once = ticks.once.filter((one) => one !== key);
 
       scanHost.setTicks({ ...ticks, once: ticked ? [...once, key] : once });
@@ -893,8 +918,25 @@ export function showExplorer(
     render();
   }
 
+  function applySuiteTick(sensor: string, suite: string, ticked: boolean) {
+    const row = rowSensors(scanConfig, shippedSensors).find(
+      ({ name }) => name === sensor,
+    );
+    const all = (row?.suites ?? []).map(({ name }) => name);
+
+    scanHost.setTicks(
+      afterSuiteTick(scanHost.ticks(), sensor, suite, ticked, all),
+    );
+    render();
+  }
+
   const scanView = buildScanPanelView({
     tick: applyTick,
+    tickSuite: applySuiteTick,
+    toggleFold(sensor) {
+      scanHost.setTicks(afterFoldToggle(scanHost.ticks(), sensor));
+      render();
+    },
     setOnlyView(on) {
       scanHost.setTicks({ ...scanHost.ticks(), onlyView: on });
       render();

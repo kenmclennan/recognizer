@@ -16,6 +16,7 @@ import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
 import { rowSensors } from ${JSON.stringify(here("scan-panel-model.ts"))};
+import { PANEL_LIMITS } from ${JSON.stringify(here("panel-widths.ts"))};
 ${FAKE_WORKER}
 
 const ids = ["app/a.py", "app/b.py"];
@@ -113,7 +114,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const q = (selector) => root.querySelector(selector);
   const all = (selector) => [...root.querySelectorAll(selector)];
   const visible = (selector) => { const n = q(selector); return n !== null && getComputedStyle(n).display !== "none"; };
-  const rows = () => all(".scan-row").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state-text").textContent, note: r.querySelector(".scan-note")?.textContent ?? null, tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state .scan-spin").length, logLink: r.querySelector(".scan-log-link")?.textContent ?? null, bar: r.querySelectorAll(".scan-bar").length }));
+  const rows = () => all(".scan-row:not(.scan-suite)").map((r) => ({ key: r.dataset.sensor, name: r.querySelector(".scan-row-label").textContent, state: r.querySelector(".scan-state-text").textContent, note: (() => { const last = r.querySelector(".scan-state").title.split(": ").pop(); return /^(stopped|skipped)/.test(last) ? last : null; })(), tone: r.querySelector(".scan-state").className.replace("scan-state", "").trim(), color: getComputedStyle(r.querySelector(".scan-state")).color, title: r.dataset.tip, ticked: r.querySelector(".scan-tick").checked, disabled: r.querySelector(".scan-tick").disabled, accent: getComputedStyle(r.querySelector(".scan-tick")).accentColor, spinner: r.querySelectorAll(".scan-state .scan-spin").length, logLink: r.querySelector(".scan-log-link")?.textContent ?? null, bar: r.querySelectorAll(".scan-bar").length }));
   const text = (selector) => q(selector)?.textContent ?? "<missing " + selector + ">";
   const scanLineText = () => q(".scan-line").textContent;
   const footerButtons = () => all(".footer button").filter((b) => !b.closest(".message-tray, .message-toast")).map((b) => b.className);
@@ -135,7 +136,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   facts.fresh = { ...a.panel(), order: a.all(".rail button").map((b) => b.className.split(" ")[1]), railLabel: getComputedStyle(a.q(".rail-scan"), "::after").content, files: a.visible(".tree-header"), panelOpen: a.visible(".scan-panel"), ran: fake.ran.length, buttonTitle: a.q(".scan-run").title };
 
-  const rowEls = a.all(".scan-row");
+  const rowEls = a.all(".scan-row:not(.scan-suite)");
   const first = rowEls[0].querySelector(".scan-state");
   first.textContent = "155 modules described, 34 minutes ago";
   const paneBox = a.q(".scan-panel").getBoundingClientRect();
@@ -434,20 +435,20 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const ranDoc = (name, diagnosis) => json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [], diagnosis });
   const whyFacts = (m, key) => {
     const row = m.q('.scan-row[data-sensor="' + key + '"]');
-    const why = row.querySelector(".scan-why");
+    const hover = row.querySelector(".scan-state").title;
+    const at = hover.indexOf(": ");
     const rowBox = row.getBoundingClientRect();
-    const whyBox = why ? why.getBoundingClientRect() : null;
     const next = row.nextElementSibling;
     const nextBox = next ? next.getBoundingClientRect() : null;
+    const sibling = m.q('.scan-row[data-sensor="structure"]').getBoundingClientRect();
     return {
       state: m.rows().find((r) => r.key === key).state,
       tone: m.rows().find((r) => r.key === key).tone,
-      why: why ? [...why.childNodes].filter((n) => n.nodeType === 3 || n.tagName === "CODE").map((n) => n.textContent).join("").trim() : null,
-      chips: why ? [...why.querySelectorAll("code")].map((c) => c.textContent) : [],
-      copy: why?.querySelector(".scan-why-copy")?.textContent ?? null,
-      log: why?.querySelector(".scan-why-log")?.textContent ?? null,
-      inside: whyBox === null ? null : whyBox.top >= rowBox.top - 0.5 && whyBox.bottom <= rowBox.bottom + 0.5 && whyBox.left >= rowBox.left - 0.5 && whyBox.right <= rowBox.right + 0.5,
-      clear: whyBox === null || nextBox === null ? null : nextBox.top >= whyBox.bottom - 0.5,
+      why: at < 0 ? null : hover.slice(at + 2),
+      beneath: row.querySelector(".scan-why") !== null,
+      log: row.querySelector(".scan-log-link")?.textContent ?? null,
+      oneLine: Math.abs(rowBox.height - sibling.height) < 1,
+      clear: nextBox === null ? null : nextBox.top >= rowBox.bottom - 0.5,
     };
   };
   const openScan = async (m) => { click(m.q(".rail-scan")); await tick(); };
@@ -468,14 +469,11 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.reasons = {};
   const crapRed = await completedScan("crap", REASONS["crap-tests-failed"]);
   facts.reasons.crapRed = whyFacts(crapRed, "crap");
-  click(crapRed.q('.scan-row[data-sensor="crap"] .scan-why-log'));
+  click(crapRed.q('.scan-row[data-sensor="crap"] .scan-log-link'));
   await tick();
   facts.reasons.opened = crapRed.editor.opened.map((o) => o.file);
   const crapNoCov = await completedScan("crap", REASONS["crap-no-coverage"]);
   facts.reasons.crapNoCov = whyFacts(crapNoCov, "crap");
-  click(crapNoCov.q('.scan-row[data-sensor="crap"] .scan-why-copy'));
-  await tick();
-  facts.reasons.copied = crapNoCov.wired.views.copied;
   facts.reasons.crapNoRun = whyFacts(await reasonScan("crap", REASONS["crap-no-runner"]), "crap");
   facts.reasons.mutationRed = whyFacts(await reasonScan("mutation", REASONS["mutation-tests-failing"]), "mutation");
   facts.reasons.mutationNoCov = whyFacts(await reasonScan("mutation", REASONS["mutation-no-coverage"]), "mutation");
@@ -501,12 +499,61 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     tie: await restart({ "20261102T090000000Z-scan.json": FAILED }, Date.parse(FAILED_AT)),
   };
 
+
+  const SUITE_CONFIG = CONFIG + "tests:\\n  - name: unit\\n    language: python\\n    directory: tests/unit\\n    command: pytest\\n    coverage: { path: coverage.xml, format: lcov }\\n  - name: a-suite-with-a-very-long-name-indeed\\n    language: python\\n    directory: tests/long\\n    command: pytest\\n    coverage: { path: coverage.xml, format: lcov }\\n  - name: web\\n    language: typescript\\n    directory: web\\n    runner: vitest\\n    command: vitest\\n    coverage: { path: coverage/lcov.info, format: lcov }\\n";
+  const suiteDoc = (name) => json({ findings_version: 2, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: {}, findings: [], suites: [{ name: "unit", status: "ok", ran_at: new Date(Date.now() - 3 * 3600000).toISOString() }, { name: "a-suite-with-a-very-long-name-indeed", status: "failed", ran_at: new Date(Date.now() - 2 * 86400000).toISOString(), reason: "coverage unavailable" }, { name: "web", status: "never", ran_at: null }] });
+  const suiteSensors = () => fakeSensors({ crap: suiteDoc("crap"), mutation: suiteDoc("mutation") }, { config: SUITE_CONFIG }, {}, SHIPPED);
+  const suiteFake = fakeScan();
+  const sm = await mount(suiteFake, suiteSensors());
+  click(sm.q(".rail-scan"));
+  await tick();
+  const suiteTick = async (m, sensor, suite) => { const box = m.q('.scan-suite[data-sensor="' + sensor + '"][data-suite="' + suite + '"] .scan-tick'); box.checked = !box.checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
+  const foldOf = (m, sensor) => ({ open: m.all('.scan-suite[data-sensor="' + sensor + '"]').length > 0, suites: m.all('.scan-suite[data-sensor="' + sensor + '"]').map((r) => ({ name: r.dataset.suite, ticked: r.querySelector(".scan-tick").checked, state: r.querySelector(".scan-state-text").textContent })) });
+  const sensorRow = (m, key) => { const r = m.q('.scan-row:not(.scan-suite)[data-sensor="' + key + '"]'); const t = r.querySelector(".scan-tick"); return { ticked: t.checked, indeterminate: t.indeterminate, state: r.querySelector(".scan-state-text").textContent }; };
+  facts.suiteStart = { crap: sensorRow(sm, "crap"), fold: foldOf(sm, "crap") };
+  click(sm.q('.scan-row[data-sensor="crap"] .scan-fold'));
+  await tick();
+  facts.suiteOpened = foldOf(sm, "crap");
+  facts.suiteFoldWritten = suiteFake.written.at(-1).folds;
+  await suiteTick(sm, "crap", "unit");
+  facts.suiteAfterTick = { sensor: sensorRow(sm, "crap"), written: suiteFake.written.at(-1) };
+  const reopened = await mount(suiteFake, suiteSensors());
+  click(reopened.q(".rail-scan"));
+  await tick();
+  facts.suiteReopened = { sensor: sensorRow(reopened, "crap"), fold: foldOf(reopened, "crap") };
+  await reopened.setTick("crap", true);
+  facts.suiteArmed = sensorRow(reopened, "crap");
+  click(reopened.q(".scan-run-mode-full"));
+  await tick();
+  click(reopened.q(".scan-run"));
+  await tick(); await tick(); await tick();
+  facts.suiteAfterScan = { sensor: sensorRow(reopened, "crap"), fold: foldOf(reopened, "crap"), plan: suiteFake.ran.at(-1) };
+  facts.suiteWidths = {};
+  for (const width of [PANEL_LIMITS.tree.min, PANEL_LIMITS.tree.initial]) {
+    const explorerEl = reopened.q(".explorer");
+    explorerEl.style.setProperty("--tree-w", width + "px");
+    await tick();
+    for (const key of ["mutation"]) { if (reopened.all('.scan-suite[data-sensor="' + key + '"]').length === 0) { click(reopened.q('.scan-row[data-sensor="' + key + '"] .scan-fold')); await tick(); } }
+    const panelEl = reopened.q(".scan-panel");
+    const rowsNow = reopened.all(".scan-row");
+    const reference = reopened.q('.scan-row[data-sensor="structure"]').getBoundingClientRect().height;
+    facts.suiteWidths[width] = {
+      count: rowsNow.length,
+      heights: rowsNow.map((r) => Math.abs(r.getBoundingClientRect().height - reference) < 1),
+      clipped: rowsNow.map((r) => r.scrollWidth > r.clientWidth + 0.5),
+      nameClipped: rowsNow.map((r) => { const n = r.querySelector(".scan-row-name"); return n.scrollWidth > n.clientWidth; }),
+      panelOverflow: panelEl.scrollWidth > panelEl.clientWidth + 0.5,
+      panelWidth: panelEl.getBoundingClientRect().width,
+    };
+  }
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
 
 type Facts = ReturnType<typeof JSON.parse>;
 
+const SHORT_AGE = /^(current|now|\d+[mhd])$/;
 const GREEN = "rgb(63, 185, 80)";
 const RED = "rgb(248, 81, 73)";
 const ACCENT = "rgb(68, 147, 248)";
@@ -661,7 +708,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("wraps a long status inside the panel's content box and keeps the tip inside the window", () => {
     expect(f.long.stateRight).toBeLessThanOrEqual(f.long.contentRight + 0.5);
-    expect(f.long.lines).toBeGreaterThanOrEqual(2);
+    expect(f.long.lines).toBe(1);
     expect(f.long.nameOverflow).toBe(false);
     expect(f.long.tip.left).toBeGreaterThanOrEqual(0);
     expect(f.long.tip.top).toBeGreaterThanOrEqual(0);
@@ -703,7 +750,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     });
   });
 
-  it("remembers a tick through the port, never a tests-running sensor, and a reopened window reads it back", () => {
+  it("remembers a tick and a suite tick through the port, never a tests-running sensor's own tick, and a reopened window reads them back", () => {
     expect(f.ticked.rows).toEqual([
       "structure",
       "describe",
@@ -714,9 +761,63 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       describe: true,
       ticked: ["duplication"],
       onlyView: false,
+      suites: {},
+      folds: [],
     });
     expect(f.reopened).toEqual(["structure", "describe", "duplication"]);
+    expect(f.suiteStart.crap).toEqual({
+      ticked: false,
+      indeterminate: false,
+      state: "none",
+    });
+    expect(f.suiteStart.fold.open).toBe(false);
+    expect(f.suiteOpened.suites.map((s: Facts) => s.name)).toEqual([
+      "unit",
+      "a-suite-with-a-very-long-name-indeed",
+      "web",
+    ]);
+    expect(f.suiteFoldWritten).toEqual(["crap"]);
+    expect(f.suiteAfterTick.written.suites.crap).toEqual({
+      ticked: ["unit"],
+      known: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
+    });
+    expect(f.suiteAfterTick.sensor).toMatchObject({
+      ticked: false,
+      indeterminate: true,
+    });
+    expect(f.suiteReopened.fold.open).toBe(true);
+    expect(f.suiteReopened.fold.suites.map((s: Facts) => s.ticked)).toEqual([
+      true,
+      false,
+      false,
+    ]);
   });
+
+  it("keeps the suite ticks and the fold after a scan clears the sensor tick", () => {
+    expect(f.suiteArmed).toMatchObject({ ticked: false, indeterminate: true });
+    expect(f.suiteAfterScan.plan.suites).toEqual({ crap: ["unit"] });
+    expect(f.suiteAfterScan.sensor.ticked).toBe(false);
+    expect(f.suiteAfterScan.sensor.indeterminate).toBe(false);
+    expect(f.suiteAfterScan.fold.open).toBe(true);
+    expect(f.suiteAfterScan.fold.suites.map((s: Facts) => s.ticked)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it.each([200, 280])(
+    "keeps every row on one line with the fold open at %i px",
+    (width) => {
+      const w = f.suiteWidths[width];
+
+      expect(w.count).toBeGreaterThan(7);
+      expect(w.heights.every(Boolean)).toBe(true);
+      expect(w.clipped.some(Boolean)).toBe(false);
+      expect(w.panelOverflow).toBe(false);
+      expect(w.panelWidth).toBeLessThanOrEqual(width);
+    },
+  );
 
   it("matches the mock while running: Scanning…, every planned row running, the one summary bar and a row bar, a disabled Running button and a Stop beside it", () => {
     expect(f.run.plans).toEqual([
@@ -725,6 +826,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
         describeAll: false,
         sense: ["duplication", "crap"],
         modules: ["app/a.py", "app/b.py"],
+        suites: {},
       },
     ]);
     expect(f.run.first.header).toBe(
@@ -768,12 +870,10 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
     expect(row(f.run.afterDescribe, "duplication").state).toBe("running");
     expect(row(f.run.afterDescribe, "crap").state).toBe("running");
-    expect(row(f.run.afterDuplication, "duplication").state).toBe(
-      "current, just now",
-    );
+    expect(row(f.run.afterDuplication, "duplication").state).toBe("now");
     expect(row(f.run.afterDuplication, "duplication").color).toBe(GREEN);
     expect(row(f.run.afterDuplication, "crap").state).toBe("running");
-    expect(row(f.run.after, "duplication").state).toBe("current, just now");
+    expect(row(f.run.after, "duplication").state).toBe("now");
     expect(f.run.after.header).toBe("Ran just now");
     expect(f.run.after.rowBars).toBe(0);
     expect(f.run.after.summary.bar).toBe(0);
@@ -934,26 +1034,25 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("says why each sensor could not run fully, one second line per mock state", () => {
     const r = f.reasons;
 
-    expect(r.crapRed.state).toMatch(/^current/);
+    expect(r.crapRed.state).toMatch(SHORT_AGE);
     expect(r.crapRed.tone).toBe("ok");
     expect(r.crapRed.why).toBe("3 tests failed, so coverage may read low.");
-    expect(r.crapRed).toMatchObject({ copy: null, log: "Show log", chips: [] });
-    expect(r.crapNoCov.state).toMatch(/^current/);
-    expect(r.crapNoCov.chips).toEqual(["cargo install cargo-llvm-cov"]);
-    expect(r.crapNoCov).toMatchObject({ copy: "Copy", log: null });
+    expect(r.crapRed).toMatchObject({ beneath: false, log: "log" });
+    expect(r.crapNoCov.state).toMatch(SHORT_AGE);
+    expect(r.crapNoCov.why).toContain("cargo install cargo-llvm-cov");
+    expect(r.crapNoCov).toMatchObject({ beneath: false, log: null });
     expect(r.crapNoRun.state).toMatch(/^failed/);
     expect(r.crapNoRun.tone).toBe("bad");
     expect(r.crapNoRun.why).toBe(
       "pytest is not in this repository's environment. Add it with uv add --dev pytest.",
     );
-    expect(r.crapNoRun.chips).toEqual(["uv add --dev pytest"]);
-    expect(r.crapNoRun).toMatchObject({ copy: "Copy", log: null });
+    expect(r.crapNoRun).toMatchObject({ beneath: false });
     expect(r.mutationRed.state).toMatch(/^failed/);
     expect(r.mutationRed.tone).toBe("bad");
-    expect(r.mutationRed.chips).toEqual(["tests/test_orders.py::test_refund"]);
-    expect(r.mutationRed).toMatchObject({ copy: null, log: "Show log" });
+    expect(r.mutationRed.why).toContain("tests/test_orders.py::test_refund");
+    expect(r.mutationRed).toMatchObject({ beneath: false, log: "log" });
     expect(r.mutationNoCov.state).toMatch(/^failed/);
-    expect(r.mutationNoCov).toMatchObject({ copy: "Copy", log: null });
+    expect(r.mutationNoCov).toMatchObject({ beneath: false });
   });
 
   it("keeps each second line inside its row and clear of the next row", () => {
@@ -966,7 +1065,8 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       r.mutationRed,
       r.mutationNoCov,
     ]) {
-      expect(one.inside).toBe(true);
+      expect(one.beneath).toBe(false);
+      expect(one.oneLine).toBe(true);
       expect(one.clear).not.toBe(false);
     }
   });
@@ -975,7 +1075,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.reasons.opened).toEqual([
       ".recognizer/cache/coverage/last-run.log",
     ]);
-    expect(f.reasons.copied).toEqual(["cargo install cargo-llvm-cov"]);
   });
 
   it("shows a refusal remembered from the run log after a restart, with its reason, Copy and Show log, and nothing else changes", () => {
@@ -984,12 +1083,12 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(r.refused.state).toMatch(/^failed/);
     expect(r.refused.tone).toBe("bad");
     expect(r.refused.why).toBeTruthy();
-    expect(r.refused.log).toBe("Show log");
-    expect(r.copy.copy).toBe("Copy");
-    expect(r.refused.inside).toBe(true);
+    expect(r.refused.log).toBe("log");
+    expect(r.copy.why).toBeTruthy();
+    expect(r.refused.beneath).toBe(false);
 
     for (const one of [r.okNewer, r.none, r.older, r.tie]) {
-      expect(one.state).toMatch(/^current/);
+      expect(one.state).toMatch(SHORT_AGE);
       expect(one.why).toBeNull();
     }
   });

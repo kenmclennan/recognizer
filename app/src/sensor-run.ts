@@ -19,6 +19,7 @@ import {
   refusalsOf,
 } from "./refusal-record";
 import type { Loaded, LoadedScan } from "./scan-loading";
+import type { SuiteResult } from "./suite-results";
 
 export type SensorStatus = {
   name: string;
@@ -35,6 +36,7 @@ export type SensorStatus = {
   diagnosis?: Diagnosis;
   refusal?: Refusal;
   measured?: { inputs?: Record<string, string>; tests?: string };
+  suites?: SuiteResult[];
 };
 
 export type FindingsFiles = {
@@ -287,6 +289,7 @@ export async function senseRepository(
         ...(document.diagnosis !== undefined
           ? { diagnosis: document.diagnosis }
           : {}),
+        ...(document.suites !== undefined ? { suites: document.suites } : {}),
         ...(document.reported_at !== undefined &&
         !registered.includes(file.name)
           ? { reported: { at: document.reported_at, commit: document.commit } }

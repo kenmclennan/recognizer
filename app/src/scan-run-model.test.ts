@@ -1,6 +1,7 @@
 import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { NO_PROGRESS, type ScanProgress } from "./scan-progress";
+import * as runModelModule from "./scan-run-model";
 import { type RunView, runModel } from "./scan-run-model";
 
 const NAMES: Record<string, string> = {
@@ -21,6 +22,7 @@ function clock(iso: string): string {
 function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
   return {
     version: 5,
+    suites: {},
     run_id: "run-1",
     pid: 4242,
     pgid: 4242,
@@ -29,7 +31,6 @@ function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
     repository: "/work/repo",
     sensors: ["crap", "mutation"],
     describe: false,
-    suites: {},
     phase: "running",
     ended_at: null,
     exit: null,
@@ -62,21 +63,18 @@ const ENDED = "2026-11-12T09:05:00.000Z";
 
 describe("the run model", () => {
   it.each([
-    ["app", "Started here at", null],
-    ["cli", "Started from the command line at", "terminal"],
+    ["app", null],
+    ["cli", "terminal"],
   ] as const)(
     "reads the checking card with its %s origin line and a locked panel",
-    (by, origin, icon) => {
+    (by, icon) => {
       const run = model(view({ phase: "checking", started_by: by }));
 
       expect(run?.card).toMatchObject({
-        head: "Checking before the scan",
-        line: "Making sure every ticked sensor's tools are in place.",
+        head: "Checking tools",
+        line: null,
         tone: "run",
-        origin: {
-          icon,
-          text: `${origin} ${clock("2026-11-12T09:00:00.000Z")}`,
-        },
+        when: { icon, text: clock("2026-11-12T09:00:00.000Z") },
       });
       expect(run?.active).toBe(true);
       expect(run?.subtitle).toBe(
@@ -112,7 +110,7 @@ describe("the run model", () => {
 
     expect(run?.card).toMatchObject({
       head: "Nothing ran",
-      line: "Set these up, then scan again.",
+      line: "Set it up or untick the suite.",
       gaps: [
         { line: "coverage is missing", where: "C.R.A.P." },
         { line: "no suites", where: "C.R.A.P." },
@@ -128,10 +126,10 @@ describe("the run model", () => {
     });
     expect(run?.button).toEqual({ label: "Check again and scan", stop: false });
     expect(run?.subtitle).toBe("Pick what to measure, then scan.");
-    expect(run?.card.origin.icon).toBe("terminal");
+    expect(run?.card.when.icon).toBe("terminal");
   });
 
-  it("reads the running card naming the current sensor and its count", () => {
+  it("reads the running card naming the sensor, the suite and the count", () => {
     const run = model(
       view(
         { phase: "running" },
@@ -140,20 +138,31 @@ describe("the run model", () => {
           sensorProgress: {
             name: "mutation",
             step: "mutants",
+            suite: "unit",
             done: 11,
             total: 29,
           },
         },
       ),
     );
+    const coverage = model(
+      view(
+        { phase: "running" },
+        {
+          sensing: "crap",
+          sensorProgress: { name: "crap", step: "coverage", suite: "unit" },
+        },
+      ),
+    );
 
     expect(run?.card).toMatchObject({
       head: "Scanning",
-      line: "Mutation: 11 of 29 functions",
+      line: "Mutation \u00b7 unit \u00b7 11/29",
     });
+    expect(coverage?.card.line).toBe("C.R.A.P. \u00b7 unit");
   });
 
-  it("reads Mutation at 29 of 29 on a running record and a stopped one", () => {
+  it("reads Mutation 29/29 on a running record and a stopped one", () => {
     const progress = {
       sensing: "mutation",
       sensorProgress: {
@@ -165,22 +174,22 @@ describe("the run model", () => {
     };
 
     expect(model(view({ phase: "running" }, progress))?.card.line).toBe(
-      "Mutation: 29 of 29 functions",
+      "Mutation \u00b7 29/29",
     );
     expect(
       model(view({ phase: "stopped", ended_at: ENDED, exit: 143 }, progress))
         ?.card.line,
-    ).toBe("Mutation kept 29 of 29 functions it had measured.");
+    ).toBe("Kept Mutation 29/29");
   });
 
-  it("reads the sensor's name alone when it reports no count, and Finishing when none is current", () => {
+  it("reads the sensor and suite alone when it reports no count, and Finishing when none is current", () => {
     expect(
       model(view({ phase: "running" }, { sensing: "crap" }))?.card.line,
     ).toBe("C.R.A.P.");
     expect(model(view({ phase: "running" }))?.card.line).toBe("Finishing");
   });
 
-  it("reads the finished card with the measured sensors and Descriptions when describe ran", () => {
+  it("reads the finished card with the number of measured sensors", () => {
     const run = model(
       view({
         phase: "finished",
@@ -192,8 +201,9 @@ describe("the run model", () => {
     );
 
     expect(run?.card).toMatchObject({
-      head: `Scan finished at ${clock(ENDED)}`,
-      line: "C.R.A.P., Mutation, Descriptions measured.",
+      head: "Scan finished",
+      line: "3 sensors measured",
+      when: { icon: "terminal", text: clock(ENDED) },
       tone: "ok",
     });
     expect(run?.active).toBe(false);
@@ -201,7 +211,7 @@ describe("the run model", () => {
     expect(run?.button).toEqual({ label: "Scan", stop: false });
   });
 
-  it("reads the failed card with the reason, a log link and the kept line", () => {
+  it("reads the failed card with the short reason and a log link", () => {
     const run = model(
       view(
         {
@@ -210,52 +220,98 @@ describe("the run model", () => {
           exit: 1,
           failure: {
             sensor: "crap",
-            suite: null,
-            code: null,
-            reason: "coverage unavailable",
+            suite: "web",
+            code: "coverage-unavailable",
+            reason: "suite web left no coverage report at coverage/lcov.info",
           },
         },
         { log: "20261112-scan" },
       ),
     );
+    const bare = model(
+      view({
+        phase: "failed",
+        ended_at: ENDED,
+        exit: 1,
+        failure: {
+          sensor: "crap",
+          suite: null,
+          code: null,
+          reason: "x".repeat(80),
+        },
+      }),
+    );
 
     expect(run?.card).toMatchObject({
-      head: `Scan finished at ${clock(ENDED)}, C.R.A.P. failed`,
-      line: "coverage unavailable",
+      head: "C.R.A.P. failed on web",
+      line: "No coverage report",
+      lineTitle: "suite web left no coverage report at coverage/lcov.info",
       showLog: ".recognizer/cache/log/20261112-scan.json",
-      second: "The other sensors' results were kept.",
       tone: "bad",
     });
+    expect(bare?.card.head).toBe("C.R.A.P. failed");
+    expect(bare?.card.line).toBe("x".repeat(60));
   });
 
-  it("reads the stopped card with the counts of the sensor current at the stop, and without counts", () => {
+  it.each([
+    ["tests-failed", "Tests failed"],
+    ["tool-missing", "Tool missing"],
+    ["coverage-unavailable", "No coverage report"],
+  ] as const)("reads the short reason of %s", (code, text) => {
+    const run = model(
+      view({
+        phase: "failed",
+        ended_at: ENDED,
+        exit: 1,
+        failure: { sensor: "crap", suite: "unit", code, reason: "long reason" },
+      }),
+    );
+
+    expect(run?.card.line).toBe(text);
+  });
+
+  it("reads the stopped card with the kept count, the skipped suites, and without counts", () => {
+    const progress = {
+      sensing: "mutation",
+      sensorProgress: {
+        name: "mutation",
+        step: "mutants" as const,
+        suite: "unit",
+        done: 11,
+        total: 29,
+      },
+      startedSuites: { mutation: ["unit"] },
+    };
+    const stopped = { phase: "stopped", ended_at: ENDED, exit: 143 } as const;
     const counted = model(
+      view({ ...stopped, suites: { mutation: ["unit"] } }, progress),
+    );
+    const one = model(
+      view({ ...stopped, suites: { mutation: ["unit", "web"] } }, progress),
+    );
+    const two = model(
       view(
-        { phase: "stopped", ended_at: ENDED, exit: 143 },
-        {
-          sensing: "mutation",
-          sensorProgress: {
-            name: "mutation",
-            step: "mutants",
-            done: 11,
-            total: 29,
-          },
-        },
+        { ...stopped, suites: { mutation: ["unit", "web", "e2e"] } },
+        progress,
       ),
     );
     const plain = model(view({ phase: "stopped", ended_at: ENDED, exit: 143 }));
 
     expect(counted?.card).toMatchObject({
-      head: `Scan stopped at ${clock(ENDED)}`,
-      line: "Mutation kept 11 of 29 functions it had measured.",
+      head: "Scan stopped",
+      line: "Kept Mutation 11/29 on unit",
     });
+    expect(one?.card.line).toBe(
+      "Kept Mutation 11/29 on unit \u00b7 skipped Mutation on web",
+    );
+    expect(two?.card.line).toBe(
+      "Kept Mutation 11/29 on unit \u00b7 skipped Mutation on web \u00b7 skipped Mutation on e2e",
+    );
     expect(counted?.partial).toEqual({
       sensor: "mutation",
       text: "11 of 29, 25 minutes ago",
     });
-    expect(plain?.card.line).toBe(
-      "Results finished before the stop were kept.",
-    );
+    expect(plain?.card.line).toBe("Finished results kept");
     expect(plain?.partial).toBeNull();
   });
 
@@ -292,11 +348,11 @@ describe("the run model", () => {
     );
 
     expect(run?.card).toMatchObject({
-      head: "Checking before the scan",
+      head: "Checking tools",
       gaps: [],
-      origin: { icon: null },
+      when: { icon: null },
     });
-    expect(run?.card.origin.text).toMatch(/^Started here at \d\d:\d\d$/);
+    expect(run?.card.when.text).toMatch(/^\d\d:\d\d$/);
     expect(run?.button.stop).toBe(true);
   });
 
@@ -317,7 +373,7 @@ describe("the run model", () => {
 
     expect(first?.card.gaps).toHaveLength(1);
     expect(second?.card.gaps).toEqual([]);
-    expect(second?.card.head).toBe("Checking before the scan");
+    expect(second?.card.head).toBe("Checking tools");
   });
 
   it("hides an ended record the window opened with and shows a running one", () => {
@@ -339,5 +395,15 @@ describe("the run model", () => {
   it("has no card without a record and not starting", () => {
     expect(model(view(null))).toBeNull();
     expect(model(null)).toBeNull();
+  });
+
+  it("exports none of the long card texts REC-488 had", () => {
+    for (const name of [
+      "KEPT_OTHERS_TEXT",
+      "KEPT_FINISHED_TEXT",
+      "CHECKING_LINE",
+    ]) {
+      expect(name in runModelModule).toBe(false);
+    }
   });
 });

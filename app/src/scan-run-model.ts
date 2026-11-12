@@ -36,12 +36,12 @@ export type RunCard = {
   icon: IconName;
   tone: RunCardTone;
   head: string;
-  line: string;
+  line: string | null;
+  lineTitle: string | null;
   showLog: string | null;
-  second: string | null;
   gaps: GapItem[];
   help: HelpLine[];
-  origin: { icon: IconName | null; text: string };
+  when: { icon: IconName | null; text: string };
 };
 
 export type RunModel = {
@@ -73,14 +73,25 @@ export function foldRunLine(
   return next;
 }
 
-export const CHECKING_HEAD = "Checking before the scan";
-
-export const CHECKING_LINE =
-  "Making sure every ticked sensor's tools are in place.";
+export const CHECKING_HEAD = "Checking tools";
 
 export const NOTHING_RAN_TEXT = "Nothing ran";
 
-export const SET_UP_LINE = "Set these up, then scan again.";
+export const SET_UP_LINE = "Set it up or untick the suite.";
+
+export const FINISHED_HEAD = "Scan finished";
+
+export const STOPPED_HEAD = "Scan stopped";
+
+export const FINISHED_KEPT_TEXT = "Finished results kept";
+
+export const SHORT_REASONS: Record<string, string> = {
+  "coverage-unavailable": "No coverage report",
+  "tests-failed": "Tests failed",
+  "tool-missing": "Tool missing",
+};
+
+const REASON_LIMIT = 60;
 
 export const HELP_TEXT = "To set this up with an agent:";
 
@@ -93,10 +104,6 @@ export const SCANNING_HEAD = "Scanning";
 export const FINISHING_TEXT = "Finishing";
 
 export const DESCRIPTIONS_NAME = "Descriptions";
-
-export const KEPT_OTHERS_TEXT = "The other sensors' results were kept.";
-
-export const KEPT_FINISHED_TEXT = "Results finished before the stop were kept.";
 
 function two(value: number): string {
   return String(value).padStart(2, "0");
@@ -140,13 +147,11 @@ function sensorOf(
   return sensors.has(only) && gap.id.startsWith(`${only}:`) ? only : null;
 }
 
-function origin(
+function when(
   by: "cli" | "app",
   time: string,
 ): { icon: IconName | null; text: string } {
-  return by === "app"
-    ? { icon: null, text: `Started here at ${time}` }
-    : { icon: "terminal", text: `Started from the command line at ${time}` };
+  return { icon: by === "cli" ? "terminal" : null, text: time };
 }
 
 function listNames(names: string[]): string {
@@ -159,14 +164,21 @@ function currentLine(record: ScanRunRecord, view: RunView): string {
 
   if (current !== null) {
     const reported = progress.sensorProgress;
+    const name = display(current);
 
     if (reported !== null && reported.name === current) {
-      return reported.step === "coverage"
-        ? `${display(current)}: measuring coverage`
-        : `${display(current)}: ${reported.done} of ${reported.total} functions`;
+      const suite = reported.suite;
+
+      if (reported.step === "mutants") {
+        return suite === undefined
+          ? `${name} \u00b7 ${reported.done}/${reported.total}`
+          : `${name} \u00b7 ${suite} \u00b7 ${reported.done}/${reported.total}`;
+      }
+
+      return suite === undefined ? name : `${name} \u00b7 ${suite}`;
     }
 
-    return display(current);
+    return name;
   }
 
   const describing = progress.describe;
@@ -192,17 +204,21 @@ function failedSensors(progress: ScanProgress): Set<string> {
 
 function measuredLine(record: ScanRunRecord, view: RunView): string {
   const failed = failedSensors(view.progress);
-  const names = [
-    ...record.sensors.filter((name) => !failed.has(name)).map(view.display),
-    ...(record.describe ? [DESCRIPTIONS_NAME] : []),
-  ];
+  const count =
+    record.sensors.filter((name) => !failed.has(name)).length +
+    (record.describe ? 1 : 0);
 
-  return `${listNames(names)} measured.`;
+  return `${count} ${count === 1 ? "sensor" : "sensors"} measured`;
 }
 
-function keptCounts(
-  view: RunView,
-): { sensor: string; done: number; total: number } | null {
+type Kept = {
+  sensor: string;
+  suite: string | null;
+  done: number;
+  total: number;
+};
+
+function keptCounts(view: RunView): Kept | null {
   const { sensing, sensorProgress } = view.progress;
 
   if (
@@ -216,9 +232,40 @@ function keptCounts(
 
   return {
     sensor: sensing,
+    suite: sensorProgress.suite ?? null,
     done: sensorProgress.done,
     total: sensorProgress.total,
   };
+}
+
+function stoppedLine(
+  record: ScanRunRecord,
+  view: RunView,
+  kept: Kept | null,
+): string {
+  if (kept === null) {
+    return FINISHED_KEPT_TEXT;
+  }
+
+  const name = view.display(kept.sensor);
+  const started = view.progress.startedSuites[kept.sensor] ?? [];
+  const skipped = (record.suites[kept.sensor] ?? []).filter(
+    (suite) => !started.includes(suite),
+  );
+  const head =
+    kept.suite === null
+      ? `Kept ${name} ${kept.done}/${kept.total}`
+      : `Kept ${name} ${kept.done}/${kept.total} on ${kept.suite}`;
+
+  return [head, ...skipped.map((suite) => `skipped ${name} on ${suite}`)].join(
+    " \u00b7 ",
+  );
+}
+
+function shortReason(failure: NonNullable<ScanRunRecord["failure"]>): string {
+  const short = failure.code === null ? undefined : SHORT_REASONS[failure.code];
+
+  return short ?? failure.reason.slice(0, REASON_LIMIT);
 }
 
 function cardOf(
@@ -227,15 +274,15 @@ function cardOf(
   ticked: ReadonlySet<string>,
   sensors: ReadonlySet<string>,
 ): RunCard | null {
-  const started = clockText(record.started_at);
-  const ended = clockText(record.ended_at);
+  const time = clockText(record.ended_at ?? record.started_at);
   const base = {
     phase: record.phase,
+    line: null,
+    lineTitle: null,
     showLog: null,
-    second: null,
     gaps: [],
     help: [],
-    origin: origin(record.started_by, started),
+    when: when(record.started_by, time),
   };
 
   switch (record.phase) {
@@ -245,7 +292,6 @@ function cardOf(
         icon: "loader",
         tone: "run",
         head: CHECKING_HEAD,
-        line: CHECKING_LINE,
       };
     case "refused": {
       const kept = record.gaps
@@ -294,41 +340,48 @@ function cardOf(
         ...base,
         icon: "circle-check",
         tone: "ok",
-        head: `Scan finished at ${ended}`,
+        head: FINISHED_HEAD,
         line: measuredLine(record, view),
       };
     case "failed": {
       const failure = record.failure;
-      const sensor = failure === null ? "" : view.display(failure.sensor);
+      const showLog =
+        view.progress.log === null ? null : runLogPath(view.progress.log);
+
+      if (failure === null) {
+        return {
+          ...base,
+          icon: "circle-x",
+          tone: "bad",
+          head: "Scan failed",
+          line: `recognizer scan exited ${record.exit ?? 1}`,
+          showLog,
+        };
+      }
+
+      const sensor = view.display(failure.sensor);
 
       return {
         ...base,
         icon: "circle-x",
         tone: "bad",
         head:
-          sensor === ""
-            ? `Scan finished at ${ended}, failed`
-            : `Scan finished at ${ended}, ${sensor} failed`,
-        line: failure?.reason ?? `recognizer scan exited ${record.exit ?? 1}`,
-        showLog:
-          view.progress.log === null ? null : runLogPath(view.progress.log),
-        second: KEPT_OTHERS_TEXT,
+          failure.suite === null
+            ? `${sensor} failed`
+            : `${sensor} failed on ${failure.suite}`,
+        line: shortReason(failure),
+        lineTitle: failure.reason,
+        showLog,
       };
     }
-    case "stopped": {
-      const kept = keptCounts(view);
-
+    case "stopped":
       return {
         ...base,
         icon: "circle-dashed",
         tone: "muted",
-        head: `Scan stopped at ${ended}`,
-        line:
-          kept === null
-            ? KEPT_FINISHED_TEXT
-            : `${view.display(kept.sensor)} kept ${kept.done} of ${kept.total} functions it had measured.`,
+        head: STOPPED_HEAD,
+        line: stoppedLine(record, view, keptCounts(view)),
       };
-    }
   }
 }
 
@@ -338,12 +391,12 @@ function startingCard(at: number): RunCard {
     icon: "loader",
     tone: "run",
     head: CHECKING_HEAD,
-    line: CHECKING_LINE,
+    line: null,
+    lineTitle: null,
     showLog: null,
-    second: null,
     gaps: [],
     help: [],
-    origin: origin("app", clockOfMs(at)),
+    when: when("app", clockOfMs(at)),
   };
 }
 
