@@ -2,7 +2,12 @@ import { join, relative, resolve } from "node:path";
 import { type Describing, readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
-import { registeredSensors } from "./config-parse.js";
+import {
+  type ConfigRead,
+  readsAnyConfig,
+  readsSensors,
+  registeredSensors,
+} from "./config-parse.js";
 import {
   type DescribeInput,
   type DescribeResult,
@@ -333,7 +338,7 @@ function* scanFlow(
   argv: string[],
   io: Io,
   takeMarker: boolean,
-  readsConfig: boolean,
+  read: ConfigRead,
 ): Generator<ScanStep, number, DescribeResult | undefined> {
   const options = parseScanArgs(argv);
 
@@ -362,7 +367,7 @@ function* scanFlow(
 
     folderKnown = true;
 
-    const config = readsConfig ? readConfig(io, root) : null;
+    const config = readsAnyConfig(read) ? readConfig(io, root, read) : null;
 
     if (options.describe !== false) {
       const found = findDescriber(io, root);
@@ -698,7 +703,7 @@ function* scanFlow(
     emit(preflightLine({ state: "ok" }));
     taken?.running();
 
-    if (readsConfig && runStructure(io, root, scans)) {
+    if (readsSensors(read) && runStructure(io, root, scans)) {
       failed = true;
     }
 
@@ -897,12 +902,8 @@ function* scanFlow(
   }
 }
 
-export function runScanSync(
-  argv: string[],
-  io: Io,
-  readsConfig: boolean,
-): number {
-  const flow = scanFlow(argv, io, false, readsConfig);
+export function runScanSync(argv: string[], io: Io, read: ConfigRead): number {
+  const flow = scanFlow(argv, io, false, read);
   const step = flow.next();
 
   if (!step.done) {
@@ -913,7 +914,7 @@ export function runScanSync(
 }
 
 export async function runScan(argv: string[], io: Io): Promise<number> {
-  const flow = scanFlow(argv, io, true, true);
+  const flow = scanFlow(argv, io, true, "all");
 
   try {
     let step = flow.next();
@@ -941,7 +942,9 @@ function runStructure(io: Io, root: string, scans: Scan[]): boolean {
   }
 
   try {
-    const settings = resolveStructureSettings(readConfig(io, root));
+    const settings = resolveStructureSettings(
+      readConfig(io, root, ["sensors"]),
+    );
 
     if (settings === "off") {
       io.remove(findingsFile(root, "structure"));

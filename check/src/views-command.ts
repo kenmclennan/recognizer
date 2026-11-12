@@ -493,7 +493,7 @@ function mutate(
 
   const name = checkName(c.positionals[0]);
   const before = readView(io, c.root, name);
-  const { scans } = freshScans(io, c.root, false);
+  const { scans } = freshScans(io, c.root, []);
   const { view, what } = change(c, structuredClone(before), scans);
 
   return finishMutation(c, name, view, before, scans, what);
@@ -513,7 +513,7 @@ function windowSteps(
     throw new InputError([`${state.id} shows ${state.folder}, not ${c.root}`]);
   }
 
-  const { scans } = freshScans(c.io, c.root, false);
+  const { scans } = freshScans(c.io, c.root, []);
 
   requireModules(scans, state.modules);
 
@@ -1293,7 +1293,7 @@ function runDiff(argv: string[], io: Io): number {
     throw new Refusal(["git could not diff the range"]);
   }
 
-  const scans = freshScans(io, c.root, false).scans as RecordedScan[];
+  const scans = freshScans(io, c.root, []).scans as RecordedScan[];
   const parsed = parseNameStatus(stdout);
   const base =
     scans.length > 0 && scans.every((scan) => scan.commit === facts.baseCommit)
@@ -1339,7 +1339,7 @@ function runShow(argv: string[], io: Io): number {
 
   const name = checkName(c.positionals[0]);
   const view = readView(io, c.root, name);
-  const { scans } = freshScans(io, c.root, false);
+  const { scans } = freshScans(io, c.root, []);
   const resolved = resolveView(view, scans);
 
   if (c.json) {
@@ -1443,7 +1443,7 @@ function runList(argv: string[], io: Io): number {
   }
 
   const listed = viewNames(io, c.root);
-  const scans = listed.length === 0 ? [] : freshScans(io, c.root, false).scans;
+  const scans = listed.length === 0 ? [] : freshScans(io, c.root, []).scans;
   const rows = listed.map((name) => {
     try {
       const view = parseView(io, viewFile(c.root, name), name);
@@ -1532,7 +1532,7 @@ function runCheck(argv: string[], io: Io): number {
   const results: CheckedView[] = [];
 
   if (names.length > 0) {
-    const { scans } = freshScans(io, c.root, false);
+    const { scans } = freshScans(io, c.root, []);
     const known = new Set(moduleNames(scans));
     const renameCache = new Map<string, Map<string, string>>();
     const renamesSince = (commit: string): Map<string, string> => {

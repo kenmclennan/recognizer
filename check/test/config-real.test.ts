@@ -29,6 +29,21 @@ function launcher(directory: string, name: string, body: string): void {
   chmodSync(path, 0o755);
 }
 
+describe("the committed .recognizer/config.yaml", () => {
+  const text = readFileSync(join(REPO, ".recognizer/config.yaml"), "utf8");
+
+  it.each([["all"], [["describer"]], [["sensors"]], [[]]] as const)(
+    "parses with read %j",
+    (read) => {
+      expect(() => parseConfig(text, read)).not.toThrow();
+    },
+  );
+
+  it("reads all as the whole-file parse", () => {
+    expect(parseConfig(text, "all")).toEqual(parseConfig(text));
+  });
+});
+
 if (!HAS_UV) {
   console.warn("skipping the config real-content test: uv is not installed");
 }

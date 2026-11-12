@@ -232,7 +232,38 @@ function rejectDuplicateSuites(document: unknown): void {
   }
 }
 
-export function parseConfig(text: string): Config {
+export type ConfigSection = "describer" | "sensors" | "tests";
+export type ConfigRead = "all" | readonly ConfigSection[];
+
+export function readsAnyConfig(read: ConfigRead): boolean {
+  return read === "all" || read.length > 0;
+}
+
+export function readsSensors(read: ConfigRead): boolean {
+  return read === "all" || read.includes("sensors");
+}
+
+function project(document: unknown, read: ConfigRead): unknown {
+  if (read === "all" || !isPlainObject(document)) {
+    return document;
+  }
+
+  const keep = new Set<string>(read);
+
+  if (keep.has("sensors")) {
+    keep.add("tests");
+  }
+
+  return Object.fromEntries(
+    Object.entries(document).filter(([key]) => keep.has(key)),
+  );
+}
+
+export function parseConfig(text: string, read: ConfigRead = "all"): Config {
+  if (!readsAnyConfig(read)) {
+    return {};
+  }
+
   let document: unknown;
 
   try {
@@ -242,6 +273,8 @@ export function parseConfig(text: string): Config {
       `config is not valid YAML: ${(error as Error).message}`,
     ]);
   }
+
+  document = project(document, read);
 
   rejectRetiredOverlays(document);
   rejectEmptySections(document);

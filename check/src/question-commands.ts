@@ -37,7 +37,7 @@ function load(argv: string[], io: Io, usage: string, arity: number): Question {
     throw new InputError([`usage: ${usage}`]);
   }
 
-  const { scans } = freshScans(io, resolve(values.repository ?? "."), false);
+  const { scans } = freshScans(io, resolve(values.repository ?? "."), []);
   const modules = moduleNames(scans);
 
   return { json: values.json === true, positionals, scans, modules };

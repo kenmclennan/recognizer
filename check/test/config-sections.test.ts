@@ -95,3 +95,111 @@ describe("a bad describer section beside a valid sensors section", () => {
     expect(runs(describe)).toBe(0);
   });
 });
+
+const GOOD_DESCRIBER =
+  "describer:\n  command: [describer-bin]\n  version: v1\n";
+const INVALID_TESTS = "tests: []\n";
+
+function freshWith(config: string, extra: Record<string, string> = {}) {
+  return fakeIo({
+    commit: COMMIT,
+    files: { [`${ROOT}/a.py`]: "", [CONFIG]: config, ...extra },
+    scanners: { [PYTHON]: { output: scanJson(2, 1, { commit: COMMIT }) } },
+  });
+}
+
+describe("each command refuses only the sections it reads", () => {
+  it("lets describe run past a retired sensors key", () => {
+    const fake = freshWith(`${GOOD_DESCRIBER}${RETIRED}`);
+
+    expect(
+      run(["describe", "--check", "--repository", ROOT], fake.io),
+    ).not.toBe(2);
+    expect(fake.err()).not.toContain("distance_threshold");
+    expect(runs(fake)).toBe(1);
+  });
+
+  it("refuses sensors check on a sensors error and ignores a describer error", () => {
+    const refused = fresh(RETIRED);
+    const ignored = fresh(BAD_DESCRIBER);
+
+    expect(run(["sensors", "check", "--repository", ROOT], refused.io)).toBe(2);
+    expect(refused.err()).toContain("distance_threshold was removed");
+    expect(run(["sensors", "check", "--repository", ROOT], ignored.io)).toBe(2);
+    expect(ignored.err()).toContain("no sensors are registered");
+    expect(ignored.err()).not.toContain("config/describer");
+  });
+
+  it("names the section each command reads when both are bad", () => {
+    const both = `${RETIRED}${BAD_DESCRIBER}`;
+    const sensors = fresh(both);
+    const report = fresh(both);
+    const describe = fresh(both);
+
+    expect(run(["sensors", "check", "--repository", ROOT], sensors.io)).toBe(2);
+    expect(sensors.err()).toContain("distance_threshold was removed");
+    expect(run(["report", "--as", "x", "--repository", ROOT], report.io)).toBe(
+      2,
+    );
+    expect(report.err()).toContain("distance_threshold was removed");
+    expect(run(["describe", "--repository", ROOT], describe.io)).toBe(2);
+    expect(describe.err()).not.toContain("distance_threshold");
+    expect(runs(describe)).toBe(0);
+  });
+
+  it("lets report, check and modules ignore a describer error", () => {
+    const report = freshWith(BAD_DESCRIBER);
+    const modules = freshWith(BAD_DESCRIBER);
+    const check = freshWith(BAD_DESCRIBER);
+
+    run(["report", "--as", "x", "--repository", ROOT], report.io);
+
+    expect(report.err()).not.toContain("config/describer");
+    expect(run(["modules", "--repository", ROOT], modules.io)).toBe(0);
+    expect(run(["check", "--repository", ROOT], check.io)).not.toBe(2);
+  });
+
+  it("refuses show on a describer error before extraction", () => {
+    const fake = fresh(BAD_DESCRIBER);
+
+    expect(run(["show", "m0.py", "--repository", ROOT], fake.io)).toBe(2);
+    expect(runs(fake)).toBe(0);
+  });
+
+  it.each([
+    [["modules"]],
+    [["report", "--as", "x"]],
+    [["sensors", "check"]],
+    [["show", "m0.py"]],
+  ])("refuses %j on an invalid tests section", (argv) => {
+    const fake = fresh(INVALID_TESTS);
+
+    expect(run([...argv, "--repository", ROOT], fake.io)).toBe(2);
+    expect(runs(fake)).toBe(0);
+  });
+
+  it("lets describe and find ignore an invalid tests section", () => {
+    const describe = freshWith(`${GOOD_DESCRIBER}${INVALID_TESTS}`);
+    const find = fresh(INVALID_TESTS);
+
+    expect(
+      run(["describe", "--check", "--repository", ROOT], describe.io),
+    ).not.toBe(2);
+    expect(runs(describe)).toBe(1);
+    expect(run(["find", "m0", "--repository", ROOT], find.io)).toBe(0);
+  });
+
+  it("leaves no structure findings when describe extracts", () => {
+    const fake = freshWith(
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
+    );
+    run(["describe", "--repository", ROOT], fake.io);
+
+    expect(fake.files.has(`${ROOT}/.recognizer/cache/scan.python.json`)).toBe(
+      true,
+    );
+    expect(
+      [...fake.files.keys()].filter((file) => file.endsWith("structure.json")),
+    ).toEqual([]);
+  });
+});

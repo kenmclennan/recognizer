@@ -1,6 +1,7 @@
 import { join, resolve } from "node:path";
 import type { Io } from "./cli.js";
-import { readConfig } from "./config.js";
+import { type ConfigRead, readConfig } from "./config.js";
+import { readsAnyConfig } from "./config-parse.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import type { RecordedScan, Scan } from "./scan.js";
@@ -44,11 +45,7 @@ function isReusable(
   );
 }
 
-export function freshScans(
-  io: Io,
-  root: string,
-  readsConfig: boolean,
-): FreshScans {
+export function freshScans(io: Io, root: string, read: ConfigRead): FreshScans {
   const directory = resolve(root);
 
   try {
@@ -57,8 +54,8 @@ export function freshScans(
     throw new InputError([`repository is not a directory: ${directory}`]);
   }
 
-  if (readsConfig) {
-    readConfig(io, directory);
+  if (readsAnyConfig(read)) {
+    readConfig(io, directory, read);
   }
 
   const commit = resolveCommit(io, directory);
@@ -78,7 +75,7 @@ export function freshScans(
       ...io,
       stdout: io.stderr,
     },
-    readsConfig,
+    read,
   );
 
   if (status !== 0) {

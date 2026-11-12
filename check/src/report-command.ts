@@ -34,7 +34,9 @@ function requireName(io: Io, root: string, name: string | undefined): string {
 
   const taken = [
     "structure",
-    ...registeredSensors(readConfig(io, root)).map((sensor) => sensor.name),
+    ...registeredSensors(readConfig(io, root, ["sensors"])).map(
+      (sensor) => sensor.name,
+    ),
     ...shippedSensorNames(),
   ];
 
@@ -106,7 +108,7 @@ export function runReport(argv: string[], io: Io): number {
       ? (parsed as Record<string, unknown>)
       : {};
   const { findings } = source;
-  const { scans } = freshScans(io, root, true);
+  const { scans } = freshScans(io, root, ["sensors"]);
   const completed = {
     findings_version: 2,
     sensor: { name, version: ownVersion(parsed) },

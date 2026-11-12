@@ -1,7 +1,7 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
-import { readConfig } from "./config.js";
+import { type ConfigRead, readConfig } from "./config.js";
 import { InputError } from "./errors.js";
 import { type Finding, findingsByModuleFrom } from "./findings.js";
 import { measureFolders, metricsLine, metricsTable } from "./folder-metrics.js";
@@ -42,7 +42,7 @@ interface Loaded {
 function load(
   argv: string[],
   io: Io,
-  readsConfig: boolean,
+  read: ConfigRead,
   usage: string,
   arity: number,
   extra: Record<string, { type: "string" | "boolean" }>,
@@ -63,7 +63,7 @@ function load(
   }
 
   const root = resolve((values.repository as string | undefined) ?? ".");
-  const { scans } = freshScans(io, root, readsConfig);
+  const { scans } = freshScans(io, root, read);
 
   return {
     root,
@@ -110,7 +110,7 @@ function print(io: Io, loaded: Loaded, document: unknown, text: string[]) {
 const FIND_USAGE = "recognizer find <text> [--repository <dir>] [--json]";
 
 export function runFind(argv: string[], io: Io): number {
-  const loaded = load(argv, io, false, FIND_USAGE, 1, {});
+  const loaded = load(argv, io, [], FIND_USAGE, 1, {});
   const text = loaded.positionals[0] as string;
   const needle = text.toLowerCase();
   const modules: { id: string; kind: string }[] = [];
@@ -202,13 +202,7 @@ function responsibilityOf(
     return { status: "missing", line: null };
   }
 
-  let describer: { command: string[]; version: string } | undefined;
-
-  try {
-    describer = readConfig(io, root)?.describer;
-  } catch {
-    describer = undefined;
-  }
+  const describer = readConfig(io, root, ["describer"])?.describer;
 
   if (describer === undefined) {
     return { status: "unchecked", line: entry.line };
@@ -340,7 +334,7 @@ function showFolder(loaded: Loaded, io: Io, id: string): number {
 }
 
 export function runShow(argv: string[], io: Io): number {
-  const loaded = load(argv, io, true, SHOW_USAGE, 1, {
+  const loaded = load(argv, io, ["sensors", "describer"], SHOW_USAGE, 1, {
     private: { type: "boolean" },
   });
   const id = loaded.positionals[0] as string;
@@ -448,7 +442,7 @@ function integer(raw: unknown, flag: string, minimum: number): number | null {
 }
 
 export function runModules(argv: string[], io: Io): number {
-  const loaded = load(argv, io, true, MODULES_USAGE, 0, {
+  const loaded = load(argv, io, ["sensors"], MODULES_USAGE, 0, {
     folder: { type: "string" },
     findings: { type: "boolean" },
     "min-uses": { type: "string" },

@@ -860,7 +860,10 @@ describe("describe config", () => {
   });
 
   it.each([
-    ["an unknown key", "describer:\n  command: [x]\n  version: v\nother: 1\n"],
+    [
+      "an unknown key",
+      "describer:\n  command: [x]\n  version: v\n  other: 1\n",
+    ],
     ["an empty command", "describer:\n  command: []\n  version: v\n"],
     ["invalid YAML", "describer: [unclosed\n"],
   ])("exits 2 with a config message for %s", async (_, text) => {
