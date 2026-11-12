@@ -12,6 +12,7 @@ from conftest import REPOSITORY, SENSOR_LIST, SHIPPED
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.registry import SHIPPED as REGISTRY
+from recognizer_sensors.scans import Scan, ScanModule
 from recognizer_sensors.testrun import readiness
 from recognizer_sensors.testrun.readiness import check
 from recognizer_sensors.testrun.suites import parse_suites
@@ -439,6 +440,72 @@ def test_a_suite_that_writes_an_unparseable_report_gives_coverage_unreadable(har
             "code": "coverage-unreadable",
             "suite": "api",
             "line": "suite api: the coverage report at coverage/lcov.info does not parse",
+        }
+    ]
+
+
+JACOCO = (
+    "<report name='x'><package name='com/acme'><sourcefile name='A.kt'>"
+    "<line nr='1' mi='0' ci='2'/></sourcefile></package></report>"
+)
+
+
+def jacoco_run_settings(harness, text):
+    shutil.copy(
+        FIXTURES / "mutation" / "kotlin" / "build.gradle.kts",
+        harness.root / "build.gradle.kts",
+    )
+    executable(harness.root / "gradlew", "#!/bin/sh\n")
+
+    return settings_of(
+        raw(
+            "kotlin",
+            name="app",
+            command=f"mkdir -p build && printf '%s' \"{text}\" > build/jacoco.xml",
+            coverage={"path": "build/jacoco.xml", "format": "jacoco"},
+        )
+    )
+
+
+def test_a_malformed_jacoco_report_keeps_coverage_unreadable(harness):
+    gaps = check(harness.root, jacoco_run_settings(harness, "<report"), True)
+
+    assert gaps == [
+        {
+            "code": "coverage-unreadable",
+            "suite": "app",
+            "line": "suite app: the coverage report at build/jacoco.xml does not parse",
+        }
+    ]
+
+
+def test_a_well_formed_jacoco_report_with_no_scan_asks_for_a_scan(harness):
+    gaps = check(harness.root, jacoco_run_settings(harness, JACOCO), True)
+
+    assert gaps == [
+        {
+            "code": "coverage-unmatched",
+            "suite": "app",
+            "line": "suite app: the coverage report at build/jacoco.xml parses, but there is "
+            "no scan to match it against; run recognizer scan first",
+        }
+    ]
+
+
+def test_a_well_formed_jacoco_report_matching_no_scanned_file_says_so(harness):
+    other = Scan(
+        language="kotlin", modules=(ScanModule(id="b/B.kt", files=("b/B.kt",)),), modified=False
+    )
+
+    with mock.patch.object(readiness, "read_scans", return_value=[other]):
+        gaps = check(harness.root, jacoco_run_settings(harness, JACOCO), True)
+
+    assert gaps == [
+        {
+            "code": "coverage-unmatched",
+            "suite": "app",
+            "line": "suite app: the coverage report at build/jacoco.xml parses, but its paths "
+            "match no file in the scan",
         }
     ]
 

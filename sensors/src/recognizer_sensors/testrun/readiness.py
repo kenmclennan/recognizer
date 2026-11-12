@@ -8,7 +8,13 @@ from pathlib import Path
 
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import Refusal
-from recognizer_sensors.testrun.reports import LOG, last_meaningful_line, read_source
+from recognizer_sensors.testrun.reports import (
+    LOG,
+    Source,
+    has_well_formed_report,
+    last_meaningful_line,
+    read_source,
+)
 from recognizer_sensors.testrun.suites import (
     Suite,
     login_shell,
@@ -367,6 +373,30 @@ def check_suite(repository: Path, suite: Suite) -> list[dict]:
     return [*tool_gaps(suite, missing_tools(output)), *file_gaps(repository, suite, directory)]
 
 
+def has_well_formed_jacoco(
+    repository: Path, source: Source, files: list[str], started_at: float
+) -> bool:
+    return source.format == "jacoco" and has_well_formed_report(
+        repository, source, files, started_at
+    )
+
+
+def unmatched_gap(suite: Suite, where: str, scanned: bool) -> dict:
+    if not scanned:
+        return suite_gap(
+            "coverage-unmatched",
+            suite,
+            f"the coverage report at {where} parses, but there is no scan to match it against; "
+            "run recognizer scan first",
+        )
+
+    return suite_gap(
+        "coverage-unmatched",
+        suite,
+        f"the coverage report at {where} parses, but its paths match no file in the scan",
+    )
+
+
 def run_gap(repository: Path, suite: Suite, files: list[str], stream) -> dict | None:
     started_at = time.time()
 
@@ -376,12 +406,16 @@ def run_gap(repository: Path, suite: Suite, files: list[str], stream) -> dict | 
         return suite_gap("activate-failed", suite, "the login shell could not be started")
 
     where = report_pattern(suite)
-    coverage = read_source(repository, source_of(suite), files, started_at)
+    source = source_of(suite)
+    coverage = read_source(repository, source, files, started_at)
 
     if coverage is None:
         cause = f"the suite exited {returncode} and left" if returncode else "the suite left"
 
         return suite_gap("coverage-missing", suite, f"{cause} no coverage report at {where}")
+
+    if not coverage and has_well_formed_jacoco(repository, source, files, started_at):
+        return unmatched_gap(suite, where, bool(files))
 
     if not coverage:
         return suite_gap(

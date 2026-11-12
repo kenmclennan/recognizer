@@ -67,15 +67,15 @@ def fresh_reports(repository: Path, pattern: str, since: float | None) -> list[P
     return [p for p in matches if p.stat().st_mtime_ns >= floor]
 
 
-def read_source(
-    repository: Path, source: Source, files: list[str], since: float | None = None
-) -> Coverage | None:
+def parse_matches(
+    repository: Path, source: Source, files: list[str], since: float | None
+) -> list[Coverage] | None:
     matches = fresh_reports(repository, source.path, since)
 
     if not matches:
         return None
 
-    merged: Coverage = {}
+    parts: list[Coverage] = []
 
     for match in matches:
         try:
@@ -90,6 +90,28 @@ def read_source(
         )
 
         if part is not None:
-            merge_coverage(merged, part)
+            parts.append(part)
+
+    return parts
+
+
+def read_source(
+    repository: Path, source: Source, files: list[str], since: float | None = None
+) -> Coverage | None:
+    parts = parse_matches(repository, source, files, since)
+
+    if parts is None:
+        return None
+
+    merged: Coverage = {}
+
+    for part in parts:
+        merge_coverage(merged, part)
 
     return merged
+
+
+def has_well_formed_report(
+    repository: Path, source: Source, files: list[str], since: float | None = None
+) -> bool:
+    return bool(parse_matches(repository, source, files, since))
