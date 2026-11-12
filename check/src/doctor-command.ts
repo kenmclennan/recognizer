@@ -1,7 +1,8 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { configFile } from "./config.js";
+import { detectLanguages } from "./detect.js";
 import {
   buildReport,
   type DoctorFacts,
@@ -9,6 +10,7 @@ import {
   reportText,
 } from "./doctor.js";
 import { InputError } from "./errors.js";
+import { cachedScansState } from "./freshness.js";
 
 const USAGE = ["usage: recognizer doctor [REPOSITORY] [--json]"];
 
@@ -37,10 +39,14 @@ export function runDoctor(argv: string[], io: Io): number {
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
+  const languages = detectLanguages(io, root);
   const facts: DoctorFacts = {
     repository: root,
     named: given !== undefined,
     configText: readIfPresent(io, configFile(root)),
+    policyText: readIfPresent(io, join(root, ".recognizer", "policy.yaml")),
+    languages,
+    scans: () => cachedScansState(io, root, languages),
   };
   const report = buildReport(facts);
 

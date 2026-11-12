@@ -3,7 +3,8 @@ import { run } from "../src/cli.js";
 import { unsetValue } from "../src/config-edit.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
-import { fakeIo, ROOT, scanJson } from "./scan-helpers.js";
+import { cachedScansState } from "../src/freshness.js";
+import { fakeIo, PYTHON, ROOT, scanJson } from "./scan-helpers.js";
 
 beforeEach(() => {
   vi.spyOn(process, "cwd").mockReturnValue(ROOT);
@@ -348,7 +349,140 @@ describe("retired keys are unsettable", () => {
   });
 });
 
+describe("doctor: policy", () => {
+  it("reports an invalid policy and makes no scan comparison", () => {
+    const result = json(
+      setup({ ...clean, policy: "unknown_thing: 1\n", cache: null }),
+    );
+
+    expect(codes(result.report)).toEqual(["policy:policy-invalid"]);
+  });
+
+  it("reports an unparseable policy", () => {
+    const result = json(setup({ ...clean, policy: "a: [\n", cache: null }));
+
+    expect(codes(result.report)).toEqual(["policy:policy-invalid"]);
+  });
+
+  it("reports a folder no component covers", () => {
+    const cache = scanJson(
+      0,
+      0,
+      {
+        commit: COMMIT,
+        modules: [
+          { id: "m0.py", language: "python", kind: "module", members: [] },
+          { id: "sub/x.py", language: "python", kind: "module", members: [] },
+        ],
+      },
+      "  ",
+    );
+    const result = json(
+      setup({ ...clean, policy: 'components:\n  core: "m0.py"\n', cache }),
+    );
+    const [problem] = result.report.areas[1].problems;
+
+    expect(problem).toMatchObject({
+      code: "policy-folder",
+      subject: "sub",
+    });
+    expect(problem.fix.command).toBeNull();
+    expect(problem.fix.text).toContain(".recognizer/policy.yaml");
+  });
+
+  it("reports an entry matching no module", () => {
+    const result = json(
+      setup({
+        ...clean,
+        policy: 'components:\n  core: "m*.py"\n  ghost: "nothing/*.py"\n',
+      }),
+    );
+
+    expect(result.report.areas[1].problems).toMatchObject([
+      { code: "policy-entry", subject: "nothing/*.py" },
+    ]);
+  });
+
+  it("reports a missing scan with the scan fix and starts no scan", () => {
+    const fake = setup({ ...clean, cache: null });
+    const result = json(fake);
+
+    expect(result.status).toBe(1);
+    expect(result.report.areas[1].problems).toEqual([
+      {
+        code: "scan-missing",
+        subject: "python",
+        line: expect.stringContaining("no scan"),
+        fix: { text: "recognizer scan", command: "recognizer scan" },
+      },
+    ]);
+    expect(fake.calls.some((call) => call.command === PYTHON)).toBe(false);
+  });
+
+  it("reports a scan whose file hash differs from the file on disk", () => {
+    const cache = scanJson(
+      2,
+      1,
+      {
+        commit: COMMIT,
+        files: [{ path: "m0.py", hash: "0".repeat(64) }],
+      },
+      "  ",
+    );
+    const result = json(setup({ ...clean, cache }));
+
+    expect(codes(result.report)).toEqual(["policy:scan-stale"]);
+  });
+
+  it("reports a scan taken at another commit as stale", () => {
+    const cache = scanJson(2, 1, { commit: "other" }, "  ");
+
+    expect(codes(json(setup({ ...clean, cache })).report)).toEqual([
+      "policy:scan-stale",
+    ]);
+  });
+
+  it("reports a dirty tree as a stale scan", () => {
+    expect(
+      codes(json(setup({ ...clean, status: " M m0.py\n" })).report),
+    ).toEqual(["policy:scan-stale"]);
+  });
+
+  it("says nothing of the policy when there is no policy file, even with no scan", () => {
+    const result = json(setup({ ...clean, policy: null, cache: null }));
+
+    expect(codes(result.report)).toEqual([]);
+  });
+
+  it("makes no comparison for a policy with no components", () => {
+    const result = json(
+      setup({ ...clean, policy: "ignore: []\n", cache: null }),
+    );
+
+    expect(codes(result.report)).toEqual([]);
+  });
+});
+
 describe("doctor: fix commands name the repository only when it was named", () => {
+  it("adds --repository to a config fix and the scan positional", () => {
+    const named = json(
+      setup({
+        config: "sensors:\n  structure:\n    hub_threshold: 1\n",
+        policy: POLICY,
+        cache: null,
+        env: { PATH: "/bin" },
+      }),
+      ROOT,
+    );
+
+    expect(named.report.areas[0].problems[0].fix.command).toBe(
+      `recognizer config --unset sensors.structure.hub_threshold --repository ${ROOT}`,
+    );
+    expect(named.report.areas[1].problems[0].fix.command).toBe(
+      `recognizer scan ${ROOT}`,
+    );
+  });
+
   it("quotes a path that holds a space", () => {
     const folder = "/my repo";
     const fake = fakeIo({
@@ -376,5 +510,34 @@ describe("doctor: usage", () => {
     const fake = setup(clean);
 
     expect(run(argv, fake.io)).toBe(2);
+  });
+});
+
+describe("cachedScansState", () => {
+  it("is current for a cache at the current commit with a clean tree", () => {
+    const fake = setup({ ...clean });
+
+    expect(cachedScansState(fake.io, ROOT, ["python"])).toMatchObject({
+      state: "current",
+    });
+  });
+
+  it("is missing when a language has no cache", () => {
+    const fake = setup({ ...clean, cache: null });
+
+    expect(cachedScansState(fake.io, ROOT, ["python"])).toEqual({
+      state: "missing",
+    });
+  });
+
+  it("is stale when the commit differs", () => {
+    const fake = setup({
+      ...clean,
+      cache: scanJson(2, 1, { commit: "old" }, "  "),
+    });
+
+    expect(cachedScansState(fake.io, ROOT, ["python"])).toEqual({
+      state: "stale",
+    });
   });
 });

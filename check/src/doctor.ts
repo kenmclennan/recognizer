@@ -6,6 +6,11 @@ import {
   withoutEmptySections,
 } from "./config-parse.js";
 import { retiredKeysIn, withoutRetiredKeys } from "./config-retired.js";
+import type { Language } from "./detect.js";
+import { InputError } from "./errors.js";
+import type { CachedScansState } from "./freshness.js";
+import { parsePolicy } from "./policy.js";
+import { policyProblems } from "./policy-problems.js";
 
 export type AreaName = "config" | "policy" | "scanners" | "sensors";
 
@@ -14,7 +19,12 @@ export type ProblemCode =
   | "config-retired"
   | "config-empty"
   | "config-duplicate-suite"
-  | "config-invalid";
+  | "config-invalid"
+  | "policy-invalid"
+  | "scan-missing"
+  | "scan-stale"
+  | "policy-entry"
+  | "policy-folder";
 
 export interface SetupProblem {
   code: ProblemCode;
@@ -40,9 +50,13 @@ export interface DoctorFacts {
   repository: string;
   named: boolean;
   configText: string | null;
+  policyText: string | null;
+  languages: Language[];
+  scans(): CachedScansState;
 }
 
 const CONFIG_FILE = ".recognizer/config.yaml";
+const POLICY_FILE = ".recognizer/policy.yaml";
 
 function quoted(text: string): string {
   return /^[A-Za-z0-9_./:@%+=,-]+$/.test(text)
@@ -146,10 +160,73 @@ function configArea(facts: DoctorFacts): SetupProblem[] {
   return problems;
 }
 
+function policyArea(facts: DoctorFacts): SetupProblem[] {
+  if (facts.policyText === null) {
+    return [];
+  }
+
+  let policy: ReturnType<typeof parsePolicy>;
+
+  try {
+    policy = parsePolicy(facts.policyText);
+  } catch (error) {
+    const messages =
+      error instanceof InputError ? error.messages : [(error as Error).message];
+
+    return messages.map((line) => ({
+      code: "policy-invalid" as const,
+      subject: POLICY_FILE,
+      line,
+      fix: textFix(`correct ${POLICY_FILE}`),
+    }));
+  }
+
+  if (policy.components.size === 0 || facts.languages.length === 0) {
+    return [];
+  }
+
+  const state = facts.scans();
+  const where = facts.languages.join(", ");
+
+  if (state.state === "missing") {
+    return [
+      {
+        code: "scan-missing",
+        subject: where,
+        line: `no scan of ${where}: the policy was not compared with the code`,
+        fix: commandFix(
+          `recognizer scan${facts.named ? ` ${quoted(facts.repository)}` : ""}`,
+        ),
+      },
+    ];
+  }
+
+  if (state.state === "stale") {
+    return [
+      {
+        code: "scan-stale",
+        subject: where,
+        line: `the scan of ${where} is out of date with the working tree: the policy was not compared with the code`,
+        fix: commandFix(
+          `recognizer scan${facts.named ? ` ${quoted(facts.repository)}` : ""}`,
+        ),
+      },
+    ];
+  }
+
+  return policyProblems(state.scans, policy).map((problem) => ({
+    code:
+      problem.kind === "entry" ? ("policy-entry" as const) : "policy-folder",
+    subject: problem.subject,
+    line: problem.text,
+    fix: textFix(`correct ${POLICY_FILE} so the policy matches the code`),
+  }));
+}
+
 export function buildReport(facts: DoctorFacts): DoctorReport {
   const areas: Area[] = [
     { name: "config", skipped: null, problems: configArea(facts) },
-    { name: "policy", skipped: null, problems: [] },
+    { name: "policy", skipped: null, problems: policyArea(facts) },
     { name: "scanners", skipped: null, problems: [] },
     { name: "sensors", skipped: null, problems: [] },
   ];
