@@ -32,7 +32,11 @@ const measure = (text: string) => text.length * 7;
 
 function scanOf(ids: string[], edges: [string, string][]): Scan {
   return {
-    modules: ids.map((id) => ({ id, kind: "module" as const })),
+    modules: ids.map((id) => ({
+      id,
+      language: "python" as const,
+      kind: "module" as const,
+    })),
     edges: edges.map(([from, to], index) => ({
       from,
       to,

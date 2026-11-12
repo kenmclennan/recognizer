@@ -32,6 +32,7 @@ const scanOf = (
   modules: [
     {
       id: "pkg/m.py",
+      language: "python",
       kind: "module",
       ...(members === undefined ? {} : { members }),
     },
@@ -553,6 +554,7 @@ describe("folder contents", () => {
     modules: [
       {
         id: "a/x.py",
+        language: "python",
         kind: "module",
         members: [
           { name: "A", kind: "class", exported: true },
@@ -561,9 +563,9 @@ describe("folder contents", () => {
           fn("_g", false),
         ],
       },
-      { id: "a/b/y.py", kind: "module" },
-      { id: "a/b/z.py", kind: "module" },
-      { id: "a/c.py", kind: "module" },
+      { id: "a/b/y.py", language: "python", kind: "module" },
+      { id: "a/b/z.py", language: "python", kind: "module" },
+      { id: "a/c.py", language: "python", kind: "module" },
     ],
     edges: [],
     foreign: [],
@@ -671,7 +673,12 @@ describe("folder contents", () => {
 describe("header and tabs", () => {
   const scan = scanOf([fn("f", true)], {
     modules: [
-      { id: "src/app/pkg/m.py", kind: "module", members: [fn("f", true)] },
+      {
+        id: "src/app/pkg/m.py",
+        language: "python",
+        kind: "module",
+        members: [fn("f", true)],
+      },
     ],
   });
 
@@ -749,9 +756,9 @@ describe("header and tabs", () => {
 describe("findings", () => {
   const scan: Scan = {
     modules: [
-      { id: "d/a.py", kind: "module" },
-      { id: "d/sub/b.py", kind: "module" },
-      { id: "d/c.py", kind: "module" },
+      { id: "d/a.py", language: "python", kind: "module" },
+      { id: "d/sub/b.py", language: "python", kind: "module" },
+      { id: "d/c.py", language: "python", kind: "module" },
     ],
     edges: [],
     foreign: [],
@@ -1421,9 +1428,9 @@ describe("class tags from the scan", () => {
 describe("compacted folders", () => {
   const compacted: Scan = {
     modules: [
-      { id: "core/data/src/main/A.kt", kind: "module" },
-      { id: "core/data/src/main/B.kt", kind: "module" },
-      { id: "core/Top.kt", kind: "module" },
+      { id: "core/data/src/main/A.kt", language: "python", kind: "module" },
+      { id: "core/data/src/main/B.kt", language: "python", kind: "module" },
+      { id: "core/Top.kt", language: "python", kind: "module" },
     ],
     edges: [],
     foreign: [],

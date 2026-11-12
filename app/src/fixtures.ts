@@ -73,6 +73,7 @@ export function structureDocument(
         cycle: true,
         orphan: true,
         unused_exports: false,
+        private_imports: true,
       },
     },
     { commit, modified: false },

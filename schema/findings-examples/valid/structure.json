@@ -8,7 +8,8 @@
     "warnings": {
       "cycle": true,
       "orphan": true,
-      "unused_exports": false
+      "unused_exports": false,
+      "private_imports": true
     }
   },
   "findings": [

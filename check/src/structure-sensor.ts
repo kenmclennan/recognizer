@@ -8,9 +8,13 @@ import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { collectViolations } from "./rules.js";
 import type { RecordedScan, Scan } from "./scan.js";
-import { orphanFindings, unusedExportsFindings } from "./structure-warnings.js";
+import {
+  orphanFindings,
+  privateImportsFindings,
+  unusedExportsFindings,
+} from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "14";
+export const STRUCTURE_SENSOR_VERSION = "15";
 
 export interface StructureSettings {
   entry_points: string[];
@@ -18,6 +22,7 @@ export interface StructureSettings {
     cycle: boolean;
     orphan: boolean;
     unused_exports: boolean;
+    private_imports: boolean;
   };
 }
 
@@ -39,6 +44,7 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
     cycle: true,
     orphan: true,
     unused_exports: false,
+    private_imports: true,
   },
 };
 
@@ -62,6 +68,8 @@ export function resolveStructureSettings(
       cycle: given.warnings?.cycle ?? defaults.cycle,
       orphan: orphan !== false,
       unused_exports: given.warnings?.unused_exports ?? defaults.unused_exports,
+      private_imports:
+        given.warnings?.private_imports ?? defaults.private_imports,
     },
   };
 }
@@ -90,7 +98,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}${entries}`;
+  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}${entries}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -198,6 +206,9 @@ export function structureSensor(
       ...(settings.warnings.unused_exports
         ? unusedExportsFindings(scan, policy, settings.entry_points)
         : []),
+      ...(settings.warnings.private_imports
+        ? privateImportsFindings(scan, policy)
+        : []),
     ];
 
     for (const finding of extra) {
@@ -219,6 +230,7 @@ export function structureSensor(
           cycle: settings.warnings.cycle,
           orphan: settings.warnings.orphan,
           unused_exports: settings.warnings.unused_exports,
+          private_imports: settings.warnings.private_imports,
         },
       },
       findings: [...findings, ...warnings],

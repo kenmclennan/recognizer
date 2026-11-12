@@ -405,6 +405,16 @@ describe("resolution", () => {
     });
   });
 
+  it("knows private_imports as a warning key", () => {
+    const after = text(
+      setValue("", KEYS, "sensors.structure.warnings.private_imports", "false"),
+    );
+
+    expect(parse(after)).toEqual({
+      sensors: { structure: { warnings: { private_imports: false } } },
+    });
+  });
+
   it("writes a number as a number and an env value as a string", () => {
     const after = text(
       setValue(

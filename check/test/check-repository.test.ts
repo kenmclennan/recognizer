@@ -71,6 +71,7 @@ describe("check in repository mode", () => {
             cycle: true,
             orphan: true,
             unused_exports: false,
+            private_imports: true,
           },
         },
       },
@@ -299,7 +300,7 @@ describe("a structure file from before the folder cycle was removed", () => {
   function oldFile() {
     return JSON.stringify({
       findings_version: 2,
-      sensor: { name: "structure", version: "14" },
+      sensor: { name: "structure", version: "15" },
       commit: COMMIT,
       modified: false,
       settings: {
@@ -309,6 +310,7 @@ describe("a structure file from before the folder cycle was removed", () => {
           folder_cycle: true,
           orphan: true,
           unused_exports: false,
+          private_imports: true,
         },
       },
       findings: [
@@ -351,7 +353,7 @@ describe("a structure file from before policy drift became a policy problem", ()
   function oldFile() {
     return JSON.stringify({
       findings_version: 2,
-      sensor: { name: "structure", version: "14" },
+      sensor: { name: "structure", version: "15" },
       commit: COMMIT,
       modified: false,
       settings: {
@@ -361,6 +363,7 @@ describe("a structure file from before policy drift became a policy problem", ()
           orphan: true,
           policy_drift: true,
           unused_exports: false,
+          private_imports: true,
         },
       },
       findings: [
@@ -402,7 +405,7 @@ describe("a structure file from before the stable dependencies warning was remov
   function oldFile() {
     return JSON.stringify({
       findings_version: 2,
-      sensor: { name: "structure", version: "14" },
+      sensor: { name: "structure", version: "15" },
       commit: COMMIT,
       modified: false,
       settings: {
@@ -414,6 +417,7 @@ describe("a structure file from before the stable dependencies warning was remov
           orphan: true,
           stable_dependencies: true,
           unused_exports: false,
+          private_imports: true,
         },
       },
       inputs: {},

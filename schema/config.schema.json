@@ -50,6 +50,9 @@
                     "unused_exports": {
                       "type": "boolean"
                     },
+                    "private_imports": {
+                      "type": "boolean"
+                    },
                     "orphan": {
                       "oneOf": [
                         {

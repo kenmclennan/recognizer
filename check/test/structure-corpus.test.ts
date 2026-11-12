@@ -116,6 +116,7 @@ function settingsFrom(description: ScanDescription): StructureSettings {
     cycle: false,
     orphan: false,
     unused_exports: false,
+    private_imports: false,
   };
 
   return {

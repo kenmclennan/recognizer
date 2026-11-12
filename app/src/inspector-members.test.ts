@@ -34,7 +34,7 @@ const klass = (
 
 function scanOf(members: ScanMember[]): Scan {
   return {
-    modules: [{ id: ID, kind: "module", members }],
+    modules: [{ id: ID, language: "python", kind: "module", members }],
     edges: [],
     foreign: [],
   };

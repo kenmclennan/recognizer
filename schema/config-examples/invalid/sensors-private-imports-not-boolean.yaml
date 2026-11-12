@@ -1,0 +1,4 @@
+sensors:
+  structure:
+    warnings:
+      private_imports: "yes"
