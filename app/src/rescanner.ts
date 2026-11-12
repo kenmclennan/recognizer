@@ -247,6 +247,16 @@ export function createRescanner<Carried>(
     }
   }
 
+  async function openRefused(text: string) {
+    if (ports.hasExplorer()) {
+      return;
+    }
+
+    if (!(await openFromCache())) {
+      ports.blocked(text);
+    }
+  }
+
   async function reload() {
     const loaded = await ports.resense();
 
@@ -516,12 +526,12 @@ export function createRescanner<Carried>(
 
     if (scan.phase === "refused") {
       keepOnce = keepOnce || busy;
-      ports.post({
-        kind: "warning",
-        text: `Scan refused - ${refusedText(scan.gaps)}`,
-      });
+      const text = refusedText(scan.gaps);
+
+      ports.post({ kind: "warning", text: `Scan refused - ${text}` });
       progress = { ...progress, done: true };
       publish();
+      await openRefused(text);
       ports.settled();
 
       return;
@@ -767,10 +777,10 @@ export function createRescanner<Carried>(
       keepOnce = true;
       progress = NO_PROGRESS;
       emit({ scanning: null });
-      ports.post({
-        kind: "warning",
-        text: `Scan refused - ${refusedText(result.gaps)}`,
-      });
+      const refusal = refusedText(result.gaps);
+
+      ports.post({ kind: "warning", text: `Scan refused - ${refusal}` });
+      await openRefused(refusal);
       ports.settled();
 
       return;
