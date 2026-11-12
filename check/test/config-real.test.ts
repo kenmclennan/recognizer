@@ -16,6 +16,10 @@ const GUIDE_RUNS = [
   "kotlin",
   "rust",
   "csharp",
+  "kotlin-workspace",
+  "rust-workspace",
+  "rust-crate",
+  "typescript-package",
 ];
 
 function launcher(directory: string, name: string, body: string): void {
@@ -81,7 +85,7 @@ describe.skipIf(!HAS_UV)(
     );
 
     it(
-      "reproduces the six measured configs by running the guide's own commands",
+      "reproduces the ten measured configs by running the guide's own commands",
       () => {
         const guide = shell("recognizer-sensors crap --guide", repository());
 
