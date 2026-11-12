@@ -155,7 +155,6 @@ export const OPEN_RUN: PlannedRun = {
     describeAll: false,
     sense: [],
     modules: null,
-    suites: {},
   },
   dropped: [],
   modules: 0,
@@ -248,6 +247,19 @@ function inOrder(ids: Set<string>, order: string[]): string[] {
   return order.filter((id) => ids.has(id));
 }
 
+export function suitesForSense(
+  sense: string[],
+  suites: Record<string, string[]>,
+): Record<string, string[]> | undefined {
+  const sensed = Object.fromEntries(
+    Object.entries(suites).filter(
+      ([name, names]) => sense.includes(name) && names.length > 0,
+    ),
+  );
+
+  return Object.keys(sensed).length > 0 ? sensed : undefined;
+}
+
 export function planFor(
   model: FreshnessModel,
   mode: ResultsMode,
@@ -272,7 +284,7 @@ export function planFor(
         describeAll: true,
         sense: phases.sense,
         modules: scope !== null && any ? scope : null,
-        suites: phases.suites,
+        suites: suitesForSense(phases.sense, phases.suites),
       },
       dropped: phases.dropped,
       modules: total,
@@ -318,9 +330,7 @@ export function planFor(
       describeAll: false,
       sense,
       modules: scopedIds.size === 0 ? null : inOrder(scopedIds, order),
-      suites: Object.fromEntries(
-        Object.entries(phases.suites).filter(([name]) => sense.includes(name)),
-      ),
+      suites: suitesForSense(sense, phases.suites),
     },
     dropped: phases.dropped,
     modules: changed,

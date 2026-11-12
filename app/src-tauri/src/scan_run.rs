@@ -804,6 +804,8 @@ pub fn run_with_suites(
     confirm_above: Option<f64>,
     prepare: impl FnOnce(),
 ) -> ScanRun {
+    let suites = suites.filter(|plan| !plan.is_empty());
+
     if let Some(plan) = suites {
         if let Err(reason) = check_suites(plan) {
             return ScanRun::Refused { reason };
@@ -1324,6 +1326,37 @@ mod tests {
             None,
             || {},
         )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_empty_suites_map_adds_no_flag_and_writes_no_file() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(
+            dir.path(),
+            &format!(
+                r#"echo "$@" > {cap}/capture.txt; echo '{{"event":"summary","commit":"c","phases":[{{"phase":"describe","entries":[{{}}]}}],"log":null}}'"#,
+                cap = dir.path().display()
+            ),
+        );
+        let result = collect_suited(dir.path(), &command, &BTreeMap::new());
+        let lines: Vec<String> = captured(dir.path())
+            .into_iter()
+            .filter(|line| !line.is_empty())
+            .collect();
+
+        assert!(matches!(result, ScanRun::Finished { exit_code: 0, .. }));
+        assert_eq!(
+            lines,
+            vec![format!(
+                "scan {} --json --describe --sense crap",
+                dir.path().display()
+            )]
+        );
+        assert!(!dir
+            .path()
+            .join(".recognizer/cache/scan-suites-w-1.json")
+            .exists());
     }
 
     #[cfg(unix)]

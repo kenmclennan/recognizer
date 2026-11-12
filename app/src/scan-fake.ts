@@ -133,7 +133,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         repository: "/work/repo",
         sensors: plan.sense,
         describe: plan.describe,
-        suites: plan.suites,
+        suites: plan.suites ?? {},
         commit: "abc1234",
         ran: null,
         ...fake.record,
