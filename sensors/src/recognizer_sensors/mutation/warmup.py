@@ -48,6 +48,7 @@ from recognizer_sensors.testrun.suites import (
     Suite,
     directory_of,
     login_shell,
+    prepare_suite_folder,
     report_pattern,
     selected,
     source_of,
@@ -610,6 +611,7 @@ def editable_refusal(suite: Suite, path: str) -> Refusal:
 def run_suite_in(
     repository: Path, copy: Path, suite: Suite, command: str, extra: dict[str, str]
 ) -> tuple[int, str]:
+    prepare_suite_folder(copy, suite)
     result = run_test_command(command, copy, None, suite=suite, extra=extra)
 
     if STOP.is_set():

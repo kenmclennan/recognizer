@@ -136,7 +136,7 @@ def shim_suite(
         "directory": directory,
         "activate": f'{prefix}{tool}() {{ {body} "$@"; }}',
         "command": (
-            f'if [ -n "$COVERAGE_FILE" ]; then touch coverage/lcov.info; else {tool}; fi #'
+            f'case "$PWD" in */mutation/work/*/warmup*) touch coverage/lcov.info;; *) {tool};; esac #'
             if language == "python"
             else (
                 'if [ "$(basename "$PWD")" = warmup ]; then touch coverage/lcov.info; '
