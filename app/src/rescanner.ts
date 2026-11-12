@@ -51,6 +51,7 @@ export type RescanPorts<Carried> = {
   describedLine: () => void;
   progress: (update: ProgressUpdate) => void;
   settled: () => void;
+  hasExplorer: () => boolean;
   blocked: (text: string) => void;
   post: (input: MessageInput) => number | null;
   attach: (id: number, extra: MessageAction) => void;
@@ -219,6 +220,30 @@ export function createRescanner<Carried>(
       return false;
     } finally {
       ports.settled();
+    }
+  }
+
+  async function openFromCache(): Promise<boolean> {
+    if (ports.hasExplorer()) {
+      return false;
+    }
+
+    try {
+      const cached = ports.load(await ports.port.readCache());
+
+      if (cached.blocking !== null || cached.scans.length === 0) {
+        return false;
+      }
+
+      const loaded = await ports.sense(cached);
+      const origin = await ports.adopt();
+
+      ports.adopted(origin);
+      apply(loaded);
+
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -525,6 +550,7 @@ export function createRescanner<Carried>(
       progress = NO_PROGRESS;
       emit({ scanning: null });
       ports.post({ kind: "error", text: `Scan failed - ${text}` });
+      await openFromCache();
       ports.blocked(text);
       ports.settled();
 
@@ -759,6 +785,7 @@ export function createRescanner<Carried>(
         kind: result.status === "refused" ? "warning" : "error",
         text: `Scan ${result.status === "refused" ? "refused" : "failed"} - ${text}`,
       });
+      await openFromCache();
       ports.blocked(text);
       ports.settled();
 
