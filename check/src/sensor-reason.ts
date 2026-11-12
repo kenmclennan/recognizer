@@ -11,6 +11,7 @@ export type DiagnosisCode = (typeof DIAGNOSIS_CODES)[number];
 export interface Diagnosis {
   code: DiagnosisCode;
   line: string;
+  suite?: string;
   fix?: string;
   failing?: { count?: number; names: string[] };
 }
@@ -47,12 +48,13 @@ export function isDiagnosis(value: unknown): value is Diagnosis {
     return false;
   }
 
-  const { code, line, fix, failing } = value as Record<string, unknown>;
+  const { code, line, suite, fix, failing } = value as Record<string, unknown>;
 
   return (
-    onlyKeys(value, ["code", "line", "fix", "failing"]) &&
+    onlyKeys(value, ["code", "line", "suite", "fix", "failing"]) &&
     DIAGNOSIS_CODES.includes(code as DiagnosisCode) &&
     nonEmpty(line) &&
+    (suite === undefined || nonEmpty(suite)) &&
     (fix === undefined || nonEmpty(fix)) &&
     (failing === undefined || failingOk(failing))
   );

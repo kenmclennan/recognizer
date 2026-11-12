@@ -26,7 +26,7 @@ export const CHECK_TIMEOUT_MS = 600_000;
 
 const SENSORS_PROGRAM = "recognizer-sensors";
 
-const DROPPED_PAIRS = ["--commit", "--output", "--modules"];
+const DROPPED_PAIRS = ["--commit", "--output", "--modules", "--suites"];
 
 function isSensorGap(value: unknown): value is SensorGap {
   if (typeof value !== "object" || value === null) {
@@ -64,13 +64,17 @@ function parseGaps(stdout: string): SensorGap[] | null {
   }
 }
 
-export function strippedArguments(command: string[], root: string): string[] {
+export function strippedArguments(
+  command: string[],
+  root: string,
+  keep: readonly string[] = [],
+): string[] {
   const kept: string[] = [];
 
   for (let at = 0; at < command.length; at += 1) {
     const item = command[at] as string;
 
-    if (DROPPED_PAIRS.includes(item)) {
+    if (DROPPED_PAIRS.includes(item) && !keep.includes(item)) {
       at += 1;
 
       continue;
@@ -88,7 +92,7 @@ export function checkArguments(
   run: boolean,
 ): string[] {
   return [
-    ...strippedArguments(command, root),
+    ...strippedArguments(command, root, ["--suites"]),
     "--check",
     ...(run ? ["--run"] : []),
   ];

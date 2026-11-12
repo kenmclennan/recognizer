@@ -649,6 +649,7 @@ describe.skipIf(!HAS_UV)(
           phase: "sense",
           name: "mutation",
           step: "coverage",
+          suite: "sample",
         });
 
         const mutants = progress.slice(1);
