@@ -1535,12 +1535,12 @@ describe("the preflight flow", () => {
   };
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-  async function refused() {
+  async function refused(overrides: Partial<RescanPorts<string>> = {}) {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       result: gapsResult,
     });
-    const made = harness(scan);
+    const made = harness(scan, overrides);
 
     await made.rescanner.run();
 
@@ -1578,7 +1578,9 @@ describe("the preflight flow", () => {
   });
 
   it("shows the gaps of the refused run, with no blocked message", async () => {
-    const { rescanner, log, scan } = await refused();
+    const { rescanner, log, scan } = await refused({
+      hasExplorer: () => true,
+    });
 
     scan.emitRun({
       kind: "run",
@@ -1597,6 +1599,95 @@ describe("the preflight flow", () => {
     expect(rescanner.runView().starting).toBeNull();
     expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
     expect(rescanner.running()).toBe(false);
+  });
+
+  describe("a refused open", () => {
+    const cached: Loaded = {
+      ...OK,
+      scans: [{ file: "scan.python.json" } as never],
+    };
+    const refusalText =
+      "2 tools missing: coverage and pytest are not installed";
+    const refusedRecord = () =>
+      record({
+        run_id: "refused-open",
+        phase: "refused",
+        started_by: "app",
+        exit: 4,
+        ended_at: "2026-11-10T09:00:01.000Z",
+        gaps: [GAP, OUTSIDE],
+      });
+    const ways: Record<
+      string,
+      (over: Partial<RescanPorts<string>>) => Promise<string[]>
+    > = {
+      "a gaps result": async (over) => (await refused(over)).log,
+      "a refused run record": async (over) => {
+        const scan = fakeScan({
+          records: false,
+          defaults: { describe: false, sensors: true },
+          result: gapsResult,
+        });
+        const made = harness(scan, over);
+
+        scan.emitRun({ kind: "run", run: refusedRecord() });
+        await made.rescanner.run();
+        await flush();
+
+        return made.log;
+      },
+    };
+
+    for (const [name, open] of Object.entries(ways)) {
+      it(`adopts the cached scan and blocks nothing for ${name}`, async () => {
+        let built = false;
+        const log = await open({
+          load: () => cached,
+          hasExplorer: () => built,
+          replace: () => {
+            built = true;
+          },
+        });
+
+        expect(log).toContain("adopt");
+        expect(built).toBe(true);
+        expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
+      });
+
+      it(`shows the refusal full-window when nothing is cached for ${name}`, async () => {
+        const log = await open({});
+
+        expect(log).toContain(`blocked:${refusalText}`);
+        expect(log.some((one) => /^(replace|sense|adopt)/.test(one))).toBe(
+          false,
+        );
+      });
+
+      it(`changes nothing with an explorer open for ${name}`, async () => {
+        const log = await open({ load: () => cached, hasExplorer: () => true });
+
+        expect(
+          log.some((one) => /^(replace|sense|adopt|blocked)/.test(one)),
+        ).toBe(false);
+      });
+    }
+
+    it("posts the warning when the cache is adopted", async () => {
+      const made = harness(
+        fakeScan({
+          defaults: { describe: false, sensors: true },
+          result: gapsResult,
+        }),
+        { load: () => cached },
+      );
+
+      await made.rescanner.run();
+
+      expect(made.lifecycle.at(-1)).toEqual({
+        kind: "warning",
+        text: `Scan refused - ${refusalText}`,
+      });
+    });
   });
 
   it("keeps a once-ticked sensor ticked after a refusal so Check again and scan includes it", async () => {
