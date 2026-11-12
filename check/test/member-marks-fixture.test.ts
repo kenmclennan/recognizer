@@ -47,9 +47,8 @@ describe("memberMarks over the committed python sample", () => {
     ];
     const marks = memberMarks({
       modules: [{ id: MODULE, mark: "modified", box: "current" }],
-      headCommit: HEAD,
-      current: [withMembers(headMembers, { commit: HEAD, modified: false })],
       base: [withMembers(baseMembers, { commit: null })],
+      head: [withMembers(headMembers, { commit: HEAD, modified: false })],
       files: [{ path: MODULE, base_text: baseText, head_text: headText }],
     });
 

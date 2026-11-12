@@ -70,9 +70,8 @@ function run(
 ) {
   const result = memberMarks({
     modules: marked(MOD),
-    headCommit: HEAD,
-    current: [scan({ [MOD]: endMembers })],
     base: [scan({ [MOD]: startMembers }, { commit: null })],
+    head: [scan({ [MOD]: endMembers })],
     files: [file(MOD, start, head)],
   });
 
@@ -285,9 +284,8 @@ describe("memberMarks absence and scope", () => {
     overrides: Partial<Parameters<typeof memberMarks>[0]> = {},
   ) => ({
     modules: marked(MOD),
-    headCommit: HEAD,
-    current: [scan({ [MOD]: [F_START] })],
     base: [scan({ [MOD]: [F_START] }, { commit: null })],
+    head: [scan({ [MOD]: [F_START] })],
     files: [file(MOD, START, START)],
     ...overrides,
   });
@@ -302,17 +300,37 @@ describe("memberMarks absence and scope", () => {
     expect(memberMarks(input({ modules })).size).toBe(0);
   });
 
-  it("is unknown when a scan is not at the head commit or is modified", () => {
-    expect(
-      memberMarks(
-        input({ current: [scan({ [MOD]: [] }, { commit: "old" })] }),
-      ).get(MOD),
-    ).toBeNull();
-    expect(
-      memberMarks(
-        input({ current: [scan({ [MOD]: [] }, { modified: true })] }),
-      ).get(MOD),
-    ).toBeNull();
+  it("uses a head scan whatever its commit or modified value", () => {
+    const clean = memberMarks(
+      input({ files: [file(MOD, START, START.replace("    a", "    A"))] }),
+    );
+    const stale = memberMarks(
+      input({
+        head: [scan({ [MOD]: [F_START] }, { commit: "old", modified: true })],
+        files: [file(MOD, START, START.replace("    a", "    A"))],
+      }),
+    );
+
+    expect(clean.get(MOD)).toEqual(new Map([["f", "modified"]]));
+    expect(stale).toEqual(clean);
+  });
+
+  it("is unknown when the head scans are absent or lack the module", () => {
+    const result = memberMarks(
+      input({
+        modules: marked(MOD, OTHER),
+        base: [scan({ [MOD]: [F_START], [OTHER]: [F_START] })],
+        head: [scan({ [MOD]: [F_START] })],
+        files: [
+          file(MOD, START, START.replace("    a", "    A")),
+          file(OTHER, START, START),
+        ],
+      }),
+    );
+
+    expect(result.get(MOD)).toEqual(new Map([["f", "modified"]]));
+    expect(result.get(OTHER)).toBeNull();
+    expect(memberMarks(input({ head: null })).get(MOD)).toBeNull();
   });
 
   it("is unknown when the start side could not be read", () => {
@@ -328,10 +346,10 @@ describe("memberMarks absence and scope", () => {
     const result = memberMarks(
       input({
         modules: marked(MOD, OTHER),
-        current: [scan({ [MOD]: [F_START], [OTHER]: [F_START] })],
         base: [
           scan({ [MOD]: [F_START], [OTHER]: [F_START] }, { commit: null }),
         ],
+        head: [scan({ [MOD]: [F_START], [OTHER]: [F_START] })],
         files: [
           file(MOD, START, START.replace("    a", "    A")),
           file(OTHER, big, START),

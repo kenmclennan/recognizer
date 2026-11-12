@@ -16,6 +16,7 @@ export type ChangeRange = {
 
 export type RangeMembers = {
   baseScans: Scan[];
+  headScans: Scan[];
   files: {
     path: string;
     base_text: string | null;
