@@ -834,14 +834,13 @@ async fn run_scan(
     window: WebviewWindow,
     describe: bool,
     describe_all: bool,
-    measure: Vec<String>,
     sense: Vec<String>,
     modules: Option<Vec<String>>,
 ) -> Result<ScanRun, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
 
-    if let Err(reason) = sensors::check_scan_names(&measure, &sense) {
+    if let Err(reason) = sensors::check_names(&sense) {
         return Ok(ScanRun::Refused { reason });
     }
 
@@ -865,7 +864,6 @@ async fn run_scan(
             tool_runner::runner(),
             repository::RECOGNIZER_COMMAND,
             repository::Describe::from_flags(describe, describe_all),
-            &measure,
             &sense,
             modules.as_deref(),
             confirm_above,

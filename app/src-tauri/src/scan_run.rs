@@ -592,8 +592,8 @@ fn fault_gap(fault: &ToolFault, needs: Vec<String>) -> Gap {
     }
 }
 
-fn ticked(describe: Describe, measure: &[String], sense: &[String]) -> Vec<String> {
-    let mut names: Vec<String> = measure.iter().chain(sense).cloned().collect();
+fn ticked(describe: Describe, sense: &[String]) -> Vec<String> {
+    let mut names: Vec<String> = sense.to_vec();
 
     if describe != Describe::Off {
         names.push("describe".to_string());
@@ -676,7 +676,6 @@ pub fn run_with(
     runner: &ToolRunner,
     command: &str,
     describe: Describe,
-    measure: &[String],
     sense: &[String],
     modules: Option<&[String]>,
     confirm_above: Option<f64>,
@@ -690,7 +689,7 @@ pub fn run_with(
 
     if let Err(fault) = runner.check_all() {
         return ScanRun::Gaps {
-            gaps: vec![fault_gap(&fault, ticked(describe, measure, sense))],
+            gaps: vec![fault_gap(&fault, ticked(describe, sense))],
         };
     }
 
@@ -736,7 +735,6 @@ pub fn run_with(
         runner,
         command,
         describe,
-        measure,
         sense,
         file.as_deref(),
         confirm_above,
@@ -759,7 +757,6 @@ fn spawn_and_stream(
     runner: &ToolRunner,
     command: &str,
     describe: Describe,
-    measure: &[String],
     sense: &[String],
     modules_file: Option<&Path>,
     confirm_above: Option<f64>,
@@ -771,7 +768,7 @@ fn spawn_and_stream(
 
     process
         .env(STARTED_BY, "app")
-        .args(scan_args(folder, describe, measure, sense))
+        .args(scan_args(folder, describe, sense))
         .args(
             modules_file
                 .map(|path| vec!["--modules".to_string(), path.display().to_string()])
@@ -908,7 +905,6 @@ mod tests {
         folder: &Path,
         command: &Path,
         describe: Describe,
-        measure: &[String],
         sense: &[String],
     ) -> ScanRun {
         let tools = TempDir::new().unwrap();
@@ -921,7 +917,6 @@ mod tests {
             &runner,
             &command.display().to_string(),
             describe,
-            measure,
             sense,
             None,
             None,
@@ -1006,7 +1001,6 @@ mod tests {
             &command.display().to_string(),
             Describe::Off,
             &[],
-            &[],
             None,
             None,
             || {},
@@ -1035,7 +1029,6 @@ mod tests {
             &command,
             Describe::Off,
             &[],
-            &[],
         );
 
         assert_eq!(
@@ -1060,14 +1053,13 @@ mod tests {
             dir.path(),
             &command,
             Describe::Stale,
-            &names(&["m"]),
             &names(&["a"]),
         );
 
         assert_eq!(
             captured(dir.path()),
             vec![format!(
-                "scan {} --json --describe --measure m --sense a",
+                "scan {} --json --describe --sense a",
                 dir.path().display()
             )]
         );
@@ -1095,7 +1087,6 @@ mod tests {
             &runner,
             &command.display().to_string(),
             describe,
-            &[],
             &[],
             Some(modules),
             None,
@@ -1205,7 +1196,6 @@ mod tests {
             &command,
             Describe::Off,
             &[],
-            &[],
         );
 
         assert_eq!(
@@ -1221,7 +1211,6 @@ mod tests {
             dir.path(),
             Path::new("/nonexistent/recognizer"),
             Describe::Off,
-            &[],
             &[],
         );
 
@@ -1254,7 +1243,6 @@ mod tests {
                     &path.display().to_string(),
                     Describe::Off,
                     &[],
-                    &[],
                     None,
                     None,
                     || {},
@@ -1264,7 +1252,7 @@ mod tests {
 
         wait_for(&started);
 
-        let second = collect(&runs, dir.path(), &command, Describe::Off, &[], &[]);
+        let second = collect(&runs, dir.path(), &command, Describe::Off, &[]);
 
         assert_eq!(
             second,
@@ -1392,7 +1380,6 @@ mod tests {
             &command.display().to_string(),
             Describe::Stale,
             &[],
-            &[],
             None,
             Some(5.0),
             || {},
@@ -1430,7 +1417,6 @@ mod tests {
                     &runner,
                     &path.display().to_string(),
                     Describe::All,
-                    &[],
                     &[],
                     None,
                     Some(5.0),
@@ -1494,7 +1480,6 @@ mod tests {
             &runner,
             "recognizer",
             Describe::Off,
-            &[],
             &[],
             None,
             None,
@@ -2077,7 +2062,6 @@ mod tests {
             "recognizer",
             Describe::Off,
             &[],
-            &[],
             None,
             None,
             || *prepared.lock().unwrap() = true,
@@ -2176,7 +2160,6 @@ mod tests {
             dir.path(),
             &command,
             Describe::Off,
-            &[],
             &names(&["crap"]),
         );
 
@@ -2202,7 +2185,6 @@ mod tests {
             dir.path(),
             &command,
             Describe::Off,
-            &[],
             &names(&["crap"]),
         );
 
@@ -2223,7 +2205,7 @@ mod tests {
         let sense = names(&["crap"]);
         let writer = record_writer(dir.path(), "refused", 4, "app", &now_timestamp(), TWO_GAPS);
         let with = fake_command(dir.path(), &format!("{writer}\nexit 4"));
-        let result = collect(&runs, dir.path(), &with, Describe::Off, &[], &sense);
+        let result = collect(&runs, dir.path(), &with, Describe::Off, &sense);
 
         match result {
             ScanRun::Gaps { gaps } => {
@@ -2236,7 +2218,7 @@ mod tests {
 
         let bare = TempDir::new().unwrap();
         let without = fake_command(bare.path(), "echo oops >&2\nexit 4");
-        let result = collect(&runs, bare.path(), &without, Describe::Off, &[], &sense);
+        let result = collect(&runs, bare.path(), &without, Describe::Off, &sense);
 
         assert!(matches!(result, ScanRun::Failed { exit_code: 4, .. }));
     }
@@ -2255,7 +2237,6 @@ mod tests {
                 dir.path(),
                 &command,
                 Describe::Off,
-                &[],
                 &names(&["crap"]),
             );
 

@@ -124,18 +124,13 @@ impl Describe {
     }
 }
 
-pub fn scan_flags(describe: Describe, measure: &[String], sense: &[String]) -> Vec<String> {
+pub fn scan_flags(describe: Describe, sense: &[String]) -> Vec<String> {
     let mut flags = vec!["--json".to_string()];
 
     match describe {
         Describe::Off => {}
         Describe::Stale => flags.push("--describe".to_string()),
         Describe::All => flags.push("--describe=all".to_string()),
-    }
-
-    if !measure.is_empty() {
-        flags.push("--measure".to_string());
-        flags.push(measure.join(","));
     }
 
     if !sense.is_empty() {
@@ -146,15 +141,10 @@ pub fn scan_flags(describe: Describe, measure: &[String], sense: &[String]) -> V
     flags
 }
 
-pub fn scan_args(
-    folder: &Path,
-    describe: Describe,
-    measure: &[String],
-    sense: &[String],
-) -> Vec<String> {
+pub fn scan_args(folder: &Path, describe: Describe, sense: &[String]) -> Vec<String> {
     let mut args = plain_scan_args(folder);
 
-    args.extend(scan_flags(describe, measure, sense));
+    args.extend(scan_flags(describe, sense));
 
     args
 }
@@ -452,35 +442,21 @@ mod tests {
 
     #[test]
     fn the_scan_flags_are_json_plus_what_was_asked_and_never_extract() {
-        assert_eq!(scan_flags(Describe::Off, &[], &[]), ["--json"]);
+        assert_eq!(scan_flags(Describe::Off, &[]), ["--json"]);
+        assert_eq!(scan_flags(Describe::Stale, &[]), ["--json", "--describe"]);
+        assert_eq!(scan_flags(Describe::All, &[]), ["--json", "--describe=all"]);
         assert_eq!(
-            scan_flags(Describe::Stale, &[], &[]),
-            ["--json", "--describe"]
-        );
-        assert_eq!(
-            scan_flags(Describe::All, &[], &[]),
-            ["--json", "--describe=all"]
-        );
-        assert_eq!(
-            scan_flags(Describe::Off, &[], &names(&["a", "b"])),
+            scan_flags(Describe::Off, &names(&["a", "b"])),
             ["--json", "--sense", "a,b"]
         );
         assert_eq!(
-            scan_flags(Describe::Off, &names(&["m", "n"]), &[]),
-            ["--json", "--measure", "m,n"]
-        );
-        assert_eq!(
-            scan_flags(Describe::Stale, &names(&["m"]), &names(&["c"])),
-            ["--json", "--describe", "--measure", "m", "--sense", "c"]
+            scan_flags(Describe::Stale, &names(&["c"])),
+            ["--json", "--describe", "--sense", "c"]
         );
 
         for describe in [Describe::Off, Describe::Stale, Describe::All] {
-            for measure in [names(&[]), names(&["m"])] {
-                for sense in [names(&[]), names(&["a"])] {
-                    assert!(
-                        !scan_flags(describe, &measure, &sense).contains(&"--extract".to_string())
-                    );
-                }
+            for sense in [names(&[]), names(&["a"])] {
+                assert!(!scan_flags(describe, &sense).contains(&"--extract".to_string()));
             }
         }
     }
@@ -488,25 +464,13 @@ mod tests {
     #[test]
     fn the_scan_flags_follow_the_folder_in_argv() {
         let folder = Path::new("/tmp/it's a \"folder\" $(rm -rf x)");
-        let args = scan_args(
-            folder,
-            Describe::Stale,
-            &names(&["$(rm -rf x)"]),
-            &names(&["a"]),
-        );
+        let args = scan_args(folder, Describe::Stale, &names(&["$(rm -rf x)"]));
 
         assert_eq!(args[0], "scan");
         assert_eq!(args[1], folder.display().to_string());
         assert_eq!(
             args[2..],
-            [
-                "--json",
-                "--describe",
-                "--measure",
-                "$(rm -rf x)",
-                "--sense",
-                "a"
-            ]
+            ["--json", "--describe", "--sense", "$(rm -rf x)"]
         );
     }
 
