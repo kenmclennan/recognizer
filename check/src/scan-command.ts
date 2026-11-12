@@ -1,7 +1,7 @@
 import { join, relative, resolve } from "node:path";
 import { type Describing, readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
-import { readConfig } from "./config.js";
+import { policyFile, readConfig } from "./config.js";
 import {
   type ConfigRead,
   readsAnyConfig,
@@ -934,8 +934,6 @@ export async function runScan(argv: string[], io: Io): Promise<number> {
   }
 }
 
-const POLICY_FILE = ".recognizer/policy.yaml";
-
 function runStructure(io: Io, root: string, scans: Scan[]): boolean {
   if (scans.length === 0) {
     return false;
@@ -954,7 +952,12 @@ function runStructure(io: Io, root: string, scans: Scan[]): boolean {
 
     const policy = readPolicy(io, root);
 
-    warnPolicyProblems(io.stderr, POLICY_FILE, scans, policy);
+    warnPolicyProblems(
+      io.stderr,
+      relative(root, policyFile(root)),
+      scans,
+      policy,
+    );
 
     const run = runStructureSensor(io, root, scans, policy, settings);
 

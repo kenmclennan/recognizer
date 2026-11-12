@@ -11,7 +11,7 @@ import {
 } from "./baseline.js";
 import { type Ranking, rankById } from "./check.js";
 import type { Io } from "./cli.js";
-import { readConfig } from "./config.js";
+import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
 import { orderDuplication } from "./findings.js";
@@ -489,7 +489,7 @@ function touches(modules: Set<string>, names: string[]): boolean {
 }
 
 function defaultPolicyFile(io: Io, root: string): string | null {
-  const file = join(root, ".recognizer", "policy.yaml");
+  const file = policyFile(root);
 
   return io.exists(file) ? file : null;
 }
