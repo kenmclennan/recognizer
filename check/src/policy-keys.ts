@@ -37,8 +37,7 @@ export const POLICY_KEYS: KeySchema = {
       key: "levels",
       type: "string",
       multi: true,
-      description:
-        "component names, outermost first, in the order they are added",
+      description: "component names, inner first, in the order they are added",
       example: "--add levels domain",
     },
     {

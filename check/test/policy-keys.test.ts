@@ -30,6 +30,14 @@ describe("the policy keys", () => {
     }
   });
 
+  it("describes levels as inner first", () => {
+    const levels = POLICY_KEYS.keys.find((key) => key.key === "levels");
+
+    expect(levels?.description).toBe(
+      "component names, inner first, in the order they are added",
+    );
+  });
+
   it("accepts a one-segment name", () => {
     const published = publish([POLICY_KEYS], "policy");
 
