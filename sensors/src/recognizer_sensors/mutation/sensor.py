@@ -30,6 +30,7 @@ from recognizer_sensors.mutation.record import (
     with_conftests,
 )
 from recognizer_sensors.mutation.runner import (
+    BUDGET_SPENT,
     NUMBERS,
     STOP,
     Mutant,
@@ -49,6 +50,7 @@ from recognizer_sensors.mutation.runner import (
     run_function,
     run_functions,
     run_test_command,
+    watch_budget,
 )
 from recognizer_sensors.mutation.sites import Site, find_sites
 from recognizer_sensors.mutation.warmup import CARRY_HINT, coverage_run
@@ -404,7 +406,7 @@ def run_baseline(
 
     carry = copies.carry
 
-    if STOP.is_set():
+    if STOP.is_set() or BUDGET_SPENT.is_set():
         raise Stopped
 
     if result.passed and NO_AFFECTED in result.output:
@@ -1088,6 +1090,8 @@ def measure(
             repository, work, settings["max_workers"], settings.get("carry", ())
         )
         restore_handler = install_stop_handler(work)
+        end_watch = None
+        BUDGET_SPENT.clear()
 
         try:
             baselines = Baselines(
@@ -1165,6 +1169,7 @@ def measure(
             budget = settings["max_minutes"]
             started = CLOCK()
             deadline = started + budget * 60 if budget is not None else None
+            end_watch = watch_budget(deadline, CLOCK) if deadline is not None else None
             last = {"at": started}
             progressed = {"done": finished}
 
@@ -1221,6 +1226,9 @@ def measure(
             stopped = STOP.is_set()
             remove_stale_work_folders(work)
         finally:
+            if end_watch is not None:
+                end_watch()
+
             restore_handler()
 
     outcome, measured, skipped_ids, reused = assemble(done, stopped)

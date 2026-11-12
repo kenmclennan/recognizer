@@ -31,6 +31,7 @@ STOP_POLL_SECONDS = 0.05
 LIVE_LOCK_WAIT_SECONDS = 2.0
 
 STOP = threading.Event()
+BUDGET_SPENT = threading.Event()
 
 KOTLIN_JVM_OPTIONS = (
     "-Dorg.gradle.daemon=false",
@@ -405,7 +406,7 @@ def run_test_command(
 
     try:
         with LIVE_LOCK:
-            if STOP.is_set():
+            if STOP.is_set() or BUDGET_SPENT.is_set():
                 return TestRun(None, False, 0.0, "")
 
             process = subprocess.Popen(
@@ -713,7 +714,7 @@ def run_pooled(
 
             return MutantResult("killed")
 
-        if result.timed_out or result.exit_code is None or STOP.is_set():
+        if result.timed_out or result.exit_code is None or STOP.is_set() or BUDGET_SPENT.is_set():
             slot.retire()
 
     return verdict_of(result, known, directory_of(suite))
@@ -755,7 +756,7 @@ def run_function(
             copies,
         )
 
-        if STOP.is_set():
+        if STOP.is_set() or BUDGET_SPENT.is_set():
             return None
 
         results.append(result)
@@ -776,7 +777,12 @@ def run_functions(
     refusals: list[MeasurementError] = []
 
     def take(item: object) -> list | None:
-        if spent.is_set() or STOP.is_set() or (deadline is not None and clock() >= deadline):
+        if (
+            spent.is_set()
+            or STOP.is_set()
+            or BUDGET_SPENT.is_set()
+            or (deadline is not None and clock() >= deadline)
+        ):
             spent.set()
 
             return None
@@ -877,6 +883,33 @@ def stop_all() -> None:
     for process in processes:
         if process.returncode is None:
             kill_group(process)
+
+
+def watch_budget(
+    deadline: float, clock: Callable[[], float], poll: float = STOP_POLL_SECONDS
+) -> Callable[[], None]:
+    BUDGET_SPENT.clear()
+    finished = threading.Event()
+
+    def watch() -> None:
+        while not finished.is_set():
+            if clock() >= deadline:
+                BUDGET_SPENT.set()
+                stop_all()
+
+                return
+
+            finished.wait(poll)
+
+    thread = threading.Thread(target=watch, daemon=True)
+    thread.start()
+
+    def end() -> None:
+        finished.set()
+        thread.join()
+        BUDGET_SPENT.clear()
+
+    return end
 
 
 def install_stop_handler(work: Path) -> Callable[[], None]:
