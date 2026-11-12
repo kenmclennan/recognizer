@@ -1,3 +1,6 @@
+sensors:
+  crap: {}
+  mutation: {}
 tests:
   - name: core
     language: rust
