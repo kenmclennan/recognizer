@@ -65,6 +65,26 @@ function sliceLines(lines: string[], span: Span): string[] {
   return lines.slice(Math.max(span.start - 1, 0), Math.max(span.end, 0));
 }
 
+function bracketEnd(lines: string[], line: number, cap: number): number {
+  let depth = 0;
+
+  for (let n = line; n <= Math.min(cap, lines.length); n += 1) {
+    for (const char of lines[n - 1] as string) {
+      if (char === "(" || char === "[" || char === "{") {
+        depth += 1;
+      } else if (char === ")" || char === "]" || char === "}") {
+        depth -= 1;
+      }
+    }
+
+    if (depth <= 0) {
+      return n;
+    }
+  }
+
+  return Math.max(Math.min(cap, lines.length), line);
+}
+
 function collect(
   members: ScanMember[],
   lines: string[],
@@ -92,9 +112,11 @@ function collect(
     );
     const span = { start: member.line, end };
     const methods = member.methods ?? [];
+    const fields = member.fields ?? [];
     const methodStarts = methods.flatMap((m) =>
       m.line === undefined ? [] : [m.line],
     );
+    const siblingStarts = [...methodStarts, ...fields.map((f) => f.line)];
     const cut = new Set<number>();
 
     for (const method of methods) {
@@ -106,7 +128,7 @@ function collect(
 
       const methodSpan = {
         start: method.line,
-        end: siblingEnd(methodStarts, method.line, method.end_line, end),
+        end: siblingEnd(siblingStarts, method.line, method.end_line, end),
       };
 
       for (let n = methodSpan.start; n <= methodSpan.end; n += 1) {
@@ -115,6 +137,24 @@ function collect(
 
       add(`${member.name}.${method.name}`, {
         text: trimTrailingBlank(sliceLines(lines, methodSpan)),
+        own: null,
+      });
+    }
+
+    for (const field of fields) {
+      const key = `${member.name}#${field.name}`;
+      const cap = siblingEnd(siblingStarts, field.line, undefined, end);
+      const fieldSpan = {
+        start: field.line,
+        end: bracketEnd(lines, field.line, cap),
+      };
+
+      for (let n = fieldSpan.start; n <= fieldSpan.end; n += 1) {
+        cut.add(n);
+      }
+
+      add(key, {
+        text: trimTrailingBlank(sliceLines(lines, fieldSpan)),
         own: null,
       });
     }
@@ -129,7 +169,8 @@ function collect(
 
     add(member.name, {
       text: trimTrailingBlank(sliceLines(lines, span)),
-      own: methods.length > 0 ? trimTrailingBlank(own) : null,
+      own:
+        methods.length > 0 || fields.length > 0 ? trimTrailingBlank(own) : null,
     });
   }
 
@@ -144,6 +185,10 @@ function joinedOwn(occurrences: Occurrence[]): string {
   return occurrences
     .map((occurrence) => occurrence.own ?? "")
     .join("\n\u0000\n");
+}
+
+function isMemberKey(key: string): boolean {
+  return key.includes(".") || key.includes("#");
 }
 
 function linesOf(text: string): string[] {
@@ -169,8 +214,8 @@ function compare(
   }
 
   const keys = [...start.keys()].filter((key) => end.has(key));
-  const methods = keys.filter((key) => key.includes("."));
-  const parents = keys.filter((key) => !key.includes("."));
+  const methods = keys.filter((key) => isMemberKey(key));
+  const parents = keys.filter((key) => !isMemberKey(key));
 
   for (const key of methods) {
     if (
