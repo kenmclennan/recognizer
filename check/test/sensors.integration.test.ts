@@ -734,3 +734,127 @@ describe.skipIf(!HAS_UV)(
     );
   },
 );
+
+describe.skipIf(!HAS_UV)(
+  "recognizer sensors check --run then doctor leave the tree clean (needs uv)",
+  () => {
+    const saved: Record<string, string | undefined> = {};
+    let savedPath: string | undefined;
+    let repository: string;
+
+    function git(...args: string[]) {
+      return spawnSync("git", ["-C", repository, ...args], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: "t",
+          GIT_AUTHOR_EMAIL: "t@example.com",
+          GIT_COMMITTER_NAME: "t",
+          GIT_COMMITTER_EMAIL: "t@example.com",
+        },
+      });
+    }
+
+    beforeEach(() => {
+      for (const name of VARIABLES) {
+        saved[name] = process.env[name];
+      }
+
+      savedPath = process.env.PATH;
+
+      const launchers = makeTempDir("recognizer-launchers-");
+
+      repository = makeTempDir("recognizer-clean-repo-");
+      cpSync(join(REPO, "fixtures/skill-eval/repo"), repository, {
+        recursive: true,
+      });
+      mkdirSync(join(repository, ".recognizer"), { recursive: true });
+      writeFileSync(
+        join(repository, ".recognizer/config.yaml"),
+        [
+          "sensors:",
+          "  crap: {}",
+          "tests:",
+          "  - name: api",
+          "    language: python",
+          "    directory: .",
+          '    command: \'mkdir -p "$(dirname "$COVERAGE_FILE")" .recognizer/cache/coverage/api && : > "$COVERAGE_FILE" && mkdir -p "$PYTHONPYCACHEPREFIX" && : > "$PYTHONPYCACHEPREFIX/x.pyc" && printf "SF:src/shop/domain/order.py\\nDA:1,1\\nend_of_record\\n" > .recognizer/cache/coverage/api/lcov.info\'',
+          "    coverage:",
+          "      path: .recognizer/cache/coverage/api/lcov.info",
+          "      format: lcov",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(repository, ".gitignore"),
+        ".venv/\n__pycache__/\n.recognizer/cache/\n",
+      );
+      process.env.RECOGNIZER_SCAN_PYTHON = launcher(
+        launchers,
+        "python.sh",
+        `exec uv run --quiet --project ${REPO}/scanners/python recognizer-scan-python "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sensors",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
+      );
+      launcher(launchers, "python", "exit 0");
+      process.env.SHELL = launcher(
+        launchers,
+        "shell.sh",
+        [
+          'case "$2" in',
+          '  *"recognizer-check: start"*) echo "recognizer-check: start"; exit 0;;',
+          "esac",
+          'exec sh -c "$2"',
+        ].join("\n"),
+      );
+      process.env.PATH = `${launchers}:${savedPath}`;
+    });
+
+    afterEach(() => {
+      for (const name of VARIABLES) {
+        if (saved[name] === undefined) {
+          delete process.env[name];
+        } else {
+          process.env[name] = saved[name];
+        }
+      }
+
+      process.env.PATH = savedPath;
+    });
+
+    it(
+      "reports no stale scan after the suite ran",
+      async () => {
+        git("init", "-q");
+        git("add", "-A");
+        git("commit", "-q", "-m", "init");
+
+        expect(await run(["scan", repository], capture().io)).toBe(0);
+
+        const checked = capture();
+
+        await run(
+          ["sensors", "check", "--run", "--repository", repository],
+          checked.io,
+        );
+
+        expect(
+          existsSync(
+            join(repository, ".recognizer/cache/coverage/api/lcov.info"),
+          ),
+        ).toBe(true);
+        expect(git("status", "--porcelain").stdout).toBe("");
+
+        const doctor = capture();
+
+        await run(["doctor", repository, "--json"], doctor.io);
+
+        expect(doctor.out()).not.toContain("scan-stale");
+      },
+      scaledTimeout(240_000),
+    );
+  },
+);
