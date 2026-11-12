@@ -1,6 +1,7 @@
 import { runAgents } from "./agents-command.js";
 import { executeCheck } from "./check-command.js";
 import type { Io } from "./cli.js";
+import { runConfig } from "./config-command.js";
 import { runDescribeCommand } from "./describe-command.js";
 import { runHelp } from "./help.js";
 import { runLog } from "./log-command.js";
@@ -788,6 +789,112 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runSensors,
+  },
+  {
+    name: "config",
+    summary:
+      "read and edit .recognizer/config.yaml one value at a time, the way git config does",
+    usage: [
+      "recognizer config <key> <value>",
+      "recognizer config --add <key> <value>",
+      "recognizer config --get <key>",
+      "recognizer config --list",
+      "recognizer config --unset <key> [<value>]",
+      "recognizer config --remove-section <section>",
+      "recognizer config --add-section <section>",
+    ].join("\n"),
+    arguments: [
+      {
+        name: "<key>",
+        description:
+          "a dotted path to one value; `recognizer config --help` lists every key from every owner with its type, allowed values and an example",
+      },
+      {
+        name: "<value>",
+        description:
+          "the value, written as the type the key declares; a refused value changes nothing",
+      },
+      {
+        name: "<section>",
+        description:
+          "a named entry such as sensors.<name>, which registers a sensor, or a list entry found by its name",
+      },
+    ],
+    options: [
+      {
+        flag: "--add",
+        description:
+          "append the value to a multi-valued key; an item already present changes nothing",
+      },
+      {
+        flag: "--get",
+        description:
+          "print the value of the key, one item per line for a multi-valued key",
+      },
+      {
+        flag: "--list",
+        description:
+          "print every value that is set as key=value, in file order",
+      },
+      {
+        flag: "--unset",
+        description:
+          "delete the key, or with a value delete that item of a multi-valued key",
+      },
+      {
+        flag: "--remove-section",
+        description: "delete a section and everything in it",
+      },
+      {
+        flag: "--add-section",
+        description:
+          "create a section holding nothing but its name; an existing one is left alone",
+      },
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository whose config to edit; default the current directory",
+      },
+    ],
+    output: {
+      text: "a write prints nothing; --get prints the value, --list prints key=value lines; a refusal prints `recognizer config: <key>: <reason>` on stderr",
+      json: "none: this command has no --json",
+    },
+    exitCodes: [
+      {
+        code: 0,
+        meaning: "the value was written, or read, or the edit changed nothing",
+      },
+      {
+        code: 1,
+        meaning:
+          "--get, --unset or --remove-section found nothing, or --list could not address part of the file",
+      },
+      {
+        code: 2,
+        meaning:
+          "bad arguments, or a key, type, bound or allowed value the key schemas refuse; the file is unchanged",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer config sensors.mutation.max_minutes 10",
+        note: "set one value; the sensor is registered by it",
+      },
+      {
+        command: "recognizer config --add sensors.mutation.carry .venv",
+        note: "append to a multi-valued key",
+      },
+      {
+        command: "recognizer config --list",
+        note: "what is set now",
+      },
+      {
+        command: "recognizer help config",
+        note: "every key, with its type, allowed values and an example",
+      },
+    ],
+    run: runConfig,
   },
   {
     name: "windows",
