@@ -89,7 +89,7 @@ const facts = {};
 
   const changePort = fakeViews({ chg: make({ change: { base: "main", head: "feat" } }) });
   changePort.ranges.set("main..feat", { baseCommit: "cur1234", headCommit: "cur1234", merged: false, changes: [{ status: "M", path: ID }] });
-  changePort.members.set("main..feat", { baseScans: [scanOf([order, helper, gone])], files: [{ path: ID, base_text: BASE_TEXT, head_text: HEAD_TEXT }] });
+  changePort.members.set("main..feat", { baseScans: [scanOf([order, helper, gone])], headScans: [scanOf([order, helper, fresh])], files: [{ path: ID, base_text: BASE_TEXT, head_text: HEAD_TEXT }] });
   const change = mount({}, changePort);
   await tick();
   await inspect(change);
@@ -192,10 +192,12 @@ describe.skipIf(webkit === undefined)("member marks in a real browser", () => {
     expect(f.change.calls).toEqual(["main..feat"]);
   });
 
-  it("says marks need a scan, and draws none, when the range's members are unknown", () => {
+  it("says marks could not be read, and draws none, when the range's members are unknown", () => {
     expect(f.unknown.calls).toEqual(["main..feat"]);
     expect(f.unknown.bands).toBe(0);
-    expect(f.unknown.notes).toEqual(["Member marks need a scan of cur1234"]);
+    expect(f.unknown.notes).toEqual([
+      "Member marks could not be read for this range",
+    ]);
   });
 
   it("lists the three member icons under the module kinds in both legends", () => {

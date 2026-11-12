@@ -1349,7 +1349,7 @@ export function showExplorer(
         }
 
         return found === null || found.marks.get(module) === null
-          ? `Member marks need a scan of ${info.headCommit.slice(0, 7)}`
+          ? "Member marks could not be read for this range"
           : null;
       },
     };
@@ -1784,11 +1784,8 @@ export function showExplorer(
           : {
               marks: memberMarks({
                 modules: found.modules,
-                headCommit: answer.headCommit,
-                current: scans as unknown as Parameters<
-                  typeof memberMarks
-                >[0]["current"],
                 base: fetched.baseScans,
+                head: fetched.headScans,
                 files: fetched.files,
               }),
               start: fetched.baseScans,

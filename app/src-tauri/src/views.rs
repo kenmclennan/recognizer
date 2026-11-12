@@ -579,6 +579,7 @@ pub struct MemberFileTexts {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RangeMembers {
     pub base_scans: Vec<ScanFile>,
+    pub head_scans: Vec<ScanFile>,
     pub files: Vec<MemberFileTexts>,
 }
 
@@ -591,6 +592,26 @@ fn show_text(folder: &Path, commit: &str, path: &str) -> Option<String> {
     }
 
     String::from_utf8(output.stdout).ok()
+}
+
+fn scan_paths_at(
+    root: &Path,
+    folder: &Path,
+    commit: &str,
+    paths: &[String],
+    runner: &ToolRunner,
+    command: &str,
+) -> Option<Vec<ScanFile>> {
+    let temp = TempScan::create(root)?;
+
+    if !extract_paths(folder, commit, &temp.0, paths) {
+        return None;
+    }
+
+    match repository::scan_with(runner, &temp.0, command) {
+        ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
+        _ => None,
+    }
 }
 
 pub fn members_in(
@@ -622,16 +643,8 @@ pub fn members_in(
         return None;
     }
 
-    let temp = TempScan::create(root)?;
-
-    if !extract_paths(folder, base, &temp.0, &paths) {
-        return None;
-    }
-
-    let base_scans = match repository::scan_with(runner, &temp.0, command) {
-        ScanReport::Scanned { scans, .. } if !scans.is_empty() => scans,
-        _ => return None,
-    };
+    let base_scans = scan_paths_at(root, folder, base, &paths, runner, command)?;
+    let head_scans = scan_paths_at(root, folder, head, &paths, runner, command)?;
     let files = paths
         .into_iter()
         .map(|path| MemberFileTexts {
@@ -641,7 +654,11 @@ pub fn members_in(
         })
         .collect();
 
-    Some(RangeMembers { base_scans, files })
+    Some(RangeMembers {
+        base_scans,
+        head_scans,
+        files,
+    })
 }
 
 pub fn range_members(folder: &Path, base: &str, head: &str) -> Option<RangeMembers> {
@@ -960,6 +977,21 @@ mod tests {
         script
     }
 
+    fn content_scanner(dir: &Path) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let script = dir.join("content-recognizer");
+
+        fs::write(
+            &script,
+            "#!/bin/sh\nmkdir -p \"$2/.recognizer/cache\"\ntext=$(cat \"$2\"/pkg/*.py | tr '\\n' ' ')\nprintf '{\"text\":\"%s\"}' \"$text\" > \"$2/.recognizer/cache/scan.stub.json\"\n",
+        )
+        .unwrap();
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+
+        script
+    }
+
     #[test]
     fn scans_at_reads_the_modules_of_each_commit() {
         let dir = TempDir::new().unwrap();
@@ -1134,12 +1166,51 @@ mod tests {
                 .sum::<usize>(),
             2
         );
+        assert_eq!(
+            found
+                .head_scans
+                .iter()
+                .map(|scan| scan.text.matches("\"id\"").count())
+                .sum::<usize>(),
+            2
+        );
         assert_eq!(found.files.len(), 2);
         assert!(found
             .files
             .iter()
             .all(|file| file.base_text.as_deref() == Some("K = 1\n")
                 && file.head_text.as_deref() == Some("K = 2\n")));
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn range_members_scans_the_modified_files_at_the_head_commit_with_another_branch_checked_out() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 2);
+
+        assert!(git(&root, &["checkout", "-q", "main"]));
+
+        let command = content_scanner(dir.path()).display().to_string();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let found = Memoised::<RangeMembers>::default()
+            .members(temp.path(), &root, "main", "feat", &runner, &command)
+            .unwrap();
+
+        assert!(!found.head_scans.is_empty());
+        assert!(found
+            .head_scans
+            .iter()
+            .all(|scan| scan.text.contains("K = 2") && !scan.text.contains("K = 1")));
+        assert!(found
+            .base_scans
+            .iter()
+            .all(|scan| scan.text.contains("K = 1") && !scan.text.contains("K = 2")));
+        assert_eq!(
+            fs::read_to_string(root.join("pkg/keep0.py")).unwrap(),
+            "K = 1\n"
+        );
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 

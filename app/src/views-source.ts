@@ -34,6 +34,7 @@ export const viewsSource: ViewsPort = {
   async rangeMembers(base, head) {
     const found = await invoke<{
       base_scans: { file: string; text: string }[];
+      head_scans: { file: string; text: string }[];
       files: RangeMembers["files"];
     } | null>("range_members", { base, head });
 
@@ -41,6 +42,9 @@ export const viewsSource: ViewsPort = {
       ? null
       : {
           baseScans: found.base_scans.map(
+            ({ text }) => JSON.parse(text) as Scan,
+          ),
+          headScans: found.head_scans.map(
             ({ text }) => JSON.parse(text) as Scan,
           ),
           files: found.files,

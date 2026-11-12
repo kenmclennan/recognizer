@@ -13,9 +13,8 @@ export type MemberFile = {
 
 export type MemberMarksInput = {
   modules: MarkedModule[];
-  headCommit: string;
-  current: RecordedScan[];
   base: MemberScan[] | null;
+  head: MemberScan[] | null;
   files: MemberFile[] | null;
 };
 
@@ -211,12 +210,7 @@ export function memberMarks(
   }
 
   const unknownAll =
-    input.base === null ||
-    input.files === null ||
-    input.current.length === 0 ||
-    input.current.some(
-      (scan) => scan.commit !== input.headCommit || scan.modified !== false,
-    );
+    input.base === null || input.head === null || input.files === null;
 
   for (const entry of modified) {
     if (unknownAll) {
@@ -227,7 +221,7 @@ export function memberMarks(
 
     const file = (input.files ?? []).find((f) => f.path === entry.id);
     const startMembers = membersOf(input.base as MemberScan[], entry.id);
-    const endMembers = membersOf(input.current, entry.id);
+    const endMembers = membersOf(input.head as MemberScan[], entry.id);
 
     if (
       file === undefined ||
