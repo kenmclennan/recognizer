@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/config-keys.schema.json",
+  "title": "Recognizer config key schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["keys_version", "owner", "placeholders", "sections", "keys"],
+  "properties": {
+    "keys_version": { "const": 1 },
+    "owner": { "type": "string", "minLength": 1 },
+    "placeholders": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "shape", "description", "example"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "shape": { "enum": ["map-entry", "list-entry"] },
+          "identity": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "example": { "type": "string", "minLength": 1 }
+        },
+        "if": {
+          "properties": { "shape": { "const": "list-entry" } }
+        },
+        "then": { "required": ["identity"] },
+        "else": { "not": { "required": ["identity"] } }
+      }
+    },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "type", "description", "example"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "type": {
+            "enum": ["string", "integer", "number", "boolean", "enum", "path"]
+          },
+          "values": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "multi": { "type": "boolean" },
+          "minimum": { "type": "number" },
+          "exclusiveMinimum": { "type": "number" },
+          "maximum": { "type": "number" },
+          "exclusiveMaximum": { "type": "number" },
+          "description": { "type": "string", "minLength": 1 },
+          "example": { "type": "string", "minLength": 1 }
+        },
+        "if": {
+          "properties": { "type": { "const": "enum" } }
+        },
+        "then": { "required": ["values"] },
+        "else": { "not": { "required": ["values"] } }
+      }
+    }
+  }
+}

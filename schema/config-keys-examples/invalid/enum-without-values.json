@@ -1,0 +1,14 @@
+{
+  "keys_version": 1,
+  "owner": "example",
+  "placeholders": {},
+  "sections": [],
+  "keys": [
+    {
+      "key": "a.b",
+      "type": "enum",
+      "description": "an enum with no values",
+      "example": "a.b x"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "keys_version": 1,
+  "owner": "example",
+  "placeholders": { "name": "^.+$" },
+  "sections": [
+    {
+      "key": "items.<name>",
+      "shape": "list-entry",
+      "description": "a list entry with no identity key",
+      "example": "items.a.x 1"
+    }
+  ],
+  "keys": []
+}
