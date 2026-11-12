@@ -66,3 +66,29 @@ def test_the_lambda_arrow_repair_leaves_other_text_unchanged():
 
 def test_a_shebang_line_is_not_damage():
     assert not parse_file(b"#!/usr/bin/env kotlin\npackage m\n\nclass A\n").damaged
+
+
+GUARDED_WHEN_FUNCTION = """package m
+
+internal fun mapCause(exception: Exception, requestData: Request): Exception = when (exception) {
+    is ConnectException if exception.isTimeoutException() -> ConnectTimeoutException(requestData, exception)
+    is SocketTimeoutException -> SocketTimeoutException(requestData, exception)
+    else -> exception
+}
+
+fun after() {}
+"""
+
+
+def test_a_function_with_a_guarded_when_branch_keeps_its_line_range_and_params(run):
+    document = run({"F.kt": GUARDED_WHEN_FUNCTION})
+    cause = member(document, "F.kt", "mapCause")
+    after = member(document, "F.kt", "after")
+
+    assert (cause["line"], cause["end_line"]) == (3, 7)
+    assert cause["params"] == [
+        {"name": "exception", "type": "Exception"},
+        {"name": "requestData", "type": "Request"},
+    ]
+    assert cause["returns"] == "Exception"
+    assert (after["line"], after["end_line"]) == (9, 9)
