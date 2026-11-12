@@ -28,7 +28,7 @@ function scanOf(description) {
   };
 }
 
-const off = { cycle: false, hub: false, folder_cycle: false, orphan: false, policy_drift: false, stable_dependencies: false, unused_exports: false };
+const off = { cycle: false, hub: false, orphan: false, policy_drift: false, stable_dependencies: false, unused_exports: false };
 const fields = ["modules", "afferent", "efferent", "instability", "exported_members", "abstract_members", "abstractness", "distance"];
 const compact = ["| scan | folder | Ca | Ce | I | A | D |", "| --- | --- | --- | --- | --- | --- | --- |"];
 const cell = (hand, sensor) => (hand === sensor ? `${hand} = ${sensor}` : `${hand} vs ${sensor}`);

@@ -821,7 +821,6 @@ describe("check running the structure sensor", () => {
       warnings: {
         cycle: true,
         hub: true,
-        folder_cycle: true,
         orphan: true,
         policy_drift: true,
         stable_dependencies: true,
@@ -830,7 +829,7 @@ describe("check running the structure sensor", () => {
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: hub_threshold 10, instability_gap 0.2, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, unused_exports off",
+      "sensor structure: hub_threshold 10, instability_gap 0.2, cycle on, hub on, orphan on, policy_drift on, stable_dependencies on, unused_exports off",
     );
     expect(err).toBe("");
   });
@@ -961,7 +960,6 @@ describe("show and modules read the findings files", () => {
         warnings: {
           cycle: true,
           hub: true,
-          folder_cycle: true,
           orphan: true,
           policy_drift: true,
           stable_dependencies: true,
@@ -1010,7 +1008,6 @@ describe("show and modules read the findings files", () => {
         warnings: {
           cycle: true,
           hub: true,
-          folder_cycle: true,
           orphan: true,
           policy_drift: true,
         },

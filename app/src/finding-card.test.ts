@@ -64,8 +64,8 @@ describe("cardOf subject", () => {
   it("names a folder finding by the folder it is about", () => {
     const card = cardOf(
       rowOf({
-        id: "folder_cycle:lightcycle/adapters,lightcycle",
-        kind: "folder_cycle",
+        id: "stable_dependencies:lightcycle/adapters->lightcycle",
+        kind: "stable_dependencies",
         evidence: { modules: ["lightcycle/adapters/a.py"] },
       }),
     );
@@ -87,50 +87,6 @@ describe("cardOf subject", () => {
 });
 
 describe("cardOf rows", () => {
-  it("lists the cuts in rank order and no modules for a folder cycle", () => {
-    const card = cardOf(
-      rowOf({
-        id: "folder_cycle:a,b",
-        kind: "folder_cycle",
-        evidence: {
-          modules: ["a/x.py", "b/y.py"],
-          edges: [
-            { from: "a/x.py", to: "b/y.py" },
-            { from: "b/y.py", to: "a/x.py" },
-          ],
-          cuts: [
-            { from: "b/y.py", to: "a/x.py" },
-            { from: "a/x.py", to: "b/y.py" },
-          ],
-        },
-      }),
-    );
-
-    expect(card.rows).toEqual([
-      { kind: "edge", from: "b/y.py", to: "a/x.py" },
-      { kind: "edge", from: "a/x.py", to: "b/y.py" },
-    ]);
-  });
-
-  it("keeps the module and edge rows for a folder cycle without cuts", () => {
-    const card = cardOf(
-      rowOf({
-        id: "folder_cycle:a,b",
-        kind: "folder_cycle",
-        evidence: {
-          modules: ["a/x.py", "b/y.py"],
-          edges: [{ from: "a/x.py", to: "b/y.py" }],
-        },
-      }),
-    );
-
-    expect(card.rows.map((row) => row.kind)).toEqual([
-      "module",
-      "module",
-      "edge",
-    ]);
-  });
-
   it("lists modules then edges for an edge finding", () => {
     const card = cardOf(
       rowOf({
@@ -173,23 +129,6 @@ describe("cardOf rows", () => {
       name: "parse_step",
       folder: "s",
     });
-  });
-
-  it("does not cap a 40-edge folder cycle", () => {
-    const edges = Array.from({ length: 40 }, (_, i) => ({
-      from: `a/m${i}.py`,
-      to: `b/m${i}.py`,
-    }));
-
-    expect(
-      cardOf(
-        rowOf({
-          kind: "folder_cycle",
-          id: "folder_cycle:a,b",
-          evidence: { modules: [], edges },
-        }),
-      ).rows,
-    ).toHaveLength(40);
   });
 });
 

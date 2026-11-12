@@ -71,7 +71,6 @@ describe("check in repository mode", () => {
           warnings: {
             cycle: true,
             hub: true,
-            folder_cycle: true,
             orphan: true,
             policy_drift: true,
             stable_dependencies: true,
@@ -299,74 +298,61 @@ describe("check ranks duplication warnings by lines duplicated", () => {
   });
 });
 
-describe("folder cycle cuts in the report", () => {
-  function sixCutScan() {
-    const edges: [string, string][] = [];
+describe("a structure file from before the folder cycle was removed", () => {
+  const STORED = `${ROOT}/.recognizer/cache/findings/structure.json`;
 
-    for (let at = 1; at <= 6; at += 1) {
-      edges.push([`a/x${at}.py`, `b/p${at}.py`]);
-    }
-
-    for (let at = 1; at <= 7; at += 1) {
-      edges.push([`b/p${at}.py`, `a/y${at}.py`]);
-    }
-
-    const ids = [...new Set(edges.flat())];
-
-    return {
-      ...checkScan,
-      modules: ids.map((id) => ({
-        id,
-        language: "python",
-        kind: "module",
-        members: [],
-      })),
-      edges: edges.map(([from, to], index) => ({
-        from,
-        to,
-        kind: "depends",
-        line: index + 1,
-      })),
-      foreign: [],
-    };
-  }
-
-  function runOn(...flags: string[]) {
-    const scan = sixCutScan();
-    const fake = fakeIo({
+  function oldFile() {
+    return JSON.stringify({
+      findings_version: 2,
+      sensor: { name: "structure", version: "14" },
       commit: COMMIT,
-      files: {
-        ...mountedModules(scan),
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(scan),
+      modified: false,
+      settings: {
+        hub_threshold: 10,
+        instability_gap: 0.2,
+        composition_roots: [],
+        entry_points: [],
+        warnings: {
+          cycle: true,
+          hub: true,
+          folder_cycle: true,
+          orphan: true,
+          policy_drift: true,
+          stable_dependencies: true,
+          unused_exports: false,
+        },
       },
+      findings: [
+        {
+          id: "folder_cycle:a,b",
+          kind: "folder_cycle",
+          severity: "warning",
+          principle: "no-cycles",
+          summary: "folders a and b import each other",
+          fix_pattern: "break-folder-cycle",
+          evidence: {
+            modules: ["a/x.py", "b/y.py"],
+            cuts: [{ from: "a/x.py", to: "b/y.py" }],
+          },
+        },
+      ],
     });
-
-    run(["check", ...flags, "--repository", ROOT], fake.io);
-
-    return fake.out();
   }
 
-  it("prints at most 5 cuts indented under the warning and counts the rest", () => {
-    const lines = runOn().split("\n");
-    const at = lines.findIndex((line) => line.startsWith("warning: folders a"));
+  it("is recomputed, so no folder cycle is reported and the file is rewritten", () => {
+    const fake = setup({ [STORED]: oldFile() });
 
-    expect(lines[at]).toContain("removing 6 of 13 imports breaks the cycle");
-    expect(lines.slice(at + 1, at + 6)).toEqual([
-      "  cut a/x1.py -> b/p1.py",
-      "  cut a/x2.py -> b/p2.py",
-      "  cut a/x3.py -> b/p3.py",
-      "  cut a/x4.py -> b/p4.py",
-      "  cut a/x5.py -> b/p5.py",
-    ]);
-    expect(lines[at + 6]).toBe("  and 1 more cuts");
-  });
+    expect(fake.files.get(STORED)).toContain("folder_cycle");
 
-  it("carries every cut in --json", () => {
-    const warning = JSON.parse(runOn("--json")).warnings.find(
-      (one: { id: string }) => one.id === "folder_cycle",
-    );
+    const { out } = check(["--json"], fake);
+    const ids = JSON.parse(out).warnings.map((one: { id: string }) => one.id);
+    const rewritten = JSON.parse(fake.files.get(STORED) as string);
 
-    expect(warning.evidence.cuts).toHaveLength(6);
+    expect(ids).not.toContain("folder_cycle");
+    expect(rewritten.settings.warnings).not.toHaveProperty("folder_cycle");
+    expect(
+      rewritten.findings.map((one: { kind: string }) => one.kind),
+    ).not.toContain("folder_cycle");
   });
 });
 

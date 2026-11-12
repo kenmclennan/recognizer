@@ -68,7 +68,6 @@ const SENSOR_NAME = "^[a-z0-9][a-z0-9_-]{0,63}$";
 const WARNINGS = [
   "cycle",
   "hub",
-  "folder_cycle",
   "policy_drift",
   "stable_dependencies",
   "unused_exports",

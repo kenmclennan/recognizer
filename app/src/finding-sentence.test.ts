@@ -31,7 +31,6 @@ const PINNED = [
   "order.py imports memory_store.py, which the policy forbids: domain may not use adapters.",
   "money.py and order.py import each other.",
   "place.py is imported by 3 modules and imports 3; it is 40 lines with 4 members; the limit is 3.",
-  "app/adapters and app/application import each other; removing 1 of 2 imports breaks the cycle. app/application is imported by and imports most of the cycle, so splitting it is likely the real fix.",
   "audit.py is imported by nothing and is not an entry point.",
   "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them.",
   "The policy names app/legacy/**, which matches no module.",
@@ -101,7 +100,7 @@ describe("unused_exports test-only names", () => {
 });
 
 describe("the committed findings examples", () => {
-  it("render exactly the 16 pinned sentences", () => {
+  it("render exactly the 15 pinned sentences", () => {
     const rows = FILES.flatMap((name) => findingRows([load(name)]));
 
     expect(
@@ -233,45 +232,6 @@ describe("sentenceOf", () => {
     expect(
       sentence({ evidence: { modules: ["x/a.py", "x/b.py", "x/c.py"] } }),
     ).toBe("a.py, b.py and c.py form a cycle of 3.");
-  });
-
-  it("names a three-folder cycle", () => {
-    expect(
-      sentence({
-        id: "folder_cycle:app/a,app/b,app/c",
-        kind: "folder_cycle",
-        evidence: { modules: [], edges: [{}, {}, {}] as never },
-      }),
-    ).toBe(
-      "app/a, app/b and app/c import each other in a cycle, through 3 imports.",
-    );
-  });
-
-  it("leads with the cut and names a split candidate", () => {
-    expect(
-      sentence({
-        id: "folder_cycle:a,b,c",
-        kind: "folder_cycle",
-        evidence: {
-          modules: [],
-          edges: [{}, {}, {}, {}] as never,
-          cuts: [{ from: "a/x.py", to: "b/y.py" }],
-          split_candidates: ["a"],
-        },
-      }),
-    ).toBe(
-      "a, b and c import each other in a cycle; removing 1 of 4 imports breaks the cycle. a is imported by and imports most of the cycle, so splitting it is likely the real fix.",
-    );
-  });
-
-  it("names a four-folder cycle", () => {
-    expect(
-      sentence({
-        id: "folder_cycle:a,b,c,d",
-        kind: "folder_cycle",
-        evidence: { modules: [], edges: [{}, {}, {}, {}] as never },
-      }),
-    ).toBe("a, b, c and d import each other in a cycle, through 4 imports.");
   });
 
   it("says unknown coverage when the crap finding has none", () => {

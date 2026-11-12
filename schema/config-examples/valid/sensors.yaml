@@ -6,7 +6,6 @@ sensors:
     warnings:
       cycle: true
       hub: false
-      folder_cycle: true
       policy_drift: false
       stable_dependencies: true
       unused_exports: false

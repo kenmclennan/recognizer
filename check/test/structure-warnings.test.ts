@@ -17,7 +17,6 @@ import {
   structureSensor,
 } from "../src/structure-sensor.js";
 import {
-  folderCycleFindings,
   isAncestorFolder,
   orphanFindings,
   policyDriftFindings,
@@ -76,108 +75,6 @@ const CONTEXT = { commit: "abc", modified: false };
 function ids(findings: { id: string }[]) {
   return findings.map((finding) => finding.id);
 }
-
-describe("folder_cycle", () => {
-  it("names every crossing edge of a pair importing both ways", () => {
-    const found = folderCycleFindings(
-      scanOf([
-        ["a/x.py", "b/y.py"],
-        ["a/x2.py", "b/y.py"],
-        ["b/y.py", "a/x.py"],
-      ]),
-      null,
-      { hub_threshold: 10 },
-    );
-
-    expect(found).toHaveLength(1);
-    expect(found[0]).toMatchObject({
-      id: "folder_cycle:a,b",
-      kind: "folder_cycle",
-      severity: "warning",
-      principle: "no-cycles",
-      fix_pattern: "break-folder-cycle",
-      summary:
-        "folders a and b import each other; removing 1 of 3 imports breaks the cycle",
-    });
-    expect(found[0]?.evidence.edges).toEqual([
-      { from: "a/x.py", to: "b/y.py" },
-      { from: "a/x2.py", to: "b/y.py" },
-      { from: "b/y.py", to: "a/x.py" },
-    ]);
-    expect(found[0]?.evidence.modules).toEqual(["a/x.py", "a/x2.py", "b/y.py"]);
-    expect(found[0]?.evidence.cuts).toEqual([{ from: "b/y.py", to: "a/x.py" }]);
-    expect(found[0]?.evidence.split_candidates).toBeUndefined();
-  });
-
-  it("reports nothing for edges in one direction", () => {
-    expect(
-      folderCycleFindings(scanOf([["a/x.py", "b/y.py"]]), null, {
-        hub_threshold: 10,
-      }),
-    ).toEqual([]);
-  });
-
-  it("reports a ring of three folders as one finding", () => {
-    const ring = scanOf([
-      ["a/x.py", "b/y.py"],
-      ["b/y.py", "c/z.py"],
-      ["c/z.py", "a/x.py"],
-    ]);
-    const found = folderCycleFindings(ring, null, { hub_threshold: 10 });
-
-    expect(found).toHaveLength(1);
-    expect(found[0]).toMatchObject({
-      id: "folder_cycle:a,b,c",
-      summary:
-        "3 folders import each other in a cycle; removing 1 of 3 imports breaks it",
-    });
-    expect(found[0]?.evidence.edges).toHaveLength(3);
-    expect(found[0]?.evidence.cuts).toHaveLength(1);
-  });
-
-  it("names a split candidate in the summary and the evidence", () => {
-    const hub = scanOf([
-      ["a/x.py", "h/x.py"],
-      ["b/x.py", "h/x.py"],
-      ["h/x.py", "a/y.py"],
-      ["h/y.py", "b/y.py"],
-    ]);
-    const found = folderCycleFindings(hub, null, { hub_threshold: 2 });
-
-    expect(found).toHaveLength(1);
-    expect(found[0]?.evidence.split_candidates).toEqual(["h"]);
-    expect(found[0]?.summary).toContain(
-      "and h is imported by and imports most of the cycle, so splitting it is likely the real fix",
-    );
-    expect(found[0]?.summary).toContain("removing 2 of 4 imports");
-    expect(
-      folderCycleFindings(hub, null, { hub_threshold: 3 })[0]?.evidence
-        .split_candidates,
-    ).toBeUndefined();
-  });
-
-  it("pairs an ancestor and a descendant folder", () => {
-    const found = folderCycleFindings(
-      scanOf([
-        ["a/x.py", "a/b/y.py"],
-        ["a/b/y.py", "a/x.py"],
-      ]),
-      null,
-      { hub_threshold: 10 },
-    );
-
-    expect(ids(found)).toEqual(["folder_cycle:a,a/b"]);
-  });
-
-  it("leaves two modules of one folder to the module cycle", () => {
-    const same = scanOf([
-      ["a/x.py", "a/y.py"],
-      ["a/y.py", "a/x.py"],
-    ]);
-
-    expect(folderCycleFindings(same, null, { hub_threshold: 10 })).toEqual([]);
-  });
-});
 
 describe("orphan", () => {
   const orphans = (
@@ -501,14 +398,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"hub_threshold":10,"instability_gap":0.2,"composition_roots":[],"entry_points":[],"warnings":{"cycle":true,"hub":true,"folder_cycle":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
+      '{"hub_threshold":10,"instability_gap":0.2,"composition_roots":[],"entry_points":[],"warnings":{"cycle":true,"hub":true,"orphan":true,"policy_drift":true,"stable_dependencies":true,"unused_exports":false}}',
     );
     expect(document.sensor.version).toBe("14");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "hub_threshold 10, instability_gap 0.2, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on, unused_exports off";
+      "hub_threshold 10, instability_gap 0.2, cycle on, hub on, orphan on, policy_drift on, stable_dependencies on, unused_exports off";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -526,7 +423,6 @@ describe("structure settings", () => {
   });
 
   it.each([
-    ["folder_cycle", "folder_cycle:"],
     ["orphan", "orphan:"],
     ["policy_drift", "policy_drift:"],
   ] as const)("switching %s off removes only its kind", (name, prefix) => {
@@ -568,8 +464,29 @@ describe("the config examples", () => {
   });
 });
 
+describe("the removed folder_cycle warning", () => {
+  it.each(["true", "false"])(
+    "refuses a config that sets folder_cycle: %s and says it was removed",
+    (value) => {
+      const text = `sensors:\n  structure:\n    warnings:\n      folder_cycle: ${value}\n`;
+
+      expect(() => parseConfig(text)).toThrow(InputError);
+      expect(() => parseConfig(text)).toThrow(/folder_cycle was removed/);
+    },
+  );
+
+  it("still refuses an unrelated unknown warning with the generic message", () => {
+    const text =
+      "sensors:\n  structure:\n    warnings:\n      not_a_warning: true\n";
+
+    expect(() => parseConfig(text)).toThrow(InputError);
+    expect(() => parseConfig(text)).not.toThrow(/was removed/);
+    expect(() => parseConfig(text)).toThrow(/must NOT have additional/);
+  });
+});
+
 describe("fixtures/check-warnings", () => {
-  it("yields exactly the four orphans, the one three-folder cycle and no drift", () => {
+  it("yields exactly the four orphans and no drift", () => {
     const dir = join(REPO, "fixtures/check-warnings");
     const scan = validateScan(
       JSON.parse(readFileSync(join(dir, "scan.json"), "utf8")),
@@ -584,14 +501,10 @@ describe("fixtures/check-warnings", () => {
       CONTEXT,
     );
     const found = ids(document.findings).filter(
-      (id) =>
-        id.startsWith("orphan:") ||
-        id.startsWith("folder_cycle:") ||
-        id.startsWith("policy_drift:"),
+      (id) => id.startsWith("orphan:") || id.startsWith("policy_drift:"),
     );
 
     expect(found).toEqual([
-      "folder_cycle:app/adapters,app/application,app/domain",
       "orphan:app/adapters/audit.py",
       "orphan:app/adapters/clock.py",
       "orphan:app/adapters/sql.py",
@@ -815,19 +728,6 @@ describe("stable_dependencies", () => {
         [["app", "."]],
         STRICT,
       ),
-    ).toEqual([]);
-  });
-
-  it("keeps a parent and child that import each other in the folder cycle", () => {
-    const scan = scanOf([
-      ["a/x.py", "a/b/y.py"],
-      ["a/b/y.py", "a/x.py"],
-    ]);
-    const cycles = folderCycleFindings(scan, null, { hub_threshold: 10 });
-
-    expect(ids(cycles)).toEqual(["folder_cycle:a,a/b"]);
-    expect(
-      ids(stableDependenciesFindings(measureFolders([scan], null), STRICT)),
     ).toEqual([]);
   });
 
@@ -1071,7 +971,6 @@ describe("switches for the package metric warnings", () => {
         warnings: {
           cycle: false,
           hub: false,
-          folder_cycle: false,
           orphan: false,
           policy_drift: false,
           stable_dependencies: deps,
@@ -2088,7 +1987,7 @@ describe("unused_exports", () => {
 
   it("prints the switch after stable_dependencies", () => {
     const base =
-      "hub_threshold 10, instability_gap 0.2, cycle on, hub on, folder_cycle on, orphan on, policy_drift on, stable_dependencies on";
+      "hub_threshold 10, instability_gap 0.2, cycle on, hub on, orphan on, policy_drift on, stable_dependencies on";
 
     expect(
       describeSettings({

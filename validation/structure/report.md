@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**pass.** Every hand-computed metric (160 values over 20 folders) and all 33 labelled cases agree with the sensor, and the Python scanner's import graph matched grimp's once re-exports were accounted for. Over lightcycle's current scan the sensor reports one cycle, two hubs, one orphan, two folder cycles and six unstable dependencies, each traceable to its imports. The two defects this report first found, rings of three or more folders (REC-185) and a source module named `test_*.py` skipped by the Python scanner (REC-195), are both fixed.
+**pass.** Every hand-computed metric (160 values over 20 folders) and all 28 labelled cases agree with the sensor, and the Python scanner's import graph matched grimp's once re-exports were accounted for. Over lightcycle's current scan the sensor reports one cycle, two hubs, one orphan and six unstable dependencies, each traceable to its imports. The two defects this report first found, rings of three or more folders (REC-185) and a source module named `test_*.py` skipped by the Python scanner (REC-195), are both fixed.
 
 ## Method
 
@@ -15,11 +15,11 @@
 
 ### Warnings against hand labels
 
-33 cases: 5 cycle, 3 hub, 4 folder cycle, 9 orphan, 9 stable dependencies and 3 for declared child modules. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the folder cycle against a one-way dependency and two nested folders; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability. Since sensor version 7 the stable-dependencies scans also have cases for a gap exactly on `instability_gap` and just under it, a folder named in `composition_roots` as the depending side and as the target, and a folder with only foreign imports, whose instability is unknown.
+28 cases: 5 cycle, 3 hub, 9 orphan, 9 stable dependencies and 2 for declared child modules. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability. Since sensor version 7 the stable-dependencies scans also have cases for a gap exactly on `instability_gap` and just under it, a folder named in `composition_roots` as the depending side and as the target, and a folder with only foreign imports, whose instability is unknown.
 
 | result                                             | count |
 | -------------------------------------------------- | ----- |
-| cases that agree                                   | 33    |
+| cases that agree                                   | 28    |
 | cases that disagree                                | 0     |
 | findings the sensor produced that no label expects | 0     |
 
@@ -97,4 +97,4 @@ The hub counts differ only by the re-export rule already classified above; the s
 
 ## Defects to file
 
-None open. Folder cycles through three or more folders are reported since REC-185, and the Python scanner indexes a source module named `test_*.py` outside a tests directory since REC-195.
+None open. The Python scanner indexes a source module named `test_*.py` outside a tests directory since REC-195.

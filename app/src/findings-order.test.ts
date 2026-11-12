@@ -117,7 +117,6 @@ describe("findingRows", () => {
     expect(ordered.map((row) => row.kind)).toEqual([
       "rule-violation",
       "cycle",
-      "folder_cycle",
       "hub",
       "orphan",
       "orphan",

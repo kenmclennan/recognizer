@@ -75,7 +75,6 @@ export function structureDocument(
       warnings: {
         cycle: true,
         hub: true,
-        folder_cycle: true,
         orphan: true,
         policy_drift: true,
         stable_dependencies: true,

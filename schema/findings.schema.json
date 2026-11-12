@@ -158,19 +158,6 @@
                   }
                 }
               },
-              "cuts": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["from", "to"],
-                  "properties": {
-                    "from": { "type": "string", "minLength": 1 },
-                    "to": { "type": "string", "minLength": 1 }
-                  }
-                }
-              },
-              "split_candidates": { "type": "array", "items": { "type": "string", "minLength": 1 } },
               "members": {
                 "type": "array",
                 "items": {

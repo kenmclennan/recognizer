@@ -77,50 +77,6 @@
       }
     },
     {
-      "id": "folder_cycle",
-      "principle": "no-cycles",
-      "fix_pattern": "break-folder-cycle",
-      "summary": "3 folders import each other in a cycle; removing 1 of 5 imports breaks it",
-      "evidence": {
-        "modules": [
-          "app/adapters/audit.py",
-          "app/adapters/clock.py",
-          "app/adapters/memory.py",
-          "app/application/place.py",
-          "app/domain/money.py",
-          "app/domain/order.py"
-        ],
-        "edges": [
-          {
-            "from": "app/adapters/audit.py",
-            "to": "app/application/place.py"
-          },
-          {
-            "from": "app/adapters/clock.py",
-            "to": "app/application/place.py"
-          },
-          {
-            "from": "app/application/place.py",
-            "to": "app/domain/money.py"
-          },
-          {
-            "from": "app/application/place.py",
-            "to": "app/domain/order.py"
-          },
-          {
-            "from": "app/domain/order.py",
-            "to": "app/adapters/memory.py"
-          }
-        ],
-        "cuts": [
-          {
-            "from": "app/domain/order.py",
-            "to": "app/adapters/memory.py"
-          }
-        ]
-      }
-    },
-    {
       "id": "orphan",
       "principle": "every-module-is-reachable",
       "fix_pattern": "remove-or-wire-orphan",

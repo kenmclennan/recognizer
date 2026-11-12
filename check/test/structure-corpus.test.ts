@@ -117,7 +117,6 @@ function settingsFrom(description: ScanDescription): StructureSettings {
   const off = {
     cycle: false,
     hub: false,
-    folder_cycle: false,
     orphan: false,
     policy_drift: false,
     stable_dependencies: false,
@@ -158,8 +157,8 @@ function label(one: Case): string {
 }
 
 describe("structure corpus", () => {
-  it("holds 33 labelled cases and 20 folder metric rows", () => {
-    expect(expected.cases).toHaveLength(33);
+  it("holds 28 labelled cases and 20 folder metric rows", () => {
+    expect(expected.cases).toHaveLength(28);
     expect(expected.folder_metrics).toHaveLength(20);
   });
 

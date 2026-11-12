@@ -47,7 +47,6 @@ function sense(name: string, hub = 10, cycle = true, hubOn = true) {
       warnings: {
         cycle,
         hub: hubOn,
-        folder_cycle: cycle,
         orphan: cycle,
         policy_drift: cycle,
         stable_dependencies: false,
@@ -172,7 +171,6 @@ describe("structureSensor ids", () => {
       warnings: {
         cycle: false,
         hub: false,
-        folder_cycle: false,
         orphan: false,
         policy_drift: false,
         stable_dependencies: false,

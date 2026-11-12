@@ -14,7 +14,6 @@ export interface StructureSettingsInput {
   warnings?: {
     cycle?: boolean;
     hub?: boolean;
-    folder_cycle?: boolean;
     policy_drift?: boolean;
     stable_dependencies?: boolean;
     unused_exports?: boolean;
@@ -114,6 +113,24 @@ function rejectRetiredOverlays(document: unknown): void {
   }
 }
 
+function rejectRetiredWarnings(document: unknown): void {
+  if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
+    return;
+  }
+
+  const structure = document.sensors.structure;
+
+  if (
+    isPlainObject(structure) &&
+    isPlainObject(structure.warnings) &&
+    "folder_cycle" in structure.warnings
+  ) {
+    throw new InputError([
+      "config/sensors/structure/warnings/folder_cycle was removed: a folder declares no imports, so the warning had nothing of its own to report on a file; delete the key (file-level cycles are still reported by the cycle warning)",
+    ]);
+  }
+}
+
 function rejectDuplicateSuites(document: unknown): void {
   if (!isPlainObject(document) || !Array.isArray(document.tests)) {
     return;
@@ -146,6 +163,7 @@ export function parseConfig(text: string): Config {
   }
 
   rejectRetiredOverlays(document);
+  rejectRetiredWarnings(document);
 
   if (validate(document)) {
     rejectDuplicateSuites(document);
