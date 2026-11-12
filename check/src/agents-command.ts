@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
+import { SKILLS } from "./skills.js";
 
 const BASE_RULES = ["Read(**/.recognizer/**)", "Edit(**/.recognizer/**)"];
 
@@ -12,19 +13,9 @@ const CARVE_OUTS = [
 
 const DENY_RULES = [...BASE_RULES, ...CARVE_OUTS];
 
-const SKILL_TEXT = [
-  "---",
-  "name: recognizer",
-  "description: Use when the user asks about the structure of a codebase scanned with Recognizer, such as showing, explaining or extending a view of its modules.",
-  "---",
-  "",
-  "Run `recognizer help agents` and follow it.",
-  "",
-].join("\n");
-
 interface Paths {
   settings: string;
-  skill: string;
+  skills: { path: string; text: string }[];
 }
 
 type Settings = Record<string, unknown>;
@@ -40,7 +31,10 @@ function paths(io: Io): Paths {
 
   return {
     settings: join(folder, "settings.json"),
-    skill: join(folder, "skills", "recognizer", "SKILL.md"),
+    skills: SKILLS.map((skill) => ({
+      path: join(folder, "skills", skill.folder, "SKILL.md"),
+      text: skill.text,
+    })),
   };
 }
 
@@ -132,14 +126,18 @@ function install(location: Paths, io: Io): string[] {
     writeSettings(location.settings, settings, io);
   }
 
-  const existed = io.exists(location.skill);
+  const skillLines: string[] = [];
 
-  if (!existed || io.readFile(location.skill) !== SKILL_TEXT) {
-    io.writeFile(location.skill, SKILL_TEXT);
-    changes.unshift(`${existed ? "updated" : "wrote"} ${location.skill}`);
+  for (const skill of location.skills) {
+    const existed = io.exists(skill.path);
+
+    if (!existed || io.readFile(skill.path) !== skill.text) {
+      io.writeFile(skill.path, skill.text);
+      skillLines.push(`${existed ? "updated" : "wrote"} ${skill.path}`);
+    }
   }
 
-  return changes;
+  return [...skillLines, ...changes];
 }
 
 function uninstall(location: Paths, io: Io): string[] {
@@ -169,18 +167,24 @@ function uninstall(location: Paths, io: Io): string[] {
     );
   }
 
-  if (io.exists(location.skill)) {
-    io.remove(location.skill);
-    changes.unshift(`removed ${location.skill}`);
+  const skillLines: string[] = [];
 
-    const folder = join(location.skill, "..");
+  for (const skill of location.skills) {
+    if (!io.exists(skill.path)) {
+      continue;
+    }
+
+    io.remove(skill.path);
+    skillLines.push(`removed ${skill.path}`);
+
+    const folder = join(skill.path, "..");
 
     if (io.exists(folder) && io.readDir(folder).length === 0) {
       io.removeDir(folder);
     }
   }
 
-  return changes;
+  return [...skillLines, ...changes];
 }
 
 export function runAgents(argv: string[], io: Io): number {
