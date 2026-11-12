@@ -217,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
             outcome.diagnosis,
             progress if outcome.total > 0 else None,
             outcome.excluded,
+            outcome.unowned,
         )
 
         if outcome.overlay is not None:

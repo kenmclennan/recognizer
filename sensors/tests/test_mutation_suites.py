@@ -24,6 +24,8 @@ from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import Refusal, SettingsError
 from recognizer_sensors.testrun.suites import parse_suites
 
+SURVIVORS = ".recognizer/cache/mutation/survivors.json"
+
 MODULE = "def add(a, b):\n    return a + b\n"
 
 TESTS = "from pkg import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n"
@@ -137,11 +139,46 @@ def test_a_language_with_no_suite_is_not_measured_and_says_so(tmp_path, capsys):
 
     overlay = json.loads((root / ".recognizer/cache/overlays/mutation.json").read_text())
 
-    assert "no test suite is configured for typescript; its files are not measured" in (
-        capsys.readouterr().err
-    )
+    stderr = capsys.readouterr().err
+
+    assert "no test suite is configured for typescript; its files are not measured" in stderr
     assert all(not key.startswith("web/") for key in overlay["values"]["killed"])
     assert any(key.startswith("app/") for key in overlay["values"]["killed"])
+
+    document = json.loads((tmp_path / "findings-overlay.json").read_text())
+    survivors = json.loads((root / SURVIVORS).read_text())
+
+    assert document["unowned"] == {"functions": 1, "modules": ["web/a.ts"]}
+    assert "web/a.ts" in document["inputs"]
+    assert [entry["identity"] for entry in survivors["unowned"]] == ["web/a.ts::a"]
+    assert "1 functions in 1 modules not tested because no test suite covers their files" in stderr
+
+
+def test_a_file_outside_every_suite_directory_is_recorded_as_unowned(tmp_path):
+    root = make_repository(
+        tmp_path / "r",
+        {
+            "service/m.py": "def f(a):\n    return a + 1\n",
+            "other/b.py": "def f(a):\n    return a + 2\n",
+            "service/cov.info": "",
+        },
+    )
+    (root / "service/cov.info").write_text("SF:m.py\nDA:1,1\nDA:2,1\nend_of_record\n")
+    commit = git_commit(root)
+    suite = suite_raw(directory="service", command="touch cov.info #")
+
+    assert run_sensor(root, tmp_path, {"tests": [suite], "max_workers": 1}, commit) == 0
+
+    document = json.loads((tmp_path / "findings-overlay.json").read_text())
+    survivors = json.loads((root / SURVIVORS).read_text())
+
+    assert document["unowned"] == {"functions": 1, "modules": ["other/b.py"]}
+    assert "excluded" not in document
+    assert "other/b.py" in document["inputs"]
+    assert document["counts"] == {"measured": 1, "total": 1}
+    assert survivors["unowned"] == [
+        {"identity": "other/b.py::f", "file": "other/b.py", "reason": "no-owning-suite"}
+    ]
 
 
 def test_no_suite_for_any_scanned_language_refuses_with_coverage_unavailable(tmp_path, capsys):

@@ -63,6 +63,19 @@
         }
       }
     },
+    "unowned": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["functions", "modules"],
+      "properties": {
+        "functions": { "type": "integer", "minimum": 0 },
+        "modules": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "findings": {
       "type": "array",
       "items": {

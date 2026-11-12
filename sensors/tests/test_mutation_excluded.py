@@ -1,7 +1,7 @@
 import json
 import shutil
 
-from conftest import MUTATE_FIXTURE, git_commit, mutate_settings
+from conftest import MUTATE_FIXTURE, git_commit, mutate_settings, write_scan_document
 
 from recognizer_sensors.cli import main
 
@@ -15,7 +15,10 @@ LCOV_SECOND = "SF:app/second.py\nDA:1,1\nDA:2,1\nend_of_record\n"
 STRONG_SECOND = "\nfrom app.second import double\n\nassert double(3) == 6\nassert double(0) == 0\n"
 
 
-def arrange(tmp_path, files=None, lcov="", strong=""):
+TS_SOURCE = "export function a(x: number) { return x + 1; }\n"
+
+
+def arrange(tmp_path, files=None, lcov="", strong="", unowned=False):
     root = tmp_path / "sample"
     shutil.copytree(MUTATE_FIXTURE, root, ignore=shutil.ignore_patterns("scan.python.json"))
 
@@ -30,6 +33,10 @@ def arrange(tmp_path, files=None, lcov="", strong=""):
         suite = root / "tests" / "strong.py"
         suite.write_text(suite.read_text() + strong)
 
+    if unowned:
+        (root / "web").mkdir()
+        (root / "web/a.ts").write_text(TS_SOURCE)
+
     git_commit(root)
     modules = ["app/rules.py", *(name for name in (files or {}) if name.startswith("app/"))]
     cache = root / ".recognizer" / "cache"
@@ -43,6 +50,9 @@ def arrange(tmp_path, files=None, lcov="", strong=""):
             }
         )
     )
+
+    if unowned:
+        write_scan_document(root, "typescript", [{"id": "web/a.ts"}], [], ["web/a.ts"])
 
     return root
 
@@ -216,3 +226,42 @@ def test_the_committed_sample_lists_no_function_without_an_executable_line(tmp_p
     _, _, survivors = mutate(root, tmp_path)
 
     assert survivors["no_executable_line"] == []
+
+
+def test_a_module_of_a_language_with_no_suite_is_unowned_beside_an_excluded_one(tmp_path):
+    root = arrange(tmp_path, {"app/other.py": OTHER}, unowned=True)
+
+    code, document, survivors = mutate(root, tmp_path)
+
+    assert code == 0
+    assert document["unowned"] == {"functions": 1, "modules": ["web/a.ts"]}
+    assert document["excluded"] == {"functions": 1, "modules": ["app/other.py"]}
+    assert sorted(document["inputs"]) == ["app/other.py", "app/rules.py", "web/a.ts"]
+    assert document["counts"] == {"measured": 3, "total": 3}
+    assert [entry["identity"] for entry in survivors["unowned"]] == ["web/a.ts::a"]
+    assert [entry["identity"] for entry in survivors["excluded"]] == ["app/other.py::other"]
+
+
+def test_the_committed_sample_with_every_file_owned_has_no_unowned(tmp_path):
+    root = tmp_path / "sample"
+    shutil.copytree(MUTATE_FIXTURE, root, ignore=shutil.ignore_patterns("scan.python.json"))
+    git_commit(root)
+    cache = root / ".recognizer" / "cache"
+    cache.mkdir(parents=True)
+    shutil.copy(MUTATE_FIXTURE / "scan.python.json", cache / "scan.python.json")
+
+    code, document, survivors = mutate(root, tmp_path)
+
+    assert code == 0
+    assert "unowned" not in document
+    assert survivors["unowned"] == []
+
+
+def test_scope_still_lists_an_unowned_module_outside_it_in_inputs(tmp_path):
+    root = arrange(tmp_path, unowned=True)
+
+    code, document, _ = mutate(root, tmp_path, scope=["app/rules.py"])
+
+    assert code == 0
+    assert document["unowned"] == {"functions": 1, "modules": ["web/a.ts"]}
+    assert "web/a.ts" in document["inputs"]

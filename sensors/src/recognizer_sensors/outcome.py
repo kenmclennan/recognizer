@@ -22,3 +22,4 @@ class Outcome:
     diagnosis: dict | None = None
     excluded: dict | None = None
     refused: bool = False
+    unowned: dict | None = None

@@ -20,6 +20,7 @@ def build_document(
     diagnosis: dict | None = None,
     counts: dict | None = None,
     excluded: dict | None = None,
+    unowned: dict | None = None,
 ) -> dict:
     document = {
         "findings_version": 2,
@@ -48,6 +49,9 @@ def build_document(
 
     if excluded is not None:
         document["excluded"] = excluded
+
+    if unowned is not None:
+        document["unowned"] = unowned
 
     return document
 

@@ -53,6 +53,7 @@ export interface FindingsDocument {
   partial?: { measured: number; total: number };
   counts?: { measured: number; total: number };
   excluded?: { functions: number; modules: string[] };
+  unowned?: { functions: number; modules: string[] };
   findings: FindingRecord[];
   inputs?: Record<string, string>;
   tests?: string;
