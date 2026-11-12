@@ -98,6 +98,11 @@ RUST_GAPS = {
 }
 
 
+COVERAGE_RUN = re.compile(r"(^|[\s;&|(])(-m\s+)?coverage\s+run\b")
+COVERAGE_CONFIG_FILES = (".coveragerc", "setup.cfg", "tox.ini", "pyproject.toml")
+PYTEST_CONFIG_FILES = ("pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini")
+
+
 def no_contexts_line(name: str) -> str:
     return (
         f"no test contexts: the {name} suite's coverage data records no per-test context, so "
@@ -105,6 +110,56 @@ def no_contexts_line(name: str) -> str:
         "(pytest --cov=PACKAGE), or set dynamic_context = test_function in the repository's "
         "own coverage configuration; Recognizer changes neither"
     )
+
+
+def file_names(directory: Path, names: tuple[str, ...], text: str) -> bool:
+    for name in names:
+        try:
+            if text in (directory / name).read_text(encoding="utf-8", errors="replace"):
+                return True
+        except OSError:
+            continue
+
+    return False
+
+
+def lacks_contexts(suite: Suite, directory: Path) -> bool:
+    if suite.language != "python":
+        return False
+
+    match = COVERAGE_RUN.search(suite.command)
+
+    if match is None or "pytest" not in suite.command[match.end() :]:
+        return False
+
+    if "--cov" in suite.command or "--rcfile" in suite.command:
+        return False
+
+    if "COVERAGE_RCFILE" in suite.command or "COVERAGE_RCFILE" in suite.env:
+        return False
+
+    if file_names(directory, COVERAGE_CONFIG_FILES, "dynamic_context"):
+        return False
+
+    return not file_names(directory, PYTEST_CONFIG_FILES, "--cov")
+
+
+def mutation_check(
+    repository: Path, settings: dict, run: bool, names: list[str] | None = None
+) -> tuple[list[dict], list[dict]]:
+    gaps, notes = check_with_notes(repository, settings, run, names)
+    raw = settings.get("suites")
+
+    if raw is None:
+        return gaps, notes
+
+    for suite in selected((Suite(**item) for item in raw), names):
+        directory = repository / suite.directory
+
+        if directory.is_dir() and lacks_contexts(suite, directory):
+            gaps.append(suite_gap("no-test-contexts", suite, no_contexts_line(suite.name)))
+
+    return gaps, notes
 
 
 def gap(code: str, suite: str | None, line: str) -> dict:

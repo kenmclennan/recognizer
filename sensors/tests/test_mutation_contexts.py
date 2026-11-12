@@ -9,6 +9,7 @@ from recognizer_sensors.mutation.warmup import coverage_run
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun.contexts import PYTHON_DATA, PythonContexts
+from recognizer_sensors.testrun.readiness import lacks_contexts
 from recognizer_sensors.testrun.suites import parse_suites
 
 SHOP = """def body_only(x):
@@ -163,3 +164,57 @@ def test_data_holding_only_the_empty_context_records_nothing(tmp_path):
     assert not reader.recorded
     assert (tmp_path / PYTHON_DATA).exists()
     assert CoverageData(basename=str(tmp_path / PYTHON_DATA))
+
+
+def gap_suite(command, env=None):
+    raw = suite_raw(command=command)
+
+    if env:
+        raw["env"] = env
+
+    return parse_suites([raw])[0]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "coverage run -m pytest tests",
+        "python -m coverage run -m pytest -q",
+        "uv run coverage run -m pytest",
+    ],
+)
+def test_a_command_that_proves_the_refusal_is_a_gap(tmp_path, command):
+    assert lacks_contexts(gap_suite(command), tmp_path)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pytest --cov=app tests",
+        "make test",
+        "coverage run -m pytest --cov=app",
+        "coverage run --rcfile=ci.cfg -m pytest",
+        "coverage run -m unittest",
+    ],
+)
+def test_a_command_that_may_record_contexts_is_no_gap(tmp_path, command):
+    assert not lacks_contexts(gap_suite(command), tmp_path)
+
+
+def test_a_coverage_rcfile_in_the_env_is_no_gap(tmp_path):
+    suite = gap_suite("coverage run -m pytest", {"COVERAGE_RCFILE": "ci.cfg"})
+
+    assert not lacks_contexts(suite, tmp_path)
+
+
+@pytest.mark.parametrize("name", [".coveragerc", "setup.cfg", "tox.ini", "pyproject.toml"])
+def test_dynamic_context_in_a_coverage_config_file_is_no_gap(tmp_path, name):
+    (tmp_path / name).write_text("dynamic_context = test_function\n")
+
+    assert not lacks_contexts(gap_suite("coverage run -m pytest"), tmp_path)
+
+
+def test_cov_in_a_pytest_config_is_no_gap(tmp_path):
+    (tmp_path / "pytest.ini").write_text("[pytest]\naddopts = --cov=app\n")
+
+    assert not lacks_contexts(gap_suite("coverage run -m pytest"), tmp_path)
