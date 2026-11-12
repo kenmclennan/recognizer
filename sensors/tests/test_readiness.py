@@ -655,7 +655,7 @@ def run_cli(args, capsys):
 
 
 def test_the_check_flag_needs_no_commit(tmp_path, capsys):
-    status, out = run_cli(["duplication", "--repository", str(tmp_path), "--check"], capsys)
+    status, out = run_cli(["thresholds", "--repository", str(tmp_path), "--check"], capsys)
 
     assert status == 0
     assert json.loads(out) == {"gaps": [], "notes": []}
@@ -671,7 +671,7 @@ def test_the_check_flag_prints_gaps_runs_no_tests_and_writes_nothing(tmp_path, c
     assert sorted(path.name for path in tmp_path.iterdir()) == before
 
 
-@pytest.mark.parametrize("name", ["duplication", "thresholds"])
+@pytest.mark.parametrize("name", ["thresholds"])
 def test_a_sensor_without_a_check_prints_no_gaps(name, tmp_path, capsys):
     status, out = run_cli([name, "--repository", str(tmp_path), "--check"], capsys)
 
@@ -1030,9 +1030,7 @@ def test_a_malformed_tests_list_is_the_config_gap_with_exit_zero(tmp_path, capsy
     }
 
 
-def test_the_guide_of_crap_names_the_mandated_tools_and_duplication_prints_nothing(
-    tmp_path, capsys
-):
+def test_the_guide_of_crap_names_the_mandated_tools_and_thresholds_prints_nothing(tmp_path, capsys):
     status, out = run_cli(["crap", "--guide"], capsys)
 
     assert status == 0
@@ -1051,7 +1049,7 @@ def test_the_guide_of_crap_names_the_mandated_tools_and_duplication_prints_nothi
     ):
         assert word in out
 
-    assert run_cli(["duplication", "--guide"], capsys) == (0, "")
+    assert run_cli(["thresholds", "--guide"], capsys) == (0, "")
 
 
 def test_an_unticked_suite_with_a_missing_tool_gives_no_gap(harness):

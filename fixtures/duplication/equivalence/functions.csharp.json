@@ -1,0 +1,290 @@
+[
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.straight",
+  "start_line": 7,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.straight"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.Flag",
+  "start_line": 12,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.Flag"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.Guarded.get",
+  "start_line": 15,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.Guarded.get"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.stacked",
+  "start_line": 21,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.stacked"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.arms",
+  "start_line": 29,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.arms"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.chain",
+  "start_line": 38,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.chain"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.filtered",
+  "start_line": 45,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.filtered"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.withLocal",
+  "start_line": 58,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.withLocal"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.withLocal.Local",
+  "start_line": 59,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.withLocal.Local"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.lambda",
+  "start_line": 70,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.lambda"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.mixed",
+  "start_line": 81,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.mixed"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.wide",
+  "start_line": 93,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.wide"
+ },
+ {
+  "module": "fixtures/crap/corpus/csharp/Risk.cs",
+  "name": "Risk.sprawl",
+  "start_line": 109,
+  "identity": "fixtures/crap/corpus/csharp/Risk.cs::Risk.sprawl"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Accessors.cs",
+  "name": "Limits.RetryLimit",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/csharp/src/Accessors.cs::Limits.RetryLimit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Accessors.cs",
+  "name": "Limits.PageSize",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/csharp/src/Accessors.cs::Limits.PageSize"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Accessors.cs",
+  "name": "Limits.QueueDepth",
+  "start_line": 19,
+  "identity": "fixtures/duplication/corpus/csharp/src/Accessors.cs::Limits.QueueDepth"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Accessors.cs",
+  "name": "Limits.IdleTimeout",
+  "start_line": 24,
+  "identity": "fixtures/duplication/corpus/csharp/src/Accessors.cs::Limits.IdleTimeout"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Branching.cs",
+  "name": "Budgets.RetryLimit",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/csharp/src/Branching.cs::Budgets.RetryLimit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Branching.cs",
+  "name": "Budgets.PageSize",
+  "start_line": 13,
+  "identity": "fixtures/duplication/corpus/csharp/src/Branching.cs::Budgets.PageSize"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Constructors.cs",
+  "name": "Orders.Orders",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/csharp/src/Constructors.cs::Orders.Orders"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Constructors.cs",
+  "name": "Parcels.Parcels",
+  "start_line": 14,
+  "identity": "fixtures/duplication/corpus/csharp/src/Constructors.cs::Parcels.Parcels"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Constructors.cs",
+  "name": "Visits.Visits",
+  "start_line": 25,
+  "identity": "fixtures/duplication/corpus/csharp/src/Constructors.cs::Visits.Visits"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Distinct.cs",
+  "name": "Distinct.ReadConfig",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/csharp/src/Distinct.cs::Distinct.ReadConfig"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Distinct.cs",
+  "name": "Distinct.RenderTable",
+  "start_line": 15,
+  "identity": "fixtures/duplication/corpus/csharp/src/Distinct.cs::Distinct.RenderTable"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Distinct.cs",
+  "name": "Distinct.WalkTree",
+  "start_line": 26,
+  "identity": "fixtures/duplication/corpus/csharp/src/Distinct.cs::Distinct.WalkTree"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Distinct.cs",
+  "name": "Distinct.ClampRange",
+  "start_line": 42,
+  "identity": "fixtures/duplication/corpus/csharp/src/Distinct.cs::Distinct.ClampRange"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Distinct.cs",
+  "name": "Distinct.ParseFlags",
+  "start_line": 54,
+  "identity": "fixtures/duplication/corpus/csharp/src/Distinct.cs::Distinct.ParseFlags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Distinct.cs",
+  "name": "Distinct.MergeSorted",
+  "start_line": 72,
+  "identity": "fixtures/duplication/corpus/csharp/src/Distinct.cs::Distinct.MergeSorted"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Near.cs",
+  "name": "Near.GatherNames",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/csharp/src/Near.cs::Near.GatherNames"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Near.cs",
+  "name": "Near.GatherTags",
+  "start_line": 25,
+  "identity": "fixtures/duplication/corpus/csharp/src/Near.cs::Near.GatherTags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Near.cs",
+  "name": "Near.FetchPages",
+  "start_line": 48,
+  "identity": "fixtures/duplication/corpus/csharp/src/Near.cs::Near.FetchPages"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Near.cs",
+  "name": "Near.FetchEvents",
+  "start_line": 69,
+  "identity": "fixtures/duplication/corpus/csharp/src/Near.cs::Near.FetchEvents"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Near.cs",
+  "name": "Near.SummariseOrders",
+  "start_line": 91,
+  "identity": "fixtures/duplication/corpus/csharp/src/Near.cs::Near.SummariseOrders"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Near.cs",
+  "name": "Near.SummariseVisits",
+  "start_line": 109,
+  "identity": "fixtures/duplication/corpus/csharp/src/Near.cs::Near.SummariseVisits"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Planted.cs",
+  "name": "Planted.OrderTotal",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/csharp/src/Planted.cs::Planted.OrderTotal"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Planted.cs",
+  "name": "Planted.ParcelWeight",
+  "start_line": 16,
+  "identity": "fixtures/duplication/corpus/csharp/src/Planted.cs::Planted.ParcelWeight"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Planted.cs",
+  "name": "Planted.LoadSettings",
+  "start_line": 29,
+  "identity": "fixtures/duplication/corpus/csharp/src/Planted.cs::Planted.LoadSettings"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Planted.cs",
+  "name": "Planted.LoadSession",
+  "start_line": 47,
+  "identity": "fixtures/duplication/corpus/csharp/src/Planted.cs::Planted.LoadSession"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Planted.cs",
+  "name": "Planted.StoreReport",
+  "start_line": 65,
+  "identity": "fixtures/duplication/corpus/csharp/src/Planted.cs::Planted.StoreReport"
+ },
+ {
+  "module": "fixtures/duplication/corpus/csharp/src/Planted.cs",
+  "name": "Planted.StoreLedger",
+  "start_line": 75,
+  "identity": "fixtures/duplication/corpus/csharp/src/Planted.cs::Planted.StoreLedger"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.Total",
+  "start_line": 5,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.Total"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.this",
+  "start_line": 7,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.this"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.Get",
+  "start_line": 9,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.Get@9"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.Get",
+  "start_line": 21,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.Get@21"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.Count.get",
+  "start_line": 28,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.Count.get"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.Count.set",
+  "start_line": 29,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.Count.set"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.~Store",
+  "start_line": 32,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.~Store"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs",
+  "name": "Store.operator +",
+  "start_line": 37,
+  "identity": "fixtures/duplication/equivalence/sources/csharp/Constructs.cs::Store.operator +"
+ }
+]

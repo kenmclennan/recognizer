@@ -107,7 +107,7 @@ describe("the core's own key table", () => {
       string,
       { type: string; minimum?: number; maximum?: number },
     ][]) {
-      if (name === "warnings") {
+      if (name === "warnings" || name === "duplication") {
         continue;
       }
 
@@ -120,6 +120,38 @@ describe("the core's own key table", () => {
       expect(key.minimum, name).toBe(schema.minimum);
       expect(key.maximum, name).toBe(schema.maximum);
       seen.push(`sensors.structure.${name}`);
+    }
+
+    const duplication = (
+      structure.duplication as unknown as {
+        oneOf: [
+          { const: false },
+          {
+            properties: Record<
+              string,
+              {
+                type: string;
+                minimum?: number;
+                maximum?: number;
+                exclusiveMinimum?: number;
+              }
+            >;
+          },
+        ];
+      }
+    ).oneOf;
+
+    expect(core("sensors.structure.duplication").type).toBe("boolean");
+    seen.push("sensors.structure.duplication");
+
+    for (const [name, schema] of Object.entries(duplication[1].properties)) {
+      const key = core(`sensors.structure.duplication.${name}`);
+
+      expect(key.type, name).toBe(schema.type);
+      expect(key.minimum, name).toBe(schema.minimum);
+      expect(key.maximum, name).toBe(schema.maximum);
+      expect(key.exclusiveMinimum, name).toBe(schema.exclusiveMinimum);
+      seen.push(`sensors.structure.duplication.${name}`);
     }
 
     const switches = Object.keys(warnings);

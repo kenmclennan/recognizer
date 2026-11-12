@@ -136,9 +136,22 @@ export function pythonInstallArguments(wheelhouse, target, version) {
   ];
 }
 
+const SOURCE_GRAMMARS = [
+  "python",
+  "typescript",
+  "tsx",
+  "kotlin",
+  "rust",
+  "csharp",
+];
+
 export function archiveEntries(version, closurePaths) {
   return [
     ...OWN_PACKAGES.map((name) => `node_modules/${name}/package.json`),
+    ...SOURCE_GRAMMARS.map(
+      (name) => `node_modules/recognizer/grammars/${name}.wasm`,
+    ),
+    "node_modules/recognizer/grammars/PROVENANCE.json",
     ...closurePaths.map((path) => `${path}/package.json`),
     ...PYTHON_COMMANDS.map(({ module }) => `${PYTHON_FOLDER}/${module}/cli.py`),
     ...PYTHON_COMMANDS.map(

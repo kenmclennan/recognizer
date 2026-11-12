@@ -1,5 +1,4 @@
 sensors:
-  duplication: {}
   crap: {}
   mutation:
     carry: [.venv]

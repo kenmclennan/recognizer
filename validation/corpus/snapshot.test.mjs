@@ -52,7 +52,6 @@ function fixtureRepository() {
 function stubTools(failScan = false) {
   const bin = makeTempDir("corpus-bin-");
   const recognizer = join(bin, "recognizer");
-  const sensors = join(bin, "recognizer-sensors");
 
   writeFileSync(
     recognizer,
@@ -66,23 +65,17 @@ if (args[0] === "scan") {
   const cache = path.join(args[1], ".recognizer/cache");
   fs.mkdirSync(cache, { recursive: true });
   fs.writeFileSync(path.join(cache, "scan.python.json"), "{\\"scan\\":true}");
+  fs.mkdirSync(path.join(cache, "findings"), { recursive: true });
+  fs.writeFileSync(path.join(cache, "findings/structure.json"), "{\\"sensor\\":\\"structure\\"}");
   process.exit(0);
 }
 if (args[0] === "check") { console.log("{\\"check\\":true}"); console.error("warnings: 0"); process.exit(0); }
 process.exit(2);
 `,
   );
-  writeFileSync(
-    sensors,
-    `#!/usr/bin/env node
-const args = process.argv.slice(2);
-require("node:fs").writeFileSync(args[args.indexOf("--output") + 1], "{\\"sensor\\":\\"duplication\\"}");
-`,
-  );
   chmodSync(recognizer, 0o755);
-  chmodSync(sensors, 0o755);
 
-  return { recognizer, sensors };
+  return { recognizer };
 }
 
 describe("parseManifest", () => {
@@ -163,8 +156,8 @@ describe("runCorpus", () => {
     expect(readdirSync(join(snapshot, "sample")).sort()).toEqual([
       "check.python.err",
       "check.python.json",
-      "duplication.json",
       "scan.python.json",
+      "structure.json",
     ]);
     expect(readFileSync(join(snapshot, "sample/check.python.json"), "utf8")).toBe(
       '{"check":true}\n',
@@ -213,7 +206,7 @@ describe("runCorpus", () => {
       /scan blew up/,
     );
     expect(existsSync(join(snapshot, "missing/error.txt"))).toBe(true);
-    expect(existsSync(join(snapshot, "sample/duplication.json"))).toBe(true);
+    expect(existsSync(join(snapshot, "sample/structure.json"))).toBe(true);
     expect(existsSync(join(out, "repos/sample/.git"))).toBe(true);
   });
 

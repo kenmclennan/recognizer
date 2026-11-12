@@ -131,16 +131,10 @@ function snapshotRepository(entry, clone, folder, tools) {
     }
   }
 
-  const duplication = run(tools.sensors, [
-    "duplication",
-    "--repository",
-    clone,
-    "--output",
-    join(folder, "duplication.json"),
-  ]);
+  const structure = join(clone, ".recognizer/cache/findings/structure.json");
 
-  if (duplication.status !== 0) {
-    errors.push(failure("duplication sensor", duplication));
+  if (existsSync(structure)) {
+    copyFileSync(structure, join(folder, "structure.json"));
   }
 
   if (errors.length > 0) {
@@ -161,7 +155,6 @@ export function runCorpus({
 } = {}) {
   const settled = {
     recognizer: tools.recognizer ?? "recognizer",
-    sensors: tools.sensors ?? "recognizer-sensors",
   };
 
   const target = resolve(out);

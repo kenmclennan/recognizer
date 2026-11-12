@@ -154,7 +154,7 @@ def test_the_example_of_every_sensor_key_is_accepted_by_that_sensor_parser():
         sensor.parse_settings(settings)
         checked.append(entry["key"])
 
-    assert len(checked) >= 15
+    assert len(checked) >= 14
 
 
 def test_the_examples_of_the_test_keys_build_a_suite_parse_suite_accepts():
@@ -276,7 +276,7 @@ def test_every_shipped_short_form_property_has_a_published_key_and_back():
     keys = published()
     seen = []
 
-    for sensor in ("duplication", "crap", "mutation"):
+    for sensor in ("crap", "mutation"):
         short = next(
             branch
             for branch in config[sensor]["oneOf"]
@@ -312,7 +312,7 @@ def test_every_shipped_short_form_property_has_a_published_key_and_back():
         "sensors.thresholds.<metric>",
         *{f"sensors.thresholds.<metric>.{name}" for name in entry["properties"]},
     }
-    assert len(seen) >= 15
+    assert len(seen) >= 13
 
 
 def test_the_metric_placeholder_refuses_command_as_the_config_schema_does():

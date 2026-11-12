@@ -1,0 +1,254 @@
+[
+ {
+  "id": "duplication:near.rs::gather_names|near.rs::gather_tags",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "gather_names in near.rs is 88% similar to gather_tags in near.rs",
+  "evidence": {
+   "modules": [
+    "near.rs"
+   ],
+   "members": [
+    {
+     "module": "near.rs",
+     "name": "gather_names",
+     "file": "near.rs",
+     "lines": [
+      1,
+      17
+     ]
+    },
+    {
+     "module": "near.rs",
+     "name": "gather_tags",
+     "file": "near.rs",
+     "lines": [
+      19,
+      36
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.876
+   }
+  }
+ },
+ {
+  "id": "duplication:near.rs::fetch_events|near.rs::fetch_pages",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "fetch_events in near.rs is 87% similar to fetch_pages in near.rs",
+  "evidence": {
+   "modules": [
+    "near.rs"
+   ],
+   "members": [
+    {
+     "module": "near.rs",
+     "name": "fetch_events",
+     "file": "near.rs",
+     "lines": [
+      55,
+      71
+     ]
+    },
+    {
+     "module": "near.rs",
+     "name": "fetch_pages",
+     "file": "near.rs",
+     "lines": [
+      38,
+      53
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.871
+   }
+  }
+ },
+ {
+  "id": "duplication:near.rs::summarise_orders|near.rs::summarise_visits",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "summarise_orders in near.rs is 95% similar to summarise_visits in near.rs",
+  "evidence": {
+   "modules": [
+    "near.rs"
+   ],
+   "members": [
+    {
+     "module": "near.rs",
+     "name": "summarise_orders",
+     "file": "near.rs",
+     "lines": [
+      73,
+      86
+     ]
+    },
+    {
+     "module": "near.rs",
+     "name": "summarise_visits",
+     "file": "near.rs",
+     "lines": [
+      88,
+      102
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.951
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.rs::load_session|planted.rs::load_settings",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "load_session in planted.rs is 100% similar to load_settings in planted.rs",
+  "evidence": {
+   "modules": [
+    "planted.rs"
+   ],
+   "members": [
+    {
+     "module": "planted.rs",
+     "name": "load_session",
+     "file": "planted.rs",
+     "lines": [
+      34,
+      45
+     ]
+    },
+    {
+     "module": "planted.rs",
+     "name": "load_settings",
+     "file": "planted.rs",
+     "lines": [
+      21,
+      32
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.rs::order_total|planted.rs::parcel_weight",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "order_total in planted.rs is 100% similar to parcel_weight in planted.rs",
+  "evidence": {
+   "modules": [
+    "planted.rs"
+   ],
+   "members": [
+    {
+     "module": "planted.rs",
+     "name": "order_total",
+     "file": "planted.rs",
+     "lines": [
+      1,
+      9
+     ]
+    },
+    {
+     "module": "planted.rs",
+     "name": "parcel_weight",
+     "file": "planted.rs",
+     "lines": [
+      11,
+      19
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.rs::store_ledger|planted.rs::store_report",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "store_ledger in planted.rs is 89% similar to store_report in planted.rs",
+  "evidence": {
+   "modules": [
+    "planted.rs"
+   ],
+   "members": [
+    {
+     "module": "planted.rs",
+     "name": "store_ledger",
+     "file": "planted.rs",
+     "lines": [
+      57,
+      65
+     ]
+    },
+    {
+     "module": "planted.rs",
+     "name": "store_report",
+     "file": "planted.rs",
+     "lines": [
+      47,
+      55
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.892
+   }
+  }
+ },
+ {
+  "id": "duplication:branching.rs::Limits.page_size|branching.rs::Limits.retry_limit",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Limits.page_size in branching.rs is 100% similar to Limits.retry_limit in branching.rs",
+  "evidence": {
+   "modules": [
+    "branching.rs"
+   ],
+   "members": [
+    {
+     "module": "branching.rs",
+     "name": "Limits.page_size",
+     "file": "branching.rs",
+     "lines": [
+      11,
+      16
+     ]
+    },
+    {
+     "module": "branching.rs",
+     "name": "Limits.retry_limit",
+     "file": "branching.rs",
+     "lines": [
+      4,
+      9
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ }
+]

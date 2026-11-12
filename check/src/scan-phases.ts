@@ -267,6 +267,12 @@ export function selectSensors(
     return registered;
   }
 
+  if (requested.includes("duplication")) {
+    throw new InputError([
+      "duplication is part of the structure sensor and runs with every scan",
+    ]);
+  }
+
   const names = registered.map((one) => one.name);
   const unknown = requested.filter(
     (name) => !names.includes(name) && !shipped.includes(name),

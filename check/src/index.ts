@@ -37,6 +37,10 @@ export {
   type TestSuite,
 } from "./config-parse.js";
 export { describerVersion } from "./describer-version.js";
+export {
+  carryDuplication,
+  duplicationUnmeasured,
+} from "./duplication/carry.js";
 export { InputError } from "./errors.js";
 export {
   type Finding,

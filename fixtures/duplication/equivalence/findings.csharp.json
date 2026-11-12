@@ -1,0 +1,254 @@
+[
+ {
+  "id": "duplication:src/Near.cs::Near.GatherNames|src/Near.cs::Near.GatherTags",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Near.GatherNames in src/Near.cs is 87% similar to Near.GatherTags in src/Near.cs",
+  "evidence": {
+   "modules": [
+    "src/Near.cs"
+   ],
+   "members": [
+    {
+     "module": "src/Near.cs",
+     "name": "Near.GatherNames",
+     "file": "src/Near.cs",
+     "lines": [
+      3,
+      23
+     ]
+    },
+    {
+     "module": "src/Near.cs",
+     "name": "Near.GatherTags",
+     "file": "src/Near.cs",
+     "lines": [
+      25,
+      46
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.873
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Near.cs::Near.FetchEvents|src/Near.cs::Near.FetchPages",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Near.FetchEvents in src/Near.cs is 87% similar to Near.FetchPages in src/Near.cs",
+  "evidence": {
+   "modules": [
+    "src/Near.cs"
+   ],
+   "members": [
+    {
+     "module": "src/Near.cs",
+     "name": "Near.FetchEvents",
+     "file": "src/Near.cs",
+     "lines": [
+      69,
+      89
+     ]
+    },
+    {
+     "module": "src/Near.cs",
+     "name": "Near.FetchPages",
+     "file": "src/Near.cs",
+     "lines": [
+      48,
+      67
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.87
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Near.cs::Near.SummariseOrders|src/Near.cs::Near.SummariseVisits",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Near.SummariseOrders in src/Near.cs is 95% similar to Near.SummariseVisits in src/Near.cs",
+  "evidence": {
+   "modules": [
+    "src/Near.cs"
+   ],
+   "members": [
+    {
+     "module": "src/Near.cs",
+     "name": "Near.SummariseOrders",
+     "file": "src/Near.cs",
+     "lines": [
+      91,
+      107
+     ]
+    },
+    {
+     "module": "src/Near.cs",
+     "name": "Near.SummariseVisits",
+     "file": "src/Near.cs",
+     "lines": [
+      109,
+      126
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.948
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Planted.cs::Planted.LoadSession|src/Planted.cs::Planted.LoadSettings",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Planted.LoadSession in src/Planted.cs is 100% similar to Planted.LoadSettings in src/Planted.cs",
+  "evidence": {
+   "modules": [
+    "src/Planted.cs"
+   ],
+   "members": [
+    {
+     "module": "src/Planted.cs",
+     "name": "Planted.LoadSession",
+     "file": "src/Planted.cs",
+     "lines": [
+      47,
+      63
+     ]
+    },
+    {
+     "module": "src/Planted.cs",
+     "name": "Planted.LoadSettings",
+     "file": "src/Planted.cs",
+     "lines": [
+      29,
+      45
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Planted.cs::Planted.OrderTotal|src/Planted.cs::Planted.ParcelWeight",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Planted.OrderTotal in src/Planted.cs is 100% similar to Planted.ParcelWeight in src/Planted.cs",
+  "evidence": {
+   "modules": [
+    "src/Planted.cs"
+   ],
+   "members": [
+    {
+     "module": "src/Planted.cs",
+     "name": "Planted.OrderTotal",
+     "file": "src/Planted.cs",
+     "lines": [
+      3,
+      14
+     ]
+    },
+    {
+     "module": "src/Planted.cs",
+     "name": "Planted.ParcelWeight",
+     "file": "src/Planted.cs",
+     "lines": [
+      16,
+      27
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Branching.cs::Budgets.PageSize|src/Branching.cs::Budgets.RetryLimit",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Budgets.PageSize in src/Branching.cs is 100% similar to Budgets.RetryLimit in src/Branching.cs",
+  "evidence": {
+   "modules": [
+    "src/Branching.cs"
+   ],
+   "members": [
+    {
+     "module": "src/Branching.cs",
+     "name": "Budgets.PageSize",
+     "file": "src/Branching.cs",
+     "lines": [
+      13,
+      21
+     ]
+    },
+    {
+     "module": "src/Branching.cs",
+     "name": "Budgets.RetryLimit",
+     "file": "src/Branching.cs",
+     "lines": [
+      3,
+      11
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Planted.cs::Planted.StoreLedger|src/Planted.cs::Planted.StoreReport",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Planted.StoreLedger in src/Planted.cs is 88% similar to Planted.StoreReport in src/Planted.cs",
+  "evidence": {
+   "modules": [
+    "src/Planted.cs"
+   ],
+   "members": [
+    {
+     "module": "src/Planted.cs",
+     "name": "Planted.StoreLedger",
+     "file": "src/Planted.cs",
+     "lines": [
+      75,
+      83
+     ]
+    },
+    {
+     "module": "src/Planted.cs",
+     "name": "Planted.StoreReport",
+     "file": "src/Planted.cs",
+     "lines": [
+      65,
+      73
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.877
+   }
+  }
+ }
+]

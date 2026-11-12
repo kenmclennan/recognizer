@@ -67,7 +67,9 @@ describe("scanning check/", () => {
 
     expect(doc.modules.length).toBe(sources.length);
     expect(
-      doc.modules.every((m: { id: string }) => /^(src|scripts)\//.test(m.id)),
+      doc.modules.every((m: { id: string }) =>
+        /^(src|scripts|grammars)\//.test(m.id),
+      ),
     ).toBe(true);
     expect(
       doc.edges.some(
@@ -87,6 +89,7 @@ describe("scanning check/", () => {
       "node:url",
       "node:util",
       "smol-toml",
+      "web-tree-sitter",
       "yaml",
     ]);
     expect(

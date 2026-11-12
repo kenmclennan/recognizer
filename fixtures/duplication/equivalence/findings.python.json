@@ -1,0 +1,254 @@
+[
+ {
+  "id": "duplication:near.py::gather_names|near.py::gather_tags",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "gather_names in near.py is 83% similar to gather_tags in near.py",
+  "evidence": {
+   "modules": [
+    "near.py"
+   ],
+   "members": [
+    {
+     "module": "near.py",
+     "name": "gather_names",
+     "file": "near.py",
+     "lines": [
+      1,
+      13
+     ]
+    },
+    {
+     "module": "near.py",
+     "name": "gather_tags",
+     "file": "near.py",
+     "lines": [
+      16,
+      29
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.833
+   }
+  }
+ },
+ {
+  "id": "duplication:near.py::fetch_events|near.py::fetch_pages",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "fetch_events in near.py is 83% similar to fetch_pages in near.py",
+  "evidence": {
+   "modules": [
+    "near.py"
+   ],
+   "members": [
+    {
+     "module": "near.py",
+     "name": "fetch_events",
+     "file": "near.py",
+     "lines": [
+      46,
+      58
+     ]
+    },
+    {
+     "module": "near.py",
+     "name": "fetch_pages",
+     "file": "near.py",
+     "lines": [
+      32,
+      43
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.828
+   }
+  }
+ },
+ {
+  "id": "duplication:near.py::summarise_orders|near.py::summarise_visits",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "summarise_orders in near.py is 93% similar to summarise_visits in near.py",
+  "evidence": {
+   "modules": [
+    "near.py"
+   ],
+   "members": [
+    {
+     "module": "near.py",
+     "name": "summarise_orders",
+     "file": "near.py",
+     "lines": [
+      61,
+      71
+     ]
+    },
+    {
+     "module": "near.py",
+     "name": "summarise_visits",
+     "file": "near.py",
+     "lines": [
+      74,
+      85
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.926
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.py::load_session|planted.py::load_settings",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "load_session in planted.py is 100% similar to load_settings in planted.py",
+  "evidence": {
+   "modules": [
+    "planted.py"
+   ],
+   "members": [
+    {
+     "module": "planted.py",
+     "name": "load_session",
+     "file": "planted.py",
+     "lines": [
+      28,
+      36
+     ]
+    },
+    {
+     "module": "planted.py",
+     "name": "load_settings",
+     "file": "planted.py",
+     "lines": [
+      17,
+      25
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.py::store_ledger|planted.py::store_report",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "store_ledger in planted.py is 88% similar to store_report in planted.py",
+  "evidence": {
+   "modules": [
+    "planted.py"
+   ],
+   "members": [
+    {
+     "module": "planted.py",
+     "name": "store_ledger",
+     "file": "planted.py",
+     "lines": [
+      48,
+      54
+     ]
+    },
+    {
+     "module": "planted.py",
+     "name": "store_report",
+     "file": "planted.py",
+     "lines": [
+      39,
+      45
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.877
+   }
+  }
+ },
+ {
+  "id": "duplication:branching.py::Limits.page_size|branching.py::Limits.retry_limit",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Limits.page_size in branching.py is 100% similar to Limits.retry_limit in branching.py",
+  "evidence": {
+   "modules": [
+    "branching.py"
+   ],
+   "members": [
+    {
+     "module": "branching.py",
+     "name": "Limits.page_size",
+     "file": "branching.py",
+     "lines": [
+      9,
+      14
+     ]
+    },
+    {
+     "module": "branching.py",
+     "name": "Limits.retry_limit",
+     "file": "branching.py",
+     "lines": [
+      2,
+      7
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.py::order_total|planted.py::parcel_weight",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "order_total in planted.py is 100% similar to parcel_weight in planted.py",
+  "evidence": {
+   "modules": [
+    "planted.py"
+   ],
+   "members": [
+    {
+     "module": "planted.py",
+     "name": "order_total",
+     "file": "planted.py",
+     "lines": [
+      1,
+      6
+     ]
+    },
+    {
+     "module": "planted.py",
+     "name": "parcel_weight",
+     "file": "planted.py",
+     "lines": [
+      9,
+      14
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ }
+]

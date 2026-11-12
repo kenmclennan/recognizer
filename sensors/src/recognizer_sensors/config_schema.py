@@ -91,42 +91,6 @@ TEST_KEYS = (
     ),
 )
 
-DUPLICATION_KEYS = (
-    key(
-        "sensors.duplication.threshold",
-        "number",
-        (
-            "the similarity two functions need to count as duplicates, above 0 and "
-            "at most 1; default"
-            " 0.82"
-        ),
-        "sensors.duplication.threshold 0.9",
-        exclusiveMinimum=0,
-        maximum=1,
-    ),
-    key(
-        "sensors.duplication.min_lines",
-        "integer",
-        "the fewest lines a function needs to be compared; default 4",
-        "sensors.duplication.min_lines 6",
-        minimum=1,
-    ),
-    key(
-        "sensors.duplication.pair_min_lines",
-        "integer",
-        "the fewest lines the shorter function of a pair needs; default 6",
-        "sensors.duplication.pair_min_lines 8",
-        minimum=1,
-    ),
-    key(
-        "sensors.duplication.min_nodes",
-        "integer",
-        "the fewest syntax nodes a function needs to be compared; default 20",
-        "sensors.duplication.min_nodes 30",
-        minimum=1,
-    ),
-)
-
 CRAP_KEYS = (
     key(
         "sensors.crap.threshold",
@@ -259,7 +223,6 @@ def key_schema():
         "sections": list(SECTIONS),
         "keys": [
             *TEST_KEYS,
-            *DUPLICATION_KEYS,
             *CRAP_KEYS,
             *MUTATION_KEYS,
             *THRESHOLDS_KEYS,

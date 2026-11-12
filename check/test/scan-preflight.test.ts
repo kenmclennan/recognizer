@@ -241,11 +241,11 @@ describe("scan preflight: the early stage", () => {
     const { code, err, fake } = await scan(
       setup("", { version: { started: false } }),
       "--sense",
-      "duplication",
+      "thresholds",
     );
 
     expect(code).toBe(4);
-    expect(err).toContain("recognizer-sensors is not installed (duplication)");
+    expect(err).toContain("recognizer-sensors is not installed (thresholds)");
     expect(sensorRuns(fake)).toEqual([]);
   });
 
@@ -260,11 +260,11 @@ describe("scan preflight: the early stage", () => {
 
 describe("scan preflight: the project stage", () => {
   it("checks only ticked sensors", async () => {
-    const { code, fake } = await scan(setup(""), "--sense", "duplication,crap");
+    const { code, fake } = await scan(setup(""), "--sense", "thresholds,crap");
     const checks = fake.calls.filter((call) => call.args.includes("--check"));
 
     expect(code).toBe(0);
-    expect(checks.map((call) => call.args[0])).toEqual(["duplication", "crap"]);
+    expect(checks.map((call) => call.args[0])).toEqual(["thresholds", "crap"]);
 
     for (const check of checks) {
       expect(check.args).not.toContain("--output");
@@ -298,7 +298,7 @@ describe("scan preflight: the project stage", () => {
     const { code, fake } = await scan(
       setup("", gapsFor("crap")),
       "--sense",
-      "duplication",
+      "thresholds",
     );
 
     expect(code).toBe(0);
@@ -396,7 +396,7 @@ describe("scan preflight: the project stage", () => {
     const { code, out } = await scan(
       setup(""),
       "--sense",
-      "duplication",
+      "thresholds",
       "--json",
     );
 

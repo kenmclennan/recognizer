@@ -1,6 +1,8 @@
 import {
   type Config,
+  carryDuplication,
   type Diagnosis,
+  duplicationUnmeasured,
   type FindingsDocument,
   InputError,
   type Policy,
@@ -9,6 +11,7 @@ import {
   registeredSensors,
   resolveStructureSettings,
   type Scan,
+  type StructureSettings,
   scanHashes,
   structureSensor,
   validateFindings,
@@ -28,6 +31,7 @@ export type SensorStatus = {
   findings?: number;
   modifiedMs?: number | null;
   reported?: { at: string; commit: string };
+  notMeasured?: string[];
   commit?: string;
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
@@ -193,6 +197,28 @@ function readPolicy(
   }
 }
 
+function carried(
+  read: FindingsFiles,
+  fresh: FindingsDocument,
+  settings: StructureSettings,
+): FindingsDocument {
+  const file = read.files.find(({ name }) => name === "structure");
+
+  if (file === undefined) {
+    return fresh;
+  }
+
+  try {
+    return carryDuplication(
+      validateFindings(JSON.parse(file.text), { name: "structure" }),
+      fresh,
+      settings,
+    );
+  } catch {
+    return fresh;
+  }
+}
+
 export async function senseRepository(
   scans: LoadedScan[],
   inputs: Pick<SensorInputs, "policy" | "config">,
@@ -205,6 +231,7 @@ export async function senseRepository(
   const { commit, modified } = scansCommit(plain);
   const settings = resolveStructureSettings(config);
   const documents: FindingsDocument[] = [];
+  const read = await port.readFindings();
   let structure: FindingsDocument | null = null;
   let structureRan = false;
 
@@ -217,7 +244,7 @@ export async function senseRepository(
     try {
       const sensed = structureSensor(plain, policy, settings, context);
 
-      structure = sensed.document;
+      structure = carried(read, sensed.document, settings);
     } catch (error) {
       statuses.push({
         name: "policy.yaml",
@@ -226,14 +253,20 @@ export async function senseRepository(
       });
       const sensed = structureSensor(plain, null, settings, context);
 
-      structure = sensed.document;
+      structure = carried(read, sensed.document, settings);
     }
 
     try {
       await port.writeStructure(
         commit === null ? null : `${JSON.stringify(structure, null, 2)}\n`,
       );
-      statuses.push({ name: "structure", status: "ran" });
+      statuses.push({
+        name: "structure",
+        status: "ran",
+        ...(duplicationUnmeasured(structure, settings)
+          ? { notMeasured: ["duplication"] }
+          : {}),
+      });
       structureRan = true;
     } catch (error) {
       statuses.push({
@@ -244,7 +277,6 @@ export async function senseRepository(
     }
   }
 
-  const read = await port.readFindings();
   const failed: string[] = [];
   const registered = registeredSensors(config).map(({ name }) => name);
 

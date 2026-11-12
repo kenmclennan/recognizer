@@ -1,0 +1,7 @@
+sensors:
+  structure:
+    duplication:
+      threshold: 0.9
+      min_lines: 6
+      pair_min_lines: 8
+      min_nodes: 30

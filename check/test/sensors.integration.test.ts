@@ -38,7 +38,7 @@ if (!HAS_UV) {
 }
 
 describe.skipIf(!HAS_UV)(
-  "recognizer scan --sense duplication with the real package (needs uv)",
+  "recognizer scan with the real sensors package (needs uv)",
   () => {
     beforeAll(() => {
       if (existsSync(TYPESCRIPT_BIN)) {
@@ -84,7 +84,7 @@ describe.skipIf(!HAS_UV)(
       mkdirSync(join(repository, ".recognizer"), { recursive: true });
       writeFileSync(
         join(repository, ".recognizer/config.yaml"),
-        `sensors:\n  duplication: ${sensors}\n`,
+        `sensors:\n  structure:\n    duplication: ${sensors}\n`,
       );
     }
 
@@ -150,13 +150,13 @@ describe.skipIf(!HAS_UV)(
     }[] {
       const path = join(
         repository,
-        ".recognizer/cache/findings/duplication.json",
+        ".recognizer/cache/findings/structure.json",
       );
       const document = JSON.parse(readFileSync(path, "utf8"));
 
       expect(() =>
         validateFindings(document, {
-          name: "duplication",
+          name: "structure",
           commit: document.commit,
         }),
       ).not.toThrow();
@@ -187,7 +187,9 @@ describe.skipIf(!HAS_UV)(
         expect(hash).toBe(scanned.get(module));
       }
 
-      return document.findings;
+      return document.findings.filter(
+        (finding: { kind: string }) => finding.kind === "duplication",
+      );
     }
 
     it(
@@ -198,19 +200,14 @@ describe.skipIf(!HAS_UV)(
 
         const captured = capture();
 
-        expect(
-          await run(
-            ["scan", repository, "--sense", "duplication"],
-            captured.io,
-          ),
-        ).toBe(0);
+        expect(await run(["scan", repository], captured.io)).toBe(0);
 
         expect(findings().map((finding) => finding.id)).toEqual([
-          "duplication:app/pricing.py::sum_with_levy|app/pricing.py::total_with_tax",
           "duplication:src/pricing.ts::sumWithLevy|src/pricing.ts::totalWithTax",
+          "duplication:app/pricing.py::sum_with_levy|app/pricing.py::total_with_tax",
         ]);
 
-        const [python, typescript] = findings();
+        const [typescript, python] = findings();
 
         expect(python?.evidence.modules).toEqual(["app/pricing.py"]);
         expect(python?.evidence.members.map((m) => [m.file, m.lines])).toEqual([
@@ -238,12 +235,7 @@ describe.skipIf(!HAS_UV)(
 
         cpSync(join(repository, "app/pricing.py"), copy);
 
-        expect(
-          await run(
-            ["scan", repository, "--sense", "duplication"],
-            capture().io,
-          ),
-        ).toBe(0);
+        expect(await run(["scan", repository], capture().io)).toBe(0);
         expect(JSON.stringify(findings())).toContain("pricing_copy.py");
 
         rmSync(copy);
@@ -257,7 +249,9 @@ describe.skipIf(!HAS_UV)(
           ),
         ).toBeLessThan(2);
         expect(captured.out()).not.toContain("pricing_copy.py");
-        expect(captured.err()).toContain("out of date duplication");
+        expect(captured.err()).toContain(
+          "duplication not measured since the last scan",
+        );
       },
       scaledTimeout(180_000),
     );
@@ -268,13 +262,17 @@ describe.skipIf(!HAS_UV)(
         configure("{threshold: 0.99}");
         commit();
 
-        expect(
-          await run(
-            ["scan", repository, "--sense", "duplication"],
-            capture().io,
-          ),
-        ).toBe(0);
+        expect(await run(["scan", repository], capture().io)).toBe(0);
         expect(findings()).toHaveLength(2);
+
+        const stored = JSON.parse(
+          readFileSync(
+            join(repository, ".recognizer/cache/findings/structure.json"),
+            "utf8",
+          ),
+        );
+
+        expect(stored.settings.duplication.threshold).toBe(0.99);
       },
       scaledTimeout(180_000),
     );
@@ -287,13 +285,10 @@ describe.skipIf(!HAS_UV)(
 
         const captured = capture();
 
-        expect(
-          await run(
-            ["scan", repository, "--sense", "duplication"],
-            captured.io,
-          ),
-        ).not.toBe(0);
-        expect(captured.err()).toContain("config/sensors/duplication");
+        expect(await run(["scan", repository], captured.io)).not.toBe(0);
+        expect(captured.err()).toContain(
+          "config/sensors/structure/duplication/threshold must be above 0 and at most 1",
+        );
       },
       scaledTimeout(180_000),
     );

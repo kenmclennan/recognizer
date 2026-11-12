@@ -125,9 +125,11 @@ jobs:
           done
           recognizer scan "$repo/fixtures/python/sample"
           recognizer scan "$repo/fixtures/typescript/sample"
-          recognizer-sensors duplication --repository "$repo/fixtures/duplication/sample" --commit smoke --output "$smoke/out.json"
-          if [ ! -f "$smoke/out.json" ]; then
-            echo "recognizer-sensors wrote no findings file" >&2
+          dup=$(mktemp -d)
+          cp -R "$repo/fixtures/duplication/sample/." "$dup/"
+          recognizer scan "$dup"
+          if ! grep -q '"kind": "duplication"' "$dup/.recognizer/cache/findings/structure.json" && ! grep -q '"kind":"duplication"' "$dup/.recognizer/cache/findings/structure.json"; then
+            echo "recognizer scan wrote no duplication finding for the sample" >&2
             exit 1
           fi
           prompt=$(recognizer-describe-claude --prompt-version)
