@@ -31,6 +31,7 @@ export type SensorStatus = {
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
   excluded?: { functions: number; modules: string[] };
+  unowned?: { functions: number; modules: string[] };
   diagnosis?: Diagnosis;
   refusal?: Refusal;
   measured?: { inputs?: Record<string, string>; tests?: string };
@@ -279,6 +280,9 @@ export async function senseRepository(
           : {}),
         ...(document.excluded !== undefined
           ? { excluded: document.excluded }
+          : {}),
+        ...(document.unowned !== undefined
+          ? { unowned: document.unowned }
           : {}),
         ...(document.diagnosis !== undefined
           ? { diagnosis: document.diagnosis }

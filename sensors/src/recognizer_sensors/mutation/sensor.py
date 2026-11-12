@@ -543,6 +543,7 @@ def survivors_document(
     no_covering_test: int,
     excluded: list[Target] | None = None,
     no_line: list[Target] | None = None,
+    unowned: list[Target] | None = None,
 ) -> dict:
     functions = {
         target.identity: {
@@ -574,6 +575,14 @@ def survivors_document(
             }
             for target in sorted(excluded or [], key=lambda t: t.identity)
         ],
+        "unowned": [
+            {
+                "identity": target.identity,
+                "file": target.file,
+                "reason": "no-owning-suite",
+            }
+            for target in sorted(unowned or [], key=lambda t: t.identity)
+        ],
         "no_executable_line": [
             {
                 "identity": target.identity,
@@ -594,6 +603,10 @@ def excluded_document(excluded: list[Target]) -> dict | None:
         "functions": len(excluded),
         "modules": sorted({target.module for target in excluded}),
     }
+
+
+def unowned_document(unowned: list[Target]) -> dict | None:
+    return excluded_document(unowned)
 
 
 def overlay_values(targets: list[Target]) -> dict[str, dict[str, float]]:
@@ -917,6 +930,7 @@ def run(
             work,
             modules,
             checkpoint,
+            [scan for scan in scans if scan.language in unconfigured],
         )
     finally:
         remove_work_folder(work)
@@ -945,6 +959,7 @@ def measure(
     work: Path,
     modules: set[str] | None,
     checkpoint: Callable[[Outcome], None] | None,
+    unsuited: list[Scan],
 ) -> Outcome:
     restore_coverage_handler = install_coverage_stop_handler()
 
@@ -987,13 +1002,14 @@ def measure(
     targets: list[Target] = []
     excluded: list[Target] = []
     no_line: list[Target] = []
+    unowned: list[Target] = []
     covers_by_selection: dict[frozenset[str], frozenset[str] | None] = {}
     sources: dict[str, bytes] = {}
     no_covering_test = 0
 
     by_name = {suite.name: suite for suite in suites}
 
-    for scan in scans:
+    for scan in [*scans, *unsuited]:
         found, scan_sources = collect_targets(repository, scan)
         sources.update(scan_sources)
         language_suites = [suite for suite in suites if suite.language == scan.language]
@@ -1002,6 +1018,7 @@ def measure(
             owner = owner_suite(language_suites, target.file)
 
             if owner is None:
+                unowned.append(target)
                 continue
 
             target.suite = owner.name
@@ -1096,7 +1113,14 @@ def measure(
             (
                 repository / settings["survivors"],
                 survivors_document(
-                    commit, measured, skipped_ids, reused, no_covering_test, excluded, no_line
+                    commit,
+                    measured,
+                    skipped_ids,
+                    reused,
+                    no_covering_test,
+                    excluded,
+                    no_line,
+                    unowned,
                 ),
             ),
         ]
@@ -1113,9 +1137,11 @@ def measure(
                 {target.module for target in measured}
                 | {target.module for target in excluded if target.module not in targeted}
                 | {target.module for target in no_line if target.module not in targeted}
+                | {target.module for target in unowned if target.module not in targeted}
             ),
             shared_tests,
             excluded=excluded_document(excluded),
+            unowned=unowned_document(unowned),
         )
 
         return outcome, measured, skipped_ids, reused
@@ -1321,6 +1347,14 @@ def measure(
             f"recognizer-sensors: mutation: {len(excluded)} functions in "
             f"{len({target.module for target in excluded})} modules not tested because "
             "their files are not in the coverage report",
+            file=sys.stderr,
+        )
+
+    if unowned:
+        print(
+            f"recognizer-sensors: mutation: {len(unowned)} functions in "
+            f"{len({target.module for target in unowned})} modules not tested because "
+            "no test suite covers their files",
             file=sys.stderr,
         )
 

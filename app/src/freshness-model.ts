@@ -52,7 +52,11 @@ export type FindingsLine = {
   link: string;
 } | null;
 
-export type NoResult = { sensor: string; modules: string[] };
+export type NoResult = {
+  sensor: string;
+  reason: "excluded" | "unowned";
+  modules: string[];
+};
 
 export type FreshnessModel = {
   rows: ResultRow[];
@@ -435,11 +439,17 @@ function summarize(
   const failed = rows.filter(({ state }) => state.kind === "failed");
   const never = rows.filter(({ state }) => state.kind === "never-run");
   const noResultSentence = noResult
-    .map(({ sensor, modules }) =>
-      modules.length === 1
+    .map(({ sensor, reason, modules }) => {
+      const single = modules.length === 1;
+
+      if (reason === "unowned") {
+        return ` ${sensor} has no result for ${changedList(modules)}: no test suite in .recognizer/config.yaml covers ${single ? "it" : "them"}.`;
+      }
+
+      return single
         ? ` ${sensor} has no result for ${changedList(modules)}: its suite's coverage report does not include it.`
-        : ` ${sensor} has no result for ${changedList(modules)}: their suites' coverage reports do not include them.`,
-    )
+        : ` ${sensor} has no result for ${changedList(modules)}: their suites' coverage reports do not include them.`;
+    })
     .join("");
   const tickedBehind = rows.filter(
     ({ key, state }) =>
@@ -682,28 +692,33 @@ function noResultOf(
   const found: NoResult[] = [];
 
   for (const one of sensors) {
-    const excluded = input.sensors.find(
-      (entry) => entry.name === one.name,
-    )?.excluded;
+    const status = input.sensors.find((entry) => entry.name === one.name);
     const state = rows.find(({ key }) => key === one.name)?.state;
 
-    if (
-      excluded === undefined ||
-      (state?.kind !== "current" && state?.kind !== "out-of-date")
-    ) {
+    if (state?.kind !== "current" && state?.kind !== "out-of-date") {
       continue;
     }
 
     const gap = new Set(state.kind === "out-of-date" ? state.modules : []);
-    const named = excluded.modules.filter(
-      (id) => inScope.has(id) && hashes.has(id) && !gap.has(id),
-    );
 
-    if (named.length > 0) {
-      found.push({
-        sensor: one.display,
-        modules: inScopeOrder(modules, new Set(named)),
-      });
+    for (const reason of ["excluded", "unowned"] as const) {
+      const listed = status?.[reason];
+
+      if (listed === undefined) {
+        continue;
+      }
+
+      const named = listed.modules.filter(
+        (id) => inScope.has(id) && hashes.has(id) && !gap.has(id),
+      );
+
+      if (named.length > 0) {
+        found.push({
+          sensor: one.display,
+          reason,
+          modules: inScopeOrder(modules, new Set(named)),
+        });
+      }
     }
   }
 

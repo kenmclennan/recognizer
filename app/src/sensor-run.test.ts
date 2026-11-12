@@ -195,6 +195,19 @@ describe("senseRepository", () => {
     });
   });
 
+  it("carries a findings document's unowned key onto its status", async () => {
+    const document = {
+      ...secondSensorDocument("shop/main.py"),
+      unowned: { functions: 2, modules: ["shop/main.py"] },
+    };
+    const port = fakeSensors({ lint: JSON.stringify(document) });
+    const run = await senseRepository(scans, { policy, config: null }, port);
+
+    expect(statusOf(run, "lint")).toMatchObject({
+      unowned: { functions: 2, modules: ["shop/main.py"] },
+    });
+  });
+
   it("reads a current file from a second sensor", async () => {
     const document = secondSensorDocument("shop/main.py");
     const port = fakeSensors({ lint: JSON.stringify(document) });
