@@ -79,6 +79,8 @@ const DEFAULT_TICKS: ScanTicks = {
   ticked: [],
   once: [],
   onlyView: false,
+  suites: {},
+  folds: [],
 };
 
 function failureText(result: ScanRunResult): string | null {
@@ -176,6 +178,8 @@ export function createRescanner<Carried>(
       describe: ticks.describe,
       ticked: (ticks.ticked ?? plain).filter((name) => plain.includes(name)),
       onlyView: ticks.onlyView,
+      suites: ticks.suites,
+      folds: ticks.folds,
     });
     remembered = true;
   }
@@ -789,6 +793,8 @@ export function createRescanner<Carried>(
       ticked: stored.ticked ?? (stored.sensors ? null : []),
       once: ticks.once,
       onlyView: stored.onlyView === true,
+      suites: stored.suites ?? {},
+      folds: stored.folds ?? [],
     };
     remembered = stored.remembered;
     ticksLoaded = true;

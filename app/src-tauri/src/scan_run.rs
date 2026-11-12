@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -42,6 +42,8 @@ pub struct RunGap {
 pub struct RunFailure {
     pub sensor: String,
     pub reason: String,
+    pub suite: Option<String>,
+    pub code: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,6 +58,7 @@ pub struct ScanRunRecord {
     pub repository: String,
     pub sensors: Vec<String>,
     pub describe: bool,
+    pub suites: BTreeMap<String, Vec<String>>,
     pub phase: String,
     pub ended_at: Option<String>,
     pub exit: Option<i32>,
@@ -87,7 +90,17 @@ fn ran_ok(ran: &[String]) -> bool {
 pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
     let run: ScanRunRecord = serde_json::from_str(text).ok()?;
 
-    if run.version != 4
+    let raw: serde_json::Value = serde_json::from_str(text).ok()?;
+
+    if raw
+        .get("failure")
+        .and_then(|failure| failure.as_object())
+        .is_some_and(|failure| !failure.contains_key("suite") || !failure.contains_key("code"))
+    {
+        return None;
+    }
+
+    if run.version != 5
         || run.run_id.is_empty()
         || run.pid == 0
         || run.pgid == Some(0)
@@ -101,8 +114,22 @@ pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
             .gaps
             .iter()
             .any(|gap| gap.id.is_empty() || gap.needs.iter().any(String::is_empty))
+        || run.suites.values().any(|names| {
+            names
+                .iter()
+                .enumerate()
+                .any(|(at, name)| name.is_empty() || names[..at].contains(name))
+        })
         || run.failure.as_ref().is_some_and(|failure| {
-            failure.sensor.is_empty() || failure.reason.chars().count() > STDERR_CHARS
+            failure.sensor.is_empty()
+                || failure.reason.chars().count() > STDERR_CHARS
+                || failure.suite.as_deref().is_some_and(str::is_empty)
+                || failure.code.as_deref().is_some_and(|code| {
+                    !matches!(
+                        code,
+                        "tool-missing" | "tests-failed" | "coverage-unavailable"
+                    )
+                })
         })
         || run.commit.as_deref().is_some_and(str::is_empty)
         || run.ran.as_ref().is_some_and(|ran| !ran_ok(ran))
@@ -404,6 +431,38 @@ pub fn check_modules(modules: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+pub fn check_suites(suites: &BTreeMap<String, Vec<String>>) -> Result<(), String> {
+    let sensors: Vec<String> = suites.keys().cloned().collect();
+
+    crate::sensors::check_names(&sensors)?;
+
+    for names in suites.values() {
+        if names.is_empty() {
+            return Err("a sensor's suite list is empty".to_string());
+        }
+
+        if names
+            .iter()
+            .any(|name| name.is_empty() || name.chars().count() > 200 || name.contains('\0'))
+        {
+            return Err("a suite name is empty, over 200 characters or holds a NUL".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+fn suites_file(folder: &Path, label: &str) -> PathBuf {
+    let safe: String = label
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
+
+    folder
+        .join(MODULES_DIR)
+        .join(format!("scan-suites-{safe}.json"))
+}
+
 fn modules_file(folder: &Path, label: &str) -> PathBuf {
     let safe: String = label
         .chars()
@@ -703,7 +762,7 @@ fn now_epoch() -> i64 {
         .unwrap_or(0)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, dead_code)]
 pub fn run_with(
     runs: &ScanRuns,
     label: &str,
@@ -716,6 +775,41 @@ pub fn run_with(
     confirm_above: Option<f64>,
     prepare: impl FnOnce(),
 ) -> ScanRun {
+    run_with_suites(
+        runs,
+        label,
+        folder,
+        runner,
+        command,
+        describe,
+        sense,
+        modules,
+        None,
+        confirm_above,
+        prepare,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_with_suites(
+    runs: &ScanRuns,
+    label: &str,
+    folder: &Path,
+    runner: &ToolRunner,
+    command: &str,
+    describe: Describe,
+    sense: &[String],
+    modules: Option<&[String]>,
+    suites: Option<&BTreeMap<String, Vec<String>>>,
+    confirm_above: Option<f64>,
+    prepare: impl FnOnce(),
+) -> ScanRun {
+    if let Some(plan) = suites {
+        if let Err(reason) = check_suites(plan) {
+            return ScanRun::Refused { reason };
+        }
+    }
+
     if let Some(ids) = modules {
         if let Err(reason) = check_modules(ids) {
             return ScanRun::Refused { reason };
@@ -763,6 +857,26 @@ pub fn run_with(
         }
     }
 
+    let suites_path = suites.map(|_| suites_file(folder, label));
+
+    if let (Some(path), Some(plan)) = (&suites_path, suites) {
+        let written = serde_json::to_string(plan)
+            .map_err(|error| error.to_string())
+            .and_then(|text| {
+                write_atomic(path, &text).map_err(|error| format!("{}: {error}", path.display()))
+            });
+
+        if let Err(reason) = written {
+            if let Some(path) = &file {
+                let _ = fs::remove_file(path);
+            }
+
+            runs.finish(label);
+
+            return ScanRun::Refused { reason };
+        }
+    }
+
     let result = spawn_and_stream(
         runs,
         label,
@@ -772,10 +886,11 @@ pub fn run_with(
         describe,
         sense,
         file.as_deref(),
+        suites_path.as_deref(),
         confirm_above,
     );
 
-    if let Some(path) = &file {
+    for path in [&file, &suites_path].into_iter().flatten() {
         let _ = fs::remove_file(path);
     }
 
@@ -794,6 +909,7 @@ fn spawn_and_stream(
     describe: Describe,
     sense: &[String],
     modules_file: Option<&Path>,
+    suites_file: Option<&Path>,
     confirm_above: Option<f64>,
 ) -> ScanRun {
     let mut process = match runner.command(command) {
@@ -807,6 +923,11 @@ fn spawn_and_stream(
         .args(
             modules_file
                 .map(|path| vec!["--modules".to_string(), path.display().to_string()])
+                .unwrap_or_default(),
+        )
+        .args(
+            suites_file
+                .map(|path| vec!["--suites".to_string(), path.display().to_string()])
                 .unwrap_or_default(),
         )
         .args(
@@ -1182,6 +1303,92 @@ mod tests {
     }
 
     #[cfg(unix)]
+    fn collect_suited(
+        folder: &Path,
+        command: &Path,
+        suites: &BTreeMap<String, Vec<String>>,
+    ) -> ScanRun {
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+
+        run_with_suites(
+            &ScanRuns::default(),
+            "w-1",
+            folder,
+            &runner,
+            &command.display().to_string(),
+            Describe::Stale,
+            &["crap".to_string()],
+            None,
+            Some(suites),
+            None,
+            || {},
+        )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_suites_reach_the_command_as_a_file_that_is_removed_after_the_run() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(
+            dir.path(),
+            &format!(
+                r#"for last; do :; done; echo "$@" > {cap}/capture.txt; cat "$last" >> {cap}/capture.txt; echo >> {cap}/capture.txt; echo '{{"event":"summary","commit":"c","phases":[{{"phase":"describe","entries":[{{}}]}}],"log":null}}'"#,
+                cap = dir.path().display()
+            ),
+        );
+        let suites = BTreeMap::from([(
+            "crap".to_string(),
+            vec!["unit".to_string(), "web".to_string()],
+        )]);
+        let result = collect_suited(dir.path(), &command, &suites);
+        let lines: Vec<String> = captured(dir.path())
+            .into_iter()
+            .filter(|line| !line.is_empty())
+            .collect();
+        let file = dir.path().join(".recognizer/cache/scan-suites-w-1.json");
+
+        assert!(matches!(result, ScanRun::Finished { exit_code: 0, .. }));
+        assert_eq!(
+            lines,
+            vec![
+                format!(
+                    "scan {} --json --describe --sense crap --suites {}",
+                    dir.path().display(),
+                    file.display()
+                ),
+                r#"{"crap":["unit","web"]}"#.to_string(),
+            ]
+        );
+        assert!(!file.exists());
+        assert!(!dir
+            .path()
+            .join(".recognizer/cache/scan-suites-w-1.json.tmp")
+            .exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_bad_suite_plan_is_refused_before_anything_is_written() {
+        let dir = TempDir::new().unwrap();
+        let ran = dir.path().join("ran");
+        let command = fake_command(dir.path(), &format!("touch {}", ran.display()));
+
+        for bad in [
+            BTreeMap::from([("crap".to_string(), vec![])]),
+            BTreeMap::from([("crap".to_string(), vec![String::new()])]),
+            BTreeMap::from([("$(x)".to_string(), vec!["unit".to_string()])]),
+        ] {
+            let result = collect_suited(dir.path(), &command, &bad);
+
+            assert!(matches!(result, ScanRun::Refused { .. }));
+            assert!(!ran.exists());
+        }
+
+        assert!(!dir.path().join(".recognizer").exists());
+    }
+
+    #[cfg(unix)]
     #[test]
     fn a_failed_scoped_run_removes_the_module_file() {
         let dir = TempDir::new().unwrap();
@@ -1553,7 +1760,7 @@ mod tests {
         };
 
         format!(
-            r#"{{"version":4,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
+            r#"{{"version":5,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"suites":{{}},"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
         )
     }
 
@@ -1616,8 +1823,8 @@ mod tests {
         let valid = examples("valid");
         let invalid = examples("invalid");
 
-        assert_eq!(valid.len(), 8);
-        assert_eq!(invalid.len(), 11);
+        assert_eq!(valid.len(), 9);
+        assert_eq!(invalid.len(), 15);
         assert!(valid.iter().all(|text| parse_run(text).is_some()));
         assert!(invalid.iter().all(|text| parse_run(text).is_none()));
 
@@ -1631,8 +1838,8 @@ mod tests {
         assert_eq!(
             phases,
             vec![
-                "checking", "failed", "failed", "finished", "finished", "refused", "running",
-                "stopped"
+                "checking", "failed", "failed", "failed", "finished", "finished", "refused",
+                "running", "stopped"
             ]
         );
     }
@@ -2175,7 +2382,7 @@ mod tests {
         gaps: &str,
     ) -> String {
         let record = format!(
-            r#"{{"version":4,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
+            r#"{{"version":5,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"suites":{{}},"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
         );
         let source = dir.join("fake-record.json");
 

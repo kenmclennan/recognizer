@@ -24,9 +24,14 @@ const OK: Loaded = {
   sensors: [],
 };
 
+const SUITE_TICKS = {
+  mut: { ticked: ["unit", "web"], known: ["unit", "web"] },
+};
+
 const line = (value: object) => JSON.stringify(value);
 const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
-  version: 4,
+  version: 5,
+  suites: {},
   run_id: "run-1",
   pid: 4242,
   pgid: 4242,
@@ -162,6 +167,7 @@ describe("createRescanner", () => {
         describeAll: false,
         sense: ["alpha", "beta"],
         modules: null,
+        suites: {},
       },
     ]);
     expect(scan.written).toEqual([
@@ -169,6 +175,8 @@ describe("createRescanner", () => {
         describe: true,
         ticked: ["alpha", "beta"],
         onlyView: false,
+        suites: {},
+        folds: [],
       },
     ]);
 
@@ -193,6 +201,7 @@ describe("createRescanner", () => {
       describeAll: false,
       sense: [],
       modules: null,
+      suites: {},
     });
     expect(scan.written).toEqual(written);
     expect(rescanner.ticks()).toEqual(before);
@@ -776,8 +785,14 @@ describe("createRescanner", () => {
         ...rescanner.ticks(),
         once: ["mut"],
         onlyView: false,
+        suites: SUITE_TICKS,
+        folds: ["mut"],
       });
       await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(Object.keys(rescanner.ticks().suites)).not.toEqual([]);
+      expect(rescanner.ticks().folds).not.toEqual([]);
+
       await rescanner.run();
 
       expect(scan.ran[0].sense).toContain("mut");
@@ -785,6 +800,10 @@ describe("createRescanner", () => {
         true,
       );
       expect(rescanner.ticks().once).toEqual([]);
+      expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
+      expect(rescanner.ticks().folds).toEqual(["mut"]);
+      expect(scan.written.at(-1)?.suites).toEqual(SUITE_TICKS);
+      expect(scan.written.at(-1)?.folds).toEqual(["mut"]);
     }
   });
 
@@ -811,11 +830,64 @@ describe("createRescanner", () => {
         ...rescanner.ticks(),
         once: ["mut"],
         onlyView: false,
+        suites: SUITE_TICKS,
+        folds: ["mut"],
       });
+
+      expect(Object.keys(rescanner.ticks().suites)).not.toEqual([]);
+
       await rescanner.run();
 
       expect(rescanner.ticks().once).toEqual([]);
+      expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
+      expect(rescanner.ticks().folds).toEqual(["mut"]);
     }
+  });
+
+  it("clears only the armed sensor's once entry and keeps both sensors' suite ticks", async () => {
+    const scan = fakeScan({ steps: [current, summary] });
+    const { rescanner } = harness(scan, {
+      registered: async () => [
+        {
+          name: "crap",
+          display: "C.R.A.P.",
+          runsTests: true,
+          suites: [
+            { name: "unit", language: "python" },
+            { name: "web", language: "typescript" },
+          ],
+        },
+        {
+          name: "mut",
+          display: "Mutation",
+          runsTests: true,
+          suites: [{ name: "unit", language: "python" }],
+        },
+      ],
+    });
+    const suites = {
+      crap: { ticked: ["unit", "web"], known: ["unit", "web"] },
+      mut: { ticked: ["unit"], known: ["unit"] },
+    };
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({
+      ...rescanner.ticks(),
+      once: ["crap"],
+      suites,
+      folds: ["crap", "mut"],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(Object.keys(rescanner.ticks().suites)).toEqual(["crap", "mut"]);
+
+    await rescanner.run();
+
+    expect(scan.ran[0]?.sense).toEqual(["crap"]);
+    expect(scan.ran[0]?.suites).toEqual({ crap: ["unit", "web"] });
+    expect(rescanner.ticks().once).toEqual([]);
+    expect(rescanner.ticks().suites).toEqual(suites);
+    expect(rescanner.ticks().folds).toEqual(["crap", "mut"]);
   });
 
   it("sends the module scope in the plan and remembers the switch", async () => {
@@ -869,17 +941,27 @@ describe("createRescanner", () => {
       ticked: null,
       once: [],
       onlyView: false,
+      suites: {},
+      folds: [],
     });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(scan.written).toEqual([
-      { describe: true, ticked: ["alpha", "beta"], onlyView: false },
+      {
+        describe: true,
+        ticked: ["alpha", "beta"],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
     ]);
     expect(rescanner.ticks()).toEqual({
       describe: true,
       ticked: null,
       once: [],
       onlyView: false,
+      suites: {},
+      folds: [],
     });
   });
 
@@ -984,6 +1066,7 @@ describe("createRescanner", () => {
         describeAll: true,
         sense: ["alpha"],
         modules: ["a.py"],
+        suites: {},
       },
       dropped: [],
       modules: 1,
@@ -1286,7 +1369,14 @@ describe("scan notifications", () => {
         entry("sense", "alpha", "no coverage"),
         line({ event: "summary", exit: 1 }),
       ],
-      record: { failure: { sensor: "alpha", reason: "no coverage" } },
+      record: {
+        failure: {
+          sensor: "alpha",
+          suite: null,
+          code: null,
+          reason: "no coverage",
+        },
+      },
       result: { status: "finished", exitCode: 1 },
     });
     const { made } = timed(scan);
@@ -1545,7 +1635,7 @@ describe("one fold of the run record", () => {
       end: {
         phase: "failed",
         exit: 1,
-        failure: { sensor: "beta", reason: "slow" },
+        failure: { sensor: "beta", suite: null, code: null, reason: "slow" },
       },
       result: { status: "finished", exitCode: 1 },
     },
@@ -1743,7 +1833,9 @@ describe("one fold of the run record", () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       steps: [current, preflightOk, line({ event: "summary", exit: 1 })],
-      record: { failure: { sensor: "alpha", reason: "boom" } },
+      record: {
+        failure: { sensor: "alpha", suite: null, code: null, reason: "boom" },
+      },
       result: { status: "failed", exitCode: 1, stderr: "boom" },
     });
     const { lifecycle, rescanner } = harness(scan);
@@ -1885,7 +1977,12 @@ describe("the outcome comes from the run record", () => {
       phase: "failed",
       exit: 1,
       ran: null,
-      failure: { sensor: "scan", reason: "the scan ended on an error" },
+      failure: {
+        sensor: "scan",
+        suite: null,
+        code: null,
+        reason: "the scan ended on an error",
+      },
     });
 
     expect(
@@ -1901,7 +1998,7 @@ describe("the outcome comes from the run record", () => {
     phase: "failed" as const,
     exit: 1,
     ran: null,
-    failure: { sensor: "scan", reason: MESSAGE },
+    failure: { sensor: "scan", suite: null, code: null, reason: MESSAGE },
   };
   const failures = (made: { lifecycle: { text: string }[] }) =>
     made.lifecycle
@@ -1923,7 +2020,7 @@ describe("the outcome comes from the run record", () => {
         record: {
           ...ASKED,
           ...crash,
-          failure: { sensor: "scan", reason },
+          failure: { sensor: "scan", suite: null, code: null, reason },
           commit: null,
         },
         result: { status: "failed", exitCode: 2, stderr },

@@ -7,6 +7,14 @@ use serde::{Deserialize, Serialize};
 use crate::fs_safe::write_atomic;
 use crate::sensors::check_names;
 
+const SUITE_NAME_LIMIT: usize = 200;
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SuiteTicks {
+    pub ticked: Vec<String>,
+    pub known: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoredTicks {
     pub describe: bool,
@@ -19,6 +27,10 @@ pub struct StoredTicks {
     pub ticked: Vec<String>,
     #[serde(default)]
     pub only_view: bool,
+    #[serde(default)]
+    pub suites: BTreeMap<String, SuiteTicks>,
+    #[serde(default)]
+    pub folds: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -28,6 +40,8 @@ pub struct ScanTicks {
     #[serde(rename = "onlyView")]
     pub only_view: bool,
     pub remembered: bool,
+    pub suites: BTreeMap<String, SuiteTicks>,
+    pub folds: Vec<String>,
 }
 
 pub fn ticks_file_in(config_dir: &Path) -> PathBuf {
@@ -52,18 +66,40 @@ pub fn read(path: &Path, folder: &Path) -> ScanTicks {
             }),
             only_view: stored.only_view,
             remembered: true,
+            suites: stored.suites,
+            folds: stored.folds,
         },
         None => ScanTicks {
             describe: false,
             ticked: Some(Vec::new()),
             only_view: false,
             remembered: false,
+            suites: BTreeMap::new(),
+            folds: Vec::new(),
         },
     }
 }
 
+fn check_suites(suites: &BTreeMap<String, SuiteTicks>) -> Result<(), String> {
+    let sensors: Vec<String> = suites.keys().cloned().collect();
+
+    check_names(&sensors)?;
+
+    for entry in suites.values() {
+        for name in entry.ticked.iter().chain(entry.known.iter()) {
+            if name.is_empty() || name.chars().count() > SUITE_NAME_LIMIT {
+                return Err("a suite name is empty or over 200 characters".to_string());
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn write(path: &Path, folder: &Path, ticks: StoredTicks) -> Result<(), String> {
     check_names(&ticks.ticked)?;
+    check_suites(&ticks.suites)?;
+    check_names(&ticks.folds)?;
 
     let mut all = read_all(path);
 
@@ -89,6 +125,8 @@ mod tests {
             sensors: None,
             ticked: ticked.iter().map(|name| name.to_string()).collect(),
             only_view: false,
+            suites: BTreeMap::new(),
+            folds: Vec::new(),
         }
     }
 
@@ -111,7 +149,9 @@ mod tests {
                 describe: false,
                 ticked: Some(vec![]),
                 only_view: false,
-                remembered: false
+                remembered: false,
+                suites: BTreeMap::new(),
+                folds: Vec::new()
             }
         );
     }
@@ -129,7 +169,9 @@ mod tests {
                 describe: true,
                 ticked: Some(vec!["a".to_string()]),
                 only_view: false,
-                remembered: true
+                remembered: true,
+                suites: BTreeMap::new(),
+                folds: Vec::new()
             }
         );
         assert!(!read(&file, Path::new("/other")).remembered);
@@ -152,7 +194,9 @@ mod tests {
                 describe: true,
                 ticked: Some(vec![]),
                 only_view: false,
-                remembered: true
+                remembered: true,
+                suites: BTreeMap::new(),
+                folds: Vec::new()
             }
         );
     }
@@ -248,6 +292,68 @@ mod tests {
         let file = ticks_file_in(dir.path());
 
         assert!(write(&file, Path::new("/repo"), stored(false, &["$(x)"])).is_err());
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn suite_ticks_and_folds_round_trip_and_survive_a_second_write_of_the_same_entry() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+        let mut ticks = stored(false, &[]);
+
+        ticks.suites.insert(
+            "crap".to_string(),
+            SuiteTicks {
+                ticked: vec!["unit".to_string()],
+                known: vec!["unit".to_string(), "web".to_string()],
+            },
+        );
+        ticks.folds = vec!["crap".to_string()];
+
+        write(&file, Path::new("/repo"), ticks.clone()).unwrap();
+
+        let read_back = read(&file, Path::new("/repo"));
+
+        assert_eq!(read_back.suites, ticks.suites);
+        assert_eq!(read_back.folds, ticks.folds);
+    }
+
+    #[test]
+    fn an_old_file_without_suites_or_folds_reads_both_empty() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+
+        fs::write(&file, r#"{"/repo":{"describe":true,"ticked":["a"]}}"#).unwrap();
+
+        let read_back = read(&file, Path::new("/repo"));
+
+        assert!(read_back.suites.is_empty());
+        assert!(read_back.folds.is_empty());
+    }
+
+    #[test]
+    fn an_empty_or_overlong_suite_name_or_a_bad_sensor_key_is_refused() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+
+        for (sensor, name) in [
+            ("crap", String::new()),
+            ("crap", "x".repeat(201)),
+            ("$(x)", "unit".to_string()),
+        ] {
+            let mut ticks = stored(false, &[]);
+
+            ticks.suites.insert(
+                sensor.to_string(),
+                SuiteTicks {
+                    ticked: vec![name],
+                    known: vec![],
+                },
+            );
+
+            assert!(write(&file, Path::new("/repo"), ticks).is_err());
+        }
+
         assert!(!file.exists());
     }
 }

@@ -41,8 +41,8 @@ export type DescribeStop = {
 };
 
 export type SensorStep =
-  | { step: "coverage" }
-  | { step: "mutants"; done: number; total: number };
+  | { step: "coverage"; suite?: string }
+  | { step: "mutants"; suite?: string; done: number; total: number };
 
 export type SensorProgress = { name: string } & SensorStep;
 
@@ -66,6 +66,7 @@ export type ScanProgress = {
   describeSkipped: boolean;
   sense: PhaseProgress | null;
   sensorProgress: SensorProgress | null;
+  startedSuites: Record<string, string[]>;
   extractSettled: boolean;
   done: boolean;
   stopped: boolean;
@@ -86,6 +87,7 @@ export const NO_PROGRESS: ScanProgress = {
   describeSkipped: false,
   sense: null,
   sensorProgress: null,
+  startedSuites: {},
   extractSettled: false,
   done: false,
   stopped: false,
@@ -216,7 +218,16 @@ function progressEvent(line: Record<string, unknown>): ScanEvent | null {
     return null;
   }
 
-  const base = { event: "progress", phase: "sense", name: line.name } as const;
+  const named =
+    typeof line.suite === "string" && line.suite !== ""
+      ? { suite: line.suite }
+      : {};
+  const base = {
+    event: "progress",
+    phase: "sense",
+    name: line.name,
+    ...named,
+  } as const;
 
   if (line.step === "coverage") {
     return { ...base, step: "coverage" };
@@ -348,8 +359,20 @@ export function foldProgress(
         : { ...state, sensorProgress: null };
     case "progress": {
       const { event: _event, phase: _phase, ...sensorProgress } = event;
+      const seen = state.startedSuites[sensorProgress.name] ?? [];
+      const suite = sensorProgress.suite;
 
-      return { ...state, sensorProgress };
+      return {
+        ...state,
+        sensorProgress,
+        startedSuites:
+          suite === undefined || seen.includes(suite)
+            ? state.startedSuites
+            : {
+                ...state.startedSuites,
+                [sensorProgress.name]: [...seen, suite],
+              },
+      };
     }
     case "preflight":
       return state;
@@ -501,12 +524,24 @@ export function scanningText(
   const reported = progress.sensorProgress;
 
   if (reported !== null && reported.name === started) {
-    return reported.step === "coverage"
-      ? `${row.display}: measuring coverage`
-      : `${row.display}: ${reported.done} of ${reported.total} functions`;
+    return sensorStepText(row.display, reported);
   }
 
   return `Running ${row.display}\u2026 ${at + 1} of ${sensors.length}`;
+}
+
+function sensorStepText(display: string, reported: SensorProgress): string {
+  const suite = reported.suite;
+
+  if (reported.step === "coverage") {
+    return suite === undefined
+      ? `${display}: measuring coverage`
+      : `${display}: ${suite} coverage`;
+  }
+
+  return suite === undefined
+    ? `${display}: ${reported.done} of ${reported.total} functions`
+    : `${display}: ${suite} \u00b7 ${reported.done}/${reported.total}`;
 }
 
 export function showTarget(progress: ScanProgress): ShowTarget | null {

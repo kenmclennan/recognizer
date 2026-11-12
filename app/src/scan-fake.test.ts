@@ -30,6 +30,7 @@ const PLAN = {
   describeAll: false,
   sense: ["alpha"],
   modules: null,
+  suites: {},
 };
 
 describe("fakeScan", () => {
@@ -89,12 +90,16 @@ describe("fakeScan", () => {
       sensors: false,
       ticked: [],
       remembered: false,
+      suites: {},
+      folds: [],
     });
 
     await fake.writeTicks({
       describe: false,
       ticked: ["alpha"],
       onlyView: false,
+      suites: { crap: { ticked: ["unit"], known: ["unit", "web"] } },
+      folds: ["crap"],
     });
 
     expect(await fake.readTicks()).toEqual({
@@ -103,6 +108,8 @@ describe("fakeScan", () => {
       ticked: ["alpha"],
       onlyView: false,
       remembered: true,
+      suites: { crap: { ticked: ["unit"], known: ["unit", "web"] } },
+      folds: ["crap"],
     });
   });
 });

@@ -11,7 +11,9 @@ from recognizer_sensors.testrun.readiness import check
 from recognizer_sensors.thresholds import sensor as thresholds
 
 
-def no_gaps(repository: Path, settings: dict, run: bool) -> list[dict]:
+def no_gaps(
+    repository: Path, settings: dict, run: bool, names: list[str] | None = None
+) -> list[dict]:
     return []
 
 
@@ -23,7 +25,7 @@ class Sensor:
     runs_tests: bool = False
     scoped: bool = False
     checkpoints: bool = False
-    check: Callable[[Path, dict, bool], list[dict]] = no_gaps
+    check: Callable[..., list[dict]] = no_gaps
     guide: Callable[[], str] | None = None
 
 

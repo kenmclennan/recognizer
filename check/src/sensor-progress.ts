@@ -1,8 +1,8 @@
 export const PROGRESS_PREFIX = "recognizer-progress ";
 
 export type SensorProgress =
-  | { step: "coverage" }
-  | { step: "mutants"; done: number; total: number };
+  | { step: "coverage"; suite?: string }
+  | { step: "mutants"; suite?: string; done: number; total: number };
 
 export function parseProgressLine(line: string): SensorProgress | null {
   if (!line.startsWith(PROGRESS_PREFIX)) {
@@ -21,10 +21,16 @@ export function parseProgressLine(line: string): SensorProgress | null {
     return null;
   }
 
-  const { step, done, total } = value as Record<string, unknown>;
+  const { step, done, total, suite } = value as Record<string, unknown>;
+
+  if (suite !== undefined && (typeof suite !== "string" || suite === "")) {
+    return null;
+  }
+
+  const named = suite === undefined ? {} : { suite };
 
   if (step === "coverage") {
-    return { step };
+    return { step, ...named };
   }
 
   if (
@@ -34,7 +40,7 @@ export function parseProgressLine(line: string): SensorProgress | null {
     (done as number) >= 0 &&
     (done as number) <= (total as number)
   ) {
-    return { step, done: done as number, total: total as number };
+    return { step, ...named, done: done as number, total: total as number };
   }
 
   return null;

@@ -16,6 +16,7 @@ from recognizer_sensors.testrun.suites import (
     collect_suites,
     login_shell,
     parse_suites,
+    selected,
     shell_script,
 )
 
@@ -252,6 +253,7 @@ def test_a_suite_that_fails_after_writing_keeps_coverage_and_names_the_failures(
         "code": "tests-failed",
         "line": "1 test failed, so coverage may read low",
         "failing": {"count": 1, "names": ["tests/t.py::test_a"]},
+        "suite": "api",
     }
 
 
@@ -356,3 +358,20 @@ def test_crap_imports_none_of_the_inference_modules():
     )
 
     assert result.stdout.strip() == "[]"
+
+
+def test_selected_keeps_config_order_whatever_order_the_names_come_in():
+    suites = parse_suites([raw(name="unit"), raw(name="web"), raw(name="cli")])
+
+    assert [s.name for s in selected(suites, ["cli", "unit"])] == ["unit", "cli"]
+    assert selected(suites, None) == suites
+
+
+def test_selected_rejects_an_unknown_name_and_an_empty_list():
+    suites = parse_suites([raw(name="unit")])
+
+    with pytest.raises(SettingsError, match="unknown test suite: nope"):
+        selected(suites, ["unit", "nope"])
+
+    with pytest.raises(SettingsError, match="at least one"):
+        selected(suites, [])

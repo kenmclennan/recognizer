@@ -25,6 +25,7 @@ from recognizer_sensors.mutation.runner import (
 )
 from recognizer_sensors.mutation.test_files import is_test_file
 from recognizer_sensors.parsing import parse
+from recognizer_sensors.progress import report as report_progress
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import MeasurementError, Refusal, diagnose
 from recognizer_sensors.testrun.contexts import PYTHON_DATA, ContextSelection, PythonContexts
@@ -47,6 +48,7 @@ from recognizer_sensors.testrun.suites import (
     directory_of,
     login_shell,
     report_pattern,
+    selected,
     source_of,
     unavailable,
 )
@@ -599,6 +601,7 @@ def editable_refusal(suite: Suite, path: str) -> Refusal:
             f"coverage unavailable: the {suite.name} suite imported {path} from outside its "
             "repository copy, so mutants would not be seen; set PYTHONPATH in the suite's env "
             "to a path inside the repository (resolved inside the copy)",
+            suite=suite.name,
         )
     )
 
@@ -626,9 +629,10 @@ def coverage_run(
     work: Path,
     carry: tuple[str, ...] = (),
     seconds: dict[str, float] | None = None,
+    names: list[str] | None = None,
 ) -> tuple[Coverage, Selection | ContextSelection]:
     scanned = [scan.language for scan in scans]
-    runnable = [suite for suite in suites if suite.language in scanned]
+    runnable = [suite for suite in selected(suites, names) if suite.language in scanned]
 
     if not runnable:
         return {}, {}
@@ -661,6 +665,7 @@ def coverage_run(
         elif suite.language == "csharp":
             command = f'{command} --logger "trx;LogFilePrefix=results"'
 
+        report_progress("coverage", suite=suite.name)
         started = time.time()
         started_at.setdefault(suite.language, started)
         began = time.monotonic()
@@ -675,7 +680,7 @@ def coverage_run(
                 else failing_names(copy, suite.language, output, directory_of(suite))
             )
 
-            raise Refusal(mutation_tests_failed(names))
+            raise Refusal(mutation_tests_failed(names, suite.name))
 
         if seconds is not None:
             seconds[suite.name] = elapsed
@@ -692,12 +697,18 @@ def coverage_run(
         part = read_source(copy, source, files, started)
 
         if part is None:
-            raise Refusal(unavailable(f"the {suite.name} suite left no coverage report at {where}"))
+            raise Refusal(
+                unavailable(
+                    f"the {suite.name} suite left no coverage report at {where}", suite.name
+                )
+            )
 
         merge_coverage(merged, part)
 
         if covers_nothing(part, source, suite.language, scans):
-            raise Refusal(unavailable(f"the {suite.name} suite produced an empty coverage report"))
+            raise Refusal(
+                unavailable(f"the {suite.name} suite produced an empty coverage report", suite.name)
+            )
 
         if data is not None:
             readers.append(PythonContexts(copy, directory=directory_of(suite), data=data))

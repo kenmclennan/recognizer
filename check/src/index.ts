@@ -51,6 +51,8 @@ export {
   type FindingEdge,
   type FindingRecord,
   type FindingsDocument,
+  type SuiteResult,
+  type SuiteStatus,
   validateFindings,
 } from "./findings-document.js";
 export {
@@ -172,8 +174,13 @@ export {
   type IdlePhase,
   idlePhases,
   nothingRanText,
+  parseSuiteSelection,
 } from "./scan-phases.js";
-export type { Diagnosis } from "./sensor-reason.js";
+export {
+  parseProgressLine,
+  type SensorProgress,
+} from "./sensor-progress.js";
+export type { Diagnosis, DiagnosisCode } from "./sensor-reason.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";
 export {

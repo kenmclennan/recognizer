@@ -192,6 +192,7 @@ def test_a_failing_command_with_no_report_is_complexity_only_with_the_exit_in_th
     assert diagnosis_of(output) == {
         "code": "coverage-unavailable",
         "line": f"coverage unavailable: the api suite exited 1 and left no coverage report at {REPORT}; see {LOG}",
+        "suite": "api",
     }
 
     overlay = json.loads((root / OVERLAY).read_text())
@@ -213,6 +214,7 @@ def test_a_failing_command_keeps_the_report_it_wrote_and_says_the_tests_failed(t
     assert diagnosis_of(output) == {
         "code": "tests-failed",
         "line": "the tests failed, so coverage may read low",
+        "suite": "api",
     }
     assert json.loads((root / OVERLAY).read_text())["values"]["coverage"]
 
@@ -278,6 +280,7 @@ def test_a_command_that_leaves_no_report_is_complexity_only_naming_the_log(tmp_p
     assert diagnosis_of(output) == {
         "code": "coverage-unavailable",
         "line": f"coverage unavailable: the api suite left no coverage report at {REPORT}; see {LOG}",
+        "suite": "api",
     }
 
 

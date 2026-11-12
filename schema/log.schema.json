@@ -178,6 +178,10 @@
               "type": "string",
               "minLength": 1
             },
+            "suite": {
+              "type": "string",
+              "minLength": 1
+            },
             "fix": {
               "type": "string",
               "minLength": 1

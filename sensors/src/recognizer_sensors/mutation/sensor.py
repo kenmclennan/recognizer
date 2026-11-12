@@ -14,6 +14,7 @@ from recognizer_sensors.hashes import (
     digest_of,
     listed_files,
     rust_test_entries,
+    scan_hashes,
     support_hash,
     test_hashes,
 )
@@ -24,6 +25,7 @@ from recognizer_sensors.mutation.memory import available_bytes, core_count, defa
 from recognizer_sensors.mutation.record import (
     body_hash,
     build_record,
+    held_entry,
     read_record,
     recorded_entry,
     site_reusable,
@@ -68,7 +70,18 @@ from recognizer_sensors.settings import (
     relative_path,
 )
 from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed, not_installed
-from recognizer_sensors.testrun.suites import Suite, directory_of, parse_suites
+from recognizer_sensors.testrun.records import (
+    composed_tests,
+    merged_entries,
+    new_entry,
+    read_entries,
+    record_document,
+    record_path,
+    recorded_inputs,
+    suites_array,
+    tests_owned_by,
+)
+from recognizer_sensors.testrun.suites import Suite, directory_of, owner_of, parse_suites, selected
 
 NO_AFFECTED = "No affected test files found"
 
@@ -128,6 +141,7 @@ class Target:
     reused: bool = False
     carried: bool = False
     suite: str = ""
+    held: dict | None = None
 
 
 def parse_carry(value: object) -> tuple[str, ...]:
@@ -765,24 +779,24 @@ def mutants_for(target: Target, sources: dict[str, bytes]) -> list[Mutant]:
     ]
 
 
-def queue_order(pending: list[Target], skipped: list[str]) -> list[Target]:
+def queue_order(
+    pending: list[Target], skipped: list[str], order: dict[str, int] | None = None
+) -> list[Target]:
     earlier = set(skipped)
+    ranked = sorted(pending, key=lambda t: (t.identity not in earlier, t.identity))
 
-    return sorted(pending, key=lambda t: (t.identity not in earlier, t.identity))
+    if order is None:
+        return ranked
+
+    return sorted(ranked, key=lambda t: order.get(t.suite, len(order)))
 
 
 def record_key(suites: list[dict]) -> object:
     return {"suites": suites, "selection": 3}
 
 
-def within(path: str, directory: str) -> bool:
-    return directory == "" or path == directory or path.startswith(f"{directory}/")
-
-
 def owner_suite(suites: list[Suite], file: str) -> Suite | None:
-    owners = [suite for suite in suites if within(file, directory_of(suite))]
-
-    return max(owners, key=lambda suite: len(directory_of(suite)), default=None)
+    return owner_of(suites, file)
 
 
 def no_suites(languages: list[str]) -> Refusal:
@@ -865,6 +879,10 @@ def record_for(
         if carried is not None:
             functions[target.identity] = carried
 
+    for target in targets:
+        if target.held is not None:
+            functions[target.identity] = target.held
+
     return build_record(
         key,
         commit,
@@ -889,6 +907,7 @@ def run(
     commit: str,
     modules: set[str] | None = None,
     checkpoint: Callable[[Outcome], None] | None = None,
+    names: list[str] | None = None,
 ) -> Outcome:
     raw_suites = settings.get("suites")
 
@@ -931,6 +950,7 @@ def run(
             modules,
             checkpoint,
             [scan for scan in scans if scan.language in unconfigured],
+            names,
         )
     finally:
         remove_work_folder(work)
@@ -960,10 +980,12 @@ def measure(
     modules: set[str] | None,
     checkpoint: Callable[[Outcome], None] | None,
     unsuited: list[Scan],
+    names: list[str] | None = None,
 ) -> Outcome:
     restore_coverage_handler = install_coverage_stop_handler()
 
-    report("coverage")
+    ticked = {suite.name for suite in selected(suites, names)}
+    stored_entries = read_entries(repository, "mutation")
     warmup_seconds: dict[str, float] = {}
 
     try:
@@ -974,6 +996,7 @@ def measure(
                 suites,
                 work,
                 seconds=warmup_seconds,
+                names=names,
                 **({"carry": settings["carry"]} if "carry" in settings else {}),
             )
     except (StoppedBeforeMutation, MeasurementError):
@@ -995,9 +1018,9 @@ def measure(
     support = support_hash(test_files, rust_entries)
     hashes = {**test_files, **unit_test_hashes(repository, RUST_UNITS)}
     tests = digest_of(hashes)
-    shared_tests = digest_of(
-        {**test_files, **in_file_test_hashes(repository, listed_files(repository))}
-    )
+    shared_map = {**test_files, **in_file_test_hashes(repository, listed_files(repository))}
+    shared_tests = composed_tests(shared_map, suites, ticked, stored_entries)
+    current_modules = scan_hashes([*scans, *unsuited])
     suite_size = suite_size_of(selection)
     targets: list[Target] = []
     excluded: list[Target] = []
@@ -1022,6 +1045,11 @@ def measure(
                 continue
 
             target.suite = owner.name
+
+            if owner.name not in ticked:
+                targets.append(target)
+                continue
+
             lines = coverage.get(target.file)
 
             if lines is None:
@@ -1060,6 +1088,24 @@ def measure(
     carry_skipped = set(record["skipped"]) if record and modules is not None else set()
 
     for target in targets:
+        if target.suite not in ticked:
+            entry = held_entry(record, target.identity, len(target.sites))
+
+            if entry is None:
+                unmeasured[target.identity] = bool(record) and target.identity in set(
+                    record["skipped"]
+                )
+                continue
+
+            target.held = entry
+            target.carried = True
+            target.covered = [verdict is not None for verdict in entry["verdicts"]]
+            target.uncovered = target.covered.count(False)
+            apply_verdicts(target, list(entry["verdicts"]))
+            target.entries = list(entry["sites"])
+
+            continue
+
         out_of_scope = modules is not None and target.module not in modules
         kept = kept_sites(target, record if out_of_scope else reuse, hashes, tests, support)
         wanted = [index for index, covered in enumerate(target.covered) if covered]
@@ -1081,16 +1127,76 @@ def measure(
             target.reused = kept is not None
             settle(target, {}, hashes, tests)
 
-    queue = queue_order(pending, earlier_skipped)
+    order = {suite.name: position for position, suite in enumerate(suites)}
+    queue = queue_order(pending, earlier_skipped, order)
     ran = {"selection": 0, "whole": 0}
     done: set[str] = set()
     queued = {target.identity for target in queue}
     stopped = False
     refused: Refusal | None = None
-    total = sum(1 for target in targets if modules is None or target.module in modules)
-    finished = total - len(queue)
+    ran_suites = [
+        suite
+        for suite in suites
+        if suite.name in ticked and any(scan.language == suite.language for scan in scans)
+    ]
 
-    report("mutants", finished, total)
+    def in_scope(target: Target) -> bool:
+        return target.suite in ticked and (modules is None or target.module in modules)
+
+    suite_total = {
+        suite.name: sum(1 for t in targets if t.suite == suite.name and in_scope(t))
+        for suite in ran_suites
+    }
+    waiting: dict[str, int] = {}
+
+    for target in queue:
+        waiting[target.suite] = waiting.get(target.suite, 0) + 1
+
+    suite_done = {name: suite_total[name] - waiting.get(name, 0) for name in suite_total}
+
+    def announce(name: str) -> None:
+        report("mutants", suite_done[name], suite_total[name], name)
+
+    if queue:
+        announce(queue[0].suite)
+    else:
+        for name in suite_total:
+            announce(name)
+
+    def suites_result(
+        done: set[str], skipped_set: set[str], refused: Refusal | None
+    ) -> tuple[list[dict], dict[str, dict]]:
+        fresh: dict[str, dict] = {}
+        failed_suite = refused.diagnosis.get("suite") if refused is not None else None
+
+        for suite in ran_suites:
+            scoped = [t for t in targets if t.suite == suite.name and in_scope(t)]
+            skipped_here = sum(1 for t in scoped if t.identity in skipped_set)
+            measured_here = (
+                len(scoped) - skipped_here - sum(1 for t in scoped if t.identity in unmeasured)
+            )
+            status = "partial" if skipped_here else "ok"
+            reason = None
+
+            if failed_suite == suite.name:
+                status, reason = "failed", refused.diagnosis["line"]
+
+            fresh[suite.name] = new_entry(
+                status,
+                {
+                    t.module: current_modules[t.module]
+                    for t in scoped
+                    if t.identity not in skipped_set and t.module in current_modules
+                },
+                tests_owned_by(shared_map, suites, suite),
+                reason,
+                measured_here,
+                len(scoped),
+            )
+
+        entries = merged_entries(stored_entries, fresh, [s.name for s in suites])
+
+        return suites_array(suites, entries), entries
 
     def assemble(
         done: set[str], stopped: bool = False
@@ -1105,7 +1211,9 @@ def measure(
         reused = sum(1 for target in measured if target.reused)
         values = overlay_values(measured)
         overlay = Overlay(METRICS, values, repository / settings["overlay"])
+        suites_list, suite_entries = suites_result(done, skipped_set, refused)
         documents = [
+            (record_path(repository, "mutation"), record_document("mutation", suite_entries)),
             (
                 repository / settings["record"],
                 record_for(key, commit, support, targets, queued, done, unmeasured, record),
@@ -1142,6 +1250,8 @@ def measure(
             shared_tests,
             excluded=excluded_document(excluded),
             unowned=unowned_document(unowned),
+            suites=suites_list,
+            recorded_inputs=recorded_inputs(suites, ticked, stored_entries, current_modules),
         )
 
         return outcome, measured, skipped_ids, reused
@@ -1244,7 +1354,6 @@ def measure(
             deadline = started + budget * 60 if budget is not None else None
             end_watch = watch_budget(deadline, CLOCK) if deadline is not None else None
             last = {"at": started}
-            progressed = {"done": finished}
 
             def finish(target: Target, outcome: list[MutantResult]) -> None:
                 results = {
@@ -1252,8 +1361,15 @@ def measure(
                 }
                 settle(target, results, hashes, tests)
                 done.add(target.identity)
-                progressed["done"] += 1
-                report("mutants", progressed["done"], total)
+                suite_done[target.suite] += 1
+                waiting[target.suite] -= 1
+                announce(target.suite)
+
+                if waiting[target.suite] == 0:
+                    upcoming = [name for name in waiting if waiting[name] > 0]
+
+                    if upcoming:
+                        announce(upcoming[0])
                 now = CLOCK()
 
                 if now - last["at"] >= CHECKPOINT_SECONDS:

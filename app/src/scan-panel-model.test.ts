@@ -81,7 +81,14 @@ function input(over: Partial<PanelInput> = {}): PanelInput {
       of: (id) => CURRENT[id] as ResponsibilityState,
     },
     describedAt: null,
-    ticks: { describe: false, ticked: [], once: [], onlyView: false },
+    ticks: {
+      describe: false,
+      ticked: [],
+      once: [],
+      onlyView: false,
+      suites: {},
+      folds: [],
+    },
     run: NO_RUN,
     scanning: false,
     now: NOW,
@@ -296,7 +303,8 @@ describe("scanPanel row states", () => {
 
     expect(rowOf(model, "describe")).toMatchObject({
       state: { kind: "current", at: NOW - 2 * 24 * 60 * MINUTE },
-      text: { text: "current, 2 days ago" },
+      text: { text: "2d" },
+      stateTitle: "current, 2 days ago",
     });
   });
 
@@ -430,8 +438,8 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(states(model)).toContain("C.R.A.P.: current, 27 minutes ago");
-    expect(states(model)).toContain("Duplication: current, just now");
+    expect(states(model)).toContain("C.R.A.P.: 27m");
+    expect(states(model)).toContain("Duplication: now");
   });
 
   it("prefers the session time over the file's modification time", () => {
@@ -449,7 +457,7 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(states(model)).toContain("alpha: current, 2 minutes ago");
+    expect(states(model)).toContain("alpha: 2m");
   });
 
   it.each([
@@ -532,7 +540,7 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(rowOf(model, "crap")?.text.text).toBe("current, just now");
+    expect(rowOf(model, "crap")?.text.text).toBe("now");
   });
 
   it("offers Run Structure on a repository never scanned, and a disabled Running button during a scan", () => {
@@ -558,7 +566,7 @@ describe("scanPanel ticks", () => {
     ).toEqual(["structure"]);
   });
 
-  it("ticks a plain sensor from the stored names and a tests-running one from once", () => {
+  it("ticks a plain sensor from the stored names and a tests-running one from once and its suite ticks", () => {
     const model = scanPanel(
       input({
         ticks: {
@@ -566,6 +574,8 @@ describe("scanPanel ticks", () => {
           ticked: ["duplication"],
           once: ["crap"],
           onlyView: false,
+          suites: {},
+          folds: [],
         },
       }),
     );
@@ -577,7 +587,14 @@ describe("scanPanel ticks", () => {
   it("ticks every plain sensor but no tests-running one when never stored and defaulting on", () => {
     const model = scanPanel(
       input({
-        ticks: { describe: false, ticked: null, once: [], onlyView: false },
+        ticks: {
+          describe: false,
+          ticked: null,
+          once: [],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
       }),
     );
 
@@ -589,7 +606,14 @@ describe("scanPanel ticks", () => {
   it("ticks nothing when a fresh repository defaults to no sensors", () => {
     const model = scanPanel(
       input({
-        ticks: { describe: false, ticked: [], once: [], onlyView: false },
+        ticks: {
+          describe: false,
+          ticked: [],
+          once: [],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
       }),
     );
 
@@ -613,6 +637,8 @@ describe("phasesFor", () => {
         ticked: ["duplication", "alpha", "ghost"],
         once: [],
         onlyView: false,
+        suites: {},
+        folds: [],
       },
       rows,
     );
@@ -622,20 +648,35 @@ describe("phasesFor", () => {
       describeAll: false,
       sense: ["duplication", "alpha"],
       modules: null,
+      suites: {},
     });
     expect(dropped).toEqual(["ghost"]);
   });
 
-  it("adds a tests-running sensor only when it is in once", () => {
+  it("adds a tests-running sensor only when it is in once and one of its suites is ticked", () => {
     expect(
       phasesFor(
-        { describe: false, ticked: [], once: ["crap"], onlyView: false },
+        {
+          describe: false,
+          ticked: [],
+          once: ["crap"],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
         rows,
       ).plan.sense,
     ).toEqual(["crap"]);
     expect(
       phasesFor(
-        { describe: false, ticked: ["crap"], once: [], onlyView: false },
+        {
+          describe: false,
+          ticked: ["crap"],
+          once: [],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
         rows,
       ).plan.sense,
     ).toEqual([]);
@@ -644,7 +685,14 @@ describe("phasesFor", () => {
   it("runs every plain sensor when never stored", () => {
     expect(
       phasesFor(
-        { describe: false, ticked: null, once: [], onlyView: false },
+        {
+          describe: false,
+          ticked: null,
+          once: [],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
         rows,
       ).plan.sense,
     ).toEqual(["duplication", "alpha"]);
@@ -704,6 +752,8 @@ describe("scanPanel only this view", () => {
     ticked: [],
     once: ["mutation"],
     onlyView,
+    suites: {},
+    folds: [],
   });
   const row = (model: ReturnType<typeof scanPanel>, key: string) =>
     model.rows.find((one) => one.key === key);
@@ -815,7 +865,14 @@ describe("scanPanel freshness", () => {
       sensors: [crap(inputs), ...others],
       scans: [freshScan],
       lines: allCurrent(["a.py", "b.py"]),
-      ticks: { describe: true, ticked: [], once: ["crap"], onlyView: false },
+      ticks: {
+        describe: true,
+        ticked: [],
+        once: ["crap"],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
       freshness: buildFreshness([freshScan], "t"),
     });
 
@@ -879,7 +936,14 @@ describe("scanPanel freshness", () => {
     const model = scanPanel({
       ...base({ "a.py": "ha", "b.py": "old" }),
       view: { name: "engine", modules: ["a.py"] },
-      ticks: { describe: true, ticked: [], once: ["crap"], onlyView: true },
+      ticks: {
+        describe: true,
+        ticked: [],
+        once: ["crap"],
+        onlyView: true,
+        suites: {},
+        folds: [],
+      },
     });
 
     expect(model.freshness.summary.head).toBe(
@@ -1025,7 +1089,8 @@ describe("scanPanel why", () => {
       }),
     ).rows.find((one) => one.key === "crap");
 
-    expect(row?.text.text).toBe("current, 5 minutes ago");
+    expect(row?.text.text).toBe("5m");
+    expect(row?.stateTitle).toContain("current, 5 minutes ago");
     expect(row?.why).not.toBeNull();
   });
 });
@@ -1163,7 +1228,8 @@ const GAP_RUST: PreflightGap = {
 
 function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
   return {
-    version: 4,
+    version: 5,
+    suites: {},
     run_id: "run-1",
     pid: 4242,
     pgid: 4242,
@@ -1208,6 +1274,8 @@ const bothTicked = {
   ticked: [],
   once: ["crap", "mutation"],
   onlyView: false,
+  suites: {},
+  folds: [],
 };
 
 describe("the run card", () => {
@@ -1215,8 +1283,8 @@ describe("the run card", () => {
     const model = scanPanel(input({ ...runOf(), scanning: true }));
 
     expect(model.run?.card).toMatchObject({
-      head: "Checking before the scan",
-      line: "Making sure every ticked sensor's tools are in place.",
+      head: "Checking tools",
+      line: null,
       tone: "run",
     });
     expect(model.button).toMatchObject({
@@ -1234,7 +1302,7 @@ describe("the run card", () => {
 
     expect(model.run?.card).toMatchObject({
       head: "Nothing ran",
-      line: "Set these up, then scan again.",
+      line: "Set it up or untick the suite.",
     });
     expect(model.run?.card.gaps.map((item) => [item.line, item.where])).toEqual(
       [
@@ -1301,6 +1369,8 @@ describe("the run card", () => {
       ticked: [],
       once: ["crap", "mutation"],
       onlyView: false,
+      suites: {},
+      folds: [],
     };
     const others: PreflightGap[] = [
       { id: "no-commit", line: "no commit", needs: ["crap", "mutation"] },

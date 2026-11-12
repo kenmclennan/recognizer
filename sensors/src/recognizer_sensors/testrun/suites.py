@@ -3,11 +3,13 @@ import re
 import shlex
 import subprocess
 import time
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from recognizer_sensors.crap.jacoco import merge_coverage
 from recognizer_sensors.crap.lcov import Coverage
+from recognizer_sensors.progress import report
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
 from recognizer_sensors.testrun.failures import crap_tests_failed, failing_names, suite_failed
@@ -149,6 +151,38 @@ def directory_of(suite: Suite) -> str:
     return "" if suite.directory in ("", ".") else suite.directory.strip("/")
 
 
+def selected(suites: Iterable[Suite], names: Iterable[str] | None) -> tuple[Suite, ...]:
+    configured = tuple(suites)
+
+    if names is None:
+        return configured
+
+    wanted = list(names)
+
+    if not wanted:
+        raise SettingsError("suites must name at least one suite")
+
+    known = {suite.name for suite in configured}
+    unknown = sorted({name for name in wanted if name not in known})
+
+    if unknown:
+        raise SettingsError(f"unknown test suite: {', '.join(unknown)}")
+
+    chosen = set(wanted)
+
+    return tuple(suite for suite in configured if suite.name in chosen)
+
+
+def within(path: str, directory: str) -> bool:
+    return directory == "" or path == directory or path.startswith(f"{directory}/")
+
+
+def owner_of(suites: Iterable[Suite], file: str) -> Suite | None:
+    owners = [suite for suite in suites if within(file, directory_of(suite))]
+
+    return max(owners, key=lambda suite: len(directory_of(suite)), default=None)
+
+
 def login_shell() -> str:
     return os.environ.get("SHELL") or DEFAULT_SHELL
 
@@ -192,12 +226,21 @@ def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
     return result.returncode, output
 
 
-def unavailable(cause: str) -> dict:
-    return diagnose("coverage-unavailable", f"coverage unavailable: {cause}; see {LOG.as_posix()}")
+def unavailable(cause: str, suite: str | None = None) -> dict:
+    return diagnose(
+        "coverage-unavailable",
+        f"coverage unavailable: {cause}; see {LOG.as_posix()}",
+        suite=suite,
+    )
 
 
 def collect_suites(
-    repository: Path, scans: list[Scan], suites: tuple[Suite, ...]
+    repository: Path,
+    scans: list[Scan],
+    suites: tuple[Suite, ...],
+    names: Iterable[str] | None = None,
+    stored: Mapping[str, Coverage] | None = None,
+    results: dict[str, dict] | None = None,
 ) -> tuple[Coverage, dict | None]:
     if not scans:
         return {}, None
@@ -207,20 +250,30 @@ def collect_suites(
     uncovered = [
         language for language in scanned if not any(s.language == language for s in suites)
     ]
-    runnable = [suite for suite in suites if suite.language in scanned]
+    chosen = selected(suites, names)
+    runnable = [suite for suite in chosen if suite.language in scanned]
     merged: Coverage = {}
     diagnosis: dict | None = None
     log = repository / LOG
     log.parent.mkdir(parents=True, exist_ok=True)
 
+    for suite in suites:
+        if suite not in chosen and stored and suite.name in stored:
+            merge_coverage(merged, stored[suite.name])
+
     with log.open("w", encoding="utf-8") as stream:
         for suite in runnable:
+            report("coverage", suite=suite.name)
             started = time.time()
             returncode, output = run_suite(repository, suite, stream)
             source = source_of(suite)
             part = read_source(repository, source, files, started)
             failed = suite_failed(suite.language, returncode, output)
             where = report_pattern(suite)
+            outcome: dict = {"status": "ok", "reason": None, "part": part}
+
+            if results is not None:
+                results[suite.name] = outcome
 
             if part is None:
                 cause = f"the {suite.name} suite left no coverage report at {where}"
@@ -231,22 +284,27 @@ def collect_suites(
                         f"and left no coverage report at {where}"
                     )
 
-                diagnosis = unavailable(cause)
+                diagnosis = unavailable(cause, suite.name)
+                outcome.update(status="failed", reason=diagnosis["line"])
 
                 continue
 
             merge_coverage(merged, part)
 
             if covers_nothing(part, source, suite.language, scans):
-                diagnosis = unavailable(f"the {suite.name} suite produced an empty coverage report")
+                diagnosis = unavailable(
+                    f"the {suite.name} suite produced an empty coverage report", suite.name
+                )
+                outcome.update(status="failed", reason=diagnosis["line"])
 
             if failed:
-                names = (
+                names_failing = (
                     []
                     if suite.language == "csharp"
                     else failing_names(repository, suite.language, output, suite.directory)
                 )
-                diagnosis = crap_tests_failed(names)
+                diagnosis = crap_tests_failed(names_failing, suite.name)
+                outcome.update(status="failed", reason=diagnosis["line"])
 
     if uncovered:
         diagnosis = diagnose(

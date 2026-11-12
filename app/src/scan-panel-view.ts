@@ -10,10 +10,12 @@ import {
   type ScanRow,
 } from "./scan-panel-model";
 import type { GapItem, HelpLine, RunCard } from "./scan-run-model";
-import type { ScanWhy } from "./scan-why";
+import type { SuiteRowModel, SuiteTone } from "./suite-results";
 
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
+  tickSuite: (sensor: string, suite: string, ticked: boolean) => void;
+  toggleFold: (sensor: string) => void;
   setOnlyView: (on: boolean) => void;
   setMode: (mode: ResultsMode) => void;
   run: () => void;
@@ -56,14 +58,40 @@ function miniBar(done: number, total: number): HTMLElement {
   return track;
 }
 
+function toneClass(tone: SuiteTone): string {
+  return tone === "muted" ? "muted" : tone;
+}
+
+function foldButton(row: ScanRow, actions: ScanPanelActions): HTMLElement {
+  if (row.fold === null) {
+    return el("span", "scan-fold-spacer");
+  }
+
+  const open = row.fold.open;
+  const toggle = button("", "scan-fold", () => actions.toggleFold(row.key));
+
+  toggle.append(icon("chevron-right", "scan-fold-icon"));
+  toggle.classList.toggle("open", open);
+  toggle.setAttribute("aria-expanded", String(open));
+  toggle.setAttribute("aria-label", `${open ? "Hide" : "Show"} test suites`);
+  toggle.title = `${open ? "Hide" : "Show"} test suites`;
+
+  return toggle;
+}
+
 function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   const node = el("div", "scan-row");
   const label = el("label", "scan-row-label");
   const tick = el("input", "scan-tick");
-  const state = el("span", `scan-state ${stateTone(row.state)}`);
+  const state = el(
+    "span",
+    `scan-state ${row.tone === null ? stateTone(row.state) : toneClass(row.tone)}`,
+  );
   const glyph = icon(
     row.text.icon,
-    row.state.kind === "running" ? "scan-spin" : "scan-icon",
+    row.state.kind === "running" || row.text.icon === "loader"
+      ? "scan-spin"
+      : "scan-icon",
   );
 
   node.dataset.sensor = row.key;
@@ -80,11 +108,13 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   );
   tick.type = "checkbox";
   tick.checked = row.ticked;
+  tick.indeterminate = row.tick === "some";
   tick.disabled = row.disabled;
   tick.title = row.tickable ? "" : row.title;
   tick.setAttribute("aria-label", row.name);
   tick.addEventListener("change", () => actions.tick(row.key, tick.checked));
-  label.append(tick, row.name);
+  label.append(tick, el("span", "scan-row-name", row.name));
+  state.title = row.stateTitle;
   state.append(glyph, el("span", "scan-state-text", row.text.text));
 
   if (
@@ -95,47 +125,48 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
     state.append(miniBar(row.state.done, row.state.total));
   }
 
-  if (row.state.kind === "failed") {
+  if (row.state.kind === "failed" || row.why?.log === true) {
     state.append(button("log", "scan-log-link", () => actions.openLog()));
   }
 
-  if (row.note !== null) {
-    state.append(el("small", "scan-note", row.note));
-  }
-
-  node.append(label, state);
-
-  if (row.why !== null) {
-    node.classList.add("has-why");
-    node.append(whyNode(row.why, actions));
-  }
+  node.append(foldButton(row, actions), label, state);
 
   return node;
 }
 
-function whyNode(why: ScanWhy, actions: ScanPanelActions): HTMLElement {
-  const node = el("div", "scan-why");
+function suiteNode(
+  suite: SuiteRowModel,
+  actions: ScanPanelActions,
+): HTMLElement {
+  const node = el("div", "scan-row scan-suite");
+  const label = el("label", "scan-row-label");
+  const tick = el("input", "scan-tick");
+  const state = el("span", `scan-state ${toneClass(suite.state.tone)}`);
 
-  node.append(
-    ...why.segments.map((segment) =>
-      segment.code ? el("code", "", segment.text) : segment.text,
-    ),
+  node.dataset.sensor = suite.sensor;
+  node.dataset.suite = suite.name;
+  node.dataset.state = suite.state.kind;
+  tick.type = "checkbox";
+  tick.checked = suite.ticked;
+  tick.disabled = suite.disabled;
+  tick.setAttribute("aria-label", `${suite.sensor} ${suite.name}`);
+  tick.addEventListener("change", () =>
+    actions.tickSuite(suite.sensor, suite.name, tick.checked),
   );
-
-  if (why.copy !== null) {
-    const text = why.copy;
-
-    node.append(
-      " ",
-      button("Copy", "scan-why-copy", () => actions.copy(text)),
-    );
-  }
-
-  if (why.log) {
-    const link = button("Show log", "scan-why-log", () => actions.openLog());
-
-    node.append(" ", link);
-  }
+  label.append(
+    tick,
+    el("span", "scan-row-name", suite.name),
+    el("span", "scan-lang", suite.tag),
+  );
+  state.title = suite.state.title;
+  state.append(
+    icon(
+      suite.state.icon,
+      suite.state.kind === "running" ? "scan-spin" : "scan-icon",
+    ),
+    el("span", "scan-state-text", suite.state.text),
+  );
+  node.append(label, state);
 
   return node;
 }
@@ -273,24 +304,37 @@ function helpNode(line: HelpLine): HTMLElement {
 function cardNode(card: RunCard, actions: ScanPanelActions): HTMLElement {
   const node = el("div", `summary ${card.tone}`);
   const text = el("div", "summary-text");
-  const line = el("div", "summary-line", card.line);
+  const head = el("div", "summary-head");
+  const when = el("span", "summary-when");
 
   node.dataset.shape = "run-card";
   node.dataset.phase = card.phase;
 
-  if (card.showLog !== null) {
-    const log = card.showLog;
-
-    line.append(
-      " ",
-      button("Show log", "scan-why-log", () => actions.openRunLog(log)),
-    );
+  if (card.when.icon !== null) {
+    when.append(icon(card.when.icon, "summary-origin-icon"));
   }
 
-  text.append(el("div", "summary-head", card.head), line);
+  when.append(card.when.text);
+  head.append(el("span", "summary-head-text", card.head), when);
+  text.append(head);
 
-  if (card.second !== null) {
-    text.append(el("div", "summary-line", card.second));
+  if (card.line !== null || card.showLog !== null) {
+    const line = el("div", "summary-line", card.line ?? "");
+
+    if (card.lineTitle !== null) {
+      line.title = card.lineTitle;
+    }
+
+    if (card.showLog !== null) {
+      const log = card.showLog;
+
+      line.append(
+        " ",
+        button("Show log", "scan-why-log", () => actions.openRunLog(log)),
+      );
+    }
+
+    text.append(line);
   }
 
   if (card.gaps.length > 0) {
@@ -299,15 +343,6 @@ function cardNode(card: RunCard, actions: ScanPanelActions): HTMLElement {
     gaps.append(...card.gaps.map((item) => gapNode(item)));
     text.append(gaps, ...card.help.map(helpNode));
   }
-
-  const origin = el("div", "summary-origin");
-
-  if (card.origin.icon !== null) {
-    origin.append(icon(card.origin.icon, "summary-origin-icon"));
-  }
-
-  origin.append(card.origin.text);
-  text.append(origin);
 
   node.append(
     icon(card.icon, card.tone === "run" ? "scan-spin" : "summary-icon"),
@@ -369,6 +404,9 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
             ]),
         ...model.rows.flatMap((row) => [
           rowNode(row, actions),
+          ...(row.fold?.open === true
+            ? row.fold.suites.map((suite) => suiteNode(suite, actions))
+            : []),
           ...(row.key === DESCRIBE_KEY && model.confirm !== null
             ? [confirmNode(model.confirm, actions)]
             : []),

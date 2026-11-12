@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { CHECK_TIMEOUT_MS, checkArguments } from "../src/sensors-check.js";
+import {
+  CHECK_TIMEOUT_MS,
+  checkArguments,
+  strippedArguments,
+} from "../src/sensors-check.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
@@ -296,5 +300,37 @@ describe("recognizer help sensors <name>", () => {
     expect(run(["help", "sensors"], plain.io)).toBe(0);
     expect(plain.out()).toContain("recognizer sensors");
     expect(plain.calls).toEqual([]);
+  });
+});
+
+describe("suites pair", () => {
+  const command = [
+    "recognizer-sensors",
+    "crap",
+    "--repository",
+    "{repository}",
+    "--suites",
+    '["unit"]',
+  ];
+
+  it("is kept by the readiness check arguments", () => {
+    expect(checkArguments(command, "/r", false)).toEqual([
+      "recognizer-sensors",
+      "crap",
+      "--repository",
+      "/r",
+      "--suites",
+      '["unit"]',
+      "--check",
+    ]);
+  });
+
+  it("is dropped from the guide arguments", () => {
+    expect(strippedArguments(command, "/r")).toEqual([
+      "recognizer-sensors",
+      "crap",
+      "--repository",
+      "/r",
+    ]);
   });
 });

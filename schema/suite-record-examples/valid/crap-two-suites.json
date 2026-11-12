@@ -1,0 +1,22 @@
+{
+  "suite_record_version": 1,
+  "sensor": "crap",
+  "suites": {
+    "unit": {
+      "ran_at": "2026-11-12T10:00:00Z",
+      "status": "ok",
+      "measured": 12,
+      "total": 12,
+      "inputs": { "src/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+      "tests": { "tests/unit/test_a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+      "coverage": { "src/a.py": [1, 2, 3] }
+    },
+    "web": {
+      "ran_at": "2026-11-11T09:30:00Z",
+      "status": "failed",
+      "reason": "tests failed",
+      "inputs": {},
+      "tests": { "web/a.test.ts": "0000000000000000000000000000000000000000000000000000000000000000" }
+    }
+  }
+}

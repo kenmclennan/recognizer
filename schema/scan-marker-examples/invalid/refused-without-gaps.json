@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "run_id": "3b1f8c52-6d0e-4a57-9a3e-0c5d7e1f2a40",
   "pid": 4242,
   "pgid": 4242,
@@ -10,6 +10,7 @@
     "mutation"
   ],
   "describe": false,
+  "suites": {},
   "phase": "refused",
   "ended_at": "2026-11-12T09:05:00.000Z",
   "exit": 4,

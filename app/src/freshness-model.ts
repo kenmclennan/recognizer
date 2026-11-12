@@ -11,6 +11,7 @@ import {
   staleModules,
 } from "./scan-freshness";
 import type { PanelInput, RowSensor } from "./scan-panel-model";
+import { sensorArmed } from "./suite-ticks";
 
 export { DESCRIBE_KEY, MUTATION_KEY };
 
@@ -139,7 +140,7 @@ function isTicked(input: PanelInput, sensors: RowSensor[], key: string) {
   const one = sensors.find(({ name }) => name === key);
 
   if (one?.runsTests === true) {
-    return input.ticks.once.includes(key);
+    return sensorArmed(input.ticks, one);
   }
 
   const plain = sensors

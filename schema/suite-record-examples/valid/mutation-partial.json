@@ -1,0 +1,14 @@
+{
+  "suite_record_version": 1,
+  "sensor": "mutation",
+  "suites": {
+    "unit": {
+      "ran_at": "2026-11-12T10:00:00Z",
+      "status": "partial",
+      "measured": 11,
+      "total": 29,
+      "inputs": { "src/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+      "tests": { "tests/unit/test_a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    }
+  }
+}

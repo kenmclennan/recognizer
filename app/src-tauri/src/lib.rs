@@ -836,12 +836,19 @@ async fn run_scan(
     describe_all: bool,
     sense: Vec<String>,
     modules: Option<Vec<String>>,
+    suites: Option<std::collections::BTreeMap<String, Vec<String>>>,
 ) -> Result<ScanRun, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
 
     if let Err(reason) = sensors::check_names(&sense) {
         return Ok(ScanRun::Refused { reason });
+    }
+
+    if let Some(plan) = &suites {
+        if let Err(reason) = scan_run::check_suites(plan) {
+            return Ok(ScanRun::Refused { reason });
+        }
     }
 
     let confirm_above = if describe {
@@ -857,7 +864,7 @@ async fn run_scan(
     tauri::async_runtime::spawn_blocking(move || {
         let runs = app.state::<ScanRuns>();
 
-        let result = scan_run::run_with(
+        let result = scan_run::run_with_suites(
             &runs,
             &label,
             &folder,
@@ -866,6 +873,7 @@ async fn run_scan(
             repository::Describe::from_flags(describe, describe_all),
             &sense,
             modules.as_deref(),
+            suites.as_ref(),
             confirm_above,
             || {
                 let origin = changes::take_origin(&folder);
@@ -937,6 +945,8 @@ fn write_scan_ticks(
     describe: bool,
     ticked: Vec<String>,
     only_view: bool,
+    suites: Option<std::collections::BTreeMap<String, scan_ticks::SuiteTicks>>,
+    folds: Option<Vec<String>>,
 ) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
 
@@ -950,6 +960,8 @@ fn write_scan_ticks(
             sensors: None,
             ticked,
             only_view,
+            suites: suites.unwrap_or_default(),
+            folds: folds.unwrap_or_default(),
         },
     )
 }

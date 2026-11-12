@@ -52,6 +52,7 @@ import {
   extractionPrecheck,
   parseModuleScope,
   parseScanArgs,
+  parseSuiteSelection,
   phaseLine,
   progressLine,
   selectSensors,
@@ -313,6 +314,16 @@ function readModulesFile(io: Io, file: string): string {
   }
 }
 
+function readSuitesFile(io: Io, file: string): string {
+  try {
+    return io.readFile(resolve(file));
+  } catch (error) {
+    throw new InputError([
+      `cannot read --suites file ${file}: ${(error as Error).message}`,
+    ]);
+  }
+}
+
 type ScanStep =
   | { kind: "describe"; input: DescribeInput }
   | { kind: "sense"; input: RunSensorsInput };
@@ -337,6 +348,8 @@ function* scanFlow(
   let describer: Describer | undefined;
   let selected: ReturnType<typeof selectSensors> = [];
   let folderKnown = false;
+  const chosen: Record<string, string[]> = {};
+  let explicit: Record<string, string[]> = {};
 
   try {
     try {
@@ -370,6 +383,27 @@ function* scanFlow(
             shippedSensorNames(),
             config?.tests,
           );
+
+    const configured = (config?.tests ?? []).map((suite) => suite.name);
+    const given =
+      options.suites === undefined
+        ? {}
+        : parseSuiteSelection(
+            readSuitesFile(io, options.suites),
+            configured,
+            selected.map((one) => ({
+              name: one.name,
+              runsTests: runsTests(one.command),
+            })),
+          );
+
+    explicit = given;
+
+    for (const one of selected.filter((entry) => runsTests(entry.command))) {
+      const names = given[one.name] ?? configured;
+
+      chosen[one.name] = configured.filter((name) => names.includes(name));
+    }
   } catch (error) {
     if (takeMarker && folderKnown) {
       try {
@@ -396,6 +430,7 @@ function* scanFlow(
     const acquired = acquireMarker(io, root, {
       sensors: selected.map((one) => one.name),
       describe: options.describe !== false,
+      suites: chosen,
     });
 
     if (!acquired.ok) {
@@ -419,6 +454,13 @@ function* scanFlow(
       options.modules !== undefined && isScoped(command)
         ? [...command, "--modules", resolve(options.modules)]
         : command;
+    const withSuites = (name: string, command: string[]): string[] => {
+      const names = explicit[name];
+
+      return names !== undefined && runsTests(command)
+        ? [...command, "--suites", JSON.stringify(chosen[name] ?? names)]
+        : command;
+    };
 
     const emit = (line: string) => {
       taken?.append(line);
@@ -483,7 +525,7 @@ function* scanFlow(
 
     const ticked = selected.map(({ name, command }) => ({
       name,
-      command: scoped(command),
+      command: withSuites(name, scoped(command)),
     }));
     const describing: Describing | null =
       options.describe !== false ? readDescribing(io) : null;
@@ -778,7 +820,7 @@ function* scanFlow(
           root,
           selected: selected.map((one) => ({
             ...one,
-            command: scoped(one.command),
+            command: withSuites(one.name, scoped(one.command)),
             runsTests: runsTests(one.command),
           })),
           commit: commit ?? "",
@@ -832,6 +874,8 @@ function* scanFlow(
         ? null
         : {
             sensor: firstFailed?.name ?? "scan",
+            suite: firstFailed?.diagnosis?.suite ?? null,
+            code: firstFailed?.diagnosis?.code ?? null,
             reason: firstFailed?.reason ?? `recognizer scan exited ${exit}`,
           },
       ranSummary(),

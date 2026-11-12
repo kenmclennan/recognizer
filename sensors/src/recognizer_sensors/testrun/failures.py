@@ -104,7 +104,7 @@ def named(names: list[str]) -> str:
     return shown
 
 
-def crap_tests_failed(names: list[str]) -> dict:
+def crap_tests_failed(names: list[str], suite: str | None = None) -> dict:
     if not names:
         line = "the tests failed, so coverage may read low"
     elif len(names) == 1:
@@ -112,16 +112,16 @@ def crap_tests_failed(names: list[str]) -> dict:
     else:
         line = f"{len(names)} tests failed, so coverage may read low"
 
-    return diagnose("tests-failed", line, failing=failing_object(names))
+    return diagnose("tests-failed", line, failing=failing_object(names), suite=suite)
 
 
-def mutation_tests_failed(names: list[str]) -> dict:
+def mutation_tests_failed(names: list[str], suite: str | None = None) -> dict:
     line = "the test suite fails before any mutation"
 
     if names:
         line = f"{line}: {named(names)}"
 
-    return diagnose("tests-failed", line, failing=failing_object(names))
+    return diagnose("tests-failed", line, failing=failing_object(names), suite=suite)
 
 
 def not_installed(program: str) -> Refusal:

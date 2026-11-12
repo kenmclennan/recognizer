@@ -23,3 +23,5 @@ class Outcome:
     excluded: dict | None = None
     refused: bool = False
     unowned: dict | None = None
+    suites: list[dict] | None = None
+    recorded_inputs: dict[str, str] = field(default_factory=dict)

@@ -27,7 +27,7 @@ const OTHER_PID = 4242;
 
 function markerFor(changes: Partial<ScanRunRecord> = {}): string {
   return JSON.stringify({
-    version: 4,
+    version: 5,
     run_id: "11111111-2222-3333-4444-555555555555",
     pid: OTHER_PID,
     pgid: OTHER_PID,
@@ -36,6 +36,7 @@ function markerFor(changes: Partial<ScanRunRecord> = {}): string {
     repository: ROOT,
     sensors: [],
     describe: false,
+    suites: {},
     phase: "running",
     ended_at: null,
     exit: null,
@@ -246,6 +247,8 @@ describe("scan marker: release", () => {
     expect(recordOf(fake.files)).toMatchObject({ phase: "failed", exit: 1 });
     expect(recordOf(fake.files).failure).toEqual({
       sensor: "scan",
+      suite: null,
+      code: null,
       reason: "sensor blew up",
     });
     expect(recordOf(fake.files).ran).toBeNull();
@@ -548,8 +551,8 @@ describe("scan marker: the reason bound", () => {
 
 describe("scan marker: examples", () => {
   it("holds the expected count of examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(8);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(11);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(9);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(15);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {
