@@ -298,7 +298,6 @@ describe("planFor", () => {
       describeAll: false,
       sense: ["mutation"],
       modules: ["a.py", "b.py", "c.py"],
-      suites: {},
     });
     expect(planned.label).toBe("Update 3 modules");
     expect(planned.progress).toBe("Updating 3 modules\u2026");
@@ -326,7 +325,6 @@ describe("planFor", () => {
       describeAll: false,
       sense: ["crap"],
       modules: null,
-      suites: {},
     });
     expect(planned.progress).toBe("Updating 1 module\u2026");
   });
@@ -354,7 +352,6 @@ describe("planFor", () => {
       describeAll: false,
       sense: [],
       modules: null,
-      suites: {},
     });
     expect(planned.idle).toBe(false);
     expect(planned.modules).toBe(1);
@@ -424,7 +421,6 @@ describe("planFor", () => {
       describeAll: true,
       sense: ["crap", "mutation"],
       modules: ["a.py", "b.py"],
-      suites: {},
     });
     expect(planned.label).toBe("Rescan 2 modules");
     expect(planned.progress).toBe("Rescanning 2 modules\u2026");

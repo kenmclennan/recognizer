@@ -173,6 +173,7 @@ export {
   type IdlePhase,
   idlePhases,
   nothingRanText,
+  parseScanArgs,
   parseSuiteSelection,
 } from "./scan-phases.js";
 export {

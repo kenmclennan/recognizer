@@ -87,7 +87,7 @@ export type ScanPlan = {
   describeAll: boolean;
   sense: string[];
   modules: string[] | null;
-  suites: Record<string, string[]>;
+  suites?: Record<string, string[]>;
 };
 
 export type PanelView = { name: string | null; modules: string[] };

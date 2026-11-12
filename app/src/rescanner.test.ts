@@ -201,7 +201,6 @@ describe("createRescanner", () => {
       describeAll: false,
       sense: [],
       modules: null,
-      suites: {},
     });
     expect(scan.written).toEqual(written);
     expect(rescanner.ticks()).toEqual(before);
