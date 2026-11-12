@@ -21,6 +21,12 @@ const WEB_GAP = {
   line: "suite web: vitest is not installed",
 };
 
+const NOTE = {
+  code: "coverage-partial",
+  suite: "api",
+  line: "suite api: the coverage report covers 19 of 71 scanned Rust files",
+};
+
 const REGISTERED = [
   "tests:",
   "  - name: api",
@@ -100,10 +106,63 @@ describe("recognizer sensors check", () => {
     expect(JSON.parse(fake.out())).toEqual({
       ready: false,
       sensors: [
-        { name: "crap", ready: true, gaps: [] },
-        { name: "mutation", ready: false, gaps: [API_GAP] },
+        { name: "crap", ready: true, gaps: [], notes: [] },
+        { name: "mutation", ready: false, gaps: [API_GAP], notes: [] },
       ],
     });
+  });
+
+  it("prints a note under the ready line, never as a gap, and exits 0", () => {
+    const fake = setup(REGISTERED, (args) => ({
+      stdout: `${JSON.stringify({ gaps: [], notes: args[0] === "crap" ? [NOTE] : [] })}\n`,
+    }));
+
+    expect(check(fake)).toBe(0);
+    expect(fake.out()).toBe(`crap: ready\n  ${NOTE.line}\nmutation: ready\n`);
+
+    const json = setup(REGISTERED, () => ({
+      stdout: `${JSON.stringify({ gaps: [], notes: [NOTE] })}\n`,
+    }));
+
+    check(json, "crap", "--json");
+
+    expect(JSON.parse(json.out()).sensors).toEqual([
+      { name: "crap", ready: true, gaps: [], notes: [NOTE] },
+    ]);
+  });
+
+  it("prints a note after the last gap line and still exits 1", () => {
+    const fake = setup(REGISTERED, () => ({
+      stdout: `${JSON.stringify({ gaps: [API_GAP], notes: [NOTE] })}\n`,
+    }));
+
+    expect(check(fake, "crap")).toBe(1);
+    expect(fake.out()).toBe(`crap: 1 gap\n  ${API_GAP.line}\n  ${NOTE.line}\n`);
+  });
+
+  it("reads an answer with no notes key as no notes", () => {
+    const fake = setup(REGISTERED, gapsBy({}));
+
+    check(fake, "crap", "--json");
+
+    expect(JSON.parse(fake.out()).sensors[0].notes).toEqual([]);
+  });
+
+  it("reports check-failed for notes that are not a list of entries", () => {
+    for (const notes of ["x", [{ code: "coverage-partial", suite: "api" }]]) {
+      const fake = setup(REGISTERED, () => ({
+        stdout: `${JSON.stringify({ gaps: [], notes })}\n`,
+      }));
+
+      check(fake, "crap", "--json");
+
+      const [sensor] = JSON.parse(fake.out()).sensors;
+
+      expect(sensor.gaps.map((gap: { code: string }) => gap.code)).toEqual([
+        "check-failed",
+      ]);
+      expect(sensor.notes).toEqual([]);
+    }
   });
 
   it("checks only the named sensor, registered or not", () => {

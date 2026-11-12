@@ -273,6 +273,27 @@ describe("scan preflight: the project stage", () => {
     }
   });
 
+  it("ignores a note a check prints, so it never blocks the scan", async () => {
+    const note = {
+      code: "coverage-partial",
+      suite: "api",
+      line: "suite api: the coverage report covers 1 of 2 scanned Python files",
+    };
+    const { code, out } = await scan(
+      setup("", {
+        run: () => ({
+          stdout: `${JSON.stringify({ gaps: [], notes: [note] })}\n`,
+        }),
+      }),
+      "--sense",
+      "crap",
+      "--json",
+    );
+
+    expect(code).toBe(0);
+    expect(out).not.toContain("coverage-partial");
+  });
+
   it("makes no check for an unticked sensor, so its gap cannot block", async () => {
     const { code, fake } = await scan(
       setup("", gapsFor("crap")),
