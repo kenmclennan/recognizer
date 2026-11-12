@@ -50,7 +50,6 @@ describe("groupsOf", () => {
       record("cr", "crap"),
       record("du", "duplication"),
       record("ue", "unused_exports"),
-      record("pd", "policy_drift"),
       record("or", "orphan"),
       record("cy", "cycle"),
       record("rv", "rule-violation", "violation"),
@@ -60,7 +59,6 @@ describe("groupsOf", () => {
       "Breaks the policy",
       "Import cycle",
       "Orphan",
-      "Policy out of step",
       "Unused exports",
       "Duplicated code",
       "C.R.A.P.",
@@ -145,6 +143,25 @@ describe("groupsOf", () => {
     expect(
       sentenceOf({ record: row?.record as FindingRecord, reported: false }),
     ).toBe("folders a and b import each other");
+  });
+
+  it("shows a policy_drift record from an old file under its kind with its own summary", () => {
+    const old = document("review", [
+      {
+        ...record("pd", "policy_drift"),
+        summary: "folder a holds 1 scanned modules that no component covers",
+      },
+    ]);
+    const rows = findingRows([old]);
+    const [group] = groupsOf(rows);
+
+    expect(group?.key).toBe("kind:policy_drift");
+    expect(group?.rows).toHaveLength(1);
+    const [row] = rows;
+
+    expect(
+      sentenceOf({ record: row?.record as FindingRecord, reported: false }),
+    ).toBe("folder a holds 1 scanned modules that no component covers");
   });
 
   it("puts a report under its sensor name after the fixed kinds, then unknown kinds by name", () => {
@@ -255,19 +272,18 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has nine unique keys and names with plain help sentences", () => {
+  it("has eight unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
       "kind:orphan",
-      "kind:policy_drift",
       "kind:unused_exports",
       "kind:duplication",
       "kind:crap",
       "kind:mutation",
       "kind:thresholds",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(9);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(8);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");

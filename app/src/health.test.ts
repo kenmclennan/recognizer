@@ -69,8 +69,8 @@ describe("computeHealth on fixtures/check", () => {
     }
   });
 
-  it("marks the module in an uncovered folder amber", () => {
-    expect(health.disc("shop/legacy/helpers.py")).toBe("amber");
+  it("marks the module in an uncovered folder green, the folder being a policy problem and not a finding", () => {
+    expect(health.disc("shop/legacy/helpers.py")).toBe("green");
   });
 
   it("shows an ignored module as a grey ring", () => {

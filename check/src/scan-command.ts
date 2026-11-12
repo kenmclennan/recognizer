@@ -22,6 +22,7 @@ import { errorText, InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
+import { warnPolicyProblems } from "./policy-problems.js";
 import { earlyGaps, readinessGaps } from "./preflight.js";
 import {
   entryFrom,
@@ -927,6 +928,8 @@ export async function runScan(argv: string[], io: Io): Promise<number> {
   }
 }
 
+const POLICY_FILE = ".recognizer/policy.yaml";
+
 function runStructure(io: Io, root: string, scans: Scan[]): boolean {
   if (scans.length === 0) {
     return false;
@@ -941,13 +944,11 @@ function runStructure(io: Io, root: string, scans: Scan[]): boolean {
       return false;
     }
 
-    const run = runStructureSensor(
-      io,
-      root,
-      scans,
-      readPolicy(io, root),
-      settings,
-    );
+    const policy = readPolicy(io, root);
+
+    warnPolicyProblems(io.stderr, POLICY_FILE, scans, policy);
+
+    const run = runStructureSensor(io, root, scans, policy, settings);
 
     if (run.error !== null) {
       io.stderr(`failed structure: ${run.error}\n`);

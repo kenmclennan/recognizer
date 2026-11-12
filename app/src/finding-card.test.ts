@@ -60,18 +60,6 @@ describe("cardOf subject", () => {
 
     expect([card.name, card.folder]).toEqual(["StatusBar.report", "src"]);
   });
-
-  it("names a policy drift entry by its glob with no folder", () => {
-    const card = cardOf(
-      rowOf({
-        id: "policy_drift:entry:src/legacy/**",
-        kind: "policy_drift",
-        evidence: { modules: [] },
-      }),
-    );
-
-    expect([card.name, card.folder]).toEqual(["src/legacy/**", ""]);
-  });
 });
 
 describe("cardOf rows", () => {

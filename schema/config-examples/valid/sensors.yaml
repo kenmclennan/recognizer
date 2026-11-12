@@ -2,7 +2,6 @@ sensors:
   structure:
     warnings:
       cycle: true
-      policy_drift: false
       unused_exports: false
       orphan:
         entry_points: ["packages/*/src/main.ts", "scripts/**"]

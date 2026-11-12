@@ -19,12 +19,6 @@
       "todo": "If it is dead, delete it. If only tests use it, move it next to them. If a tool or user runs it, list it under entry points."
     },
     {
-      "key": "kind:policy_drift",
-      "name": "Policy out of step",
-      "means": "The policy names something the code no longer has, or a folder no policy component covers.",
-      "todo": "Update the policy so it matches the code."
-    },
-    {
       "key": "kind:unused_exports",
       "name": "Unused exports",
       "means": "A module exports names that no other module imports. A name only a test file imports still counts as unused.",

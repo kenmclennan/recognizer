@@ -32,8 +32,6 @@ const PINNED = [
   "money.py and order.py import each other.",
   "audit.py is imported by nothing and is not an entry point; a library can list its public API in warnings.orphan.entry_points.",
   "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them; a library can list its public API in warnings.orphan.entry_points.",
-  "The policy names app/legacy/**, which matches no module.",
-  "app/tools is covered by no policy layer.",
   "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
   "sumWithLevy in pricing.ts repeats the structure of totalWithTax in pricing.ts (10 lines).",
   "grade in rules.py has 2 surviving mutations.",
@@ -98,7 +96,7 @@ describe("unused_exports test-only names", () => {
 });
 
 describe("the committed findings examples", () => {
-  it("render exactly the 13 pinned sentences", () => {
+  it("render exactly the 11 pinned sentences", () => {
     const rows = FILES.flatMap((name) => findingRows([load(name)]));
 
     expect(

@@ -44,7 +44,6 @@ function sense(name: string, cycle = true) {
       warnings: {
         cycle,
         orphan: cycle,
-        policy_drift: cycle,
         unused_exports: false,
       },
     },
@@ -168,7 +167,6 @@ describe("structureSensor ids", () => {
       warnings: {
         cycle: false,
         orphan: false,
-        policy_drift: false,
         unused_exports: false,
       },
     });

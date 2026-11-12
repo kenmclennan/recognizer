@@ -21,10 +21,6 @@ function whole(value: number): string {
   return String(Math.round(value));
 }
 
-function after(id: string, prefix: string): string {
-  return id.startsWith(prefix) ? id.slice(prefix.length) : "";
-}
-
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
@@ -78,18 +74,6 @@ function cycle(record: FindingRecord): string | null {
   }
 
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)} form a cycle of ${names.length}.`;
-}
-
-function drift(record: FindingRecord): string | null {
-  const entry = after(record.id, "policy_drift:entry:");
-
-  if (entry !== "") {
-    return `The policy names ${entry}, which matches no module.`;
-  }
-
-  const folder = after(record.id, "policy_drift:folder:");
-
-  return folder === "" ? null : `${folder} is covered by no policy layer.`;
 }
 
 function unusedExports(record: FindingRecord): string | null {
@@ -243,7 +227,6 @@ const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   "rule-violation": violation,
   cycle,
   orphan,
-  policy_drift: drift,
   unused_exports: unusedExports,
   duplication,
   crap,

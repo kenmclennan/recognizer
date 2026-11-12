@@ -134,6 +134,7 @@ export {
 } from "./overlays.js";
 export { type PathStep, shortestPath } from "./paths.js";
 export { type Policy, parsePolicy } from "./policy.js";
+export { type PolicyProblem, policyProblems } from "./policy-problems.js";
 export {
   type LineStatus,
   lineStatus,

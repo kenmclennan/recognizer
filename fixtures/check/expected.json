@@ -191,17 +191,6 @@
           "shop/domain/money.py"
         ]
       }
-    },
-    {
-      "id": "policy_drift",
-      "principle": "policy-describes-the-code",
-      "fix_pattern": "update-policy",
-      "summary": "folder shop/legacy holds 1 scanned modules that no component covers",
-      "evidence": {
-        "modules": [
-          "shop/legacy/helpers.py"
-        ]
-      }
     }
   ],
   "metrics": [

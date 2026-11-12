@@ -36,7 +36,6 @@ function findingsByModule(
       warnings: {
         cycle: true,
         orphan: true,
-        policy_drift: true,
         unused_exports: false,
       },
     },

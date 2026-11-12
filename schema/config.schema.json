@@ -47,9 +47,6 @@
                     "cycle": {
                       "type": "boolean"
                     },
-                    "policy_drift": {
-                      "type": "boolean"
-                    },
                     "unused_exports": {
                       "type": "boolean"
                     },

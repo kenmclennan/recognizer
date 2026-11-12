@@ -8,7 +8,6 @@
     "warnings": {
       "cycle": true,
       "orphan": true,
-      "policy_drift": true,
       "unused_exports": false
     }
   },
@@ -70,24 +69,6 @@
           { "file": "tests/test_place.py", "names": [] }
         ]
       }
-    },
-    {
-      "id": "policy_drift:entry:app/legacy/**",
-      "kind": "policy_drift",
-      "severity": "warning",
-      "principle": "policy-describes-the-code",
-      "summary": "policy entry app/legacy/** (component legacy) matches no scanned module",
-      "fix_pattern": "update-policy",
-      "evidence": { "modules": [] }
-    },
-    {
-      "id": "policy_drift:folder:app/tools",
-      "kind": "policy_drift",
-      "severity": "warning",
-      "principle": "policy-describes-the-code",
-      "summary": "folder app/tools holds 1 scanned modules that no component covers",
-      "fix_pattern": "update-policy",
-      "evidence": { "modules": ["app/tools/seed.py"] }
     }
   ]
 }

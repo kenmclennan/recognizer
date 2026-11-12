@@ -10,6 +10,7 @@ import {
   hashedScan,
   inputsOf,
   mountedModules,
+  POLICY_PROBLEM,
   PYTHON,
   ROOT,
   TYPESCRIPT,
@@ -69,7 +70,6 @@ describe("check in repository mode", () => {
           warnings: {
             cycle: true,
             orphan: true,
-            policy_drift: true,
             unused_exports: false,
           },
         },
@@ -79,7 +79,7 @@ describe("check in repository mode", () => {
     delete report.sensors;
 
     expect(report).toEqual(expected);
-    expect(err).toBe("");
+    expect(err).toBe(POLICY_PROBLEM);
   });
 
   it("prints the summary and the warnings as text on stdout only", () => {
@@ -88,7 +88,7 @@ describe("check in repository mode", () => {
     expect(code).toBe(1);
     expect(out).toContain("violations: 5, new: 4, fixed: 1, unranked: 1");
     expect(out).toContain("warnings: ");
-    expect(err).toBe("");
+    expect(err).toBe(POLICY_PROBLEM);
   });
 
   it("reports metrics and warnings only when there is no policy", () => {
@@ -308,7 +308,6 @@ describe("a structure file from before the folder cycle was removed", () => {
           cycle: true,
           folder_cycle: true,
           orphan: true,
-          policy_drift: true,
           unused_exports: false,
         },
       },
@@ -346,6 +345,57 @@ describe("a structure file from before the folder cycle was removed", () => {
   });
 });
 
+describe("a structure file from before policy drift became a policy problem", () => {
+  const STORED = `${ROOT}/.recognizer/cache/findings/structure.json`;
+
+  function oldFile() {
+    return JSON.stringify({
+      findings_version: 2,
+      sensor: { name: "structure", version: "14" },
+      commit: COMMIT,
+      modified: false,
+      settings: {
+        entry_points: [],
+        warnings: {
+          cycle: true,
+          orphan: true,
+          policy_drift: true,
+          unused_exports: false,
+        },
+      },
+      findings: [
+        {
+          id: "policy_drift:folder:a",
+          kind: "policy_drift",
+          severity: "warning",
+          principle: "old-principle",
+          summary: "folder a holds 1 scanned modules that no component covers",
+          fix_pattern: "old-fix-pattern",
+          evidence: { modules: ["a/x.py"] },
+        },
+      ],
+    });
+  }
+
+  it("is recomputed, so no policy drift is reported and the file is rewritten", () => {
+    const fake = setup({ [STORED]: oldFile() });
+
+    expect(fake.files.get(STORED)).toContain("policy_drift");
+
+    const { out } = check(["--json"], fake);
+    const ids = JSON.parse(out).warnings.map((one: { id: string }) => one.id);
+    const rewritten = JSON.parse(fake.files.get(STORED) as string);
+
+    expect(ids.filter((id: string) => id.startsWith("policy_drift"))).toEqual(
+      [],
+    );
+    expect(rewritten.settings.warnings).not.toHaveProperty("policy_drift");
+    expect(
+      rewritten.findings.map((one: { kind: string }) => one.kind),
+    ).not.toContain("policy_drift");
+  });
+});
+
 describe("a structure file from before the stable dependencies warning was removed", () => {
   const STORED = `${ROOT}/.recognizer/cache/findings/structure.json`;
 
@@ -362,7 +412,6 @@ describe("a structure file from before the stable dependencies warning was remov
         warnings: {
           cycle: true,
           orphan: true,
-          policy_drift: true,
           stable_dependencies: true,
           unused_exports: false,
         },
