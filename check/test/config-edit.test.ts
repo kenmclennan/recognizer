@@ -467,6 +467,16 @@ describe("tests.<name> placement", () => {
     expect(parse(text(removeSection(one, KEYS, "tests.b")))).toEqual({});
   });
 
+  it("lists an entry holding only its name as tests.<name>=", () => {
+    expect(listKeys("tests:\n  - name: a\n", KEYS)).toEqual({
+      lines: ["tests.a="],
+      skipped: [],
+    });
+    expect(
+      listKeys("tests:\n  - name: a\n    command: x\n", KEYS).lines,
+    ).toEqual(["tests.a.command=x"]);
+  });
+
   it("adds a section as a bare entry and leaves an existing one alone", () => {
     const after = text(addSection("", KEYS, "tests.unit"));
 

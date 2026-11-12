@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
+import { unsetValue } from "../src/config-edit.js";
+import { loadKeys } from "../src/config-keys.js";
+import { RETIRED_KEYS } from "../src/config-retired.js";
 import { cachedScansState } from "../src/freshness.js";
 import { isDirty } from "../src/scan-command.js";
 import { fakeIo, ROOT, scanJson } from "./scan-helpers.js";
@@ -176,5 +179,125 @@ describe("a dirty tree is named, not rescanned", () => {
   it("keeps isDirty a boolean over the same git call", () => {
     expect(isDirty(setup().io, ROOT)).toBe(false);
     expect(isDirty(setup({ status: " M a.py\n" }).io, ROOT)).toBe(true);
+  });
+});
+
+describe("a retired key's fix leaves no empty section", () => {
+  const published = loadKeys(fakeIo().io, ROOT);
+  const sampleFor = (path: string[]) =>
+    path.length === 1
+      ? "overlays:\n  crap:\n    command: [x]\n"
+      : `sensors:\n  structure:\n${
+          path.length === 4
+            ? `    warnings:\n      ${path[3]}: true\n`
+            : `    ${path[2]}: 1\n`
+        }`;
+
+  it.each(RETIRED_KEYS.map((retired) => [retired.path.join(".")]))(
+    "the printed fix for %s leaves a file of {}",
+    (key) => {
+      const fake = setup({ config: sampleFor(key.split(".")) });
+      const [problem] = problems(fake, "config") as [Problem];
+
+      expect(problem.code).toBe("config-retired");
+
+      apply(fake, problem.fix.command);
+
+      const after = fake.files.get(CONFIG) as string;
+
+      expect(after.trim()).toBe("{}");
+      expect(problems(fake, "config")).toEqual([]);
+    },
+  );
+
+  it("keeps a sibling and its parents", () => {
+    const text =
+      "sensors:\n  structure:\n    warnings:\n      hub: true\n      cycle: true\n  crap:\n    threshold: 1\n";
+    const outcome = unsetValue(
+      text,
+      published,
+      "sensors.structure.warnings.hub",
+    );
+
+    expect((outcome as { text: string }).text).toBe(
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n  crap:\n    threshold: 1\n",
+    );
+  });
+
+  it("prunes a parent only once its last retired key is gone", () => {
+    const fake = setup({
+      config:
+        "sensors:\n  structure:\n    hub_threshold: 1\n    instability_gap: 1\n",
+    });
+
+    const first = problems(fake, "config");
+
+    expect(first).toHaveLength(2);
+
+    apply(fake, (first[0] as Problem).fix.command);
+
+    expect(fake.files.get(CONFIG)).toContain("structure:");
+
+    const second = problems(fake, "config");
+
+    expect(second).toHaveLength(1);
+
+    apply(fake, (second[0] as Problem).fix.command);
+
+    expect((fake.files.get(CONFIG) as string).trim()).toBe("{}");
+    expect(problems(fake, "config")).toEqual([]);
+  });
+
+  it("no longer names the old message", () => {
+    expect(RETIRED_KEYS[1]?.message).not.toContain(
+      "delete the section it leaves empty",
+    );
+  });
+});
+
+describe("config --list shows a registered empty section", () => {
+  const list = (config: string, ...argv: string[]) => {
+    const fake = setup({ config });
+
+    return {
+      status: run(["config", "--repository", ROOT, ...argv], fake.io),
+      out: fake.out(),
+      err: fake.err(),
+    };
+  };
+
+  it("prints sensors.crap= for an empty map", () => {
+    expect(list("sensors:\n  crap: {}\n", "--list").out).toBe(
+      "sensors.crap=\n",
+    );
+  });
+
+  it("prints a line for each empty section and none for the parent", () => {
+    expect(list("sensors:\n  crap: {}\n  mutation: {}\n", "--list").out).toBe(
+      "sensors.crap=\nsensors.mutation=\n",
+    );
+  });
+
+  it("round-trips --add-section then --list", () => {
+    const fake = setup({ config: "describer:\n  command: x\n" });
+
+    run(
+      ["config", "--repository", ROOT, "--add-section", "sensors.crap"],
+      fake.io,
+    );
+    fake.io.stdout("");
+
+    const listed = setup({ config: fake.files.get(CONFIG) as string });
+
+    run(["config", "--repository", ROOT, "--list"], listed.io);
+
+    expect(listed.out()).toContain("sensors.crap=\n");
+  });
+
+  it("still refuses --get of a section", () => {
+    const result = list("sensors:\n  crap: {}\n", "--get", "sensors.crap");
+
+    expect(result.status).toBe(2);
+    expect(result.err).toContain("is a section, not a key");
   });
 });

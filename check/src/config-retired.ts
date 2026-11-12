@@ -3,7 +3,8 @@ export interface RetiredKey {
   message: string;
 }
 
-const DELETE = "delete the key, and delete the section it leaves empty";
+const DELETE =
+  "delete the key; recognizer config --unset does that and removes a section it leaves empty";
 
 export const RETIRED_KEYS: RetiredKey[] = [
   {
