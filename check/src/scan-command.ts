@@ -361,7 +361,7 @@ function* scanFlow(
 
     folderKnown = true;
 
-    const config = wantsConfig ? readConfig(io, root) : null;
+    const config = readConfig(io, root);
 
     if (options.describe !== false) {
       const found = findDescriber(io, root);

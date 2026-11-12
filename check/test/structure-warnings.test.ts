@@ -369,6 +369,28 @@ describe("the config examples", () => {
   });
 });
 
+describe("an empty config section", () => {
+  it.each([
+    ["sensors.structure", "sensors:\n  structure:\n"],
+    ["sensors", "sensors:\n"],
+    ["sensors.structure.warnings", "sensors:\n  structure:\n    warnings:\n"],
+    ["tests", "tests:\n"],
+  ])("names %s and says to delete it or give it settings", (name, text) => {
+    expect(() => parseConfig(text)).toThrow(InputError);
+    expect(() => parseConfig(text)).toThrow(
+      new RegExp(
+        `config ${name} is empty: delete the section or give it settings`,
+      ),
+    );
+  });
+
+  it("names an unknown structure key", () => {
+    expect(() => parseConfig("sensors:\n  structure:\n    bogus: 1\n")).toThrow(
+      /bogus/,
+    );
+  });
+});
+
 describe("the removed hub keys", () => {
   it.each([
     ["hub_threshold", "sensors:\n  structure:\n    hub_threshold: 6\n"],

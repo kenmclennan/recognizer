@@ -223,4 +223,24 @@ describe("freshScans", () => {
 
     expect(() => freshScans(fake.io, `${ROOT}/a.py`)).toThrow(InputError);
   });
+
+  it.each([
+    [
+      "composition_roots",
+      "sensors:\n  structure:\n    composition_roots: [a]\n",
+    ],
+    ["hub_threshold", "sensors:\n  structure:\n    hub_threshold: 3\n"],
+    ["hub", "sensors:\n  structure:\n    warnings:\n      hub: true\n"],
+    ["bogus", "sensors:\n  structure:\n    bogus: 1\n"],
+    ["sensors.structure", "sensors:\n  structure:\n"],
+  ])("refuses %s in the config before any scanner runs", (name, config) => {
+    const fake = setup({
+      cache: cached("old"),
+      files: { [`${ROOT}/.recognizer/config.yaml`]: config },
+    });
+
+    expect(() => freshScans(fake.io, ROOT)).toThrow(InputError);
+    expect(() => freshScans(fake.io, ROOT)).toThrow(new RegExp(name));
+    expect(scannerRuns(fake)).toBe(0);
+  });
 });

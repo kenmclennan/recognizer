@@ -107,6 +107,40 @@ function rejectRetiredOverlays(document: unknown): void {
   }
 }
 
+function rejectEmptySections(document: unknown): void {
+  if (!isPlainObject(document)) {
+    return;
+  }
+
+  for (const [name, value] of Object.entries(document)) {
+    if (value === null) {
+      throw new InputError([
+        `config ${name} is empty: delete the section or give it settings`,
+      ]);
+    }
+  }
+
+  if (!isPlainObject(document.sensors)) {
+    return;
+  }
+
+  for (const [name, value] of Object.entries(document.sensors)) {
+    if (value === null) {
+      throw new InputError([
+        `config sensors.${name} is empty: delete the section or give it settings`,
+      ]);
+    }
+  }
+
+  const structure = document.sensors.structure;
+
+  if (isPlainObject(structure) && structure.warnings === null) {
+    throw new InputError([
+      "config sensors.structure.warnings is empty: delete the section or give it settings",
+    ]);
+  }
+}
+
 function rejectRetiredWarnings(document: unknown): void {
   if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
     return;
@@ -120,25 +154,25 @@ function rejectRetiredWarnings(document: unknown): void {
 
   if ("distance_threshold" in structure) {
     throw new InputError([
-      "config/sensors/structure/distance_threshold was removed: the stable abstractions warning it tuned is gone, so the setting did nothing; delete the key",
+      "config/sensors/structure/distance_threshold was removed: the stable abstractions warning it tuned is gone, so the setting did nothing; delete the key, and delete the section it leaves empty",
     ]);
   }
 
   if ("hub_threshold" in structure) {
     throw new InputError([
-      "config/sensors/structure/hub_threshold was removed: the hub warning it tuned is gone, so the setting did nothing; delete the key",
+      "config/sensors/structure/hub_threshold was removed: the hub warning it tuned is gone, so the setting did nothing; delete the key, and delete the section it leaves empty",
     ]);
   }
 
   if ("instability_gap" in structure) {
     throw new InputError([
-      "config/sensors/structure/instability_gap was removed: the stable dependencies warning it tuned is gone, so the setting did nothing; delete the key",
+      "config/sensors/structure/instability_gap was removed: the stable dependencies warning it tuned is gone, so the setting did nothing; delete the key, and delete the section it leaves empty",
     ]);
   }
 
   if ("composition_roots" in structure) {
     throw new InputError([
-      "config/sensors/structure/composition_roots was removed: it only exempted the depending side of the stable dependencies warning, which is gone; delete the key",
+      "config/sensors/structure/composition_roots was removed: it only exempted the depending side of the stable dependencies warning, which is gone; delete the key, and delete the section it leaves empty",
     ]);
   }
 
@@ -148,31 +182,31 @@ function rejectRetiredWarnings(document: unknown): void {
 
   if ("stable_abstractions" in structure.warnings) {
     throw new InputError([
-      "config/sensors/structure/warnings/stable_abstractions was removed: the warning is gone, so the switch did nothing; delete the key",
+      "config/sensors/structure/warnings/stable_abstractions was removed: the warning is gone, so the switch did nothing; delete the key, and delete the section it leaves empty",
     ]);
   }
 
   if ("hub" in structure.warnings) {
     throw new InputError([
-      "config/sensors/structure/warnings/hub was removed: the hub warning rested on no published principle, so the switch did nothing; delete the key",
+      "config/sensors/structure/warnings/hub was removed: the hub warning rested on no published principle, so the switch did nothing; delete the key, and delete the section it leaves empty",
     ]);
   }
 
   if ("stable_dependencies" in structure.warnings) {
     throw new InputError([
-      "config/sensors/structure/warnings/stable_dependencies was removed: a folder is not a component, so the stable dependencies principle has nothing to apply to; delete the key",
+      "config/sensors/structure/warnings/stable_dependencies was removed: a folder is not a component, so the stable dependencies principle has nothing to apply to; delete the key, and delete the section it leaves empty",
     ]);
   }
 
   if ("folder_cycle" in structure.warnings) {
     throw new InputError([
-      "config/sensors/structure/warnings/folder_cycle was removed: a folder declares no imports, so the warning had nothing of its own to report on a file; delete the key (file-level cycles are still reported by the cycle warning)",
+      "config/sensors/structure/warnings/folder_cycle was removed: a folder declares no imports, so the warning had nothing of its own to report on a file; delete the key, and delete the section it leaves empty (file-level cycles are still reported by the cycle warning)",
     ]);
   }
 
   if ("policy_drift" in structure.warnings) {
     throw new InputError([
-      "config/sensors/structure/warnings/policy_drift was removed: a policy that is out of date is a problem with the policy file, not a finding about the code, so it is always reported and there is nothing to switch; delete the key",
+      "config/sensors/structure/warnings/policy_drift was removed: a policy that is out of date is a problem with the policy file, not a finding about the code, so it is always reported and there is nothing to switch; delete the key, and delete the section it leaves empty",
     ]);
   }
 }
@@ -209,6 +243,7 @@ export function parseConfig(text: string): Config {
   }
 
   rejectRetiredOverlays(document);
+  rejectEmptySections(document);
   rejectRetiredWarnings(document);
 
   if (validate(document)) {
@@ -217,9 +252,14 @@ export function parseConfig(text: string): Config {
     return expandConfig(document) as Config;
   }
 
-  const messages = (validate.errors ?? []).map(
-    (error) => `config${error.instancePath} ${error.message ?? "is invalid"}`,
-  );
+  const messages = (validate.errors ?? []).map((error) => {
+    const extra =
+      error.keyword === "additionalProperties"
+        ? ` (${String(error.params.additionalProperty)})`
+        : "";
+
+    return `config${error.instancePath} ${error.message ?? "is invalid"}${extra}`;
+  });
 
   throw new InputError(messages.length > 0 ? messages : ["config is invalid"]);
 }
