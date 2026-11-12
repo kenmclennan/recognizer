@@ -133,7 +133,14 @@ def shim_suite(
         "language": language,
         "directory": directory,
         "activate": f'{prefix}{tool}() {{ {body} "$@"; }}',
-        "command": "touch coverage/lcov.info #",
+        "command": (
+            f'if [ -n "$COVERAGE_FILE" ]; then touch coverage/lcov.info; else {tool}; fi #'
+            if language == "python"
+            else (
+                'if [ "$(basename "$PWD")" = warmup ]; then touch coverage/lcov.info; '
+                f"else {tool}; fi #"
+            )
+        ),
         "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
         **extra,
     }

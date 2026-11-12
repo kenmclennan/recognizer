@@ -40,6 +40,15 @@ def suite_of(language="python", runner_name=None, directory=".", **extra):
 
 SUITE = suite_of()
 
+
+def as_seen(command):
+    return command if isinstance(command, str) else list(command)
+
+
+def as_seen_key(command):
+    return command if isinstance(command, str) else tuple(command)
+
+
 SUITES = [asdict(parse_suites([python_suite("tests/strong.py")])[0])]
 
 
@@ -187,8 +196,8 @@ def test_typescript_selection_is_the_runners_related_command():
         "--findRelatedTests",
         "web/a.ts",
     ]
-    assert mutant_command(vitest) == ["npx", "--no", "--", "vitest", "run"]
-    assert mutant_command(jest) == ["npx", "--no", "--", "jest"]
+    assert mutant_command(vitest) == vitest.command
+    assert mutant_command(jest) == jest.command
 
 
 def test_a_previous_killer_file_leads_the_python_selected_command():
@@ -215,8 +224,11 @@ def test_a_previous_killer_outside_the_selection_is_not_added():
 
 
 def test_the_stopping_python_whole_suite_command_adds_x_and_the_baseline_does_not():
-    assert mutant_command(SUITE) == ["pytest", "-rfE"]
-    assert mutant_command(SUITE, stop=True) == ["pytest", "-rfE", "-x"]
+    scoped = suite_of(command="pytest tests/unit -q")
+
+    assert mutant_command(scoped) == "pytest tests/unit -q"
+    assert mutant_command(scoped, stop=True) == "pytest tests/unit -q -x"
+    assert "tests/unit" in mutant_command(scoped)
 
 
 @pytest.mark.parametrize(
@@ -226,8 +238,10 @@ def test_the_stopping_python_whole_suite_command_adds_x_and_the_baseline_does_no
 def test_typescript_bails_with_the_suites_runner(runner_name, flag):
     suite = suite_of("typescript", runner_name)
 
-    assert mutant_command(suite, stop=True)[-1] == flag
-    assert flag not in mutant_command(suite)
+    scoped = suite_of("typescript", runner_name, command=f"npx {runner_name} --coverage")
+
+    assert mutant_command(scoped) == scoped.command
+    assert mutant_command(scoped, stop=True) == f"{scoped.command} {flag}"
     assert selected_command(suite, None, stop=True, file="w/a.ts")[-1] == flag
     assert flag not in selected_command(suite, None, file="w/a.ts")
 
@@ -299,7 +313,7 @@ def spy_commands(monkeypatch):
     real = runner.run_test_command
 
     def spy(command, cwd, timeout, suite=None, extra=None):
-        seen.append((list(command), timeout))
+        seen.append((as_seen(command), timeout))
 
         return real([sys.executable, "tests/strong.py"], cwd, timeout, suite=suite)
 
@@ -313,9 +327,9 @@ A = frozenset({"tests/test_a.py"})
 B = frozenset({"tests/test_b.py"})
 SELECTED = {"app/rules.py": {2: A, 4: A, 5: A, 6: A, 13: B}}
 SELECTED_COMMAND = ["pytest", "-rfE", "tests/test_a.py"]
-WHOLE_COMMAND = ["pytest", "-rfE"]
+WHOLE_COMMAND = python_suite("tests/strong.py")["command"]
 STOPPING_SELECTED = ["pytest", "-rfE", "-x", "tests/test_a.py"]
-STOPPING_WHOLE = ["pytest", "-rfE", "-x"]
+STOPPING_WHOLE = f"{WHOLE_COMMAND} -x"
 
 
 def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once(
@@ -350,7 +364,7 @@ def test_a_selected_command_whose_baseline_fails_runs_its_mutants_under_the_whol
     real = runner.run_test_command
 
     def spy(command, cwd, timeout, suite=None, extra=None):
-        seen.append(list(command))
+        seen.append(as_seen(command))
         failing = command == SELECTED_COMMAND and timeout is None
 
         return real(
@@ -498,7 +512,7 @@ def test_a_selection_of_more_than_half_the_suite_runs_the_whole_suite_without_it
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
-    commands = [tuple(command) for command, _ in seen]
+    commands = [as_seen_key(command) for command, _ in seen]
     half = ("pytest", "-rfE", "tests/test_0.py", "tests/test_1.py")
 
     stopping_half = ("pytest", "-rfE", "-x", "tests/test_0.py", "tests/test_1.py")
@@ -506,8 +520,8 @@ def test_a_selection_of_more_than_half_the_suite_runs_the_whole_suite_without_it
     assert commands.count(half) == 1
     assert commands.count(stopping_half) == 1
     assert {c for c in commands if c not in (half, stopping_half)} == {
-        tuple(WHOLE_COMMAND),
-        tuple(STOPPING_WHOLE),
+        WHOLE_COMMAND,
+        STOPPING_WHOLE,
     }
     assert (
         capsys.readouterr()
@@ -641,7 +655,7 @@ def test_a_failed_copy_with_no_waiter_does_not_break_a_later_take(tmp_path, monk
 
 
 @pytest.mark.parametrize(("runner_name", "bail"), [("jest", "--bail"), ("vitest", "--bail=1")])
-def test_typescript_commands_cap_test_workers_only_with_several_mutation_workers(
+def test_typescript_selected_command_caps_test_workers_only_with_several_mutation_workers(
     monkeypatch, runner_name, bail
 ):
     monkeypatch.setattr("os.cpu_count", lambda: 8)
@@ -654,7 +668,6 @@ def test_typescript_commands_cap_test_workers_only_with_several_mutation_workers
             selected_command(suite, None, workers=workers, file="w/a.ts"),
         )
 
-    run = ["run"] if runner_name == "vitest" else []
     related = (
         ["vitest", "related", "w/a.ts", "--run"]
         if runner_name == "vitest"
@@ -663,23 +676,25 @@ def test_typescript_commands_cap_test_workers_only_with_several_mutation_workers
     base = ["npx", "--no", "--"]
 
     assert commands(4) == (
-        [*base, runner_name, *run, "--maxWorkers=2"],
-        [*base, runner_name, *run, bail, "--maxWorkers=2"],
+        suite.command,
+        f"{suite.command} {bail}",
         [*base, *related, "--maxWorkers=2"],
     )
-    assert commands(1)[0] == [*base, runner_name, *run]
+    assert commands(1)[0] == suite.command
     assert commands(1)[2] == [*base, *related]
 
 
 def test_the_typescript_worker_cap_never_falls_below_one(monkeypatch):
     monkeypatch.setattr("os.cpu_count", lambda: 2)
 
-    assert mutant_command(suite_of("typescript", "vitest"), workers=8) == [
+    assert selected_command(suite_of("typescript", "vitest"), None, workers=8, file="w/a.ts") == [
         "npx",
         "--no",
         "--",
         "vitest",
-        "run",
+        "related",
+        "w/a.ts",
+        "--run",
         "--maxWorkers=1",
     ]
 
@@ -697,7 +712,7 @@ def test_the_record_key_does_not_depend_on_the_mutation_worker_count(tmp_path, m
     def capping(suite, stop=False, workers=1):
         command = real(suite, stop)
 
-        return [*command, f"--maxWorkers={workers}"] if workers > 1 else command
+        return f"{command} --maxWorkers={workers}" if workers > 1 else command
 
     monkeypatch.setattr(sensor, "mutant_command", capping)
     fake_selection(monkeypatch, SELECTED)
@@ -733,7 +748,7 @@ def test_a_baseline_is_not_started_once_the_deadline_has_passed(tmp_path, monkey
     real = runner.run_test_command
 
     def spy(command, cwd, timeout, suite=None, extra=None):
-        seen.append((list(command), timeout))
+        seen.append((as_seen(command), timeout))
         late = timeout is None and command == SELECTED_COMMAND
 
         if late:
@@ -868,7 +883,7 @@ def test_a_primed_suite_runs_no_whole_baseline_beside_an_unprimed_one(tmp_path, 
     real = runner.run_test_command
 
     def spy(command, cwd, timeout, suite=None, extra=None):
-        seen.append((suite.name, list(command), timeout))
+        seen.append((suite.name, as_seen(command), timeout))
 
         return real([sys.executable, "tests/strong.py"], cwd, timeout, suite=suite)
 
@@ -990,3 +1005,60 @@ def test_a_failing_baseline_leaves_its_tail_and_the_omitted_paths(tmp_path, monk
         )
 
     assert (root / sensor.BASELINE_LOG).read_text() == log
+
+
+@pytest.mark.parametrize(
+    ("language", "runner_name", "command", "flag"),
+    [
+        ("python", None, "pytest tests/unit -q", " -x"),
+        ("typescript", "vitest", "npx vitest run web/unit", " --bail=1"),
+        ("typescript", "jest", "npx jest web/unit", " --bail"),
+        ("kotlin", None, "./gradlew :app:test --tests unit.*", " --fail-fast"),
+        ("rust", None, "cargo test -p unit", ""),
+        ("csharp", None, "dotnet test tests/Unit", ""),
+    ],
+)
+def test_the_whole_suite_command_is_the_suites_own_plus_only_the_fail_fast_flag(
+    language, runner_name, command, flag
+):
+    suite = suite_of(language, runner_name, command=command)
+    stopped = mutant_command(suite, stop=True)
+
+    assert mutant_command(suite) == command
+    assert command.split()[-1] in mutant_command(suite)
+    assert "pytest -rfE" not in mutant_command(suite)
+
+    if language == "kotlin":
+        assert stopped == "./gradlew :app:test --fail-fast --tests unit.*"
+    else:
+        assert stopped == f"{command}{flag}"
+
+
+def test_a_fallback_mutant_runs_the_suites_own_command_with_the_fail_fast_flag(
+    tmp_path, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, {})
+    seen = spy_commands(monkeypatch)
+    suite = python_suite("tests/strong.py", command="pytest tests/weak.py -q")
+    settings = json.dumps({"tests": [suite], "incremental": False, "max_workers": 1})
+
+    run_mutate(root, tmp_path / "overlay.json", settings)
+
+    commands = [command for command, _ in seen]
+
+    assert "pytest tests/weak.py -q -x" in commands
+    assert "pytest -rfE -x" not in commands
+
+
+def test_a_primed_key_is_one_element_for_a_command_with_spaces(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    prime_with(monkeypatch, {"sample": 7.0})
+    seen = spy_commands(monkeypatch)
+    settings = strong_settings(incremental=False, max_workers=1, timeout_factor=3)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    assert sensor.baseline_key(SUITE, "pytest a b") == ("api", "pytest a b")
+    assert sensor.baseline_key(SUITE, ["pytest", "a"]) == ("api", "pytest", "a")
+    assert not [c for c, t in seen if t is None and c == WHOLE_COMMAND]

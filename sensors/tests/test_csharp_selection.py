@@ -420,7 +420,7 @@ def test_a_selection_of_half_the_suite_is_used_and_one_more_file_runs_the_whole_
     seen = []
 
     def spy(command, cwd, timeout, suite=None, extra=None):
-        seen.append(list(command))
+        seen.append(command if isinstance(command, str) else list(command))
 
         return runner.TestRun(0, False, 0.1, "")
 
@@ -434,4 +434,6 @@ def test_a_selection_of_half_the_suite_is_used_and_one_more_file_runs_the_whole_
 
     assert half in seen
     assert mutant_command(CSUITE) in seen
-    assert not any("P.T2." in " ".join(command) for command in seen)
+    assert not any(
+        "P.T2." in (command if isinstance(command, str) else " ".join(command)) for command in seen
+    )

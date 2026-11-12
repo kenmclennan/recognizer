@@ -78,6 +78,10 @@ for arg in "$@"; do
   previous="$arg"
 done
 case " $* " in *" --lib "*) target="lib" ;; esac
+if [ "$1" = "llvm-cov" ] && [ -n "$FAKE_PRISTINE" ] && ! cmp -s src/lib.rs "$FAKE_PRISTINE"; then
+  echo "MUTANT $*" >> "$FAKE_LOG"
+  exit 1
+fi
 if [ "$1" = "test" ]; then
   if cmp -s src/lib.rs "$FAKE_PRISTINE"; then exit 0; fi
   echo "MUTANT $*" >> "$FAKE_LOG"
@@ -489,7 +493,7 @@ def test_a_covering_set_of_two_of_five_units_is_selected_and_three_run_the_whole
     assert sorted(RUST_UNITS) == sorted([ADD, TOOL, MANY, DIRT, LIB])
 
     commands = set(mutation_commands(tmp_path))
-    whole = " ".join(mutant_command(suite_of())[1:])
+    whole = mutant_command(suite_of()).removeprefix("cargo ")
 
     assert commands == {
         "test -p calc --bin tool --test add_tests",

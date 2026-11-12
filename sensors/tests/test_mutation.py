@@ -1045,7 +1045,9 @@ def test_the_defaults_match_the_registry():
 
 
 @pytest.mark.usefixtures("unprimed")
-def test_each_language_runs_its_own_mutant_command(tmp_path, monkeypatch):
+def test_each_language_runs_its_selected_command_and_the_suites_own_whole_command(
+    tmp_path, monkeypatch
+):
     root, _ = mutate_repository(tmp_path)
     (root / "app" / "view.ts").write_text("export function big(a: number) { return a >= 1; }\n")
     git(root, "add", "app/view.ts")
@@ -1089,7 +1091,8 @@ def test_each_language_runs_its_own_mutant_command(tmp_path, monkeypatch):
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
     assert ["npx", "--no", "--", "vitest", "related", "app/view.ts", "--run"] in seen
-    assert ["pytest", "-rfE"] in seen
+    assert python_suite("tests/weak.py")["command"] in seen
+    assert "pytest -rfE" not in seen
 
 
 @pytest.mark.parametrize(
