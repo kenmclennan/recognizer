@@ -14,7 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { COMMANDS } from "./commands.js";
-import { InputError } from "./errors.js";
+import { errorText, InputError } from "./errors.js";
 import { commandHelp, shortHelp } from "./help.js";
 import { promotePending } from "./pending-checkpoints.js";
 import { releaseHeldMarkers } from "./scan-marker.js";
@@ -483,11 +483,7 @@ function execute(argv: string[], io: Io): number | Promise<number> {
 }
 
 function failed(error: unknown, io: Io): number {
-  if (error instanceof InputError) {
-    io.stderr(`${error.messages.join("\n")}\n`);
-  } else {
-    io.stderr(`${(error as Error).message}\n`);
-  }
+  io.stderr(`${errorText(error)}\n`);
 
   return 2;
 }

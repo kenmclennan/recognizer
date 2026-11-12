@@ -84,10 +84,12 @@ fn ran_ok(ran: &[String]) -> bool {
         .all(|(at, name)| RAN_PHASES.contains(&name.as_str()) && !ran[..at].contains(name))
 }
 
+const REASON_CHARS: usize = 8192;
+
 pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
     let run: ScanRunRecord = serde_json::from_str(text).ok()?;
 
-    if run.version != 3
+    if run.version != 4
         || run.run_id.is_empty()
         || run.pid == 0
         || run.pgid == Some(0)
@@ -101,10 +103,9 @@ pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
             .gaps
             .iter()
             .any(|gap| gap.id.is_empty() || gap.needs.iter().any(String::is_empty))
-        || run
-            .failure
-            .as_ref()
-            .is_some_and(|failure| failure.sensor.is_empty())
+        || run.failure.as_ref().is_some_and(|failure| {
+            failure.sensor.is_empty() || failure.reason.chars().count() > REASON_CHARS
+        })
         || run.commit.as_deref().is_some_and(str::is_empty)
         || run.ran.as_ref().is_some_and(|ran| !ran_ok(ran))
         || (run.phase == "finished" && run.ran.is_none())
@@ -1527,7 +1528,7 @@ mod tests {
         };
 
         format!(
-            r#"{{"version":3,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
+            r#"{{"version":4,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
         )
     }
 
@@ -1590,8 +1591,8 @@ mod tests {
         let valid = examples("valid");
         let invalid = examples("invalid");
 
-        assert_eq!(valid.len(), 7);
-        assert_eq!(invalid.len(), 9);
+        assert_eq!(valid.len(), 8);
+        assert_eq!(invalid.len(), 11);
         assert!(valid.iter().all(|text| parse_run(text).is_some()));
         assert!(invalid.iter().all(|text| parse_run(text).is_none()));
 
@@ -1604,7 +1605,10 @@ mod tests {
 
         assert_eq!(
             phases,
-            vec!["checking", "failed", "finished", "finished", "refused", "running", "stopped"]
+            vec![
+                "checking", "failed", "failed", "finished", "finished", "refused", "running",
+                "stopped"
+            ]
         );
     }
 
@@ -2134,7 +2138,7 @@ mod tests {
         gaps: &str,
     ) -> String {
         let record = format!(
-            r#"{{"version":3,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
+            r#"{{"version":4,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
         );
         let source = dir.join("fake-record.json");
 

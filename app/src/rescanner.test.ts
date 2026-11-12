@@ -26,7 +26,7 @@ const OK: Loaded = {
 
 const line = (value: object) => JSON.stringify(value);
 const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
-  version: 3,
+  version: 4,
   run_id: "run-1",
   pid: 4242,
   pgid: 4242,

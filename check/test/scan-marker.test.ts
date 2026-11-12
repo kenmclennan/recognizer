@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run, stopEverything } from "../src/cli.js";
 import {
+  boundReason,
   markerPath,
   parseMarker,
   progressPath,
+  REASON_LIMIT,
   type ScanRunRecord,
 } from "../src/scan-marker.js";
 import { REPO } from "./helpers.js";
@@ -25,7 +27,7 @@ const OTHER_PID = 4242;
 
 function markerFor(changes: Partial<ScanRunRecord> = {}): string {
   return JSON.stringify({
-    version: 3,
+    version: 4,
     run_id: "11111111-2222-3333-4444-555555555555",
     pid: OTHER_PID,
     pgid: OTHER_PID,
@@ -242,6 +244,78 @@ describe("scan marker: release", () => {
     expect(code).toBe(2);
     expect(fake.files.has(PROGRESS)).toBe(true);
     expect(recordOf(fake.files)).toMatchObject({ phase: "failed", exit: 1 });
+    expect(recordOf(fake.files).failure).toEqual({
+      sensor: "scan",
+      reason: "sensor blew up",
+    });
+    expect(recordOf(fake.files).ran).toBeNull();
+  });
+
+  it("records the message of an error thrown before the marker is held", async () => {
+    const { code, fake } = await scan({}, "--sense", "nosuch");
+    const record = recordOf(fake.files);
+
+    expect(code).toBe(2);
+    expect(record.phase).toBe("failed");
+    expect(record.ran).toBeNull();
+    expect(fake.err()).toBe(`${record.failure?.reason}\n`);
+    expect(record.failure?.reason.length).toBeGreaterThan(0);
+  });
+
+  it("records no marker for an error before the folder is known", async () => {
+    const fake = fakeIo(options());
+    const code = await run(["scan", ROOT, "--by"], fake.io);
+
+    expect(code).toBe(2);
+    expect(fake.files.has(MARKER)).toBe(false);
+  });
+
+  it("takes no marker and keeps the error when the folder does not exist", async () => {
+    const fake = fakeIo(options());
+    const missing = "/nowhere/at-all";
+    const code = await run(["scan", missing], fake.io);
+
+    expect(code).toBe(2);
+    expect(fake.err()).toContain(`repository is not a directory: ${missing}`);
+    expect(
+      [...fake.files.keys()].some((path) => path.startsWith(missing)),
+    ).toBe(false);
+  });
+
+  it("takes no marker and keeps the error when the folder is a file", async () => {
+    const fake = fakeIo(options({ files: { [`${ROOT}/a.py`]: "" } }));
+    const code = await run(["scan", `${ROOT}/a.py`], fake.io);
+
+    expect(code).toBe(2);
+    expect(fake.err()).toContain("repository is not a directory");
+    expect(fake.files.has(MARKER)).toBe(false);
+  });
+
+  it("rethrows the original error when the early marker cannot be taken", async () => {
+    const fake = fakeIo(options());
+    const failing = {
+      ...fake.io,
+      createExclusive: () => {
+        throw new Error("ENOENT: cannot create marker");
+      },
+    };
+    const code = await run(["scan", ROOT, "--sense", "nosuch"], failing);
+
+    expect(code).toBe(2);
+    expect(fake.err()).not.toContain("cannot create marker");
+    expect(fake.err()).toContain("nosuch");
+  });
+
+  it("leaves a live scan's record untouched when an early error finds it", async () => {
+    const files = { [MARKER]: markerFor() };
+    const { code, fake } = await scan(
+      { files, alivePids: [OTHER_PID] },
+      "--sense",
+      "nosuch",
+    );
+
+    expect(code).toBe(2);
+    expect(fake.files.get(MARKER)).toBe(markerFor());
   });
 
   it("keeps both files and records stopped when stopEverything is called mid-scan", async () => {
@@ -433,10 +507,49 @@ describe("scan marker: progress and origin", () => {
   });
 });
 
+describe("scan marker: the reason bound", () => {
+  it("keeps 100 characters whole and trims trailing whitespace", () => {
+    expect(boundReason(`${"a".repeat(100)}  \n`)).toBe("a".repeat(100));
+  });
+
+  it("keeps exactly the limit whole", () => {
+    const text = "b".repeat(REASON_LIMIT);
+
+    expect(boundReason(text)).toBe(text);
+  });
+
+  it("keeps the last 8192 characters of a longer text", () => {
+    const text = `x${"c".repeat(REASON_LIMIT)}`;
+
+    expect(boundReason(text)).toBe("c".repeat(REASON_LIMIT));
+  });
+
+  it("moves the cut one character later rather than keep half a surrogate pair", () => {
+    const text = `\u{1F600}${"e".repeat(REASON_LIMIT - 1)}`;
+    const cut = text.length - REASON_LIMIT;
+
+    expect(text.charCodeAt(cut)).toBeGreaterThanOrEqual(0xdc00);
+    expect(text.charCodeAt(cut)).toBeLessThanOrEqual(0xdfff);
+    expect(boundReason(text)).toBe("e".repeat(REASON_LIMIT - 1));
+  });
+
+  it("bounds the reason of a failed entry in the record", async () => {
+    const { fake } = await scan({
+      scanners: {
+        [PYTHON]: { status: 1, stderr: `${"z".repeat(REASON_LIMIT + 50)}` },
+      },
+    });
+
+    expect(recordOf(fake.files).failure?.reason.length).toBeLessThanOrEqual(
+      REASON_LIMIT,
+    );
+  });
+});
+
 describe("scan marker: examples", () => {
   it("holds the expected count of examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(7);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(9);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(8);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(11);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {

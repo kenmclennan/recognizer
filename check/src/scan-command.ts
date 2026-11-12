@@ -18,7 +18,7 @@ import {
 } from "./describe-projection.js";
 import { findDescriber } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
-import { InputError } from "./errors.js";
+import { errorText, InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
@@ -333,37 +333,63 @@ function* scanFlow(
   const startedAt = io.now();
   const root = resolve(options.positionals[0] ?? ".");
 
-  try {
-    io.readDir(root);
-  } catch {
-    throw new InputError([`repository is not a directory: ${root}`]);
-  }
-
   const wantsConfig = options.describe !== false || options.sense !== null;
-  const config = wantsConfig ? readConfig(io, root) : null;
   let describer: Describer | undefined;
+  let selected: ReturnType<typeof selectSensors> = [];
+  let folderKnown = false;
 
-  if (options.describe !== false) {
-    const found = findDescriber(io, root);
-
-    if (found !== null) {
-      const { source: _source, ...rest } = found;
-
-      describer = rest;
+  try {
+    try {
+      io.readDir(root);
+    } catch {
+      throw new InputError([`repository is not a directory: ${root}`]);
     }
 
-    readResponsibilities(io, root);
+    folderKnown = true;
+
+    const config = wantsConfig ? readConfig(io, root) : null;
+
+    if (options.describe !== false) {
+      const found = findDescriber(io, root);
+
+      if (found !== null) {
+        const { source: _source, ...rest } = found;
+
+        describer = rest;
+      }
+
+      readResponsibilities(io, root);
+    }
+
+    selected =
+      options.sense === null
+        ? []
+        : selectSensors(
+            registeredSensors(config),
+            options.sense,
+            shippedSensorNames(),
+            config?.tests,
+          );
+  } catch (error) {
+    if (takeMarker && folderKnown) {
+      try {
+        const acquired = acquireMarker(io, root, {
+          sensors: Array.isArray(options.sense) ? options.sense : [],
+          describe: options.describe !== false,
+        });
+
+        if (acquired.ok) {
+          acquired.held.crashed(errorText(error));
+          acquired.held.release();
+        }
+      } catch {
+        throw error;
+      }
+    }
+
+    throw error;
   }
 
-  const selected =
-    options.sense === null
-      ? []
-      : selectSensors(
-          registeredSensors(config),
-          options.sense,
-          shippedSensorNames(),
-          config?.tests,
-        );
   let marker: HeldMarker | null = null;
 
   if (takeMarker) {
@@ -816,6 +842,10 @@ function* scanFlow(
 
   try {
     return yield* scanRest();
+  } catch (error) {
+    taken?.crashed(errorText(error));
+
+    throw error;
   } finally {
     taken?.release();
   }
