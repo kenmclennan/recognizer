@@ -394,7 +394,10 @@ describe("doctor: policy", () => {
       subject: "sub",
     });
     expect(problem.fix.command).toBeNull();
-    expect(problem.fix.text).toContain(".recognizer/policy.yaml");
+    expect(problem.fix.text).toContain(
+      "recognizer policy --add ignore 'sub/*'",
+    );
+    expect(problem.fix.text).not.toContain("policy.yaml");
   });
 
   it("reports an entry matching no module", () => {
