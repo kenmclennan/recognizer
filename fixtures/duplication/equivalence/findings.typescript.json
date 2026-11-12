@@ -1,0 +1,254 @@
+[
+ {
+  "id": "duplication:near.ts::gatherNames|near.ts::gatherTags",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "gatherNames in near.ts is 90% similar to gatherTags in near.ts",
+  "evidence": {
+   "modules": [
+    "near.ts"
+   ],
+   "members": [
+    {
+     "module": "near.ts",
+     "name": "gatherNames",
+     "file": "near.ts",
+     "lines": [
+      1,
+      17
+     ]
+    },
+    {
+     "module": "near.ts",
+     "name": "gatherTags",
+     "file": "near.ts",
+     "lines": [
+      19,
+      36
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.897
+   }
+  }
+ },
+ {
+  "id": "duplication:near.ts::fetchEvents|near.ts::fetchPages",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "fetchEvents in near.ts is 88% similar to fetchPages in near.ts",
+  "evidence": {
+   "modules": [
+    "near.ts"
+   ],
+   "members": [
+    {
+     "module": "near.ts",
+     "name": "fetchEvents",
+     "file": "near.ts",
+     "lines": [
+      55,
+      71
+     ]
+    },
+    {
+     "module": "near.ts",
+     "name": "fetchPages",
+     "file": "near.ts",
+     "lines": [
+      38,
+      53
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.884
+   }
+  }
+ },
+ {
+  "id": "duplication:near.ts::summariseOrders|near.ts::summariseVisits",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "summariseOrders in near.ts is 94% similar to summariseVisits in near.ts",
+  "evidence": {
+   "modules": [
+    "near.ts"
+   ],
+   "members": [
+    {
+     "module": "near.ts",
+     "name": "summariseOrders",
+     "file": "near.ts",
+     "lines": [
+      73,
+      86
+     ]
+    },
+    {
+     "module": "near.ts",
+     "name": "summariseVisits",
+     "file": "near.ts",
+     "lines": [
+      88,
+      102
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.937
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.ts::loadSession|planted.ts::loadSettings",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "loadSession in planted.ts is 100% similar to loadSettings in planted.ts",
+  "evidence": {
+   "modules": [
+    "planted.ts"
+   ],
+   "members": [
+    {
+     "module": "planted.ts",
+     "name": "loadSession",
+     "file": "planted.ts",
+     "lines": [
+      33,
+      43
+     ]
+    },
+    {
+     "module": "planted.ts",
+     "name": "loadSettings",
+     "file": "planted.ts",
+     "lines": [
+      21,
+      31
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.ts::orderTotal|planted.ts::parcelWeight",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "orderTotal in planted.ts is 100% similar to parcelWeight in planted.ts",
+  "evidence": {
+   "modules": [
+    "planted.ts"
+   ],
+   "members": [
+    {
+     "module": "planted.ts",
+     "name": "orderTotal",
+     "file": "planted.ts",
+     "lines": [
+      1,
+      9
+     ]
+    },
+    {
+     "module": "planted.ts",
+     "name": "parcelWeight",
+     "file": "planted.ts",
+     "lines": [
+      11,
+      19
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:branching.ts::Limits.pageSize|branching.ts::Limits.retryLimit",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Limits.pageSize in branching.ts is 100% similar to Limits.retryLimit in branching.ts",
+  "evidence": {
+   "modules": [
+    "branching.ts"
+   ],
+   "members": [
+    {
+     "module": "branching.ts",
+     "name": "Limits.pageSize",
+     "file": "branching.ts",
+     "lines": [
+      10,
+      16
+     ]
+    },
+    {
+     "module": "branching.ts",
+     "name": "Limits.retryLimit",
+     "file": "branching.ts",
+     "lines": [
+      2,
+      8
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:planted.ts::storeLedger|planted.ts::storeReport",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "storeLedger in planted.ts is 86% similar to storeReport in planted.ts",
+  "evidence": {
+   "modules": [
+    "planted.ts"
+   ],
+   "members": [
+    {
+     "module": "planted.ts",
+     "name": "storeLedger",
+     "file": "planted.ts",
+     "lines": [
+      53,
+      59
+     ]
+    },
+    {
+     "module": "planted.ts",
+     "name": "storeReport",
+     "file": "planted.ts",
+     "lines": [
+      45,
+      51
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.857
+   }
+  }
+ }
+]
