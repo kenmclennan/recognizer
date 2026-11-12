@@ -10,6 +10,30 @@
     "inputs": { "$ref": "#/$defs/hashes" },
     "diagnosis": { "$ref": "#/$defs/diagnosis" },
     "tests": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "suites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "ran_at"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["ok", "failed", "partial", "never"] },
+          "ran_at": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$" }
+            ]
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "measured": { "type": "integer", "minimum": 0 },
+          "total": { "type": "integer", "minimum": 0 }
+        },
+        "if": { "properties": { "status": { "const": "never" } }, "required": ["status"] },
+        "then": { "properties": { "ran_at": { "type": "null" } } },
+        "else": { "properties": { "ran_at": { "type": "string" } } }
+      }
+    },
     "sensor": {
       "type": "object",
       "additionalProperties": false,
@@ -195,6 +219,10 @@
           ]
         },
         "line": {
+          "type": "string",
+          "minLength": 1
+        },
+        "suite": {
           "type": "string",
           "minLength": 1
         },

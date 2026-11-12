@@ -42,6 +42,17 @@ export interface TestImporter {
   names: string[];
 }
 
+export type SuiteStatus = "ok" | "failed" | "partial" | "never";
+
+export interface SuiteResult {
+  name: string;
+  status: SuiteStatus;
+  ran_at: string | null;
+  reason?: string;
+  measured?: number;
+  total?: number;
+}
+
 export interface FindingsDocument {
   findings_version: 1 | 2;
   sensor: { name: string; version: string };
@@ -57,6 +68,7 @@ export interface FindingsDocument {
   findings: FindingRecord[];
   inputs?: Record<string, string>;
   tests?: string;
+  suites?: SuiteResult[];
   diagnosis?: Diagnosis;
 }
 
