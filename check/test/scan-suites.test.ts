@@ -176,11 +176,18 @@ describe("recognizer scan --suites", () => {
     expect(senseArgs(fake, "crap")).toBeUndefined();
   });
 
-  it("is exit 2 without --sense or --describe", async () => {
+  it("is exit 2 without --sense", async () => {
     const { code, err } = await scan("{}", "--suites", FILE);
 
     expect(code).toBe(2);
-    expect(err).toContain("--suites needs --describe or --sense");
+    expect(err).toContain("--suites needs --sense");
+  });
+
+  it("is exit 2 with --describe and no --sense", async () => {
+    const { code, err } = await scan("{}", "--describe", "--suites", FILE);
+
+    expect(code).toBe(2);
+    expect(err).toContain("--suites needs --sense");
   });
 
   it("is exit 2 for an unreadable file", async () => {

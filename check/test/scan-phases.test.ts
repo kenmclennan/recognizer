@@ -427,7 +427,7 @@ describe("parseScanArgs --suites", () => {
       /--suites needs a file/,
     );
     expect(() => parseScanArgs(["--suites", "s.json"])).toThrow(
-      /--suites needs --describe or --sense/,
+      /--suites needs --sense/,
     );
   });
 });

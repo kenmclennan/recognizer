@@ -142,7 +142,7 @@ export const COMMANDS: Command[] = [
     summary:
       "scan a repository in up to three phases: extract when the files changed, describe, sense",
     usage:
-      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--by <name>] [--json]",
+      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -172,6 +172,16 @@ export const COMMANDS: Command[] = [
           "a JSON array of module ids that limits --describe to those modules (the stale ones among them, or all of them with =all) and passes the file to the mutation sensor, which mutates only those modules' functions; needs --describe or --sense, and no other sensor takes it",
       },
       {
+        flag: "--suites <file>",
+        description:
+          "a JSON object from sensor name to an array of configured suite names that limits a sensor that runs tests to those suites; needs --sense",
+      },
+      {
+        flag: "--confirm-above <usd>",
+        description:
+          "ask before describing when the projected cost is strictly above this many dollars or its price is unknown; the answer is a line typed in a terminal or the answer file the app writes; without the flag a scan never asks",
+      },
+      {
         flag: "--by <name>",
         description:
           "who asked, recorded in the run log; defaults to the login user",
@@ -198,7 +208,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown sensor name, --sense with no sensors registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, or an unknown flag",
+          "bad input - an unknown sensor name, --sense with no sensors registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, --suites without --sense, or an unknown flag",
       },
       {
         code: 3,

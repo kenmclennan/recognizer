@@ -45,6 +45,14 @@ describe("command table", () => {
     },
   );
 
+  it("scan help lists --suites and --confirm-above", () => {
+    const { code, out } = call(["scan", "--help"]);
+
+    expect(code).toBe(0);
+    expect(out).toContain("--suites <file>");
+    expect(out).toContain("--confirm-above <usd>");
+  });
+
   it("lists every command once, in table order, in the short help", () => {
     const lines = shortHelp().split("\n");
     const listed = lines
