@@ -19,7 +19,7 @@ export interface EarlyInput {
   model: string;
 }
 
-const BREW_FIX = "brew install --cask kenmclennan/tap/recognizer";
+export const BREW_FIX = "brew install --cask kenmclennan/tap/recognizer";
 
 const SENSORS_PROGRAM = "recognizer-sensors";
 

@@ -11,6 +11,8 @@ import { InputError } from "./errors.js";
 import type { CachedScansState } from "./freshness.js";
 import { parsePolicy } from "./policy.js";
 import { policyProblems } from "./policy-problems.js";
+import { BREW_FIX } from "./preflight.js";
+import { type ScannerSpec, scannerFor } from "./scanners.js";
 
 export type AreaName = "config" | "policy" | "scanners" | "sensors";
 
@@ -24,7 +26,9 @@ export type ProblemCode =
   | "scan-missing"
   | "scan-stale"
   | "policy-entry"
-  | "policy-folder";
+  | "policy-folder"
+  | "scanner-override"
+  | "scanner-missing";
 
 export interface SetupProblem {
   code: ProblemCode;
@@ -46,6 +50,10 @@ export interface DoctorReport {
   areas: Area[];
 }
 
+export type ScannerAvailability =
+  | { available: true }
+  | { available: false; reason: "override" | "missing"; message: string };
+
 export interface DoctorFacts {
   repository: string;
   named: boolean;
@@ -53,6 +61,7 @@ export interface DoctorFacts {
   policyText: string | null;
   languages: Language[];
   scans(): CachedScansState;
+  scanner(spec: ScannerSpec): ScannerAvailability;
 }
 
 const CONFIG_FILE = ".recognizer/config.yaml";
@@ -223,11 +232,47 @@ function policyArea(facts: DoctorFacts): SetupProblem[] {
   }));
 }
 
+function scannersArea(facts: DoctorFacts): SetupProblem[] {
+  return facts.languages.flatMap((language): SetupProblem[] => {
+    const spec = scannerFor(language);
+    const result = facts.scanner(spec);
+
+    if (result.available) {
+      return [];
+    }
+
+    if (result.reason === "override") {
+      return [
+        {
+          code: "scanner-override" as const,
+          subject: language,
+          line: result.message,
+          fix: textFix(
+            `set ${spec.variable} to an absolute path, or unset it to use ${spec.name} from PATH`,
+          ),
+        },
+      ];
+    }
+
+    return [
+      {
+        code: "scanner-missing" as const,
+        subject: language,
+        line: result.message,
+        fix: {
+          text: BREW_FIX,
+          command: BREW_FIX,
+        },
+      },
+    ];
+  });
+}
+
 export function buildReport(facts: DoctorFacts): DoctorReport {
   const areas: Area[] = [
     { name: "config", skipped: null, problems: configArea(facts) },
     { name: "policy", skipped: null, problems: policyArea(facts) },
-    { name: "scanners", skipped: null, problems: [] },
+    { name: "scanners", skipped: null, problems: scannersArea(facts) },
     { name: "sensors", skipped: null, problems: [] },
   ];
   const problems = areas.reduce((sum, area) => sum + area.problems.length, 0);

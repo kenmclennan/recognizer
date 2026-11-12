@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { configFile } from "./config.js";
@@ -8,14 +8,51 @@ import {
   type DoctorFacts,
   reportJson,
   reportText,
+  type ScannerAvailability,
 } from "./doctor.js";
 import { InputError } from "./errors.js";
 import { cachedScansState } from "./freshness.js";
+import type { ScannerSpec } from "./scanners.js";
 
 const USAGE = ["usage: recognizer doctor [REPOSITORY] [--json]"];
 
 function readIfPresent(io: Io, file: string): string | null {
   return io.exists(file) ? io.readFile(file) : null;
+}
+
+function scannerAvailability(io: Io, spec: ScannerSpec): ScannerAvailability {
+  const override = io.env(spec.variable);
+
+  if (override !== undefined && override !== "") {
+    if (!isAbsolute(override)) {
+      return {
+        available: false,
+        reason: "override",
+        message: `${spec.variable} must be an absolute path: ${override}`,
+      };
+    }
+
+    return io.exists(override)
+      ? { available: true }
+      : {
+          available: false,
+          reason: "missing",
+          message: `${spec.variable} names ${override}, which does not exist`,
+        };
+  }
+
+  const found = (io.env("PATH") ?? "")
+    .split(":")
+    .filter((directory) => directory !== "")
+    .some((directory) => io.exists(join(directory, spec.name)));
+
+  return found
+    ? { available: true }
+    : {
+        available: false,
+        reason: "missing",
+        message: `${spec.name} is not installed: ${spec.language} files are present but no scanner is on PATH`,
+      };
 }
 
 export function runDoctor(argv: string[], io: Io): number {
@@ -47,6 +84,7 @@ export function runDoctor(argv: string[], io: Io): number {
     policyText: readIfPresent(io, join(root, ".recognizer", "policy.yaml")),
     languages,
     scans: () => cachedScansState(io, root, languages),
+    scanner: (spec) => scannerAvailability(io, spec),
   };
   const report = buildReport(facts);
 

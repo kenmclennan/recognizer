@@ -16,6 +16,7 @@ afterEach(() => {
 
 const COMMIT = "abc123";
 const CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
+const BREW = "brew install --cask kenmclennan/tap/recognizer";
 const READY_SENSOR =
   "sensors:\n  mine:\n    command: [recognizer-sensors, mine]\n";
 const POLICY = 'components:\n  core: "m*.py"\n';
@@ -460,6 +461,72 @@ describe("doctor: policy", () => {
     );
 
     expect(codes(result.report)).toEqual([]);
+  });
+});
+
+describe("doctor: scanners", () => {
+  it("reports a language with no scanner on PATH", () => {
+    const result = json(setup({ ...clean, scanner: false }));
+
+    expect(result.report.areas[2].problems).toEqual([
+      {
+        code: "scanner-missing",
+        subject: "python",
+        line: expect.stringContaining("recognizer-scan-python"),
+        fix: { text: BREW, command: BREW },
+      },
+    ]);
+  });
+
+  it("accepts a scanner present in a PATH directory", () => {
+    const result = json(
+      setup({
+        ...clean,
+        scanner: false,
+        env: { PATH: "/opt/tools:/bin" },
+        files: { "/opt/tools/recognizer-scan-python": "" },
+      }),
+    );
+
+    expect(result.report.areas[2].problems).toEqual([]);
+  });
+
+  it("reports a relative override", () => {
+    const result = json(
+      setup({ ...clean, env: { PATH: "/bin", RECOGNIZER_SCAN_PYTHON: "py" } }),
+    );
+
+    expect(result.report.areas[2].problems).toMatchObject([
+      { code: "scanner-override", subject: "python" },
+    ]);
+  });
+
+  it("accepts an absolute override that exists and reports one that does not", () => {
+    const present = json(
+      setup({
+        ...clean,
+        scanner: false,
+        env: { PATH: "/none", RECOGNIZER_SCAN_PYTHON: "/x/scan" },
+        files: { "/x/scan": "" },
+      }),
+    );
+    const absent = json(
+      setup({
+        ...clean,
+        scanner: false,
+        env: { PATH: "/bin", RECOGNIZER_SCAN_PYTHON: "/y/scan" },
+      }),
+    );
+
+    expect(present.report.areas[2].problems).toEqual([]);
+    expect(codes(absent.report)).toEqual(["scanners:scanner-missing"]);
+  });
+
+  it("checks nothing for a repository with no language", () => {
+    const fake = fakeIo({ commit: COMMIT, env: { PATH: "/none" } });
+    const result = json(fake);
+
+    expect(result.report.areas[2].problems).toEqual([]);
   });
 });
 
