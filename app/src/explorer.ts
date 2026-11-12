@@ -62,7 +62,12 @@ import {
   hiddenText,
 } from "./freshness-model";
 import { limitsFromText } from "./function-limits";
-import { drawnScans, headDrawn, withoutDrawn } from "./head-drawn";
+import {
+  drawnScans,
+  headDrawn,
+  withoutDrawn,
+  withoutDrawnResponsibility,
+} from "./head-drawn";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
@@ -3768,10 +3773,13 @@ export function showExplorer(
         counts: graph.counts,
         filter: root ? pickerFilter : panel.filter,
         followed: panel.followed,
-        responsibility: (id) => ({
-          state: responsibilityOf(id),
-          failure: describing.failure(id),
-        }),
+        responsibility: withoutDrawnResponsibility(
+          (id) => ({
+            state: responsibilityOf(id),
+            failure: describing.failure(id),
+          }),
+          drawn,
+        ),
         metrics: withoutDrawn(currentOverlays(), drawn).metrics,
         metricsOn: tickedMetrics().length > 0,
         limits: limitsFromText(scanConfig),

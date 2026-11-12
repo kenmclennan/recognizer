@@ -2,6 +2,7 @@ import type { MarkedModule, MemberMarkKind, Scan } from "recognizer";
 import { moduleOf } from "recognizer";
 import type { MetricDescriptor, OverlayModel } from "./overlay-model";
 import { largest } from "./overlay-model";
+import type { ResponsibilityRow } from "./responsibility-model";
 import { currentCommit } from "./stale-report";
 
 type Tracked = Scan & { modified?: boolean | null };
@@ -84,4 +85,18 @@ export function withoutDrawn(
   });
 
   return { ...model, metrics };
+}
+
+export function withoutDrawnResponsibility(
+  responsibility: (id: string) => ResponsibilityRow,
+  drawn: ReadonlySet<string>,
+): (id: string) => ResponsibilityRow {
+  if (drawn.size === 0) {
+    return responsibility;
+  }
+
+  return (id) =>
+    drawn.has(id)
+      ? { state: { kind: "missing" }, failure: null }
+      : responsibility(id);
 }

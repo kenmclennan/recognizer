@@ -1,6 +1,11 @@
 import type { MarkedModule, Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { drawnScans, headDrawn, withoutDrawn } from "./head-drawn";
+import {
+  drawnScans,
+  headDrawn,
+  withoutDrawn,
+  withoutDrawnResponsibility,
+} from "./head-drawn";
 import type { OverlayModel } from "./overlay-model";
 
 const HEAD = "head1";
@@ -100,5 +105,52 @@ describe("head-drawn", () => {
 
     expect(out[0].modules[0].members?.map((m) => m.name)).toEqual(["helper"]);
     expect(out[0].modules[1].members?.map((m) => m.name)).toEqual(["other"]);
+  });
+});
+
+describe("head-drawn responsibility", () => {
+  const checkout = (id: string) => ({
+    state: { kind: "current" as const, line: `checkout ${id}` },
+    failure: null,
+  });
+
+  it("shows no responsibility line for a head-drawn file when the checkout differs", () => {
+    const drawn = drawnFor([
+      scanOf(["other"], { commit: "else", modified: false }),
+    ]);
+    const of = withoutDrawnResponsibility(checkout, drawn);
+
+    expect(of("p/a.py")).toEqual({ state: { kind: "missing" }, failure: null });
+    expect(of("p/b.py").state).toEqual({
+      kind: "current",
+      line: "checkout p/b.py",
+    });
+  });
+
+  it("shows the description as today when the checkout is the clean head", () => {
+    const drawn = drawnFor([scanOf(["x"], { commit: HEAD, modified: false })]);
+    const of = withoutDrawnResponsibility(checkout, drawn);
+
+    expect(of).toBe(checkout);
+    expect(of("p/a.py").state).toEqual({
+      kind: "current",
+      line: "checkout p/a.py",
+    });
+  });
+
+  it("never reads the checkout's description for a drawn file", () => {
+    const drawn = drawnFor([
+      scanOf(["other"], { commit: "else", modified: false }),
+    ]);
+    const calls: string[] = [];
+    const of = withoutDrawnResponsibility((id) => {
+      calls.push(id);
+
+      return checkout(id);
+    }, drawn);
+
+    of("p/a.py");
+
+    expect(calls).toEqual([]);
   });
 });
