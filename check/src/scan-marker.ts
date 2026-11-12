@@ -9,6 +9,8 @@ export const PROGRESS_FILE = "scan-running.progress.jsonl";
 export const ANSWER_FILE = "scan-running.answer.json";
 export const STARTED_BY_VARIABLE = "RECOGNIZER_STARTED_BY";
 export const REFUSED_EXIT = 3;
+export const REASON_LIMIT = 8192;
+const GENERIC_REASON = "the scan ended on an error";
 
 export type MarkerOrigin = "cli" | "app";
 
@@ -32,7 +34,7 @@ export interface RunFailure {
 }
 
 export interface ScanRunRecord {
-  version: 3;
+  version: 4;
   run_id: string;
   pid: number;
   pgid: number | null;
@@ -67,6 +69,7 @@ export interface HeldMarker {
   running(): void;
   refused(gaps: RunGap[], summary: RunSummary): void;
   end(exit: number, failure: RunFailure | null, summary: RunSummary): void;
+  crashed(text: string): void;
   release(): void;
 }
 
@@ -101,6 +104,23 @@ export function parseMarker(text: string): ScanRunRecord | null {
   }
 
   return validate(value) ? (value as unknown as ScanRunRecord) : null;
+}
+
+export function boundReason(text: string): string {
+  const trimmed = text.trimEnd();
+
+  if (trimmed.length <= REASON_LIMIT) {
+    return trimmed;
+  }
+
+  let start = trimmed.length - REASON_LIMIT;
+  const first = trimmed.charCodeAt(start);
+
+  if (first >= 0xdc00 && first <= 0xdfff) {
+    start += 1;
+  }
+
+  return trimmed.slice(start);
 }
 
 export function markerOrigin(io: Io): MarkerOrigin {
@@ -143,7 +163,7 @@ export function acquireMarker(
   const path = markerPath(root);
   const progress = progressPath(root);
   let record: ScanRunRecord = {
-    version: 3,
+    version: 4,
     run_id: randomUUID(),
     pid: io.pid(),
     pgid: io.processGroup(io.pid()),
@@ -211,6 +231,8 @@ export function acquireMarker(
     (record.phase === "checking" || record.phase === "running") &&
     holdsRecord();
 
+  let crash: string | null = null;
+
   const ended = (): string => new Date(io.now()).toISOString();
 
   const handle: HeldMarker = {
@@ -245,11 +267,17 @@ export function acquireMarker(
                 phase: "failed",
                 ended_at: ended(),
                 exit,
-                failure,
+                failure:
+                  failure === null
+                    ? null
+                    : { ...failure, reason: boundReason(failure.reason) },
                 ...recorded,
               },
         );
       }
+    },
+    crashed: (text) => {
+      crash = text;
     },
     release: () => {
       held.delete(handle);
@@ -259,7 +287,10 @@ export function acquireMarker(
           phase: "failed",
           ended_at: ended(),
           exit: 1,
-          failure: { sensor: "scan", reason: "the scan ended on an error" },
+          failure: {
+            sensor: "scan",
+            reason: boundReason(crash ?? GENERIC_REASON),
+          },
         });
       }
     },

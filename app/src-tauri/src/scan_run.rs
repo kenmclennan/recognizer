@@ -87,7 +87,7 @@ fn ran_ok(ran: &[String]) -> bool {
 pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
     let run: ScanRunRecord = serde_json::from_str(text).ok()?;
 
-    if run.version != 3
+    if run.version != 4
         || run.run_id.is_empty()
         || run.pid == 0
         || run.pgid == Some(0)
@@ -101,10 +101,9 @@ pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
             .gaps
             .iter()
             .any(|gap| gap.id.is_empty() || gap.needs.iter().any(String::is_empty))
-        || run
-            .failure
-            .as_ref()
-            .is_some_and(|failure| failure.sensor.is_empty())
+        || run.failure.as_ref().is_some_and(|failure| {
+            failure.sensor.is_empty() || failure.reason.chars().count() > STDERR_CHARS
+        })
         || run.commit.as_deref().is_some_and(str::is_empty)
         || run.ran.as_ref().is_some_and(|ran| !ran_ok(ran))
         || (run.phase == "finished" && run.ran.is_none())
@@ -425,7 +424,7 @@ pub type Gap = RunGap;
     rename_all_fields = "camelCase"
 )]
 pub enum ScanRun {
-    Finished { exit_code: i32, stderr: String },
+    Finished { exit_code: i32 },
     Stopped,
     CommandMissing { hint: String },
     Failed { exit_code: i32, stderr: String },
@@ -622,6 +621,8 @@ fn result_for(
     stopped: bool,
     stderr: String,
     own: Option<&ScanRunRecord>,
+    owner: Option<&ScanRunRecord>,
+    folder: &Path,
 ) -> ScanRun {
     if stopped {
         return ScanRun::Stopped;
@@ -632,7 +633,9 @@ fn result_for(
             hint: missing_hint(),
         },
         Some(REFUSED_EXIT) => ScanRun::Refused {
-            reason: stderr.trim().to_string(),
+            reason: owner
+                .map(|record| refusal_text(record, folder))
+                .unwrap_or_else(|| format!("a scan is already running on {}", folder.display())),
         },
         Some(PREFLIGHT_EXIT) => match own {
             Some(record) if record.phase == "refused" && !record.gaps.is_empty() => ScanRun::Gaps {
@@ -643,15 +646,47 @@ fn result_for(
                 stderr,
             },
         },
-        Some(code @ (0 | 1)) => ScanRun::Finished {
-            exit_code: code,
-            stderr,
-        },
+        Some(code @ (0 | 1)) => ScanRun::Finished { exit_code: code },
         other => ScanRun::Failed {
             exit_code: other.unwrap_or(-1),
             stderr,
         },
     }
+}
+
+const STDERR_CHARS: usize = 8192;
+const STDERR_TAIL_BYTES: usize = 4 * STDERR_CHARS;
+
+fn bound_stderr(bytes: &[u8]) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let trimmed = text.trim_end();
+    let count = trimmed.chars().count();
+
+    if count <= STDERR_CHARS {
+        return trimmed.to_string();
+    }
+
+    trimmed.chars().skip(count - STDERR_CHARS).collect()
+}
+
+fn read_tail(mut source: impl Read) -> Vec<u8> {
+    let mut tail: Vec<u8> = Vec::new();
+    let mut chunk = [0u8; 4096];
+
+    loop {
+        match source.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(count) => {
+                tail.extend_from_slice(&chunk[..count]);
+
+                if tail.len() > STDERR_TAIL_BYTES {
+                    tail.drain(..tail.len() - STDERR_TAIL_BYTES);
+                }
+            }
+        }
+    }
+
+    tail
 }
 
 fn own_record(folder: &Path, spawned_at: i64) -> Option<ScanRunRecord> {
@@ -805,19 +840,8 @@ fn spawn_and_stream(
 
     let stderr = child.stderr.take();
 
-    let (stderr_text, status) = std::thread::scope(|scope| {
-        let collected = scope.spawn(move || {
-            let mut text = String::new();
-
-            if let Some(mut stderr) = stderr {
-                let mut bytes = Vec::new();
-
-                let _ = stderr.read_to_end(&mut bytes);
-                text = String::from_utf8_lossy(&bytes).into_owned();
-            }
-
-            text
-        });
+    let (captured, status) = std::thread::scope(|scope| {
+        let collected = scope.spawn(move || stderr.map(read_tail).unwrap_or_default());
 
         let status = child.wait();
 
@@ -828,8 +852,25 @@ fn spawn_and_stream(
     let exit = status.ok().and_then(|status| status.code());
 
     let own = own_record(folder, spawned_at);
+    let stderr_text = if own.is_some() {
+        String::new()
+    } else {
+        bound_stderr(&captured)
+    };
+    let owner = if exit == Some(REFUSED_EXIT) {
+        live_run(folder)
+    } else {
+        None
+    };
 
-    result_for(exit, stopped, stderr_text, own.as_ref())
+    result_for(
+        exit,
+        stopped,
+        stderr_text,
+        own.as_ref(),
+        owner.as_ref(),
+        folder,
+    )
 }
 
 #[cfg(test)]
@@ -949,11 +990,8 @@ mod tests {
         let json = |run: &ScanRun| serde_json::to_value(run).unwrap();
 
         assert_eq!(
-            json(&ScanRun::Finished {
-                exit_code: 1,
-                stderr: "e".into()
-            }),
-            serde_json::json!({"status": "finished", "exitCode": 1, "stderr": "e"})
+            json(&ScanRun::Finished { exit_code: 1 }),
+            serde_json::json!({"status": "finished", "exitCode": 1})
         );
         assert_eq!(
             json(&ScanRun::Stopped),
@@ -1006,13 +1044,7 @@ mod tests {
             || {},
         );
 
-        assert_eq!(
-            result,
-            ScanRun::Finished {
-                exit_code: 0,
-                stderr: String::new()
-            }
-        );
+        assert_eq!(result, ScanRun::Finished { exit_code: 0 });
     }
 
     #[cfg(unix)]
@@ -1031,13 +1063,7 @@ mod tests {
             &[],
         );
 
-        assert_eq!(
-            result,
-            ScanRun::Finished {
-                exit_code: 1,
-                stderr: String::new()
-            }
-        );
+        assert_eq!(result, ScanRun::Finished { exit_code: 1 });
     }
 
     #[cfg(unix)]
@@ -1202,7 +1228,7 @@ mod tests {
             result,
             ScanRun::Failed {
                 exit_code: 2,
-                stderr: "bad flag\n".into()
+                stderr: "bad flag".into()
             }
         );
 
@@ -1448,15 +1474,15 @@ mod tests {
     #[test]
     fn a_stopped_run_stays_stopped_and_only_an_exit_of_zero_or_one_is_finished() {
         assert_eq!(
-            result_for(Some(0), true, String::new(), None),
+            result_for(Some(0), true, String::new(), None, None, Path::new("/r")),
             ScanRun::Stopped
         );
         assert!(matches!(
-            result_for(Some(1), false, String::new(), None),
+            result_for(Some(1), false, String::new(), None, None, Path::new("/r")),
             ScanRun::Finished { exit_code: 1, .. }
         ));
         assert!(matches!(
-            result_for(Some(2), false, String::new(), None),
+            result_for(Some(2), false, String::new(), None, None, Path::new("/r")),
             ScanRun::Failed { .. }
         ));
     }
@@ -1527,7 +1553,7 @@ mod tests {
         };
 
         format!(
-            r#"{{"version":3,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
+            r#"{{"version":4,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
         )
     }
 
@@ -1590,8 +1616,8 @@ mod tests {
         let valid = examples("valid");
         let invalid = examples("invalid");
 
-        assert_eq!(valid.len(), 7);
-        assert_eq!(invalid.len(), 9);
+        assert_eq!(valid.len(), 8);
+        assert_eq!(invalid.len(), 11);
         assert!(valid.iter().all(|text| parse_run(text).is_some()));
         assert!(invalid.iter().all(|text| parse_run(text).is_none()));
 
@@ -1604,7 +1630,10 @@ mod tests {
 
         assert_eq!(
             phases,
-            vec!["checking", "failed", "finished", "finished", "refused", "running", "stopped"]
+            vec![
+                "checking", "failed", "failed", "finished", "finished", "refused", "running",
+                "stopped"
+            ]
         );
     }
 
@@ -2083,16 +2112,28 @@ mod tests {
     }
 
     #[test]
-    fn exit_code_three_is_a_refusal_carrying_the_stderr() {
+    fn exit_code_three_is_a_refusal_naming_the_live_owner() {
+        let folder = Path::new("/work/shop");
+        let owner = parse_run(&run_text(
+            4242,
+            Some(4242),
+            "running",
+            "cli",
+            "run-1",
+            "2026-11-12T09:00:00.000Z",
+        ))
+        .unwrap();
+
         assert_eq!(
-            result_for(
-                Some(3),
-                false,
-                "a scan is already running\n".to_string(),
-                None
-            ),
+            result_for(Some(3), false, String::new(), None, Some(&owner), folder),
             ScanRun::Refused {
-                reason: "a scan is already running".to_string()
+                reason: refusal_text(&owner, folder)
+            }
+        );
+        assert_eq!(
+            result_for(Some(3), false, String::new(), None, None, folder),
+            ScanRun::Refused {
+                reason: "a scan is already running on /work/shop".to_string()
             }
         );
     }
@@ -2134,7 +2175,7 @@ mod tests {
         gaps: &str,
     ) -> String {
         let record = format!(
-            r#"{{"version":3,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
+            r#"{{"version":4,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
         );
         let source = dir.join("fake-record.json");
 
@@ -2163,13 +2204,86 @@ mod tests {
             &names(&["crap"]),
         );
 
+        assert_eq!(result, ScanRun::Finished { exit_code: 0 });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_record_of_its_own_wins_over_differing_stderr() {
+        let dir = TempDir::new().unwrap();
+        let writer = record_writer(dir.path(), "failed", 1, "app", &now_timestamp(), "[]");
+        let command = fake_command(dir.path(), &format!("{writer}\necho noise >&2; exit 2"));
+        let result = collect(
+            &ScanRuns::default(),
+            dir.path(),
+            &command,
+            Describe::Off,
+            &[],
+        );
+
         assert_eq!(
             result,
-            ScanRun::Finished {
-                exit_code: 0,
+            ScanRun::Failed {
+                exit_code: 2,
                 stderr: String::new()
             }
         );
+    }
+
+    #[cfg(unix)]
+    fn stderr_of(dir: &Path, body: &str) -> String {
+        let command = fake_command(dir, body);
+
+        match collect(&ScanRuns::default(), dir, &command, Describe::Off, &[]) {
+            ScanRun::Failed { stderr, .. } => stderr,
+            other => panic!("expected a failure, got {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_long_stderr_without_a_record_keeps_its_last_8192_characters() {
+        let dir = TempDir::new().unwrap();
+        let long = stderr_of(
+            dir.path(),
+            "printf 'x'; head -c 8192 /dev/zero | tr '\\0' 'y' >&2; exit 2",
+        );
+
+        assert_eq!(long, "y".repeat(8192));
+
+        let boundary = stderr_of(
+            dir.path(),
+            "head -c 8192 /dev/zero | tr '\\0' 'z' >&2; exit 2",
+        );
+
+        assert_eq!(boundary, "z".repeat(8192));
+
+        let wider = stderr_of(
+            dir.path(),
+            "head -c 8193 /dev/zero | tr '\\0' 'w' >&2; exit 2",
+        );
+
+        assert_eq!(wider, "w".repeat(8192));
+    }
+
+    #[test]
+    fn a_byte_cut_inside_a_multi_byte_character_keeps_whole_characters() {
+        let text = "é".repeat(20000);
+        let bytes = text.as_bytes();
+        let tail = &bytes[bytes.len() - STDERR_TAIL_BYTES - 1..];
+        let kept = bound_stderr(tail);
+
+        assert_eq!(kept.chars().count(), STDERR_CHARS);
+        assert!(kept.chars().all(|character| character == 'é'));
+    }
+
+    #[test]
+    fn the_stderr_reader_keeps_only_the_tail_it_may_hold() {
+        let bytes: Vec<u8> = (0..100_000u32).map(|at| (at % 251) as u8).collect();
+        let tail = read_tail(bytes.as_slice());
+
+        assert_eq!(tail.len(), STDERR_TAIL_BYTES);
+        assert_eq!(tail, bytes[bytes.len() - STDERR_TAIL_BYTES..]);
     }
 
     #[cfg(unix)]
@@ -2188,13 +2302,7 @@ mod tests {
             &names(&["crap"]),
         );
 
-        assert_eq!(
-            result,
-            ScanRun::Finished {
-                exit_code: 0,
-                stderr: String::new()
-            }
-        );
+        assert_eq!(result, ScanRun::Finished { exit_code: 0 });
     }
 
     #[cfg(unix)]

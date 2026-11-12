@@ -3,7 +3,7 @@ import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { ScanReport } from "./scan-report";
 
 export type ScanRunResult =
-  | { status: "finished"; exitCode: 0 | 1; stderr: string }
+  | { status: "finished"; exitCode: 0 | 1 }
   | { status: "stopped" }
   | { status: "command-missing"; hint: string }
   | { status: "failed"; exitCode: number; stderr: string }
@@ -45,7 +45,7 @@ export type ScanPort = {
 };
 
 export const inertScan: ScanPort = {
-  run: async () => ({ status: "finished", exitCode: 0, stderr: "" }),
+  run: async () => ({ status: "finished", exitCode: 0 }),
   stop: async () => {},
   answerDescribe: async () => {},
   readCache: async () => ({

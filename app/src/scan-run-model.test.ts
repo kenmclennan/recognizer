@@ -20,7 +20,7 @@ function clock(iso: string): string {
 
 function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
   return {
-    version: 3,
+    version: 4,
     run_id: "run-1",
     pid: 4242,
     pgid: 4242,

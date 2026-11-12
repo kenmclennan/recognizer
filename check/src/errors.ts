@@ -17,3 +17,9 @@ export class Refusal extends Error {
     this.messages = messages;
   }
 }
+
+export function errorText(error: unknown): string {
+  return error instanceof InputError
+    ? error.messages.join("\n")
+    : (error as Error).message;
+}

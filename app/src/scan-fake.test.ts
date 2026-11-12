@@ -43,7 +43,6 @@ describe("fakeScan", () => {
     expect(result).toEqual({
       status: "finished",
       exitCode: 0,
-      stderr: "",
     });
     expect(fake.ran).toEqual([PLAN]);
   });

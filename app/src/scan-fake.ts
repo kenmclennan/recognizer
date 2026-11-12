@@ -68,7 +68,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
   let pending: { stop: () => void } | null = null;
   const fake: FakeScan = {
     steps: [],
-    result: { status: "finished", exitCode: 0, stderr: "" },
+    result: { status: "finished", exitCode: 0 },
     cache: {
       status: "scanned",
       exitCode: 0,
@@ -124,7 +124,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         !SPAWNS_NO_RECORD.has(fake.result.status) &&
         !(fake.result.status === "gaps" && fake.steps.length === 0);
       let live: ScanRunRecord = {
-        version: 3,
+        version: 4,
         run_id: `fake-run-${nextRun()}`,
         pid: 4242,
         pgid: 4242,
