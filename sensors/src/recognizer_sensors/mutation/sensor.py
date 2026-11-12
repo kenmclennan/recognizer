@@ -382,6 +382,10 @@ class NoSelectedTests(Exception):
     pass
 
 
+class BaselineTimedOut(Exception):
+    pass
+
+
 def omitted_paths(repository: Path, carry: tuple[str, ...]) -> list[str]:
     listed = git_lines(repository, "--others", "--ignored", "--exclude-standard", "--directory")
 
@@ -400,14 +404,18 @@ def run_baseline(
     command: list[str] | str,
     subject: str,
     suite: Suite,
+    limit: float | None = None,
 ) -> float:
     with copies.lease() as copy:
-        result = run_test_command(command, copy, None, suite=suite)
+        result = run_test_command(command, copy, limit, suite=suite)
 
     carry = copies.carry
 
     if STOP.is_set() or BUDGET_SPENT.is_set():
         raise Stopped
+
+    if result.timed_out:
+        raise BaselineTimedOut(f"the baseline passed its {limit:.0f} second bound")
 
     if result.passed and NO_AFFECTED in result.output:
         raise NoSelectedTests("no affected test files found")
@@ -469,8 +477,22 @@ class Baselines:
         with self.lock:
             self.entries[baseline_key(suite, command)] = entry
 
+    def recorded(self, command: list[str] | str, suite: Suite) -> float | None:
+        with self.lock:
+            entry = self.entries.get(baseline_key(suite, command))
+
+        if entry is None or not entry.done.is_set() or entry.error is not None:
+            return None
+
+        return entry.seconds
+
     def seconds(
-        self, command: list[str] | str, subject: str, suite: Suite, fallback: bool = False
+        self,
+        command: list[str] | str,
+        subject: str,
+        suite: Suite,
+        fallback: bool = False,
+        limit: float | None = None,
     ) -> float | None:
         key = baseline_key(suite, command)
 
@@ -483,7 +505,9 @@ class Baselines:
 
         if owner:
             try:
-                entry.seconds = run_baseline(self.repository, self.copies, command, subject, suite)
+                entry.seconds = run_baseline(
+                    self.repository, self.copies, command, subject, suite, limit
+                )
             except Exception as error:
                 entry.error = error
 
@@ -1121,13 +1145,18 @@ def measure(
                 killers = [target.previous.get(index, frozenset()) for index in target.to_run]
 
                 def baseline(
-                    command: list[str] | str, label: str, fallback: bool = False
+                    command: list[str] | str,
+                    label: str,
+                    fallback: bool = False,
+                    limit: float | None = None,
                 ) -> float | None:
                     if deadline is not None and CLOCK() >= deadline:
                         raise Stopped
 
                     try:
-                        return baselines.seconds(command, label, suite, fallback=fallback)
+                        return baselines.seconds(
+                            command, label, suite, fallback=fallback, limit=limit
+                        )
                     except Refusal:
                         if deadline is not None and CLOCK() >= deadline:
                             raise Stopped from None
@@ -1148,7 +1177,13 @@ def measure(
                         selected = None
 
                     if selected is not None and selected != whole:
-                        seconds = baseline(selected, selected_subject, fallback=True)
+                        whole_seconds = baselines.recorded(whole, suite)
+                        limit = (
+                            timeout_for(whole_seconds, settings["timeout_factor"])
+                            if whole_seconds is not None
+                            else None
+                        )
+                        seconds = baseline(selected, selected_subject, fallback=True, limit=limit)
 
                         if seconds is not None:
                             command = selected

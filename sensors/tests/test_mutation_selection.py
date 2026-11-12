@@ -349,7 +349,7 @@ def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once
     assert commands.count(STOPPING_SELECTED) == 2
     assert commands.count(WHOLE_COMMAND) == 1
     assert commands.count(STOPPING_WHOLE) == 1
-    assert [timeout is None for _, timeout in seen].count(True) == 2
+    assert [timeout is None for _, timeout in seen].count(True) == 1
     assert capsys.readouterr().err.splitlines()[-1] == (
         "recognizer-sensors: mutation: 1 functions without a covering test; "
         "2 mutants ran a selection, 1 ran the whole suite"
@@ -366,7 +366,7 @@ def test_a_selected_command_whose_baseline_fails_runs_its_mutants_under_the_whol
 
     def spy(command, cwd, timeout, suite=None, extra=None):
         seen.append(as_seen(command))
-        failing = command == SELECTED_COMMAND and timeout is None
+        failing = command == SELECTED_COMMAND and timeout is not None
 
         return real(
             [sys.executable, "-c", "raise SystemExit(1)" if failing else ""],
@@ -582,6 +582,39 @@ def test_a_failing_baseline_in_a_reused_copy_falls_back_to_the_whole_suite(tmp_p
     assert baselines.seconds(["x", "bad"], "the command", SUITE, fallback=True) is None
     assert baselines.seconds(["x", "ok"], "the command", SUITE) == 0.1
     assert len(list(work.iterdir())) == 1
+
+
+def test_a_selected_baseline_is_bounded_by_the_whole_suite_warm_up_and_falls_back_when_it_passes_it(
+    tmp_path, monkeypatch, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    limits = []
+    fake_run = runner.run_test_command
+
+    def slow(command, cwd, timeout, suite=None, extra=None):
+        limits.append(timeout)
+
+        return fake_run(
+            [sys.executable, "-c", "import time; time.sleep(30)"], cwd, timeout, suite=suite
+        )
+
+    monkeypatch.setattr(sensor, "run_test_command", slow)
+    baselines = sensor.Baselines(root, work, 1)
+    whole = ["x", "whole"]
+    baselines.prime(whole, SUITE, 0.1)
+    limit = sensor.timeout_for(baselines.recorded(whole, SUITE), 10)
+    started = time.monotonic()
+
+    assert baselines.seconds(["x", "slow"], "the selected command", SUITE, True, limit) is None
+    assert time.monotonic() - started < 25
+    assert limits == [limit]
+    assert limit == sensor.TIMEOUT_FLOOR
+    assert "the selected command: the baseline passed its 2 second bound;" in (
+        capsys.readouterr().err
+    )
+    assert baselines.recorded(["x", "slow"], SUITE) is None
 
 
 def test_a_failed_copy_wakes_a_waiting_take_instead_of_hanging_it(tmp_path, monkeypatch):
