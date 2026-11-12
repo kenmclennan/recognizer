@@ -1,0 +1,4 @@
+sensors:
+  structure:
+    hub_threshold: 6
+    composition_roots: [cmd]

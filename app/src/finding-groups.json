@@ -31,12 +31,6 @@
       "todo": "Update the policy so it matches the code."
     },
     {
-      "key": "kind:stable_dependencies",
-      "name": "Depends on less stable code",
-      "means": "A steadier folder imports a folder that changes more easily, so changes there reach it.",
-      "todo": "Move the imported piece to a steadier folder, or depend on an interface instead. The card names the imports."
-    },
-    {
       "key": "kind:unused_exports",
       "name": "Unused exports",
       "means": "A module exports names that no other module imports. A name only a test file imports still counts as unused.",

@@ -41,14 +41,6 @@ describe("which findings a view of three modules shows", () => {
     record("orphan:z", "orphan", ["other/z.py"]),
     record("cycle:a,z", "cycle", ["other/y.py", "app/b.py"]),
     record("cycle:y,z", "cycle", ["other/y.py", "other/z.py"]),
-    record("stable_dependencies:app->other", "stable_dependencies", [
-      "app/a.py",
-      "other/z.py",
-    ]),
-    record("stable_dependencies:lib->other", "stable_dependencies", [
-      "other/z.py",
-    ]),
-    record("stable_dependencies:none->other", "stable_dependencies", []),
   ]);
 
   it("keeps a finding about a module on the canvas", () => {
@@ -66,19 +58,6 @@ describe("which findings a view of three modules shows", () => {
 
     expect(ids).toContain("cycle:a,z");
     expect(ids).not.toContain("cycle:y,z");
-  });
-
-  it("keeps a folder finding when one of its modules is on the canvas", () => {
-    const ids = scopedRows(rows, view).map((row) => row.id);
-
-    expect(ids).toContain("stable_dependencies:app->other");
-  });
-
-  it("drops a folder finding whose modules are all off the canvas while its folder is on it", () => {
-    const ids = scopedRows(rows, view).map((row) => row.id);
-
-    expect(ids).not.toContain("stable_dependencies:lib->other");
-    expect(ids).not.toContain("stable_dependencies:none->other");
   });
 
   it("shows nothing when no module is on the canvas", () => {

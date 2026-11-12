@@ -101,7 +101,7 @@ describe("findingRows", () => {
     });
   });
 
-  it("reads the committed structure example as nine rows, rule violation first", () => {
+  it("reads the committed structure example as eight rows, rule violation first", () => {
     const text = readFileSync(
       fileURLToPath(
         new URL(
@@ -122,7 +122,6 @@ describe("findingRows", () => {
       "orphan",
       "policy_drift",
       "policy_drift",
-      "stable_dependencies",
     ]);
     expect(badge(real)).toEqual({ count: 1, tone: "red" });
   });

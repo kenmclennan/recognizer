@@ -11,25 +11,20 @@ import type { RecordedScan, Scan } from "./scan.js";
 import {
   orphanFindings,
   policyDriftFindings,
-  stableDependenciesFindings,
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
 export const STRUCTURE_SENSOR_VERSION = "14";
 export const DEFAULT_HUB_THRESHOLD = 10;
-export const DEFAULT_INSTABILITY_GAP = 0.2;
 
 export interface StructureSettings {
   hub_threshold: number;
-  instability_gap: number;
-  composition_roots: string[];
   entry_points: string[];
   warnings: {
     cycle: boolean;
     hub: boolean;
     orphan: boolean;
     policy_drift: boolean;
-    stable_dependencies: boolean;
     unused_exports: boolean;
   };
 }
@@ -48,15 +43,12 @@ export interface StructureResult {
 
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
   hub_threshold: DEFAULT_HUB_THRESHOLD,
-  instability_gap: DEFAULT_INSTABILITY_GAP,
-  composition_roots: [],
   entry_points: [],
   warnings: {
     cycle: true,
     hub: true,
     orphan: true,
     policy_drift: true,
-    stable_dependencies: true,
     unused_exports: false,
   },
 };
@@ -81,16 +73,12 @@ export function resolveStructureSettings(
       override ??
       given.hub_threshold ??
       DEFAULT_STRUCTURE_SETTINGS.hub_threshold,
-    instability_gap: given.instability_gap ?? DEFAULT_INSTABILITY_GAP,
-    composition_roots: [...(given.composition_roots ?? [])],
     entry_points: typeof orphan === "object" ? [...orphan.entry_points] : [],
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
       hub: given.warnings?.hub ?? defaults.hub,
       orphan: orphan !== false,
       policy_drift: given.warnings?.policy_drift ?? defaults.policy_drift,
-      stable_dependencies:
-        given.warnings?.stable_dependencies ?? defaults.stable_dependencies,
       unused_exports: given.warnings?.unused_exports ?? defaults.unused_exports,
     },
   };
@@ -120,12 +108,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  const roots =
-    settings.composition_roots.length > 0
-      ? `, composition_roots ${settings.composition_roots.length}`
-      : "";
-
-  return `hub_threshold ${settings.hub_threshold}, instability_gap ${settings.instability_gap}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, unused_exports ${on(w.unused_exports)}${entries}${roots}`;
+  return `hub_threshold ${settings.hub_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, unused_exports ${on(w.unused_exports)}${entries}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -283,15 +266,6 @@ export function structureSensor(
 
   const folders = measureFolders(scans, policy);
 
-  if (settings.warnings.stable_dependencies) {
-    for (const finding of stableDependenciesFindings(folders, {
-      min_gap: settings.instability_gap,
-      composition_roots: settings.composition_roots,
-    })) {
-      add(warnings, finding);
-    }
-  }
-
   return {
     document: {
       findings_version: 2,
@@ -300,15 +274,12 @@ export function structureSensor(
       modified: context.modified,
       settings: {
         hub_threshold: settings.hub_threshold,
-        instability_gap: settings.instability_gap,
-        composition_roots: [...settings.composition_roots],
         entry_points: [...settings.entry_points],
         warnings: {
           cycle: settings.warnings.cycle,
           hub: settings.warnings.hub,
           orphan: settings.warnings.orphan,
           policy_drift: settings.warnings.policy_drift,
-          stable_dependencies: settings.warnings.stable_dependencies,
           unused_exports: settings.warnings.unused_exports,
         },
       },

@@ -1,0 +1,4 @@
+sensors:
+  structure:
+    hub_threshold: 6
+    instability_gap: 0.3

@@ -29,8 +29,6 @@ export type CardModel = {
   rows: CardRowModel[];
 };
 
-const FOLDER_KINDS = new Set(["stable_dependencies"]);
-
 function folderOf(path: string): string {
   const at = path.lastIndexOf("/");
 
@@ -53,12 +51,6 @@ function isMemberFinding(record: FindingRecord): boolean {
 }
 
 export function folderSubject(record: FindingRecord): string | null {
-  if (record.kind === "stable_dependencies") {
-    return (
-      record.id.slice("stable_dependencies:".length).split("->")[0] ?? null
-    );
-  }
-
   if (
     record.kind === "policy_drift" &&
     record.id.startsWith("policy_drift:folder:")
@@ -81,9 +73,8 @@ function subjectOf(row: FindingRow): { name: string; folder: string } {
   }
 
   if (
-    FOLDER_KINDS.has(record.kind) ||
-    (record.kind === "policy_drift" &&
-      record.id.startsWith("policy_drift:folder:"))
+    record.kind === "policy_drift" &&
+    record.id.startsWith("policy_drift:folder:")
   ) {
     const folder = folderSubject(record);
 

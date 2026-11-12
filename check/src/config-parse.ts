@@ -9,13 +9,10 @@ export interface SensorRegistration {
 
 export interface StructureSettingsInput {
   hub_threshold?: number;
-  instability_gap?: number;
-  composition_roots?: string[];
   warnings?: {
     cycle?: boolean;
     hub?: boolean;
     policy_drift?: boolean;
-    stable_dependencies?: boolean;
     unused_exports?: boolean;
     orphan?: boolean | { entry_points: string[] };
   };
@@ -130,6 +127,18 @@ function rejectRetiredWarnings(document: unknown): void {
     ]);
   }
 
+  if ("instability_gap" in structure) {
+    throw new InputError([
+      "config/sensors/structure/instability_gap was removed: the stable dependencies warning it tuned is gone, so the setting did nothing; delete the key",
+    ]);
+  }
+
+  if ("composition_roots" in structure) {
+    throw new InputError([
+      "config/sensors/structure/composition_roots was removed: it only exempted the depending side of the stable dependencies warning, which is gone; delete the key",
+    ]);
+  }
+
   if (!isPlainObject(structure.warnings)) {
     return;
   }
@@ -137,6 +146,12 @@ function rejectRetiredWarnings(document: unknown): void {
   if ("stable_abstractions" in structure.warnings) {
     throw new InputError([
       "config/sensors/structure/warnings/stable_abstractions was removed: the warning is gone, so the switch did nothing; delete the key",
+    ]);
+  }
+
+  if ("stable_dependencies" in structure.warnings) {
+    throw new InputError([
+      "config/sensors/structure/warnings/stable_dependencies was removed: a folder is not a component, so the stable dependencies principle has nothing to apply to; delete the key",
     ]);
   }
 

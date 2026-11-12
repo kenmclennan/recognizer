@@ -1,0 +1,4 @@
+sensors:
+  structure:
+    warnings:
+      stable_dependencies: true

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { validateFindings } from "../src/findings-document.js";
 import { REPO } from "./helpers.js";
 import {
   type FakeOptions,
@@ -65,15 +66,12 @@ describe("check in repository mode", () => {
         status: "ran",
         settings: {
           hub_threshold: 10,
-          instability_gap: 0.2,
-          composition_roots: [],
           entry_points: [],
           warnings: {
             cycle: true,
             hub: true,
             orphan: true,
             policy_drift: true,
-            stable_dependencies: true,
             unused_exports: false,
           },
         },
@@ -309,8 +307,6 @@ describe("a structure file from before the folder cycle was removed", () => {
       modified: false,
       settings: {
         hub_threshold: 10,
-        instability_gap: 0.2,
-        composition_roots: [],
         entry_points: [],
         warnings: {
           cycle: true,
@@ -318,7 +314,6 @@ describe("a structure file from before the folder cycle was removed", () => {
           folder_cycle: true,
           orphan: true,
           policy_drift: true,
-          stable_dependencies: true,
           unused_exports: false,
         },
       },
@@ -353,6 +348,74 @@ describe("a structure file from before the folder cycle was removed", () => {
     expect(
       rewritten.findings.map((one: { kind: string }) => one.kind),
     ).not.toContain("folder_cycle");
+  });
+});
+
+describe("a structure file from before the stable dependencies warning was removed", () => {
+  const STORED = `${ROOT}/.recognizer/cache/findings/structure.json`;
+
+  function oldFile() {
+    return JSON.stringify({
+      findings_version: 2,
+      sensor: { name: "structure", version: "14" },
+      commit: COMMIT,
+      modified: false,
+      settings: {
+        hub_threshold: 10,
+        instability_gap: 0.2,
+        composition_roots: [],
+        entry_points: [],
+        warnings: {
+          cycle: true,
+          hub: true,
+          orphan: true,
+          policy_drift: true,
+          stable_dependencies: true,
+          unused_exports: false,
+        },
+      },
+      inputs: {},
+      findings: [
+        {
+          id: "stable_dependencies:a->b",
+          kind: "stable_dependencies",
+          severity: "warning",
+          principle: "dependencies-point-toward-stability",
+          summary: "folder a depends on folder b, which is less stable",
+          fix_pattern: "depend-on-stabler-folder",
+          evidence: { modules: ["a/x.py", "b/y.py"] },
+        },
+      ],
+    });
+  }
+
+  it("is recomputed, so no stable dependencies finding is reported and the file is rewritten", () => {
+    const fake = setup({ [STORED]: oldFile() });
+
+    expect(fake.files.get(STORED)).toContain("stable_dependencies");
+    expect(() =>
+      validateFindings(JSON.parse(oldFile()), {
+        name: "structure",
+        commit: COMMIT,
+      }),
+    ).not.toThrow();
+
+    const { out } = check(["--json"], fake);
+    const ids = JSON.parse(out).warnings.map((one: { id: string }) => one.id);
+    const rewritten = JSON.parse(fake.files.get(STORED) as string);
+
+    expect(ids.some((id: string) => id.startsWith("stable_dependencies"))).toBe(
+      false,
+    );
+    expect(Object.keys(rewritten.settings)[0]).toBe("hub_threshold");
+    expect(rewritten.settings).not.toHaveProperty("instability_gap");
+    expect(rewritten.settings).not.toHaveProperty("composition_roots");
+    expect(rewritten.settings.warnings).not.toHaveProperty(
+      "stable_dependencies",
+    );
+    expect(
+      rewritten.findings.map((one: { kind: string }) => one.kind),
+    ).not.toContain("stable_dependencies");
   });
 });
 

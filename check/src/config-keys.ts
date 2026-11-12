@@ -65,14 +65,7 @@ export interface PublishedKeys {
 
 const SENSOR_NAME = "^[a-z0-9][a-z0-9_-]{0,63}$";
 
-const WARNINGS = [
-  "cycle",
-  "hub",
-  "policy_drift",
-  "stable_dependencies",
-  "unused_exports",
-  "orphan",
-];
+const WARNINGS = ["cycle", "hub", "policy_drift", "unused_exports", "orphan"];
 
 export const CORE_KEYS: KeySchema = {
   keys_version: 1,
@@ -128,23 +121,6 @@ export const CORE_KEYS: KeySchema = {
       description:
         "a module is a hub when its fan-in and its fan-out are each at least this count",
       example: "sensors.structure.hub_threshold 10",
-    },
-    {
-      key: "sensors.structure.instability_gap",
-      type: "number",
-      minimum: 0,
-      maximum: 1,
-      description:
-        "the smallest instability gap between two folders for stable_dependencies to report",
-      example: "sensors.structure.instability_gap 0.3",
-    },
-    {
-      key: "sensors.structure.composition_roots",
-      type: "string",
-      multi: true,
-      description:
-        "folder-id globs exempt as the depending side of stable_dependencies",
-      example: "--add sensors.structure.composition_roots app/**",
     },
     {
       key: "sensors.structure.warnings.<warning>",

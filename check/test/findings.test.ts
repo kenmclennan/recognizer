@@ -34,15 +34,12 @@ function findingsByModule(
     policy,
     {
       hub_threshold: hub,
-      instability_gap: 0.2,
-      composition_roots: [],
       entry_points: [],
       warnings: {
         cycle: true,
         hub: true,
         orphan: true,
         policy_drift: true,
-        stable_dependencies: true,
         unused_exports: false,
       },
     },

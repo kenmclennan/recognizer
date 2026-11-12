@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**pass.** Every hand-computed metric (160 values over 20 folders) and all 28 labelled cases agree with the sensor, and the Python scanner's import graph matched grimp's once re-exports were accounted for. Over lightcycle's current scan the sensor reports one cycle, two hubs, one orphan and six unstable dependencies, each traceable to its imports. The two defects this report first found, rings of three or more folders (REC-185) and a source module named `test_*.py` skipped by the Python scanner (REC-195), are both fixed.
+**pass.** Every hand-computed metric (88 values over 11 folders) and all 19 labelled cases agree with the sensor, and the Python scanner's import graph matched grimp's once re-exports were accounted for. Over lightcycle's current scan the sensor reports one cycle, two hubs and one orphan, each traceable to its imports. The two defects this report first found, rings of three or more folders (REC-185) and a source module named `test_*.py` skipped by the Python scanner (REC-195), are both fixed.
 
 ## Method
 
@@ -15,32 +15,23 @@
 
 ### Warnings against hand labels
 
-28 cases: 5 cycle, 3 hub, 9 orphan, 9 stable dependencies and 2 for declared child modules. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; stable dependencies against the reverse direction and equal instability. Since sensor version 7 the stable-dependencies scans also have cases for a gap exactly on `instability_gap` and just under it, a folder named in `composition_roots` as the depending side and as the target, and a folder with only foreign imports, whose instability is unknown.
+19 cases: 5 cycle, 3 hub, 9 orphan and 2 for declared child modules. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; the `folder-foreign-only` scan holds a folder with only foreign imports, whose instability is unknown.
 
 | result                                             | count |
 | -------------------------------------------------- | ----- |
-| cases that agree                                   | 28    |
+| cases that agree                                   | 19    |
 | cases that disagree                                | 0     |
 | findings the sensor produced that no label expects | 0     |
 
 ### Folder metrics, hand-computed beside the sensor's
 
-The hand column is `expected.json`; the sensor column is `measureFolders` output. All 160 values (8 fields over 20 folders) agree; the three `folder-foreign-only` folders (`c` unknown, `d` 0, `e` 1) were added when foreign imports stopped counting as efferent coupling.
+The hand column is `expected.json`; the sensor column is `measureFolders` output. All 88 values (8 fields over 11 folders) agree; the three `folder-foreign-only` folders (`c` unknown, `d` 0, `e` 1) were added when foreign imports stopped counting as efferent coupling.
 
 | scan | folder | Ca | Ce | I | A | D |
 | --- | --- | --- | --- | --- | --- | --- |
 | worked-0.3 | app | 0 = 0 | 1 = 1 | 1 = 1 | 0 = 0 | 0 = 0 |
 | worked-0.3 | core | 1 = 1 | 2 = 2 | 0.6667 = 0.6667 | 0 = 0 | 0.3333 = 0.3333 |
 | worked-0.3 | infra | 2 = 2 | 0 = 0 | 0 = 0 | 0.5 = 0.5 | 0.5 = 0.5 |
-| stable-dependencies | tx | 0 = 0 | 1 = 1 | 1 = 1 | null = null | null = null |
-| stable-dependencies | ty | 0 = 0 | 1 = 1 | 1 = 1 | null = null | null = null |
-| stable-dependencies | t | 2 = 2 | 1 = 1 | 0.3333 = 0.3333 | null = null | null = null |
-| stable-dependencies | u | 1 = 1 | 1 = 1 | 0.5 = 0.5 | null = null | null = null |
-| stable-dependencies | v | 1 = 1 | 0 = 0 | 0 = 0 | null = null | null = null |
-| stable-dependencies | e0 | 0 = 0 | 1 = 1 | 1 = 1 | null = null | null = null |
-| stable-dependencies | e1 | 1 = 1 | 1 = 1 | 0.5 = 0.5 | null = null | null = null |
-| stable-dependencies | e2 | 1 = 1 | 1 = 1 | 0.5 = 0.5 | null = null | null = null |
-| stable-dependencies | e3 | 1 = 1 | 0 = 0 | 0 = 0 | null = null | null = null |
 | zones | ux | 0 = 0 | 1 = 1 | 1 = 1 | 1 = 1 | 1 = 1 |
 | zones | uy | 1 = 1 | 0 = 0 | 0 = 0 | 0 = 0 | 1 = 1 |
 | zones | iso | 0 = 0 | 0 = 0 | null = null | 0 = 0 | null = null |
