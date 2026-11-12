@@ -18,6 +18,7 @@ from conftest import (
     mutate_settings,
     python_suite,
     suite_settings,
+    wait_for_pid,
 )
 from jsonschema import Draft202012Validator
 
@@ -1113,16 +1114,6 @@ def test_is_test_file_follows_the_shared_convention(module_id, expected):
     from recognizer_sensors.mutation.test_files import is_test_file
 
     assert is_test_file(module_id) is expected
-
-
-def wait_for_pid(pid_file, deadline):
-    while time.monotonic() < deadline:
-        try:
-            return int(pid_file.read_text())
-        except (FileNotFoundError, ValueError):
-            time.sleep(0.05)
-
-    return int(pid_file.read_text())
 
 
 SLEEP_WHEN_STOPPING = """

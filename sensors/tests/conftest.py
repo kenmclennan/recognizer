@@ -3,6 +3,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -204,3 +205,13 @@ def exports_module(module_id: str, *names: str, hidden: tuple[str, ...] = ()) ->
     ]
 
     return {"id": module_id, "members": members}
+
+
+def wait_for_pid(pid_file, deadline):
+    while time.monotonic() < deadline:
+        try:
+            return int(pid_file.read_text())
+        except (FileNotFoundError, ValueError):
+            time.sleep(0.05)
+
+    return int(pid_file.read_text())

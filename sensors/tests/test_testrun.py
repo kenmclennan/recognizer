@@ -7,7 +7,7 @@ import sys
 import time
 
 import pytest
-from conftest import git_commit, make_repository
+from conftest import git_commit, make_repository, wait_for_pid
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.mutation.warmup import coverage_run
@@ -42,7 +42,9 @@ NOTHING = "print('wrote nothing')"
 
 SLEEP = """
 import os, pathlib, sys, time
-pathlib.Path(sys.argv[1]).write_text(str(os.getpid()))
+temporary = pathlib.Path(f"{sys.argv[1]}.{os.getpid()}.tmp")
+temporary.write_text(str(os.getpid()))
+os.replace(temporary, sys.argv[1])
 time.sleep(60)
 """
 
@@ -383,12 +385,7 @@ def test_killing_the_sensors_group_ends_the_suite(tmp_path):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    deadline = time.monotonic() + 30
-
-    while not pid_file.exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-
-    pid = int(pid_file.read_text())
+    pid = wait_for_pid(pid_file, time.monotonic() + 30)
     os.killpg(process.pid, signal.SIGKILL)
     process.wait()
     time.sleep(0.3)
