@@ -1115,6 +1115,16 @@ def test_is_test_file_follows_the_shared_convention(module_id, expected):
     assert is_test_file(module_id) is expected
 
 
+def wait_for_pid(pid_file, deadline):
+    while time.monotonic() < deadline:
+        try:
+            return int(pid_file.read_text())
+        except (FileNotFoundError, ValueError):
+            time.sleep(0.05)
+
+    return int(pid_file.read_text())
+
+
 SLEEP_WHEN_STOPPING = """
 import os, sys, time
 
@@ -1123,8 +1133,10 @@ here = os.getcwd()
 hang = "baseline" in here if where == "baseline" else "/work/" in here and "baseline" not in here
 
 if hang:
-    with open(pid_file, "w") as handle:
+    with open(pid_file + ".tmp", "w") as handle:
         handle.write(str(os.getpid()))
+
+    os.replace(pid_file + ".tmp", pid_file)
 
     time.sleep(60)
 """
@@ -1162,10 +1174,7 @@ def stop_the_sensor_while_hung(tmp_path, where):
     process = start_sensor(root, tmp_path, settings)
     deadline = time.monotonic() + 30
 
-    while not pid_file.exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-
-    pid = int(pid_file.read_text())
+    pid = wait_for_pid(pid_file, deadline)
     os.killpg(process.pid, signal.SIGTERM)
     status = process.wait(timeout=60)
     deadline = time.monotonic() + 10
@@ -1223,10 +1232,7 @@ def test_sigterm_to_the_sensors_group_ends_the_hung_selected_baseline_and_remove
     process = start_sensor(root, tmp_path, settings, env)
     deadline = time.monotonic() + 120
 
-    while not pid_file.exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-
-    pid = int(pid_file.read_text())
+    pid = wait_for_pid(pid_file, deadline)
     os.killpg(process.pid, signal.SIGTERM)
     status = process.wait(timeout=60)
     deadline = time.monotonic() + 10
@@ -1512,8 +1518,10 @@ if "/work/" in here and "baseline" not in here:
         os.setsid()
 
         if os.fork() == 0:
-            with open(pid_file, "w") as handle:
+            with open(pid_file + ".tmp", "w") as handle:
                 handle.write(str(os.getpid()))
+
+            os.replace(pid_file + ".tmp", pid_file)
 
             time.sleep(60)
 
@@ -1535,10 +1543,7 @@ def test_a_second_sigterm_during_a_stalled_wind_down_exits_at_once(tmp_path):
     try:
         deadline = time.monotonic() + 30
 
-        while not pid_file.exists() and time.monotonic() < deadline:
-            time.sleep(0.05)
-
-        holder = int(pid_file.read_text())
+        holder = wait_for_pid(pid_file, deadline)
         os.kill(process.pid, signal.SIGTERM)
 
         with pytest.raises(subprocess.TimeoutExpired):
@@ -1571,10 +1576,7 @@ def test_a_group_sigterm_twice_leaves_no_sensor_behind(tmp_path):
     process = start_sensor(root, tmp_path, settings)
     deadline = time.monotonic() + 30
 
-    while not pid_file.exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-
-    pid = int(pid_file.read_text())
+    pid = wait_for_pid(pid_file, deadline)
     os.killpg(process.pid, signal.SIGTERM)
     time.sleep(0.2)
 

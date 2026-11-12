@@ -9,8 +9,12 @@ from app.rules import alpha
 
 def test_alpha():
     if os.path.basename(os.getcwd()).startswith("baseline-"):
-        with open(os.environ["HANG_PID_FILE"], "w") as handle:
+        target = os.environ["HANG_PID_FILE"]
+
+        with open(target + ".tmp", "w") as handle:
             handle.write(str(os.getpid()))
+
+        os.replace(target + ".tmp", target)
 
         time.sleep(60)
 
