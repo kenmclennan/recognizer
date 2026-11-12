@@ -1,0 +1,9 @@
+# my config
+describer:
+  command: [describe-it]
+  version: "1"
+sensors:
+  mutation:
+    max_minutes: 10
+
+# end

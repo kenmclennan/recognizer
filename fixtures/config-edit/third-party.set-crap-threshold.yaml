@@ -1,0 +1,9 @@
+describer:
+  command: [describe-it]
+  version: "1"
+sensors:
+  mine:
+    command: [mine, --out, "{output}"]
+  crap:
+    threshold: 30
+  # trailing
