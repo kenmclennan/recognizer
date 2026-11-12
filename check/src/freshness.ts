@@ -1,5 +1,6 @@
 import { join, resolve } from "node:path";
 import type { Io } from "./cli.js";
+import { readConfig } from "./config.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import type { RecordedScan, Scan } from "./scan.js";
@@ -51,6 +52,8 @@ export function freshScans(io: Io, root: string): FreshScans {
   } catch {
     throw new InputError([`repository is not a directory: ${directory}`]);
   }
+
+  readConfig(io, directory);
 
   const commit = resolveCommit(io, directory);
   const detected = detectLanguages(io, directory);
