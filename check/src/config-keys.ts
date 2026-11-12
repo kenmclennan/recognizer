@@ -61,6 +61,7 @@ export interface PublishedKeys {
   keys: PublishedKey[];
   sections: PublishedSection[];
   notAnswering: string | null;
+  subject: "config" | "policy";
 }
 
 const SENSOR_NAME = "^[a-z0-9][a-z0-9_-]{0,63}$";
@@ -187,7 +188,10 @@ function collide(a: PublishedKey, b: PublishedKey): boolean {
   );
 }
 
-export function publish(schemas: KeySchema[]): PublishedKeys {
+export function publish(
+  schemas: KeySchema[],
+  subject: "config" | "policy",
+): PublishedKeys {
   const keys: PublishedKey[] = [];
   const sections: PublishedSection[] = [];
 
@@ -219,7 +223,7 @@ export function publish(schemas: KeySchema[]): PublishedKeys {
     }
   }
 
-  return { keys, sections, notAnswering: null };
+  return { keys, sections, notAnswering: null, subject };
 }
 
 function describeErrors(): string {
@@ -288,10 +292,10 @@ export function loadKeys(io: Io, root: string): PublishedKeys {
   })();
 
   if (typeof reason === "string") {
-    return { ...publish([CORE_KEYS]), notAnswering: reason };
+    return { ...publish([CORE_KEYS], "config"), notAnswering: reason };
   }
 
-  return publish([CORE_KEYS, reason]);
+  return publish([CORE_KEYS, reason], "config");
 }
 
 export function notAnsweringLine(reason: string): string {

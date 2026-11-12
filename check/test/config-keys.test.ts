@@ -180,12 +180,12 @@ describe("merging key schemas", () => {
       other("sensors.<name>.command", "second"),
     ];
 
-    expect(() => publish(schemas)).toThrow(/first.*second/);
+    expect(() => publish(schemas, "config")).toThrow(/first.*second/);
   });
 
   it("lets a literal segment sit beside a placeholder one", () => {
     expect(() =>
-      publish([CORE_KEYS, other("sensors.structure.extra", "third")]),
+      publish([CORE_KEYS, other("sensors.structure.extra", "third")], "config"),
     ).not.toThrow();
   });
 });
