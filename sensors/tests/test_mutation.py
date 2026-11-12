@@ -1682,8 +1682,9 @@ def test_progress_reports_coverage_then_functions_rising_to_the_total(
     lines = progress_lines(capsys)
     mutants = lines[1:]
 
-    assert lines[0] == {"step": "coverage"}
+    assert lines[0] == {"step": "coverage", "suite": "sample"}
     assert [line["step"] for line in mutants] == ["mutants"] * len(mutants)
+    assert {line["suite"] for line in mutants} == {"sample"}
     assert mutants[0]["done"] == 1
     assert mutants[-1]["done"] == mutants[-1]["total"]
     assert [line["done"] for line in mutants] == sorted(line["done"] for line in mutants)
@@ -1700,8 +1701,8 @@ def test_an_unchanged_rerun_prints_one_mutants_line_with_every_function_done(
 
     assert run_mutate(root, output, settings(max_workers=1)) == 0
     assert progress_lines(capsys) == [
-        {"step": "coverage"},
-        {"step": "mutants", "done": 3, "total": 3},
+        {"step": "coverage", "suite": "sample"},
+        {"step": "mutants", "suite": "sample", "done": 3, "total": 3},
     ]
 
 
@@ -1717,9 +1718,9 @@ def test_reused_functions_count_as_done_from_the_first_line(
 
     assert run_mutate(root, output, settings(max_workers=1)) == 0
     assert progress_lines(capsys) == [
-        {"step": "coverage"},
-        {"step": "mutants", "done": 2, "total": 3},
-        {"step": "mutants", "done": 3, "total": 3},
+        {"step": "coverage", "suite": "sample"},
+        {"step": "mutants", "suite": "sample", "done": 2, "total": 3},
+        {"step": "mutants", "suite": "sample", "done": 3, "total": 3},
     ]
 
 

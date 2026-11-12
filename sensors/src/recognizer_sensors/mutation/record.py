@@ -223,6 +223,31 @@ def recorded_entry(record: dict | None, identity: str, body: str, support: str) 
     return entry
 
 
+def held_entry(record: dict | None, identity: str, sites: int) -> dict | None:
+    if record is None:
+        return None
+
+    entry = record["functions"].get(identity)
+
+    if not isinstance(entry, dict):
+        return None
+
+    verdicts = entry.get("verdicts")
+    listed = entry.get("sites")
+
+    if (
+        not isinstance(verdicts, list)
+        or not isinstance(listed, list)
+        or len(verdicts) != sites
+        or len(listed) != sites
+        or not all(v is None or v in VERDICTS for v in verdicts)
+        or not all(site_well_formed(v, s) for v, s in zip(verdicts, listed, strict=True))
+    ):
+        return None
+
+    return entry
+
+
 def conftests_for(path: str, hashes: Mapping[str, str]) -> set[str]:
     directories = path.split("/")[:-1]
     candidates = (

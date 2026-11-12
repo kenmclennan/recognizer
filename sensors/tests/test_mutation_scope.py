@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 import pytest
-from conftest import MUTATE_FIXTURE, git_commit, suite_settings
+from conftest import MUTATE_FIXTURE, git_commit, shim_suite, suite_settings
 
 from recognizer_sensors import hashes
 from recognizer_sensors.cli import main
@@ -346,4 +346,149 @@ def test_a_scoped_run_reports_progress_over_the_scope_only(
     ]
     mutants = [line for line in mutants if line["step"] == "mutants"]
 
-    assert mutants == [{"step": "mutants", "done": 2, "total": 2}]
+    assert mutants == [{"step": "mutants", "suite": "sample", "done": 2, "total": 2}]
+
+
+WEB = "0web"
+
+WEB_MODULE = "def inc(x):\n    return x + 1\n"
+
+WEB_SCRIPT = """
+import os, sys
+with open(os.environ["RUN_LOG"], "a") as log:
+    log.write("web\\n")
+sys.path.insert(0, os.getcwd())
+from extra import inc
+assert inc(1) == 2
+assert inc(0) == 1
+"""
+
+
+@pytest.fixture
+def two_suites(two_modules, tmp_path):
+    root, commit, script, log = two_modules
+    web = root / WEB
+    (web / "coverage").mkdir(parents=True)
+    (web / "extra.py").write_text(WEB_MODULE)
+    (web / "coverage" / "lcov.info").write_text("SF:extra.py\nDA:1,1\nDA:2,1\nend_of_record\n")
+    web_script = tmp_path / "web_script.py"
+    web_script.write_text(WEB_SCRIPT)
+    scan_path = root / ".recognizer" / "cache" / "scan.python.json"
+    scan = json.loads(scan_path.read_text())
+    scan["files"].append({"path": f"{WEB}/extra.py", "hash": "0" * 64})
+    scan["modules"].append({"id": f"{WEB}/extra.py"})
+    scan_path.write_text(json.dumps(scan))
+    git_run(root, "add", "-A")
+    git_run(root, "commit", "-q", "-m", "web")
+    settings = json.dumps(
+        {
+            "tests": [
+                shim_suite(f"{sys.executable} {script}", name="unit"),
+                shim_suite(f"{sys.executable} {web_script}", name="web", directory=WEB),
+            ],
+            "max_workers": 1,
+        }
+    )
+
+    return root, settings, log
+
+
+def mutate_suites(root, tmp_path, settings, names=None):
+    extra = [] if names is None else ["--suites", json.dumps(names)]
+
+    return main(
+        [
+            "mutation",
+            "--repository",
+            str(root),
+            "--output",
+            str(tmp_path / "findings.json"),
+            "--settings",
+            settings,
+            *extra,
+        ]
+    )
+
+
+def progress_lines(capsys):
+    return [
+        json.loads(line.removeprefix("recognizer-progress "))
+        for line in capsys.readouterr().err.splitlines()
+        if line.startswith("recognizer-progress ")
+    ]
+
+
+def web_identity(overlay):
+    return next(k for k in overlay["values"]["killed"] if k.startswith(f"{WEB}/"))
+
+
+def test_a_run_of_one_suite_carries_the_other_suites_recorded_functions(
+    two_suites, tmp_path, monkeypatch, capsys
+):
+    root, settings, log = two_suites
+
+    assert mutate_suites(root, tmp_path, settings) == 0
+
+    full = read(root, OVERLAY)
+    identity = web_identity(full)
+    web_runs = log.read_text().splitlines().count("web")
+    rules = root / "app" / "rules.py"
+    rules.write_text(rules.read_text().replace("return a and b", "return b and a"))
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+    capsys.readouterr()
+
+    assert mutate_suites(root, tmp_path, settings, ["unit"]) == 0
+
+    overlay = read(root, OVERLAY)
+    lines = progress_lines(capsys)
+    findings = json.loads((tmp_path / "findings.json").read_text())
+
+    assert log.read_text().splitlines().count("web") == web_runs
+    assert overlay["values"]["killed"][identity] == full["values"]["killed"][identity]
+    assert overlay["values"]["survived"][identity] == full["values"]["survived"][identity]
+    assert {line.get("suite") for line in lines} == {"unit"}
+    assert [line for line in lines if line["step"] == "coverage"] == [
+        {"step": "coverage", "suite": "unit"}
+    ]
+    assert [s["name"] for s in findings["suites"]] == ["unit", "web"]
+    assert findings["suites"][1]["status"] == "ok"
+    assert findings["suites"][1]["measured"] == 1
+
+
+def test_a_function_of_an_unselected_suite_with_no_record_is_absent(two_suites, tmp_path):
+    root, settings, _ = two_suites
+
+    assert mutate_suites(root, tmp_path, settings, ["unit"]) == 0
+
+    overlay = read(root, OVERLAY)
+    findings = json.loads((tmp_path / "findings.json").read_text())
+
+    assert not any(k.startswith(f"{WEB}/") for k in overlay["values"]["killed"])
+    assert overlay["values"]["killed"]
+    assert findings["suites"][1] == {"name": "web", "status": "never", "ran_at": None}
+    assert findings["suites"][0]["status"] == "ok"
+
+
+def test_progress_counts_one_suite_at_a_time_in_config_order(
+    two_suites, tmp_path, monkeypatch, capsys
+):
+    root, settings, _ = two_suites
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+
+    assert mutate_suites(root, tmp_path, settings) == 0
+
+    lines = progress_lines(capsys)
+    suites = [line["suite"] for line in lines if line["step"] == "coverage"]
+    mutants = [line for line in lines if line["step"] == "mutants"]
+    order = []
+
+    for line in mutants:
+        if line["suite"] not in order:
+            order.append(line["suite"])
+
+    unit_total = next(m["total"] for m in mutants if m["suite"] == "unit")
+
+    assert suites == ["unit", "web"]
+    assert order == ["unit", "web"]
+    assert max(m["done"] for m in mutants if m["suite"] == "web") == 1
+    assert unit_total == 5
