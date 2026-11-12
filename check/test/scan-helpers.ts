@@ -45,6 +45,7 @@ export interface FakeOptions {
   lines?: (string | null)[];
   linesRead?: { count: number };
   alivePids?: number[];
+  pgids?: Record<number, number | null>;
   pid?: number;
 }
 
@@ -114,7 +115,7 @@ export function scanJson(
 }
 
 function isMarkerFile(path: string): boolean {
-  return /\/scan-running(\.progress\.jsonl|\.json)$/.test(path);
+  return /\/scan-running[^/]*$/.test(path);
 }
 
 export function fakeIo(options: FakeOptions = {}): Fake {
@@ -353,6 +354,10 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     pidAlive: (pid) =>
       pid === (options.pid ?? FAKE_PID) ||
       (options.alivePids ?? []).includes(pid),
+    processGroup: (pid) =>
+      options.pgids !== undefined && pid in options.pgids
+        ? (options.pgids[pid] as number | null)
+        : pid,
     rename: (from, to) => {
       const content = files.get(from);
 
@@ -362,7 +367,10 @@ export function fakeIo(options: FakeOptions = {}): Fake {
 
       files.delete(from);
       files.set(to, content);
-      renames.push({ from, to });
+
+      if (!isMarkerFile(to)) {
+        renames.push({ from, to });
+      }
     },
     stdout: (text) => {
       out += text;

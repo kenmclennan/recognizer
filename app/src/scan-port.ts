@@ -1,4 +1,4 @@
-import type { PreflightGap } from "./preflight-model";
+import type { ScanRunRecord } from "recognizer";
 import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { ScanReport } from "./scan-report";
 
@@ -9,7 +9,7 @@ export type ScanRunResult =
   | { status: "failed"; exitCode: number; stderr: string }
   | { status: "refused"; reason: string }
   | { status: "nothing-ran"; phases: string[]; detail: string }
-  | { status: "gaps"; gaps: PreflightGap[] };
+  | { status: "gaps"; gaps: ScanRunRecord["gaps"] };
 
 export type StoredTicks = {
   describe: boolean;
@@ -29,16 +29,8 @@ export type DescribingSettings = {
   confirmAboveUsd: number;
 };
 
-export type ExternalScan = {
-  origin: "cli" | "app";
-  pid: number;
-  startedAt: string;
-  sensors: string[];
-  describe: boolean;
-};
-
-export type ExternalEvent =
-  | { kind: "scan"; scan: ExternalScan | null }
+export type RunEvent =
+  | { kind: "run"; run: ScanRunRecord | null }
   | { kind: "line"; line: string };
 
 export type ScanPort = {
@@ -51,7 +43,7 @@ export type ScanPort = {
   readDescribing(): Promise<DescribingSettings>;
   onLine(handler: (line: string) => void): () => void;
   watchExternal(): Promise<void>;
-  onExternal(handler: (event: ExternalEvent) => void): () => void;
+  onRun(handler: (event: RunEvent) => void): () => void;
 };
 
 export const inertScan: ScanPort = {
@@ -79,5 +71,5 @@ export const inertScan: ScanPort = {
   }),
   onLine: () => () => {},
   watchExternal: async () => {},
-  onExternal: () => () => {},
+  onRun: () => () => {},
 };

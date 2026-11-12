@@ -17,9 +17,10 @@ const SHIPPED = {
 const py = { id: "crap:python:sensors:environment", line: "coverage and pytest are not installed", needs: ["crap"] };
 const py2 = { id: "crap:config:no-suites", line: "no test suites are configured", needs: ["crap"] };
 const rust = { id: "mutation:rust:root:cargo", line: "cargo-llvm-cov is not installed", needs: ["mutation"] };
-const calls = { run: 0 };
+const calls = { run: 0, stop: 0 };
+import { NO_PROGRESS } from ${JSON.stringify(here("scan-progress.ts"))};
 const view = buildScanPanelView({
-  tick() {}, setOnlyView() {}, setMode() {}, stop() {}, answerDescribe() {}, clearReport() {}, openLog() {},
+  tick() {}, setOnlyView() {}, setMode() {}, stop() { calls.stop += 1; }, answerDescribe() {}, clearReport() {}, openLog() {}, openRunLog() {},
   run: () => { calls.run += 1; },
   copy() {},
 });
@@ -28,11 +29,15 @@ host.style.cssText = "width:360px;display:flex;flex-direction:column";
 host.append(view.element);
 document.body.append(host);
 
-function render(preflight, scanning = false) {
+const base = { version: 2, run_id: "r1", pid: 1, pgid: 1, started_at: "2026-11-12T09:00:00.000Z", started_by: "app", repository: "/r", sensors: ["crap", "mutation"], describe: false, ended_at: null, exit: null, gaps: [], failure: null };
+function runView(over) {
+  return over === null ? null : { record: { ...base, ...over }, progress: NO_PROGRESS, starting: null, adoptedAtOpen: null };
+}
+function render(over, scanning = false) {
   const model = scanPanel({
     scan: null, config: null, sensors: [], lines: { modules: [], of: () => ({ kind: "missing" }) },
     describedAt: null, ticks: { describe: false, ticked: [], once: ["crap", "mutation"], onlyView: false },
-    run: NO_RUN, scanning, now: 0, shipped: SHIPPED, preflight,
+    run: NO_RUN, scanning, now: 0, shipped: SHIPPED, runView: runView(over),
   });
   view.render(model);
 }
@@ -44,28 +49,30 @@ const snapshot = () => ({
   line: q(".summary-line")?.textContent ?? null,
   count: q(".preflight-box-count")?.textContent ?? null,
   controls: all(".preflight-gap button, .preflight-gap code, .preflight-fix, .preflight-copy, .preflight-installed").length,
-  order: [...(q(".scan-preflight")?.parentNode?.children ?? [])].map((c) => c.className.split(" ")[0]),
-  panelOrder: [...(q(".scan-preflight")?.children ?? [])].map((c) => c.className),
   help: all(".preflight-help").map((h) => ({ sensor: h.dataset.sensor, text: h.textContent, code: h.querySelector("code")?.textContent ?? null })),
   title: q(".preflight-box-title")?.textContent ?? null,
   button: q(".scan-run")?.textContent ?? null,
   disabled: q(".scan-run")?.disabled ?? null,
+  stopButton: q(".scan-stop")?.textContent ?? null,
+  runButtons: all(".scan-run").length,
   gaps: all(".preflight-gap").map((g) => ({ line: g.querySelector(".preflight-gap-line").textContent, where: g.querySelector(".preflight-gap-where").textContent })),
-  layout: q(".preflight-box") ? { box: box(q(".preflight-box")), run: box(q(".scan-run")), panel: box(view.element), controls: box(q(".scan-controls")) } : null,
+  layout: q(".summary") ? { card: box(q(".summary")), run: box(q(".scan-run") ?? q(".scan-stop")), panel: box(view.element) } : null,
 });
 
 (async () => {
   const facts = {};
-  render({ state: "running", gaps: [] }, true);
+  render({ phase: "checking" }, true);
   facts.running = snapshot();
+  q(".scan-stop").click();
+  facts.stopCalls = { stop: calls.stop };
 
-  render({ state: "gaps", gaps: [py, py2, rust] });
+  render({ phase: "refused", exit: 4, ended_at: "2026-11-12T09:00:01.000Z", gaps: [py, py2, rust] });
   facts.gaps = snapshot();
   q(".scan-run").click();
   facts.calls = { run: calls.run };
 
-  render({ state: "idle", gaps: [] });
-  facts.idle = { box: q(".preflight-box") !== null, head: q(".summary-head")?.textContent ?? null };
+  render(null);
+  facts.idle = { card: q(".summary[data-shape=run-card]") !== null, head: q(".summary-head")?.textContent ?? null };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -80,20 +87,19 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
     f = await collectFacts<Facts>(HARNESS, "preflight-look", "bare");
   }, scaledTimeout(120000));
 
-  it("reads Running pre-flight checks on the card and a disabled button while it runs", () => {
-    expect(f.running.head).toBe("Running pre-flight checks");
-    expect(f.running.button).toBe("Running pre-flight checks");
-    expect(f.running.disabled).toBe(true);
+  it("reads Checking before the scan on the card and Stop as the only button", () => {
+    expect(f.running.head).toBe("Checking before the scan");
+    expect(f.running.stopButton).toBe("Stop");
+    expect(f.running.runButtons).toBe(0);
     expect(f.running.gaps).toEqual([]);
+    expect(f.stopCalls.stop).toBe(1);
   });
 
   it("lists each gap with its sensor and no count", () => {
     expect(f.gaps.head).toBe("Nothing ran");
-    expect(f.gaps.line).toBe(
-      "Some tools the ticked sensors need are missing. Set them up as below, then scan again.",
-    );
-    expect(f.gaps.title).toBe("Before this scan can run");
+    expect(f.gaps.line).toBe("Set these up, then scan again.");
     expect(f.gaps.count).toBeNull();
+    expect(f.gaps.title).toBeNull();
     expect(f.gaps.gaps.map((g: Facts) => [g.line, g.where])).toEqual([
       ["coverage and pytest are not installed", "C.R.A.P."],
       ["no test suites are configured", "C.R.A.P."],
@@ -105,8 +111,8 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
     expect(f.gaps.controls).toBe(0);
   });
 
-  it("offers Check again and run, enabled, when gaps are listed", () => {
-    expect(f.gaps.button).toBe("Check again and run");
+  it("offers Check again and scan, enabled, on a refused card", () => {
+    expect(f.gaps.button).toBe("Check again and scan");
     expect(f.gaps.disabled).toBe(false);
     expect(f.calls.run).toBe(1);
   });
@@ -126,25 +132,17 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
     ]);
   });
 
-  it("puts the box above a full-width button inside the panel", () => {
-    const { box, run, panel } = f.gaps.layout;
+  it("puts the run card above a full-width button inside the panel", () => {
+    const { card, run, panel } = f.gaps.layout;
 
-    expect(f.gaps.panelOrder).toEqual([
-      "preflight-box",
-      "preflight-help",
-      "preflight-help",
-    ]);
-    expect(f.gaps.order.indexOf("scan-preflight")).toBeLessThan(
-      f.gaps.order.indexOf("scan-buttons"),
-    );
-    expect(box.bottom).toBeLessThanOrEqual(run.top);
-    expect(Math.abs(run.width - box.width)).toBeLessThanOrEqual(2);
+    expect(card.bottom).toBeLessThanOrEqual(run.top);
+    expect(Math.abs(run.width - card.width)).toBeLessThanOrEqual(2);
     expect(run.left).toBeGreaterThanOrEqual(panel.left);
     expect(run.right).toBeLessThanOrEqual(panel.right);
   });
 
   it("shows nothing when idle", () => {
-    expect(f.idle.box).toBe(false);
+    expect(f.idle.card).toBe(false);
     expect(f.idle.head).not.toBe("Nothing ran");
   });
 });

@@ -894,7 +894,10 @@ fn answer_describe(app: AppHandle, window: WebviewWindow, describe: bool) -> Res
 
 #[tauri::command]
 fn stop_scan(app: AppHandle, window: WebviewWindow) {
-    app.state::<ScanRuns>().stop(&window_label(&window));
+    let label = window_label(&window);
+    let folder = app.state::<WindowState>().folder_of(&label);
+
+    scan_run::stop_scan_for(&app.state::<ScanRuns>(), &label, folder.as_deref());
 }
 
 #[tauri::command]
@@ -1011,7 +1014,7 @@ fn watch_external_scan(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
     }
 
     std::thread::spawn(move || {
-        let mut seen = scan_run::ExternalSeen::default();
+        let mut seen = scan_run::RunSeen::default();
 
         loop {
             std::thread::sleep(EXTERNAL_SCAN_POLL);
@@ -1021,17 +1024,12 @@ fn watch_external_scan(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
             }
 
             let folder = app.state::<WindowState>().folder_of(&label);
-            let own = app.state::<ScanRuns>().running(&label);
             let mut closed = false;
 
-            for emission in scan_run::external_tick(folder.as_deref(), own, &mut seen) {
+            for emission in scan_run::run_tick(folder.as_deref(), &mut seen) {
                 let sent = match emission {
-                    scan_run::ExternalEmission::Scan(scan) => {
-                        app.emit_to(&label, "external-scan", scan)
-                    }
-                    scan_run::ExternalEmission::Line(line) => {
-                        app.emit_to(&label, "external-scan-line", line)
-                    }
+                    scan_run::RunEmission::Run(run) => app.emit_to(&label, "scan-run", run),
+                    scan_run::RunEmission::Line(line) => app.emit_to(&label, "scan-run-line", line),
                 };
 
                 if sent.is_err() {

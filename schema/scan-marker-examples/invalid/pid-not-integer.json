@@ -1,9 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
+  "run_id": "3b1f8c52-6d0e-4a57-9a3e-0c5d7e1f2a40",
   "pid": "4242",
-  "started_at": "2026-11-10T09:00:00.000Z",
+  "pgid": 4242,
+  "started_at": "2026-11-12T09:00:00.000Z",
   "started_by": "cli",
-  "repository": "/work/shop",
-  "sensors": [],
-  "describe": false
+  "repository": "/work/repo",
+  "sensors": [
+    "mutation"
+  ],
+  "describe": false,
+  "phase": "checking",
+  "ended_at": null,
+  "exit": null,
+  "gaps": [],
+  "failure": null
 }

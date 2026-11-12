@@ -435,7 +435,9 @@ describe("recognizer scan: stale files", () => {
     const { fake } = await scan({ files: { [`${ROOT}/readme.md`]: "" } });
 
     expect(
-      [...fake.files.keys()].some((key) => key.includes(".recognizer")),
+      [...fake.files.keys()].some(
+        (key) => key.includes(".recognizer") && !key.includes("scan-running"),
+      ),
     ).toBe(false);
   });
 });

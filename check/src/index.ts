@@ -162,6 +162,12 @@ export {
   type ScanMethod,
   validateScan,
 } from "./scan.js";
+export type {
+  RunFailure,
+  RunGap,
+  ScanRunPhase,
+  ScanRunRecord,
+} from "./scan-marker.js";
 export type { Diagnosis } from "./sensor-reason.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";

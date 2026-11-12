@@ -3892,24 +3892,25 @@ svg.i.chevron {
   font-size: 10px;
 }
 
-.scan-preflight {
-  margin-top: 10px;
-}
-
-.preflight-box {
-  border: 1px solid var(--warn);
-  border-radius: 8px;
-  padding: 8px 10px;
+.preflight-gaps {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.preflight-box-head {
+.summary-origin {
+  margin-top: 6px;
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-weight: 600;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.summary-origin-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .preflight-gap {

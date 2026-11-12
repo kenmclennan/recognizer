@@ -481,6 +481,8 @@ function* scanFlow(
 
       runLog?.finish(phases, true);
 
+      taken?.refused(gaps.map(({ id, line, needs }) => ({ id, line, needs })));
+
       emit(
         summaryLine({
           repository: root,
@@ -612,6 +614,7 @@ function* scanFlow(
     }
 
     emit(preflightLine({ state: "ok" }));
+    taken?.running();
 
     if (runStructure(io, root, scans)) {
       failed = true;
@@ -752,6 +755,20 @@ function* scanFlow(
     runLog?.finish(phases);
 
     const exit = failed ? 1 : 0;
+
+    const firstFailed = phases
+      .flatMap((one) => summary.get(one.phase) ?? [])
+      .find((entry) => entry.outcome === "failed");
+
+    taken?.end(
+      exit,
+      exit === 0
+        ? null
+        : {
+            sensor: firstFailed?.name ?? "scan",
+            reason: firstFailed?.reason ?? `recognizer scan exited ${exit}`,
+          },
+    );
 
     emit(
       summaryLine({

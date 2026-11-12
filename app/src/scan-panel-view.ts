@@ -2,7 +2,6 @@ import { button, el } from "./dom";
 import type { ResultState, Summary } from "./freshness-model";
 import { attachHoverTip } from "./hover-tip";
 import { icon } from "./icons";
-import type { GapItem, HelpLine, PreflightModel } from "./preflight-model";
 import type { ResultsMode } from "./scan-freshness";
 import {
   DESCRIBE_KEY,
@@ -10,6 +9,7 @@ import {
   type ScanPanelModel,
   type ScanRow,
 } from "./scan-panel-model";
+import type { GapItem, HelpLine, RunCard } from "./scan-run-model";
 import type { ScanWhy } from "./scan-why";
 
 export type ScanPanelActions = {
@@ -22,6 +22,7 @@ export type ScanPanelActions = {
   clearReport: (name: string) => void;
   copy: (text: string) => void;
   openLog: () => void;
+  openRunLog: (log: string) => void;
 };
 
 export type ScanPanelView = {
@@ -257,17 +258,6 @@ function gapNode(item: GapItem): HTMLElement {
   return node;
 }
 
-function preflightBox(box: NonNullable<PreflightModel["box"]>): HTMLElement {
-  const node = el("div", "preflight-box");
-  const head = el("div", "preflight-box-head");
-
-  head.append(el("span", "preflight-box-title", box.title));
-  node.setAttribute("role", "group");
-  node.append(head, ...box.items.map((item) => gapNode(item)));
-
-  return node;
-}
-
 function helpNode(line: HelpLine): HTMLElement {
   const node = el("div", "preflight-help");
 
@@ -275,6 +265,53 @@ function helpNode(line: HelpLine): HTMLElement {
   node.append(
     `${line.text} `,
     el("code", "preflight-help-command", line.command),
+  );
+
+  return node;
+}
+
+function cardNode(card: RunCard, actions: ScanPanelActions): HTMLElement {
+  const node = el("div", `summary ${card.tone}`);
+  const text = el("div", "summary-text");
+  const line = el("div", "summary-line", card.line);
+
+  node.dataset.shape = "run-card";
+  node.dataset.phase = card.phase;
+
+  if (card.showLog !== null) {
+    const log = card.showLog;
+
+    line.append(
+      " ",
+      button("Show log", "scan-why-log", () => actions.openRunLog(log)),
+    );
+  }
+
+  text.append(el("div", "summary-head", card.head), line);
+
+  if (card.second !== null) {
+    text.append(el("div", "summary-line", card.second));
+  }
+
+  if (card.gaps.length > 0) {
+    const gaps = el("div", "preflight-gaps");
+
+    gaps.append(...card.gaps.map((item) => gapNode(item)));
+    text.append(gaps, ...card.help.map(helpNode));
+  }
+
+  const origin = el("div", "summary-origin");
+
+  if (card.origin.icon !== null) {
+    origin.append(icon(card.origin.icon, "summary-origin-icon"));
+  }
+
+  origin.append(card.origin.text);
+  text.append(origin);
+
+  node.append(
+    icon(card.icon, card.tone === "run" ? "scan-spin" : "summary-icon"),
+    text,
   );
 
   return node;
@@ -304,7 +341,6 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
   const sub = el("div", "scan-sub");
   const list = el("div", "scan-list");
   const controls = el("div", "scan-controls");
-  const gaps = el("div", "scan-preflight");
   const buttons = el("div", "scan-buttons");
 
   element.append(header, sub, list, controls, buttons);
@@ -324,7 +360,13 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
       }
 
       list.replaceChildren(
-        ...(model.pending ? [] : [summaryNode(model.summary)]),
+        ...(model.pending
+          ? []
+          : [
+              model.run == null
+                ? summaryNode(model.summary)
+                : cardNode(model.run.card, actions),
+            ]),
         ...model.rows.flatMap((row) => [
           rowNode(row, actions),
           ...(row.key === DESCRIBE_KEY && model.confirm !== null
@@ -339,18 +381,16 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         ...(model.pending ? [] : [modeNode(model.mode, actions)]),
       );
 
-      if (model.preflight?.box == null) {
-        gaps.remove();
-      } else {
-        gaps.replaceChildren(
-          preflightBox(model.preflight.box),
-          ...model.preflight.box.help.map(helpNode),
-        );
-        buttons.before(gaps);
-      }
-
       if (model.pending) {
         buttons.replaceChildren();
+
+        return;
+      }
+
+      if (model.button.stop) {
+        buttons.replaceChildren(
+          button(model.button.label, "scan-stop primary", () => actions.stop()),
+        );
 
         return;
       }
