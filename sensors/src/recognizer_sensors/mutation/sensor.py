@@ -542,6 +542,7 @@ def survivors_document(
     reused: int,
     no_covering_test: int,
     excluded: list[Target] | None = None,
+    no_line: list[Target] | None = None,
 ) -> dict:
     functions = {
         target.identity: {
@@ -572,6 +573,14 @@ def survivors_document(
                 "reason": "not-in-coverage-report",
             }
             for target in sorted(excluded or [], key=lambda t: t.identity)
+        ],
+        "no_executable_line": [
+            {
+                "identity": target.identity,
+                "file": target.file,
+                "reason": "no-executable-line",
+            }
+            for target in sorted(no_line or [], key=lambda t: t.identity)
         ],
         "functions": functions,
     }
@@ -977,6 +986,7 @@ def measure(
     suite_size = suite_size_of(selection)
     targets: list[Target] = []
     excluded: list[Target] = []
+    no_line: list[Target] = []
     covers_by_selection: dict[frozenset[str], frozenset[str] | None] = {}
     sources: dict[str, bytes] = {}
     no_covering_test = 0
@@ -1004,6 +1014,7 @@ def measure(
             known = function_coverage(lines, target.start_line, target.end_line)
 
             if known is None:
+                no_line.append(target)
                 continue
 
             targets.append(target)
@@ -1085,7 +1096,7 @@ def measure(
             (
                 repository / settings["survivors"],
                 survivors_document(
-                    commit, measured, skipped_ids, reused, no_covering_test, excluded
+                    commit, measured, skipped_ids, reused, no_covering_test, excluded, no_line
                 ),
             ),
         ]
@@ -1101,6 +1112,7 @@ def measure(
             frozenset(
                 {target.module for target in measured}
                 | {target.module for target in excluded if target.module not in targeted}
+                | {target.module for target in no_line if target.module not in targeted}
             ),
             shared_tests,
             excluded=excluded_document(excluded),

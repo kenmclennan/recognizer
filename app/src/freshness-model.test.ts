@@ -301,6 +301,16 @@ describe("freshness model sensor gaps and excluded modules", () => {
     ).toBe(true);
   });
 
+  it("settles a module whose functions have no executable line without naming it", () => {
+    const model = modelOf(IDS);
+
+    expect(model.update).toEqual([]);
+    expect(model.changed).toEqual([]);
+    expect(model.action.primary.label).toBe("Up to date");
+    expect(model.summary.shape).toBe("current");
+    expect(model.summary.line).not.toContain(MUTATION_NO_RESULT);
+  });
+
   it("names only the excluded modules in scope and not in the gap", () => {
     const model = modelOf(IDS, {
       sensors: [
