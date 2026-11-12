@@ -16,12 +16,6 @@ import {
   type StateText,
   stateText,
 } from "./freshness-model";
-import {
-  buildPreflight,
-  NO_PREFLIGHT,
-  type PreflightModel,
-  type PreflightState,
-} from "./preflight-model";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
   DESCRIBE_KEY,
@@ -39,6 +33,7 @@ import {
   describeStopText,
   type SensorProgress,
 } from "./scan-progress";
+import { type RunInput, type RunModel, runModel } from "./scan-run-model";
 import { type ScanWhy, whyOf } from "./scan-why";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 
@@ -107,7 +102,7 @@ export type PanelInput = {
   now: number;
   shipped: ShippedSensors | null;
   freshness?: Freshness;
-  preflight?: PreflightState;
+  runView?: RunInput | null;
 };
 
 export type ScanRow = {
@@ -140,13 +135,14 @@ export type ScanPanelModel = {
   } | null;
   freshness: FreshnessModel;
   summary: FreshnessModel["summary"];
-  preflight: PreflightModel | null;
+  run: RunModel | null;
   rows: ScanRow[];
   reports: ReportRow[];
   button: {
     scanning: boolean;
     label: string;
     disabled: boolean;
+    stop?: boolean;
   };
   mode: FreshnessModel["action"]["mode"];
   planned: PlannedRun | null;
@@ -348,7 +344,14 @@ function movedText(input: PanelInput): string | null {
     : `Now on ${moved.branch} at ${moved.commit}`;
 }
 
-function header(input: PanelInput): ScanPanelModel["header"] {
+function header(
+  input: PanelInput,
+  run: RunModel | null,
+): ScanPanelModel["header"] {
+  if (run?.active === true) {
+    return { text: run.subtitle, moved: null };
+  }
+
   if (input.scanning) {
     return { text: input.progressText ?? "Scanning\u2026", moved: null };
   }
@@ -378,11 +381,11 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
 
   if (input.shipped === null) {
     return {
-      header: header(input),
+      header: header(input, null),
       scope: null,
       freshness,
       summary: freshness.summary,
-      preflight: null,
+      run: null,
       rows: [],
       reports: [],
       button: {
@@ -415,6 +418,36 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     ...sensors.map((one): [string, string] => [one.name, one.title]),
   ]);
 
+  const plainTicked = (key: string, runsTests: boolean | undefined): boolean =>
+    key === STRUCTURE_KEY
+      ? true
+      : key === DESCRIBE_KEY
+        ? input.ticks.describe
+        : runsTests === true
+          ? input.ticks.once.includes(key)
+          : (input.ticks.ticked ?? plain).includes(key);
+  const tickedKeys = new Set(
+    freshness.rows
+      .filter(
+        (row) =>
+          row.key !== STRUCTURE_KEY &&
+          plainTicked(
+            row.key,
+            sensors.find((one) => one.name === row.key)?.runsTests,
+          ),
+      )
+      .map((row) => row.key),
+  );
+  const displayOf = (name: string): string =>
+    freshness.rows.find((row) => row.key === name)?.name ?? name;
+  const run = runModel(
+    input.runView == null ? null : { ...input.runView, display: displayOf },
+    tickedKeys,
+    new Set([...tickedKeys].filter((key) => key !== DESCRIBE_KEY)),
+    input.now,
+  );
+  const locked = input.scanning || run?.active === true;
+
   const rows: ScanRow[] = freshness.rows.map((row) => {
     const structure = row.key === STRUCTURE_KEY;
     const sensor = sensors.find((one) => one.name === row.key);
@@ -430,9 +463,12 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
           : sensor?.runsTests === true
             ? input.ticks.once.includes(row.key)
             : (input.ticks.ticked ?? plain).includes(row.key),
-      disabled: structure || input.scanning,
+      disabled: structure || locked,
       state: row.state,
-      text: stateText(row.state, input.now),
+      text:
+        run?.partial?.sensor === row.key
+          ? { icon: "circle-dashed", text: run.partial.text }
+          : stateText(row.state, input.now),
       note:
         row.key === DESCRIBE_KEY
           ? judged.describeStop != null
@@ -447,57 +483,50 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     };
   });
 
-  const ticked = new Set(
-    rows
-      .filter((row) => row.ticked && row.key !== STRUCTURE_KEY)
-      .map((row) => row.key),
-  );
-  const preflight = buildPreflight(
-    input.preflight ?? NO_PREFLIGHT,
-    ticked,
-    (name) => rows.find((row) => row.key === name)?.name ?? name,
-    new Set([...ticked].filter((key) => key !== DESCRIBE_KEY)),
-  );
-
   return {
-    header: header(input),
+    header: header(input, run),
     scope: scopeOf(input),
     freshness,
-    summary:
-      preflight === null
-        ? freshness.summary
-        : {
-            shape: preflight.state === "running" ? "running" : "attention",
-            tone: preflight.state === "running" ? "run" : "bad",
-            icon: preflight.state === "running" ? "loader" : "circle-alert",
-            head: preflight.card.head,
-            line: preflight.card.line,
-            bar: null,
-          },
-    preflight,
+    summary: freshness.summary,
+    run,
     rows,
     reports: reportRows(statuses, input.now),
-    button:
-      preflight === null
-        ? {
-            scanning: input.scanning && input.external !== true,
-            label: freshness.action.primary.label,
-            disabled: freshness.action.primary.disabled,
-          }
-        : {
-            scanning:
-              preflight.state === "running" &&
-              input.scanning &&
-              input.external !== true,
-            label: preflight.button.label,
-            disabled: preflight.button.disabled,
-          },
+    button: buttonOf(input, run, freshness.action.primary),
     mode: freshness.action.mode,
     planned,
     pending: false,
     mark: panelMark(input),
     confirm:
       input.describeAsk == null ? null : describeAskText(input.describeAsk),
+  };
+}
+
+function buttonOf(
+  input: PanelInput,
+  run: RunModel | null,
+  primary: { label: string; disabled: boolean },
+): ScanPanelModel["button"] {
+  if (run?.active === true) {
+    return {
+      scanning: true,
+      label: run.button.label,
+      disabled: false,
+      stop: true,
+    };
+  }
+
+  if (run?.refused === true) {
+    return {
+      scanning: false,
+      label: run.button.label,
+      disabled: false,
+    };
+  }
+
+  return {
+    scanning: input.scanning && input.external !== true,
+    label: primary.label,
+    disabled: primary.disabled,
   };
 }
 

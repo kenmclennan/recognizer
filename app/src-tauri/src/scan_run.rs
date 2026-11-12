@@ -19,54 +19,84 @@ const REFUSED_EXIT: i32 = 3;
 const PREFLIGHT_EXIT: i32 = 4;
 const STARTED_BY: &str = "RECOGNIZER_STARTED_BY";
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+const PHASES: [&str; 6] = [
+    "checking", "refused", "running", "finished", "failed", "stopped",
+];
+const START_SLACK_SECONDS: i64 = 5;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ScanMarker {
+pub struct RunGap {
+    pub id: String,
+    pub line: String,
+    pub needs: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunFailure {
+    pub sensor: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScanRunRecord {
     pub version: u32,
+    pub run_id: String,
     pub pid: u32,
+    pub pgid: Option<u32>,
     pub started_at: String,
     pub started_by: String,
     pub repository: String,
     pub sensors: Vec<String>,
     pub describe: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExternalScan {
-    pub origin: String,
-    pub pid: u32,
-    pub started_at: String,
-    pub sensors: Vec<String>,
-    pub describe: bool,
+    pub phase: String,
+    pub ended_at: Option<String>,
+    pub exit: Option<i32>,
+    pub gaps: Vec<RunGap>,
+    pub failure: Option<RunFailure>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExternalEmission {
-    Scan(Option<ExternalScan>),
+pub enum RunEmission {
+    Run(Option<Box<ScanRunRecord>>),
     Line(String),
 }
 
 #[derive(Default)]
-pub struct ExternalSeen {
+pub struct RunSeen {
     folder: Option<PathBuf>,
-    pid: Option<u32>,
+    run: Option<ScanRunRecord>,
     offset: u64,
 }
 
-pub fn parse_marker(text: &str) -> Option<ScanMarker> {
-    let marker: ScanMarker = serde_json::from_str(text).ok()?;
+pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
+    let run: ScanRunRecord = serde_json::from_str(text).ok()?;
 
-    if marker.version != 1
-        || marker.pid == 0
-        || marker.repository.is_empty()
-        || !matches!(marker.started_by.as_str(), "cli" | "app")
-        || !timestamp_ok(&marker.started_at)
+    if run.version != 2
+        || run.run_id.is_empty()
+        || run.pid == 0
+        || run.pgid == Some(0)
+        || run.repository.is_empty()
+        || !matches!(run.started_by.as_str(), "cli" | "app")
+        || !PHASES.contains(&run.phase.as_str())
+        || !timestamp_ok(&run.started_at)
+        || run.ended_at.as_deref().is_some_and(|at| !timestamp_ok(at))
+        || run.sensors.iter().any(String::is_empty)
+        || run
+            .gaps
+            .iter()
+            .any(|gap| gap.id.is_empty() || gap.needs.iter().any(String::is_empty))
+        || run
+            .failure
+            .as_ref()
+            .is_some_and(|failure| failure.sensor.is_empty())
     {
         return None;
     }
 
-    Some(marker)
+    Some(run)
 }
 
 fn timestamp_ok(text: &str) -> bool {
@@ -77,6 +107,94 @@ fn timestamp_ok(text: &str) -> bool {
             b'd' => byte.is_ascii_digit(),
             other => byte == *other,
         })
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = year.div_euclid(400);
+    let year_of_era = year - era * 400;
+    let shifted = if month > 2 { month - 3 } else { month + 9 };
+    let day_of_year = (153 * shifted + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+
+    era * 146_097 + day_of_era - 719_468
+}
+
+fn civil_from_days(days: i64) -> (i64, i64, i64) {
+    let shifted = days + 719_468;
+    let era = shifted.div_euclid(146_097);
+    let day_of_era = shifted - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_shifted = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_shifted + 2) / 5 + 1;
+    let month = if month_shifted < 10 {
+        month_shifted + 3
+    } else {
+        month_shifted - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+
+    (year, month, day)
+}
+
+fn epoch_of_timestamp(text: &str) -> Option<i64> {
+    if !timestamp_ok(text) {
+        return None;
+    }
+
+    let number = |from: usize, to: usize| text[from..to].parse::<i64>().ok();
+
+    Some(
+        days_from_civil(number(0, 4)?, number(5, 7)?, number(8, 10)?) * 86_400
+            + number(11, 13)? * 3600
+            + number(14, 16)? * 60
+            + number(17, 19)?,
+    )
+}
+
+fn timestamp_of_epoch(seconds: i64) -> String {
+    let (year, month, day) = civil_from_days(seconds.div_euclid(86_400));
+    let in_day = seconds.rem_euclid(86_400);
+
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}.000Z",
+        in_day / 3600,
+        in_day % 3600 / 60,
+        in_day % 60
+    )
+}
+
+fn epoch_of_lstart(text: &str) -> Option<i64> {
+    let words: Vec<&str> = text.split_whitespace().collect();
+
+    if words.len() != 5 {
+        return None;
+    }
+
+    let months = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let (month_word, day_word) = if months.contains(&words[1]) {
+        (words[1], words[2])
+    } else {
+        (words[2], words[1])
+    };
+    let month = months.iter().position(|name| *name == month_word)? as i64 + 1;
+    let day = day_word.parse::<i64>().ok()?;
+    let year = words[4].parse::<i64>().ok()?;
+    let mut clock = words[3].split(':').map(|part| part.parse::<i64>().ok());
+    let (hours, minutes, seconds) = (clock.next()??, clock.next()??, clock.next()??);
+
+    Some(days_from_civil(year, month, day) * 86_400 + hours * 3600 + minutes * 60 + seconds)
+}
+
+pub fn started_no_later_than(lstart: &str, started_at: &str) -> bool {
+    match (epoch_of_lstart(lstart), epoch_of_timestamp(started_at)) {
+        (Some(start), Some(recorded)) => start <= recorded + START_SLACK_SECONDS,
+        _ => true,
+    }
 }
 
 pub fn pid_alive(pid: u32) -> bool {
@@ -90,15 +208,61 @@ pub fn pid_alive(pid: u32) -> bool {
         .is_ok_and(|status| status.success())
 }
 
-pub fn live_marker(folder: &Path) -> Option<ScanMarker> {
-    let text = fs::read_to_string(folder.join(MARKER)).ok()?;
-    let marker = parse_marker(&text)?;
+fn process_lstart(pid: u32) -> Option<String> {
+    let output = Command::new("/bin/ps")
+        .env("TZ", "UTC")
+        .args(["-o", "lstart=", "-p"])
+        .arg(pid.to_string())
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
 
-    pid_alive(marker.pid).then_some(marker)
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-pub fn refusal_text(marker: &ScanMarker, folder: &Path) -> String {
-    let who = if marker.started_by == "app" {
+fn process_is_the_scan(run: &ScanRunRecord) -> bool {
+    pid_alive(run.pid)
+        && process_lstart(run.pid)
+            .is_none_or(|lstart| started_no_later_than(&lstart, &run.started_at))
+}
+
+pub fn is_active(run: &ScanRunRecord) -> bool {
+    matches!(run.phase.as_str(), "checking" | "running")
+}
+
+fn progress_ended_at(folder: &Path, started_at: &str) -> String {
+    fs::metadata(folder.join(MARKER_PROGRESS))
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or_else(
+            || started_at.to_string(),
+            |since| timestamp_of_epoch(since.as_secs() as i64),
+        )
+}
+
+pub fn read_run(folder: &Path) -> Option<ScanRunRecord> {
+    let text = fs::read_to_string(folder.join(MARKER)).ok()?;
+    let mut run = parse_run(&text)?;
+
+    if is_active(&run) && !process_is_the_scan(&run) {
+        run.phase = "stopped".to_string();
+        run.ended_at = Some(progress_ended_at(folder, &run.started_at));
+    }
+
+    Some(run)
+}
+
+pub fn live_run(folder: &Path) -> Option<ScanRunRecord> {
+    read_run(folder).filter(is_active)
+}
+
+pub fn refusal_text(run: &ScanRunRecord, folder: &Path) -> String {
+    let who = if run.started_by == "app" {
         "the app"
     } else {
         "the command line"
@@ -106,21 +270,11 @@ pub fn refusal_text(marker: &ScanMarker, folder: &Path) -> String {
 
     format!(
         "a scan is already running on {}: started from {who} at {}, process {}; remove {} if that process is not a scan",
-        marker.repository,
-        marker.started_at,
-        marker.pid,
+        run.repository,
+        run.started_at,
+        run.pid,
         folder.join(MARKER).display()
     )
-}
-
-fn external_of(marker: &ScanMarker) -> ExternalScan {
-    ExternalScan {
-        origin: marker.started_by.clone(),
-        pid: marker.pid,
-        started_at: marker.started_at.clone(),
-        sensors: marker.sensors.clone(),
-        describe: marker.describe,
-    }
 }
 
 fn appended_lines(folder: &Path, offset: u64) -> (Vec<String>, u64) {
@@ -152,49 +306,55 @@ fn appended_lines(folder: &Path, offset: u64) -> (Vec<String>, u64) {
     (lines, from + end as u64 + 1)
 }
 
-pub fn external_tick(
-    folder: Option<&Path>,
-    own_running: bool,
-    seen: &mut ExternalSeen,
-) -> Vec<ExternalEmission> {
+pub fn run_tick(folder: Option<&Path>, seen: &mut RunSeen) -> Vec<RunEmission> {
     let mut out = Vec::new();
 
     if seen.folder.as_deref() != folder {
-        if seen.pid.take().is_some() {
-            out.push(ExternalEmission::Scan(None));
+        if seen.run.take().is_some() {
+            out.push(RunEmission::Run(None));
         }
 
         seen.folder = folder.map(Path::to_path_buf);
         seen.offset = 0;
     }
 
-    let live = match folder {
-        Some(folder) if !own_running => live_marker(folder),
-        _ => None,
-    };
-
-    match (live, folder) {
-        (Some(marker), Some(folder)) => {
-            if seen.pid != Some(marker.pid) {
-                seen.pid = Some(marker.pid);
+    match (folder.and_then(read_run), folder) {
+        (Some(run), Some(folder)) => {
+            if seen.run.as_ref().map(|last| &last.run_id) != Some(&run.run_id) {
                 seen.offset = 0;
-                out.push(ExternalEmission::Scan(Some(external_of(&marker))));
+            }
+
+            if seen.run.as_ref() != Some(&run) {
+                out.push(RunEmission::Run(Some(Box::new(run.clone()))));
+                seen.run = Some(run);
             }
 
             let (lines, offset) = appended_lines(folder, seen.offset);
 
             seen.offset = offset;
-            out.extend(lines.into_iter().map(ExternalEmission::Line));
+            out.extend(lines.into_iter().map(RunEmission::Line));
         }
         _ => {
-            if seen.pid.take().is_some() {
+            if seen.run.take().is_some() {
                 seen.offset = 0;
-                out.push(ExternalEmission::Scan(None));
+                out.push(RunEmission::Run(None));
             }
         }
     }
 
     out
+}
+
+pub fn stop_scan_for(runs: &ScanRuns, label: &str, folder: Option<&Path>) {
+    runs.stop(label);
+
+    if let Some(run) = folder.and_then(live_run) {
+        if run.pgid == Some(run.pid) {
+            kill_group(run.pid);
+        } else {
+            kill_pid(run.pid);
+        }
+    }
 }
 
 pub fn check_modules(modules: &[String]) -> Result<(), String> {
@@ -273,6 +433,16 @@ struct Handle {
 #[derive(Default)]
 pub struct ScanRuns {
     handles: Mutex<HashMap<String, Handle>>,
+}
+
+pub fn kill_pid(pid: u32) {
+    let _ = Command::new("/bin/kill")
+        .args(["-TERM", "--"])
+        .arg(pid.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
 }
 
 pub fn kill_group(pid: u32) {
@@ -571,9 +741,9 @@ pub fn run_with(
         };
     }
 
-    if let Some(marker) = live_marker(folder) {
+    if let Some(run) = live_run(folder) {
         return ScanRun::Refused {
-            reason: refusal_text(&marker, folder),
+            reason: refusal_text(&run, folder),
         };
     }
 
@@ -1487,18 +1657,50 @@ mod tests {
         assert_eq!(runs_of(dir.path(), "recognizer", "scan-runs"), 0);
     }
 
-    fn marker_text(pid: u32, started_by: &str) -> String {
-        format!(
-            r#"{{"version":1,"pid":{pid},"started_at":"2026-11-10T09:00:00.000Z","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true}}"#
+    fn now_timestamp() -> String {
+        timestamp_of_epoch(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
         )
     }
 
-    fn write_marker(folder: &Path, pid: u32, started_by: &str) {
+    fn run_text(
+        pid: u32,
+        pgid: Option<u32>,
+        phase: &str,
+        started_by: &str,
+        run_id: &str,
+        started_at: &str,
+    ) -> String {
+        let pgid = pgid.map_or("null".to_string(), |group| group.to_string());
+
+        format!(
+            r#"{{"version":2,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null}}"#
+        )
+    }
+
+    fn write_run_with(folder: &Path, text: &str) {
         let cache = folder.join(MODULES_DIR);
 
         fs::create_dir_all(&cache).unwrap();
-        fs::write(folder.join(MARKER), marker_text(pid, started_by)).unwrap();
-        fs::write(folder.join(MARKER_PROGRESS), "").unwrap();
+        fs::write(folder.join(MARKER), text).unwrap();
+
+        if !folder.join(MARKER_PROGRESS).exists() {
+            fs::write(folder.join(MARKER_PROGRESS), "").unwrap();
+        }
+    }
+
+    fn write_run(folder: &Path, pid: u32, phase: &str, started_by: &str) {
+        write_run_with(
+            folder,
+            &run_text(pid, Some(pid), phase, started_by, "run-1", &now_timestamp()),
+        );
+    }
+
+    fn write_marker(folder: &Path, pid: u32, started_by: &str) {
+        write_run(folder, pid, "running", started_by);
     }
 
     fn append_progress(folder: &Path, text: &str) {
@@ -1534,105 +1736,373 @@ mod tests {
     }
 
     #[test]
-    fn every_valid_example_marker_parses_and_every_invalid_one_is_rejected() {
+    fn every_valid_example_run_parses_and_every_invalid_one_is_rejected() {
         let valid = examples("valid");
         let invalid = examples("invalid");
 
-        assert_eq!(valid.len(), 2);
+        assert_eq!(valid.len(), 6);
         assert_eq!(invalid.len(), 6);
-        assert!(valid.iter().all(|text| parse_marker(text).is_some()));
-        assert!(invalid.iter().all(|text| parse_marker(text).is_none()));
+        assert!(valid.iter().all(|text| parse_run(text).is_some()));
+        assert!(invalid.iter().all(|text| parse_run(text).is_none()));
 
-        let pids: Vec<u32> = valid
+        let mut phases: Vec<String> = valid
             .iter()
-            .map(|text| parse_marker(text).unwrap().pid)
+            .map(|text| parse_run(text).unwrap().phase)
             .collect();
 
-        assert_eq!(pids, vec![4242, 77]);
+        phases.sort();
+
+        assert_eq!(
+            phases,
+            vec!["checking", "failed", "finished", "refused", "running", "stopped"]
+        );
     }
 
     #[test]
-    fn a_live_marker_from_another_process_is_external_with_its_progress_replayed() {
+    fn a_live_run_from_another_process_is_read_with_its_progress_replayed() {
         let dir = TempDir::new().unwrap();
         let mut child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
-        let mut seen = ExternalSeen::default();
+        let mut seen = RunSeen::default();
 
         write_marker(dir.path(), child.id(), "cli");
         append_progress(dir.path(), "{\"event\":\"phase\"}\n{\"event\":\"st");
 
-        let first = external_tick(Some(dir.path()), false, &mut seen);
+        let first = run_tick(Some(dir.path()), &mut seen);
 
+        assert_eq!(first.len(), 2);
+        assert!(matches!(
+            &first[0],
+            RunEmission::Run(Some(run)) if run.pid == child.id() && run.phase == "running"
+        ));
         assert_eq!(
-            first,
-            vec![
-                ExternalEmission::Scan(Some(ExternalScan {
-                    origin: "cli".to_string(),
-                    pid: child.id(),
-                    started_at: "2026-11-10T09:00:00.000Z".to_string(),
-                    sensors: vec!["crap".to_string()],
-                    describe: true,
-                })),
-                ExternalEmission::Line("{\"event\":\"phase\"}".to_string()),
-            ]
+            first[1],
+            RunEmission::Line("{\"event\":\"phase\"}".to_string())
         );
 
         append_progress(dir.path(), "art\"}\n");
 
         assert_eq!(
-            external_tick(Some(dir.path()), false, &mut seen),
-            vec![ExternalEmission::Line("{\"event\":\"start\"}".to_string())]
+            run_tick(Some(dir.path()), &mut seen),
+            vec![RunEmission::Line("{\"event\":\"start\"}".to_string())]
         );
-        assert!(external_tick(Some(dir.path()), false, &mut seen).is_empty());
+        assert!(run_tick(Some(dir.path()), &mut seen).is_empty());
 
-        fs::remove_file(dir.path().join(MARKER)).unwrap();
+        write_run(dir.path(), child.id(), "finished", "cli");
 
-        assert_eq!(
-            external_tick(Some(dir.path()), false, &mut seen),
-            vec![ExternalEmission::Scan(None)]
-        );
-        assert!(external_tick(Some(dir.path()), false, &mut seen).is_empty());
+        let ended = run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(ended.len(), 1);
+        assert!(matches!(
+            &ended[0],
+            RunEmission::Run(Some(run)) if run.phase == "finished"
+        ));
+        assert!(run_tick(Some(dir.path()), &mut seen).is_empty());
 
         child.kill().unwrap();
         child.wait().unwrap();
     }
 
     #[test]
-    fn a_marker_whose_process_is_dead_is_not_external() {
+    fn a_run_whose_process_is_dead_reads_stopped() {
         let dir = TempDir::new().unwrap();
-        let mut seen = ExternalSeen::default();
 
         write_marker(dir.path(), dead_pid(), "cli");
 
-        assert!(external_tick(Some(dir.path()), false, &mut seen).is_empty());
+        let run = read_run(dir.path()).unwrap();
+        let modified = fs::metadata(dir.path().join(MARKER_PROGRESS))
+            .unwrap()
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        assert_eq!(run.phase, "stopped");
+        assert_eq!(run.ended_at, Some(timestamp_of_epoch(modified)));
+        assert!(live_run(dir.path()).is_none());
     }
 
     #[test]
-    fn a_window_ignores_the_marker_while_its_own_scan_runs() {
+    fn a_running_record_naming_this_process_reads_running() {
         let dir = TempDir::new().unwrap();
-        let mut seen = ExternalSeen::default();
 
         write_marker(dir.path(), std::process::id(), "app");
 
-        assert!(external_tick(Some(dir.path()), true, &mut seen).is_empty());
-        assert_eq!(external_tick(Some(dir.path()), false, &mut seen).len(), 1);
+        assert_eq!(read_run(dir.path()).unwrap().phase, "running");
+    }
+
+    #[test]
+    fn a_dead_run_with_no_progress_file_ends_when_it_started() {
+        let dir = TempDir::new().unwrap();
+
+        write_run_with(
+            dir.path(),
+            &run_text(
+                dead_pid(),
+                None,
+                "checking",
+                "cli",
+                "run-1",
+                "2026-11-12T09:00:00.000Z",
+            ),
+        );
+        fs::remove_file(dir.path().join(MARKER_PROGRESS)).unwrap();
+
         assert_eq!(
-            external_tick(Some(dir.path()), true, &mut seen),
-            vec![ExternalEmission::Scan(None)]
+            read_run(dir.path()).unwrap().ended_at,
+            Some("2026-11-12T09:00:00.000Z".to_string())
         );
     }
 
     #[test]
-    fn leaving_the_folder_ends_the_external_scan() {
+    fn a_process_that_started_long_after_the_run_is_a_recycled_pid() {
+        let recorded = "2026-11-12T09:00:00.000Z";
+
+        assert!(started_no_later_than("Thu Nov 12 09:00:00 2026", recorded));
+        assert!(started_no_later_than("Thu Nov 12 08:00:00 2026", recorded));
+        assert!(!started_no_later_than("Thu Nov 12 09:00:10 2026", recorded));
+        assert!(started_no_later_than("Thu Nov 12 09:00:05 2026", recorded));
+        assert!(!started_no_later_than("Thu Nov 12 09:00:06 2026", recorded));
+        assert!(started_no_later_than("Thu Nov  5 09:00:06 2026", recorded));
+        assert!(started_no_later_than("Thu 12 Nov 09:00:05 2026", recorded));
+        assert!(!started_no_later_than("Thu 12 Nov 09:00:06 2026", recorded));
+    }
+
+    #[test]
+    fn a_live_pid_that_started_after_the_record_reads_stopped() {
         let dir = TempDir::new().unwrap();
-        let mut seen = ExternalSeen::default();
 
-        write_marker(dir.path(), std::process::id(), "cli");
-        external_tick(Some(dir.path()), false, &mut seen);
-
-        assert_eq!(
-            external_tick(None, false, &mut seen),
-            vec![ExternalEmission::Scan(None)]
+        write_run_with(
+            dir.path(),
+            &run_text(
+                std::process::id(),
+                None,
+                "running",
+                "cli",
+                "run-1",
+                "2020-01-01T00:00:00.000Z",
+            ),
         );
+
+        assert_eq!(read_run(dir.path()).unwrap().phase, "stopped");
+    }
+
+    #[test]
+    fn a_new_run_id_replays_its_progress_from_the_start() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = RunSeen::default();
+
+        write_run_with(
+            dir.path(),
+            &run_text(
+                std::process::id(),
+                None,
+                "running",
+                "cli",
+                "run-1",
+                &now_timestamp(),
+            ),
+        );
+        append_progress(dir.path(), "{\"event\":\"one\"}\n");
+
+        assert_eq!(run_tick(Some(dir.path()), &mut seen).len(), 2);
+
+        write_run_with(
+            dir.path(),
+            &run_text(
+                std::process::id(),
+                None,
+                "running",
+                "cli",
+                "run-2",
+                &now_timestamp(),
+            ),
+        );
+
+        let second = run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(second.len(), 2);
+        assert_eq!(
+            second[1],
+            RunEmission::Line("{\"event\":\"one\"}".to_string())
+        );
+    }
+
+    #[test]
+    fn leaving_the_folder_clears_the_run() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = RunSeen::default();
+
+        write_run(dir.path(), std::process::id(), "running", "cli");
+        run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(run_tick(None, &mut seen), vec![RunEmission::Run(None)]);
+        assert!(run_tick(None, &mut seen).is_empty());
+    }
+
+    struct Reaper(Vec<std::process::Child>);
+
+    impl Drop for Reaper {
+        fn drop(&mut self) {
+            for child in &mut self.0 {
+                let _ = Command::new("/bin/kill")
+                    .args(["-KILL", "--"])
+                    .arg(format!("-{}", child.id()))
+                    .status();
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+
+    fn leader() -> std::process::Child {
+        use std::os::unix::process::CommandExt;
+
+        Command::new("/bin/sh")
+            .args(["-c", "sleep 300 & wait"])
+            .process_group(0)
+            .spawn()
+            .unwrap()
+    }
+
+    fn gone(pid: u32) -> bool {
+        for _ in 0..600 {
+            let mut probe = Command::new("/bin/ps")
+                .args(["-o", "stat=", "-p"])
+                .arg(pid.to_string())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap();
+            let mut text = String::new();
+
+            probe
+                .stdout
+                .take()
+                .unwrap()
+                .read_to_string(&mut text)
+                .unwrap();
+            probe.wait().unwrap();
+
+            if text.trim().is_empty() || text.trim().starts_with('Z') {
+                return true;
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        false
+    }
+
+    fn wait_for_children(parent: u32) -> u32 {
+        for _ in 0..100 {
+            let output = Command::new("/usr/bin/pgrep")
+                .args(["-P"])
+                .arg(parent.to_string())
+                .output()
+                .unwrap();
+
+            if let Some(child) = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .and_then(|line| line.trim().parse::<u32>().ok())
+            {
+                return child;
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        panic!("the leader never spawned its child");
+    }
+
+    #[test]
+    fn stopping_by_record_a_group_leader_takes_its_child_with_it() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let child = leader();
+        let pid = child.id();
+        let sleeper = wait_for_children(pid);
+
+        write_run(dir.path(), pid, "running", "cli");
+        reaper.0.push(child);
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(sleeper));
+        assert!(gone(pid));
+    }
+
+    #[test]
+    fn stopping_by_record_a_non_leader_signals_only_the_named_pid() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let child = Command::new("/bin/sleep").arg("300").spawn().unwrap();
+        let pid = child.id();
+
+        reaper.0.push(child);
+        write_run_with(
+            dir.path(),
+            &run_text(pid, Some(1), "running", "cli", "run-1", &now_timestamp()),
+        );
+
+        assert!(pid_alive(pid));
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(pid));
+        assert!(pid_alive(std::process::id()));
+    }
+
+    #[test]
+    fn stopping_signals_the_own_handle_and_the_record_and_survives_neither() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let own = leader();
+        let other = leader();
+        let (own_pid, other_pid) = (own.id(), other.id());
+
+        reaper.0.push(own);
+        reaper.0.push(other);
+        runs.begin("w-1").unwrap();
+        runs.started("w-1", own_pid);
+        write_run(dir.path(), other_pid, "running", "cli");
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(own_pid));
+        assert!(gone(other_pid));
+    }
+
+    #[test]
+    fn stopping_with_a_record_and_no_handle_stops_the_record() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let other = leader();
+        let pid = other.id();
+
+        reaper.0.push(other);
+        write_run(dir.path(), pid, "running", "cli");
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(pid));
+    }
+
+    #[test]
+    fn stopping_with_neither_a_handle_nor_a_live_record_signals_nothing() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+
+        write_run(dir.path(), std::process::id(), "finished", "cli");
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+        stop_scan_for(&runs, "w-1", None);
+
+        assert!(pid_alive(std::process::id()));
     }
 
     #[test]
@@ -1645,6 +2115,7 @@ mod tests {
 
         write_marker(dir.path(), std::process::id(), "app");
 
+        let started_at = read_run(dir.path()).unwrap().started_at;
         let result = run_with(
             &runs,
             "w-1",
@@ -1664,7 +2135,8 @@ mod tests {
             result,
             ScanRun::Refused {
                 reason: format!(
-                    "a scan is already running on /work/shop: started from the app at 2026-11-10T09:00:00.000Z, process {}; remove {} if that process is not a scan",
+                    "a scan is already running on /work/shop: started from the app at {}, process {}; remove {} if that process is not a scan",
+                    started_at,
                     std::process::id(),
                     dir.path().join(MARKER).display()
                 )

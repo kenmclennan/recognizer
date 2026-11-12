@@ -1,3 +1,4 @@
+import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it, vi } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import type { ScanOrigin } from "./footer-scan";
@@ -24,6 +25,23 @@ const OK: Loaded = {
 };
 
 const line = (value: object) => JSON.stringify(value);
+const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
+  version: 2,
+  run_id: "run-1",
+  pid: 4242,
+  pgid: 4242,
+  started_at: "2026-11-10T09:00:00.000Z",
+  started_by: "cli",
+  repository: "/work/repo",
+  sensors: ["alpha", "mut"],
+  describe: true,
+  phase: "running",
+  ended_at: null,
+  exit: null,
+  gaps: [],
+  failure: null,
+  ...over,
+});
 const extract = line({
   event: "phase",
   phase: "extract",
@@ -1050,28 +1068,22 @@ describe("createRescanner", () => {
   });
 
   describe("a scan another process started", () => {
-    const cli = {
-      origin: "cli" as const,
-      pid: 4242,
-      startedAt: "2026-11-10T09:00:00.000Z",
-      sensors: ["alpha", "mut"],
-      describe: true,
-    };
+    const cli = record();
     const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
     async function observed() {
       const made = harness();
 
-      made.scan.emitExternal({ kind: "scan", scan: cli });
-      made.scan.emitExternal({ kind: "line", line: describing(2) });
-      made.scan.emitExternal({ kind: "line", line: sensing(2) });
+      made.scan.emitRun({ kind: "run", run: cli });
+      made.scan.emitRun({ kind: "line", line: describing(2) });
+      made.scan.emitRun({ kind: "line", line: sensing(2) });
       await flush();
 
       return made;
     }
 
     it("shows the scan's rows and progress under the command-line heading", async () => {
-      const { rescanner, updates } = await observed();
+      const { rescanner } = await observed();
 
       expect(rescanner.running()).toBe(true);
       expect(rescanner.external()).toBe(true);
@@ -1080,31 +1092,14 @@ describe("createRescanner", () => {
         "alpha",
         "mut",
       ]);
-
-      const latest = texts(updates).at(-1);
-
-      expect(latest).toContain("Started from the command line:");
-    });
-
-    it("labels a scan started by another window", async () => {
-      const made = harness();
-
-      made.scan.emitExternal({
-        kind: "scan",
-        scan: { ...cli, origin: "app" },
-      });
-      await flush();
-
-      expect(texts(made.updates).at(-1)).toContain(
-        "Started in another window:",
-      );
+      expect(rescanner.runView().record).toEqual(cli);
     });
 
     it("starts nothing and takes no side-effecting branch for its lines", async () => {
       const { rescanner, scan, posted, log } = await observed();
 
       await rescanner.run();
-      scan.emitExternal({
+      scan.emitRun({
         kind: "line",
         line: entry("sense", "alpha", "boom"),
       });
@@ -1119,7 +1114,14 @@ describe("createRescanner", () => {
     it("leaves Running and reloads the results once when the marker goes", async () => {
       const { rescanner, scan, log, updates } = await observed();
 
-      scan.emitExternal({ kind: "scan", scan: null });
+      scan.emitRun({
+        kind: "run",
+        run: record({
+          phase: "finished",
+          ended_at: "2026-11-10T09:01:00.000Z",
+          exit: 0,
+        }),
+      });
       await flush();
 
       expect(rescanner.running()).toBe(false);
@@ -1133,10 +1135,18 @@ describe("createRescanner", () => {
       const { scan, rescanner } = await observed();
       const before = rescanner.progress();
 
-      scan.emitExternal({ kind: "scan", scan: cli });
+      scan.emitRun({ kind: "run", run: cli });
       await flush();
 
       expect(rescanner.progress()).toBe(before);
+    });
+
+    it("stops through the port once for a command-line run", async () => {
+      const { scan, rescanner } = await observed();
+
+      await rescanner.stop();
+
+      expect(scan.stopped).toBe(1);
     });
   });
 });
@@ -1294,19 +1304,30 @@ describe("scan notifications", () => {
   });
 
   it("posts the same start, completion, failure and refusal for a scan another process runs", async () => {
-    const cli = {
-      origin: "cli" as const,
+    const began = new Date(1_000_000 - 90_000).toISOString();
+    const ended = new Date(1_000_000).toISOString();
+    const cli = record({
       pid: 7,
-      startedAt: new Date(1_000_000 - 90_000).toISOString(),
+      started_at: began,
       sensors: ["alpha"],
       describe: true,
-    };
+    });
 
-    for (const [exit, expected] of [
-      [0, { kind: "done", text: "Scan complete - 1m 30s" }],
-      [1, { kind: "error", text: "Scan failed - recognizer scan exited 1" }],
+    for (const [ending, expected] of [
       [
-        4,
+        { phase: "finished", exit: 0 },
+        { kind: "done", text: "Scan complete - 1m 30s" },
+      ],
+      [
+        {
+          phase: "failed",
+          exit: 1,
+          failure: { sensor: "alpha", reason: "boom" },
+        },
+        { kind: "error", text: "Scan failed - alpha: boom" },
+      ],
+      [
+        { phase: "refused", exit: 4, gaps: [CLI_GAP] },
         {
           kind: "warning",
           text: "Scan refused - 1 tool missing: coverage and pytest are not installed",
@@ -1315,19 +1336,11 @@ describe("scan notifications", () => {
     ] as const) {
       const made = harness(fakeScan(), { now: () => 1_000_000 });
 
-      made.scan.emitExternal({ kind: "scan", scan: cli });
+      made.scan.emitRun({ kind: "run", run: cli });
       await flush();
-
-      if (exit === 4) {
-        made.scan.emitExternal({
-          kind: "line",
-          line: line({ event: "preflight", state: "gaps", gaps: [CLI_GAP] }),
-        });
-      }
-
-      made.scan.emitExternal({
-        kind: "line",
-        line: line({ event: "summary", exit }),
+      made.scan.emitRun({
+        kind: "run",
+        run: { ...cli, ...ending, ended_at: ended } as ScanRunRecord,
       });
       await flush();
 
@@ -1344,6 +1357,7 @@ describe("the preflight flow", () => {
     status: "gaps" as const,
     gaps: [GAP, OUTSIDE],
   };
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   async function refused() {
     const scan = fakeScan({
@@ -1357,7 +1371,7 @@ describe("the preflight flow", () => {
     return { ...made, scan };
   }
 
-  it("is running while the scan starts and idle once preflight passes", async () => {
+  it("shows the checking card from Scan until the record arrives", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       steps: [
@@ -1368,28 +1382,47 @@ describe("the preflight flow", () => {
       ],
     });
     const made = harness(scan);
-    const seen: string[] = [];
+    const seen: boolean[] = [];
 
-    made.scan.onStep = () => seen.push(made.rescanner.preflight().state);
+    made.scan.onStep = () =>
+      seen.push(made.rescanner.runView().starting !== null);
     await made.rescanner.run();
 
-    expect(seen.slice(0, 2)).toEqual(["running", "idle"]);
-    expect(made.updates[0]?.preflight?.state).toBe("running");
-    expect(made.rescanner.preflight().state).toBe("idle");
+    expect(seen.slice(0, 2)).toEqual([true, true]);
+
+    scan.emitRun({
+      kind: "run",
+      run: record({ run_id: "new", phase: "checking" }),
+    });
+    await flush();
+
+    expect(made.rescanner.runView().starting).toBeNull();
+    expect(made.rescanner.runView().record?.run_id).toBe("new");
   });
 
-  it("holds the gaps of a refused scan, with no blocked message", async () => {
-    const { rescanner, log } = await refused();
+  it("shows the gaps of the refused run, with no blocked message", async () => {
+    const { rescanner, log, scan } = await refused();
 
-    expect(rescanner.preflight()).toEqual({
-      state: "gaps",
-      gaps: [GAP, OUTSIDE],
+    scan.emitRun({
+      kind: "run",
+      run: record({
+        run_id: "refused-1",
+        phase: "refused",
+        started_by: "app",
+        exit: 4,
+        ended_at: "2026-11-10T09:00:01.000Z",
+        gaps: [GAP, OUTSIDE],
+      }),
     });
+    await flush();
+
+    expect(rescanner.runView().record?.gaps).toEqual([GAP, OUTSIDE]);
+    expect(rescanner.runView().starting).toBeNull();
     expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
     expect(rescanner.running()).toBe(false);
   });
 
-  it("keeps a once-ticked sensor ticked after a refusal so Check again and run includes it", async () => {
+  it("keeps a once-ticked sensor ticked after a refusal so Check again and scan includes it", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       result: gapsResult,
@@ -1407,10 +1440,9 @@ describe("the preflight flow", () => {
 
     expect(scan.ran[1]?.sense).toContain("mut");
     expect(rescanner.ticks().once).toEqual([]);
-    expect(rescanner.preflight().state).toBe("idle");
   });
 
-  it("returns to idle with no gaps when the user stops the scan", async () => {
+  it("shows the stopped card with no gaps when the user stops the scan", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       steps: [new Promise<void>(() => {})],
@@ -1419,10 +1451,74 @@ describe("the preflight flow", () => {
     const running = rescanner.run();
 
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(rescanner.preflight().state).toBe("running");
+    expect(rescanner.runView().starting).not.toBeNull();
     await rescanner.stop();
     await running;
+    scan.emitRun({
+      kind: "run",
+      run: record({
+        run_id: "own",
+        phase: "stopped",
+        started_by: "app",
+        exit: 143,
+        ended_at: "2026-11-10T09:00:02.000Z",
+      }),
+    });
+    await flush();
 
-    expect(rescanner.preflight()).toEqual({ state: "idle", gaps: [] });
+    expect(rescanner.runView().starting).toBeNull();
+    expect(rescanner.runView().record?.phase).toBe("stopped");
+    expect(rescanner.runView().record?.gaps).toEqual([]);
+  });
+
+  it("shows only the running card, with no gaps, when a command-line scan follows a refused app attempt", async () => {
+    const { rescanner, scan } = await refused();
+
+    scan.emitRun({
+      kind: "run",
+      run: record({
+        run_id: "refused-1",
+        phase: "refused",
+        started_by: "app",
+        exit: 4,
+        ended_at: "2026-11-10T09:00:01.000Z",
+        gaps: [GAP, OUTSIDE],
+      }),
+    });
+    await flush();
+
+    expect(rescanner.runView().record?.gaps).toEqual([GAP, OUTSIDE]);
+
+    scan.emitRun({ kind: "run", run: record({ run_id: "cli-2" }) });
+    await flush();
+
+    expect(rescanner.runView().record).toMatchObject({
+      run_id: "cli-2",
+      phase: "running",
+      gaps: [],
+    });
+    expect(rescanner.external()).toBe(true);
+  });
+
+  it("hides an ended record the window opened with and shows a running one", async () => {
+    const made = harness();
+
+    made.scan.emitRun({
+      kind: "run",
+      run: record({
+        phase: "finished",
+        exit: 0,
+        ended_at: "2026-11-10T09:01:00.000Z",
+      }),
+    });
+    await flush();
+
+    expect(made.rescanner.runView().adoptedAtOpen).toBe("run-1");
+
+    made.scan.emitRun({ kind: "run", run: record({ run_id: "run-2" }) });
+    await flush();
+
+    expect(made.rescanner.runView().adoptedAtOpen).toBe("run-1");
+    expect(made.rescanner.runView().record?.run_id).toBe("run-2");
   });
 });

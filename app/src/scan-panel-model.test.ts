@@ -1,9 +1,8 @@
-import type { Diagnosis, Scan } from "recognizer";
+import type { Diagnosis, Scan, ScanRunRecord } from "recognizer";
 import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
-import type { PreflightGap, PreflightState } from "./preflight-model";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
   functionCount,
@@ -14,7 +13,7 @@ import {
   rowSensors,
   scanPanel,
 } from "./scan-panel-model";
-import { describeStopText } from "./scan-progress";
+import { describeStopText, NO_PROGRESS } from "./scan-progress";
 import { whyOf } from "./scan-why";
 import type { ShippedSensor, ShippedSensors } from "./sensor-run";
 
@@ -1148,6 +1147,8 @@ describe("the scope's canvasEmpty flag", () => {
   });
 });
 
+type PreflightGap = ScanRunRecord["gaps"][number];
+
 const GAP_PY: PreflightGap = {
   id: "crap:python:sensors:environment",
   line: "coverage and pytest are not installed",
@@ -1160,8 +1161,44 @@ const GAP_RUST: PreflightGap = {
   needs: ["mutation"],
 };
 
-function gaps(...list: PreflightGap[]): PreflightState {
-  return { state: "gaps", gaps: list };
+function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
+  return {
+    version: 2,
+    run_id: "run-1",
+    pid: 4242,
+    pgid: 4242,
+    started_at: "2026-11-12T09:00:00.000Z",
+    started_by: "app",
+    repository: "/work/repo",
+    sensors: ["crap", "mutation"],
+    describe: false,
+    phase: "checking",
+    ended_at: null,
+    exit: null,
+    gaps: [],
+    failure: null,
+    ...over,
+  };
+}
+
+function runOf(over: Partial<ScanRunRecord> = {}): Partial<PanelInput> {
+  return {
+    runView: {
+      record: record(over),
+      progress: NO_PROGRESS,
+      starting: null,
+      adoptedAtOpen: null,
+    },
+  };
+}
+
+function refused(...list: PreflightGap[]): Partial<PanelInput> {
+  return runOf({
+    phase: "refused",
+    ended_at: "2026-11-12T09:00:01.000Z",
+    exit: 4,
+    gaps: list,
+  });
 }
 
 const bothTicked = {
@@ -1171,53 +1208,48 @@ const bothTicked = {
   onlyView: false,
 };
 
-describe("the preflight panel", () => {
-  it("reads Running pre-flight checks on the card and a disabled button while it runs", () => {
-    const model = scanPanel(
-      input({ scanning: true, preflight: { state: "running", gaps: [] } }),
-    );
+describe("the run card", () => {
+  it("reads Checking before the scan on the card and Stop as the only button", () => {
+    const model = scanPanel(input({ ...runOf(), scanning: true }));
 
-    expect(model.summary.head).toBe("Running pre-flight checks");
-    expect(model.summary.tone).toBe("run");
+    expect(model.run?.card).toMatchObject({
+      head: "Checking before the scan",
+      line: "Making sure every ticked sensor's tools are in place.",
+      tone: "run",
+    });
     expect(model.button).toMatchObject({
-      label: "Running pre-flight checks",
-      disabled: true,
+      label: "Stop",
+      disabled: false,
       scanning: true,
+      stop: true,
     });
-    expect(model.preflight?.box).toBeNull();
   });
 
-  it("reads Nothing ran with the missing-tools line and the box when gaps are found", () => {
+  it("reads Nothing ran with the set-up line and each gap when a run is refused", () => {
     const model = scanPanel(
-      input({
-        ticks: bothTicked,
-        preflight: gaps(GAP_PY, GAP_RUST),
-      }),
+      input({ ticks: bothTicked, ...refused(GAP_PY, GAP_RUST) }),
     );
 
-    expect(model.summary).toMatchObject({
+    expect(model.run?.card).toMatchObject({
       head: "Nothing ran",
-      line: "Some tools the ticked sensors need are missing. Set them up as below, then scan again.",
+      line: "Set these up, then scan again.",
     });
-    expect(model.preflight?.box).toMatchObject({
-      title: "Before this scan can run",
-    });
-    expect(
-      model.preflight?.box?.items.map((item) => [item.line, item.where]),
-    ).toEqual([
-      ["coverage and pytest are not installed", "C.R.A.P."],
-      ["cargo-llvm-cov is not installed", "Mutation"],
-    ]);
+    expect(model.run?.card.gaps.map((item) => [item.line, item.where])).toEqual(
+      [
+        ["coverage and pytest are not installed", "C.R.A.P."],
+        ["cargo-llvm-cov is not installed", "Mutation"],
+      ],
+    );
   });
 
-  it("offers Check again and run, enabled, whenever gaps are held", () => {
+  it("offers Check again and scan, enabled, whenever the current run is refused", () => {
     const model = scanPanel(
-      input({ ticks: bothTicked, preflight: gaps(GAP_PY, GAP_RUST) }),
+      input({ ticks: bothTicked, ...refused(GAP_PY, GAP_RUST) }),
     );
 
     expect(model.button).toEqual({
       scanning: false,
-      label: "Check again and run",
+      label: "Check again and scan",
       disabled: false,
     });
   });
@@ -1226,14 +1258,12 @@ describe("the preflight panel", () => {
     const model = scanPanel(
       input({
         ticks: { ...bothTicked, once: ["mutation"] },
-        preflight: gaps(GAP_PY, GAP_RUST),
+        ...refused(GAP_PY, GAP_RUST),
       }),
     );
 
-    expect(model.preflight?.box?.items.map((item) => item.id)).toEqual([
-      GAP_RUST.id,
-    ]);
-    expect(model.preflight?.box?.help.map((line) => line.sensor)).toEqual([
+    expect(model.run?.card.gaps.map((item) => item.id)).toEqual([GAP_RUST.id]);
+    expect(model.run?.card.help.map((line) => line.sensor)).toEqual([
       "mutation",
     ]);
   });
@@ -1242,11 +1272,11 @@ describe("the preflight panel", () => {
     const model = scanPanel(
       input({
         ticks: { ...bothTicked, once: [] },
-        preflight: gaps(GAP_PY, GAP_RUST),
+        ...refused(GAP_PY, GAP_RUST),
       }),
     );
 
-    expect(model.preflight).toBeNull();
+    expect(model.run).toBeNull();
     expect(model.summary).toEqual(model.freshness.summary);
     expect(model.button.label).toBe(model.freshness.action.primary.label);
   });
@@ -1256,11 +1286,11 @@ describe("the preflight panel", () => {
     const model = scanPanel(
       input({
         ticks: { ...bothTicked, once: ["mutation"] },
-        preflight: gaps(shared),
+        ...refused(shared),
       }),
     );
 
-    expect(model.preflight?.box?.items[0]?.where).toBe("Mutation");
+    expect(model.run?.card.gaps[0]?.where).toBe("Mutation");
   });
 
   it("names a help line for each sensor that reported a gap and for no other gap", () => {
@@ -1278,7 +1308,7 @@ describe("the preflight panel", () => {
     const mixed = scanPanel(
       input({
         ticks,
-        preflight: gaps(
+        ...refused(
           { id: "crap:api:pytest-cov-missing", line: "a", needs: ["crap"] },
           { id: "crap:config:no-suites", line: "b", needs: ["crap"] },
           {
@@ -1291,8 +1321,8 @@ describe("the preflight panel", () => {
       }),
     );
 
-    expect(mixed.preflight?.box?.items.length).toBeGreaterThanOrEqual(4);
-    expect(mixed.preflight?.box?.help).toEqual([
+    expect(mixed.run?.card.gaps.length).toBeGreaterThanOrEqual(4);
+    expect(mixed.run?.card.help).toEqual([
       {
         sensor: "crap",
         text: "To set this up with an agent:",
@@ -1305,20 +1335,31 @@ describe("the preflight panel", () => {
       },
     ]);
 
-    const none = scanPanel(input({ ticks, preflight: gaps(...others) }));
+    const none = scanPanel(input({ ticks, ...refused(...others) }));
 
-    expect(none.preflight?.box?.items.map((item) => item.id)).toEqual([
+    expect(none.run?.card.gaps.map((item) => item.id)).toEqual([
       "no-commit",
       "describe:arguments",
     ]);
-    expect(none.preflight?.box?.help).toEqual([]);
+    expect(none.run?.card.help).toEqual([]);
   });
 
   it("is the normal panel when preflight is idle", () => {
     const model = scanPanel(input());
 
-    expect(model.preflight).toBeNull();
+    expect(model.run).toBeNull();
     expect(model.summary).toEqual(model.freshness.summary);
+  });
+
+  it("locks every tick and shows the running subtitle while a run is live", () => {
+    const model = scanPanel(input({ ...runOf({ phase: "running" }) }));
+
+    expect(model.header.text).toBe("A scan is running.");
+    expect(
+      model.rows
+        .filter((row) => row.key !== "structure")
+        .every((row) => row.disabled),
+    ).toBe(true);
   });
 });
 

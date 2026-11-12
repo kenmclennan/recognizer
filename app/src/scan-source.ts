@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { ScanRunRecord } from "recognizer";
 import type {
   DescribingSettings,
-  ExternalScan,
   ScanPort,
   ScanRunResult,
   StoredTicks,
@@ -37,16 +37,16 @@ export const scanSource: ScanPort = {
     return () => void pending.then((stop) => stop());
   },
   watchExternal: () => invoke<void>("watch_external_scan"),
-  onExternal(handler) {
-    const scans = listen<ExternalScan | null>("external-scan", (event) =>
-      handler({ kind: "scan", scan: event.payload }),
+  onRun(handler) {
+    const runs = listen<ScanRunRecord | null>("scan-run", (event) =>
+      handler({ kind: "run", run: event.payload }),
     );
-    const lines = listen<string>("external-scan-line", (event) =>
+    const lines = listen<string>("scan-run-line", (event) =>
       handler({ kind: "line", line: event.payload }),
     );
 
     return () => {
-      void scans.then((stop) => stop());
+      void runs.then((stop) => stop());
       void lines.then((stop) => stop());
     };
   },

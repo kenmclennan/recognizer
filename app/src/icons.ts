@@ -36,6 +36,7 @@ export type IconName =
   | "circle-check"
   | "circle-alert"
   | "circle-dashed"
+  | "terminal"
   | "loader"
   | "check"
   | "info"
@@ -50,6 +51,10 @@ const SHAPES: Record<IconName, Shape[]> = {
   "circle-check": [
     ["circle", { cx: "12", cy: "12", r: "10" }],
     ["path", { d: "m9 12 2 2 4-4" }],
+  ],
+  terminal: [
+    ["path", { d: "m4 17 6-6-6-6" }],
+    ["path", { d: "M12 19h8" }],
   ],
   "circle-alert": [
     ["circle", { cx: "12", cy: "12", r: "10" }],

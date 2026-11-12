@@ -106,7 +106,6 @@ import {
 } from "./overlay-model";
 import { mountPanelResizers } from "./panel-resizer-view";
 import { type PlanOverlay, planOverlay } from "./plan-overlay";
-import { NO_PREFLIGHT, type PreflightState } from "./preflight-model";
 import { changedKeys, type ProgressKeys, progressKeys } from "./progress-keys";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import { removedPlacement } from "./removed-boxes";
@@ -143,6 +142,7 @@ import type {
   SensorProgress,
   ShowTarget,
 } from "./scan-progress";
+import type { RunInput } from "./scan-run-model";
 import type { BarModel } from "./selection-bar-view";
 import {
   inertSensors,
@@ -239,7 +239,7 @@ export type ScanHost = {
   describeStop: () => DescribeStop | null;
   describeAsk: () => DescribeAsk | null;
   describeSkipped: () => boolean;
-  preflight?: () => PreflightState;
+  runView?: () => RunInput;
   answerDescribe: (describe: boolean) => void;
   run: (modules: string[] | null, planned?: PlannedRun) => void;
   stop: () => void;
@@ -921,6 +921,8 @@ export function showExplorer(
       void editor
         .openFile(SENSOR_LOG)
         .catch((error: unknown) => fail(String(error))),
+    openRunLog: (log) =>
+      void editor.openFile(log).catch((error: unknown) => fail(String(error))),
   });
   const findingsView = buildFindingsPanelView({
     toggle: toggleFinding,
@@ -1998,7 +2000,7 @@ export function showExplorer(
       describeStop: scanHost.describeStop(),
       describeAsk: scanHost.describeAsk(),
       describeSkipped: scanHost.describeSkipped(),
-      preflight: scanHost.preflight?.() ?? NO_PREFLIGHT,
+      runView: scanHost.runView?.() ?? null,
       now: Date.now(),
       shipped: shippedSensors,
       freshness: freshnessOf(loaded),

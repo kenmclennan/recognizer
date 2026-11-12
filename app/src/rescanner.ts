@@ -1,12 +1,7 @@
-import type { Diagnosis } from "recognizer";
+import type { Diagnosis, ScanRunRecord } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
-import {
-  NO_PREFLIGHT,
-  type PreflightGap,
-  type PreflightState,
-} from "./preflight-model";
 import type { PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
@@ -17,12 +12,7 @@ import {
   type RunState,
   type ScanTicks,
 } from "./scan-panel-model";
-import type {
-  ExternalEvent,
-  ExternalScan,
-  ScanPort,
-  ScanRunResult,
-} from "./scan-port";
+import type { RunEvent, ScanPort, ScanRunResult } from "./scan-port";
 import {
   answeredProgress,
   foldProgress,
@@ -35,12 +25,12 @@ import {
   stoppedProgress,
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
+import { foldRunLine, isActive, type RunInput } from "./scan-run-model";
 
 export type Registered = Pick<RowSensor, "name" | "display" | "runsTests">[];
 
 export type ProgressUpdate = {
   scanning: string | null;
-  preflight?: PreflightState;
 };
 
 export type RescanPorts<Carried> = {
@@ -77,7 +67,7 @@ export type Rescanner = {
   running: () => boolean;
   external: () => boolean;
   progress: () => ScanProgress;
-  preflight: () => PreflightState;
+  runView: () => RunInput;
 };
 
 const DEFAULT_TICKS: ScanTicks = {
@@ -117,7 +107,7 @@ export function durationText(ms: number): string {
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
-function refusedText(gaps: PreflightGap[]): string {
+function refusedText(gaps: ScanRunRecord["gaps"]): string {
   const first = gaps[0];
   const count = `${gaps.length} ${gaps.length === 1 ? "tool" : "tools"} missing`;
 
@@ -161,15 +151,20 @@ export function createRescanner<Carried>(
   let heading: string | null = null;
   let failureIds: number[] = [];
   let lastUpdate: ProgressUpdate = { scanning: null };
-  let external: ExternalScan | null = null;
-  let externalGaps: PreflightGap[] = [];
-  let preflight: PreflightState = NO_PREFLIGHT;
+  let external: ScanRunRecord | null = null;
+  let record: ScanRunRecord | null = null;
+  let runProgress: ScanProgress = NO_PROGRESS;
+  let starting: { at: number } | null = null;
+  let startedFrom: string | null = null;
+  let ownRunId: string | null = null;
+  let adoptedAtOpen: string | null = null;
+  let seenFirst = false;
   let keepOnce = false;
   const now = ports.now ?? Date.now;
   let externalQueue: Promise<void> = Promise.resolve();
 
   function emit(update: { scanning: string | null }) {
-    lastUpdate = { ...update, preflight };
+    lastUpdate = { ...update };
     ports.progress(lastUpdate);
   }
 
@@ -358,14 +353,6 @@ export function createRescanner<Carried>(
 
     progress = foldProgress(progress, event);
 
-    if (event.event === "preflight") {
-      if (event.state === "run") {
-        preflight = { state: "running", gaps: [] };
-      } else if (event.state === "ok") {
-        preflight = NO_PREFLIGHT;
-      }
-    }
-
     if (event.event === "phase" && event.phase === "describe") {
       run = { ...run, started: DESCRIBE_KEY };
 
@@ -440,25 +427,18 @@ export function createRescanner<Carried>(
     }
   }
 
-  function externalHeading(scan: ExternalScan): string {
-    return scan.origin === "cli"
-      ? "Started from the command line:"
-      : "Started in another window:";
-  }
-
-  function beginExternal(scan: ExternalScan) {
+  function beginExternal(scan: ScanRunRecord) {
     const registeredRows = (
       scan.describe ? [{ key: DESCRIBE_KEY, display: "Descriptions" }] : []
     ).concat(scan.sensors.map((name) => ({ key: name, display: name })));
 
     external = scan;
-    externalGaps = [];
     ports.post({
       kind: "info",
       text: startedText(names(scan.sensors, scan.describe), null),
     });
     rows = registeredRows;
-    heading = externalHeading(scan);
+    heading = null;
     progress = NO_PROGRESS;
     run = {
       running: [...(scan.describe ? [DESCRIBE_KEY] : []), ...scan.sensors],
@@ -478,10 +458,6 @@ export function createRescanner<Carried>(
     }
 
     progress = foldProgress(progress, event);
-
-    if (event.event === "preflight" && event.state === "gaps") {
-      externalGaps = event.gaps;
-    }
 
     if (event.event === "phase" && event.phase === "describe") {
       run = { ...run, started: DESCRIBE_KEY };
@@ -507,31 +483,33 @@ export function createRescanner<Carried>(
       );
     }
 
-    if (event.event === "summary") {
-      postExternalEnd(external, event.exit ?? 0);
-    }
-
     publish();
   }
 
-  function postExternalEnd(scan: ExternalScan, exit: number) {
-    const began = Date.parse(scan.startedAt);
-    const elapsed = Number.isNaN(began) ? 0 : now() - began;
+  function postExternalEnd(scan: ScanRunRecord) {
+    const began = Date.parse(scan.started_at);
+    const ended = Date.parse(scan.ended_at ?? scan.started_at);
+    const elapsed =
+      Number.isNaN(began) || Number.isNaN(ended) ? 0 : ended - began;
 
-    if (exit === 0) {
+    if (scan.phase === "finished") {
       ports.post({
         kind: "done",
         text: `Scan complete - ${durationText(elapsed)}`,
       });
-    } else if (exit === 4) {
+    } else if (scan.phase === "refused") {
       ports.post({
         kind: "warning",
-        text: `Scan refused - ${refusedText(externalGaps)}`,
+        text: `Scan refused - ${refusedText(scan.gaps)}`,
       });
-    } else {
+    } else if (scan.phase === "failed") {
       ports.post({
         kind: "error",
-        text: `Scan failed - ${failedReason(progress, exit)}`,
+        text: `Scan failed - ${
+          scan.failure === null
+            ? `recognizer scan exited ${scan.exit ?? 1}`
+            : `${scan.failure.sensor}: ${scan.failure.reason}`
+        }`,
       });
     }
   }
@@ -550,23 +528,82 @@ export function createRescanner<Carried>(
     }
   }
 
-  function onExternal(event: ExternalEvent) {
+  async function takeRecord(next: ScanRunRecord | null) {
+    if (next === null) {
+      record = null;
+      runProgress = NO_PROGRESS;
+      seenFirst = false;
+      adoptedAtOpen = null;
+
+      if (external !== null) {
+        await endExternal();
+      }
+
+      return;
+    }
+
+    if (!seenFirst) {
+      seenFirst = true;
+
+      if (!isActive(next)) {
+        adoptedAtOpen = next.run_id;
+      }
+    }
+
+    if (record?.run_id !== next.run_id) {
+      runProgress = NO_PROGRESS;
+    }
+
+    if (starting !== null && next.run_id !== startedFrom) {
+      starting = null;
+    }
+
+    if (busy && next.run_id !== startedFrom) {
+      ownRunId = next.run_id;
+    }
+
+    record = next;
+
+    if (external !== null && external.run_id !== next.run_id) {
+      await endExternal();
+    }
+
+    if (external !== null && !isActive(next)) {
+      const ended = next;
+
+      await endExternal();
+      postExternalEnd(ended);
+    } else if (
+      external === null &&
+      !busy &&
+      isActive(next) &&
+      next.run_id !== ownRunId
+    ) {
+      beginExternal(next);
+    }
+  }
+
+  function onRun(event: RunEvent) {
     externalQueue = externalQueue
       .then(async () => {
         if (event.kind === "line") {
-          foldExternal(event.line);
-        } else if (event.scan === null) {
-          if (external !== null) {
-            await endExternal();
+          const parsed = parseScanLine(event.line);
+
+          if (parsed !== null) {
+            runProgress = foldRunLine(runProgress, parsed);
           }
-        } else if (external?.pid !== event.scan.pid) {
-          beginExternal(event.scan);
+
+          foldExternal(event.line);
+        } else {
+          await takeRecord(event.run);
         }
+
+        ports.progress(lastUpdate);
       })
       .catch(() => {});
   }
 
-  ports.port.onExternal(onExternal);
+  ports.port.onRun(onRun);
 
   async function execute(modules: string[] | null, planned?: PlannedRun) {
     try {
@@ -620,7 +657,8 @@ export function createRescanner<Carried>(
     };
 
     progress = NO_PROGRESS;
-    preflight = { state: "running", gaps: [] };
+    startedFrom = record?.run_id ?? null;
+    starting = { at: now() };
     publish();
 
     const startedAt = now();
@@ -656,10 +694,20 @@ export function createRescanner<Carried>(
     stopListening();
     run = { ...run, running: [], started: null };
 
+    if (
+      (result.status === "gaps" &&
+        result.gaps.every((gap) => gap.id.startsWith("toolchain:"))) ||
+      result.status === "stopped" ||
+      result.status === "command-missing" ||
+      result.status === "refused" ||
+      result.status === "failed"
+    ) {
+      starting = null;
+    }
+
     if (result.status === "gaps") {
       keepOnce = true;
       progress = NO_PROGRESS;
-      preflight = { state: "gaps", gaps: result.gaps };
       emit({ scanning: null });
       ports.post({
         kind: "warning",
@@ -669,8 +717,6 @@ export function createRescanner<Carried>(
 
       return;
     }
-
-    preflight = NO_PREFLIGHT;
 
     const text = failureText(result);
 
@@ -773,12 +819,15 @@ export function createRescanner<Carried>(
       return current;
     },
     async stop() {
-      if (!busy) {
+      if (!busy && external === null && !isActive(record)) {
         return;
       }
 
       await ports.port.stop();
-      await current;
+
+      if (busy) {
+        await current;
+      }
     },
     async answerDescribe(describe) {
       if (progress.describeAsk === null) {
@@ -820,6 +869,11 @@ export function createRescanner<Carried>(
     running: () => busy || external !== null,
     external: () => external !== null,
     progress: () => progress,
-    preflight: () => preflight,
+    runView: () => ({
+      record,
+      progress: runProgress,
+      starting,
+      adoptedAtOpen,
+    }),
   };
 }

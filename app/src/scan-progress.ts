@@ -22,7 +22,7 @@ export type ScanEvent =
   | ({ event: "confirm"; phase: "describe" } & DescribeAsk)
   | { event: "preflight"; state: "run" | "ok" }
   | { event: "preflight"; state: "gaps"; gaps: Gap[] }
-  | { event: "summary"; exit?: number };
+  | { event: "summary"; exit?: number; log?: string | null };
 
 export type DescribeAsk = {
   modules: number;
@@ -68,6 +68,8 @@ export type ScanProgress = {
   extractSettled: boolean;
   done: boolean;
   stopped: boolean;
+  sensing: string | null;
+  log: string | null;
 };
 
 export type ShowTarget =
@@ -86,6 +88,8 @@ export const NO_PROGRESS: ScanProgress = {
   extractSettled: false,
   done: false,
   stopped: false,
+  sensing: null,
+  log: null,
 };
 
 const PHASES: readonly string[] = ["extract", "describe", "sense"];
@@ -107,9 +111,13 @@ export function parseScanLine(text: string): ScanEvent | null {
 
   switch (line.event) {
     case "summary":
-      return typeof line.exit === "number"
-        ? { event: "summary", exit: line.exit }
-        : { event: "summary" };
+      return {
+        event: "summary",
+        ...(typeof line.exit === "number" ? { exit: line.exit } : {}),
+        ...(typeof line.log === "string" || line.log === null
+          ? { log: line.log }
+          : {}),
+      };
     case "preflight":
       return preflightEvent(line);
     case "phase":
@@ -341,7 +349,12 @@ export function foldProgress(
     case "preflight":
       return state;
     case "summary":
-      return { ...state, extractSettled: true, done: true };
+      return {
+        ...state,
+        extractSettled: true,
+        done: true,
+        log: event.log ?? state.log,
+      };
     case "stopped": {
       const { event: _event, phase: _phase, ...describeStop } = event;
 

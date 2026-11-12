@@ -102,6 +102,7 @@ export interface Io {
   now(): number;
   pid(): number;
   pidAlive(pid: number): boolean;
+  processGroup(pid: number): number | null;
   createExclusive(path: string, content: string): boolean;
   append(path: string, content: string): void;
   stdout(text: string): void;
@@ -132,8 +133,8 @@ const liveChildren = new Set<ChildProcess>();
 
 const liveTempDirs = new Set<string>();
 
-export function stopEverything(): void {
-  releaseHeldMarkers();
+export function stopEverything(exit?: number): void {
+  releaseHeldMarkers(exit);
 
   for (const child of liveChildren) {
     child.kill("SIGTERM");
@@ -396,6 +397,14 @@ export function nodeIo(): Io {
       } catch (error) {
         return (error as NodeJS.ErrnoException).code === "EPERM";
       }
+    },
+    processGroup: (pid) => {
+      const result = spawnSync("ps", ["-o", "pgid=", "-p", String(pid)], {
+        encoding: "utf8",
+      });
+      const text = result.status === 0 ? result.stdout.trim() : "";
+
+      return /^\d+$/.test(text) ? Number(text) : null;
     },
     createExclusive: (path, content) => {
       mkdirSync(dirname(path), { recursive: true });

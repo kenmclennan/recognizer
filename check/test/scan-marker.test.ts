@@ -6,7 +6,7 @@ import {
   markerPath,
   parseMarker,
   progressPath,
-  type ScanMarker,
+  type ScanRunRecord,
 } from "../src/scan-marker.js";
 import { REPO } from "./helpers.js";
 import {
@@ -23,17 +23,28 @@ const PROGRESS = progressPath(ROOT);
 const EXAMPLES = join(REPO, "schema/scan-marker-examples");
 const OTHER_PID = 4242;
 
-function markerFor(changes: Partial<ScanMarker> = {}): string {
+function markerFor(changes: Partial<ScanRunRecord> = {}): string {
   return JSON.stringify({
-    version: 1,
+    version: 2,
+    run_id: "11111111-2222-3333-4444-555555555555",
     pid: OTHER_PID,
+    pgid: OTHER_PID,
     started_at: "2026-11-10T09:00:00.000Z",
     started_by: "cli",
     repository: ROOT,
     sensors: [],
     describe: false,
+    phase: "running",
+    ended_at: null,
+    exit: null,
+    gaps: [],
+    failure: null,
     ...changes,
   });
+}
+
+function recordOf(files: Map<string, string>): ScanRunRecord {
+  return parseMarker(files.get(MARKER) ?? "") as ScanRunRecord;
 }
 
 function options(extra: FakeOptions = {}): FakeOptions {
@@ -93,7 +104,7 @@ describe("scan marker: refusal", () => {
   });
 
   it("replaces a marker whose process is dead", async () => {
-    let during: ScanMarker | null = null;
+    let during: ScanRunRecord | null = null;
     const programs = observing((files) => {
       during = parseMarker(files.get(MARKER) ?? "");
     });
@@ -109,8 +120,9 @@ describe("scan marker: refusal", () => {
       repository: ROOT,
       sensors: [],
       describe: false,
+      phase: "checking",
     });
-    expect((during as unknown as ScanMarker).started_at).not.toBe(
+    expect((during as unknown as ScanRunRecord).started_at).not.toBe(
       "2026-11-10T09:00:00.000Z",
     );
   });
@@ -119,7 +131,7 @@ describe("scan marker: refusal", () => {
     const { code, fake } = await scan({ files: { [MARKER]: "not json" } });
 
     expect(code).toBe(0);
-    expect(fake.files.has(MARKER)).toBe(false);
+    expect(recordOf(fake.files).pid).toBe(FAKE_PID);
   });
 
   it("serialises scans started in sequence", async () => {
@@ -153,25 +165,31 @@ describe("scan marker: refusal", () => {
 });
 
 describe("scan marker: release", () => {
-  it("removes both files after a normal end", async () => {
+  it("keeps both files and records finished after a normal end", async () => {
     const { code, fake } = await scan();
 
     expect(code).toBe(0);
-    expect(fake.files.has(MARKER)).toBe(false);
-    expect(fake.files.has(PROGRESS)).toBe(false);
+    expect(fake.files.has(PROGRESS)).toBe(true);
+    expect(recordOf(fake.files)).toMatchObject({
+      phase: "finished",
+      exit: 0,
+      failure: null,
+    });
+    expect(recordOf(fake.files).ended_at).not.toBeNull();
   });
 
-  it("removes both files after a failed scan", async () => {
+  it("keeps both files and records failed after a failed scan", async () => {
     const { code, fake } = await scan({
       scanners: { [PYTHON]: { status: 1, stderr: "boom" } },
     });
 
     expect(code).toBe(1);
-    expect(fake.files.has(MARKER)).toBe(false);
-    expect(fake.files.has(PROGRESS)).toBe(false);
+    expect(fake.files.has(PROGRESS)).toBe(true);
+    expect(recordOf(fake.files)).toMatchObject({ phase: "failed", exit: 1 });
+    expect(recordOf(fake.files).failure?.reason).toContain("boom");
   });
 
-  it("removes both files after a throw", async () => {
+  it("keeps both files and records failed after a throw", async () => {
     const { code, fake } = await scan({
       programs: {
         [PYTHON]: () => {
@@ -181,24 +199,22 @@ describe("scan marker: release", () => {
     });
 
     expect(code).toBe(2);
-    expect(fake.files.has(MARKER)).toBe(false);
-    expect(fake.files.has(PROGRESS)).toBe(false);
+    expect(fake.files.has(PROGRESS)).toBe(true);
+    expect(recordOf(fake.files)).toMatchObject({ phase: "failed", exit: 1 });
   });
 
-  it("removes both files when stopEverything is called mid-scan", async () => {
-    let held = false;
-    let afterStop = true;
+  it("keeps both files and records stopped when stopEverything is called mid-scan", async () => {
+    let during: ScanRunRecord | null = null;
     const { fake } = await scan({
       programs: observing((files) => {
-        held = files.has(MARKER) && files.has(PROGRESS);
         stopEverything();
-        afterStop = files.has(MARKER) || files.has(PROGRESS);
+        during = recordOf(files);
       }),
     });
 
-    expect(held).toBe(true);
-    expect(afterStop).toBe(false);
-    expect(fake.files.has(MARKER)).toBe(false);
+    expect(fake.files.has(PROGRESS)).toBe(true);
+    expect(during).toMatchObject({ phase: "stopped", exit: 143 });
+    expect(recordOf(fake.files).phase).toBe("stopped");
   });
 
   it("leaves a marker that holds another pid", async () => {
@@ -210,6 +226,87 @@ describe("scan marker: release", () => {
     });
 
     expect(fake.files.get(MARKER)).toBe(taken);
+  });
+});
+
+describe("scan marker: record phases", () => {
+  it("writes running after the preflight and finished at the end, with the process group of the scan", async () => {
+    const fake = fakeIo(options({ pgids: { [FAKE_PID]: 4242 } }));
+    const phases: string[] = [];
+    const io = {
+      ...fake.io,
+      rename: (from: string, to: string) => {
+        if (to === MARKER) {
+          phases.push(parseMarker(fake.files.get(from) ?? "")?.phase ?? "?");
+        }
+
+        fake.io.rename(from, to);
+      },
+    };
+
+    await run(["scan", ROOT], io);
+
+    expect(phases).toEqual(["running", "finished"]);
+    expect(recordOf(fake.files).pgid).toBe(4242);
+  });
+
+  it("holds a null process group when the lookup returns null", async () => {
+    const { fake } = await scan({ pgids: { [FAKE_PID]: null } });
+
+    expect(recordOf(fake.files).pgid).toBeNull();
+  });
+
+  it("records refused with exit 4 and the gaps a preflight with no commit emits", async () => {
+    const { code, fake } = await scan({ commit: undefined }, "--sense", "crap");
+    const record = recordOf(fake.files);
+
+    expect(code).toBe(4);
+    expect(record).toMatchObject({ phase: "refused", exit: 4 });
+    expect(record.gaps).toHaveLength(1);
+    expect(record.gaps[0]).toMatchObject({ id: "no-commit", needs: ["crap"] });
+    expect(record.ended_at).not.toBeNull();
+    expect(fake.files.has(PROGRESS)).toBe(true);
+  });
+
+  it("leaves a refused record refused when stopEverything is called after the refusal", async () => {
+    const { fake } = await scan({ commit: undefined }, "--sense", "crap");
+
+    stopEverything();
+
+    expect(recordOf(fake.files).phase).toBe("refused");
+  });
+});
+
+describe("scan marker: replacement", () => {
+  it("replaces a finished record whose pid is alive", async () => {
+    const files = {
+      [MARKER]: markerFor({ phase: "finished", exit: 0 }),
+      [PROGRESS]: "old\n",
+    };
+    const { code, fake } = await scan({ files, alivePids: [OTHER_PID] });
+
+    expect(files[MARKER]).toContain('"finished"');
+    expect(code).toBe(0);
+    expect(recordOf(fake.files).run_id).not.toBe(
+      "11111111-2222-3333-4444-555555555555",
+    );
+  });
+
+  it("refuses with exit 3 and leaves a running record with a live pid byte-identical", async () => {
+    const files = { [MARKER]: markerFor({ phase: "running" }) };
+    const { code, fake } = await scan({ files, alivePids: [OTHER_PID] });
+
+    expect(code).toBe(3);
+    expect(fake.files.get(MARKER)).toBe(files[MARKER]);
+  });
+
+  it("replaces a running record whose pid is dead", async () => {
+    const { code, fake } = await scan({
+      files: { [MARKER]: markerFor({ phase: "running" }) },
+    });
+
+    expect(code).toBe(0);
+    expect(recordOf(fake.files).pid).toBe(FAKE_PID);
   });
 });
 
@@ -234,38 +331,21 @@ describe("scan marker: progress and origin", () => {
   });
 
   it("holds exactly the lines a --json scan prints, in order", async () => {
-    let captured = "";
     const programs = observing(() => {});
     const fake = fakeIo(options({ programs }));
-    const io = {
-      ...fake.io,
-      remove: (path: string) => {
-        if (path === PROGRESS) {
-          captured = fake.files.get(PROGRESS) ?? "";
-        }
 
-        fake.io.remove(path);
-      },
-    };
+    await run(["scan", ROOT, "--json"], fake.io);
 
-    await run(["scan", ROOT, "--json"], io);
+    const captured = fake.files.get(PROGRESS) ?? "";
 
     expect(captured).toBe(fake.out());
     expect(captured).not.toBe("");
 
     const quiet = fakeIo(options({ programs }));
-    let quietCaptured = "";
 
-    await run(["scan", ROOT], {
-      ...quiet.io,
-      remove: (path: string) => {
-        if (path === PROGRESS) {
-          quietCaptured = quiet.files.get(PROGRESS) ?? "";
-        }
+    await run(["scan", ROOT], quiet.io);
 
-        quiet.io.remove(path);
-      },
-    });
+    const quietCaptured = quiet.files.get(PROGRESS) ?? "";
 
     expect(quietCaptured).toBe(captured);
   });
@@ -276,7 +356,7 @@ describe("scan marker: progress and origin", () => {
     ["other", "cli"],
     [undefined, "cli"],
   ])("records RECOGNIZER_STARTED_BY=%s as %s", async (value, expected) => {
-    let during: ScanMarker | null = null;
+    let during: ScanRunRecord | null = null;
     const env = value === undefined ? {} : { RECOGNIZER_STARTED_BY: value };
 
     await scan({
@@ -286,19 +366,19 @@ describe("scan marker: progress and origin", () => {
       }),
     });
 
-    expect((during as unknown as ScanMarker).started_by).toBe(expected);
+    expect((during as unknown as ScanRunRecord).started_by).toBe(expected);
   });
 });
 
 describe("scan marker: examples", () => {
   it("holds the expected count of examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(2);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(6);
     expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(6);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {
     const text = readFileSync(join(EXAMPLES, "valid", file), "utf8");
-    const written = JSON.parse(text) as ScanMarker;
+    const written = JSON.parse(text) as ScanRunRecord;
 
     expect(parseMarker(text)).toEqual(written);
   });
