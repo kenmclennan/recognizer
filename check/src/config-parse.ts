@@ -8,10 +8,8 @@ export interface SensorRegistration {
 }
 
 export interface StructureSettingsInput {
-  hub_threshold?: number;
   warnings?: {
     cycle?: boolean;
-    hub?: boolean;
     policy_drift?: boolean;
     unused_exports?: boolean;
     orphan?: boolean | { entry_points: string[] };
@@ -127,6 +125,12 @@ function rejectRetiredWarnings(document: unknown): void {
     ]);
   }
 
+  if ("hub_threshold" in structure) {
+    throw new InputError([
+      "config/sensors/structure/hub_threshold was removed: the hub warning it tuned is gone, so the setting did nothing; delete the key",
+    ]);
+  }
+
   if ("instability_gap" in structure) {
     throw new InputError([
       "config/sensors/structure/instability_gap was removed: the stable dependencies warning it tuned is gone, so the setting did nothing; delete the key",
@@ -146,6 +150,12 @@ function rejectRetiredWarnings(document: unknown): void {
   if ("stable_abstractions" in structure.warnings) {
     throw new InputError([
       "config/sensors/structure/warnings/stable_abstractions was removed: the warning is gone, so the switch did nothing; delete the key",
+    ]);
+  }
+
+  if ("hub" in structure.warnings) {
+    throw new InputError([
+      "config/sensors/structure/warnings/hub was removed: the hub warning rested on no published principle, so the switch did nothing; delete the key",
     ]);
   }
 

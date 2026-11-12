@@ -1257,7 +1257,7 @@ describe("dependencies tab", () => {
     expect(section(list, "Used by 1")).toEqual([
       { kind: "note", text: "Nothing matches." },
     ]);
-    expect(labelsOf(section(rows({ filter: "hub" }), "Used by 1"))).toEqual([
+    expect(labelsOf(section(rows({ filter: "Hub" }), "Used by 1"))).toEqual([
       "this folder",
       "caller.py",
     ]);

@@ -296,7 +296,7 @@ describe("list items", () => {
 
 describe("refusals", () => {
   const base =
-    "sensors:\n  structure:\n    hub_threshold: 4\n  mine:\n    command: [mine]\n  mutation:\n    max_workers: 2\n";
+    "sensors:\n  structure:\n    warnings:\n      unused_exports: true\n  mine:\n    command: [mine]\n  mutation:\n    max_workers: 2\n";
 
   it.each([
     ["tests.unit.coverge.format", "x", "no such key"],
@@ -333,7 +333,9 @@ describe("refusals", () => {
       "--remove-section",
     );
     expect(
-      refused(removeSection(base, KEYS, "sensors.structure.hub_threshold")),
+      refused(
+        removeSection(base, KEYS, "sensors.structure.warnings.unused_exports"),
+      ),
     ).toContain("--unset");
   });
 
@@ -346,8 +348,8 @@ describe("refusals", () => {
         setValue(
           "sensors:\n  structure: off\n",
           KEYS,
-          "sensors.structure.hub_threshold",
-          "3",
+          "sensors.structure.warnings.unused_exports",
+          "true",
         ),
       ),
     ).toContain("scalar");
@@ -393,13 +395,13 @@ describe("refusals", () => {
 });
 
 describe("resolution", () => {
-  it("resolves a literal key over the placeholder key", () => {
+  it("resolves a warning switch through the placeholder key", () => {
     const after = text(
-      setValue("", KEYS, "sensors.structure.hub_threshold", "3"),
+      setValue("", KEYS, "sensors.structure.warnings.unused_exports", "true"),
     );
 
     expect(parse(after)).toEqual({
-      sensors: { structure: { hub_threshold: 3 } },
+      sensors: { structure: { warnings: { unused_exports: true } } },
     });
   });
 

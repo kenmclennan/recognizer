@@ -57,9 +57,8 @@ function scanOf(
 function analysed(
   edges: Edge[],
   modules: Array<string | [string, string]> = [],
-  hub = 10,
 ) {
-  return analyse(validateScan(scanOf(edges, modules)), { hub });
+  return analyse(validateScan(scanOf(edges, modules)));
 }
 
 function row(result: ReturnType<typeof analysed>, id: string) {
@@ -160,7 +159,7 @@ describe("metrics", () => {
         ["a", "b", "tests/t"],
       ),
     );
-    const result = analyse(scan, { hub: 10 }, [compileGlob("tests/**")]);
+    const result = analyse(scan, [compileGlob("tests/**")]);
 
     expect(result.metrics.map((metric) => metric.id)).toEqual(["a", "b"]);
     expect(result.warnings).toEqual([]);
@@ -227,68 +226,6 @@ describe("cycle warning", () => {
   });
 });
 
-describe("hub warning", () => {
-  const edges: Edge[] = [
-    ["a", "h"],
-    ["b", "h"],
-    ["h", "x"],
-    ["h", "y"],
-  ];
-
-  it("flags a module exactly at the threshold", () => {
-    const { warnings } = analysed(edges, [], 2);
-
-    expect(warnings).toEqual([
-      {
-        id: "hub",
-        principle: "interfaces-are-narrow-and-explicit",
-        fix_pattern: "split-hub",
-        summary:
-          "h is imported by 2 modules and imports 2 (at least 2 on both)",
-        evidence: {
-          module: "h",
-          fan_in: 2,
-          fan_out: 2,
-          threshold: 2,
-          used_by: [
-            { module: "a", names: [] },
-            { module: "b", names: [] },
-          ],
-        },
-      },
-    ]);
-  });
-
-  it("does not flag one just below the threshold", () => {
-    expect(analysed(edges, [], 3).warnings).toEqual([]);
-  });
-
-  it("does not flag fan-in met with fan-out short, or the reverse", () => {
-    expect(
-      analysed(
-        [
-          ["a", "h"],
-          ["b", "h"],
-          ["h", "x"],
-        ],
-        [],
-        2,
-      ).warnings,
-    ).toEqual([]);
-    expect(
-      analysed(
-        [
-          ["a", "h"],
-          ["h", "x"],
-          ["h", "y"],
-        ],
-        [],
-        2,
-      ).warnings,
-    ).toEqual([]);
-  });
-});
-
 describe("determinism", () => {
   it("is byte-identical when the scan is shuffled", () => {
     const edges: Edge[] = [
@@ -299,10 +236,8 @@ describe("determinism", () => {
       ["d", "foreign:z"],
     ];
     const modules = ["a", "b", "c", "d"];
-    const forward = analyse(validateScan(scanOf(edges, modules)), { hub: 2 });
-    const reversed = analyse(validateScan(scanOf(edges, modules, 1)), {
-      hub: 2,
-    });
+    const forward = analyse(validateScan(scanOf(edges, modules)));
+    const reversed = analyse(validateScan(scanOf(edges, modules, 1)));
 
     expect(JSON.stringify(reversed)).toBe(JSON.stringify(forward));
   });
@@ -323,7 +258,7 @@ function writeScan(dir: string, edges: Edge[], modules: string[] = []) {
 }
 
 describe("policy-free mode", () => {
-  it("emits exactly thresholds, warnings, metrics and folder metrics and exits 0", () => {
+  it("emits exactly warnings, metrics and folder metrics and exits 0", () => {
     const dir = makeTempDir("recognizer-warn-");
     const scan = writeScan(dir, [
       ["a", "b"],
@@ -333,7 +268,6 @@ describe("policy-free mode", () => {
 
     expect(code).toBe(0);
     expect(Object.keys(JSON.parse(out))).toEqual([
-      "thresholds",
       "warnings",
       "metrics",
       "folder_metrics",
@@ -355,41 +289,4 @@ describe("policy-free mode", () => {
       expect(readdirSync(dir)).toEqual(before);
     },
   );
-});
-
-describe("--hub-threshold", () => {
-  const dir = makeTempDir("recognizer-warn-");
-  const scan = writeScan(dir, [["a", "b"]]);
-
-  it.each(["0", "-1", "2.5", "abc"])("rejects %s", (value) => {
-    expect(
-      execute(["check", "--scan", scan, "--hub-threshold", value]).code,
-    ).toBe(2);
-  });
-
-  it("prints the default as thresholds.hub", () => {
-    const { out } = execute(["check", "--scan", scan]);
-
-    expect(JSON.parse(out).thresholds).toEqual({ hub: 10 });
-  });
-
-  it("prints a given value and moves the boundary", () => {
-    const hubScan = writeScan(makeTempDir("recognizer-warn-"), [
-      ["a", "h"],
-      ["h", "x"],
-    ]);
-    const low = JSON.parse(
-      execute(["check", "--scan", hubScan, "--hub-threshold", "1"]).out,
-    );
-    const high = JSON.parse(
-      execute(["check", "--scan", hubScan, "--hub-threshold", "2"]).out,
-    );
-
-    expect(low.thresholds).toEqual({ hub: 1 });
-    const hubs = (report: { warnings: { id: string }[] }) =>
-      report.warnings.filter((warning) => warning.id === "hub");
-
-    expect(hubs(low)).toHaveLength(1);
-    expect(hubs(high)).toHaveLength(0);
-  });
 });

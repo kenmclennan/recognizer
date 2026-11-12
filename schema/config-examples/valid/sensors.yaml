@@ -1,9 +1,7 @@
 sensors:
   structure:
-    hub_threshold: 6
     warnings:
       cycle: true
-      hub: false
       policy_drift: false
       unused_exports: false
       orphan:

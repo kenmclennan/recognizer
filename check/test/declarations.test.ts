@@ -57,10 +57,8 @@ function scanOf(
 
 const SETTINGS = {
   ...DEFAULT_STRUCTURE_SETTINGS,
-  hub_threshold: 2,
   warnings: {
     ...DEFAULT_STRUCTURE_SETTINGS.warnings,
-    hub: true,
     cycle: true,
   },
 };
@@ -73,7 +71,7 @@ function sensor(scan: Scan) {
 }
 
 describe("declares edges", () => {
-  it("add nothing to fan-in, fan-out or instability and make no hub", () => {
+  it("add nothing to fan-in, fan-out or instability and make no cycle", () => {
     const scan = scanOf([
       ["src/lib.rs", "src/a.rs", "declares"],
       ["src/lib.rs", "src/b.rs", "declares"],
@@ -89,7 +87,7 @@ describe("declares edges", () => {
     }
 
     expect(
-      result.document.findings.filter((found) => found.kind === "hub"),
+      result.document.findings.filter((found) => found.kind === "cycle"),
     ).toEqual([]);
   });
 

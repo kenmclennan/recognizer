@@ -1,6 +1,0 @@
-{
-  "findings_version": 1,
-  "sensor": { "name": "structure", "version": "11" },
-  "commit": "abc", "modified": false, "settings": {},
-  "findings": [{ "id": "hub:a/h.py", "kind": "hub", "severity": "warning", "principle": "interfaces-are-narrow-and-explicit", "summary": "s", "evidence": { "modules": ["a/h.py"], "used_by": [{ "module": "a/i.py" }] } }]
-}

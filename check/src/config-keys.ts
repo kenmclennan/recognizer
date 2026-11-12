@@ -65,7 +65,7 @@ export interface PublishedKeys {
 
 const SENSOR_NAME = "^[a-z0-9][a-z0-9_-]{0,63}$";
 
-const WARNINGS = ["cycle", "hub", "policy_drift", "unused_exports", "orphan"];
+const WARNINGS = ["cycle", "policy_drift", "unused_exports", "orphan"];
 
 export const CORE_KEYS: KeySchema = {
   keys_version: 1,
@@ -113,14 +113,6 @@ export const CORE_KEYS: KeySchema = {
       values: ["off"],
       description: "turns the structure sensor off",
       example: "sensors.structure off",
-    },
-    {
-      key: "sensors.structure.hub_threshold",
-      type: "integer",
-      minimum: 1,
-      description:
-        "a module is a hub when its fan-in and its fan-out are each at least this count",
-      example: "sensors.structure.hub_threshold 10",
     },
     {
       key: "sensors.structure.warnings.<warning>",

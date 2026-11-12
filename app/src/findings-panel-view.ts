@@ -62,7 +62,7 @@ function itemNode(
     text.append(el("span", "finding-folder", row.folder));
   }
 
-  if (row.kind === "use" || row.kind === "test") {
+  if (row.kind === "test") {
     text.append(
       el(
         "span",

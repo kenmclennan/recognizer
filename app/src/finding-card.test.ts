@@ -212,68 +212,6 @@ describe("isAbsent", () => {
   });
 });
 
-describe("cardOf hub", () => {
-  const hub = {
-    kind: "hub",
-    evidence: {
-      modules: ["a/hub.py"],
-      measures: { fan_in: 2, fan_out: 2, threshold: 2 },
-    },
-  };
-
-  it("adds one use row per importer after the module row", () => {
-    const card = cardOf(
-      rowOf({
-        ...hub,
-        evidence: {
-          ...hub.evidence,
-          used_by: [
-            { module: "b/one.py", names: ["Small"] },
-            { module: "b/two.py", names: [] },
-          ],
-        },
-      }),
-    );
-
-    expect(card.rows).toEqual([
-      { kind: "module", module: "a/hub.py", name: "hub.py", folder: "a" },
-      {
-        kind: "use",
-        module: "b/one.py",
-        name: "one.py",
-        folder: "b",
-        names: ["Small"],
-      },
-      {
-        kind: "use",
-        module: "b/two.py",
-        name: "two.py",
-        folder: "b",
-        names: [],
-      },
-    ]);
-  });
-
-  it("gives only the module row for a record without used_by", () => {
-    expect(cardOf(rowOf(hub)).rows).toEqual([
-      { kind: "module", module: "a/hub.py", name: "hub.py", folder: "a" },
-    ]);
-  });
-
-  it("treats a use row as absent when its module is off the canvas", () => {
-    const row = {
-      kind: "use" as const,
-      module: "b/one.py",
-      name: "one.py",
-      folder: "b",
-      names: [],
-    };
-
-    expect(isAbsent(row, (id) => id, new Set(["a/hub.py"]))).toBe(true);
-    expect(isAbsent(row, (id) => id, new Set(["b/one.py"]))).toBe(false);
-  });
-});
-
 describe("cardOf unused_exports test rows", () => {
   const unused = (members: { name: string; test_files?: string[] }[]) =>
     cardOf(

@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { run, stopEverything } from "../src/cli.js";
+import { validateFindings } from "../src/findings-document.js";
 import { capture, REPO } from "./helpers.js";
 import {
   type Fake,
@@ -528,7 +529,7 @@ describe("check reading registered sensors", () => {
   });
 
   it("accepts the sensor's violation once the baseline lists it by id", async () => {
-    const yaml = `${REGISTER}  structure:\n    hub_threshold: 10\n`;
+    const yaml = `${REGISTER}  structure:\n    warnings:\n      cycle: true\n`;
     const baseline = JSON.stringify({
       schema_version: 1,
       violations: [{ id: "fake-violation:shop/main.py" }],
@@ -814,11 +815,9 @@ describe("check running the structure sensor", () => {
     });
     expect(fake.files.has(`${STRUCTURE}.tmp`)).toBe(false);
     expect(document.settings).toEqual({
-      hub_threshold: 10,
       entry_points: [],
       warnings: {
         cycle: true,
-        hub: true,
         orphan: true,
         policy_drift: true,
         unused_exports: false,
@@ -826,7 +825,7 @@ describe("check running the structure sensor", () => {
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: hub_threshold 10, cycle on, hub on, orphan on, policy_drift on, unused_exports off",
+      "sensor structure: cycle on, orphan on, policy_drift on, unused_exports off",
     );
     expect(err).toBe("");
   });
@@ -842,44 +841,6 @@ describe("check running the structure sensor", () => {
     expect(report.sensors).toEqual([{ name: "structure", status: "off" }]);
     expect(report.violations).toEqual([]);
     expect(report.thresholds).toBeUndefined();
-  });
-
-  it("produces no hub warning when the hub switch is off", async () => {
-    const fake = setup(
-      "sensors:\n  structure:\n    hub_threshold: 1\n    warnings:\n      hub: false\n",
-    );
-    const report = JSON.parse((await check(fake, "--json")).out);
-
-    expect(report.warnings.some((w: { id: string }) => w.id === "hub")).toBe(
-      false,
-    );
-  });
-
-  it("reads hub_threshold from the config as --hub-threshold does", async () => {
-    const fromConfig = JSON.parse(
-      (
-        await check(
-          setup("sensors:\n  structure:\n    hub_threshold: 2\n"),
-          "--json",
-        )
-      ).out,
-    );
-    const fromFlag = JSON.parse(
-      (await check(setup(null), "--hub-threshold", "2", "--json")).out,
-    );
-
-    expect(fromConfig.warnings).toEqual(fromFlag.warnings);
-    expect(fromConfig.thresholds).toEqual({ hub: 2 });
-  });
-
-  it("lets the flag beat the config and records the flag's value", async () => {
-    const fake = setup("sensors:\n  structure:\n    hub_threshold: 2\n");
-    const { out } = await check(fake, "--hub-threshold", "5");
-
-    expect(
-      JSON.parse(fake.files.get(STRUCTURE) as string).settings.hub_threshold,
-    ).toBe(5);
-    expect(out.split("\n")[0]).toContain("hub_threshold 5");
   });
 
   it("leaves no structure.json and exits 1 when the rename fails", async () => {
@@ -950,11 +911,9 @@ describe("show and modules read the findings files", () => {
       commit: "old",
       modified: false,
       settings: {
-        hub_threshold: 10,
         entry_points: [],
         warnings: {
           cycle: true,
-          hub: true,
           orphan: true,
           policy_drift: true,
           unused_exports: false,
@@ -975,7 +934,7 @@ describe("show and modules read the findings files", () => {
       sensor: { name: "structure", version: "1" },
       commit: COMMIT,
       modified: false,
-      settings: { hub_threshold: 10, warnings: { cycle: true, hub: true } },
+      settings: { warnings: { cycle: true } },
       findings: [],
     });
     const fake = setup(null, { files: { [STRUCTURE]: old } });
@@ -995,11 +954,9 @@ describe("show and modules read the findings files", () => {
       commit: COMMIT,
       modified: false,
       settings: {
-        hub_threshold: 10,
         entry_points: [],
         warnings: {
           cycle: true,
-          hub: true,
           orphan: true,
           policy_drift: true,
         },
@@ -1016,21 +973,75 @@ describe("show and modules read the findings files", () => {
     expect(written.settings.distance_threshold).toBeUndefined();
   });
 
+  it("recomputes a current file that holds a hub finding with used_by", async () => {
+    const withHub = JSON.stringify({
+      findings_version: 2,
+      sensor: { name: "structure", version: "14" },
+      commit: COMMIT,
+      modified: false,
+      settings: {
+        hub_threshold: 10,
+        entry_points: [],
+        warnings: {
+          cycle: true,
+          hub: true,
+          orphan: true,
+          policy_drift: true,
+          unused_exports: false,
+        },
+      },
+      inputs: {},
+      findings: [
+        {
+          id: "hub:shop/a.py",
+          kind: "hub",
+          severity: "warning",
+          principle: "interfaces-are-narrow-and-explicit",
+          summary: "shop/a.py is a hub",
+          fix_pattern: "split-hub",
+          evidence: {
+            modules: ["shop/a.py"],
+            measures: { fan_in: 10, fan_out: 10, threshold: 10 },
+            used_by: [{ module: "shop/b.py", names: [] }],
+          },
+        },
+      ],
+    });
+    const fake = setup(null, { files: { [STRUCTURE]: withHub } });
+
+    expect(fake.files.get(STRUCTURE)).toContain('"kind":"hub"');
+    expect(() =>
+      validateFindings(JSON.parse(withHub), { name: "structure" }),
+    ).toThrow();
+
+    const { out } = await show(fake);
+    const written = JSON.parse(fake.files.get(STRUCTURE) as string);
+
+    expect(written.settings).not.toHaveProperty("hub_threshold");
+    expect(
+      written.findings.map((one: { kind: string }) => one.kind),
+    ).not.toContain("hub");
+    expect(out).not.toContain("hub");
+  });
+
   it("regenerates when the config's settings differ from the file's", async () => {
     const fake = setup(null);
 
     await show(fake);
 
-    const withConfig = setup("sensors:\n  structure:\n    hub_threshold: 4\n", {
-      files: { [STRUCTURE]: fake.files.get(STRUCTURE) as string },
-    });
+    const withConfig = setup(
+      "sensors:\n  structure:\n    warnings:\n      orphan: false\n",
+      {
+        files: { [STRUCTURE]: fake.files.get(STRUCTURE) as string },
+      },
+    );
 
     await show(withConfig);
 
     expect(
-      JSON.parse(withConfig.files.get(STRUCTURE) as string).settings
-        .hub_threshold,
-    ).toBe(4);
+      JSON.parse(withConfig.files.get(STRUCTURE) as string).settings.warnings
+        .orphan,
+    ).toBe(false);
   });
 
   it("regenerates every time on a modified tree", async () => {
@@ -1054,14 +1065,6 @@ describe("show and modules read the findings files", () => {
     expect(
       fake.writes.filter((path) => path.endsWith("structure.json.tmp")).length,
     ).toBe(4);
-  });
-
-  it("does not write under --hub-threshold", async () => {
-    const fake = setup(null);
-
-    await show(fake, "--hub-threshold", "2");
-
-    expect(fake.files.has(STRUCTURE)).toBe(false);
   });
 
   it("reads nothing for structure when it is off", async () => {
@@ -1125,7 +1128,10 @@ describe("a findings file for a sensor no longer registered", () => {
     await sense(fake);
     expect(fake.files.has(FAKE)).toBe(true);
 
-    fake.files.set(CONFIG, "sensors:\n  structure:\n    hub_threshold: 10\n");
+    fake.files.set(
+      CONFIG,
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
+    );
 
     const { err, out } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
@@ -1162,9 +1168,12 @@ describe("a findings file for a shipped sensor with no config entry", () => {
     fakeDocument({ sensor: { name: "crap", version: "1" } });
 
   it("is kept by check and read by show", async () => {
-    const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n", {
-      files: { [CRAP]: crapDocument() },
-    });
+    const fake = setup(
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
+      {
+        files: { [CRAP]: crapDocument() },
+      },
+    );
 
     const { err } = await check(fake, "--json");
 
@@ -1182,7 +1191,9 @@ describe("a findings file for a shipped sensor with no config entry", () => {
   });
 
   it("is not reported missing when it never ran", async () => {
-    const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n");
+    const fake = setup(
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
+    );
     const { out } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
 
@@ -1192,9 +1203,12 @@ describe("a findings file for a shipped sensor with no config entry", () => {
   });
 
   it("still removes a third-party name that is neither registered nor shipped", async () => {
-    const fake = setup("sensors:\n  structure:\n    hub_threshold: 10\n", {
-      files: { [FAKE]: fakeDocument() },
-    });
+    const fake = setup(
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
+      {
+        files: { [FAKE]: fakeDocument() },
+      },
+    );
 
     expect((await check(fake, "--json")).err).toContain(
       "removed unregistered fake-sensor\n",

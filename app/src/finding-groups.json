@@ -13,12 +13,6 @@
       "todo": "Break the loop: move the shared piece out, or invert one import."
     },
     {
-      "key": "kind:hub",
-      "name": "Hub",
-      "means": "A module many others import that itself imports many: any change ripples both ways.",
-      "todo": "Check what importers actually use. If most take one small thing, move it out; otherwise split the module."
-    },
-    {
       "key": "kind:orphan",
       "name": "Orphan",
       "means": "A module no other module imports that is not an entry point. When only test files import it, the card says so.",

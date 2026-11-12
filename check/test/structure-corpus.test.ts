@@ -114,14 +114,12 @@ function scanFrom(description: ScanDescription): Scan {
 function settingsFrom(description: ScanDescription): StructureSettings {
   const off = {
     cycle: false,
-    hub: false,
     orphan: false,
     policy_drift: false,
     unused_exports: false,
   };
 
   return {
-    hub_threshold: 10,
     entry_points: description.settings.entry_points ?? [],
     warnings: { ...off, ...description.settings.warnings },
   };
@@ -152,8 +150,8 @@ function label(one: Case): string {
 }
 
 describe("structure corpus", () => {
-  it("holds 19 labelled cases and 11 folder metric rows", () => {
-    expect(expected.cases).toHaveLength(19);
+  it("holds 16 labelled cases and 11 folder metric rows", () => {
+    expect(expected.cases).toHaveLength(16);
     expect(expected.folder_metrics).toHaveLength(11);
   });
 

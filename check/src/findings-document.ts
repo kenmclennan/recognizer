@@ -29,7 +29,6 @@ export interface FindingRecord {
       test_files?: string[];
     }[];
     measures?: Record<string, number>;
-    used_by?: { module: string; names: string[] }[];
     test_importers?: TestImporter[];
     producer?: string;
   };

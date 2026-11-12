@@ -30,7 +30,6 @@ const FILES = [
 const PINNED = [
   "order.py imports memory_store.py, which the policy forbids: domain may not use adapters.",
   "money.py and order.py import each other.",
-  "place.py is imported by 3 modules and imports 3; it is 40 lines with 4 members; the limit is 3.",
   "audit.py is imported by nothing and is not an entry point.",
   "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them.",
   "The policy names app/legacy/**, which matches no module.",
@@ -99,7 +98,7 @@ describe("unused_exports test-only names", () => {
 });
 
 describe("the committed findings examples", () => {
-  it("render exactly the 14 pinned sentences", () => {
+  it("render exactly the 13 pinned sentences", () => {
     const rows = FILES.flatMap((name) => findingRows([load(name)]));
 
     expect(
@@ -264,7 +263,7 @@ describe("sentenceOf", () => {
   });
 
   it("falls back to the summary when required evidence is absent", () => {
-    expect(sentence({ kind: "hub", evidence: { modules: ["x/a.py"] } })).toBe(
+    expect(sentence({ kind: "orphan", evidence: { modules: [] } })).toBe(
       "the summary",
     );
   });
@@ -401,23 +400,5 @@ describe("the duplication sentence", () => {
     expect(family(members)).toBe(
       "22 functions repeat one structure: m0 in f0.py, m1 in f1.py, m2 in f2.py and 19 more (30 lines).",
     );
-  });
-});
-
-describe("hub sentence without size", () => {
-  it("keeps today's sentence for a record from an older file", () => {
-    expect(
-      sentenceOf({
-        record: record({
-          id: "hub:app/place.py",
-          kind: "hub",
-          evidence: {
-            modules: ["app/place.py"],
-            measures: { fan_in: 3, fan_out: 3, threshold: 3 },
-          },
-        }),
-        reported: false,
-      }),
-    ).toBe("place.py is imported by 3 modules and imports 3; the limit is 3.");
   });
 });

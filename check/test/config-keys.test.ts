@@ -149,11 +149,9 @@ describe("the core's own key table", () => {
       "sensors.structure.warnings.orphan.entry_points",
     );
 
-    expect(seen.length).toBeGreaterThanOrEqual(7);
+    expect(seen.length).toBeGreaterThanOrEqual(6);
     expect(CORE_KEYS.keys.map((entry) => entry.key).sort()).toEqual(
-      [...seen, "sensors.structure.hub_threshold"]
-        .filter((key, at, all) => all.indexOf(key) === at)
-        .sort(),
+      [...seen].filter((key, at, all) => all.indexOf(key) === at).sort(),
     );
   });
 

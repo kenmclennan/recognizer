@@ -14,7 +14,6 @@ const COLUMNS = [
   "modules",
   "in-repo edges",
   "foreign self-edges",
-  "hub",
   "orphan",
 ];
 
@@ -51,7 +50,6 @@ export function summarise(scan, check) {
       (edge) =>
         edge.to.startsWith("foreign:") && names.has(edge.to.slice("foreign:".length)),
     ).length,
-    hubs: warnings.filter((warning) => warning.id === "hub").length,
     orphans: orphans.length,
     orphanModules: orphans,
   };
@@ -64,7 +62,6 @@ export function formatRow(repository, run, summary) {
     summary.modules,
     summary.inRepoEdges,
     summary.foreignSelfEdges,
-    summary.hubs,
     summary.orphans,
   ].join(" | ");
 }

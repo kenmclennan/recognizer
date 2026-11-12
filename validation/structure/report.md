@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**pass.** Every hand-computed metric (88 values over 11 folders) and all 19 labelled cases agree with the sensor, and the Python scanner's import graph matched grimp's once re-exports were accounted for. Over lightcycle's current scan the sensor reports one cycle, two hubs and one orphan, each traceable to its imports. The two defects this report first found, rings of three or more folders (REC-185) and a source module named `test_*.py` skipped by the Python scanner (REC-195), are both fixed.
+**pass.** Every hand-computed metric (88 values over 11 folders) and all 16 labelled cases agree with the sensor, and the Python scanner's import graph matched grimp's once re-exports were accounted for. Over lightcycle's current scan the sensor reports one cycle and one orphan, each traceable to its imports. The two defects this report first found, rings of three or more folders (REC-185) and a source module named `test_*.py` skipped by the Python scanner (REC-195), are both fixed.
 
 ## Method
 
@@ -15,11 +15,11 @@
 
 ### Warnings against hand labels
 
-19 cases: 5 cycle, 3 hub, 9 orphan and 2 for declared child modules. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; hub 10 and 10 against 10 and 9 and 9 and 10; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; the `folder-foreign-only` scan holds a folder with only foreign imports, whose instability is unknown.
+16 cases: 5 cycle, 9 orphan and 2 for declared child modules. For each warning kind there is a case that must fire and a near miss that must not: the two-module cycle and the ring of three against a chain, a self-import and a cycle only through a foreign node; the orphan against a test file, an `__init__`, a literal policy path and an `entry_points` match; the `folder-foreign-only` scan holds a folder with only foreign imports, whose instability is unknown.
 
 | result                                             | count |
 | -------------------------------------------------- | ----- |
-| cases that agree                                   | 19    |
+| cases that agree                                   | 16    |
 | cases that disagree                                | 0     |
 | findings the sensor produced that no label expects | 0     |
 

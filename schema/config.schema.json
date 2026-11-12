@@ -40,18 +40,11 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "hub_threshold": {
-                  "type": "integer",
-                  "minimum": 1
-                },
                 "warnings": {
                   "type": "object",
                   "additionalProperties": false,
                   "properties": {
                     "cycle": {
-                      "type": "boolean"
-                    },
-                    "hub": {
                       "type": "boolean"
                     },
                     "policy_drift": {

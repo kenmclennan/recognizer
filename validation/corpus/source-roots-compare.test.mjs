@@ -58,7 +58,7 @@ describe("selfPackageNames", () => {
 describe("summarise", () => {
   it("counts foreign self-edges before and not after", () => {
     const before = summarise(BEFORE, {
-      warnings: [warning("orphan", ["src/pkg/views.py"]), warning("hub", ["x"])],
+      warnings: [warning("orphan", ["src/pkg/views.py"])],
     });
     const after = summarise(AFTER, { warnings: [] });
 
@@ -66,7 +66,6 @@ describe("summarise", () => {
       modules: 3,
       inRepoEdges: 1,
       foreignSelfEdges: 1,
-      hubs: 1,
       orphans: 1,
       orphanModules: ["src/pkg/views.py"],
     });
@@ -74,7 +73,6 @@ describe("summarise", () => {
       modules: 3,
       inRepoEdges: 2,
       foreignSelfEdges: 0,
-      hubs: 0,
       orphans: 0,
     });
   });
@@ -90,9 +88,9 @@ describe("formatRow and formatTable", () => {
     ]);
 
     expect(table.split("\n")).toEqual([
-      "repository | run | modules | in-repo edges | foreign self-edges | hub | orphan",
-      "flask | before | 3 | 1 | 1 | 0 | 1",
-      "flask | after | 3 | 2 | 0 | 0 | 0",
+      "repository | run | modules | in-repo edges | foreign self-edges | orphan",
+      "flask | before | 3 | 1 | 1 | 1",
+      "flask | after | 3 | 2 | 0 | 0",
     ]);
   });
 });

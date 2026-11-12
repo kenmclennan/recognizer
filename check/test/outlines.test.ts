@@ -59,8 +59,6 @@ describe("outlines and calls", () => {
 
     expect(privateMembers.length).toBeGreaterThan(0);
     expect(check(full, policy, null)).toEqual(check(bare, policy, null));
-    expect(analyse(validateScan(full), { hub: 3 })).toEqual(
-      analyse(validateScan(bare), { hub: 3 }),
-    );
+    expect(analyse(validateScan(full))).toEqual(analyse(validateScan(bare)));
   });
 });

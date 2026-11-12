@@ -3,11 +3,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
-import {
-  type FolderMeasures,
-  type FolderMetrics,
-  measureFolders,
-} from "../src/folder-metrics.js";
 import { parsePolicy, validateScan } from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
@@ -396,14 +391,13 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"hub_threshold":10,"entry_points":[],"warnings":{"cycle":true,"hub":true,"orphan":true,"policy_drift":true,"unused_exports":false}}',
+      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"policy_drift":true,"unused_exports":false}}',
     );
     expect(document.sensor.version).toBe("14");
   });
 
   it("describes the settings with and without entry points", () => {
-    const base =
-      "hub_threshold 10, cycle on, hub on, orphan on, policy_drift on, unused_exports off";
+    const base = "cycle on, orphan on, policy_drift on, unused_exports off";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -456,6 +450,47 @@ describe("the config examples", () => {
   });
 });
 
+describe("the removed hub keys", () => {
+  it.each([
+    ["hub_threshold", "sensors:\n  structure:\n    hub_threshold: 6\n"],
+    ["hub_threshold", "sensors:\n  structure:\n    hub_threshold: 0\n"],
+    ["hub", "sensors:\n  structure:\n    warnings:\n      hub: true\n"],
+    ["hub", "sensors:\n  structure:\n    warnings:\n      hub: false\n"],
+  ])("refuses %s in %j and says it was removed", (key, text) => {
+    expect(() => parseConfig(text)).toThrow(InputError);
+    expect(() => parseConfig(text)).toThrow(
+      new RegExp(`structure/(warnings/)?${key} was removed`),
+    );
+  });
+
+  it("carries neither key in the defaults, the description or the document", () => {
+    const { document } = structureSensor(
+      [scanOf([], ["a.py"])],
+      null,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    );
+    const settings = document.settings as {
+      warnings: Record<string, unknown>;
+    };
+
+    expect(Object.keys(settings)[0]).toBe("entry_points");
+    expect(Object.keys(settings.warnings)).toEqual([
+      "cycle",
+      "orphan",
+      "policy_drift",
+      "unused_exports",
+    ]);
+    expect(
+      JSON.stringify([
+        DEFAULT_STRUCTURE_SETTINGS,
+        describeSettings(DEFAULT_STRUCTURE_SETTINGS),
+        settings,
+      ]),
+    ).not.toMatch(/hub/);
+  });
+});
+
 describe("the removed folder_cycle warning", () => {
   it.each(["true", "false"])(
     "refuses a config that sets folder_cycle: %s and says it was removed",
@@ -481,7 +516,7 @@ describe("the removed structure keys", () => {
   it.each([
     "sensors:\n  structure:\n    distance_threshold: 0.4\n",
     "sensors:\n  structure:\n    distance_threshold: 1.5\n",
-    "sensors:\n  structure:\n    hub_threshold: 6\n    distance_threshold: 0.9\n",
+    "sensors:\n  structure:\n    distance_threshold: 0.9\n",
   ])("refuses %j and says distance_threshold was removed", (text) => {
     expect(() => parseConfig(text)).toThrow(InputError);
     expect(() => parseConfig(text)).toThrow(/distance_threshold was removed/);
@@ -578,7 +613,6 @@ describe("switches for the package metric warnings", () => {
         ...DEFAULT_STRUCTURE_SETTINGS,
         warnings: {
           cycle: on,
-          hub: on,
           orphan: on,
           policy_drift: on,
           unused_exports: false,
@@ -649,6 +683,8 @@ describe("the removed stable dependencies keys", () => {
     "sensors-retired-instability-gap.yaml",
     "sensors-retired-composition-roots.yaml",
     "sensors-retired-stable-dependencies.yaml",
+    "sensors-retired-hub-threshold.yaml",
+    "sensors-retired-hub.yaml",
   ])("refuses the example %s as removed", (name) => {
     const text = readFileSync(
       join(REPO, "schema/config-examples/invalid", name),
@@ -672,7 +708,7 @@ describe("the removed stable dependencies keys", () => {
       settings,
     ]);
 
-    expect(Object.keys(settings)[0]).toBe("hub_threshold");
+    expect(Object.keys(settings)[0]).toBe("entry_points");
     expect(text).not.toMatch(
       /instability_gap|composition_roots|stable_dependencies/,
     );
@@ -1553,8 +1589,7 @@ describe("unused_exports", () => {
   });
 
   it("prints the switch after policy_drift", () => {
-    const base =
-      "hub_threshold 10, cycle on, hub on, orphan on, policy_drift on";
+    const base = "cycle on, orphan on, policy_drift on";
 
     expect(
       describeSettings({

@@ -57,8 +57,8 @@ export const COMMANDS: Command[] = [
     summary:
       "report violations, baseline growth, metrics and warnings for the repository's scan, or for a scan file",
     usage: [
-      "recognizer check [<module>...] [--repository <dir>] [--policy <policy.yaml>] [--baseline <file>] [--update-baseline|--init-baseline] [--hub-threshold <n>] [--json]",
-      "recognizer check --scan <scan.json> [--policy <policy.yaml>] [--baseline <file>] [--update-baseline|--init-baseline] [--hub-threshold <n>]",
+      "recognizer check [<module>...] [--repository <dir>] [--policy <policy.yaml>] [--baseline <file>] [--update-baseline|--init-baseline] [--json]",
+      "recognizer check --scan <scan.json> [--policy <policy.yaml>] [--baseline <file>] [--update-baseline|--init-baseline]",
     ].join("\n"),
     arguments: [
       {
@@ -98,18 +98,13 @@ export const COMMANDS: Command[] = [
           "write the baseline from today's violations; refused with exit 2 while a registered sensor's results are out of date or invalid, naming each to rerun with recognizer scan --sense",
       },
       {
-        flag: "--hub-threshold <n>",
-        description:
-          "a module is a hub when its fan-in and its fan-out are each at least this count; overrides sensors.structure.hub_threshold for this run, and the structure findings file records it",
-      },
-      {
         flag: "--json",
         description: "print the report document instead of text",
       },
     ],
     output: {
       text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs the structure sensor, writes its findings file in .recognizer/cache/findings/ and reads every current findings file there; it never runs a registered sensor, so run `recognizer scan --sense all` first when their findings should count",
-      json: "the report document: violations, new, fixed, unranked, baseline, thresholds, warnings and metrics, and in repository mode a sensors list of { name, status, reason?, settings? } where a registered sensor is ran only when its file is current, else stale or missing; always JSON on stdout with --scan, and with --json in repository mode",
+      json: "the report document: violations, new, fixed, unranked, baseline, warnings and metrics, and in repository mode a sensors list of { name, status, reason?, settings? } where a registered sensor is ran only when its file is current, else stale or missing; always JSON on stdout with --scan, and with --json in repository mode",
     },
     exitCodes: [
       { code: 0, meaning: "no new violation, or no policy" },
@@ -407,8 +402,7 @@ export const COMMANDS: Command[] = [
     name: "show",
     summary:
       "show what the explorer's Contents tab shows for a module: members, signatures, responsibility and findings",
-    usage:
-      "recognizer show <module> [--private] [--hub-threshold <n>] [--repository <dir>] [--json]",
+    usage: "recognizer show <module> [--private] [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<module>",
@@ -420,11 +414,6 @@ export const COMMANDS: Command[] = [
         flag: "--private",
         description:
           "list private members, fields and methods too; without it they are counted as hidden",
-      },
-      {
-        flag: "--hub-threshold <n>",
-        description:
-          "a module is a hub finding when its fan-in and its fan-out are each at least this count; defaults to 10",
       },
       ...REPOSITORY_OPTIONS,
     ],
@@ -446,7 +435,7 @@ export const COMMANDS: Command[] = [
     summary:
       "list the modules with their uses, used-by and finding counts, filtered and sorted",
     usage:
-      "recognizer modules [--folder <path>] [--findings] [--min-uses <n>] [--min-used-by <n>] [--sort <id|uses|used-by|findings>] [--reverse] [--limit <n>] [--hub-threshold <n>] [--repository <dir>] [--json]",
+      "recognizer modules [--folder <path>] [--findings] [--min-uses <n>] [--min-used-by <n>] [--sort <id|uses|used-by|findings>] [--reverse] [--limit <n>] [--repository <dir>] [--json]",
     arguments: [],
     options: [
       {
@@ -474,11 +463,6 @@ export const COMMANDS: Command[] = [
       {
         flag: "--limit <n>",
         description: "keep the first n rows after sorting (integer >= 1)",
-      },
-      {
-        flag: "--hub-threshold <n>",
-        description:
-          "a module is a hub finding when its fan-in and its fan-out are each at least this count; defaults to 10",
       },
       ...REPOSITORY_OPTIONS,
     ],
