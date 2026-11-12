@@ -431,6 +431,38 @@ pub fn check_modules(modules: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+pub fn check_suites(suites: &BTreeMap<String, Vec<String>>) -> Result<(), String> {
+    let sensors: Vec<String> = suites.keys().cloned().collect();
+
+    crate::sensors::check_names(&sensors)?;
+
+    for names in suites.values() {
+        if names.is_empty() {
+            return Err("a sensor's suite list is empty".to_string());
+        }
+
+        if names
+            .iter()
+            .any(|name| name.is_empty() || name.chars().count() > 200 || name.contains('\0'))
+        {
+            return Err("a suite name is empty, over 200 characters or holds a NUL".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+fn suites_file(folder: &Path, label: &str) -> PathBuf {
+    let safe: String = label
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
+
+    folder
+        .join(MODULES_DIR)
+        .join(format!("scan-suites-{safe}.json"))
+}
+
 fn modules_file(folder: &Path, label: &str) -> PathBuf {
     let safe: String = label
         .chars()
@@ -730,7 +762,7 @@ fn now_epoch() -> i64 {
         .unwrap_or(0)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, dead_code)]
 pub fn run_with(
     runs: &ScanRuns,
     label: &str,
@@ -743,6 +775,41 @@ pub fn run_with(
     confirm_above: Option<f64>,
     prepare: impl FnOnce(),
 ) -> ScanRun {
+    run_with_suites(
+        runs,
+        label,
+        folder,
+        runner,
+        command,
+        describe,
+        sense,
+        modules,
+        None,
+        confirm_above,
+        prepare,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_with_suites(
+    runs: &ScanRuns,
+    label: &str,
+    folder: &Path,
+    runner: &ToolRunner,
+    command: &str,
+    describe: Describe,
+    sense: &[String],
+    modules: Option<&[String]>,
+    suites: Option<&BTreeMap<String, Vec<String>>>,
+    confirm_above: Option<f64>,
+    prepare: impl FnOnce(),
+) -> ScanRun {
+    if let Some(plan) = suites {
+        if let Err(reason) = check_suites(plan) {
+            return ScanRun::Refused { reason };
+        }
+    }
+
     if let Some(ids) = modules {
         if let Err(reason) = check_modules(ids) {
             return ScanRun::Refused { reason };
@@ -790,6 +857,26 @@ pub fn run_with(
         }
     }
 
+    let suites_path = suites.map(|_| suites_file(folder, label));
+
+    if let (Some(path), Some(plan)) = (&suites_path, suites) {
+        let written = serde_json::to_string(plan)
+            .map_err(|error| error.to_string())
+            .and_then(|text| {
+                write_atomic(path, &text).map_err(|error| format!("{}: {error}", path.display()))
+            });
+
+        if let Err(reason) = written {
+            if let Some(path) = &file {
+                let _ = fs::remove_file(path);
+            }
+
+            runs.finish(label);
+
+            return ScanRun::Refused { reason };
+        }
+    }
+
     let result = spawn_and_stream(
         runs,
         label,
@@ -799,10 +886,11 @@ pub fn run_with(
         describe,
         sense,
         file.as_deref(),
+        suites_path.as_deref(),
         confirm_above,
     );
 
-    if let Some(path) = &file {
+    for path in [&file, &suites_path].into_iter().flatten() {
         let _ = fs::remove_file(path);
     }
 
@@ -821,6 +909,7 @@ fn spawn_and_stream(
     describe: Describe,
     sense: &[String],
     modules_file: Option<&Path>,
+    suites_file: Option<&Path>,
     confirm_above: Option<f64>,
 ) -> ScanRun {
     let mut process = match runner.command(command) {
@@ -834,6 +923,11 @@ fn spawn_and_stream(
         .args(
             modules_file
                 .map(|path| vec!["--modules".to_string(), path.display().to_string()])
+                .unwrap_or_default(),
+        )
+        .args(
+            suites_file
+                .map(|path| vec!["--suites".to_string(), path.display().to_string()])
                 .unwrap_or_default(),
         )
         .args(
@@ -1206,6 +1300,92 @@ mod tests {
             .path()
             .join(".recognizer/cache/scan-modules-w-1.json.tmp")
             .exists());
+    }
+
+    #[cfg(unix)]
+    fn collect_suited(
+        folder: &Path,
+        command: &Path,
+        suites: &BTreeMap<String, Vec<String>>,
+    ) -> ScanRun {
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+
+        run_with_suites(
+            &ScanRuns::default(),
+            "w-1",
+            folder,
+            &runner,
+            &command.display().to_string(),
+            Describe::Stale,
+            &["crap".to_string()],
+            None,
+            Some(suites),
+            None,
+            || {},
+        )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_suites_reach_the_command_as_a_file_that_is_removed_after_the_run() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(
+            dir.path(),
+            &format!(
+                r#"for last; do :; done; echo "$@" > {cap}/capture.txt; cat "$last" >> {cap}/capture.txt; echo >> {cap}/capture.txt; echo '{{"event":"summary","commit":"c","phases":[{{"phase":"describe","entries":[{{}}]}}],"log":null}}'"#,
+                cap = dir.path().display()
+            ),
+        );
+        let suites = BTreeMap::from([(
+            "crap".to_string(),
+            vec!["unit".to_string(), "web".to_string()],
+        )]);
+        let result = collect_suited(dir.path(), &command, &suites);
+        let lines: Vec<String> = captured(dir.path())
+            .into_iter()
+            .filter(|line| !line.is_empty())
+            .collect();
+        let file = dir.path().join(".recognizer/cache/scan-suites-w-1.json");
+
+        assert!(matches!(result, ScanRun::Finished { exit_code: 0, .. }));
+        assert_eq!(
+            lines,
+            vec![
+                format!(
+                    "scan {} --json --describe --sense crap --suites {}",
+                    dir.path().display(),
+                    file.display()
+                ),
+                r#"{"crap":["unit","web"]}"#.to_string(),
+            ]
+        );
+        assert!(!file.exists());
+        assert!(!dir
+            .path()
+            .join(".recognizer/cache/scan-suites-w-1.json.tmp")
+            .exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_bad_suite_plan_is_refused_before_anything_is_written() {
+        let dir = TempDir::new().unwrap();
+        let ran = dir.path().join("ran");
+        let command = fake_command(dir.path(), &format!("touch {}", ran.display()));
+
+        for bad in [
+            BTreeMap::from([("crap".to_string(), vec![])]),
+            BTreeMap::from([("crap".to_string(), vec![String::new()])]),
+            BTreeMap::from([("$(x)".to_string(), vec!["unit".to_string()])]),
+        ] {
+            let result = collect_suited(dir.path(), &command, &bad);
+
+            assert!(matches!(result, ScanRun::Refused { .. }));
+            assert!(!ran.exists());
+        }
+
+        assert!(!dir.path().join(".recognizer").exists());
     }
 
     #[cfg(unix)]
