@@ -36,13 +36,15 @@ function setup(
   return fake;
 }
 
+const RETIRED = "sensors:\n  structure:\n    distance_threshold: 0.5\n";
+
 const scannerRuns = (fake: ReturnType<typeof setup>) =>
   fake.calls.filter((call) => call.command === PYTHON).length;
 
 describe("freshScans", () => {
   it("reuses a cache taken at the current commit with a clean tree", () => {
     const fake = setup();
-    const result = freshScans(fake.io, ROOT);
+    const result = freshScans(fake.io, ROOT, true);
 
     expect(result.scanned).toBe(false);
     expect(result.scans).toHaveLength(1);
@@ -52,20 +54,20 @@ describe("freshScans", () => {
   it("scans when the commit is new", () => {
     const fake = setup({ cache: cached("old") });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
     expect(scannerRuns(fake)).toBe(1);
   });
 
   it("scans when the tree is dirty", () => {
     const fake = setup({ status: " M a.py\n" });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
   });
 
   it("ignores a dirty path under .recognizer by asking git to exclude it", () => {
     const fake = setup();
 
-    freshScans(fake.io, ROOT);
+    freshScans(fake.io, ROOT, true);
 
     const status = fake.calls.find((call) => call.args.includes("status"));
 
@@ -75,19 +77,19 @@ describe("freshScans", () => {
   it("scans when the cache for a detected language is missing", () => {
     const fake = setup({ cache: null });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
   });
 
   it("scans when the cache has a null commit", () => {
     const fake = setup({ cache: cached(null) });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
   });
 
   it("scans when one of two detected languages has no cache", () => {
     const fake = setup({ files: { [`${ROOT}/b.ts`]: "" } });
 
-    expect(() => freshScans(fake.io, ROOT)).toThrow(InputError);
+    expect(() => freshScans(fake.io, ROOT, true)).toThrow(InputError);
     expect(scannerRuns(fake)).toBe(1);
   });
 
@@ -103,7 +105,7 @@ describe("freshScans", () => {
     );
     const fake = setup({ cache, files: { [`${ROOT}/a.py`]: "x = 1\n" } });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(false);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(false);
     expect(scannerRuns(fake)).toBe(0);
   });
 
@@ -112,7 +114,7 @@ describe("freshScans", () => {
       cache: scanJson(2, 1, { commit: COMMIT, modified: true }, "  "),
     });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
   });
 
   it("scans when the modified flag is unknown", () => {
@@ -120,7 +122,7 @@ describe("freshScans", () => {
       cache: scanJson(2, 1, { commit: COMMIT, modified: null }, "  "),
     });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
   });
 
   it("scans when a recorded hash differs from the file now (dirty then reverted)", () => {
@@ -135,7 +137,7 @@ describe("freshScans", () => {
     );
     const fake = setup({ cache, files: { [`${ROOT}/a.py`]: "x = 1\n" } });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
     expect(scannerRuns(fake)).toBe(1);
   });
 
@@ -148,7 +150,7 @@ describe("freshScans", () => {
     );
     const fake = setup({ cache });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
   });
 
   it("scans when the cache is a version-3 scan", () => {
@@ -156,7 +158,7 @@ describe("freshScans", () => {
       cache: scanJson(2, 1, { commit: COMMIT, schema_version: 3 }, "  "),
     });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
   });
 
   it("rescans both languages when only one cache's hashes match", () => {
@@ -186,7 +188,7 @@ describe("freshScans", () => {
       },
     });
 
-    expect(freshScans(fake.io, ROOT).scanned).toBe(true);
+    expect(freshScans(fake.io, ROOT, true).scanned).toBe(true);
     expect(scannerRuns(fake)).toBe(1);
     expect(
       fake.calls.filter((call) => call.command === TYPESCRIPT),
@@ -196,7 +198,7 @@ describe("freshScans", () => {
   it("fails with an InputError when no language is detected", () => {
     const fake = fakeIo({ commit: COMMIT, scanners: scanner });
 
-    expect(() => freshScans(fake.io, ROOT)).toThrow(InputError);
+    expect(() => freshScans(fake.io, ROOT, true)).toThrow(InputError);
   });
 
   it("fails with an InputError when a scanner fails", () => {
@@ -206,13 +208,13 @@ describe("freshScans", () => {
       scanners: { [PYTHON]: { status: 1, stderr: "boom" } },
     });
 
-    expect(() => freshScans(fake.io, ROOT)).toThrow(InputError);
+    expect(() => freshScans(fake.io, ROOT, true)).toThrow(InputError);
   });
 
   it("leaves stdout empty and puts the scan summary on stderr", () => {
     const fake = setup({ cache: null });
 
-    freshScans(fake.io, ROOT);
+    freshScans(fake.io, ROOT, true);
 
     expect(fake.out()).toBe("");
     expect(fake.err()).toContain("python: 2 modules, 1 edges");
@@ -221,7 +223,7 @@ describe("freshScans", () => {
   it("rejects a root that is not a directory", () => {
     const fake = setup();
 
-    expect(() => freshScans(fake.io, `${ROOT}/a.py`)).toThrow(InputError);
+    expect(() => freshScans(fake.io, `${ROOT}/a.py`, true)).toThrow(InputError);
   });
 
   it.each([
@@ -239,8 +241,46 @@ describe("freshScans", () => {
       files: { [`${ROOT}/.recognizer/config.yaml`]: config },
     });
 
-    expect(() => freshScans(fake.io, ROOT)).toThrow(InputError);
-    expect(() => freshScans(fake.io, ROOT)).toThrow(new RegExp(name));
+    expect(() => freshScans(fake.io, ROOT, true)).toThrow(InputError);
+    expect(() => freshScans(fake.io, ROOT, true)).toThrow(new RegExp(name));
+    expect(scannerRuns(fake)).toBe(0);
+  });
+
+  it("extracts without reading a retired key when the command reads no config", () => {
+    const fake = setup({
+      cache: null,
+      files: { [`${ROOT}/.recognizer/config.yaml`]: RETIRED },
+    });
+
+    const result = freshScans(fake.io, ROOT, false);
+
+    expect(result.scanned).toBe(true);
+    expect(scannerRuns(fake)).toBe(1);
+    expect(fake.files.has(CACHE)).toBe(true);
+    expect(
+      fake.files.has(`${ROOT}/.recognizer/cache/findings/structure.json`),
+    ).toBe(false);
+  });
+
+  it("re-extracts a stale cache without reading a retired key when the command reads no config", () => {
+    const fake = setup({
+      cache: cached("old"),
+      files: { [`${ROOT}/.recognizer/config.yaml`]: RETIRED },
+    });
+
+    expect(freshScans(fake.io, ROOT, false).scanned).toBe(true);
+    expect(scannerRuns(fake)).toBe(1);
+  });
+
+  it("refuses a retired key before any scanner runs when the command reads config", () => {
+    const fake = setup({
+      cache: null,
+      files: { [`${ROOT}/.recognizer/config.yaml`]: RETIRED },
+    });
+
+    expect(() => freshScans(fake.io, ROOT, true)).toThrow(
+      /distance_threshold was removed/,
+    );
     expect(scannerRuns(fake)).toBe(0);
   });
 });

@@ -106,7 +106,7 @@ export function runReport(argv: string[], io: Io): number {
       ? (parsed as Record<string, unknown>)
       : {};
   const { findings } = source;
-  const { scans } = freshScans(io, root);
+  const { scans } = freshScans(io, root, true);
   const completed = {
     findings_version: 2,
     sensor: { name, version: ownVersion(parsed) },

@@ -42,6 +42,7 @@ interface Loaded {
 function load(
   argv: string[],
   io: Io,
+  readsConfig: boolean,
   usage: string,
   arity: number,
   extra: Record<string, { type: "string" | "boolean" }>,
@@ -62,7 +63,7 @@ function load(
   }
 
   const root = resolve((values.repository as string | undefined) ?? ".");
-  const { scans } = freshScans(io, root);
+  const { scans } = freshScans(io, root, readsConfig);
 
   return {
     root,
@@ -109,7 +110,7 @@ function print(io: Io, loaded: Loaded, document: unknown, text: string[]) {
 const FIND_USAGE = "recognizer find <text> [--repository <dir>] [--json]";
 
 export function runFind(argv: string[], io: Io): number {
-  const loaded = load(argv, io, FIND_USAGE, 1, {});
+  const loaded = load(argv, io, false, FIND_USAGE, 1, {});
   const text = loaded.positionals[0] as string;
   const needle = text.toLowerCase();
   const modules: { id: string; kind: string }[] = [];
@@ -339,7 +340,7 @@ function showFolder(loaded: Loaded, io: Io, id: string): number {
 }
 
 export function runShow(argv: string[], io: Io): number {
-  const loaded = load(argv, io, SHOW_USAGE, 1, {
+  const loaded = load(argv, io, true, SHOW_USAGE, 1, {
     private: { type: "boolean" },
   });
   const id = loaded.positionals[0] as string;
@@ -447,7 +448,7 @@ function integer(raw: unknown, flag: string, minimum: number): number | null {
 }
 
 export function runModules(argv: string[], io: Io): number {
-  const loaded = load(argv, io, MODULES_USAGE, 0, {
+  const loaded = load(argv, io, true, MODULES_USAGE, 0, {
     folder: { type: "string" },
     findings: { type: "boolean" },
     "min-uses": { type: "string" },
