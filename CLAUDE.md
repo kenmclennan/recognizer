@@ -69,7 +69,7 @@ One repository, a directory per part:
 
 A fresh worktree has no `node_modules`. Run `npm ci` at the repository root before typecheck, tests or any `npm run` script; it covers every workspace. `npm run check` and `npm run check:app` start with `scripts/require-install.mjs`, which exits 1 with "run npm ci at the repository root" when `node_modules` is missing, stale or lacks a workspace. Run app tools and the `describers/claude` tests through their npm scripts, whose `pre*` hooks rebuild `check/dist`; a direct `tsc` or `vitest` call, and any test that spawns `check/dist/bin.js`, needs `npm run build -w recognizer` first.
 
-## Gate risks
+## Stack-specific gate and review risks
 
 - A test that needs a temp folder makes it with `makeTempDir` from `scripts/temp-dirs.mjs` (look tests use `look-page.ts`), so it is removed after the file; every suite runs under `scripts/assert-clean-tmpdir.mjs`, which fails on anything left in `TMPDIR`.
 - A removed-test check counts tests per file by this identity: vitest (`app/src`, `check/test`, `scripts`, `scanners/typescript/test`, `describers/claude/test`) by the full title path, the `describe` titles joined with the `it` or `test` title; Rust (`app/src-tauri/src`, `scanners/rust/tests`, any other `#[test]` file) by the test function's path, the module path plus the function name; pytest (`sensors/tests`, `scanners/python/tests`, `scanners/kotlin/tests`, `scanners/csharp/tests`) by the pytest nodeid, the file path plus the test function, and the class when there is one.
@@ -84,6 +84,7 @@ A fresh worktree has no `node_modules`. Run `npm ci` at the repository root befo
 - The `sensors` pytest suite takes 30 to 110 minutes on a pool worker under load, against about 5 minutes on CI, which runs it in full on every push. A writer changing `sensors` runs the test files that cover the modules it changed and their callers (`uv run --python 3.11 pytest tests/test_<area>*.py`), not the whole suite, and the closing note names the files run. A suite run is a foreground command with the longest timeout, never a backgrounded run polled with `sleep`.
 - A test that fails on its own vitest test or hook timeout under load is re-run once on its own, and the closing note reports both results. A gate step the run never reached is never reported as passed.
 - A test or hook that passes its own timeout, or waits on its own `setTimeout`, wraps the value in `scaledTimeout` from `scripts/pool-scale.mjs`, so it scales with the pool's load like vitest's defaults do.
+- Output from a command run through the login shell (`$SHELL -ilc`) carries tty warnings on Ubuntu CI ("can't access tty") that macOS does not print. A test or sensor that parses such output reads it from a line it marked itself (for example a `RESULT=` prefix), never the whole stream. Passing on a Mac proves nothing here; only the `ubuntu-latest` jobs show the failure.
 
 ## CI
 
