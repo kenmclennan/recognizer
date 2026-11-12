@@ -4,13 +4,25 @@ from pathlib import Path
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
 from recognizer_sensors.crap.lcov import Coverage, function_coverage
 from recognizer_sensors.functions import find_functions
-from recognizer_sensors.hashes import tests_hash
+from recognizer_sensors.hashes import scan_hashes, test_map
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
-from recognizer_sensors.testrun.suites import Suite, collect_suites, parse_suites
+from recognizer_sensors.testrun.records import (
+    composed_tests,
+    merged_entries,
+    new_entry,
+    read_entries,
+    record_document,
+    record_path,
+    recorded_inputs,
+    stored_coverage,
+    suites_array,
+    tests_owned_by,
+)
+from recognizer_sensors.testrun.suites import Suite, collect_suites, parse_suites, selected
 
 DEFAULTS = {
     "threshold": 30,
@@ -172,7 +184,46 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
     }
 
 
-def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
+def contributed(scans: list[Scan], part: Coverage, current: dict[str, str]) -> dict[str, str]:
+    return {
+        module.id: current[module.id]
+        for scan in scans
+        for module in scan.modules
+        if module.id in current and any(path in part for path in module.files)
+    }
+
+
+def fresh_entries(
+    repository: Path,
+    scans: list[Scan],
+    suites: tuple[Suite, ...],
+    results: dict[str, dict],
+    tests: dict[str, str],
+) -> dict[str, dict]:
+    current = scan_hashes(scans)
+    fresh = {}
+
+    for suite in suites:
+        result = results.get(suite.name)
+
+        if result is None:
+            continue
+
+        part = result["part"]
+        fresh[suite.name] = new_entry(
+            result["status"],
+            contributed(scans, part, current) if part is not None else {},
+            tests_owned_by(tests, suites, suite),
+            result["reason"],
+            coverage=part,
+        )
+
+    return fresh
+
+
+def run(
+    repository: Path, scans: list[Scan], settings: dict, names: list[str] | None = None
+) -> Outcome:
     if settings.get("suites") is None:
         raise Refusal(
             diagnose(
@@ -182,8 +233,15 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
             )
         )
 
-    coverage, diagnosis = collect_suites(
-        repository, scans, tuple(Suite(**item) for item in settings["suites"])
+    suites = tuple(Suite(**item) for item in settings["suites"])
+    chosen = {suite.name for suite in selected(suites, names)}
+    stored = read_entries(repository, "crap")
+    parts = {name: stored_coverage(entry) for name, entry in stored.items()}
+    results: dict[str, dict] = {}
+    coverage, diagnosis = collect_suites(repository, scans, suites, names, parts, results)
+    tests = test_map(repository, scans)
+    entries = merged_entries(
+        stored, fresh_entries(repository, scans, suites, results, tests), [s.name for s in suites]
     )
 
     findings = []
@@ -210,6 +268,9 @@ def run(repository: Path, scans: list[Scan], settings: dict) -> Outcome:
         findings,
         overlay,
         inputs=frozenset(inputs),
-        tests=tests_hash(repository, scans),
+        documents=[(record_path(repository, "crap"), record_document("crap", entries))],
+        tests=composed_tests(tests, suites, chosen, stored),
         diagnosis=diagnosis,
+        suites=suites_array(suites, entries),
+        recorded_inputs=recorded_inputs(suites, chosen, stored, scan_hashes(scans)),
     )

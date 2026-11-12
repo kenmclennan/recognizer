@@ -18,6 +18,7 @@ from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import MeasurementError, Refusal, SettingsError
+from recognizer_sensors.testrun.suites import Suite, selected
 
 RECURSION_LIMIT = 20000
 
@@ -48,6 +49,7 @@ def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--settings")
     parser.add_argument("--modules", type=Path)
+    parser.add_argument("--suites")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--guide", action="store_true")
@@ -71,6 +73,7 @@ def print_schema(args) -> int:
         or args.settings is not None
         or args.output is not None
         or args.modules is not None
+        or args.suites is not None
     )
 
     if args.name is not None or other:
@@ -102,6 +105,18 @@ def read_scope(path: Path) -> set[str] | None:
     return set(value)
 
 
+def read_suite_names(text: str) -> list[str] | None:
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return None
+
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+        return None
+
+    return value
+
+
 def is_dirty(root: Path) -> bool:
     try:
         result = subprocess.run(
@@ -116,8 +131,11 @@ def is_dirty(root: Path) -> bool:
     return result.returncode != 0 or bool(result.stdout.strip())
 
 
-def check(sensor, repository: Path, settings: dict, run: bool) -> int:
-    sys.stdout.write(json.dumps({"gaps": sensor.check(repository, settings, run)}) + "\n")
+def check(
+    sensor, repository: Path, settings: dict, run: bool, names: list[str] | None = None
+) -> int:
+    gaps = sensor.check(repository, settings, run, names)
+    sys.stdout.write(json.dumps({"gaps": gaps}) + "\n")
 
     return 0
 
@@ -156,6 +174,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.modules is not None and not sensor.scoped:
         return fail(f"{args.name} takes no module scope")
 
+    if args.suites is not None and not sensor.runs_tests:
+        return fail(f"{args.name} takes no test suites")
+
+    names = None
+
+    if args.suites is not None:
+        names = read_suite_names(args.suites)
+
+        if names is None:
+            return fail("--suites must be a JSON array of suite names")
+
     scope = None
 
     if args.modules is not None:
@@ -177,11 +206,17 @@ def main(argv: list[str] | None = None) -> int:
 
         return fail(str(error))
 
+    if names is not None:
+        try:
+            selected([Suite(**item) for item in settings.get("suites") or []], names)
+        except SettingsError as error:
+            return fail(str(error))
+
     if not args.repository.is_dir():
         return fail(f"--repository is not a directory: {args.repository}")
 
     if args.check:
-        return check(sensor, args.repository, settings, args.run)
+        return check(sensor, args.repository, settings, args.run, names)
 
     commit = args.commit if args.commit else resolve_commit(args.repository)
 
@@ -202,6 +237,7 @@ def main(argv: list[str] | None = None) -> int:
             write_atomically(render(document), path)
 
         inputs = inputs_map(outcome.inputs, scan_hashes(scans))
+        inputs.update({m: h for m, h in outcome.recorded_inputs.items() if m in inputs})
         progress = {"measured": outcome.measured, "total": outcome.total}
         document = build_document(
             args.name,
@@ -218,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
             progress if outcome.total > 0 else None,
             outcome.excluded,
             outcome.unowned,
+            outcome.suites,
         )
 
         if outcome.overlay is not None:
@@ -234,6 +271,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         extra = {"modules": scope} if sensor.scoped else {}
+
+        if sensor.runs_tests and names is not None:
+            extra["names"] = names
 
         if sensor.checkpoints:
             extra["checkpoint"] = lambda partial: emit(partial, False)

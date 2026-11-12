@@ -16,6 +16,7 @@ from recognizer_sensors.crap.sensor import parse_settings
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.parsing import parse
+from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import SettingsError
 
 FIXTURE = REPOSITORY / "fixtures" / "crap" / "sample"
@@ -646,6 +647,7 @@ def test_only_the_findings_and_the_overlay_are_written(sample, tmp_path):
     assert changed == {
         ".recognizer/cache/overlays/crap.json",
         ".recognizer/cache/coverage/last-run.log",
+        ".recognizer/cache/suites/crap.json",
     }
     assert (tmp_path / "out.json").exists()
 
@@ -677,9 +679,12 @@ def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
             env={"PYTHONHASHSEED": seed, "PATH": "/usr/bin:/bin", "SHELL": "/bin/sh"},
         )
 
-        return (tmp_path / name).read_bytes(), (
-            sample / ".recognizer/cache/overlays/crap.json"
-        ).read_bytes()
+        document = json.loads((tmp_path / name).read_text())
+
+        for entry in document["suites"]:
+            entry["ran_at"] = None
+
+        return document, (sample / ".recognizer/cache/overlays/crap.json").read_bytes()
 
     assert run("1", "a.json") == run("2", "b.json")
 
@@ -751,3 +756,150 @@ def test_a_crap_run_with_no_tests_list_exits_two_and_leaves_a_prior_overlay(
     assert not output.exists()
     assert overlay_path.read_text() == "prior"
     assert not (sample / ".recognizer" / "cache" / "coverage").exists()
+
+
+PART_BODY = "def f(a):\n    if a:\n        return 1\n    return 2\n"
+
+
+def lcov_command(source, hits):
+    lines = "".join(f"DA:{n},{h}\\n" for n, h in hits)
+
+    return f"mkdir -p out && printf 'SF:{source}\\n{lines}end_of_record\\n' > out/lcov.info"
+
+
+def two_suite_repository(tmp_path, web_hits=((1, 1), (2, 1), (3, 1))):
+    root = make_repository(
+        tmp_path / "two",
+        {
+            "unit/a.py": PART_BODY,
+            "unit/test_a.py": "def test_a():\n    assert True\n",
+            "web/b.py": PART_BODY,
+            "web/test_b.py": "def test_b():\n    assert True\n",
+        },
+    )
+    git_commit(root)
+    rehash(root)
+
+    return root
+
+
+def rehash(root, only=None):
+    path = root / ".recognizer/cache/scan.python.json"
+    scan = json.loads(path.read_text())
+
+    for entry in scan["files"]:
+        entry["hash"] = hashes.file_sha256(root / entry["path"])
+
+    path.write_text(json.dumps(scan))
+
+
+def two_suite_settings(web_hits=((1, 1), (2, 1), (3, 1)), unit_hits=((1, 1), (2, 1), (3, 0))):
+    suites = [
+        {
+            "name": "unit",
+            "language": "python",
+            "directory": "unit",
+            "command": lcov_command("a.py", unit_hits),
+            "coverage": {"path": "out/lcov.info", "format": "lcov"},
+        },
+        {
+            "name": "web",
+            "language": "python",
+            "directory": "web",
+            "command": lcov_command("b.py", web_hits),
+            "coverage": {"path": "out/lcov.info", "format": "lcov"},
+        },
+    ]
+
+    return json.dumps({"tests": suites})
+
+
+def crap_suites(root, tmp_path, settings, *extra):
+    output = tmp_path / "findings.json"
+    status = main(
+        [
+            "crap",
+            "--repository",
+            str(root),
+            "--commit",
+            "c1",
+            "--output",
+            str(output),
+            "--settings",
+            settings,
+            *extra,
+        ]
+    )
+    overlay = json.loads((root / ".recognizer/cache/overlays/crap.json").read_text())
+
+    return status, json.loads(output.read_text()), overlay
+
+
+def test_a_run_of_one_suite_keeps_the_other_suites_coverage_and_age(tmp_path):
+    root = two_suite_repository(tmp_path)
+
+    status, first, first_overlay = crap_suites(root, tmp_path, two_suite_settings())
+
+    assert status == 0
+    assert [s["name"] for s in first["suites"]] == ["unit", "web"]
+    assert first["tests"] == hashes.tests_hash(root, read_scans(root))
+
+    web_ran_at = first["suites"][1]["ran_at"]
+    settings = two_suite_settings(unit_hits=((1, 0), (2, 0), (3, 0)))
+
+    status, second, overlay = crap_suites(root, tmp_path, settings, "--suites", '["unit"]')
+
+    assert status == 0
+    assert second["suites"][1] == {"name": "web", "status": "ok", "ran_at": web_ran_at}
+    assert second["suites"][0]["status"] == "ok"
+    assert overlay["values"]["coverage"].keys() == first_overlay["values"]["coverage"].keys()
+
+    web_identity = next(k for k in overlay["values"]["coverage"] if "web/b.py" in k)
+
+    assert (
+        overlay["values"]["coverage"][web_identity]
+        == first_overlay["values"]["coverage"][web_identity]
+    )
+    assert second["tests"] == hashes.tests_hash(root, read_scans(root))
+
+    (root / "web" / "test_b.py").write_text("def test_b():\n    assert 1 == 1\n")
+    rehash(root)
+
+    status, third, _ = crap_suites(root, tmp_path, settings, "--suites", '["unit"]')
+
+    assert status == 0
+    assert third["tests"] != hashes.tests_hash(root, read_scans(root))
+
+
+def test_a_suite_that_never_ran_is_never_and_its_files_hash_to_zeros(tmp_path):
+    root = two_suite_repository(tmp_path)
+
+    status, document, _ = crap_suites(root, tmp_path, two_suite_settings(), "--suites", '["unit"]')
+
+    assert status == 0
+    assert document["suites"][1] == {"name": "web", "status": "never", "ran_at": None}
+    assert document["tests"] != hashes.tests_hash(root, read_scans(root))
+
+    current = hashes.test_map(root, read_scans(root))
+    zeros = {**current, "web/test_b.py": "0" * 64}
+
+    assert document["tests"] == hashes.digest_of(zeros)
+
+
+def test_a_source_change_under_an_unselected_suite_marks_its_module_out_of_date(tmp_path):
+    root = two_suite_repository(tmp_path)
+    _, first, _ = crap_suites(root, tmp_path, two_suite_settings())
+
+    assert first["inputs"]["web/b.py"] == hashes.file_sha256(root / "web/b.py")
+
+    (root / "web" / "b.py").write_text(PART_BODY + "\n\ndef extra():\n    return 3\n")
+    rehash(root)
+
+    _, second, _ = crap_suites(root, tmp_path, two_suite_settings(), "--suites", '["unit"]')
+
+    assert second["inputs"]["web/b.py"] == first["inputs"]["web/b.py"]
+    assert second["inputs"]["unit/a.py"] == first["inputs"]["unit/a.py"]
+
+    _, third, _ = crap_suites(root, tmp_path, two_suite_settings())
+
+    assert third["inputs"]["web/b.py"] == hashes.file_sha256(root / "web/b.py")

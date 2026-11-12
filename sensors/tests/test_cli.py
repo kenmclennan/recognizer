@@ -271,3 +271,50 @@ def test_the_registry_and_defaults_agree_with_the_sensor_list():
 def test_the_retired_mutate_name_is_an_unknown_sensor(sample, capsys):
     assert main(["mutate", "--repository", str(sample), "--commit", "c1"]) == 2
     assert "unknown sensor: mutate" in capsys.readouterr().err
+
+
+def test_suites_on_a_sensor_that_runs_no_tests_exits_two(sample, tmp_path, capsys):
+    status = run_cli(sample, tmp_path / "out.json", "--suites", '["unit"]')
+
+    assert status == 2
+    assert "takes no test suites" in capsys.readouterr().err
+    assert not (tmp_path / "out.json").exists()
+
+
+@pytest.mark.parametrize("value", ['["nope"]', "[]", "{", '{"a":1}', "[1]"])
+def test_suites_on_crap_refuses_an_unknown_empty_or_malformed_value(
+    sample, tmp_path, capsys, value
+):
+    settings = json.dumps(
+        {
+            "tests": [
+                {
+                    "name": "unit",
+                    "language": "python",
+                    "directory": ".",
+                    "command": "true",
+                    "coverage": {"path": "out/lcov.info", "format": "lcov"},
+                }
+            ]
+        }
+    )
+
+    status = main(
+        [
+            "crap",
+            "--repository",
+            str(sample),
+            "--commit",
+            "c1",
+            "--output",
+            str(tmp_path / "out.json"),
+            "--settings",
+            settings,
+            "--suites",
+            value,
+        ]
+    )
+
+    assert status == 2
+    assert capsys.readouterr().err.startswith("recognizer-sensors: ")
+    assert not (tmp_path / "out.json").exists()
