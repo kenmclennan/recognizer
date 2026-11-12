@@ -157,12 +157,8 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     throw usageError("--modules needs --describe or --sense");
   }
 
-  if (
-    options.suites !== undefined &&
-    options.describe === false &&
-    options.sense === null
-  ) {
-    throw usageError("--suites needs --describe or --sense");
+  if (options.suites !== undefined && options.sense === null) {
+    throw usageError("--suites needs --sense");
   }
 
   return options;
