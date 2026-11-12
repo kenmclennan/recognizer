@@ -26,7 +26,7 @@ const OK: Loaded = {
 
 const line = (value: object) => JSON.stringify(value);
 const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
-  version: 2,
+  version: 3,
   run_id: "run-1",
   pid: 4242,
   pgid: 4242,
@@ -40,6 +40,8 @@ const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
   exit: null,
   gaps: [],
   failure: null,
+  commit: null,
+  ran: null,
   ...over,
 });
 const extract = line({
@@ -67,8 +69,8 @@ const entry = (phase: string, name: string, reason?: string) =>
     ...(reason === undefined ? {} : { reason }),
   });
 const summary = line({ event: "summary" });
+const preflightOk = line({ event: "preflight", state: "ok" });
 const LOG = "x-scan";
-const LOG_PATH = ".recognizer/cache/log/x-scan.json";
 const summaryLogged = (exit: number) =>
   line({ event: "summary", exit, log: LOG });
 
@@ -414,7 +416,7 @@ describe("createRescanner", () => {
         entry("describe", "a.py", "no"),
         summaryLogged(1),
       ],
-      result: { status: "finished", exitCode: 1, stderr: "", log: LOG_PATH },
+      result: { status: "finished", exitCode: 1, stderr: "" },
     });
     const { log, posted, attached, updates, rescanner } = harness(scan);
 
@@ -444,7 +446,7 @@ describe("createRescanner", () => {
         entry("sense", "beta", "slow"),
         summaryLogged(0),
       ],
-      result: { status: "finished", exitCode: 0, stderr: "", log: LOG_PATH },
+      result: { status: "finished", exitCode: 0, stderr: "" },
     });
     const { posted, attached, rescanner } = harness(scan);
 
@@ -464,7 +466,7 @@ describe("createRescanner", () => {
       fakeScan({
         defaults: { describe: false, sensors: true },
         steps: [current, sensing(1), entry("sense", "alpha", "bad"), summary],
-        result: { status: "finished", exitCode: 0, stderr: "", log: null },
+        result: { status: "finished", exitCode: 0, stderr: "" },
       }),
     );
 
@@ -532,11 +534,10 @@ describe("createRescanner", () => {
   it("shows the detail of a scan that ran nothing it was asked to run", async () => {
     const { log, updates, rescanner } = harness(
       fakeScan({
-        result: {
-          status: "nothing-ran",
-          phases: ["sense"],
-          detail: "sense did not run: the folder has no commit",
-        },
+        defaults: { describe: false, sensors: true },
+        steps: [current, preflightOk, summary],
+        record: { commit: null, ran: ["extract"] },
+        result: { status: "finished", exitCode: 0, stderr: "" },
       }),
     );
 
@@ -1266,8 +1267,7 @@ describe("scan notifications", () => {
         status: "failed",
         exitCode: 2,
         stderr: "boom",
-        log: null,
-      } as never,
+      },
     });
     const { made } = timed(scan);
 
@@ -1287,7 +1287,7 @@ describe("scan notifications", () => {
         line({ event: "summary", exit: 1 }),
       ],
       record: { failure: { sensor: "alpha", reason: "no coverage" } },
-      result: { status: "finished", exitCode: 1, stderr: "", log: null },
+      result: { status: "finished", exitCode: 1, stderr: "" },
     });
     const { made } = timed(scan);
 
@@ -1417,7 +1417,7 @@ describe("the preflight flow", () => {
 
     expect(rescanner.ticks().once).toEqual(["mut"]);
 
-    scan.result = { status: "finished", exitCode: 0, stderr: "", log: null };
+    scan.result = { status: "finished", exitCode: 0, stderr: "" };
     await rescanner.run();
 
     expect(scan.ran[1]?.sense).toContain("mut");
@@ -1547,7 +1547,7 @@ describe("one fold of the run record", () => {
         exit: 1,
         failure: { sensor: "beta", reason: "slow" },
       },
-      result: { status: "finished", exitCode: 1, stderr: "", log: LOG_PATH },
+      result: { status: "finished", exitCode: 1, stderr: "" },
     },
     "a run with a describe phase": {
       lines: [
@@ -1563,7 +1563,7 @@ describe("one fold of the run record", () => {
         logged(0),
       ],
       end: { phase: "finished", exit: 0 },
-      result: { status: "finished", exitCode: 0, stderr: "", log: LOG_PATH },
+      result: { status: "finished", exitCode: 0, stderr: "" },
     },
     "a refused run": {
       lines: [
@@ -1708,17 +1708,20 @@ describe("one fold of the run record", () => {
     expect(log.filter((one) => one === "described")).toHaveLength(2);
   });
 
-  it("shows the blocked detail and posts no Scan complete for a nothing-ran result with a finished record", async () => {
+  it("shows the blocked detail and posts no Scan complete for a finished record whose requested phase ran nothing", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       steps: [current, preflightOk, summary],
-      result: { status: "nothing-ran", phases: ["sense"], detail: "no commit" },
+      record: { commit: null, ran: ["extract"] },
+      result: { status: "finished", exitCode: 0, stderr: "" },
     });
     const { log, lifecycle, rescanner } = harness(scan);
 
     await rescanner.run();
 
-    expect(log).toContain("blocked:no commit");
+    expect(log).toContain(
+      "blocked:sense did not run: the folder has no commit",
+    );
     expect(lifecycle.some((one) => one.text.startsWith("Scan complete"))).toBe(
       false,
     );
@@ -1783,5 +1786,113 @@ describe("one fold of the run record", () => {
     expect(
       recorded.lifecycle.filter((one) => one.text.startsWith("Scan refused")),
     ).toEqual([{ kind: "warning", text }]);
+  });
+});
+
+describe("the outcome comes from the run record", () => {
+  const preflightOk = line({ event: "preflight", state: "ok" });
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const ASKED = {
+    sensors: ["alpha"],
+    describe: true,
+  };
+  const idleRecord = (origin: "cli" | "app", over: Partial<ScanRunRecord>) =>
+    record({
+      run_id: `${origin}-idle`,
+      started_by: origin,
+      started_at: "2026-11-10T09:00:00.000Z",
+      ended_at: "2026-11-10T09:00:05.000Z",
+      ...ASKED,
+      phase: "finished",
+      exit: 0,
+      commit: null,
+      ran: ["extract", "describe"],
+      ...over,
+    });
+
+  async function viaCommandLine(over: Partial<ScanRunRecord>) {
+    const made = harness();
+    const ended = idleRecord("cli", over);
+
+    made.scan.emitRun({
+      kind: "run",
+      run: { ...ended, phase: "checking", exit: null, ended_at: null },
+    });
+    await flush();
+    made.scan.emitRun({
+      kind: "run",
+      run: { ...ended, phase: "running", exit: null, ended_at: null },
+    });
+    await flush();
+    made.scan.emitRun({ kind: "run", run: ended });
+    await flush();
+
+    return made;
+  }
+
+  async function viaWindow(over: Partial<ScanRunRecord>) {
+    const made = harness(
+      fakeScan({
+        defaults: { describe: true, sensors: true },
+        steps: [current, preflightOk, summary],
+        record: { ...ASKED, ...over, commit: null },
+        result: { status: "finished", exitCode: 0, stderr: "" },
+      }),
+    );
+
+    await made.rescanner.run();
+    await flush();
+
+    return made;
+  }
+
+  it("shows the same blocked detail for an app-started and a command-line scan that ran nothing", async () => {
+    const other = await viaCommandLine({ ran: ["extract", "describe"] });
+    const own = await viaWindow({ ran: ["extract", "describe"] });
+    const text = "sense did not run: the folder has no commit";
+
+    const failures = (made: typeof own) =>
+      made.lifecycle.filter((one) => one.text.startsWith("Scan failed"));
+
+    expect(failures(other)).toHaveLength(1);
+    expect(failures(other)).toEqual([
+      { kind: "error", text: `Scan failed - ${text}` },
+    ]);
+    expect(failures(own)).toEqual(failures(other));
+    expect(other.log.filter((one) => one.startsWith("blocked:"))).toEqual([
+      `blocked:${text}`,
+    ]);
+    expect(own.log.filter((one) => one.startsWith("blocked:"))).toEqual(
+      other.log.filter((one) => one.startsWith("blocked:")),
+    );
+    expect(other.log).not.toContain("described");
+    expect(own.log).not.toContain("described");
+    expect(other.posted).toEqual(own.posted);
+  });
+
+  it("names only the phases that did not run when others did", async () => {
+    const other = await viaCommandLine({ ran: ["extract", "describe"] });
+
+    expect(
+      other.lifecycle
+        .map((one) => one.text)
+        .filter((one) => one.startsWith("Scan failed")),
+    ).toEqual(["Scan failed - sense did not run: the folder has no commit"]);
+  });
+
+  it("posts the failure text, not the blocked detail, when the record holds no summary", async () => {
+    const made = await viaCommandLine({
+      phase: "failed",
+      exit: 1,
+      ran: null,
+      failure: { sensor: "scan", reason: "the scan ended on an error" },
+    });
+
+    expect(
+      made.lifecycle
+        .map((one) => one.text)
+        .filter((one) => one.startsWith("Scan failed")),
+    ).toEqual(["Scan failed - scan: the scan ended on an error"]);
+    expect(made.log.some((one) => one.startsWith("blocked:"))).toBe(false);
   });
 });

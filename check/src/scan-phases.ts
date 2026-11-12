@@ -1,5 +1,6 @@
 import { InputError } from "./errors.js";
 import type { PhaseName } from "./run-log.js";
+import type { ScanRunRecord } from "./scan-marker.js";
 import type { SensorProgress } from "./sensor-progress.js";
 import type { Diagnosis } from "./sensor-reason.js";
 import { receivesSuites, shippedCommand } from "./shipped-sensors.js";
@@ -334,4 +335,48 @@ export function summaryLine(summary: {
   log: string | null;
 }): string {
   return `${JSON.stringify({ event: "summary", ...summary })}\n`;
+}
+
+export interface IdlePhase {
+  phase: "describe" | "sense";
+  cause: "no-commit" | "no-entries";
+}
+
+export function idlePhases(
+  record: Pick<ScanRunRecord, "ran" | "commit" | "describe" | "sensors">,
+): IdlePhase[] {
+  const ran = record.ran;
+
+  if (ran === null) {
+    return [];
+  }
+
+  const requested: IdlePhase["phase"][] = [];
+
+  if (record.describe) {
+    requested.push("describe");
+  }
+
+  if (record.sensors.length > 0) {
+    requested.push("sense");
+  }
+
+  return requested
+    .filter((phase) => !ran.includes(phase))
+    .map((phase) => ({
+      phase,
+      cause:
+        phase !== "describe" && record.commit === null
+          ? "no-commit"
+          : "no-entries",
+    }));
+}
+
+export function nothingRanText(idle: IdlePhase[]): string {
+  return idle
+    .map(
+      ({ phase, cause }) =>
+        `${phase} did not run: ${cause === "no-commit" ? "the folder has no commit" : "it ran no entries"}`,
+    )
+    .join("; ");
 }

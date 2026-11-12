@@ -42,6 +42,7 @@ import {
   acquireMarker,
   type HeldMarker,
   REFUSED_EXIT,
+  type RunSummary,
   refusalText,
 } from "./scan-marker.js";
 import {
@@ -461,6 +462,13 @@ function* scanFlow(
     const describing: Describing | null =
       options.describe !== false ? readDescribing(io) : null;
 
+    const ranSummary = (): RunSummary => ({
+      commit,
+      ran: phases
+        .filter((one) => (summary.get(one.phase) ?? []).length > 0)
+        .map((one) => one.phase),
+    });
+
     const refuse = (gaps: Gap[]): number => {
       const reason = `preflight found ${gaps.length} ${gaps.length === 1 ? "gap" : "gaps"}`;
 
@@ -498,7 +506,10 @@ function* scanFlow(
         }),
       );
 
-      taken?.refused(gaps.map(({ id, line, needs }) => ({ id, line, needs })));
+      taken?.refused(
+        gaps.map(({ id, line, needs }) => ({ id, line, needs })),
+        ranSummary(),
+      );
 
       return 4;
     };
@@ -797,6 +808,7 @@ function* scanFlow(
             sensor: firstFailed?.name ?? "scan",
             reason: firstFailed?.reason ?? `recognizer scan exited ${exit}`,
           },
+      ranSummary(),
     );
 
     return exit;

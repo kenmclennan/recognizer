@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "run_id": "3b1f8c52-6d0e-4a57-9a3e-0c5d7e1f2a40",
   "pid": 4242,
   "pgid": 4242,
@@ -14,5 +14,9 @@
   "ended_at": "2026-11-12T09:05:00.000Z",
   "exit": 0,
   "gaps": [],
-  "failure": null
+  "failure": null,
+  "commit": "abc1234",
+  "ran": [
+    "extract"
+  ]
 }

@@ -168,6 +168,11 @@ export type {
   ScanRunPhase,
   ScanRunRecord,
 } from "./scan-marker.js";
+export {
+  type IdlePhase,
+  idlePhases,
+  nothingRanText,
+} from "./scan-phases.js";
 export type { Diagnosis } from "./sensor-reason.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";

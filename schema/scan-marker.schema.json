@@ -18,11 +18,13 @@
     "ended_at",
     "exit",
     "gaps",
-    "failure"
+    "failure",
+    "commit",
+    "ran"
   ],
   "properties": {
     "version": {
-      "const": 2
+      "const": 3
     },
     "run_id": {
       "type": "string",
@@ -141,6 +143,53 @@
           }
         }
       ]
+    },
+    "commit": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "ran": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "extract",
+              "describe",
+              "measure",
+              "sense"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "if": {
+    "properties": {
+      "phase": {
+        "const": "finished"
+      }
+    },
+    "required": [
+      "phase"
+    ]
+  },
+  "then": {
+    "properties": {
+      "ran": {
+        "type": "array"
+      }
     }
   }
 }

@@ -1,4 +1,9 @@
-import type { Diagnosis, ScanRunRecord } from "recognizer";
+import {
+  type Diagnosis,
+  idlePhases,
+  nothingRanText,
+  type ScanRunRecord,
+} from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
@@ -86,8 +91,6 @@ function failureText(result: ScanRunResult): string | null {
         : result.stderr.trim();
     case "refused":
       return result.reason;
-    case "nothing-ran":
-      return result.detail;
     default:
       return null;
   }
@@ -510,6 +513,20 @@ export function createRescanner<Carried>(
       return;
     }
 
+    const idle = scan.exit === 0 || scan.exit === 1 ? idlePhases(scan) : [];
+
+    if (idle.length > 0) {
+      const text = nothingRanText(idle);
+
+      progress = NO_PROGRESS;
+      emit({ scanning: null });
+      ports.post({ kind: "error", text: `Scan failed - ${text}` });
+      ports.blocked(text);
+      ports.settled();
+
+      return;
+    }
+
     const message = endText(scan);
 
     if (message !== null) {
@@ -696,14 +713,10 @@ export function createRescanner<Carried>(
 
     const ended = takeOwnEnd();
 
-    if (ended !== null && result.status !== "nothing-ran") {
+    if (ended !== null) {
       await endRun(ended);
 
       return;
-    }
-
-    if (ended !== null) {
-      endedRunId = ended.run_id;
     }
 
     liveRunId = null;

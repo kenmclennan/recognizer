@@ -3,12 +3,11 @@ import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { ScanReport } from "./scan-report";
 
 export type ScanRunResult =
-  | { status: "finished"; exitCode: 0 | 1; stderr: string; log: string | null }
+  | { status: "finished"; exitCode: 0 | 1; stderr: string }
   | { status: "stopped" }
   | { status: "command-missing"; hint: string }
   | { status: "failed"; exitCode: number; stderr: string }
   | { status: "refused"; reason: string }
-  | { status: "nothing-ran"; phases: string[]; detail: string }
   | { status: "gaps"; gaps: ScanRunRecord["gaps"] };
 
 export type StoredTicks = {
@@ -46,7 +45,7 @@ export type ScanPort = {
 };
 
 export const inertScan: ScanPort = {
-  run: async () => ({ status: "finished", exitCode: 0, stderr: "", log: null }),
+  run: async () => ({ status: "finished", exitCode: 0, stderr: "" }),
   stop: async () => {},
   answerDescribe: async () => {},
   readCache: async () => ({

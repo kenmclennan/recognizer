@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { Io } from "./cli.js";
 import validate from "./generated/scan-marker-validator.js";
+import type { PhaseName } from "./run-log.js";
 
 export const MARKER_FILE = "scan-running.json";
 export const PROGRESS_FILE = "scan-running.progress.jsonl";
@@ -31,7 +32,7 @@ export interface RunFailure {
 }
 
 export interface ScanRunRecord {
-  version: 2;
+  version: 3;
   run_id: string;
   pid: number;
   pgid: number | null;
@@ -45,6 +46,13 @@ export interface ScanRunRecord {
   exit: number | null;
   gaps: RunGap[];
   failure: RunFailure | null;
+  commit: string | null;
+  ran: PhaseName[] | null;
+}
+
+export interface RunSummary {
+  commit: string | null;
+  ran: PhaseName[];
 }
 
 export interface MarkerDetails {
@@ -57,8 +65,8 @@ export interface HeldMarker {
   readonly origin: MarkerOrigin;
   append(line: string): void;
   running(): void;
-  refused(gaps: RunGap[]): void;
-  end(exit: number, failure: RunFailure | null): void;
+  refused(gaps: RunGap[], summary: RunSummary): void;
+  end(exit: number, failure: RunFailure | null, summary: RunSummary): void;
   release(): void;
 }
 
@@ -135,7 +143,7 @@ export function acquireMarker(
   const path = markerPath(root);
   const progress = progressPath(root);
   let record: ScanRunRecord = {
-    version: 2,
+    version: 3,
     run_id: randomUUID(),
     pid: io.pid(),
     pgid: io.processGroup(io.pid()),
@@ -149,6 +157,8 @@ export function acquireMarker(
     exit: null,
     gaps: [],
     failure: null,
+    commit: null,
+    ran: null,
   };
   const content = `${JSON.stringify(record, null, 2)}\n`;
 
@@ -212,17 +222,32 @@ export function acquireMarker(
         write({ phase: "running" });
       }
     },
-    refused: (gaps) => {
+    refused: (gaps, summary) => {
       if (active()) {
-        write({ phase: "refused", gaps, ended_at: ended(), exit: 4 });
+        write({
+          phase: "refused",
+          gaps,
+          ended_at: ended(),
+          exit: 4,
+          commit: summary.commit,
+          ran: summary.ran,
+        });
       }
     },
-    end: (exit, failure) => {
+    end: (exit, failure, summary) => {
       if (active()) {
+        const recorded = { commit: summary.commit, ran: summary.ran };
+
         write(
           failure === null && exit === 0
-            ? { phase: "finished", ended_at: ended(), exit }
-            : { phase: "failed", ended_at: ended(), exit, failure },
+            ? { phase: "finished", ended_at: ended(), exit, ...recorded }
+            : {
+                phase: "failed",
+                ended_at: ended(),
+                exit,
+                failure,
+                ...recorded,
+              },
         );
       }
     },
