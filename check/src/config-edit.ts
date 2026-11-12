@@ -68,13 +68,13 @@ function emit(doc: Document, source: string): string {
   });
 }
 
-function open(text: string): Opened {
+function open(text: string, subject: string): Opened {
   const doc = parseDocument(text);
   const first = doc.errors[0];
 
   return first === undefined
     ? { doc }
-    : { refused: `the config is not valid YAML: ${first.message}` };
+    : { refused: `the ${subject} is not valid YAML: ${first.message}` };
 }
 
 function isEmptyValue(node: unknown): boolean {
@@ -214,7 +214,12 @@ function entryNamed(
   return null;
 }
 
-function descend(doc: Document, steps: Step[], create: boolean): Descent {
+function descend(
+  doc: Document,
+  steps: Step[],
+  create: boolean,
+  subject: string,
+): Descent {
   let node: unknown = doc.contents;
   let place = (made: YAMLMap | YAMLSeq): void => {
     doc.contents = made;
@@ -241,7 +246,7 @@ function descend(doc: Document, steps: Step[], create: boolean): Descent {
         .join(".");
 
       return {
-        refused: `${parent === "" ? "the config" : parent} is ${describeNode(node)}, not ${wantSeq ? "a list of entries" : "a section"}`,
+        refused: `${parent === "" ? `the ${subject}` : parent} is ${describeNode(node)}, not ${wantSeq ? "a list of entries" : "a section"}`,
       };
     }
 
@@ -317,6 +322,10 @@ function guardRegistration(
   entry: PublishedKey,
   container: YAMLMap,
 ): string | null {
+  if (!published.keys.some((key) => key.key === REGISTRATION_KEY)) {
+    return null;
+  }
+
   const parent = findSection(published, typed.slice(0, -1));
 
   if (!("found" in parent) || parent.found.shape !== "map-entry") {
@@ -355,7 +364,7 @@ function prepared(
     return refuse(entry.reason);
   }
 
-  const opened = open(text);
+  const opened = open(text, published.subject);
 
   if ("refused" in opened) {
     return refuse(opened.refused);
@@ -393,7 +402,7 @@ export function setValue(
   }
 
   const steps = stepsFor(published, typed);
-  const descent = descend(doc, steps, true);
+  const descent = descend(doc, steps, true, published.subject);
 
   if ("refused" in descent) {
     return refuse(descent.refused);
@@ -453,7 +462,7 @@ export function addValue(
   }
 
   const steps = stepsFor(published, typed);
-  const descent = descend(doc, steps, true);
+  const descent = descend(doc, steps, true, published.subject);
 
   if ("refused" in descent) {
     return refuse(descent.refused);
@@ -516,7 +525,7 @@ export function unsetValue(
     );
   }
 
-  const opened = open(text);
+  const opened = open(text, published.subject);
 
   if ("refused" in opened) {
     return refuse(opened.refused);
@@ -524,7 +533,7 @@ export function unsetValue(
 
   const doc = opened.doc;
   const steps = stepsFor(published, typed);
-  const descent = descend(doc, steps, false);
+  const descent = descend(doc, steps, false, published.subject);
 
   if ("refused" in descent) {
     return refuse(descent.refused);
@@ -619,7 +628,7 @@ export function removeSection(
     return base;
   }
 
-  const opened = open(text);
+  const opened = open(text, published.subject);
 
   if ("refused" in opened) {
     return refuse(opened.refused);
@@ -627,7 +636,7 @@ export function removeSection(
 
   const doc = opened.doc;
   const steps = stepsFor(published, base.typed);
-  const descent = descend(doc, steps, false);
+  const descent = descend(doc, steps, false, published.subject);
 
   if ("refused" in descent) {
     return refuse(descent.refused);
@@ -678,7 +687,7 @@ export function addSection(
     return base;
   }
 
-  const opened = open(text);
+  const opened = open(text, published.subject);
 
   if ("refused" in opened) {
     return refuse(opened.refused);
@@ -687,7 +696,7 @@ export function addSection(
   const doc = opened.doc;
   const steps = stepsFor(published, base.typed);
   const step = lastStep(steps);
-  const probe = descend(doc, steps, false);
+  const probe = descend(doc, steps, false, published.subject);
 
   if ("refused" in probe) {
     return refuse(probe.refused);
@@ -711,7 +720,7 @@ export function addSection(
     }
   }
 
-  const descent = descend(doc, steps, true);
+  const descent = descend(doc, steps, true, published.subject);
 
   if ("refused" in descent) {
     return refuse(descent.refused);
@@ -750,14 +759,14 @@ export function readKey(
     return refuse(entry.reason);
   }
 
-  const opened = open(text);
+  const opened = open(text, published.subject);
 
   if ("refused" in opened) {
     return refuse(opened.refused);
   }
 
   const steps = stepsFor(published, typed);
-  const descent = descend(opened.doc, steps, false);
+  const descent = descend(opened.doc, steps, false, published.subject);
 
   if ("refused" in descent) {
     return refuse(descent.refused);
@@ -794,7 +803,7 @@ function scalarText(node: unknown): string {
 }
 
 export function listKeys(text: string, published: PublishedKeys): Listing {
-  const opened = open(text);
+  const opened = open(text, published.subject);
 
   if ("refused" in opened) {
     return { lines: [], skipped: [opened.refused] };

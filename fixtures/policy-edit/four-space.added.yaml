@@ -1,0 +1,6 @@
+components:
+    domain:
+        - shop/domain/**
+        - shop/x/**
+levels:
+    - domain

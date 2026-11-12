@@ -59,7 +59,7 @@ const OTHER = {
   ],
 } as unknown as KeySchema;
 
-const KEYS = publish([CORE_KEYS, OTHER]);
+const KEYS = publish([CORE_KEYS, OTHER], "config");
 
 const SHAPES = ["describer", "third-party", "empty-flow", "four-space"];
 
@@ -503,7 +503,7 @@ describe("listing", () => {
   it("reports a list of entries no owner publishes a section for", () => {
     const listing = listKeys(
       "tests:\n  - name: a\n    command: x\n",
-      publish([CORE_KEYS]),
+      publish([CORE_KEYS], "config"),
     );
 
     expect(listing.lines).toEqual([]);

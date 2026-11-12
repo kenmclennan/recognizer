@@ -1,0 +1,17 @@
+# The shop's rules.
+levels:
+  - domain
+  - ports
+
+# Where each component lives.
+components:
+  domain: shop/domain/**
+  ports:
+    - shop/ports/**
+    - shop/ports2/**
+  entry: [shop/main.py]
+
+forbid:
+  - shop/adapters/* -> shop/adapters/* # no sideways calls
+
+ignore: [tests/**]

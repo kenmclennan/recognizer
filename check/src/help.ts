@@ -4,6 +4,7 @@ import type { Io } from "./cli.js";
 import { COMMANDS, type Command } from "./commands.js";
 import { configKeysHelp } from "./config-command.js";
 import { InputError } from "./errors.js";
+import { policyKeysHelp } from "./policy-command.js";
 import { guideText, sensorsToCheck } from "./sensors-check.js";
 
 export function shortHelp(commands: Command[] = COMMANDS): string {
@@ -59,9 +60,15 @@ export function fullHelp(command: Command): string {
 }
 
 export function commandHelp(command: Command, io: Io): string {
-  return command.name === "config"
-    ? `${fullHelp(command)}\n${configKeysHelp(io, resolve("."))}`
-    : fullHelp(command);
+  if (command.name === "config") {
+    return `${fullHelp(command)}\n${configKeysHelp(io, resolve("."))}`;
+  }
+
+  if (command.name === "policy") {
+    return `${fullHelp(command)}\n${policyKeysHelp()}`;
+  }
+
+  return fullHelp(command);
 }
 
 function runSensorGuide(sensor: string, io: Io): number {
