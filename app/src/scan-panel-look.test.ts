@@ -214,7 +214,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const failFake = fakeScan({
     defaults: { describe: false, sensors: true },
     steps: [current, sensing(1), entry("sense", "duplication", "broke"), json({ event: "summary", exit: 1, log: "x-scan" })],
-    result: { status: "finished", exitCode: 1, stderr: ""},
+    result: { status: "finished", exitCode: 1 },
   });
   const t = await mount(failFake);
   click(t.q(".rail-scan"));
@@ -245,7 +245,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const bareFake = fakeScan({
     defaults: { describe: false, sensors: true },
     steps: [current, sensing(1), entry("sense", "duplication", "broke"), summary],
-    result: { status: "finished", exitCode: 1, stderr: ""},
+    result: { status: "finished", exitCode: 1 },
   });
   const bare = await mount(bareFake);
   click(bare.q(".rail-scan"));
@@ -257,7 +257,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const moduleFake = fakeScan({
     defaults: { describe: true, sensors: false },
     steps: [current, describing(2), entry("describe", "app/a.py", "no describer"), entry("describe", "app/b.py", "no describer"), json({ event: "summary", exit: 1, log: "y-scan" })],
-    result: { status: "finished", exitCode: 1, stderr: ""},
+    result: { status: "finished", exitCode: 1 },
   });
   const m = await mount(moduleFake);
   click(m.q(".rail-scan"));

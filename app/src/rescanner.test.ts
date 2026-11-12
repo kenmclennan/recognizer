@@ -416,7 +416,7 @@ describe("createRescanner", () => {
         entry("describe", "a.py", "no"),
         summaryLogged(1),
       ],
-      result: { status: "finished", exitCode: 1, stderr: "" },
+      result: { status: "finished", exitCode: 1 },
     });
     const { log, posted, attached, updates, rescanner } = harness(scan);
 
@@ -446,7 +446,7 @@ describe("createRescanner", () => {
         entry("sense", "beta", "slow"),
         summaryLogged(0),
       ],
-      result: { status: "finished", exitCode: 0, stderr: "" },
+      result: { status: "finished", exitCode: 0 },
     });
     const { posted, attached, rescanner } = harness(scan);
 
@@ -466,7 +466,7 @@ describe("createRescanner", () => {
       fakeScan({
         defaults: { describe: false, sensors: true },
         steps: [current, sensing(1), entry("sense", "alpha", "bad"), summary],
-        result: { status: "finished", exitCode: 0, stderr: "" },
+        result: { status: "finished", exitCode: 0 },
       }),
     );
 
@@ -537,7 +537,7 @@ describe("createRescanner", () => {
         defaults: { describe: false, sensors: true },
         steps: [current, preflightOk, summary],
         record: { commit: null, ran: ["extract"] },
-        result: { status: "finished", exitCode: 0, stderr: "" },
+        result: { status: "finished", exitCode: 0 },
       }),
     );
 
@@ -1287,7 +1287,7 @@ describe("scan notifications", () => {
         line({ event: "summary", exit: 1 }),
       ],
       record: { failure: { sensor: "alpha", reason: "no coverage" } },
-      result: { status: "finished", exitCode: 1, stderr: "" },
+      result: { status: "finished", exitCode: 1 },
     });
     const { made } = timed(scan);
 
@@ -1417,7 +1417,7 @@ describe("the preflight flow", () => {
 
     expect(rescanner.ticks().once).toEqual(["mut"]);
 
-    scan.result = { status: "finished", exitCode: 0, stderr: "" };
+    scan.result = { status: "finished", exitCode: 0 };
     await rescanner.run();
 
     expect(scan.ran[1]?.sense).toContain("mut");
@@ -1547,7 +1547,7 @@ describe("one fold of the run record", () => {
         exit: 1,
         failure: { sensor: "beta", reason: "slow" },
       },
-      result: { status: "finished", exitCode: 1, stderr: "" },
+      result: { status: "finished", exitCode: 1 },
     },
     "a run with a describe phase": {
       lines: [
@@ -1563,7 +1563,7 @@ describe("one fold of the run record", () => {
         logged(0),
       ],
       end: { phase: "finished", exit: 0 },
-      result: { status: "finished", exitCode: 0, stderr: "" },
+      result: { status: "finished", exitCode: 0 },
     },
     "a refused run": {
       lines: [
@@ -1713,7 +1713,7 @@ describe("one fold of the run record", () => {
       defaults: { describe: false, sensors: true },
       steps: [current, preflightOk, summary],
       record: { commit: null, ran: ["extract"] },
-      result: { status: "finished", exitCode: 0, stderr: "" },
+      result: { status: "finished", exitCode: 0 },
     });
     const { log, lifecycle, rescanner } = harness(scan);
 
@@ -1836,7 +1836,7 @@ describe("the outcome comes from the run record", () => {
         defaults: { describe: true, sensors: true },
         steps: [current, preflightOk, summary],
         record: { ...ASKED, ...over, commit: null },
-        result: { status: "finished", exitCode: 0, stderr: "" },
+        result: { status: "finished", exitCode: 0 },
       }),
     );
 
@@ -1894,5 +1894,76 @@ describe("the outcome comes from the run record", () => {
         .filter((one) => one.startsWith("Scan failed")),
     ).toEqual(["Scan failed - scan: the scan ended on an error"]);
     expect(made.log.some((one) => one.startsWith("blocked:"))).toBe(false);
+  });
+
+  const MESSAGE = "unknown sensor: nosuch\nuse one of: crap, mutation";
+  const crash = {
+    phase: "failed" as const,
+    exit: 1,
+    ran: null,
+    failure: { sensor: "scan", reason: MESSAGE },
+  };
+  const failures = (made: { lifecycle: { text: string }[] }) =>
+    made.lifecycle
+      .map((one) => one.text)
+      .filter((one) => one.startsWith("Scan failed"));
+  const blocked = (made: { log: string[] }) =>
+    made.log.filter((one) => one.startsWith("blocked:"));
+
+  async function failedViaWindow(
+    stderr: string,
+    withRecord: boolean,
+    reason = MESSAGE,
+  ) {
+    const made = harness(
+      fakeScan({
+        defaults: { describe: true, sensors: true },
+        steps: [],
+        records: withRecord,
+        record: {
+          ...ASKED,
+          ...crash,
+          failure: { sensor: "scan", reason },
+          commit: null,
+        },
+        result: { status: "failed", exitCode: 2, stderr },
+      }),
+    );
+
+    await made.rescanner.run();
+    await flush();
+
+    return made;
+  }
+
+  it("shows the same failure text for an app-started and a command-line scan that fail the same way", async () => {
+    const other = await viaCommandLine(crash);
+    const own = await failedViaWindow("", true);
+
+    expect(failures(other)).toHaveLength(1);
+    expect(failures(other)).toEqual([`Scan failed - scan: ${MESSAGE}`]);
+    expect(failures(own)).toEqual(failures(other));
+    expect(blocked(own)).toEqual(blocked(other));
+    expect(own.posted).toEqual(other.posted);
+  });
+
+  it("shows the exit code when no record arrives and the child printed nothing", async () => {
+    const made = await failedViaWindow("", false);
+
+    expect(failures(made)).toEqual(["Scan failed - recognizer scan exited 2"]);
+  });
+
+  it("shows the carried stderr when no record arrives", async () => {
+    const made = await failedViaWindow("bad flag\n", false);
+
+    expect(failures(made)).toEqual(["Scan failed - bad flag"]);
+  });
+
+  it("shows only the record's text when a record exists and differing stderr is carried", async () => {
+    const made = await failedViaWindow("ignored noise", true, "real reason");
+
+    expect(failures(made)).toHaveLength(1);
+    expect(failures(made)).toEqual(["Scan failed - scan: real reason"]);
+    expect(made.log.join("\n")).not.toContain("ignored noise");
   });
 });

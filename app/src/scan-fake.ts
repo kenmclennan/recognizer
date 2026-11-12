@@ -68,7 +68,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
   let pending: { stop: () => void } | null = null;
   const fake: FakeScan = {
     steps: [],
-    result: { status: "finished", exitCode: 0, stderr: "" },
+    result: { status: "finished", exitCode: 0 },
     cache: {
       status: "scanned",
       exitCode: 0,
