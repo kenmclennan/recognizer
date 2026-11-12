@@ -1,3 +1,4 @@
+import { LONG_FUNCTION as LIBRARY_LONG_FUNCTION } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   barPercent,
@@ -7,6 +8,12 @@ import {
   lengthBand,
   lengthText,
 } from "./function-length";
+
+describe("shared limit", () => {
+  it("is the library's", () => {
+    expect(LONG_FUNCTION).toBe(LIBRARY_LONG_FUNCTION);
+  });
+});
 
 describe("lengthBand", () => {
   it("is neutral up to the long edge, long up to the huge edge and huge beyond", () => {

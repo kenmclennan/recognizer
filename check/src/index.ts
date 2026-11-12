@@ -60,6 +60,7 @@ export {
   metricsLine,
   metricsTable,
 } from "./folder-metrics.js";
+export { functionLength, LONG_FUNCTION } from "./function-length.js";
 export type { Fix, Gap } from "./gap.js";
 export { gapText, isGap } from "./gap.js";
 export { dependencyEdges } from "./graph.js";
