@@ -29,20 +29,22 @@ kill_tree() {
 }
 limit=$1
 shift
-flag=$(mktemp)
-"$@" &
-command_pid=$!
-( sleep "$limit"; echo expired > "$flag"; kill_tree "$command_pid" ) >/dev/null 2>&1 &
-watchdog_pid=$!
-wait "$command_pid"
-status=$?
-expired=0
-[ -s "$flag" ] && expired=1
-kill_tree "$watchdog_pid"
-wait "$watchdog_pid" 2>/dev/null
-rm -f "$flag"
-[ "$expired" = 1 ] && exit ${CEILING_EXIT}
-exit "$status"
+done_file=$(mktemp)
+sleep "$limit" >/dev/null 2>&1 &
+sleeper_pid=$!
+( "$@"; echo $? > "$done_file"; kill -KILL "$sleeper_pid" 2>/dev/null ) &
+runner_pid=$!
+wait "$sleeper_pid" 2>/dev/null
+if [ -s "$done_file" ]; then
+  wait "$runner_pid" 2>/dev/null
+  status=$(cat "$done_file")
+  rm -f "$done_file"
+  exit "$status"
+fi
+kill_tree "$runner_pid"
+wait "$runner_pid" 2>/dev/null
+rm -f "$done_file"
+exit ${CEILING_EXIT}
 `;
 
 export interface DirEntry {
