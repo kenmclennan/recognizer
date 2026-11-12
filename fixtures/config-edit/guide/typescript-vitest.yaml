@@ -3,7 +3,7 @@ tests:
     language: typescript
     runner: vitest
     directory: .
-    command: npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage
+    command: npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=.recognizer/cache/coverage/web
     coverage:
-      path: coverage/lcov.info
+      path: .recognizer/cache/coverage/web/lcov.info
       format: lcov

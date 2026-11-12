@@ -773,18 +773,18 @@ def guide_text(capsys):
 BINDING_SUITES = (
     (
         "python",
-        "pytest --cov=src --cov-report=lcov:coverage/lcov.info",
-        "coverage/lcov.info",
+        "pytest --cov=src --cov-report=lcov:.recognizer/cache/coverage/api/lcov.info",
+        ".recognizer/cache/coverage/api/lcov.info",
     ),
     (
         "typescript",
-        "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
-        "coverage/lcov.info",
+        "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=.recognizer/cache/coverage/web",
+        ".recognizer/cache/coverage/web/lcov.info",
     ),
     (
         "typescript",
-        "npx jest --coverage --coverageReporters=lcov --coverageDirectory=coverage",
-        "coverage/lcov.info",
+        "npx jest --coverage --coverageReporters=lcov --coverageDirectory=.recognizer/cache/coverage/web",
+        ".recognizer/cache/coverage/web/lcov.info",
     ),
     (
         "kotlin",

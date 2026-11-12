@@ -242,7 +242,7 @@ def test_a_mutant_runs_in_the_suite_directory_of_its_copy_under_the_login_shell_
         activate=(
             f'export PATH={shims}:$PATH RECORD_FILE={record}; echo "$-" >> {tmp_path / "flags.txt"}'
         ),
-        command='if [ -n "$COVERAGE_FILE" ]; then touch cov.info; else pytest; fi #',
+        command='case "$PWD" in */mutation/work/*/warmup*) touch cov.info;; *) pytest;; esac #',
         env={"MARKER": "from-env"},
     )
 
@@ -361,7 +361,7 @@ def editable_suite(venv, log, **extra):
 
     return suite_raw(
         command=(
-            f'[ -n "$COVERAGE_FILE" ] || echo run >> {shlex.quote(str(log))}; '
+            f'case "$PWD" in */mutation/work/*/warmup*) ;; *) echo run >> {shlex.quote(str(log))};; esac; '
             f"{python} -m pytest {pytest_args} --cov=pkg --cov-report=lcov:cov.info"
         ),
         **extra,

@@ -3,7 +3,7 @@ tests:
     language: typescript
     runner: jest
     directory: .
-    command: npx jest --coverage --coverageReporters=lcov --coverageDirectory=coverage
+    command: npx jest --coverage --coverageReporters=lcov --coverageDirectory=.recognizer/cache/coverage/web
     coverage:
-      path: coverage/lcov.info
+      path: .recognizer/cache/coverage/web/lcov.info
       format: lcov

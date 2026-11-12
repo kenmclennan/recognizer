@@ -1,6 +1,7 @@
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import time
 from collections.abc import Iterable, Mapping
@@ -198,7 +199,46 @@ def source_of(suite: Suite) -> Source:
     return Source(report_pattern(suite), suite.coverage_format, directory_of(suite), suite.name)
 
 
+COVERAGE_CACHE = ".recognizer/cache/coverage"
+
+PYCACHE_CACHE = ".recognizer/cache/pycache"
+
+SLUG_UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def suite_folder(suite: Suite) -> str:
+    slug = SLUG_UNSAFE.sub("-", suite.name)
+
+    if slug.startswith("."):
+        slug = f"-{slug[1:]}"
+
+    return f"{COVERAGE_CACHE}/{slug}"
+
+
+def suite_environment(repository: Path, suite: Suite) -> dict[str, str]:
+    if suite.language != "python":
+        return {}
+
+    root = repository.resolve()
+    wanted = {
+        "COVERAGE_FILE": str(root / suite_folder(suite) / "data"),
+        "PYTHONPYCACHEPREFIX": str(root / PYCACHE_CACHE),
+    }
+
+    return {name: value for name, value in wanted.items() if name not in suite.env}
+
+
+def prepare_suite_folder(root: Path, suite: Suite) -> None:
+    folder = root / suite_folder(suite)
+
+    if folder.exists():
+        shutil.rmtree(folder)
+
+    folder.mkdir(parents=True)
+
+
 def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
+    prepare_suite_folder(repository, suite)
     stream.write(f"== {suite.name}: {suite.command}\n")
     stream.flush()
     offset = stream.tell()
@@ -208,7 +248,7 @@ def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
         result = subprocess.run(
             [shell, "-ilc", shell_script(suite)],
             cwd=repository,
-            env={**os.environ, **suite.env},
+            env={**os.environ, **suite_environment(repository, suite), **suite.env},
             stdin=subprocess.DEVNULL,
             stdout=stream,
             stderr=subprocess.STDOUT,
