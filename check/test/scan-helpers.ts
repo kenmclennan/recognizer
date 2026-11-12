@@ -526,3 +526,5 @@ export function inputsOf(scan: Record<string, unknown>) {
     (scan.modules as { id: string }[]).map((module) => [module.id, EMPTY_HASH]),
   );
 }
+
+export const POLICY_PROBLEM = `warning: ${ROOT}/.recognizer/policy.yaml: folder shop/legacy holds 1 scanned modules that no component covers\n`;

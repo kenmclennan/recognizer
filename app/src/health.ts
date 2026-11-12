@@ -7,8 +7,10 @@ import {
   identityKey,
   measuredModules,
   type Policy,
+  type PolicyProblem,
   parseBaseline,
   parsePolicy,
+  policyProblems,
   ruleText,
   splitFindings,
   type Violation,
@@ -28,6 +30,7 @@ export type Health = {
   lines: (id: string) => string[];
   findings: (id: string) => Finding[];
   notices: string[];
+  policyProblems: PolicyProblem[];
 };
 
 export type NodeHealth = { disc: Disc; hover: string };
@@ -80,6 +83,7 @@ export function computeHealth(
 ): Health {
   const notices: string[] = [];
   const known = new Set(loaded.modules);
+  const policy = readPolicy(loaded.policy);
   const accepted = readBaseline(loaded.baseline ?? null, notices);
   const scans = loaded.scans.map(({ scan }) => scan);
   const freshness = buildFreshness(scans, loaded.tests ?? null);
@@ -98,7 +102,7 @@ export function computeHealth(
 
     const covered =
       document.sensor.name === "structure"
-        ? measuredModules(scans, readPolicy(loaded.policy))
+        ? measuredModules(scans, policy)
         : known;
 
     for (const id of covered) {
@@ -146,6 +150,7 @@ export function computeHealth(
     lines: linesOf,
     findings: findingsOf,
     notices,
+    policyProblems: policyProblems(scans, policy),
   };
 }
 

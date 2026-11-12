@@ -8,11 +8,7 @@ import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { collectViolations } from "./rules.js";
 import type { RecordedScan, Scan } from "./scan.js";
-import {
-  orphanFindings,
-  policyDriftFindings,
-  unusedExportsFindings,
-} from "./structure-warnings.js";
+import { orphanFindings, unusedExportsFindings } from "./structure-warnings.js";
 
 export const STRUCTURE_SENSOR_VERSION = "14";
 
@@ -21,7 +17,6 @@ export interface StructureSettings {
   warnings: {
     cycle: boolean;
     orphan: boolean;
-    policy_drift: boolean;
     unused_exports: boolean;
   };
 }
@@ -43,7 +38,6 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
   warnings: {
     cycle: true,
     orphan: true,
-    policy_drift: true,
     unused_exports: false,
   },
 };
@@ -67,7 +61,6 @@ export function resolveStructureSettings(
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
       orphan: orphan !== false,
-      policy_drift: given.warnings?.policy_drift ?? defaults.policy_drift,
       unused_exports: given.warnings?.unused_exports ?? defaults.unused_exports,
     },
   };
@@ -97,7 +90,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, unused_exports ${on(w.unused_exports)}${entries}`;
+  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}${entries}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -212,12 +205,6 @@ export function structureSensor(
     }
   }
 
-  if (settings.warnings.policy_drift) {
-    for (const finding of policyDriftFindings(scans, policy)) {
-      add(warnings, finding);
-    }
-  }
-
   const folders = measureFolders(scans, policy);
 
   return {
@@ -231,7 +218,6 @@ export function structureSensor(
         warnings: {
           cycle: settings.warnings.cycle,
           orphan: settings.warnings.orphan,
-          policy_drift: settings.warnings.policy_drift,
           unused_exports: settings.warnings.unused_exports,
         },
       },

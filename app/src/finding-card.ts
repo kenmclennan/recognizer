@@ -28,30 +28,11 @@ function folderOf(path: string): string {
   return at === -1 ? "" : path.slice(0, at);
 }
 
-function splitFolder(folder: string): { name: string; folder: string } {
-  const at = folder.lastIndexOf("/");
-
-  return at === -1
-    ? { name: folder, folder: "" }
-    : { name: folder.slice(at + 1), folder: folder.slice(0, at) };
-}
-
 function isMemberFinding(record: FindingRecord): boolean {
   return (
     (record.evidence.members?.length ?? 0) > 0 &&
     record.kind !== "unused_exports"
   );
-}
-
-export function folderSubject(record: FindingRecord): string | null {
-  if (
-    record.kind === "policy_drift" &&
-    record.id.startsWith("policy_drift:folder:")
-  ) {
-    return record.id.slice("policy_drift:folder:".length);
-  }
-
-  return null;
 }
 
 function subjectOf(row: FindingRow): { name: string; folder: string } {
@@ -63,24 +44,6 @@ function subjectOf(row: FindingRow): { name: string; folder: string } {
     if (member !== undefined) {
       return { name: member.name, folder: folderOf(member.module) };
     }
-  }
-
-  if (
-    record.kind === "policy_drift" &&
-    record.id.startsWith("policy_drift:folder:")
-  ) {
-    const folder = folderSubject(record);
-
-    if (folder !== null && folder !== "") {
-      return splitFolder(folder);
-    }
-  }
-
-  if (
-    record.kind === "policy_drift" &&
-    record.id.startsWith("policy_drift:entry:")
-  ) {
-    return { name: record.id.slice("policy_drift:entry:".length), folder: "" };
   }
 
   const module = record.evidence.modules[0] ?? "";

@@ -128,17 +128,6 @@
           }
         ]
       }
-    },
-    {
-      "id": "policy_drift",
-      "principle": "policy-describes-the-code",
-      "fix_pattern": "update-policy",
-      "summary": "folder app/legacy holds 1 scanned modules that no component covers",
-      "evidence": {
-        "modules": [
-          "app/legacy/old.py"
-        ]
-      }
     }
   ],
   "metrics": [

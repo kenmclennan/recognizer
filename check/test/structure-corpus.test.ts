@@ -115,7 +115,6 @@ function settingsFrom(description: ScanDescription): StructureSettings {
   const off = {
     cycle: false,
     orphan: false,
-    policy_drift: false,
     unused_exports: false,
   };
 

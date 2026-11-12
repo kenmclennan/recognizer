@@ -69,8 +69,8 @@ describe("computeHealth on fixtures/check", () => {
     }
   });
 
-  it("marks the module in an uncovered folder amber", () => {
-    expect(health.disc("shop/legacy/helpers.py")).toBe("amber");
+  it("marks the module in an uncovered folder green, the folder being a policy problem and not a finding", () => {
+    expect(health.disc("shop/legacy/helpers.py")).toBe("green");
   });
 
   it("shows an ignored module as a grey ring", () => {
@@ -345,6 +345,7 @@ describe("hover truncation", () => {
       lines: () => ["a finding"],
       findings: () => [],
       notices: [],
+      policyProblems: [],
     };
     const hover = describeTree(buildTree(ids), health).get("d")?.hover ?? "";
     const lines = hover.split("\n");
@@ -487,5 +488,42 @@ describe("computeHealth judged per module", () => {
     expect(health.documents[0]?.findings).toEqual([]);
     expect(health.hidden[0]?.findings).toHaveLength(3);
     expect(health.disc("a.py")).toBe("grey");
+  });
+});
+
+describe("computeHealth policy problems", () => {
+  const problemsFor = (policy: string | null) =>
+    healthFor("check", policy, []).health.policyProblems;
+
+  it("reports the one uncovered folder of fixtures/check and marks no module with it", () => {
+    const policy = fixturePolicy("check");
+    const { health, ids } = healthOf("check", policy);
+
+    expect(health.policyProblems).toEqual([
+      {
+        kind: "folder",
+        subject: "shop/legacy",
+        text: "folder shop/legacy holds 1 scanned modules that no component covers",
+      },
+    ]);
+
+    for (const id of ids) {
+      expect(health.lines(id).join("\n")).not.toContain("shop/legacy holds");
+    }
+  });
+
+  it("reports a stale entry and an uncovered folder together", () => {
+    const problems = problemsFor(
+      "components:\n  domain: shop/domain/**\n  gone: nowhere/**\n",
+    );
+
+    expect(problems.map((problem) => problem.kind)).toContain("entry");
+    expect(problems.map((problem) => problem.kind)).toContain("folder");
+    expect(problems.map((problem) => problem.subject)).toContain("nowhere/**");
+  });
+
+  it("gives none without a policy and none for a policy that does not parse", () => {
+    expect(problemsFor(null)).toEqual([]);
+    expect(problemsFor("components: [unbalanced")).toEqual([]);
   });
 });

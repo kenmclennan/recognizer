@@ -60,13 +60,12 @@ describe("keepsFocus", () => {
 });
 
 describe("a finding with no module", () => {
-  const drift: FindingRecord = {
-    id: "policy_drift:entry:gone/**",
-    kind: "policy_drift",
+  const lint: FindingRecord = {
+    id: "lint:whole-repository",
+    kind: "lint",
     severity: "warning",
-    principle: "policy-describes-the-code",
-    summary: "policy entry gone/** matches no scanned module",
-    fix_pattern: "update-policy",
+    principle: "tidy",
+    summary: "the repository has a lint problem",
     evidence: { modules: [] },
   };
 
@@ -78,7 +77,7 @@ describe("a finding with no module", () => {
         commit: "c",
         modified: false,
         settings: {},
-        findings: [drift],
+        findings: [lint],
       },
     ]);
 

@@ -1,6 +1,5 @@
 import { isEntryPoint, isLiteralPath } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
-import { compileGlob, matchesAny } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
@@ -340,76 +339,4 @@ export function unusedExportsFindings(
   }
 
   return findings.sort((a, b) => compare(a.id, b.id));
-}
-
-export function policyDriftFindings(
-  scans: Scan[],
-  policy: Policy | null,
-): FindingRecord[] {
-  if (policy === null || policy.components.size === 0) {
-    return [];
-  }
-
-  const scanned = new Set<string>();
-  const keptByFolder = new Map<string, string[]>();
-
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      scanned.add(module.id);
-    }
-
-    for (const id of keptGraph(scan, policy.ignore).ids) {
-      const folder = folderOf(id);
-      const held = keptByFolder.get(folder) ?? [];
-
-      if (!held.includes(id)) {
-        held.push(id);
-      }
-
-      keptByFolder.set(folder, held);
-    }
-  }
-
-  const entries = new Map<string, string>();
-
-  for (const [name, globs] of policy.componentGlobs) {
-    for (const glob of globs) {
-      if (!entries.has(glob)) {
-        entries.set(glob, name);
-      }
-    }
-  }
-
-  const unmatched: FindingRecord[] = [...entries]
-    .filter(([glob]) => {
-      const matches = compileGlob(glob);
-
-      return ![...scanned].some((id) => matches(id));
-    })
-    .map(([glob, name]) => ({
-      id: `policy_drift:entry:${glob}`,
-      kind: "policy_drift",
-      severity: "warning" as const,
-      principle: "policy-describes-the-code",
-      summary: `policy entry ${glob} (component ${name}) matches no scanned module`,
-      fix_pattern: "update-policy",
-      evidence: { modules: [] },
-    }))
-    .sort((a, b) => compare(a.id, b.id));
-
-  const matchers = [...policy.components.values()].flat();
-  const uncovered: FindingRecord[] = [...keptByFolder]
-    .filter(([, ids]) => !ids.some((id) => matchesAny(matchers, id)))
-    .map(([folder, ids]) => ({
-      id: `policy_drift:folder:${folder}`,
-      kind: "policy_drift",
-      severity: "warning" as const,
-      principle: "policy-describes-the-code",
-      summary: `folder ${folder} holds ${ids.length} scanned modules that no component covers`,
-      fix_pattern: "update-policy",
-      evidence: { modules: [...ids].sort(compare) },
-    }))
-    .sort((a, b) => compare(a.id, b.id));
-
-  return [...unmatched, ...uncovered];
 }

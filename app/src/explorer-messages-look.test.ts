@@ -76,6 +76,11 @@ const facts = {};
   await tick();
   facts.afterAllFixed = { rows: fixed.rows(), badgeHidden: fixed.q(".bell-badge").hidden, toastHidden: fixed.q(".message-toast").hidden };
 
+  const drift = session();
+  drift.build({ ...base, policy: "components:\\n  app: app/**\\n  lib: lib/**\\n  gone: gone/**\\n" });
+  await tick();
+  facts.policyProblem = drift.all(".message-list .msg.warning").map((row) => row.querySelector(".msg-text").textContent);
+
   const fresh = session();
   const ranLoaded = { ...base, sensors: [{ name: "alpha", status: "ran" }] };
   fresh.build(ranLoaded);
@@ -172,6 +177,12 @@ describe.skipIf(webkit === undefined)("explorer messages in the tray", () => {
     expect(f.baselineOnce.rows[0]).toContain("The baseline cannot be read");
     expect(f.baselineOnce.toast).toBe(true);
     expect(f.baselineOnce.quiet).toBe(false);
+  });
+
+  it("posts one warning for a stale policy entry naming the policy file and the entry", () => {
+    expect(f.policyProblem).toHaveLength(1);
+    expect(f.policyProblem[0]).toContain(".recognizer/policy.yaml");
+    expect(f.policyProblem[0]).toContain("gone/**");
   });
 
   it("does not duplicate the baseline message on a second explorer build", () => {

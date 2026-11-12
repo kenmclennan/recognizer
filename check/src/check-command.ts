@@ -22,6 +22,7 @@ import { freshScans } from "./freshness.js";
 import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
+import { warnPolicyProblems } from "./policy-problems.js";
 import type { Violation } from "./rules.js";
 import { type Scan, validateScan } from "./scan.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
@@ -408,12 +409,21 @@ function executeScanReplay(
   const policy = values.policy
     ? parsePolicy(readInput(io, values.policy, "policy"))
     : null;
+
+  if (policy !== null) {
+    warnPolicyProblems(
+      io.stderr,
+      values.policy as string,
+      [validateScan(scan)],
+      policy,
+    );
+  }
+
   const settings: StructureSettings = {
     entry_points: [],
     warnings: {
       cycle: true,
       orphan: true,
-      policy_drift: true,
       unused_exports: false,
     },
   };
@@ -669,6 +679,10 @@ function executeRepository(
     policyFile === null
       ? null
       : parsePolicy(readInput(io, policyFile, "policy"));
+
+  if (policyFile !== null) {
+    warnPolicyProblems(io.stderr, policyFile, scans, policy);
+  }
 
   const gathered = gather(io, root, scans, policy);
 

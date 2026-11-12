@@ -10,7 +10,6 @@ export interface SensorRegistration {
 export interface StructureSettingsInput {
   warnings?: {
     cycle?: boolean;
-    policy_drift?: boolean;
     unused_exports?: boolean;
     orphan?: boolean | { entry_points: string[] };
   };
@@ -168,6 +167,12 @@ function rejectRetiredWarnings(document: unknown): void {
   if ("folder_cycle" in structure.warnings) {
     throw new InputError([
       "config/sensors/structure/warnings/folder_cycle was removed: a folder declares no imports, so the warning had nothing of its own to report on a file; delete the key (file-level cycles are still reported by the cycle warning)",
+    ]);
+  }
+
+  if ("policy_drift" in structure.warnings) {
+    throw new InputError([
+      "config/sensors/structure/warnings/policy_drift was removed: a policy that is out of date is a problem with the policy file, not a finding about the code, so it is always reported and there is nothing to switch; delete the key",
     ]);
   }
 }

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
 import { parsePolicy, validateScan } from "../src/index.js";
+import { policyProblems } from "../src/policy-problems.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
   describeSettings,
@@ -13,7 +14,6 @@ import {
 } from "../src/structure-sensor.js";
 import {
   orphanFindings,
-  policyDriftFindings,
   unusedExportsFindings,
 } from "../src/structure-warnings.js";
 import {
@@ -22,46 +22,7 @@ import {
   WORKED_EDGES,
 } from "./folder-fixtures.js";
 import { REPO } from "./helpers.js";
-
-function scanOf(
-  edges: [string, string][],
-  modules: string[] = [],
-  entryPoints: string[] = [],
-) {
-  const ids = new Set([...modules, ...edges.flat()]);
-
-  return validateScan({
-    schema_version: 7,
-    scanner: { name: "t", version: "0" },
-    commit: null,
-    modified: false,
-    files: [],
-    selection: {
-      extensions: [],
-      skip_directory_names: [],
-      skip_directory_prefixes: [],
-      skip_directory_suffixes: [],
-      skip_directories_containing: [],
-      skip_file_globs: [],
-    },
-    modules: [...ids]
-      .filter((id) => !id.startsWith("foreign:"))
-      .map((id) => ({
-        id,
-        language: "python",
-        kind: "module",
-        members: [],
-        ...(entryPoints.includes(id) ? { entry_point: true } : {}),
-      })),
-    edges: edges.map(([from, to], index) => ({
-      from,
-      to,
-      kind: "depends",
-      line: index + 1,
-    })),
-    foreign: [],
-  });
-}
+import { scanOf } from "./scan-of.js";
 
 const CONTEXT = { commit: "abc", modified: false };
 
@@ -303,61 +264,6 @@ describe("orphan actual_of", () => {
   });
 });
 
-describe("policy_drift", () => {
-  const POLICY =
-    "components:\n  domain: app/domain/**\n  ports: app/ports/**\n";
-
-  it("reports exactly the failing entry and the uncovered folder", () => {
-    const found = policyDriftFindings(
-      [
-        scanOf(
-          [["app/domain/a.py", "app/misc/m.py"]],
-          ["app/domain/a.py", "app/misc/m.py"],
-        ),
-      ],
-      parsePolicy(POLICY),
-    );
-
-    expect(ids(found)).toEqual([
-      "policy_drift:entry:app/ports/**",
-      "policy_drift:folder:app/misc",
-    ]);
-    expect(found[0]?.evidence.modules).toEqual([]);
-    expect(found[1]?.evidence.modules).toEqual(["app/misc/m.py"]);
-    expect(found[1]?.summary).toBe(
-      "folder app/misc holds 1 scanned modules that no component covers",
-    );
-  });
-
-  it("reports a glob listed under two components once", () => {
-    const found = policyDriftFindings(
-      [scanOf([], ["x/a.py"])],
-      parsePolicy("components:\n  one: gone/**\n  two: gone/**\n  c: x/**\n"),
-    );
-
-    expect(ids(found)).toEqual(["policy_drift:entry:gone/**"]);
-    expect(found[0]?.summary).toContain("component one");
-  });
-
-  it("reports nothing without components or without a policy", () => {
-    const scan = scanOf([], ["x/a.py"]);
-
-    expect(policyDriftFindings([scan], parsePolicy("ignore: []\n"))).toEqual(
-      [],
-    );
-    expect(policyDriftFindings([scan], null)).toEqual([]);
-  });
-
-  it("does not drift a glob matching a module in only one of two scans", () => {
-    const found = policyDriftFindings(
-      [scanOf([], ["app/domain/a.py"]), scanOf([], ["app/ports/p.py"])],
-      parsePolicy(POLICY),
-    );
-
-    expect(found).toEqual([]);
-  });
-});
-
 describe("structure settings", () => {
   const config = (yaml: string) => parseConfig(yaml);
 
@@ -400,13 +306,13 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"policy_drift":true,"unused_exports":false}}',
+      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false}}',
     );
     expect(document.sensor.version).toBe("14");
   });
 
   it("describes the settings with and without entry points", () => {
-    const base = "cycle on, orphan on, policy_drift on, unused_exports off";
+    const base = "cycle on, orphan on, unused_exports off";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -417,29 +323,33 @@ describe("structure settings", () => {
     ).toBe(`${base}, entry_points 2`);
   });
 
-  it.each([
-    ["orphan", "orphan:"],
-    ["policy_drift", "policy_drift:"],
-  ] as const)("switching %s off removes only its kind", (name, prefix) => {
-    const scan = scanOf(
-      [
-        ["a/x.py", "b/y.py"],
-        ["b/y.py", "a/x.py"],
-      ],
-      ["c/lonely.py"],
-    );
-    const policy = parsePolicy("components:\n  a: a/**\n  gone: gone/**\n");
-    const run = (settings: StructureSettings) =>
-      ids(structureSensor([scan], policy, settings, CONTEXT).document.findings);
-    const all = run(DEFAULT_STRUCTURE_SETTINGS);
-    const off = run({
-      ...DEFAULT_STRUCTURE_SETTINGS,
-      warnings: { ...DEFAULT_STRUCTURE_SETTINGS.warnings, [name]: false },
-    });
+  it.each([["orphan", "orphan:"]] as const)(
+    "switching %s off removes only its kind",
+    (name, prefix) => {
+      const scan = scanOf(
+        [
+          ["a/x.py", "b/y.py"],
+          ["b/y.py", "a/x.py"],
+        ],
+        ["c/lonely.py"],
+      );
+      const policy = parsePolicy("components:\n  a: a/**\n  gone: gone/**\n");
+      const run = (settings: StructureSettings) =>
+        ids(
+          structureSensor([scan], policy, settings, CONTEXT).document.findings,
+        );
+      const all = run(DEFAULT_STRUCTURE_SETTINGS);
+      const off = run({
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: { ...DEFAULT_STRUCTURE_SETTINGS.warnings, [name]: false },
+      });
 
-    expect(all.filter((id) => id.startsWith(prefix)).length).toBeGreaterThan(0);
-    expect(off).toEqual(all.filter((id) => !id.startsWith(prefix)));
-  });
+      expect(all.filter((id) => id.startsWith(prefix)).length).toBeGreaterThan(
+        0,
+      );
+      expect(off).toEqual(all.filter((id) => !id.startsWith(prefix)));
+    },
+  );
 });
 
 describe("the config examples", () => {
@@ -487,7 +397,6 @@ describe("the removed hub keys", () => {
     expect(Object.keys(settings.warnings)).toEqual([
       "cycle",
       "orphan",
-      "policy_drift",
       "unused_exports",
     ]);
     expect(
@@ -521,6 +430,53 @@ describe("the removed folder_cycle warning", () => {
   });
 });
 
+describe("the removed policy_drift warning", () => {
+  it.each(["true", "false"])(
+    "refuses a config that sets policy_drift: %s and says it was removed",
+    (value) => {
+      const text = `sensors:\n  structure:\n    warnings:\n      policy_drift: ${value}\n`;
+
+      expect(() => parseConfig(text)).toThrow(InputError);
+      expect(() => parseConfig(text)).toThrow(/policy_drift was removed/);
+    },
+  );
+
+  it("still refuses an unrelated unknown warning with the generic message", () => {
+    const text =
+      "sensors:\n  structure:\n    warnings:\n      not_a_warning: true\n";
+
+    expect(() => parseConfig(text)).toThrow(/must NOT have additional/);
+  });
+
+  it("raises no policy_drift finding and records no such setting", () => {
+    const scan = scanOf(
+      [],
+      ["app/domain/a.py", "app/misc/m.py"],
+      ["app/domain/a.py", "app/misc/m.py"],
+    );
+    const policy = parsePolicy(
+      "components:\n  domain: app/domain/**\n  ports: app/ports/**\n",
+    );
+    const { document } = structureSensor(
+      [scan],
+      policy,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    );
+    const warnings = (document.settings as { warnings: object }).warnings;
+
+    expect(policyProblems([scan], policy).length).toBeGreaterThan(0);
+    expect(
+      document.findings.filter(
+        (finding) =>
+          finding.kind.startsWith("policy_drift") ||
+          finding.id.startsWith("policy_drift"),
+      ),
+    ).toEqual([]);
+    expect(Object.keys(warnings)).not.toContain("policy_drift");
+  });
+});
+
 describe("the removed structure keys", () => {
   it.each([
     "sensors:\n  structure:\n    distance_threshold: 0.4\n",
@@ -545,7 +501,7 @@ describe("the removed structure keys", () => {
 });
 
 describe("fixtures/check-warnings", () => {
-  it("yields exactly the four orphans and no drift", () => {
+  it("yields exactly the four orphans", () => {
     const dir = join(REPO, "fixtures/check-warnings");
     const scan = validateScan(
       JSON.parse(readFileSync(join(dir, "scan.json"), "utf8")),
@@ -559,8 +515,8 @@ describe("fixtures/check-warnings", () => {
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
     );
-    const found = ids(document.findings).filter(
-      (id) => id.startsWith("orphan:") || id.startsWith("policy_drift:"),
+    const found = ids(document.findings).filter((id) =>
+      id.startsWith("orphan:"),
     );
 
     expect(found).toEqual([
@@ -623,7 +579,6 @@ describe("switches for the package metric warnings", () => {
         warnings: {
           cycle: on,
           orphan: on,
-          policy_drift: on,
           unused_exports: false,
         },
       },
@@ -639,25 +594,6 @@ describe("switches for the package metric warnings", () => {
     expect(both.folder_metrics.map((row) => row.id)).toEqual(
       [...both.folder_metrics.map((row) => row.id)].sort(),
     );
-  });
-});
-
-describe("settings for the package metrics", () => {
-  const resolve = (yaml: string) =>
-    resolveStructureSettings(parseConfig(yaml), undefined);
-
-  it("defaults the switch", () => {
-    expect(resolveStructureSettings(null)).toMatchObject({
-      warnings: { policy_drift: true },
-    });
-  });
-
-  it("reads the configured values", () => {
-    expect(
-      resolve(
-        "sensors:\n  structure:\n    warnings: { policy_drift: false }\n",
-      ),
-    ).toMatchObject({ warnings: { policy_drift: false } });
   });
 });
 
@@ -1604,8 +1540,8 @@ describe("unused_exports", () => {
     ).toThrow(InputError);
   });
 
-  it("prints the switch after policy_drift", () => {
-    const base = "cycle on, orphan on, policy_drift on";
+  it("prints the switch after orphan", () => {
+    const base = "cycle on, orphan on";
 
     expect(
       describeSettings({

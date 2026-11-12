@@ -21,6 +21,7 @@ import {
   hashedScan,
   inputsOf,
   mountedModules,
+  POLICY_PROBLEM,
   type Program,
   PYTHON,
   ROOT,
@@ -705,7 +706,7 @@ describe("check judging a registered sensor's findings per module", () => {
     });
     const { err, out } = await check(fake, "--json");
 
-    expect(err).toBe("");
+    expect(err).toBe(POLICY_PROBLEM);
     expect(JSON.parse(out).sensors).toContainEqual({
       name: "fake-sensor",
       status: "ran",
@@ -819,15 +820,14 @@ describe("check running the structure sensor", () => {
       warnings: {
         cycle: true,
         orphan: true,
-        policy_drift: true,
         unused_exports: false,
       },
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: cycle on, orphan on, policy_drift on, unused_exports off",
+      "sensor structure: cycle on, orphan on, unused_exports off",
     );
-    expect(err).toBe("");
+    expect(err).toBe(POLICY_PROBLEM);
   });
 
   it("writes no file and removes an old one when structure is off", async () => {
@@ -915,7 +915,6 @@ describe("show and modules read the findings files", () => {
         warnings: {
           cycle: true,
           orphan: true,
-          policy_drift: true,
           unused_exports: false,
         },
       },
@@ -958,7 +957,6 @@ describe("show and modules read the findings files", () => {
         warnings: {
           cycle: true,
           orphan: true,
-          policy_drift: true,
         },
       },
       findings: [],
@@ -986,7 +984,6 @@ describe("show and modules read the findings files", () => {
           cycle: true,
           hub: true,
           orphan: true,
-          policy_drift: true,
           unused_exports: false,
         },
       },
