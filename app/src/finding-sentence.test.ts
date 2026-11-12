@@ -426,3 +426,28 @@ describe("private_imports sentence", () => {
     expect(text).toContain("Parnas, 1972");
   });
 });
+
+describe("long_function sentence", () => {
+  it("names the function, the file and the length", () => {
+    const text = sentence({
+      kind: "long_function",
+      evidence: {
+        modules: ["lib/store.py"],
+        members: [
+          {
+            module: "lib/store.py",
+            name: "Store.save",
+            file: "lib/store.py",
+            lines: [10, 43],
+          },
+        ],
+        measures: { lines: 34, limit: 20 },
+      },
+    });
+
+    expect(text).toContain("Store.save");
+    expect(text).toContain("store.py");
+    expect(text).toContain("34");
+    expect(text).toContain("Martin, Clean Code, 2008");
+  });
+});

@@ -281,3 +281,32 @@ describe("cardOf private_imports", () => {
     ).toEqual(["_x", "_y"]);
   });
 });
+
+describe("cardOf long_function", () => {
+  it("has the function as subject and one member row", () => {
+    const members = [
+      {
+        module: "lib/store.py",
+        name: "Store.save",
+        file: "lib/store.py",
+        lines: [10, 43] as [number, number],
+      },
+    ];
+
+    expect(members.length).toBeGreaterThan(0);
+
+    const card = cardOf(
+      rowOf({
+        kind: "long_function",
+        evidence: {
+          modules: ["lib/store.py"],
+          members,
+          measures: { lines: 34, limit: 20 },
+        },
+      }),
+    );
+
+    expect(card.name).toBe("Store.save");
+    expect(card.rows.map((row) => row.kind)).toEqual(["member"]);
+  });
+});

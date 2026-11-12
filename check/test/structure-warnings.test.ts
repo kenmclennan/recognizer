@@ -1,9 +1,10 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
-import { parsePolicy, validateScan } from "../src/index.js";
+import { functionLength, parsePolicy, validateScan } from "../src/index.js";
 import { policyProblems } from "../src/policy-problems.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
@@ -2204,6 +2205,32 @@ describe("long_function", () => {
     expect(ids(mixed)).toEqual(["long_function:lib/store.py::load@40"]);
   });
 
+  it("skips a module a policy ignore removes", () => {
+    const modules = [{ id: "lib/store.py", functions: [span("a", 1, 40)] }];
+    const ignoring = "ignore: [lib/**]\n";
+    const other = "ignore: [other/**]\n";
+
+    expect(ids(found(modules, ignoring))).toEqual([]);
+    expect(ids(found(modules, other))).toEqual([
+      "long_function:lib/store.py::a",
+    ]);
+  });
+
+  it.each(["python", "typescript", "kotlin", "rust", "csharp"])(
+    "measures a %s module",
+    (language) => {
+      const result = found([
+        {
+          id: `src/store.${language}`,
+          language,
+          functions: [span("a", 1, 21)],
+        },
+      ]);
+
+      expect(result).toHaveLength(1);
+    },
+  );
+
   it("is switched by the sensor, resolved and recorded", () => {
     const scan = scanWith([
       { id: "lib/store.py", functions: [span("a", 1, 40)] },
@@ -2254,5 +2281,62 @@ describe("long_function", () => {
         },
       }),
     ).toContain("private_imports on, long_function off");
+  });
+
+  it("parses a boolean and rejects any other type", () => {
+    const read = (path: string) =>
+      readFileSync(join(REPO, "schema/config-examples", path), "utf8");
+
+    expect(() =>
+      parseConfig(
+        "sensors:\n  structure:\n    warnings:\n      long_function: false\n",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      parseConfig(
+        'sensors:\n  structure:\n    warnings:\n      long_function: "yes"\n',
+      ),
+    ).toThrow(InputError);
+    expect(() =>
+      parseConfig(read("invalid/sensors-long-function-not-boolean.yaml")),
+    ).toThrow(InputError);
+  });
+
+  it("finds nothing over the committed fixture scans", () => {
+    const paths = execFileSync(
+      "git",
+      ["ls-files", "fixtures", "--", "*expected-scan.json"],
+      { cwd: REPO, encoding: "utf8" },
+    )
+      .split("\n")
+      .filter((path) => path.endsWith("expected-scan.json"));
+
+    expect(paths.length).toBeGreaterThanOrEqual(11);
+
+    let withFunctions = 0;
+
+    for (const path of paths) {
+      const scan = validateScan(
+        JSON.parse(readFileSync(join(REPO, path), "utf8")),
+      );
+      const lengths = scan.modules.flatMap((module) =>
+        (module.members ?? []).flatMap((member) =>
+          member.kind === "function"
+            ? [functionLength(member.line, member.end_line)]
+            : (member.methods ?? []).map((method) =>
+                functionLength(method.line, method.end_line),
+              ),
+        ),
+      );
+      const measured = lengths.filter(
+        (length): length is number => length !== null,
+      );
+
+      withFunctions += measured.length > 0 ? 1 : 0;
+      expect(Math.max(0, ...measured), path).toBeLessThan(21);
+      expect(longFunctionFindings(scan, null), path).toEqual([]);
+    }
+
+    expect(withFunctions).toBeGreaterThanOrEqual(paths.length - 1);
   });
 });
