@@ -41,7 +41,6 @@ fn assert_entry(manifest_extra: &str, files: &[(&str, &str)], entry: &str) {
         marked(&document)
     );
     assert!(!is_marked(&document, "src/plain.rs"));
-    assert!(!is_marked(&document, "src/lib.rs"));
 }
 
 #[test]
@@ -157,7 +156,7 @@ fn a_test_table_path_is_marked() {
 }
 
 #[test]
-fn a_lib_path_file_is_not_marked() {
+fn a_lib_path_file_is_marked() {
     let document = run(&[
         (
             "Cargo.toml",
@@ -166,7 +165,7 @@ fn a_lib_path_file_is_not_marked() {
         ("core/root.rs", "pub struct A;\n"),
     ]);
 
-    assert!(marked(&document).is_empty());
+    assert_eq!(marked(&document), vec!["core/root.rs"]);
 }
 
 #[test]
@@ -190,7 +189,7 @@ fn a_cfg_test_mod_marks_its_file() {
         ("src/plain.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), vec!["src/tests.rs"]);
+    assert_eq!(marked(&document), vec!["src/lib.rs", "src/tests.rs"]);
 }
 
 #[test]
@@ -201,7 +200,7 @@ fn a_cfg_test_mod_in_a_mod_rs_marks_the_sibling_file() {
         ("src/a/tests.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), vec!["src/a/tests.rs"]);
+    assert_eq!(marked(&document), vec!["src/a/tests.rs", "src/lib.rs"]);
 }
 
 #[test]
@@ -214,7 +213,7 @@ fn a_cfg_test_mod_with_a_path_attribute_marks_that_file() {
         ("src/t.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), vec!["src/t.rs"]);
+    assert_eq!(marked(&document), vec!["src/lib.rs", "src/t.rs"]);
 }
 
 #[test]
@@ -227,7 +226,7 @@ fn a_test_modules_own_children_are_marked() {
 
     assert_eq!(
         marked(&document),
-        vec!["src/checks.rs", "src/checks/helper.rs"]
+        vec!["src/checks.rs", "src/checks/helper.rs", "src/lib.rs"]
     );
 }
 
@@ -235,7 +234,7 @@ fn a_test_modules_own_children_are_marked() {
 fn a_plain_mod_is_not_marked() {
     let document = krate(&[("src/lib.rs", "mod x;\n"), ("src/x.rs", "")]);
 
-    assert!(marked(&document).is_empty());
+    assert_eq!(marked(&document), vec!["src/lib.rs"]);
 }
 
 #[test]
@@ -245,7 +244,7 @@ fn a_cfg_test_mod_without_a_file_adds_nothing_and_is_not_counted_missing() {
         "#[cfg(test)]\nmod gone;\n",
     )]));
 
-    assert!(marked(&scanned.document).is_empty());
+    assert_eq!(marked(&scanned.document), vec!["src/lib.rs"]);
     assert_eq!(scanned.missing_mods, 0);
 }
 
@@ -269,7 +268,7 @@ fn only_the_present_cfg_test_mod_is_marked() {
         ("src/present.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), vec!["src/present.rs"]);
+    assert_eq!(marked(&document), vec!["src/lib.rs", "src/present.rs"]);
 }
 
 fn with_manifest_borrowed(
@@ -307,7 +306,7 @@ fn a_cfg_all_test_mod_marks_its_file() {
         ("src/tests.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), vec!["src/tests.rs"]);
+    assert_eq!(marked(&document), vec!["src/lib.rs", "src/tests.rs"]);
 }
 
 #[test]
@@ -320,7 +319,7 @@ fn a_cfg_all_test_mod_with_a_path_marks_the_named_file() {
         ("src/t.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), vec!["src/t.rs"]);
+    assert_eq!(marked(&document), vec!["src/lib.rs", "src/t.rs"]);
 }
 
 #[test]
@@ -334,7 +333,7 @@ fn a_cfg_any_test_or_not_test_mod_marks_nothing() {
         ("src/only.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), Vec::<String>::new());
+    assert_eq!(marked(&document), vec!["src/lib.rs"]);
 }
 
 #[test]
@@ -348,5 +347,139 @@ fn a_cfg_any_whose_every_alternative_requires_test_marks_its_file() {
         ("src/twice.rs", ""),
     ]);
 
-    assert_eq!(marked(&document), vec!["src/both.rs", "src/twice.rs"]);
+    assert_eq!(
+        marked(&document),
+        vec!["src/both.rs", "src/lib.rs", "src/twice.rs"]
+    );
+}
+
+#[test]
+fn the_default_library_root_is_marked() {
+    let document = run(&[
+        ("Cargo.toml", "[package]\nname = \"app\"\n"),
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a.rs", ""),
+    ]);
+
+    assert_eq!(marked(&document), vec!["src/lib.rs"]);
+}
+
+#[test]
+fn a_library_path_root_is_marked_and_the_default_is_not_read() {
+    let document = run(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"app\"\n[lib]\npath = \"lib.rs\"\n",
+        ),
+        ("lib.rs", "mod a;\n"),
+        ("a.rs", ""),
+        ("src/lib.rs", ""),
+    ]);
+
+    assert_eq!(marked(&document), vec!["lib.rs"]);
+}
+
+#[test]
+fn autolib_false_without_a_lib_table_marks_no_library_root() {
+    let document = run(&[
+        ("Cargo.toml", "[package]\nname = \"app\"\nautolib = false\n"),
+        ("src/lib.rs", "pub struct A;\n"),
+    ]);
+
+    assert!(marked(&document).is_empty());
+}
+
+#[test]
+fn autolib_false_with_a_lib_table_still_marks_the_library_root() {
+    let document = run(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"app\"\nautolib = false\n[lib]\npath = \"core.rs\"\n",
+        ),
+        ("core.rs", "pub struct A;\n"),
+    ]);
+
+    assert_eq!(marked(&document), vec!["core.rs"]);
+}
+
+#[test]
+fn a_mod_rs_is_not_marked_and_is_reached_through_its_declaration() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a/mod.rs", "pub struct A;\n"),
+    ]);
+
+    assert_eq!(marked(&document), vec!["src/lib.rs"]);
+    assert!(edges(&document)
+        .iter()
+        .any(|edge| edge.contains("src/a/mod.rs")));
+}
+
+#[test]
+fn a_macro_rules_body_declaring_a_module_yields_an_edge_from_the_invocation() {
+    let document = krate(&[
+        (
+            "src/lib.rs",
+            "macro_rules! crate_root {\n    () => {\n        pub mod de;\n        mod ser;\n    };\n}\ncrate_root!();\n",
+        ),
+        ("src/de/mod.rs", ""),
+        ("src/ser.rs", ""),
+    ]);
+    let found = edges(&document);
+
+    assert!(
+        found.iter().any(|e| e.contains("src/de/mod.rs")),
+        "{found:?}"
+    );
+    assert!(found.iter().any(|e| e.contains("src/ser.rs")), "{found:?}");
+    assert_eq!(marked(&document), vec!["src/lib.rs"]);
+}
+
+#[test]
+fn a_macro_never_invoked_yields_no_edge() {
+    let document = krate(&[
+        (
+            "src/lib.rs",
+            "macro_rules! crate_root {\n    () => {\n        pub mod de;\n    };\n}\n",
+        ),
+        ("src/de/mod.rs", ""),
+    ]);
+
+    assert!(edges(&document).is_empty(), "{:?}", edges(&document));
+}
+
+#[test]
+fn a_second_crates_invocation_resolves_from_its_own_file() {
+    let document = run(&[
+        ("Cargo.toml", "[workspace]\nmembers = [\"a\", \"b\"]\n"),
+        ("a/Cargo.toml", "[package]\nname = \"a\"\n"),
+        (
+            "a/src/lib.rs",
+            "macro_rules! root {\n    () => {\n        mod inner;\n    };\n}\nroot!();\n",
+        ),
+        ("a/src/inner.rs", ""),
+        ("b/Cargo.toml", "[package]\nname = \"b\"\n"),
+        (
+            "b/src/lib.rs",
+            "macro_rules! root {\n    () => {\n        mod inner;\n    };\n}\nroot!();\n",
+        ),
+        ("b/src/inner.rs", ""),
+    ]);
+    let found = edges(&document);
+
+    assert!(
+        found
+            .iter()
+            .any(|e| e.contains("a/src/lib.rs") && e.contains("a/src/inner.rs")),
+        "{found:?}"
+    );
+    assert!(
+        found
+            .iter()
+            .any(|e| e.contains("b/src/lib.rs") && e.contains("b/src/inner.rs")),
+        "{found:?}"
+    );
+    assert!(!found
+        .iter()
+        .any(|e| e.contains("a/src/lib.rs") && e.contains("b/src/inner.rs")));
 }

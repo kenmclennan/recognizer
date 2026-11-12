@@ -17,6 +17,17 @@ pub struct ModDecl {
     pub scope: Vec<String>,
 }
 
+pub struct MacroMods {
+    pub macro_name: String,
+    pub modules: Vec<String>,
+}
+
+pub struct MacroCall {
+    pub macro_name: String,
+    pub line: usize,
+    pub scope: Vec<String>,
+}
+
 pub struct UseLeaf {
     pub path: Vec<String>,
     pub leading_colon: bool,
@@ -46,6 +57,8 @@ pub struct Parsed {
     pub scopes: BTreeMap<Vec<String>, Scope>,
     pub mods: Vec<ModDecl>,
     pub test_mods: Vec<ModDecl>,
+    pub macro_mods: Vec<MacroMods>,
+    pub macro_calls: Vec<MacroCall>,
     pub inner_test: bool,
     pub impls: Vec<ImplRef>,
 }
@@ -417,6 +430,8 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
         scopes: BTreeMap::new(),
         mods: Vec::new(),
         test_mods: Vec::new(),
+        macro_mods: Vec::new(),
+        macro_calls: Vec::new(),
         inner_test: file.attrs.iter().any(is_test_attribute),
         impls: Vec::new(),
     };
@@ -678,9 +693,53 @@ fn collect(
             Item::Macro(found) if found.mac.path.is_ident("macro_rules") => {
                 if let Some(ident) = &found.ident {
                     declare(parsed, scope, name_of(ident));
+
+                    let modules = declared_modules(found.mac.tokens.clone());
+
+                    if !modules.is_empty() {
+                        parsed.macro_mods.push(MacroMods {
+                            macro_name: name_of(ident),
+                            modules,
+                        });
+                    }
+                }
+            }
+            Item::Macro(found) if found.ident.is_none() => {
+                if let Some(name) = last_segment(&found.mac.path) {
+                    parsed.macro_calls.push(MacroCall {
+                        macro_name: name,
+                        line: line_of(found.mac.path.span()),
+                        scope: scope.clone(),
+                    });
                 }
             }
             _ => {}
         }
     }
+}
+
+fn declared_modules(tokens: proc_macro2::TokenStream) -> Vec<String> {
+    use proc_macro2::TokenTree;
+
+    let trees: Vec<TokenTree> = tokens.into_iter().collect();
+    let mut found = Vec::new();
+
+    for (at, tree) in trees.iter().enumerate() {
+        match tree {
+            TokenTree::Group(group) => found.extend(declared_modules(group.stream())),
+            TokenTree::Ident(keyword) if keyword == "mod" => {
+                let name = trees.get(at + 1);
+                let end = trees.get(at + 2);
+
+                if let (Some(TokenTree::Ident(name)), Some(TokenTree::Punct(end))) = (name, end) {
+                    if end.as_char() == ';' {
+                        found.push(name_of(name));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    found
 }

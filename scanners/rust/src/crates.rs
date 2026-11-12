@@ -227,7 +227,28 @@ fn dependency_directory(
     None
 }
 
+fn has_library_target(manifest: &Manifest) -> bool {
+    let autolib_off = manifest
+        .table
+        .get("package")
+        .and_then(Value::as_table)
+        .and_then(|package| package.get("autolib"))
+        .and_then(Value::as_bool)
+        == Some(false);
+
+    !autolib_off
+        || manifest
+            .table
+            .get("lib")
+            .and_then(Value::as_table)
+            .is_some()
+}
+
 fn library_root(manifest: &Manifest, source_files: &HashSet<String>) -> Option<String> {
+    if !has_library_target(manifest) {
+        return None;
+    }
+
     let relative = string_at(&manifest.table, &["lib", "path"]).unwrap_or("src/lib.rs");
     let path = join(&manifest.dir, relative)?;
 
@@ -240,10 +261,13 @@ fn target_roots(manifest: &Manifest, source_files: &HashSet<String>) -> (Vec<Str
     let mut entries: BTreeSet<String> = BTreeSet::new();
     let resolve = |relative: &str| join(dir, relative).filter(|path| source_files.contains(path));
 
-    if let Some(path) =
-        resolve(string_at(&manifest.table, &["lib", "path"]).unwrap_or("src/lib.rs"))
-    {
-        library.insert(path);
+    if has_library_target(manifest) {
+        if let Some(path) =
+            resolve(string_at(&manifest.table, &["lib", "path"]).unwrap_or("src/lib.rs"))
+        {
+            library.insert(path.clone());
+            entries.insert(path);
+        }
     }
 
     if let Some(path) = resolve("src/main.rs") {

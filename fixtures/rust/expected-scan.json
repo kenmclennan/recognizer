@@ -98,7 +98,8 @@
           ],
           "returns": "u64"
         }
-      ]
+      ],
+      "entry_point": true
     },
     {
       "id": "shop/src/adapters.rs",
@@ -169,7 +170,8 @@
           "params": [],
           "returns": "Order"
         }
-      ]
+      ],
+      "entry_point": true
     },
     {
       "id": "shop/src/orders.rs",

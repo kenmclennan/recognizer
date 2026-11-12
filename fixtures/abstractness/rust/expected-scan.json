@@ -94,7 +94,8 @@
       "id": "src/lib.rs",
       "language": "rust",
       "kind": "module",
-      "members": []
+      "members": [],
+      "entry_point": true
     },
     {
       "id": "src/shapes.rs",

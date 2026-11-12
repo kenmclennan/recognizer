@@ -83,6 +83,45 @@ fn module_kind(members: &[Value]) -> &'static str {
     }
 }
 
+fn expand_macro_modules(paths: &[String], packages: &[Package], parsed: &mut [Parsed]) {
+    let package_at = |file: usize| package_of(packages, None, &paths[file]);
+    let mut declared: Vec<(Option<usize>, String, Vec<String>)> = Vec::new();
+
+    for (file, source) in parsed.iter().enumerate() {
+        for definition in &source.macro_mods {
+            declared.push((
+                package_at(file),
+                definition.macro_name.clone(),
+                definition.modules.clone(),
+            ));
+        }
+    }
+
+    for (file, source) in parsed.iter_mut().enumerate() {
+        let crate_of_file = package_at(file);
+        let mut added = Vec::new();
+
+        for call in &source.macro_calls {
+            for (owner, macro_name, names) in &declared {
+                if *owner != crate_of_file || *macro_name != call.macro_name {
+                    continue;
+                }
+
+                for name in names {
+                    added.push(items::ModDecl {
+                        name: name.clone(),
+                        line: call.line,
+                        path_attr: None,
+                        scope: call.scope.clone(),
+                    });
+                }
+            }
+        }
+
+        source.mods.extend(added);
+    }
+}
+
 fn package_of(packages: &[Package], root_file: Option<&str>, path: &str) -> Option<usize> {
     if let Some(root) = root_file {
         if let Some(found) = packages
@@ -246,6 +285,8 @@ pub fn scan(
         .flat_map(|p| p.entries.iter())
         .filter_map(|r| index.get(r.as_str()).copied())
         .collect();
+    expand_macro_modules(&paths, &packages, &mut parsed);
+
     let tree = tree::build(&paths, &parsed, &roots);
     let envs = build_envs(&paths, &index, &packages, &tree.owner);
     let resolver = Resolver {
