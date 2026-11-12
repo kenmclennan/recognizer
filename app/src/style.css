@@ -3974,3 +3974,263 @@ svg.i.chevron {
   font-size: 0.9em;
   overflow-wrap: anywhere;
 }
+
+.commits-panel {
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  font-size: 12px;
+}
+
+.tree > .commits-panel {
+  display: none;
+}
+
+.tree.commits-open > :not(.commits-panel) {
+  display: none;
+}
+
+.tree.commits-open > .commits-panel {
+  display: flex;
+}
+
+.commits-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
+
+.commits-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.commits-on-branch {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.commits-slots {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.commits-slot {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.commits-slot.active {
+  border-color: var(--sel);
+  background: var(--selbg);
+}
+
+.commits-slot-pick {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 24px 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  text-align: left;
+}
+
+.commits-slot-name {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.commits-slot-value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.commits-slot-value.empty,
+.commits-slot-hint {
+  color: var(--faint);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.commits-slot-clear {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.commits-swap {
+  align-self: center;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.commits-swap:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.commits-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.commits-tab {
+  padding: 6px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.commits-tab.on {
+  border-bottom-color: var(--sel);
+  color: var(--fg);
+}
+
+.commits-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.commits-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  text-align: left;
+}
+
+.commits-row:hover,
+.commits-row.shaded {
+  background: var(--selbg);
+}
+
+.commits-row.picked {
+  background: var(--selbg);
+  box-shadow: inset 2px 0 0 var(--sel);
+}
+
+.commits-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.commits-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.commits-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commits-row-meta,
+.commits-counts,
+.commits-list-note,
+.commits-summary {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.commits-chip,
+.commits-badge,
+.commits-checks,
+.commits-picked {
+  padding: 0 5px;
+  border: 1px solid var(--boxline);
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.commits-checks.passing {
+  color: var(--ok);
+}
+
+.commits-checks.failing {
+  color: var(--bad);
+}
+
+.commits-checks.pending {
+  color: var(--warn);
+}
+
+.commits-picked {
+  color: var(--sel);
+}
+
+.commits-loading,
+.commits-notice,
+.commits-list-note {
+  margin: 0;
+  padding: 12px;
+  color: var(--muted);
+}
+
+.commits-compare {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.commits-summary {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.view-unsaved {
+  padding: 0 6px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  font-size: 11px;
+}
