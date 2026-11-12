@@ -53,6 +53,9 @@
                     "private_imports": {
                       "type": "boolean"
                     },
+                    "long_function": {
+                      "type": "boolean"
+                    },
                     "orphan": {
                       "oneOf": [
                         {

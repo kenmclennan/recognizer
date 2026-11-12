@@ -9,7 +9,8 @@
       "cycle": true,
       "orphan": true,
       "unused_exports": false,
-      "private_imports": true
+      "private_imports": true,
+      "long_function": true
     }
   },
   "findings": [

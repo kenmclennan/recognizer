@@ -74,6 +74,7 @@ export function structureDocument(
         orphan: true,
         unused_exports: false,
         private_imports: true,
+        long_function: true,
       },
     },
     { commit, modified: false },

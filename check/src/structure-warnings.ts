@@ -1,5 +1,6 @@
 import { isEntryPoint, isLiteralPath, isTestFile } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
+import { functionLength, LONG_FUNCTION } from "./function-length.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
@@ -455,6 +456,100 @@ export function privateImportsFindings(
         })),
       },
     });
+  }
+
+  return findings.sort((a, b) => compare(a.id, b.id));
+}
+
+interface MeasuredFunction {
+  qualified: string;
+  line?: number;
+  end_line?: number;
+}
+
+function functionsOf(members: ScanMember[]): MeasuredFunction[] {
+  const functions: MeasuredFunction[] = [];
+
+  for (const member of members) {
+    if (member.kind === "function") {
+      functions.push({
+        qualified: member.name,
+        line: member.line,
+        end_line: member.end_line,
+      });
+
+      continue;
+    }
+
+    for (const method of member.methods ?? []) {
+      functions.push({
+        qualified: `${member.name}.${method.name}`,
+        line: method.line,
+        end_line: method.end_line,
+      });
+    }
+  }
+
+  return functions;
+}
+
+export function longFunctionFindings(
+  scan: Scan,
+  policy: Policy | null,
+): FindingRecord[] {
+  const { ids } = keptGraph(scan, policy?.ignore ?? []);
+  const findings: FindingRecord[] = [];
+
+  for (const module of scan.modules) {
+    if (!ids.has(module.id) || isTestFile(module.id)) {
+      continue;
+    }
+
+    const functions = functionsOf(module.members ?? []);
+    const counts = new Map<string, number>();
+
+    for (const fn of functions) {
+      counts.set(fn.qualified, (counts.get(fn.qualified) ?? 0) + 1);
+    }
+
+    for (const fn of functions) {
+      const length = functionLength(fn.line, fn.end_line);
+
+      if (
+        length === null ||
+        length <= LONG_FUNCTION ||
+        fn.line === undefined ||
+        fn.end_line === undefined
+      ) {
+        continue;
+      }
+
+      const identity =
+        (counts.get(fn.qualified) ?? 0) > 1
+          ? `${module.id}::${fn.qualified}@${fn.line}`
+          : `${module.id}::${fn.qualified}`;
+      const file = module.id.slice(module.id.lastIndexOf("/") + 1);
+
+      findings.push({
+        id: `long_function:${identity}`,
+        kind: "long_function",
+        severity: "warning",
+        principle: "small-functions",
+        summary: `${fn.qualified} in ${file} is ${length} lines, over the ${LONG_FUNCTION} lines a function should hardly ever reach - functions should be small (Martin, Clean Code, 2008)`,
+        evidence: {
+          modules: [module.id],
+          members: [
+            {
+              module: module.id,
+              name: fn.qualified,
+              file: module.id,
+              lines: [fn.line, fn.end_line],
+            },
+          ],
+          measures: { lines: length, limit: LONG_FUNCTION },
+        },
+      });
+    }
   }
 
   return findings.sort((a, b) => compare(a.id, b.id));
