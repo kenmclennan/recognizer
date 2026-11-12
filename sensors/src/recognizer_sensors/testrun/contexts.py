@@ -6,6 +6,7 @@ from coverage import CoverageData
 from coverage.exceptions import CoverageException
 
 from recognizer_sensors.crap.lcov import normalise_path
+from recognizer_sensors.hashes import listed_files
 
 PYTHON_DATA = ".recognizer/cache/coverage/python.data"
 
@@ -32,6 +33,56 @@ def usable_contexts(names: object, directory: Path) -> frozenset[str] | None:
     return frozenset(files) if files else None
 
 
+def path_like(name: str) -> bool:
+    return any(mark in name for mark in ("/", "::", "|")) or name.endswith(".py")
+
+
+def dotted_file(name: str, directory: Path, listed: list[str], prefix: str) -> str | None:
+    parts = name.split(".")
+
+    for size in range(len(parts), 0, -1):
+        relative = "/".join(parts[:size]) + ".py"
+
+        if (directory / relative).is_file():
+            return relative
+
+        matches = [
+            path
+            for path in listed
+            if path.endswith(".py") and (path == relative or path.endswith("/" + relative))
+        ]
+
+        if len(matches) == 1:
+            return matches[0].removeprefix(prefix) if prefix else matches[0]
+
+        if matches:
+            return None
+
+    return None
+
+
+def dynamic_contexts(
+    names: object, directory: Path, listed: list[str], prefix: str
+) -> frozenset[str] | None:
+    if not isinstance(names, list | set | tuple | frozenset):
+        return None
+
+    files: set[str] = set()
+
+    for name in names:
+        if not isinstance(name, str) or name == "":
+            return None
+
+        found = dotted_file(name, directory, listed, prefix)
+
+        if found is None:
+            return None
+
+        files.add(found)
+
+    return frozenset(files) if files else None
+
+
 class PythonContexts:
     def __init__(
         self,
@@ -48,6 +99,9 @@ class PythonContexts:
         self.raw: dict[str, str] = {}
         self.cached: tuple[str, Lines] | None = None
         self.names: frozenset[str] | None = None
+        self.recorded = True
+        self.dynamic = False
+        self.listed: list[str] | None = None
         self.open()
 
     def open(self) -> None:
@@ -67,6 +121,16 @@ class PythonContexts:
 
         self.data = data
 
+        try:
+            contexts = [name for name in data.measured_contexts() if name != ""]
+        except CoverageException:
+            contexts = []
+
+        if measured:
+            self.recorded = bool(contexts)
+
+        self.dynamic = bool(contexts) and not any(path_like(name) for name in contexts)
+
         for raw in measured:
             path = normalise_path(raw, self.repository)
 
@@ -79,7 +143,10 @@ class PythonContexts:
         lines: Lines = {}
 
         for number, names in self.data.contexts_by_lineno(raw).items():
-            tests = self.usable(names, self.repository / self.directory)
+            if self.dynamic:
+                tests = self.dotted(names)
+            else:
+                tests = self.usable(names, self.repository / self.directory)
 
             if tests and self.directory:
                 tests = frozenset(f"{self.directory}/{name}" for name in tests)
@@ -88,6 +155,19 @@ class PythonContexts:
                 lines[number] = shared.setdefault(tests, tests)
 
         return lines
+
+    def dotted(self, names: object) -> frozenset[str] | None:
+        if self.listed is None:
+            self.listed = listed_files(self.repository) or [
+                path.relative_to(self.repository).as_posix()
+                for path in self.repository.rglob("*.py")
+                if path.is_file()
+            ]
+
+        prefix = f"{self.directory}/" if self.directory else ""
+        scoped = [path for path in self.listed if path.startswith(prefix)]
+
+        return dynamic_contexts(names, self.repository / self.directory, scoped, prefix)
 
     def lines(self, path: str) -> Lines:
         raw = self.raw.get(path)

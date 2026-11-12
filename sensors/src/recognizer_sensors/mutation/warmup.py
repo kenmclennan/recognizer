@@ -35,6 +35,7 @@ from recognizer_sensors.testrun.failures import (
     not_installed,
     suite_failed,
 )
+from recognizer_sensors.testrun.readiness import no_contexts_line
 from recognizer_sensors.testrun.reports import (
     LOG,
     covers_nothing,
@@ -711,7 +712,14 @@ def coverage_run(
             )
 
         if data is not None:
-            readers.append(PythonContexts(copy, directory=directory_of(suite), data=data))
+            reader = PythonContexts(copy, directory=directory_of(suite), data=data)
+
+            if reader.data is not None and not reader.recorded:
+                raise Refusal(
+                    diagnose("no-test-contexts", no_contexts_line(suite.name), suite=suite.name)
+                )
+
+            readers.append(reader)
 
     selection: Selection = {}
 

@@ -98,6 +98,15 @@ RUST_GAPS = {
 }
 
 
+def no_contexts_line(name: str) -> str:
+    return (
+        f"no test contexts: the {name} suite's coverage data records no per-test context, so "
+        "Mutation cannot tell which tests cover a line; run the suite through pytest-cov "
+        "(pytest --cov=PACKAGE), or set dynamic_context = test_function in the repository's "
+        "own coverage configuration; Recognizer changes neither"
+    )
+
+
 def gap(code: str, suite: str | None, line: str) -> dict:
     return {"code": code, "suite": suite, "line": line}
 
