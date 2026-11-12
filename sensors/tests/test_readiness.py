@@ -722,6 +722,27 @@ BINDING_SUITES = (
         'dotnet test tests --collect:"XPlat Code Coverage;Format=lcov"',
         "tests/TestResults/*/coverage.info",
     ),
+    (
+        "kotlin",
+        "./gradlew cleanTest test jacocoTestReport",
+        "**/build/reports/jacoco/test/jacocoTestReport.xml",
+    ),
+    (
+        "rust",
+        "cargo llvm-cov --workspace --lcov --output-path target/lcov.info",
+        "target/lcov.info",
+    ),
+    (
+        "rust",
+        "cargo llvm-cov --lcov --output-path lcov.info",
+        "lcov.info",
+    ),
+    (
+        "typescript",
+        "npx vitest run --config ../../vitest.config.ts --coverage --coverage.reporter=lcov "
+        "--coverage.reportsDirectory=coverage",
+        "coverage/lcov.info",
+    ),
 )
 
 
@@ -816,7 +837,7 @@ def test_the_guide_has_a_suite_for_each_language_and_both_typescript_runners(cap
 
     assert arguments
     assert sorted(set(languages)) == ["csharp", "kotlin", "python", "rust", "typescript"]
-    assert sorted(runners) == ["jest", "vitest"]
+    assert sorted(runners) == ["jest", "vitest", "vitest"]
 
 
 def test_the_guide_carries_each_measured_command_and_path_verbatim(capsys):
@@ -844,6 +865,44 @@ def test_the_guide_gives_kotlin_jacoco_and_every_other_suite_lcov(capsys):
 
     for language, fmt in pairs:
         assert fmt == ("jacoco" if language == "kotlin" else "lcov")
+
+
+def test_the_guide_keeps_the_single_project_suites_and_adds_four_multi_project_ones(capsys):
+    suites = suites_of(guide_text(capsys))
+
+    assert len(suites) == len(BINDING_SUITES) == 10
+
+    languages = [next(w[1] for w in suite if w[0].endswith(".language")) for suite in suites]
+    formats = [next(w[1] for w in suite if w[0].endswith(".coverage.format")) for suite in suites]
+    directories = [next(w[1] for w in suite if w[0].endswith(".directory")) for suite in suites]
+    last = suites[6:]
+
+    assert languages[6:] == ["kotlin", "rust", "rust", "typescript"]
+    assert formats[6:] == ["jacoco", "lcov", "lcov", "lcov"]
+    assert directories[6:8] == [".", "."]
+    assert all(directory not in (".", "") for directory in directories[8:])
+    assert ["vitest"] == [w[1] for w in last[3] if w[0].endswith(".runner")]
+
+
+def test_the_guide_states_the_multi_project_facts(capsys):
+    out = guide_text(capsys)
+    flat = " ".join(out.split())
+
+    assert "Repositories with more than one project:" in out
+
+    for fact in ("**/build/reports/jacoco", "--workspace", "--config ../../vitest.config.ts"):
+        assert fact in out
+
+    assert (
+        "A suite per Gradle module is not supported: the readiness check looks for gradlew" in flat
+    )
+    assert "ready does not say the whole workspace was covered" in flat
+    assert (
+        "pythonpath"
+        not in out.split("Repositories with more than one project:")[1]
+        .split("What Mutation needs")[0]
+        .lower()
+    )
 
 
 def test_the_guide_states_the_four_runtime_facts(capsys):

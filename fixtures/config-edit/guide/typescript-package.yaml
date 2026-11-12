@@ -1,0 +1,12 @@
+sensors:
+  crap: {}
+  mutation: {}
+tests:
+  - name: web
+    language: typescript
+    runner: vitest
+    directory: packages/web
+    command: npx vitest run --config ../../vitest.config.ts --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage
+    coverage:
+      path: coverage/lcov.info
+      format: lcov

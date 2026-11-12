@@ -1,0 +1,11 @@
+sensors:
+  crap: {}
+  mutation: {}
+tests:
+  - name: ignore
+    language: rust
+    directory: crates/ignore
+    command: cargo llvm-cov --lcov --output-path lcov.info
+    coverage:
+      path: lcov.info
+      format: lcov

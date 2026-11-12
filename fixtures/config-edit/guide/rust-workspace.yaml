@@ -1,0 +1,11 @@
+sensors:
+  crap: {}
+  mutation: {}
+tests:
+  - name: core
+    language: rust
+    directory: .
+    command: cargo llvm-cov --workspace --lcov --output-path target/lcov.info
+    coverage:
+      path: target/lcov.info
+      format: lcov
