@@ -1,6 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, loadavg } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readManifest } from "./manifest.mjs";
@@ -8,6 +14,7 @@ import { fetchPinned } from "./snapshot.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MAX_BUFFER = 512 * 1024 * 1024;
+const LIMIT_SECONDS = 3.0;
 
 export const LIGHTCYCLE = {
   name: "lightcycle-c1933e0",
@@ -30,6 +37,12 @@ function run(command, args, options = {}) {
     stdout: result.stdout ?? "",
     stderr: result.error ? result.error.message : (result.stderr ?? ""),
   };
+}
+
+export function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+
+  return sorted[Math.floor(sorted.length / 2)];
 }
 
 export function skippedFiles(stderr) {
@@ -84,24 +97,81 @@ export function tableRow(row) {
     causes[difference.cause] = (causes[difference.cause] ?? 0) + 1;
   }
 
+  const added = row.added === null ? "n/a" : `${row.added.toFixed(2)} s`;
+  const warm =
+    row.warm === null || row.warm === undefined
+      ? "n/a"
+      : `${row.warm.toFixed(2)} s`;
+  const over = row.added !== null && row.added > LIMIT_SECONDS ? " OVER" : "";
   const detail = Object.entries(causes)
     .map(([cause, count]) => `${cause} ${count}`)
     .join(", ");
 
-  return `${row.name} | python ${row.python} | typescript ${row.typescript} | differences ${row.differences.length}${detail ? ` (${detail})` : ""}`;
+  return `${row.name} | python ${row.python} | typescript ${row.typescript} | differences ${row.differences.length}${detail ? ` (${detail})` : ""} | added ${added}${over} | warm ${warm} | load ${row.load.toFixed(1)}`;
 }
 
 function duplicationOf(document) {
   return document.findings.filter((finding) => finding.kind === "duplication");
 }
 
-export function measureRepository(entry, clone, tools) {
+export function unitCacheFile(clone) {
+  return join(clone, ".recognizer/cache/duplication-units.json");
+}
+
+export function timed(tools, clone, runs, { cold = false } = {}) {
+  const seconds = [];
+
+  for (let at = 0; at < runs; at += 1) {
+    if (cold) {
+      rmSync(unitCacheFile(clone), { force: true });
+    }
+
+    const started = process.hrtime.bigint();
+    const scan = run(tools.recognizer, ["scan", clone]);
+
+    if (scan.status !== 0) {
+      throw new Error(`recognizer scan exited ${scan.status}: ${scan.stderr}`);
+    }
+
+    seconds.push(Number(process.hrtime.bigint() - started) / 1e9);
+  }
+
+  return { median: median(seconds), stderr: "" };
+}
+
+function withConfig(clone, text, body) {
+  const file = join(clone, ".recognizer/config.yaml");
+  const kept = existsSync(file) ? readFileSync(file, "utf8") : null;
+
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, text);
+
+  try {
+    return body();
+  } finally {
+    if (kept === null) {
+      rmSync(file, { force: true });
+    } else {
+      writeFileSync(file, kept);
+    }
+  }
+}
+
+export function measureRepository(entry, clone, tools, runs = 3) {
+  const off = withConfig(
+    clone,
+    "sensors:\n  structure:\n    duplication: false\n",
+    () => timed(tools, clone, runs),
+  );
   const scan = run(tools.recognizer, ["scan", clone]);
 
   if (scan.status !== 0) {
     throw new Error(`recognizer scan exited ${scan.status}: ${scan.stderr}`);
   }
 
+  const load = loadavg()[0];
+  const on = timed(tools, clone, runs, { cold: true });
+  const warm = timed(tools, clone, runs);
   const structure = JSON.parse(
     readFileSync(join(clone, ".recognizer/cache/findings/structure.json"), "utf8"),
   );
@@ -131,6 +201,9 @@ export function measureRepository(entry, clone, tools) {
     python: pythonFindings.length,
     typescript: typescriptFindings.length,
     differences,
+    added: on.median - off.median,
+    warm: warm.median - off.median,
+    load,
     expectedPython: entry.expectedPython ?? null,
   };
 }
@@ -140,6 +213,7 @@ export function runEquivalence({
   out = join(homedir(), "recognizer-corpus"),
   only = null,
   tools = {},
+  runs = 3,
   log = () => {},
 } = {}) {
   const settled = {
@@ -158,13 +232,16 @@ export function runEquivalence({
 
     try {
       fetchPinned(entry, clone);
-      rows.push(measureRepository(entry, clone, settled));
+      rows.push(measureRepository(entry, clone, settled, runs));
     } catch (error) {
       rows.push({
         name: entry.name,
         python: 0,
         typescript: 0,
         differences: [{ id: error.message, cause: "failed" }],
+        added: null,
+        warm: null,
+        load: loadavg()[0],
         expectedPython: null,
       });
     }
@@ -188,6 +265,7 @@ function parseArguments(argv) {
 
     if (argument === "--out") options.out = value;
     else if (argument === "--only") options.only = value.split(",");
+    else if (argument === "--runs") options.runs = Number(value);
     else throw new Error(`unknown argument ${argument}`);
   }
 

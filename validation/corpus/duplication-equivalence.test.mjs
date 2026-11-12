@@ -1,9 +1,21 @@
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import {
   LIGHTCYCLE,
   compareFindings,
+  median,
   skippedFiles,
   tableRow,
+  timed,
+  unitCacheFile,
 } from "./duplication-equivalence.mjs";
 
 function finding(id, file = "a.py", similarity = 0.9) {
@@ -44,6 +56,10 @@ describe("compareFindings", () => {
 });
 
 describe("the helpers", () => {
+  it("takes the median of three runs", () => {
+    expect(median([3, 1, 2])).toBe(2);
+  });
+
   it("reads the skipped files from the scan's stderr", () => {
     expect(
       skippedFiles(
@@ -52,17 +68,69 @@ describe("the helpers", () => {
     ).toEqual(["a/b.py", "c.py"]);
   });
 
-  it("prints a row with the causes of its differences", () => {
+  it("prints a row with the load and flags added time over the line", () => {
     const row = {
       name: "flask",
       python: 3,
-      typescript: 4,
-      differences: [{ id: "a", cause: "extra-in-typescript" }],
+      typescript: 3,
+      differences: [],
+      added: 3.5,
+      warm: 0.25,
+      load: 12.34,
     };
 
     expect(tableRow(row)).toBe(
-      "flask | python 3 | typescript 4 | differences 1 (extra-in-typescript 1)",
+      "flask | python 3 | typescript 3 | differences 0 | added 3.50 s OVER | warm 0.25 s | load 12.3",
     );
+  });
+});
+
+describe("the timing", () => {
+  function fakeRecognizer(directory) {
+    const log = join(directory, "seen.txt");
+    const script = join(directory, "recognizer");
+
+    writeFileSync(
+      script,
+      `#!/bin/sh\nif [ -f "$2/.recognizer/cache/duplication-units.json" ]; then echo cached >> "${log}"; else echo empty >> "${log}"; fi\nmkdir -p "$2/.recognizer/cache"\necho '{}' > "$2/.recognizer/cache/duplication-units.json"\n`,
+    );
+    chmodSync(script, 0o755);
+
+    return { script, log };
+  }
+
+  it("starts every cold timed run with no unit cache file", () => {
+    const directory = makeTempDir("duplication-equivalence-");
+    const clone = join(directory, "clone");
+    const { script, log } = fakeRecognizer(directory);
+
+    mkdirSync(join(clone, ".recognizer/cache"), { recursive: true });
+    writeFileSync(unitCacheFile(clone), "{}");
+
+    timed({ recognizer: script }, clone, 3, { cold: true });
+
+    expect(readFileSync(log, "utf8").trim().split("\n")).toEqual([
+      "empty",
+      "empty",
+      "empty",
+    ]);
+    expect(existsSync(unitCacheFile(clone))).toBe(true);
+  });
+
+  it("leaves the unit cache in place for warm timed runs", () => {
+    const directory = makeTempDir("duplication-equivalence-");
+    const clone = join(directory, "clone");
+    const { script, log } = fakeRecognizer(directory);
+
+    mkdirSync(join(clone, ".recognizer/cache"), { recursive: true });
+    writeFileSync(unitCacheFile(clone), "{}");
+
+    timed({ recognizer: script }, clone, 2);
+
+    expect(readFileSync(log, "utf8").trim().split("\n")).toEqual([
+      "cached",
+      "cached",
+    ]);
   });
 });
 
