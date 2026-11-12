@@ -73,7 +73,7 @@ function load(argv: string[], io: Io): Loaded {
   requireBy(values.by);
 
   const root = resolve(values.repository ?? ".");
-  const { scans } = freshScans(io, root);
+  const { scans } = freshScans(io, root, true);
   const { source: _source, ...describer } = describerInEffect(io, root);
 
   const entries = readResponsibilities(io, root).modules;

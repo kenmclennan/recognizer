@@ -665,7 +665,7 @@ function executeRepository(
     ]);
   }
 
-  const { scans } = freshScans(io, root);
+  const { scans } = freshScans(io, root, true);
   const known = new Set(moduleNames(scans));
   const unknown = named.filter((id) => !known.has(id));
 

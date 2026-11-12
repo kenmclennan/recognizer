@@ -333,6 +333,7 @@ function* scanFlow(
   argv: string[],
   io: Io,
   takeMarker: boolean,
+  readsConfig: boolean,
 ): Generator<ScanStep, number, DescribeResult | undefined> {
   const options = parseScanArgs(argv);
 
@@ -361,7 +362,7 @@ function* scanFlow(
 
     folderKnown = true;
 
-    const config = readConfig(io, root);
+    const config = readsConfig ? readConfig(io, root) : null;
 
     if (options.describe !== false) {
       const found = findDescriber(io, root);
@@ -697,7 +698,7 @@ function* scanFlow(
     emit(preflightLine({ state: "ok" }));
     taken?.running();
 
-    if (runStructure(io, root, scans)) {
+    if (readsConfig && runStructure(io, root, scans)) {
       failed = true;
     }
 
@@ -896,8 +897,12 @@ function* scanFlow(
   }
 }
 
-export function runScanSync(argv: string[], io: Io): number {
-  const flow = scanFlow(argv, io, false);
+export function runScanSync(
+  argv: string[],
+  io: Io,
+  readsConfig: boolean,
+): number {
+  const flow = scanFlow(argv, io, false, readsConfig);
   const step = flow.next();
 
   if (!step.done) {
@@ -908,7 +913,7 @@ export function runScanSync(argv: string[], io: Io): number {
 }
 
 export async function runScan(argv: string[], io: Io): Promise<number> {
-  const flow = scanFlow(argv, io, true);
+  const flow = scanFlow(argv, io, true, true);
 
   try {
     let step = flow.next();

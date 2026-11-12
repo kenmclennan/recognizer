@@ -44,7 +44,11 @@ function isReusable(
   );
 }
 
-export function freshScans(io: Io, root: string): FreshScans {
+export function freshScans(
+  io: Io,
+  root: string,
+  readsConfig: boolean,
+): FreshScans {
   const directory = resolve(root);
 
   try {
@@ -53,7 +57,9 @@ export function freshScans(io: Io, root: string): FreshScans {
     throw new InputError([`repository is not a directory: ${directory}`]);
   }
 
-  readConfig(io, directory);
+  if (readsConfig) {
+    readConfig(io, directory);
+  }
 
   const commit = resolveCommit(io, directory);
   const detected = detectLanguages(io, directory);
@@ -66,10 +72,14 @@ export function freshScans(io: Io, root: string): FreshScans {
     }
   }
 
-  const status = runScanSync([directory, "--extract"], {
-    ...io,
-    stdout: io.stderr,
-  });
+  const status = runScanSync(
+    [directory, "--extract"],
+    {
+      ...io,
+      stdout: io.stderr,
+    },
+    readsConfig,
+  );
 
   if (status !== 0) {
     throw new InputError([`recognizer scan failed in ${directory}`]);
