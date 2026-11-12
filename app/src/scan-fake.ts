@@ -68,7 +68,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
   let pending: { stop: () => void } | null = null;
   const fake: FakeScan = {
     steps: [],
-    result: { status: "finished", exitCode: 0, stderr: "", log: null },
+    result: { status: "finished", exitCode: 0, stderr: "" },
     cache: {
       status: "scanned",
       exitCode: 0,
@@ -124,7 +124,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         !SPAWNS_NO_RECORD.has(fake.result.status) &&
         !(fake.result.status === "gaps" && fake.steps.length === 0);
       let live: ScanRunRecord = {
-        version: 2,
+        version: 3,
         run_id: `fake-run-${nextRun()}`,
         pid: 4242,
         pgid: 4242,
@@ -133,6 +133,8 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         repository: "/work/repo",
         sensors: plan.sense,
         describe: plan.describe,
+        commit: "abc1234",
+        ran: null,
         ...fake.record,
         phase: "checking",
         ended_at: null,
@@ -145,6 +147,12 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         fake.emitRun({ kind: "run", run: live });
       };
       const endedAt = () => fake.record.ended_at ?? ENDED;
+      const ranPhases = (): NonNullable<ScanRunRecord["ran"]> =>
+        fake.record.ran ?? [
+          "extract",
+          ...(plan.describe ? (["describe"] as const) : []),
+          ...(plan.sense.length > 0 ? (["sense"] as const) : []),
+        ];
       const ends = (exit: number) => {
         const failure = fake.record.failure ?? null;
 
@@ -156,11 +164,23 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
               fake.record.gaps ??
               (fake.result.status === "gaps" ? fake.result.gaps : []),
             ended_at: endedAt(),
+            ran: ranPhases(),
           });
         } else if (exit === 0) {
-          move({ phase: "finished", exit, ended_at: endedAt() });
+          move({
+            phase: "finished",
+            exit,
+            ended_at: endedAt(),
+            ran: ranPhases(),
+          });
         } else {
-          move({ phase: "failed", exit, failure, ended_at: endedAt() });
+          move({
+            phase: "failed",
+            exit,
+            failure,
+            ended_at: endedAt(),
+            ran: ranPhases(),
+          });
         }
       };
       let ended = false;
@@ -211,12 +231,10 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
               exit: fake.result.exitCode,
               failure: fake.record.failure ?? null,
               ended_at: endedAt(),
+              ran: ranPhases(),
             });
-          } else if (
-            fake.result.status === "finished" ||
-            fake.result.status === "nothing-ran"
-          ) {
-            ends(fake.result.status === "finished" ? fake.result.exitCode : 0);
+          } else if (fake.result.status === "finished") {
+            ends(fake.result.exitCode);
           }
         }
 

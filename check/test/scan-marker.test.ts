@@ -25,7 +25,7 @@ const OTHER_PID = 4242;
 
 function markerFor(changes: Partial<ScanRunRecord> = {}): string {
   return JSON.stringify({
-    version: 2,
+    version: 3,
     run_id: "11111111-2222-3333-4444-555555555555",
     pid: OTHER_PID,
     pgid: OTHER_PID,
@@ -39,6 +39,8 @@ function markerFor(changes: Partial<ScanRunRecord> = {}): string {
     exit: null,
     gaps: [],
     failure: null,
+    commit: null,
+    ran: null,
     ...changes,
   });
 }
@@ -178,6 +180,45 @@ describe("scan marker: release", () => {
     expect(recordOf(fake.files).ended_at).not.toBeNull();
   });
 
+  it("records the commit and the phases that ran on a finished scan", async () => {
+    const { fake } = await scan();
+
+    expect(recordOf(fake.files)).toMatchObject({
+      commit: "abc123",
+      ran: ["extract"],
+    });
+  });
+
+  it("records a null ran when the record ends without a summary", async () => {
+    const { fake } = await scan({
+      programs: {
+        [PYTHON]: () => {
+          throw new Error("sensor blew up");
+        },
+      },
+    });
+
+    expect(recordOf(fake.files)).toMatchObject({
+      phase: "failed",
+      commit: null,
+      ran: null,
+    });
+  });
+
+  it("records a null ran when stopEverything ends the scan", async () => {
+    const { fake } = await scan({
+      programs: observing(() => {
+        stopEverything();
+      }),
+    });
+
+    expect(recordOf(fake.files)).toMatchObject({
+      phase: "stopped",
+      commit: null,
+      ran: null,
+    });
+  });
+
   it("keeps both files and records failed after a failed scan", async () => {
     const { code, fake } = await scan({
       scanners: { [PYTHON]: { status: 1, stderr: "boom" } },
@@ -266,6 +307,12 @@ describe("scan marker: record phases", () => {
     expect(record.gaps[0]).toMatchObject({ id: "no-commit", needs: ["crap"] });
     expect(record.ended_at).not.toBeNull();
     expect(fake.files.has(PROGRESS)).toBe(true);
+  });
+
+  it("records the commit and the phases that held an entry on a refusal", async () => {
+    const { fake } = await scan({ commit: undefined }, "--sense", "crap");
+
+    expect(recordOf(fake.files)).toMatchObject({ commit: null, ran: [] });
   });
 
   it("leaves a refused record refused when stopEverything is called after the refusal", async () => {
@@ -388,8 +435,8 @@ describe("scan marker: progress and origin", () => {
 
 describe("scan marker: examples", () => {
   it("holds the expected count of examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(6);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(6);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(7);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(9);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {

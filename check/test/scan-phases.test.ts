@@ -4,6 +4,8 @@ import {
   type ExtractionState,
   entryLine,
   extractionNeeded,
+  idlePhases,
+  nothingRanText,
   parseScanArgs,
   phaseLine,
   selectSensors,
@@ -348,5 +350,63 @@ describe("event lines", () => {
       removed: [],
       log: "20261102T123456789Z-scan",
     });
+  });
+});
+
+describe("idlePhases and nothingRanText", () => {
+  const asked = (changes: object) => ({
+    describe: true,
+    sensors: ["crap"],
+    ran: null,
+    commit: null,
+    ...changes,
+  });
+
+  it.each([
+    [
+      "every requested phase ran",
+      asked({ ran: ["extract", "describe", "sense"], commit: "abc" }),
+      [],
+      "",
+    ],
+    [
+      "sense did not run with no commit",
+      asked({ ran: ["extract", "describe"] }),
+      [{ phase: "sense", cause: "no-commit" }],
+      "sense did not run: the folder has no commit",
+    ],
+    [
+      "describe and sense did not run with no commit",
+      asked({ ran: ["extract"] }),
+      [
+        { phase: "describe", cause: "no-entries" },
+        { phase: "sense", cause: "no-commit" },
+      ],
+      "describe did not run: it ran no entries; sense did not run: the folder has no commit",
+    ],
+    [
+      "nothing was requested",
+      asked({ describe: false, sensors: [], ran: ["extract"], commit: "abc" }),
+      [],
+      "",
+    ],
+    ["no summary was written", asked({}), [], ""],
+    [
+      "sense found a commit and still ran no entries",
+      asked({ ran: ["extract", "describe"], commit: "abc" }),
+      [{ phase: "sense", cause: "no-entries" }],
+      "sense did not run: it ran no entries",
+    ],
+  ] as const)("%s", (_name, record, idle, text) => {
+    expect(idlePhases(record as never)).toEqual(idle);
+    expect(nothingRanText([...idle] as never)).toBe(text);
+  });
+
+  it("asks for describe and sense in the record whose summary is missing", () => {
+    const record = asked({});
+
+    expect(record.describe).toBe(true);
+    expect(record.sensors.length).toBeGreaterThan(0);
+    expect(record.ran).toBeNull();
   });
 });

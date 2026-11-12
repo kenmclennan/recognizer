@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
@@ -12,7 +12,6 @@ use crate::fs_safe::write_atomic;
 use crate::repository::{missing_hint, scan_args, strip_escapes, Describe};
 use crate::tool_runner::{ToolFault, ToolRunner};
 
-const LOG: &str = ".recognizer/cache/log";
 const MODULES_DIR: &str = ".recognizer/cache";
 const MARKER: &str = ".recognizer/cache/scan-running.json";
 const MARKER_PROGRESS: &str = ".recognizer/cache/scan-running.progress.jsonl";
@@ -27,6 +26,7 @@ const STARTED_BY: &str = "RECOGNIZER_STARTED_BY";
 const PHASES: [&str; 6] = [
     "checking", "refused", "running", "finished", "failed", "stopped",
 ];
+const RAN_PHASES: [&str; 4] = ["extract", "describe", "measure", "sense"];
 const START_SLACK_SECONDS: i64 = 5;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -61,6 +61,8 @@ pub struct ScanRunRecord {
     pub exit: Option<i32>,
     pub gaps: Vec<RunGap>,
     pub failure: Option<RunFailure>,
+    pub commit: Option<String>,
+    pub ran: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -76,10 +78,16 @@ pub struct RunSeen {
     offset: u64,
 }
 
+fn ran_ok(ran: &[String]) -> bool {
+    ran.iter()
+        .enumerate()
+        .all(|(at, name)| RAN_PHASES.contains(&name.as_str()) && !ran[..at].contains(name))
+}
+
 pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
     let run: ScanRunRecord = serde_json::from_str(text).ok()?;
 
-    if run.version != 2
+    if run.version != 3
         || run.run_id.is_empty()
         || run.pid == 0
         || run.pgid == Some(0)
@@ -97,6 +105,9 @@ pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
             .failure
             .as_ref()
             .is_some_and(|failure| failure.sensor.is_empty())
+        || run.commit.as_deref().is_some_and(str::is_empty)
+        || run.ran.as_ref().is_some_and(|ran| !ran_ok(ran))
+        || (run.phase == "finished" && run.ran.is_none())
     {
         return None;
     }
@@ -405,12 +416,7 @@ fn modules_file(folder: &Path, label: &str) -> PathBuf {
         .join(format!("scan-modules-{safe}.json"))
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Gap {
-    pub id: String,
-    pub line: String,
-    pub needs: Vec<String>,
-}
+pub type Gap = RunGap;
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(
@@ -419,29 +425,12 @@ pub struct Gap {
     rename_all_fields = "camelCase"
 )]
 pub enum ScanRun {
-    Finished {
-        exit_code: i32,
-        stderr: String,
-        log: Option<String>,
-    },
+    Finished { exit_code: i32, stderr: String },
     Stopped,
-    CommandMissing {
-        hint: String,
-    },
-    Failed {
-        exit_code: i32,
-        stderr: String,
-    },
-    Refused {
-        reason: String,
-    },
-    NothingRan {
-        phases: Vec<String>,
-        detail: String,
-    },
-    Gaps {
-        gaps: Vec<Gap>,
-    },
+    CommandMissing { hint: String },
+    Failed { exit_code: i32, stderr: String },
+    Refused { reason: String },
+    Gaps { gaps: Vec<Gap> },
 }
 
 #[derive(Default)]
@@ -595,105 +584,6 @@ pub fn answer_describe(folder: &Path, describe: bool) -> Result<(), String> {
     write_atomic(&path, &format!("{text}\n")).map_err(|error| error.to_string())
 }
 
-pub fn summary_log(line: &str) -> Option<String> {
-    let event: serde_json::Value = serde_json::from_str(line).ok()?;
-
-    if event.get("event")?.as_str()? != "summary" {
-        return None;
-    }
-
-    let id = event.get("log")?.as_str()?;
-
-    Some(format!("{LOG}/{id}.json"))
-}
-
-pub fn summary_event(line: &str) -> Option<serde_json::Value> {
-    let event: serde_json::Value = serde_json::from_str(line).ok()?;
-
-    (event.get("event")?.as_str()? == "summary").then_some(event)
-}
-
-pub fn requested_phases(
-    describe: Describe,
-    measure: &[String],
-    sense: &[String],
-) -> Vec<&'static str> {
-    let mut phases = Vec::new();
-
-    if describe != Describe::Off {
-        phases.push("describe");
-    }
-
-    if !measure.is_empty() {
-        phases.push("measure");
-    }
-
-    if !sense.is_empty() {
-        phases.push("sense");
-    }
-
-    phases
-}
-
-pub fn nothing_ran(
-    requested: &[&str],
-    summary: Option<&serde_json::Value>,
-) -> Option<(Vec<String>, String)> {
-    let ran = |phase: &str| {
-        summary
-            .and_then(|event| event.get("phases")?.as_array())
-            .is_some_and(|phases| {
-                phases.iter().any(|entry| {
-                    entry.get("phase").and_then(|name| name.as_str()) == Some(phase)
-                        && entry
-                            .get("entries")
-                            .and_then(|entries| entries.as_array())
-                            .is_some_and(|entries| !entries.is_empty())
-                })
-            })
-    };
-    let committed = summary
-        .and_then(|event| event.get("commit"))
-        .is_some_and(|commit| !commit.is_null());
-    let idle: Vec<&str> = requested
-        .iter()
-        .copied()
-        .filter(|phase| !ran(phase))
-        .collect();
-
-    if idle.is_empty() {
-        return None;
-    }
-
-    let detail = idle
-        .iter()
-        .map(|phase| {
-            let cause = if summary.is_none() {
-                "it printed no summary"
-            } else if *phase != "describe" && !committed {
-                "the folder has no commit"
-            } else {
-                "it ran no entries"
-            };
-
-            format!("{phase} did not run: {cause}")
-        })
-        .collect::<Vec<_>>()
-        .join("; ");
-
-    Some((idle.iter().map(|phase| phase.to_string()).collect(), detail))
-}
-
-pub fn preflight_gaps(line: &str) -> Option<Vec<Gap>> {
-    let event: serde_json::Value = serde_json::from_str(line).ok()?;
-
-    if event.get("event")?.as_str()? != "preflight" || event.get("state")?.as_str()? != "gaps" {
-        return None;
-    }
-
-    serde_json::from_value(event.get("gaps")?.clone()).ok()
-}
-
 fn fault_gap(fault: &ToolFault, needs: Vec<String>) -> Gap {
     Gap {
         id: fault.gap_id(),
@@ -731,8 +621,7 @@ fn result_for(
     exit: Option<i32>,
     stopped: bool,
     stderr: String,
-    log: Option<String>,
-    idle: Option<(Vec<String>, String)>,
+    own: Option<&ScanRunRecord>,
 ) -> ScanRun {
     if stopped {
         return ScanRun::Stopped;
@@ -745,21 +634,38 @@ fn result_for(
         Some(REFUSED_EXIT) => ScanRun::Refused {
             reason: stderr.trim().to_string(),
         },
-        Some(0 | 1) if idle.is_some() => {
-            let (phases, detail) = idle.unwrap_or_default();
-
-            ScanRun::NothingRan { phases, detail }
-        }
+        Some(PREFLIGHT_EXIT) => match own {
+            Some(record) if record.phase == "refused" && !record.gaps.is_empty() => ScanRun::Gaps {
+                gaps: record.gaps.clone(),
+            },
+            _ => ScanRun::Failed {
+                exit_code: PREFLIGHT_EXIT,
+                stderr,
+            },
+        },
         Some(code @ (0 | 1)) => ScanRun::Finished {
             exit_code: code,
             stderr,
-            log,
         },
         other => ScanRun::Failed {
             exit_code: other.unwrap_or(-1),
             stderr,
         },
     }
+}
+
+fn own_record(folder: &Path, spawned_at: i64) -> Option<ScanRunRecord> {
+    let record = read_run(folder)?;
+    let started = epoch_of_timestamp(&record.started_at)?;
+
+    (record.started_by == "app" && started >= spawned_at - START_SLACK_SECONDS).then_some(record)
+}
+
+fn now_epoch() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -878,7 +784,7 @@ fn spawn_and_stream(
                 .unwrap_or_default(),
         )
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
     #[cfg(unix)]
@@ -888,6 +794,7 @@ fn spawn_and_stream(
         process.process_group(0);
     }
 
+    let spawned_at = now_epoch();
     let mut child = match process.spawn() {
         Ok(child) => child,
         Err(_) => {
@@ -899,12 +806,7 @@ fn spawn_and_stream(
 
     runs.started(label, child.id());
 
-    let stdout = child.stdout.take();
     let stderr = child.stderr.take();
-
-    let mut log = None;
-    let mut summary = None;
-    let mut gaps = None;
 
     let (stderr_text, status) = std::thread::scope(|scope| {
         let collected = scope.spawn(move || {
@@ -920,26 +822,6 @@ fn spawn_and_stream(
             text
         });
 
-        if let Some(stdout) = stdout {
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                let line = strip_escapes(&line);
-
-                if !line.trim().is_empty() {
-                    if let Some(found) = summary_log(&line) {
-                        log = Some(found);
-                    }
-
-                    if let Some(event) = summary_event(&line) {
-                        summary = Some(event);
-                    }
-
-                    if let Some(found) = preflight_gaps(&line) {
-                        gaps = Some(found);
-                    }
-                }
-            }
-        }
-
         let status = child.wait();
 
         (collected.join().unwrap_or_default(), status)
@@ -948,22 +830,9 @@ fn spawn_and_stream(
     let stopped = runs.lock().get(label).is_some_and(|handle| handle.stopped);
     let exit = status.ok().and_then(|status| status.code());
 
-    if exit == Some(PREFLIGHT_EXIT) && !stopped {
-        return match gaps {
-            Some(gaps) => ScanRun::Gaps { gaps },
-            None => ScanRun::Failed {
-                exit_code: PREFLIGHT_EXIT,
-                stderr: stderr_text,
-            },
-        };
-    }
+    let own = own_record(folder, spawned_at);
 
-    let idle = nothing_ran(
-        &requested_phases(describe, measure, sense),
-        summary.as_ref(),
-    );
-
-    result_for(exit, stopped, stderr_text, log, idle)
+    result_for(exit, stopped, stderr_text, own.as_ref())
 }
 
 #[cfg(test)]
@@ -1081,31 +950,15 @@ mod tests {
     }
 
     #[test]
-    fn the_summary_names_the_log_record_or_none() {
-        assert_eq!(
-            summary_log(r#"{"event":"summary","exit":0,"log":"20261102T123456789Z-scan"}"#),
-            Some(format!("{LOG}/20261102T123456789Z-scan.json"))
-        );
-        assert_eq!(summary_log(r#"{"event":"summary","log":null}"#), None);
-        assert_eq!(summary_log(r#"{"event":"summary"}"#), None);
-        assert_eq!(
-            summary_log(r#"{"event":"entry","log":"20261102T123456789Z-scan"}"#),
-            None
-        );
-        assert_eq!(summary_log("not json"), None);
-    }
-
-    #[test]
     fn the_result_serialises_to_the_webview_contract() {
         let json = |run: &ScanRun| serde_json::to_value(run).unwrap();
 
         assert_eq!(
             json(&ScanRun::Finished {
                 exit_code: 1,
-                stderr: "e".into(),
-                log: Some("l".into())
+                stderr: "e".into()
             }),
-            serde_json::json!({"status": "finished", "exitCode": 1, "stderr": "e", "log": "l"})
+            serde_json::json!({"status": "finished", "exitCode": 1, "stderr": "e"})
         );
         assert_eq!(
             json(&ScanRun::Stopped),
@@ -1163,8 +1016,7 @@ mod tests {
             result,
             ScanRun::Finished {
                 exit_code: 0,
-                stderr: String::new(),
-                log: Some(format!("{LOG}/20261102T123456789Z-scan.json"))
+                stderr: String::new()
             }
         );
     }
@@ -1190,8 +1042,7 @@ mod tests {
             result,
             ScanRun::Finished {
                 exit_code: 1,
-                stderr: String::new(),
-                log: None
+                stderr: String::new()
             }
         );
     }
@@ -1341,33 +1192,6 @@ mod tests {
         }
 
         assert!(!dir.path().join(".recognizer").exists());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn the_summary_log_is_returned_as_the_log() {
-        let dir = TempDir::new().unwrap();
-        let command = fake_command(
-            dir.path(),
-            r#"echo '{"event":"summary","log":"20261102T123456789Z-scan"}'"#,
-        );
-        let result = collect(
-            &ScanRuns::default(),
-            dir.path(),
-            &command,
-            Describe::Off,
-            &[],
-            &[],
-        );
-
-        assert_eq!(
-            result,
-            ScanRun::Finished {
-                exit_code: 0,
-                stderr: String::new(),
-                log: Some(format!("{LOG}/20261102T123456789Z-scan.json"))
-            }
-        );
     }
 
     #[cfg(unix)]
@@ -1635,127 +1459,20 @@ mod tests {
         assert!(!runs.finish("w-1"));
     }
 
-    fn requested(names: &[&'static str]) -> Vec<&'static str> {
-        names.to_vec()
-    }
-
-    fn summary_with(commit: &str, phases: &str) -> serde_json::Value {
-        summary_event(&format!(
-            r#"{{"event":"summary","commit":{commit},"phases":{phases},"log":null}}"#
-        ))
-        .unwrap()
-    }
-
     #[test]
-    fn nothing_ran_is_decided_per_requested_phase_from_the_summary() {
-        let full = summary_with(
-            r#""abc""#,
-            r#"[{"phase":"describe","entries":[{}]},{"phase":"sense","entries":[{}]}]"#,
-        );
-
+    fn a_stopped_run_stays_stopped_and_only_an_exit_of_zero_or_one_is_finished() {
         assert_eq!(
-            nothing_ran(&requested(&["describe", "sense"]), Some(&full)),
-            None
-        );
-        assert_eq!(nothing_ran(&[], None), None);
-
-        let absent = summary_with(r#""abc""#, r#"[{"phase":"describe","entries":[{}]}]"#);
-
-        assert_eq!(
-            nothing_ran(&requested(&["describe", "sense"]), Some(&absent)),
-            Some((
-                vec!["sense".to_string()],
-                "sense did not run: it ran no entries".to_string()
-            ))
-        );
-
-        let empty = summary_with(r#""abc""#, r#"[{"phase":"measure","entries":[]}]"#);
-
-        assert_eq!(
-            nothing_ran(&requested(&["measure"]), Some(&empty)),
-            Some((
-                vec!["measure".to_string()],
-                "measure did not run: it ran no entries".to_string()
-            ))
-        );
-
-        let uncommitted = summary_with("null", "[]");
-
-        assert_eq!(
-            nothing_ran(&requested(&["sense"]), Some(&uncommitted)),
-            Some((
-                vec!["sense".to_string()],
-                "sense did not run: the folder has no commit".to_string()
-            ))
-        );
-        assert_eq!(
-            nothing_ran(&requested(&["describe"]), Some(&uncommitted)),
-            Some((
-                vec!["describe".to_string()],
-                "describe did not run: it ran no entries".to_string()
-            ))
-        );
-        assert_eq!(
-            nothing_ran(&requested(&["describe", "sense"]), None),
-            Some((
-                vec!["describe".to_string(), "sense".to_string()],
-                "describe did not run: it printed no summary; sense did not run: it printed no summary"
-                    .to_string()
-            ))
-        );
-    }
-
-    #[test]
-    fn the_requested_phases_follow_the_describe_mode_and_the_lists() {
-        assert!(requested_phases(Describe::Off, &[], &[]).is_empty());
-        assert_eq!(
-            requested_phases(Describe::Stale, &names(&["m"]), &names(&["s"])),
-            vec!["describe", "measure", "sense"]
-        );
-    }
-
-    #[test]
-    fn a_stopped_run_stays_stopped_and_only_an_exit_of_zero_or_one_is_nothing_ran() {
-        let idle = || Some((vec!["sense".to_string()], "d".to_string()));
-
-        assert_eq!(
-            result_for(Some(0), true, String::new(), None, idle()),
+            result_for(Some(0), true, String::new(), None),
             ScanRun::Stopped
         );
         assert!(matches!(
-            result_for(Some(1), false, String::new(), None, idle()),
-            ScanRun::NothingRan { .. }
+            result_for(Some(1), false, String::new(), None),
+            ScanRun::Finished { exit_code: 1, .. }
         ));
         assert!(matches!(
-            result_for(Some(2), false, String::new(), None, idle()),
+            result_for(Some(2), false, String::new(), None),
             ScanRun::Failed { .. }
         ));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_scan_that_exits_zero_with_no_summary_for_a_requested_sense_phase_is_nothing_ran() {
-        let dir = TempDir::new().unwrap();
-        let command = fake_command(
-            dir.path(),
-            r#"echo '{"event":"summary","commit":null,"phases":[],"log":null}'"#,
-        );
-        let result = collect(
-            &ScanRuns::default(),
-            dir.path(),
-            &command,
-            Describe::Off,
-            &[],
-            &names(&["duplication"]),
-        );
-
-        assert_eq!(
-            result,
-            ScanRun::NothingRan {
-                phases: vec!["sense".to_string()],
-                detail: "sense did not run: the folder has no commit".to_string()
-            }
-        );
     }
 
     #[cfg(unix)]
@@ -1818,9 +1535,14 @@ mod tests {
         started_at: &str,
     ) -> String {
         let pgid = pgid.map_or("null".to_string(), |group| group.to_string());
+        let ran = if phase == "finished" {
+            r#"["extract"]"#
+        } else {
+            "null"
+        };
 
         format!(
-            r#"{{"version":2,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null}}"#
+            r#"{{"version":3,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
         )
     }
 
@@ -1883,8 +1605,8 @@ mod tests {
         let valid = examples("valid");
         let invalid = examples("invalid");
 
-        assert_eq!(valid.len(), 6);
-        assert_eq!(invalid.len(), 6);
+        assert_eq!(valid.len(), 7);
+        assert_eq!(invalid.len(), 9);
         assert!(valid.iter().all(|text| parse_run(text).is_some()));
         assert!(invalid.iter().all(|text| parse_run(text).is_none()));
 
@@ -1897,7 +1619,7 @@ mod tests {
 
         assert_eq!(
             phases,
-            vec!["checking", "failed", "finished", "refused", "running", "stopped"]
+            vec!["checking", "failed", "finished", "finished", "refused", "running", "stopped"]
         );
     }
 
@@ -2383,7 +2105,6 @@ mod tests {
                 Some(3),
                 false,
                 "a scan is already running\n".to_string(),
-                None,
                 None
             ),
             ScanRun::Refused {
@@ -2420,53 +2141,128 @@ mod tests {
         );
     }
 
+    fn record_writer(
+        dir: &Path,
+        phase: &str,
+        exit: i32,
+        started_by: &str,
+        started_at: &str,
+        gaps: &str,
+    ) -> String {
+        let record = format!(
+            r#"{{"version":3,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
+        );
+        let source = dir.join("fake-record.json");
+
+        fs::write(&source, record).unwrap();
+
+        format!(
+            "mkdir -p {cache}\ncp {source} {cache}/scan-running.json",
+            cache = dir.join(MODULES_DIR).display(),
+            source = source.display()
+        )
+    }
+
+    const TWO_GAPS: &str = r#"[{"id":"a","line":"coverage is not installed","needs":["crap"]},{"id":"b","line":"pytest is not installed","needs":["crap"]}]"#;
+
     #[cfg(unix)]
     #[test]
-    fn exit_four_with_a_preflight_event_is_gaps_and_without_one_is_failed() {
+    fn a_finished_record_and_a_silent_stdout_give_finished_with_the_exit_code() {
         let dir = TempDir::new().unwrap();
-        let event = serde_json::json!({
-            "event": "preflight",
-            "state": "gaps",
-            "gaps": [{
-                "id": "a",
-                "line": "coverage and pytest are not installed",
-                "needs": ["crap"],
-                "project": {"language": "python", "directory": "sensors"},
-                "fix": {
-                    "text": "uv sync",
-                    "command": ["uv", "sync"],
-                    "cwd": "sub",
-                    "env": {},
-                    "kind": "repository"
-                }
-            }]
-        });
-        let with = fake_command(dir.path(), &format!("echo '{event}'\nexit 4"));
-        let runs = ScanRuns::default();
+        let writer = record_writer(dir.path(), "finished", 0, "app", &now_timestamp(), "[]");
+        let command = fake_command(dir.path(), &writer);
         let result = collect(
-            &runs,
+            &ScanRuns::default(),
             dir.path(),
-            &with,
+            &command,
             Describe::Off,
             &[],
             &names(&["crap"]),
         );
 
+        assert_eq!(
+            result,
+            ScanRun::Finished {
+                exit_code: 0,
+                stderr: String::new()
+            }
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_printed_summary_and_preflight_with_no_record_are_not_a_source_of_gaps() {
+        let dir = TempDir::new().unwrap();
+        let command = fake_command(
+            dir.path(),
+            r#"echo '{"event":"preflight","state":"gaps","gaps":[{"id":"a","line":"l","needs":["crap"]}]}'; echo '{"event":"summary","exit":0,"commit":null,"phases":[],"log":null}'"#,
+        );
+        let result = collect(
+            &ScanRuns::default(),
+            dir.path(),
+            &command,
+            Describe::Off,
+            &[],
+            &names(&["crap"]),
+        );
+
+        assert_eq!(
+            result,
+            ScanRun::Finished {
+                exit_code: 0,
+                stderr: String::new()
+            }
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exit_four_with_a_refused_record_is_gaps_and_without_one_is_failed() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let sense = names(&["crap"]);
+        let writer = record_writer(dir.path(), "refused", 4, "app", &now_timestamp(), TWO_GAPS);
+        let with = fake_command(dir.path(), &format!("{writer}\nexit 4"));
+        let result = collect(&runs, dir.path(), &with, Describe::Off, &[], &sense);
+
         match result {
-            ScanRun::Gaps { gaps } => assert_eq!(gaps[0].id, "a"),
+            ScanRun::Gaps { gaps } => {
+                assert_eq!(gaps.len(), 2);
+                assert_eq!(gaps[0].id, "a");
+                assert_eq!(gaps[1].id, "b");
+            }
             other => panic!("expected Gaps, got {other:?}"),
         }
 
-        let without = fake_command(dir.path(), "echo oops >&2\nexit 4");
-        let result = collect(
-            &runs,
-            dir.path(),
-            &without,
-            Describe::Off,
-            &[],
-            &names(&["crap"]),
-        );
+        let bare = TempDir::new().unwrap();
+        let without = fake_command(bare.path(), "echo oops >&2\nexit 4");
+        let result = collect(&runs, bare.path(), &without, Describe::Off, &[], &sense);
 
         assert!(matches!(result, ScanRun::Failed { exit_code: 4, .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exit_four_with_only_a_stale_or_foreign_record_is_failed() {
+        let stale = timestamp_of_epoch(now_epoch() - 60);
+
+        for (started_by, started_at) in [("app", stale), ("cli", now_timestamp())] {
+            let dir = TempDir::new().unwrap();
+            let writer = record_writer(dir.path(), "refused", 4, started_by, &started_at, TWO_GAPS);
+            let command = fake_command(dir.path(), &format!("echo oops >&2\n{writer}\nexit 4"));
+            let result = collect(
+                &ScanRuns::default(),
+                dir.path(),
+                &command,
+                Describe::Off,
+                &[],
+                &names(&["crap"]),
+            );
+
+            assert!(
+                matches!(result, ScanRun::Failed { exit_code: 4, .. }),
+                "{started_by}: {result:?}"
+            );
+        }
     }
 }
