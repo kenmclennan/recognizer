@@ -264,6 +264,19 @@ describe("withEmptyGroups", () => {
   });
 });
 
+describe("private imports group", () => {
+  it("is placed after Unused exports", () => {
+    expect(
+      names([
+        document("structure", [
+          record("pi", "private_imports"),
+          record("ue", "unused_exports"),
+        ]),
+      ]),
+    ).toEqual(["Unused exports", "Private imports"]);
+  });
+});
+
 describe("finding-groups.json", () => {
   const entries = groupFile.groups as {
     key: string;
@@ -272,18 +285,19 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has eight unique keys and names with plain help sentences", () => {
+  it("has nine unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
       "kind:orphan",
       "kind:unused_exports",
+      "kind:private_imports",
       "kind:duplication",
       "kind:crap",
       "kind:mutation",
       "kind:thresholds",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(8);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(9);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");

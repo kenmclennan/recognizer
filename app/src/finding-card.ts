@@ -31,7 +31,8 @@ function folderOf(path: string): string {
 function isMemberFinding(record: FindingRecord): boolean {
   return (
     (record.evidence.members?.length ?? 0) > 0 &&
-    record.kind !== "unused_exports"
+    record.kind !== "unused_exports" &&
+    record.kind !== "private_imports"
   );
 }
 
@@ -56,7 +57,7 @@ export function cardOf(row: FindingRow): CardModel {
   const subject = subjectOf(row);
   const rows: CardRowModel[] = [];
 
-  if (isMemberFinding(record)) {
+  if (isMemberFinding(record) || record.kind === "private_imports") {
     for (const member of record.evidence.members ?? []) {
       rows.push({
         kind: "member",
@@ -108,7 +109,9 @@ export function cardOf(row: FindingRow): CardModel {
     }
   }
 
-  for (const edge of record.evidence.edges ?? []) {
+  for (const edge of record.kind === "private_imports"
+    ? []
+    : (record.evidence.edges ?? [])) {
     rows.push({ kind: "edge", from: edge.from, to: edge.to });
   }
 

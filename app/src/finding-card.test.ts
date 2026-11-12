@@ -246,3 +246,38 @@ describe("cardOf unused_exports test rows", () => {
     ).toEqual([]);
   });
 });
+
+describe("cardOf private_imports", () => {
+  it("has the importing file as subject and one member row per private name", () => {
+    const members = [
+      { module: "lib/a.py", name: "_x" },
+      { module: "lib/b.py", name: "_y" },
+    ];
+
+    expect(members.length).toBeGreaterThanOrEqual(2);
+
+    const card = cardOf(
+      rowOf({
+        kind: "private_imports",
+        evidence: {
+          modules: ["app/store.py"],
+          members,
+          edges: [
+            {
+              from: "app/store.py",
+              to: "lib/a.py",
+              kind: "depends",
+              lines: [1],
+            },
+          ],
+        },
+      }),
+    );
+
+    expect([card.name, card.folder]).toEqual(["store.py", "app"]);
+    expect(card.rows.map((row) => row.kind)).toEqual(["member", "member"]);
+    expect(
+      card.rows.map((row) => (row.kind === "member" ? row.name : "")),
+    ).toEqual(["_x", "_y"]);
+  });
+});
