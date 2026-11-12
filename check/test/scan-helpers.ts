@@ -44,6 +44,10 @@ export interface FakeOptions {
   stdin?: string;
   lines?: (string | null)[];
   linesRead?: { count: number };
+  holdLine?: boolean;
+  lineSignals?: AbortSignal[];
+  onWait?: (files: Map<string, string>, count: number) => void;
+  waits?: { count: number };
   alivePids?: number[];
   pgids?: Record<number, number | null>;
   pid?: number;
@@ -298,6 +302,8 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     };
   }
 
+  let waited = 0;
+
   const io: Io = {
     exists: (path) => files.has(path) || isDirectory(path),
     readFile: (path) => {
@@ -316,12 +322,31 @@ export function fakeIo(options: FakeOptions = {}): Fake {
 
       return options.stdin;
     },
-    readLine: async () => {
+    readLine: async (signal) => {
       if (options.linesRead !== undefined) {
         options.linesRead.count += 1;
       }
 
+      if (signal !== undefined) {
+        options.lineSignals?.push(signal);
+      }
+
+      if (options.holdLine === true && signal !== undefined) {
+        return new Promise<string | null>((resolve) => {
+          signal.addEventListener("abort", () => resolve(null));
+        });
+      }
+
       return options.lines?.shift() ?? null;
+    },
+    wait: async () => {
+      waited += 1;
+
+      if (options.waits !== undefined) {
+        options.waits.count = waited;
+      }
+
+      options.onWait?.(files, waited);
     },
     readBytes: (path) => Buffer.from(io.readFile(path), "utf8"),
     hashFile: (path) => {

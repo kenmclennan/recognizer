@@ -85,7 +85,8 @@ export interface Io {
   exists(path: string): boolean;
   readFile(path: string): string;
   readStdin(): string;
-  readLine(): Promise<string | null>;
+  readLine(signal?: AbortSignal): Promise<string | null>;
+  wait(ms: number): Promise<void>;
   readBytes(path: string): Buffer;
   hashFile(path: string): string | null;
   writeFile(path: string, content: string): void;
@@ -247,11 +248,12 @@ function spawnAsync(
   };
 }
 
-function readStdinLine(): Promise<string | null> {
+function readStdinLine(signal?: AbortSignal): Promise<string | null> {
   return new Promise((resolve) => {
     let buffered = "";
 
     const finish = (line: string | null) => {
+      signal?.removeEventListener("abort", onAbort);
       process.stdin.off("data", onData);
       process.stdin.off("end", onEnd);
       process.stdin.pause();
@@ -269,7 +271,15 @@ function readStdinLine(): Promise<string | null> {
     };
 
     const onEnd = () => finish(buffered === "" ? null : buffered);
+    const onAbort = () => finish(null);
 
+    if (signal?.aborted) {
+      resolve(null);
+
+      return;
+    }
+
+    signal?.addEventListener("abort", onAbort);
     process.stdin.on("data", onData);
     process.stdin.on("end", onEnd);
     process.stdin.resume();
@@ -282,6 +292,7 @@ export function nodeIo(): Io {
     readFile: (path) => readFileSync(path, "utf8"),
     readStdin: () => readFileSync(0, "utf8"),
     readLine: readStdinLine,
+    wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     readBytes: (path) => readFileSync(path),
     hashFile: (path) => {
       try {

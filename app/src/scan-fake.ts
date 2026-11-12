@@ -1,3 +1,4 @@
+import type { ScanRunRecord } from "recognizer";
 import type { ScanPlan } from "./scan-panel-model";
 import type {
   DescribingSettings,
@@ -7,6 +8,7 @@ import type {
   StoredTicks,
   WrittenTicks,
 } from "./scan-port";
+import { parseScanLine, type ScanEvent } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 
 export type ScanStep = string | Promise<void>;
@@ -24,12 +26,45 @@ export type FakeScan = ScanPort & {
   onStep: (index: number) => void;
   emitRun: (event: RunEvent) => void;
   watching: number;
+  records: boolean;
+  record: Partial<ScanRunRecord>;
 };
 
+const SPAWNS_NO_RECORD = new Set<ScanRunResult["status"]>([
+  "command-missing",
+  "refused",
+]);
+
+function passedPreflight(event: ScanEvent): boolean {
+  switch (event.event) {
+    case "preflight":
+      return event.state === "ok";
+    case "phase":
+      return event.phase !== "extract";
+    case "entry":
+      return event.phase !== "extract";
+    case "start":
+    case "progress":
+    case "confirm":
+    case "answered":
+    case "stopped":
+      return true;
+    case "summary":
+      return false;
+  }
+}
+
+const ENDED = "2026-11-10T09:00:05.000Z";
+
 export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
-  const handlers = new Set<(line: string) => void>();
   const runs = new Set<(event: RunEvent) => void>();
   let remembered: StoredTicks | null = null;
+  let runCount = 0;
+  const nextRun = () => {
+    runCount += 1;
+
+    return runCount;
+  };
   let pending: { stop: () => void } | null = null;
   const fake: FakeScan = {
     steps: [],
@@ -49,6 +84,8 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     written: [],
     onStep: () => {},
     watching: 0,
+    records: true,
+    record: {},
     emitRun(event) {
       for (const handler of runs) {
         handler(event);
@@ -82,15 +119,79 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         },
       };
 
+      const writes =
+        fake.records &&
+        !SPAWNS_NO_RECORD.has(fake.result.status) &&
+        !(fake.result.status === "gaps" && fake.steps.length === 0);
+      let live: ScanRunRecord = {
+        version: 2,
+        run_id: `fake-run-${nextRun()}`,
+        pid: 4242,
+        pgid: 4242,
+        started_at: "2026-11-10T09:00:00.000Z",
+        started_by: "app",
+        repository: "/work/repo",
+        sensors: plan.sense,
+        describe: plan.describe,
+        ...fake.record,
+        phase: "checking",
+        ended_at: null,
+        exit: null,
+        gaps: [],
+        failure: null,
+      };
+      const move = (changes: Partial<ScanRunRecord>) => {
+        live = { ...live, ...changes };
+        fake.emitRun({ kind: "run", run: live });
+      };
+      const endedAt = () => fake.record.ended_at ?? ENDED;
+      const ends = (exit: number) => {
+        const failure = fake.record.failure ?? null;
+
+        if (exit === 4) {
+          move({
+            phase: "refused",
+            exit,
+            gaps:
+              fake.record.gaps ??
+              (fake.result.status === "gaps" ? fake.result.gaps : []),
+            ended_at: endedAt(),
+          });
+        } else if (exit === 0) {
+          move({ phase: "finished", exit, ended_at: endedAt() });
+        } else {
+          move({ phase: "failed", exit, failure, ended_at: endedAt() });
+        }
+      };
+      let ended = false;
+
       try {
+        if (writes) {
+          fake.emitRun({ kind: "run", run: live });
+        }
+
         for (const [index, step] of fake.steps.entries()) {
           if (halted) {
             break;
           }
 
           if (typeof step === "string") {
-            for (const handler of handlers) {
-              handler(step);
+            fake.emitRun({ kind: "line", line: step });
+
+            const event = parseScanLine(step);
+
+            if (
+              writes &&
+              live.phase === "checking" &&
+              event !== null &&
+              passedPreflight(event)
+            ) {
+              move({ phase: "running" });
+            }
+
+            if (writes && event?.event === "summary") {
+              ended = true;
+              ends(event.exit ?? 0);
             }
 
             await new Promise((resolve) => setTimeout(resolve, 0));
@@ -99,6 +200,24 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
           }
 
           fake.onStep(index);
+        }
+
+        if (writes && !ended) {
+          if (halted) {
+            move({ phase: "stopped", exit: 143, ended_at: endedAt() });
+          } else if (fake.result.status === "failed") {
+            move({
+              phase: "failed",
+              exit: fake.result.exitCode,
+              failure: fake.record.failure ?? null,
+              ended_at: endedAt(),
+            });
+          } else if (
+            fake.result.status === "finished" ||
+            fake.result.status === "nothing-ran"
+          ) {
+            ends(fake.result.status === "finished" ? fake.result.exitCode : 0);
+          }
         }
 
         return halted ? { status: "stopped" } : fake.result;
@@ -131,11 +250,6 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     },
     async readDescribing() {
       return fake.describing;
-    },
-    onLine(handler) {
-      handlers.add(handler);
-
-      return () => handlers.delete(handler);
     },
     ...overrides,
   };

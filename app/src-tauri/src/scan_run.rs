@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::process::{ChildStdin, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,10 @@ const LOG: &str = ".recognizer/cache/log";
 const MODULES_DIR: &str = ".recognizer/cache";
 const MARKER: &str = ".recognizer/cache/scan-running.json";
 const MARKER_PROGRESS: &str = ".recognizer/cache/scan-running.progress.jsonl";
+const MARKER_ANSWER: &str = ".recognizer/cache/scan-running.answer.json";
+const ACTIVE_POLL: Duration = Duration::from_millis(250);
+const IDLE_POLL: Duration = Duration::from_secs(1);
+const NO_ANSWER_WAITING: &str = "no scan is waiting for an answer";
 const REFUSED_EXIT: i32 = 3;
 const PREFLIGHT_EXIT: i32 = 4;
 const STARTED_BY: &str = "RECOGNIZER_STARTED_BY";
@@ -306,6 +311,14 @@ fn appended_lines(folder: &Path, offset: u64) -> (Vec<String>, u64) {
     (lines, from + end as u64 + 1)
 }
 
+pub fn poll_interval(seen: &RunSeen) -> Duration {
+    if seen.run.as_ref().is_some_and(is_active) {
+        ACTIVE_POLL
+    } else {
+        IDLE_POLL
+    }
+}
+
 pub fn run_tick(folder: Option<&Path>, seen: &mut RunSeen) -> Vec<RunEmission> {
     let mut out = Vec::new();
 
@@ -324,15 +337,23 @@ pub fn run_tick(folder: Option<&Path>, seen: &mut RunSeen) -> Vec<RunEmission> {
                 seen.offset = 0;
             }
 
-            if seen.run.as_ref() != Some(&run) {
-                out.push(RunEmission::Run(Some(Box::new(run.clone()))));
-                seen.run = Some(run);
-            }
-
+            let changed = seen.run.as_ref() != Some(&run);
+            let record = RunEmission::Run(Some(Box::new(run.clone())));
             let (lines, offset) = appended_lines(folder, seen.offset);
 
             seen.offset = offset;
+
+            if changed && is_active(&run) {
+                out.push(record.clone());
+            }
+
             out.extend(lines.into_iter().map(RunEmission::Line));
+
+            if changed && !is_active(&run) {
+                out.push(record);
+            }
+
+            seen.run = Some(run);
         }
         _ => {
             if seen.run.take().is_some() {
@@ -427,12 +448,12 @@ pub enum ScanRun {
 struct Handle {
     pid: Option<u32>,
     stopped: bool,
-    stdin: Option<ChildStdin>,
 }
 
 #[derive(Default)]
 pub struct ScanRuns {
     handles: Mutex<HashMap<String, Handle>>,
+    seen: Mutex<HashMap<String, RunSeen>>,
 }
 
 pub fn kill_pid(pid: u32) {
@@ -486,21 +507,18 @@ impl ScanRuns {
         }
     }
 
-    fn attach_stdin(&self, label: &str, stdin: ChildStdin) {
-        if let Some(handle) = self.lock().get_mut(label) {
-            handle.stdin = Some(stdin);
-        }
+    pub fn tick(&self, label: &str, folder: Option<&Path>) -> Vec<RunEmission> {
+        let mut seen = self.seen.lock().unwrap_or_else(|error| error.into_inner());
+
+        run_tick(folder, seen.entry(label.to_string()).or_default())
     }
 
-    pub fn answer_describe(&self, label: &str, describe: bool) -> Result<(), String> {
-        let mut runs = self.lock();
-        let Some(stdin) = runs.get_mut(label).and_then(|handle| handle.stdin.take()) else {
-            return Err("no scan is waiting for an answer".to_string());
-        };
-        let mut stdin = stdin;
-        let word = if describe { "describe" } else { "skip" };
-
-        writeln!(stdin, "{word}").map_err(|error| error.to_string())
+    pub fn interval(&self, label: &str) -> Duration {
+        self.seen
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get(label)
+            .map_or(IDLE_POLL, poll_interval)
     }
 
     pub fn stop(&self, label: &str) {
@@ -508,7 +526,6 @@ impl ScanRuns {
 
         if let Some(handle) = runs.get_mut(label) {
             handle.stopped = true;
-            handle.stdin = None;
 
             if let Some(pid) = handle.pid {
                 kill_group(pid);
@@ -545,6 +562,37 @@ impl ScanRuns {
             self.stop(&label);
         }
     }
+}
+
+#[derive(Serialize)]
+struct AnswerFile<'a> {
+    version: u32,
+    run_id: &'a str,
+    describe: bool,
+}
+
+pub fn answer_describe(folder: &Path, describe: bool) -> Result<(), String> {
+    let run = live_run(folder)
+        .filter(|run| run.phase == "running")
+        .ok_or_else(|| NO_ANSWER_WAITING.to_string())?;
+    let path = folder.join(MARKER_ANSWER);
+    let answered = fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .is_some_and(|value| value["run_id"] == run.run_id.as_str());
+
+    if answered {
+        return Err("this scan was already answered".to_string());
+    }
+
+    let text = serde_json::to_string(&AnswerFile {
+        version: 1,
+        run_id: &run.run_id,
+        describe,
+    })
+    .map_err(|error| error.to_string())?;
+
+    write_atomic(&path, &format!("{text}\n")).map_err(|error| error.to_string())
 }
 
 pub fn summary_log(line: &str) -> Option<String> {
@@ -727,7 +775,6 @@ pub fn run_with(
     modules: Option<&[String]>,
     confirm_above: Option<f64>,
     prepare: impl FnOnce(),
-    emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
     if let Some(ids) = modules {
         if let Err(reason) = check_modules(ids) {
@@ -787,7 +834,6 @@ pub fn run_with(
         sense,
         file.as_deref(),
         confirm_above,
-        emit,
     );
 
     if let Some(path) = &file {
@@ -811,7 +857,6 @@ fn spawn_and_stream(
     sense: &[String],
     modules_file: Option<&Path>,
     confirm_above: Option<f64>,
-    emit: &(dyn Fn(String) + Sync),
 ) -> ScanRun {
     let mut process = match runner.command(command) {
         Ok(process) => process,
@@ -832,11 +877,7 @@ fn spawn_and_stream(
                 .map(|usd| vec!["--confirm-above".to_string(), usd.to_string()])
                 .unwrap_or_default(),
         )
-        .stdin(if confirm_above.is_some() && describe != Describe::Off {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -855,10 +896,6 @@ fn spawn_and_stream(
             }
         }
     };
-
-    if let Some(stdin) = child.stdin.take() {
-        runs.attach_stdin(label, stdin);
-    }
 
     runs.started(label, child.id());
 
@@ -899,8 +936,6 @@ fn spawn_and_stream(
                     if let Some(found) = preflight_gaps(&line) {
                         gaps = Some(found);
                     }
-
-                    emit(line);
                 }
             }
         }
@@ -935,8 +970,8 @@ fn spawn_and_stream(
 mod tests {
     use super::*;
     use std::fs;
+    use std::io::Write;
     use std::path::PathBuf;
-    use std::sync::mpsc;
     use std::sync::Arc;
     use std::time::Duration;
     use tempfile::TempDir;
@@ -1006,11 +1041,11 @@ mod tests {
         describe: Describe,
         measure: &[String],
         sense: &[String],
-    ) -> (ScanRun, Vec<String>) {
-        let lines = Mutex::new(Vec::new());
+    ) -> ScanRun {
         let tools = TempDir::new().unwrap();
         let runner = working_runner(tools.path());
-        let result = run_with(
+
+        run_with(
             runs,
             "w-1",
             folder,
@@ -1022,10 +1057,27 @@ mod tests {
             None,
             None,
             || {},
-            &|line| lines.lock().unwrap().push(line),
-        );
+        )
+    }
 
-        (result, lines.into_inner().unwrap())
+    fn captured(dir: &Path) -> Vec<String> {
+        fs::read_to_string(dir.join("capture.txt"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_string)
+            .collect()
+    }
+
+    fn wait_for(path: &Path) {
+        for _ in 0..600 {
+            if path.exists() {
+                return;
+            }
+
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        panic!("{} never appeared", path.display());
     }
 
     #[test]
@@ -1078,7 +1130,10 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = TempDir::new().unwrap();
-        let command = fake_command(dir.path(), r#"echo '{"event":"entry"}'"#);
+        let command = fake_command(
+            dir.path(),
+            r#"echo '{"event":"summary","log":"20261102T123456789Z-scan"}'"#,
+        );
         let shell = dir.path().join("fake-shell");
 
         fs::write(
@@ -1089,7 +1144,6 @@ mod tests {
         fs::set_permissions(&shell, fs::Permissions::from_mode(0o755)).unwrap();
 
         let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
-        let lines = Mutex::new(Vec::new());
         let runs = ScanRuns::default();
         let result = run_with(
             &runs,
@@ -1103,22 +1157,27 @@ mod tests {
             None,
             None,
             || {},
-            &|line| lines.lock().unwrap().push(line),
         );
 
-        assert!(matches!(result, ScanRun::Finished { exit_code: 0, .. }));
-        assert_eq!(lines.into_inner().unwrap(), vec![r#"{"event":"entry"}"#]);
+        assert_eq!(
+            result,
+            ScanRun::Finished {
+                exit_code: 0,
+                stderr: String::new(),
+                log: Some(format!("{LOG}/20261102T123456789Z-scan.json"))
+            }
+        );
     }
 
     #[cfg(unix)]
     #[test]
-    fn lines_are_emitted_in_order_and_exit_one_is_finished() {
+    fn exit_one_is_finished_and_nothing_is_forwarded() {
         let dir = TempDir::new().unwrap();
         let command = fake_command(
             dir.path(),
             r#"echo '{"event":"phase"}'; echo '{"event":"summary"}'; exit 1"#,
         );
-        let (result, lines) = collect(
+        let result = collect(
             &ScanRuns::default(),
             dir.path(),
             &command,
@@ -1127,10 +1186,6 @@ mod tests {
             &[],
         );
 
-        assert_eq!(
-            lines,
-            names(&[r#"{"event":"phase"}"#, r#"{"event":"summary"}"#])
-        );
         assert_eq!(
             result,
             ScanRun::Finished {
@@ -1145,8 +1200,11 @@ mod tests {
     #[test]
     fn the_flags_reach_the_command_after_the_folder() {
         let dir = TempDir::new().unwrap();
-        let command = fake_command(dir.path(), r#"echo "$@""#);
-        let (_, lines) = collect(
+        let command = fake_command(
+            dir.path(),
+            &format!(r#"echo "$@" > {}/capture.txt"#, dir.path().display()),
+        );
+        collect(
             &ScanRuns::default(),
             dir.path(),
             &command,
@@ -1156,7 +1214,7 @@ mod tests {
         );
 
         assert_eq!(
-            lines,
+            captured(dir.path()),
             vec![format!(
                 "scan {} --json --describe --measure m --sense a",
                 dir.path().display()
@@ -1165,7 +1223,7 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn collect_scoped(folder: &Path, command: &Path, modules: &[String]) -> (ScanRun, Vec<String>) {
+    fn collect_scoped(folder: &Path, command: &Path, modules: &[String]) -> ScanRun {
         collect_scoped_describing(folder, command, modules, Describe::Stale)
     }
 
@@ -1175,11 +1233,11 @@ mod tests {
         command: &Path,
         modules: &[String],
         describe: Describe,
-    ) -> (ScanRun, Vec<String>) {
-        let lines = Mutex::new(Vec::new());
+    ) -> ScanRun {
         let tools = TempDir::new().unwrap();
         let runner = working_runner(tools.path());
-        let result = run_with(
+
+        run_with(
             &ScanRuns::default(),
             "w-1",
             folder,
@@ -1191,23 +1249,24 @@ mod tests {
             Some(modules),
             None,
             || {},
-            &|line| lines.lock().unwrap().push(line),
-        );
-
-        (result, lines.into_inner().unwrap())
+        )
     }
 
     #[cfg(unix)]
     #[test]
     fn a_describe_all_run_passes_describe_all_with_the_modules() {
         let dir = TempDir::new().unwrap();
-        let command = fake_command(dir.path(), r#"echo "$@""#);
-        let (_, lines) =
-            collect_scoped_describing(dir.path(), &command, &names(&["a.py"]), Describe::All);
+        let command = fake_command(
+            dir.path(),
+            &format!(r#"echo "$@" > {}/capture.txt"#, dir.path().display()),
+        );
+
+        collect_scoped_describing(dir.path(), &command, &names(&["a.py"]), Describe::All);
+
         let file = dir.path().join(".recognizer/cache/scan-modules-w-1.json");
 
         assert_eq!(
-            lines,
+            captured(dir.path()),
             vec![format!(
                 "scan {} --json --describe=all --modules {}",
                 dir.path().display(),
@@ -1222,11 +1281,16 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let command = fake_command(
             dir.path(),
-            r#"for last; do :; done; echo "$@"; cat "$last"; echo; echo '{"event":"summary","commit":"c","phases":[{"phase":"describe","entries":[{}]}],"log":null}'"#,
+            &format!(
+                r#"for last; do :; done; echo "$@" > {cap}/capture.txt; cat "$last" >> {cap}/capture.txt; echo >> {cap}/capture.txt; echo '{{"event":"summary","commit":"c","phases":[{{"phase":"describe","entries":[{{}}]}}],"log":null}}'"#,
+                cap = dir.path().display()
+            ),
         );
-        let (result, mut lines) = collect_scoped(dir.path(), &command, &names(&["a.py", "b/c.py"]));
-
-        lines.pop();
+        let result = collect_scoped(dir.path(), &command, &names(&["a.py", "b/c.py"]));
+        let lines: Vec<String> = captured(dir.path())
+            .into_iter()
+            .filter(|line| !line.is_empty())
+            .collect();
 
         let file = dir.path().join(".recognizer/cache/scan-modules-w-1.json");
 
@@ -1254,7 +1318,7 @@ mod tests {
     fn a_failed_scoped_run_removes_the_module_file() {
         let dir = TempDir::new().unwrap();
         let command = fake_command(dir.path(), "exit 3");
-        let (_, _) = collect_scoped(dir.path(), &command, &names(&["a.py"]));
+        collect_scoped(dir.path(), &command, &names(&["a.py"]));
 
         assert!(!dir
             .path()
@@ -1266,13 +1330,14 @@ mod tests {
     #[test]
     fn an_empty_list_an_empty_id_or_a_nul_is_refused_before_anything_is_written() {
         let dir = TempDir::new().unwrap();
-        let command = fake_command(dir.path(), "echo ran");
+        let ran = dir.path().join("ran");
+        let command = fake_command(dir.path(), &format!("touch {}", ran.display()));
 
         for bad in [names(&[]), names(&["a.py", ""]), vec!["a\0b".to_string()]] {
-            let (result, lines) = collect_scoped(dir.path(), &command, &bad);
+            let result = collect_scoped(dir.path(), &command, &bad);
 
             assert!(matches!(result, ScanRun::Refused { .. }));
-            assert!(lines.is_empty());
+            assert!(!ran.exists());
         }
 
         assert!(!dir.path().join(".recognizer").exists());
@@ -1286,7 +1351,7 @@ mod tests {
             dir.path(),
             r#"echo '{"event":"summary","log":"20261102T123456789Z-scan"}'"#,
         );
-        let (result, _) = collect(
+        let result = collect(
             &ScanRuns::default(),
             dir.path(),
             &command,
@@ -1310,7 +1375,7 @@ mod tests {
     fn exit_two_is_failed_with_stderr_and_127_is_missing() {
         let dir = TempDir::new().unwrap();
         let command = fake_command(dir.path(), "echo bad flag >&2; exit 2");
-        let (result, _) = collect(
+        let result = collect(
             &ScanRuns::default(),
             dir.path(),
             &command,
@@ -1327,7 +1392,7 @@ mod tests {
             }
         );
 
-        let (missing, _) = collect(
+        let missing = collect(
             &ScanRuns::default(),
             dir.path(),
             Path::new("/nonexistent/recognizer"),
@@ -1343,10 +1408,13 @@ mod tests {
     #[test]
     fn a_second_run_is_refused_and_stop_kills_the_first() {
         let dir = TempDir::new().unwrap();
-        let command = fake_command(dir.path(), "echo started; sleep 30");
+        let started = dir.path().join("started");
+        let command = fake_command(
+            dir.path(),
+            &format!("touch {}; sleep 30", started.display()),
+        );
         let runs = Arc::new(ScanRuns::default());
         let runner = Arc::new(working_runner(dir.path()));
-        let (sender, receiver) = mpsc::channel();
         let folder = dir.path().to_path_buf();
         let path = command.clone();
         let worker = {
@@ -1366,16 +1434,13 @@ mod tests {
                     None,
                     None,
                     || {},
-                    &|line| {
-                        let _ = sender.send(line);
-                    },
                 )
             })
         };
 
-        assert_eq!(receiver.recv().unwrap(), "started");
+        wait_for(&started);
 
-        let (second, _) = collect(&runs, dir.path(), &command, Describe::Off, &[], &[]);
+        let second = collect(&runs, dir.path(), &command, Describe::Off, &[], &[]);
 
         assert_eq!(
             second,
@@ -1390,61 +1455,143 @@ mod tests {
         assert!(!runs.running("w-1"));
     }
 
+    fn running_record(folder: &Path, run_id: &str) {
+        write_run_with(
+            folder,
+            &run_text(
+                std::process::id(),
+                None,
+                "running",
+                "app",
+                run_id,
+                &now_timestamp(),
+            ),
+        );
+    }
+
+    fn answer_file(folder: &Path) -> PathBuf {
+        folder.join(MARKER_ANSWER)
+    }
+
+    #[test]
+    fn answer_describe_writes_one_answer_for_the_live_run() {
+        let dir = TempDir::new().unwrap();
+        let valid = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../schema/scan-answer-examples/valid/describe-no.json");
+        let example: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(valid).unwrap()).unwrap();
+        let run_id = example["run_id"].as_str().unwrap().to_string();
+
+        running_record(dir.path(), &run_id);
+
+        assert!(answer_describe(dir.path(), false).is_ok());
+
+        let written: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(answer_file(dir.path())).unwrap()).unwrap();
+
+        assert_eq!(written, example);
+        assert!(answer_describe(dir.path(), true).is_err());
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(
+                &fs::read_to_string(answer_file(dir.path())).unwrap()
+            )
+            .unwrap(),
+            example
+        );
+    }
+
+    #[test]
+    fn answer_describe_writes_the_answer_for_a_new_run_over_a_stale_one() {
+        let dir = TempDir::new().unwrap();
+
+        running_record(dir.path(), "run-2");
+        fs::write(
+            answer_file(dir.path()),
+            r#"{"version":1,"run_id":"run-1","describe":true}"#,
+        )
+        .unwrap();
+
+        assert!(answer_describe(dir.path(), false).is_ok());
+
+        let written: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(answer_file(dir.path())).unwrap()).unwrap();
+
+        assert_eq!(written["run_id"], "run-2");
+        assert_eq!(written["describe"], false);
+    }
+
+    #[test]
+    fn answer_describe_refuses_without_a_live_running_record() {
+        let dir = TempDir::new().unwrap();
+
+        assert_eq!(
+            answer_describe(dir.path(), true),
+            Err("no scan is waiting for an answer".to_string())
+        );
+
+        write_run(dir.path(), std::process::id(), "finished", "app");
+
+        assert_eq!(
+            answer_describe(dir.path(), true),
+            Err("no scan is waiting for an answer".to_string())
+        );
+
+        write_run(dir.path(), std::process::id(), "checking", "app");
+
+        assert_eq!(
+            answer_describe(dir.path(), true),
+            Err("no scan is waiting for an answer".to_string())
+        );
+        assert!(!answer_file(dir.path()).exists());
+    }
+
     #[cfg(unix)]
     #[test]
-    fn answer_describe_reaches_the_waiting_scan_once() {
+    fn the_child_always_starts_with_stdin_null() {
         let dir = TempDir::new().unwrap();
+        let out = dir.path().join("stdin.txt");
         let command = fake_command(
             dir.path(),
-            "echo waiting; read answer; echo \"got $answer\"; echo '{\"event\":\"summary\",\"commit\":\"c\",\"phases\":[{\"phase\":\"describe\",\"entries\":[{}]}],\"log\":null}'",
+            &format!(
+                "if read -r line; then echo open > {out}; else echo closed > {out}; fi",
+                out = out.display()
+            ),
         );
-        let runs = Arc::new(ScanRuns::default());
-        let runner = Arc::new(working_runner(dir.path()));
-        let (sender, receiver) = mpsc::channel();
-        let folder = dir.path().to_path_buf();
-        let path = command.clone();
-        let worker = {
-            let runs = Arc::clone(&runs);
-            let runner = Arc::clone(&runner);
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
 
-            std::thread::spawn(move || {
-                run_with(
-                    &runs,
-                    "w-1",
-                    &folder,
-                    &runner,
-                    &path.display().to_string(),
-                    Describe::Stale,
-                    &[],
-                    &[],
-                    None,
-                    Some(5.0),
-                    || {},
-                    &|line| {
-                        let _ = sender.send(line);
-                    },
-                )
-            })
-        };
+        run_with(
+            &ScanRuns::default(),
+            "w-1",
+            dir.path(),
+            &runner,
+            &command.display().to_string(),
+            Describe::Stale,
+            &[],
+            &[],
+            None,
+            Some(5.0),
+            || {},
+        );
 
-        assert_eq!(receiver.recv().unwrap(), "waiting");
-        assert!(runs.answer_describe("w-1", false).is_ok());
-        assert!(runs.answer_describe("w-1", false).is_err());
-        assert_eq!(receiver.recv().unwrap(), "got skip");
-        assert!(matches!(
-            worker.join().unwrap(),
-            ScanRun::Finished { exit_code: 0, .. }
-        ));
+        assert_eq!(fs::read_to_string(out).unwrap().trim(), "closed");
     }
 
     #[cfg(unix)]
     #[test]
     fn stopping_while_waiting_for_an_answer_ends_the_scan() {
         let dir = TempDir::new().unwrap();
-        let command = fake_command(dir.path(), "echo waiting; read answer");
+        let waiting = dir.path().join("waiting");
+        let command = fake_command(
+            dir.path(),
+            &format!(
+                "touch {waiting}; while [ ! -f {answer} ]; do sleep 0.1; done",
+                waiting = waiting.display(),
+                answer = answer_file(dir.path()).display()
+            ),
+        );
         let runs = Arc::new(ScanRuns::default());
         let runner = Arc::new(working_runner(dir.path()));
-        let (sender, receiver) = mpsc::channel();
         let folder = dir.path().to_path_buf();
         let path = command.clone();
         let worker = {
@@ -1464,19 +1611,16 @@ mod tests {
                     None,
                     Some(5.0),
                     || {},
-                    &|line| {
-                        let _ = sender.send(line);
-                    },
                 )
             })
         };
 
-        assert_eq!(receiver.recv().unwrap(), "waiting");
+        wait_for(&waiting);
 
         runs.stop("w-1");
 
         assert_eq!(worker.join().unwrap(), ScanRun::Stopped);
-        assert!(runs.answer_describe("w-1", true).is_err());
+        assert!(answer_describe(dir.path(), true).is_err());
     }
 
     #[test]
@@ -1596,7 +1740,7 @@ mod tests {
             dir.path(),
             r#"echo '{"event":"summary","commit":null,"phases":[],"log":null}'"#,
         );
-        let (result, _) = collect(
+        let result = collect(
             &ScanRuns::default(),
             dir.path(),
             &command,
@@ -1638,7 +1782,6 @@ mod tests {
             None,
             None,
             || panic!("prepare must not run"),
-            &|_| {},
         );
 
         match &result {
@@ -1940,6 +2083,94 @@ mod tests {
         assert!(run_tick(None, &mut seen).is_empty());
     }
 
+    #[test]
+    fn the_poll_runs_every_quarter_second_while_a_scan_is_active_and_every_second_otherwise() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = RunSeen::default();
+
+        assert_eq!(poll_interval(&seen), Duration::from_secs(1));
+
+        write_run(dir.path(), std::process::id(), "checking", "cli");
+        run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(poll_interval(&seen), Duration::from_millis(250));
+
+        write_run(dir.path(), std::process::id(), "running", "cli");
+        run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(poll_interval(&seen), Duration::from_millis(250));
+
+        write_run(dir.path(), std::process::id(), "finished", "cli");
+        run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(poll_interval(&seen), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn a_terminal_record_follows_the_lines_that_ended_the_run() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = RunSeen::default();
+
+        write_run(dir.path(), std::process::id(), "running", "cli");
+        run_tick(Some(dir.path()), &mut seen);
+        append_progress(dir.path(), "{\"event\":\"summary\"}\n");
+        write_run(dir.path(), std::process::id(), "finished", "cli");
+
+        let emitted = run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(emitted.len(), 2);
+        assert_eq!(
+            emitted[0],
+            RunEmission::Line("{\"event\":\"summary\"}".to_string())
+        );
+        assert!(matches!(&emitted[1], RunEmission::Run(Some(run)) if run.phase == "finished"));
+    }
+
+    #[test]
+    fn an_active_record_precedes_its_lines() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = RunSeen::default();
+
+        write_run(dir.path(), std::process::id(), "checking", "cli");
+        append_progress(dir.path(), "{\"event\":\"preflight\"}\n");
+
+        let emitted = run_tick(Some(dir.path()), &mut seen);
+
+        assert!(matches!(&emitted[0], RunEmission::Run(Some(_))));
+        assert_eq!(
+            emitted[1],
+            RunEmission::Line("{\"event\":\"preflight\"}".to_string())
+        );
+    }
+
+    #[test]
+    fn the_post_exit_tick_emits_the_terminal_record_and_trailing_lines_once() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+
+        write_run(dir.path(), std::process::id(), "running", "app");
+        append_progress(dir.path(), "{\"event\":\"one\"}\n");
+
+        let polled = runs.tick("w-1", Some(dir.path()));
+
+        assert_eq!(polled.len(), 2);
+
+        append_progress(dir.path(), "{\"event\":\"summary\"}\n");
+        write_run(dir.path(), std::process::id(), "finished", "app");
+
+        let after_exit = runs.tick("w-1", Some(dir.path()));
+        let polled_again = runs.tick("w-1", Some(dir.path()));
+
+        assert_eq!(after_exit.len(), 2);
+        assert_eq!(
+            after_exit[0],
+            RunEmission::Line("{\"event\":\"summary\"}".to_string())
+        );
+        assert!(matches!(&after_exit[1], RunEmission::Run(Some(run)) if run.phase == "finished"));
+        assert!(polled_again.is_empty());
+        assert_eq!(runs.interval("w-1"), Duration::from_secs(1));
+    }
+
     struct Reaper(Vec<std::process::Child>);
 
     impl Drop for Reaper {
@@ -2128,7 +2359,6 @@ mod tests {
             None,
             None,
             || *prepared.lock().unwrap() = true,
-            &|_| {},
         );
 
         assert_eq!(
@@ -2213,7 +2443,7 @@ mod tests {
         });
         let with = fake_command(dir.path(), &format!("echo '{event}'\nexit 4"));
         let runs = ScanRuns::default();
-        let (result, _) = collect(
+        let result = collect(
             &runs,
             dir.path(),
             &with,
@@ -2228,7 +2458,7 @@ mod tests {
         }
 
         let without = fake_command(dir.path(), "echo oops >&2\nexit 4");
-        let (result, _) = collect(
+        let result = collect(
             &runs,
             dir.path(),
             &without,

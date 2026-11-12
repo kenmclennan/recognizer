@@ -5,6 +5,7 @@ import validate from "./generated/scan-marker-validator.js";
 
 export const MARKER_FILE = "scan-running.json";
 export const PROGRESS_FILE = "scan-running.progress.jsonl";
+export const ANSWER_FILE = "scan-running.answer.json";
 export const STARTED_BY_VARIABLE = "RECOGNIZER_STARTED_BY";
 export const REFUSED_EXIT = 3;
 
@@ -52,6 +53,8 @@ export interface MarkerDetails {
 }
 
 export interface HeldMarker {
+  readonly runId: string;
+  readonly origin: MarkerOrigin;
   append(line: string): void;
   running(): void;
   refused(gaps: RunGap[]): void;
@@ -74,6 +77,10 @@ export function markerPath(root: string): string {
 
 export function progressPath(root: string): string {
   return join(root, ".recognizer", "cache", PROGRESS_FILE);
+}
+
+export function answerPath(root: string): string {
+  return join(root, ".recognizer", "cache", ANSWER_FILE);
 }
 
 export function parseMarker(text: string): ScanRunRecord | null {
@@ -159,6 +166,7 @@ export function acquireMarker(
     }
 
     io.remove(progress);
+    io.remove(answerPath(root));
     io.remove(path);
 
     if (!io.createExclusive(path, content)) {
@@ -196,6 +204,8 @@ export function acquireMarker(
   const ended = (): string => new Date(io.now()).toISOString();
 
   const handle: HeldMarker = {
+    runId: record.run_id,
+    origin: record.started_by,
     append: (line) => io.append(progress, line),
     running: () => {
       if (active()) {

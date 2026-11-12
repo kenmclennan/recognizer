@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { answerPath, markerPath, progressPath } from "../src/scan-marker.js";
 import { scannerFor } from "../src/scanners.js";
 import {
   APP_CONFIG,
@@ -983,6 +984,176 @@ describe("recognizer scan: phases", () => {
         { cost_usd: null },
       );
       expect(reads.count).toBe(1);
+    });
+  });
+
+  describe("--confirm-above answered through the run record", () => {
+    const ANSWER = answerPath(ROOT);
+    const PROGRESS = progressPath(ROOT);
+
+    const runIdOf = (files: Map<string, string>): string =>
+      (JSON.parse(files.get(markerPath(ROOT)) ?? "{}") as { run_id: string })
+        .run_id;
+
+    const answerFile = (runId: string, describe: boolean): string =>
+      JSON.stringify({ version: 1, run_id: runId, describe });
+
+    const progressEvents = (files: Map<string, string>) =>
+      lines(files.get(PROGRESS) ?? "");
+
+    const asked = async (
+      extra: Partial<FakeOptions>,
+      startedBy: "app" | "cli",
+    ) => {
+      const options = setup({}, { [CONFIG]: DESCRIBER });
+      const fake = fakeIo({
+        ...options,
+        env: { RECOGNIZER_STARTED_BY: startedBy },
+        ...extra,
+      });
+      const code = await run(
+        ["scan", ROOT, "--describe", "--json", "--confirm-above", "0.0001"],
+        fake.io,
+      );
+
+      return { fake, code, events: progressEvents(fake.files) };
+    };
+
+    const described = (events: Record<string, unknown>[]) =>
+      events.filter(
+        (line) => line.event === "entry" && line.phase === "describe",
+      ).length;
+
+    it("writes the confirm line, then describes on an answer file saying describe, and writes answered", async () => {
+      const waits = { count: 0 };
+      const { fake, events } = await asked(
+        {
+          waits,
+          onWait: (files) => {
+            files.set(ANSWER, answerFile(runIdOf(files), true));
+          },
+        },
+        "app",
+      );
+      const names = events.map((line) => line.event);
+
+      expect(waits.count).toBeGreaterThan(0);
+      expect(names.indexOf("confirm")).toBeGreaterThan(-1);
+      expect(names.indexOf("confirm")).toBeLessThan(names.indexOf("answered"));
+      expect(events.find((line) => line.event === "answered")).toEqual({
+        event: "answered",
+        phase: "describe",
+        describe: true,
+      });
+      expect(described(events)).toBe(2);
+      expect(fake.files.has(ANSWER)).toBe(false);
+    });
+
+    it("skips the describe phase on an answer file saying skip", async () => {
+      const { events } = await asked(
+        {
+          onWait: (files) => {
+            files.set(ANSWER, answerFile(runIdOf(files), false));
+          },
+        },
+        "app",
+      );
+
+      expect(events.find((line) => line.event === "answered")).toMatchObject({
+        describe: false,
+      });
+      expect(described(events)).toBe(0);
+    });
+
+    it("ignores stdin for a scan the app started", async () => {
+      const reads = { count: 0 };
+      const { events } = await asked(
+        {
+          lines: ["describe"],
+          linesRead: reads,
+          onWait: (files) => {
+            files.set(ANSWER, answerFile(runIdOf(files), false));
+          },
+        },
+        "app",
+      );
+
+      expect(reads.count).toBe(0);
+      expect(described(events)).toBe(0);
+    });
+
+    it("takes a terminal line for a scan the command line started and aborts nothing before it answers", async () => {
+      const signals: AbortSignal[] = [];
+      const waits = { count: 0 };
+      const { events } = await asked(
+        { lines: ["describe"], lineSignals: signals, waits },
+        "cli",
+      );
+
+      expect(signals).toHaveLength(1);
+      expect(signals[0]?.aborted).toBe(true);
+      expect(described(events)).toBe(2);
+      expect(events.find((line) => line.event === "answered")).toMatchObject({
+        describe: true,
+      });
+    });
+
+    it("lets an answer file placed first win and aborts the terminal read", async () => {
+      const signals: AbortSignal[] = [];
+      const { events } = await asked(
+        {
+          holdLine: true,
+          lineSignals: signals,
+          onWait: (files) => {
+            files.set(ANSWER, answerFile(runIdOf(files), false));
+          },
+        },
+        "cli",
+      );
+
+      expect(signals).toHaveLength(1);
+      expect(signals[0]?.aborted).toBe(true);
+      expect(described(events)).toBe(0);
+    });
+
+    it("ignores and removes an answer file for another run until the right one arrives", async () => {
+      const seen: boolean[] = [];
+      const { events } = await asked(
+        {
+          onWait: (files, count) => {
+            if (count === 1) {
+              files.set(ANSWER, answerFile("another-run", false));
+            } else if (count === 2) {
+              seen.push(files.has(ANSWER));
+              files.set(ANSWER, answerFile(runIdOf(files), true));
+            }
+          },
+        },
+        "app",
+      );
+
+      expect(seen).toEqual([false]);
+      expect(described(events)).toBe(2);
+    });
+
+    it("ignores and removes an answer file that fails validation", async () => {
+      const seen: boolean[] = [];
+      const { events } = await asked(
+        {
+          onWait: (files, count) => {
+            if (count === 1) {
+              files.set(ANSWER, '{"version":1}');
+            } else if (count === 2) {
+              seen.push(files.has(ANSWER));
+              files.set(ANSWER, answerFile(runIdOf(files), true));
+            }
+          },
+        },
+        "app",
+      );
+
+      expect(seen).toEqual([false]);
+      expect(described(events)).toBe(2);
     });
   });
 

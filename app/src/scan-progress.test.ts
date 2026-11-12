@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  answeredProgress,
   describeAskText,
   foldProgress,
   NO_PROGRESS,
@@ -431,9 +430,14 @@ describe("the describe confirmation", () => {
       costUsd: 17.54,
     });
     expect(scanningText([], "describe", state)).toBe("Waiting for your answer");
-    expect(answeredProgress(state, true).describeAsk).toBeNull();
-    expect(answeredProgress(state, true).describeSkipped).toBe(false);
-    expect(answeredProgress(state, false).describeSkipped).toBe(true);
+
+    const answered = (describe: boolean) =>
+      fold([{ event: "answered", phase: "describe", describe }], state);
+
+    expect(answered(true).describeAsk).toBeNull();
+    expect(answered(true).describeSkipped).toBe(false);
+    expect(answered(false).describeAsk).toBeNull();
+    expect(answered(false).describeSkipped).toBe(true);
     expect(stoppedProgress(state).describeAsk).toBeNull();
   });
 

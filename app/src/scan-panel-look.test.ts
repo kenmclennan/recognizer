@@ -213,7 +213,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const failFake = fakeScan({
     defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "duplication", "broke"), summary],
+    steps: [current, sensing(1), entry("sense", "duplication", "broke"), json({ event: "summary", exit: 1, log: "x-scan" })],
     result: { status: "finished", exitCode: 1, stderr: "", log: ".recognizer/cache/log/x-scan.json" },
   });
   const t = await mount(failFake);
@@ -256,7 +256,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const moduleFake = fakeScan({
     defaults: { describe: true, sensors: false },
-    steps: [current, describing(2), entry("describe", "app/a.py", "no describer"), entry("describe", "app/b.py", "no describer"), summary],
+    steps: [current, describing(2), entry("describe", "app/a.py", "no describer"), entry("describe", "app/b.py", "no describer"), json({ event: "summary", exit: 1, log: "y-scan" })],
     result: { status: "finished", exitCode: 1, stderr: "", log: ".recognizer/cache/log/y-scan.json" },
   });
   const m = await mount(moduleFake);

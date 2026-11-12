@@ -16,6 +16,7 @@ for (const name of [
   "findings",
   "log",
   "scan-marker",
+  "scan-answer",
   "overlay",
   "config-keys",
 ]) {
