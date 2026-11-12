@@ -1,0 +1,74 @@
+[
+ {
+  "id": "duplication:src/pricing.ts::sumWithLevy|src/pricing.ts::totalWithTax",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "sumWithLevy in src/pricing.ts is 100% similar to totalWithTax in src/pricing.ts",
+  "evidence": {
+   "modules": [
+    "src/pricing.ts"
+   ],
+   "members": [
+    {
+     "module": "src/pricing.ts",
+     "name": "sumWithLevy",
+     "file": "src/pricing.ts",
+     "lines": [
+      12,
+      21
+     ]
+    },
+    {
+     "module": "src/pricing.ts",
+     "name": "totalWithTax",
+     "file": "src/pricing.ts",
+     "lines": [
+      1,
+      10
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:app/pricing.py::sum_with_levy|app/pricing.py::total_with_tax",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "sum_with_levy in app/pricing.py is 100% similar to total_with_tax in app/pricing.py",
+  "evidence": {
+   "modules": [
+    "app/pricing.py"
+   ],
+   "members": [
+    {
+     "module": "app/pricing.py",
+     "name": "sum_with_levy",
+     "file": "app/pricing.py",
+     "lines": [
+      10,
+      16
+     ]
+    },
+    {
+     "module": "app/pricing.py",
+     "name": "total_with_tax",
+     "file": "app/pricing.py",
+     "lines": [
+      1,
+      7
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ }
+]

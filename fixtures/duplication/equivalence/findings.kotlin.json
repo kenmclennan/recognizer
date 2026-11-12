@@ -1,0 +1,254 @@
+[
+ {
+  "id": "duplication:src/Near.kt::gatherNames|src/Near.kt::gatherTags",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "gatherNames in src/Near.kt is 85% similar to gatherTags in src/Near.kt",
+  "evidence": {
+   "modules": [
+    "src/Near.kt"
+   ],
+   "members": [
+    {
+     "module": "src/Near.kt",
+     "name": "gatherNames",
+     "file": "src/Near.kt",
+     "lines": [
+      3,
+      19
+     ]
+    },
+    {
+     "module": "src/Near.kt",
+     "name": "gatherTags",
+     "file": "src/Near.kt",
+     "lines": [
+      21,
+      38
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.849
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Near.kt::fetchEvents|src/Near.kt::fetchPages",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "fetchEvents in src/Near.kt is 88% similar to fetchPages in src/Near.kt",
+  "evidence": {
+   "modules": [
+    "src/Near.kt"
+   ],
+   "members": [
+    {
+     "module": "src/Near.kt",
+     "name": "fetchEvents",
+     "file": "src/Near.kt",
+     "lines": [
+      57,
+      73
+     ]
+    },
+    {
+     "module": "src/Near.kt",
+     "name": "fetchPages",
+     "file": "src/Near.kt",
+     "lines": [
+      40,
+      55
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.881
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Near.kt::summariseOrders|src/Near.kt::summariseVisits",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "summariseOrders in src/Near.kt is 92% similar to summariseVisits in src/Near.kt",
+  "evidence": {
+   "modules": [
+    "src/Near.kt"
+   ],
+   "members": [
+    {
+     "module": "src/Near.kt",
+     "name": "summariseOrders",
+     "file": "src/Near.kt",
+     "lines": [
+      75,
+      88
+     ]
+    },
+    {
+     "module": "src/Near.kt",
+     "name": "summariseVisits",
+     "file": "src/Near.kt",
+     "lines": [
+      90,
+      104
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.919
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Planted.kt::loadSession|src/Planted.kt::loadSettings",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "loadSession in src/Planted.kt is 100% similar to loadSettings in src/Planted.kt",
+  "evidence": {
+   "modules": [
+    "src/Planted.kt"
+   ],
+   "members": [
+    {
+     "module": "src/Planted.kt",
+     "name": "loadSession",
+     "file": "src/Planted.kt",
+     "lines": [
+      36,
+      47
+     ]
+    },
+    {
+     "module": "src/Planted.kt",
+     "name": "loadSettings",
+     "file": "src/Planted.kt",
+     "lines": [
+      23,
+      34
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Planted.kt::orderTotal|src/Planted.kt::parcelWeight",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "orderTotal in src/Planted.kt is 100% similar to parcelWeight in src/Planted.kt",
+  "evidence": {
+   "modules": [
+    "src/Planted.kt"
+   ],
+   "members": [
+    {
+     "module": "src/Planted.kt",
+     "name": "orderTotal",
+     "file": "src/Planted.kt",
+     "lines": [
+      3,
+      11
+     ]
+    },
+    {
+     "module": "src/Planted.kt",
+     "name": "parcelWeight",
+     "file": "src/Planted.kt",
+     "lines": [
+      13,
+      21
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Planted.kt::storeLedger|src/Planted.kt::storeReport",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "storeLedger in src/Planted.kt is 88% similar to storeReport in src/Planted.kt",
+  "evidence": {
+   "modules": [
+    "src/Planted.kt"
+   ],
+   "members": [
+    {
+     "module": "src/Planted.kt",
+     "name": "storeLedger",
+     "file": "src/Planted.kt",
+     "lines": [
+      58,
+      65
+     ]
+    },
+    {
+     "module": "src/Planted.kt",
+     "name": "storeReport",
+     "file": "src/Planted.kt",
+     "lines": [
+      49,
+      56
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 0.884
+   }
+  }
+ },
+ {
+  "id": "duplication:src/Branching.kt::Budgets.pageSize|src/Branching.kt::Budgets.retryLimit",
+  "kind": "duplication",
+  "severity": "warning",
+  "principle": "Do not repeat yourself",
+  "fix_pattern": "extract-shared-function",
+  "summary": "Budgets.pageSize in src/Branching.kt is 100% similar to Budgets.retryLimit in src/Branching.kt",
+  "evidence": {
+   "modules": [
+    "src/Branching.kt"
+   ],
+   "members": [
+    {
+     "module": "src/Branching.kt",
+     "name": "Budgets.pageSize",
+     "file": "src/Branching.kt",
+     "lines": [
+      12,
+      18
+     ]
+    },
+    {
+     "module": "src/Branching.kt",
+     "name": "Budgets.retryLimit",
+     "file": "src/Branching.kt",
+     "lines": [
+      4,
+      10
+     ]
+    }
+   ],
+   "measures": {
+    "similarity": 1.0
+   }
+  }
+ }
+]
