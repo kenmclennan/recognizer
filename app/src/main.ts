@@ -163,6 +163,7 @@ const rescanner = createRescanner<Carried>({
     releaseFirstScan();
     releaseFirstScan = () => {};
   },
+  hasExplorer: () => explorer !== null,
   blocked: (text) => {
     if (explorer === null) {
       showMessage(content, text, true);

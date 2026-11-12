@@ -121,6 +121,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
       updates.push(update);
     },
     settled: () => log.push("settled"),
+    hasExplorer: () => false,
     blocked: (text) => log.push(`blocked:${text}`),
     post: (input) => {
       if (/^Scan (started|complete|failed|refused)/.test(input.text)) {
@@ -555,6 +556,111 @@ describe("createRescanner", () => {
       "blocked:sense did not run: the folder has no commit",
     );
     expect(updates.at(-1)?.scanning).toBeNull();
+  });
+
+  describe("opening from the cache when the scan fails", () => {
+    const failing = () =>
+      fakeScan({
+        records: false,
+        result: { status: "failed", exitCode: 2, stderr: "bad flag\n" },
+      });
+    const cached: Loaded = {
+      ...OK,
+      scans: [{ file: "scan.python.json" } as never],
+    };
+
+    it("builds the explorer from the cache before reporting the failure", async () => {
+      let built = false;
+      const { log, rescanner } = harness(failing(), {
+        load: () => cached,
+        hasExplorer: () => built,
+        replace: () => {
+          built = true;
+          log.push("replace:");
+        },
+      });
+
+      await rescanner.run(null, OPEN_RUN);
+
+      expect(log.length).toBeGreaterThan(0);
+
+      const order = [
+        "sense",
+        "adopt",
+        "replace:",
+        "blocked:bad flag",
+        "settled",
+      ];
+      const at = order.map((name) => log.indexOf(name));
+
+      expect(at.every((index) => index >= 0)).toBe(true);
+      expect(at).toEqual([...at].sort((a, b) => a - b));
+    });
+
+    it("blocks with no explorer when nothing is cached", async () => {
+      const { log, rescanner } = harness(failing());
+
+      await rescanner.run(null, OPEN_RUN);
+
+      expect(log).toContain("blocked:bad flag");
+      expect(log.some((entry) => /^(replace|sense|adopt)/.test(entry))).toBe(
+        false,
+      );
+    });
+
+    it("blocks when the viewer refuses the cache", async () => {
+      const { log, rescanner } = harness(failing(), {
+        load: () => ({ ...cached, blocking: "schema_version 9" }),
+      });
+
+      await rescanner.run(null, OPEN_RUN);
+
+      expect(log).toContain("blocked:bad flag");
+      expect(log.some((entry) => entry.startsWith("replace"))).toBe(false);
+    });
+
+    it("leaves an open explorer alone", async () => {
+      const { log, rescanner } = harness(failing(), {
+        load: () => cached,
+        hasExplorer: () => true,
+      });
+
+      await rescanner.run(null, OPEN_RUN);
+
+      expect(log).toContain("blocked:bad flag");
+      expect(log.some((entry) => /^(replace|sense|adopt)/.test(entry))).toBe(
+        false,
+      );
+    });
+
+    it("opens from the cache when a scan ran nothing it was asked to run", async () => {
+      let built = false;
+      const { log, rescanner } = harness(
+        fakeScan({
+          defaults: { describe: false, sensors: true },
+          steps: [current, preflightOk, summary],
+          record: { commit: null, ran: ["extract"] },
+          result: { status: "finished", exitCode: 0 },
+        }),
+        {
+          load: () => cached,
+          hasExplorer: () => built,
+          replace: () => {
+            built = true;
+            log.push("replace:");
+          },
+        },
+      );
+
+      await rescanner.run();
+
+      const blocked = log.indexOf(
+        "blocked:sense did not run: the folder has no commit",
+      );
+
+      expect(log.indexOf("replace:")).toBeGreaterThanOrEqual(0);
+      expect(log.indexOf("replace:")).toBeLessThan(blocked);
+    });
   });
 
   it("keeps the old explorer when the viewer refuses the scan", async () => {
