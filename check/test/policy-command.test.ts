@@ -361,3 +361,109 @@ describe("recognizer policy with no policy file", () => {
     expect(parsePolicy(readFileSync(file, "utf8")).components).toBeDefined();
   });
 });
+
+describe("recognizer policy argument shapes", () => {
+  it.each([
+    [["--add", "levels"]],
+    [["--get"]],
+    [["--list", "levels"]],
+    [["--add", "--get", "levels"]],
+    [["--add-section"]],
+    [["levels", "a", "b"]],
+  ])("%j is a usage error", (argv) => {
+    const fake = setup();
+
+    expect(policy(fake, ...argv)).toBe(2);
+    expect(fake.err()).toContain("usage: recognizer policy");
+  });
+});
+
+describe("recognizer check over a policy built only through recognizer policy", () => {
+  it("gives the same report as the hand-written fixture policy", () => {
+    const handWritten = readFileSync(
+      join(REPO, "fixtures/check/.recognizer/policy.yaml"),
+      "utf8",
+    );
+    const scan = readFileSync(join(REPO, "fixtures/check/scan.json"), "utf8");
+    const expected = JSON.parse(
+      readFileSync(join(REPO, "fixtures/check/expected.json"), "utf8"),
+    );
+    const fake = setup(null);
+    const steps: string[][] = [
+      ...["domain", "ports", "application", "adapters"].map((name) => [
+        "--add",
+        `components.${name}`,
+        `shop/${name}/**`,
+      ]),
+      ["--add", "components.entry", "shop/main.py"],
+      ...["domain", "ports", "application", "adapters", "entry"].map((name) => [
+        "--add",
+        "levels",
+        name,
+      ]),
+      ["--add", "forbid", "shop/adapters/* -> shop/adapters/*"],
+      ["--add", "forbid", "* -> foreign:requests"],
+      ["--add", "ignore", "tests/**"],
+    ];
+
+    for (const step of steps) {
+      expect(policy(fake, ...step)).toBe(0);
+    }
+
+    const written = fake.files.get(POLICY) as string;
+
+    const report = (policyText: string) => {
+      const checker = fakeIo({
+        files: { "/scan.json": scan, "/policy.yaml": policyText },
+      });
+      const code = run(
+        ["check", "--scan", "/scan.json", "--policy", "/policy.yaml"],
+        checker.io,
+      );
+
+      return { code, report: JSON.parse(checker.out()) };
+    };
+
+    const fromCommand = report(written);
+    const fromHand = report(handWritten);
+
+    expect(fromCommand).toEqual(fromHand);
+    expect(fromCommand.report.violations).toHaveLength(
+      expected.violations.length,
+    );
+    expect(fromCommand.report.violations.length).toBeGreaterThan(0);
+  });
+});
+
+describe("recognizer policy help", () => {
+  it.each([
+    ["help", "policy"],
+    ["policy", "--help"],
+    ["policy", "-h"],
+  ])("%j lists every key with its type and example", (...argv) => {
+    const fake = setup();
+
+    expect(run(argv, fake.io)).toBe(0);
+
+    const out = fake.out();
+
+    expect(out).toContain("Keys:");
+
+    for (const key of [
+      "components.<name>",
+      "levels",
+      "uses.<name>",
+      "forbid",
+      "foreign.<name>",
+      "ignore",
+    ]) {
+      expect(out).toContain(`  ${key}  [recognizer]`);
+    }
+
+    expect(out).toContain("list of string: the globs of one component");
+    expect(out).toContain(
+      "example: recognizer policy --add components.domain src/domain/**",
+    );
+    expect(out).not.toContain("did not answer");
+  });
+});
