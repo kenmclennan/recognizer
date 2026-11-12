@@ -1,0 +1,4 @@
+sensors:
+  structure:
+    warnings:
+      hub: true

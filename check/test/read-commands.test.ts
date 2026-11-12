@@ -258,28 +258,31 @@ describe("show", () => {
     expect(out).not.toContain("zone");
   });
 
-  it("reports the hub and cycle warnings on the check-warnings fixture", () => {
-    const hub = JSON.parse(
-      ask(
-        warnings,
-        ["show", "app/application/place.py", "--hub-threshold", "3", "--json"],
-        warningsPolicy,
-      ).out,
-    );
+  it("reports the cycle warning on the check-warnings fixture", () => {
     const cycle = JSON.parse(
       ask(warnings, ["show", "app/domain/money.py", "--json"], warningsPolicy)
         .out,
     );
 
-    expect(hub.findings.map((f: { why: string }) => f.why)).toContain(
-      "interfaces-are-narrow-and-explicit",
-    );
     expect(cycle.findings.map((f: { why: string }) => f.why)).toContain(
       "no-cycles",
     );
     expect(cycle.findings[0]).toEqual(
       expect.objectContaining({ severity: expect.any(String) }),
     );
+  });
+
+  it("refuses the removed --hub-threshold flag on show and modules", () => {
+    for (const argv of [
+      ["show", "app/domain/money.py", "--hub-threshold", "3"],
+      ["modules", "--hub-threshold", "3"],
+    ]) {
+      const result = ask(warnings, argv, warningsPolicy);
+
+      expect(result.code).toBe(2);
+      expect(result.out).toBe("");
+      expect(result.err).not.toBe("");
+    }
   });
 
   it("exits 2 for an unknown module", () => {
@@ -423,15 +426,12 @@ describe("modules", () => {
   });
 
   it("keeps only modules with findings for --findings", () => {
-    const document = rows(
-      ["--findings", "--hub-threshold", "3"],
-      warnings,
-      warningsPolicy,
-    );
+    const document = rows(["--findings"], warnings, warningsPolicy);
     const ids = document.modules.map((m: { id: string }) => m.id);
 
     expect(ids).toContain("app/domain/money.py");
-    expect(ids).toContain("app/application/place.py");
+    expect(ids).toContain("app/adapters/audit.py");
+    expect(ids).not.toContain("app/application/place.py");
     expect(
       document.modules.every((m: { findings: number }) => m.findings > 0),
     ).toBe(true);

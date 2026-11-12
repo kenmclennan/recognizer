@@ -38,7 +38,7 @@ function document(name: string, findings: FindingRecord[]): FindingsDocument {
 
 const docs = [
   document("structure", [
-    record("h1", "hub", "warning", "b.py"),
+    record("h1", "orphan", "warning", "b.py"),
     record("v2", "rule-violation", "violation", "b.py"),
     record("c1", "cycle", "warning", "a.py"),
     record("v1", "rule-violation", "violation", "a.py"),
@@ -117,7 +117,6 @@ describe("findingRows", () => {
     expect(ordered.map((row) => row.kind)).toEqual([
       "rule-violation",
       "cycle",
-      "hub",
       "orphan",
       "orphan",
       "policy_drift",

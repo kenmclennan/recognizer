@@ -27,17 +27,14 @@ function fixture(name: string) {
 function findingsByModule(
   scans: ReturnType<typeof validateScan>[],
   policy: ReturnType<typeof parsePolicy> | null,
-  hub: number,
 ) {
   const { document } = structureSensor(
     scans,
     policy,
     {
-      hub_threshold: hub,
       entry_points: [],
       warnings: {
         cycle: true,
-        hub: true,
         orphan: true,
         policy_drift: true,
         unused_exports: false,
@@ -50,9 +47,9 @@ function findingsByModule(
 }
 
 describe("findingsByModuleFrom over the structure document", () => {
-  it("attaches a cycle warning to every module in it and a hub warning to the hub", () => {
+  it("attaches a cycle warning to every module in it", () => {
     const { scan, policy } = fixture("check-warnings");
-    const found = findingsByModule([scan], policy, 3);
+    const found = findingsByModule([scan], policy);
 
     expect(found.get("app/domain/money.py")?.map((f) => f.severity)).toEqual([
       "warning",
@@ -60,14 +57,11 @@ describe("findingsByModuleFrom over the structure document", () => {
     expect(found.get("app/domain/order.py")?.map((f) => f.why)).toContain(
       "no-cycles",
     );
-    expect(found.get("app/application/place.py")?.map((f) => f.why)).toContain(
-      "interfaces-are-narrow-and-explicit",
-    );
   });
 
   it("lists a module's violation before its warnings", () => {
     const { scan, policy } = fixture("check-warnings");
-    const found = findingsByModule([scan], policy, 3);
+    const found = findingsByModule([scan], policy);
     const withBoth = [...found.values()].find(
       (list) =>
         list.some((f) => f.severity === "violation") &&
@@ -80,7 +74,7 @@ describe("findingsByModuleFrom over the structure document", () => {
 
   it("reports only warnings when there is no policy", () => {
     const { scan } = fixture("check-warnings");
-    const found = findingsByModule([scan], null, 3);
+    const found = findingsByModule([scan], null);
 
     expect(
       [...found.values()].flat().every((f) => f.severity === "warning"),
@@ -94,12 +88,12 @@ describe("findingsByModuleFrom over the structure document", () => {
       `${readFileSync(join(REPO, "fixtures/check-warnings/.recognizer/policy.yaml"), "utf8")}\nignore: [app/domain/**]\n`,
     );
 
-    expect(findingsByModule([scan], policy, 3).has("app/domain/money.py")).toBe(
+    expect(findingsByModule([scan], policy).has("app/domain/money.py")).toBe(
       true,
     );
-    expect(
-      findingsByModule([scan], ignoring, 3).has("app/domain/money.py"),
-    ).toBe(false);
+    expect(findingsByModule([scan], ignoring).has("app/domain/money.py")).toBe(
+      false,
+    );
   });
 });
 
@@ -131,7 +125,7 @@ describe("linesDuplicated and orderDuplication", () => {
 
   it("orders duplication records in their own slots and leaves other kinds put", () => {
     const records = [
-      rec("hub1", "hub", []),
+      rec("unused1", "unused_exports", []),
       rec("d-small", "duplication", [5, 5]),
       rec("cycle1", "cycle", []),
       rec("d-b", "duplication", [8, 8]),
@@ -140,7 +134,7 @@ describe("linesDuplicated and orderDuplication", () => {
     ];
 
     expect(orderDuplication(records).map((one) => one.id)).toEqual([
-      "hub1",
+      "unused1",
       "d-big",
       "cycle1",
       "d-a",

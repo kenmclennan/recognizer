@@ -52,7 +52,6 @@ describe("groupsOf", () => {
       record("ue", "unused_exports"),
       record("pd", "policy_drift"),
       record("or", "orphan"),
-      record("hu", "hub"),
       record("cy", "cycle"),
       record("rv", "rule-violation", "violation"),
     ];
@@ -60,7 +59,6 @@ describe("groupsOf", () => {
     expect(names([document("structure", all)])).toEqual([
       "Breaks the policy",
       "Import cycle",
-      "Hub",
       "Orphan",
       "Policy out of step",
       "Unused exports",
@@ -69,8 +67,8 @@ describe("groupsOf", () => {
       "Mutations",
       "Over a limit",
     ]);
-    expect(names([document("structure", [record("hu", "hub")])])).toEqual([
-      "Hub",
+    expect(names([document("structure", [record("or", "orphan")])])).toEqual([
+      "Orphan",
     ]);
   });
 
@@ -107,6 +105,27 @@ describe("groupsOf", () => {
         reported: false,
       }),
     ).toBe("folder a depends on folder b, which is less stable");
+  });
+
+  it("shows a hub record without used_by from another file under its kind with its own summary", () => {
+    const old = document("review", [
+      {
+        ...record("hu", "hub"),
+        summary: "app/place.py is imported by 3 modules and imports 3",
+      },
+      record("c", "cycle"),
+    ]);
+    const groups = groupsOf(findingRows([old]));
+    const shown = groups.find((one) => one.key === "kind:hub");
+
+    expect(groups.map((one) => one.key)).toContain("kind:cycle");
+    expect(shown?.rows).toHaveLength(1);
+    expect(
+      sentenceOf({
+        record: shown?.rows[0]?.record as FindingRecord,
+        reported: false,
+      }),
+    ).toBe("app/place.py is imported by 3 modules and imports 3");
   });
 
   it("shows a folder_cycle record from an old file under its kind with its own summary", () => {
@@ -156,7 +175,7 @@ describe("groupsOf", () => {
     const groups = groupsOf(
       findingRows([
         document("t", [
-          record("h", "hub"),
+          record("h", "orphan"),
           record("c1", "cycle", "violation"),
           record("c2", "cycle"),
           record("v", "rule-violation", "violation"),
@@ -167,7 +186,7 @@ describe("groupsOf", () => {
     expect(groups.map((group) => [group.name, group.severity])).toEqual([
       ["Breaks the policy", "violation"],
       ["Import cycle", "violation"],
-      ["Hub", "warning"],
+      ["Orphan", "warning"],
     ]);
     expect(groups[1]?.rows.map((row) => row.id)).toEqual(["c1", "c2"]);
   });
@@ -180,7 +199,9 @@ describe("headerLine", () => {
         ...Array.from({ length: violations }, (_, i) =>
           record(`v${i}`, "cycle", "violation"),
         ),
-        ...Array.from({ length: warnings }, (_, i) => record(`w${i}`, "hub")),
+        ...Array.from({ length: warnings }, (_, i) =>
+          record(`w${i}`, "orphan"),
+        ),
       ]),
     ]);
 
@@ -195,7 +216,7 @@ describe("headerLine", () => {
 
 describe("withEmptyGroups", () => {
   const rows = findingRows([
-    document("structure", [record("hu", "hub")]),
+    document("structure", [record("or", "orphan")]),
     document("a", [record("du", "duplication")]),
   ]);
 
@@ -205,7 +226,7 @@ describe("withEmptyGroups", () => {
     );
 
     expect(groups.map((group) => [group.key, group.rows.length])).toEqual([
-      ["kind:hub", 1],
+      ["kind:orphan", 1],
       ["kind:duplication", 1],
       ["kind:crap", 0],
       ["kind:mutation", 0],
@@ -216,7 +237,7 @@ describe("withEmptyGroups", () => {
     const groups = groupsOf(rows);
 
     expect(withEmptyGroups(groups, () => true).map((g) => g.key)).toEqual([
-      "kind:hub",
+      "kind:orphan",
       "kind:duplication",
       "kind:crap",
       "kind:mutation",
@@ -234,11 +255,10 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has ten unique keys and names with plain help sentences", () => {
+  it("has nine unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
-      "kind:hub",
       "kind:orphan",
       "kind:policy_drift",
       "kind:unused_exports",
@@ -247,7 +267,7 @@ describe("finding-groups.json", () => {
       "kind:mutation",
       "kind:thresholds",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(10);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(9);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");

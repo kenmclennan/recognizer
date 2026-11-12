@@ -68,11 +68,9 @@ export function structureDocument(
     [scan],
     policy,
     {
-      hub_threshold: 10,
       entry_points: [],
       warnings: {
         cycle: true,
-        hub: true,
         orphan: true,
         policy_drift: true,
         unused_exports: false,

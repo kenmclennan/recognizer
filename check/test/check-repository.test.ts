@@ -65,11 +65,9 @@ describe("check in repository mode", () => {
         name: "structure",
         status: "ran",
         settings: {
-          hub_threshold: 10,
           entry_points: [],
           warnings: {
             cycle: true,
-            hub: true,
             orphan: true,
             policy_drift: true,
             unused_exports: false,
@@ -109,7 +107,6 @@ describe("check in repository mode", () => {
       "folder_metrics",
       "metrics",
       "sensors",
-      "thresholds",
       "warnings",
     ]);
   });
@@ -306,11 +303,9 @@ describe("a structure file from before the folder cycle was removed", () => {
       commit: COMMIT,
       modified: false,
       settings: {
-        hub_threshold: 10,
         entry_points: [],
         warnings: {
           cycle: true,
-          hub: true,
           folder_cycle: true,
           orphan: true,
           policy_drift: true,
@@ -361,13 +356,11 @@ describe("a structure file from before the stable dependencies warning was remov
       commit: COMMIT,
       modified: false,
       settings: {
-        hub_threshold: 10,
         instability_gap: 0.2,
         composition_roots: [],
         entry_points: [],
         warnings: {
           cycle: true,
-          hub: true,
           orphan: true,
           policy_drift: true,
           stable_dependencies: true,
@@ -407,7 +400,7 @@ describe("a structure file from before the stable dependencies warning was remov
     expect(ids.some((id: string) => id.startsWith("stable_dependencies"))).toBe(
       false,
     );
-    expect(Object.keys(rewritten.settings)[0]).toBe("hub_threshold");
+    expect(Object.keys(rewritten.settings)[0]).toBe("entry_points");
     expect(rewritten.settings).not.toHaveProperty("instability_gap");
     expect(rewritten.settings).not.toHaveProperty("composition_roots");
     expect(rewritten.settings.warnings).not.toHaveProperty(
@@ -416,127 +409,6 @@ describe("a structure file from before the stable dependencies warning was remov
     expect(
       rewritten.findings.map((one: { kind: string }) => one.kind),
     ).not.toContain("stable_dependencies");
-  });
-});
-
-describe("hub importers in the report", () => {
-  function hubScan() {
-    const edges: { from: string; to: string; names?: string[] }[] = [];
-
-    for (let at = 1; at <= 12; at += 1) {
-      const id = String(at).padStart(2, "0");
-
-      edges.push({
-        from: `b/i${id}.py`,
-        to: "a/hub.py",
-        names: at === 12 ? undefined : at === 11 ? ["Big", "Small"] : ["Small"],
-      });
-    }
-
-    for (let at = 1; at <= 10; at += 1) {
-      edges.push({ from: "a/hub.py", to: `c/o${at}.py` });
-    }
-
-    const ids = [...new Set(edges.flatMap((edge) => [edge.from, edge.to]))];
-
-    return {
-      ...checkScan,
-      modules: ids.map((id) => ({
-        id,
-        language: "python",
-        kind: "module",
-        members:
-          id === "a/hub.py"
-            ? [
-                {
-                  name: "Small",
-                  exported: true,
-                  kind: "function",
-                  line: 1,
-                  end_line: 10,
-                },
-                {
-                  name: "Big",
-                  exported: true,
-                  kind: "function",
-                  line: 20,
-                  end_line: 100,
-                },
-              ]
-            : [],
-      })),
-      edges: edges.map((edge, index) => ({
-        ...edge,
-        kind: "depends",
-        line: index + 1,
-      })),
-      foreign: [],
-    };
-  }
-
-  function runOn(...flags: string[]) {
-    const scan = hubScan();
-    const fake = fakeIo({
-      commit: COMMIT,
-      files: {
-        ...mountedModules(scan),
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(scan),
-      },
-    });
-
-    run(["check", ...flags, "--repository", ROOT], fake.io);
-
-    return fake.out();
-  }
-
-  it("prints at most 10 importers with their names and counts the rest", () => {
-    const lines = runOn().split("\n");
-    const at = lines.findIndex((line) => line.startsWith("warning: a/hub.py"));
-
-    expect(lines[at]).toBe(
-      "warning: a/hub.py is imported by 12 modules and imports 10 (at least 10 on both); it is 100 lines with 2 members",
-    );
-    expect(lines[at + 1]).toBe("  b/i01.py: Small");
-    expect(lines[at + 10]).toBe("  b/i10.py: Small");
-    expect(lines[at + 11]).toBe("  and 2 more importers");
-  });
-
-  it("shows an importer with unknown names and several names", () => {
-    const scan = hubScan();
-    const withTwo = { ...scan, edges: scan.edges.slice(2) };
-    const fake = fakeIo({
-      commit: COMMIT,
-      files: {
-        ...mountedModules(withTwo),
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(withTwo),
-      },
-    });
-
-    run(["check", "--hub-threshold", "3", "--repository", ROOT], fake.io);
-
-    expect(fake.out()).toContain("  b/i11.py: Big, Small");
-    expect(fake.out()).toContain("  b/i12.py: (names unknown)");
-  });
-
-  it("carries every importer and both new measures in --json", () => {
-    const warning = JSON.parse(runOn("--json")).warnings.find(
-      (one: { id: string }) => one.id === "hub",
-    );
-
-    expect(warning.evidence.used_by).toHaveLength(12);
-    expect(warning.evidence.lines).toBe(100);
-    expect(warning.evidence.members).toBe(2);
-  });
-
-  it("states at least, not above, in the hub threshold help", () => {
-    for (const topic of ["check", "show", "modules"]) {
-      const fake = fakeIo({ commit: COMMIT, files: {} });
-
-      run(["help", topic], fake.io);
-
-      expect(fake.out()).toContain("at least");
-      expect(fake.out()).not.toContain("above which");
-    }
   });
 });
 

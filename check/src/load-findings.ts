@@ -86,10 +86,9 @@ export function loadFindings(
   io: Io,
   root: string,
   scans: Scan[],
-  options: { hubThreshold?: number } = {},
 ): FindingsDocument[] {
   const config = readConfig(io, root);
-  const settings = resolveStructureSettings(config, options.hubThreshold);
+  const settings = resolveStructureSettings(config);
   const { commit, modified } = scansCommit(scans);
   const documents: FindingsDocument[] = [];
 
@@ -98,7 +97,7 @@ export function loadFindings(
     const compute = () =>
       structureSensor(scans, readPolicy(io, root), settings, context).document;
 
-    if (options.hubThreshold !== undefined || commit === null) {
+    if (commit === null) {
       documents.push(compute());
     } else {
       const stored = storedStructure(io, root, commit, settings);

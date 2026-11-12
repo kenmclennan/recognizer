@@ -83,7 +83,7 @@ describe("library load without code generation", () => {
       const scan = JSON.parse(readFileSync(${JSON.stringify(join(FIXTURE, "scan.json"))}, "utf8"));
       const parsed = policy.parsePolicy(readFileSync(${JSON.stringify(join(FIXTURE, ".recognizer/policy.yaml"))}, "utf8"));
       const found = rules.collectViolations(scan, parsed);
-      const analysis = analyse.analyse(scan, { hub: 10 }, parsed.ignore);
+      const analysis = analyse.analyse(scan, parsed.ignore);
       console.log(JSON.stringify({ violations: found.violations.length, warnings: analysis.warnings.length }));
     `;
     const result = noEval(script);

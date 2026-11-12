@@ -1,11 +1,6 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type {
-  HubWarning,
-  ModuleMetrics,
-  Thresholds,
-  Warning,
-} from "./analyse.js";
+import type { ModuleMetrics, Warning } from "./analyse.js";
 import {
   type BaselineEntry,
   entryId,
@@ -32,7 +27,6 @@ import { type Scan, validateScan } from "./scan.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
-  DEFAULT_HUB_THRESHOLD,
   describeSettings,
   resolveStructureSettings,
   type StructureSettings,
@@ -82,7 +76,6 @@ interface Gathered {
   metrics: ModuleMetrics[];
   folderMetrics: FolderMetrics[];
   unranked: number;
-  thresholds: Thresholds | null;
   sensors: SensorStatus[];
   hiddenIds: Set<string>;
 }
@@ -115,32 +108,6 @@ function ruleLine(violation: Violation): string {
 
 function isStructureViolation(value: ReportedViolation): value is Violation {
   return "from" in value;
-}
-
-const IMPORTER_LINES_SHOWN = 10;
-
-function importerLines(warning: ReportedWarning): string[] {
-  const usedBy =
-    warning.id === "hub"
-      ? (warning.evidence as HubWarning["evidence"]).used_by
-      : undefined;
-
-  if (!usedBy || usedBy.length === 0) {
-    return [];
-  }
-
-  const lines = usedBy
-    .slice(0, IMPORTER_LINES_SHOWN)
-    .map(
-      (entry) =>
-        `  ${entry.module}: ${entry.names.length === 0 ? "(names unknown)" : entry.names.join(", ")}`,
-    );
-
-  if (usedBy.length > IMPORTER_LINES_SHOWN) {
-    lines.push(`  and ${usedBy.length - IMPORTER_LINES_SHOWN} more importers`);
-  }
-
-  return lines;
 }
 
 const TEST_FILE_LINES_SHOWN = 10;
@@ -196,27 +163,11 @@ function summary(
 
   if (listWarnings) {
     for (const warning of warnings) {
-      lines.push(
-        `warning: ${warning.summary}`,
-        ...importerLines(warning),
-        ...testFileLines(warning),
-      );
+      lines.push(`warning: ${warning.summary}`, ...testFileLines(warning));
     }
   }
 
   return `${lines.join("\n")}\n`;
-}
-
-function parseThreshold(raw: string | undefined): number | undefined {
-  if (raw === undefined) {
-    return undefined;
-  }
-
-  if (!/^\d+$/.test(raw) || Number(raw) < 1) {
-    throw new InputError([`--hub-threshold must be an integer >= 1: ${raw}`]);
-  }
-
-  return Number(raw);
 }
 
 function violationOf(sensor: string, record: FindingRecord): Candidate {
@@ -263,8 +214,6 @@ function violationOf(sensor: string, record: FindingRecord): Candidate {
 }
 
 function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
-  const measures = record.evidence.measures;
-
   if (sensor === "structure" && record.kind === "cycle") {
     return {
       id: "cycle",
@@ -277,26 +226,6 @@ function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
           from,
           to,
         })),
-      },
-    };
-  }
-
-  if (sensor === "structure" && record.kind === "hub" && measures) {
-    return {
-      id: "hub",
-      principle: "interfaces-are-narrow-and-explicit",
-      fix_pattern: "split-hub",
-      summary: record.summary,
-      evidence: {
-        module: record.evidence.modules[0] as string,
-        fan_in: measures.fan_in as number,
-        fan_out: measures.fan_out as number,
-        threshold: measures.threshold as number,
-        ...(measures.lines !== undefined ? { lines: measures.lines } : {}),
-        ...(measures.members !== undefined
-          ? { members: measures.members }
-          : {}),
-        used_by: record.evidence.used_by ?? [],
       },
     };
   }
@@ -349,7 +278,6 @@ const OPTIONS = {
   baseline: { type: "string" },
   "update-baseline": { type: "boolean" },
   "init-baseline": { type: "boolean" },
-  "hub-threshold": { type: "string" },
 } as const;
 
 interface BaselineFlags {
@@ -434,13 +362,11 @@ function rejectBaselineFlagsWithoutPolicy(
 }
 
 function analysisReport(
-  thresholds: Thresholds | null,
   warnings: ReportedWarning[],
   metrics: ModuleMetrics[],
   folderMetrics: FolderMetrics[],
 ) {
   return {
-    ...(thresholds === null ? {} : { thresholds }),
     warnings,
     metrics,
     folder_metrics: folderMetrics,
@@ -454,12 +380,9 @@ function executeScanReplay(
     baseline?: string;
     "update-baseline"?: boolean;
     "init-baseline"?: boolean;
-    "hub-threshold"?: string;
   },
   io: Io,
 ): number {
-  const hubThreshold =
-    parseThreshold(values["hub-threshold"]) ?? DEFAULT_HUB_THRESHOLD;
   const flags: BaselineFlags = {
     baseline: values.baseline,
     update: values["update-baseline"] === true,
@@ -486,11 +409,9 @@ function executeScanReplay(
     ? parsePolicy(readInput(io, values.policy, "policy"))
     : null;
   const settings: StructureSettings = {
-    hub_threshold: hubThreshold,
     entry_points: [],
     warnings: {
       cycle: true,
-      hub: true,
       orphan: true,
       policy_drift: true,
       unused_exports: false,
@@ -500,12 +421,11 @@ function executeScanReplay(
     commit: "",
     modified: false,
   });
-  const thresholds = { hub: hubThreshold };
   const warnings = warningsOf([sensed.document]);
 
   if (policy === null) {
     io.stdout(
-      `${JSON.stringify(analysisReport(thresholds, warnings, sensed.metrics, sensed.folder_metrics), null, 2)}\n`,
+      `${JSON.stringify(analysisReport(warnings, sensed.metrics, sensed.folder_metrics), null, 2)}\n`,
     );
     io.stderr(summary(null, warnings));
 
@@ -524,7 +444,7 @@ function executeScanReplay(
   );
 
   io.stdout(
-    `${JSON.stringify({ ...result, baseline: report, ...analysisReport(thresholds, warnings, sensed.metrics, sensed.folder_metrics) }, null, 2)}\n`,
+    `${JSON.stringify({ ...result, baseline: report, ...analysisReport(warnings, sensed.metrics, sensed.folder_metrics) }, null, 2)}\n`,
   );
   io.stderr(summary(result, warnings));
 
@@ -543,10 +463,6 @@ function violationModules(value: ReportedViolation): string[] {
 }
 
 function warningModules(warning: ReportedWarning): string[] {
-  if (warning.id === "hub") {
-    return [(warning.evidence as { module: string }).module];
-  }
-
   return (warning.evidence as { modules: string[] }).modules;
 }
 
@@ -571,18 +487,16 @@ function gather(
   root: string,
   scans: Scan[],
   policy: Policy | null,
-  override: number | undefined,
 ): Gathered {
   const config = readConfig(io, root);
   const { commit } = scansCommit(scans);
   const hiddenIds = new Set<string>();
   const sensors: SensorStatus[] = [];
   const documents: FindingsDocument[] = [];
-  const resolved = resolveStructureSettings(config, override);
+  const resolved = resolveStructureSettings(config);
   let metrics: ModuleMetrics[] = [];
   let folderMetrics: FolderMetrics[] = [];
   let unranked = 0;
-  let thresholds: Thresholds | null = null;
 
   const fail = (name: string, reason: string) => {
     io.remove(findingsFile(root, name));
@@ -608,7 +522,6 @@ function gather(
         documents.push(sensed.document);
       }
 
-      thresholds = { hub: resolved.hub_threshold };
       sensors.push({ name: "structure", status: "ran", settings: resolved });
     }
   }
@@ -683,7 +596,6 @@ function gather(
     metrics,
     folderMetrics,
     unranked,
-    thresholds,
     sensors,
     hiddenIds,
   };
@@ -723,12 +635,10 @@ function executeRepository(
     baseline?: string;
     "update-baseline"?: boolean;
     "init-baseline"?: boolean;
-    "hub-threshold"?: string;
   },
   named: string[],
   io: Io,
 ): number {
-  const override = parseThreshold(values["hub-threshold"]);
   const root = resolve(values.repository ?? ".");
   const policyFile = values.policy ?? defaultPolicyFile(io, root);
   const flags: BaselineFlags = {
@@ -760,7 +670,7 @@ function executeRepository(
       ? null
       : parsePolicy(readInput(io, policyFile, "policy"));
 
-  const gathered = gather(io, root, scans, policy, override);
+  const gathered = gather(io, root, scans, policy);
 
   if (flags.init) {
     refuseInitWithHiddenFindings(gathered.sensors);
@@ -779,12 +689,7 @@ function executeRepository(
         named.some((id) => folderOf(id) === row.id),
       )
     : gathered.folderMetrics;
-  const analysis = analysisReport(
-    gathered.thresholds,
-    warnings,
-    metrics,
-    folderMetrics,
-  );
+  const analysis = analysisReport(warnings, metrics, folderMetrics);
   const candidates = candidatesOf(gathered.documents);
   const settings = gathered.sensors.find((one) => one.name === "structure");
   const sensorLine = `sensor structure: ${

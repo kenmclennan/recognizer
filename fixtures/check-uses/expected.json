@@ -97,9 +97,6 @@
     "present": false,
     "action": "none"
   },
-  "thresholds": {
-    "hub": 10
-  },
   "warnings": [
     {
       "id": "cycle",

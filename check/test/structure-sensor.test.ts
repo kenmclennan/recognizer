@@ -33,18 +33,16 @@ function fixture(name: string) {
   };
 }
 
-function sense(name: string, hub = 10, cycle = true, hubOn = true) {
+function sense(name: string, cycle = true) {
   const { scan, policy } = fixture(name);
 
   return structureSensor(
     [scan],
     policy,
     {
-      hub_threshold: hub,
       entry_points: [],
       warnings: {
         cycle,
-        hub: hubOn,
         orphan: cycle,
         policy_drift: cycle,
         unused_exports: false,
@@ -71,6 +69,23 @@ describe("findings schema examples", () => {
     expect(() => validateFindings(value)).toThrow();
   });
 
+  it("rejects a record whose evidence carries used_by, which only that property makes invalid", () => {
+    const value = JSON.parse(
+      readFileSync(join(EXAMPLES, "valid/structure.json"), "utf8"),
+    );
+
+    value.findings[0].evidence = {
+      modules: ["a.py"],
+      used_by: [{ module: "b.py", names: [] }],
+    };
+
+    expect(() => validateFindings(value)).toThrow(/additional properties/);
+
+    delete value.findings[0].evidence.used_by;
+
+    expect(() => validateFindings(value)).not.toThrow();
+  });
+
   it("rejects a document from another sensor or commit when told what to expect", () => {
     const value = JSON.parse(
       readFileSync(join(EXAMPLES, "valid/empty.json"), "utf8"),
@@ -83,22 +98,10 @@ describe("findings schema examples", () => {
 
 describe("structureSensor ids", () => {
   it("gives the same ids for the same evidence on every run", () => {
-    const first = sense("check-warnings", 3).document.findings.map((f) => f.id);
-    const second = sense("check-warnings", 3).document.findings.map(
-      (f) => f.id,
-    );
+    const first = sense("check-warnings").document.findings.map((f) => f.id);
+    const second = sense("check-warnings").document.findings.map((f) => f.id);
 
     expect(second).toEqual(first);
-  });
-
-  it("keeps a hub id when only the threshold changes", () => {
-    const at3 = sense("check-warnings", 3).document.findings;
-    const at2 = sense("check-warnings", 2).document.findings;
-    const hub = (findings: typeof at3) =>
-      findings.find((f) => f.kind === "hub")?.id;
-
-    expect(hub(at3)).toBe("hub:app/application/place.py");
-    expect(hub(at2)).toBe(hub(at3));
   });
 
   it("gives the same cycle ids when the scans are reordered", () => {
@@ -154,18 +157,16 @@ describe("structureSensor ids", () => {
   });
 
   it("leaves a switched-off warning out and still reports metrics", () => {
-    const off = sense("check-warnings", 3, false, false);
+    const off = sense("check-warnings", false);
 
     expect(
       off.document.findings.filter((f) => f.severity === "warning"),
     ).toEqual([]);
     expect(off.metrics.length).toBeGreaterThan(0);
     expect(off.document.settings).toEqual({
-      hub_threshold: 3,
       entry_points: [],
       warnings: {
         cycle: false,
-        hub: false,
         orphan: false,
         policy_drift: false,
         unused_exports: false,
@@ -187,14 +188,13 @@ describe("structureSensor over the committed fixtures", () => {
     expect(found).toHaveLength(5);
   });
 
-  it("finds the violation, cycle and hub fixtures/check-warnings lists, by id", () => {
-    const found = sense("check-warnings", 3).document.findings.map((f) => f.id);
+  it("finds the violation and cycle fixtures/check-warnings lists, by id", () => {
+    const found = sense("check-warnings").document.findings.map((f) => f.id);
 
     expect(found).toContain(
       "rule-violation:depends:app/domain/order.py->app/adapters/memory.py",
     );
     expect(found).toContain("cycle:app/domain/money.py,app/domain/order.py");
-    expect(found).toContain("hub:app/application/place.py");
     expect(found.filter((id) => id.startsWith("rule-violation:"))).toHaveLength(
       1,
     );
@@ -243,7 +243,7 @@ describe("baseline compatibility", () => {
   it("reads the committed fixtures/check-warnings baseline against the new ids", () => {
     const { baselineText } = fixture("check-warnings");
     const baseline = parseBaseline(baselineText);
-    const violations = sense("check-warnings", 3).document.findings.filter(
+    const violations = sense("check-warnings").document.findings.filter(
       (f) => f.severity === "violation",
     );
 

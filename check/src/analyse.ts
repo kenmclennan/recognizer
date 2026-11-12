@@ -1,11 +1,6 @@
 import type { Matcher } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
-import { hubUse } from "./hub-use.js";
-import type { Scan, ScanEdge } from "./scan.js";
-
-export interface Thresholds {
-  hub: number;
-}
+import type { Scan } from "./scan.js";
 
 export interface ModuleMetrics {
   id: string;
@@ -26,26 +21,9 @@ export interface CycleWarning {
   evidence: { modules: string[]; edges: { from: string; to: string }[] };
 }
 
-export interface HubWarning {
-  id: "hub";
-  principle: "interfaces-are-narrow-and-explicit";
-  fix_pattern: "split-hub";
-  summary: string;
-  evidence: {
-    module: string;
-    fan_in: number;
-    fan_out: number;
-    threshold: number;
-    lines?: number;
-    members?: number;
-    used_by: { module: string; names: string[] }[];
-  };
-}
-
-export type Warning = CycleWarning | HubWarning;
+export type Warning = CycleWarning;
 
 export interface Analysis {
-  thresholds: Thresholds;
   warnings: Warning[];
   metrics: ModuleMetrics[];
 }
@@ -107,11 +85,7 @@ export function strongComponents(
   return components;
 }
 
-export function analyse(
-  scan: Scan,
-  thresholds: Thresholds,
-  ignore: Matcher[] = [],
-): Analysis {
+export function analyse(scan: Scan, ignore: Matcher[] = []): Analysis {
   const { edges, ids } = keptGraph(scan, ignore);
   const kinds = new Map<string, ModuleMetrics["kind"]>();
 
@@ -191,60 +165,5 @@ export function analyse(
       byCodeUnit(a.evidence.modules[0] ?? "", b.evidence.modules[0] ?? ""),
     );
 
-  const modulesById = new Map(
-    scan.modules.map((module) => [module.id, module]),
-  );
-
-  const edgesByTarget = new Map<string, ScanEdge[]>();
-
-  for (const edge of edges) {
-    if (edge.from !== edge.to && !isForeign(edge.to)) {
-      const group = edgesByTarget.get(edge.to);
-
-      if (group) {
-        group.push(edge);
-      } else {
-        edgesByTarget.set(edge.to, [edge]);
-      }
-    }
-  }
-
-  const hubs: HubWarning[] = metrics
-    .filter(
-      (row) => row.fan_in >= thresholds.hub && row.fan_out >= thresholds.hub,
-    )
-    .map((row): HubWarning => {
-      const use = hubUse(
-        edgesByTarget.get(row.id) ?? [],
-        modulesById.get(row.id) ?? { id: row.id, kind: row.kind },
-        incoming.get(row.id) ?? new Set(),
-      );
-
-      const size =
-        use.lines !== undefined && use.members !== undefined
-          ? `; it is ${use.lines} lines with ${use.members} members`
-          : use.members !== undefined
-            ? `; it has ${use.members} members`
-            : use.lines !== undefined
-              ? `; it is ${use.lines} lines`
-              : "";
-
-      return {
-        id: "hub",
-        principle: "interfaces-are-narrow-and-explicit",
-        fix_pattern: "split-hub",
-        summary: `${row.id} is imported by ${row.fan_in} modules and imports ${row.fan_out} (at least ${thresholds.hub} on both)${size}`,
-        evidence: {
-          module: row.id,
-          fan_in: row.fan_in,
-          fan_out: row.fan_out,
-          threshold: thresholds.hub,
-          ...(use.lines !== undefined ? { lines: use.lines } : {}),
-          ...(use.members !== undefined ? { members: use.members } : {}),
-          used_by: use.used_by,
-        },
-      };
-    });
-
-  return { thresholds, warnings: [...cycles, ...hubs], metrics };
+  return { warnings: cycles, metrics };
 }

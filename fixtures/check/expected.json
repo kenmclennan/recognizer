@@ -147,9 +147,6 @@
     "present": true,
     "action": "none"
   },
-  "thresholds": {
-    "hub": 10
-  },
   "warnings": [
     {
       "id": "cycle",

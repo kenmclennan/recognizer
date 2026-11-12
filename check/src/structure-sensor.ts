@@ -15,14 +15,11 @@ import {
 } from "./structure-warnings.js";
 
 export const STRUCTURE_SENSOR_VERSION = "14";
-export const DEFAULT_HUB_THRESHOLD = 10;
 
 export interface StructureSettings {
-  hub_threshold: number;
   entry_points: string[];
   warnings: {
     cycle: boolean;
-    hub: boolean;
     orphan: boolean;
     policy_drift: boolean;
     unused_exports: boolean;
@@ -42,11 +39,9 @@ export interface StructureResult {
 }
 
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
-  hub_threshold: DEFAULT_HUB_THRESHOLD,
   entry_points: [],
   warnings: {
     cycle: true,
-    hub: true,
     orphan: true,
     policy_drift: true,
     unused_exports: false,
@@ -55,7 +50,6 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
 
 export function resolveStructureSettings(
   config: Config | null,
-  override?: number,
 ): StructureSettings | "off" {
   const entry = config?.sensors?.structure;
 
@@ -69,14 +63,9 @@ export function resolveStructureSettings(
   const orphan = given.warnings?.orphan ?? true;
 
   return {
-    hub_threshold:
-      override ??
-      given.hub_threshold ??
-      DEFAULT_STRUCTURE_SETTINGS.hub_threshold,
     entry_points: typeof orphan === "object" ? [...orphan.entry_points] : [],
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
-      hub: given.warnings?.hub ?? defaults.hub,
       orphan: orphan !== false,
       policy_drift: given.warnings?.policy_drift ?? defaults.policy_drift,
       unused_exports: given.warnings?.unused_exports ?? defaults.unused_exports,
@@ -108,46 +97,20 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  return `hub_threshold ${settings.hub_threshold}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, unused_exports ${on(w.unused_exports)}${entries}`;
+  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, unused_exports ${on(w.unused_exports)}${entries}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
-  if (warning.id === "cycle") {
-    return {
-      id: `cycle:${warning.evidence.modules.join(",")}`,
-      kind: "cycle",
-      severity: "warning",
-      principle: warning.principle,
-      summary: warning.summary,
-      fix_pattern: warning.fix_pattern,
-      evidence: {
-        modules: warning.evidence.modules,
-        edges: warning.evidence.edges,
-      },
-    };
-  }
-
   return {
-    id: `hub:${warning.evidence.module}`,
-    kind: "hub",
+    id: `cycle:${warning.evidence.modules.join(",")}`,
+    kind: "cycle",
     severity: "warning",
     principle: warning.principle,
     summary: warning.summary,
     fix_pattern: warning.fix_pattern,
     evidence: {
-      modules: [warning.evidence.module],
-      measures: {
-        fan_in: warning.evidence.fan_in,
-        fan_out: warning.evidence.fan_out,
-        threshold: warning.evidence.threshold,
-        ...(warning.evidence.lines !== undefined
-          ? { lines: warning.evidence.lines }
-          : {}),
-        ...(warning.evidence.members !== undefined
-          ? { members: warning.evidence.members }
-          : {}),
-      },
-      used_by: warning.evidence.used_by,
+      modules: warning.evidence.modules,
+      edges: warning.evidence.edges,
     },
   };
 }
@@ -225,21 +188,12 @@ export function structureSensor(
       }
     }
 
-    const analysis = analyse(
-      scan,
-      { hub: settings.hub_threshold },
-      policy?.ignore,
-    );
+    const analysis = analyse(scan, policy?.ignore);
 
     metrics.push(...analysis.metrics);
 
     for (const warning of analysis.warnings) {
-      const enabled =
-        warning.id === "cycle"
-          ? settings.warnings.cycle
-          : settings.warnings.hub;
-
-      if (enabled) {
+      if (settings.warnings.cycle) {
         add(warnings, warningFinding(warning));
       }
     }
@@ -273,11 +227,9 @@ export function structureSensor(
       commit: context.commit,
       modified: context.modified,
       settings: {
-        hub_threshold: settings.hub_threshold,
         entry_points: [...settings.entry_points],
         warnings: {
           cycle: settings.warnings.cycle,
-          hub: settings.warnings.hub,
           orphan: settings.warnings.orphan,
           policy_drift: settings.warnings.policy_drift,
           unused_exports: settings.warnings.unused_exports,

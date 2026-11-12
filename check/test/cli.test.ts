@@ -258,6 +258,8 @@ describe("bad input", () => {
     }));
   it("rejects an unknown flag", () =>
     bad(["check", "--scan", scan, "--policy", policy, "--nope"]));
+  it("rejects the removed --hub-threshold flag", () =>
+    bad(["check", "--scan", scan, "--policy", policy, "--hub-threshold", "3"]));
   it("rejects a module argument together with --scan", () =>
     bad(["check", "shop/main.py", "--scan", scan, "--policy", policy]));
   it("rejects --json together with --scan", () =>
@@ -324,7 +326,7 @@ describe("warnings fixture", () => {
     JSON.parse(readFileSync(join(WARN, name), "utf8"));
 
   it("matches expected-policy.json with a policy and exits 0", () => {
-    const { code, out, err } = execute(checkArgs(WARN, "--hub-threshold", "3"));
+    const { code, out, err } = execute(checkArgs(WARN));
     const actual = JSON.parse(out);
 
     delete actual.baseline.path;
@@ -332,7 +334,7 @@ describe("warnings fixture", () => {
     expect(code).toBe(0);
     expect(actual).toEqual(read("expected-policy.json"));
     expect(actual.violations).toHaveLength(1);
-    expect(err).toContain("warnings: 6");
+    expect(err).toContain("warnings: 5");
   });
 
   it("matches expected-no-policy.json without a policy and exits 0", () => {
@@ -340,13 +342,11 @@ describe("warnings fixture", () => {
       "check",
       "--scan",
       join(WARN, "scan.json"),
-      "--hub-threshold",
-      "3",
     ]);
 
     expect(code).toBe(0);
     expect(JSON.parse(out)).toEqual(read("expected-no-policy.json"));
-    expect(err).toContain("warnings: 6");
+    expect(err).toContain("warnings: 5");
   });
 
   it("has the hand-derived metrics and warning order", () => {
@@ -354,7 +354,6 @@ describe("warnings fixture", () => {
 
     expect(warnings.map((w: { id: string }) => w.id)).toEqual([
       "cycle",
-      "hub",
       "orphan",
       "orphan",
       "orphan",
@@ -390,14 +389,12 @@ describe("warnings fixture", () => {
         "check",
         "--scan",
         join(WARN, "scan.json"),
-        "--hub-threshold",
-        "3",
       ],
       { encoding: "utf8" },
     );
 
     expect(child.status).toBe(0);
-    expect(JSON.parse(child.stdout).warnings).toHaveLength(6);
+    expect(JSON.parse(child.stdout).warnings).toHaveLength(5);
   });
 
   it("exits 1 for a new violation even with warnings, and 0 when baselined", () => {
@@ -405,10 +402,10 @@ describe("warnings fixture", () => {
     cpSync(WARN, dir, { recursive: true });
     rmSync(join(dir, BASELINE));
 
-    const fresh = execute(checkArgs(dir, "--hub-threshold", "3"));
+    const fresh = execute(checkArgs(dir));
 
     expect(fresh.code).toBe(1);
-    expect(JSON.parse(fresh.out).warnings).toHaveLength(6);
+    expect(JSON.parse(fresh.out).warnings).toHaveLength(5);
   });
 
   it.each(["design-example.json", "all-kinds.json"])(

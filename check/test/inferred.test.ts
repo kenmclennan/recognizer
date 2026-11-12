@@ -111,9 +111,8 @@ describe("inferred edges", () => {
           inferredEdge("o/b.py", "i/a.py"),
         ]),
       ),
-      { hub: 1 },
     );
-    const without = analyse(validateScan(scanOf([])), { hub: 1 });
+    const without = analyse(validateScan(scanOf([])));
 
     expect(withInferred).toEqual(without);
     expect(withInferred.warnings).toEqual([]);
@@ -121,9 +120,7 @@ describe("inferred edges", () => {
 
   it("do not add a module to the node set", () => {
     const scan = scanOf([inferredEdge("i/a.py", "o/elsewhere.py")]);
-    const ids = analyse(validateScan(scan), { hub: 10 }).metrics.map(
-      (metric) => metric.id,
-    );
+    const ids = analyse(validateScan(scan)).metrics.map((metric) => metric.id);
 
     expect(ids).not.toContain("o/elsewhere.py");
   });
@@ -133,7 +130,6 @@ describe("inferred edges", () => {
       validateScan(
         scanOf([plainEdge("i/a.py", "o/b.py"), plainEdge("o/b.py", "i/a.py")]),
       ),
-      { hub: 10 },
     );
 
     expect(result.warnings.map((warning) => warning.id)).toContain("cycle");

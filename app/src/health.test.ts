@@ -291,33 +291,6 @@ describe("computeHealth from findings files", () => {
     expect(health.findings("shop/domain/order.py")).toEqual([]);
   });
 
-  it("reads the hub threshold from the file, not from the app", () => {
-    const strict = structureDocument("check", fixturePolicy("check"));
-    const hubs = strict.findings.filter((record) => record.kind === "hub");
-
-    expect(hubs).toEqual([]);
-
-    const withHub: FindingsDocument = {
-      ...strict,
-      settings: { hub_threshold: 1 },
-      findings: [
-        ...strict.findings,
-        {
-          id: "hub:shop/main.py",
-          kind: "hub",
-          severity: "warning",
-          principle: "small-interfaces",
-          summary: "shop/main.py is a hub",
-          evidence: { modules: ["shop/main.py"] },
-        },
-      ],
-    };
-    const { health } = healthFor("check", fixturePolicy("check"), [withHub]);
-
-    expect(health.disc("shop/main.py")).toBe("amber");
-    expect(health.lines("shop/main.py")).toEqual(["shop/main.py is a hub"]);
-  });
-
   it("shows a finding from a second sensor with its summary and principle", () => {
     const { health } = healthFor("check", fixturePolicy("check"), [
       structureDocument("check", fixturePolicy("check")),

@@ -2,7 +2,6 @@ export {
   type Analysis,
   analyse,
   type ModuleMetrics,
-  type Thresholds,
   type Warning,
 } from "./analyse.js";
 export {

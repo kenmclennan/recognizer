@@ -70,7 +70,7 @@ describe("counts over the shown findings only", () => {
     record("rule-violation:a", "rule-violation", ["app/a.py"], "violation"),
     record("orphan:a", "orphan", ["app/b.py"]),
     record("orphan:z", "orphan", ["other/z.py"]),
-    record("hub:z", "hub", ["other/z.py"]),
+    record("orphan:y", "orphan", ["other/z.py"]),
   ]);
   const shown = scopedRows(rows, view);
 

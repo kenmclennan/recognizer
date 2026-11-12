@@ -80,36 +80,6 @@ function cycle(record: FindingRecord): string | null {
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)} form a cycle of ${names.length}.`;
 }
 
-function hub(record: FindingRecord): string | null {
-  const measures = record.evidence.measures;
-  const module = record.evidence.modules[0];
-
-  if (
-    measures?.fan_in === undefined ||
-    measures.fan_out === undefined ||
-    measures.threshold === undefined ||
-    module === undefined
-  ) {
-    return null;
-  }
-
-  const counts = `${shortName(module)} is imported by ${num(measures.fan_in)} modules and imports ${num(measures.fan_out)}`;
-  const { lines, members } = measures;
-
-  if (lines === undefined && members === undefined) {
-    return `${counts}; the limit is ${num(measures.threshold)}.`;
-  }
-
-  const size =
-    lines !== undefined && members !== undefined
-      ? `it is ${num(lines)} lines with ${num(members)} members`
-      : members !== undefined
-        ? `it has ${num(members)} members`
-        : `it is ${num(lines as number)} lines`;
-
-  return `${counts}; ${size}; the limit is ${num(measures.threshold)}.`;
-}
-
 function drift(record: FindingRecord): string | null {
   const entry = after(record.id, "policy_drift:entry:");
 
@@ -272,7 +242,6 @@ function orphan(record: FindingRecord): string | null {
 const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   "rule-violation": violation,
   cycle,
-  hub,
   orphan,
   policy_drift: drift,
   unused_exports: unusedExports,

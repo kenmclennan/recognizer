@@ -79,6 +79,6 @@ describe("baseline", () => {
     const identity = entry("a/b.py", "c/d.py", "inherits");
 
     expect(identityOfViolationId(violationId(identity))).toEqual(identity);
-    expect(identityOfViolationId("hub:a")).toBeNull();
+    expect(identityOfViolationId("cycle:a")).toBeNull();
   });
 });

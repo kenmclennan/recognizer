@@ -74,24 +74,8 @@ function load(
   };
 }
 
-function hubThreshold(raw: unknown): number | undefined {
-  if (raw === undefined) {
-    return undefined;
-  }
-
-  if (typeof raw !== "string" || !/^\d+$/.test(raw) || Number(raw) < 1) {
-    throw new InputError([`--hub-threshold must be an integer >= 1: ${raw}`]);
-  }
-
-  return Number(raw);
-}
-
 function findingsOf(loaded: Loaded, io: Io): Map<string, Finding[]> {
-  return findingsByModuleFrom(
-    loadFindings(io, loaded.root, loaded.scans, {
-      hubThreshold: hubThreshold(loaded.values["hub-threshold"]),
-    }),
-  );
+  return findingsByModuleFrom(loadFindings(io, loaded.root, loaded.scans));
 }
 
 function row(parts: (string | number | undefined)[]): string {
@@ -325,7 +309,7 @@ function tableSignature(member: ShownMember): string {
 }
 
 const SHOW_USAGE =
-  "recognizer show <module> [--private] [--hub-threshold <n>] [--repository <dir>] [--json]";
+  "recognizer show <module> [--private] [--repository <dir>] [--json]";
 
 function showFolder(loaded: Loaded, io: Io, id: string): number {
   const folder = id.replace(/\/+$/, "");
@@ -357,7 +341,6 @@ function showFolder(loaded: Loaded, io: Io, id: string): number {
 export function runShow(argv: string[], io: Io): number {
   const loaded = load(argv, io, SHOW_USAGE, 1, {
     private: { type: "boolean" },
-    "hub-threshold": { type: "string" },
   });
   const id = loaded.positionals[0] as string;
 
@@ -449,7 +432,7 @@ const SORTS = ["id", "uses", "used-by", "findings"] as const;
 type Sort = (typeof SORTS)[number];
 
 const MODULES_USAGE =
-  "recognizer modules [--folder <path>] [--findings] [--min-uses <n>] [--min-used-by <n>] [--sort <id|uses|used-by|findings>] [--reverse] [--limit <n>] [--hub-threshold <n>] [--repository <dir>] [--json]";
+  "recognizer modules [--folder <path>] [--findings] [--min-uses <n>] [--min-used-by <n>] [--sort <id|uses|used-by|findings>] [--reverse] [--limit <n>] [--repository <dir>] [--json]";
 
 function integer(raw: unknown, flag: string, minimum: number): number | null {
   if (raw === undefined) {
@@ -472,7 +455,6 @@ export function runModules(argv: string[], io: Io): number {
     sort: { type: "string" },
     reverse: { type: "boolean" },
     limit: { type: "string" },
-    "hub-threshold": { type: "string" },
   });
   const { values } = loaded;
   const minUses = integer(values["min-uses"], "--min-uses", 0);
