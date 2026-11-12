@@ -14,6 +14,7 @@ from conftest import (
     mutate_repository,
     python_suite,
     shim_suite,
+    wait_for_pid,
 )
 from test_mutation import RECORD, run_mutate
 
@@ -260,7 +261,8 @@ def test_a_mutant_runs_in_the_suite_directory_of_its_copy_under_the_login_shell_
 
 SLEEPER = """#!/bin/sh
 sleep 60 &
-echo $! > "$PID_FILE"
+echo $! > "$PID_FILE.$$.tmp"
+mv "$PID_FILE.$$.tmp" "$PID_FILE"
 wait
 """
 
@@ -293,7 +295,7 @@ def test_a_timed_out_mutant_run_leaves_no_child_running(tmp_path):
     suite, pid_file = sleeping_suite(tmp_path)
 
     result = runner.run_test_command(["sleeper"], tmp_path, 1.0, suite=suite)
-    pid = int(pid_file.read_text())
+    pid = wait_for_pid(pid_file, time.monotonic() + 20)
 
     assert result.timed_out
     assert gone(pid)
@@ -309,12 +311,7 @@ def test_a_stop_leaves_no_child_running(tmp_path):
         )
     )
     thread.start()
-    deadline = time.monotonic() + 20
-
-    while not pid_file.exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-
-    pid = int(pid_file.read_text())
+    pid = wait_for_pid(pid_file, time.monotonic() + 20)
 
     try:
         runner.stop_all()
@@ -571,9 +568,11 @@ def test_a_coverage_run_that_exits_non_zero_refuses_even_with_a_report(tmp_path)
 def orphaning_suite(tmp_path):
     pid_file = tmp_path / "orphan.pid"
     spawn = (
-        "import subprocess,sys;"
+        "import os,subprocess,sys;"
         "p=subprocess.Popen(['sleep','20'],start_new_session=True);"
-        f"open({str(pid_file)!r},'w').write(str(p.pid))"
+        f"t={str(pid_file)!r}+'.'+str(os.getpid())+'.tmp';"
+        "open(t,'w').write(str(p.pid));"
+        f"os.replace(t,{str(pid_file)!r})"
     )
     suite = parse_suites(
         [suite_raw(command=f"{shlex.quote(sys.executable)} -c {shlex.quote(spawn)}; sleep 60")]
@@ -584,7 +583,7 @@ def orphaning_suite(tmp_path):
 
 def kill_orphan(pid_file):
     try:
-        os.kill(int(pid_file.read_text()), 9)
+        os.kill(wait_for_pid(pid_file, time.monotonic() + 5), 9)
     except (OSError, ValueError):
         pass
 

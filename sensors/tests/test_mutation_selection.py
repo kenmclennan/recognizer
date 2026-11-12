@@ -10,7 +10,14 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 
 import pytest
-from conftest import git_commit, make_repository, mutate_repository, mutate_settings, python_suite
+from conftest import (
+    git_commit,
+    make_repository,
+    mutate_repository,
+    mutate_settings,
+    python_suite,
+    wait_for_pid,
+)
 from coverage import CoverageData
 from test_mutation import RECORD, SURVIVORS, read, run_mutate
 
@@ -1102,7 +1109,11 @@ def sleeper(pid_file):
     return [
         sys.executable,
         "-c",
-        f"import os, time; open({str(pid_file)!r}, 'w').write(str(os.getpid())); time.sleep(120)",
+        "import os, time; "
+        f"temporary = {str(pid_file)!r} + '.' + str(os.getpid()) + '.tmp'; "
+        "open(temporary, 'w').write(str(os.getpid())); "
+        f"os.replace(temporary, {str(pid_file)!r}); "
+        "time.sleep(120)",
     ]
 
 
@@ -1119,7 +1130,7 @@ def pass_the_deadline_once_running(pid_file, now):
 
 
 def process_is_gone(pid_file):
-    pid = int(pid_file.read_text())
+    pid = wait_for_pid(pid_file, time.monotonic() + 30)
     deadline = time.monotonic() + 30
 
     while time.monotonic() < deadline:
