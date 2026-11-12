@@ -229,6 +229,26 @@ export function schemaMessages(document: unknown): string[] {
   });
 }
 
+export function withoutEmptySections(document: unknown): unknown {
+  if (!isPlainObject(document)) {
+    return document;
+  }
+
+  const copy = structuredClone(document) as Record<string, unknown>;
+
+  for (const { path } of emptySections(copy)) {
+    let at: unknown = copy;
+
+    for (const step of path.slice(0, -1)) {
+      at = (at as Record<string, unknown>)[step];
+    }
+
+    delete (at as Record<string, unknown>)[path[path.length - 1] as string];
+  }
+
+  return copy;
+}
+
 export type ConfigSection = "describer" | "sensors" | "tests";
 export type ConfigRead = "all" | readonly ConfigSection[];
 

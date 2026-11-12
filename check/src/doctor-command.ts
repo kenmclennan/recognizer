@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
+import { configFile } from "./config.js";
 import {
   buildReport,
   type DoctorFacts,
@@ -10,6 +11,10 @@ import {
 import { InputError } from "./errors.js";
 
 const USAGE = ["usage: recognizer doctor [REPOSITORY] [--json]"];
+
+function readIfPresent(io: Io, file: string): string | null {
+  return io.exists(file) ? io.readFile(file) : null;
+}
 
 export function runDoctor(argv: string[], io: Io): number {
   const { values, positionals } = parseArgs({
@@ -23,7 +28,8 @@ export function runDoctor(argv: string[], io: Io): number {
     throw new InputError(USAGE);
   }
 
-  const root = resolve(positionals[0] ?? ".");
+  const [given] = positionals;
+  const root = resolve(given ?? ".");
 
   try {
     io.readDir(root);
@@ -31,7 +37,11 @@ export function runDoctor(argv: string[], io: Io): number {
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
-  const facts: DoctorFacts = { repository: root };
+  const facts: DoctorFacts = {
+    repository: root,
+    named: given !== undefined,
+    configText: readIfPresent(io, configFile(root)),
+  };
   const report = buildReport(facts);
 
   io.stdout(values.json === true ? reportJson(report) : reportText(report));

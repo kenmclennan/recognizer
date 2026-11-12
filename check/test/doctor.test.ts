@@ -123,6 +123,172 @@ describe("doctor: a clean repository", () => {
   });
 });
 
+describe("doctor: config", () => {
+  const RETIRED = "sensors:\n  structure:\n    distance_threshold: 0.5\n";
+
+  it("reports a retired key with its --unset fix, as one problem", () => {
+    const result = json(setup({ config: RETIRED, env: { PATH: "/bin" } }));
+
+    expect(result.status).toBe(1);
+    expect(result.report).toEqual({
+      repository: ROOT,
+      ok: false,
+      problems: 1,
+      areas: [
+        {
+          name: "config",
+          skipped: null,
+          problems: [
+            {
+              code: "config-retired",
+              subject: "sensors.structure.distance_threshold",
+              line: expect.stringContaining(
+                "config/sensors/structure/distance_threshold was removed",
+              ),
+              fix: {
+                text: "recognizer config --unset sensors.structure.distance_threshold",
+                command:
+                  "recognizer config --unset sensors.structure.distance_threshold",
+              },
+            },
+          ],
+        },
+        { name: "policy", skipped: null, problems: [] },
+        { name: "scanners", skipped: null, problems: [] },
+        { name: "sensors", skipped: null, problems: [] },
+      ],
+    });
+  });
+
+  it("prints the problem count and the fix under the line", () => {
+    const result = doctor(setup({ config: RETIRED, env: { PATH: "/bin" } }));
+
+    expect(result.status).toBe(1);
+    expect(result.out).toMatch(
+      /^config\n {2}config\/sensors\/structure\/distance_threshold was removed[^\n]*\n {4}fix: recognizer config --unset sensors\.structure\.distance_threshold\n1 problem\n$/,
+    );
+  });
+
+  it("reports all ten retired keys", () => {
+    const text = [
+      "overlays: {}",
+      "sensors:",
+      "  structure:",
+      "    distance_threshold: 1",
+      "    hub_threshold: 1",
+      "    instability_gap: 1",
+      "    composition_roots: []",
+      "    warnings:",
+      "      stable_abstractions: true",
+      "      hub: true",
+      "      stable_dependencies: true",
+      "      folder_cycle: true",
+      "      policy_drift: true",
+      "",
+    ].join("\n");
+    const result = json(setup({ config: text, env: { PATH: "/bin" } }));
+    const found = result.report.areas[0].problems;
+
+    expect(found.map((problem: { code: string }) => problem.code)).toEqual(
+      Array(10).fill("config-retired"),
+    );
+    expect(
+      found.map((problem: { subject: string }) => problem.subject),
+    ).toEqual(RETIRED_KEYS.map((retired) => retired.path.join(".")));
+    expect(result.report.problems).toBe(10);
+  });
+
+  it("reports an empty sensor section with --remove-section", () => {
+    const result = json(
+      setup({ config: "sensors:\n  crap:\n", env: { PATH: "/bin" } }),
+    );
+
+    expect(result.report.areas[0].problems).toEqual([
+      {
+        code: "config-empty",
+        subject: "sensors.crap",
+        line: "config sensors.crap is empty: delete the section or give it settings",
+        fix: {
+          text: "recognizer config --remove-section sensors.crap",
+          command: "recognizer config --remove-section sensors.crap",
+        },
+      },
+    ]);
+  });
+
+  it("gives a text fix for an empty section that is not a sensor", () => {
+    const result = json(setup({ config: "tests:\n", env: { PATH: "/bin" } }));
+    const [problem] = result.report.areas[0].problems;
+
+    expect(problem.code).toBe("config-empty");
+    expect(problem.fix.command).toBeNull();
+  });
+
+  it("reports a duplicate suite name", () => {
+    const suite = (name: string) =>
+      `  - name: ${name}\n    language: python\n    directory: .\n    command: pytest\n    coverage:\n      path: c.lcov\n      format: lcov\n`;
+    const result = json(
+      setup({
+        config: `tests:\n${suite("unit")}${suite("unit")}`,
+        env: { PATH: "/bin" },
+      }),
+    );
+
+    expect(codes(result.report)).toEqual(["config:config-duplicate-suite"]);
+    expect(result.report.areas[0].problems[0].subject).toBe("unit");
+    expect(result.report.areas[0].problems[0].fix.command).toBeNull();
+  });
+
+  it("reports a schema fault as config-invalid", () => {
+    const result = json(
+      setup({
+        config: "sensors:\n  crap:\n    threshold: -1\n",
+        env: { PATH: "/bin" },
+      }),
+    );
+
+    expect(codes(result.report)).toContain("config:config-invalid");
+    expect(result.report.areas[0].problems[0].fix.command).toBeNull();
+  });
+
+  it("reports unparseable YAML and skips the sensors", () => {
+    const result = json(setup({ config: "a: [\n", env: { PATH: "/bin" } }));
+
+    expect(codes(result.report)).toEqual(["config:config-yaml"]);
+
+    const text = doctor(setup({ config: "a: [\n", env: { PATH: "/bin" } }));
+
+    expect(text.out.endsWith("1 problem\n")).toBe(true);
+  });
+
+  it("reports faults of different codes together", () => {
+    const result = json(
+      setup({
+        config:
+          "sensors:\n  crap:\n  structure:\n    hub_threshold: 2\n    warnings:\n      cycle: maybe\n",
+        env: { PATH: "/bin" },
+      }),
+    );
+
+    expect([...new Set(codes(result.report))]).toEqual([
+      "config:config-retired",
+      "config:config-empty",
+      "config:config-invalid",
+    ]);
+  });
+
+  it("never reports a fault twice", () => {
+    const result = json(
+      setup({
+        config: "sensors:\n  structure:\n    hub_threshold: 2\n",
+        env: { PATH: "/bin" },
+      }),
+    );
+
+    expect(codes(result.report)).toEqual(["config:config-retired"]);
+  });
+});
+
 describe("retired keys are unsettable", () => {
   const published = loadKeys(fakeIo().io, ROOT);
   const sampleFor = (path: string[]) =>
@@ -179,6 +345,25 @@ describe("retired keys are unsettable", () => {
         "sensors.structure.nonsense",
       ),
     ).toMatchObject({ status: "refused" });
+  });
+});
+
+describe("doctor: fix commands name the repository only when it was named", () => {
+  it("quotes a path that holds a space", () => {
+    const folder = "/my repo";
+    const fake = fakeIo({
+      commit: COMMIT,
+      env: { PATH: "/bin" },
+      files: {
+        [`${folder}/.recognizer/config.yaml`]:
+          "sensors:\n  structure:\n    hub_threshold: 1\n",
+      },
+    });
+    const result = json(fake, folder);
+
+    expect(result.report.areas[0].problems[0].fix.command).toBe(
+      "recognizer config --unset sensors.structure.hub_threshold --repository '/my repo'",
+    );
   });
 });
 

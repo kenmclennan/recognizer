@@ -1,6 +1,20 @@
+import { parse } from "yaml";
+import {
+  duplicateSuites,
+  emptySections,
+  schemaMessages,
+  withoutEmptySections,
+} from "./config-parse.js";
+import { retiredKeysIn, withoutRetiredKeys } from "./config-retired.js";
+
 export type AreaName = "config" | "policy" | "scanners" | "sensors";
 
-export type ProblemCode = never;
+export type ProblemCode =
+  | "config-yaml"
+  | "config-retired"
+  | "config-empty"
+  | "config-duplicate-suite"
+  | "config-invalid";
 
 export interface SetupProblem {
   code: ProblemCode;
@@ -24,11 +38,117 @@ export interface DoctorReport {
 
 export interface DoctorFacts {
   repository: string;
+  named: boolean;
+  configText: string | null;
+}
+
+const CONFIG_FILE = ".recognizer/config.yaml";
+
+function quoted(text: string): string {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(text)
+    ? text
+    : `'${text.replaceAll("'", "'\\''")}'`;
+}
+
+function withRepository(facts: DoctorFacts, command: string): string {
+  return facts.named
+    ? `${command} --repository ${quoted(facts.repository)}`
+    : command;
+}
+
+function commandFix(command: string): SetupProblem["fix"] {
+  return { text: command, command };
+}
+
+function textFix(text: string): SetupProblem["fix"] {
+  return { text, command: null };
+}
+
+function schemaSubject(message: string): string {
+  const path = /^config(\S*)/.exec(message)?.[1] ?? "";
+
+  return path === "" ? "config" : path.slice(1).replaceAll("/", ".");
+}
+
+function configArea(facts: DoctorFacts): SetupProblem[] {
+  if (facts.configText === null) {
+    return [];
+  }
+
+  let document: unknown;
+
+  try {
+    document = parse(facts.configText) ?? {};
+  } catch (error) {
+    return [
+      {
+        code: "config-yaml",
+        subject: CONFIG_FILE,
+        line: `config is not valid YAML: ${(error as Error).message}`,
+        fix: textFix(`correct the YAML in ${CONFIG_FILE}`),
+      },
+    ];
+  }
+
+  const problems: SetupProblem[] = [];
+
+  for (const retired of retiredKeysIn(document)) {
+    const key = retired.path.join(".");
+
+    problems.push({
+      code: "config-retired",
+      subject: key,
+      line: retired.message,
+      fix: commandFix(
+        withRepository(facts, `recognizer config --unset ${key}`),
+      ),
+    });
+  }
+
+  for (const empty of emptySections(document)) {
+    const key = empty.path.join(".");
+    const removable = empty.path.length === 2 && empty.path[0] === "sensors";
+
+    problems.push({
+      code: "config-empty",
+      subject: key,
+      line: empty.message,
+      fix: removable
+        ? commandFix(
+            withRepository(facts, `recognizer config --remove-section ${key}`),
+          )
+        : textFix(`delete ${key} in ${CONFIG_FILE}, or give it settings`),
+    });
+  }
+
+  for (const duplicate of duplicateSuites(document)) {
+    problems.push({
+      code: "config-duplicate-suite",
+      subject: duplicate.name,
+      line: duplicate.message,
+      fix: textFix(
+        `rename or remove one of the test suites named ${duplicate.name} in ${CONFIG_FILE}`,
+      ),
+    });
+  }
+
+  const cleaned = withoutEmptySections(withoutRetiredKeys(document));
+
+  for (const message of schemaMessages(cleaned)) {
+    problems.push({
+      code: "config-invalid",
+      subject: schemaSubject(message),
+      line: message,
+      fix: textFix(`correct ${schemaSubject(message)} in ${CONFIG_FILE}`),
+    });
+  }
+
+  return problems;
 }
 
 export function buildReport(facts: DoctorFacts): DoctorReport {
   const areas: Area[] = [
-    { name: "config", skipped: null, problems: [] },
+    { name: "config", skipped: null, problems: configArea(facts) },
     { name: "policy", skipped: null, problems: [] },
     { name: "scanners", skipped: null, problems: [] },
     { name: "sensors", skipped: null, problems: [] },

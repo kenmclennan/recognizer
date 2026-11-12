@@ -74,3 +74,23 @@ function holds(document: unknown, path: string[]): boolean {
 export function retiredKeysIn(document: unknown): RetiredKey[] {
   return RETIRED_KEYS.filter((retired) => holds(document, retired.path));
 }
+
+export function withoutRetiredKeys(document: unknown): unknown {
+  if (!isPlainObject(document)) {
+    return document;
+  }
+
+  const copy = structuredClone(document) as Record<string, unknown>;
+
+  for (const { path } of retiredKeysIn(copy)) {
+    let at: unknown = copy;
+
+    for (const step of path.slice(0, -1)) {
+      at = (at as Record<string, unknown>)[step];
+    }
+
+    delete (at as Record<string, unknown>)[path[path.length - 1] as string];
+  }
+
+  return copy;
+}
