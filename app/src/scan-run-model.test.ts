@@ -20,7 +20,7 @@ function clock(iso: string): string {
 
 function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
   return {
-    version: 4,
+    version: 5,
     run_id: "run-1",
     pid: 4242,
     pgid: 4242,
@@ -29,6 +29,7 @@ function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
     repository: "/work/repo",
     sensors: ["crap", "mutation"],
     describe: false,
+    suites: {},
     phase: "running",
     ended_at: null,
     exit: null,
@@ -207,7 +208,12 @@ describe("the run model", () => {
           phase: "failed",
           ended_at: ENDED,
           exit: 1,
-          failure: { sensor: "crap", reason: "coverage unavailable" },
+          failure: {
+            sensor: "crap",
+            suite: null,
+            code: null,
+            reason: "coverage unavailable",
+          },
         },
         { log: "20261112-scan" },
       ),

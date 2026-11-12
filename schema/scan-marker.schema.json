@@ -14,6 +14,7 @@
     "repository",
     "sensors",
     "describe",
+    "suites",
     "phase",
     "ended_at",
     "exit",
@@ -24,7 +25,7 @@
   ],
   "properties": {
     "version": {
-      "const": 4
+      "const": 5
     },
     "run_id": {
       "type": "string",
@@ -64,6 +65,17 @@
     },
     "describe": {
       "type": "boolean"
+    },
+    "suites": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     },
     "phase": {
       "enum": [
@@ -130,12 +142,29 @@
           "additionalProperties": false,
           "required": [
             "sensor",
+            "suite",
+            "code",
             "reason"
           ],
           "properties": {
             "sensor": {
               "type": "string",
               "minLength": 1
+            },
+            "suite": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "code": {
+              "enum": [
+                "tool-missing",
+                "tests-failed",
+                "coverage-unavailable",
+                null
+              ]
             },
             "reason": {
               "type": "string",

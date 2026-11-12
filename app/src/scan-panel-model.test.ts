@@ -1163,7 +1163,7 @@ const GAP_RUST: PreflightGap = {
 
 function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
   return {
-    version: 4,
+    version: 5,
     run_id: "run-1",
     pid: 4242,
     pgid: 4242,
@@ -1172,6 +1172,7 @@ function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
     repository: "/work/repo",
     sensors: ["crap", "mutation"],
     describe: false,
+    suites: {},
     phase: "checking",
     ended_at: null,
     exit: null,

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -42,6 +42,8 @@ pub struct RunGap {
 pub struct RunFailure {
     pub sensor: String,
     pub reason: String,
+    pub suite: Option<String>,
+    pub code: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,6 +58,7 @@ pub struct ScanRunRecord {
     pub repository: String,
     pub sensors: Vec<String>,
     pub describe: bool,
+    pub suites: BTreeMap<String, Vec<String>>,
     pub phase: String,
     pub ended_at: Option<String>,
     pub exit: Option<i32>,
@@ -87,7 +90,17 @@ fn ran_ok(ran: &[String]) -> bool {
 pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
     let run: ScanRunRecord = serde_json::from_str(text).ok()?;
 
-    if run.version != 4
+    let raw: serde_json::Value = serde_json::from_str(text).ok()?;
+
+    if raw
+        .get("failure")
+        .and_then(|failure| failure.as_object())
+        .is_some_and(|failure| !failure.contains_key("suite") || !failure.contains_key("code"))
+    {
+        return None;
+    }
+
+    if run.version != 5
         || run.run_id.is_empty()
         || run.pid == 0
         || run.pgid == Some(0)
@@ -101,8 +114,22 @@ pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
             .gaps
             .iter()
             .any(|gap| gap.id.is_empty() || gap.needs.iter().any(String::is_empty))
+        || run.suites.values().any(|names| {
+            names
+                .iter()
+                .enumerate()
+                .any(|(at, name)| name.is_empty() || names[..at].contains(name))
+        })
         || run.failure.as_ref().is_some_and(|failure| {
-            failure.sensor.is_empty() || failure.reason.chars().count() > STDERR_CHARS
+            failure.sensor.is_empty()
+                || failure.reason.chars().count() > STDERR_CHARS
+                || failure.suite.as_deref().is_some_and(str::is_empty)
+                || failure.code.as_deref().is_some_and(|code| {
+                    !matches!(
+                        code,
+                        "tool-missing" | "tests-failed" | "coverage-unavailable"
+                    )
+                })
         })
         || run.commit.as_deref().is_some_and(str::is_empty)
         || run.ran.as_ref().is_some_and(|ran| !ran_ok(ran))
@@ -1553,7 +1580,7 @@ mod tests {
         };
 
         format!(
-            r#"{{"version":4,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
+            r#"{{"version":5,"run_id":"{run_id}","pid":{pid},"pgid":{pgid},"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":true,"suites":{{}},"phase":"{phase}","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":{ran}}}"#
         )
     }
 
@@ -1616,8 +1643,8 @@ mod tests {
         let valid = examples("valid");
         let invalid = examples("invalid");
 
-        assert_eq!(valid.len(), 8);
-        assert_eq!(invalid.len(), 11);
+        assert_eq!(valid.len(), 9);
+        assert_eq!(invalid.len(), 15);
         assert!(valid.iter().all(|text| parse_run(text).is_some()));
         assert!(invalid.iter().all(|text| parse_run(text).is_none()));
 
@@ -1631,8 +1658,8 @@ mod tests {
         assert_eq!(
             phases,
             vec![
-                "checking", "failed", "failed", "finished", "finished", "refused", "running",
-                "stopped"
+                "checking", "failed", "failed", "failed", "finished", "finished", "refused",
+                "running", "stopped"
             ]
         );
     }
@@ -2175,7 +2202,7 @@ mod tests {
         gaps: &str,
     ) -> String {
         let record = format!(
-            r#"{{"version":4,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
+            r#"{{"version":5,"run_id":"fake-run","pid":4242,"pgid":4242,"started_at":"{started_at}","started_by":"{started_by}","repository":"/work/shop","sensors":["crap"],"describe":false,"suites":{{}},"phase":"{phase}","ended_at":"{started_at}","exit":{exit},"gaps":{gaps},"failure":null,"commit":"abc","ran":["extract"]}}"#
         );
         let source = dir.join("fake-record.json");
 

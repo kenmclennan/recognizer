@@ -26,7 +26,7 @@ const OK: Loaded = {
 
 const line = (value: object) => JSON.stringify(value);
 const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
-  version: 4,
+  version: 5,
   run_id: "run-1",
   pid: 4242,
   pgid: 4242,
@@ -35,6 +35,7 @@ const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
   repository: "/work/repo",
   sensors: ["alpha", "mut"],
   describe: true,
+  suites: {},
   phase: "running",
   ended_at: null,
   exit: null,
@@ -1286,7 +1287,14 @@ describe("scan notifications", () => {
         entry("sense", "alpha", "no coverage"),
         line({ event: "summary", exit: 1 }),
       ],
-      record: { failure: { sensor: "alpha", reason: "no coverage" } },
+      record: {
+        failure: {
+          sensor: "alpha",
+          suite: null,
+          code: null,
+          reason: "no coverage",
+        },
+      },
       result: { status: "finished", exitCode: 1 },
     });
     const { made } = timed(scan);
@@ -1545,7 +1553,7 @@ describe("one fold of the run record", () => {
       end: {
         phase: "failed",
         exit: 1,
-        failure: { sensor: "beta", reason: "slow" },
+        failure: { sensor: "beta", suite: null, code: null, reason: "slow" },
       },
       result: { status: "finished", exitCode: 1 },
     },
@@ -1743,7 +1751,9 @@ describe("one fold of the run record", () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       steps: [current, preflightOk, line({ event: "summary", exit: 1 })],
-      record: { failure: { sensor: "alpha", reason: "boom" } },
+      record: {
+        failure: { sensor: "alpha", suite: null, code: null, reason: "boom" },
+      },
       result: { status: "failed", exitCode: 1, stderr: "boom" },
     });
     const { lifecycle, rescanner } = harness(scan);
@@ -1885,7 +1895,12 @@ describe("the outcome comes from the run record", () => {
       phase: "failed",
       exit: 1,
       ran: null,
-      failure: { sensor: "scan", reason: "the scan ended on an error" },
+      failure: {
+        sensor: "scan",
+        suite: null,
+        code: null,
+        reason: "the scan ended on an error",
+      },
     });
 
     expect(
@@ -1901,7 +1916,7 @@ describe("the outcome comes from the run record", () => {
     phase: "failed" as const,
     exit: 1,
     ran: null,
-    failure: { sensor: "scan", reason: MESSAGE },
+    failure: { sensor: "scan", suite: null, code: null, reason: MESSAGE },
   };
   const failures = (made: { lifecycle: { text: string }[] }) =>
     made.lifecycle
@@ -1923,7 +1938,7 @@ describe("the outcome comes from the run record", () => {
         record: {
           ...ASKED,
           ...crash,
-          failure: { sensor: "scan", reason },
+          failure: { sensor: "scan", suite: null, code: null, reason },
           commit: null,
         },
         result: { status: "failed", exitCode: 2, stderr },

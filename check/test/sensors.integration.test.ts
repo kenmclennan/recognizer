@@ -404,6 +404,67 @@ describe.skipIf(!HAS_UV)(
     );
 
     it(
+      "runs only the ticked suite and keeps the other suite's earlier result",
+      async () => {
+        useCrapFixture(
+          "{}",
+          CRAP_SUITES.replace(
+            "command: touch coverage/lcov.info\n    coverage: {path: coverage/lcov.info, format: lcov}\n  - name: sample-web",
+            "command: touch coverage/lcov.info coverage/ran-sample\n    coverage: {path: coverage/lcov.info, format: lcov}\n  - name: sample-web",
+          ).replace(
+            "command: touch coverage/lcov.info\n    runner",
+            "command: touch coverage/lcov.info coverage/ran-web\n    runner",
+          ),
+        );
+
+        const suitesOf = (): {
+          name: string;
+          status: string;
+          ran_at: string | null;
+        }[] =>
+          JSON.parse(
+            readFileSync(
+              join(repository, ".recognizer/cache/findings/crap.json"),
+              "utf8",
+            ),
+          ).suites;
+        const ranSample = join(repository, "coverage/ran-sample");
+        const ranWeb = join(repository, "coverage/ran-web");
+
+        expect(
+          await run(["scan", repository, "--sense", "crap"], capture().io),
+        ).toBe(0);
+        expect(existsSync(ranSample)).toBe(true);
+        expect(existsSync(ranWeb)).toBe(true);
+
+        const first = suitesOf();
+
+        rmSync(ranSample);
+        rmSync(ranWeb);
+
+        const selection = join(repository, "crap-suites.json");
+
+        writeFileSync(selection, JSON.stringify({ crap: ["sample"] }));
+
+        expect(
+          await run(
+            ["scan", repository, "--sense", "crap", "--suites", selection],
+            capture().io,
+          ),
+        ).toBe(0);
+        expect(existsSync(ranSample)).toBe(true);
+        expect(existsSync(ranWeb)).toBe(false);
+
+        const second = suitesOf();
+
+        expect(second.map((one) => one.name)).toEqual(["sample", "sample-web"]);
+        expect(second[1]).toEqual(first[1]);
+        expect(second[0]?.status).toBe("ok");
+      },
+      scaledTimeout(180_000),
+    );
+
+    it(
       "fails with one sentence and writes nothing when no test suites are configured",
       async () => {
         useCrapFixture("{}", "");

@@ -6,7 +6,7 @@ import type { Diagnosis } from "./sensor-reason.js";
 import { receivesSuites, shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
-  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--confirm-above <usd>] [--by <name>] [--json]";
+  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--json]";
 
 export interface ScanOptions {
   positionals: string[];
@@ -16,6 +16,7 @@ export interface ScanOptions {
   json: boolean;
   by: string | undefined;
   modules: string | undefined;
+  suites: string | undefined;
   confirmAbove: number | undefined;
 }
 
@@ -46,6 +47,7 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     json: false,
     by: undefined,
     modules: undefined,
+    suites: undefined,
     confirmAbove: undefined,
   };
 
@@ -90,6 +92,19 @@ export function parseScanArgs(argv: string[]): ScanOptions {
       }
 
       options.modules = value;
+    } else if (arg === "--suites" || arg.startsWith("--suites=")) {
+      const inline = arg.startsWith("--suites=");
+      const value = inline ? arg.slice(9) : argv[index + 1];
+
+      if (value === undefined || value === "" || value.startsWith("--")) {
+        throw usageError("--suites needs a file");
+      }
+
+      if (!inline) {
+        index += 1;
+      }
+
+      options.suites = value;
     } else if (
       arg === "--confirm-above" ||
       arg.startsWith("--confirm-above=")
@@ -142,7 +157,79 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     throw usageError("--modules needs --describe or --sense");
   }
 
+  if (
+    options.suites !== undefined &&
+    options.describe === false &&
+    options.sense === null
+  ) {
+    throw usageError("--suites needs --describe or --sense");
+  }
+
   return options;
+}
+
+export function parseSuiteSelection(
+  text: string,
+  configured: readonly string[],
+  sensors: readonly { name: string; runsTests: boolean }[],
+): Record<string, string[]> {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new InputError([
+      `--suites file is not valid JSON: ${(error as Error).message}`,
+    ]);
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new InputError([
+      "--suites file must be a JSON object from sensor name to an array of suite names",
+    ]);
+  }
+
+  const result: Record<string, string[]> = {};
+
+  for (const [name, value] of Object.entries(parsed)) {
+    const sensor = sensors.find((one) => one.name === name);
+
+    if (sensor === undefined) {
+      throw new InputError([`--suites names ${name}, which is not selected`]);
+    }
+
+    if (!sensor.runsTests) {
+      throw new InputError([`--suites names ${name}, which runs no tests`]);
+    }
+
+    if (
+      !Array.isArray(value) ||
+      value.some((one) => typeof one !== "string" || one === "")
+    ) {
+      throw new InputError([
+        `--suites ${name} must be an array of non-empty suite names`,
+      ]);
+    }
+
+    if (value.length === 0) {
+      throw new InputError([`--suites ${name} must name at least one suite`]);
+    }
+
+    const unknown = (value as string[]).filter(
+      (one) => !configured.includes(one),
+    );
+
+    if (unknown.length > 0) {
+      throw new InputError([
+        ...unknown.map((one) => `--suites ${name}: no such suite: ${one}`),
+        `configured suites: ${configured.join(", ")}`,
+      ]);
+    }
+
+    result[name] = [...new Set(value as string[])];
+  }
+
+  return result;
 }
 
 export function parseModuleScope(text: string): string[] {

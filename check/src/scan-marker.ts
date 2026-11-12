@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Io } from "./cli.js";
 import validate from "./generated/scan-marker-validator.js";
 import type { PhaseName } from "./run-log.js";
+import type { DiagnosisCode } from "./sensor-reason.js";
 
 export const MARKER_FILE = "scan-running.json";
 export const PROGRESS_FILE = "scan-running.progress.jsonl";
@@ -30,11 +31,13 @@ export interface RunGap {
 
 export interface RunFailure {
   sensor: string;
+  suite: string | null;
+  code: DiagnosisCode | null;
   reason: string;
 }
 
 export interface ScanRunRecord {
-  version: 4;
+  version: 5;
   run_id: string;
   pid: number;
   pgid: number | null;
@@ -43,6 +46,7 @@ export interface ScanRunRecord {
   repository: string;
   sensors: string[];
   describe: boolean;
+  suites: Record<string, string[]>;
   phase: ScanRunPhase;
   ended_at: string | null;
   exit: number | null;
@@ -60,6 +64,7 @@ export interface RunSummary {
 export interface MarkerDetails {
   sensors: string[];
   describe: boolean;
+  suites?: Record<string, string[]>;
 }
 
 export interface HeldMarker {
@@ -163,7 +168,7 @@ export function acquireMarker(
   const path = markerPath(root);
   const progress = progressPath(root);
   let record: ScanRunRecord = {
-    version: 4,
+    version: 5,
     run_id: randomUUID(),
     pid: io.pid(),
     pgid: io.processGroup(io.pid()),
@@ -172,6 +177,7 @@ export function acquireMarker(
     repository: root,
     sensors: details.sensors,
     describe: details.describe,
+    suites: details.suites ?? {},
     phase: "checking",
     ended_at: null,
     exit: null,
@@ -289,6 +295,8 @@ export function acquireMarker(
           exit: 1,
           failure: {
             sensor: "scan",
+            suite: null,
+            code: null,
             reason: boundReason(crash ?? GENERIC_REASON),
           },
         });

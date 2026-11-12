@@ -7,6 +7,7 @@ import {
   idlePhases,
   nothingRanText,
   parseScanArgs,
+  parseSuiteSelection,
   phaseLine,
   selectSensors,
   summaryLine,
@@ -408,5 +409,65 @@ describe("idlePhases and nothingRanText", () => {
     expect(record.describe).toBe(true);
     expect(record.sensors.length).toBeGreaterThan(0);
     expect(record.ran).toBeNull();
+  });
+});
+
+describe("parseScanArgs --suites", () => {
+  it("reads the file, separate or inline", () => {
+    expect(
+      parseScanArgs(["--sense", "crap", "--suites", "s.json"]).suites,
+    ).toBe("s.json");
+    expect(parseScanArgs(["--sense", "crap", "--suites=s.json"]).suites).toBe(
+      "s.json",
+    );
+  });
+
+  it("needs a file and needs --sense or --describe", () => {
+    expect(() => parseScanArgs(["--sense", "crap", "--suites"])).toThrow(
+      /--suites needs a file/,
+    );
+    expect(() => parseScanArgs(["--suites", "s.json"])).toThrow(
+      /--suites needs --describe or --sense/,
+    );
+  });
+});
+
+describe("parseSuiteSelection", () => {
+  const configured = ["unit", "web"];
+  const sensors = [
+    { name: "crap", runsTests: true },
+    { name: "mutation", runsTests: true },
+    { name: "duplication", runsTests: false },
+  ];
+
+  it("parses per-sensor arrays and deduplicates", () => {
+    expect(
+      parseSuiteSelection(
+        '{"crap":["unit","unit"],"mutation":["unit","web"]}',
+        configured,
+        sensors,
+      ),
+    ).toEqual({ crap: ["unit"], mutation: ["unit", "web"] });
+  });
+
+  it.each([
+    ["malformed", "{", /not valid JSON/],
+    ["not an object", "[]", /must be a JSON object/],
+    ["an unselected sensor", '{"other":["unit"]}', /not selected/],
+    [
+      "a sensor that runs no tests",
+      '{"duplication":["unit"]}',
+      /runs no tests/,
+    ],
+    ["an empty array", '{"crap":[]}', /at least one suite/],
+    ["an unknown suite", '{"crap":["nope"]}', /no such suite: nope/],
+    ["a non-array", '{"crap":"unit"}', /array of non-empty suite names/],
+  ])("refuses %s with an InputError", (_, text, message) => {
+    expect(() => parseSuiteSelection(text, configured, sensors)).toThrow(
+      InputError,
+    );
+    expect(() => parseSuiteSelection(text, configured, sensors)).toThrow(
+      message,
+    );
   });
 });
