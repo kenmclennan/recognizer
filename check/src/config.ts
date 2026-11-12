@@ -15,6 +15,10 @@ export function configFile(root: string): string {
   return join(root, ".recognizer", "config.yaml");
 }
 
+export function policyFile(root: string): string {
+  return join(root, ".recognizer", "policy.yaml");
+}
+
 export function readConfig(
   io: Io,
   root: string,

@@ -1,5 +1,5 @@
-import { join } from "node:path";
 import type { Io } from "./cli.js";
+import { policyFile } from "./config.js";
 import { publish } from "./config-keys.js";
 import { InputError } from "./errors.js";
 import {
@@ -41,7 +41,7 @@ function introduced(original: string, text: string): string | null {
 const POLICY: KeyedCommand = {
   noun: "policy",
   usage: usageFor("policy"),
-  fileFor: (root) => join(root, ".recognizer", "policy.yaml"),
+  fileFor: policyFile,
   keysFor: () => PUBLISHED,
   validate: introduced,
   missing: "there is no policy at .recognizer/policy.yaml",

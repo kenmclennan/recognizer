@@ -1,6 +1,5 @@
-import { join } from "node:path";
 import type { Io } from "./cli.js";
-import { readConfig } from "./config.js";
+import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import {
   type FindingsDocument,
@@ -23,7 +22,7 @@ import {
 import { freshnessFor } from "./tests-hash.js";
 
 export function readPolicy(io: Io, root: string): Policy | null {
-  const file = join(root, ".recognizer", "policy.yaml");
+  const file = policyFile(root);
 
   if (!io.exists(file)) {
     return null;
