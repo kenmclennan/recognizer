@@ -3286,6 +3286,14 @@ export function showExplorer(
       );
     }
 
+    for (const problem of health.policyProblems) {
+      condition(
+        `policy-problem:${problem.kind}:${problem.subject}`,
+        "warning",
+        `.recognizer/policy.yaml: ${problem.text}`,
+      );
+    }
+
     for (const name of [
       ...(loaded.overlaysUnreadable ?? []),
       ...overlayModel.unreadable,
