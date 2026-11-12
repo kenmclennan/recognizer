@@ -1,12 +1,17 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { SCANNERS } from "../src/scanners.js";
+import { notInstalledMessage, SCANNERS } from "../src/scanners.js";
 
 describe("the scanner install hints", () => {
-  it("point every scanner at the Homebrew install", () => {
+  it("point every scanner at the Homebrew cask", () => {
     for (const spec of SCANNERS) {
-      expect(spec.install).toBe("brew install kenmclennan/tap/recognizer");
+      expect(spec.install).toBe(
+        "brew install --cask kenmclennan/tap/recognizer",
+      );
+      expect(notInstalledMessage(spec)).toContain(
+        "brew install --cask kenmclennan/tap/recognizer",
+      );
     }
   });
 

@@ -1,6 +1,7 @@
 import { isAbsolute } from "node:path";
 import type { Io } from "./cli.js";
 import type { Language } from "./detect.js";
+import { BREW_FIX } from "./preflight.js";
 
 export interface ScannerSpec {
   language: Language;
@@ -14,31 +15,31 @@ export const SCANNERS: ScannerSpec[] = [
     language: "python",
     name: "recognizer-scan-python",
     variable: "RECOGNIZER_SCAN_PYTHON",
-    install: "brew install kenmclennan/tap/recognizer",
+    install: BREW_FIX,
   },
   {
     language: "typescript",
     name: "recognizer-scan-typescript",
     variable: "RECOGNIZER_SCAN_TYPESCRIPT",
-    install: "brew install kenmclennan/tap/recognizer",
+    install: BREW_FIX,
   },
   {
     language: "kotlin",
     name: "recognizer-scan-kotlin",
     variable: "RECOGNIZER_SCAN_KOTLIN",
-    install: "brew install kenmclennan/tap/recognizer",
+    install: BREW_FIX,
   },
   {
     language: "rust",
     name: "recognizer-scan-rust",
     variable: "RECOGNIZER_SCAN_RUST",
-    install: "brew install kenmclennan/tap/recognizer",
+    install: BREW_FIX,
   },
   {
     language: "csharp",
     name: "recognizer-scan-csharp",
     variable: "RECOGNIZER_SCAN_CSHARP",
-    install: "brew install kenmclennan/tap/recognizer",
+    install: BREW_FIX,
   },
 ];
 
