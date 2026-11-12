@@ -154,7 +154,6 @@ describe.skipIf(!HAS_UV)(
 
           if (name === "python") {
             expect(Object.keys(got.sensors ?? {})).toEqual([
-              "duplication",
               "crap",
               "mutation",
               "thresholds",

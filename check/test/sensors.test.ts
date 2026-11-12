@@ -28,6 +28,8 @@ import {
 } from "./scan-helpers.js";
 
 const COMMIT = "abc123";
+const NOT_MEASURED =
+  "duplication not measured since the last scan: run recognizer scan\n";
 const read = (path: string) => readFileSync(join(REPO, path), "utf8");
 const checkScan = JSON.parse(read("fixtures/check/scan.json"));
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
@@ -706,7 +708,7 @@ describe("check judging a registered sensor's findings per module", () => {
     });
     const { err, out } = await check(fake, "--json");
 
-    expect(err).toBe(POLICY_PROBLEM);
+    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
     expect(JSON.parse(out).sensors).toContainEqual({
       name: "fake-sensor",
       status: "ran",
@@ -829,7 +831,7 @@ describe("check running the structure sensor", () => {
     expect(out.split("\n")[0]).toBe(
       "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on",
     );
-    expect(err).toBe(POLICY_PROBLEM);
+    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
   });
 
   it("writes no file and removes an old one when structure is off", async () => {
@@ -946,7 +948,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("16");
+    expect(written.sensor.version).toBe("17");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -971,7 +973,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("16");
+    expect(written.sensor.version).toBe("17");
     expect(written.settings.distance_threshold).toBeUndefined();
   });
 
@@ -1380,7 +1382,7 @@ describe("scan --sense running a registered sensor as a real process", () => {
     const file = join(root, ".recognizer/cache/findings/fake-sensor.json");
     const document = JSON.parse(readFileSync(file, "utf8"));
 
-    expect(sensed.err()).toBe("");
+    expect(sensed.err()).toBe("duplication: 4 files parsed, 0 reused\n");
     expect(out.err()).toBe("");
     expect(document.commit).toBe(git("rev-parse", "HEAD").trim());
     expect(JSON.parse(out.out()).violations).toHaveLength(1);

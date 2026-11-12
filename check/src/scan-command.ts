@@ -23,6 +23,8 @@ import {
 } from "./describe-projection.js";
 import { findDescriber } from "./describer-in-effect.js";
 import { detectLanguages, type Language } from "./detect.js";
+import type { Parsers } from "./duplication/parsers.js";
+import { loadParsers } from "./duplication/parsers.js";
 import { errorText, InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
@@ -332,14 +334,17 @@ function readSuitesFile(io: Io, file: string): string {
 
 type ScanStep =
   | { kind: "describe"; input: DescribeInput }
-  | { kind: "sense"; input: RunSensorsInput };
+  | { kind: "sense"; input: RunSensorsInput }
+  | { kind: "parsers"; languages: string[] };
+
+type ScanAnswer = DescribeResult | Parsers | Error | null | undefined;
 
 function* scanFlow(
   argv: string[],
   io: Io,
   takeMarker: boolean,
   read: ConfigRead,
-): Generator<ScanStep, number, DescribeResult | undefined> {
+): Generator<ScanStep, number, ScanAnswer> {
   const options = parseScanArgs(argv);
 
   requireBy(options.by);
@@ -451,11 +456,7 @@ function* scanFlow(
 
   const taken = marker;
 
-  function* scanRest(): Generator<
-    ScanStep,
-    number,
-    DescribeResult | undefined
-  > {
+  function* scanRest(): Generator<ScanStep, number, ScanAnswer> {
     const commit = resolveCommit(io, root);
     const scoped = (command: string[]): string[] =>
       options.modules !== undefined && isScoped(command)
@@ -703,7 +704,7 @@ function* scanFlow(
     emit(preflightLine({ state: "ok" }));
     taken?.running();
 
-    if (readsSensors(read) && runStructure(io, root, scans)) {
+    if (readsSensors(read) && (yield* runStructure(io, root, scans))) {
       failed = true;
     }
 
@@ -904,10 +905,14 @@ function* scanFlow(
 
 export function runScanSync(argv: string[], io: Io, read: ConfigRead): number {
   const flow = scanFlow(argv, io, false, read);
-  const step = flow.next();
+  let step = flow.next();
 
-  if (!step.done) {
-    throw new Error("a synchronous scan cannot describe or sense");
+  while (!step.done) {
+    if (step.value.kind !== "parsers") {
+      throw new Error("a synchronous scan cannot describe or sense");
+    }
+
+    step = flow.next(null);
   }
 
   return step.value;
@@ -923,6 +928,12 @@ export async function runScan(argv: string[], io: Io): Promise<number> {
       if (step.value.kind === "sense") {
         await runSensors(step.value.input);
         step = flow.next(undefined);
+      } else if (step.value.kind === "parsers") {
+        try {
+          step = flow.next(await loadParsers(step.value.languages));
+        } catch (error) {
+          step = flow.next(error as Error);
+        }
       } else {
         step = flow.next(await describeModules(step.value.input));
       }
@@ -934,7 +945,11 @@ export async function runScan(argv: string[], io: Io): Promise<number> {
   }
 }
 
-function runStructure(io: Io, root: string, scans: Scan[]): boolean {
+function* runStructure(
+  io: Io,
+  root: string,
+  scans: Scan[],
+): Generator<ScanStep, boolean, ScanAnswer> {
   if (scans.length === 0) {
     return false;
   }
@@ -943,6 +958,8 @@ function runStructure(io: Io, root: string, scans: Scan[]): boolean {
     const settings = resolveStructureSettings(
       readConfig(io, root, ["sensors"]),
     );
+
+    io.remove(findingsFile(root, "duplication"));
 
     if (settings === "off") {
       io.remove(findingsFile(root, "structure"));
@@ -959,7 +976,30 @@ function runStructure(io: Io, root: string, scans: Scan[]): boolean {
       policy,
     );
 
-    const run = runStructureSensor(io, root, scans, policy, settings);
+    const answer =
+      settings.duplication === false
+        ? null
+        : yield {
+            kind: "parsers",
+            languages: [
+              ...new Set(
+                scans.flatMap((scan) =>
+                  scan.modules.map((module) => module.language),
+                ),
+              ),
+            ],
+          };
+    const parsers =
+      answer === null || answer === undefined || answer instanceof Error
+        ? null
+        : (answer as Parsers);
+    const run = runStructureSensor(io, root, scans, policy, settings, parsers);
+
+    if (answer instanceof Error) {
+      io.stderr(`failed structure: duplication: ${answer.message}\n`);
+
+      return true;
+    }
 
     if (run.error !== null) {
       io.stderr(`failed structure: ${run.error}\n`);

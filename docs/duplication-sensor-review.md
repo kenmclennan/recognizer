@@ -1,5 +1,7 @@
 # Duplication sensor review
 
+Status: the method now lives in `check/src/duplication/`, as the duplication check of the structure sensor; the measurements below stay as history.
+
 An investigation of the duplication sensor's method on lightcycle, per REC-182. Nothing in `sensors/src/` changed. The recommendation is at the end.
 
 ## Target and baseline

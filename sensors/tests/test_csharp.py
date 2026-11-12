@@ -9,8 +9,6 @@ from jsonschema import Draft202012Validator
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
-from recognizer_sensors.duplication.normalise import normalise
-from recognizer_sensors.duplication.shapes import is_accessor_shape, is_constructor_shape
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.mutation.sites import find_sites
 from recognizer_sensors.mutation.warmup import coverage_run
@@ -239,38 +237,6 @@ def test_each_counted_and_uncounted_construct_matches_its_hand_count(body, expec
     assert complexities(source)["C.M"] == expected
 
 
-SHAPES = [
-    ("class A { A(int a, int b) { this.a = a; this.b = 2; } }", "constructor"),
-    ("class A { A(int a) { this.a = a + 1; } }", None),
-    ("class A { A(int a) { this.a = other; } }", None),
-    ("class A { A(int a) { this.a = a; Run(); } }", None),
-    ("class A { A(int a) { this.a += a; } }", None),
-    ('class A { int F() { return this.s.Section("k").Entry("x", 0); } }', "accessor"),
-    ('class A { int F => this.s.Section("k").Entry("x", 0); }', "accessor"),
-    ("class A { int F => this.items[0]; }", "accessor"),
-    ("class A { int F(int k) { return this.s.Get(k); } }", None),
-    ("class A { int F() { var x = this.s; return x; } }", None),
-    ("class A { int F { get { return this.s.Get(1); } } }", "accessor"),
-]
-
-
-@pytest.mark.parametrize(("source", "shape"), SHAPES)
-def test_the_constructor_and_accessor_shapes_hold_for_csharp(source, shape):
-    function = next(iter(functions(source).values())).node
-
-    assert is_constructor_shape(function) is (shape == "constructor")
-    assert is_accessor_shape(function) is (shape == "accessor")
-
-
-def test_a_call_keeps_its_method_name_and_loses_the_receiver_name():
-    first = functions("class A { int F() { return one.Go(x); } }")["A.F"].node
-    second = functions("class A { int F() { return two.Go(y); } }")["A.F"].node
-    third = functions("class A { int F() { return one.Stop(x); } }")["A.F"].node
-
-    assert normalise(first, set()) == normalise(second, set())
-    assert normalise(first, set()) != normalise(third, set())
-
-
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
@@ -395,17 +361,6 @@ def valid(output):
     return document["findings"]
 
 
-def test_duplication_runs_without_dotnet_on_the_fixture(monkeypatch, tmp_path):
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    monkeypatch.setenv("PATH", str(empty))
-    root = csharp_repository(tmp_path)
-    status, output = run_sensor("duplication", root, tmp_path, {}, "c1")
-
-    assert status == 0
-    assert valid(output) == []
-
-
 def test_crap_and_thresholds_run_on_the_fixture_with_a_coverlet_shaped_report(
     tmp_path, monkeypatch
 ):
@@ -457,11 +412,3 @@ def test_mutation_runs_on_the_fixture_with_a_runner_script(tmp_path, monkeypatch
 
     assert status == 0
     valid(output)
-
-
-def test_duplication_over_the_real_fixture_pins_its_finding_count(tmp_path):
-    root = csharp_repository(tmp_path)
-    status, output = run_sensor("duplication", root, tmp_path, {}, "c1")
-
-    assert status == 0
-    assert len(valid(output)) == 0

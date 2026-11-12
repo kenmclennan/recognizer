@@ -18,21 +18,6 @@ export interface ShippedSensorEntry {
 
 export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
   {
-    name: "duplication",
-    display: "Duplication",
-    line: "Finds functions whose structure repeats another's, so shared logic can be extracted once.",
-    defaults: {
-      threshold: 0.82,
-      min_lines: 4,
-      pair_min_lines: 6,
-      min_nodes: 20,
-    },
-    runs_tests: false,
-    listed: true,
-    scoped: false,
-    metrics: [],
-  },
-  {
     name: "crap",
     display: "C.R.A.P.",
     line: "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",

@@ -1,6 +1,10 @@
 import { type Analysis, analyse, type ModuleMetrics } from "./analyse.js";
 import { violationId } from "./baseline.js";
 import type { Config } from "./config-parse.js";
+import {
+  DEFAULT_DUPLICATION_SETTINGS,
+  type DuplicationSettings,
+} from "./duplication/findings.js";
 import { violationText } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { type FolderMetrics, measureFolders } from "./folder-metrics.js";
@@ -15,9 +19,10 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "16";
+export const STRUCTURE_SENSOR_VERSION = "17";
 
 export interface StructureSettings {
+  duplication: false | DuplicationSettings;
   entry_points: string[];
   warnings: {
     cycle: boolean;
@@ -41,6 +46,7 @@ export interface StructureResult {
 }
 
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
+  duplication: { ...DEFAULT_DUPLICATION_SETTINGS },
   entry_points: [],
   warnings: {
     cycle: true,
@@ -65,7 +71,13 @@ export function resolveStructureSettings(
   const defaults = DEFAULT_STRUCTURE_SETTINGS.warnings;
   const orphan = given.warnings?.orphan ?? true;
 
+  const duplication = given.duplication;
+
   return {
+    duplication:
+      duplication === false
+        ? false
+        : { ...DEFAULT_DUPLICATION_SETTINGS, ...(duplication ?? {}) },
     entry_points: typeof orphan === "object" ? [...orphan.entry_points] : [],
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
@@ -150,6 +162,7 @@ export function structureSensor(
   policy: Policy | null,
   settings: StructureSettings,
   context: StructureContext,
+  duplication: FindingRecord[] | null = null,
 ): StructureResult {
   const findings: FindingRecord[] = [];
   const seen = new Set<string>();
@@ -240,8 +253,11 @@ export function structureSensor(
           private_imports: settings.warnings.private_imports,
           long_function: settings.warnings.long_function,
         },
+        ...(duplication !== null && settings.duplication !== false
+          ? { duplication: { ...settings.duplication } }
+          : {}),
       },
-      findings: [...findings, ...warnings],
+      findings: [...findings, ...warnings, ...(duplication ?? [])],
       inputs: measuredInputs(scans),
     },
     metrics,

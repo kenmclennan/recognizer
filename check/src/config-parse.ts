@@ -8,7 +8,15 @@ export interface SensorRegistration {
   command: string[];
 }
 
+export interface DuplicationInput {
+  threshold?: number;
+  min_lines?: number;
+  pair_min_lines?: number;
+  min_nodes?: number;
+}
+
 export interface StructureSettingsInput {
+  duplication?: false | DuplicationInput;
   warnings?: {
     cycle?: boolean;
     unused_exports?: boolean;
@@ -167,6 +175,76 @@ function rejectEmptySections(document: unknown): void {
   }
 }
 
+function rejectRetiredDuplicationSensor(document: unknown): void {
+  if (
+    isPlainObject(document) &&
+    isPlainObject(document.sensors) &&
+    "duplication" in document.sensors
+  ) {
+    throw new InputError([
+      "config/sensors/duplication was removed: duplication is now part of the structure sensor and runs with every scan; move its settings to sensors.structure.duplication (threshold, min_lines, pair_min_lines, min_nodes), or set sensors.structure.duplication to false to switch it off, and delete the sensors.duplication key",
+    ]);
+  }
+}
+
+const DUPLICATION_KEYS = [
+  "threshold",
+  "min_lines",
+  "pair_min_lines",
+  "min_nodes",
+];
+
+function rejectBadDuplication(document: unknown): void {
+  if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
+    return;
+  }
+
+  const structure = document.sensors.structure;
+  const duplication = isPlainObject(structure)
+    ? structure.duplication
+    : undefined;
+
+  if (!isPlainObject(duplication)) {
+    return;
+  }
+
+  const prefix = "config/sensors/structure/duplication";
+  const unknown = Object.keys(duplication)
+    .filter((key) => !DUPLICATION_KEYS.includes(key))
+    .sort();
+
+  if (unknown.length > 0) {
+    throw new InputError([`${prefix} unknown setting: ${unknown.join(", ")}`]);
+  }
+
+  const threshold = duplication.threshold;
+
+  if (threshold !== undefined) {
+    if (typeof threshold !== "number") {
+      throw new InputError([`${prefix}/threshold must be a number`]);
+    }
+
+    if (!(threshold > 0 && threshold <= 1)) {
+      throw new InputError([
+        `${prefix}/threshold must be above 0 and at most 1`,
+      ]);
+    }
+  }
+
+  for (const key of DUPLICATION_KEYS.slice(1)) {
+    const value = duplication[key];
+
+    if (
+      value !== undefined &&
+      !(typeof value === "number" && Number.isInteger(value) && value >= 1)
+    ) {
+      throw new InputError([
+        `${prefix}/${key} must be an integer of at least 1`,
+      ]);
+    }
+  }
+}
+
 function rejectRetiredWarnings(document: unknown): void {
   const retired = retiredKeysIn(document).find(
     ({ path }) => path[0] !== "overlays",
@@ -298,6 +376,8 @@ export function parseConfig(text: string, read: ConfigRead = "all"): Config {
   document = project(document, read);
 
   rejectRetiredOverlays(document);
+  rejectRetiredDuplicationSensor(document);
+  rejectBadDuplication(document);
   rejectEmptySections(document);
   rejectRetiredWarnings(document);
 

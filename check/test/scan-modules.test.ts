@@ -184,14 +184,14 @@ describe("recognizer scan --modules", () => {
     const { fake } = await scan(
       JSON.stringify(["m0.py"]),
       "--sense",
-      "mutation,duplication,crap",
+      "mutation,thresholds,crap",
       "--modules",
       FILE,
     );
 
     expect(senseArgs(fake, "mutation")).toContain("--modules");
     expect(senseArgs(fake, "mutation")?.slice(-2)).toEqual(["--modules", FILE]);
-    expect(senseArgs(fake, "duplication")).not.toContain("--modules");
+    expect(senseArgs(fake, "thresholds")).not.toContain("--modules");
     expect(senseArgs(fake, "crap")).not.toContain("--modules");
   });
 

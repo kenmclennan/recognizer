@@ -36,6 +36,59 @@ describe("senseRepository", () => {
     expect(run.documents[0]?.commit).toBe(CURRENT);
   });
 
+  it("carries the stored duplication findings through a rewrite of the structure file", async () => {
+    const first = await senseRepository(
+      scans,
+      { policy, config: null },
+      fakeSensors(),
+    );
+    const settings = {
+      threshold: 0.82,
+      min_lines: 4,
+      pair_min_lines: 6,
+      min_nodes: 20,
+    };
+    const kept = {
+      ...first.documents[0],
+      settings: { ...first.documents[0]?.settings, duplication: settings },
+      findings: [
+        ...(first.documents[0]?.findings ?? []),
+        {
+          id: "duplication:a.py::f|a.py::g",
+          kind: "duplication",
+          severity: "warning",
+          principle: "Do not repeat yourself",
+          summary: "f in a.py is 90% similar to g in a.py",
+          evidence: { modules: ["a.py"] },
+        },
+      ],
+    };
+    const port = fakeSensors({ structure: JSON.stringify(kept) });
+    const run = await senseRepository(scans, { policy, config: null }, port);
+
+    expect(
+      run.documents[0]?.findings.filter((one) => one.kind === "duplication"),
+    ).toHaveLength(1);
+    expect(statusOf(run, "structure")).toEqual({
+      name: "structure",
+      status: "ran",
+    });
+  });
+
+  it("reports duplication as not measured when the stored document does not match", async () => {
+    const run = await senseRepository(
+      scans,
+      { policy, config: null },
+      fakeSensors(),
+    );
+
+    expect(statusOf(run, "structure")).toEqual({
+      name: "structure",
+      status: "ran",
+      notMeasured: ["duplication"],
+    });
+  });
+
   it("keeps the structure document in memory when the scans carry no commit", async () => {
     const port = fakeSensors();
     const bare = [fixtureScan("check")];
@@ -420,7 +473,9 @@ describe("withSensors", () => {
     expect(next.findings.map((document) => document.sensor.name)).toEqual([
       "structure",
     ]);
-    expect(next.sensors).toEqual([{ name: "structure", status: "ran" }]);
+    expect(next.sensors).toEqual([
+      { name: "structure", status: "ran", notMeasured: ["duplication"] },
+    ]);
     expect(next.policy).toBe(policy);
     expect(next.baseline).toBe("{}");
     expect(next.modules).toEqual(loaded.modules);

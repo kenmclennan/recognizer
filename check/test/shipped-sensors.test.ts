@@ -17,7 +17,7 @@ import { REPO } from "./helpers.js";
 
 const command = (settings: string) => [
   "recognizer-sensors",
-  "duplication",
+  "thresholds",
   "--repository",
   "{repository}",
   "--commit",
@@ -74,19 +74,19 @@ describe("expandShortForms for thresholds", () => {
 
 describe("expandShortForms", () => {
   it("expands an empty mapping", () => {
-    expect(expandShortForms({ duplication: {} }, SHIPPED_SENSORS)).toEqual({
-      duplication: { command: command("{}") },
+    expect(expandShortForms({ thresholds: {} }, SHIPPED_SENSORS)).toEqual({
+      thresholds: { command: command("{}") },
     });
   });
 
   it("carries the settings as JSON", () => {
     expect(
-      expandShortForms({ duplication: { threshold: 0.9 } }, SHIPPED_SENSORS),
-    ).toEqual({ duplication: { command: command('{"threshold":0.9}') } });
+      expandShortForms({ thresholds: { threshold: 0.9 } }, SHIPPED_SENSORS),
+    ).toEqual({ thresholds: { command: command('{"threshold":0.9}') } });
   });
 
   it("leaves an entry with a command untouched", () => {
-    const entries = { duplication: { command: ["mine"] } };
+    const entries = { thresholds: { command: ["mine"] } };
 
     expect(expandShortForms(entries, SHIPPED_SENSORS)).toEqual(entries);
   });
@@ -98,8 +98,8 @@ describe("expandShortForms", () => {
   });
 
   it("expands nothing for an empty shipped set", () => {
-    expect(expandShortForms({ duplication: {} }, [])).toEqual({
-      duplication: {},
+    expect(expandShortForms({ thresholds: {} }, [])).toEqual({
+      thresholds: {},
     });
   });
 
@@ -162,12 +162,12 @@ describe("the registry", () => {
     }
   });
 
-  it("lists crap, duplication and mutation and hides the configuration-only sensors", () => {
+  it("lists crap and mutation and hides the configuration-only sensors", () => {
     expect(
       SHIPPED_SENSOR_LIST.filter(({ listed }) => listed)
         .map(({ name }) => name)
         .sort(),
-    ).toEqual(["crap", "duplication", "mutation"]);
+    ).toEqual(["crap", "mutation"]);
     expect(
       SHIPPED_SENSOR_LIST.filter(({ listed }) => !listed).map(
         ({ name }) => name,
@@ -195,7 +195,7 @@ describe("the registry", () => {
     ).toEqual(["mutation"]);
     expect(isScoped(["recognizer-sensors", "mutation"])).toBe(true);
 
-    for (const name of ["duplication", "crap", "thresholds"]) {
+    for (const name of ["crap", "thresholds"]) {
       expect(isScoped(["recognizer-sensors", name])).toBe(false);
     }
 
@@ -205,7 +205,7 @@ describe("the registry", () => {
   it("tests the run command, not the name alone, for runs_tests", () => {
     expect(runsTests(["recognizer-sensors", "crap"])).toBe(true);
     expect(runsTests(["recognizer-sensors", "mutation"])).toBe(true);
-    expect(runsTests(["recognizer-sensors", "duplication"])).toBe(false);
+    expect(runsTests(["recognizer-sensors", "thresholds"])).toBe(false);
     expect(runsTests(["my-crap", "crap"])).toBe(false);
   });
 });
@@ -363,12 +363,11 @@ describe("the tests list", () => {
 
   it("hands the list to the crap and mutation short forms and to no other sensor", () => {
     const config = parseConfig(
-      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap: {}\n  mutation: {}\n  duplication: {}\n  thresholds: {}\n`,
+      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\n`,
     );
 
     expect(settingsOf(config.sensors?.crap).tests).toEqual(config.tests);
     expect(settingsOf(config.sensors?.mutation).tests).toEqual(config.tests);
-    expect(settingsOf(config.sensors?.duplication)).toEqual({});
     expect(settingsOf(config.sensors?.thresholds)).toEqual({});
   });
 
@@ -382,7 +381,7 @@ describe("the tests list", () => {
     const suites = [{ name: "api" }];
     const selected = selectSensors(
       [],
-      ["crap", "mutation", "duplication", "thresholds"],
+      ["crap", "mutation", "thresholds"],
       SHIPPED_SENSORS,
       suites,
     );
@@ -390,7 +389,6 @@ describe("the tests list", () => {
     expect(settingsOf(selected[0])).toEqual({ tests: suites });
     expect(settingsOf(selected[1])).toEqual({ tests: suites });
     expect(settingsOf(selected[2])).toEqual({});
-    expect(settingsOf(selected[3])).toEqual({});
   });
 
   it("builds a requested mutation with no tests key when the config has none", () => {

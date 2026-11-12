@@ -17,6 +17,8 @@ import {
 } from "./scan-helpers.js";
 
 const COMMIT = "abc123";
+const NOT_MEASURED =
+  "duplication not measured since the last scan: run recognizer scan\n";
 const read = (path: string) => readFileSync(join(REPO, path), "utf8");
 const checkScan = JSON.parse(read("fixtures/check/scan.json"));
 const expected = JSON.parse(read("fixtures/check/expected.json"));
@@ -66,6 +68,12 @@ describe("check in repository mode", () => {
         name: "structure",
         status: "ran",
         settings: {
+          duplication: {
+            threshold: 0.82,
+            min_lines: 4,
+            pair_min_lines: 6,
+            min_nodes: 20,
+          },
           entry_points: [],
           warnings: {
             cycle: true,
@@ -81,7 +89,7 @@ describe("check in repository mode", () => {
     delete report.sensors;
 
     expect(report).toEqual(expected);
-    expect(err).toBe(POLICY_PROBLEM);
+    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
   });
 
   it("prints the summary and the warnings as text on stdout only", () => {
@@ -90,7 +98,7 @@ describe("check in repository mode", () => {
     expect(code).toBe(1);
     expect(out).toContain("violations: 5, new: 4, fixed: 1, unranked: 1");
     expect(out).toContain("warnings: ");
-    expect(err).toBe(POLICY_PROBLEM);
+    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
   });
 
   it("reports metrics and warnings only when there is no policy", () => {
@@ -244,11 +252,18 @@ describe("check ranks duplication warnings by lines duplicated", () => {
     },
   });
   const duplication = JSON.stringify({
-    findings_version: 1,
-    sensor: { name: "duplication", version: "1" },
+    findings_version: 2,
+    sensor: { name: "structure", version: "17" },
     commit: COMMIT,
     modified: false,
-    settings: {},
+    settings: {
+      duplication: {
+        threshold: 0.82,
+        min_lines: 4,
+        pair_min_lines: 6,
+        min_nodes: 20,
+      },
+    },
     inputs: inputsOf(checkScan),
     findings: [
       finding("duplication:a", [6, 6]),
@@ -267,7 +282,7 @@ describe("check ranks duplication warnings by lines duplicated", () => {
 
   it("lists the warning lines largest first, ties by id, in text and in json", () => {
     const fake = setup({
-      [`${ROOT}/.recognizer/cache/findings/duplication.json`]: duplication,
+      [`${ROOT}/.recognizer/cache/findings/structure.json`]: duplication,
     });
     const text = check([], fake).out.split("\n");
     const at = order.map((summary) =>
@@ -281,7 +296,7 @@ describe("check ranks duplication warnings by lines duplicated", () => {
       check(
         ["--json"],
         setup({
-          [`${ROOT}/.recognizer/cache/findings/duplication.json`]: duplication,
+          [`${ROOT}/.recognizer/cache/findings/structure.json`]: duplication,
         }),
       ).out,
     );

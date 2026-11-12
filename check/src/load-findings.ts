@@ -1,6 +1,8 @@
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
+import { carryDuplication } from "./duplication/carry.js";
+import { readStoredStructure } from "./duplication/stored.js";
 import {
   type FindingsDocument,
   validateFindings,
@@ -43,6 +45,30 @@ export function scansCommit(scans: Scan[]): {
   };
 }
 
+function withoutDuplication(
+  settings: Record<string, unknown>,
+): Record<string, unknown> {
+  const { duplication: _duplication, ...rest } = settings;
+
+  return rest;
+}
+
+function duplicationAgrees(
+  document: FindingsDocument,
+  settings: StructureSettings,
+): boolean {
+  const recorded = document.settings.duplication;
+
+  if (settings.duplication === false) {
+    return recorded === undefined;
+  }
+
+  return (
+    recorded === undefined ||
+    JSON.stringify(recorded) === JSON.stringify(settings.duplication)
+  );
+}
+
 function storedStructure(
   io: Io,
   root: string,
@@ -56,7 +82,9 @@ function storedStructure(
     );
 
     return !document.modified &&
-      JSON.stringify(document.settings) === JSON.stringify(settings)
+      duplicationAgrees(document, settings) &&
+      JSON.stringify(withoutDuplication(document.settings)) ===
+        JSON.stringify(withoutDuplication({ ...settings }))
       ? document
       : null;
   } catch {
@@ -94,7 +122,12 @@ export function loadFindings(
   if (settings !== "off") {
     const context = { commit: commit ?? "", modified };
     const compute = () =>
-      structureSensor(scans, readPolicy(io, root), settings, context).document;
+      carryDuplication(
+        readStoredStructure(io, root),
+        structureSensor(scans, readPolicy(io, root), settings, context)
+          .document,
+        settings,
+      );
 
     if (commit === null) {
       documents.push(compute());

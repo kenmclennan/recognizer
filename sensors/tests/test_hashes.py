@@ -1,10 +1,8 @@
 import hashlib
-import json
 
 from conftest import MUTATE_FIXTURE, git_commit, mutate_repository, write_scans
 
 from recognizer_sensors import hashes
-from recognizer_sensors.cli import main
 from recognizer_sensors.scans import read_scan
 
 EMPTY = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -85,24 +83,6 @@ def test_the_committed_mutation_scan_gives_the_scans_hash_not_the_disk_hash(tmp_
 
     assert inputs == {"app/rules.py": "0" * 64}
     assert sha((MUTATE_FIXTURE / "app" / "rules.py").read_bytes()) != "0" * 64
-
-
-def test_a_duplication_run_writes_version_two_with_the_scans_hashes_and_no_tests(sample, tmp_path):
-    output = tmp_path / "out.json"
-
-    assert (
-        main(
-            ["duplication", "--repository", str(sample), "--commit", "c1", "--output", str(output)]
-        )
-        == 0
-    )
-
-    document = json.loads(output.read_text())
-
-    assert document["findings_version"] == 2
-    assert "tests" not in document
-    assert set(document["inputs"]) >= {"app/pricing.py"}
-    assert set(document["inputs"].values()) == {"0" * 64}
 
 
 CUSTOM_MANIFEST = b"""[package]

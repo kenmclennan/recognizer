@@ -86,7 +86,6 @@ describe("parseConfig", () => {
   it.each(
     readdirSync(join(CONFIGS, "valid")).filter(
       (file) =>
-        file !== "sensors-duplication-short.yaml" &&
         file !== "sensors-crap-short.yaml" &&
         file !== "sensors-mutation-short.yaml" &&
         file !== "sensors-thresholds-short.yaml" &&
@@ -104,26 +103,15 @@ describe("parseConfig", () => {
     expect(() => parseConfig(text)).toThrow(InputError);
   });
 
-  it("expands the duplication short form to the shipped command", () => {
+  it("refuses the duplication short form and names the structure keys", () => {
     const text = readFileSync(
-      join(CONFIGS, "valid/sensors-duplication-short.yaml"),
+      join(CONFIGS, "invalid/sensors-duplication-short.yaml"),
       "utf8",
     );
 
-    expect(parseConfig(text).sensors?.duplication).toEqual({
-      command: [
-        "recognizer-sensors",
-        "duplication",
-        "--repository",
-        "{repository}",
-        "--commit",
-        "{commit}",
-        "--output",
-        "{output}",
-        "--settings",
-        '{"threshold":0.9,"min_lines":6}',
-      ],
-    });
+    expect(() => parseConfig(text)).toThrow(
+      /config\/sensors\/duplication was removed.*sensors\.structure\.duplication \(threshold, min_lines, pair_min_lines, min_nodes\)/,
+    );
   });
 
   it("expands the crap short form to the shipped command", () => {
@@ -167,14 +155,14 @@ describe("parseConfig", () => {
   });
 
   it("registers the short form as an ordinary sensor", () => {
-    const config = parseConfig("sensors:\n  duplication: {}\n");
+    const config = parseConfig("sensors:\n  thresholds: {}\n");
 
     expect(registeredSensors(config)).toEqual([
       {
-        name: "duplication",
+        name: "thresholds",
         command: [
           "recognizer-sensors",
-          "duplication",
+          "thresholds",
           "--repository",
           "{repository}",
           "--commit",

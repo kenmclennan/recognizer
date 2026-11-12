@@ -1,5 +1,5 @@
 import type { Diagnosis, Scan, ScanRunRecord } from "recognizer";
-import { buildFreshness } from "recognizer";
+import { buildFreshness, SHIPPED_SENSOR_LIST } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
@@ -20,7 +20,6 @@ import type { ShippedSensor, ShippedSensors } from "./sensor-run";
 const CONFIG = `sensors:
   alpha:
     command: [node, "{repository}/a.mjs", "{commit}", "{output}"]
-  duplication: {}
   beta:
     command: [node, "{repository}/b.mjs", "{commit}", "{output}"]
 `;
@@ -57,7 +56,6 @@ const LIST: ShippedSensors = {
     shipped("mutation", "Mutation", { runsTests: true }),
     shipped("crap", "C.R.A.P.", { runsTests: true }),
     shipped("thresholds", "Thresholds", { listed: false }),
-    shipped("duplication", "Duplication"),
   ],
 };
 
@@ -115,7 +113,6 @@ describe("scanPanel rows", () => {
       "Structure",
       "Descriptions",
       "C.R.A.P.",
-      "Duplication",
       "Mutation",
       "alpha",
       "beta",
@@ -181,8 +178,55 @@ describe("scanPanel rows", () => {
 
   it("does not list a shipped sensor a repository also registers as third-party", () => {
     expect(
-      rowSensors(CONFIG, LIST).filter((one) => one.name === "duplication"),
+      rowSensors("sensors:\n  mutation: {}\n", LIST).filter(
+        (one) => one.name === "mutation",
+      ),
     ).toHaveLength(1);
+  });
+});
+
+describe("scanPanel and the structure sensor's duplication check", () => {
+  const real: ShippedSensors = {
+    status: "ok",
+    sensors: SHIPPED_SENSOR_LIST.map((one) => ({
+      name: one.name,
+      display: one.display,
+      line: one.line,
+      defaults: one.defaults,
+      runsTests: one.runs_tests,
+      listed: one.listed,
+    })),
+  };
+
+  it("builds no Duplication row from the shipped list", () => {
+    const names = scanPanel(input({ shipped: real, config: null })).rows.map(
+      (row) => row.name,
+    );
+
+    expect(names).toEqual([
+      "Structure",
+      "Descriptions",
+      "C.R.A.P.",
+      "Mutation",
+    ]);
+  });
+
+  it("notes unmeasured duplication on the Structure row and only then", () => {
+    const structure = (notMeasured?: string[]) =>
+      scanPanel(
+        input({
+          sensors: [
+            {
+              name: "structure",
+              status: "ran",
+              ...(notMeasured === undefined ? {} : { notMeasured }),
+            },
+          ],
+        }),
+      ).rows.find((row) => row.key === "structure");
+
+    expect(structure(["duplication"])?.note).toBe("Duplication: run a scan");
+    expect(structure()?.note).toBeNull();
   });
 });
 
@@ -286,7 +330,6 @@ describe("scanPanel row states", () => {
       "Structure: never run",
       "Descriptions: never run",
       "C.R.A.P.: never run",
-      "Duplication: never run",
       "Mutation: never run",
       "alpha: never run",
       "beta: never run",
@@ -433,13 +476,13 @@ describe("scanPanel row states", () => {
             findings: 16,
             modifiedMs: NOW - 27 * MINUTE,
           },
-          { name: "duplication", status: "ran", findings: 1, modifiedMs: NOW },
+          { name: "alpha", status: "ran", findings: 1, modifiedMs: NOW },
         ],
       }),
     );
 
     expect(states(model)).toContain("C.R.A.P.: 27m");
-    expect(states(model)).toContain("Duplication: now");
+    expect(states(model)).toContain("alpha: now");
   });
 
   it("prefers the session time over the file's modification time", () => {
@@ -516,12 +559,12 @@ describe("scanPanel row states", () => {
     const model = scanPanel(
       input({
         scanning: true,
-        run: run({ running: ["crap", "duplication"], started: "crap" }),
+        run: run({ running: ["crap", "alpha"], started: "crap" }),
       }),
     );
 
     expect(rowOf(model, "crap")?.state.kind).toBe("running");
-    expect(rowOf(model, "duplication")?.state.kind).toBe("running");
+    expect(rowOf(model, "alpha")?.state.kind).toBe("running");
     expect(rowOf(model, "mutation")?.text.text).toBe("never run");
   });
 
@@ -533,8 +576,8 @@ describe("scanPanel row states", () => {
           { name: "crap", status: "ran", findings: 4, modifiedMs: NOW },
         ],
         run: run({
-          running: ["duplication"],
-          started: "duplication",
+          running: ["alpha"],
+          started: "alpha",
           ranAt: { crap: NOW },
         }),
       }),
@@ -571,7 +614,7 @@ describe("scanPanel ticks", () => {
       input({
         ticks: {
           describe: true,
-          ticked: ["duplication"],
+          ticked: ["alpha"],
           once: ["crap"],
           onlyView: false,
           suites: {},
@@ -581,7 +624,7 @@ describe("scanPanel ticks", () => {
     );
     const ticked = model.rows.filter((row) => row.ticked).map((row) => row.key);
 
-    expect(ticked).toEqual(["structure", "describe", "crap", "duplication"]);
+    expect(ticked).toEqual(["structure", "describe", "crap", "alpha"]);
   });
 
   it("ticks every plain sensor but no tests-running one when never stored and defaulting on", () => {
@@ -600,7 +643,7 @@ describe("scanPanel ticks", () => {
 
     expect(
       model.rows.filter((row) => row.ticked).map((row) => row.key),
-    ).toEqual(["structure", "duplication", "alpha", "beta"]);
+    ).toEqual(["structure", "alpha", "beta"]);
   });
 
   it("ticks nothing when a fresh repository defaults to no sensors", () => {
@@ -819,9 +862,7 @@ describe("scanPanel only this view", () => {
     const on = scanPanel(input({ view, scans: SCANS, ticks: ticked(true) }));
 
     expect(row(on, "crap")?.state).toEqual(row(off, "crap")?.state);
-    expect(row(on, "duplication")?.state).toEqual(
-      row(off, "duplication")?.state,
-    );
+    expect(row(on, "alpha")?.state).toEqual(row(off, "alpha")?.state);
   });
 
   it("ignores the stored switch when no view is open", () => {
@@ -855,7 +896,7 @@ describe("scanPanel freshness", () => {
     measured: { inputs, tests: "t" },
   });
 
-  const others = ["duplication", "mutation", "alpha", "beta"].map((name) => ({
+  const others = ["mutation", "alpha", "beta"].map((name) => ({
     ...crap({ "a.py": "ha", "b.py": "hb" }),
     name,
   }));

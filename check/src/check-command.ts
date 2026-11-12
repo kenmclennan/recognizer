@@ -13,6 +13,7 @@ import { type Ranking, rankById } from "./check.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
+import { duplicationUnmeasured } from "./duplication/carry.js";
 import { InputError } from "./errors.js";
 import { orderDuplication } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
@@ -420,6 +421,7 @@ function executeScanReplay(
   }
 
   const settings: StructureSettings = {
+    duplication: false,
     entry_points: [],
     warnings: {
       cycle: true,
@@ -532,6 +534,12 @@ function gather(
     } else {
       if (commit === null) {
         documents.push(sensed.document);
+      }
+
+      if (duplicationUnmeasured(sensed.document, resolved)) {
+        io.stderr(
+          "duplication not measured since the last scan: run recognizer scan\n",
+        );
       }
 
       sensors.push({ name: "structure", status: "ran", settings: resolved });

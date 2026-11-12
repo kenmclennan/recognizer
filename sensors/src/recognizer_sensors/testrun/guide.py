@@ -31,7 +31,6 @@ LINES = (
     "",
     "A whole config for a Python repository:",
     "",
-    "  recognizer config --add-section sensors.duplication",
     "  recognizer config --add-section sensors.crap",
     "  recognizer config --add sensors.mutation.carry .venv",
     "  recognizer config --add-section sensors.thresholds",
