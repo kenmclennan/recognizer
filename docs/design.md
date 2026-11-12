@@ -371,6 +371,13 @@ A scanner extracts structure and judges nothing. A sensor judges: it reads the s
 
 Hexagonal, clean and onion architecture are each one arrangement of the same few principles, drawn from Martin, Fowler, Evans, Parnas and Jackson. Recognizer works from the principles, never from a named architecture: a structural warning is a principle violation, reported as a candidate with its evidence attached, never as a verdict. The scan supplies the facts; the policy declares the intent the facts cannot carry.
 
+A structural finding meets four rules:
+
+- It rests on a principle published in the software engineering literature or by a widely respected authority, names that principle and applies it as published. A principle is never invented, renamed or adjusted, for example by adding a threshold its author does not state.
+- It is decided from facts in the scan or from intent the policy declares, never from intent inferred from the shape of the import graph.
+- It belongs to a file: the file whose code causes it, with the import or declaration where one is known. A folder or a component declares nothing, so a problem seen in a grouping is raised on the files whose imports make it, or not at all.
+- It detects the problem and shows its evidence. Proposing the change that solves it is left to another tool.
+
 | Principle | Warning | Needs from the policy |
 | --- | --- | --- |
 | Dependencies point toward stability | an edge from a more stable component to a less stable one; a component whose measured instability disagrees with its declared place | which components are meant to be stable |
