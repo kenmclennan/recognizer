@@ -25,7 +25,7 @@ const NONE_REGISTERED =
   "no describer is registered: add one to .recognizer/config.yaml and recognizer-describe-claude is not installed";
 
 export function findDescriber(io: Io, root: string): DescriberInEffect | null {
-  const configured = readConfig(io, root)?.describer;
+  const configured = readConfig(io, root, ["describer"])?.describer;
 
   if (configured !== undefined) {
     return {

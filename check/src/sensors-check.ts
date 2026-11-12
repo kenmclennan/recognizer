@@ -284,7 +284,7 @@ export function sensorsToCheck(
   root: string,
   name: string | undefined,
 ): CheckableSensor[] {
-  const config = readConfig(io, root);
+  const config = readConfig(io, root, ["sensors"]);
 
   return selectSensors(
     registeredSensors(config),

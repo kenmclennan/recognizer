@@ -499,7 +499,7 @@ function gather(
   scans: Scan[],
   policy: Policy | null,
 ): Gathered {
-  const config = readConfig(io, root);
+  const config = readConfig(io, root, ["sensors"]);
   const { commit } = scansCommit(scans);
   const hiddenIds = new Set<string>();
   const sensors: SensorStatus[] = [];
@@ -666,7 +666,7 @@ function executeRepository(
     ]);
   }
 
-  const { scans } = freshScans(io, root, true);
+  const { scans } = freshScans(io, root, ["sensors"]);
   const known = new Set(moduleNames(scans));
   const unknown = named.filter((id) => !known.has(id));
 

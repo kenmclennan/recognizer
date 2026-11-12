@@ -87,7 +87,7 @@ export function loadFindings(
   root: string,
   scans: Scan[],
 ): FindingsDocument[] {
-  const config = readConfig(io, root);
+  const config = readConfig(io, root, ["sensors"]);
   const settings = resolveStructureSettings(config);
   const { commit, modified } = scansCommit(scans);
   const documents: FindingsDocument[] = [];
