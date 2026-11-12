@@ -17,6 +17,7 @@ for (const name of [
   "log",
   "scan-marker",
   "overlay",
+  "config-keys",
 ]) {
   const schema = JSON.parse(
     readFileSync(

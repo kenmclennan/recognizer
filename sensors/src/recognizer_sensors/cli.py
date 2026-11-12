@@ -5,6 +5,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+from recognizer_sensors.config_schema import schema_text
 from recognizer_sensors.findings import (
     build_document,
     build_overlay,
@@ -41,15 +42,16 @@ def resolve_commit(root: Path) -> str | None:
 
 def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="recognizer-sensors")
-    parser.add_argument("name")
+    parser.add_argument("name", nargs="?")
     parser.add_argument("--repository", type=Path, default=Path("."))
     parser.add_argument("--commit")
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--settings", default="{}")
+    parser.add_argument("--settings")
     parser.add_argument("--modules", type=Path)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--guide", action="store_true")
+    parser.add_argument("--schema", action="store_true")
     parser.add_argument("--version", action="version", version=package_version)
 
     return parser
@@ -59,6 +61,24 @@ def fail(message: str) -> int:
     print(f"recognizer-sensors: {message}", file=sys.stderr)
 
     return 2
+
+
+def print_schema(args) -> int:
+    other = (
+        args.check
+        or args.run
+        or args.guide
+        or args.settings is not None
+        or args.output is not None
+        or args.modules is not None
+    )
+
+    if args.name is not None or other:
+        return fail("--schema takes no sensor name and no other option than --repository")
+
+    sys.stdout.write(schema_text())
+
+    return 0
 
 
 def parse_raw_settings(text: str) -> dict | None:
@@ -112,6 +132,13 @@ def config_gap(error: SettingsError) -> int:
 def main(argv: list[str] | None = None) -> int:
     package_version = version("recognizer-sensors")
     args = build_parser(package_version).parse_args(argv)
+
+    if args.schema:
+        return print_schema(args)
+
+    if args.name is None:
+        return fail("a sensor name is required")
+
     sensor = SHIPPED.get(args.name)
 
     if sensor is None:
@@ -137,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         if scope is None:
             return fail("--modules must name a JSON file holding an array of module ids")
 
-    raw = parse_raw_settings(args.settings)
+    raw = parse_raw_settings("{}" if args.settings is None else args.settings)
 
     if raw is None:
         return fail("--settings must be a JSON object")

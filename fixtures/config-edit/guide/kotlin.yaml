@@ -1,0 +1,8 @@
+tests:
+  - name: app
+    language: kotlin
+    directory: .
+    command: ./gradlew cleanTest test jacocoTestReport
+    coverage:
+      path: build/reports/jacoco/test/jacocoTestReport.xml
+      format: jacoco

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 from dataclasses import asdict
@@ -724,55 +725,100 @@ BINDING_SUITES = (
 )
 
 
+COMMAND_LINE = "  recognizer config "
+
+
+def config_lines(out):
+    return [shlex.split(line)[2:] for line in out.splitlines() if line.startswith(COMMAND_LINE)]
+
+
+def suites_of(out):
+    suites = []
+    previous = None
+
+    for line in out.splitlines():
+        if not line.startswith(COMMAND_LINE):
+            previous = None
+
+            continue
+
+        words = shlex.split(line)[2:]
+        is_suite_line = words[0].startswith("tests.")
+
+        if is_suite_line and previous is not True:
+            suites.append([])
+
+        if is_suite_line:
+            suites[-1].append(words)
+
+        previous = is_suite_line
+
+    return suites
+
+
 def test_the_guide_registers_crap_under_sensors(capsys):
     out = guide_text(capsys)
 
-    assert re.search(r"^sensors:\n(?:  .*\n)*?  crap: \{\}$", out, re.M)
+    assert ["--add-section", "sensors.crap"] in config_lines(out)
+    assert "  recognizer config --add-section sensors.crap\n" in out
 
 
 def test_the_guide_registers_every_shipped_sensor(capsys):
     out = guide_text(capsys)
     names = json.loads(SHIPPED.read_text())
+    lines = config_lines(out)
 
     assert names
 
     for name in names:
-        assert re.search(rf"^  {re.escape(name)}:", out, re.M), name
+        assert any(
+            re.fullmatch(rf"sensors\.{name}(\..*)?", arg) for words in lines for arg in words
+        ), name
 
 
 def test_the_guide_names_both_format_values(capsys):
     out = guide_text(capsys)
+    formats = {words[1] for words in config_lines(out) if words[0].endswith(".coverage.format")}
 
-    assert "format: lcov" in out
-    assert "format: jacoco" in out
+    assert formats == {"lcov", "jacoco"}
     assert "takes exactly two values" in out
 
 
 def test_the_guide_has_a_suite_for_each_language_and_both_typescript_runners(capsys):
     out = guide_text(capsys)
+    arguments = [words for words in config_lines(out) if words[0].startswith("tests.")]
+    languages = [words[1] for words in config_lines(out) if words[0].endswith(".language")]
+    runners = [words[1] for words in config_lines(out) if words[0].endswith(".runner")]
 
-    for language in ("python", "typescript", "kotlin", "rust", "csharp"):
-        assert f"language: {language}" in out
-
-    assert "runner: vitest" in out
-    assert "runner: jest" in out
+    assert arguments
+    assert sorted(set(languages)) == ["csharp", "kotlin", "python", "rust", "typescript"]
+    assert sorted(runners) == ["jest", "vitest"]
 
 
 def test_the_guide_carries_each_measured_command_and_path_verbatim(capsys):
     out = guide_text(capsys)
+    lines = config_lines(out)
+    commands = [words[1] for words in lines if words[0].endswith(".command")]
+    paths = [words[1] for words in lines if words[0].endswith(".coverage.path")]
 
-    for _, command, path in BINDING_SUITES:
-        assert f"command: {command}\n" in out
-        assert f"path: {path}\n" in out
+    assert commands == [command for _, command, _ in BINDING_SUITES]
+    assert paths == [path for _, _, path in BINDING_SUITES]
 
 
 def test_the_guide_gives_kotlin_jacoco_and_every_other_suite_lcov(capsys):
     out = guide_text(capsys)
-    blocks = re.findall(r"^ *- name:.*?^ *language: (\w+)$.*?^ *format: *(\w+)$", out, re.S | re.M)
+    suites = suites_of(out)
+    pairs = [
+        (
+            next(words[1] for words in suite if words[0].endswith(".language")),
+            next(words[1] for words in suite if words[0].endswith(".coverage.format")),
+        )
+        for suite in suites
+    ]
 
-    assert [language for language, _ in blocks] == [language for language, _, _ in BINDING_SUITES]
+    assert [language for language, _ in pairs] == [language for language, _, _ in BINDING_SUITES]
 
-    for language, fmt in blocks:
+    for language, fmt in pairs:
         assert fmt == ("jacoco" if language == "kotlin" else "lcov")
 
 

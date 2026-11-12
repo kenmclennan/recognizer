@@ -1,0 +1,14 @@
+{
+  "keys_version": 1,
+  "owner": "example",
+  "placeholders": {},
+  "sections": [],
+  "keys": [
+    {
+      "key": "a.b",
+      "type": "date",
+      "description": "a key of a type nobody knows",
+      "example": "a.b x"
+    }
+  ]
+}

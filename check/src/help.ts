@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { agentGuide } from "./agent-guide.js";
 import type { Io } from "./cli.js";
 import { COMMANDS, type Command } from "./commands.js";
+import { configKeysHelp } from "./config-command.js";
 import { InputError } from "./errors.js";
 import { guideText, sensorsToCheck } from "./sensors-check.js";
 
@@ -57,6 +58,12 @@ export function fullHelp(command: Command): string {
   ].join("\n");
 }
 
+export function commandHelp(command: Command, io: Io): string {
+  return command.name === "config"
+    ? `${fullHelp(command)}\n${configKeysHelp(io, resolve("."))}`
+    : fullHelp(command);
+}
+
 function runSensorGuide(sensor: string, io: Io): number {
   const root = resolve(".");
   const [selected] = sensorsToCheck(io, root, sensor) as [
@@ -107,7 +114,7 @@ export function runHelp(argv: string[], io: Io): number {
     ]);
   }
 
-  io.stdout(fullHelp(command));
+  io.stdout(commandHelp(command, io));
 
   return 0;
 }

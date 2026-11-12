@@ -68,6 +68,7 @@ describe("command table", () => {
       "modules",
       "views",
       "sensors",
+      "config",
       "windows",
       "window",
       "describe",
@@ -84,13 +85,40 @@ describe("command table", () => {
     const command = COMMANDS.find((entry) => entry.name === name);
     const expected = fullHelp(command as (typeof COMMANDS)[number]);
 
-    expect(call(["help", name])).toEqual({ code: 0, out: expected, err: "" });
-    expect(call([name, "--help"])).toEqual({
+    const printed = (out: string) =>
+      name === "config" ? out.slice(0, expected.length) : out;
+    const help = call(["help", name]);
+    const flagged = call([name, "--help"]);
+
+    expect({ code: help.code, out: printed(help.out), err: help.err }).toEqual({
       code: 0,
       out: expected,
       err: "",
     });
-    expect(call([name, "-h"]).out).toBe(expected);
+    expect({
+      code: flagged.code,
+      out: printed(flagged.out),
+      err: flagged.err,
+    }).toEqual({ code: 0, out: expected, err: "" });
+    expect(printed(call([name, "-h"]).out)).toBe(expected);
+  });
+
+  it("config help prints the table's entry followed by the published keys", () => {
+    const command = COMMANDS.find((entry) => entry.name === "config");
+    const expected = fullHelp(command as (typeof COMMANDS)[number]);
+
+    for (const argv of [
+      ["help", "config"],
+      ["config", "--help"],
+      ["config", "-h"],
+    ]) {
+      const { code, out, err } = call(argv);
+
+      expect(code).toBe(0);
+      expect(err).toBe("");
+      expect(out.startsWith(expected)).toBe(true);
+      expect(out.slice(expected.length)).toContain("Keys:");
+    }
   });
 
   it("agents --help prints the table's entry", () => {

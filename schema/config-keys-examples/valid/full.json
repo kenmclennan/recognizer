@@ -1,0 +1,46 @@
+{
+  "keys_version": 1,
+  "owner": "recognizer-sensors",
+  "placeholders": {
+    "name": "^.+$",
+    "variable": "^[A-Za-z_][A-Za-z0-9_]*$"
+  },
+  "sections": [
+    {
+      "key": "tests.<name>",
+      "shape": "list-entry",
+      "identity": "name",
+      "description": "one test suite the coverage and mutation sensors run",
+      "example": "tests.unit.command \"pytest\""
+    },
+    {
+      "key": "sensors.<name>",
+      "shape": "map-entry",
+      "description": "one registered sensor",
+      "example": "--add-section sensors.crap"
+    }
+  ],
+  "keys": [
+    {
+      "key": "tests.<name>.coverage.format",
+      "type": "enum",
+      "values": ["lcov", "jacoco"],
+      "description": "the format of the coverage report the suite writes",
+      "example": "tests.unit.coverage.format jacoco"
+    },
+    {
+      "key": "sensors.mutation.carry",
+      "type": "string",
+      "multi": true,
+      "description": "untracked repository paths Mutation copies into its working copy",
+      "example": "--add sensors.mutation.carry .venv"
+    },
+    {
+      "key": "sensors.mutation.max_minutes",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "the time budget of a Mutation run in minutes",
+      "example": "sensors.mutation.max_minutes 10"
+    }
+  ]
+}

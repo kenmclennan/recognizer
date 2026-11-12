@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { COMMANDS } from "./commands.js";
 import { InputError } from "./errors.js";
-import { fullHelp, shortHelp } from "./help.js";
+import { commandHelp, shortHelp } from "./help.js";
 import { promotePending } from "./pending-checkpoints.js";
 import { releaseHeldMarkers } from "./scan-marker.js";
 
@@ -463,7 +463,7 @@ function execute(argv: string[], io: Io): number | Promise<number> {
   }
 
   if (rest.includes("--help") || rest.includes("-h")) {
-    io.stdout(fullHelp(command));
+    io.stdout(commandHelp(command, io));
 
     return 0;
   }

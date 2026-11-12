@@ -1,0 +1,8 @@
+tests:
+  - name: app
+    language: csharp
+    directory: .
+    command: 'dotnet test tests --collect:"XPlat Code Coverage;Format=lcov"'
+    coverage:
+      path: tests/TestResults/*/coverage.info
+      format: lcov
