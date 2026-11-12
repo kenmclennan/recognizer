@@ -1,0 +1,84 @@
+[
+  {
+    "number": 3,
+    "title": "Draft work",
+    "headRefName": "feature/draft",
+    "headRefOid": "1111111111111111111111111111111111111111",
+    "author": {
+      "login": "lc"
+    },
+    "updatedAt": "2026-11-10T10:00:00Z",
+    "isDraft": true,
+    "statusCheckRollup": []
+  },
+  {
+    "number": 4,
+    "title": "No checks",
+    "headRefName": "feature/none",
+    "headRefOid": "2222222222222222222222222222222222222222",
+    "author": {
+      "login": "ken"
+    },
+    "updatedAt": "2026-11-11T10:00:00Z",
+    "isDraft": false,
+    "statusCheckRollup": []
+  },
+  {
+    "number": 5,
+    "title": "Broken",
+    "headRefName": "feature/broken",
+    "headRefOid": "3333333333333333333333333333333333333333",
+    "author": {
+      "login": "ken"
+    },
+    "updatedAt": "2026-11-11T11:00:00Z",
+    "isDraft": false,
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      },
+      {
+        "__typename": "CheckRun",
+        "status": "COMPLETED",
+        "conclusion": "FAILURE"
+      }
+    ]
+  },
+  {
+    "number": 6,
+    "title": "Running",
+    "headRefName": "feature/running",
+    "headRefOid": "4444444444444444444444444444444444444444",
+    "author": {
+      "login": "lc"
+    },
+    "updatedAt": "2026-11-12T09:00:00Z",
+    "isDraft": false,
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "status": "IN_PROGRESS",
+        "conclusion": ""
+      }
+    ]
+  },
+  {
+    "number": 8,
+    "title": "Status context",
+    "headRefName": "feature/ctx",
+    "headRefOid": "5555555555555555555555555555555555555555",
+    "author": {
+      "login": "lc"
+    },
+    "updatedAt": "2026-11-12T09:30:00Z",
+    "isDraft": false,
+    "statusCheckRollup": [
+      {
+        "__typename": "StatusContext",
+        "state": "PENDING"
+      }
+    ]
+  }
+]

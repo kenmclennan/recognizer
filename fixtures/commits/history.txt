@@ -1,0 +1,12 @@
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKen1700000000Add cart discountsHEAD -> main, origin/main, tag: v0.4.0, feature/x
+
+A	src/discounts.ts
+M	src/cart.ts
+M	src/checkout.ts
+D	src/old.ts
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccc ddddddddddddddddddddddddddddddddddddddddlc1699990000Merge pull request #7origin/HEAD
+
+A	src/pay.ts
+M	src/cart.ts
+ccccccccccccccccccccccccccccccccccccccccccccccceeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeKen1699980000Empty marker commit
+

@@ -38,6 +38,32 @@ import {
   type ChangeOverlay,
   createMeasure,
 } from "./canvas-view";
+import {
+  ageOf,
+  type BranchEntry,
+  type BranchRow,
+  branchRow,
+  commitRow,
+  countsText,
+  createCommitsModel,
+  factsCounts,
+  ghNotice,
+  type HistoryRow,
+  orderBranches,
+  type PickRow,
+  type PullRequestRow,
+  parseBranches,
+  parseHistory,
+  parsePullRequests,
+  pullRequestRow,
+} from "./commits-panel-model";
+import {
+  buildCommitsPanelView,
+  type CommitRowView,
+  type CommitsListView,
+  type CommitsTab,
+} from "./commits-panel-view";
+import { type CommitsPort, inertCommits, type RefFacts } from "./commits-port";
 import { el } from "./dom";
 import { describeLine } from "./edge-evidence";
 import { openFolderInEditor, openInEditor } from "./editor-open";
@@ -216,7 +242,7 @@ import { stepsFor } from "./view-steps";
 import type { Viewport } from "./viewport";
 import { dropdownNames, rangeOf, viewsPanelModel } from "./views-panel-model";
 import { buildViewsPanelView } from "./views-panel-view";
-import { inertViews, type ViewsPort } from "./views-port";
+import { DRAFT_VIEW, inertViews, type ViewsPort } from "./views-port";
 import {
   type DriveAction,
   type DriveFacts,
@@ -352,6 +378,7 @@ export function showExplorer(
   withdraw: (id: number) => void = () => {},
   reconcileMessages: (foundKeys: readonly string[]) => void = () => {},
   comparisons: ViewComparisons = createViewComparisons(),
+  commits: CommitsPort = inertCommits,
 ): Explorer {
   let loaded = initial;
   let health = computeHealth(loaded);
@@ -427,6 +454,29 @@ export function showExplorer(
   let listKnown = false;
   let listProblem: string | null = null;
   let openToken = 0;
+  const commitsModel = createCommitsModel();
+  let commitsTab: CommitsTab = "history";
+  let commitsToken = 0;
+  let commitsBranch: string | null = null;
+  let historyLoad: {
+    state: "loading" | "ready" | "failed";
+    rows: HistoryRow[];
+    problem: string;
+  } = { state: "loading", rows: [], problem: "" };
+  let branchLoad: {
+    state: "loading" | "ready" | "failed";
+    rows: BranchRow[];
+    defaultRef: string | null;
+    total: number;
+    problem: string;
+  } = { state: "loading", rows: [], defaultRef: null, total: 0, problem: "" };
+  let pullLoad: {
+    state: "idle" | "loading" | "ready";
+    status: string;
+    detail: string;
+    rows: PullRequestRow[];
+  } = { state: "idle", status: "ok", detail: "", rows: [] };
+  const commitFacts = new Map<string, RefFacts>();
   const viewTexts = new Map<string, string>();
   const history =
     carried?.history ??
@@ -436,6 +486,7 @@ export function showExplorer(
       folded: [],
       focus: null,
       selection: null,
+      draft: null,
     });
   let historyMessage: number | null = null;
   const agentLine = {
@@ -854,16 +905,19 @@ export function showExplorer(
     save: () => void saveOpen(),
     revert,
     saveNew: (name, title, description) => saveNew(name, title, description),
-    saveDetails: (name, title, description) =>
-      openView === null
+    saveDetails: (name, title, description) => {
+      const saved = savedView();
+
+      return saved === null
         ? Promise.resolve(null)
-        : saveDetails(openView, name, title, description),
+        : saveDetails(saved, name, title, description);
+    },
     preview: (draft) => {
       headingDraft = draft;
       render();
     },
     copyLink: () => void copyLink(),
-    hasOpenView: () => openView !== null,
+    hasOpenView: () => savedView() !== null,
   });
   const viewsPanel = buildViewsPanelView({
     open: (name) => void requestOpen(name),
@@ -999,6 +1053,44 @@ export function showExplorer(
     toggleNotes: openNotes,
     toggleScan: toggleScanPanel,
     toggleFindings: toggleFindingsPanel,
+    toggleCommits: toggleCommitsPanel,
+  });
+  const commitsView = buildCommitsPanelView({
+    pick(row) {
+      if (commitsModel.pick(row)) {
+        render();
+      }
+    },
+    selectSlot(slot) {
+      commitsModel.select(slot);
+      render();
+    },
+    clearSlot(slot) {
+      commitsModel.clear(slot);
+      render();
+    },
+    swap() {
+      if (commitsModel.swap()) {
+        render();
+      }
+    },
+    setTab(tab) {
+      commitsTab = tab;
+
+      if (tab === "prs" && pullLoad.state === "idle") {
+        void loadPullRequests(commitsToken);
+      }
+
+      render();
+    },
+    open() {
+      const range = commitsModel.range();
+
+      if (range !== null) {
+        void openRange(range.base, range.head);
+      }
+    },
+    save: () => bar.promptSave(),
   });
   const body = el("div", "explorer");
 
@@ -1019,6 +1111,7 @@ export function showExplorer(
     notesPanel.element,
     scanView.element,
     findingsView.element,
+    commitsView.element,
   );
   body.append(
     rail.element,
@@ -1877,6 +1970,375 @@ export function showExplorer(
     }
   }
 
+  function savedView(): string | null {
+    return openView === DRAFT_VIEW ? null : openView;
+  }
+
+  function shortRef(ref: string): string {
+    return /^[0-9a-f]{40,64}$/.test(ref) ? ref.slice(0, 7) : ref;
+  }
+
+  function toggleCommitsPanel() {
+    if (leftPanel === "commits") {
+      leftPanel = null;
+      commitsToken += 1;
+      render();
+
+      return;
+    }
+
+    leftPanel = "commits";
+    commitsToken += 1;
+
+    const token = commitsToken;
+
+    historyLoad = { state: "loading", rows: [], problem: "" };
+    branchLoad = {
+      state: "loading",
+      rows: [],
+      defaultRef: null,
+      total: 0,
+      problem: "",
+    };
+    pullLoad = { state: "idle", status: "ok", detail: "", rows: [] };
+    commitFacts.clear();
+    render();
+    void loadHistory(token);
+    void loadBranches(token);
+
+    if (commitsTab === "prs") {
+      void loadPullRequests(token);
+    }
+  }
+
+  async function loadHistory(token: number) {
+    const next = await commits.listHistory().then(
+      (reply) => {
+        commitsBranch = reply.branch;
+
+        return {
+          state: "ready" as const,
+          rows: parseHistory(reply.text).rows,
+          problem: "",
+        };
+      },
+      (error) => ({
+        state: "failed" as const,
+        rows: [],
+        problem: String(error instanceof Error ? error.message : error),
+      }),
+    );
+
+    if (token === commitsToken) {
+      historyLoad = next;
+      render();
+    }
+  }
+
+  async function loadBranches(token: number) {
+    const next = await commits.listBranches().then(
+      (reply) => ({
+        state: "ready" as const,
+        rows: parseBranches(reply.text).rows,
+        defaultRef: reply.defaultRef,
+        total: reply.total,
+        problem: "",
+      }),
+      (error) => ({
+        state: "failed" as const,
+        rows: [],
+        defaultRef: null,
+        total: 0,
+        problem: String(error instanceof Error ? error.message : error),
+      }),
+    );
+
+    if (token !== commitsToken) {
+      return;
+    }
+
+    branchLoad = next;
+    render();
+    await loadFacts(
+      token,
+      next.rows.map((row) => row.name),
+    );
+  }
+
+  async function loadPullRequests(token: number) {
+    pullLoad = { state: "loading", status: "ok", detail: "", rows: [] };
+    render();
+
+    const next = await commits.listPullRequests().then(
+      (reply) => ({
+        state: "ready" as const,
+        status: reply.status,
+        detail: reply.detail,
+        rows: reply.status === "ok" ? parsePullRequests(reply.text).rows : [],
+      }),
+      (error) => ({
+        state: "ready" as const,
+        status: "failed",
+        detail: String(error instanceof Error ? error.message : error),
+        rows: [],
+      }),
+    );
+
+    if (token !== commitsToken) {
+      return;
+    }
+
+    pullLoad = next;
+    render();
+    await loadFacts(
+      token,
+      next.rows.map((row) => row.sha),
+    );
+  }
+
+  async function loadFacts(token: number, refs: string[]) {
+    if (refs.length === 0) {
+      return;
+    }
+
+    const found = await commits.refFacts(refs).catch(() => []);
+
+    if (token !== commitsToken) {
+      return;
+    }
+
+    for (const one of found) {
+      commitFacts.set(one.ref, one);
+    }
+
+    render();
+  }
+
+  function slotOf(row: PickRow): "from" | "to" | null {
+    for (const which of ["from", "to"] as const) {
+      const held = commitsModel.slot(which);
+
+      if (held?.kind === row.kind && held.ref === row.ref) {
+        return which;
+      }
+    }
+
+    return null;
+  }
+
+  function commitsPanelModel() {
+    const now = Date.now();
+    const range = commitsModel.range();
+    const from = commitsModel.slot("from");
+    const to = commitsModel.slot("to");
+    const shaded = commitsModel.shaded(historyLoad.rows.map((row) => row.sha));
+    const historyRows: CommitRowView[] = historyLoad.rows.map((row) => {
+      const pick = commitRow(row);
+
+      return {
+        pick,
+        icon: "commit",
+        title: row.subject,
+        meta: `${row.short} · ${row.author} · ${ageOf(row.time, now)}`,
+        chips: row.chips,
+        counts: countsText(row.counts),
+        badge: null,
+        checks: null,
+        slot: slotOf(pick),
+        shaded: shaded.has(row.sha),
+      };
+    });
+    const entries: BranchEntry[] = orderBranches(
+      branchLoad.rows,
+      branchLoad.defaultRef,
+      commitFacts,
+    );
+    const branchRows: CommitRowView[] = entries.map((entry) => {
+      const pick = branchRow(entry);
+      const facts = entry.facts;
+
+      return {
+        pick,
+        icon: "branch",
+        title: entry.row.name,
+        meta: `${facts?.ahead ?? "-"} ahead, ${facts?.behind ?? "-"} behind · ${entry.row.author} · ${ageOf(entry.row.time, now)}`,
+        chips: entry.isDefault ? ["default"] : [],
+        counts: countsText(factsCounts(facts)),
+        badge: null,
+        checks: null,
+        slot: slotOf(pick),
+        shaded: false,
+      };
+    });
+    const pullRows: CommitRowView[] = pullLoad.rows.map((row) => {
+      const facts = commitFacts.get(row.sha) ?? null;
+      const pick = pullRequestRow(row, facts);
+
+      return {
+        pick,
+        icon: "pull-request",
+        title: `#${row.number} ${row.title}`,
+        meta: `${row.branch} · ${row.author} · ${ageOf(row.time, now)}`,
+        chips: [],
+        counts: countsText(factsCounts(facts)),
+        badge: row.draft ? "draft" : null,
+        checks: row.checks,
+        slot: slotOf(pick),
+        shaded: false,
+      };
+    });
+    const pullNotice =
+      pullLoad.state === "ready"
+        ? ghNotice(pullLoad.status, pullLoad.detail)
+        : null;
+    const lists: Record<CommitsTab, CommitsListView> = {
+      history: {
+        rows: historyRows,
+        loading: historyLoad.state === "loading",
+        notice:
+          historyLoad.state === "failed"
+            ? `Could not read the history: ${historyLoad.problem}`
+            : historyRows.length === 0 && historyLoad.state === "ready"
+              ? "No commits"
+              : null,
+        note: null,
+      },
+      branches: {
+        rows: branchRows,
+        loading: branchLoad.state === "loading",
+        notice:
+          branchLoad.state === "failed"
+            ? `Could not read the branches: ${branchLoad.problem}`
+            : branchRows.length === 0 && branchLoad.state === "ready"
+              ? "No branches"
+              : null,
+        note:
+          branchLoad.total > branchRows.length
+            ? `Showing ${branchRows.length} of ${branchLoad.total} branches`
+            : null,
+      },
+      prs: {
+        rows: pullRows,
+        loading: pullLoad.state === "loading",
+        notice:
+          pullNotice ??
+          (pullLoad.state === "ready" && pullRows.length === 0
+            ? "No open pull requests"
+            : null),
+        note: null,
+      },
+    };
+
+    return {
+      branch: commitsBranch,
+      active: commitsModel.active(),
+      from:
+        from !== null
+          ? { label: from.label, hint: null }
+          : range?.defaulted === true
+            ? {
+                label: shortRef(range.base),
+                hint: to?.kind === "commit" ? "its parent" : "merge base",
+              }
+            : null,
+      to: to === null ? null : { label: to.label, hint: null },
+      note: commitsModel.rangeNote(),
+      canSwap: commitsModel.canSwap(),
+      summary:
+        range === null
+          ? null
+          : `${shortRef(range.base)}..${shortRef(range.head)}`,
+      canOpen: range !== null,
+      canSave: openView === DRAFT_VIEW,
+      tab: commitsTab,
+      lists,
+    };
+  }
+
+  function draftOf(range: { base: string; head: string }): View {
+    const view: View = {
+      schema_version: 4,
+      description: "",
+      commit: null,
+      steps: [],
+      change: { base: range.base, head: range.head },
+    };
+
+    viewTexts.set(DRAFT_VIEW, serialiseView(view));
+
+    return view;
+  }
+
+  function draftRange(): { base: string; head: string } | null {
+    if (openView !== DRAFT_VIEW) {
+      return null;
+    }
+
+    const change = viewNamed(DRAFT_VIEW)?.change;
+
+    return change === undefined
+      ? null
+      : { base: change.base, head: change.head };
+  }
+
+  async function openRange(base: string, head: string) {
+    const from = savedView();
+
+    if (from !== null && modified()) {
+      promptView = from;
+      unsavedDialog.show(
+        from,
+        `Opening the range closes the open view. ${LOSS_WARNING}`,
+        (choice) => void chooseRange(from, base, head, choice),
+      );
+
+      return;
+    }
+
+    openRangeNow(base, head);
+  }
+
+  async function chooseRange(
+    from: string,
+    base: string,
+    head: string,
+    choice: UnsavedChoice,
+  ) {
+    if (choice === "save") {
+      const written = await writeOpen();
+
+      promptView = null;
+      unsavedDialog.hide();
+
+      if (!written || openView !== from) {
+        return;
+      }
+
+      post({ kind: "done", text: `Saved ${from}` });
+    } else {
+      promptView = null;
+      unsavedDialog.hide();
+
+      if (choice === "cancel") {
+        return;
+      }
+    }
+
+    openRangeNow(base, head);
+  }
+
+  function openRangeNow(base: string, head: string) {
+    const view = draftOf({ base, head });
+    const token = ++openToken;
+
+    viewNotice = null;
+    openView = DRAFT_VIEW;
+    pendingLanding = null;
+    changeInfo = null;
+    setCanvas([], [], null);
+    void loadChange(DRAFT_VIEW, view, token);
+  }
+
   function toggleFindingsPanel() {
     leftPanel = leftPanel === "findings" ? null : "findings";
     render();
@@ -2033,7 +2495,7 @@ export function showExplorer(
               onlyView: ticks.onlyView && modules.opened().length > 0,
             }
           : { ...ticks, onlyView, describe: false },
-      view: { name: openView, modules: modules.opened() },
+      view: { name: savedView(), modules: modules.opened() },
       mode: onlyView === undefined ? resultsMode : "bring",
       scans,
       run: scanHost.runState(),
@@ -2102,7 +2564,11 @@ export function showExplorer(
   function openBubble(path: string, edit: boolean) {
     const view = openViewValue();
 
-    if (view === null || !notePositions().has(path)) {
+    if (
+      view === null ||
+      openView === DRAFT_VIEW ||
+      !notePositions().has(path)
+    ) {
       return;
     }
 
@@ -2197,7 +2663,7 @@ export function showExplorer(
   }
 
   function reorderNotes(summary: string, change: (view: View) => View) {
-    const name = openView;
+    const name = savedView();
     const view = openViewValue();
 
     if (name === null || view === null) {
@@ -2244,7 +2710,7 @@ export function showExplorer(
   }
 
   function removeNotePath(path: string) {
-    const name = openView;
+    const name = savedView();
     const view = openViewValue();
     const held = view === null ? null : noteAt(view, path);
 
@@ -2328,7 +2794,7 @@ export function showExplorer(
     const view = openViewValue();
     const path = notePathOf(selection);
 
-    return path !== null && view !== null
+    return path !== null && view !== null && openView !== DRAFT_VIEW
       ? { noted: noteAt(view, path) !== null }
       : null;
   }
@@ -2370,6 +2836,7 @@ export function showExplorer(
       folded: [...state.folded()].sort((a, b) => a.localeCompare(b)),
       focus: state.focus(),
       selection: selection === null ? null : { ...selection },
+      draft: draftRange(),
     };
   }
 
@@ -2466,10 +2933,26 @@ export function showExplorer(
     }
 
     restoreCanvas(snap.folded, snap.focus);
-    openView =
-      snap.view !== null && viewList.some((entry) => entry.name === snap.view)
-        ? snap.view
-        : null;
+
+    if (openView === DRAFT_VIEW || snap.draft !== null) {
+      openToken += 1;
+    }
+
+    const restored = snap.draft === null ? null : draftOf(snap.draft);
+
+    if (restored !== null) {
+      openView = DRAFT_VIEW;
+    } else {
+      if (changeInfo?.name === DRAFT_VIEW) {
+        changeInfo = null;
+      }
+
+      openView =
+        snap.view !== null && viewList.some((entry) => entry.name === snap.view)
+          ? snap.view
+          : null;
+    }
+
     hovered = null;
     resetList();
     rebuild();
@@ -2478,6 +2961,15 @@ export function showExplorer(
     reveal(state.selection());
     render();
     renderBar();
+
+    if (
+      restored !== null &&
+      snap.draft !== null &&
+      (changeInfo?.name !== DRAFT_VIEW ||
+        changeInfo.range !== rangeText(snap.draft))
+    ) {
+      void loadChange(DRAFT_VIEW, restored, openToken);
+    }
   }
 
   function trailNeighbours(): DriveFacts["trail"] {
@@ -2670,6 +3162,11 @@ export function showExplorer(
     const text =
       viewTexts.get(name) ??
       viewList.find((entry) => entry.name === name)?.text;
+
+    if (name === DRAFT_VIEW) {
+      return text === undefined ? null : (JSON.parse(text) as View);
+    }
+
     const parsed = text === undefined ? null : parseViewFile(text);
 
     return parsed?.ok ? parsed.view : null;
@@ -2680,7 +3177,7 @@ export function showExplorer(
   }
 
   async function writeNote(change: (view: View) => Promise<View>) {
-    const name = openView;
+    const name = savedView();
     const view = openViewValue();
 
     if (name === null || view === null) {
@@ -2721,6 +3218,10 @@ export function showExplorer(
     pendingLanding = null;
     openToken += 1;
     comparisons.drop(name);
+
+    if (name === DRAFT_VIEW) {
+      viewTexts.delete(DRAFT_VIEW);
+    }
 
     if (revertMessage !== null) {
       withdraw(revertMessage);
@@ -2821,7 +3322,8 @@ export function showExplorer(
     }
 
     bar.render({
-      open: openView,
+      open: savedView(),
+      unsaved: openView === DRAFT_VIEW,
       views: dropdownNames(
         viewList.map((entry) => entry.name),
         recentNames,
@@ -2846,15 +3348,16 @@ export function showExplorer(
       canForward: history.canForward(),
       backLabel: backLabel(history.markNow()),
       forwardLabel: forwardLabel(history.markNext()),
-      canCopy: openView !== null,
+      canCopy: savedView() !== null,
       canvasEmpty: modules.count() === 0,
       modified: modified(),
       canRevert: modified() || !canvas.fitted(),
       revertLabel: modified()
         ? "Revert to saved"
         : "Back to the saved position",
-      openTitle: openViewValue()?.title ?? null,
-      openDescription: openViewValue()?.description ?? null,
+      openTitle: savedView() === null ? null : (openViewValue()?.title ?? null),
+      openDescription:
+        savedView() === null ? null : (openViewValue()?.description ?? null),
     });
   }
 
@@ -3108,7 +3611,7 @@ export function showExplorer(
   }
 
   async function writeOpen(): Promise<boolean> {
-    const name = openView;
+    const name = savedView();
     const text = name === null ? undefined : viewTexts.get(name);
     const parsed = text === undefined ? null : parseViewFile(text);
 
@@ -3180,16 +3683,27 @@ export function showExplorer(
 
   async function saveNew(name: string, title: string, description: string) {
     const trimmed = title.trim();
+    const draft = openView === DRAFT_VIEW ? openViewValue() : null;
     const problem = await writeView(name, {
       schema_version: 4,
       ...(trimmed === "" ? {} : { title: trimmed }),
       description,
       commit: currentCommit(scans),
       steps: stepsFor([], canvasContent(), scans),
+      ...(draft?.change === undefined ? {} : { change: draft.change }),
     });
 
     if (problem === null) {
       comparisons.drop(name);
+
+      if (draft !== null) {
+        viewTexts.delete(DRAFT_VIEW);
+
+        if (changeInfo?.name === DRAFT_VIEW) {
+          changeInfo = { ...changeInfo, name };
+        }
+      }
+
       openView = name;
       record();
       noteOpened(name);
@@ -3237,11 +3751,13 @@ export function showExplorer(
   }
 
   async function copyLink() {
-    if (openView === null) {
+    const name = savedView();
+
+    if (name === null) {
       return;
     }
 
-    const link = await views.link(openView);
+    const link = await views.link(name);
 
     await views.copy(link);
     post({ kind: "done", text: `Copied ${link}` });
@@ -3424,7 +3940,7 @@ export function showExplorer(
   async function onViewsChanged() {
     await loadViewList();
 
-    if (openView === null) {
+    if (openView === null || openView === DRAFT_VIEW) {
       return;
     }
 
@@ -3683,7 +4199,7 @@ export function showExplorer(
 
     findingsView.render({
       scope: {
-        caption: scopeCaption(openView, modules.count()),
+        caption: scopeCaption(savedView(), modules.count()),
         on: findingsOnlyView,
       },
       header: headerLine(shownFindings),
@@ -3826,6 +4342,7 @@ export function showExplorer(
     tree.element.classList.toggle("notes-open", leftPanel === "notes");
     tree.element.classList.toggle("scan-open", leftPanel === "scan");
     tree.element.classList.toggle("findings-open", leftPanel === "findings");
+    tree.element.classList.toggle("commits-open", leftPanel === "commits");
 
     const noteView = openViewValue();
     const noteTotal = noteTotalOf(noteView);
@@ -3842,8 +4359,9 @@ export function showExplorer(
       leftPanel === "views"
         ? viewsPanelModel(viewList, scans, viewFacts)
         : null,
-      openView,
+      savedView(),
     );
+    commitsView.render(leftPanel === "commits" ? commitsPanelModel() : null);
 
     renderFindings();
     rail.render({
@@ -3856,7 +4374,7 @@ export function showExplorer(
     body.classList.toggle("inspector-open", inspectorOpen);
     renderCanvas();
     notesPanel.render({
-      hasView: noteView !== null,
+      hasView: noteView !== null && openView !== DRAFT_VIEW,
       rows: noteRowsNow(),
     });
     renderInspector();
@@ -4015,7 +4533,10 @@ export function showExplorer(
       snap.folded.filter(isFolder),
       snap.focus !== null && isFolder(snap.focus) ? snap.focus : null,
     );
-    openView = snap.view;
+    openView = snap.draft === null ? snap.view : DRAFT_VIEW;
+
+    const seeded = snap.draft === null ? null : draftOf(snap.draft);
+
     rebuild();
 
     if (
@@ -4032,6 +4553,10 @@ export function showExplorer(
     reveal(state.selection());
     render();
     record();
+
+    if (seeded !== null) {
+      void loadChange(DRAFT_VIEW, seeded, ++openToken);
+    }
 
     if (gone > 0) {
       post({

@@ -26,6 +26,7 @@ export type ViewBarProps = {
   openTitle: string | null;
   openDescription: string | null;
   modified: boolean;
+  unsaved: boolean;
   canRevert: boolean;
   revertLabel: string;
 };
@@ -56,6 +57,7 @@ export type ViewBarActions = {
 
 export type ViewBar = {
   element: HTMLElement;
+  promptSave: () => void;
   render: (props: ViewBarProps) => void;
   dispose: () => void;
 };
@@ -111,6 +113,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     actions.revert(),
   );
   const modifiedMark = el("span", "view-modified", "modified");
+  const unsavedMark = el("span", "view-unsaved", "unsaved");
   const copy = iconButton("Copy the view's link", "copy", "link", () =>
     actions.copyLink(),
   );
@@ -137,6 +140,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     openTitle: null,
     openDescription: null,
     modified: false,
+    unsaved: false,
     canRevert: false,
     revertLabel: "Revert to saved",
   };
@@ -153,6 +157,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   name.append(nameText);
   name.title = "Rename the view";
   modifiedMark.hidden = true;
+  unsavedMark.hidden = true;
   revert.hidden = true;
   revert.disabled = true;
   card.hidden = true;
@@ -165,6 +170,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     list,
     name,
     modifiedMark,
+    unsavedMark,
     rangeChip,
     planTag,
     save,
@@ -406,6 +412,13 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
 
   return {
     element,
+    promptSave() {
+      menuOpen = false;
+      cancelEditing();
+      dialogName = "";
+      dialogOpen = true;
+      renderOverlay();
+    },
     render(next) {
       const previousOpen = props.open;
 
@@ -414,7 +427,9 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       forward.disabled = !next.canForward;
       relabel(back, next.backLabel);
       relabel(forward, next.forwardLabel);
-      nameText.textContent = next.open ?? "Untitled";
+      nameText.textContent = next.unsaved
+        ? "Change"
+        : (next.open ?? "Untitled");
       rangeChip.hidden = next.openChip === null;
       rangeChip.textContent = next.openChip ?? "";
       planTag.hidden = !next.openPlan;
@@ -425,7 +440,9 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       }
 
       modifiedMark.hidden = next.open === null || !next.modified;
-      save.disabled = next.open !== null ? !next.modified : next.canvasEmpty;
+      unsavedMark.hidden = !next.unsaved;
+      save.disabled =
+        next.open !== null ? !next.modified : next.canvasEmpty && !next.unsaved;
       revert.hidden = next.open === null;
       revert.disabled = !next.canRevert;
       relabel(revert, next.revertLabel);

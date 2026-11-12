@@ -8,6 +8,7 @@ export type LeftPanel =
   | "notes"
   | "scan"
   | "findings"
+  | "commits"
   | null;
 
 export type RailActions = {
@@ -16,6 +17,7 @@ export type RailActions = {
   toggleNotes: () => void;
   toggleScan: () => void;
   toggleFindings: () => void;
+  toggleCommits: () => void;
 };
 
 export type RailState = {
@@ -52,6 +54,12 @@ export function buildRailView(actions: RailActions): RailView {
     "rail-findings",
     actions.toggleFindings,
   );
+  const commits = iconButton(
+    "commit",
+    "Commits",
+    "rail-commits",
+    actions.toggleCommits,
+  );
   const count = el("span", "rail-count");
   const dot = el("span", "rail-dot");
   const found = el("span", "rail-count");
@@ -60,9 +68,9 @@ export function buildRailView(actions: RailActions): RailView {
   notes.append(count);
   scan.append(dot);
   findings.append(found);
-  element.append(files, views, notes, scan, findings);
+  element.append(files, views, notes, scan, findings, commits);
 
-  for (const one of [files, views, notes, scan, findings]) {
+  for (const one of [files, views, notes, scan, findings, commits]) {
     one.setAttribute("data-label", one.getAttribute("aria-label") ?? "");
     one.removeAttribute("title");
   }
@@ -80,6 +88,8 @@ export function buildRailView(actions: RailActions): RailView {
       scan.setAttribute("aria-pressed", String(panel === "scan"));
       findings.classList.toggle("open", panel === "findings");
       findings.setAttribute("aria-pressed", String(panel === "findings"));
+      commits.classList.toggle("open", panel === "commits");
+      commits.setAttribute("aria-pressed", String(panel === "commits"));
       dot.hidden = !scanFailed;
       count.textContent = total > 0 ? String(total) : "";
       count.hidden = total === 0;

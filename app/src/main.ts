@@ -1,6 +1,7 @@
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./style.css";
 import { createBusyGate } from "./busy-gate";
+import { commitsSource } from "./commits-source";
 import { editorSource } from "./editor-source";
 import { showEmpty } from "./empty-view";
 import {
@@ -112,6 +113,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
       reconcileKeys();
     },
     comparisons,
+    commitsSource,
   );
 }
 

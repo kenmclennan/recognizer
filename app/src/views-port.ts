@@ -61,3 +61,5 @@ export const inertViews: ViewsPort = {
 };
 
 export const VIEW_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+export const DRAFT_VIEW = "(unsaved)";
