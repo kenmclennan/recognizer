@@ -3,11 +3,101 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { SKILLS } from "../src/skills.js";
+import { judge, type Transcript } from "./skill-eval/judge.js";
 
 const fixtures = join(
   dirname(fileURLToPath(import.meta.url)),
   "../../fixtures/skill-eval",
 );
+
+function transcript(name: string): Transcript {
+  return JSON.parse(
+    readFileSync(join(fixtures, "transcripts", `${name}.json`), "utf8"),
+  );
+}
+
+function codes(events: Transcript): string[] {
+  return judge(events).map((violation) => violation.code);
+}
+
+const CONFIG = "recognizer config --add-section sensors.crap";
+const OTHER = "recognizer config --add-section sensors.mutation";
+
+describe("skill eval judge", () => {
+  it.each(["setup", "update"])("passes the %s transcript", (name) => {
+    const events = transcript(name);
+
+    expect(events.some((event) => event.kind === "run")).toBe(true);
+    expect(codes(events)).toEqual([]);
+  });
+
+  it("flags an empty transcript as having no final doctor", () => {
+    expect(codes([])).toEqual(["no-final-doctor"]);
+  });
+
+  it("flags only the unapproved write of a mixed transcript", () => {
+    const violations = judge([
+      { kind: "propose", commands: [CONFIG] },
+      { kind: "approve" },
+      { kind: "run", command: CONFIG },
+      { kind: "propose", commands: [OTHER] },
+      { kind: "run", command: OTHER },
+      { kind: "run", command: "recognizer doctor --json" },
+    ]);
+
+    expect(violations).toEqual([{ code: "write-unapproved", index: 4 }]);
+  });
+
+  it("does not accept an approval given before the previous run", () => {
+    expect(
+      codes([
+        { kind: "propose", commands: [CONFIG] },
+        { kind: "approve" },
+        { kind: "run", command: "recognizer scan --extract" },
+        { kind: "run", command: CONFIG },
+        { kind: "run", command: "recognizer doctor" },
+      ]),
+    ).toEqual(["write-unapproved"]);
+  });
+
+  it("treats config reads as needing no approval", () => {
+    expect(
+      codes([
+        { kind: "run", command: "recognizer config --list" },
+        { kind: "run", command: "recognizer doctor" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("flags a non-recognizer command outside the read allow-list", () => {
+    expect(
+      codes([
+        { kind: "run", command: "git ls-files" },
+        { kind: "run", command: "sed -i s/a/b/ x" },
+        { kind: "run", command: "recognizer doctor" },
+      ]),
+    ).toEqual(["write-by-hand"]);
+  });
+
+  it("accepts a costly run once the user was asked by name", () => {
+    expect(
+      codes([
+        { kind: "ask", text: "Shall I run Mutation on the domain?" },
+        { kind: "run", command: "recognizer scan --sense mutation" },
+        { kind: "run", command: "recognizer doctor" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("flags a scan that senses all without asking", () => {
+    expect(
+      codes([
+        { kind: "run", command: "recognizer scan --sense all" },
+        { kind: "run", command: "recognizer doctor" },
+      ]),
+    ).toEqual(["costly-unasked"]);
+  });
+});
 
 describe("skill texts", () => {
   it("keeps the guide skill text unchanged and first", () => {

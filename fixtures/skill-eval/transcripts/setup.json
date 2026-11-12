@@ -1,0 +1,49 @@
+[
+  {
+    "kind": "run",
+    "command": "recognizer scan --extract"
+  },
+  {
+    "kind": "propose",
+    "commands": [
+      "recognizer config --add-section sensors.crap"
+    ]
+  },
+  {
+    "kind": "approve"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer config --add-section sensors.crap"
+  },
+  {
+    "kind": "propose",
+    "commands": [
+      "recognizer sensors check --run"
+    ]
+  },
+  {
+    "kind": "approve"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer sensors check --run"
+  },
+  {
+    "kind": "propose",
+    "commands": [
+      "recognizer policy --add-section components.domain"
+    ]
+  },
+  {
+    "kind": "approve"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer policy --add-section components.domain"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer doctor"
+  }
+]
