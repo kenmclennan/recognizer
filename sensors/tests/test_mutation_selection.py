@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -1062,3 +1063,107 @@ def test_a_primed_key_is_one_element_for_a_command_with_spaces(tmp_path, monkeyp
     assert sensor.baseline_key(SUITE, "pytest a b") == ("api", "pytest a b")
     assert sensor.baseline_key(SUITE, ["pytest", "a"]) == ("api", "pytest", "a")
     assert not [c for c, t in seen if t is None and c == WHOLE_COMMAND]
+
+
+def sleeper(pid_file):
+    return [
+        sys.executable,
+        "-c",
+        f"import os, time; open({str(pid_file)!r}, 'w').write(str(os.getpid())); time.sleep(120)",
+    ]
+
+
+def pass_the_deadline_once_running(pid_file, now):
+    def wait():
+        deadline = time.monotonic() + 30
+
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+
+        now["value"] = 1000.0
+
+    threading.Thread(target=wait, daemon=True).start()
+
+
+def process_is_gone(pid_file):
+    pid = int(pid_file.read_text())
+    deadline = time.monotonic() + 30
+
+    while time.monotonic() < deadline:
+        state = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True
+        ).stdout.strip()
+
+        if not state or state.startswith("Z"):
+            return True
+
+        time.sleep(0.05)
+
+    return False
+
+
+def test_a_baseline_running_at_the_deadline_is_ended_and_its_function_is_uncovered_by_budget(
+    tmp_path, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    now = {"value": 0.0}
+    pid_file = tmp_path / "baseline.pid"
+    real = runner.run_test_command
+    started = {}
+
+    def spy(command, cwd, timeout, suite=None, extra=None):
+        if timeout is not None:
+            return real([sys.executable, "-c", ""], cwd, timeout, suite=suite)
+
+        started.setdefault("at", time.monotonic())
+        pass_the_deadline_once_running(pid_file, now)
+
+        return real(sleeper(pid_file), cwd, timeout, suite=suite)
+
+    monkeypatch.setattr(sensor, "CLOCK", lambda: now["value"])
+    monkeypatch.setattr(runner, "run_test_command", spy)
+    monkeypatch.setattr(sensor, "run_test_command", spy)
+    settings = strong_settings(incremental=False, max_workers=1, max_minutes=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    assert time.monotonic() - started["at"] < 30
+    assert process_is_gone(pid_file)
+    survivors = read(root / SURVIVORS)
+
+    assert survivors["complete"] is False
+    assert survivors["unmeasured"]["budget"] >= 1
+
+
+def test_a_mutant_running_at_the_deadline_is_ended_and_gives_no_verdict(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    now = {"value": 0.0}
+    pid_file = tmp_path / "mutant.pid"
+    real = runner.run_test_command
+    started = {}
+
+    def spy(command, cwd, timeout, suite=None, extra=None):
+        if timeout is None:
+            return real([sys.executable, "-c", ""], cwd, timeout, suite=suite)
+
+        started.setdefault("at", time.monotonic())
+        pass_the_deadline_once_running(pid_file, now)
+
+        return real(sleeper(pid_file), cwd, timeout, suite=suite)
+
+    monkeypatch.setattr(sensor, "CLOCK", lambda: now["value"])
+    monkeypatch.setattr(runner, "run_test_command", spy)
+    monkeypatch.setattr(sensor, "run_test_command", spy)
+    settings = strong_settings(incremental=False, max_workers=1, max_minutes=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    assert time.monotonic() - started["at"] < 30
+    assert process_is_gone(pid_file)
+    survivors = read(root / SURVIVORS)
+
+    assert survivors["complete"] is False
+    assert survivors["unmeasured"]["budget"] >= 1
+    assert not survivors.get("timeouts")
