@@ -95,15 +95,57 @@ describe("member marks in the inspector contents", () => {
     expect(helper?.mark).toEqual({ word: "removed", icon: "minus" });
   });
 
-  it("strikes a removed member that is still in the scan and marks a class", () => {
+  it("strikes a removed member that is still in the scan and draws no mark on a modified class", () => {
     const [order, helper] = cards([ORDER, fn("helper", 9, 10)], {
       Order: "modified",
       helper: "removed",
     });
 
-    expect(order?.mark).toEqual({ word: "modified", icon: "delta" });
+    expect(order?.mark).toBeUndefined();
     expect(order?.look).toBeUndefined();
     expect(helper?.look).toBe("removed");
+  });
+
+  it("draws marks on member rows only when the class and its methods changed", () => {
+    const [order] = cards([ORDER], {
+      Order: "modified",
+      "Order.total": "modified",
+      "Order.apply": "added",
+    });
+
+    expect(order?.mark).toBeUndefined();
+    expect(order?.lines.map((line) => line.mark?.word)).toEqual([
+      "modified",
+      "added",
+    ]);
+  });
+
+  it("draws no card mark on a class whose only change is outside its members", () => {
+    const [order] = cards([ORDER], { Order: "modified" });
+
+    expect(order?.mark).toBeUndefined();
+    expect(order?.lines.every((line) => line.mark === undefined)).toBe(true);
+  });
+
+  it("names the marked hidden private methods in the hidden line", () => {
+    const priv = klass("Cart", 1, [
+      { name: "total", line: 2, end_line: 3 },
+      { name: "_a", line: 5, end_line: 6 },
+      { name: "_b", line: 8, end_line: 9 },
+    ]);
+
+    priv.methods = priv.methods?.map((method) =>
+      method.name.startsWith("_") ? { ...method, private: true } : method,
+    );
+
+    const [cart] = cards([priv], {
+      Cart: "modified",
+      "Cart.total": "modified",
+      "Cart._a": "added",
+    });
+
+    expect(cart?.mark).toBeUndefined();
+    expect(cart?.hidden).toBe("2 private methods hidden, 1 added");
   });
 
   it("draws no mark without a members input", () => {

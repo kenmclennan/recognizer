@@ -325,7 +325,11 @@ function inFileOrder<T>(placed: Placed<T>[]): Placed<T>[] {
     .map(({ entry }) => entry);
 }
 
-function hiddenText(fields: number, methods: number): string {
+function hiddenText(
+  fields: number,
+  methods: number,
+  marked: MemberMarkWord[] = [],
+): string {
   const parts = [
     fields > 0 ? `${fields} private ${fields === 1 ? "field" : "fields"}` : "",
     methods > 0
@@ -333,7 +337,28 @@ function hiddenText(fields: number, methods: number): string {
       : "",
   ].filter((part) => part !== "");
 
-  return parts.length === 0 ? "" : `${parts.join(", ")} hidden`;
+  if (parts.length === 0) {
+    return "";
+  }
+
+  const counts = new Map<MemberMarkWord, number>();
+
+  for (const word of marked) {
+    counts.set(word, (counts.get(word) ?? 0) + 1);
+  }
+
+  const changes = [...counts].map(([word, count]) => `${count} ${word}`);
+
+  return [`${parts.join(", ")} hidden`, ...changes].join(", ");
+}
+
+function cardMarkOf(
+  context: MemberContext | null,
+  key: string,
+): ReturnType<typeof markOf> {
+  return context?.mark(context.module, key) === "modified"
+    ? {}
+    : markOf(context, key);
 }
 
 function sizeOf(
@@ -449,7 +474,7 @@ function classCard(
     private: !member.exported,
     hover: member.name,
     table: null,
-    ...markOf(context, member.name),
+    ...cardMarkOf(context, member.name),
   };
 
   if (!outline) {
@@ -496,11 +521,16 @@ function classCard(
   const shown = withRemovedMethods(member, visible, keyed, context, largest);
   const hiddenFields = fields.filter(({ item }) => item.private).length;
   const hiddenMethods = methods.filter(({ item }) => item.private).length;
+  const hiddenMarked = methods.flatMap(({ item }) =>
+    item.private && item.mark !== undefined ? [item.mark.word] : [],
+  );
 
   return {
     ...base,
     lines: shown,
-    hidden: showPrivate ? "" : hiddenText(hiddenFields, hiddenMethods),
+    hidden: showPrivate
+      ? ""
+      : hiddenText(hiddenFields, hiddenMethods, hiddenMarked),
     table: metricTable(
       metrics,
       module,
