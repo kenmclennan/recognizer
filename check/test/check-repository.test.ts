@@ -72,6 +72,7 @@ describe("check in repository mode", () => {
             orphan: true,
             unused_exports: false,
             private_imports: true,
+            long_function: true,
           },
         },
       },
@@ -300,7 +301,7 @@ describe("a structure file from before the folder cycle was removed", () => {
   function oldFile() {
     return JSON.stringify({
       findings_version: 2,
-      sensor: { name: "structure", version: "15" },
+      sensor: { name: "structure", version: "16" },
       commit: COMMIT,
       modified: false,
       settings: {
@@ -311,6 +312,7 @@ describe("a structure file from before the folder cycle was removed", () => {
           orphan: true,
           unused_exports: false,
           private_imports: true,
+          long_function: true,
         },
       },
       findings: [
@@ -353,7 +355,7 @@ describe("a structure file from before policy drift became a policy problem", ()
   function oldFile() {
     return JSON.stringify({
       findings_version: 2,
-      sensor: { name: "structure", version: "15" },
+      sensor: { name: "structure", version: "16" },
       commit: COMMIT,
       modified: false,
       settings: {
@@ -364,6 +366,7 @@ describe("a structure file from before policy drift became a policy problem", ()
           policy_drift: true,
           unused_exports: false,
           private_imports: true,
+          long_function: true,
         },
       },
       findings: [
@@ -405,7 +408,7 @@ describe("a structure file from before the stable dependencies warning was remov
   function oldFile() {
     return JSON.stringify({
       findings_version: 2,
-      sensor: { name: "structure", version: "15" },
+      sensor: { name: "structure", version: "16" },
       commit: COMMIT,
       modified: false,
       settings: {
@@ -418,6 +421,7 @@ describe("a structure file from before the stable dependencies warning was remov
           stable_dependencies: true,
           unused_exports: false,
           private_imports: true,
+          long_function: true,
         },
       },
       inputs: {},

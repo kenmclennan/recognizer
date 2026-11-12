@@ -277,6 +277,19 @@ describe("private imports group", () => {
   });
 });
 
+describe("long functions group", () => {
+  it("is placed after Private imports", () => {
+    expect(
+      names([
+        document("structure", [
+          record("lf", "long_function"),
+          record("pi", "private_imports"),
+        ]),
+      ]),
+    ).toEqual(["Private imports", "Long functions"]);
+  });
+});
+
 describe("finding-groups.json", () => {
   const entries = groupFile.groups as {
     key: string;
@@ -285,19 +298,20 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has nine unique keys and names with plain help sentences", () => {
+  it("has ten unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
       "kind:orphan",
       "kind:unused_exports",
       "kind:private_imports",
+      "kind:long_function",
       "kind:duplication",
       "kind:crap",
       "kind:mutation",
       "kind:thresholds",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(9);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(10);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");

@@ -46,6 +46,7 @@ function sense(name: string, cycle = true) {
         orphan: cycle,
         unused_exports: false,
         private_imports: true,
+        long_function: true,
       },
     },
     CONTEXT,
@@ -116,7 +117,7 @@ describe("structureSensor ids", () => {
   });
 
   it("records the current sensor version", () => {
-    expect(sense("check-warnings").document.sensor.version).toBe("15");
+    expect(sense("check-warnings").document.sensor.version).toBe("16");
   });
 
   it("changes only orphan findings when the scan carries test imports", () => {
@@ -170,6 +171,7 @@ describe("structureSensor ids", () => {
         orphan: false,
         unused_exports: false,
         private_imports: true,
+        long_function: true,
       },
     });
   });

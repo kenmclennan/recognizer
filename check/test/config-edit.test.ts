@@ -415,6 +415,16 @@ describe("resolution", () => {
     });
   });
 
+  it("knows long_function as a warning key", () => {
+    const after = text(
+      setValue("", KEYS, "sensors.structure.warnings.long_function", "false"),
+    );
+
+    expect(parse(after)).toEqual({
+      sensors: { structure: { warnings: { long_function: false } } },
+    });
+  });
+
   it("writes a number as a number and an env value as a string", () => {
     const after = text(
       setValue(

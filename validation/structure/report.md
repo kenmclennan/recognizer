@@ -93,6 +93,32 @@ The rule was measured per repository before the spec PR, over the committed corp
 | requests `3c7baaa` | 4 | 5 |
 | Python total | 61 | 191 |
 
+## Long functions over the corpus
+
+The `long_function` rule was measured per repository before the spec PR, on 2026-11-12, over the committed corpus snapshot `~/recognizer-corpus/2026-11-06` (the languages each manifest entry keeps) and a fresh scan of lightcycle `e7558af3`. A finding is counted once per id. vite has no scan in the snapshot, so it has no row.
+
+| Repository (pinned commit) | Languages | Findings | Files holding one |
+| --- | --- | --- | --- |
+| axum `40d061f` | rust | 153 | 74 |
+| flask `49943b5` | python | 131 | 23 |
+| hono `eb754bd` | typescript | 210 | 109 |
+| httpx `b5addb6` | python | 101 | 16 |
+| kotlinpoet `a1cefe0` | kotlin | 59 | 24 |
+| ktor `6f3b9da` | kotlin | 758 | 410 |
+| lightcycle `2eae0f3` | python | 318 | 137 |
+| loom `0ca47c7` | rust 75, typescript 15 | 90 | 29 |
+| MediatR `771a5ae` | csharp | 44 | 22 |
+| moshi `889013e` | kotlin | 106 | 36 |
+| Newtonsoft.Json `52fa3ae` | csharp | 432 | 104 |
+| recognizer `8f129c6` | python 166, typescript 402, rust 112 | 680 | 242 |
+| requests `3c7baaa` | python | 71 | 9 |
+| ripgrep `91f5d22` | rust | 241 | 59 |
+| serde `0db9b3b` | rust | 102 | 26 |
+| yori `b8040ec` | rust 41, typescript 118 | 159 | 78 |
+| zod `19c40d2` | typescript | 256 | 131 |
+
+Lightcycle at current main `e7558af3` gives 330 findings in 142 files. Fourteen Kotlin top-level functions in the ktor scan carry no `end_line` and are never reported.
+
 ## Disagreements
 
 | item | classification | note |

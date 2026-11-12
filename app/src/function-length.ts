@@ -1,4 +1,7 @@
-export const LONG_FUNCTION = 20;
+import { functionLength, LONG_FUNCTION } from "recognizer";
+
+export { functionLength, LONG_FUNCTION };
+
 export const HUGE_FUNCTION = 50;
 
 export type LengthBand = "neutral" | "long" | "huge";
@@ -11,23 +14,6 @@ export function lengthBand(lines: number): LengthBand {
   }
 
   return lines > LONG_FUNCTION ? "long" : "neutral";
-}
-
-export function functionLength(
-  line: number | null | undefined,
-  endLine: number | null | undefined,
-): number | null {
-  if (
-    line === null ||
-    line === undefined ||
-    endLine === null ||
-    endLine === undefined ||
-    endLine < line
-  ) {
-    return null;
-  }
-
-  return endLine - line + 1;
 }
 
 export function barPercent(lines: number, largest: number): number {

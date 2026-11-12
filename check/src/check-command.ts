@@ -426,6 +426,7 @@ function executeScanReplay(
       orphan: true,
       unused_exports: false,
       private_imports: true,
+      long_function: true,
     },
   };
   const sensed = structureSensor([validateScan(scan)], policy, settings, {

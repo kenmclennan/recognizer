@@ -1,0 +1,4 @@
+sensors:
+  structure:
+    warnings:
+      long_function: "yes"

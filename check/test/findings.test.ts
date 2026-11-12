@@ -38,6 +38,7 @@ function findingsByModule(
         orphan: true,
         unused_exports: false,
         private_imports: true,
+        long_function: true,
       },
     },
     { commit: "abc", modified: false },

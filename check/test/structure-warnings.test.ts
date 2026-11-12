@@ -1,9 +1,10 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
-import { parsePolicy, validateScan } from "../src/index.js";
+import { functionLength, parsePolicy, validateScan } from "../src/index.js";
 import { policyProblems } from "../src/policy-problems.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
@@ -13,6 +14,7 @@ import {
   structureSensor,
 } from "../src/structure-sensor.js";
 import {
+  longFunctionFindings,
   orphanFindings,
   privateImportsFindings,
   unusedExportsFindings,
@@ -307,13 +309,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true}}',
+      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true}}',
     );
-    expect(document.sensor.version).toBe("15");
+    expect(document.sensor.version).toBe("16");
   });
 
   it("describes the settings with and without entry points", () => {
-    const base = "cycle on, orphan on, unused_exports off, private_imports on";
+    const base =
+      "cycle on, orphan on, unused_exports off, private_imports on, long_function on";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -422,6 +425,7 @@ describe("the removed hub keys", () => {
       "orphan",
       "unused_exports",
       "private_imports",
+      "long_function",
     ]);
     expect(
       JSON.stringify([
@@ -605,6 +609,7 @@ describe("switches for the package metric warnings", () => {
           orphan: on,
           unused_exports: false,
           private_imports: true,
+          long_function: true,
         },
       },
       CONTEXT,
@@ -1539,6 +1544,7 @@ describe("unused_exports", () => {
     expect(off.document.settings.warnings).toMatchObject({
       unused_exports: false,
       private_imports: true,
+      long_function: true,
     });
     expect(ids(on.document.findings)).toContain("unused_exports:shop/a.py");
   });
@@ -1578,7 +1584,9 @@ describe("unused_exports", () => {
         },
         entry_points: ["a"],
       }),
-    ).toBe(`${base}, unused_exports on, private_imports on, entry_points 1`);
+    ).toBe(
+      `${base}, unused_exports on, private_imports on, long_function on, entry_points 1`,
+    );
   });
 
   it("gives the known exports of the committed fixture scans", () => {
@@ -1939,6 +1947,7 @@ describe("private_imports", () => {
         warnings: {
           ...DEFAULT_STRUCTURE_SETTINGS.warnings,
           private_imports: false,
+          long_function: false,
         },
       },
       CONTEXT,
@@ -1950,6 +1959,7 @@ describe("private_imports", () => {
     );
     expect(off.document.settings.warnings).toMatchObject({
       private_imports: false,
+      long_function: false,
     });
   });
 
@@ -1972,6 +1982,7 @@ describe("private_imports", () => {
         warnings: {
           ...DEFAULT_STRUCTURE_SETTINGS.warnings,
           private_imports: false,
+          long_function: false,
         },
       }),
     ).toContain("unused_exports off, private_imports off");
@@ -2033,5 +2044,299 @@ describe("private_imports", () => {
     ]) {
       expect(run(path), path).toEqual([]);
     }
+  });
+});
+
+describe("long_function", () => {
+  type Fn = {
+    name: string;
+    line?: number;
+    end_line?: number;
+  };
+
+  type Mod = {
+    id: string;
+    language?: string;
+    functions?: Fn[];
+    classes?: { name: string; methods: Fn[] }[];
+  };
+
+  const scanWith = (modules: Mod[]) =>
+    validateScan({
+      schema_version: 7,
+      scanner: { name: "t", version: "0" },
+      commit: null,
+      modified: false,
+      files: [],
+      selection: {
+        extensions: [],
+        skip_directory_names: [],
+        skip_directory_prefixes: [],
+        skip_directory_suffixes: [],
+        skip_directories_containing: [],
+        skip_file_globs: [],
+      },
+      modules: modules.map((module) => ({
+        id: module.id,
+        language: module.language ?? "python",
+        kind: "module",
+        members: [
+          ...(module.functions ?? []).map((fn) => ({
+            params: [],
+            ...fn,
+            exported: true,
+            kind: "function",
+          })),
+          ...(module.classes ?? []).map((cls) => ({
+            name: cls.name,
+            exported: true,
+            kind: "class",
+            line: 1,
+            methods: cls.methods.map((method) => ({
+              params: [],
+              private: false,
+              ...method,
+            })),
+          })),
+        ],
+      })),
+      edges: [],
+      foreign: [],
+    });
+
+  const found = (modules: Mod[], policy: string | null = null) =>
+    longFunctionFindings(
+      scanWith(modules),
+      policy === null ? null : parsePolicy(policy),
+    );
+
+  const span = (name: string, line: number, end_line: number): Fn => ({
+    name,
+    line,
+    end_line,
+  });
+
+  it("gives none at 20 lines and one at 21", () => {
+    const result = found([
+      {
+        id: "lib/store.py",
+        functions: [span("a", 1, 20), span("b", 30, 50)],
+      },
+    ]);
+
+    expect(ids(result)).toEqual(["long_function:lib/store.py::b"]);
+    expect(result[0]).toMatchObject({
+      kind: "long_function",
+      severity: "warning",
+      principle: "small-functions",
+    });
+    expect(result[0]?.fix_pattern).toBeUndefined();
+    expect(result[0]?.summary).toContain(
+      "functions should be small (Martin, Clean Code, 2008)",
+    );
+    expect(result[0]?.evidence.modules).toEqual(["lib/store.py"]);
+  });
+
+  it("counts a method like a function", () => {
+    const result = found([
+      {
+        id: "lib/store.py",
+        classes: [{ name: "Store", methods: [span("save", 10, 40)] }],
+      },
+    ]);
+
+    expect(ids(result)).toEqual(["long_function:lib/store.py::Store.save"]);
+    expect(result[0]?.evidence.members).toEqual([
+      {
+        module: "lib/store.py",
+        name: "Store.save",
+        file: "lib/store.py",
+        lines: [10, 40],
+      },
+    ]);
+    expect(result[0]?.evidence.measures).toEqual({ lines: 31, limit: 20 });
+    expect(result[0]?.summary).toContain("Store.save in store.py is 31 lines");
+  });
+
+  it("gives none for a function or method with no range", () => {
+    const result = found([
+      {
+        id: "lib/store.py",
+        functions: [{ name: "open", line: 1 }, span("long_one", 5, 60)],
+        classes: [{ name: "Store", methods: [{ name: "save", line: 70 }] }],
+      },
+    ]);
+
+    expect(ids(result)).toEqual(["long_function:lib/store.py::long_one"]);
+  });
+
+  it("gives none for a test file", () => {
+    const result = found([
+      { id: "tests/test_store.py", functions: [span("a", 1, 40)] },
+      { id: "src/store.test.ts", functions: [span("a", 1, 40)] },
+      { id: "src/store.py", functions: [span("a", 1, 40)] },
+    ]);
+
+    expect(ids(result)).toEqual(["long_function:src/store.py::a"]);
+  });
+
+  it("appends the line to a duplicated name", () => {
+    const twice = found([
+      {
+        id: "lib/store.py",
+        functions: [span("load", 1, 30), span("load", 40, 80)],
+      },
+    ]);
+    const once = found([
+      { id: "lib/store.py", functions: [span("load", 1, 30)] },
+    ]);
+    const mixed = found([
+      {
+        id: "lib/store.py",
+        functions: [span("load", 1, 5), span("load", 40, 80)],
+      },
+    ]);
+
+    expect(ids(twice)).toEqual([
+      "long_function:lib/store.py::load@1",
+      "long_function:lib/store.py::load@40",
+    ]);
+    expect(ids(once)).toEqual(["long_function:lib/store.py::load"]);
+    expect(ids(mixed)).toEqual(["long_function:lib/store.py::load@40"]);
+  });
+
+  it("skips a module a policy ignore removes", () => {
+    const modules = [{ id: "lib/store.py", functions: [span("a", 1, 40)] }];
+    const ignoring = "ignore: [lib/**]\n";
+    const other = "ignore: [other/**]\n";
+
+    expect(ids(found(modules, ignoring))).toEqual([]);
+    expect(ids(found(modules, other))).toEqual([
+      "long_function:lib/store.py::a",
+    ]);
+  });
+
+  it.each(["python", "typescript", "kotlin", "rust", "csharp"])(
+    "measures a %s module",
+    (language) => {
+      const result = found([
+        {
+          id: `src/store.${language}`,
+          language,
+          functions: [span("a", 1, 21)],
+        },
+      ]);
+
+      expect(result).toHaveLength(1);
+    },
+  );
+
+  it("is switched by the sensor, resolved and recorded", () => {
+    const scan = scanWith([
+      { id: "lib/store.py", functions: [span("a", 1, 40)] },
+    ]);
+    const on = structureSensor(
+      [scan],
+      null,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    );
+    const off = structureSensor(
+      [scan],
+      null,
+      {
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: {
+          ...DEFAULT_STRUCTURE_SETTINGS.warnings,
+          long_function: false,
+        },
+      },
+      CONTEXT,
+    );
+    const resolve = (yaml: string) =>
+      (resolveStructureSettings(parseConfig(yaml)) as StructureSettings)
+        .warnings.long_function;
+    const warn = (value: string) =>
+      `sensors:\n  structure:\n    warnings:\n      long_function: ${value}\n`;
+
+    expect(ids(on.document.findings)).toContain(
+      "long_function:lib/store.py::a",
+    );
+    expect(
+      ids(off.document.findings).some((id) => id.startsWith("long_function:")),
+    ).toBe(false);
+    expect(off.document.settings.warnings.long_function).toBe(false);
+    expect(resolve("sensors:\n  structure: {}\n")).toBe(true);
+    expect(resolve(warn("true"))).toBe(true);
+    expect(resolve(warn("false"))).toBe(false);
+    expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toContain(
+      "private_imports on, long_function on",
+    );
+    expect(
+      describeSettings({
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: {
+          ...DEFAULT_STRUCTURE_SETTINGS.warnings,
+          long_function: false,
+        },
+      }),
+    ).toContain("private_imports on, long_function off");
+  });
+
+  it("parses a boolean and rejects any other type", () => {
+    const read = (path: string) =>
+      readFileSync(join(REPO, "schema/config-examples", path), "utf8");
+
+    expect(() =>
+      parseConfig(
+        "sensors:\n  structure:\n    warnings:\n      long_function: false\n",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      parseConfig(
+        'sensors:\n  structure:\n    warnings:\n      long_function: "yes"\n',
+      ),
+    ).toThrow(InputError);
+    expect(() =>
+      parseConfig(read("invalid/sensors-long-function-not-boolean.yaml")),
+    ).toThrow(InputError);
+  });
+
+  it("finds nothing over the committed fixture scans", () => {
+    const paths = execFileSync(
+      "git",
+      ["ls-files", "fixtures", "--", "*expected-scan.json"],
+      { cwd: REPO, encoding: "utf8" },
+    )
+      .split("\n")
+      .filter((path) => path.endsWith("expected-scan.json"));
+
+    expect(paths.length).toBeGreaterThanOrEqual(11);
+
+    let withFunctions = 0;
+
+    for (const path of paths) {
+      const scan = validateScan(
+        JSON.parse(readFileSync(join(REPO, path), "utf8")),
+      );
+      const lengths = scan.modules.flatMap((module) =>
+        (module.members ?? []).flatMap((member) =>
+          member.kind === "function"
+            ? [functionLength(member.line, member.end_line)]
+            : (member.methods ?? []).map((method) =>
+                functionLength(method.line, method.end_line),
+              ),
+        ),
+      );
+      const measured = lengths.filter(
+        (length): length is number => length !== null,
+      );
+
+      withFunctions += measured.length > 0 ? 1 : 0;
+      expect(Math.max(0, ...measured), path).toBeLessThan(21);
+      expect(longFunctionFindings(scan, null), path).toEqual([]);
+    }
+
+    expect(withFunctions).toBeGreaterThanOrEqual(paths.length - 1);
   });
 });

@@ -167,6 +167,17 @@ function crap(record: FindingRecord): string | null {
   return `${head} and ${whole(measures.coverage * 100)}% coverage, C.R.A.P. ${whole(measures.crap)}.`;
 }
 
+function longFunction(record: FindingRecord): string | null {
+  const member = record.evidence.members?.[0];
+  const lines = record.evidence.measures?.lines;
+
+  if (member === undefined || lines === undefined) {
+    return null;
+  }
+
+  return `${member.name} in ${shortName(member.module)} is ${num(lines)} lines, over the 20 a function should hardly ever reach - functions should be small (Martin, Clean Code, 2008).`;
+}
+
 function mutation(record: FindingRecord): string | null {
   const member = record.evidence.members?.[0];
   const survived = record.evidence.measures?.survived;
@@ -242,6 +253,7 @@ const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   orphan,
   unused_exports: unusedExports,
   private_imports: privateImports,
+  long_function: longFunction,
   duplication,
   crap,
   mutation,

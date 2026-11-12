@@ -12,6 +12,7 @@ export interface StructureSettingsInput {
     cycle?: boolean;
     unused_exports?: boolean;
     private_imports?: boolean;
+    long_function?: boolean;
     orphan?: boolean | { entry_points: string[] };
   };
 }
