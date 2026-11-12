@@ -149,7 +149,7 @@ describe("the core's own key table", () => {
       "sensors.structure.warnings.orphan.entry_points",
     );
 
-    expect(seen.length).toBeGreaterThanOrEqual(8);
+    expect(seen.length).toBeGreaterThanOrEqual(7);
     expect(CORE_KEYS.keys.map((entry) => entry.key).sort()).toEqual(
       [...seen, "sensors.structure.hub_threshold"]
         .filter((key, at, all) => all.indexOf(key) === at)
@@ -162,6 +162,8 @@ describe("the core's own key table", () => {
 
     expect(keys.some((key) => key.includes("distance_threshold"))).toBe(false);
     expect(keys.some((key) => key.includes("stable_abstractions"))).toBe(false);
+    expect(keys.some((key) => key.includes("instability_gap"))).toBe(false);
+    expect(keys.some((key) => key.includes("composition_roots"))).toBe(false);
   });
 });
 

@@ -1,6 +1,5 @@
 import { isEntryPoint, isLiteralPath } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
-import { type FolderMeasures, round } from "./folder-metrics.js";
 import { compileGlob, matchesAny } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
@@ -20,14 +19,6 @@ export function folderOf(id: string): string {
   const at = id.lastIndexOf("/");
 
   return at < 0 ? "." : id.slice(0, at);
-}
-
-export function isAncestorFolder(a: string, b: string): boolean {
-  if (a === ".") {
-    return b !== ".";
-  }
-
-  return b.startsWith(`${a}/`);
 }
 
 function moduleEdges(scan: Scan, policy: Policy | null) {
@@ -421,76 +412,4 @@ export function policyDriftFindings(
     .sort((a, b) => compare(a.id, b.id));
 
   return [...unmatched, ...uncovered];
-}
-
-function fixed(value: number): string {
-  return String(value);
-}
-
-export interface StableDependenciesOptions {
-  min_gap: number;
-  composition_roots: string[];
-}
-
-export function stableDependenciesFindings(
-  measures: FolderMeasures,
-  options: StableDependenciesOptions,
-): FindingRecord[] {
-  const roots = options.composition_roots.map(compileGlob);
-  const instability = new Map(
-    measures.rows.map((row) => [row.id, row.instability]),
-  );
-  const findings: FindingRecord[] = [];
-
-  for (const [key, held] of measures.between) {
-    const [source, target] = key.split("\0") as [string, string];
-    const sourceI = instability.get(source) ?? null;
-    const targetI = instability.get(target) ?? null;
-
-    if (isAncestorFolder(source, target) || isAncestorFolder(target, source)) {
-      continue;
-    }
-
-    if (sourceI === null || targetI === null || !(targetI > sourceI)) {
-      continue;
-    }
-
-    if (round(targetI - sourceI) < options.min_gap) {
-      continue;
-    }
-
-    if (matchesAny(roots, source)) {
-      continue;
-    }
-
-    const edges = [...held].sort(
-      (a, b) => compare(a.from, b.from) || compare(a.to, b.to),
-    );
-    const modules = [
-      ...new Set(edges.flatMap((edge) => [edge.from, edge.to])),
-    ].sort(compare);
-    const through =
-      edges.length === 1
-        ? `through 1 import (${edges[0]?.from} -> ${edges[0]?.to})`
-        : `through ${edges.length} imports`;
-
-    findings.push({
-      id: `stable_dependencies:${source}->${target}`,
-      kind: "stable_dependencies",
-      severity: "warning",
-      principle: "dependencies-point-toward-stability",
-      summary: `folder ${source} depends on folder ${target}, which is less stable (instability ${fixed(sourceI)} -> ${fixed(targetI)}), ${through}`,
-      fix_pattern: "depend-on-stabler-folder",
-      evidence: {
-        modules,
-        edges,
-        measures: {
-          source_instability: sourceI,
-          target_instability: targetI,
-        },
-      },
-    });
-  }
-
-  return findings.sort((a, b) => compare(a.id, b.id));
 }

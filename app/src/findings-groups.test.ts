@@ -50,7 +50,6 @@ describe("groupsOf", () => {
       record("cr", "crap"),
       record("du", "duplication"),
       record("ue", "unused_exports"),
-      record("sd", "stable_dependencies"),
       record("pd", "policy_drift"),
       record("or", "orphan"),
       record("hu", "hub"),
@@ -64,7 +63,6 @@ describe("groupsOf", () => {
       "Hub",
       "Orphan",
       "Policy out of step",
-      "Depends on less stable code",
       "Unused exports",
       "Duplicated code",
       "C.R.A.P.",
@@ -87,6 +85,28 @@ describe("groupsOf", () => {
 
     expect(group?.key).toBe("kind:stable_abstractions");
     expect(group?.name).toBe("Stable abstractions");
+  });
+
+  it("shows a stable_dependencies record from another file under its kind with its own summary", () => {
+    const old = document("review", [
+      {
+        ...record("sd", "stable_dependencies"),
+        summary: "folder a depends on folder b, which is less stable",
+      },
+      record("c", "cycle"),
+    ]);
+    const rows = findingRows([old]);
+    const groups = groupsOf(rows);
+    const shown = groups.find((one) => one.key === "kind:stable_dependencies");
+
+    expect(groups.map((one) => one.key)).toContain("kind:cycle");
+    expect(shown?.rows).toHaveLength(1);
+    expect(
+      sentenceOf({
+        record: shown?.rows[0]?.record as FindingRecord,
+        reported: false,
+      }),
+    ).toBe("folder a depends on folder b, which is less stable");
   });
 
   it("shows a folder_cycle record from an old file under its kind with its own summary", () => {
@@ -214,21 +234,20 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has eleven unique keys and names with plain help sentences", () => {
+  it("has ten unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
       "kind:hub",
       "kind:orphan",
       "kind:policy_drift",
-      "kind:stable_dependencies",
       "kind:unused_exports",
       "kind:duplication",
       "kind:crap",
       "kind:mutation",
       "kind:thresholds",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(11);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(10);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");

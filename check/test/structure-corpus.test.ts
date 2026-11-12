@@ -39,8 +39,6 @@ interface MetricsRow {
 interface ScanDescription {
   settings: {
     entry_points?: string[];
-    instability_gap?: number;
-    composition_roots?: string[];
     warnings?: Record<string, boolean>;
   };
   policy?: string;
@@ -119,14 +117,11 @@ function settingsFrom(description: ScanDescription): StructureSettings {
     hub: false,
     orphan: false,
     policy_drift: false,
-    stable_dependencies: false,
     unused_exports: false,
   };
 
   return {
     hub_threshold: 10,
-    instability_gap: description.settings.instability_gap ?? 0.2,
-    composition_roots: description.settings.composition_roots ?? [],
     entry_points: description.settings.entry_points ?? [],
     warnings: { ...off, ...description.settings.warnings },
   };
@@ -157,9 +152,9 @@ function label(one: Case): string {
 }
 
 describe("structure corpus", () => {
-  it("holds 28 labelled cases and 20 folder metric rows", () => {
-    expect(expected.cases).toHaveLength(28);
-    expect(expected.folder_metrics).toHaveLength(20);
+  it("holds 19 labelled cases and 11 folder metric rows", () => {
+    expect(expected.cases).toHaveLength(19);
+    expect(expected.folder_metrics).toHaveLength(11);
   });
 
   it("has one scan file per scan name and no unlabelled scan file", () => {

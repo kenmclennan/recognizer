@@ -1,9 +1,5 @@
 {
-  "settings": {
-    "warnings": {
-      "stable_dependencies": true
-    }
-  },
+  "settings": {},
   "modules": [
     {
       "id": "c/z.ts",

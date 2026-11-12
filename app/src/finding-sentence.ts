@@ -110,33 +110,6 @@ function hub(record: FindingRecord): string | null {
   return `${counts}; ${size}; the limit is ${num(measures.threshold)}.`;
 }
 
-function unstable(record: FindingRecord): string | null {
-  const [from, to] = after(record.id, "stable_dependencies:").split("->");
-  const measures = record.evidence.measures;
-
-  if (
-    from === undefined ||
-    to === undefined ||
-    from === "" ||
-    measures?.source_instability === undefined ||
-    measures.target_instability === undefined
-  ) {
-    return null;
-  }
-
-  const base = `${from} depends on ${to}, which changes more often (instability ${num(measures.source_instability)} against ${num(measures.target_instability)}).`;
-  const edges = record.evidence.edges ?? [];
-  const [only] = edges;
-
-  if (only === undefined) {
-    return base;
-  }
-
-  return edges.length === 1
-    ? `${base} It rests on one import: ${shortName(only.from)} -> ${shortName(only.to)}.`
-    : `${base} It rests on ${edges.length} imports.`;
-}
-
 function drift(record: FindingRecord): string | null {
   const entry = after(record.id, "policy_drift:entry:");
 
@@ -302,7 +275,6 @@ const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   hub,
   orphan,
   policy_drift: drift,
-  stable_dependencies: unstable,
   unused_exports: unusedExports,
   duplication,
   crap,

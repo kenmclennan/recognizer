@@ -41,15 +41,12 @@ function sense(name: string, hub = 10, cycle = true, hubOn = true) {
     policy,
     {
       hub_threshold: hub,
-      instability_gap: 0.2,
-      composition_roots: [],
       entry_points: [],
       warnings: {
         cycle,
         hub: hubOn,
         orphan: cycle,
         policy_drift: cycle,
-        stable_dependencies: false,
         unused_exports: false,
       },
     },
@@ -165,15 +162,12 @@ describe("structureSensor ids", () => {
     expect(off.metrics.length).toBeGreaterThan(0);
     expect(off.document.settings).toEqual({
       hub_threshold: 3,
-      instability_gap: 0.2,
-      composition_roots: [],
       entry_points: [],
       warnings: {
         cycle: false,
         hub: false,
         orphan: false,
         policy_drift: false,
-        stable_dependencies: false,
         unused_exports: false,
       },
     });

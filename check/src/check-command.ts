@@ -33,7 +33,6 @@ import { shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
   DEFAULT_HUB_THRESHOLD,
-  DEFAULT_INSTABILITY_GAP,
   describeSettings,
   resolveStructureSettings,
   type StructureSettings,
@@ -488,15 +487,12 @@ function executeScanReplay(
     : null;
   const settings: StructureSettings = {
     hub_threshold: hubThreshold,
-    instability_gap: DEFAULT_INSTABILITY_GAP,
-    composition_roots: [],
     entry_points: [],
     warnings: {
       cycle: true,
       hub: true,
       orphan: true,
       policy_drift: true,
-      stable_dependencies: true,
       unused_exports: false,
     },
   };

@@ -40,7 +40,6 @@ export function metricsTable(row: FolderMetrics): [string, string][] {
 
 export interface FolderMeasures {
   rows: FolderMetrics[];
-  between: Map<string, { from: string; to: string }[]>;
   modulesOf: Map<string, string[]>;
 }
 
@@ -109,7 +108,6 @@ export function measureFolders(
 
   const incoming = new Map<string, Set<string>>();
   const outgoing = new Map<string, Set<string>>();
-  const between = new Map<string, { from: string; to: string }[]>();
 
   const add = (map: Map<string, Set<string>>, folder: string, id: string) => {
     const held = map.get(folder) ?? new Set<string>();
@@ -133,10 +131,6 @@ export function measureFolders(
 
     add(outgoing, source, edge.from);
     add(incoming, target, edge.from);
-
-    const key = pairKey(source, target);
-
-    between.set(key, [...(between.get(key) ?? []), edge]);
   }
 
   const rows = [...byFolder.keys()].sort(compare).map((folder) => {
@@ -171,5 +165,5 @@ export function measureFolders(
     [...byFolder].map(([folder, held]) => [folder, [...held].sort(compare)]),
   );
 
-  return { rows, between, modulesOf };
+  return { rows, modulesOf };
 }

@@ -815,21 +815,18 @@ describe("check running the structure sensor", () => {
     expect(fake.files.has(`${STRUCTURE}.tmp`)).toBe(false);
     expect(document.settings).toEqual({
       hub_threshold: 10,
-      instability_gap: 0.2,
-      composition_roots: [],
       entry_points: [],
       warnings: {
         cycle: true,
         hub: true,
         orphan: true,
         policy_drift: true,
-        stable_dependencies: true,
         unused_exports: false,
       },
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: hub_threshold 10, instability_gap 0.2, cycle on, hub on, orphan on, policy_drift on, stable_dependencies on, unused_exports off",
+      "sensor structure: hub_threshold 10, cycle on, hub on, orphan on, policy_drift on, unused_exports off",
     );
     expect(err).toBe("");
   });
@@ -954,15 +951,12 @@ describe("show and modules read the findings files", () => {
       modified: false,
       settings: {
         hub_threshold: 10,
-        instability_gap: 0.2,
-        composition_roots: [],
         entry_points: [],
         warnings: {
           cycle: true,
           hub: true,
           orphan: true,
           policy_drift: true,
-          stable_dependencies: true,
           unused_exports: false,
         },
       },
@@ -1002,8 +996,6 @@ describe("show and modules read the findings files", () => {
       modified: false,
       settings: {
         hub_threshold: 10,
-        instability_gap: 0.2,
-        composition_roots: [],
         entry_points: [],
         warnings: {
           cycle: true,

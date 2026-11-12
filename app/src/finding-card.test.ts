@@ -61,18 +61,6 @@ describe("cardOf subject", () => {
     expect([card.name, card.folder]).toEqual(["StatusBar.report", "src"]);
   });
 
-  it("names a folder finding by the folder it is about", () => {
-    const card = cardOf(
-      rowOf({
-        id: "stable_dependencies:lightcycle/adapters->lightcycle",
-        kind: "stable_dependencies",
-        evidence: { modules: ["lightcycle/adapters/a.py"] },
-      }),
-    );
-
-    expect([card.name, card.folder]).toEqual(["adapters", "lightcycle"]);
-  });
-
   it("names a policy drift entry by its glob with no folder", () => {
     const card = cardOf(
       rowOf({

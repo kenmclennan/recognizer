@@ -44,20 +44,6 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "instability_gap": {
-                  "description": "The smallest instability gap between two folders for stable_dependencies to report.",
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1
-                },
-                "composition_roots": {
-                  "description": "Folder-id globs exempt as the depending side of stable_dependencies.",
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
                 "warnings": {
                   "type": "object",
                   "additionalProperties": false,
@@ -69,9 +55,6 @@
                       "type": "boolean"
                     },
                     "policy_drift": {
-                      "type": "boolean"
-                    },
-                    "stable_dependencies": {
                       "type": "boolean"
                     },
                     "unused_exports": {
