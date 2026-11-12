@@ -54,9 +54,11 @@ function ran(
   ids: string[],
   hashes: Record<string, string> = {},
   excluded?: { functions: number; modules: string[] },
+  unowned?: { functions: number; modules: string[] },
 ): PanelInput["sensors"][number] {
   return {
     ...(excluded !== undefined ? { excluded } : {}),
+    ...(unowned !== undefined ? { unowned } : {}),
     name,
     status: "ran",
     findings: 0,
@@ -324,7 +326,9 @@ describe("freshness model sensor gaps and excluded modules", () => {
       ],
     });
 
-    expect(model.noResult).toEqual([{ sensor: "Mutation", modules: ["a.py"] }]);
+    expect(model.noResult).toEqual([
+      { sensor: "Mutation", reason: "excluded", modules: ["a.py"] },
+    ]);
     expect(model.update).toEqual(["c.py"]);
     expect(model.summary.line).toContain(`${MUTATION_NO_RESULT} a.py:`);
     expect(model.summary.line).not.toContain("c.py:");
@@ -341,6 +345,85 @@ describe("freshness model sensor gaps and excluded modules", () => {
     expect(model.summary.line).toContain(
       "Mutation has no result for a.py and b.py: their suites' coverage reports do not include them.",
     );
+  });
+
+  it("settles a fully unowned module and names it with the unowned reason", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS),
+        ran("mutation", IDS, {}, undefined, {
+          functions: 2,
+          modules: ["a.py"],
+        }),
+      ],
+    });
+
+    expect(model.update).toEqual([]);
+    expect(model.action.primary.label).toBe("Up to date");
+    expect(model.summary.shape).toBe("current");
+    expect(
+      model.summary.line.endsWith(
+        `${MUTATION_NO_RESULT} a.py: no test suite in .recognizer/config.yaml covers it.`,
+      ),
+    ).toBe(true);
+  });
+
+  it("uses the plural sentence for two unowned modules", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS),
+        ran("mutation", IDS, {}, undefined, {
+          functions: 2,
+          modules: ["a.py", "b.py"],
+        }),
+      ],
+    });
+
+    expect(model.summary.line).toContain(
+      "Mutation has no result for a.py and b.py: no test suite in .recognizer/config.yaml covers them.",
+    );
+  });
+
+  it("names a module in both lists under both reasons, excluded first", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS),
+        ran(
+          "mutation",
+          IDS,
+          {},
+          { functions: 1, modules: ["a.py"] },
+          { functions: 1, modules: ["a.py"] },
+        ),
+      ],
+    });
+
+    expect(model.noResult.map(({ reason }) => reason)).toEqual([
+      "excluded",
+      "unowned",
+    ]);
+
+    const line = model.summary.line;
+
+    expect(line.indexOf("coverage report")).toBeGreaterThan(-1);
+    expect(line.indexOf("coverage report")).toBeLessThan(
+      line.indexOf("no test suite in"),
+    );
+  });
+
+  it("does not name an unowned module that is also out of date", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS),
+        ran("mutation", IDS, { "c.py": "old" }, undefined, {
+          functions: 1,
+          modules: ["c.py"],
+        }),
+      ],
+    });
+
+    expect(model.noResult).toEqual([]);
+    expect(model.update).toEqual(["c.py"]);
   });
 
   it("says nothing about excluded modules when the sensor never ran", () => {
