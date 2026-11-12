@@ -1,0 +1,16 @@
+sensors:
+  duplication: {}
+  crap: {}
+  mutation:
+    carry: [.venv]
+  thresholds: {}
+tests:
+  - name: api
+    language: python
+    directory: .
+    activate: source .venv/bin/activate
+    env: {PYTHONPATH: src}
+    command: pytest --cov=src --cov-report=lcov:coverage/lcov.info
+    coverage:
+      path: coverage/lcov.info
+      format: lcov
