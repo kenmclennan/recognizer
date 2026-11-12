@@ -134,15 +134,15 @@ def is_dirty(root: Path) -> bool:
 def check(
     sensor, repository: Path, settings: dict, run: bool, names: list[str] | None = None
 ) -> int:
-    gaps = sensor.check(repository, settings, run, names)
-    sys.stdout.write(json.dumps({"gaps": gaps}) + "\n")
+    gaps, notes = sensor.check(repository, settings, run, names)
+    sys.stdout.write(json.dumps({"gaps": gaps, "notes": notes}) + "\n")
 
     return 0
 
 
 def config_gap(error: SettingsError) -> int:
     gap = {"code": "config", "suite": None, "line": str(error)}
-    sys.stdout.write(json.dumps({"gaps": [gap]}) + "\n")
+    sys.stdout.write(json.dumps({"gaps": [gap], "notes": []}) + "\n")
 
     return 0
 

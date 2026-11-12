@@ -774,7 +774,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "one `<name>  <line>` line per shipped sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
-      json: "[{ name, display, line, defaults, runs_tests, listed, metrics }]; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }] }] }",
+      json: "[{ name, display, line, defaults, runs_tests, listed, metrics }]; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }], notes: [{ code, suite, line }] }] }",
     },
     exitCodes: [
       { code: 0, meaning: "the list was printed, or every sensor is ready" },

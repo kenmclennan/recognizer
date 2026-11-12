@@ -10,11 +10,14 @@ export interface SensorGap {
   line: string;
 }
 
+export type SensorNote = SensorGap;
+
 export interface SensorReport {
   name: string;
   ready: boolean;
   checked: boolean;
   gaps: SensorGap[];
+  notes: SensorNote[];
 }
 
 export interface CheckableSensor {
@@ -42,7 +45,15 @@ function isSensorGap(value: unknown): value is SensorGap {
   );
 }
 
-function parseGaps(stdout: string): SensorGap[] | null {
+function entries(value: unknown): SensorGap[] | null {
+  return Array.isArray(value) && value.every(isSensorGap)
+    ? value.map(({ code, suite, line }) => ({ code, suite, line }))
+    : null;
+}
+
+function parseAnswer(
+  stdout: string,
+): { gaps: SensorGap[]; notes: SensorNote[] } | null {
   const last = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -54,11 +65,11 @@ function parseGaps(stdout: string): SensorGap[] | null {
   }
 
   try {
-    const parsed = JSON.parse(last) as { gaps?: unknown };
+    const parsed = JSON.parse(last) as { gaps?: unknown; notes?: unknown };
+    const gaps = entries(parsed.gaps);
+    const notes = parsed.notes === undefined ? [] : entries(parsed.notes);
 
-    return Array.isArray(parsed.gaps) && parsed.gaps.every(isSensorGap)
-      ? parsed.gaps.map(({ code, suite, line }) => ({ code, suite, line }))
-      : null;
+    return gaps === null || notes === null ? null : { gaps, notes };
   } catch {
     return null;
   }
@@ -138,6 +149,7 @@ function unanswered(name: string, why: string): SensorReport {
         line: `the readiness check of ${name} did not answer: ${why}`,
       },
     ],
+    notes: [],
   };
 }
 
@@ -155,7 +167,13 @@ export function checkSensor(
   run: boolean,
 ): SensorReport {
   if (sensor.command[0] !== SENSORS_PROGRAM) {
-    return { name: sensor.name, ready: true, checked: false, gaps: [] };
+    return {
+      name: sensor.name,
+      ready: true,
+      checked: false,
+      gaps: [],
+      notes: [],
+    };
   }
 
   const [program, ...rest] = checkArguments(sensor.command, root, run) as [
@@ -179,6 +197,7 @@ export function checkSensor(
           line: `${SENSORS_PROGRAM} is not installed`,
         },
       ],
+      notes: [],
     };
   }
 
@@ -193,16 +212,22 @@ export function checkSensor(
     );
   }
 
-  const gaps = parseGaps(result.stdout);
+  const answer = parseAnswer(result.stdout);
 
-  if (gaps === null) {
+  if (answer === null) {
     return unanswered(
       sensor.name,
       firstLine(result.stderr) ?? "it printed no readable gaps",
     );
   }
 
-  return { name: sensor.name, ready: gaps.length === 0, checked: true, gaps };
+  return {
+    name: sensor.name,
+    ready: answer.gaps.length === 0,
+    checked: true,
+    gaps: answer.gaps,
+    notes: answer.notes,
+  };
 }
 
 export function checkSensors(
@@ -221,8 +246,10 @@ export function reportText(reports: SensorReport[]): string {
         return [`${report.name}: no readiness check`];
       }
 
+      const notes = report.notes.map((note) => `  ${note.line}`);
+
       if (report.ready) {
-        return [`${report.name}: ready`];
+        return [`${report.name}: ready`, ...notes];
       }
 
       const count = report.gaps.length;
@@ -230,6 +257,7 @@ export function reportText(reports: SensorReport[]): string {
       return [
         `${report.name}: ${count} ${count === 1 ? "gap" : "gaps"}`,
         ...report.gaps.map((gap) => `  ${gap.line}`),
+        ...notes,
       ];
     })
     .join("\n")}\n`;
@@ -239,7 +267,12 @@ export function reportJson(reports: SensorReport[]): string {
   return `${JSON.stringify(
     {
       ready: reports.every((report) => report.ready),
-      sensors: reports.map(({ name, ready, gaps }) => ({ name, ready, gaps })),
+      sensors: reports.map(({ name, ready, gaps, notes }) => ({
+        name,
+        ready,
+        gaps,
+        notes,
+      })),
     },
     null,
     2,

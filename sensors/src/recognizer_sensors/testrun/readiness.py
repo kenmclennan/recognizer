@@ -6,11 +6,12 @@ import subprocess
 import time
 from pathlib import Path
 
-from recognizer_sensors.scans import read_scans
+from recognizer_sensors.scans import Scan, read_scans
 from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun.reports import (
     LOG,
     Source,
+    coverage_counts,
     has_well_formed_report,
     last_meaningful_line,
     read_source,
@@ -427,13 +428,36 @@ def unmatched_gap(suite: Suite, where: str, scanned: bool) -> dict:
     )
 
 
-def run_gap(repository: Path, suite: Suite, files: list[str], stream) -> dict | None:
+LANGUAGE_NAMES = {
+    "python": "Python",
+    "typescript": "TypeScript",
+    "kotlin": "Kotlin",
+    "rust": "Rust",
+    "csharp": "C#",
+}
+
+
+def partial_note(suite: Suite, covered: int, expected: int) -> dict:
+    language = LANGUAGE_NAMES.get(suite.language, suite.language)
+    noun = "file" if expected == 1 else "files"
+
+    return gap(
+        "coverage-partial",
+        suite.name,
+        f"suite {suite.name}: the coverage report covers {covered} of {expected} "
+        f"scanned {language} {noun}",
+    )
+
+
+def run_gap(
+    repository: Path, suite: Suite, files: list[str], stream, scans: list[Scan]
+) -> tuple[dict | None, dict | None]:
     started_at = time.time()
 
     try:
         returncode, _ = run_suite(repository, suite, stream)
     except Refusal:
-        return suite_gap("activate-failed", suite, "the login shell could not be started")
+        return suite_gap("activate-failed", suite, "the login shell could not be started"), None
 
     where = report_pattern(suite)
     source = source_of(suite)
@@ -442,46 +466,70 @@ def run_gap(repository: Path, suite: Suite, files: list[str], stream) -> dict | 
     if coverage is None:
         cause = f"the suite exited {returncode} and left" if returncode else "the suite left"
 
-        return suite_gap("coverage-missing", suite, f"{cause} no coverage report at {where}")
+        return suite_gap("coverage-missing", suite, f"{cause} no coverage report at {where}"), None
 
     if not coverage and has_well_formed_jacoco(repository, source, files, started_at):
-        return unmatched_gap(suite, where, bool(files))
+        return unmatched_gap(suite, where, bool(files)), None
 
     if not coverage:
-        return suite_gap(
-            "coverage-unreadable", suite, f"the coverage report at {where} does not parse"
+        return (
+            suite_gap(
+                "coverage-unreadable", suite, f"the coverage report at {where} does not parse"
+            ),
+            None,
         )
 
-    return None
+    covered, expected = coverage_counts(coverage, source, suite.language, scans)
+
+    if covered < expected:
+        return None, partial_note(suite, covered, expected)
+
+    return None, None
 
 
-def run_gaps(repository: Path, suites: list[Suite]) -> list[dict]:
-    files = [
-        path for scan in read_scans(repository) for module in scan.modules for path in module.files
-    ]
+def run_gaps(repository: Path, suites: list[Suite]) -> tuple[list[dict], list[dict]]:
+    scans = read_scans(repository)
+    files = [path for scan in scans for module in scan.modules for path in module.files]
     log = repository / LOG
     log.parent.mkdir(parents=True, exist_ok=True)
-    found = []
+    found: list[dict] = []
+    notes: list[dict] = []
 
     with log.open("w", encoding="utf-8") as stream:
         for suite in suites:
-            result = run_gap(repository, suite, files, stream)
+            result, note = run_gap(repository, suite, files, stream, scans)
 
             if result is not None:
                 found.append(result)
 
-    return found
+            if note is not None:
+                notes.append(note)
+
+    return found, notes
 
 
 def check(
     repository: Path, settings: dict, run: bool, names: list[str] | None = None
 ) -> list[dict]:
+    return check_with_notes(repository, settings, run, names)[0]
+
+
+def check_with_notes(
+    repository: Path, settings: dict, run: bool, names: list[str] | None = None
+) -> tuple[list[dict], list[dict]]:
     raw = settings.get("suites")
 
     if raw is None:
-        return [
-            gap("no-test-suites", None, "no test suites are configured in .recognizer/config.yaml")
-        ]
+        return (
+            [
+                gap(
+                    "no-test-suites",
+                    None,
+                    "no test suites are configured in .recognizer/config.yaml",
+                )
+            ],
+            [],
+        )
 
     suites = list(selected((Suite(**item) for item in raw), names))
     gaps: list[dict] = []
@@ -494,7 +542,10 @@ def check(
         if not found:
             clean.append(suite)
 
-    if run:
-        gaps.extend(run_gaps(repository, clean))
+    notes: list[dict] = []
 
-    return gaps
+    if run:
+        found, notes = run_gaps(repository, clean)
+        gaps.extend(found)
+
+    return gaps, notes

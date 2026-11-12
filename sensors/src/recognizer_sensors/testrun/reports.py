@@ -43,8 +43,8 @@ def exit_reason(subject: str, returncode: int, output: str) -> str:
     return f"{reason} (see {LOG.as_posix()})"
 
 
-def covers_nothing(part: Coverage, source: Source, language: str | None, scans: list[Scan]) -> bool:
-    expected = {
+def expected_files(source: Source, language: str | None, scans: list[Scan]) -> set[str]:
+    return {
         path
         for scan in scans
         if language is None or scan.language == language
@@ -53,7 +53,19 @@ def covers_nothing(part: Coverage, source: Source, language: str | None, scans: 
         if not source.prefix or path.startswith(f"{source.prefix}/")
     }
 
-    return bool(expected) and not expected & part.keys()
+
+def coverage_counts(
+    part: Coverage, source: Source, language: str | None, scans: list[Scan]
+) -> tuple[int, int]:
+    expected = expected_files(source, language, scans)
+
+    return len(expected & part.keys()), len(expected)
+
+
+def covers_nothing(part: Coverage, source: Source, language: str | None, scans: list[Scan]) -> bool:
+    covered, expected = coverage_counts(part, source, language, scans)
+
+    return expected > 0 and covered == 0
 
 
 def fresh_reports(repository: Path, pattern: str, since: float | None) -> list[Path]:
