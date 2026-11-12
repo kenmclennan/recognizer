@@ -1133,10 +1133,12 @@ here = os.getcwd()
 hang = "baseline" in here if where == "baseline" else "/work/" in here and "baseline" not in here
 
 if hang:
-    with open(pid_file + ".tmp", "w") as handle:
+    temporary = f"{pid_file}.{os.getpid()}.tmp"
+
+    with open(temporary, "w") as handle:
         handle.write(str(os.getpid()))
 
-    os.replace(pid_file + ".tmp", pid_file)
+    os.replace(temporary, pid_file)
 
     time.sleep(60)
 """
@@ -1169,7 +1171,9 @@ def stop_the_sensor_while_hung(tmp_path, where):
     script = tmp_path / "hang.py"
     script.write_text(SLEEP_WHEN_STOPPING)
     settings = suite_settings(
-        [sys.executable, str(script), where, str(pid_file)], timeout_factor=100
+        [sys.executable, str(script), where, str(pid_file)],
+        timeout_factor=100,
+        max_workers=3,
     )
     process = start_sensor(root, tmp_path, settings)
     deadline = time.monotonic() + 30
@@ -1518,10 +1522,12 @@ if "/work/" in here and "baseline" not in here:
         os.setsid()
 
         if os.fork() == 0:
-            with open(pid_file + ".tmp", "w") as handle:
+            temporary = f"{pid_file}.{os.getpid()}.tmp"
+
+            with open(temporary, "w") as handle:
                 handle.write(str(os.getpid()))
 
-            os.replace(pid_file + ".tmp", pid_file)
+            os.replace(temporary, pid_file)
 
             time.sleep(60)
 
