@@ -77,6 +77,7 @@ describe("command table", () => {
       "views",
       "sensors",
       "config",
+      "policy",
       "windows",
       "window",
       "describe",
@@ -94,7 +95,9 @@ describe("command table", () => {
     const expected = fullHelp(command as (typeof COMMANDS)[number]);
 
     const printed = (out: string) =>
-      name === "config" ? out.slice(0, expected.length) : out;
+      name === "config" || name === "policy"
+        ? out.slice(0, expected.length)
+        : out;
     const help = call(["help", name]);
     const flagged = call([name, "--help"]);
 

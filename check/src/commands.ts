@@ -6,6 +6,7 @@ import { runDescribeCommand } from "./describe-command.js";
 import { runHelp } from "./help.js";
 import { runLog } from "./log-command.js";
 import { runOpen } from "./open-command.js";
+import { runPolicy } from "./policy-command.js";
 import {
   runCallers,
   runPath,
@@ -889,6 +890,108 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runConfig,
+  },
+  {
+    name: "policy",
+    summary:
+      "read and edit .recognizer/policy.yaml one value at a time, with the verbs of recognizer config",
+    usage: [
+      "recognizer policy <key> <value>",
+      "recognizer policy --add <key> <value>",
+      "recognizer policy --get <key>",
+      "recognizer policy --list",
+      "recognizer policy --unset <key> [<value>]",
+      "recognizer policy --remove-section <section>",
+      "recognizer policy --add-section <section>",
+    ].join("\n"),
+    arguments: [
+      {
+        name: "<key>",
+        description:
+          "a dotted path to one list of strings; `recognizer policy --help` lists every key with its type and an example",
+      },
+      {
+        name: "<value>",
+        description:
+          "one item of the list; a write that would leave the policy with an error it did not have is refused and changes nothing",
+      },
+      {
+        name: "<section>",
+        description: "components, uses or foreign: the map a key lives in",
+      },
+    ],
+    options: [
+      {
+        flag: "--add",
+        description:
+          "append the item to a list; an item already present changes nothing",
+      },
+      {
+        flag: "--get",
+        description: "print the items of the key, one per line",
+      },
+      {
+        flag: "--list",
+        description:
+          "print every value that is set as key=value, in file order",
+      },
+      {
+        flag: "--unset",
+        description:
+          "delete the key, or with a value delete that item; the last item deletes the key",
+      },
+      {
+        flag: "--remove-section",
+        description: "delete a section and everything in it",
+      },
+      {
+        flag: "--add-section",
+        description: "create an empty section; an existing one is left alone",
+      },
+      {
+        flag: "--repository <dir>",
+        description:
+          "the repository whose policy to edit; default the current directory",
+      },
+    ],
+    output: {
+      text: "a write prints nothing; --get prints the items, --list prints key=value lines; a refusal prints `recognizer policy: <key>: <reason>` on stderr",
+      json: "none: this command has no --json",
+    },
+    exitCodes: [
+      {
+        code: 0,
+        meaning: "the value was written, or read, or the edit changed nothing",
+      },
+      {
+        code: 1,
+        meaning:
+          "nothing was found, there is no policy file, or --list could not address part of the file",
+      },
+      {
+        code: 2,
+        meaning: "bad arguments, or a refused write; the file is unchanged",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer policy --add components.domain src/domain/**",
+        note: "add a glob to a component, creating the policy on the first write",
+      },
+      {
+        command: "recognizer policy --unset components.legacy",
+        note: "delete a component; refused while levels or uses name it",
+      },
+      {
+        command: "recognizer policy --list",
+        note: "what the policy holds now",
+      },
+      {
+        command: "recognizer help policy",
+        note: "every key, with its type and an example",
+      },
+    ],
+    run: runPolicy,
   },
   {
     name: "windows",
