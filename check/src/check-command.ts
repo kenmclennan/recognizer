@@ -118,29 +118,6 @@ function isStructureViolation(value: ReportedViolation): value is Violation {
   return "from" in value;
 }
 
-const CUT_LINES_SHOWN = 5;
-
-function cutLines(warning: ReportedWarning): string[] {
-  const cuts =
-    warning.id === "folder_cycle"
-      ? (warning.evidence as FindingRecord["evidence"]).cuts
-      : undefined;
-
-  if (!cuts || cuts.length === 0) {
-    return [];
-  }
-
-  const lines = cuts
-    .slice(0, CUT_LINES_SHOWN)
-    .map((cut) => `  cut ${cut.from} -> ${cut.to}`);
-
-  if (cuts.length > CUT_LINES_SHOWN) {
-    lines.push(`  and ${cuts.length - CUT_LINES_SHOWN} more cuts`);
-  }
-
-  return lines;
-}
-
 const IMPORTER_LINES_SHOWN = 10;
 
 function importerLines(warning: ReportedWarning): string[] {
@@ -222,7 +199,6 @@ function summary(
     for (const warning of warnings) {
       lines.push(
         `warning: ${warning.summary}`,
-        ...cutLines(warning),
         ...importerLines(warning),
         ...testFileLines(warning),
       );
@@ -518,7 +494,6 @@ function executeScanReplay(
     warnings: {
       cycle: true,
       hub: true,
-      folder_cycle: true,
       orphan: true,
       policy_drift: true,
       stable_dependencies: true,

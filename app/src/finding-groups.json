@@ -13,12 +13,6 @@
       "todo": "Break the loop: move the shared piece out, or invert one import."
     },
     {
-      "key": "kind:folder_cycle",
-      "name": "Folder cycle",
-      "means": "Folders whose modules import each other in a loop, so the folders cannot be layered.",
-      "todo": "Cut the imports listed, cheapest first; a folder named as a split candidate is likely the real fix."
-    },
-    {
       "key": "kind:hub",
       "name": "Hub",
       "means": "A module many others import that itself imports many: any change ripples both ways.",

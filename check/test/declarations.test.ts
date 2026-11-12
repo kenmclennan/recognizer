@@ -7,7 +7,6 @@ import {
 } from "../src/index.js";
 import { DEFAULT_STRUCTURE_SETTINGS } from "../src/structure-sensor.js";
 import {
-  folderCycleFindings,
   orphanFindings,
   unusedExportsFindings,
 } from "../src/structure-warnings.js";
@@ -62,7 +61,6 @@ const SETTINGS = {
   warnings: {
     ...DEFAULT_STRUCTURE_SETTINGS.warnings,
     hub: true,
-    folder_cycle: true,
     cycle: true,
   },
 };
@@ -75,27 +73,6 @@ function sensor(scan: Scan) {
 }
 
 describe("declares edges", () => {
-  it("do not close a folder cycle when the child uses a parent helper", () => {
-    const scan = scanOf([
-      ["src/lib.rs", "src/helper.rs", "declares"],
-      ["src/lib.rs", "src/sub/mod.rs", "declares"],
-      ["src/sub/mod.rs", "src/helper.rs", "depends"],
-    ]);
-
-    expect(folderCycleFindings(scan, null, { hub_threshold: 10 })).toEqual([]);
-  });
-
-  it("still close a folder cycle when the parent uses the child", () => {
-    const scan = scanOf([
-      ["src/lib.rs", "src/sub/mod.rs", "depends"],
-      ["src/sub/mod.rs", "src/helper.rs", "depends"],
-    ]);
-
-    expect(folderCycleFindings(scan, null, { hub_threshold: 10 })).toHaveLength(
-      1,
-    );
-  });
-
   it("add nothing to fan-in, fan-out or instability and make no hub", () => {
     const scan = scanOf([
       ["src/lib.rs", "src/a.rs", "declares"],

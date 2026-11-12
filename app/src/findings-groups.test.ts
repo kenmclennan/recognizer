@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
 import groupFile from "./finding-groups.json";
+import { sentenceOf } from "./finding-sentence";
 import { groupsOf, headerLine, withEmptyGroups } from "./findings-groups";
 import { findingRows } from "./findings-order";
 
@@ -53,7 +54,6 @@ describe("groupsOf", () => {
       record("pd", "policy_drift"),
       record("or", "orphan"),
       record("hu", "hub"),
-      record("fc", "folder_cycle"),
       record("cy", "cycle"),
       record("rv", "rule-violation", "violation"),
     ];
@@ -61,7 +61,6 @@ describe("groupsOf", () => {
     expect(names([document("structure", all)])).toEqual([
       "Breaks the policy",
       "Import cycle",
-      "Folder cycle",
       "Hub",
       "Orphan",
       "Policy out of step",
@@ -88,6 +87,25 @@ describe("groupsOf", () => {
 
     expect(group?.key).toBe("kind:stable_abstractions");
     expect(group?.name).toBe("Stable abstractions");
+  });
+
+  it("shows a folder_cycle record from an old file under its kind with its own summary", () => {
+    const old = document("review", [
+      {
+        ...record("fc", "folder_cycle"),
+        summary: "folders a and b import each other",
+      },
+    ]);
+    const rows = findingRows([old]);
+    const [group] = groupsOf(rows);
+
+    expect(group?.key).toBe("kind:folder_cycle");
+    expect(group?.rows).toHaveLength(1);
+    const [row] = rows;
+
+    expect(
+      sentenceOf({ record: row?.record as FindingRecord, reported: false }),
+    ).toBe("folders a and b import each other");
   });
 
   it("puts a report under its sensor name after the fixed kinds, then unknown kinds by name", () => {
@@ -196,11 +214,10 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has twelve unique keys and names with plain help sentences", () => {
+  it("has eleven unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
-      "kind:folder_cycle",
       "kind:hub",
       "kind:orphan",
       "kind:policy_drift",
@@ -211,7 +228,7 @@ describe("finding-groups.json", () => {
       "kind:mutation",
       "kind:thresholds",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(12);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(11);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");

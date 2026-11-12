@@ -94,7 +94,7 @@ describe("computeHealth on fixtures/check", () => {
     expect(health.lines("shop/domain/order.py")[0]).toMatch(
       /^violation: depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)* \((level|uses|forbid) /,
     );
-    expect(health.lines("shop/application/place.py")).toHaveLength(2);
+    expect(health.lines("shop/application/place.py")).toHaveLength(1);
     expect(health.lines("shop/application/place.py")[0]).toContain("cycle");
   });
 
@@ -137,7 +137,7 @@ describe("findings", () => {
     const { health } = healthOf("check", fixturePolicy("check"));
     const place = health.findings("shop/application/place.py");
 
-    expect(place).toHaveLength(2);
+    expect(place).toHaveLength(1);
     expect(place[0]?.severity).toBe("warning");
     expect(place[0]?.text).toContain("cycle");
     expect(place[0]?.why).toBe("no-cycles");
@@ -164,7 +164,7 @@ describe("findings", () => {
 });
 
 describe("computeHealth on fixtures/check-warnings", () => {
-  it("has one red, seven amber and one green", () => {
+  it("has one red, six amber and two green", () => {
     const { health, ids } = healthOf(
       "check-warnings",
       fixturePolicy("check-warnings"),
@@ -184,7 +184,7 @@ describe("computeHealth on fixtures/check-warnings", () => {
 
     const others = ids.filter((id) => health.disc(id) === "green");
 
-    expect(others).toEqual(["app/ports/store.py"]);
+    expect(others).toEqual(["app/ports/store.py", "app/application/place.py"]);
   });
 });
 

@@ -9,7 +9,6 @@ import type { Policy } from "./policy.js";
 import { collectViolations } from "./rules.js";
 import type { RecordedScan, Scan } from "./scan.js";
 import {
-  folderCycleFindings,
   orphanFindings,
   policyDriftFindings,
   stableDependenciesFindings,
@@ -28,7 +27,6 @@ export interface StructureSettings {
   warnings: {
     cycle: boolean;
     hub: boolean;
-    folder_cycle: boolean;
     orphan: boolean;
     policy_drift: boolean;
     stable_dependencies: boolean;
@@ -56,7 +54,6 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
   warnings: {
     cycle: true,
     hub: true,
-    folder_cycle: true,
     orphan: true,
     policy_drift: true,
     stable_dependencies: true,
@@ -90,7 +87,6 @@ export function resolveStructureSettings(
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
       hub: given.warnings?.hub ?? defaults.hub,
-      folder_cycle: given.warnings?.folder_cycle ?? defaults.folder_cycle,
       orphan: orphan !== false,
       policy_drift: given.warnings?.policy_drift ?? defaults.policy_drift,
       stable_dependencies:
@@ -129,7 +125,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, composition_roots ${settings.composition_roots.length}`
       : "";
 
-  return `hub_threshold ${settings.hub_threshold}, instability_gap ${settings.instability_gap}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, folder_cycle ${on(w.folder_cycle)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, unused_exports ${on(w.unused_exports)}${entries}${roots}`;
+  return `hub_threshold ${settings.hub_threshold}, instability_gap ${settings.instability_gap}, cycle ${on(w.cycle)}, hub ${on(w.hub)}, orphan ${on(w.orphan)}, policy_drift ${on(w.policy_drift)}, stable_dependencies ${on(w.stable_dependencies)}, unused_exports ${on(w.unused_exports)}${entries}${roots}`;
 }
 
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
@@ -266,11 +262,6 @@ export function structureSensor(
     }
 
     const extra = [
-      ...(settings.warnings.folder_cycle
-        ? folderCycleFindings(scan, policy, {
-            hub_threshold: settings.hub_threshold,
-          })
-        : []),
       ...(settings.warnings.orphan
         ? orphanFindings(scan, policy, settings.entry_points)
         : []),
@@ -315,7 +306,6 @@ export function structureSensor(
         warnings: {
           cycle: settings.warnings.cycle,
           hub: settings.warnings.hub,
-          folder_cycle: settings.warnings.folder_cycle,
           orphan: settings.warnings.orphan,
           policy_drift: settings.warnings.policy_drift,
           stable_dependencies: settings.warnings.stable_dependencies,

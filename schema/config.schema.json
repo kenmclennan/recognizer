@@ -74,9 +74,6 @@
                     "hub": {
                       "type": "boolean"
                     },
-                    "folder_cycle": {
-                      "type": "boolean"
-                    },
                     "policy_drift": {
                       "type": "boolean"
                     },

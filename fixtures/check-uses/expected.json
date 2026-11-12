@@ -133,43 +133,6 @@
       }
     },
     {
-      "id": "folder_cycle",
-      "principle": "no-cycles",
-      "fix_pattern": "break-folder-cycle",
-      "summary": "3 folders import each other in a cycle; removing 1 of 4 imports breaks it",
-      "evidence": {
-        "modules": [
-          "app/billing/invoice.py",
-          "app/orders/place.py",
-          "app/shared/money.py"
-        ],
-        "edges": [
-          {
-            "from": "app/billing/invoice.py",
-            "to": "app/shared/money.py"
-          },
-          {
-            "from": "app/orders/place.py",
-            "to": "app/billing/invoice.py"
-          },
-          {
-            "from": "app/orders/place.py",
-            "to": "app/shared/money.py"
-          },
-          {
-            "from": "app/shared/money.py",
-            "to": "app/orders/place.py"
-          }
-        ],
-        "cuts": [
-          {
-            "from": "app/shared/money.py",
-            "to": "app/orders/place.py"
-          }
-        ]
-      }
-    },
-    {
       "id": "policy_drift",
       "principle": "policy-describes-the-code",
       "fix_pattern": "update-policy",

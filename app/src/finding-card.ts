@@ -29,7 +29,7 @@ export type CardModel = {
   rows: CardRowModel[];
 };
 
-const FOLDER_KINDS = new Set(["folder_cycle", "stable_dependencies"]);
+const FOLDER_KINDS = new Set(["stable_dependencies"]);
 
 function folderOf(path: string): string {
   const at = path.lastIndexOf("/");
@@ -53,10 +53,6 @@ function isMemberFinding(record: FindingRecord): boolean {
 }
 
 export function folderSubject(record: FindingRecord): string | null {
-  if (record.kind === "folder_cycle") {
-    return record.id.slice("folder_cycle:".length).split(",")[0] ?? null;
-  }
-
   if (record.kind === "stable_dependencies") {
     return (
       record.id.slice("stable_dependencies:".length).split("->")[0] ?? null
@@ -112,20 +108,6 @@ export function cardOf(row: FindingRow): CardModel {
   const { record } = row;
   const subject = subjectOf(row);
   const rows: CardRowModel[] = [];
-
-  if (record.kind === "folder_cycle" && record.evidence.cuts !== undefined) {
-    for (const cut of record.evidence.cuts) {
-      rows.push({ kind: "edge", from: cut.from, to: cut.to });
-    }
-
-    return {
-      id: row.id,
-      name: subject.name,
-      folder: subject.folder,
-      sentence: sentenceOf({ record, reported: row.reported }),
-      rows,
-    };
-  }
 
   if (isMemberFinding(record)) {
     for (const member of record.evidence.members ?? []) {

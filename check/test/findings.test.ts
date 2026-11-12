@@ -40,7 +40,6 @@ function findingsByModule(
       warnings: {
         cycle: true,
         hub: true,
-        folder_cycle: true,
         orphan: true,
         policy_drift: true,
         stable_dependencies: true,
@@ -59,7 +58,6 @@ describe("findingsByModuleFrom over the structure document", () => {
     const found = findingsByModule([scan], policy, 3);
 
     expect(found.get("app/domain/money.py")?.map((f) => f.severity)).toEqual([
-      "warning",
       "warning",
     ]);
     expect(found.get("app/domain/order.py")?.map((f) => f.why)).toContain(
