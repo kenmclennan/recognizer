@@ -249,6 +249,10 @@ export function withoutEmptySections(document: unknown): unknown {
   return copy;
 }
 
+export function expandedConfig(document: unknown): Config {
+  return expandConfig(document) as Config;
+}
+
 export type ConfigSection = "describer" | "sensors" | "tests";
 export type ConfigRead = "all" | readonly ConfigSection[];
 

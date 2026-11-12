@@ -1,9 +1,12 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
 import { unsetValue } from "../src/config-edit.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
 import { cachedScansState } from "../src/freshness.js";
+import { REPO } from "./helpers.js";
 import { fakeIo, PYTHON, ROOT, scanJson } from "./scan-helpers.js";
 
 beforeEach(() => {
@@ -251,15 +254,18 @@ describe("doctor: config", () => {
 
     expect(codes(result.report)).toContain("config:config-invalid");
     expect(result.report.areas[0].problems[0].fix.command).toBeNull();
+    expect(result.report.areas[3].skipped).toBe("config has problems");
   });
 
   it("reports unparseable YAML and skips the sensors", () => {
     const result = json(setup({ config: "a: [\n", env: { PATH: "/bin" } }));
 
     expect(codes(result.report)).toEqual(["config:config-yaml"]);
+    expect(result.report.areas[3].skipped).toBe("config has problems");
 
     const text = doctor(setup({ config: "a: [\n", env: { PATH: "/bin" } }));
 
+    expect(text.out).toContain("sensors not checked: config has problems");
     expect(text.out.endsWith("1 problem\n")).toBe(true);
   });
 
@@ -530,6 +536,75 @@ describe("doctor: scanners", () => {
   });
 });
 
+describe("doctor: sensors", () => {
+  it("reports a gap with its own line and the help fix", () => {
+    const fake = setup({ ...clean, gap: true });
+    const result = json(fake);
+
+    expect(result.report.areas[3].problems).toEqual([
+      {
+        code: "sensor-gap",
+        subject: "mine",
+        line: "mine has no coverage",
+        fix: {
+          text: "recognizer help sensors mine",
+          command: "recognizer help sensors mine",
+        },
+      },
+    ]);
+    expect(
+      fake.calls
+        .filter((call) => call.command === "recognizer-sensors")
+        .every(
+          (call) =>
+            call.args.includes("--check") && !call.args.includes("--run"),
+        ),
+    ).toBe(true);
+  });
+
+  it("gives the brew fix when recognizer-sensors is missing", () => {
+    const fake = fakeIo({
+      commit: COMMIT,
+      env: { PATH: "/bin" },
+      files: {
+        [`${ROOT}/m0.py`]: "",
+        "/bin/recognizer-scan-python": "",
+        [`${ROOT}/.recognizer/config.yaml`]: READY_SENSOR,
+      },
+      sensorsPreflight: { run: () => ({ started: false }) },
+    });
+    const result = json(fake);
+
+    expect(result.report.areas[3].problems).toMatchObject([
+      {
+        code: "sensor-gap",
+        fix: { command: BREW },
+      },
+    ]);
+  });
+
+  it("gives no problem for a registered command that is not recognizer-sensors", () => {
+    const result = json(
+      setup({
+        ...clean,
+        config: "sensors:\n  mine:\n    command: [my-tool]\n",
+      }),
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.report.areas[3].problems).toEqual([]);
+  });
+
+  it("gives no problem for a sensor set off", () => {
+    const fake = setup({ ...clean, config: "sensors:\n  structure: off\n" });
+
+    expect(json(fake).status).toBe(0);
+    expect(
+      fake.calls.some((call) => call.command === "recognizer-sensors"),
+    ).toBe(false);
+  });
+});
+
 describe("doctor: fix commands name the repository only when it was named", () => {
   it("adds --repository to a config fix and the scan positional", () => {
     const named = json(
@@ -580,6 +655,60 @@ describe("doctor: usage", () => {
   });
 });
 
+describe("doctor starts nothing costly and writes nothing", () => {
+  const failing = {
+    config: `${READY_SENSOR}  other:\n    command: [other-tool, --run]\n  structure:\n    hub_threshold: 1\ntests:\n  - name: unit\n    language: python\n    directory: .\n    command: pytest-should-not-run\n    coverage:\n      path: c.lcov\n      format: lcov\n`,
+    policy: 'components:\n  core: "m0.py"\n',
+    cache: null,
+    scanner: false,
+    gap: true,
+    env: { PATH: "/bin" },
+  };
+
+  it("runs only git and recognizer-sensors --check, launches nothing, and leaves the files as they were", () => {
+    const fake = setup(failing);
+    const before = new Map(fake.files);
+    const result = json(fake);
+
+    expect(result.status).toBe(1);
+    expect(codes(result.report).length).toBeGreaterThanOrEqual(4);
+    expect(fake.calls.length).toBeGreaterThan(0);
+
+    for (const call of fake.calls) {
+      expect(["git", "recognizer-sensors"]).toContain(call.command);
+
+      if (call.command === "recognizer-sensors") {
+        expect(call.args).toContain("--check");
+        expect(call.args).not.toContain("--run");
+      }
+    }
+
+    expect(
+      fake.calls.some((call) => call.command.startsWith("recognizer-scan")),
+    ).toBe(false);
+    expect(
+      fake.calls.some((call) => /describe|pytest/.test(call.command)),
+    ).toBe(false);
+    expect(fake.launches).toEqual([]);
+    expect(fake.writes).toEqual([]);
+    expect(fake.removed).toEqual([]);
+    expect(fake.renames).toEqual([]);
+    expect(fake.files).toEqual(before);
+  });
+
+  it("never runs a registered non-shipped sensor", () => {
+    const fake = setup({
+      ...clean,
+      config: "sensors:\n  other:\n    command: [other-tool, --run]\n",
+    });
+
+    json(fake);
+
+    expect(fake.calls.length).toBeGreaterThan(0);
+    expect(fake.calls.every((call) => call.command === "git")).toBe(true);
+  });
+});
+
 describe("cachedScansState", () => {
   it("is current for a cache at the current commit with a clean tree", () => {
     const fake = setup({ ...clean });
@@ -606,5 +735,67 @@ describe("cachedScansState", () => {
     expect(cachedScansState(fake.io, ROOT, ["python"])).toEqual({
       state: "stale",
     });
+  });
+});
+
+describe("real content", () => {
+  const empty = (name: string) => {
+    const fake = fakeIo({
+      commit: COMMIT,
+      env: { PATH: "/bin" },
+      files: {
+        [`${ROOT}/.recognizer/config.yaml`]: readFileSync(name, "utf8"),
+      },
+    });
+
+    return JSON.parse((run(["doctor", "--json"], fake.io), fake.out()));
+  };
+  const invalid = join(REPO, "schema/config-examples/invalid");
+
+  it("finds no config problem in the committed .recognizer/config.yaml", () => {
+    expect(
+      empty(join(REPO, ".recognizer/config.yaml")).areas[0].problems,
+    ).toEqual([]);
+  });
+
+  it.each(
+    readdirSync(invalid).filter(
+      (name) =>
+        name.startsWith("sensors-retired-") || name === "overlays-retired.yaml",
+    ),
+  )("%s gives exactly one config-retired problem", (name) => {
+    const [first, ...rest] = empty(join(invalid, name)).areas[0].problems;
+
+    expect(rest).toEqual([]);
+    expect(first.code).toBe("config-retired");
+  });
+
+  it("gives bad-yaml.yaml one config-yaml problem", () => {
+    expect(
+      empty(join(invalid, "bad-yaml.yaml")).areas[0].problems.map(
+        (problem: { code: string }) => problem.code,
+      ),
+    ).toEqual(["config-yaml"]);
+  });
+
+  it("parses the committed fixtures/check policy with no policy-invalid problem", () => {
+    const fake = fakeIo({
+      commit: COMMIT,
+      env: { PATH: "/bin" },
+      files: {
+        [`${ROOT}/.recognizer/policy.yaml`]: readFileSync(
+          join(REPO, "fixtures/check/.recognizer/policy.yaml"),
+          "utf8",
+        ),
+      },
+    });
+
+    run(["doctor", "--json"], fake.io);
+
+    expect(
+      JSON.parse(fake.out()).areas[1].problems.map(
+        (problem: { code: string }) => problem.code,
+      ),
+    ).not.toContain("policy-invalid");
   });
 });

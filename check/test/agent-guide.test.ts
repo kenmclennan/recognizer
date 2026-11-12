@@ -33,6 +33,13 @@ describe("agent guide", () => {
     expect(guide).toMatch(/\[missing\][^\n]*recognizer describe/);
   });
 
+  it("has a recipe for checking the setup that names recognizer doctor", () => {
+    const guide = agentGuide();
+
+    expect(guide).toMatch(/Check the setup[^\n]*\n[^\n]*recognizer doctor/);
+    expect(guide).toContain("fix.command");
+  });
+
   it("has a recipe for planning a change", () => {
     const guide = agentGuide();
 

@@ -13,6 +13,7 @@ import {
 import { InputError } from "./errors.js";
 import { cachedScansState } from "./freshness.js";
 import type { ScannerSpec } from "./scanners.js";
+import { checkSensor } from "./sensors-check.js";
 
 const USAGE = ["usage: recognizer doctor [REPOSITORY] [--json]"];
 
@@ -85,6 +86,8 @@ export function runDoctor(argv: string[], io: Io): number {
     languages,
     scans: () => cachedScansState(io, root, languages),
     scanner: (spec) => scannerAvailability(io, spec),
+    sensorReports: (sensors) =>
+      sensors.map((sensor) => checkSensor(io, root, sensor, false)),
   };
   const report = buildReport(facts);
 

@@ -2,6 +2,8 @@ import { parse } from "yaml";
 import {
   duplicateSuites,
   emptySections,
+  expandedConfig,
+  registeredSensors,
   schemaMessages,
   withoutEmptySections,
 } from "./config-parse.js";
@@ -13,6 +15,7 @@ import { parsePolicy } from "./policy.js";
 import { policyProblems } from "./policy-problems.js";
 import { BREW_FIX } from "./preflight.js";
 import { type ScannerSpec, scannerFor } from "./scanners.js";
+import type { CheckableSensor, SensorReport } from "./sensors-check.js";
 
 export type AreaName = "config" | "policy" | "scanners" | "sensors";
 
@@ -28,7 +31,8 @@ export type ProblemCode =
   | "policy-entry"
   | "policy-folder"
   | "scanner-override"
-  | "scanner-missing";
+  | "scanner-missing"
+  | "sensor-gap";
 
 export interface SetupProblem {
   code: ProblemCode;
@@ -62,10 +66,12 @@ export interface DoctorFacts {
   languages: Language[];
   scans(): CachedScansState;
   scanner(spec: ScannerSpec): ScannerAvailability;
+  sensorReports(sensors: CheckableSensor[]): SensorReport[];
 }
 
 const CONFIG_FILE = ".recognizer/config.yaml";
 const POLICY_FILE = ".recognizer/policy.yaml";
+const SKIP_CONFIG = "config has problems";
 
 function quoted(text: string): string {
   return /^[A-Za-z0-9_./:@%+=,-]+$/.test(text)
@@ -93,9 +99,16 @@ function schemaSubject(message: string): string {
   return path === "" ? "config" : path.slice(1).replaceAll("/", ".");
 }
 
-function configArea(facts: DoctorFacts): SetupProblem[] {
+interface ConfigResult {
+  problems: SetupProblem[];
+  sensors: SensorsInput;
+}
+
+type SensorsInput = { checkable: CheckableSensor[] } | { skipped: string };
+
+function configArea(facts: DoctorFacts): ConfigResult {
   if (facts.configText === null) {
-    return [];
+    return { problems: [], sensors: { checkable: [] } };
   }
 
   let document: unknown;
@@ -103,14 +116,17 @@ function configArea(facts: DoctorFacts): SetupProblem[] {
   try {
     document = parse(facts.configText) ?? {};
   } catch (error) {
-    return [
-      {
-        code: "config-yaml",
-        subject: CONFIG_FILE,
-        line: `config is not valid YAML: ${(error as Error).message}`,
-        fix: textFix(`correct the YAML in ${CONFIG_FILE}`),
-      },
-    ];
+    return {
+      problems: [
+        {
+          code: "config-yaml",
+          subject: CONFIG_FILE,
+          line: `config is not valid YAML: ${(error as Error).message}`,
+          fix: textFix(`correct the YAML in ${CONFIG_FILE}`),
+        },
+      ],
+      sensors: { skipped: SKIP_CONFIG },
+    };
   }
 
   const problems: SetupProblem[] = [];
@@ -156,8 +172,9 @@ function configArea(facts: DoctorFacts): SetupProblem[] {
   }
 
   const cleaned = withoutEmptySections(withoutRetiredKeys(document));
+  const messages = schemaMessages(cleaned);
 
-  for (const message of schemaMessages(cleaned)) {
+  for (const message of messages) {
     problems.push({
       code: "config-invalid",
       subject: schemaSubject(message),
@@ -166,7 +183,13 @@ function configArea(facts: DoctorFacts): SetupProblem[] {
     });
   }
 
-  return problems;
+  return {
+    problems,
+    sensors:
+      messages.length > 0
+        ? { skipped: SKIP_CONFIG }
+        : { checkable: registeredSensors(expandedConfig(cleaned)) },
+  };
 }
 
 function policyArea(facts: DoctorFacts): SetupProblem[] {
@@ -268,12 +291,41 @@ function scannersArea(facts: DoctorFacts): SetupProblem[] {
   });
 }
 
+function sensorsArea(
+  facts: DoctorFacts,
+  input: SensorsInput,
+): { skipped: string | null; problems: SetupProblem[] } {
+  if ("skipped" in input) {
+    return { skipped: input.skipped, problems: [] };
+  }
+
+  if (input.checkable.length === 0) {
+    return { skipped: null, problems: [] };
+  }
+
+  const problems = facts.sensorReports(input.checkable).flatMap((report) =>
+    report.gaps.map((gap) => ({
+      code: "sensor-gap" as const,
+      subject: report.name,
+      line: gap.line,
+      fix:
+        gap.code === "sensors-missing"
+          ? commandFix(BREW_FIX)
+          : commandFix(`recognizer help sensors ${report.name}`),
+    })),
+  );
+
+  return { skipped: null, problems };
+}
+
 export function buildReport(facts: DoctorFacts): DoctorReport {
+  const config = configArea(facts);
+  const sensors = sensorsArea(facts, config.sensors);
   const areas: Area[] = [
-    { name: "config", skipped: null, problems: configArea(facts) },
+    { name: "config", skipped: null, problems: config.problems },
     { name: "policy", skipped: null, problems: policyArea(facts) },
     { name: "scanners", skipped: null, problems: scannersArea(facts) },
-    { name: "sensors", skipped: null, problems: [] },
+    { name: "sensors", ...sensors },
   ];
   const problems = areas.reduce((sum, area) => sum + area.problems.length, 0);
 
