@@ -101,6 +101,7 @@ def run_cli(root: Path, output: Path, *extra: str) -> int:
 
 MUTATE_FIXTURE = REPOSITORY / "fixtures" / "mutation" / "sample"
 STOP_FIXTURE = REPOSITORY / "fixtures" / "mutation" / "stop"
+SELECTED_FIXTURE = REPOSITORY / "fixtures" / "mutation" / "selected"
 OVERLAY_SCHEMA = REPOSITORY / "schema" / "overlay.schema.json"
 
 
