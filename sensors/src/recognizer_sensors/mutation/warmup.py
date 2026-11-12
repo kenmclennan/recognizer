@@ -35,7 +35,7 @@ from recognizer_sensors.testrun.failures import (
     not_installed,
     suite_failed,
 )
-from recognizer_sensors.testrun.readiness import no_contexts_line
+from recognizer_sensors.testrun.readiness import no_contexts_line, unmatched_contexts_line
 from recognizer_sensors.testrun.reports import (
     LOG,
     covers_nothing,
@@ -651,6 +651,7 @@ def coverage_run(
     files = [path for scan in scans for module in scan.modules for path in module.files]
     merged: Coverage = {}
     readers: list[PythonContexts] = []
+    reader_suites: list[str] = []
     started_at: dict[str, float] = {}
 
     for suite in runnable:
@@ -720,6 +721,17 @@ def coverage_run(
                 )
 
             readers.append(reader)
+            reader_suites.append(suite.name)
+
+    for reader, name in zip(readers, reader_suites, strict=True):
+        example = reader.unresolved
+
+        if example is not None:
+            raise Refusal(
+                diagnose(
+                    "unmatched-test-contexts", unmatched_contexts_line(name, example), suite=name
+                )
+            )
 
     selection: Selection = {}
 
