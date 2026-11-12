@@ -32,7 +32,7 @@ shift
 flag=$(mktemp)
 "$@" &
 command_pid=$!
-( sleep "$limit"; echo expired > "$flag"; kill_tree "$command_pid" ) 2>/dev/null &
+( sleep "$limit"; echo expired > "$flag"; kill_tree "$command_pid" ) >/dev/null 2>&1 &
 watchdog_pid=$!
 wait "$command_pid"
 status=$?
