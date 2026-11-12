@@ -450,9 +450,12 @@ describe("doctor: policy", () => {
   });
 
   it("reports a dirty tree as a stale scan", () => {
-    expect(
-      codes(json(setup({ ...clean, status: " M m0.py\n" })).report),
-    ).toEqual(["policy:scan-stale"]);
+    const result = json(setup({ ...clean, status: " M m0.py\n" }));
+    const [problem] = result.report.areas[1].problems;
+
+    expect(codes(result.report)).toEqual(["policy:scan-stale"]);
+    expect(problem.line).toContain("uncommitted");
+    expect(problem.fix.command).toBeNull();
   });
 
   it("says nothing of the policy when there is no policy file, even with no scan", () => {
@@ -734,6 +737,7 @@ describe("cachedScansState", () => {
 
     expect(cachedScansState(fake.io, ROOT, ["python"])).toEqual({
       state: "stale",
+      reason: "scan",
     });
   });
 });

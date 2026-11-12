@@ -101,7 +101,7 @@ export function resolveCommit(io: Io, root: string): string | null {
   return result.started && result.status === 0 && commit !== "" ? commit : null;
 }
 
-export function isDirty(io: Io, root: string): boolean {
+export function dirtyPaths(io: Io, root: string): string[] | null {
   const result = io.run("git", [
     "-C",
     root,
@@ -112,7 +112,20 @@ export function isDirty(io: Io, root: string): boolean {
     ":!.recognizer",
   ]);
 
-  return !result.started || result.status !== 0 || result.stdout.trim() !== "";
+  if (!result.started || result.status !== 0) {
+    return null;
+  }
+
+  return result.stdout
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => line.slice(3));
+}
+
+export function isDirty(io: Io, root: string): boolean {
+  const paths = dirtyPaths(io, root);
+
+  return paths === null || paths.length > 0;
 }
 
 function failure(reason: FailureReason, message: string): Outcome {

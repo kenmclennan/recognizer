@@ -233,15 +233,30 @@ function policyArea(facts: DoctorFacts): SetupProblem[] {
     ];
   }
 
+  const scan = `recognizer scan${facts.named ? ` ${quoted(facts.repository)}` : ""}`;
+
+  if (state.state === "stale" && state.reason === "uncommitted") {
+    const count = state.paths.length;
+    const shown = state.paths.slice(0, 3).join(", ");
+    const more = count > 3 ? ` and ${count - 3} more` : "";
+
+    return [
+      {
+        code: "scan-stale",
+        subject: where,
+        line: `the scan of ${where} was not used: the working tree has ${count} uncommitted ${count === 1 ? "change" : "changes"} outside .recognizer/ (${shown}${more}), so the policy was not compared with the code`,
+        fix: textFix(`commit, ignore or stash these changes, then run ${scan}`),
+      },
+    ];
+  }
+
   if (state.state === "stale") {
     return [
       {
         code: "scan-stale",
         subject: where,
         line: `the scan of ${where} is out of date with the working tree: the policy was not compared with the code`,
-        fix: commandFix(
-          `recognizer scan${facts.named ? ` ${quoted(facts.repository)}` : ""}`,
-        ),
+        fix: commandFix(scan),
       },
     ];
   }
