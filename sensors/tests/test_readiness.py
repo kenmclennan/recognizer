@@ -15,7 +15,7 @@ from recognizer_sensors.cli import main
 from recognizer_sensors.registry import SHIPPED as REGISTRY
 from recognizer_sensors.scans import Scan, ScanModule
 from recognizer_sensors.testrun import readiness
-from recognizer_sensors.testrun.readiness import check
+from recognizer_sensors.testrun.readiness import check, check_with_notes
 from recognizer_sensors.testrun.suites import parse_suites
 
 LCOV = "SF:a.py\nDA:1,1\nend_of_record\n"
@@ -658,7 +658,7 @@ def test_the_check_flag_needs_no_commit(tmp_path, capsys):
     status, out = run_cli(["duplication", "--repository", str(tmp_path), "--check"], capsys)
 
     assert status == 0
-    assert json.loads(out) == {"gaps": []}
+    assert json.loads(out) == {"gaps": [], "notes": []}
 
 
 def test_the_check_flag_prints_gaps_runs_no_tests_and_writes_nothing(tmp_path, capsys):
@@ -676,7 +676,7 @@ def test_a_sensor_without_a_check_prints_no_gaps(name, tmp_path, capsys):
     status, out = run_cli([name, "--repository", str(tmp_path), "--check"], capsys)
 
     assert status == 0
-    assert json.loads(out) == {"gaps": []}
+    assert json.loads(out) == {"gaps": [], "notes": []}
 
 
 def test_the_crap_check_prints_the_no_suites_gap_and_runs_nothing(harness, capsys):
@@ -690,7 +690,8 @@ def test_the_crap_check_prints_the_no_suites_gap_and_runs_nothing(harness, capsy
                 "suite": None,
                 "line": "no test suites are configured in .recognizer/config.yaml",
             }
-        ]
+        ],
+        "notes": [],
     }
     assert not harness.log.exists()
 
@@ -704,7 +705,9 @@ def test_only_crap_and_mutation_have_a_test_check():
     assert sorted(json.loads(SHIPPED.read_text())) == sorted(REGISTRY)
     assert sorted(name for name, sensor in REGISTRY.items() if sensor.guide is not None) == checking
     assert (
-        sorted(name for name, sensor in REGISTRY.items() if sensor.check is readiness.check)
+        sorted(
+            name for name, sensor in REGISTRY.items() if sensor.check is readiness.check_with_notes
+        )
         == checking
     )
 
@@ -982,7 +985,8 @@ def test_a_malformed_tests_list_is_the_config_gap_with_exit_zero(tmp_path, capsy
 
     assert status == 0
     assert json.loads(out) == {
-        "gaps": [{"code": "config", "suite": None, "line": "tests must be a non-empty array"}]
+        "gaps": [{"code": "config", "suite": None, "line": "tests must be a non-empty array"}],
+        "notes": [],
     }
 
 
@@ -1021,3 +1025,175 @@ def test_an_unticked_suite_with_a_missing_tool_gives_no_gap(harness):
     assert check(harness.root, settings, False, ["unit"]) == []
     assert codes(check(harness.root, settings, False, ["web"])) == ["jest-missing"]
     assert codes(check(harness.root, settings, False)) == ["jest-missing"]
+
+
+def lcov_listing(*paths):
+    body = "".join(f"SF:{path}\\nDA:1,1\\nend_of_record\\n" for path in paths)
+
+    return f"mkdir -p coverage && printf '{body}' > coverage/lcov.info"
+
+
+def scan_of(language, *paths):
+    return Scan(
+        language=language,
+        modules=tuple(ScanModule(id=path, files=(path,)) for path in paths),
+        modified=False,
+    )
+
+
+def run_notes(harness, scans, command, **overrides):
+    with mock.patch.object(readiness, "read_scans", return_value=scans):
+        return check_with_notes(harness.root, run_settings(command, **overrides), True)
+
+
+PYTHON_THREE = ("a.py", "b.py", "c.py")
+
+
+def partial(suite, covered, expected, language="Python", noun="files"):
+    return {
+        "code": "coverage-partial",
+        "suite": suite,
+        "line": f"suite {suite}: the coverage report covers {covered} of {expected} "
+        f"scanned {language} {noun}",
+    }
+
+
+def test_a_report_listing_every_scanned_file_gives_no_note(harness):
+    scans = [scan_of("python", *PYTHON_THREE)]
+
+    assert run_notes(harness, scans, lcov_listing(*PYTHON_THREE)) == ([], [])
+
+
+def test_a_report_listing_two_of_three_files_gives_the_count(harness):
+    scans = [scan_of("python", *PYTHON_THREE)]
+
+    gaps, notes = run_notes(harness, scans, lcov_listing("a.py", "b.py"))
+
+    assert gaps == []
+    assert notes == [partial("api", 2, 3)]
+
+
+def test_a_report_listing_one_of_three_files_gives_the_count(harness):
+    scans = [scan_of("python", *PYTHON_THREE)]
+
+    gaps, notes = run_notes(harness, scans, lcov_listing("a.py"))
+
+    assert gaps == []
+    assert notes == [partial("api", 1, 3)]
+
+
+def test_an_lcov_report_listing_none_of_the_scanned_files_gives_zero_and_no_gap(harness):
+    scans = [scan_of("python", *PYTHON_THREE)]
+
+    gaps, notes = run_notes(harness, scans, lcov_listing("other.py"))
+
+    assert gaps == []
+    assert notes == [partial("api", 0, 3)]
+
+
+def test_a_single_scanned_file_is_counted_in_the_singular(harness):
+    gaps, notes = run_notes(harness, [scan_of("python", "a.py")], lcov_listing("other.py"))
+
+    assert gaps == []
+    assert notes == [partial("api", 0, 1, noun="file")]
+
+
+def test_the_count_is_scoped_to_the_suite_directory(harness):
+    (harness.root / "api").mkdir()
+    scans = [scan_of("python", "api/a.py", "api/b.py", "x.py", "y.py", "z.py")]
+
+    gaps, notes = run_notes(
+        harness,
+        scans,
+        lcov_listing("a.py"),
+        directory="api",
+    )
+
+    assert gaps == []
+    assert notes == [partial("api", 1, 2)]
+
+
+def test_the_count_is_scoped_to_the_suite_language(harness):
+    scans = [
+        scan_of("python", *PYTHON_THREE),
+        scan_of("typescript", "1.ts", "2.ts", "3.ts", "4.ts", "5.ts"),
+    ]
+
+    gaps, notes = run_notes(harness, scans, lcov_listing("a.py"))
+
+    assert gaps == []
+    assert notes == [partial("api", 1, 3)]
+
+
+def test_a_parseable_report_with_no_scan_gives_no_note(harness):
+    assert run_notes(harness, [], lcov_listing("a.py")) == ([], [])
+
+
+def test_only_the_partial_suite_among_two_is_noted(harness):
+    (harness.root / "full").mkdir()
+    (harness.root / "part").mkdir()
+    scans = [scan_of("python", "full/a.py", "part/a.py", "part/b.py")]
+    settings = settings_of(
+        raw(name="full", directory="full", command=lcov_listing("a.py")),
+        raw(name="part", directory="part", command=lcov_listing("a.py")),
+    )
+
+    with mock.patch.object(readiness, "read_scans", return_value=scans):
+        gaps, notes = check_with_notes(harness.root, settings, True)
+
+    assert gaps == []
+    assert notes == [partial("part", 1, 2)]
+
+
+def test_a_jacoco_report_listing_one_of_two_scanned_files_gives_the_count(harness):
+    scans = [scan_of("kotlin", "com/acme/A.kt", "com/acme/B.kt")]
+
+    with mock.patch.object(readiness, "read_scans", return_value=scans):
+        gaps, notes = check_with_notes(harness.root, jacoco_run_settings(harness, JACOCO), True)
+
+    assert gaps == []
+    assert notes == [partial("app", 1, 2, language="Kotlin")]
+
+
+def test_a_jacoco_report_matching_nothing_is_the_gap_and_no_note(harness):
+    other = scan_of("kotlin", "b/B.kt")
+
+    with mock.patch.object(readiness, "read_scans", return_value=[other]):
+        gaps, notes = check_with_notes(harness.root, jacoco_run_settings(harness, JACOCO), True)
+
+    assert codes(gaps) == ["coverage-unmatched"]
+    assert notes == []
+
+
+def test_without_run_there_are_no_notes(harness):
+    scans = [scan_of("python", *PYTHON_THREE)]
+
+    with mock.patch.object(readiness, "read_scans", return_value=scans):
+        result = check_with_notes(harness.root, run_settings(lcov_listing("a.py")), False)
+
+    assert result == ([], [])
+
+
+def test_a_suite_with_an_earlier_gap_is_not_run_and_has_no_note(harness):
+    harness.missing("pytest")
+    scans = [scan_of("python", *PYTHON_THREE)]
+
+    gaps, notes = run_notes(harness, scans, lcov_listing("a.py"))
+
+    assert codes(gaps) == ["pytest-missing"]
+    assert notes == []
+
+
+def test_the_check_line_carries_a_partial_note_under_notes_and_exits_zero(harness, capsys):
+    (harness.root / "a.py").write_text("x = 1\n")
+    scans = [scan_of("python", "a.py", "b.py")]
+    settings = json.dumps({"tests": [raw(command=lcov_listing("a.py"))]})
+
+    with mock.patch.object(readiness, "read_scans", return_value=scans):
+        status, out = run_cli(
+            ["crap", "--repository", str(harness.root), "--check", "--run", "--settings", settings],
+            capsys,
+        )
+
+    assert status == 0
+    assert json.loads(out) == {"gaps": [], "notes": [partial("api", 1, 2)]}

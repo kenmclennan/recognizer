@@ -38,7 +38,7 @@ def test_the_no_suites_gap_is_printed_for_each_test_running_sensor(name, tmp_pat
     root = repository(tmp_path)
 
     assert main([name, "--repository", str(root), "--check"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"gaps": [no_suites_gap()]}
+    assert json.loads(capsys.readouterr().out) == {"gaps": [no_suites_gap()], "notes": []}
 
 
 def test_the_mutation_preflight_prints_the_no_suites_gap_and_probes_nothing(
@@ -53,6 +53,6 @@ def test_the_mutation_preflight_prints_the_no_suites_gap_and_probes_nothing(
     status = main(["mutation", "--repository", str(root), "--check"])
 
     assert status == 0
-    assert json.loads(capsys.readouterr().out) == {"gaps": [no_suites_gap()]}
+    assert json.loads(capsys.readouterr().out) == {"gaps": [no_suites_gap()], "notes": []}
     assert not log.exists()
     assert sorted(path.name for path in root.iterdir()) == before
