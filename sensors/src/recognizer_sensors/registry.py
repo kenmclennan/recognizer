@@ -7,7 +7,7 @@ from recognizer_sensors.duplication import sensor as duplication
 from recognizer_sensors.mutation import sensor as mutation
 from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.testrun.guide import guide
-from recognizer_sensors.testrun.readiness import check_with_notes
+from recognizer_sensors.testrun.readiness import check_with_notes, mutation_check
 from recognizer_sensors.thresholds import sensor as thresholds
 
 
@@ -47,7 +47,7 @@ SHIPPED = {
         runs_tests=True,
         scoped=True,
         checkpoints=True,
-        check=check_with_notes,
+        check=mutation_check,
         guide=guide,
     ),
     "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),

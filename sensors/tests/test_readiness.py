@@ -705,11 +705,51 @@ def test_only_crap_and_mutation_have_a_test_check():
     assert sorted(json.loads(SHIPPED.read_text())) == sorted(REGISTRY)
     assert sorted(name for name, sensor in REGISTRY.items() if sensor.guide is not None) == checking
     assert (
-        sorted(
-            name for name, sensor in REGISTRY.items() if sensor.check is readiness.check_with_notes
-        )
-        == checking
+        REGISTRY["crap"].check is readiness.check_with_notes
+        and REGISTRY["mutation"].check is readiness.mutation_check
     )
+
+
+def coverage_run_settings(command="coverage run -m pytest"):
+    return json.dumps({"tests": [raw(command=command)]})
+
+
+def test_the_mutation_check_lists_the_no_test_contexts_gap_and_the_crap_check_does_not(
+    harness, capsys
+):
+    harness.root.mkdir(exist_ok=True)
+    args = ["--repository", str(harness.root), "--check", "--settings", coverage_run_settings()]
+
+    status, out = run_cli(["mutation", *args], capsys)
+
+    assert status == 0
+    found = [item for item in json.loads(out)["gaps"] if item["code"] == "no-test-contexts"]
+    assert [item["suite"] for item in found] == ["api"]
+    assert "dynamic_context = test_function" in found[0]["line"]
+
+    status, out = run_cli(["crap", *args], capsys)
+
+    assert status == 0
+    assert "no-test-contexts" not in out
+
+
+def test_the_check_over_this_repositorys_sensors_suite_reports_exactly_one_gap():
+    root = Path(__file__).resolve().parents[1]
+    suite = parse_suites([raw(directory="sensors", command="coverage run -m pytest")])[0]
+
+    assert readiness.lacks_contexts(suite, root)
+
+
+def test_the_guide_of_mutation_names_the_context_requirement_and_both_fixes(capsys):
+    status, out = run_cli(["mutation", "--guide"], capsys)
+
+    assert status == 0
+    assert "dynamic_context = test_function" in out
+    assert "pytest --cov" in out
+    assert "carry" in out
+    assert "PYTHONPATH" in out
+    assert "pythonpath" not in out
+    assert "pyproject.toml" not in out
 
 
 def test_the_guide_of_mutation_names_carry_and_the_import_path_fix_in_recognizer_config(capsys):
