@@ -199,12 +199,7 @@ def test_kotlin_stop_adds_fail_fast_after_each_test_task():
     KOTLIN_CLASSES.clear()
     KOTLIN_CLASSES["t/XTest.kt"] = [(":a", "p.XTest"), (":b", "q.XTest")]
 
-    assert mutant_command(KSUITE, stop=True) == [
-        "./gradlew",
-        "test",
-        "--no-daemon",
-        "--fail-fast",
-    ]
+    assert mutant_command(KSUITE, stop=True) == "./gradlew test --fail-fast jacocoTestReport"
     assert selected_command(KSUITE, {"t/XTest.kt"}, stop=True) == [
         "./gradlew",
         ":a:test",
@@ -217,12 +212,9 @@ def test_kotlin_stop_adds_fail_fast_after_each_test_task():
         "--tests",
         "q.XTest",
     ]
-    assert selected_command(KSUITE, {"t/Other.kt"}, stop=True) == [
-        "./gradlew",
-        "test",
-        "--no-daemon",
-        "--fail-fast",
-    ]
+    assert selected_command(KSUITE, {"t/Other.kt"}, stop=True) == (
+        "./gradlew test --fail-fast jacocoTestReport"
+    )
     assert "--fail-fast" not in selected_command(KSUITE, {"t/XTest.kt"})
 
     KOTLIN_CLASSES.clear()
@@ -253,10 +245,27 @@ def test_more_than_the_file_limit_runs_the_whole_suite():
     KOTLIN_CLASSES.clear()
 
 
+@pytest.mark.parametrize(
+    ("command", "stopped"),
+    [
+        ("./gradlew :app:test --no-daemon", "./gradlew :app:test --no-daemon --fail-fast"),
+        ("./gradlew test", "./gradlew test --fail-fast"),
+        ("./gradlew build", "./gradlew build"),
+    ],
+)
+def test_kotlin_whole_suite_fail_fast_follows_the_test_task_and_a_direct_no_daemon(
+    command, stopped
+):
+    suite = parse_suites([{**KOTLIN_SUITE_RAW, "command": command}])[0]
+
+    assert mutant_command(suite) == command
+    assert mutant_command(suite, stop=True) == stopped
+
+
 def test_rust_selected_command_falls_back_to_the_whole_suite_for_an_unmapped_file():
     rust = parse_suites([{**KOTLIN_SUITE_RAW, "language": "rust", "name": "r"}])[0]
 
-    assert selected_command(rust, {"a"}) == ["cargo", "test"]
+    assert selected_command(rust, {"a"}) == mutant_command(rust) == rust.command
 
 
 def test_nested_classes_belong_to_their_outermost_files_run(tmp_path, monkeypatch):
@@ -476,7 +485,7 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
     seen = []
 
     def spy(command, cwd, timeout, suite=None, extra=None):
-        seen.append(list(command))
+        seen.append(command if isinstance(command, str) else list(command))
 
         return runner.TestRun(0, False, 0.1, "")
 
@@ -492,5 +501,8 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
     assert half in seen
     assert whole in seen
     assert not any("p.T2Test" in command for command in seen)
-    assert all(command[:2] == ["./gradlew", "test"] for command in seen)
-    assert all("--no-daemon" in command for command in seen)
+    assert all(
+        isinstance(command, str)
+        or (command[:2] == ["./gradlew", "test"] and "--no-daemon" in command)
+        for command in seen
+    )

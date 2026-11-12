@@ -1,4 +1,5 @@
 import os
+import re
 
 from recognizer_sensors.testrun.suites import Suite, directory_of
 
@@ -18,12 +19,6 @@ def typescript_flags(suite: Suite, stop: bool, workers: int) -> list[str]:
     cap = [f"--maxWorkers={max(1, (os.cpu_count() or 1) // workers)}"] if workers > 1 else []
 
     return [*bail, *cap]
-
-
-def typescript_whole(suite: Suite, stop: bool, workers: int) -> list[str]:
-    run = ["run"] if suite.runner == "vitest" else []
-
-    return ["npx", "--no", "--", suite.runner, *run, *typescript_flags(suite, stop, workers)]
 
 
 def typescript_related(suite: Suite, file: str, stop: bool, workers: int) -> list[str]:
@@ -57,22 +52,34 @@ def kotlin_fail_fast(command: list[str]) -> list[str]:
     return stopped
 
 
-def mutant_command(suite: Suite, stop: bool = False, workers: int = 1) -> list[str]:
+KOTLIN_TEST_WORD = re.compile(r"(?<!\S)(?:\S*:)?test(?!\S)(?:\s+--no-daemon(?!\S))?")
+
+
+def kotlin_fail_fast_text(command: str) -> str:
+    found = KOTLIN_TEST_WORD.search(command)
+
+    if found is None:
+        return command
+
+    return f"{command[: found.end()]} --fail-fast{command[found.end() :]}"
+
+
+def mutant_command(suite: Suite, stop: bool = False, workers: int = 1) -> str:
+    command = suite.command
+
+    if not stop:
+        return command
+
     if suite.language == "python":
-        return ["pytest", "-rfE", *(["-x"] if stop else [])]
+        return f"{command} -x"
 
     if suite.language == "typescript":
-        return typescript_whole(suite, stop, workers)
+        return f"{command} {'--bail=1' if suite.runner == 'vitest' else '--bail'}"
 
     if suite.language == "kotlin":
-        command = ["./gradlew", "test", "--no-daemon"]
+        return kotlin_fail_fast_text(command)
 
-        return kotlin_fail_fast(command) if stop else command
-
-    if suite.language == "rust":
-        return ["cargo", "test"]
-
-    return ["dotnet", "test"]
+    return command
 
 
 def kotlin_class_command(project: str, classes: list[str]) -> list[str]:
@@ -178,7 +185,7 @@ def selected_command(
     previous: frozenset[str] = frozenset(),
     workers: int = 1,
     file: str | None = None,
-) -> list[str] | None:
+) -> list[str] | str | None:
     directory = directory_of(suite)
     language = suite.language
 

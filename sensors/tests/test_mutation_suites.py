@@ -204,7 +204,7 @@ def test_a_mutant_runs_in_the_suite_directory_of_its_copy_under_the_login_shell_
         activate=(
             f'export PATH={shims}:$PATH RECORD_FILE={record}; echo "$-" >> {tmp_path / "flags.txt"}'
         ),
-        command="touch cov.info #",
+        command='if [ -n "$COVERAGE_FILE" ]; then touch cov.info; else pytest; fi #',
         env={"MARKER": "from-env"},
     )
 
@@ -326,11 +326,10 @@ def editable_suite(venv, log, **extra):
     pytest_args = "-q -p no:cacheprovider"
 
     return suite_raw(
-        activate=(
-            f"pytest() {{ echo run >> {shlex.quote(str(log))}; "
-            f'{python} -m pytest {pytest_args} "$@"; }}'
+        command=(
+            f'[ -n "$COVERAGE_FILE" ] || echo run >> {shlex.quote(str(log))}; '
+            f"{python} -m pytest {pytest_args} --cov=pkg --cov-report=lcov:cov.info"
         ),
-        command=(f"{python} -m pytest {pytest_args} --cov=pkg --cov-report=lcov:cov.info"),
         **extra,
     )
 
@@ -441,7 +440,9 @@ def ts_world(tmp_path, runner_name):
         language="typescript",
         runner=runner_name,
         activate=shim,
-        command="touch cov.info #",
+        command="touch cov.info; npx --no -- vitest run"
+        if runner_name == "vitest"
+        else "touch cov.info; npx --no -- jest",
     )
 
     return root, suite, log
@@ -528,3 +529,59 @@ def test_a_coverage_run_that_exits_non_zero_refuses_even_with_a_report(tmp_path)
         coverage_run(root, scans, suites, work)
 
     assert refusal.value.diagnosis["code"] == "tests-failed"
+
+
+def orphaning_suite(tmp_path):
+    pid_file = tmp_path / "orphan.pid"
+    spawn = (
+        "import subprocess,sys;"
+        "p=subprocess.Popen(['sleep','20'],start_new_session=True);"
+        f"open({str(pid_file)!r},'w').write(str(p.pid))"
+    )
+    suite = parse_suites(
+        [suite_raw(command=f"{shlex.quote(sys.executable)} -c {shlex.quote(spawn)}; sleep 60")]
+    )[0]
+
+    return suite, pid_file
+
+
+def kill_orphan(pid_file):
+    try:
+        os.kill(int(pid_file.read_text()), 9)
+    except (OSError, ValueError):
+        pass
+
+
+def test_a_timeout_ends_the_run_even_when_an_orphan_holds_the_output_pipe(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "TIMEOUT_DRAIN_SECONDS", 0.5)
+    suite, pid_file = orphaning_suite(tmp_path)
+
+    try:
+        started = time.monotonic()
+        result = runner.run_test_command(suite.command, tmp_path, 1.0, suite=suite)
+        elapsed = time.monotonic() - started
+
+        assert result.timed_out
+        assert elapsed < 5
+        assert runner.verdict_of(result, None, ".").verdict == "timeout"
+    finally:
+        kill_orphan(pid_file)
+
+
+def test_a_timeout_without_an_orphan_is_bounded_and_a_fast_command_is_unaffected(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(runner, "TIMEOUT_DRAIN_SECONDS", 0.5)
+    slow = parse_suites([suite_raw(command="sleep 60")])[0]
+    fast = parse_suites([suite_raw(command="exit 3")])[0]
+
+    started = time.monotonic()
+    result = runner.run_test_command(slow.command, tmp_path, 1.0, suite=slow)
+
+    assert result.timed_out
+    assert time.monotonic() - started < 5
+
+    finished = runner.run_test_command(fast.command, tmp_path, 30.0, suite=fast)
+
+    assert not finished.timed_out
+    assert finished.exit_code == 3

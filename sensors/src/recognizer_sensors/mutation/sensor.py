@@ -395,7 +395,7 @@ def omitted_paths(repository: Path, carry: tuple[str, ...]) -> list[str]:
 def run_baseline(
     repository: Path,
     copies: CopyPool,
-    command: list[str],
+    command: list[str] | str,
     subject: str,
     suite: Suite,
 ) -> float:
@@ -420,15 +420,23 @@ def run_baseline(
         log.parent.mkdir(parents=True, exist_ok=True)
 
         with log.open("a", encoding="utf-8") as stream:
-            stream.write(f"== baseline {' '.join(command)}\n{output_tail(result.output)}\n")
+            stream.write(f"== baseline {command_text(command)}\n{output_tail(result.output)}\n")
             stream.write(f"== omitted from the copy: {', '.join(omitted) or 'none'}\n")
 
     print(CARRY_HINT, file=sys.stderr)
 
     if result.exit_code is None:
-        raise not_installed(command[0])
+        raise not_installed(command.split()[0] if isinstance(command, str) else command[0])
 
     raise Refusal(mutation_tests_failed(log_names(None, result.output)))
+
+
+def command_text(command: list[str] | str) -> str:
+    return command if isinstance(command, str) else " ".join(command)
+
+
+def baseline_key(suite: Suite, command: list[str] | str) -> tuple[str, ...]:
+    return (suite.name, command) if isinstance(command, str) else (suite.name, *command)
 
 
 class Baseline:
@@ -451,18 +459,18 @@ class Baselines:
         self.lock = threading.Lock()
         self.entries: dict[tuple[str, ...], Baseline] = {}
 
-    def prime(self, command: list[str], suite: Suite, seconds: float) -> None:
+    def prime(self, command: list[str] | str, suite: Suite, seconds: float) -> None:
         entry = Baseline()
         entry.seconds = seconds
         entry.done.set()
 
         with self.lock:
-            self.entries[(suite.name, *command)] = entry
+            self.entries[baseline_key(suite, command)] = entry
 
     def seconds(
-        self, command: list[str], subject: str, suite: Suite, fallback: bool = False
+        self, command: list[str] | str, subject: str, suite: Suite, fallback: bool = False
     ) -> float | None:
-        key = (suite.name, *command)
+        key = baseline_key(suite, command)
 
         with self.lock:
             entry = self.entries.get(key)
@@ -1096,7 +1104,7 @@ def measure(
                         mutant_command(suite, workers=workers), suite, warmup_seconds[suite.name]
                     )
 
-            def plan_for(target: Target) -> Callable[[int], tuple[list[str], float]]:
+            def plan_for(target: Target) -> Callable[[int], tuple[list[str] | str, float]]:
                 suite = by_name[target.suite]
                 whole = mutant_command(suite, workers=workers)
                 subject = f"the {suite.name} test command" if labelled else "the test command"
@@ -1109,7 +1117,7 @@ def measure(
                 killers = [target.previous.get(index, frozenset()) for index in target.to_run]
 
                 def baseline(
-                    command: list[str], label: str, fallback: bool = False
+                    command: list[str] | str, label: str, fallback: bool = False
                 ) -> float | None:
                     if deadline is not None and CLOCK() >= deadline:
                         raise Stopped
@@ -1122,7 +1130,7 @@ def measure(
 
                         raise
 
-                def lookup(index: int) -> tuple[list[str], float]:
+                def lookup(index: int) -> tuple[list[str] | str, float]:
                     seconds = None
                     command = whole
                     stopping = mutant_command(suite, True, workers)

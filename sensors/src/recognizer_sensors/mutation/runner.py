@@ -26,6 +26,7 @@ PID_FILE = "pid"
 PID_GRACE_SECONDS = 60
 STOPPED_STATUS = 143
 STOP_GRACE_SECONDS = 30
+TIMEOUT_DRAIN_SECONDS = 5.0
 STOP_POLL_SECONDS = 0.05
 LIVE_LOCK_WAIT_SECONDS = 2.0
 
@@ -425,7 +426,18 @@ def run_test_command(
         timed_out = False
     except subprocess.TimeoutExpired:
         kill_group(process)
-        output, _ = process.communicate()
+
+        try:
+            output, _ = process.communicate(timeout=TIMEOUT_DRAIN_SECONDS)
+        except subprocess.TimeoutExpired as expired:
+            kill_group(process)
+
+            if process.stdout is not None:
+                process.stdout.close()
+
+            output = expired.output or b""
+            process.wait()
+
         timed_out = True
     except BaseException:
         kill_group(process)
@@ -642,7 +654,7 @@ def run_mutant(
     work: Path,
     number: int,
     mutant: Mutant,
-    command: list[str],
+    command: list[str] | str,
     timeout: float,
     suite: Suite,
     known: Collection[str] | None = None,
@@ -683,7 +695,7 @@ def verdict_of(result: TestRun, known: Collection[str] | None, directory: str) -
 def run_pooled(
     copies: MutantCopies,
     mutant: Mutant,
-    command: list[str],
+    command: list[str] | str,
     timeout: float,
     suite: Suite,
     known: Collection[str] | None,
@@ -711,7 +723,7 @@ def run_function(
     repository: Path,
     work: Path,
     mutants: list[Mutant],
-    plan_for: Callable[[int], tuple[list[str], float]],
+    plan_for: Callable[[int], tuple[list[str] | str, float]],
     suite: Suite,
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
