@@ -1,0 +1,55 @@
+{
+  "tree_sitter_cli": "0.25.10",
+  "web_tree_sitter": "0.25.10",
+  "emscripten_image": "emscripten/emsdk:4.0.4",
+  "grammars": {
+    "python": {
+      "source": "https://github.com/tree-sitter/tree-sitter-python",
+      "revision": "293fdc02038ee2bf0e2e206711b69c90ac0d413f",
+      "tag": "v0.25.0",
+      "license": "MIT",
+      "file": "python.wasm",
+      "sha256": "a43153418b186cd2c170ba6e848d37e7f8abfcaab275f632a64504020f491cbc"
+    },
+    "typescript": {
+      "source": "https://github.com/tree-sitter/tree-sitter-typescript",
+      "revision": "f975a621f4e7f532fe322e13c4f79495e0a7b2e7",
+      "tag": "v0.23.2",
+      "directory": "typescript",
+      "license": "MIT",
+      "file": "typescript.wasm",
+      "sha256": "427ea5f2c24c98989a53ee3520df03afa1f9ade5bc21362de17b9982ac374a88"
+    },
+    "tsx": {
+      "source": "https://github.com/tree-sitter/tree-sitter-typescript",
+      "revision": "f975a621f4e7f532fe322e13c4f79495e0a7b2e7",
+      "tag": "v0.23.2",
+      "directory": "tsx",
+      "license": "MIT",
+      "file": "tsx.wasm",
+      "sha256": "772bd591654c4d7c7c4427652138af9f118212738cadbbfef96adf2275736d35"
+    },
+    "kotlin": {
+      "source": "https://github.com/fwcd/tree-sitter-kotlin",
+      "revision": "d6af96d2e23ef0a8ff5ab512864378cf08fba311",
+      "license": "MIT",
+      "file": "kotlin.wasm",
+      "sha256": "90689092295c4e11d21f2c4f1b9ffce1a3c68f7ce6d4de57c365cd0fc888c7ee"
+    },
+    "rust": {
+      "source": "https://github.com/tree-sitter/tree-sitter-rust",
+      "revision": "77a3747266f4d621d0757825e6b11edcbf991ca5",
+      "tag": "v0.24.2",
+      "license": "MIT",
+      "file": "rust.wasm",
+      "sha256": "bad860425fafa0321d6898b6cbaeee1f571f75fa7584bf726c3ec04f3b19c474"
+    },
+    "csharp": {
+      "source": "https://github.com/tree-sitter/tree-sitter-c-sharp",
+      "revision": "f1c7c1ee21f56a33412c12efb8abe0c483f05f0d",
+      "license": "MIT",
+      "file": "csharp.wasm",
+      "sha256": "628f16c7ca0522eb5062e16f4852148c78a64112f8982fdbcebaca1246972703"
+    }
+  }
+}
