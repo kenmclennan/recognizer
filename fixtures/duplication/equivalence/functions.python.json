@@ -1,0 +1,302 @@
+[
+ {
+  "module": "fixtures/crap/corpus/native/python/test_risk.py",
+  "name": "test_small_functions",
+  "start_line": 17,
+  "identity": "fixtures/crap/corpus/native/python/test_risk.py::test_small_functions"
+ },
+ {
+  "module": "fixtures/crap/corpus/native/python/test_risk.py",
+  "name": "test_guarded_and_comprehensions",
+  "start_line": 26,
+  "identity": "fixtures/crap/corpus/native/python/test_risk.py::test_guarded_and_comprehensions"
+ },
+ {
+  "module": "fixtures/crap/corpus/native/python/test_risk.py",
+  "name": "test_matching_and_booleans",
+  "start_line": 33,
+  "identity": "fixtures/crap/corpus/native/python/test_risk.py::test_matching_and_booleans"
+ },
+ {
+  "module": "fixtures/crap/corpus/native/python/test_risk.py",
+  "name": "test_large_functions",
+  "start_line": 40,
+  "identity": "fixtures/crap/corpus/native/python/test_risk.py::test_large_functions"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "straight",
+  "start_line": 1,
+  "identity": "fixtures/crap/corpus/python/risk.py::straight"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "one_if",
+  "start_line": 6,
+  "identity": "fixtures/crap/corpus/python/risk.py::one_if"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "if_elif",
+  "start_line": 12,
+  "identity": "fixtures/crap/corpus/python/risk.py::if_elif"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "loops",
+  "start_line": 20,
+  "identity": "fixtures/crap/corpus/python/risk.py::loops"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "guarded",
+  "start_line": 31,
+  "identity": "fixtures/crap/corpus/python/risk.py::guarded"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "comprehensions",
+  "start_line": 43,
+  "identity": "fixtures/crap/corpus/python/risk.py::comprehensions"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "matching",
+  "start_line": 53,
+  "identity": "fixtures/crap/corpus/python/risk.py::matching"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "booleans",
+  "start_line": 68,
+  "identity": "fixtures/crap/corpus/python/risk.py::booleans"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "mixed",
+  "start_line": 79,
+  "identity": "fixtures/crap/corpus/python/risk.py::mixed"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "nested",
+  "start_line": 101,
+  "identity": "fixtures/crap/corpus/python/risk.py::nested"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "classify",
+  "start_line": 122,
+  "identity": "fixtures/crap/corpus/python/risk.py::classify"
+ },
+ {
+  "module": "fixtures/crap/corpus/python/risk.py",
+  "name": "sprawl",
+  "start_line": 142,
+  "identity": "fixtures/crap/corpus/python/risk.py::sprawl"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/accessors.py",
+  "name": "Limits.retry_limit",
+  "start_line": 2,
+  "identity": "fixtures/duplication/corpus/python/accessors.py::Limits.retry_limit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/accessors.py",
+  "name": "Limits.page_size",
+  "start_line": 8,
+  "identity": "fixtures/duplication/corpus/python/accessors.py::Limits.page_size"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/accessors.py",
+  "name": "Limits.queue_depth",
+  "start_line": 14,
+  "identity": "fixtures/duplication/corpus/python/accessors.py::Limits.queue_depth"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/accessors.py",
+  "name": "Limits.idle_timeout",
+  "start_line": 20,
+  "identity": "fixtures/duplication/corpus/python/accessors.py::Limits.idle_timeout"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/branching.py",
+  "name": "Limits.retry_limit",
+  "start_line": 2,
+  "identity": "fixtures/duplication/corpus/python/branching.py::Limits.retry_limit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/branching.py",
+  "name": "Limits.page_size",
+  "start_line": 9,
+  "identity": "fixtures/duplication/corpus/python/branching.py::Limits.page_size"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/constructors.py",
+  "name": "Orders.__init__",
+  "start_line": 2,
+  "identity": "fixtures/duplication/corpus/python/constructors.py::Orders.__init__"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/constructors.py",
+  "name": "Parcels.__init__",
+  "start_line": 10,
+  "identity": "fixtures/duplication/corpus/python/constructors.py::Parcels.__init__"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/constructors.py",
+  "name": "Visits.__init__",
+  "start_line": 18,
+  "identity": "fixtures/duplication/corpus/python/constructors.py::Visits.__init__"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/distinct.py",
+  "name": "read_config",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/python/distinct.py::read_config"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/distinct.py",
+  "name": "render_table",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/python/distinct.py::render_table"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/distinct.py",
+  "name": "walk_tree",
+  "start_line": 19,
+  "identity": "fixtures/duplication/corpus/python/distinct.py::walk_tree"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/distinct.py",
+  "name": "clamp_range",
+  "start_line": 28,
+  "identity": "fixtures/duplication/corpus/python/distinct.py::clamp_range"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/distinct.py",
+  "name": "parse_flags",
+  "start_line": 38,
+  "identity": "fixtures/duplication/corpus/python/distinct.py::parse_flags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/distinct.py",
+  "name": "merge_sorted",
+  "start_line": 49,
+  "identity": "fixtures/duplication/corpus/python/distinct.py::merge_sorted"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/near.py",
+  "name": "gather_names",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/python/near.py::gather_names"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/near.py",
+  "name": "gather_tags",
+  "start_line": 16,
+  "identity": "fixtures/duplication/corpus/python/near.py::gather_tags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/near.py",
+  "name": "fetch_pages",
+  "start_line": 32,
+  "identity": "fixtures/duplication/corpus/python/near.py::fetch_pages"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/near.py",
+  "name": "fetch_events",
+  "start_line": 46,
+  "identity": "fixtures/duplication/corpus/python/near.py::fetch_events"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/near.py",
+  "name": "summarise_orders",
+  "start_line": 61,
+  "identity": "fixtures/duplication/corpus/python/near.py::summarise_orders"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/near.py",
+  "name": "summarise_visits",
+  "start_line": 74,
+  "identity": "fixtures/duplication/corpus/python/near.py::summarise_visits"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/planted.py",
+  "name": "order_total",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/python/planted.py::order_total"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/planted.py",
+  "name": "parcel_weight",
+  "start_line": 9,
+  "identity": "fixtures/duplication/corpus/python/planted.py::parcel_weight"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/planted.py",
+  "name": "load_settings",
+  "start_line": 17,
+  "identity": "fixtures/duplication/corpus/python/planted.py::load_settings"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/planted.py",
+  "name": "load_session",
+  "start_line": 28,
+  "identity": "fixtures/duplication/corpus/python/planted.py::load_session"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/planted.py",
+  "name": "store_report",
+  "start_line": 39,
+  "identity": "fixtures/duplication/corpus/python/planted.py::store_report"
+ },
+ {
+  "module": "fixtures/duplication/corpus/python/planted.py",
+  "name": "store_ledger",
+  "start_line": 48,
+  "identity": "fixtures/duplication/corpus/python/planted.py::store_ledger"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/python/constructs.py",
+  "name": "Store.get",
+  "start_line": 2,
+  "identity": "fixtures/duplication/equivalence/sources/python/constructs.py::Store.get@2"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/python/constructs.py",
+  "name": "Store.get",
+  "start_line": 10,
+  "identity": "fixtures/duplication/equivalence/sources/python/constructs.py::Store.get@10"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/python/constructs.py",
+  "name": "Store.Inner.size",
+  "start_line": 19,
+  "identity": "fixtures/duplication/equivalence/sources/python/constructs.py::Store.Inner.size"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/python/constructs.py",
+  "name": "helper",
+  "start_line": 23,
+  "identity": "fixtures/duplication/equivalence/sources/python/constructs.py::helper"
+ },
+ {
+  "module": "fixtures/duplication/sample/app/pricing.py",
+  "name": "total_with_tax",
+  "start_line": 1,
+  "identity": "fixtures/duplication/sample/app/pricing.py::total_with_tax"
+ },
+ {
+  "module": "fixtures/duplication/sample/app/pricing.py",
+  "name": "sum_with_levy",
+  "start_line": 10,
+  "identity": "fixtures/duplication/sample/app/pricing.py::sum_with_levy"
+ },
+ {
+  "module": "fixtures/duplication/sample/app/pricing.py",
+  "name": "describe",
+  "start_line": 19,
+  "identity": "fixtures/duplication/sample/app/pricing.py::describe"
+ }
+]

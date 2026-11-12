@@ -1,0 +1,296 @@
+[
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "straight",
+  "start_line": 1,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::straight"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "oneIf",
+  "start_line": 6,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::oneIf"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "ifElse",
+  "start_line": 13,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::ifElse"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "loops",
+  "start_line": 22,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::loops"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "doLoop",
+  "start_line": 36,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::doLoop"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "switchy",
+  "start_line": 52,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::switchy"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "optional",
+  "start_line": 76,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::optional"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "logic",
+  "start_line": 89,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::logic"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "mixed",
+  "start_line": 102,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::mixed"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "nested",
+  "start_line": 127,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::nested"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "classify",
+  "start_line": 161,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::classify"
+ },
+ {
+  "module": "fixtures/crap/corpus/typescript/risk.ts",
+  "name": "sprawl",
+  "start_line": 184,
+  "identity": "fixtures/crap/corpus/typescript/risk.ts::sprawl"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/accessors.ts",
+  "name": "Limits.retryLimit",
+  "start_line": 2,
+  "identity": "fixtures/duplication/corpus/typescript/accessors.ts::Limits.retryLimit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/accessors.ts",
+  "name": "Limits.pageSize",
+  "start_line": 9,
+  "identity": "fixtures/duplication/corpus/typescript/accessors.ts::Limits.pageSize"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/accessors.ts",
+  "name": "Limits.queueDepth",
+  "start_line": 16,
+  "identity": "fixtures/duplication/corpus/typescript/accessors.ts::Limits.queueDepth"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/accessors.ts",
+  "name": "Limits.idleTimeout",
+  "start_line": 23,
+  "identity": "fixtures/duplication/corpus/typescript/accessors.ts::Limits.idleTimeout"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/branching.ts",
+  "name": "Limits.retryLimit",
+  "start_line": 2,
+  "identity": "fixtures/duplication/corpus/typescript/branching.ts::Limits.retryLimit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/branching.ts",
+  "name": "Limits.pageSize",
+  "start_line": 10,
+  "identity": "fixtures/duplication/corpus/typescript/branching.ts::Limits.pageSize"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/constructors.ts",
+  "name": "Orders.constructor",
+  "start_line": 2,
+  "identity": "fixtures/duplication/corpus/typescript/constructors.ts::Orders.constructor"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/constructors.ts",
+  "name": "Parcels.constructor",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/typescript/constructors.ts::Parcels.constructor"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/constructors.ts",
+  "name": "Visits.constructor",
+  "start_line": 20,
+  "identity": "fixtures/duplication/corpus/typescript/constructors.ts::Visits.constructor"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/distinct.ts",
+  "name": "readConfig",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/typescript/distinct.ts::readConfig"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/distinct.ts",
+  "name": "renderTable",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/typescript/distinct.ts::renderTable"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/distinct.ts",
+  "name": "walkTree",
+  "start_line": 20,
+  "identity": "fixtures/duplication/corpus/typescript/distinct.ts::walkTree"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/distinct.ts",
+  "name": "clampRange",
+  "start_line": 30,
+  "identity": "fixtures/duplication/corpus/typescript/distinct.ts::clampRange"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/distinct.ts",
+  "name": "parseFlags",
+  "start_line": 43,
+  "identity": "fixtures/duplication/corpus/typescript/distinct.ts::parseFlags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/distinct.ts",
+  "name": "mergeSorted",
+  "start_line": 56,
+  "identity": "fixtures/duplication/corpus/typescript/distinct.ts::mergeSorted"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/near.ts",
+  "name": "gatherNames",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/typescript/near.ts::gatherNames"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/near.ts",
+  "name": "gatherTags",
+  "start_line": 19,
+  "identity": "fixtures/duplication/corpus/typescript/near.ts::gatherTags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/near.ts",
+  "name": "fetchPages",
+  "start_line": 38,
+  "identity": "fixtures/duplication/corpus/typescript/near.ts::fetchPages"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/near.ts",
+  "name": "fetchEvents",
+  "start_line": 55,
+  "identity": "fixtures/duplication/corpus/typescript/near.ts::fetchEvents"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/near.ts",
+  "name": "summariseOrders",
+  "start_line": 73,
+  "identity": "fixtures/duplication/corpus/typescript/near.ts::summariseOrders"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/near.ts",
+  "name": "summariseVisits",
+  "start_line": 88,
+  "identity": "fixtures/duplication/corpus/typescript/near.ts::summariseVisits"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/planted.ts",
+  "name": "orderTotal",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/typescript/planted.ts::orderTotal"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/planted.ts",
+  "name": "parcelWeight",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/typescript/planted.ts::parcelWeight"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/planted.ts",
+  "name": "loadSettings",
+  "start_line": 21,
+  "identity": "fixtures/duplication/corpus/typescript/planted.ts::loadSettings"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/planted.ts",
+  "name": "loadSession",
+  "start_line": 33,
+  "identity": "fixtures/duplication/corpus/typescript/planted.ts::loadSession"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/planted.ts",
+  "name": "storeReport",
+  "start_line": 45,
+  "identity": "fixtures/duplication/corpus/typescript/planted.ts::storeReport"
+ },
+ {
+  "module": "fixtures/duplication/corpus/typescript/planted.ts",
+  "name": "storeLedger",
+  "start_line": 53,
+  "identity": "fixtures/duplication/corpus/typescript/planted.ts::storeLedger"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/typescript/constructs.ts",
+  "name": "Store.get",
+  "start_line": 2,
+  "identity": "fixtures/duplication/equivalence/sources/typescript/constructs.ts::Store.get@2"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/typescript/constructs.ts",
+  "name": "Store.get",
+  "start_line": 12,
+  "identity": "fixtures/duplication/equivalence/sources/typescript/constructs.ts::Store.get@12"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/typescript/constructs.ts",
+  "name": "total",
+  "start_line": 19,
+  "identity": "fixtures/duplication/equivalence/sources/typescript/constructs.ts::total"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/typescript/constructs.ts",
+  "name": "scale",
+  "start_line": 29,
+  "identity": "fixtures/duplication/equivalence/sources/typescript/constructs.ts::scale"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/typescript/constructs.ts",
+  "name": "Shapes.area",
+  "start_line": 34,
+  "identity": "fixtures/duplication/equivalence/sources/typescript/constructs.ts::Shapes.area"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/typescript/legacy.js",
+  "name": "legacy",
+  "start_line": 1,
+  "identity": "fixtures/duplication/equivalence/sources/typescript/legacy.js::legacy"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/typescript/view.tsx",
+  "name": "View",
+  "start_line": 1,
+  "identity": "fixtures/duplication/equivalence/sources/typescript/view.tsx::View"
+ },
+ {
+  "module": "fixtures/duplication/sample/src/pricing.ts",
+  "name": "totalWithTax",
+  "start_line": 1,
+  "identity": "fixtures/duplication/sample/src/pricing.ts::totalWithTax"
+ },
+ {
+  "module": "fixtures/duplication/sample/src/pricing.ts",
+  "name": "sumWithLevy",
+  "start_line": 12,
+  "identity": "fixtures/duplication/sample/src/pricing.ts::sumWithLevy"
+ },
+ {
+  "module": "fixtures/duplication/sample/src/pricing.ts",
+  "name": "describe",
+  "start_line": 23,
+  "identity": "fixtures/duplication/sample/src/pricing.ts::describe"
+ }
+]

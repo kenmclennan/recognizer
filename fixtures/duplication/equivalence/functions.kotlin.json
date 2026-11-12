@@ -1,0 +1,278 @@
+[
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "straight",
+  "start_line": 3,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::straight"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "oneIf",
+  "start_line": 8,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::oneIf"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "ifElse",
+  "start_line": 15,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::ifElse"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "loops",
+  "start_line": 24,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::loops"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "whenThree",
+  "start_line": 39,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::whenThree"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "tryCatch",
+  "start_line": 52,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::tryCatch"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "booleans",
+  "start_line": 71,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::booleans"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "mixed",
+  "start_line": 86,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::mixed"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "nested",
+  "start_line": 105,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::nested"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "classify",
+  "start_line": 133,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::classify"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "wide",
+  "start_line": 156,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::wide"
+ },
+ {
+  "module": "fixtures/crap/corpus/kotlin/corpus/Risk.kt",
+  "name": "sprawl",
+  "start_line": 182,
+  "identity": "fixtures/crap/corpus/kotlin/corpus/Risk.kt::sprawl"
+ },
+ {
+  "module": "fixtures/crap/corpus/native/kotlin/RiskTest.kt",
+  "name": "RiskTest.smallFunctions",
+  "start_line": 7,
+  "identity": "fixtures/crap/corpus/native/kotlin/RiskTest.kt::RiskTest.smallFunctions"
+ },
+ {
+  "module": "fixtures/crap/corpus/native/kotlin/RiskTest.kt",
+  "name": "RiskTest.largerFunctions",
+  "start_line": 15,
+  "identity": "fixtures/crap/corpus/native/kotlin/RiskTest.kt::RiskTest.largerFunctions"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Accessors.kt",
+  "name": "Limits.retryLimit",
+  "start_line": 4,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Accessors.kt::Limits.retryLimit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Accessors.kt",
+  "name": "Limits.pageSize",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Accessors.kt::Limits.pageSize"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Accessors.kt",
+  "name": "Limits.queueDepth",
+  "start_line": 18,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Accessors.kt::Limits.queueDepth"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Accessors.kt",
+  "name": "Limits.idleTimeout",
+  "start_line": 25,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Accessors.kt::Limits.idleTimeout"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Branching.kt",
+  "name": "Budgets.retryLimit",
+  "start_line": 4,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Branching.kt::Budgets.retryLimit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Branching.kt",
+  "name": "Budgets.pageSize",
+  "start_line": 12,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Branching.kt::Budgets.pageSize"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Constructors.kt",
+  "name": "Orders.assign",
+  "start_line": 4,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Constructors.kt::Orders.assign"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Constructors.kt",
+  "name": "Parcels.assign",
+  "start_line": 13,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Constructors.kt::Parcels.assign"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Constructors.kt",
+  "name": "Visits.assign",
+  "start_line": 22,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Constructors.kt::Visits.assign"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Distinct.kt",
+  "name": "readConfig",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Distinct.kt::readConfig"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Distinct.kt",
+  "name": "renderTable",
+  "start_line": 13,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Distinct.kt::renderTable"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Distinct.kt",
+  "name": "walkTree",
+  "start_line": 22,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Distinct.kt::walkTree"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Distinct.kt",
+  "name": "clampRange",
+  "start_line": 33,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Distinct.kt::clampRange"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Distinct.kt",
+  "name": "parseFlags",
+  "start_line": 43,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Distinct.kt::parseFlags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Distinct.kt",
+  "name": "mergeSorted",
+  "start_line": 56,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Distinct.kt::mergeSorted"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Near.kt",
+  "name": "gatherNames",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Near.kt::gatherNames"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Near.kt",
+  "name": "gatherTags",
+  "start_line": 21,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Near.kt::gatherTags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Near.kt",
+  "name": "fetchPages",
+  "start_line": 40,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Near.kt::fetchPages"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Near.kt",
+  "name": "fetchEvents",
+  "start_line": 57,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Near.kt::fetchEvents"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Near.kt",
+  "name": "summariseOrders",
+  "start_line": 75,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Near.kt::summariseOrders"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Near.kt",
+  "name": "summariseVisits",
+  "start_line": 90,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Near.kt::summariseVisits"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Planted.kt",
+  "name": "orderTotal",
+  "start_line": 3,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Planted.kt::orderTotal"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Planted.kt",
+  "name": "parcelWeight",
+  "start_line": 13,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Planted.kt::parcelWeight"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Planted.kt",
+  "name": "loadSettings",
+  "start_line": 23,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Planted.kt::loadSettings"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Planted.kt",
+  "name": "loadSession",
+  "start_line": 36,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Planted.kt::loadSession"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Planted.kt",
+  "name": "storeReport",
+  "start_line": 49,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Planted.kt::storeReport"
+ },
+ {
+  "module": "fixtures/duplication/corpus/kotlin/src/Planted.kt",
+  "name": "storeLedger",
+  "start_line": 58,
+  "identity": "fixtures/duplication/corpus/kotlin/src/Planted.kt::storeLedger"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt",
+  "name": "Store.get",
+  "start_line": 2,
+  "identity": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt::Store.get@2"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt",
+  "name": "Store.get",
+  "start_line": 12,
+  "identity": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt::Store.get@12"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt",
+  "name": "Store.Companion.create",
+  "start_line": 17,
+  "identity": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt::Store.Companion.create"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt",
+  "name": "Registry.register",
+  "start_line": 24,
+  "identity": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt::Registry.register"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt",
+  "name": "helper",
+  "start_line": 29,
+  "identity": "fixtures/duplication/equivalence/sources/kotlin/Constructs.kt::helper"
+ }
+]

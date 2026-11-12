@@ -1,0 +1,272 @@
+[
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "straight",
+  "start_line": 1,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::straight"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "one_if",
+  "start_line": 6,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::one_if"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "if_else_if",
+  "start_line": 13,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::if_else_if"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "loops",
+  "start_line": 22,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::loops"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "match_three",
+  "start_line": 37,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::match_three"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "if_let_match",
+  "start_line": 49,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::if_let_match"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "closure",
+  "start_line": 65,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::closure"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "booleans",
+  "start_line": 91,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::booleans"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "wide_match",
+  "start_line": 109,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::wide_match"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "classify",
+  "start_line": 130,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::classify"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "sprawl_match",
+  "start_line": 152,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::sprawl_match"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/src/risk.rs",
+  "name": "sprawl",
+  "start_line": 171,
+  "identity": "fixtures/crap/corpus/rust/src/risk.rs::sprawl"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/tests/risk.rs",
+  "name": "small_functions",
+  "start_line": 4,
+  "identity": "fixtures/crap/corpus/rust/tests/risk.rs::small_functions"
+ },
+ {
+  "module": "fixtures/crap/corpus/rust/tests/risk.rs",
+  "name": "larger_functions",
+  "start_line": 14,
+  "identity": "fixtures/crap/corpus/rust/tests/risk.rs::larger_functions"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/accessors.rs",
+  "name": "Limits.retry_limit",
+  "start_line": 4,
+  "identity": "fixtures/duplication/corpus/rust/accessors.rs::Limits.retry_limit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/accessors.rs",
+  "name": "Limits.page_size",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/rust/accessors.rs::Limits.page_size"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/accessors.rs",
+  "name": "Limits.queue_depth",
+  "start_line": 18,
+  "identity": "fixtures/duplication/corpus/rust/accessors.rs::Limits.queue_depth"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/accessors.rs",
+  "name": "Limits.idle_timeout",
+  "start_line": 25,
+  "identity": "fixtures/duplication/corpus/rust/accessors.rs::Limits.idle_timeout"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/branching.rs",
+  "name": "Limits.retry_limit",
+  "start_line": 4,
+  "identity": "fixtures/duplication/corpus/rust/branching.rs::Limits.retry_limit"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/branching.rs",
+  "name": "Limits.page_size",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/rust/branching.rs::Limits.page_size"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/constructors.rs",
+  "name": "Orders.new",
+  "start_line": 6,
+  "identity": "fixtures/duplication/corpus/rust/constructors.rs::Orders.new"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/constructors.rs",
+  "name": "Parcels.new",
+  "start_line": 17,
+  "identity": "fixtures/duplication/corpus/rust/constructors.rs::Parcels.new"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/constructors.rs",
+  "name": "Visits.new",
+  "start_line": 28,
+  "identity": "fixtures/duplication/corpus/rust/constructors.rs::Visits.new"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/distinct.rs",
+  "name": "read_config",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/rust/distinct.rs::read_config"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/distinct.rs",
+  "name": "render_table",
+  "start_line": 12,
+  "identity": "fixtures/duplication/corpus/rust/distinct.rs::render_table"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/distinct.rs",
+  "name": "walk_tree",
+  "start_line": 25,
+  "identity": "fixtures/duplication/corpus/rust/distinct.rs::walk_tree"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/distinct.rs",
+  "name": "clamp_range",
+  "start_line": 36,
+  "identity": "fixtures/duplication/corpus/rust/distinct.rs::clamp_range"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/distinct.rs",
+  "name": "parse_flags",
+  "start_line": 46,
+  "identity": "fixtures/duplication/corpus/rust/distinct.rs::parse_flags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/distinct.rs",
+  "name": "merge_sorted",
+  "start_line": 60,
+  "identity": "fixtures/duplication/corpus/rust/distinct.rs::merge_sorted"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/near.rs",
+  "name": "gather_names",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/rust/near.rs::gather_names"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/near.rs",
+  "name": "gather_tags",
+  "start_line": 19,
+  "identity": "fixtures/duplication/corpus/rust/near.rs::gather_tags"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/near.rs",
+  "name": "fetch_pages",
+  "start_line": 38,
+  "identity": "fixtures/duplication/corpus/rust/near.rs::fetch_pages"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/near.rs",
+  "name": "fetch_events",
+  "start_line": 55,
+  "identity": "fixtures/duplication/corpus/rust/near.rs::fetch_events"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/near.rs",
+  "name": "summarise_orders",
+  "start_line": 73,
+  "identity": "fixtures/duplication/corpus/rust/near.rs::summarise_orders"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/near.rs",
+  "name": "summarise_visits",
+  "start_line": 88,
+  "identity": "fixtures/duplication/corpus/rust/near.rs::summarise_visits"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/planted.rs",
+  "name": "order_total",
+  "start_line": 1,
+  "identity": "fixtures/duplication/corpus/rust/planted.rs::order_total"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/planted.rs",
+  "name": "parcel_weight",
+  "start_line": 11,
+  "identity": "fixtures/duplication/corpus/rust/planted.rs::parcel_weight"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/planted.rs",
+  "name": "load_settings",
+  "start_line": 21,
+  "identity": "fixtures/duplication/corpus/rust/planted.rs::load_settings"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/planted.rs",
+  "name": "load_session",
+  "start_line": 34,
+  "identity": "fixtures/duplication/corpus/rust/planted.rs::load_session"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/planted.rs",
+  "name": "store_report",
+  "start_line": 47,
+  "identity": "fixtures/duplication/corpus/rust/planted.rs::store_report"
+ },
+ {
+  "module": "fixtures/duplication/corpus/rust/planted.rs",
+  "name": "store_ledger",
+  "start_line": 57,
+  "identity": "fixtures/duplication/corpus/rust/planted.rs::store_ledger"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/rust/constructs.rs",
+  "name": "Store.get",
+  "start_line": 6,
+  "identity": "fixtures/duplication/equivalence/sources/rust/constructs.rs::Store.get@6"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/rust/constructs.rs",
+  "name": "Store.get",
+  "start_line": 14,
+  "identity": "fixtures/duplication/equivalence/sources/rust/constructs.rs::Store.get@14"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/rust/constructs.rs",
+  "name": "Shape.area",
+  "start_line": 20,
+  "identity": "fixtures/duplication/equivalence/sources/rust/constructs.rs::Shape.area"
+ },
+ {
+  "module": "fixtures/duplication/equivalence/sources/rust/constructs.rs",
+  "name": "helpers.double",
+  "start_line": 26,
+  "identity": "fixtures/duplication/equivalence/sources/rust/constructs.rs::helpers.double"
+ }
+]
