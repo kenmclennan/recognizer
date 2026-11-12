@@ -68,6 +68,7 @@ export function structureDocument(
     [scan],
     policy,
     {
+      duplication: false,
       entry_points: [],
       warnings: {
         cycle: true,

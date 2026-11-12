@@ -196,7 +196,7 @@ describe("recognizer sensors check", () => {
     const listed = fakeIo();
 
     expect(run(["sensors"], listed.io)).toBe(0);
-    expect(listed.out()).toContain("duplication");
+    expect(listed.out()).toContain("thresholds");
     expect(run(["sensors", "--run"], fakeIo().io)).toBe(2);
     expect(run(["sensors", "extra"], fakeIo().io)).toBe(2);
   });
@@ -347,8 +347,8 @@ describe("recognizer help sensors <name>", () => {
   it("says a sensor that prints nothing supplies no setup guide", () => {
     const fake = guided("");
 
-    expect(run(["help", "sensors", "duplication"], fake.io)).toBe(0);
-    expect(fake.out()).toBe("duplication supplies no setup guide\n");
+    expect(run(["help", "sensors", "thresholds"], fake.io)).toBe(0);
+    expect(fake.out()).toBe("thresholds supplies no setup guide\n");
   });
 
   it("exits 2 for an unknown sensor and leaves help sensors alone unchanged", () => {

@@ -35,7 +35,7 @@ recognizer help                 # every command
 A repository configures Recognizer in `.recognizer/`, which is committed:
 
 - `policy.yaml` declares the architecture: named components by path and the dependencies each may have. An edge that breaks it is a violation, and `recognizer check` refuses growth beyond the committed baseline. Start from a policy in [`policies/`](policies).
-- `config.yaml` registers the sensors to run (`sensors: {duplication: {}, crap: {}}` for the shipped ones) and a describer that writes each module's one-line responsibility. The describer's model and how many modules it describes at once are user settings (`describing` in the app's `config.json`, edited in Settings), not part of the repository.
+- `config.yaml` registers the sensors to run (`sensors: {crap: {}}` for the shipped ones) and a describer that writes each module's one-line responsibility. The describer's model and how many modules it describes at once are user settings (`describing` in the app's `config.json`, edited in Settings), not part of the repository.
 
 Agents use the command line only: `recognizer agents install` adds the Claude Code skills (one for the guide, one that sets up and updates a repository on request) and the permission rule, and `recognizer help agents` prints the guide they follow.
 
@@ -43,7 +43,7 @@ Agents use the command line only: `recognizer agents install` adds the Claude Co
 
 - **Scanners.** One standalone command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
 - **Check.** Reads the scan and the policy, reports violations against a baseline that may only shrink, and the structure sensor's warnings: cycles, orphans, package metrics.
-- **Sensors.** Shipped judgements beyond structure: duplication and CRAP today, mutation and thresholds following; a repository can register its own command that writes findings.
+- **Sensors.** Shipped judgements beyond structure: CRAP today, mutation and thresholds following (duplication is a check inside the structure sensor); a repository can register its own command that writes findings.
 - **Viewer.** A native app (Tauri) that draws the modules and their dependencies, colours findings and health, opens a module to show its members, and keeps saved views and notes an agent can build and link to.
 
 ## Docs

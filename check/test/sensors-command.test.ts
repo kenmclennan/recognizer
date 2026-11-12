@@ -48,11 +48,11 @@ describe("recognizer sensors", () => {
     ).toEqual(["thresholds"]);
   });
 
-  it("prints a duplication line in text", () => {
+  it("prints a crap line in text", () => {
     const { io, out } = capture();
 
     expect(run(["sensors"], io)).toBe(0);
-    expect(out()).toMatch(/^duplication {2}\S/m);
+    expect(out()).toMatch(/^crap {2}\S/m);
   });
 
   it("exits 2 on an unknown flag", () => {
@@ -74,7 +74,7 @@ describe("recognizer sensors", () => {
     expect(out()).toContain("recognizer sensors");
   });
 
-  it("lists C.R.A.P., Duplication and Mutation, in the order the Scan panel shows them", () => {
+  it("lists C.R.A.P. and Mutation, in the order the Scan panel shows them", () => {
     const { io, out } = capture();
 
     run(["sensors", "--json"], io);
@@ -84,6 +84,6 @@ describe("recognizer sensors", () => {
       .map((e: { display: string }) => e.display)
       .sort((a: string, b: string) => a.localeCompare(b));
 
-    expect(shown).toEqual(["C.R.A.P.", "Duplication", "Mutation"]);
+    expect(shown).toEqual(["C.R.A.P.", "Mutation"]);
   });
 });

@@ -694,27 +694,6 @@ def test_a_failing_findings_write_exits_non_zero(sample, tmp_path):
         run_crap(sample, tmp_path / "missing-folder" / "out.json")
 
 
-def test_duplication_writes_only_its_output(tmp_path):
-    root = tmp_path / "dup"
-    shutil.copytree(REPOSITORY / "fixtures" / "duplication" / "sample", root)
-    write_scans(root)
-    before = tree_state(root)
-
-    main(
-        [
-            "duplication",
-            "--repository",
-            str(root),
-            "--commit",
-            "c1",
-            "--output",
-            str(tmp_path / "o"),
-        ]
-    )
-
-    assert tree_state(root) == before
-
-
 def test_a_committed_repository_keeps_the_commit(sample, tmp_path):
     sha = git_commit(sample)
 

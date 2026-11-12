@@ -88,7 +88,7 @@ def sample(tmp_path) -> Path:
 def run_cli(root: Path, output: Path, *extra: str) -> int:
     return main(
         [
-            "duplication",
+            "thresholds",
             "--repository",
             str(root),
             "--commit",

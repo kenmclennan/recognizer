@@ -1,0 +1,4 @@
+sensors:
+  structure:
+    duplication:
+      threshold: 1.5

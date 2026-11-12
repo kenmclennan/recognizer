@@ -311,7 +311,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true}}',
     );
-    expect(document.sensor.version).toBe("16");
+    expect(document.sensor.version).toBe("17");
   });
 
   it("describes the settings with and without entry points", () => {

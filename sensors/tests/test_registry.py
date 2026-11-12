@@ -33,5 +33,5 @@ def test_the_registry_marks_which_sensors_take_a_module_scope():
 
     assert listed("mutation")["scoped"] is True
 
-    for name in ("duplication", "crap", "thresholds"):
+    for name in ("crap", "thresholds"):
         assert listed(name)["scoped"] is False

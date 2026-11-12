@@ -122,6 +122,46 @@ export const CORE_KEYS: KeySchema = {
       example: "sensors.structure off",
     },
     {
+      key: "sensors.structure.duplication",
+      type: "boolean",
+      description:
+        "false switches the duplication check of the structure sensor off; it runs with every scan by default",
+      example: "sensors.structure.duplication false",
+    },
+    {
+      key: "sensors.structure.duplication.threshold",
+      type: "number",
+      description:
+        "the similarity two functions need to count as duplicates, above 0 and at most 1; default 0.82",
+      example: "sensors.structure.duplication.threshold 0.9",
+      exclusiveMinimum: 0,
+      maximum: 1,
+    },
+    {
+      key: "sensors.structure.duplication.min_lines",
+      type: "integer",
+      description:
+        "the fewest lines a function needs to be compared; default 4",
+      example: "sensors.structure.duplication.min_lines 6",
+      minimum: 1,
+    },
+    {
+      key: "sensors.structure.duplication.pair_min_lines",
+      type: "integer",
+      description:
+        "the fewest lines the shorter function of a pair needs; default 6",
+      example: "sensors.structure.duplication.pair_min_lines 8",
+      minimum: 1,
+    },
+    {
+      key: "sensors.structure.duplication.min_nodes",
+      type: "integer",
+      description:
+        "the fewest syntax nodes a function needs to be compared; default 20",
+      example: "sensors.structure.duplication.min_nodes 30",
+      minimum: 1,
+    },
+    {
       key: "sensors.structure.warnings.<warning>",
       type: "boolean",
       description: `a switch for one structure warning: ${WARNINGS.join(", ")}`,

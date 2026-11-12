@@ -7,19 +7,16 @@ from importlib.metadata import PackageNotFoundError, version
 import pytest
 from conftest import (
     FINDINGS_SCHEMA,
-    FIXTURE,
     REPOSITORY,
     SENSOR_LIST,
     SHIPPED,
     git_commit,
-    make_repository,
     run_cli,
     write_scans,
 )
 from jsonschema import Draft202012Validator
 
 from recognizer_sensors.cli import main
-from recognizer_sensors.duplication.sensor import DEFAULTS
 from recognizer_sensors.registry import SHIPPED as REGISTRY
 
 
@@ -35,16 +32,14 @@ def test_a_produced_file_validates_against_the_findings_schema(sample, tmp_path)
     document = json.loads(output.read_text())
 
     schema_validator().validate(document)
-    assert document["sensor"] == {"name": "duplication", "version": version("recognizer-sensors")}
+    assert document["sensor"] == {"name": "thresholds", "version": version("recognizer-sensors")}
     assert document["commit"] == "c1"
     assert document["modified"] is False
     assert document["settings"] == {
-        "threshold": 0.82,
-        "min_lines": 4,
-        "pair_min_lines": 6,
-        "min_nodes": 20,
+        "complexity": {"above": 10, "severity": "warning"},
+        "coverage": {"below": 0.6, "severity": "warning"},
     }
-    assert len(document["findings"]) == 2
+    assert document["findings"] == []
 
 
 def test_the_version_is_read_before_the_sensor_runs_so_a_vanished_package_cannot_lose_the_document(
@@ -72,17 +67,14 @@ def test_the_version_is_read_before_the_sensor_runs_so_a_vanished_package_cannot
 def test_settings_reach_the_sensor_and_are_recorded(sample, tmp_path):
     output = tmp_path / "out.json"
 
-    assert run_cli(sample, output, "--settings", '{"threshold":0.99,"min_lines":6}') == 0
+    assert run_cli(sample, output, "--settings", '{"complexity":{"above":3}}') == 0
 
     document = json.loads(output.read_text())
 
     assert document["settings"] == {
-        "threshold": 0.99,
-        "min_lines": 6,
-        "pair_min_lines": 6,
-        "min_nodes": 20,
+        "complexity": {"above": 3, "severity": "warning"},
+        "coverage": {"below": 0.6, "severity": "warning"},
     }
-    assert len(document["findings"]) == 2
 
 
 def test_modified_is_true_when_any_scan_is_not_known_clean(sample, tmp_path):
@@ -92,21 +84,6 @@ def test_modified_is_true_when_any_scan_is_not_known_clean(sample, tmp_path):
     run_cli(sample, output)
 
     assert json.loads(output.read_text())["modified"] is True
-
-
-def test_a_syntax_error_file_yields_findings_for_the_clean_file_only(tmp_path):
-    clean = (FIXTURE / "app" / "pricing.py").read_text()
-    root = make_repository(
-        tmp_path / "r",
-        {"clean.py": clean, "broken.py": "def f(:\n    pass\n    return (\n", "notes.txt": "x"},
-    )
-    output = tmp_path / "out.json"
-
-    assert run_cli(root, output) == 0
-
-    ids = [f["id"] for f in json.loads(output.read_text())["findings"]]
-
-    assert ids == ["duplication:clean.py::sum_with_levy|clean.py::total_with_tax"]
 
 
 def test_a_repository_with_no_scans_yields_a_valid_empty_file(tmp_path):
@@ -128,7 +105,7 @@ def test_an_unreadable_scan_is_no_modules(sample, tmp_path):
     output = tmp_path / "out.json"
 
     assert run_cli(sample, output) == 0
-    assert len(json.loads(output.read_text())["findings"]) == 1
+    assert json.loads(output.read_text())["findings"] == []
 
 
 @pytest.mark.parametrize(
@@ -136,12 +113,12 @@ def test_an_unreadable_scan_is_no_modules(sample, tmp_path):
     [
         ["nonesuch"],
         [],
-        ["duplication", "--settings", "not json"],
-        ["duplication", "--settings", "[1]"],
-        ["duplication", "--settings", '{"threshold":2}'],
-        ["duplication", "--settings", '{"nonesuch":1}'],
-        ["duplication", "--repository", "/nonexistent/folder", "--commit", "c"],
-        ["duplication", "--bogus"],
+        ["thresholds", "--settings", "not json"],
+        ["thresholds", "--settings", "[1]"],
+        ["thresholds", "--settings", '{"complexity":2}'],
+        ["thresholds", "--settings", '{"nonesuch":1}'],
+        ["thresholds", "--repository", "/nonexistent/folder", "--commit", "c"],
+        ["thresholds", "--bogus"],
     ],
 )
 def test_bad_arguments_exit_two(argv, tmp_path):
@@ -157,14 +134,14 @@ def test_no_commit_exits_two(tmp_path):
     root = tmp_path / "plain"
     root.mkdir()
 
-    assert main(["duplication", "--repository", str(root)]) == 2
+    assert main(["thresholds", "--repository", str(root)]) == 2
 
 
 def test_the_commit_defaults_to_head(sample, tmp_path):
     sha = git_commit(sample)
     output = tmp_path / "out.json"
 
-    assert main(["duplication", "--repository", str(sample), "--output", str(output)]) == 0
+    assert main(["thresholds", "--repository", str(sample), "--output", str(output)]) == 0
     assert json.loads(output.read_text())["commit"] == sha
 
 
@@ -177,8 +154,8 @@ def test_version_prints_the_package_version(capsys):
 
 
 def test_output_goes_to_stdout_by_default(sample, capsys):
-    assert main(["duplication", "--repository", str(sample), "--commit", "c1"]) == 0
-    assert json.loads(capsys.readouterr().out)["sensor"]["name"] == "duplication"
+    assert main(["thresholds", "--repository", str(sample), "--commit", "c1"]) == 0
+    assert json.loads(capsys.readouterr().out)["sensor"]["name"] == "thresholds"
 
 
 def test_a_failing_run_leaves_no_file(sample, tmp_path, monkeypatch):
@@ -189,8 +166,8 @@ def test_a_failing_run_leaves_no_file(sample, tmp_path, monkeypatch):
 
     monkeypatch.setitem(
         REGISTRY,
-        "duplication",
-        type(REGISTRY["duplication"])(REGISTRY["duplication"].parse_settings, explode),
+        "thresholds",
+        type(REGISTRY["thresholds"])(REGISTRY["thresholds"].parse_settings, explode),
     )
 
     with pytest.raises(RuntimeError):
@@ -226,7 +203,7 @@ def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
                 sys.executable,
                 "-m",
                 "recognizer_sensors",
-                "duplication",
+                "thresholds",
                 "--repository",
                 str(sample),
                 "--commit",
@@ -265,7 +242,6 @@ def test_the_registry_and_defaults_agree_with_the_sensor_list():
     listed = {entry["name"]: entry for entry in json.loads(SENSOR_LIST.read_text())}
 
     assert sorted(REGISTRY) == sorted(listed)
-    assert listed["duplication"]["defaults"] == DEFAULTS
 
 
 def test_the_retired_mutate_name_is_an_unknown_sensor(sample, capsys):

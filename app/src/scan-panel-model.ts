@@ -412,6 +412,14 @@ function header(
   };
 }
 
+function structureNote(input: PanelInput): string | null {
+  const status = input.sensors.find(({ name }) => name === STRUCTURE_KEY);
+
+  return status?.notMeasured?.includes("duplication") === true
+    ? "Duplication: run a scan"
+    : null;
+}
+
 function structureTitle(): string {
   return "Structure always runs";
 }
@@ -514,7 +522,9 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
           : judged.describeSkipped === true
             ? "skipped this scan"
             : null
-        : stoppedNote(row.key, judged);
+        : structure
+          ? structureNote(judged)
+          : stoppedNote(row.key, judged);
     const why =
       structure || row.key === DESCRIBE_KEY ? null : whyFor(row.key, judged);
     const titled = [

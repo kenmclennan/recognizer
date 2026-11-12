@@ -14,16 +14,21 @@ describe("the config-edit fixtures", () => {
     "empty-flow",
     "four-space",
   ]) {
-    it(`${shape}: the added text parses with duplication registered`, () => {
+    it(`${shape}: the added text parses with the structure duplication check set`, () => {
       const before = parseConfig(read(`${shape}.yaml`));
       const after = parseConfig(read(`${shape}.added.yaml`));
 
-      expect(after.sensors?.duplication?.command).toContain(
-        '{"threshold":0.82,"min_lines":4,"pair_min_lines":6,"min_nodes":20}',
-      );
+      expect(after.sensors?.structure).toEqual({
+        duplication: {
+          threshold: 0.82,
+          min_lines: 4,
+          pair_min_lines: 6,
+          min_nodes: 20,
+        },
+      });
       expect(Object.keys(after.sensors ?? {})).toEqual([
         ...Object.keys(before.sensors ?? {}),
-        "duplication",
+        "structure",
       ]);
     });
   }

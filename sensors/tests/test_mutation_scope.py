@@ -244,7 +244,7 @@ def test_a_scope_given_to_another_sensor_is_exit_2(two_modules, tmp_path, capsys
 
     code = main(
         [
-            "duplication",
+            "thresholds",
             "--repository",
             str(root),
             "--output",
@@ -255,7 +255,7 @@ def test_a_scope_given_to_another_sensor_is_exit_2(two_modules, tmp_path, capsys
     )
 
     assert code == 2
-    assert "duplication takes no module scope" in capsys.readouterr().err
+    assert "thresholds takes no module scope" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("text", ["not json", '{"a": 1}', '["a", ""]', "[1]"])

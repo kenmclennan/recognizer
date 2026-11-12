@@ -1,4 +1,8 @@
 import type { Io } from "./cli.js";
+import { carryDuplication } from "./duplication/carry.js";
+import { measureDuplication } from "./duplication/measure.js";
+import type { Parsers } from "./duplication/parsers.js";
+import { readStoredStructure } from "./duplication/stored.js";
 import { writeFindings } from "./findings-files.js";
 import { scansCommit } from "./load-findings.js";
 import type { Policy } from "./policy.js";
@@ -21,21 +25,54 @@ export function runStructureSensor(
   scans: Scan[],
   policy: Policy | null,
   settings: StructureSettings,
+  parsers: Parsers | null = null,
 ): StructureRun {
   const { commit, modified } = scansCommit(scans);
-  const sensed = structureSensor(scans, policy, settings, {
-    commit: commit ?? "",
-    modified,
-  });
+  const context = { commit: commit ?? "", modified };
+  let measureError: string | null = null;
+  let sensed: StructureResult;
+
+  if (settings.duplication !== false && parsers !== null) {
+    try {
+      sensed = structureSensor(
+        scans,
+        policy,
+        settings,
+        context,
+        measureDuplication(
+          io,
+          root,
+          scans,
+          settings.duplication,
+          parsers,
+          true,
+        ),
+      );
+    } catch (error) {
+      measureError = `duplication: ${(error as Error).message}`;
+      sensed = structureSensor(scans, policy, settings, context);
+    }
+  } else {
+    const plain = structureSensor(scans, policy, settings, context);
+
+    sensed = {
+      ...plain,
+      document: carryDuplication(
+        readStoredStructure(io, root),
+        plain.document,
+        settings,
+      ),
+    };
+  }
 
   if (commit === null) {
-    return { sensed, commit, error: null };
+    return { sensed, commit, error: measureError };
   }
 
   try {
     writeFindings(io, root, sensed.document);
 
-    return { sensed, commit, error: null };
+    return { sensed, commit, error: measureError };
   } catch (error) {
     return { sensed, commit, error: (error as Error).message };
   }
