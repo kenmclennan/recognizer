@@ -218,3 +218,50 @@ def test_cov_in_a_pytest_config_is_no_gap(tmp_path):
     (tmp_path / "pytest.ini").write_text("[pytest]\naddopts = --cov=app\n")
 
     assert not lacks_contexts(gap_suite("coverage run -m pytest"), tmp_path)
+
+
+def resolve_reader(tmp_path, names):
+    for name in ("app/m.py", "tests/test_x.py"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("")
+
+    git_commit(tmp_path)
+    write_data(tmp_path, [(name, [index + 1]) for index, name in enumerate(names)])
+
+    return PythonContexts(tmp_path)
+
+
+def test_contexts_none_of_which_resolve_name_an_example(tmp_path):
+    reader = resolve_reader(tmp_path, ["nowhere.test_a", "other.test_b"])
+
+    assert reader.unresolved == "nowhere.test_a"
+
+
+def test_contexts_that_partly_resolve_are_not_unresolved(tmp_path):
+    reader = resolve_reader(tmp_path, ["nowhere.test_a", "test_x.test_b"])
+
+    assert reader.unresolved is None
+    assert reader.lines("app/m.py") == {2: frozenset({"tests/test_x.py"})}
+
+
+def test_no_recorded_contexts_is_not_reported_as_unresolved(tmp_path):
+    assert resolve_reader(tmp_path, [""]).unresolved is None
+
+
+def test_a_suite_whose_contexts_all_fail_to_resolve_is_refused_naming_suite_and_example(tmp_path):
+    files = {
+        "app/shop.py": SHOP,
+        "tests/test_shop.py": TEST_SHOP,
+        "run.sh": f"{SCRIPT}rm -rf tests\n",
+        ".coveragerc": "[run]\ndynamic_context = test_function\n",
+    }
+
+    with pytest.raises(Refusal) as refused:
+        warm(tmp_path, files, [suite_raw()])
+
+    diagnosis = refused.value.diagnosis
+
+    assert diagnosis["code"] == "unmatched-test-contexts"
+    assert diagnosis["suite"] == "api"
+    assert "api" in diagnosis["line"]
+    assert "test_shop.test_" in diagnosis["line"]

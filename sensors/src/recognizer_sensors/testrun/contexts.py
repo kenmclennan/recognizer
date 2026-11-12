@@ -100,6 +100,7 @@ class PythonContexts:
         self.cached: tuple[str, Lines] | None = None
         self.names: frozenset[str] | None = None
         self.recorded = True
+        self.contexts: list[str] = []
         self.dynamic = False
         self.listed: list[str] | None = None
         self.open()
@@ -125,6 +126,8 @@ class PythonContexts:
             contexts = [name for name in data.measured_contexts() if name != ""]
         except CoverageException:
             contexts = []
+
+        self.contexts = sorted(contexts)
 
         if measured:
             self.recorded = bool(contexts)
@@ -182,6 +185,13 @@ class PythonContexts:
         self.cached = (path, lines)
 
         return lines
+
+    @property
+    def unresolved(self) -> str | None:
+        if not self.recorded or not self.raw or not self.contexts or self.suite_files:
+            return None
+
+        return self.contexts[0]
 
     @property
     def paths(self) -> list[str]:

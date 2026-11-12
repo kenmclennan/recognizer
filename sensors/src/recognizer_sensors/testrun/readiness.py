@@ -112,6 +112,15 @@ def no_contexts_line(name: str) -> str:
     )
 
 
+def unmatched_contexts_line(name: str, example: str) -> str:
+    return (
+        f"no matching test contexts: the {name} suite's coverage data records test contexts, "
+        f"but none matched a test file (for example {example!r}), so Mutation cannot tell "
+        "which tests cover a line; make the recorded context names the test files' paths "
+        "or dotted module names; Recognizer changes neither"
+    )
+
+
 def file_names(directory: Path, names: tuple[str, ...], text: str) -> bool:
     for name in names:
         try:
