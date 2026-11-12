@@ -17,8 +17,12 @@ def diagnose(
     line: str,
     fix: str | None = None,
     failing: dict | None = None,
+    suite: str | None = None,
 ) -> dict:
     diagnosis: dict = {"code": code, "line": line}
+
+    if suite:
+        diagnosis["suite"] = suite
 
     if fix:
         diagnosis["fix"] = fix

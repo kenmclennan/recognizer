@@ -20,6 +20,7 @@ from recognizer_sensors.testrun.suites import (
     login_shell,
     report_pattern,
     run_suite,
+    selected,
     shell_script,
     source_of,
 )
@@ -472,7 +473,9 @@ def run_gaps(repository: Path, suites: list[Suite]) -> list[dict]:
     return found
 
 
-def check(repository: Path, settings: dict, run: bool) -> list[dict]:
+def check(
+    repository: Path, settings: dict, run: bool, names: list[str] | None = None
+) -> list[dict]:
     raw = settings.get("suites")
 
     if raw is None:
@@ -480,7 +483,7 @@ def check(repository: Path, settings: dict, run: bool) -> list[dict]:
             gap("no-test-suites", None, "no test suites are configured in .recognizer/config.yaml")
         ]
 
-    suites = [Suite(**item) for item in raw]
+    suites = list(selected((Suite(**item) for item in raw), names))
     gaps: list[dict] = []
     clean: list[Suite] = []
 

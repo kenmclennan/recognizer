@@ -132,13 +132,17 @@ def support_hash(hashes: Mapping[str, str], entries: Collection[str] = frozenset
     )
 
 
+def test_map(
+    repository: Path, scans: Iterable[Scan], entries: Collection[str] | None = None
+) -> dict[str, str]:
+    return {
+        **test_hashes(repository, scans, entries),
+        **in_file_test_hashes(repository, listed_files(repository)),
+    }
+
+
 def tests_hash(repository: Path, scans: Iterable[Scan]) -> str:
-    return digest_of(
-        {
-            **test_hashes(repository, scans),
-            **in_file_test_hashes(repository, listed_files(repository)),
-        }
-    )
+    return digest_of(test_map(repository, scans))
 
 
 def inputs_map(modules: Iterable[str], hashes: Mapping[str, str]) -> dict[str, str]:

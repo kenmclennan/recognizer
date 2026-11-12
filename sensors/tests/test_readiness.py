@@ -1008,3 +1008,16 @@ def test_the_guide_of_crap_names_the_mandated_tools_and_duplication_prints_nothi
         assert word in out
 
     assert run_cli(["duplication", "--guide"], capsys) == (0, "")
+
+
+def test_an_unticked_suite_with_a_missing_tool_gives_no_gap(harness):
+    harness.missing("jest")
+    (harness.root / "web").mkdir()
+    settings = settings_of(
+        raw("python", name="unit"),
+        raw("typescript", name="web", directory="web", runner="jest"),
+    )
+
+    assert check(harness.root, settings, False, ["unit"]) == []
+    assert codes(check(harness.root, settings, False, ["web"])) == ["jest-missing"]
+    assert codes(check(harness.root, settings, False)) == ["jest-missing"]
