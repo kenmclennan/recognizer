@@ -1,6 +1,7 @@
 import type { ScanRunRecord } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
+import { runLogPath } from "./run-log-path";
 import {
   foldProgress,
   type ScanEvent,
@@ -309,7 +310,8 @@ function cardOf(
             ? `Scan finished at ${ended}, failed`
             : `Scan finished at ${ended}, ${sensor} failed`,
         line: failure?.reason ?? `recognizer scan exited ${record.exit ?? 1}`,
-        showLog: view.progress.log,
+        showLog:
+          view.progress.log === null ? null : runLogPath(view.progress.log),
         second: KEPT_OTHERS_TEXT,
       };
     }

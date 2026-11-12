@@ -22,7 +22,7 @@ export type ScanPanelActions = {
   clearReport: (name: string) => void;
   copy: (text: string) => void;
   openLog: () => void;
-  openRunLog: (log: string) => void;
+  openRunLog: (path: string) => void;
 };
 
 export type ScanPanelView = {

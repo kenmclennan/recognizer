@@ -2,6 +2,7 @@ import type { Diagnosis, ScanRunRecord } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
+import { runLogPath } from "./run-log-path";
 import type { PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
@@ -24,8 +25,6 @@ import {
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 import { foldRunLine, isActive, type RunInput } from "./scan-run-model";
-
-const RUN_LOG_FOLDER = ".recognizer/cache/log";
 
 export type Registered = Pick<RowSensor, "name" | "display" | "runsTests">[];
 
@@ -527,7 +526,7 @@ export function createRescanner<Carried>(
     publish();
 
     if (progress.log !== null) {
-      const path = `${RUN_LOG_FOLDER}/${progress.log}.json`;
+      const path = runLogPath(progress.log);
       const open: MessageAction = {
         label: "Open log",
         run: () => ports.openLog(path),

@@ -921,8 +921,8 @@ export function showExplorer(
       void editor
         .openFile(SENSOR_LOG)
         .catch((error: unknown) => fail(String(error))),
-    openRunLog: (log) =>
-      void editor.openFile(log).catch((error: unknown) => fail(String(error))),
+    openRunLog: (path) =>
+      void editor.openFile(path).catch((error: unknown) => fail(String(error))),
   });
   const findingsView = buildFindingsPanelView({
     toggle: toggleFinding,

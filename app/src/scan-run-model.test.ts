@@ -214,7 +214,7 @@ describe("the run model", () => {
     expect(run?.card).toMatchObject({
       head: `Scan finished at ${clock(ENDED)}, C.R.A.P. failed`,
       line: "coverage unavailable",
-      showLog: "20261112-scan",
+      showLog: ".recognizer/cache/log/20261112-scan.json",
       second: "The other sensors' results were kept.",
       tone: "bad",
     });
