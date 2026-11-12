@@ -45,6 +45,31 @@ function isReusable(
   );
 }
 
+export type CachedScansState =
+  | { state: "current"; scans: RecordedScan[] }
+  | { state: "missing" }
+  | { state: "stale" };
+
+export function cachedScansState(
+  io: Io,
+  root: string,
+  languages: Language[],
+): CachedScansState {
+  const cached = readAll(io, root, languages);
+
+  if (cached === null) {
+    return { state: "missing" };
+  }
+
+  const commit = resolveCommit(io, root);
+
+  return commit !== null &&
+    !isDirty(io, root) &&
+    isReusable(io, root, commit, cached)
+    ? { state: "current", scans: cached }
+    : { state: "stale" };
+}
+
 export function freshScans(io: Io, root: string, read: ConfigRead): FreshScans {
   const directory = resolve(root);
 
@@ -58,14 +83,13 @@ export function freshScans(io: Io, root: string, read: ConfigRead): FreshScans {
     readConfig(io, directory, read);
   }
 
-  const commit = resolveCommit(io, directory);
   const detected = detectLanguages(io, directory);
 
-  if (commit !== null && detected.length > 0 && !isDirty(io, directory)) {
-    const cached = readAll(io, directory, detected);
+  if (detected.length > 0) {
+    const cached = cachedScansState(io, directory, detected);
 
-    if (cached !== null && isReusable(io, directory, commit, cached)) {
-      return { scans: cached, scanned: false };
+    if (cached.state === "current") {
+      return { scans: cached.scans, scanned: false };
     }
   }
 

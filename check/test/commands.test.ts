@@ -78,6 +78,7 @@ describe("command table", () => {
       "sensors",
       "config",
       "policy",
+      "doctor",
       "windows",
       "window",
       "describe",

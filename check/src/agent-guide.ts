@@ -52,6 +52,11 @@ const RECIPES = [
   "  4. Hand it over with recognizer report --as <name> <file>, or pipe it to recognizer report --as <name>, naming the review; read the refusal if the form is wrong.",
   "  5. A later report under the same name replaces the earlier one.",
   "",
+  "Check the setup (the user asks whether the repository is set up, or an upgrade of the tool may have changed something):",
+  "  1. Run recognizer doctor; it reads the config, the policy, the scanners and the sensors, and starts nothing costly.",
+  "  2. Apply each fix.command the user agrees to, and follow each fix.text that has no command.",
+  "  3. Run recognizer doctor again until it prints No problems.",
+  "",
   "Where to look next:",
   "  recognizer help <command> prints any command in full.",
 ];
