@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import stat
 from dataclasses import asdict
@@ -612,6 +613,114 @@ def test_the_guide_of_mutation_names_carry_and_the_import_path_fix_in_recognizer
     assert "PYTHONPATH" in out
     assert "pythonpath" not in out
     assert "pyproject.toml" not in out
+
+
+def guide_text(capsys):
+    status, out = run_cli(["crap", "--guide"], capsys)
+
+    assert status == 0
+
+    return out
+
+
+BINDING_SUITES = (
+    (
+        "python",
+        "pytest --cov=src --cov-report=lcov:coverage/lcov.info",
+        "coverage/lcov.info",
+    ),
+    (
+        "typescript",
+        "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
+        "coverage/lcov.info",
+    ),
+    (
+        "typescript",
+        "npx jest --coverage --coverageReporters=lcov --coverageDirectory=coverage",
+        "coverage/lcov.info",
+    ),
+    (
+        "kotlin",
+        "./gradlew cleanTest test jacocoTestReport",
+        "build/reports/jacoco/test/jacocoTestReport.xml",
+    ),
+    (
+        "rust",
+        "cargo llvm-cov --lcov --output-path target/lcov.info",
+        "target/lcov.info",
+    ),
+    (
+        "csharp",
+        'dotnet test tests --collect:"XPlat Code Coverage;Format=lcov"',
+        "tests/TestResults/*/coverage.info",
+    ),
+)
+
+
+def test_the_guide_registers_crap_under_sensors(capsys):
+    out = guide_text(capsys)
+
+    assert re.search(r"^sensors:\n(?:  .*\n)*?  crap: \{\}$", out, re.M)
+
+
+def test_the_guide_registers_every_shipped_sensor(capsys):
+    out = guide_text(capsys)
+    names = json.loads(SHIPPED.read_text())
+
+    assert names
+
+    for name in names:
+        assert re.search(rf"^  {re.escape(name)}:", out, re.M), name
+
+
+def test_the_guide_names_both_format_values(capsys):
+    out = guide_text(capsys)
+
+    assert "format: lcov" in out
+    assert "format: jacoco" in out
+    assert "takes exactly two values" in out
+
+
+def test_the_guide_has_a_suite_for_each_language_and_both_typescript_runners(capsys):
+    out = guide_text(capsys)
+
+    for language in ("python", "typescript", "kotlin", "rust", "csharp"):
+        assert f"language: {language}" in out
+
+    assert "runner: vitest" in out
+    assert "runner: jest" in out
+
+
+def test_the_guide_carries_each_measured_command_and_path_verbatim(capsys):
+    out = guide_text(capsys)
+
+    for _, command, path in BINDING_SUITES:
+        assert f"command: {command}\n" in out
+        assert f"path: {path}\n" in out
+
+
+def test_the_guide_gives_kotlin_jacoco_and_every_other_suite_lcov(capsys):
+    out = guide_text(capsys)
+    blocks = re.findall(r"^ *- name:.*?^ *language: (\w+)$.*?^ *format: *(\w+)$", out, re.S | re.M)
+
+    assert [language for language, _ in blocks] == [language for language, _, _ in BINDING_SUITES]
+
+    for language, fmt in blocks:
+        assert fmt == ("jacoco" if language == "kotlin" else "lcov")
+
+
+def test_the_guide_states_the_four_runtime_facts(capsys):
+    out = guide_text(capsys)
+
+    for fact in ("cleanTest", "recognizer scan", "Format=lcov", "*/coverage.info"):
+        assert fact in out
+
+
+def test_the_guide_still_installs_nothing_and_leaves_the_development_config_alone(capsys):
+    out = guide_text(capsys)
+
+    assert "Never install anything" in out
+    assert "Never change the repository's own development config" in out
 
 
 def test_run_alone_is_exit_two(tmp_path, capsys):
