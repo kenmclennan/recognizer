@@ -2,6 +2,3 @@ sensors:
   structure:
     hub_threshold: 6
     distance_threshold: 0.4
-    warnings:
-      hub: false
-      stable_abstractions: false

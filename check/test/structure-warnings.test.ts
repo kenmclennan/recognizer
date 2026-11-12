@@ -485,6 +485,29 @@ describe("the removed folder_cycle warning", () => {
   });
 });
 
+describe("the removed structure keys", () => {
+  it.each([
+    "sensors:\n  structure:\n    distance_threshold: 0.4\n",
+    "sensors:\n  structure:\n    distance_threshold: 1.5\n",
+    "sensors:\n  structure:\n    hub_threshold: 6\n    distance_threshold: 0.9\n",
+  ])("refuses %j and says distance_threshold was removed", (text) => {
+    expect(() => parseConfig(text)).toThrow(InputError);
+    expect(() => parseConfig(text)).toThrow(/distance_threshold was removed/);
+  });
+
+  it.each(["true", "false", "1"])(
+    "refuses warnings.stable_abstractions: %s and says it was removed",
+    (value) => {
+      const text = `sensors:\n  structure:\n    warnings:\n      stable_abstractions: ${value}\n`;
+
+      expect(() => parseConfig(text)).toThrow(InputError);
+      expect(() => parseConfig(text)).toThrow(
+        /stable_abstractions was removed/,
+      );
+    },
+  );
+});
+
 describe("fixtures/check-warnings", () => {
   it("yields exactly the four orphans and no drift", () => {
     const dir = join(REPO, "fixtures/check-warnings");
@@ -1017,37 +1040,6 @@ describe("settings for the package metrics", () => {
     ).toMatchObject({ warnings: { stable_dependencies: false } });
   });
 
-  it("accepts and ignores the retired keys", () => {
-    const retired = resolve(
-      readFileSync(
-        join(
-          REPO,
-          "schema",
-          "config-examples",
-          "valid",
-          "sensors-retired-keys.yaml",
-        ),
-        "utf8",
-      ),
-    );
-    const bare = resolve(
-      "sensors:\n  structure:\n    hub_threshold: 6\n    warnings: { hub: false }\n",
-    );
-
-    expect(retired).toEqual(bare);
-    expect(retired).not.toHaveProperty("distance_threshold");
-
-    const run = (settings: typeof retired) =>
-      structureSensor(
-        [foldersOf(WORKED, WORKED_EDGES)],
-        null,
-        settings as StructureSettings,
-        CONTEXT,
-      ).document.findings;
-
-    expect(run(retired)).toEqual(run(bare));
-  });
-
   it("defaults instability_gap to 0.2 and composition_roots to none", () => {
     expect(
       resolve("sensors:\n  structure:\n    hub_threshold: 6\n"),
@@ -1088,19 +1080,7 @@ describe("settings for the package metrics", () => {
     expect(document.sensor.version).toBe("14");
   });
 
-  it("honours a live key beside a retired one", () => {
-    const settings = resolve(
-      "sensors:\n  structure:\n    hub_threshold: 6\n    distance_threshold: 0.9\n",
-    );
-
-    expect(settings).toMatchObject({ hub_threshold: 6 });
-    expect(settings).not.toHaveProperty("distance_threshold");
-  });
-
   it.each([
-    "sensors:\n  structure:\n    distance_threshold: 1.5\n",
-    "sensors:\n  structure:\n    distance_threshold: -0.1\n",
-    "sensors:\n  structure:\n    warnings: { stable_abstractions: 1 }\n",
     "sensors:\n  structure:\n    instability_gap: 1.5\n",
     "sensors:\n  structure:\n    instability_gap: -0.1\n",
     "sensors:\n  structure:\n    instability_gap: wide\n",

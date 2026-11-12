@@ -120,11 +120,27 @@ function rejectRetiredWarnings(document: unknown): void {
 
   const structure = document.sensors.structure;
 
-  if (
-    isPlainObject(structure) &&
-    isPlainObject(structure.warnings) &&
-    "folder_cycle" in structure.warnings
-  ) {
+  if (!isPlainObject(structure)) {
+    return;
+  }
+
+  if ("distance_threshold" in structure) {
+    throw new InputError([
+      "config/sensors/structure/distance_threshold was removed: the stable abstractions warning it tuned is gone, so the setting did nothing; delete the key",
+    ]);
+  }
+
+  if (!isPlainObject(structure.warnings)) {
+    return;
+  }
+
+  if ("stable_abstractions" in structure.warnings) {
+    throw new InputError([
+      "config/sensors/structure/warnings/stable_abstractions was removed: the warning is gone, so the switch did nothing; delete the key",
+    ]);
+  }
+
+  if ("folder_cycle" in structure.warnings) {
     throw new InputError([
       "config/sensors/structure/warnings/folder_cycle was removed: a folder declares no imports, so the warning had nothing of its own to report on a file; delete the key (file-level cycles are still reported by the cycle warning)",
     ]);
