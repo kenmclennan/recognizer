@@ -11,6 +11,7 @@ import pytest
 from conftest import (
     FINDINGS_SCHEMA,
     OVERLAY_SCHEMA,
+    SELECTED_FIXTURE,
     SENSOR_LIST,
     STOP_FIXTURE,
     mutate_repository,
@@ -1198,6 +1199,58 @@ def test_sigterm_to_the_sensors_group_ends_the_hung_test_process_and_removes_the
     assert findings["findings"] == []
     assert read(root / RECORD)["skipped"] == ["app/rules.py::both", "app/rules.py::grade"]
     assert set(read(root / RECORD)["functions"]) == {"app/rules.py::total"}
+
+
+def test_sigterm_to_the_sensors_group_ends_the_hung_selected_baseline_and_removes_the_work_folder(
+    tmp_path,
+):
+    pytest.importorskip("pytest_cov")
+    root, _ = mutate_repository(tmp_path, SELECTED_FIXTURE)
+    pid_file = tmp_path / "pid.txt"
+    suite = {
+        "name": "sample",
+        "language": "python",
+        "directory": ".",
+        "activate": f'pytest() {{ {sys.executable} -m pytest -p no:cacheprovider "$@"; }}',
+        "command": (
+            f"{sys.executable} -m pytest -q -p no:cacheprovider --cov=app"
+            " --cov-report=lcov:coverage/lcov.info"
+        ),
+        "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+    }
+    settings = json.dumps({"tests": [suite], "timeout_factor": 100, "max_workers": 1})
+    env = {**os.environ, "HANG_PID_FILE": str(pid_file), "SHELL": "/bin/sh"}
+    process = start_sensor(root, tmp_path, settings, env)
+    deadline = time.monotonic() + 120
+
+    while not pid_file.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+
+    pid = int(pid_file.read_text())
+    os.killpg(process.pid, signal.SIGTERM)
+    status = process.wait(timeout=60)
+    deadline = time.monotonic() + 10
+
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+
+        time.sleep(0.05)
+
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+
+    assert status == 143
+    assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
+
+    findings = read(tmp_path / "findings.json")
+
+    assert findings["stopped"] == {"measured": 0, "total": 2}
+    assert findings["findings"] == []
+    assert read(root / RECORD)["skipped"] == ["app/rules.py::alpha", "app/rules.py::beta"]
+    assert read(root / RECORD)["functions"] == {}
 
 
 def test_sigterm_during_the_coverage_pass_writes_a_stopped_document_with_nothing_measured(tmp_path):
