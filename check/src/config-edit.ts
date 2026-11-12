@@ -17,6 +17,7 @@ import {
   type PublishedSection,
   REGISTRATION_KEY,
 } from "./config-keys.js";
+import { retiredKeyFor } from "./config-retired.js";
 
 export type EditOutcome =
   | { status: "ok"; text: string }
@@ -508,6 +509,22 @@ export function addValue(
   return { status: "ok", text: emit(doc, text) };
 }
 
+function unsetRetired(text: string, path: string[]): EditOutcome {
+  const opened = open(text, "config");
+
+  if ("refused" in opened) {
+    return refuse(opened.refused);
+  }
+
+  if (!opened.doc.hasIn(path)) {
+    return { status: "absent" };
+  }
+
+  opened.doc.deleteIn(path);
+
+  return { status: "ok", text: emit(opened.doc, text) };
+}
+
 export function unsetValue(
   text: string,
   published: PublishedKeys,
@@ -515,6 +532,12 @@ export function unsetValue(
   raw?: string,
 ): EditOutcome {
   const typed = key.split(".");
+  const retired = retiredKeyFor(key);
+
+  if (retired !== undefined && raw === undefined) {
+    return unsetRetired(text, retired.path);
+  }
+
   const entry = keyOf(published, typed);
 
   if (!("found" in entry)) {
