@@ -30,8 +30,8 @@ const FILES = [
 const PINNED = [
   "order.py imports memory_store.py, which the policy forbids: domain may not use adapters.",
   "money.py and order.py import each other.",
-  "audit.py is imported by nothing and is not an entry point.",
-  "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them.",
+  "audit.py is imported by nothing and is not an entry point; a library can list its public API in warnings.orphan.entry_points.",
+  "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them; a library can list its public API in warnings.orphan.entry_points.",
   "The policy names app/legacy/**, which matches no module.",
   "app/tools is covered by no policy layer.",
   "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
@@ -129,13 +129,13 @@ describe("sentenceOf orphan", () => {
 
   it("says nothing imports a module no test imports", () => {
     expect(orphanOf([])).toBe(
-      "fake.py is imported by nothing and is not an entry point.",
+      "fake.py is imported by nothing and is not an entry point; a library can list its public API in warnings.orphan.entry_points.",
     );
   });
 
   it("says one test file imports it, singular", () => {
     expect(orphanOf([{ file: "tests/test_a.py", names: [] }])).toBe(
-      "fake.py is imported only by 1 test file and is not an entry point; if it only supports tests, move it next to it.",
+      "fake.py is imported only by 1 test file and is not an entry point; if it only supports tests, move it next to it; a library can list its public API in warnings.orphan.entry_points.",
     );
   });
 
@@ -147,7 +147,7 @@ describe("sentenceOf orphan", () => {
         { file: "tests/test_c.py", names: [] },
       ]),
     ).toBe(
-      "fake.py is imported only by 3 test files and is not an entry point; if it only supports tests, move it next to them.",
+      "fake.py is imported only by 3 test files and is not an entry point; if it only supports tests, move it next to them; a library can list its public API in warnings.orphan.entry_points.",
     );
   });
 });
@@ -180,6 +180,12 @@ describe("sentenceOf orphan library hint", () => {
   it("adds the hint to a Kotlin orphan only tests import", () => {
     expect(orphanIn("lib/Api.kt", 1)).toBe(
       `Api.kt is imported only by 1 test file and is not an entry point; if it only supports tests, move it next to it${hint}`,
+    );
+  });
+
+  it("adds the hint to a Python orphan", () => {
+    expect(orphanIn("lib/api.py", 0)).toBe(
+      `api.py is imported by nothing and is not an entry point${hint}`,
     );
   });
 

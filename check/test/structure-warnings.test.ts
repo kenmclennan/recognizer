@@ -119,7 +119,7 @@ describe("orphan", () => {
       principle: "every-module-is-reachable",
       fix_pattern: "remove-or-wire-orphan",
       summary:
-        "app/plain.py is imported by no module and is not an entry point",
+        "app/plain.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       evidence: { modules: ["app/plain.py"] },
     });
   });
@@ -157,8 +157,17 @@ describe("orphan", () => {
     "app/mod.rs",
     "app/lib.rs",
     "app/main",
-  ])("exempts the index-like file %s", (id) => {
-    expect(orphans([id])).toEqual([]);
+  ])("reports the former index-like file %s as an orphan", (id) => {
+    expect(orphans([id])).toEqual([`orphan:${id}`]);
+  });
+
+  it("reports an index file next to an exempt one and keeps the hint", () => {
+    expect(orphans(["app/index.ts", "app/other.py"], ["app/other.py"])).toEqual(
+      ["orphan:app/index.ts"],
+    );
+    expect(
+      orphanFindings(scanOf([], ["app/index.ts"]), null, [])[0]?.summary,
+    ).toMatch(/entry_points$/);
   });
 
   it("exempts a module matched by an entry_points glob", () => {
@@ -277,7 +286,7 @@ describe("orphan actual_of", () => {
     ).toContain("orphan:j.kt");
   });
 
-  it("ends the summary of a .kt and a .cs orphan with the library hint and leaves .py alone", () => {
+  it("ends the summary of every orphan with the library hint", () => {
     const kt = orphanFindings(
       scanOf([], ["a/M.kt", "a/N.cs", "a/p.py"]),
       null,
@@ -289,7 +298,7 @@ describe("orphan actual_of", () => {
     expect(kt.map((finding) => finding.summary)).toEqual([
       `a/M.kt is imported by no module and is not an entry point${hint}`,
       `a/N.cs is imported by no module and is not an entry point${hint}`,
-      "a/p.py is imported by no module and is not an entry point",
+      `a/p.py is imported by no module and is not an entry point${hint}`,
     ]);
   });
 });
@@ -1430,12 +1439,19 @@ describe("unused_exports", () => {
     "shop/test_x.py",
     "api/src/x.spec.ts",
     "app/FooTest.kt",
-    "api/src/index.ts",
-    "shop/src/lib.rs",
     "src/main/App.kt",
   ])("never reports the skipped module %s", (id) => {
     expect(unusedOf([{ id, exports: ["a"] }], [], ["src/main/**"])).toEqual({});
   });
+
+  it.each(["api/src/index.ts", "shop/src/lib.rs"])(
+    "reports the unmarked index-like module %s",
+    (id) => {
+      expect(unusedOf([{ id, exports: ["a"] }], [], [])).toEqual({
+        [id]: ["a"],
+      });
+    },
+  );
 
   it("matches an entry point glob exactly", () => {
     expect(

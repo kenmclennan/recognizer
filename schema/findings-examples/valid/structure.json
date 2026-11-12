@@ -52,7 +52,7 @@
       "kind": "orphan",
       "severity": "warning",
       "principle": "every-module-is-reachable",
-      "summary": "app/adapters/audit.py is imported by no module and is not an entry point",
+      "summary": "app/adapters/audit.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "fix_pattern": "remove-or-wire-orphan",
       "evidence": { "modules": ["app/adapters/audit.py"] }
     },
@@ -61,7 +61,7 @@
       "kind": "orphan",
       "severity": "warning",
       "principle": "every-module-is-reachable",
-      "summary": "app/testing/fake_clock.py is imported only by 2 test files: tests/test_clock.py, tests/test_place.py; it is not an entry point, so if it only supports tests move it next to them rather than deleting it",
+      "summary": "app/testing/fake_clock.py is imported only by 2 test files: tests/test_clock.py, tests/test_place.py; it is not an entry point, so if it only supports tests move it next to them rather than deleting it; a library can list its public API in warnings.orphan.entry_points",
       "fix_pattern": "move-orphan-to-tests",
       "evidence": {
         "modules": ["app/testing/fake_clock.py"],

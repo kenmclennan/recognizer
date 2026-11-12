@@ -129,7 +129,7 @@ export function orphanFindings(
       if (importers.length === 0) {
         return {
           ...base,
-          summary: `${id} is imported by no module and is not an entry point${libraryApiHint(id) ?? ""}`,
+          summary: `${id} is imported by no module and is not an entry point${libraryApiHint(id)}`,
           fix_pattern: "remove-or-wire-orphan",
           evidence: { modules: [id] },
         };

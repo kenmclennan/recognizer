@@ -26,7 +26,7 @@
       "id": "orphan",
       "principle": "every-module-is-reachable",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "app/adapters/audit.py is imported by no module and is not an entry point",
+      "summary": "app/adapters/audit.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "app/adapters/audit.py"
@@ -37,7 +37,7 @@
       "id": "orphan",
       "principle": "every-module-is-reachable",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "app/adapters/clock.py is imported by no module and is not an entry point",
+      "summary": "app/adapters/clock.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "app/adapters/clock.py"
@@ -48,7 +48,7 @@
       "id": "orphan",
       "principle": "every-module-is-reachable",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "app/adapters/sql.py is imported by no module and is not an entry point",
+      "summary": "app/adapters/sql.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "app/adapters/sql.py"
@@ -59,7 +59,7 @@
       "id": "orphan",
       "principle": "every-module-is-reachable",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "app/application/report.py is imported by no module and is not an entry point",
+      "summary": "app/application/report.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "app/application/report.py"

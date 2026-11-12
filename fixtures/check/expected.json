@@ -174,7 +174,7 @@
       "id": "orphan",
       "principle": "every-module-is-reachable",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "shop/adapters/sql_store.py is imported by no module and is not an entry point",
+      "summary": "shop/adapters/sql_store.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "shop/adapters/sql_store.py"
@@ -185,7 +185,7 @@
       "id": "orphan",
       "principle": "every-module-is-reachable",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "shop/domain/money.py is imported by no module and is not an entry point",
+      "summary": "shop/domain/money.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "shop/domain/money.py"
