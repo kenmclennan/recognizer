@@ -13,6 +13,7 @@
   "src/checks.rs",
   "src/checks/helper.rs",
   "src/gated.rs",
+  "src/lib.rs",
   "src/main.rs",
   "src/t.rs",
   "src/tests.rs",

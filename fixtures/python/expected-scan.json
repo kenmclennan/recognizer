@@ -224,7 +224,8 @@
       "id": "shop/domain/__init__.py",
       "language": "python",
       "kind": "package",
-      "members": []
+      "members": [],
+      "entry_point": true
     },
     {
       "id": "shop/domain/aliases.py",
@@ -354,7 +355,8 @@
       "id": "shop/ports/__init__.py",
       "language": "python",
       "kind": "package",
-      "members": []
+      "members": [],
+      "entry_point": true
     },
     {
       "id": "shop/ports/store.py",
@@ -617,7 +619,13 @@
     }
   ],
   "test_imports": [
-    { "from": "shop/conftest.py", "to": "shop/domain/order.py" },
-    { "from": "shop/tests/test_order.py", "to": "shop/domain/order.py" }
+    {
+      "from": "shop/conftest.py",
+      "to": "shop/domain/order.py"
+    },
+    {
+      "from": "shop/tests/test_order.py",
+      "to": "shop/domain/order.py"
+    }
   ]
 }

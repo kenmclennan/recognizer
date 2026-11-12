@@ -8,15 +8,15 @@
 
 
 
-    { "id": "orphan/imported-by-nobody", "scan": "orphan", "expect": "finding", "finding_id": "orphan:o/lonely.ts", "measures": {}, "derivation": "o/lonely.ts has no importer and is neither a test file, an index stem, a policy literal path nor an entry point glob match", "known_defect": null },
+    { "id": "orphan/imported-by-nobody", "scan": "orphan", "expect": "finding", "finding_id": "orphan:o/lonely.ts", "measures": {}, "derivation": "o/lonely.ts has no importer and is neither a test file, a policy literal path nor an entry point glob match", "known_defect": null },
     { "id": "orphan/imported-module", "scan": "orphan", "expect": "no-finding", "finding_id": "orphan:o/used.ts", "measures": {}, "derivation": "o/main.ts imports o/used.ts", "known_defect": null },
-    { "id": "orphan/index-stem", "scan": "orphan", "expect": "no-finding", "finding_id": "orphan:o/main.ts", "measures": {}, "derivation": "main is an index stem, so an unimported main.ts is an entry point", "known_defect": null },
+    { "id": "orphan/index-stem", "scan": "orphan", "expect": "finding", "finding_id": "orphan:o/main.ts", "measures": {}, "derivation": "o/main.ts has no importer, and a file name alone does not make an entry point, so it is an orphan", "known_defect": null },
     { "id": "orphan/test-file", "scan": "orphan", "expect": "no-finding", "finding_id": "orphan:o/test_thing.py", "measures": {}, "derivation": "test_*.py is a test file", "known_defect": null },
-    { "id": "orphan/init-module", "scan": "orphan", "expect": "no-finding", "finding_id": "orphan:o/__init__.py", "measures": {}, "derivation": "__init__ is an index stem", "known_defect": null },
+    { "id": "orphan/init-module", "scan": "orphan", "expect": "finding", "finding_id": "orphan:o/__init__.py", "measures": {}, "derivation": "o/__init__.py has no importer and no scanner flag, and a file name alone does not make an entry point, so it is an orphan", "known_defect": null },
     { "id": "orphan/policy-literal-path", "scan": "orphan", "expect": "no-finding", "finding_id": "orphan:o/policy-path.ts", "measures": {}, "derivation": "the policy names o/policy-path.ts as a literal component path with no wildcard", "known_defect": null },
     { "id": "orphan/entry-point-glob", "scan": "orphan", "expect": "no-finding", "finding_id": "orphan:o/cli/run.ts", "measures": {}, "derivation": "the setting entry_points o/cli/** matches o/cli/run.ts", "known_defect": null },
     { "id": "orphan/scanner-entry-point", "scan": "entry-point", "expect": "no-finding", "finding_id": "orphan:e/run.py", "measures": {}, "derivation": "e/run.py carries entry_point true, set by the scanner because the module is run rather than imported", "known_defect": null },
-    { "id": "orphan/unflagged-sibling", "scan": "entry-point", "expect": "finding", "finding_id": "orphan:e/plain.py", "measures": {}, "derivation": "e/plain.py has no importer and no flag, and is neither a test file, an index stem, a policy literal path nor a glob match", "known_defect": null },
+    { "id": "orphan/unflagged-sibling", "scan": "entry-point", "expect": "finding", "finding_id": "orphan:e/plain.py", "measures": {}, "derivation": "e/plain.py has no importer and no flag, and is neither a test file, a policy literal path nor a glob match", "known_defect": null },
 
     {"id": "declared-only-child/not-an-orphan", "scan": "declared-only-child", "expect": "no-finding", "finding_id": "orphan:c/child.rs", "measures": {}, "derivation": "c/lib.rs declares c/child.rs, and a declaration keeps the child reached though nothing imports it", "known_defect": null},
     {"id": "declared-only-child/undeclared-is-an-orphan", "scan": "declared-only-child", "expect": "finding", "finding_id": "orphan:c/stray.rs", "measures": {}, "derivation": "nothing declares or imports c/stray.rs and it is not an entry point", "known_defect": null}

@@ -230,7 +230,7 @@ function orphan(record: FindingRecord): string | null {
   }
 
   const tests = record.evidence.test_importers?.length ?? 0;
-  const hint = `${libraryApiHint(module) ?? ""}.`;
+  const hint = `${libraryApiHint(module)}.`;
 
   if (tests === 0) {
     return `${shortName(module)} is imported by nothing and is not an entry point${hint}`;

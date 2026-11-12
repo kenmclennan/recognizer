@@ -1,7 +1,6 @@
 import { compileGlob } from "./glob.js";
 
 const TEST_DIRECTORIES = new Set(["test", "tests", "__tests__"]);
-const INDEX_STEMS = new Set(["index", "__init__", "main", "mod", "lib"]);
 export const SCRIPT_EXTENSIONS = [
   "ts",
   "tsx",
@@ -59,12 +58,6 @@ export function isEntryPoint(
   scanned: boolean,
 ): boolean {
   if (scanned || literalPaths.has(id) || isTestFile(id)) {
-    return true;
-  }
-
-  const basename = id.slice(id.lastIndexOf("/") + 1);
-
-  if (INDEX_STEMS.has(stemOf(basename))) {
     return true;
   }
 

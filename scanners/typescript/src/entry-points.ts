@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, posix, relative, sep } from "node:path";
+import ts from "typescript";
 import {
   isListed,
   isSkippedDirectory,
@@ -65,7 +66,7 @@ function readManifest(
   onRead(path);
 
   try {
-    const value: unknown = JSON.parse(text);
+    const value: unknown = JSON.parse(text.replace(/^\uFEFF/, ""));
 
     return typeof value === "object" && value !== null
       ? (value as Record<string, unknown>)
@@ -108,7 +109,138 @@ function unquote(token: string): string {
 }
 
 function manifestValues(manifest: Record<string, unknown>): string[] {
-  return [manifest.main, manifest.bin, manifest.exports].flatMap(leaves);
+  const strings = [manifest.module, manifest.browser].filter(
+    (value) => typeof value === "string",
+  );
+
+  return [manifest.main, manifest.bin, manifest.exports, strings].flatMap(
+    leaves,
+  );
+}
+
+function sourceListValues(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+const GLOB_CHARACTERS = /[*?{]/;
+
+function globPattern(glob: string): RegExp {
+  let pattern = "";
+  let depth = 0;
+
+  for (let at = 0; at < glob.length; at += 1) {
+    const char = glob[at] as string;
+
+    if (char === "*" && glob[at + 1] === "*") {
+      const slash = glob[at + 2] === "/";
+
+      pattern += slash ? "(?:.*/)?" : ".*";
+      at += slash ? 2 : 1;
+    } else if (char === "*") {
+      pattern += "[^/]*";
+    } else if (char === "?") {
+      pattern += "[^/]";
+    } else if (char === "{") {
+      depth += 1;
+      pattern += "(?:";
+    } else if (char === "}" && depth > 0) {
+      depth -= 1;
+      pattern += ")";
+    } else if (char === "," && depth > 0) {
+      pattern += "|";
+    } else {
+      pattern += char.replace(/[.+^$()|[\]\\{}]/g, "\\$&");
+    }
+  }
+
+  return new RegExp(`^${pattern}$`);
+}
+
+function matchEntries(
+  directory: string,
+  values: string[],
+  files: ReadonlySet<string>,
+): string[] {
+  const resolve = (value: string) =>
+    resolveFrom(directory, value.replace(/^\.\//, ""));
+  const matching = (value: string): string[] => {
+    const resolved = resolve(value);
+
+    if (resolved === null) {
+      return [];
+    }
+
+    if (!GLOB_CHARACTERS.test(resolved)) {
+      return files.has(resolved) ? [resolved] : [];
+    }
+
+    const pattern = globPattern(resolved);
+
+    return [...files].filter((id) => pattern.test(id));
+  };
+  const kept = values
+    .filter((value) => !value.startsWith("!"))
+    .flatMap(matching);
+  const removed = new Set(
+    values
+      .filter((value) => value.startsWith("!"))
+      .flatMap((value) => matching(value.slice(1))),
+  );
+
+  return kept.filter((id) => !removed.has(id));
+}
+
+function propertyName(name: ts.PropertyName): string | null {
+  return ts.isIdentifier(name) || ts.isStringLiteralLike(name)
+    ? name.text
+    : null;
+}
+
+function literalStrings(node: ts.Expression): string[] {
+  if (ts.isStringLiteralLike(node)) {
+    return [node.text];
+  }
+
+  if (ts.isArrayLiteralExpression(node)) {
+    return node.elements.flatMap((element) => literalStrings(element));
+  }
+
+  if (ts.isObjectLiteralExpression(node)) {
+    return node.properties.flatMap((property) =>
+      ts.isPropertyAssignment(property)
+        ? literalStrings(property.initializer)
+        : [],
+    );
+  }
+
+  return [];
+}
+
+function configEntryValues(text: string): string[][] {
+  const source = ts.createSourceFile(
+    "config.ts",
+    text,
+    ts.ScriptTarget.Latest,
+    false,
+  );
+  const found: string[][] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isPropertyAssignment(node) && propertyName(node.name) === "entry") {
+      found.push(literalStrings(node.initializer));
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(source);
+
+  return found;
 }
 
 function patternOf(resolved: string): RegExp | null {
@@ -325,6 +457,18 @@ export function entryPoints(
     for (const value of scriptTargets(manifest)) {
       mark(resolveFrom(directory, value));
     }
+
+    for (const id of matchEntries(
+      directory,
+      sourceListValues(manifest.zshy),
+      files,
+    )) {
+      mark(id);
+    }
+
+    if (!("main" in manifest) && !("exports" in manifest)) {
+      mark(resolveFrom(directory, "index.js"));
+    }
   }
 
   for (const path of pages) {
@@ -351,8 +495,18 @@ export function entryPoints(
   }
 
   for (const id of files) {
-    if (CONFIG_NAME.test(basename(id)) || sources(id)?.startsWith("#!")) {
+    const text = sources(id);
+
+    if (CONFIG_NAME.test(basename(id)) || text?.startsWith("#!")) {
       mark(id);
+    }
+
+    if (text !== null && CONFIG_NAME.test(basename(id))) {
+      for (const values of configEntryValues(text)) {
+        for (const entry of matchEntries(posix.dirname(id), values, files)) {
+          mark(entry);
+        }
+      }
     }
   }
 

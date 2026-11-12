@@ -63,6 +63,12 @@ A module is marked `entry_point: true` when a tool, a manifest or an HTML page l
 3. A file named `*.config.{ts,mts,cts,js,mjs,cjs}`.
 4. A file an HTML file loads with `<script src>`. A relative value resolves from the HTML file, a leading `/` is tried in the HTML file's directory and then each ancestor up to the repository root, and a scheme or `//` value is skipped.
 5. A file whose text starts with `#!`.
+6. A `package.json` is read after stripping a leading UTF-8 byte order mark. Its `module` and `browser` string fields join `main` as entry values (the `browser` object form is not read).
+7. In a `*.config.*` file, the value of any property named `entry` (a string, an array of strings, or an object whose values are strings) names modules, relative to the config's directory: a plain path marks that module, a glob marks every scanned module it matches, and a leading `!` removes matches. The config is parsed, never evaluated. This reads tsdown, tsup and vite-plus `pack.entry` and Vite's `build.lib.entry`.
+8. The `package.json` key `zshy`, as a string or an array of strings, names source files the same way as rule 7.
+9. A `package.json` with neither a `main` nor an `exports` key marks the `index.js` in its own directory, when that file is scanned: Node loads a package directory's `index.js` when `main` is missing, and ignores it once `exports` is present. `module`, `browser`, `bin`, `scripts` and `private: true` do not suppress it. Only the literal `index.js` is marked: `index.ts`, `index.cjs`, `index.mjs` and `index.json` are not, no extension is probed, and a bare `index.js` with no `package.json` beside it is not marked.
+
+No file is marked by its name alone: a bare `index.ts` or `main.ts` is marked only by one of these rules.
 
 The walk for `package.json` and HTML files skips the same directories as source selection. A file nothing references stays unmarked; a repository covers it with `warnings.orphan.entry_points`.
 

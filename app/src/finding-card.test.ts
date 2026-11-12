@@ -174,7 +174,7 @@ describe("cardOf orphan test importers", () => {
       { kind: "module", module: "app/fake.py", name: "fake.py", folder: "app" },
     ]);
     expect(card.sentence).toBe(
-      "fake.py is imported by nothing and is not an entry point.",
+      "fake.py is imported by nothing and is not an entry point; a library can list its public API in warnings.orphan.entry_points.",
     );
   });
 });

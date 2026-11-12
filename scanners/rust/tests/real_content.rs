@@ -156,3 +156,17 @@ fn lib_declares_each_module_file_and_imports_the_changes_names() {
     assert!(foreign.contains(&"tauri"));
     assert!(foreign.contains(&"serde"));
 }
+
+#[test]
+fn this_repositorys_tauri_library_root_is_an_entry_point() {
+    let document = scan(&repository(), None, None).ok().unwrap().document;
+    let lib = format!("{TAURI}src/lib.rs");
+    let module = document["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == lib.as_str())
+        .unwrap();
+
+    assert_eq!(module["entry_point"], Value::Bool(true));
+}
