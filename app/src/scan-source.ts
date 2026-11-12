@@ -14,7 +14,6 @@ export const scanSource: ScanPort = {
     invoke<ScanRunResult>("run_scan", {
       describe: plan.describe,
       describeAll: plan.describeAll,
-      measure: [],
       sense: plan.sense,
       modules: plan.modules,
     }),

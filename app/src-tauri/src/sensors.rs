@@ -67,14 +67,6 @@ pub fn check_names(names: &[String]) -> Result<(), String> {
     }
 }
 
-pub fn check_scan_names(measure: &[String], sense: &[String]) -> Result<(), String> {
-    if let Some(name) = measure.iter().find(|name| !sensor_name_ok(name)) {
-        return Err(format!("{name} is not an overlay name"));
-    }
-
-    check_names(sense)
-}
-
 fn findings_relative(name: &str) -> String {
     format!("{FINDINGS}/{name}.json")
 }
@@ -629,18 +621,5 @@ mod tests {
 
         assert!(snapshot_changed(&replaced, &snapshot(dir.path())));
         assert_eq!(snapshot(dir.path()), empty);
-    }
-
-    #[test]
-    fn a_bad_measure_name_is_refused_before_anything_spawns() {
-        let good = vec!["mutate".to_string()];
-        let bad = vec!["$(rm -rf x)".to_string()];
-
-        assert!(check_scan_names(&good, &good).is_ok());
-        assert_eq!(
-            check_scan_names(&bad, &good),
-            Err("$(rm -rf x) is not an overlay name".to_string())
-        );
-        assert!(check_scan_names(&good, &bad).is_err());
     }
 }
