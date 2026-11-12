@@ -55,11 +55,13 @@ A call names both ends as `module::Qualified.name` (`m.py::f`, `m.py::C`, `m.py:
 
 ### What it does not resolve
 
-Standard-library and foreign callees, `super()` calls, a receiver typed only by a function's return annotation (`make().m()`), a class that satisfies a Protocol only structurally with no base naming it (it receives no dispatch), an ABC method without `@abstractmethod` (not abstract), untyped receivers that fail the inference gate (more than 4 matches, or only generic methods), nested classes, and definitions inside `if`/`try`.
+Standard-library and foreign callees, `super()` calls, a receiver typed only by a function's return annotation (`make().m()`), a class that satisfies a Protocol only structurally with no base naming it (it receives no dispatch), an ABC method without `@abstractmethod` (not abstract), untyped receivers that fail the inference gate (more than 4 matches, or only generic methods), nested classes.
 
-Underscore-named module-level definitions (a leading `_` that is not a dunder) are members with `exported: false`, unless a literal `__all__` lists them. Dunder names (`__all__`, `__version__`) are not members. A module's `kind` ignores underscore-named members.
+Underscore-named module-level definitions (a leading `_` that is not a dunder) are members with `exported: false`, unless `__all__` lists them. Dunder names (`__all__`, `__version__`) are not members. A module's `kind` ignores underscore-named members.
 
-Module-level constants are `NAME = expr` and `NAME: T = expr` statements directly in the module body with one plain name target.
+Module-level constants are `NAME = expr` and `NAME: T = expr` statements at module level with one plain name target, including inside `if`, `try`, `with`, `for`, `while` and `match` blocks but not inside a function or class. A name defined in several blocks and not at top level is one member at its first line.
+
+`__all__` is read from string literals only: a list or tuple assignment (or a `+` concatenation of them), `+=`, `.extend([...])` and `.append("...")`, in order, with a later assignment replacing an earlier one. Anything else, including a change made inside a block, leaves `__all__` undefined.
 
 ## Exit codes
 

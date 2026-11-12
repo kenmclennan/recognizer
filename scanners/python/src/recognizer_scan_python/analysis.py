@@ -200,34 +200,118 @@ def is_abstraction(node: ast.ClassDef, bindings: dict[str, str]) -> bool:
     return False
 
 
-def declared_exports(tree: ast.Module) -> set[str] | None:
-    assignments = []
+def string_literals(value: ast.expr, allow_concatenation: bool) -> list[str] | None:
+    if isinstance(value, ast.List | ast.Tuple):
+        if all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in value.elts):
+            return [e.value for e in value.elts]
 
-    for statement in tree.body:
-        if isinstance(statement, ast.Assign):
-            targets = statement.targets
-        elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-            targets = [statement.target]
-        elif isinstance(statement, ast.AugAssign):
-            targets = [statement.target]
-        else:
+        return None
+
+    if allow_concatenation and isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+        left = string_literals(value.left, True)
+        right = string_literals(value.right, True)
+
+        if left is None or right is None:
+            return None
+
+        return left + right
+
+    return None
+
+
+def is_all_name(node: ast.expr) -> bool:
+    return isinstance(node, ast.Name) and node.id == "__all__"
+
+
+def touches_all(node: ast.expr) -> bool:
+    return is_all_name(node) or (isinstance(node, ast.Subscript) and is_all_name(node.value))
+
+
+def mutates_all(statement: ast.stmt) -> bool:
+    if isinstance(statement, ast.Assign):
+        return any(touches_all(t) for t in statement.targets)
+
+    if isinstance(statement, ast.AnnAssign):
+        return statement.value is not None and touches_all(statement.target)
+
+    if isinstance(statement, ast.AugAssign):
+        return touches_all(statement.target)
+
+    if isinstance(statement, ast.Delete):
+        return any(touches_all(t) for t in statement.targets)
+
+    if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
+        function = statement.value.func
+
+        return isinstance(function, ast.Attribute) and is_all_name(function.value)
+
+    return False
+
+
+def apply_to_all(statement: ast.stmt, names: list[str] | None) -> list[str] | None:
+    if isinstance(statement, ast.Assign):
+        if not any(is_all_name(t) for t in statement.targets):
+            return None
+
+        return string_literals(statement.value, True)
+
+    if isinstance(statement, ast.AnnAssign):
+        if not is_all_name(statement.target):
+            return None
+
+        return string_literals(statement.value, True)
+
+    if names is None:
+        return None
+
+    if isinstance(statement, ast.AugAssign):
+        if not is_all_name(statement.target) or not isinstance(statement.op, ast.Add):
+            return None
+
+        added = string_literals(statement.value, True)
+
+        return None if added is None else names + added
+
+    if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
+        call = statement.value
+
+        if call.keywords or len(call.args) != 1 or not isinstance(call.func, ast.Attribute):
+            return None
+
+        argument = call.args[0]
+
+        if call.func.attr == "extend":
+            added = string_literals(argument, False)
+
+            return None if added is None else names + added
+
+        if (
+            call.func.attr == "append"
+            and isinstance(argument, ast.Constant)
+            and isinstance(argument.value, str)
+        ):
+            return [*names, argument.value]
+
+    return None
+
+
+def declared_exports(tree: ast.Module) -> set[str] | None:
+    top_level = {id(statement) for statement in tree.body}
+    names: list[str] | None = None
+
+    for statement in module_level_statements(tree.body):
+        if not mutates_all(statement):
             continue
 
-        if any(isinstance(t, ast.Name) and t.id == "__all__" for t in targets):
-            assignments.append(statement)
+        if id(statement) not in top_level:
+            return None
 
-    if len(assignments) != 1 or isinstance(assignments[0], ast.AugAssign):
-        return None
+        names = apply_to_all(statement, names)
 
-    value = assignments[0].value
+        if names is None:
+            return None
 
-    if not isinstance(value, ast.List | ast.Tuple):
-        return None
-
-    if not all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in value.elts):
-        return None
-
-    return {e.value for e in value.elts}
+    return None if names is None else set(names)
 
 
 def module_level_classes(tree: ast.Module) -> list[ast.ClassDef]:

@@ -1,7 +1,12 @@
 import ast
 import re
 
-from recognizer_scan_python.analysis import declared_exports, is_abstraction, is_protocol
+from recognizer_scan_python.analysis import (
+    declared_exports,
+    is_abstraction,
+    is_protocol,
+    module_level_statements,
+)
 
 VALUE_LIMIT = 40
 TAG_ORDER = ("property", "static", "classmethod", "abstract", "async")
@@ -284,22 +289,49 @@ def is_annotated_type_alias(statement: ast.stmt) -> bool:
     )
 
 
+def member_name(statement: ast.stmt) -> str | None:
+    if isinstance(statement, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+        name = statement.name
+    elif TYPE_ALIAS is not None and isinstance(statement, TYPE_ALIAS):
+        name = statement.name.id
+    else:
+        names = constant_names(statement)
+        name = names[0] if names else None
+
+    if name is None or is_dunder(name):
+        return None
+
+    return name
+
+
+def recorded_statements(tree: ast.Module) -> list[tuple[ast.stmt, str]]:
+    top_level = {id(statement) for statement in tree.body}
+    candidates = sorted(module_level_statements(tree.body), key=lambda s: s.lineno)
+    named = [(statement, member_name(statement)) for statement in candidates]
+    top_level_names = {name for statement, name in named if name and id(statement) in top_level}
+    seen: set[str] = set()
+    recorded = []
+
+    for statement, name in named:
+        if name is None:
+            continue
+
+        if id(statement) not in top_level:
+            if name in top_level_names or name in seen:
+                continue
+
+            seen.add(name)
+
+        recorded.append((statement, name))
+
+    return recorded
+
+
 def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> list[dict]:
     exports = declared_exports(tree)
     members = []
 
-    for statement in tree.body:
-        if isinstance(statement, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
-            name = statement.name
-        elif TYPE_ALIAS is not None and isinstance(statement, TYPE_ALIAS):
-            name = statement.name.id
-        else:
-            names = constant_names(statement)
-            name = names[0] if names else None
-
-        if name is None or is_dunder(name):
-            continue
-
+    for statement, name in recorded_statements(tree):
         if isinstance(statement, ast.ClassDef):
             detail = class_member(statement, bindings)
         elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
