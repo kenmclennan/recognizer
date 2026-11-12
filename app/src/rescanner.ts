@@ -14,8 +14,6 @@ import {
 } from "./scan-panel-model";
 import type { RunEvent, ScanPort, ScanRunResult } from "./scan-port";
 import {
-  answeredProgress,
-  foldProgress,
   NO_PROGRESS,
   parseScanLine,
   type RunRow,
@@ -26,6 +24,8 @@ import {
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 import { foldRunLine, isActive, type RunInput } from "./scan-run-model";
+
+const RUN_LOG_FOLDER = ".recognizer/cache/log";
 
 export type Registered = Pick<RowSensor, "name" | "display" | "runsTests">[];
 
@@ -114,25 +114,8 @@ function refusedText(gaps: ScanRunRecord["gaps"]): string {
   return first === undefined ? count : `${count}: ${first.line}`;
 }
 
-function startedText(names: string, scope: string | null): string {
-  const parts = [names, scope ?? ""].filter((part) => part !== "");
-
-  return parts.length === 0
-    ? "Scan started"
-    : `Scan started - ${parts.join(", ")}`;
-}
-
-function failedReason(progress: ScanProgress, exit: number): string {
-  const entries = [
-    ...progress.extractEntries,
-    ...(progress.describe?.entries ?? []),
-    ...(progress.sense?.entries ?? []),
-  ];
-  const first = entries.find((entry) => entry.outcome === "failed");
-
-  return first === undefined
-    ? `recognizer scan exited ${exit}`
-    : `${first.name}: ${first.reason ?? "failed"}`;
+function startedText(names: string): string {
+  return names === "" ? "Scan started" : `Scan started - ${names}`;
 }
 
 export function createRescanner<Carried>(
@@ -151,9 +134,11 @@ export function createRescanner<Carried>(
   let heading: string | null = null;
   let failureIds: number[] = [];
   let lastUpdate: ProgressUpdate = { scanning: null };
-  let external: ScanRunRecord | null = null;
   let record: ScanRunRecord | null = null;
-  let runProgress: ScanProgress = NO_PROGRESS;
+  let begunRunId: string | null = null;
+  let liveRunId: string | null = null;
+  let endedRunId: string | null = null;
+  let ownEnd: ScanRunRecord | null = null;
   let starting: { at: number } | null = null;
   let startedFrom: string | null = null;
   let ownRunId: string | null = null;
@@ -342,7 +327,11 @@ export function createRescanner<Carried>(
     }
   }
 
-  async function handle(line: string) {
+  async function applyLine(line: string) {
+    if (!busy && liveRunId === null) {
+      return;
+    }
+
     const event = parseScanLine(line);
 
     if (event === null) {
@@ -351,7 +340,7 @@ export function createRescanner<Carried>(
 
     const before = progress;
 
-    progress = foldProgress(progress, event);
+    progress = foldRunLine(progress, event);
 
     if (event.event === "phase" && event.phase === "describe") {
       run = { ...run, started: DESCRIBE_KEY };
@@ -427,18 +416,20 @@ export function createRescanner<Carried>(
     }
   }
 
-  function beginExternal(scan: ScanRunRecord) {
-    const registeredRows = (
-      scan.describe ? [{ key: DESCRIBE_KEY, display: "Descriptions" }] : []
-    ).concat(scan.sensors.map((name) => ({ key: name, display: name })));
+  async function beginRun(scan: ScanRunRecord) {
+    const registered = await ports.registered();
+    const display = (name: string) =>
+      registered.find((one) => one.name === name)?.display ?? name;
 
-    external = scan;
-    ports.post({
-      kind: "info",
-      text: startedText(names(scan.sensors, scan.describe), null),
-    });
-    rows = registeredRows;
-    heading = null;
+    begunRunId = scan.run_id;
+    liveRunId = scan.run_id;
+    failureIds = [];
+    rows = [
+      ...(scan.describe
+        ? [{ key: DESCRIBE_KEY, display: "Descriptions" }]
+        : []),
+      ...scan.sensors.map((name) => ({ key: name, display: display(name) })),
+    ];
     progress = NO_PROGRESS;
     run = {
       running: [...(scan.describe ? [DESCRIBE_KEY] : []), ...scan.sensors],
@@ -447,76 +438,120 @@ export function createRescanner<Carried>(
       diagnoses: run.diagnoses,
       ranAt: run.ranAt,
     };
+    ports.post({
+      kind: "info",
+      text: startedText(names(scan.sensors.map(display), scan.describe)),
+    });
     publish();
   }
 
-  function foldExternal(line: string) {
-    const event = parseScanLine(line);
+  function endText(scan: ScanRunRecord): MessageInput | null {
+    if (scan.phase === "finished") {
+      const began = Date.parse(scan.started_at);
+      const ended = Date.parse(scan.ended_at ?? scan.started_at);
 
-    if (external === null || event === null) {
-      return;
-    }
-
-    progress = foldProgress(progress, event);
-
-    if (event.event === "phase" && event.phase === "describe") {
-      run = { ...run, started: DESCRIBE_KEY };
-    }
-
-    if (event.event === "phase" && event.phase === "sense") {
-      run = {
-        ...run,
-        started: run.running.find((one) => one !== DESCRIBE_KEY) ?? null,
+      return {
+        kind: "done",
+        text: `Scan complete - ${durationText(
+          Number.isNaN(began) || Number.isNaN(ended) ? 0 : ended - began,
+        )}`,
       };
     }
 
-    if (event.event === "start") {
-      run = { ...run, started: event.name };
-    }
-
-    if (event.event === "entry" && event.phase === "sense") {
-      finished(
-        event.name,
-        event.outcome === "ok",
-        event.reason ?? "failed",
-        event.diagnosis ?? null,
-      );
-    }
-
-    publish();
-  }
-
-  function postExternalEnd(scan: ScanRunRecord) {
-    const began = Date.parse(scan.started_at);
-    const ended = Date.parse(scan.ended_at ?? scan.started_at);
-    const elapsed =
-      Number.isNaN(began) || Number.isNaN(ended) ? 0 : ended - began;
-
-    if (scan.phase === "finished") {
-      ports.post({
-        kind: "done",
-        text: `Scan complete - ${durationText(elapsed)}`,
-      });
-    } else if (scan.phase === "refused") {
-      ports.post({
-        kind: "warning",
-        text: `Scan refused - ${refusedText(scan.gaps)}`,
-      });
-    } else if (scan.phase === "failed") {
-      ports.post({
+    if (scan.phase === "failed") {
+      return {
         kind: "error",
         text: `Scan failed - ${
           scan.failure === null
             ? `recognizer scan exited ${scan.exit ?? 1}`
             : `${scan.failure.sensor}: ${scan.failure.reason}`
         }`,
-      });
+      };
     }
+
+    return null;
   }
 
-  async function endExternal() {
-    external = null;
-    heading = null;
+  async function endRun(scan: ScanRunRecord) {
+    if (endedRunId === scan.run_id) {
+      return;
+    }
+
+    endedRunId = scan.run_id;
+    liveRunId = null;
+    run = { ...run, running: [], started: null };
+    progress = { ...progress, describeAsk: null };
+    starting = null;
+
+    if (scan.phase === "refused") {
+      keepOnce = keepOnce || busy;
+      ports.post({
+        kind: "warning",
+        text: `Scan refused - ${refusedText(scan.gaps)}`,
+      });
+      progress = { ...progress, done: true };
+      publish();
+      ports.settled();
+
+      return;
+    }
+
+    if (scan.phase !== "finished" && scan.phase !== "failed") {
+      progress = stoppedProgress(progress);
+      publish();
+
+      try {
+        await reload();
+      } catch (error) {
+        ports.post({ kind: "error", text: `Sensors failed: ${String(error)}` });
+      }
+
+      ports.settled();
+
+      return;
+    }
+
+    const message = endText(scan);
+
+    if (message !== null) {
+      ports.post(message);
+    }
+
+    if (!progress.extractSettled) {
+      progress = { ...progress, extractSettled: true };
+      await settle();
+    }
+
+    progress = { ...progress, done: true };
+    postDescribed();
+    publish();
+
+    if (progress.log !== null) {
+      const path = `${RUN_LOG_FOLDER}/${progress.log}.json`;
+      const open: MessageAction = {
+        label: "Open log",
+        run: () => ports.openLog(path),
+      };
+
+      for (const id of failureIds) {
+        ports.attach(id, open);
+      }
+    }
+
+    ports.settled();
+  }
+
+  function takeOwnEnd(): ScanRunRecord | null {
+    const ended = ownEnd;
+
+    ownEnd = null;
+
+    return ended;
+  }
+
+  async function vanished() {
+    liveRunId = null;
+    begunRunId = null;
     run = { ...run, running: [], started: null };
     progress = NO_PROGRESS;
     emit({ scanning: null });
@@ -531,12 +566,11 @@ export function createRescanner<Carried>(
   async function takeRecord(next: ScanRunRecord | null) {
     if (next === null) {
       record = null;
-      runProgress = NO_PROGRESS;
       seenFirst = false;
       adoptedAtOpen = null;
 
-      if (external !== null) {
-        await endExternal();
+      if (liveRunId !== null && !busy) {
+        await vanished();
       }
 
       return;
@@ -550,10 +584,6 @@ export function createRescanner<Carried>(
       }
     }
 
-    if (record?.run_id !== next.run_id) {
-      runProgress = NO_PROGRESS;
-    }
-
     if (starting !== null && next.run_id !== startedFrom) {
       starting = null;
     }
@@ -564,22 +594,20 @@ export function createRescanner<Carried>(
 
     record = next;
 
-    if (external !== null && external.run_id !== next.run_id) {
-      await endExternal();
+    const own = busy && next.run_id === ownRunId;
+
+    if (isActive(next)) {
+      if (begunRunId !== next.run_id) {
+        await beginRun(next);
+      }
+
+      return;
     }
 
-    if (external !== null && !isActive(next)) {
-      const ended = next;
-
-      await endExternal();
-      postExternalEnd(ended);
-    } else if (
-      external === null &&
-      !busy &&
-      isActive(next) &&
-      next.run_id !== ownRunId
-    ) {
-      beginExternal(next);
+    if (own) {
+      ownEnd = next;
+    } else if (liveRunId === next.run_id) {
+      await endRun(next);
     }
   }
 
@@ -587,13 +615,7 @@ export function createRescanner<Carried>(
     externalQueue = externalQueue
       .then(async () => {
         if (event.kind === "line") {
-          const parsed = parseScanLine(event.line);
-
-          if (parsed !== null) {
-            runProgress = foldRunLine(runProgress, parsed);
-          }
-
-          foldExternal(event.line);
+          await applyLine(event.line);
         } else {
           await takeRecord(event.run);
         }
@@ -658,30 +680,11 @@ export function createRescanner<Carried>(
 
     progress = NO_PROGRESS;
     startedFrom = record?.run_id ?? null;
+    ownRunId = null;
+    ownEnd = null;
     starting = { at: now() };
     publish();
 
-    const startedAt = now();
-
-    ports.post({
-      kind: "info",
-      text: startedText(
-        names(
-          rows
-            .filter(({ key }) => key !== DESCRIBE_KEY)
-            .map(({ display }) => display),
-          plan.describe,
-        ),
-        plan.modules === null
-          ? "Whole repository"
-          : `${plan.modules.length} modules`,
-      ),
-    });
-
-    let queue: Promise<void> = Promise.resolve();
-    const stopListening = ports.port.onLine((line) => {
-      queue = queue.then(() => handle(line)).catch(() => {});
-    });
     let result: ScanRunResult;
 
     try {
@@ -690,8 +693,21 @@ export function createRescanner<Carried>(
       result = { status: "failed", exitCode: -1, stderr: String(error) };
     }
 
-    await queue;
-    stopListening();
+    await externalQueue;
+
+    const ended = takeOwnEnd();
+
+    if (ended !== null && result.status !== "nothing-ran") {
+      await endRun(ended);
+
+      return;
+    }
+
+    if (ended !== null) {
+      endedRunId = ended.run_id;
+    }
+
+    liveRunId = null;
     run = { ...run, running: [], started: null };
 
     if (
@@ -748,41 +764,8 @@ export function createRescanner<Carried>(
       return;
     }
 
-    if (!progress.extractSettled) {
-      progress = { ...progress, extractSettled: true };
-      await settle();
-    }
-
     progress = { ...progress, done: true };
-    postDescribed();
     publish();
-
-    if (result.status === "finished") {
-      ports.post(
-        result.exitCode === 0
-          ? {
-              kind: "done",
-              text: `Scan complete - ${durationText(now() - startedAt)}`,
-            }
-          : {
-              kind: "error",
-              text: `Scan failed - ${failedReason(progress, result.exitCode)}`,
-            },
-      );
-    }
-
-    if (result.status === "finished" && result.log !== null) {
-      const { log } = result;
-      const open: MessageAction = {
-        label: "Open log",
-        run: () => ports.openLog(log),
-      };
-
-      for (const id of failureIds) {
-        ports.attach(id, open);
-      }
-    }
-
     ports.settled();
   }
 
@@ -801,7 +784,7 @@ export function createRescanner<Carried>(
 
   return {
     run(modules = null, planned) {
-      if (busy || external !== null) {
+      if (busy || isActive(record)) {
         return Promise.resolve();
       }
 
@@ -819,7 +802,7 @@ export function createRescanner<Carried>(
       return current;
     },
     async stop() {
-      if (!busy && external === null && !isActive(record)) {
+      if (!busy && !isActive(record)) {
         return;
       }
 
@@ -834,9 +817,6 @@ export function createRescanner<Carried>(
         return;
       }
 
-      progress = answeredProgress(progress, describe);
-      publish();
-
       try {
         await ports.port.answerDescribe(describe);
       } catch (error) {
@@ -844,7 +824,7 @@ export function createRescanner<Carried>(
       }
     },
     async refresh() {
-      if (busy || external !== null) {
+      if (busy || isActive(record)) {
         return;
       }
 
@@ -866,12 +846,12 @@ export function createRescanner<Carried>(
       void ports.registered().then((registered) => writeTicks(registered));
     },
     runState: () => run,
-    running: () => busy || external !== null,
-    external: () => external !== null,
+    running: () => busy || isActive(record),
+    external: () => isActive(record) && !busy,
     progress: () => progress,
     runView: () => ({
       record,
-      progress: runProgress,
+      progress,
       starting,
       adoptedAtOpen,
     }),

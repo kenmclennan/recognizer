@@ -41,7 +41,6 @@ export type ScanPort = {
   readTicks(): Promise<StoredTicks>;
   writeTicks(ticks: WrittenTicks): Promise<void>;
   readDescribing(): Promise<DescribingSettings>;
-  onLine(handler: (line: string) => void): () => void;
   watchExternal(): Promise<void>;
   onRun(handler: (event: RunEvent) => void): () => void;
 };
@@ -69,7 +68,6 @@ export const inertScan: ScanPort = {
     batchSize: 4,
     confirmAboveUsd: 5,
   }),
-  onLine: () => () => {},
   watchExternal: async () => {},
   onRun: () => () => {},
 };

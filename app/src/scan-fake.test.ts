@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { fakeScan } from "./scan-fake";
+import { type FakeScan, fakeScan } from "./scan-fake";
+
+function linesOf(fake: FakeScan): string[] {
+  const lines: string[] = [];
+
+  fake.onRun((event) => {
+    if (event.kind === "line") {
+      lines.push(event.line);
+    }
+  });
+
+  return lines;
+}
+
+function phasesOf(fake: FakeScan): string[] {
+  const phases: string[] = [];
+
+  fake.onRun((event) => {
+    if (event.kind === "run" && event.run !== null) {
+      phases.push(event.run.phase);
+    }
+  });
+
+  return phases;
+}
 
 const PLAN = {
   describe: true,
@@ -9,11 +33,9 @@ const PLAN = {
 };
 
 describe("fakeScan", () => {
-  it("delivers the scripted lines in order before the run resolves", async () => {
+  it("delivers the scripted lines as run events in order before the run resolves", async () => {
     const fake = fakeScan({ steps: ["one", "two"] });
-    const lines: string[] = [];
-
-    fake.onLine((line) => lines.push(line));
+    const lines = linesOf(fake);
 
     const result = await fake.run(PLAN);
 
@@ -45,12 +67,11 @@ describe("fakeScan", () => {
     await first;
   });
 
-  it("stops the pending run and delivers no further lines", async () => {
+  it("stops the pending run, delivers the stopped record and no further lines", async () => {
     const gate = new Promise<void>(() => {});
     const fake = fakeScan({ steps: ["one", gate, "two"] });
-    const lines: string[] = [];
-
-    fake.onLine((line) => lines.push(line));
+    const lines = linesOf(fake);
+    const phases = phasesOf(fake);
 
     const pending = fake.run(PLAN);
 
@@ -58,6 +79,7 @@ describe("fakeScan", () => {
 
     expect(await pending).toEqual({ status: "stopped" });
     expect(lines).toEqual(["one"]);
+    expect(phases).toEqual(["checking", "stopped"]);
     expect(fake.stopped).toBe(1);
   });
 

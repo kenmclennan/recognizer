@@ -29,13 +29,6 @@ export const scanSource: ScanPort = {
       onlyView: ticks.onlyView,
     }),
   readDescribing: () => invoke<DescribingSettings>("read_describing"),
-  onLine(handler) {
-    const pending = listen<string>("scan-event", (event) =>
-      handler(event.payload),
-    );
-
-    return () => void pending.then((stop) => stop());
-  },
   watchExternal: () => invoke<void>("watch_external_scan"),
   onRun(handler) {
     const runs = listen<ScanRunRecord | null>("scan-run", (event) =>

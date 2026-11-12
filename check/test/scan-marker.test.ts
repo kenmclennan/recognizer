@@ -292,6 +292,22 @@ describe("scan marker: replacement", () => {
     );
   });
 
+  it("removes a leftover answer file with the old progress file", async () => {
+    const answer = `${ROOT}/.recognizer/cache/scan-running.answer.json`;
+    const files = {
+      [MARKER]: markerFor({ phase: "finished", exit: 0 }),
+      [PROGRESS]: "old\n",
+      [answer]: "{}",
+    };
+    const fake = fakeIo(options({ files, alivePids: [] }));
+
+    expect(fake.files.has(answer)).toBe(true);
+
+    await run(["scan", ROOT], fake.io);
+
+    expect(fake.files.has(answer)).toBe(false);
+  });
+
   it("refuses with exit 3 and leaves a running record with a live pid byte-identical", async () => {
     const files = { [MARKER]: markerFor({ phase: "running" }) };
     const { code, fake } = await scan({ files, alivePids: [OTHER_PID] });

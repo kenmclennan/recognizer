@@ -67,6 +67,10 @@ const entry = (phase: string, name: string, reason?: string) =>
     ...(reason === undefined ? {} : { reason }),
   });
 const summary = line({ event: "summary" });
+const LOG = "x-scan";
+const LOG_PATH = ".recognizer/cache/log/x-scan.json";
+const summaryLogged = (exit: number) =>
+  line({ event: "summary", exit, log: LOG });
 
 function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
   const log: string[] = [];
@@ -404,13 +408,13 @@ describe("createRescanner", () => {
 
   it("attaches Open log to a failed describe message once the run ends with a log", async () => {
     const scan = fakeScan({
-      steps: [current, describing(1), entry("describe", "a.py", "no"), summary],
-      result: {
-        status: "finished",
-        exitCode: 1,
-        stderr: "",
-        log: ".recognizer/cache/log/x-scan.json",
-      },
+      steps: [
+        current,
+        describing(1),
+        entry("describe", "a.py", "no"),
+        summaryLogged(1),
+      ],
+      result: { status: "finished", exitCode: 1, stderr: "", log: LOG_PATH },
     });
     const { log, posted, attached, updates, rescanner } = harness(scan);
 
@@ -438,14 +442,9 @@ describe("createRescanner", () => {
         sensing(2),
         entry("sense", "alpha"),
         entry("sense", "beta", "slow"),
-        summary,
+        summaryLogged(0),
       ],
-      result: {
-        status: "finished",
-        exitCode: 0,
-        stderr: "",
-        log: ".recognizer/cache/log/x-scan.json",
-      },
+      result: { status: "finished", exitCode: 0, stderr: "", log: LOG_PATH },
     });
     const { posted, attached, rescanner } = harness(scan);
 
@@ -520,6 +519,7 @@ describe("createRescanner", () => {
 
     const failed = harness(
       fakeScan({
+        records: false,
         result: { status: "failed", exitCode: 2, stderr: "bad flag\n" },
       }),
     );
@@ -1004,6 +1004,8 @@ describe("createRescanner", () => {
   });
 
   describe("the describe confirmation", () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
     const ask = line({
       event: "confirm",
       phase: "describe",
@@ -1031,12 +1033,21 @@ describe("createRescanner", () => {
       return { ...made, running };
     }
 
-    it("opens the ask and answers describe through the port once", async () => {
+    const answered = (describe: boolean) =>
+      line({ event: "answered", phase: "describe", describe });
+
+    it("opens the ask from the record's confirm line and answers describe through the port once", async () => {
       const { rescanner, scan, updates } = await waiting();
 
       expect(texts(updates).at(-1)).toContain("Waiting for your answer");
 
       await rescanner.answerDescribe(true);
+
+      expect(scan.answers).toEqual([true]);
+      expect(rescanner.progress().describeAsk).not.toBeNull();
+
+      scan.emitRun({ kind: "line", line: answered(true) });
+      await flush();
       await rescanner.answerDescribe(true);
 
       expect(scan.answers).toEqual([true]);
@@ -1046,13 +1057,49 @@ describe("createRescanner", () => {
       await rescanner.stop();
     });
 
-    it("marks the describe phase skipped on a skip answer", async () => {
+    it("marks the describe phase skipped when the answered line says skip", async () => {
       const { rescanner, scan } = await waiting();
 
       await rescanner.answerDescribe(false);
+      scan.emitRun({ kind: "line", line: answered(false) });
+      await flush();
 
       expect(scan.answers).toEqual([false]);
+      expect(rescanner.progress().describeAsk).toBeNull();
       expect(rescanner.progress().describeSkipped).toBe(true);
+
+      await rescanner.stop();
+    });
+
+    it("answers a scan the command line started through the same port call", async () => {
+      const made = harness();
+
+      made.scan.emitRun({ kind: "run", run: record() });
+      made.scan.emitRun({ kind: "line", line: ask });
+      await flush();
+
+      expect(made.rescanner.progress().describeAsk).not.toBeNull();
+
+      await made.rescanner.answerDescribe(true);
+      made.scan.emitRun({ kind: "line", line: answered(true) });
+      await flush();
+
+      expect(made.scan.answers).toEqual([true]);
+      expect(made.rescanner.progress().describeAsk).toBeNull();
+    });
+
+    it("posts an error when the port refuses the answer", async () => {
+      const { rescanner, scan, posted } = await waiting();
+
+      scan.answerDescribe = async () => {
+        throw new Error("no scan is waiting for an answer");
+      };
+      await rescanner.answerDescribe(true);
+
+      expect(posted.at(-1)).toMatchObject({
+        kind: "error",
+        text: "Error: no scan is waiting for an answer",
+      });
 
       await rescanner.stop();
     });
@@ -1087,11 +1134,7 @@ describe("createRescanner", () => {
 
       expect(rescanner.running()).toBe(true);
       expect(rescanner.external()).toBe(true);
-      expect(rescanner.runState().running).toEqual([
-        "describe",
-        "alpha",
-        "mut",
-      ]);
+      expect(rescanner.runState().running).toEqual(["alpha", "mut"]);
       expect(rescanner.runView().record).toEqual(cli);
     });
 
@@ -1106,7 +1149,7 @@ describe("createRescanner", () => {
       await flush();
 
       expect(scan.ran).toEqual([]);
-      expect(posted).toEqual([]);
+      expect(posted.map((one) => one.text)).toEqual(["alpha failed: boom"]);
       expect(log).not.toContain("described");
       expect(rescanner.runState().failures).toEqual({ alpha: "boom" });
     });
@@ -1157,18 +1200,6 @@ const GAP = {
   needs: ["mut"],
 };
 
-const CLI_GAP = {
-  ...GAP,
-  project: { language: "python", directory: "sensors" },
-  fix: {
-    text: "uv sync",
-    command: ["uv", "sync"],
-    cwd: "sensors",
-    env: {},
-    kind: "repository" as const,
-  },
-};
-
 const OUTSIDE = {
   ...GAP,
   id: "mutation:rust:root:cargo",
@@ -1176,8 +1207,6 @@ const OUTSIDE = {
 };
 
 describe("scan notifications", () => {
-  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-
   function timed(
     scan = fakeScan({ defaults: { describe: true, sensors: true } }),
   ) {
@@ -1191,25 +1220,21 @@ describe("scan notifications", () => {
     };
   }
 
-  it("posts Scan started naming the sensors and scope, and Scan complete with its duration", async () => {
+  it("posts Scan started naming the sensors, and Scan complete with its duration from the record", async () => {
     const scan = fakeScan({
       defaults: { describe: true, sensors: true },
       steps: [extract, entry("extract", "python"), summary],
+      record: {
+        started_at: "2026-11-10T09:00:00.000Z",
+        ended_at: "2026-11-10T09:03:12.000Z",
+      },
     });
-    const { clock, made } = timed(scan);
+    const { made } = timed(scan);
 
-    scan.onStep = (index) => {
-      if (index === 1) {
-        clock(192_000);
-      }
-    };
     await made.rescanner.run();
 
     expect(made.lifecycle).toEqual([
-      {
-        kind: "info",
-        text: "Scan started - Alpha, Beta, describe, Whole repository",
-      },
+      { kind: "info", text: "Scan started - Alpha, Beta, describe" },
       { kind: "done", text: "Scan complete - 3m 12s" },
     ]);
   });
@@ -1218,14 +1243,13 @@ describe("scan notifications", () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       steps: [extract, summary],
+      record: {
+        started_at: "2026-11-10T09:00:00.000Z",
+        ended_at: "2026-11-10T09:00:45.000Z",
+      },
     });
-    const { clock, made } = timed(scan);
+    const { made } = timed(scan);
 
-    scan.onStep = (index) => {
-      if (index === 0) {
-        clock(45_000);
-      }
-    };
     await made.rescanner.run();
 
     expect(made.lifecycle.at(-1)).toEqual({
@@ -1237,6 +1261,7 @@ describe("scan notifications", () => {
   it("posts the failure with its reason and no Scan complete", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
+      records: false,
       result: {
         status: "failed",
         exitCode: 2,
@@ -1249,7 +1274,6 @@ describe("scan notifications", () => {
     await made.rescanner.run();
 
     expect(made.lifecycle.map((one) => one.text)).toEqual([
-      "Scan started - Alpha, Beta, Whole repository",
       "Scan failed - boom",
     ]);
   });
@@ -1257,7 +1281,12 @@ describe("scan notifications", () => {
   it("posts a failed run that finished with exit 1 as Scan failed with the first failed entry", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
-      steps: [extract, entry("sense", "alpha", "no coverage"), summary],
+      steps: [
+        extract,
+        entry("sense", "alpha", "no coverage"),
+        line({ event: "summary", exit: 1 }),
+      ],
+      record: { failure: { sensor: "alpha", reason: "no coverage" } },
       result: { status: "finished", exitCode: 1, stderr: "", log: null },
     });
     const { made } = timed(scan);
@@ -1302,54 +1331,6 @@ describe("scan notifications", () => {
       text: "Scan refused - another scan is running",
     });
   });
-
-  it("posts the same start, completion, failure and refusal for a scan another process runs", async () => {
-    const began = new Date(1_000_000 - 90_000).toISOString();
-    const ended = new Date(1_000_000).toISOString();
-    const cli = record({
-      pid: 7,
-      started_at: began,
-      sensors: ["alpha"],
-      describe: true,
-    });
-
-    for (const [ending, expected] of [
-      [
-        { phase: "finished", exit: 0 },
-        { kind: "done", text: "Scan complete - 1m 30s" },
-      ],
-      [
-        {
-          phase: "failed",
-          exit: 1,
-          failure: { sensor: "alpha", reason: "boom" },
-        },
-        { kind: "error", text: "Scan failed - alpha: boom" },
-      ],
-      [
-        { phase: "refused", exit: 4, gaps: [CLI_GAP] },
-        {
-          kind: "warning",
-          text: "Scan refused - 1 tool missing: coverage and pytest are not installed",
-        },
-      ],
-    ] as const) {
-      const made = harness(fakeScan(), { now: () => 1_000_000 });
-
-      made.scan.emitRun({ kind: "run", run: cli });
-      await flush();
-      made.scan.emitRun({
-        kind: "run",
-        run: { ...cli, ...ending, ended_at: ended } as ScanRunRecord,
-      });
-      await flush();
-
-      expect(made.lifecycle).toEqual([
-        { kind: "info", text: "Scan started - alpha, describe" },
-        expected,
-      ]);
-    }
-  });
 });
 
 describe("the preflight flow", () => {
@@ -1373,6 +1354,7 @@ describe("the preflight flow", () => {
 
   it("shows the checking card from Scan until the record arrives", async () => {
     const scan = fakeScan({
+      records: false,
       defaults: { describe: false, sensors: true },
       steps: [
         line({ event: "preflight", state: "run" }),
@@ -1444,6 +1426,7 @@ describe("the preflight flow", () => {
 
   it("shows the stopped card with no gaps when the user stops the scan", async () => {
     const scan = fakeScan({
+      records: false,
       defaults: { describe: false, sensors: true },
       steps: [new Promise<void>(() => {})],
     });
@@ -1520,5 +1503,285 @@ describe("the preflight flow", () => {
 
     expect(made.rescanner.runView().adoptedAtOpen).toBe("run-1");
     expect(made.rescanner.runView().record?.run_id).toBe("run-2");
+  });
+});
+
+describe("one fold of the run record", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const BEGAN = "2026-11-10T09:00:00.000Z";
+  const ENDED = "2026-11-10T09:01:30.000Z";
+  const ask = line({
+    event: "confirm",
+    phase: "describe",
+    modules: 3,
+    model: "sonnet",
+    input_tokens: 12000,
+    cost_usd: 9.5,
+  });
+  const preflightOk = line({ event: "preflight", state: "ok" });
+  const logged = (exit: number) => line({ event: "summary", exit, log: LOG });
+
+  const sequences: Record<
+    string,
+    {
+      lines: string[];
+      end: Partial<ScanRunRecord>;
+      result: Parameters<typeof fakeScan>[0] extends infer O
+        ? O extends { result?: infer R }
+          ? R
+          : never
+        : never;
+    }
+  > = {
+    "a finished run with a failed second sensor": {
+      lines: [
+        current,
+        preflightOk,
+        sensing(2),
+        entry("sense", "alpha"),
+        entry("sense", "beta", "slow"),
+        logged(1),
+      ],
+      end: {
+        phase: "failed",
+        exit: 1,
+        failure: { sensor: "beta", reason: "slow" },
+      },
+      result: { status: "finished", exitCode: 1, stderr: "", log: LOG_PATH },
+    },
+    "a run with a describe phase": {
+      lines: [
+        current,
+        preflightOk,
+        ask,
+        line({ event: "answered", phase: "describe", describe: true }),
+        describing(2),
+        entry("describe", "a.py"),
+        entry("describe", "b.py", "no"),
+        sensing(1),
+        entry("sense", "alpha"),
+        logged(0),
+      ],
+      end: { phase: "finished", exit: 0 },
+      result: { status: "finished", exitCode: 0, stderr: "", log: LOG_PATH },
+    },
+    "a refused run": {
+      lines: [
+        line({ event: "preflight", state: "run" }),
+        line({ event: "preflight", state: "gaps", gaps: [] }),
+        line({ event: "summary", exit: 4 }),
+      ],
+      end: { phase: "refused", exit: 4, gaps: [GAP] },
+      result: { status: "gaps", gaps: [GAP] },
+    },
+    "a stopped run": {
+      lines: [current, preflightOk, sensing(2), entry("sense", "alpha")],
+      end: { phase: "stopped", exit: 143 },
+      result: { status: "stopped" },
+    },
+  };
+
+  const SENSORS = ["alpha", "beta"];
+  const shown = (posted: MessageInput[]) =>
+    posted.map((one) => ({
+      kind: one.kind,
+      text: one.text,
+      action: one.action?.label,
+    }));
+
+  async function viaWindow(name: string) {
+    const sequence = sequences[name] as (typeof sequences)[string];
+    const stopping = name === "a stopped run";
+    let reached: () => void = () => {};
+    const delivered = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const scan = fakeScan({
+      defaults: { describe: true, sensors: true },
+      steps: stopping
+        ? [...sequence.lines, new Promise<void>(() => {})]
+        : sequence.lines,
+      result: sequence.result,
+      record: { started_at: BEGAN, ended_at: ENDED, ...sequence.end },
+    });
+    const made = harness(scan);
+
+    scan.onStep = (index) => {
+      if (index === sequence.lines.length - 1) {
+        reached();
+      }
+    };
+
+    const running = made.rescanner.run();
+
+    if (stopping) {
+      await delivered;
+      await flush();
+      await made.rescanner.stop();
+    }
+
+    await running;
+    await flush();
+
+    return made;
+  }
+
+  async function viaCommandLine(name: string) {
+    const sequence = sequences[name] as (typeof sequences)[string];
+    const made = harness();
+    const cli = record({
+      run_id: "cli-run",
+      started_by: "cli",
+      started_at: BEGAN,
+      sensors: SENSORS,
+      describe: true,
+      phase: "checking",
+    });
+
+    made.scan.emitRun({ kind: "run", run: cli });
+    await flush();
+
+    for (const one of sequence.lines) {
+      made.scan.emitRun({ kind: "line", line: one });
+
+      if (one === preflightOk) {
+        made.scan.emitRun({ kind: "run", run: { ...cli, phase: "running" } });
+      }
+
+      await flush();
+    }
+
+    made.scan.emitRun({
+      kind: "run",
+      run: { ...cli, ended_at: ENDED, ...sequence.end } as ScanRunRecord,
+    });
+    await flush();
+
+    return made;
+  }
+
+  it.each(Object.keys(sequences))(
+    "gives an app-started and a command-line scan the same effects: %s",
+    async (name) => {
+      const own = await viaWindow(name);
+      const other = await viaCommandLine(name);
+      const progressOf = (made: typeof own) => {
+        const { sensing: _sensing, ...rest } = made.rescanner.progress();
+
+        return rest;
+      };
+
+      expect(own.log.length).toBeGreaterThan(0);
+      expect(own.lifecycle.length).toBeGreaterThan(0);
+      expect(other.log).toEqual(own.log);
+      expect(other.lifecycle).toEqual(own.lifecycle);
+      expect(shown(other.posted)).toEqual(shown(own.posted));
+      expect(other.rescanner.runState().failures).toEqual(
+        own.rescanner.runState().failures,
+      );
+      expect(progressOf(other)).toEqual(progressOf(own));
+      expect(other.rescanner.running()).toBe(own.rescanner.running());
+    },
+  );
+
+  it("reloads once per sense entry and describes once per describe entry, with no line subscription on the port", async () => {
+    const scan = fakeScan({
+      defaults: { describe: true, sensors: true },
+      steps: [
+        current,
+        preflightOk,
+        ask,
+        describing(2),
+        entry("describe", "a.py"),
+        entry("describe", "b.py"),
+        sensing(2),
+        entry("sense", "alpha"),
+        entry("sense", "beta"),
+        summary,
+      ],
+    });
+    const { log, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    expect(log.filter((one) => one === "resense")).toHaveLength(2);
+    expect(log.filter((one) => one === "described")).toHaveLength(2);
+  });
+
+  it("shows the blocked detail and posts no Scan complete for a nothing-ran result with a finished record", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [current, preflightOk, summary],
+      result: { status: "nothing-ran", phases: ["sense"], detail: "no commit" },
+    });
+    const { log, lifecycle, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    expect(log).toContain("blocked:no commit");
+    expect(lifecycle.some((one) => one.text.startsWith("Scan complete"))).toBe(
+      false,
+    );
+  });
+
+  it("posts a command-missing result with no record once", async () => {
+    const { lifecycle, rescanner } = harness(
+      fakeScan({ result: { status: "command-missing", hint: "install it" } }),
+    );
+
+    await rescanner.run();
+
+    expect(lifecycle.map((one) => one.text)).toEqual([
+      "Scan failed - install it",
+    ]);
+  });
+
+  it("posts one Scan failed for a failed result with a failed record", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [current, preflightOk, line({ event: "summary", exit: 1 })],
+      record: { failure: { sensor: "alpha", reason: "boom" } },
+      result: { status: "failed", exitCode: 1, stderr: "boom" },
+    });
+    const { lifecycle, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    expect(
+      lifecycle.filter((one) => one.text.startsWith("Scan failed")),
+    ).toEqual([{ kind: "error", text: "Scan failed - alpha: boom" }]);
+  });
+
+  it("posts the refusal once whether Rust refused it or the record did", async () => {
+    const rust = harness(
+      fakeScan({
+        defaults: { describe: false, sensors: true },
+        result: { status: "gaps", gaps: [GAP] },
+      }),
+    );
+
+    await rust.rescanner.run();
+
+    const text =
+      "Scan refused - 1 tool missing: coverage and pytest are not installed";
+
+    expect(rust.lifecycle.map((one) => one.text)).toEqual([text]);
+
+    const recorded = harness(
+      fakeScan({
+        defaults: { describe: false, sensors: true },
+        steps: [
+          line({ event: "preflight", state: "gaps", gaps: [] }),
+          line({ event: "summary", exit: 4 }),
+        ],
+        result: { status: "gaps", gaps: [GAP] },
+      }),
+    );
+
+    await recorded.rescanner.run();
+
+    expect(
+      recorded.lifecycle.filter((one) => one.text.startsWith("Scan refused")),
+    ).toEqual([{ kind: "warning", text }]);
   });
 });

@@ -37,6 +37,7 @@ import {
   type Scan,
   validateScan,
 } from "./scan.js";
+import { awaitDescribeAnswer } from "./scan-answer.js";
 import {
   acquireMarker,
   type HeldMarker,
@@ -481,8 +482,6 @@ function* scanFlow(
 
       runLog?.finish(phases, true);
 
-      taken?.refused(gaps.map(({ id, line, needs }) => ({ id, line, needs })));
-
       emit(
         summaryLine({
           repository: root,
@@ -498,6 +497,8 @@ function* scanFlow(
           log: runLog?.id() ?? null,
         }),
       );
+
+      taken?.refused(gaps.map(({ id, line, needs }) => ({ id, line, needs })));
 
       return 4;
     };
@@ -658,11 +659,23 @@ function* scanFlow(
                     return true;
                   }
 
-                  io.stdout(
-                    `${JSON.stringify({ event: "confirm", phase: "describe", ...projection })}\n`,
+                  const asked = `${JSON.stringify({ event: "confirm", phase: "describe", ...projection })}\n`;
+
+                  io.stdout(asked);
+
+                  if (taken === null) {
+                    return (await io.readLine())?.trim() === "describe";
+                  }
+
+                  taken.append(asked);
+
+                  const describe = await awaitDescribeAnswer(io, root, taken);
+
+                  taken.append(
+                    `${JSON.stringify({ event: "answered", phase: "describe", describe })}\n`,
                   );
 
-                  return (await io.readLine())?.trim() === "describe";
+                  return describe;
                 },
               }),
           onProjection: (projection) => {
@@ -760,16 +773,6 @@ function* scanFlow(
       .flatMap((one) => summary.get(one.phase) ?? [])
       .find((entry) => entry.outcome === "failed");
 
-    taken?.end(
-      exit,
-      exit === 0
-        ? null
-        : {
-            sensor: firstFailed?.name ?? "scan",
-            reason: firstFailed?.reason ?? `recognizer scan exited ${exit}`,
-          },
-    );
-
     emit(
       summaryLine({
         repository: root,
@@ -784,6 +787,16 @@ function* scanFlow(
         skipped: skippedPhases,
         log: runLog?.id() ?? null,
       }),
+    );
+
+    taken?.end(
+      exit,
+      exit === 0
+        ? null
+        : {
+            sensor: firstFailed?.name ?? "scan",
+            reason: firstFailed?.reason ?? `recognizer scan exited ${exit}`,
+          },
     );
 
     return exit;

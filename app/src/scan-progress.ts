@@ -20,6 +20,7 @@ export type ScanEvent =
   | ({ event: "progress"; phase: "sense"; name: string } & SensorStep)
   | ({ event: "stopped"; phase: "describe" } & DescribeStop)
   | ({ event: "confirm"; phase: "describe" } & DescribeAsk)
+  | { event: "answered"; phase: "describe"; describe: boolean }
   | { event: "preflight"; state: "run" | "ok" }
   | { event: "preflight"; state: "gaps"; gaps: Gap[] }
   | { event: "summary"; exit?: number; log?: string | null };
@@ -126,6 +127,10 @@ export function parseScanLine(text: string): ScanEvent | null {
       return stoppedEvent(line);
     case "confirm":
       return confirmEvent(line);
+    case "answered":
+      return line.phase === "describe" && typeof line.describe === "boolean"
+        ? { event: "answered", phase: "describe", describe: line.describe }
+        : null;
     case "entry":
       return entryEvent(line);
     case "start":
@@ -365,6 +370,8 @@ export function foldProgress(
 
       return { ...state, describeAsk };
     }
+    case "answered":
+      return { ...state, describeAsk: null, describeSkipped: !event.describe };
     case "phase":
       if (event.phase === "extract") {
         return { ...state, extract: event.state };
@@ -403,13 +410,6 @@ export function foldProgress(
 
 export function stoppedProgress(state: ScanProgress): ScanProgress {
   return { ...state, stopped: true, describeAsk: null };
-}
-
-export function answeredProgress(
-  state: ScanProgress,
-  describe: boolean,
-): ScanProgress {
-  return { ...state, describeAsk: null, describeSkipped: !describe };
 }
 
 export function tokensText(tokens: number): string {

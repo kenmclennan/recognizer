@@ -46,7 +46,6 @@ const APP_TITLE: &str = "Recognizer";
 const SETTINGS_LABEL: &str = "settings";
 const RECENT_PREFIX: &str = "recent:";
 const CHANGES_POLL: Duration = Duration::from_secs(2);
-const EXTERNAL_SCAN_POLL: Duration = Duration::from_secs(1);
 
 #[derive(Default)]
 struct WindowBaseline {
@@ -859,7 +858,7 @@ async fn run_scan(
     tauri::async_runtime::spawn_blocking(move || {
         let runs = app.state::<ScanRuns>();
 
-        Ok(scan_run::run_with(
+        let result = scan_run::run_with(
             &runs,
             &label,
             &folder,
@@ -877,19 +876,36 @@ async fn run_scan(
                     .state::<ScanBaselines>()
                     .with(&label, |window| window.pending = Some(origin));
             },
-            &|line| {
-                let _ = app.emit_to(&label, "scan-event", line);
-            },
-        ))
+        );
+
+        emit_run_emissions(&app, &label, runs.tick(&label, Some(&folder)));
+
+        Ok(result)
     })
     .await
     .map_err(|error| error.to_string())?
 }
 
+fn emit_run_emissions(app: &AppHandle, label: &str, emissions: Vec<scan_run::RunEmission>) -> bool {
+    for emission in emissions {
+        let sent = match emission {
+            scan_run::RunEmission::Run(run) => app.emit_to(label, "scan-run", run),
+            scan_run::RunEmission::Line(line) => app.emit_to(label, "scan-run-line", line),
+        };
+
+        if sent.is_err() {
+            return false;
+        }
+    }
+
+    true
+}
+
 #[tauri::command]
 fn answer_describe(app: AppHandle, window: WebviewWindow, describe: bool) -> Result<(), String> {
-    app.state::<ScanRuns>()
-        .answer_describe(&window_label(&window), describe)
+    let folder = window_folder_path(&app, &window)?;
+
+    scan_run::answer_describe(&folder, describe)
 }
 
 #[tauri::command]
@@ -1014,32 +1030,17 @@ fn watch_external_scan(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
     }
 
     std::thread::spawn(move || {
-        let mut seen = scan_run::RunSeen::default();
-
         loop {
-            std::thread::sleep(EXTERNAL_SCAN_POLL);
+            std::thread::sleep(app.state::<ScanRuns>().interval(&label));
 
             if app.get_webview_window(&label).is_none() {
                 break;
             }
 
             let folder = app.state::<WindowState>().folder_of(&label);
-            let mut closed = false;
+            let emissions = app.state::<ScanRuns>().tick(&label, folder.as_deref());
 
-            for emission in scan_run::run_tick(folder.as_deref(), &mut seen) {
-                let sent = match emission {
-                    scan_run::RunEmission::Run(run) => app.emit_to(&label, "scan-run", run),
-                    scan_run::RunEmission::Line(line) => app.emit_to(&label, "scan-run-line", line),
-                };
-
-                if sent.is_err() {
-                    closed = true;
-
-                    break;
-                }
-            }
-
-            if closed {
+            if !emit_run_emissions(&app, &label, emissions) {
                 break;
             }
         }

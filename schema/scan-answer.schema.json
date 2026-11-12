@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/scan-answer.schema.json",
+  "title": "Recognizer describe answer",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "run_id", "describe"],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "describe": {
+      "type": "boolean"
+    }
+  }
+}
