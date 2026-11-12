@@ -192,6 +192,150 @@ function configArea(facts: DoctorFacts): ConfigResult {
   };
 }
 
+function policyCommand(facts: DoctorFacts, arguments_: string): string {
+  return withRepository(facts, `recognizer policy ${arguments_}`);
+}
+
+function releaseCommands(
+  policy: ReturnType<typeof parsePolicy>,
+  name: string,
+): string[] {
+  const commands: string[] = [];
+
+  if (policy.levels.includes(name)) {
+    commands.push(
+      policy.levels.length === 1 ? "--unset levels" : `--unset levels ${name}`,
+    );
+  }
+
+  if (policy.uses !== null) {
+    const remaining = new Map(policy.uses);
+
+    for (const [owner, allowed] of policy.uses) {
+      if (owner === name) {
+        remaining.delete(owner);
+        commands.push(
+          remaining.size === 0
+            ? "--remove-section uses"
+            : `--unset uses.${quoted(name)}`,
+        );
+      } else if (allowed.includes(name)) {
+        const kept = allowed.filter((entry) => entry !== name);
+
+        if (kept.length === 0) {
+          remaining.delete(owner);
+          commands.push(
+            remaining.size === 0
+              ? "--remove-section uses"
+              : `--unset uses.${quoted(owner)}`,
+          );
+        } else {
+          remaining.set(owner, kept);
+          commands.push(`--unset uses.${quoted(owner)} ${quoted(name)}`);
+        }
+      }
+    }
+  }
+
+  return commands;
+}
+
+function entryFix(
+  facts: DoctorFacts,
+  policy: ReturnType<typeof parsePolicy>,
+  glob: string,
+): SetupProblem["fix"] {
+  for (const [name, globs] of policy.componentGlobs) {
+    if (globs.includes(glob)) {
+      const release = globs.length === 1 ? releaseCommands(policy, name) : [];
+      const unset = `--unset components.${name} ${quoted(glob)}`;
+
+      return commandFix(
+        [...release, unset]
+          .map((arguments_) => policyCommand(facts, arguments_))
+          .join(" && "),
+      );
+    }
+  }
+
+  return textFix("remove the entry with recognizer policy --unset");
+}
+
+function folderFix(facts: DoctorFacts, folder: string): SetupProblem["fix"] {
+  const target = folder === "." ? "<module>" : quoted(`${folder}/*`);
+  const root = folder === "." ? " (name each root module)" : "";
+
+  return textFix(
+    `cover it with ${policyCommand(facts, `--add components.<name> ${target}`)} (<name> is one of recognizer policy --list's components), or leave it out of the graph with ${policyCommand(facts, `--add ignore ${target}`)}${root}`,
+  );
+}
+
+function usesOf(facts: DoctorFacts): Record<string, unknown> {
+  try {
+    const uses = (parse(facts.policyText ?? "") as { uses?: unknown })?.uses;
+
+    return typeof uses === "object" && uses !== null && !Array.isArray(uses)
+      ? (uses as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function invalidFix(facts: DoctorFacts, message: string): SetupProblem["fix"] {
+  const level =
+    /^levels: (?:"([^"]+)" is not in components|duplicate level "([^"]+)")$/.exec(
+      message,
+    );
+
+  if (level !== null) {
+    return commandFix(
+      policyCommand(
+        facts,
+        `--unset levels ${quoted(level[1] ?? level[2] ?? "")}`,
+      ),
+    );
+  }
+
+  const section = /^uses: "([^"]+)" is not in components$/.exec(message);
+
+  if (section !== null) {
+    if (Object.keys(usesOf(facts)).length === 1) {
+      return commandFix(policyCommand(facts, "--remove-section uses"));
+    }
+
+    return commandFix(
+      policyCommand(facts, `--unset uses.${quoted(section[1] ?? "")}`),
+    );
+  }
+
+  const entry = /^uses\.([^:]+): "([^"]+)" is not in components$/.exec(message);
+
+  if (entry !== null) {
+    const uses = usesOf(facts);
+    const listed = uses[entry[1] ?? ""];
+
+    if (
+      Object.keys(uses).length === 1 &&
+      Array.isArray(listed) &&
+      listed.length === 1
+    ) {
+      return commandFix(policyCommand(facts, "--remove-section uses"));
+    }
+
+    return commandFix(
+      policyCommand(
+        facts,
+        `--unset uses.${entry[1] ?? ""} ${quoted(entry[2] ?? "")}`,
+      ),
+    );
+  }
+
+  return textFix(
+    `recognizer policy cannot repair a structurally invalid policy: correct ${POLICY_FILE} by hand, then run recognizer policy --list to confirm it reads`,
+  );
+}
+
 function policyArea(facts: DoctorFacts): SetupProblem[] {
   if (facts.policyText === null) {
     return [];
@@ -209,7 +353,7 @@ function policyArea(facts: DoctorFacts): SetupProblem[] {
       code: "policy-invalid" as const,
       subject: POLICY_FILE,
       line,
-      fix: textFix(`correct ${POLICY_FILE}`),
+      fix: invalidFix(facts, line),
     }));
   }
 
@@ -233,15 +377,30 @@ function policyArea(facts: DoctorFacts): SetupProblem[] {
     ];
   }
 
+  const scan = `recognizer scan${facts.named ? ` ${quoted(facts.repository)}` : ""}`;
+
+  if (state.state === "stale" && state.reason === "uncommitted") {
+    const count = state.paths.length;
+    const shown = state.paths.slice(0, 3).join(", ");
+    const more = count > 3 ? ` and ${count - 3} more` : "";
+
+    return [
+      {
+        code: "scan-stale",
+        subject: where,
+        line: `the scan of ${where} was not used: the working tree has ${count} uncommitted ${count === 1 ? "change" : "changes"} outside .recognizer/ (${shown}${more}), so the policy was not compared with the code`,
+        fix: textFix(`commit, ignore or stash these changes, then run ${scan}`),
+      },
+    ];
+  }
+
   if (state.state === "stale") {
     return [
       {
         code: "scan-stale",
         subject: where,
         line: `the scan of ${where} is out of date with the working tree: the policy was not compared with the code`,
-        fix: commandFix(
-          `recognizer scan${facts.named ? ` ${quoted(facts.repository)}` : ""}`,
-        ),
+        fix: commandFix(scan),
       },
     ];
   }
@@ -251,7 +410,10 @@ function policyArea(facts: DoctorFacts): SetupProblem[] {
       problem.kind === "entry" ? ("policy-entry" as const) : "policy-folder",
     subject: problem.subject,
     line: problem.text,
-    fix: textFix(`correct ${POLICY_FILE} so the policy matches the code`),
+    fix:
+      problem.kind === "entry"
+        ? entryFix(facts, policy, problem.subject)
+        : folderFix(facts, problem.subject),
   }));
 }
 

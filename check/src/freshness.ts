@@ -6,7 +6,7 @@ import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import type { RecordedScan, Scan } from "./scan.js";
 import {
-  isDirty,
+  dirtyPaths,
   readCachedScan,
   resolveCommit,
   runScanSync,
@@ -48,7 +48,8 @@ function isReusable(
 export type CachedScansState =
   | { state: "current"; scans: RecordedScan[] }
   | { state: "missing" }
-  | { state: "stale" };
+  | { state: "stale"; reason: "uncommitted"; paths: string[] }
+  | { state: "stale"; reason: "scan" };
 
 export function cachedScansState(
   io: Io,
@@ -63,11 +64,19 @@ export function cachedScansState(
 
   const commit = resolveCommit(io, root);
 
-  return commit !== null &&
-    !isDirty(io, root) &&
-    isReusable(io, root, commit, cached)
+  if (commit === null) {
+    return { state: "stale", reason: "scan" };
+  }
+
+  const dirty = dirtyPaths(io, root);
+
+  if (dirty !== null && dirty.length > 0) {
+    return { state: "stale", reason: "uncommitted", paths: dirty };
+  }
+
+  return dirty !== null && isReusable(io, root, commit, cached)
     ? { state: "current", scans: cached }
-    : { state: "stale" };
+    : { state: "stale", reason: "scan" };
 }
 
 export function freshScans(io: Io, root: string, read: ConfigRead): FreshScans {

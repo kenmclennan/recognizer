@@ -522,6 +522,16 @@ function unsetRetired(text: string, path: string[]): EditOutcome {
 
   opened.doc.deleteIn(path);
 
+  for (let depth = path.length - 1; depth > 0; depth -= 1) {
+    const parent = opened.doc.getIn(path.slice(0, depth), true);
+
+    if (!isMap(parent) || parent.items.length > 0) {
+      break;
+    }
+
+    opened.doc.deleteIn(path.slice(0, depth));
+  }
+
   return { status: "ok", text: emit(opened.doc, text) };
 }
 
@@ -836,6 +846,13 @@ export function listKeys(text: string, published: PublishedKeys): Listing {
   const skipped: string[] = [];
 
   const walk = (map: YAMLMap, prefix: string[], hidden?: string): void => {
+    if (
+      prefix.length > 0 &&
+      map.items.every((pair) => scalarText(pair.key) === hidden)
+    ) {
+      lines.push(`${prefix.join(".")}=`);
+    }
+
     for (const pair of map.items) {
       const name = scalarText(pair.key);
 
