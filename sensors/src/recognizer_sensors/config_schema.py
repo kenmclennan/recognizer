@@ -48,7 +48,10 @@ TEST_KEYS = (
             " the user's login "
             "shell"
         ),
-        'tests.unit.command "pytest --cov=src --cov-report=lcov:coverage/lcov.info"',
+        (
+            'tests.unit.command "pytest --cov=src '
+            '--cov-report=lcov:.recognizer/cache/coverage/unit/lcov.info"'
+        ),
     ),
     key(
         "tests.<name>.activate",
@@ -80,7 +83,7 @@ TEST_KEYS = (
             "the coverage report the suite writes, relative to the suite's directory; * matches a "
             "folder or file name"
         ),
-        "tests.unit.coverage.path coverage/lcov.info",
+        "tests.unit.coverage.path .recognizer/cache/coverage/unit/lcov.info",
     ),
     key(
         "tests.<name>.coverage.format",
