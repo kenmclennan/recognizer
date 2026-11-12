@@ -31,6 +31,16 @@ describe("skill eval judge", () => {
     expect(codes(events)).toEqual([]);
   });
 
+  it.each([
+    "write-unapproved",
+    "write-by-hand",
+    "suite-run-unasked",
+    "costly-unasked",
+    "no-final-doctor",
+  ])("flags exactly %s in its bad transcript", (code) => {
+    expect(codes(transcript(`bad-${code}`))).toEqual([code]);
+  });
+
   it("flags an empty transcript as having no final doctor", () => {
     expect(codes([])).toEqual(["no-final-doctor"]);
   });

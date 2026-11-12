@@ -1,0 +1,14 @@
+[
+  {
+    "kind": "run",
+    "command": "recognizer scan --extract"
+  },
+  {
+    "kind": "write-file",
+    "path": ".recognizer/policy.yaml"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer doctor"
+  }
+]
