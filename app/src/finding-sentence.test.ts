@@ -406,3 +406,23 @@ describe("the duplication sentence", () => {
     );
   });
 });
+
+describe("private_imports sentence", () => {
+  it("names the importing file and the owner count", () => {
+    const text = sentence({
+      kind: "private_imports",
+      evidence: {
+        modules: ["app/store.py"],
+        members: [
+          { module: "lib/a.py", name: "_x" },
+          { module: "lib/b.py", name: "_y" },
+          { module: "lib/b.py", name: "_z" },
+        ],
+      },
+    });
+
+    expect(text).toContain("store.py");
+    expect(text).toContain("3 private names from 2 modules");
+    expect(text).toContain("Parnas, 1972");
+  });
+});

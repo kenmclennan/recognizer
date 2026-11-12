@@ -223,11 +223,25 @@ function orphan(record: FindingRecord): string | null {
   return `${shortName(module)} is imported only by ${tests === 1 ? "1 test file" : `${tests} test files`} and is not an entry point; if it only supports tests, move it next to ${tests === 1 ? "it" : "them"}${hint}`;
 }
 
+function privateImports(record: FindingRecord): string | null {
+  const module = record.evidence.modules[0];
+  const members = record.evidence.members ?? [];
+
+  if (module === undefined || members.length === 0) {
+    return null;
+  }
+
+  const owners = new Set(members.map((member) => member.module)).size;
+
+  return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "module", "modules")}, which reaches past their interface (information hiding, Parnas, 1972).`;
+}
+
 const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   "rule-violation": violation,
   cycle,
   orphan,
   unused_exports: unusedExports,
+  private_imports: privateImports,
   duplication,
   crap,
   mutation,

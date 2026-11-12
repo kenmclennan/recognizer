@@ -14,6 +14,7 @@ import {
 } from "../src/structure-sensor.js";
 import {
   orphanFindings,
+  privateImportsFindings,
   unusedExportsFindings,
 } from "../src/structure-warnings.js";
 import {
@@ -306,13 +307,13 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false}}',
+      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true}}',
     );
-    expect(document.sensor.version).toBe("14");
+    expect(document.sensor.version).toBe("15");
   });
 
   it("describes the settings with and without entry points", () => {
-    const base = "cycle on, orphan on, unused_exports off";
+    const base = "cycle on, orphan on, unused_exports off, private_imports on";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -420,6 +421,7 @@ describe("the removed hub keys", () => {
       "cycle",
       "orphan",
       "unused_exports",
+      "private_imports",
     ]);
     expect(
       JSON.stringify([
@@ -602,6 +604,7 @@ describe("switches for the package metric warnings", () => {
           cycle: on,
           orphan: on,
           unused_exports: false,
+          private_imports: true,
         },
       },
       CONTEXT,
@@ -1535,6 +1538,7 @@ describe("unused_exports", () => {
     );
     expect(off.document.settings.warnings).toMatchObject({
       unused_exports: false,
+      private_imports: true,
     });
     expect(ids(on.document.findings)).toContain("unused_exports:shop/a.py");
   });
@@ -1574,7 +1578,7 @@ describe("unused_exports", () => {
         },
         entry_points: ["a"],
       }),
-    ).toBe(`${base}, unused_exports on, entry_points 1`);
+    ).toBe(`${base}, unused_exports on, private_imports on, entry_points 1`);
   });
 
   it("gives the known exports of the committed fixture scans", () => {
@@ -1653,5 +1657,381 @@ describe("the former unused-exports short form", () => {
     expect(config.sensors?.["unused-exports"]).toEqual({
       command: ["node", "run.mjs"],
     });
+  });
+});
+
+type PrivateModule = {
+  id: string;
+  language?: string;
+  members?: { name: string; exported: boolean; line?: number }[];
+};
+
+type PrivateEdge = {
+  from: string;
+  to: string;
+  names?: string[];
+  line?: number;
+};
+
+function privateScan(modules: PrivateModule[], edges: PrivateEdge[]) {
+  return validateScan({
+    schema_version: 7,
+    scanner: { name: "t", version: "0" },
+    commit: null,
+    modified: false,
+    files: [],
+    selection: {
+      extensions: [],
+      skip_directory_names: [],
+      skip_directory_prefixes: [],
+      skip_directory_suffixes: [],
+      skip_directories_containing: [],
+      skip_file_globs: [],
+    },
+    modules: modules.map((module) => ({
+      id: module.id,
+      language: module.language ?? "python",
+      kind: "module",
+      members: (module.members ?? []).map((member) => ({
+        line: 1,
+        ...member,
+        kind: "constant",
+      })),
+    })),
+    edges: edges.map((edge, index) => ({
+      from: edge.from,
+      to: edge.to,
+      kind: "depends",
+      line: edge.line ?? index + 1,
+      ...(edge.names === undefined ? {} : { names: edge.names }),
+    })),
+    foreign: [],
+  });
+}
+
+describe("private_imports", () => {
+  const owner = (
+    members: { name: string; exported: boolean; line?: number }[],
+    language = "python",
+  ): PrivateModule => ({ id: "lib/shared.py", language, members });
+
+  const found = (
+    modules: PrivateModule[],
+    edges: PrivateEdge[],
+    policy: string | null = null,
+  ) =>
+    privateImportsFindings(
+      privateScan(modules, edges),
+      policy === null ? null : parsePolicy(policy),
+    );
+
+  const importer = (id = "app/store.py"): PrivateModule => ({
+    id,
+    language: "python",
+  });
+
+  it("reports an underscore name on the importing file", () => {
+    const result = found(
+      [owner([{ name: "_COLUMNS", exported: false, line: 4 }]), importer()],
+      [{ from: "app/store.py", to: "lib/shared.py", names: ["_COLUMNS"] }],
+    );
+
+    expect(ids(result)).toEqual(["private_imports:app/store.py"]);
+    expect(result[0]).toMatchObject({
+      kind: "private_imports",
+      severity: "warning",
+      principle: "information-hiding",
+    });
+    expect(result[0]?.fix_pattern).toBeUndefined();
+    expect(result[0]?.summary).toContain("information hiding (Parnas, 1972)");
+    expect(result[0]?.evidence.members).toEqual([
+      {
+        module: "lib/shared.py",
+        name: "_COLUMNS",
+        file: "lib/shared.py",
+        lines: [4, 4],
+      },
+    ]);
+  });
+
+  it("reports nothing for a dunder name the scanner never records", () => {
+    const modules = [owner([{ name: "helper", exported: true }]), importer()];
+    const edges = [
+      { from: "app/store.py", to: "lib/shared.py", names: ["__version__"] },
+    ];
+
+    expect(modules[0]?.members?.length).toBeGreaterThan(0);
+    expect(edges[0]?.names).toContain("__version__");
+    expect(found(modules, edges)).toEqual([]);
+  });
+
+  it("reports a name left out of __all__", () => {
+    const result = found(
+      [owner([{ name: "helper", exported: false }]), importer()],
+      [{ from: "app/store.py", to: "lib/shared.py", names: ["helper"] }],
+    );
+
+    expect(result[0]?.evidence.members?.map((member) => member.name)).toEqual([
+      "helper",
+    ]);
+  });
+
+  it("reports nothing for a name in __all__", () => {
+    expect(
+      found(
+        [owner([{ name: "Order", exported: true }]), importer()],
+        [{ from: "app/store.py", to: "lib/shared.py", names: ["Order"] }],
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips a test file importer and keeps a source importer", () => {
+    const edge = (from: string) => ({
+      from,
+      to: "lib/shared.py",
+      names: ["_COLUMNS"],
+    });
+
+    expect(
+      ids(
+        found(
+          [
+            owner([{ name: "_COLUMNS", exported: false }]),
+            importer("tests/test_store.py"),
+            importer("src/store.py"),
+          ],
+          [edge("tests/test_store.py"), edge("src/store.py")],
+        ),
+      ),
+    ).toEqual(["private_imports:src/store.py"]);
+  });
+
+  it.each(["typescript", "rust"])("reports nothing in %s", (language) => {
+    expect(
+      found(
+        [
+          owner([{ name: "_COLUMNS", exported: false }], language),
+          { id: "app/store.py", language },
+        ],
+        [{ from: "app/store.py", to: "lib/shared.py", names: ["_COLUMNS"] }],
+      ),
+    ).toEqual([]);
+  });
+
+  it("names only the private recorded names of a mixed import", () => {
+    const result = found(
+      [
+        owner([
+          { name: "_a", exported: false },
+          { name: "Pub", exported: true },
+        ]),
+        importer(),
+        importer("app/other.py"),
+      ],
+      [
+        {
+          from: "app/store.py",
+          to: "lib/shared.py",
+          names: ["_a", "Pub", "_ghost"],
+        },
+        { from: "app/other.py", to: "lib/shared.py", names: ["Pub"] },
+      ],
+    );
+
+    expect(ids(result)).toEqual(["private_imports:app/store.py"]);
+    expect(result[0]?.evidence.members?.map((member) => member.name)).toEqual([
+      "_a",
+    ]);
+  });
+
+  it("merges several imports across two owners", () => {
+    const result = found(
+      [
+        { id: "lib/a.py", members: [{ name: "_x", exported: false }] },
+        {
+          id: "lib/b.py",
+          members: [
+            { name: "_z", exported: false },
+            { name: "_y", exported: false },
+          ],
+        },
+        importer(),
+      ],
+      [
+        { from: "app/store.py", to: "lib/a.py", names: ["_x"], line: 9 },
+        { from: "app/store.py", to: "lib/a.py", names: ["_x"], line: 3 },
+        {
+          from: "app/store.py",
+          to: "lib/b.py",
+          names: ["_z", "_y"],
+          line: 5,
+        },
+      ],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.evidence.edges).toEqual([
+      { from: "app/store.py", to: "lib/a.py", kind: "depends", lines: [3, 9] },
+      { from: "app/store.py", to: "lib/b.py", kind: "depends", lines: [5] },
+    ]);
+    expect(
+      result[0]?.evidence.members?.map((m) => `${m.module}:${m.name}`),
+    ).toEqual(["lib/a.py:_x", "lib/b.py:_y", "lib/b.py:_z"]);
+    expect(result[0]?.summary).toContain("from 2 modules");
+  });
+
+  it("leaves unknown data unreported", () => {
+    expect(
+      found(
+        [owner([]), importer()],
+        [{ from: "app/store.py", to: "lib/shared.py", names: ["_a"] }],
+      ),
+    ).toEqual([]);
+    expect(
+      found(
+        [owner([{ name: "_a", exported: false }]), importer()],
+        [{ from: "app/store.py", to: "lib/shared.py" }],
+      ),
+    ).toEqual([]);
+  });
+
+  it("honours a policy ignore of the owner", () => {
+    const modules = [owner([{ name: "_a", exported: false }]), importer()];
+    const edges = [
+      { from: "app/store.py", to: "lib/shared.py", names: ["_a"] },
+    ];
+    const policy = (glob: string) => `ignore: [${glob}]\n`;
+
+    expect(found(modules, edges, policy("lib/**"))).toEqual([]);
+    expect(ids(found(modules, edges, policy("other/**")))).toEqual([
+      "private_imports:app/store.py",
+    ]);
+  });
+
+  it("skips a self edge and a foreign target", () => {
+    expect(
+      found(
+        [owner([{ name: "_a", exported: false }])],
+        [
+          { from: "lib/shared.py", to: "lib/shared.py", names: ["_a"] },
+          { from: "lib/shared.py", to: "foreign:os", names: ["_a"] },
+        ],
+      ),
+    ).toEqual([]);
+  });
+
+  it("is switched by the sensor and recorded", () => {
+    const scan = privateScan(
+      [owner([{ name: "_a", exported: false }]), importer()],
+      [{ from: "app/store.py", to: "lib/shared.py", names: ["_a"] }],
+    );
+    const on = structureSensor(
+      [scan],
+      null,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    );
+    const off = structureSensor(
+      [scan],
+      null,
+      {
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: {
+          ...DEFAULT_STRUCTURE_SETTINGS.warnings,
+          private_imports: false,
+        },
+      },
+      CONTEXT,
+    );
+
+    expect(ids(on.document.findings)).toContain("private_imports:app/store.py");
+    expect(ids(off.document.findings)).not.toContain(
+      "private_imports:app/store.py",
+    );
+    expect(off.document.settings.warnings).toMatchObject({
+      private_imports: false,
+    });
+  });
+
+  it("resolves absent, true and false and describes them", () => {
+    const resolve = (yaml: string) =>
+      (resolveStructureSettings(parseConfig(yaml)) as StructureSettings)
+        .warnings.private_imports;
+    const warn = (value: string) =>
+      `sensors:\n  structure:\n    warnings:\n      private_imports: ${value}\n`;
+
+    expect(resolve("sensors:\n  structure: {}\n")).toBe(true);
+    expect(resolve(warn("true"))).toBe(true);
+    expect(resolve(warn("false"))).toBe(false);
+    expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toContain(
+      "unused_exports off, private_imports on",
+    );
+    expect(
+      describeSettings({
+        ...DEFAULT_STRUCTURE_SETTINGS,
+        warnings: {
+          ...DEFAULT_STRUCTURE_SETTINGS.warnings,
+          private_imports: false,
+        },
+      }),
+    ).toContain("unused_exports off, private_imports off");
+  });
+
+  it("parses a boolean and rejects any other type", () => {
+    const read = (path: string) =>
+      readFileSync(join(REPO, "schema/config-examples", path), "utf8");
+
+    expect(() =>
+      parseConfig(
+        "sensors:\n  structure:\n    warnings:\n      private_imports: false\n",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      parseConfig(
+        'sensors:\n  structure:\n    warnings:\n      private_imports: "yes"\n',
+      ),
+    ).toThrow(InputError);
+    expect(() =>
+      parseConfig(read("invalid/sensors-private-imports-not-boolean.yaml")),
+    ).toThrow(InputError);
+  });
+
+  it("measures the committed fixture scans", () => {
+    const run = (path: string) =>
+      privateImportsFindings(
+        validateScan(
+          JSON.parse(readFileSync(join(REPO, "fixtures", path), "utf8")),
+        ),
+        null,
+      );
+    const python = run("python/expected-scan.json");
+
+    expect(ids(python)).toEqual([
+      "private_imports:shop/application/place.py",
+      "private_imports:shop/domain/__init__.py",
+    ]);
+    expect(
+      python.map((finding) => [
+        finding.evidence.members?.map((m) => `${m.module}:${m.name}`),
+        finding.evidence.edges?.map((edge) => edge.lines),
+      ]),
+    ).toEqual([
+      [["shop/domain/order.py:new_order"], [[1]]],
+      [["shop/domain/order.py:new_order"], [[2]]],
+    ]);
+
+    for (const path of [
+      "python/script-folder/expected-scan.json",
+      "python/src-layout/expected-scan.json",
+      "abstractness/python/expected-scan.json",
+      "abstractness/kotlin/expected-scan.json",
+      "abstractness/rust/expected-scan.json",
+      "abstractness/typescript/expected-scan.json",
+      "kotlin/expected-scan.json",
+      "rust/expected-scan.json",
+      "csharp/expected-scan.json",
+    ]) {
+      expect(run(path), path).toEqual([]);
+    }
   });
 });

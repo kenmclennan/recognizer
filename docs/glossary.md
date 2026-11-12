@@ -174,7 +174,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Legend | The panel on the canvas, opened from its bottom-right controls, that names every edge style, every disc and what a frame's figure counts, and holds the inferred-edges switch. |
 | Box | What the canvas draws for a module, or for a folded folder: its disc, its name and, when it has a note, its note mark. |
 | Box description | The small panel that fades in directly under a hovered canvas box, as wide as the box, showing the module's one-line description from the describer; a box with no description shows none. |
-| Private-name import | An import of a name the target module does not export. Drawn dashed. |
+| Private-name import | An import of a name the target module does not export. Drawn dashed. For a Python file the structure sensor also reports it as a `private_imports` finding on the importing file. |
 | Evidence | Why an edge exists: the quoted source line, the names, the route, or what an inferred edge was inferred from. |
 | View state | Everything that decides what the user sees, as one record. Each change makes a new one; it lasts only as long as the window. |
 | History | The sequence of view states the user has moved through in a window; back and forward walk it. It is never saved. |
@@ -211,7 +211,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Phase | One of the parts of a scan: extraction (when the files changed), describing (when ticked), measuring (CLI only, when asked for) and the sensors (when ticked). |
 | Findings panel | The left-column panel, behind the Findings rail icon: a heading with one muted count line, then one collapsible group per finding kind, each holding cards. |
 | Finding group | One collapsible kind in the Findings panel, named by the kind, a report or an unknown kind: a chevron, a severity dot, the name, an info icon when the group has help, and its count. Collapsed until clicked. |
-| Finding group name | The plain name a built-in finding group shows, beside the finding kind it holds: `rule-violation` Breaks the policy, `cycle` Import cycle, `orphan` Orphan, `unused_exports` Unused exports, `duplication` Duplicated code, `crap` C.R.A.P., `mutation` Mutations, `thresholds` Over a limit. The names and the group help live in `app/src/finding-groups.json`, the one file the panel reads. |
+| Finding group name | The plain name a built-in finding group shows, beside the finding kind it holds: `rule-violation` Breaks the policy, `cycle` Import cycle, `orphan` Orphan, `unused_exports` Unused exports, `private_imports` Private imports, `duplication` Duplicated code, `crap` C.R.A.P., `mutation` Mutations, `thresholds` Over a limit. The names and the group help live in `app/src/finding-groups.json`, the one file the panel reads. |
 | Group help | The two plain sentences a finding group can carry, "What it means" and "What to do", shown in a tip when the info icon beside the group name is hovered or focused. A reported group and an unknown kind have none and show no icon. |
 | Finding card | A finding in the panel or in the inspector's Findings tab: the subject in bold, its folder muted beneath it and one plain sentence; opened inline to a row per module, member or edge involved, with Add to view on a row whose module is off the view. |
 | Finding focus | One finding card open: the evidence lit on the canvas and the rest dimmed, with no selection and no box added. Cleared by Escape, by clicking the open card, or by selecting a box outside the evidence. |

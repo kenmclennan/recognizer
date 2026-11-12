@@ -80,6 +80,19 @@ Run by the driver on 2026-11-03 over the same clean worktree (`recognizer check`
 
 The hub counts differ only by the re-export rule already classified above; the sensor's edges name the defining module, so its fan-in is the number of modules that use something the module defines. A first pass with the scanner's `inferred` edges left in showed four importers of `no_op_gates.py`; those are method-call guesses, which the structure sensor and this comparison both exclude.
 
+## Private imports over the corpus
+
+The rule was measured per repository before the spec PR, over the committed corpus snapshot `~/recognizer-corpus/2026-11-06` and a fresh scan of lightcycle `e7558af3`. The non-Python scans give 0 findings, by the language gate.
+
+| Repository (pinned commit) | Importing files | Private names (per owner) |
+| --- | --- | --- |
+| flask `49943b5` | 11 | 16 |
+| httpx `b5addb6` | 9 | 54 |
+| lightcycle `2eae0f3` (same 36 files at `e7558af3`) | 36 | 115 |
+| recognizer `8f129c6` | 1 | 1 |
+| requests `3c7baaa` | 4 | 5 |
+| Python total | 61 | 191 |
+
 ## Disagreements
 
 | item | classification | note |

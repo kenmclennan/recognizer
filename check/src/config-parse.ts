@@ -11,6 +11,7 @@ export interface StructureSettingsInput {
   warnings?: {
     cycle?: boolean;
     unused_exports?: boolean;
+    private_imports?: boolean;
     orphan?: boolean | { entry_points: string[] };
   };
 }

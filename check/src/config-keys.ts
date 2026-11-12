@@ -65,7 +65,7 @@ export interface PublishedKeys {
 
 const SENSOR_NAME = "^[a-z0-9][a-z0-9_-]{0,63}$";
 
-const WARNINGS = ["cycle", "unused_exports", "orphan"];
+const WARNINGS = ["cycle", "unused_exports", "orphan", "private_imports"];
 
 export const CORE_KEYS: KeySchema = {
   keys_version: 1,

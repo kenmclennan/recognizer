@@ -26,11 +26,19 @@ function graphOf(scan: Scan, overrides: Partial<GraphInput> = {}) {
 
 const chain: Scan = {
   modules: [
-    { id: "top.py", kind: "module" },
-    { id: "lightcycle/application/work/create.py", kind: "module" },
-    { id: "lightcycle/application/work/other.py", kind: "module" },
-    { id: "lightcycle/ports/store.py", kind: "module" },
-    { id: "lightcycle/adapters/sql.py", kind: "module" },
+    { id: "top.py", language: "python", kind: "module" },
+    {
+      id: "lightcycle/application/work/create.py",
+      language: "python",
+      kind: "module",
+    },
+    {
+      id: "lightcycle/application/work/other.py",
+      language: "python",
+      kind: "module",
+    },
+    { id: "lightcycle/ports/store.py", language: "python", kind: "module" },
+    { id: "lightcycle/adapters/sql.py", language: "python", kind: "module" },
   ],
   edges: [
     {
@@ -166,6 +174,7 @@ describe("counts", () => {
   const scan: Scan = {
     modules: ["a.py", "b.py", "c.py", "d.py"].map((id) => ({
       id,
+      language: "python" as const,
       kind: "module" as const,
     })),
     edges: [
@@ -200,16 +209,17 @@ describe("counts", () => {
 describe("edge styles", () => {
   const scan: Scan = {
     modules: [
-      { id: "a.py", kind: "module" },
+      { id: "a.py", language: "python", kind: "module" },
       {
         id: "b.py",
+        language: "python",
         kind: "module",
         members: [
           { name: "hidden", exported: false },
           { name: "shown", exported: true },
         ],
       },
-      { id: "c.py", kind: "module" },
+      { id: "c.py", language: "python", kind: "module" },
     ],
     edges: [
       { from: "a.py", to: "b.py", kind: "depends", line: 1, names: ["shown"] },
@@ -368,8 +378,8 @@ describe("selection helpers", () => {
 describe("planned boxes and ghosts", () => {
   const base: Scan = {
     modules: [
-      { id: "shop/a.py", kind: "module" },
-      { id: "shop/b.py", kind: "module" },
+      { id: "shop/a.py", language: "python", kind: "module" },
+      { id: "shop/b.py", language: "python", kind: "module" },
     ],
     edges: [],
     foreign: [],
@@ -434,6 +444,7 @@ describe("declarations", () => {
   const scan: Scan = {
     modules: ["lib.rs", "child.rs", "used.rs"].map((id) => ({
       id,
+      language: "python" as const,
       kind: "module" as const,
     })),
     edges: [

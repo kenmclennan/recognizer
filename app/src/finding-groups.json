@@ -25,6 +25,12 @@
       "todo": "Remove the export, or keep it if code outside this repository uses it."
     },
     {
+      "key": "kind:private_imports",
+      "name": "Private imports",
+      "means": "A Python file imports names another module marks private, by an underscore or by leaving them out of its __all__.",
+      "todo": "Check whether the name is meant to be public."
+    },
+    {
       "key": "kind:duplication",
       "name": "Duplicated code",
       "means": "The same structure written more than once; a fix in one copy can miss the others.",

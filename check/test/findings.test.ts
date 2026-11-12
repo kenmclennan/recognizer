@@ -37,6 +37,7 @@ function findingsByModule(
         cycle: true,
         orphan: true,
         unused_exports: false,
+        private_imports: true,
       },
     },
     { commit: "abc", modified: false },

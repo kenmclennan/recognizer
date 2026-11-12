@@ -26,7 +26,7 @@ function derived(): Committed {
       ...base.modules.map((module) =>
         module.id === refund ? { ...module, id: refunds } : module,
       ),
-      { id: fresh, kind: "module" },
+      { id: fresh, language: "python", kind: "module" },
     ],
     edges: [
       ...base.edges

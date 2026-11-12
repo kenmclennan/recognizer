@@ -3,6 +3,7 @@ sensors:
     warnings:
       cycle: true
       unused_exports: false
+      private_imports: true
       orphan:
         entry_points: ["packages/*/src/main.ts", "scripts/**"]
   unused-exports:
