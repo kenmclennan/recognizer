@@ -103,6 +103,24 @@ const facts = {};
   click(change.all("button").find((b) => b.textContent === "Legend"));
   facts.changeLegend = change.all(".canvas-legend .member-legend-row").filter((r) => !r.hidden).map((r) => r.textContent);
 
+  const elsewhere = { ...scanOf([order, helper]), commit: "other999", modules: [{ id: ID, kind: "module", members: [order, helper] }, { id: "p/b.py", kind: "module" }] };
+  const apartLoaded = loadedOf({ modules: [ID, "p/b.py"], scans: [{ file: "scan.json", scan: elsewhere }] });
+  const apartPort = fakeViews({ chg: make({ change: { base: "main", head: "feat" } }) });
+  apartPort.ranges.set("main..feat", { baseCommit: "cur1234", headCommit: "feat5678", merged: false, changes: [{ status: "M", path: ID }] });
+  apartPort.members.set("main..feat", { baseScans: [scanOf([order, helper, gone])], headScans: [scanOf([order, helper, fresh])], files: [{ path: ID, base_text: BASE_TEXT, head_text: HEAD_TEXT }] });
+  const apartHost = document.createElement("div");
+  apartHost.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
+  document.body.append(apartHost);
+  mountExplorer({ container: apartHost, loaded: apartLoaded, title: "demo", views: apartPort, post: () => null });
+  const apart = { host: apartHost, q: (s) => apartHost.querySelector(s), all: (s) => [...apartHost.querySelectorAll(s)] };
+  await tick();
+  await inspect(apart);
+  await tick(120);
+  facts.apart = {
+    bands: describeBands(apart).map((band) => band.title),
+    rows: apart.all(".card-code").map((node) => node.textContent),
+  };
+
   const unknownPort = fakeViews({ chg: make({ change: { base: "main", head: "feat" } }) });
   unknownPort.ranges.set("main..feat", { baseCommit: "cur1234", headCommit: "cur1234", merged: false, changes: [{ status: "M", path: ID }] });
   const unknown = mount({}, unknownPort);
@@ -141,6 +159,7 @@ type Facts = {
     calls: string[];
   };
   changeLegend: string[];
+  apart: { bands: string[]; rows: string[] };
   unknown: { bands: number; notes: string[]; calls: string[] };
 };
 
@@ -190,6 +209,11 @@ describe.skipIf(webkit === undefined)("member marks in a real browser", () => {
     ]);
     expect(f.change.removedStrike).toEqual(["line-through"]);
     expect(f.change.calls).toEqual(["main..feat"]);
+  });
+
+  it("marks and draws the head's members when the checkout is on another commit", () => {
+    expect([...f.apart.bands].sort()).toEqual(["added", "modified", "removed"]);
+    expect(f.apart.rows.some((row) => row.includes("fresh"))).toBe(true);
   });
 
   it("says marks could not be read, and draws none, when the range's members are unknown", () => {

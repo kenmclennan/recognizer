@@ -62,6 +62,7 @@ import {
   hiddenText,
 } from "./freshness-model";
 import { limitsFromText } from "./function-limits";
+import { drawnScans, headDrawn, withoutDrawn } from "./head-drawn";
 import { computeHealth, describeTree } from "./health";
 import {
   emphasisedLines,
@@ -311,6 +312,7 @@ type ChangeMembers =
   | {
       marks: Map<string, Map<string, MemberMarkKind> | null>;
       start: Scan[];
+      head: Scan[];
     };
 
 function freshnessOf(loaded: Loaded) {
@@ -1789,6 +1791,7 @@ export function showExplorer(
                 files: fetched.files,
               }),
               start: fetched.baseScans,
+              head: fetched.headScans,
             },
     };
     render();
@@ -3705,19 +3708,59 @@ export function showExplorer(
     });
   }
 
+  function headScansOpen(): Scan[] {
+    const info = changeInfo;
+
+    return info !== null &&
+      info.state === "ok" &&
+      info.name === openView &&
+      info.members !== null &&
+      info.members !== "loading"
+      ? info.members.head
+      : [];
+  }
+
+  function drawnModules(): ReadonlySet<string> {
+    const info = changeInfo;
+
+    if (
+      info === null ||
+      info.state !== "ok" ||
+      info.name !== openView ||
+      info.members === null ||
+      info.members === "loading"
+    ) {
+      return new Set();
+    }
+
+    return headDrawn({
+      scans,
+      headCommit: info.headCommit,
+      marked: info.marked,
+      marks: info.members.marks,
+      head: info.members.head,
+    });
+  }
+
   function renderInspector() {
+    const drawn = drawnModules();
+    const drawnHead = headScansOpen();
     const contentOf = (index: number) => {
       const panel = trail.panels[index];
       const root = index === 0;
 
       return inspectorContent(panel.selection, {
-        scans,
+        scans: drawnScans(scans, drawn, drawnHead),
         modules: loaded.modules,
         compaction,
         disc: context.disc,
-        findings: health.findings,
+        findings: (id) => (drawn.has(id) ? [] : health.findings(id)),
         findingRows: (id) =>
-          allFindings.filter((one) => one.record.evidence.modules.includes(id)),
+          drawn.has(id)
+            ? []
+            : allFindings.filter((one) =>
+                one.record.evidence.modules.includes(id),
+              ),
         onCanvas: modules.isOpen,
         expanded: root ? folds : panel.folds,
         showPrivate,
@@ -3729,7 +3772,7 @@ export function showExplorer(
           state: responsibilityOf(id),
           failure: describing.failure(id),
         }),
-        metrics: currentOverlays().metrics,
+        metrics: withoutDrawn(currentOverlays(), drawn).metrics,
         metricsOn: tickedMetrics().length > 0,
         limits: limitsFromText(scanConfig),
         proposed: (id) => currentPlan()?.proposed.get(id) ?? null,

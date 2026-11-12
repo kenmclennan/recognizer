@@ -86,7 +86,7 @@ function tooltipOf(overlay: Overlay): string {
   return `${producer} - at ${commit}${overlay.modified ? ", modified tree" : ""}`;
 }
 
-function largest(values: Record<string, MetricValue>): number {
+export function largest(values: Record<string, MetricValue>): number {
   let max = 0;
 
   for (const value of Object.values(values)) {
