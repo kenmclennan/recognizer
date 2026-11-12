@@ -3,6 +3,7 @@ import { executeCheck } from "./check-command.js";
 import type { Io } from "./cli.js";
 import { runConfig } from "./config-command.js";
 import { runDescribeCommand } from "./describe-command.js";
+import { runDoctor } from "./doctor-command.js";
 import { runHelp } from "./help.js";
 import { runLog } from "./log-command.js";
 import { runOpen } from "./open-command.js";
@@ -992,6 +993,44 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runPolicy,
+  },
+  {
+    name: "doctor",
+    summary:
+      "check that a repository's config, policy, scanners and sensors are valid and still match its code, with the command that fixes each problem",
+    usage: "recognizer doctor [REPOSITORY] [--json]",
+    arguments: [
+      {
+        name: "[REPOSITORY]",
+        description:
+          "the repository to check; defaults to the current directory. A fix command carries --repository <path> only when this is given",
+      },
+    ],
+    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    output: {
+      text: "for each area with a problem, its name and one indented line per problem with `fix: <command or instruction>` under it, then `not checked: <reason>` lines for a skipped area, and last `No problems` or `<n> problems`",
+      json: "{ repository, ok, problems, areas: [{ name: config|policy|scanners|sensors, skipped: string | null, problems: [{ code, subject, line, fix: { text, command: string | null } }] }] }",
+    },
+    exitCodes: [
+      { code: 0, meaning: "no problems" },
+      { code: 1, meaning: "at least one problem; the report names each" },
+      {
+        code: 2,
+        meaning:
+          "bad arguments, or the repository is not a directory; nothing was checked",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer doctor",
+        note: "check the repository in the current directory",
+      },
+      {
+        command: "recognizer doctor ../other --json",
+        note: "check another repository, for an agent or CI",
+      },
+    ],
+    run: runDoctor,
   },
   {
     name: "windows",
