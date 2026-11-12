@@ -310,3 +310,216 @@ describe("entry point HTML", () => {
     ).toEqual([]);
   });
 });
+
+describe("entry point manifest fields", () => {
+  it("reads a package.json with a leading byte order mark", () => {
+    expect(
+      marked({
+        "package.json": `﻿${JSON.stringify({ exports: { ".": "./index.mjs" } })}`,
+        "index.mjs": body,
+        "other.mjs": body,
+      }),
+    ).toEqual(["index.mjs"]);
+  });
+
+  it("marks the module field", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          module: "./esm.js",
+          main: "./cjs.js",
+        }),
+        "esm.js": body,
+        "cjs.js": body,
+        "other.js": body,
+      }),
+    ).toEqual(["cjs.js", "esm.js"]);
+  });
+
+  it("marks the browser string field and not its object form", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({ main: "a.js", browser: "b.js" }),
+        "a.js": body,
+        "b.js": body,
+      }),
+    ).toEqual(["a.js", "b.js"]);
+    expect(
+      marked({
+        "package.json": JSON.stringify({
+          main: "a.js",
+          browser: { "./a.js": "./b.js" },
+        }),
+        "a.js": body,
+        "b.js": body,
+      }),
+    ).toEqual(["a.js"]);
+  });
+
+  it("marks a zshy string", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({ zshy: "./src/index.ts" }),
+        "src/index.ts": body,
+        "src/other.ts": body,
+      }),
+    ).toEqual(["src/index.ts"]);
+  });
+
+  it("marks a zshy array", () => {
+    expect(
+      marked({
+        "package.json": JSON.stringify({ zshy: ["./src/a.ts", "./src/b.ts"] }),
+        "src/a.ts": body,
+        "src/b.ts": body,
+        "src/c.ts": body,
+      }),
+    ).toEqual(["src/a.ts", "src/b.ts"]);
+  });
+
+  it("marks nothing for a bare index.ts no manifest names", () => {
+    expect(
+      marked({ "src/index.ts": body, "src/main.ts": body, "lib.ts": body }),
+    ).toEqual([]);
+  });
+});
+
+describe("entry point config entry property", () => {
+  it("marks the module a tsdown entry array names and nothing else", () => {
+    expect(
+      marked({
+        "tsdown.config.ts": "export default { entry: ['src/index.ts'] };\n",
+        "src/index.ts": body,
+        "src/other.ts": body,
+      }),
+    ).toEqual(["src/index.ts", "tsdown.config.ts"]);
+  });
+
+  it("marks a string entry", () => {
+    expect(
+      marked({
+        "tsup.config.ts": "export default { entry: 'src/cli.ts' };\n",
+        "src/cli.ts": body,
+        "src/other.ts": body,
+      }),
+    ).toEqual(["src/cli.ts", "tsup.config.ts"]);
+  });
+
+  it("marks the values of an entry object", () => {
+    expect(
+      marked({
+        "tsup.config.ts":
+          "export default { entry: { a: 'src/a.ts', b: './src/b.ts' } };\n",
+        "src/a.ts": body,
+        "src/b.ts": body,
+        "src/c.ts": body,
+      }),
+    ).toEqual(["src/a.ts", "src/b.ts", "tsup.config.ts"]);
+  });
+
+  it("marks a glob and removes a negated match", () => {
+    expect(
+      marked({
+        "vite.config.ts":
+          "export default { pack: { entry: ['src/**/*.ts', '!src/**/internal.ts'] } };\n",
+        "src/a.ts": body,
+        "src/deep/b.ts": body,
+        "src/internal.ts": body,
+        "src/deep/internal.ts": body,
+        "lib/c.ts": body,
+      }).filter((id) => id !== "vite.config.ts"),
+    ).toEqual(["src/a.ts", "src/deep/b.ts"]);
+  });
+
+  it("reads build.lib.entry relative to the config's directory", () => {
+    expect(
+      marked({
+        "web/vite.config.ts":
+          "export default { build: { lib: { entry: 'src/main.js' } } };\n",
+        "web/src/main.js": body,
+        "web/src/other.js": body,
+        "src/main.js": body,
+      }),
+    ).toEqual(["web/src/main.js", "web/vite.config.ts"]);
+  });
+
+  it("does not mark an entry property outside a config file", () => {
+    expect(
+      marked({
+        "src/a.ts": "export default { entry: 'src/b.ts' };\n",
+        "src/b.ts": body,
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("entry point index.js default", () => {
+  const index = (manifest: Record<string, unknown>, extra = {}) =>
+    marked({
+      "pkg/package.json": JSON.stringify(manifest),
+      "pkg/index.js": body,
+      ...extra,
+    });
+
+  it("marks index.js when there is no main and no exports", () => {
+    expect(index({ name: "x" })).toEqual(["pkg/index.js"]);
+  });
+
+  it("marks it under private true", () => {
+    expect(index({ name: "x", private: true })).toEqual(["pkg/index.js"]);
+  });
+
+  it("is not suppressed by module, browser, bin or scripts", () => {
+    expect(
+      index({ module: "m.js", browser: "b.js", bin: "bin.js", scripts: {} }),
+    ).toEqual(["pkg/index.js"]);
+  });
+
+  it("marks main's value and not index.js", () => {
+    expect(index({ main: "lib.js" }, { "pkg/lib.js": body })).toEqual([
+      "pkg/lib.js",
+    ]);
+  });
+
+  it("marks exports leaves and not index.js", () => {
+    expect(index({ exports: { ".": "./e.js" } }, { "pkg/e.js": body })).toEqual(
+      ["pkg/e.js"],
+    );
+  });
+
+  it("marks nothing when the directory has no index.js", () => {
+    expect(marked({ "pkg/package.json": "{}", "pkg/other.js": body })).toEqual(
+      [],
+    );
+  });
+
+  it("does not mark an index.js in a subdirectory without its own package.json", () => {
+    expect(
+      marked({
+        "pkg/package.json": "{}",
+        "pkg/sub/index.js": body,
+      }),
+    ).toEqual([]);
+  });
+
+  it("does not mark a bare index.js with no package.json", () => {
+    expect(marked({ "pkg/index.js": body })).toEqual([]);
+  });
+
+  it("does not mark index.ts", () => {
+    expect(marked({ "pkg/package.json": "{}", "pkg/index.ts": body })).toEqual(
+      [],
+    );
+  });
+
+  it("marks exactly the package directory that has an index.js", () => {
+    expect(
+      marked({
+        "a/package.json": "{}",
+        "a/index.js": body,
+        "b/package.json": "{}",
+        "b/main.js": body,
+      }),
+    ).toEqual(["a/index.js"]);
+  });
+});
