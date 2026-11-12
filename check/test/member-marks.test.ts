@@ -361,3 +361,182 @@ describe("memberMarks absence and scope", () => {
     expect(result.get(OTHER)).toBeNull();
   });
 });
+
+describe("memberMarks on class fields", () => {
+  const cls = (
+    fields: { name: string; line: number }[],
+    methods: { name: string; line: number; end_line?: number }[] = [],
+  ): ScanMember => ({
+    name: "C",
+    exported: true,
+    kind: "class",
+    line: 1,
+    fields: fields.map((f) => ({ ...f, private: false })),
+    methods,
+  });
+  const text = (...lines: string[]) => lines.join("\n");
+  const base = text(
+    "class C:",
+    "    x: int = 0",
+    "    y = [",
+    "        1",
+    "    ]",
+  );
+
+  it("marks an added field", () => {
+    const head = text(base, "    z = 2");
+
+    expect(
+      run(
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+          ]),
+        ],
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+            { name: "z", line: 6 },
+          ]),
+        ],
+        head,
+        base,
+      ),
+    ).toEqual(new Map([["C#z", "added"]]));
+  });
+
+  it("marks a changed field", () => {
+    const head = base.replace("x: int = 0", "x: int = 1");
+
+    expect(
+      run(
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+          ]),
+        ],
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+          ]),
+        ],
+        head,
+        base,
+      ),
+    ).toEqual(new Map([["C#x", "modified"]]));
+  });
+
+  it("marks a removed field", () => {
+    const head = text("class C:", "    x: int = 0");
+
+    expect(
+      run(
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+          ]),
+        ],
+        [cls([{ name: "x", line: 2 }])],
+        head,
+        base,
+      ),
+    ).toEqual(new Map([["C#y", "removed"]]));
+  });
+
+  it("marks a multi-line field changed on its second line", () => {
+    const head = base.replace("        1", "        2");
+
+    expect(
+      run(
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+          ]),
+        ],
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+          ]),
+        ],
+        head,
+        base,
+      ),
+    ).toEqual(new Map([["C#y", "modified"]]));
+  });
+
+  it("marks only the method when it is added after the last field", () => {
+    const head = text(base, "", "    def m(self):", "        pass");
+
+    expect(
+      run(
+        [
+          cls([
+            { name: "x", line: 2 },
+            { name: "y", line: 3 },
+          ]),
+        ],
+        [
+          cls(
+            [
+              { name: "x", line: 2 },
+              { name: "y", line: 3 },
+            ],
+            [{ name: "m", line: 7, end_line: 8 }],
+          ),
+        ],
+        head,
+        base,
+      ),
+    ).toEqual(new Map([["C.m", "added"]]));
+  });
+
+  it("marks neither field when two fields are reordered", () => {
+    const start = text("class C:", "    a = 1", "    b = 2");
+    const head = text("class C:", "    b = 2", "    a = 1");
+
+    expect(
+      run(
+        [
+          cls([
+            { name: "a", line: 2 },
+            { name: "b", line: 3 },
+          ]),
+        ],
+        [
+          cls([
+            { name: "b", line: 2 },
+            { name: "a", line: 3 },
+          ]),
+        ],
+        head,
+        start,
+      ),
+    ).toEqual(new Map());
+  });
+
+  it("marks a field and a method of the same name independently", () => {
+    const start = text(
+      "class C:",
+      "    x = 1",
+      "    def x(self):",
+      "        a",
+    );
+    const head = text("class C:", "    x = 1", "    def x(self):", "        b");
+
+    expect(
+      run(
+        [cls([{ name: "x", line: 2 }], [{ name: "x", line: 3, end_line: 4 }])],
+        [cls([{ name: "x", line: 2 }], [{ name: "x", line: 3, end_line: 4 }])],
+        head,
+        start,
+      ),
+    ).toEqual(new Map([["C.x", "modified"]]));
+  });
+});

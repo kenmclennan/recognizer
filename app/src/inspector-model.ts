@@ -492,13 +492,15 @@ function classCard(
   }
 
   const fields = (member.fields ?? []).map(
-    (field): Placed<CardLine> => ({
+    (field): Placed<CardLine> & { key: string } => ({
       line: field.line,
+      key: `${member.name}#${field.name}`,
       item: {
         line: field.line,
         tokens: fieldTokens(field),
         private: field.private === true,
         size: null,
+        ...markOf(context, `${member.name}#${field.name}`),
       },
     }),
   );
@@ -515,13 +517,15 @@ function classCard(
       },
     }),
   );
-  const keyed = new Map(methods.map((method) => [method.item, method.key]));
+  const keyed = new Map(
+    [...fields, ...methods].map((entry) => [entry.item, entry.key]),
+  );
   const all = inFileOrder([...fields, ...methods]).map(({ item }) => item);
   const visible = showPrivate ? all : all.filter((line) => !line.private);
   const shown = withRemovedMethods(member, visible, keyed, context, largest);
   const hiddenFields = fields.filter(({ item }) => item.private).length;
   const hiddenMethods = methods.filter(({ item }) => item.private).length;
-  const hiddenMarked = methods.flatMap(({ item }) =>
+  const hiddenMarked = [...fields, ...methods].flatMap(({ item }) =>
     item.private && item.mark !== undefined ? [item.mark.word] : [],
   );
 
@@ -559,6 +563,23 @@ function withRemovedMethods(
 
   const removed = new Map<string, CardLine>();
   const starts: { key: string; line: number | null }[] = [];
+
+  for (const field of before.fields ?? []) {
+    const key = `${member.name}#${field.name}`;
+
+    starts.push({ key, line: field.line });
+
+    if (context.mark(context.module, key) === "removed") {
+      removed.set(key, {
+        line: null,
+        tokens: fieldTokens(field),
+        private: false,
+        size: null,
+        mark: memberMark("removed"),
+        look: "removed",
+      });
+    }
+  }
 
   for (const method of before.methods ?? []) {
     const key = `${member.name}.${method.name}`;

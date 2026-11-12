@@ -1,4 +1,4 @@
-import type { Scan, ScanMember } from "recognizer";
+import type { Scan, ScanField, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { compactFolders } from "./folder-compaction";
 import { DEFAULT_LIMITS } from "./function-limits";
@@ -146,6 +146,73 @@ describe("member marks in the inspector contents", () => {
 
     expect(cart?.mark).toBeUndefined();
     expect(cart?.hidden).toBe("2 private methods hidden, 1 added");
+  });
+
+  it("draws marks on added, changed and removed field rows", () => {
+    const withFields = (fields: ScanField[]): ScanMember => ({
+      ...klass("Cart", 1, [{ name: "total", line: 9, end_line: 10 }]),
+      fields,
+    });
+    const head = withFields([
+      { name: "a", line: 2, private: false },
+      { name: "b", line: 3, private: false },
+    ]);
+    const base = withFields([
+      { name: "b", line: 2, private: false },
+      { name: "c", line: 3, private: false },
+    ]);
+    const [cart] = cards(
+      [head],
+      { "Cart#a": "added", "Cart#b": "modified", "Cart#c": "removed" },
+      { start: () => [base] },
+    );
+    const row = (text: string) =>
+      cart?.lines.find(
+        (line) => line.tokens.map((token) => token.text).join("") === text,
+      );
+
+    expect(row("a")?.mark?.word).toBe("added");
+    expect(row("b")?.mark?.word).toBe("modified");
+    expect(row("c")).toMatchObject({
+      line: null,
+      look: "removed",
+      mark: { word: "removed" },
+    });
+  });
+
+  it("counts a marked private field in the hidden line", () => {
+    const priv: ScanMember = {
+      ...klass("Cart", 1, [{ name: "_m", line: 5, end_line: 6 }]),
+      fields: [{ name: "_x", line: 2, private: true }],
+    };
+
+    priv.methods = priv.methods?.map((method) => ({
+      ...method,
+      private: true,
+    }));
+
+    const [cart] = cards([priv], { "Cart#_x": "added" });
+
+    expect(cart?.hidden).toBe(
+      "1 private field, 1 private method hidden, 1 added",
+    );
+  });
+
+  it("shows a removed private field with Show private off and does not count it", () => {
+    const base: ScanMember = {
+      ...klass("Cart", 1, []),
+      fields: [{ name: "_x", line: 2, private: true }],
+    };
+    const head: ScanMember = { ...klass("Cart", 1, []), fields: [] };
+    const [cart] = cards(
+      [head],
+      { "Cart#_x": "removed" },
+      { start: () => [base] },
+    );
+
+    expect(cart?.lines).toHaveLength(1);
+    expect(cart?.lines[0]?.look).toBe("removed");
+    expect(cart?.hidden).toBe("");
   });
 
   it("draws no mark without a members input", () => {
