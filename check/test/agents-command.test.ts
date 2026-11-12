@@ -8,6 +8,7 @@ import { fakeIo } from "./scan-helpers.js";
 const HOME = "/home/u";
 const SETTINGS = `${HOME}/.claude/settings.json`;
 const SKILL = `${HOME}/.claude/skills/recognizer/SKILL.md`;
+const SETUP = `${HOME}/.claude/skills/recognizer-setup/SKILL.md`;
 const READ = "Read(**/.recognizer/**)";
 const EDIT = "Edit(**/.recognizer/**)";
 const READ_EXCEPT = "Read(!**/.recognizer/config.yaml)";
@@ -41,6 +42,7 @@ describe("agents install", () => {
     expect(fake.out()).toBe(
       [
         `wrote ${SKILL}`,
+        `wrote ${SETUP}`,
         ...FOUR.map((rule) => `added deny rule ${rule}`),
         "",
       ].join("\n"),
@@ -142,6 +144,31 @@ describe("agents install", () => {
     expect(fake.out()).toContain(`moved deny rule ${READ_EXCEPT}`);
   });
 
+  it("adds only the second skill to a home holding the first", () => {
+    const first = setup();
+
+    call(first, "install");
+
+    const fake = setup({
+      [SETTINGS]: first.files.get(SETTINGS) as string,
+      [SKILL]: first.files.get(SKILL) as string,
+    });
+
+    call(fake, "install");
+
+    expect(fake.out()).toBe(`wrote ${SETUP}\n`);
+    expect(fake.files.get(SETUP)).toContain("name: recognizer-setup");
+  });
+
+  it("reports a differing second skill as updated", () => {
+    const fake = setup({ [SETUP]: "old" });
+
+    call(fake, "install");
+
+    expect(fake.out()).toContain(`updated ${SETUP}`);
+    expect(fake.out()).not.toContain(`updated ${SKILL}`);
+  });
+
   it("reports a differing skill as updated", () => {
     const fake = setup({ [SKILL]: "old" });
 
@@ -181,6 +208,7 @@ describe("agents install", () => {
     expect(JSON.parse(fake.out())).toEqual({
       changes: [
         `wrote ${SKILL}`,
+        `wrote ${SETUP}`,
         ...FOUR.map((rule) => `added deny rule ${rule}`),
       ],
     });
@@ -218,6 +246,28 @@ describe("agents uninstall", () => {
     expect(fake.out()).toContain(`removed deny rule ${READ}`);
   });
 
+  it("removes both skills and keeps a folder that is not empty", () => {
+    const fake = setup();
+
+    call(fake, "install");
+    fake.files.set(`${HOME}/.claude/skills/recognizer-setup/notes.md`, "x");
+    call(fake, "uninstall");
+
+    expect(fake.files.has(SKILL)).toBe(false);
+    expect(fake.files.has(SETUP)).toBe(false);
+    expect(
+      fake.files.has(`${HOME}/.claude/skills/recognizer-setup/notes.md`),
+    ).toBe(true);
+  });
+
+  it("removes only the first skill from a home that holds only it", () => {
+    const fake = setup({ [SKILL]: "x" });
+
+    call(fake, "uninstall");
+
+    expect(fake.out()).toBe(`removed ${SKILL}\n`);
+  });
+
   it("reports no change the second time and with nothing installed", () => {
     const fake = setup();
 
@@ -244,6 +294,7 @@ describe("agents uninstall", () => {
     expect(JSON.parse(fake.out().slice(before))).toEqual({
       changes: [
         `removed ${SKILL}`,
+        `removed ${SETUP}`,
         ...FOUR.map((rule) => `removed deny rule ${rule}`),
       ],
     });

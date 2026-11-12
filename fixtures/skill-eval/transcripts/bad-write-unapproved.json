@@ -1,0 +1,20 @@
+[
+  {
+    "kind": "run",
+    "command": "recognizer scan --extract"
+  },
+  {
+    "kind": "propose",
+    "commands": [
+      "recognizer config --add-section sensors.crap"
+    ]
+  },
+  {
+    "kind": "run",
+    "command": "recognizer config --add-section sensors.crap"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer doctor"
+  }
+]

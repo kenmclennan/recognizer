@@ -1345,7 +1345,7 @@ export const COMMANDS: Command[] = [
       {
         name: "install|uninstall",
         description:
-          "install writes ~/.claude/skills/recognizer/SKILL.md, which points at `recognizer help agents`, and denies Read and Edit of **/.recognizer/** in ~/.claude/settings.json; uninstall reverses both",
+          "install writes ~/.claude/skills/recognizer/SKILL.md, which points at `recognizer help agents`, and ~/.claude/skills/recognizer-setup/SKILL.md, which walks a user through setting up or updating a repository, and denies Read and Edit of **/.recognizer/** in ~/.claude/settings.json; uninstall reverses both",
       },
     ],
     options: [

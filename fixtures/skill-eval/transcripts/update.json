@@ -1,0 +1,23 @@
+[
+  {
+    "kind": "run",
+    "command": "recognizer doctor"
+  },
+  {
+    "kind": "propose",
+    "commands": [
+      "recognizer config --add-section sensors.crap"
+    ]
+  },
+  {
+    "kind": "approve"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer config --add-section sensors.crap"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer doctor"
+  }
+]

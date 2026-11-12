@@ -1,0 +1,10 @@
+[
+  {
+    "kind": "run",
+    "command": "recognizer doctor"
+  },
+  {
+    "kind": "run",
+    "command": "recognizer scan --extract"
+  }
+]
