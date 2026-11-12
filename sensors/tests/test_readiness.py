@@ -262,6 +262,42 @@ def test_a_kotlin_suite_without_an_executable_gradlew_gives_that_gap(harness):
     ]
 
 
+def test_a_kotlin_module_suite_uses_the_gradlew_at_the_repository_root(harness):
+    kotlin_repository(harness, FIXTURES / "mutation" / "kotlin" / "build.gradle.kts", wrapper=False)
+    executable(harness.root / "gradlew", "#!/bin/sh\n")
+
+    gaps = check(harness.root, settings_of(raw("kotlin", name="app", directory="app")), False)
+
+    assert gaps == []
+
+
+def test_a_kotlin_module_suite_reads_jacoco_from_the_root_build_file(harness):
+    app = harness.root / "app"
+    app.mkdir()
+    shutil.copy(
+        FIXTURES / "kotlin" / "sample" / "app" / "build.gradle.kts", app / "build.gradle.kts"
+    )
+    shutil.copy(
+        FIXTURES / "mutation" / "kotlin" / "build.gradle.kts", harness.root / "build.gradle.kts"
+    )
+    executable(harness.root / "gradlew", "#!/bin/sh\n")
+    settings = settings_of(raw("kotlin", name="app", directory="app"))
+
+    assert check(harness.root, settings, False) == []
+
+    (harness.root / "build.gradle.kts").unlink()
+
+    assert codes(check(harness.root, settings, False)) == ["jacoco-missing"]
+
+
+def test_a_kotlin_module_suite_with_no_gradlew_up_to_the_root_keeps_the_gap(harness):
+    kotlin_repository(harness, FIXTURES / "mutation" / "kotlin" / "build.gradle.kts", wrapper=False)
+
+    gaps = check(harness.root, settings_of(raw("kotlin", name="app", directory="app")), False)
+
+    assert codes(gaps) == ["gradlew-missing"]
+
+
 def csharp_project(root, relative, text):
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -893,9 +929,8 @@ def test_the_guide_states_the_multi_project_facts(capsys):
     for fact in ("**/build/reports/jacoco", "--workspace", "--config ../../vitest.config.ts"):
         assert fact in out
 
-    assert (
-        "A suite per Gradle module is not supported: the readiness check looks for gradlew" in flat
-    )
+    assert "A suite per Gradle module also works: the readiness check uses the nearest" in flat
+    assert ":moshi:cleanTest :moshi:test :moshi:jacocoTestReport" in flat
     assert "ready does not say the whole workspace was covered" in flat
     assert (
         "pythonpath"

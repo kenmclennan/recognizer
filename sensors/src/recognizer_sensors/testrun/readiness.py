@@ -277,15 +277,44 @@ def names_jacoco(path: Path) -> bool:
     return "jacoco" in text and "xml" in text
 
 
-def kotlin_gaps(repository: Path, suite: Suite, directory: Path) -> list[dict]:
-    wrapper = directory / "gradlew"
+def nearest_gradlew(repository: Path, directory: Path) -> Path | None:
+    current = directory
 
-    if not (wrapper.is_file() and os.access(wrapper, os.X_OK)):
+    while True:
+        wrapper = current / "gradlew"
+
+        if wrapper.is_file() and os.access(wrapper, os.X_OK):
+            return wrapper
+
+        if current == repository or repository not in current.parents:
+            return None
+
+        current = current.parent
+
+
+def ancestor_build_files(directory: Path, top: Path) -> list[Path]:
+    found = []
+    current = directory
+
+    while current != top and top in current.parents:
+        current = current.parent
+        found.extend(
+            path for path in current.iterdir() if path.is_file() and GRADLE_FILE.search(path.name)
+        )
+
+    return found
+
+
+def kotlin_gaps(repository: Path, suite: Suite, directory: Path) -> list[dict]:
+    wrapper = nearest_gradlew(repository, directory)
+
+    if wrapper is None:
         return [suite_gap("gradlew-missing", suite, "gradlew is missing or not executable")]
 
     build_files = [
         path for path in listed_files(repository, directory) if GRADLE_FILE.search(path.name)
     ]
+    build_files.extend(ancestor_build_files(directory, wrapper.parent))
 
     if not any(names_jacoco(path) for path in build_files):
         return [
