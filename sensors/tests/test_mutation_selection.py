@@ -1,5 +1,7 @@
+import contextlib
 import hashlib
 import json
+import shutil
 import sys
 import threading
 import time
@@ -15,6 +17,7 @@ from recognizer_sensors.mutation import runner, sensor
 from recognizer_sensors.mutation.commands import mutant_command, selected_command
 from recognizer_sensors.mutation.warmup import coverage_run
 from recognizer_sensors.scans import read_scans
+from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun.contexts import PYTHON_DATA, ContextSelection, PythonContexts
 from recognizer_sensors.testrun.suites import parse_suites
 
@@ -790,3 +793,200 @@ def test_a_whole_suite_baseline_failing_after_the_deadline_keeps_the_earlier_ver
     assert survivors["complete"] is False
     assert survivors["unmeasured"]["budget"] >= 1
     assert "the test suite fails before any mutation" not in capsys.readouterr().err
+
+
+def prime_with(monkeypatch, filled, selection=None):
+    monkeypatch.setattr(
+        sensor,
+        "coverage_run",
+        lambda repository, scans, suites, work, seconds=None, **_: (
+            seconds.update(filled) if seconds is not None else None,
+            (
+                {"app/rules.py": {1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 9: 1, 10: 1, 13: 0, 14: 0}},
+                SELECTED if selection is None else selection,
+            ),
+        )[1],
+    )
+
+
+def test_a_primed_whole_suite_baseline_does_not_run(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    prime_with(monkeypatch, {"sample": 7.0})
+    seen = spy_commands(monkeypatch)
+    settings = strong_settings(incremental=False, max_workers=1, timeout_factor=3)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    assert (WHOLE_COMMAND, None) not in [(c, t) for c, t in seen]
+    wholes = [timeout for command, timeout in seen if command == STOPPING_WHOLE]
+
+    assert wholes
+    assert set(wholes) == {sensor.timeout_for(7.0, 3)}
+
+
+def test_a_suite_without_recorded_seconds_is_baselined_lazily_once(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    prime_with(monkeypatch, {"other-suite": 7.0})
+    seen = spy_commands(monkeypatch)
+    settings = strong_settings(incremental=False, max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    baselines = [command for command, timeout in seen if timeout is None]
+
+    assert baselines.count(WHOLE_COMMAND) == 1
+
+
+def two_suite_repository(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    shutil.copytree(root / "app", root / "web" / "app")
+    shutil.copytree(root / "tests", root / "web" / "tests")
+    scan = root / ".recognizer" / "cache" / "scan.python.json"
+    document = json.loads(scan.read_text())
+    document["files"].append({"path": "web/app/rules.py", "hash": "0" * 64})
+    document["modules"].append({"id": "web/app/rules.py"})
+    scan.write_text(json.dumps(document))
+    git_commit(root)
+
+    return root
+
+
+COVERED = {1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 9: 1, 10: 1, 13: 0, 14: 0}
+
+
+def test_a_primed_suite_runs_no_whole_baseline_beside_an_unprimed_one(tmp_path, monkeypatch):
+    root = two_suite_repository(tmp_path)
+    monkeypatch.setattr(
+        sensor,
+        "coverage_run",
+        lambda repository, scans, suites, work, seconds=None, **_: (
+            seconds.update({"root": 7.0}) if seconds is not None else None,
+            ({"app/rules.py": COVERED, "web/app/rules.py": COVERED}, {}),
+        )[1],
+    )
+    seen = []
+    real = runner.run_test_command
+
+    def spy(command, cwd, timeout, suite=None, extra=None):
+        seen.append((suite.name, list(command), timeout))
+
+        return real([sys.executable, "tests/strong.py"], cwd, timeout, suite=suite)
+
+    monkeypatch.setattr(runner, "run_test_command", spy)
+    monkeypatch.setattr(sensor, "run_test_command", spy)
+    settings = json.dumps(
+        {
+            "tests": [
+                python_suite("tests/strong.py", name="root"),
+                python_suite("tests/strong.py", name="web", directory="web"),
+            ],
+            "incremental": False,
+            "max_workers": 1,
+        }
+    )
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    baselines = [(name, command) for name, command, timeout in seen if timeout is None]
+    mutants = {name for name, _, timeout in seen if timeout is not None}
+
+    assert baselines.count(("root", WHOLE_COMMAND)) == 0
+    assert baselines.count(("web", WHOLE_COMMAND)) == 1
+    assert mutants == {"root", "web"}
+
+
+def refusing_after(monkeypatch, finished):
+    real = sensor.run_function
+    calls = {"count": 0}
+    lock = threading.Lock()
+
+    def run(*args, **extra):
+        with lock:
+            calls["count"] += 1
+            number = calls["count"]
+
+        if number > finished:
+            raise sensor.Refusal(sensor.mutation_tests_failed([]))
+
+        return real(*args, **extra)
+
+    monkeypatch.setattr(sensor, "run_function", run)
+
+
+def test_a_refusal_after_mutants_ran_keeps_their_verdicts(tmp_path, monkeypatch, capsys):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    spy_commands(monkeypatch)
+    refusing_after(monkeypatch, 1)
+    settings = strong_settings(incremental=False, max_workers=1)
+    output = tmp_path / "overlay.json"
+
+    assert run_mutate(root, output, settings) == 2
+
+    survivors = read(root / SURVIVORS)
+    findings = read(output.with_name("findings-overlay.json"))
+    last = capsys.readouterr().err.strip().splitlines()[-1]
+
+    finished = [
+        name
+        for name, entry in read(root / RECORD)["functions"].items()
+        if any(verdict is not None for verdict in entry["verdicts"])
+    ]
+
+    assert len(finished) == 1
+    assert survivors["complete"] is False
+    assert survivors["unmeasured"]["budget"] >= 1
+    assert len(survivors["skipped"]) == survivors["unmeasured"]["budget"]
+    assert findings["diagnosis"]["line"].startswith("the run ended early: ")
+    assert last == findings["diagnosis"]["line"]
+    assert (root / RECORD).exists()
+
+
+def test_a_refusal_before_any_function_finished_is_unchanged(tmp_path, monkeypatch, capsys):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, SELECTED)
+    spy_commands(monkeypatch)
+    refusing_after(monkeypatch, 0)
+    settings = strong_settings(incremental=False, max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+
+    assert not (root / SURVIVORS).exists()
+    assert capsys.readouterr().err.strip().splitlines()[-1] == (
+        "the test suite fails before any mutation"
+    )
+
+
+def test_a_failing_baseline_leaves_its_tail_and_the_omitted_paths(tmp_path, monkeypatch, capsys):
+    root, _ = mutate_repository(tmp_path)
+    (root / ".gitignore").write_text(".venv/\n")
+    (root / ".venv").mkdir()
+    (root / ".venv" / "x").write_text("")
+    fake_selection(monkeypatch, {})
+    real = runner.run_test_command
+    monkeypatch.setattr(
+        sensor,
+        "run_test_command",
+        lambda c, cwd, t, suite=None, extra=None: real(
+            [sys.executable, "-c", "print('boom'); exit(1)"], cwd, t, suite=suite
+        ),
+    )
+    settings = strong_settings(incremental=False, max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+
+    log = (root / sensor.BASELINE_LOG).read_text()
+
+    assert "boom" in log
+    assert ".venv/" in log
+    assert sensor.CARRY_HINT in capsys.readouterr().err
+
+    with contextlib.suppress(Refusal):
+        coverage_run(
+            root,
+            read_scans(root),
+            parse_suites([python_suite("tests/strong.py")]),
+            tmp_path / "later-work",
+        )
+
+    assert (root / sensor.BASELINE_LOG).read_text() == log

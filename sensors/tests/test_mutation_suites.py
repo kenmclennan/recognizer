@@ -489,6 +489,7 @@ def test_kotlin_outside_the_root_and_a_language_with_two_suites_run_the_whole_su
     ]
 
 
+@pytest.mark.usefixtures("unprimed")
 @pytest.mark.parametrize("outcome", ["finished", "red", "stopped_by_the_refusal"])
 def test_no_run_leaves_a_work_folder_or_a_python_env_behind(tmp_path, outcome):
     root, _ = mutate_repository(tmp_path)

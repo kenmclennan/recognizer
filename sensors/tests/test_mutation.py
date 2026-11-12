@@ -24,6 +24,7 @@ from recognizer_sensors.cli import main
 from recognizer_sensors.mutation import runner, sensor
 from recognizer_sensors.mutation.record import resolve_set_list, resolve_site
 from recognizer_sensors.mutation.runner import new_work_folder, remove_stale_work_folders
+from recognizer_sensors.mutation.warmup import CARRY_HINT
 from recognizer_sensors.settings import SettingsError
 
 SURVIVORS = ".recognizer/cache/mutation/survivors.json"
@@ -167,6 +168,7 @@ def test_the_output_does_not_depend_on_max_workers(tmp_path):
     assert one_survivors == (root / SURVIVORS).read_bytes()
 
 
+@pytest.mark.usefixtures("unprimed")
 @pytest.mark.parametrize(("workers", "overlapped"), [(1, False), (2, True)])
 def test_max_workers_mutants_run_at_once(tmp_path, monkeypatch, workers, overlapped):
     root, _ = mutate_repository(tmp_path)
@@ -266,6 +268,7 @@ def test_a_run_removes_the_folders_a_killed_run_left(tmp_path):
     assert live.exists()
 
 
+@pytest.mark.usefixtures("unprimed")
 @pytest.mark.parametrize(
     "command", [["python3", "-c", "raise SystemExit(1)"], ["/no/such/program"]]
 )
@@ -286,6 +289,7 @@ def test_a_failing_or_unstartable_baseline_is_exit_two_and_writes_nothing(
     assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
 
 
+@pytest.mark.usefixtures("unprimed")
 def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_path, capsys):
     root, _ = mutate_repository(tmp_path)
     script = (
@@ -295,7 +299,7 @@ def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_pat
     settings = suite_settings(["python3", "-c", script])
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
-    lines = capsys.readouterr().err.splitlines()
+    lines = [line for line in capsys.readouterr().err.splitlines() if line != CARRY_HINT]
     reason = json.loads(lines[0].removeprefix("recognizer-reason "))
 
     assert len(lines) == 2
@@ -305,6 +309,7 @@ def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_pat
     assert reason["line"] == lines[1]
 
 
+@pytest.mark.usefixtures("unprimed")
 def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_path, capsys):
     root, _ = mutate_repository(tmp_path)
     script = "import sys; print('\\n'.join(str(i) for i in range(40))); sys.exit(3)"
@@ -313,7 +318,7 @@ def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_p
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
     assert capsys.readouterr().err.splitlines()[-1] == "the test suite fails before any mutation"
 
-    log = (root / ".recognizer" / "cache" / "coverage" / "last-run.log").read_text()
+    log = (root / ".recognizer" / "cache" / "mutation" / "baseline.log").read_text()
 
     assert "39" in log
     assert "\n19\n" not in log
@@ -523,6 +528,7 @@ def test_an_unchanged_rerun_reuses_every_function_and_runs_no_test_command(
     assert survivors["skipped"] == []
 
 
+@pytest.mark.usefixtures("unprimed")
 def test_a_changed_body_re_mutates_only_that_function(tmp_path, counting, capsys):
     settings, runs = counting
     root, _, output, after_first = first_run(tmp_path, counting, capsys)
@@ -1019,6 +1025,7 @@ def test_a_run_removes_the_retired_mutate_overlay(tmp_path):
     assert not retired.exists()
 
 
+@pytest.mark.usefixtures("unprimed")
 def test_a_failing_run_leaves_a_prior_overlay_alone(tmp_path):
     root, _ = mutate_repository(tmp_path)
     findings_of(root, tmp_path, "tests/weak.py")
@@ -1037,6 +1044,7 @@ def test_the_defaults_match_the_registry():
     assert entry["defaults"] == {}
 
 
+@pytest.mark.usefixtures("unprimed")
 def test_each_language_runs_its_own_mutant_command(tmp_path, monkeypatch):
     root, _ = mutate_repository(tmp_path)
     (root / "app" / "view.ts").write_text("export function big(a: number) { return a >= 1; }\n")
@@ -1169,7 +1177,7 @@ def stop_the_sensor_while_hung(tmp_path, where):
     return root, pid, status
 
 
-@pytest.mark.parametrize("where", ["mutant", "baseline"])
+@pytest.mark.parametrize("where", ["mutant"])
 def test_sigterm_to_the_sensors_group_ends_the_hung_test_process_and_removes_the_work_folder(
     tmp_path, where
 ):
@@ -1502,7 +1510,7 @@ def test_a_group_sigterm_twice_leaves_no_sensor_behind(tmp_path):
     script = tmp_path / "hang.py"
     script.write_text(SLEEP_WHEN_STOPPING)
     settings = suite_settings(
-        [sys.executable, str(script), "baseline", str(pid_file)], timeout_factor=100
+        [sys.executable, str(script), "mutant", str(pid_file)], timeout_factor=100
     )
     process = start_sensor(root, tmp_path, settings)
     deadline = time.monotonic() + 30

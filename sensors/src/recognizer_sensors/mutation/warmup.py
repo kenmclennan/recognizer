@@ -625,6 +625,7 @@ def coverage_run(
     suites: tuple[Suite, ...] | list[Suite],
     work: Path,
     carry: tuple[str, ...] = (),
+    seconds: dict[str, float] | None = None,
 ) -> tuple[Coverage, Selection | ContextSelection]:
     scanned = [scan.language for scan in scans]
     runnable = [suite for suite in suites if suite.language in scanned]
@@ -662,7 +663,9 @@ def coverage_run(
 
         started = time.time()
         started_at.setdefault(suite.language, started)
+        began = time.monotonic()
         exit_code, output = run_suite_in(repository, copy, suite, command, extra)
+        elapsed = time.monotonic() - began
 
         if suite_failed(suite.language, exit_code, output):
             print(CARRY_HINT, file=sys.stderr)
@@ -673,6 +676,9 @@ def coverage_run(
             )
 
             raise Refusal(mutation_tests_failed(names))
+
+        if seconds is not None:
+            seconds[suite.name] = elapsed
 
         source = source_of(suite)
         where = report_pattern(suite)

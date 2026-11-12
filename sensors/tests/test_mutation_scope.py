@@ -164,6 +164,7 @@ def test_out_of_scope_results_survive_in_every_output(two_modules, tmp_path, cap
     assert read(root, SURVIVORS)["complete"] is True
 
 
+@pytest.mark.usefixtures("unprimed")
 def test_a_scoped_run_mutates_only_in_scope_changed_functions(two_modules, tmp_path):
     root, _, script, log = two_modules
     settings = settings_for(script)

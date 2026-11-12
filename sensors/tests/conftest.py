@@ -160,6 +160,18 @@ def plain_shell(monkeypatch):
     monkeypatch.setenv("SHELL", "/bin/sh")
 
 
+@pytest.fixture
+def unprimed(monkeypatch):
+    from recognizer_sensors.mutation import sensor
+
+    real = sensor.coverage_run
+
+    def without_seconds(*args, seconds=None, **kwargs):
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(sensor, "coverage_run", without_seconds)
+
+
 def write_scan_document(
     root: Path, language: str, modules: list[dict], edges: list[dict], files: list[str]
 ) -> None:
