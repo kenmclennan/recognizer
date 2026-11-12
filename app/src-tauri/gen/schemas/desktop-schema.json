@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, read the describer in effect, read the describing settings and add or remove one in the config, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-recent-views`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-scan-ticks`\n- `allow-write-structure`\n- `allow-write-view`",
+          "description": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, list its commits and branches and the facts of a ref, read its open pull requests through gh, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, read the describer in effect, read the describing settings and add or remove one in the config, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-branches`\n- `allow-list-history`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-pull-requests`\n- `allow-read-recent-views`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-ref-facts`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-scan-ticks`\n- `allow-write-structure`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, read the describer in effect, read the describing settings and add or remove one in the config, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-recent-views`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-scan-ticks`\n- `allow-write-structure`\n- `allow-write-view`"
+          "markdownDescription": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, list its commits and branches and the facts of a ref, read its open pull requests through gh, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, read the describer in effect, read the describing settings and add or remove one in the config, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-branches`\n- `allow-list-history`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-pull-requests`\n- `allow-read-recent-views`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-ref-facts`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-scan-ticks`\n- `allow-write-structure`\n- `allow-write-view`"
         },
         {
           "description": "Read and write the app's settings\n#### This permission set includes:\n\n- `allow-read-settings`\n- `allow-write-settings`",
@@ -217,6 +217,18 @@
           "type": "string",
           "const": "allow-choose-folder",
           "markdownDescription": "Enables the choose_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_branches command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-branches",
+          "markdownDescription": "Enables the list_branches command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-history",
+          "markdownDescription": "Enables the list_history command without any pre-configured scope."
         },
         {
           "description": "Enables the list_views command without any pre-configured scope.",
@@ -265,6 +277,12 @@
           "type": "string",
           "const": "allow-read-overlays",
           "markdownDescription": "Enables the read_overlays command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_pull_requests command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-pull-requests",
+          "markdownDescription": "Enables the read_pull_requests command without any pre-configured scope."
         },
         {
           "description": "Enables the read_recent_views command without any pre-configured scope.",
@@ -319,6 +337,12 @@
           "type": "string",
           "const": "allow-record-recent-view",
           "markdownDescription": "Enables the record_recent_view command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ref_facts command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ref-facts",
+          "markdownDescription": "Enables the ref_facts command without any pre-configured scope."
         },
         {
           "description": "Enables the remove_findings command without any pre-configured scope.",
@@ -483,6 +507,18 @@
           "markdownDescription": "Denies the choose_folder command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_branches command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-branches",
+          "markdownDescription": "Denies the list_branches command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-history",
+          "markdownDescription": "Denies the list_history command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_views command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-views",
@@ -529,6 +565,12 @@
           "type": "string",
           "const": "deny-read-overlays",
           "markdownDescription": "Denies the read_overlays command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_pull_requests command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-pull-requests",
+          "markdownDescription": "Denies the read_pull_requests command without any pre-configured scope."
         },
         {
           "description": "Denies the read_recent_views command without any pre-configured scope.",
@@ -583,6 +625,12 @@
           "type": "string",
           "const": "deny-record-recent-view",
           "markdownDescription": "Denies the record_recent_view command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ref_facts command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ref-facts",
+          "markdownDescription": "Denies the ref_facts command without any pre-configured scope."
         },
         {
           "description": "Denies the remove_findings command without any pre-configured scope.",

@@ -661,6 +661,108 @@ impl ToolRunner {
         Ok(process)
     }
 
+    pub fn external_command(&self, name: &str) -> Result<Command, ToolFault> {
+        let environment = self.environment_for().ok_or_else(|| ToolFault::Missing {
+            tool: name.to_string(),
+        })?;
+        let program = environment.find(name).ok_or_else(|| {
+            self.forget_stale_environment();
+
+            ToolFault::Missing {
+                tool: name.to_string(),
+            }
+        })?;
+        let mut process = Command::new(program);
+
+        process.env_clear().envs(environment.pairs.iter().cloned());
+
+        Ok(process)
+    }
+
+    pub fn run_external(
+        &self,
+        name: &str,
+        args: &[&str],
+        folder: &Path,
+        timeout: Duration,
+    ) -> Result<Captured, ToolFault> {
+        let mut process = self.external_command(name)?;
+
+        process
+            .args(args)
+            .current_dir(folder)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+
+            process.process_group(0);
+        }
+
+        self.limiter.run(|| {
+            let missing = || ToolFault::Missing {
+                tool: name.to_string(),
+            };
+            let mut child = process.spawn().map_err(|_| missing())?;
+            let mut stdout = child.stdout.take().ok_or_else(missing)?;
+            let mut stderr = child.stderr.take().ok_or_else(missing)?;
+            let out = std::thread::spawn(move || {
+                let mut bytes = Vec::new();
+
+                let _ = stdout.read_to_end(&mut bytes);
+
+                bytes
+            });
+            let err = std::thread::spawn(move || {
+                let mut bytes = Vec::new();
+
+                let _ = stderr.read_to_end(&mut bytes);
+
+                bytes
+            });
+            let deadline = Instant::now() + timeout;
+
+            let status = loop {
+                match child.try_wait() {
+                    Ok(Some(status)) => break Some(status),
+                    Ok(None) if Instant::now() < deadline => {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    _ => {
+                        kill_group(child.id());
+
+                        let _ = child.kill();
+                        let _ = child.wait();
+
+                        break None;
+                    }
+                }
+            };
+            let stdout = out.join().unwrap_or_default();
+            let stderr = err.join().unwrap_or_default();
+
+            Ok(match status {
+                Some(status) => Captured {
+                    code: status.code(),
+                    stdout: String::from_utf8_lossy(&stdout).into_owned(),
+                    stderr: String::from_utf8_lossy(&stderr).into_owned(),
+                },
+                None => Captured {
+                    code: None,
+                    stdout: String::new(),
+                    stderr: format!("{name} did not answer within {} seconds", timeout.as_secs()),
+                },
+            })
+        })
+    }
+
+    pub fn limited<T>(&self, work: impl FnOnce() -> T) -> T {
+        self.limiter.run(work)
+    }
+
     pub fn check_all(&self) -> Result<(), ToolFault> {
         if self.toolchain.unchecked() {
             return Ok(());

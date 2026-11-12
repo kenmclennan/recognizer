@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ref-facts"
+description = "Enables the ref_facts command without any pre-configured scope."
+commands.allow = ["ref_facts"]
+
+[[permission]]
+identifier = "deny-ref-facts"
+description = "Denies the ref_facts command without any pre-configured scope."
+commands.deny = ["ref_facts"]

@@ -5,6 +5,7 @@ use tauri::{
 };
 
 pub mod changes;
+pub mod commits;
 pub mod editor;
 pub mod fs_safe;
 pub mod in_file_tests;
@@ -1449,6 +1450,51 @@ async fn range_members(
 }
 
 #[tauri::command]
+async fn list_history(app: AppHandle, window: WebviewWindow) -> Result<commits::History, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || commits::list_history(&folder))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn list_branches(app: AppHandle, window: WebviewWindow) -> Result<commits::Branches, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || commits::list_branches(&folder))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn ref_facts(
+    app: AppHandle,
+    window: WebviewWindow,
+    refs: Vec<String>,
+) -> Result<Vec<commits::RefFacts>, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || commits::ref_facts(&folder, &refs))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn read_pull_requests(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<commits::PullRequests, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        commits::read_pull_requests(tool_runner::runner(), &folder)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn watch_views(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1581,6 +1627,10 @@ pub fn run() {
             read_scan_ticks,
             run_scan,
             range_members,
+            list_history,
+            list_branches,
+            ref_facts,
+            read_pull_requests,
             scans_at,
             stop_scan,
             answer_describe,
