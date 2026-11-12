@@ -36,6 +36,7 @@ describe("windowStateOf", () => {
           folded: ["z", "y"],
           focus: null,
           selection: { kind: "module", id: "a.py" },
+          draft: null,
         },
         trail,
         { open: true, tab: "dependencies" },
@@ -70,9 +71,34 @@ describe("windowStateOf", () => {
     });
   });
 
+  it("publishes no view for an unsaved change view so the socket contract is unchanged", () => {
+    const state = windowStateOf(
+      {
+        view: "(unsaved)",
+        modules: [],
+        folded: [],
+        focus: null,
+        selection: null,
+        draft: { base: "main", head: "feature/x" },
+      },
+      { panels: [panel(null, null, "contents")], start: 0, active: 0, cap: 3 },
+      { open: false, tab: "contents" },
+    );
+
+    expect(state.view).toBeNull();
+    expect(Object.keys(state)).not.toContain("draft");
+  });
+
   it("holds no schema_version and no id or folder", () => {
     const state = windowStateOf(
-      { view: null, modules: [], folded: [], focus: null, selection: null },
+      {
+        view: null,
+        modules: [],
+        folded: [],
+        focus: null,
+        selection: null,
+        draft: null,
+      },
       { panels: [panel(null, null, "contents")], start: 0, active: 0, cap: 3 },
       { open: false, tab: "contents" },
     );

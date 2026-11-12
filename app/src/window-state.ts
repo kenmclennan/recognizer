@@ -7,6 +7,7 @@ export type Snapshot = {
   folded: string[];
   focus: string | null;
   selection: { kind: "module" | "folder" | "edge"; id: string } | null;
+  draft: { base: string; head: string } | null;
 };
 
 export type WindowTrailPanel = {
@@ -32,7 +33,7 @@ export function windowStateOf(
   inspector: { open: boolean; tab: InspectorTab },
 ): WindowState {
   return {
-    view: snapshot.view,
+    view: snapshot.draft === null ? snapshot.view : null,
     modules: [...snapshot.modules].sort((a, b) => a.localeCompare(b)),
     folded: [...snapshot.folded].sort((a, b) => a.localeCompare(b)),
     focus: snapshot.focus,

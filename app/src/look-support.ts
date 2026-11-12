@@ -1,4 +1,5 @@
 import type { Scheduler } from "./bar-hover";
+import type { CommitsPort } from "./commits-port";
 import type { EditorPort } from "./editor-port";
 import {
   type Carried,
@@ -60,6 +61,7 @@ export type ExplorerOptions = {
   withdraw?: (id: number) => void;
   reconcileMessages?: (foundKeys: readonly string[]) => void;
   comparisons?: ViewComparisons;
+  commits?: CommitsPort;
 };
 
 export function mountExplorer(options: ExplorerOptions): Explorer {
@@ -80,5 +82,6 @@ export function mountExplorer(options: ExplorerOptions): Explorer {
     options.withdraw,
     options.reconcileMessages,
     options.comparisons,
+    options.commits,
   );
 }
